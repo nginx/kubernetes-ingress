@@ -8,7 +8,15 @@ spec:
   tls:
     secret: cafe-secret
   routes:
-  - path: /tea
-    route: tea/tea
-  - path: /coffee
-    route: coffee/coffee
+#  - path: /tea
+#    route: tea/tea
+#  - path: /coffee
+#    route: coffee/coffee
+#  - path: /coffee
+#    routeSelector:
+#      matchLabels:
+#       route: coffee
+  - path: /
+    routeSelector:
+      matchLabels:
+        app: cafe

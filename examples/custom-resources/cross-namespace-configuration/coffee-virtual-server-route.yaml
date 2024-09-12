@@ -3,6 +3,9 @@ kind: VirtualServerRoute
 metadata:
   name: coffee
   namespace: coffee
+  labels:
+    route: coffee
+    app: cafe
 spec:
   host: cafe.example.com
   upstreams:

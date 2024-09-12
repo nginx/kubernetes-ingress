@@ -274,7 +274,8 @@ type Route struct {
 	// A list of policies. The policies override the policies of the same type defined in the spec of the VirtualServer.
 	Policies []PolicyReference `json:"policies"`
 	// The name of a VirtualServerRoute resource that defines this route. If the VirtualServerRoute belongs to a different namespace than the VirtualServer, you need to include the namespace. For example, tea-namespace/tea.
-	Route string `json:"route"`
+	Route         string                `json:"route"`
+	RouteSelector *metav1.LabelSelector `json:"routeSelector"`
 	// The default action to perform for a request.
 	Action *Action `json:"action"`
 	// The default splits configuration for traffic splitting. Must include at least 2 splits.

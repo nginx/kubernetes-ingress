@@ -2,6 +2,8 @@ package k8s
 
 import (
 	"fmt"
+	"github.com/golang/glog"
+	"k8s.io/apimachinery/pkg/labels"
 	"reflect"
 	"sort"
 	"strings"
@@ -580,6 +582,7 @@ func (c *Configuration) AddOrUpdateVirtualServerRoute(vsr *conf_v1.VirtualServer
 	if !c.hasCorrectIngressClass(vsr) {
 		delete(c.virtualServerRoutes, key)
 	} else {
+		glog.Infof("labels: %v", vsr.ObjectMeta.Labels)
 		validationError = c.virtualServerValidator.ValidateVirtualServerRoute(vsr)
 		if validationError != nil {
 			delete(c.virtualServerRoutes, key)
@@ -1653,32 +1656,57 @@ func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*
 	var warnings []string
 
 	for _, r := range vs.Spec.Routes {
-		if r.Route == "" {
-			continue
+		if r.Route != "" {
+			vsrKey := r.Route
+
+			// if route is defined without a namespace, use the namespace of VirtualServer.
+			if !strings.Contains(r.Route, "/") {
+				vsrKey = fmt.Sprintf("%s/%s", vs.Namespace, r.Route)
+			}
+
+			vsr, exists := c.virtualServerRoutes[vsrKey]
+
+			// if route is defined
+			if !exists {
+				warning := fmt.Sprintf("VirtualServerRoute %s doesn't exist or invalid", vsrKey)
+				warnings = append(warnings, warning)
+				continue
+			}
+
+			err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(vsr, vs.Spec.Host, r.Path)
+			if err != nil {
+				warning := fmt.Sprintf("VirtualServerRoute %s is invalid: %v", vsrKey, err)
+				warnings = append(warnings, warning)
+				continue
+			}
+
+			vsrs = append(vsrs, vsr)
+		} else if r.RouteSelector != nil {
+			selector := &metav1.LabelSelector{
+				MatchLabels: r.RouteSelector.MatchLabels,
+			}
+			sel, err := metav1.LabelSelectorAsSelector(selector)
+
+			if err != nil {
+				warning := fmt.Sprintf("VirtualServerRoute LabelSelector %s is invalid: %v", selector, err)
+				warnings = append(warnings, warning)
+				continue
+			}
+			for vsrKey, vsr := range c.virtualServerRoutes {
+				if sel.Matches(labels.Set(vsr.ObjectMeta.Labels)) {
+					err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(vsr, vs.Spec.Host, r.Path)
+					if err != nil {
+						warning := fmt.Sprintf("VirtualServerRoute %s is invalid: %v", vsrKey, err)
+						warnings = append(warnings, warning)
+						continue
+					}
+					glog.Infof("VirtualServerRoute %s found for label selector %v", vsrKey, selector)
+					vsrs = append(vsrs, vsr)
+				}
+			}
+
 		}
 
-		vsrKey := r.Route
-
-		// if route is defined without a namespace, use the namespace of VirtualServer.
-		if !strings.Contains(r.Route, "/") {
-			vsrKey = fmt.Sprintf("%s/%s", vs.Namespace, r.Route)
-		}
-
-		vsr, exists := c.virtualServerRoutes[vsrKey]
-		if !exists {
-			warning := fmt.Sprintf("VirtualServerRoute %s doesn't exist or invalid", vsrKey)
-			warnings = append(warnings, warning)
-			continue
-		}
-
-		err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(vsr, vs.Spec.Host, r.Path)
-		if err != nil {
-			warning := fmt.Sprintf("VirtualServerRoute %s is invalid: %v", vsrKey, err)
-			warnings = append(warnings, warning)
-			continue
-		}
-
-		vsrs = append(vsrs, vsr)
 	}
 
 	return vsrs, warnings
