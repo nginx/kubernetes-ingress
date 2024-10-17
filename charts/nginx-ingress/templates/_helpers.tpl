@@ -316,6 +316,10 @@ Build the args for the service binary.
 - -default-https-listener-port={{ .Values.controller.defaultHTTPSListenerPort}}
 {{- if .Values.controller.globalConfiguration.create }}
 - -global-configuration=$(POD_NAMESPACE)/{{ include "nginx-ingress.controller.fullname" . }}
+{{- else }}
+{{- if .Values.controller.globalConfigurationCustomName }}
+- -global-configuration={{ .Values.controller.globalConfigurationCustomName }}
+{{- end }}
 {{- end }}
 {{- end }}
 - -ready-status={{ .Values.controller.readyStatus.enable }}

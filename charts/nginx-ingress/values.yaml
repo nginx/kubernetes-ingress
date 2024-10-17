@@ -417,6 +417,10 @@ controller:
     #   port: 5353
     #   protocol: TCP
 
+  ## globalConfigurationCustomName: "the-namespace/the-name-of-the-global-configuration-custom-resource"
+  ## The name of the GlobalConfiguration custom resource to use instead of the one provided by default when controller.globalConfiguration.create is set to false.
+  ## See: https://github.com/nginxinc/kubernetes-ingress/tree/v3.6.2/examples/custom-resources/custom-listeners#prerequisites
+
   ## Enable custom NGINX configuration snippets in Ingress, VirtualServer, VirtualServerRoute and TransportServer resources.
   enableSnippets: false
 

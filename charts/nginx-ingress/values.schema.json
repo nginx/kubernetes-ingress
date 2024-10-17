@@ -1185,6 +1185,14 @@
             }
           ]
         },
+	"globalConfigurationCustomName": {
+	  "type": "string",
+	  "default": "",
+	  "title": "The globalConfigurationCustomName",
+	  "examples": [
+	    "the-namespace/the-name-of-the-global-configuration-custom-resource"
+	  ]
+	},
         "enableSnippets": {
           "type": "boolean",
           "default": false,
