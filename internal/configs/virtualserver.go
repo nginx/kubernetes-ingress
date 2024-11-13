@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
@@ -87,24 +89,25 @@ type PodInfo struct {
 
 // VirtualServerEx holds a VirtualServer along with the resources that are referenced in this VirtualServer.
 type VirtualServerEx struct {
-	VirtualServer       *conf_v1.VirtualServer
-	HTTPPort            int
-	HTTPSPort           int
-	HTTPIPv4            string
-	HTTPIPv6            string
-	HTTPSIPv4           string
-	HTTPSIPv6           string
-	Endpoints           map[string][]string
-	VirtualServerRoutes []*conf_v1.VirtualServerRoute
-	ExternalNameSvcs    map[string]bool
-	Policies            map[string]*conf_v1.Policy
-	PodsByIP            map[string]PodInfo
-	SecretRefs          map[string]*secrets.SecretReference
-	ApPolRefs           map[string]*unstructured.Unstructured
-	LogConfRefs         map[string]*unstructured.Unstructured
-	DosProtectedRefs    map[string]*unstructured.Unstructured
-	DosProtectedEx      map[string]*DosEx
-	ZoneSync            bool
+	VirtualServer               *conf_v1.VirtualServer
+	HTTPPort                    int
+	HTTPSPort                   int
+	HTTPIPv4                    string
+	HTTPIPv6                    string
+	HTTPSIPv4                   string
+	HTTPSIPv6                   string
+	Endpoints                   map[string][]string
+	VirtualServerRoutes         []*conf_v1.VirtualServerRoute
+	VirtualServerSelectorRoutes map[string][]string
+	ExternalNameSvcs            map[string]bool
+	Policies                    map[string]*conf_v1.Policy
+	PodsByIP                    map[string]PodInfo
+	SecretRefs                  map[string]*secrets.SecretReference
+	ApPolRefs                   map[string]*unstructured.Unstructured
+	LogConfRefs                 map[string]*unstructured.Unstructured
+	DosProtectedRefs            map[string]*unstructured.Unstructured
+	DosProtectedEx              map[string]*DosEx
+	ZoneSync                    bool
 }
 
 func (vsx *VirtualServerEx) String() string {
@@ -415,6 +418,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	apResources *appProtectResourcesForVS,
 	dosResources map[string]*appProtectDosResource,
 ) (version2.VirtualServerConfig, Warnings) {
+	//l := nl.LoggerFromContext(vsc.cfgParams.Context)
 	vsc.clearWarnings()
 
 	var maps []version2.Map
@@ -574,10 +578,48 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 			continue
 		} else if r.RouteSelector != nil {
-			selector := r.RouteSelector
-			glog.Infof("RouteSelector: %v", selector)
 
 			// get vsr name
+
+			selector := &metav1.LabelSelector{
+				MatchLabels: r.RouteSelector.MatchLabels,
+			}
+			sel, _ := metav1.LabelSelectorAsSelector(selector)
+
+			selectorKey := sel.String()
+			vsrKeys := vsEx.VirtualServerSelectorRoutes[selectorKey]
+			//nl.Infof(l, "VirtualServerRoutes: %v", vsEx.VirtualServerRoutes)
+			//
+			//nl.Infof(l, "VirtualServerSelectorRoutes: %v", vsEx.VirtualServerSelectorRoutes)
+			//
+			//nl.Infof(l, "vsrKeys: %v", vsrKeys)
+			//
+			//nl.Infof(l, "RouteSelector: %v", selector)
+
+			// store route location snippet for the referenced VirtualServerRoute in case they don't define their own
+			if r.LocationSnippets != "" {
+				for _, name := range vsrKeys {
+					vsrLocationSnippetsFromVs[name] = r.LocationSnippets
+				}
+			}
+
+			// store route error pages and route index for the referenced VirtualServerRoute in case they don't define their own
+			if len(r.ErrorPages) > 0 {
+				for _, name := range vsrKeys {
+					vsrErrorPagesFromVs[name] = errorPages.pages
+					vsrErrorPagesRouteIndex[name] = errorPages.index
+				}
+			}
+
+			// store route policies for the referenced VirtualServerRoute in case they don't define their own
+			if len(r.Policies) > 0 {
+				//nl.Infof(l, "Route Policies: %v", r.Policies)
+				for _, name := range vsrKeys {
+					//nl.Infof(l, "Adding policy to VSR $v: %v", name, r.Policies)
+					vsrPoliciesFromVs[name] = r.Policies
+				}
+			}
+
 			continue
 		}
 
@@ -703,7 +745,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			errorPages := generateErrorPageDetails(r.ErrorPages, errorPageLocations, vsr)
 			errorPageLocations = append(errorPageLocations, generateErrorPageLocations(errorPages.index, errorPages.pages)...)
 			vsrNamespaceName := fmt.Sprintf("%v/%v", vsr.Namespace, vsr.Name)
-			glog.Infof("vsrNamespaceName: %v", vsrNamespaceName)
+			//glog.Infof("vsrNamespaceName: %v", vsrNamespaceName)
 			// use the VirtualServer error pages if the route does not define any
 			if r.ErrorPages == nil {
 				if vsErrorPages, ok := vsrErrorPagesFromVs[vsrNamespaceName]; ok {

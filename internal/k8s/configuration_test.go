@@ -28,6 +28,7 @@ func createTestConfiguration() *Configuration {
 	isIPV6Disabled := false
 	isDirectiveAutoadjustEnabled := false
 	return NewConfiguration(
+		lbc.Logger,
 		lbc.HasCorrectIngressClass,
 		isPlus,
 		appProtectEnabled,
@@ -1184,12 +1185,13 @@ func TestDeleteNonExistingVirtualServer(t *testing.T) {
 	}
 }
 
+// TODO: vsr route selector test
 func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 	configuration := createTestConfiguration()
 
 	// Add VirtualServerRoute-1
 
-	vsr1 := createTestVirtualServerRoute("virtualserverroute-1", "foo.example.com", "/first")
+	vsr1 := createTestVirtualServerRoute("virtualserverroute-1", "foo.example.com", "/first", nil)
 	var expectedChanges []ResourceChange
 	expectedProblems := []ConfigurationProblem{
 		{
@@ -1221,6 +1223,10 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 				Path:  "/second",
 				Route: "virtualserverroute-2",
 			},
+			{
+				Path:          "/",
+				RouteSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "route"}},
+			},
 		})
 	expectedChanges = []ResourceChange{
 		{
@@ -1242,9 +1248,9 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 		t.Errorf("AddOrUpdateVirtualServer() returned unexpected result (-want +got):\n%s", diff)
 	}
 
-	vsr2 := createTestVirtualServerRoute("virtualserverroute-2", "foo.example.com", "/second")
-
 	// Add VirtualServerRoute-2
+
+	vsr2 := createTestVirtualServerRoute("virtualserverroute-2", "foo.example.com", "/second", nil)
 
 	expectedChanges = []ResourceChange{
 		{
@@ -1289,6 +1295,29 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 		t.Errorf("AddOrUpdateVirtualServerRoute() returned unexpected result (-want +got):\n%s", diff)
 	}
 
+	// Add VirtualServerRoute-3 and VirtualServerRoute-4 with selectors
+
+	vsr3 := createTestVirtualServerRoute("virtualserverroute-3", "foo.example.com", "/third", map[string]string{"app": "route"})
+	expectedChanges = []ResourceChange{
+		{
+			Op: AddOrUpdate,
+			Resource: &VirtualServerConfiguration{
+				VirtualServer:               vs,
+				VirtualServerRoutes:         []*conf_v1.VirtualServerRoute{updatedVSR1, vsr2, vsr3},
+				VirtualServerRouteSelectors: map[string][]string{"app=route": {"default/virtualserverroute-3"}},
+			},
+		},
+	}
+	expectedProblems = nil
+
+	changes, problems = configuration.AddOrUpdateVirtualServerRoute(vsr3)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateVirtualServerRoute() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("AddOrUpdateVirtualServerRoute() returned unexpected result (-want +got):\n%s", diff)
+	}
+
 	// Make VirtualServerRoute-1 invalid
 
 	invalidVSR1 := updatedVSR1.DeepCopy()
@@ -1299,7 +1328,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
 				VirtualServer:       vs,
-				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr2},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr2, vsr3},
 				Warnings:            []string{"VirtualServerRoute default/virtualserverroute-1 doesn't exist or invalid"},
 			},
 		},
@@ -1328,7 +1357,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
 				VirtualServer:       vs,
-				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr1, vsr2},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr1, vsr2, vsr3},
 			},
 		},
 	}
@@ -1352,7 +1381,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
 				VirtualServer:       vs,
-				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr2},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr2, vsr3},
 				Warnings:            []string{"VirtualServerRoute default/virtualserverroute-1 is invalid: spec.subroutes[0]: Invalid value: \"/\": must start with '/first'"},
 			},
 		},
@@ -1380,7 +1409,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
 				VirtualServer:       vs,
-				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr1, vsr2},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr1, vsr2, vsr3},
 			},
 		},
 	}
@@ -1404,7 +1433,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
 				VirtualServer:       vs,
-				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr1},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr1, vsr3},
 				Warnings:            []string{"VirtualServerRoute default/virtualserverroute-2 is invalid: spec.host: Invalid value: \"bar.example.com\": must be equal to 'foo.example.com'"},
 			},
 		},
@@ -1463,7 +1492,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
 				VirtualServer:       vs,
-				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr1},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr1, vsr3},
 				Warnings:            []string{"VirtualServerRoute default/virtualserverroute-2 is invalid: spec.host: Invalid value: \"bar.example.com\": must be equal to 'foo.example.com'"},
 			},
 		},
@@ -1491,7 +1520,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
 				VirtualServer:       vs,
-				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr1, vsr2},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr1, vsr2, vsr3},
 			},
 		},
 	}
@@ -1512,7 +1541,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
 				VirtualServer:       vs,
-				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr2},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr2, vsr3},
 				Warnings:            []string{"VirtualServerRoute default/virtualserverroute-1 doesn't exist or invalid"},
 			},
 		},
@@ -1572,7 +1601,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 func TestAddInvalidVirtualServerRoute(t *testing.T) {
 	configuration := createTestConfiguration()
 
-	vsr := createTestVirtualServerRoute("virtualserverroute", "", "/")
+	vsr := createTestVirtualServerRoute("virtualserverroute", "", "/", nil)
 
 	var expectedChanges []ResourceChange
 	expectedProblems := []ConfigurationProblem{
@@ -1596,7 +1625,7 @@ func TestAddInvalidVirtualServerRoute(t *testing.T) {
 func TestAddVirtualServerWithIncorrectClass(t *testing.T) {
 	configuration := createTestConfiguration()
 
-	vsr := createTestVirtualServerRoute("virtualserver", "foo.example.com", "/")
+	vsr := createTestVirtualServerRoute("virtualserver", "foo.example.com", "/", nil)
 	vsr.Spec.IngressClass = "someproxy"
 
 	var expectedChanges []ResourceChange
@@ -3765,11 +3794,12 @@ func createTestVirtualServerWithRoutes(name string, host string, routes []conf_v
 	return vs
 }
 
-func createTestVirtualServerRoute(name string, host string, path string) *conf_v1.VirtualServerRoute {
+func createTestVirtualServerRoute(name string, host string, path string, labels map[string]string) *conf_v1.VirtualServerRoute {
 	return &conf_v1.VirtualServerRoute{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "default",
 			Name:      name,
+			Labels:    labels,
 		},
 		Spec: conf_v1.VirtualServerRouteSpec{
 			IngressClass: "nginx",
@@ -4125,7 +4155,7 @@ func TestFindResourcesForResourceReference(t *testing.T) {
 				Route: "virtualserverroute",
 			},
 		})
-	vsr := createTestVirtualServerRoute("virtualserverroute", "asd.example.com", "/")
+	vsr := createTestVirtualServerRoute("virtualserverroute", "asd.example.com", "/", nil)
 	tsPassthrough := createTestTLSPassthroughTransportServer("transportserver-passthrough", "ts.example.com")
 	listeners := []conf_v1.Listener{
 		{
@@ -4496,6 +4526,7 @@ func TestIsEqualForIngressConfigurations(t *testing.T) {
 	}
 }
 
+// TODO: vsr route selector test
 func TestIsEqualForVirtualServers(t *testing.T) {
 	t.Parallel()
 	vs := createTestVirtualServerWithRoutes(
@@ -4507,7 +4538,7 @@ func TestIsEqualForVirtualServers(t *testing.T) {
 				Route: "virtualserverroute",
 			},
 		})
-	vsr := createTestVirtualServerRoute("virtualserverroute", "foo.example.com", "/")
+	vsr := createTestVirtualServerRoute("virtualserverroute", "foo.example.com", "/", nil)
 
 	vsWithUpdatedGen := vs.DeepCopy()
 	vsWithUpdatedGen.Generation++
@@ -4522,26 +4553,26 @@ func TestIsEqualForVirtualServers(t *testing.T) {
 		msg       string
 	}{
 		{
-			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, []string{}),
-			vsConfig2: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, []string{}),
+			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
+			vsConfig2: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
 			expected:  true,
 			msg:       "equal virtual servers",
 		},
 		{
-			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, []string{}),
-			vsConfig2: NewVirtualServerConfiguration(vsWithUpdatedGen, []*conf_v1.VirtualServerRoute{vsr}, []string{}),
+			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
+			vsConfig2: NewVirtualServerConfiguration(vsWithUpdatedGen, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
 			expected:  false,
 			msg:       "virtual servers with different generation",
 		},
 		{
-			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, []string{}),
-			vsConfig2: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{}, []string{}),
+			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
+			vsConfig2: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{}, nil, []string{}),
 			expected:  false,
 			msg:       "virtual servers with different number of virtual server routes",
 		},
 		{
-			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, []string{}),
-			vsConfig2: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsrWithUpdatedGen}, []string{}),
+			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
+			vsConfig2: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsrWithUpdatedGen}, nil, []string{}),
 			expected:  false,
 			msg:       "virtual servers with virtual server routes with different generation",
 		},
@@ -4558,7 +4589,7 @@ func TestIsEqualForVirtualServers(t *testing.T) {
 func TestIsEqualForDifferentResources(t *testing.T) {
 	t.Parallel()
 	ingConfig := NewRegularIngressConfiguration(createTestIngress("ingress", "foo.example.com"))
-	vsConfig := NewVirtualServerConfiguration(createTestVirtualServer("virtualserver", "bar.example.com"), []*conf_v1.VirtualServerRoute{}, []string{})
+	vsConfig := NewVirtualServerConfiguration(createTestVirtualServer("virtualserver", "bar.example.com"), []*conf_v1.VirtualServerRoute{}, nil, []string{})
 
 	result := ingConfig.IsEqual(vsConfig)
 	if result != false {

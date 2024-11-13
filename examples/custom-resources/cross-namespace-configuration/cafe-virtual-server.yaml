@@ -7,16 +7,28 @@ spec:
   host: cafe.example.com
   tls:
     secret: cafe-secret
+  server-snippets: |
+    # snippet defined in VS server block
+    proxy_set_header X-VS-Name "Cafe";
   routes:
 #  - path: /tea
 #    route: tea/tea
+#    policies:
+#      - name: rate-limit-policy
 #  - path: /coffee
 #    route: coffee/coffee
-#  - path: /coffee
-#    routeSelector:
-#      matchLabels:
-#       route: coffee
   - path: /
     routeSelector:
       matchLabels:
-        app: cafe
+       app: cafe
+#       route: tea
+    policies:
+    - name: api-key-policy
+    location-snippets: |
+      # snippet defined in VS
+      proxy_set_header X-VS-Name "Cafe";
+    errorPages:
+    - codes: [ 502, 503 ]
+      redirect:
+        code: 301
+        url: https://nginx.org

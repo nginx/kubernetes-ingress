@@ -4,8 +4,8 @@ metadata:
   name: coffee
   namespace: coffee
   labels:
-    route: coffee
     app: cafe
+    route: coffee
 spec:
   host: cafe.example.com
   upstreams:
@@ -16,3 +16,15 @@ spec:
   - path: /coffee
     action:
       pass: coffee
+    policies:
+     - name: rate-limit-policy
+    location-snippets: |
+      # snippet defined in VSR
+      proxy_set_header X-VSR-Name "Coffee";
+    errorPages:
+    - codes: [404]
+      return:
+        code: 200
+        body: "Original resource not found, but success!"
+
+
