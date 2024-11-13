@@ -26,5 +26,3 @@ spec:
       return:
         code: 200
         body: "Original resource not found, but success!"
-
-
