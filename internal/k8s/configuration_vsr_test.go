@@ -37,7 +37,7 @@ func TestAddVirtualServerVSR(t *testing.T) {
 	if !cmp.Equal(expectedProblems, problems) {
 		t.Fatal(cmp.Diff(expectedProblems, problems))
 	}
-	// =========
+	// ========= End Add VS =========
 
 	// Update VirtualServer
 
@@ -55,12 +55,13 @@ func TestAddVirtualServerVSR(t *testing.T) {
 	}
 
 	changes, problems = configuration.AddOrUpdateVirtualServer(updatedVS)
-	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
-		t.Errorf("AddOrUpdateVirtualServer() returned unexpected result (-want +got):\n%s", diff)
+	if !cmp.Equal(expectedChanges, changes) {
+		t.Fatal(cmp.Diff(expectedChanges, changes))
 	}
-	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
-		t.Errorf("AddOrUpdateVirtualServer() returned unexpected result (-want +got):\n%s", diff)
+	if !cmp.Equal(expectedProblems, problems) {
+		t.Fatal(cmp.Diff(expectedProblems, problems))
 	}
+	// ========= End Update VS =========
 
 	// Make VirtualServer invalid
 
@@ -145,6 +146,15 @@ func TestAddVirtualServerVSR(t *testing.T) {
 	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
 		t.Errorf("DeleteVirtualServer() returned unexpected result (-want +got):\n%s", diff)
 	}
+}
+
+// Test if correct changes and problems are reported
+// if we try to update VS with invalid configuration.
+//
+// TODO: add workflow (Jakub)
+func TestAddVirtualServer_InvalidVS(t *testing.T) {
+	t.Parallel()
+
 }
 
 // WIP - Jakub
