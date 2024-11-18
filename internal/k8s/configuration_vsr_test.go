@@ -10,7 +10,6 @@ import (
 
 // WIP - Jakub
 func TestAddVirtualServerVSR(t *testing.T) {
-
 	// Add a VirtualServer
 	vs := createTestVirtualServer("virtualserver", "foo.example.com")
 	expectedChanges := []ResourceChange{
@@ -154,7 +153,6 @@ func TestAddVirtualServerVSR(t *testing.T) {
 // TODO: add workflow (Jakub)
 func TestAddVirtualServer_InvalidVS(t *testing.T) {
 	t.Parallel()
-
 }
 
 // WIP - Jakub
