@@ -9,7 +9,7 @@ import (
 )
 
 // WIP - Jakub
-func TestAddVirtualServerVSR(t *testing.T) {
+func TestAddAndUpdateVirtualServer(t *testing.T) {
 	// Add a VirtualServer
 	vs := createTestVirtualServer("virtualserver", "foo.example.com")
 	expectedChanges := []ResourceChange{
