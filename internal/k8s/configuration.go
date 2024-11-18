@@ -275,7 +275,7 @@ func (vsc *VirtualServerConfiguration) IsEqual(resource Resource) bool {
 		}
 	}
 
-	//TODO: check all values of the map
+	// TODO: check all values of the map
 	if len(vsc.VirtualServerRouteSelectors) != len(vsConfig.VirtualServerRouteSelectors) {
 		return false
 	}
@@ -354,7 +354,7 @@ type TransportServerMetrics struct {
 // The IC needs to ensure that at any point in time the NGINX config on the filesystem reflects the state
 // of the objects in the Configuration.
 type Configuration struct {
-	//Context context.Context
+	// Context context.Context
 
 	logger *slog.Logger
 
@@ -401,7 +401,7 @@ type Configuration struct {
 
 // NewConfiguration creates a new Configuration.
 func NewConfiguration(
-	//ctx context.Context,
+	// ctx context.Context,
 	logger *slog.Logger,
 	hasCorrectIngressClass func(interface{}) bool,
 	isPlus bool,
@@ -417,10 +417,10 @@ func NewConfiguration(
 	isIPV6Disabled bool,
 	isDirectiveAutoadjustEnabled bool,
 ) *Configuration {
-	//l := nl.LoggerFromContext(ctx)
+	// l := nl.LoggerFromContext(ctx)
 
 	return &Configuration{
-		//Context:                      ctx,
+		// Context:                      ctx,
 		logger:                       logger,
 		hosts:                        make(map[string]Resource),
 		listenerHosts:                make(map[listenerHostKey]*TransportServerConfiguration),
@@ -1454,7 +1454,7 @@ func squashResourceChanges(changes []ResourceChange) []ResourceChange {
 }
 
 func (c *Configuration) buildHostsAndResources() (newHosts map[string]Resource, newResources map[string]Resource) {
-	//l := nl.LoggerFromContext(c.Context)
+	// l := nl.LoggerFromContext(c.Context)
 	newHosts = make(map[string]Resource)
 	newResources = make(map[string]Resource)
 	var challengesVSR []*conf_v1.VirtualServerRoute
@@ -1519,7 +1519,7 @@ func (c *Configuration) buildHostsAndResources() (newHosts map[string]Resource, 
 		resource := NewVirtualServerConfiguration(vs, vsrs, routeSelectorMap, warnings)
 
 		// todo - uncomment (Jakub)
-		//nl.Infof(c.logger, "resource: %v", resource)
+		// nl.Infof(c.logger, "resource: %v", resource)
 
 		c.buildListenersForVSConfiguration(resource)
 
@@ -1674,7 +1674,7 @@ func (c *Configuration) buildMinionConfigs(masterHost string) ([]*MinionConfigur
 }
 
 func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*conf_v1.VirtualServerRoute, map[string][]string, []string) {
-	//l := nl.LoggerFromContext(c.Context)
+	// l := nl.LoggerFromContext(c.Context)
 	var vsrs []*conf_v1.VirtualServerRoute
 	var routeSelectorMap map[string][]string
 	var warnings []string
@@ -1713,7 +1713,7 @@ func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*
 
 			selectorKey := sel.String()
 
-			//routeSelectorMap[selectorKey] := []*conf_v1.VirtualServerRoute{}
+			// routeSelectorMap[selectorKey] := []*conf_v1.VirtualServerRoute{}
 
 			if err != nil {
 				warning := fmt.Sprintf("VirtualServerRoute LabelSelector %s is invalid: %v", selector, err)
@@ -1742,7 +1742,6 @@ func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*
 			}
 
 		}
-
 	}
 
 	return vsrs, routeSelectorMap, warnings
