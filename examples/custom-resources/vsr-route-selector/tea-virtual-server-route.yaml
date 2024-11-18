@@ -1,0 +1,21 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
+  name: tea
+  namespace: tea
+  labels:
+    route: tea
+    app: cafe
+spec:
+  host: cafe.example.com
+  upstreams:
+  - name: tea
+    service: tea-svc
+    port: 80
+  subroutes:
+  - path: /tea
+    action:
+      pass: tea
+#    location-snippets: |
+#      # snippet defined in VSR
+#      proxy_set_header X-VSR-Name "Tea";
