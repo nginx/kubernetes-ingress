@@ -559,7 +559,7 @@ func TestAddVirtualServerWithVirtualServerRoutesVSR(t *testing.T) {
 
 // WIP (Jakub)
 // TODO: vsr route selector test
-func TestIsEqualForVirtualServers(t *testing.T) {
+func TestIsEqualForVirtualServersVSR(t *testing.T) {
 	t.Parallel()
 	vs := createTestVirtualServerWithRoutes(
 		"virtualserver",
