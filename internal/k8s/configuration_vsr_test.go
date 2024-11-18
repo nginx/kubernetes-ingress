@@ -10,13 +10,8 @@ import (
 
 // WIP - Jakub
 func TestAddVirtualServerVSR(t *testing.T) {
-	configuration := createTestConfiguration()
-
-	// no problems are expected for all cases
-	var expectedProblems []ConfigurationProblem
 
 	// Add a VirtualServer
-
 	vs := createTestVirtualServer("virtualserver", "foo.example.com")
 	expectedChanges := []ResourceChange{
 		{
@@ -27,13 +22,22 @@ func TestAddVirtualServerVSR(t *testing.T) {
 		},
 	}
 
+	// =========
+	// Note: call t.Fatal() as there is no point to carry on and update the VS if the VS is not created
+	// meaning we have errors or `problems` when creating the VS.
+	configuration := createTestConfiguration()
+	// no problems are expected for all cases
+	var expectedProblems []ConfigurationProblem
+
 	changes, problems := configuration.AddOrUpdateVirtualServer(vs)
-	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
-		t.Errorf("AddOrUpdateVirtualServer() returned unexpected result (-want +got):\n%s", diff)
+
+	if !cmp.Equal(expectedChanges, changes) {
+		t.Fatal(cmp.Diff(expectedChanges, changes))
 	}
-	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
-		t.Errorf("AddOrUpdateVirtualServer() returned unexpected result (-want +got):\n%s", diff)
+	if !cmp.Equal(expectedProblems, problems) {
+		t.Fatal(cmp.Diff(expectedProblems, problems))
 	}
+	// =========
 
 	// Update VirtualServer
 

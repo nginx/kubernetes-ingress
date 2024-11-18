@@ -1191,7 +1191,8 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 
 	// Add VirtualServerRoute-1
 
-	vsr1 := createTestVirtualServerRoute("virtualserverroute-1", "foo.example.com", "/first", nil)
+	labels := make(map[string]string)
+	vsr1 := createTestVirtualServerRoute("virtualserverroute-1", "foo.example.com", "/first", labels)
 	var expectedChanges []ResourceChange
 	expectedProblems := []ConfigurationProblem{
 		{
