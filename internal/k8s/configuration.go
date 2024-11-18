@@ -276,11 +276,7 @@ func (vsc *VirtualServerConfiguration) IsEqual(resource Resource) bool {
 	}
 
 	// TODO: check all values of the map
-	if len(vsc.VirtualServerRouteSelectors) != len(vsConfig.VirtualServerRouteSelectors) {
-		return false
-	}
-
-	return true
+	return len(vsc.VirtualServerRouteSelectors) != len(vsConfig.VirtualServerRouteSelectors)
 }
 
 // TransportServerConfiguration holds a TransportServer resource.
