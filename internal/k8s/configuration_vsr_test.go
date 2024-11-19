@@ -155,6 +155,35 @@ func TestAddVirtualServer_InvalidVS(t *testing.T) {
 	t.Parallel()
 }
 
+// Negative flow - User attempts to add VSR to not existing VS
+func TestAttemptToAddVSRtoNotExistingVS_ReturnsProblems(t *testing.T) {
+	t.Parallel()
+
+	configuration := createTestConfiguration()
+
+	labels := make(map[string]string)
+	vsr := createTestVirtualServerRoute("virtualserverroute", "foo.example.com", "/first", labels)
+
+	// Try to add VirtualServerRoute
+
+	var expectedChanges []ResourceChange
+	expectedProblems := []ConfigurationProblem{
+		{
+			Object:  vsr,
+			Reason:  "NoVirtualServerFound",
+			Message: "VirtualServer is invalid or doesn't exist",
+		},
+	}
+
+	changes, problems := configuration.AddOrUpdateVirtualServerRoute(vsr)
+	if !cmp.Equal(expectedChanges, changes) {
+		t.Error(cmp.Diff(expectedChanges, changes))
+	}
+	if !cmp.Equal(expectedProblems, problems) {
+		t.Error(cmp.Diff(expectedProblems, problems))
+	}
+}
+
 // WIP - Jakub
 // TODO: vsr route selector test
 func TestAddVirtualServerWithVirtualServerRoutesVSR(t *testing.T) {
@@ -162,7 +191,9 @@ func TestAddVirtualServerWithVirtualServerRoutesVSR(t *testing.T) {
 
 	// Add VirtualServerRoute-1
 
-	vsr1 := createTestVirtualServerRoute("virtualserverroute-1", "foo.example.com", "/first", nil)
+	labels := make(map[string]string)
+	vsr1 := createTestVirtualServerRoute("virtualserverroute-1", "foo.example.com", "/first", labels)
+
 	var expectedChanges []ResourceChange
 	expectedProblems := []ConfigurationProblem{
 		{
