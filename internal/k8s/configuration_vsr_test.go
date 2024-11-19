@@ -185,6 +185,87 @@ func TestAttemptToAddVSRtoNotExistingVS_ReturnsProblems(t *testing.T) {
 	}
 }
 
+// TestAddVSRtoVS logic:
+//
+// 1) Create VSR
+// 2) Create VS
+// 3) Add the VSR to the VS
+func TestAddVSRtoVS(t *testing.T) {
+	t.Parallel()
+
+	configuration := createTestConfiguration()
+
+	// =========
+	// Step 1
+	// =========
+	// Add VirtualServerRoute
+	// We add VSR that references not existing VS. Chance we expect to see `Problems`
+
+	labels := make(map[string]string)
+	vsr := createTestVirtualServerRoute("virtualserverroute", "foo.example.com", "/first", labels)
+
+	var expectedChanges []ResourceChange
+	expectedProblems := []ConfigurationProblem{
+		{
+			Object:  vsr,
+			Reason:  "NoVirtualServerFound",
+			Message: "VirtualServer is invalid or doesn't exist",
+		},
+	}
+
+	// adding VSR but no VS exist at this stage, chance we get problems
+	// if we don't get it right now we call t.Fatal as there is no
+	// point to continue test - preconditions are not setup correctly.
+	changes, problems := configuration.AddOrUpdateVirtualServerRoute(vsr)
+	if !cmp.Equal(expectedChanges, changes, cmpopts.IgnoreFields(ConfigurationProblem{}, "Message")) {
+		t.Fatal(cmp.Diff(expectedChanges, changes))
+	}
+	if !cmp.Equal(expectedProblems, problems, cmpopts.IgnoreFields(ConfigurationProblem{}, "Message")) {
+		t.Fatal(cmp.Diff(expectedProblems, problems))
+	}
+
+	// =========
+	// Step 2
+	// =========
+	// Create the missing VS with routes.
+	// Note that the 1st Route in the routes slice below matches the route from the previous step!
+
+	routes := []conf_v1.Route{
+		{
+			Path:  "/first",
+			Route: "virtualserverroute",
+		},
+		{
+			Path:          "/",
+			RouteSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "route"}},
+		},
+	}
+
+	vs := createTestVirtualServerWithRoutes("virtualserver", "foo.example.com", routes)
+
+	expectedChanges = []ResourceChange{
+		{
+			Op: AddOrUpdate,
+			Resource: &VirtualServerConfiguration{
+				VirtualServer:       vs,
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr},
+			},
+		},
+	}
+	expectedProblems = nil
+
+	// We update configuration here - add the missing VS (see Step 1)
+	// At this point we have both VS and VSR in the configuration. They match.
+	changes, problems = configuration.AddOrUpdateVirtualServer(vs)
+
+	if !cmp.Equal(expectedChanges, changes) {
+		t.Error(cmp.Diff(expectedChanges, changes))
+	}
+	if !cmp.Equal(expectedProblems, problems) {
+		t.Error(cmp.Diff(expectedProblems, problems))
+	}
+}
+
 // WIP - Jakub
 // TODO: vsr route selector test
 func TestAddVirtualServerWithVirtualServerRoutesVSR(t *testing.T) {
