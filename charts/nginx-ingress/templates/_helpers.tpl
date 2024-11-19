@@ -317,8 +317,8 @@ Build the args for the service binary.
 {{- if .Values.controller.globalConfiguration.create }}
 - -global-configuration=$(POD_NAMESPACE)/{{ include "nginx-ingress.controller.fullname" . }}
 {{- else }}
-{{- if .Values.controller.globalConfigurationCustomName }}
-- -global-configuration={{ .Values.controller.globalConfigurationCustomName }}
+{{- if .Values.controller.globalConfiguration.customName }}
+- -global-configuration={{ .Values.controller.globalConfiguration.customName }}
 {{- end }}
 {{- end }}
 {{- end }}

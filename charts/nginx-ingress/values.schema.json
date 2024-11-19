@@ -1115,6 +1115,14 @@
                 false
               ]
             },
+	    "customName": {
+	      "type": "string",
+	      "default": "",
+	      "title": "The customName Schema",
+	      "examples": [
+	        "the-namespace/the-name-of-the-global-configuration-custom-resource"
+	      ]
+	    },
             "spec": {
               "type": "object",
               "default": {},
@@ -1183,14 +1191,6 @@
               "create": false,
               "spec": {}
             }
-          ]
-        },
-        "globalConfigurationCustomName": {
-          "type": "string",
-          "default": "",
-          "title": "The globalConfigurationCustomName",
-          "examples": [
-            "the-namespace/the-name-of-the-global-configuration-custom-resource"
           ]
         },
         "enableSnippets": {
