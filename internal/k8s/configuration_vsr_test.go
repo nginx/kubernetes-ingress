@@ -266,6 +266,11 @@ func TestAddVSRtoVS(t *testing.T) {
 	}
 }
 
+func TestMatchVSwithVSRusingSelector(t *testing.T) {
+	t.Parallel()
+
+}
+
 // WIP - Jakub
 // TODO: vsr route selector test
 func TestAddVirtualServerWithVirtualServerRoutesVSR(t *testing.T) {
