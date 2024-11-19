@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	conf_v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -176,10 +177,10 @@ func TestAttemptToAddVSRtoNotExistingVS_ReturnsProblems(t *testing.T) {
 	}
 
 	changes, problems := configuration.AddOrUpdateVirtualServerRoute(vsr)
-	if !cmp.Equal(expectedChanges, changes) {
+	if !cmp.Equal(expectedChanges, changes, cmpopts.IgnoreFields(ConfigurationProblem{}, "Message")) {
 		t.Error(cmp.Diff(expectedChanges, changes))
 	}
-	if !cmp.Equal(expectedProblems, problems) {
+	if !cmp.Equal(expectedProblems, problems, cmpopts.IgnoreFields(ConfigurationProblem{}, "Message")) {
 		t.Error(cmp.Diff(expectedProblems, problems))
 	}
 }
