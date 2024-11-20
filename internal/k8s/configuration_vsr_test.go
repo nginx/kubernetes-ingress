@@ -186,6 +186,7 @@ func TestAttemptToAddVSRtoNotExistingVS_ReturnsProblems(t *testing.T) {
 }
 
 // TestAddVSRtoVS validates that we can add VSR to VS
+// todo: describe conditions and reason why the sest
 func TestAddVSRtoVS(t *testing.T) {
 	t.Parallel()
 
@@ -266,6 +267,66 @@ func TestAddVSRtoVS(t *testing.T) {
 func TestMatchVSwithVSRusingSelector(t *testing.T) {
 	t.Parallel()
 
+	configuration := createTestConfiguration()
+
+	// Add VirtualServerRoute
+
+	labels := make(map[string]string)
+	vsr := createTestVirtualServerRoute("virtualserverroute", "foo.example.com", "/first", labels)
+
+	var expectedChanges []ResourceChange
+	expectedProblems := []ConfigurationProblem{
+		{
+			Object:  vsr,
+			Reason:  "NoVirtualServerFound",
+			Message: "VirtualServer is invalid or doesn't exist",
+		},
+	}
+
+	// adding VSR to the configuration; no VS exist at this stage, chance we get problems
+	//
+	// if we don't get it right now we call t.Fatal as there is no
+	// point to continue the test - preconditions are not setup correctly.
+	changes, problems := configuration.AddOrUpdateVirtualServerRoute(vsr)
+	if !cmp.Equal(expectedChanges, changes, cmpopts.IgnoreFields(ConfigurationProblem{}, "Message")) {
+		t.Fatal(cmp.Diff(expectedChanges, changes))
+	}
+	if !cmp.Equal(expectedProblems, problems, cmpopts.IgnoreFields(ConfigurationProblem{}, "Message")) {
+		t.Fatal(cmp.Diff(expectedProblems, problems))
+	}
+
+	// Add VS with VRS with the RouteSelector (LabelSelector)
+	routes := []conf_v1.Route{
+		{
+			Path:  "/first",
+			Route: "virtualserverroute",
+		},
+		{
+			Path:          "/",
+			RouteSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "route"}},
+		},
+	}
+
+	vs := createTestVirtualServerWithRoutes("virtualserver", "foo.example.com", routes)
+
+	expectedChanges = []ResourceChange{
+		{
+			Op: AddOrUpdate,
+			Resource: &VirtualServerConfiguration{
+				VirtualServer:       vs,
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr},
+			},
+		},
+	}
+	expectedProblems = nil
+
+	changes, problems = configuration.AddOrUpdateVirtualServer(vs)
+	if !cmp.Equal(expectedChanges, changes) {
+		t.Error(cmp.Diff(expectedChanges, changes))
+	}
+	if !cmp.Equal(expectedProblems, problems) {
+		t.Error(cmp.Diff(expectedProblems, problems))
+	}
 }
 
 // WIP - Jakub
