@@ -185,11 +185,7 @@ func TestAttemptToAddVSRtoNotExistingVS_ReturnsProblems(t *testing.T) {
 	}
 }
 
-// TestAddVSRtoVS logic:
-//
-// 1) Create VSR
-// 2) Create VS
-// 3) Add the VSR to the VS
+// TestAddVSRtoVS validates that we can add VSR to VS
 func TestAddVSRtoVS(t *testing.T) {
 	t.Parallel()
 
@@ -213,9 +209,10 @@ func TestAddVSRtoVS(t *testing.T) {
 		},
 	}
 
-	// adding VSR but no VS exist at this stage, chance we get problems
+	// adding VSR to the configuration; no VS exist at this stage, chance we get problems
+	//
 	// if we don't get it right now we call t.Fatal as there is no
-	// point to continue test - preconditions are not setup correctly.
+	// point to continue the test - preconditions are not setup correctly.
 	changes, problems := configuration.AddOrUpdateVirtualServerRoute(vsr)
 	if !cmp.Equal(expectedChanges, changes, cmpopts.IgnoreFields(ConfigurationProblem{}, "Message")) {
 		t.Fatal(cmp.Diff(expectedChanges, changes))
