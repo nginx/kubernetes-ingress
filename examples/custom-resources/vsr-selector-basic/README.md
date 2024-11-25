@@ -1,13 +1,11 @@
 # Basic Configuration
 
-In this example we configure load balancing with TLS termination for a simple web application using the
-[VirtualServer](https://docs.nginx.com/nginx-ingress-controller/configuration/virtualserver-and-virtualserverroute-resources/)
-resource. The application, called cafe, lets you get either tea via the tea service or coffee via the coffee service.
-You indicate your drink preference with the URI of your HTTP request: URIs ending with `/tea` get you tea and URIs
-ending with `/coffee` get you coffee.
+In this example we use the [VirtualServer and
+VirtualServerRoute](https://docs.nginx.com/nginx-ingress-controller/configuration/virtualserver-and-virtualserverroute-resources/)
+resources to configure load balancing for the modified cafe application from the [Basic
+Configuration](../basic-configuration/) example. We have put the load balancing configuration as well as the deployments
+and services into one namespace.
 
-The example is similar to the [complete example](../../ingress-resources/complete-example/README.md).
-However, instead of the Ingress resource, we use the VirtualServer.
 
 ## Prerequisites
 

@@ -2,7 +2,7 @@ apiVersion: k8s.nginx.org/v1
 kind: VirtualServerRoute
 metadata:
   name: tea
-  namespace: tea
+  namespace: default
   labels:
     route: tea
     app: cafe
