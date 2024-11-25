@@ -1,11 +1,10 @@
-# Basic Configuration
+# Basic, Single-Namespace VirtualServeRoute Configuration
 
 In this example we use the [VirtualServer and
 VirtualServerRoute](https://docs.nginx.com/nginx-ingress-controller/configuration/virtualserver-and-virtualserverroute-resources/)
 resources to configure load balancing for the modified cafe application from the [Basic
 Configuration](../basic-configuration/) example. We have put the load balancing configuration as well as the deployments
-and services into one namespace.
-
+and services into one default namespace.
 
 ## Prerequisites
 
