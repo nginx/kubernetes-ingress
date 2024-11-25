@@ -126,4 +126,3 @@ and services into one default namespace.
     Server address: 10.16.0.157:80
     Server name: tea-7d57856c44-674b8
     ...
-
