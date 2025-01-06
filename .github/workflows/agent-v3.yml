@@ -42,8 +42,8 @@ jobs:
           printf '%s\n' "${CERT}" > build/nginx-repo.crt
           printf '%s\n' "${KEY}" > build/nginx-repo.key
         env:
-          CERT: ${{ secrets.NGINX_CRT }}
-          KEY: ${{ secrets.NGINX_KEY }}
+          CERT: ${{ secrets.NGINX_AP_CRT }}
+          KEY: ${{ secrets.NGINX_AP_KEY }}
 
       - name: Build Image
         run: |
@@ -52,11 +52,11 @@ jobs:
         env:
           REGISTRY: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev
           PREFIX: pdabel
-          TAG: plus
+          TAG: nap
       - name: Push image
         run:
           docker push ${REGISTRY}/${PREFIX}:${TAG}
         env:
           REGISTRY: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev
           PREFIX: pdabel
-          TAG: plus
+          TAG: nap
