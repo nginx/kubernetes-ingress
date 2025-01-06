@@ -47,7 +47,8 @@ jobs:
 
       - name: Build Image
         run: |
-          docker build -f build/Dockerfile-plus -t ${REGISTRY}/${PREFIX}:${TAG} .
+          cd build
+          docker build -f Dockerfile-plus -t ${REGISTRY}/${PREFIX}:${TAG} .
         env:
           REGISTRY: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev
           PREFIX: pdabel
