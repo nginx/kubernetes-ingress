@@ -39,8 +39,8 @@ jobs:
 
       - name: Setup plus credentials
         run: |
-          printf '%s\n' "${CERT}" > nginx-repo.crt
-          printf '%s\n' "${KEY}" > nginx-repo.key
+          printf '%s\n' "${CERT}" > build/nginx-repo.crt
+          printf '%s\n' "${KEY}" > build/nginx-repo.key
         env:
           CERT: ${{ secrets.NGINX_CRT }}
           KEY: ${{ secrets.NGINX_KEY }}
