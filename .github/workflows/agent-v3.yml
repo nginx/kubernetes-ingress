@@ -1,4 +1,4 @@
-name: Build agent-v3 image
+name: Build Agent V3 image
 
 on:
   push:
@@ -22,6 +22,17 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
+      - name: Output Variables
+        id: vars
+        run: |
+          ./.github/scripts/variables.sh go_code_md5 >> $GITHUB_OUTPUT
+          cat $GITHUB_OUTPUT
+
+      - name: Setup Golang Environment
+        uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
+        with:
+          go-version-file: go.mod
+
       - name: Authenticate to Google Cloud
         id: auth
         uses: google-github-actions/auth@6fc4af4b145ae7821d527454aa9bd537d1f2dc5f # v2.1.7
@@ -39,24 +50,33 @@ jobs:
 
       - name: Setup plus credentials
         run: |
-          printf '%s\n' "${CERT}" > build/nginx-repo.crt
-          printf '%s\n' "${KEY}" > build/nginx-repo.key
+          printf '%s\n' "${CERT}" > nginx-repo.crt
+          printf '%s\n' "${KEY}" > nginx-repo.key
         env:
           CERT: ${{ secrets.NGINX_AP_CRT }}
           KEY: ${{ secrets.NGINX_AP_KEY }}
 
+      - name: Fetch Cached Binary Artifacts
+        id: binary-cache
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        with:
+          path: ${{ github.workspace }}/dist
+          key: nginx-ingress-${{ steps.vars.outputs.go_code_md5 }}
+
       - name: Build Image
         run: |
-          cd build
-          docker build -f Dockerfile-plus -t ${REGISTRY}/${PREFIX}:${TAG} .
+          make agentv3
         env:
           REGISTRY: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev
           PREFIX: pdabel
-          TAG: nap
+          TAG: agentv3
+          PLUS_REPO: pkgs-test.nginx.com
+          TARGET: goreleaser
+
       - name: Push image
         run:
           docker push ${REGISTRY}/${PREFIX}:${TAG}
         env:
           REGISTRY: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev
           PREFIX: pdabel
-          TAG: nap
+          TAG: agentv3

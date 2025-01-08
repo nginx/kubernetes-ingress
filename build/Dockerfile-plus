@@ -1,5 +1,0 @@
-# syntax=docker/dockerfile:1.6
-FROM alpine:3.21
-
-COPY nginx-repo.crt /nginx-repo.crt
-COPY nginx-repo.key /nginx-repo.key
