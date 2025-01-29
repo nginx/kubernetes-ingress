@@ -600,16 +600,28 @@ type AccessControl struct {
 
 // RateLimit defines a rate limit policy.
 type RateLimit struct {
-	Rate       string `json:"rate"`
-	Key        string `json:"key"`
-	Delay      *int   `json:"delay"`
-	NoDelay    *bool  `json:"noDelay"`
-	Burst      *int   `json:"burst"`
-	ZoneSize   string `json:"zoneSize"`
-	DryRun     *bool  `json:"dryRun"`
-	LogLevel   string `json:"logLevel"`
-	RejectCode *int   `json:"rejectCode"`
-	Scale      bool   `json:"scale"`
+	Rate       string              `json:"rate"`
+	Key        string              `json:"key"`
+	Delay      *int                `json:"delay"`
+	NoDelay    *bool               `json:"noDelay"`
+	Burst      *int                `json:"burst"`
+	ZoneSize   string              `json:"zoneSize"`
+	DryRun     *bool               `json:"dryRun"`
+	LogLevel   string              `json:"logLevel"`
+	RejectCode *int                `json:"rejectCode"`
+	Scale      bool                `json:"scale"`
+	Condition  *RateLimitCondition `json:"condition"`
+}
+
+// TODO: add valition at CRD level
+type RateLimitCondition struct {
+	JWT     *JWTCondition `json:"jwt"`
+	Default bool          `json:"default"`
+}
+
+type JWTCondition struct {
+	Claim string `json:"claim"`
+	Match string `json:"match"`
 }
 
 // JWTAuth holds JWT authentication configuration.

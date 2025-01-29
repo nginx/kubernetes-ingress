@@ -1577,7 +1577,7 @@ var (
 		AuthJwtClaimSet: []AuthJwtClaimSet{
 			{
 				Variable: "$jwt_default_webapp_group_consumer_group_type",
-				Claims:   "consumer_group type",
+				Claim:    "consumer_group type",
 			},
 		},
 		Maps: []Map{

@@ -9322,6 +9322,74 @@ func TestGenerateString(t *testing.T) {
 	}
 }
 
+func TestGenerateAuthJwtClaimSetVariable(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		claim       string
+		vsNamespace string
+		vsName      string
+		expected    string
+	}{
+		{
+			claim:       "consumer_group.type",
+			vsNamespace: "default",
+			vsName:      "webapp",
+			expected:    "jwt_default_webapp_consumer_group_type",
+		},
+		{
+			claim:       "type",
+			vsNamespace: "default",
+			vsName:      "webapp",
+			expected:    "jwt_default_webapp_type",
+		},
+		{
+			claim:       "a.b.c",
+			vsNamespace: "default",
+			vsName:      "webapp",
+			expected:    "jwt_default_webapp_a_b_c",
+		},
+	}
+
+	for _, test := range tests {
+		result := generateAuthJwtClaimSetVariable(test.claim, test.vsNamespace, test.vsName)
+		if result != test.expected {
+			t.Errorf("generateAuthJwtClaimSetVariable() return %v but expected %v", result, test.expected)
+		}
+	}
+}
+
+func TestGenerateAuthJwtClaimSetClaim(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		claim    string
+		expected string
+	}{
+		{
+			claim:    "consumer_group.type",
+			expected: "consumer_group type",
+		},
+		{
+			claim:    "consumer_group.type",
+			expected: "consumer_group type",
+		},
+		{
+			claim:    "type",
+			expected: "type",
+		},
+		{
+			claim:    "a.b.c",
+			expected: "a b c",
+		},
+	}
+
+	for _, test := range tests {
+		result := generateAuthJwtClaimSetClaim(test.claim)
+		if result != test.expected {
+			t.Errorf("generateAuthJwtClaimSetClaim() return %v but expected %v", result, test.expected)
+		}
+	}
+}
+
 func TestGenerateSnippets(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

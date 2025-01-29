@@ -914,18 +914,19 @@ type apiKeyAuth struct {
 }
 
 type policiesCfg struct {
-	Allow           []string
-	Deny            []string
-	RateLimit       rateLimit
-	JWTAuth         jwtAuth
-	BasicAuth       *version2.BasicAuth
-	IngressMTLS     *version2.IngressMTLS
-	EgressMTLS      *version2.EgressMTLS
-	OIDC            bool
-	APIKey          apiKeyAuth
-	WAF             *version2.WAF
-	ErrorReturn     *version2.Return
-	BundleValidator bundleValidator
+	Allow            []string
+	Deny             []string
+	RateLimit        rateLimit
+	JWTAuth          jwtAuth
+	AuthJwtClaimSets []*version2.AuthJwtClaimSet
+	BasicAuth        *version2.BasicAuth
+	IngressMTLS      *version2.IngressMTLS
+	EgressMTLS       *version2.EgressMTLS
+	OIDC             bool
+	APIKey           apiKeyAuth
+	WAF              *version2.WAF
+	ErrorReturn      *version2.Return
+	BundleValidator  bundleValidator
 }
 
 type bundleValidator interface {
@@ -1011,6 +1012,10 @@ func (p *policiesCfg) addRateLimitConfig(
 	rlZoneName := fmt.Sprintf("pol_rl_%v_%v_%v_%v", polNamespace, polName, vsNamespace, vsName)
 	p.RateLimit.Reqs = append(p.RateLimit.Reqs, generateLimitReq(rlZoneName, rateLimit))
 	p.RateLimit.Zones = append(p.RateLimit.Zones, generateLimitReqZone(rlZoneName, rateLimit, podReplicas))
+	if rateLimit.Condition != nil && rateLimit.Condition.JWT != nil {
+		p.AuthJwtClaimSets = append(p.AuthJwtClaimSets, generateAuthJwtClaimSet(*rateLimit.Condition.JWT, vsNamespace, vsName))
+	}
+	//p.AuthJwtClaimSet = app
 	if len(p.RateLimit.Reqs) == 1 {
 		p.RateLimit.Options = generateLimitReqOptions(rateLimit)
 	} else {
@@ -1665,6 +1670,23 @@ func removeDuplicateLimitReqZones(rlz []version2.LimitReqZone) []version2.LimitR
 	}
 
 	return result
+}
+
+func generateAuthJwtClaimSet(jwtCondition conf_v1.JWTCondition, vsNamespace string, vsName string) *version2.AuthJwtClaimSet {
+	return &version2.AuthJwtClaimSet{
+		Variable: generateAuthJwtClaimSetVariable(jwtCondition.Claim, vsNamespace, vsName),
+		Claim:    generateAuthJwtClaimSetClaim(jwtCondition.Claim),
+	}
+}
+
+// TODO: process claim with spaces
+func generateAuthJwtClaimSetVariable(claim string, vsNamespace string, vsName string) string {
+	return fmt.Sprintf("jwt_%v_%v_%v", vsNamespace, vsName, strings.Join(strings.Split(claim, "."), "_"))
+}
+
+// TODO: process claim with spaces
+func generateAuthJwtClaimSetClaim(claim string) string {
+	return strings.Join(strings.Split(claim, "."), " ")
 }
 
 func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {

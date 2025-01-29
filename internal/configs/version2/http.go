@@ -32,7 +32,7 @@ type VirtualServerConfig struct {
 // AuthJwtClaimSet defines the values for the `auth_jwt_claim_set` directive
 type AuthJwtClaimSet struct {
 	Variable string
-	Claims   string
+	Claim    string
 }
 
 // Upstream defines an upstream.
