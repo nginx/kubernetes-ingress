@@ -8919,6 +8919,7 @@ func TestRemoveDuplicates(t *testing.T) {
 	}
 }
 
+// TODO: write test for removeDuplicateAuthJWTClaimSets
 func TestAddPoliciesCfgToLocations(t *testing.T) {
 	t.Parallel()
 	cfg := policiesCfg{

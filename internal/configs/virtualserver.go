@@ -453,8 +453,11 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	var statusMatches []version2.StatusMatch
 	var healthChecks []version2.HealthCheck
 	var limitReqZones []version2.LimitReqZone
+	var authJWTClaimSets []*version2.AuthJWTClaimSet
 
 	limitReqZones = append(limitReqZones, policiesCfg.RateLimit.Zones...)
+
+	authJWTClaimSets = append(authJWTClaimSets, policiesCfg.AuthJWTClaimSets...)
 
 	// generate upstreams for VirtualServer
 	for _, u := range vsEx.VirtualServer.Spec.Upstreams {
@@ -606,6 +609,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		}
 		limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
 
+		authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.AuthJWTClaimSets...)
+
 		dosRouteCfg := generateDosCfg(dosResources[r.Path])
 
 		if len(r.Matches) > 0 {
@@ -747,6 +752,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 			limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
 
+			authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.AuthJWTClaimSets...)
+
 			dosRouteCfg := generateDosCfg(dosResources[r.Path])
 
 			if len(r.Matches) > 0 {
@@ -828,12 +835,13 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	})
 
 	vsCfg := version2.VirtualServerConfig{
-		Upstreams:     upstreams,
-		SplitClients:  splitClients,
-		Maps:          maps,
-		StatusMatches: statusMatches,
-		LimitReqZones: removeDuplicateLimitReqZones(limitReqZones),
-		HTTPSnippets:  httpSnippets,
+		Upstreams:        upstreams,
+		SplitClients:     splitClients,
+		Maps:             maps,
+		StatusMatches:    statusMatches,
+		LimitReqZones:    removeDuplicateLimitReqZones(limitReqZones),
+		AuthJWTClaimSets: removeDuplicateAuthJWTClaimSets(authJWTClaimSets),
+		HTTPSnippets:     httpSnippets,
 		Server: version2.Server{
 			ServerName:                vsEx.VirtualServer.Spec.Host,
 			Gunzip:                    vsEx.VirtualServer.Spec.Gunzip,
@@ -918,7 +926,7 @@ type policiesCfg struct {
 	Deny             []string
 	RateLimit        rateLimit
 	JWTAuth          jwtAuth
-	AuthJwtClaimSets []*version2.AuthJwtClaimSet
+	AuthJWTClaimSets []*version2.AuthJWTClaimSet
 	BasicAuth        *version2.BasicAuth
 	IngressMTLS      *version2.IngressMTLS
 	EgressMTLS       *version2.EgressMTLS
@@ -1013,9 +1021,8 @@ func (p *policiesCfg) addRateLimitConfig(
 	p.RateLimit.Reqs = append(p.RateLimit.Reqs, generateLimitReq(rlZoneName, rateLimit))
 	p.RateLimit.Zones = append(p.RateLimit.Zones, generateLimitReqZone(rlZoneName, rateLimit, podReplicas))
 	if rateLimit.Condition != nil && rateLimit.Condition.JWT != nil {
-		p.AuthJwtClaimSets = append(p.AuthJwtClaimSets, generateAuthJwtClaimSet(*rateLimit.Condition.JWT, vsNamespace, vsName))
+		p.AuthJWTClaimSets = append(p.AuthJWTClaimSets, generateAuthJwtClaimSet(*rateLimit.Condition.JWT, vsNamespace, vsName))
 	}
-	//p.AuthJwtClaimSet = app
 	if len(p.RateLimit.Reqs) == 1 {
 		p.RateLimit.Options = generateLimitReqOptions(rateLimit)
 	} else {
@@ -1672,8 +1679,22 @@ func removeDuplicateLimitReqZones(rlz []version2.LimitReqZone) []version2.LimitR
 	return result
 }
 
-func generateAuthJwtClaimSet(jwtCondition conf_v1.JWTCondition, vsNamespace string, vsName string) *version2.AuthJwtClaimSet {
-	return &version2.AuthJwtClaimSet{
+func removeDuplicateAuthJWTClaimSets(ajcs []*version2.AuthJWTClaimSet) []version2.AuthJWTClaimSet {
+	encountered := make(map[string]bool)
+	var result []version2.AuthJWTClaimSet
+
+	for _, v := range ajcs {
+		if !encountered[v.Variable] {
+			encountered[v.Variable] = true
+			result = append(result, *v)
+		}
+	}
+
+	return result
+}
+
+func generateAuthJwtClaimSet(jwtCondition conf_v1.JWTCondition, vsNamespace string, vsName string) *version2.AuthJWTClaimSet {
+	return &version2.AuthJWTClaimSet{
 		Variable: generateAuthJwtClaimSetVariable(jwtCondition.Claim, vsNamespace, vsName),
 		Claim:    generateAuthJwtClaimSetClaim(jwtCondition.Claim),
 	}

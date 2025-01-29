@@ -18,7 +18,7 @@ type VirtualServerConfig struct {
 	KeyVals                 []KeyVal
 	LimitReqZones           []LimitReqZone
 	Maps                    []Map
-	AuthJwtClaimSet         []AuthJwtClaimSet
+	AuthJWTClaimSets        []AuthJWTClaimSet
 	Server                  Server
 	SpiffeCerts             bool
 	SpiffeClientCerts       bool
@@ -29,8 +29,8 @@ type VirtualServerConfig struct {
 	StaticSSLPath           string
 }
 
-// AuthJwtClaimSet defines the values for the `auth_jwt_claim_set` directive
-type AuthJwtClaimSet struct {
+// AuthJWTClaimSet defines the values for the `auth_jwt_claim_set` directive
+type AuthJWTClaimSet struct {
 	Variable string
 	Claim    string
 }

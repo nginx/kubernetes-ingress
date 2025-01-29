@@ -1574,7 +1574,7 @@ var (
 			},
 		},
 		Upstreams: []Upstream{},
-		AuthJwtClaimSet: []AuthJwtClaimSet{
+		AuthJWTClaimSets: []AuthJWTClaimSet{
 			{
 				Variable: "$jwt_default_webapp_group_consumer_group_type",
 				Claim:    "consumer_group type",
