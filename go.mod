@@ -7,12 +7,12 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/marketplacemetering v1.25.12
 	github.com/cert-manager/cert-manager v1.16.3
 	github.com/dlclark/regexp2 v1.11.4
-	github.com/gkampitakis/go-snaps v0.5.8
+	github.com/gkampitakis/go-snaps v0.5.9
 	github.com/golang-jwt/jwt/v4 v4.5.1
 	github.com/google/go-cmp v0.6.0
 	github.com/gruntwork-io/terratest v0.48.1
 	github.com/jinzhu/copier v0.4.0
-	github.com/nginx/nginx-plus-go-client/v2 v2.2.0
+	github.com/nginx/nginx-plus-go-client/v2 v2.3.0
 	github.com/nginx/nginx-prometheus-exporter v1.4.1
 	github.com/nginx/telemetry-exporter v0.1.3
 	github.com/nginxinc/nginx-service-mesh v1.7.0
