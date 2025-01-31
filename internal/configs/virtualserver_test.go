@@ -6398,9 +6398,6 @@ func TestGenerateVirtualServerConfigAPIKeyClientMaps(t *testing.T) {
 func TestGenerateVirtualServerConfigRateLimitPolicyAuthJwt(t *testing.T) {
 	t.Parallel()
 
-	dryRunOverride := true
-	rejectCodeOverride := 505
-
 	virtualServerEx := VirtualServerEx{
 		VirtualServer: &conf_v1.VirtualServer{
 			ObjectMeta: meta_v1.ObjectMeta{
@@ -6449,11 +6446,9 @@ func TestGenerateVirtualServerConfigRateLimitPolicyAuthJwt(t *testing.T) {
 			"default/gold-rate-limit-policy": {
 				Spec: conf_v1.PolicySpec{
 					RateLimit: &conf_v1.RateLimit{
-						Key:        "test",
-						ZoneSize:   "10M",
-						Rate:       "10r/s",
-						DryRun:     &dryRunOverride,
-						RejectCode: &rejectCodeOverride,
+						Key:      "test",
+						ZoneSize: "10M",
+						Rate:     "10r/s",
 						Condition: &conf_v1.RateLimitCondition{
 							JWT: conf_v1.JWTCondition{
 								Claim: "user_type.tier",
@@ -6469,9 +6464,6 @@ func TestGenerateVirtualServerConfigRateLimitPolicyAuthJwt(t *testing.T) {
 						Key:      "test",
 						ZoneSize: "20M",
 						Rate:     "20r/s",
-						DryRun:   &dryRunOverride,
-						//LogLevel:   "info",
-						RejectCode: &rejectCodeOverride,
 						Condition: &conf_v1.RateLimitCondition{
 							JWT: conf_v1.JWTCondition{
 								Claim: "user_type.tier",
@@ -6554,9 +6546,9 @@ func TestGenerateVirtualServerConfigRateLimitPolicyAuthJwt(t *testing.T) {
 				{"pol_rl_default_silver-rate-limit-policy_default_cafe", 0, false, 0},
 			},
 			LimitReqOptions: version2.LimitReqOptions{
-				DryRun:     true,
+				DryRun:     false,
 				LogLevel:   "error",
-				RejectCode: 505,
+				RejectCode: 503,
 			},
 			Locations: []version2.Location{
 				{
