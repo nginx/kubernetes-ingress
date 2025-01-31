@@ -230,7 +230,7 @@ Build the args for the service binary.
 - --continue
 {{- end }}
 - --
-{{- end -}}
+{{- end }}
 - -nginx-plus={{ .Values.controller.nginxplus }}
 - -nginx-reload-timeout={{ .Values.controller.nginxReloadTimeout }}
 - -enable-app-protect={{ .Values.controller.appprotect.enable }}

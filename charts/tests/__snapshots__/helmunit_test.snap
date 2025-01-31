@@ -385,6 +385,7 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
+          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -845,6 +846,7 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
+          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=true
@@ -1316,6 +1318,7 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
+          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=true
@@ -1755,6 +1758,7 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
+          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -2180,6 +2184,7 @@ spec:
             cpu: 100m
             memory: 128Mi
         args:
+          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -2611,6 +2616,7 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
+          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -3042,6 +3048,7 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
+          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -3495,6 +3502,7 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
+          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -3928,6 +3936,7 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
+          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -4375,6 +4384,7 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
+          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -4440,6 +4450,462 @@ metadata:
     helm.sh/chart: nginx-ingress-2.1.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus
+    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/managed-by: Helm
+---
+
+[TestHelmNICTemplate/plus-debug - 1]
+/-/-/-/
+# Source: nginx-ingress/templates/controller-serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: plus-debug-nginx-ingress
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.1.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-debug
+    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: plus-debug-nginx-ingress
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.1.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-debug
+    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  {}
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+/-/-/-/
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: plus-debug-nginx-ingress-mgmt
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.1.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-debug
+    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  license-token-secret-name: license-token
+/-/-/-/
+# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: plus-debug-nginx-ingress-leader-election
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.1.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-debug
+    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrole.yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: plus-debug-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.1.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-debug
+    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - namespaces
+  - pods
+  - secrets
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - list
+- apiGroups:
+  - "apps"
+  resources:
+  - replicasets
+  - daemonsets
+  verbs:
+  - get
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingressclasses
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/status
+  verbs:
+  - update
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers
+  - virtualserverroutes
+  - globalconfigurations
+  - transportservers
+  - policies
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers/status
+  - virtualserverroutes/status
+  - policies/status
+  - transportservers/status
+  verbs:
+  - update
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrolebinding.yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: plus-debug-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.1.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-debug
+    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/managed-by: Helm
+subjects:
+- kind: ServiceAccount
+  name: plus-debug-nginx-ingress
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: plus-debug-nginx-ingress
+  apiGroup: rbac.authorization.k8s.io
+/-/-/-/
+# Source: nginx-ingress/templates/controller-role.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: plus-debug-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.1.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-debug
+    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: default
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - pods
+  - secrets
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+    - ""
+  resources:
+    - namespaces
+  verbs:
+    - get
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  resourceNames:
+  - plus-debug-nginx-ingress-leader-election
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+/-/-/-/
+# Source: nginx-ingress/templates/controller-rolebinding.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: plus-debug-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.1.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-debug
+    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: plus-debug-nginx-ingress
+subjects:
+- kind: ServiceAccount
+  name: plus-debug-nginx-ingress
+  namespace: default
+/-/-/-/
+# Source: nginx-ingress/templates/controller-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: plus-debug-nginx-ingress-controller
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.1.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-debug
+    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  externalTrafficPolicy: Local
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+    nodePort: 
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: https
+    nodePort: 
+  selector:
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-debug
+/-/-/-/
+# Source: nginx-ingress/templates/controller-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plus-debug-nginx-ingress-controller
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.1.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-debug
+    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx-ingress
+      app.kubernetes.io/instance: plus-debug
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx-ingress
+        app.kubernetes.io/instance: plus-debug
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9113"
+        prometheus.io/scheme: "http"
+    spec:      
+      volumes: []
+      serviceAccountName: plus-debug-nginx-ingress
+      automountServiceAccountToken: true
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      hostNetwork: false
+      dnsPolicy: ClusterFirst
+      containers:
+      - image: nginx/nginx-ingress:4.1.0
+        name: nginx-ingress
+        imagePullPolicy: "IfNotPresent"
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        - name: https
+          containerPort: 443
+          protocol: TCP
+        - name: prometheus
+          containerPort: 9113
+        - name: readiness-port
+          containerPort: 8081
+        readinessProbe:
+          httpGet:
+            path: /nginx-ready
+            port: readiness-port
+          periodSeconds: 1
+          initialDelaySeconds: 0
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsUser: 101 #nginx
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - NET_BIND_SERVICE        
+        volumeMounts: []
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        args:
+          
+          - --listen=:2345
+          - --headless=true
+          - --log=true
+          - --log-output=debugger,debuglineerr,gdbwire,lldbout,rpc,dap,fncall,minidump,stack
+          - --accept-multiclient
+          - --api-version=2
+          - exec
+          - ./nginx-ingress
+          - --continue
+          - --
+          - -nginx-plus=true
+          - -nginx-reload-timeout=60000
+          - -enable-app-protect=false
+          - -enable-app-protect-dos=false
+          - -nginx-configmaps=$(POD_NAMESPACE)/plus-debug-nginx-ingress
+          - -mgmt-configmap=$(POD_NAMESPACE)/plus-debug-nginx-ingress-mgmt
+          - -ingress-class=nginx
+          - -health-status=false
+          - -health-status-uri=/nginx-health
+          - -nginx-debug=false
+          - -log-level=info
+          - -log-format=glog
+          - -nginx-status=true
+          - -nginx-status-port=8080
+          - -nginx-status-allow-cidrs=127.0.0.1
+          - -report-ingress-status
+          - -external-service=plus-debug-nginx-ingress-controller
+          - -enable-leader-election=true
+          - -leader-election-lock-name=plus-debug-nginx-ingress-leader-election
+          - -enable-prometheus-metrics=true
+          - -prometheus-metrics-listen-port=9113
+          - -prometheus-tls-secret=
+          - -enable-service-insight=false
+          - -service-insight-listen-port=9114
+          - -service-insight-tls-secret=
+          - -enable-custom-resources=true
+          - -enable-snippets=false
+          - -disable-ipv6=false
+          - -enable-tls-passthrough=false
+          - -enable-cert-manager=false
+          - -enable-oidc=false
+          - -enable-external-dns=false
+          - -default-http-listener-port=80
+          - -default-https-listener-port=443
+          - -ready-status=true
+          - -ready-status-port=8081
+          - -enable-latency-metrics=false
+          - -ssl-dynamic-reload=true
+          - -enable-telemetry-reporting=true
+          - -weight-changes-dynamic-reload=false
+/-/-/-/
+# Source: nginx-ingress/templates/controller-ingress-class.yaml
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: nginx
+  labels:
+    helm.sh/chart: nginx-ingress-2.1.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-debug
+    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  controller: nginx.org/ingress-controller
+/-/-/-/
+# Source: nginx-ingress/templates/controller-lease.yaml
+apiVersion: coordination.k8s.io/v1
+kind: Lease
+metadata:
+  name: plus-debug-nginx-ingress-leader-election
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.1.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-debug
     app.kubernetes.io/version: "4.1.0"
     app.kubernetes.io/managed-by: Helm
 ---
