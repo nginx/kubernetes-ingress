@@ -2263,7 +2263,7 @@ server {
 
 [TestExecuteVirtualServerTemplate_RendersTemplateWithRateLimitJWTClaim - 1]
 
-auth_jwt_claim_set $jwt_default_webapp_group_consumer_group_type consumer_group type
+auth_jwt_claim_set $jwt_default_webapp_group_consumer_group_type consumer_group type;
 map $jwt_default_webapp_group_consumer_group_type $rate_limit_default_webapp_group_consumer_group_type {
     default Group3;
     Gold Group1;

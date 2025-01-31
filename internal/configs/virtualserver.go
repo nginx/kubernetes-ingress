@@ -453,7 +453,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	var statusMatches []version2.StatusMatch
 	var healthChecks []version2.HealthCheck
 	var limitReqZones []version2.LimitReqZone
-	var authJWTClaimSets []*version2.AuthJWTClaimSet
+	var authJWTClaimSets []version2.AuthJWTClaimSet
 
 	limitReqZones = append(limitReqZones, policiesCfg.RateLimit.Zones...)
 
@@ -695,7 +695,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			}
 
 			locSnippets := r.LocationSnippets
-			// use the  VirtualServer location snippet if the route does not define any
+			// use the VirtualServer location snippet if the route does not define any
 			if r.LocationSnippets == "" {
 				locSnippets = vsrLocationSnippetsFromVs[vsrNamespaceName]
 			}
@@ -926,7 +926,7 @@ type policiesCfg struct {
 	Deny             []string
 	RateLimit        rateLimit
 	JWTAuth          jwtAuth
-	AuthJWTClaimSets []*version2.AuthJWTClaimSet
+	AuthJWTClaimSets []version2.AuthJWTClaimSet
 	BasicAuth        *version2.BasicAuth
 	IngressMTLS      *version2.IngressMTLS
 	EgressMTLS       *version2.EgressMTLS
@@ -1020,8 +1020,8 @@ func (p *policiesCfg) addRateLimitConfig(
 	rlZoneName := fmt.Sprintf("pol_rl_%v_%v_%v_%v", polNamespace, polName, vsNamespace, vsName)
 	p.RateLimit.Reqs = append(p.RateLimit.Reqs, generateLimitReq(rlZoneName, rateLimit))
 	p.RateLimit.Zones = append(p.RateLimit.Zones, generateLimitReqZone(rlZoneName, rateLimit, podReplicas))
-	if rateLimit.Condition != nil && rateLimit.Condition.JWT != nil {
-		p.AuthJWTClaimSets = append(p.AuthJWTClaimSets, generateAuthJwtClaimSet(*rateLimit.Condition.JWT, vsNamespace, vsName))
+	if rateLimit.Condition != nil && rateLimit.Condition.JWT.Claim != "" && rateLimit.Condition.JWT.Match != "" {
+		p.AuthJWTClaimSets = append(p.AuthJWTClaimSets, generateAuthJwtClaimSet(rateLimit.Condition.JWT, vsNamespace, vsName))
 	}
 	if len(p.RateLimit.Reqs) == 1 {
 		p.RateLimit.Options = generateLimitReqOptions(rateLimit)
@@ -1679,22 +1679,22 @@ func removeDuplicateLimitReqZones(rlz []version2.LimitReqZone) []version2.LimitR
 	return result
 }
 
-func removeDuplicateAuthJWTClaimSets(ajcs []*version2.AuthJWTClaimSet) []version2.AuthJWTClaimSet {
+func removeDuplicateAuthJWTClaimSets(ajcs []version2.AuthJWTClaimSet) []version2.AuthJWTClaimSet {
 	encountered := make(map[string]bool)
 	var result []version2.AuthJWTClaimSet
 
 	for _, v := range ajcs {
 		if !encountered[v.Variable] {
 			encountered[v.Variable] = true
-			result = append(result, *v)
+			result = append(result, v)
 		}
 	}
 
 	return result
 }
 
-func generateAuthJwtClaimSet(jwtCondition conf_v1.JWTCondition, vsNamespace string, vsName string) *version2.AuthJWTClaimSet {
-	return &version2.AuthJWTClaimSet{
+func generateAuthJwtClaimSet(jwtCondition conf_v1.JWTCondition, vsNamespace string, vsName string) version2.AuthJWTClaimSet {
+	return version2.AuthJWTClaimSet{
 		Variable: generateAuthJwtClaimSetVariable(jwtCondition.Claim, vsNamespace, vsName),
 		Claim:    generateAuthJwtClaimSetClaim(jwtCondition.Claim),
 	}
@@ -1702,7 +1702,7 @@ func generateAuthJwtClaimSet(jwtCondition conf_v1.JWTCondition, vsNamespace stri
 
 // TODO: process claim with spaces
 func generateAuthJwtClaimSetVariable(claim string, vsNamespace string, vsName string) string {
-	return fmt.Sprintf("jwt_%v_%v_%v", vsNamespace, vsName, strings.Join(strings.Split(claim, "."), "_"))
+	return fmt.Sprintf("$jwt_%v_%v_%v", vsNamespace, vsName, strings.Join(strings.Split(claim, "."), "_"))
 }
 
 // TODO: process claim with spaces

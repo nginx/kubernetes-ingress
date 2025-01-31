@@ -341,6 +341,18 @@ spec:
                 properties:
                   burst:
                     type: integer
+                  condition:
+                    properties:
+                      default:
+                        type: boolean
+                      jwt:
+                        properties:
+                          claim:
+                            type: string
+                          match:
+                            type: string
+                        type: object
+                    type: object
                   delay:
                     type: integer
                   dryRun:

@@ -615,8 +615,8 @@ type RateLimit struct {
 
 // TODO: add valition at CRD level
 type RateLimitCondition struct {
-	JWT     *JWTCondition `json:"jwt"`
-	Default bool          `json:"default"`
+	JWT     JWTCondition `json:"jwt"`
+	Default bool         `json:"default"`
 }
 
 type JWTCondition struct {
