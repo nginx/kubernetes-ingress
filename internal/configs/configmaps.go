@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -399,6 +400,47 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		}
 	}
 
+	if zoneSync, exists, err := GetMapKeyAsBool(cfgm.Data, "zone-sync", cfgm); exists {
+		if err != nil {
+			nl.Error(l, err)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
+			configOk = false
+		} else {
+			if nginxPlus {
+				cfgParams.ZoneSync.EnableZoneSync = zoneSync
+			} else {
+				errorText := fmt.Sprintf("ConfigMap %s/%s key %s requires NGINX Plus", cfgm.Namespace, cfgm.Name, "zone-sync")
+				nl.Warn(l, errorText)
+				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+				configOk = false
+			}
+		}
+	}
+
+	if zoneSyncPort, exists, err := GetMapKeyAsInt(cfgm.Data, "zone-sync-port", cfgm); exists {
+		if err != nil {
+			nl.Error(l, err)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
+			configOk = false
+		} else {
+			if cfgParams.ZoneSync.EnableZoneSync {
+				portValidationError := validation.ValidatePort(zoneSyncPort)
+				if portValidationError != nil {
+					nl.Error(l, portValidationError)
+					eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, portValidationError.Error())
+					configOk = false
+				} else {
+					cfgParams.ZoneSync.Port = zoneSyncPort
+				}
+			} else {
+				errorText := fmt.Sprintf("ConfigMap %s/%s key %s requires 'zone-sync' to be enabled", cfgm.Namespace, cfgm.Name, "zone-sync-port")
+				nl.Warn(l, errorText)
+				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+				configOk = false
+			}
+		}
+	}
+
 	if upstreamZoneSize, exists := cfgm.Data["upstream-zone-size"]; exists {
 		cfgParams.UpstreamZoneSize = upstreamZoneSize
 	}
@@ -777,6 +819,13 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		}
 	}
 
+	podNamespace := os.Getenv("POD_NAMESPACE")
+	zoneSyncConfig := version1.ZoneSyncConfig{
+		EnableZoneSync: config.ZoneSync.EnableZoneSync,
+		Port:           config.ZoneSync.Port,
+		Domain:         fmt.Sprintf("%s-headless.%s.svc.cluster.local", podNamespace, podNamespace),
+	}
+
 	nginxCfg := &version1.MainConfig{
 		AccessLog:                          config.MainAccessLog,
 		DefaultServerAccessLogOff:          config.DefaultServerAccessLogOff,
@@ -850,6 +899,7 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		InternalRouteServerName:            staticCfgParams.InternalRouteServerName,
 		LatencyMetrics:                     staticCfgParams.EnableLatencyMetrics,
 		OIDC:                               staticCfgParams.EnableOIDC,
+		ZoneSyncConfig:                     zoneSyncConfig,
 		DynamicSSLReloadEnabled:            staticCfgParams.DynamicSSLReload,
 		StaticSSLPath:                      staticCfgParams.StaticSSLPath,
 		NginxVersion:                       staticCfgParams.NginxVersion,
