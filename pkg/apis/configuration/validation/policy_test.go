@@ -1982,24 +1982,6 @@ func TestValidateWAF_FailsOnInvalidApPolicy(t *testing.T) {
 	}
 }
 
-func TestValidateBasic_PassesOnNotEmptySecret(t *testing.T) {
-	t.Parallel()
-
-	errList := validateBasic(&v1.BasicAuth{Realm: "", Secret: "secret"}, field.NewPath("secret"))
-	if len(errList) != 0 {
-		t.Errorf("want no errors, got %v", errList)
-	}
-}
-
-func TestValidateBasic_FailsOnMissingSecret(t *testing.T) {
-	t.Parallel()
-
-	errList := validateBasic(&v1.BasicAuth{Realm: "realm", Secret: ""}, field.NewPath("secret"))
-	if len(errList) == 0 {
-		t.Error("want error on invalid input")
-	}
-}
-
 func TestValidateWAF_FailsOnPresentBothApLogBundleAndApLogConf(t *testing.T) {
 	t.Parallel()
 

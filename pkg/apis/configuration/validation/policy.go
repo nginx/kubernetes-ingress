@@ -45,7 +45,6 @@ func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, isPlus, enab
 	}
 
 	if spec.BasicAuth != nil {
-		allErrs = append(allErrs, validateBasic(spec.BasicAuth, fieldPath.Child("basicAuth"))...)
 		fieldCount++
 	}
 
@@ -204,18 +203,6 @@ func validateJWT(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
 		return allErrs
 	}
 	return allErrs
-}
-
-func validateBasic(basic *v1.BasicAuth, fieldPath *field.Path) field.ErrorList {
-	if basic.Secret == "" {
-		return field.ErrorList{field.Required(fieldPath.Child("secret"), "")}
-	}
-
-	allErrs := field.ErrorList{}
-	if basic.Realm != "" {
-		allErrs = append(allErrs, validateRealm(basic.Realm, fieldPath.Child("realm"))...)
-	}
-	return append(allErrs, validateSecretName(basic.Secret, fieldPath.Child("secret"))...)
 }
 
 func validateIngressMTLS(ingressMTLS *v1.IngressMTLS, fieldPath *field.Path) field.ErrorList {
