@@ -180,6 +180,8 @@ spec:
                   burst:
                     type: integer
                   condition:
+                    description: RateLimitCondition defines a condition for a rate
+                      limit policy.
                     properties:
                       default:
                         type: boolean

@@ -6522,8 +6522,8 @@ func TestGenerateVirtualServerConfigRateLimitPolicyAuthJwt(t *testing.T) {
 		},
 		HTTPSnippets: []string{},
 		LimitReqZones: []version2.LimitReqZone{
-			{"test", "pol_rl_default_gold-rate-limit-policy_default_cafe", "10M", "10r/s"},
-			{"test", "pol_rl_default_silver-rate-limit-policy_default_cafe", "20M", "20r/s"},
+			{Key: "test", ZoneName: "pol_rl_default_gold-rate-limit-policy_default_cafe", ZoneSize: "10M", Rate: "10r/s"},
+			{Key: "test", ZoneName: "pol_rl_default_silver-rate-limit-policy_default_cafe", ZoneSize: "20M", Rate: "20r/s"},
 		},
 		Server: version2.Server{
 			JWTAuthList:     nil,
@@ -6542,8 +6542,8 @@ func TestGenerateVirtualServerConfigRateLimitPolicyAuthJwt(t *testing.T) {
 			VSName:          "cafe",
 			APIKeyEnabled:   false,
 			LimitReqs: []version2.LimitReq{
-				{"pol_rl_default_gold-rate-limit-policy_default_cafe", 0, false, 0},
-				{"pol_rl_default_silver-rate-limit-policy_default_cafe", 0, false, 0},
+				{ZoneName: "pol_rl_default_gold-rate-limit-policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+				{ZoneName: "pol_rl_default_silver-rate-limit-policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
 			},
 			LimitReqOptions: version2.LimitReqOptions{
 				DryRun:     false,
