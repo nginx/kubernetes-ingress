@@ -622,10 +622,10 @@ type RateLimitCondition struct {
 
 type JWTCondition struct {
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Pattern=^([^$\s"'])*$
+	// +kubebuilder:validation:Pattern=`^([^$\s"'])*$`
 	Claim string `json:"claim"`
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Pattern=^([^$\s."'])*$
+	// +kubebuilder:validation:Pattern=`^([^$\s."'])*$`
 	Match string `json:"match"`
 }
 

@@ -186,9 +186,14 @@ spec:
                       jwt:
                         properties:
                           claim:
+                            pattern: ^([^$\s"'])*$
                             type: string
                           match:
+                            pattern: ^([^$\s."'])*$
                             type: string
+                        required:
+                        - claim
+                        - match
                         type: object
                     type: object
                   delay:
