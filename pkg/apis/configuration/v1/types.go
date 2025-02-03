@@ -621,8 +621,7 @@ type RateLimitCondition struct {
 	Default bool `json:"default"`
 }
 
-// RateLimitCondition defines a condition for a rate limit by JWT claim.
-
+// JWTCondition defines a condition for a rate limit by JWT claim.
 type JWTCondition struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^([^$\s"'])*$`
