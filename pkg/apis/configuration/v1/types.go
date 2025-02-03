@@ -610,6 +610,25 @@ type RateLimit struct {
 	LogLevel   string `json:"logLevel"`
 	RejectCode *int   `json:"rejectCode"`
 	Scale      bool   `json:"scale"`
+	// +kubebuilder:validation:Optional
+	Condition *RateLimitCondition `json:"condition"`
+}
+
+// RateLimitCondition defines a condition for a rate limit policy.
+type RateLimitCondition struct {
+	JWT *JWTCondition `json:"jwt"`
+	// +kubebuilder:validation:Optional
+	Default bool `json:"default"`
+}
+
+// JWTCondition defines a condition for a rate limit by JWT claim.
+type JWTCondition struct {
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^([^$\s"'])*$`
+	Claim string `json:"claim"`
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^([^$\s."'])*$`
+	Match string `json:"match"`
 }
 
 // JWTAuth holds JWT authentication configuration.

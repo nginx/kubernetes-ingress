@@ -179,6 +179,27 @@ spec:
                 properties:
                   burst:
                     type: integer
+                  condition:
+                    description: RateLimitCondition defines a condition for a rate
+                      limit policy.
+                    properties:
+                      default:
+                        type: boolean
+                      jwt:
+                        description: JWTCondition defines a condition for a rate limit
+                          by JWT claim.
+                        properties:
+                          claim:
+                            pattern: ^([^$\s"'])*$
+                            type: string
+                          match:
+                            pattern: ^([^$\s."'])*$
+                            type: string
+                        required:
+                        - claim
+                        - match
+                        type: object
+                    type: object
                   delay:
                     type: integer
                   dryRun:

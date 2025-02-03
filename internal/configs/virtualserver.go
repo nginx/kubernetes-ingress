@@ -453,8 +453,11 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	var statusMatches []version2.StatusMatch
 	var healthChecks []version2.HealthCheck
 	var limitReqZones []version2.LimitReqZone
+	var authJWTClaimSets []version2.AuthJWTClaimSet
 
 	limitReqZones = append(limitReqZones, policiesCfg.RateLimit.Zones...)
+
+	authJWTClaimSets = append(authJWTClaimSets, policiesCfg.RateLimit.AuthJWTClaimSets...)
 
 	// generate upstreams for VirtualServer
 	for _, u := range vsEx.VirtualServer.Spec.Upstreams {
@@ -606,6 +609,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		}
 		limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
 
+		authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.RateLimit.AuthJWTClaimSets...)
+
 		dosRouteCfg := generateDosCfg(dosResources[r.Path])
 
 		if len(r.Matches) > 0 {
@@ -690,7 +695,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			}
 
 			locSnippets := r.LocationSnippets
-			// use the  VirtualServer location snippet if the route does not define any
+			// use the VirtualServer location snippet if the route does not define any
 			if r.LocationSnippets == "" {
 				locSnippets = vsrLocationSnippetsFromVs[vsrNamespaceName]
 			}
@@ -746,6 +751,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			}
 
 			limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
+
+			authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.RateLimit.AuthJWTClaimSets...)
 
 			dosRouteCfg := generateDosCfg(dosResources[r.Path])
 
@@ -828,12 +835,13 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	})
 
 	vsCfg := version2.VirtualServerConfig{
-		Upstreams:     upstreams,
-		SplitClients:  splitClients,
-		Maps:          maps,
-		StatusMatches: statusMatches,
-		LimitReqZones: removeDuplicateLimitReqZones(limitReqZones),
-		HTTPSnippets:  httpSnippets,
+		Upstreams:        upstreams,
+		SplitClients:     splitClients,
+		Maps:             maps,
+		StatusMatches:    statusMatches,
+		LimitReqZones:    removeDuplicateLimitReqZones(limitReqZones),
+		AuthJWTClaimSets: removeDuplicateAuthJWTClaimSets(authJWTClaimSets),
+		HTTPSnippets:     httpSnippets,
 		Server: version2.Server{
 			ServerName:                vsEx.VirtualServer.Spec.Host,
 			Gunzip:                    vsEx.VirtualServer.Spec.Gunzip,
@@ -893,9 +901,10 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 // rateLimit hold the configuration for the ratelimiting Policy
 type rateLimit struct {
-	Reqs    []version2.LimitReq
-	Zones   []version2.LimitReqZone
-	Options version2.LimitReqOptions
+	Reqs             []version2.LimitReq
+	Zones            []version2.LimitReqZone
+	Options          version2.LimitReqOptions
+	AuthJWTClaimSets []version2.AuthJWTClaimSet
 }
 
 // jwtAuth hold the configuration for the JWTAuth & JWKSAuth Policies
@@ -1011,6 +1020,9 @@ func (p *policiesCfg) addRateLimitConfig(
 	rlZoneName := fmt.Sprintf("pol_rl_%v_%v_%v_%v", polNamespace, polName, vsNamespace, vsName)
 	p.RateLimit.Reqs = append(p.RateLimit.Reqs, generateLimitReq(rlZoneName, rateLimit))
 	p.RateLimit.Zones = append(p.RateLimit.Zones, generateLimitReqZone(rlZoneName, rateLimit, podReplicas))
+	if rateLimit.Condition != nil && rateLimit.Condition.JWT.Claim != "" && rateLimit.Condition.JWT.Match != "" {
+		p.RateLimit.AuthJWTClaimSets = append(p.RateLimit.AuthJWTClaimSets, generateAuthJwtClaimSet(*rateLimit.Condition.JWT, vsNamespace, vsName))
+	}
 	if len(p.RateLimit.Reqs) == 1 {
 		p.RateLimit.Options = generateLimitReqOptions(rateLimit)
 	} else {
@@ -1665,6 +1677,37 @@ func removeDuplicateLimitReqZones(rlz []version2.LimitReqZone) []version2.LimitR
 	}
 
 	return result
+}
+
+func removeDuplicateAuthJWTClaimSets(ajcs []version2.AuthJWTClaimSet) []version2.AuthJWTClaimSet {
+	encountered := make(map[string]bool)
+	var result []version2.AuthJWTClaimSet
+
+	for _, v := range ajcs {
+		if !encountered[v.Variable] {
+			encountered[v.Variable] = true
+			result = append(result, v)
+		}
+	}
+
+	return result
+}
+
+func generateAuthJwtClaimSet(jwtCondition conf_v1.JWTCondition, vsNamespace string, vsName string) version2.AuthJWTClaimSet {
+	return version2.AuthJWTClaimSet{
+		Variable: generateAuthJwtClaimSetVariable(jwtCondition.Claim, vsNamespace, vsName),
+		Claim:    generateAuthJwtClaimSetClaim(jwtCondition.Claim),
+	}
+}
+
+// TODO: process claim with spaces
+func generateAuthJwtClaimSetVariable(claim string, vsNamespace string, vsName string) string {
+	return fmt.Sprintf("$jwt_%v_%v_%v", vsNamespace, vsName, strings.Join(strings.Split(claim, "."), "_"))
+}
+
+// TODO: process claim with spaces
+func generateAuthJwtClaimSetClaim(claim string) string {
+	return strings.Join(strings.Split(claim, "."), " ")
 }
 
 func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {

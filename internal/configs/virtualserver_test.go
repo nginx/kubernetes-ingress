@@ -6395,6 +6395,223 @@ func TestGenerateVirtualServerConfigAPIKeyClientMaps(t *testing.T) {
 	}
 }
 
+func TestGenerateVirtualServerConfigRateLimitPolicyAuthJwt(t *testing.T) {
+	t.Parallel()
+
+	virtualServerEx := VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "cafe.example.com",
+				Policies: []conf_v1.PolicyReference{
+					{
+						Name: "gold-rate-limit-policy",
+					},
+					{
+						Name: "silver-rate-limit-policy",
+					},
+				},
+				Upstreams: []conf_v1.Upstream{
+					{
+						Name:    "tea",
+						Service: "tea-svc",
+						Port:    80,
+					},
+					{
+						Name:    "coffee",
+						Service: "coffee-svc",
+						Port:    80,
+					},
+				},
+				Routes: []conf_v1.Route{
+					{
+						Path: "/tea",
+						Action: &conf_v1.Action{
+							Pass: "tea",
+						},
+					},
+					{
+						Path: "/coffee",
+						Action: &conf_v1.Action{
+							Pass: "coffee",
+						},
+					},
+				},
+			},
+		},
+		Policies: map[string]*conf_v1.Policy{
+			"default/gold-rate-limit-policy": {
+				Spec: conf_v1.PolicySpec{
+					RateLimit: &conf_v1.RateLimit{
+						Key:      "test",
+						ZoneSize: "10M",
+						Rate:     "10r/s",
+						Condition: &conf_v1.RateLimitCondition{
+							JWT: &conf_v1.JWTCondition{
+								Claim: "user_type.tier",
+								Match: "gold",
+							},
+						},
+					},
+				},
+			},
+			"default/silver-rate-limit-policy": {
+				Spec: conf_v1.PolicySpec{
+					RateLimit: &conf_v1.RateLimit{
+						Key:      "test",
+						ZoneSize: "20M",
+						Rate:     "20r/s",
+						Condition: &conf_v1.RateLimitCondition{
+							JWT: &conf_v1.JWTCondition{
+								Claim: "user_type.tier",
+								Match: "silver",
+							},
+						},
+					},
+				},
+			},
+		},
+		Endpoints: map[string][]string{
+			"default/tea-svc:80": {
+				"10.0.0.20:80",
+			},
+			"default/coffee-svc:80": {
+				"10.0.0.30:80",
+			},
+		},
+	}
+	expected := version2.VirtualServerConfig{
+		Maps:             nil,
+		AuthJWTClaimSets: []version2.AuthJWTClaimSet{{Variable: "$jwt_default_cafe_user_type_tier", Claim: "user_type tier"}},
+		Upstreams: []version2.Upstream{
+			{
+				UpstreamLabels: version2.UpstreamLabels{
+					Service:           "coffee-svc",
+					ResourceType:      "virtualserver",
+					ResourceName:      "cafe",
+					ResourceNamespace: "default",
+				},
+				Name: "vs_default_cafe_coffee",
+				Servers: []version2.UpstreamServer{
+					{
+						Address: "10.0.0.30:80",
+					},
+				},
+				Keepalive: 16,
+			},
+			{
+				UpstreamLabels: version2.UpstreamLabels{
+					Service:           "tea-svc",
+					ResourceType:      "virtualserver",
+					ResourceName:      "cafe",
+					ResourceNamespace: "default",
+				},
+				Name: "vs_default_cafe_tea",
+				Servers: []version2.UpstreamServer{
+					{
+						Address: "10.0.0.20:80",
+					},
+				},
+				Keepalive: 16,
+			},
+		},
+		HTTPSnippets: []string{},
+		LimitReqZones: []version2.LimitReqZone{
+			{Key: "test", ZoneName: "pol_rl_default_gold-rate-limit-policy_default_cafe", ZoneSize: "10M", Rate: "10r/s"},
+			{Key: "test", ZoneName: "pol_rl_default_silver-rate-limit-policy_default_cafe", ZoneSize: "20M", Rate: "20r/s"},
+		},
+		Server: version2.Server{
+			JWTAuthList:     nil,
+			JWTAuth:         nil,
+			JWKSAuthEnabled: false,
+			ServerName:      "cafe.example.com",
+			StatusZone:      "cafe.example.com",
+			ProxyProtocol:   true,
+			ServerTokens:    "off",
+			RealIPHeader:    "X-Real-IP",
+			SetRealIPFrom:   []string{"0.0.0.0/0"},
+			RealIPRecursive: true,
+			Snippets:        []string{"# server snippet"},
+			TLSPassthrough:  true,
+			VSNamespace:     "default",
+			VSName:          "cafe",
+			APIKeyEnabled:   false,
+			LimitReqs: []version2.LimitReq{
+				{ZoneName: "pol_rl_default_gold-rate-limit-policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+				{ZoneName: "pol_rl_default_silver-rate-limit-policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+			},
+			LimitReqOptions: version2.LimitReqOptions{
+				DryRun:     false,
+				LogLevel:   "error",
+				RejectCode: 503,
+			},
+			Locations: []version2.Location{
+				{
+					Path:                     "/tea",
+					ProxyPass:                "http://vs_default_cafe_tea",
+					ProxyNextUpstream:        "error timeout",
+					ProxyNextUpstreamTimeout: "0s",
+					ProxyNextUpstreamTries:   0,
+					HasKeepalive:             true,
+					ProxySSLName:             "tea-svc.default.svc",
+					ProxyPassRequestHeaders:  true,
+					ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+					ServiceName:              "tea-svc",
+				},
+				{
+					Path:                     "/coffee",
+					ProxyPass:                "http://vs_default_cafe_coffee",
+					ProxyNextUpstream:        "error timeout",
+					ProxyNextUpstreamTimeout: "0s",
+					ProxyNextUpstreamTries:   0,
+					HasKeepalive:             true,
+					ProxySSLName:             "coffee-svc.default.svc",
+					ProxyPassRequestHeaders:  true,
+					ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+					ServiceName:              "coffee-svc",
+				},
+			},
+		},
+	}
+
+	baseCfgParams := ConfigParams{
+		Context:         context.Background(),
+		ServerTokens:    "off",
+		Keepalive:       16,
+		ServerSnippets:  []string{"# server snippet"},
+		ProxyProtocol:   true,
+		SetRealIPFrom:   []string{"0.0.0.0/0"},
+		RealIPHeader:    "X-Real-IP",
+		RealIPRecursive: true,
+	}
+
+	vsc := newVirtualServerConfigurator(
+		&baseCfgParams,
+		false,
+		false,
+		&StaticConfigParams{TLSPassthrough: true},
+		false,
+		&fakeBV,
+	)
+
+	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+
+	sort.Slice(result.Maps, func(i, j int) bool {
+		return result.Maps[i].Variable < result.Maps[j].Variable
+	})
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("GenerateVirtualServerConfig() mismatch (-want +got):\n%s", diff)
+	}
+
+	if len(warnings) != 0 {
+		t.Errorf("GenerateVirtualServerConfig returned warnings: %v", vsc.warnings)
+	}
+}
+
 func TestGeneratePolicies(t *testing.T) {
 	t.Parallel()
 	ownerDetails := policyOwnerDetails{
@@ -8877,7 +9094,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 	}
 }
 
-func TestRemoveDuplicates(t *testing.T) {
+func TestRemoveDuplicateLimitReqZones(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		rlz      []version2.LimitReqZone
@@ -8915,6 +9132,72 @@ func TestRemoveDuplicates(t *testing.T) {
 		result := removeDuplicateLimitReqZones(test.rlz)
 		if !reflect.DeepEqual(result, test.expected) {
 			t.Errorf("removeDuplicateLimitReqZones() returned \n%v, but expected \n%v", result, test.expected)
+		}
+	}
+}
+
+func TestRemoveDuplicateAuthJWTClaimSets(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		ajcs     []version2.AuthJWTClaimSet
+		expected []version2.AuthJWTClaimSet
+	}{
+		{
+			ajcs: []version2.AuthJWTClaimSet{
+				{
+					Variable: "$jwt_default_webapp_consumer_group_type",
+				},
+			},
+			expected: []version2.AuthJWTClaimSet{
+				{
+					Variable: "$jwt_default_webapp_consumer_group_type",
+				},
+			},
+		},
+		{
+			ajcs: []version2.AuthJWTClaimSet{
+				{
+					Variable: "$jwt_default_webapp_consumer_group_type",
+				},
+				{
+					Variable: "$jwt_default_webapp_consumer_group_type",
+				},
+				{
+					Variable: "$jwt_default_webapp_consumer_group_type",
+				},
+			},
+			expected: []version2.AuthJWTClaimSet{
+				{
+					Variable: "$jwt_default_webapp_consumer_group_type",
+				},
+			},
+		},
+		{
+			ajcs: []version2.AuthJWTClaimSet{
+				{
+					Variable: "$jwt_default_webapp_consumer_group_type",
+				},
+				{
+					Variable: "$jwt_default_webapp_consumer_group_type",
+				},
+				{
+					Variable: "$jwt_default_webapp_user_group_type",
+				},
+			},
+			expected: []version2.AuthJWTClaimSet{
+				{
+					Variable: "$jwt_default_webapp_consumer_group_type",
+				},
+				{
+					Variable: "$jwt_default_webapp_user_group_type",
+				},
+			},
+		},
+	}
+	for _, test := range tests {
+		result := removeDuplicateAuthJWTClaimSets(test.ajcs)
+		if !reflect.DeepEqual(result, test.expected) {
+			t.Errorf("removeDuplicateAuthJWTClaimSets() returned \n%v, but expected \n%v", result, test.expected)
 		}
 	}
 }
@@ -9318,6 +9601,74 @@ func TestGenerateString(t *testing.T) {
 		result := generateString(test.inputS, "error timeout")
 		if result != test.expected {
 			t.Errorf("generateString() return %v but expected %v", result, test.expected)
+		}
+	}
+}
+
+func TestGenerateAuthJwtClaimSetVariable(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		claim       string
+		vsNamespace string
+		vsName      string
+		expected    string
+	}{
+		{
+			claim:       "consumer_group.type",
+			vsNamespace: "default",
+			vsName:      "webapp",
+			expected:    "$jwt_default_webapp_consumer_group_type",
+		},
+		{
+			claim:       "type",
+			vsNamespace: "default",
+			vsName:      "webapp",
+			expected:    "$jwt_default_webapp_type",
+		},
+		{
+			claim:       "a.b.c",
+			vsNamespace: "default",
+			vsName:      "webapp",
+			expected:    "$jwt_default_webapp_a_b_c",
+		},
+	}
+
+	for _, test := range tests {
+		result := generateAuthJwtClaimSetVariable(test.claim, test.vsNamespace, test.vsName)
+		if result != test.expected {
+			t.Errorf("generateAuthJwtClaimSetVariable() return %v but expected %v", result, test.expected)
+		}
+	}
+}
+
+func TestGenerateAuthJwtClaimSetClaim(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		claim    string
+		expected string
+	}{
+		{
+			claim:    "consumer_group.type",
+			expected: "consumer_group type",
+		},
+		{
+			claim:    "consumer_group.type",
+			expected: "consumer_group type",
+		},
+		{
+			claim:    "type",
+			expected: "type",
+		},
+		{
+			claim:    "a.b.c",
+			expected: "a b c",
+		},
+	}
+
+	for _, test := range tests {
+		result := generateAuthJwtClaimSetClaim(test.claim)
+		if result != test.expected {
+			t.Errorf("generateAuthJwtClaimSetClaim() return %v but expected %v", result, test.expected)
 		}
 	}
 }

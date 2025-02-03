@@ -50,8 +50,8 @@ split_clients {{ $sc.Source }} {{ $sc.Variable }} {
 }
 {{- end }}
 
-{{- range $claim := .AuthJwtClaimSet }}
-auth_jwt_claim_set {{ $claim.Variable }} {{ $claim.Claims}}
+{{- range $claim := .AuthJWTClaimSets }}
+auth_jwt_claim_set {{ $claim.Variable }} {{ $claim.Claim}};
 {{- end }}
 
 {{- range $m := .Maps }}
