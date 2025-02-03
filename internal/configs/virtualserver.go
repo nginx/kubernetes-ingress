@@ -458,63 +458,13 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	// generate upstreams for VirtualServer
 	for _, u := range vsEx.VirtualServer.Spec.Upstreams {
-
-		if (sslConfig == nil || !vsc.cfgParams.HTTP2) && isGRPC(u.Type) {
-			vsc.addWarningf(vsEx.VirtualServer, "gRPC cannot be configured for upstream %s. gRPC requires enabled HTTP/2 and TLS termination.", u.Name)
-		}
-
-		upstreamName := virtualServerUpstreamNamer.GetNameForUpstream(u.Name)
-		upstreamNamespace := vsEx.VirtualServer.Namespace
-		endpoints := vsc.generateEndpointsForUpstream(vsEx.VirtualServer, upstreamNamespace, u, vsEx)
-		backupEndpoints := vsc.generateBackupEndpointsForUpstream(vsEx.VirtualServer, upstreamNamespace, u, vsEx)
-
-		// isExternalNameSvc is always false for OSS
-		_, isExternalNameSvc := vsEx.ExternalNameSvcs[GenerateExternalNameSvcKey(upstreamNamespace, u.Service)]
-		ups := vsc.generateUpstream(vsEx.VirtualServer, upstreamName, u, isExternalNameSvc, endpoints, backupEndpoints)
-		upstreams = append(upstreams, ups)
-
-		u.TLS.Enable = isTLSEnabled(u, vsc.spiffeCerts, vsEx.VirtualServer.Spec.InternalRoute)
-		crUpstreams[upstreamName] = u
-
-		if hc := generateHealthCheck(u, upstreamName, vsc.cfgParams); hc != nil {
-			healthChecks = append(healthChecks, *hc)
-			if u.HealthCheck.StatusMatch != "" {
-				statusMatches = append(
-					statusMatches,
-					generateUpstreamStatusMatch(upstreamName, u.HealthCheck.StatusMatch),
-				)
-			}
-		}
+		upstreams, healthChecks, statusMatches = generateUpstreams(sslConfig, vsc, u, vsEx, virtualServerUpstreamNamer, upstreams, crUpstreams, healthChecks, statusMatches)
 	}
 	// generate upstreams for each VirtualServerRoute
 	for _, vsr := range vsEx.VirtualServerRoutes {
 		upstreamNamer := NewUpstreamNamerForVirtualServerRoute(vsEx.VirtualServer, vsr)
 		for _, u := range vsr.Spec.Upstreams {
-			if (sslConfig == nil || !vsc.cfgParams.HTTP2) && isGRPC(u.Type) {
-				vsc.addWarningf(vsr, "gRPC cannot be configured for upstream %s. gRPC requires enabled HTTP/2 and TLS termination", u.Name)
-			}
-
-			upstreamName := upstreamNamer.GetNameForUpstream(u.Name)
-			upstreamNamespace := vsr.Namespace
-			endpoints := vsc.generateEndpointsForUpstream(vsr, upstreamNamespace, u, vsEx)
-			backup := vsc.generateBackupEndpointsForUpstream(vsEx.VirtualServer, upstreamNamespace, u, vsEx)
-
-			// isExternalNameSvc is always false for OSS
-			_, isExternalNameSvc := vsEx.ExternalNameSvcs[GenerateExternalNameSvcKey(upstreamNamespace, u.Service)]
-			ups := vsc.generateUpstream(vsr, upstreamName, u, isExternalNameSvc, endpoints, backup)
-			upstreams = append(upstreams, ups)
-			u.TLS.Enable = isTLSEnabled(u, vsc.spiffeCerts, vsEx.VirtualServer.Spec.InternalRoute)
-			crUpstreams[upstreamName] = u
-
-			if hc := generateHealthCheck(u, upstreamName, vsc.cfgParams); hc != nil {
-				healthChecks = append(healthChecks, *hc)
-				if u.HealthCheck.StatusMatch != "" {
-					statusMatches = append(
-						statusMatches,
-						generateUpstreamStatusMatch(upstreamName, u.HealthCheck.StatusMatch),
-					)
-				}
-			}
+			upstreams, healthChecks, statusMatches = generateUpstreams(sslConfig, vsc, u, vsEx, upstreamNamer, upstreams, crUpstreams, healthChecks, statusMatches)
 		}
 	}
 
@@ -881,6 +831,41 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	}
 
 	return vsCfg, vsc.warnings
+}
+
+func generateUpstreams(sslConfig *version2.SSL, vsc *virtualServerConfigurator, u conf_v1.Upstream, vsEx *VirtualServerEx, virtualServerUpstreamNamer *upstreamNamer, upstreams []version2.Upstream, crUpstreams map[string]conf_v1.Upstream, healthChecks []version2.HealthCheck, statusMatches []version2.StatusMatch) ([]version2.Upstream, []version2.HealthCheck, []version2.StatusMatch) {
+	if (sslConfig == nil || !vsc.cfgParams.HTTP2) && isGRPC(u.Type) {
+		vsc.addWarningf(vsEx.VirtualServer, "gRPC cannot be configured for upstream %s. gRPC requires enabled HTTP/2 and TLS termination.", u.Name)
+	}
+
+	upstreamName := virtualServerUpstreamNamer.GetNameForUpstream(u.Name)
+	upstreamNamespace := vsEx.VirtualServer.Namespace
+	endpoints := vsc.generateEndpointsForUpstream(vsEx.VirtualServer, upstreamNamespace, u, vsEx)
+	backupEndpoints := vsc.generateBackupEndpointsForUpstream(vsEx.VirtualServer, upstreamNamespace, u, vsEx)
+
+	// isExternalNameSvc is always false for OSS
+	_, isExternalNameSvc := vsEx.ExternalNameSvcs[GenerateExternalNameSvcKey(upstreamNamespace, u.Service)]
+	ups := vsc.generateUpstream(vsEx.VirtualServer, upstreamName, u, isExternalNameSvc, endpoints, backupEndpoints)
+	upstreams = append(upstreams, ups)
+
+	u.TLS.Enable = isTLSEnabled(u, vsc.spiffeCerts, vsEx.VirtualServer.Spec.InternalRoute)
+	crUpstreams[upstreamName] = u
+
+	if hc := generateHealthCheck(u, upstreamName, vsc.cfgParams); hc != nil {
+		healthChecks = append(healthChecks, *hc)
+		statusMatches = generateStatusMatches(u, statusMatches, upstreamName)
+	}
+	return upstreams, healthChecks, statusMatches
+}
+
+func generateStatusMatches(u conf_v1.Upstream, statusMatches []version2.StatusMatch, upstreamName string) []version2.StatusMatch {
+	if u.HealthCheck.StatusMatch != "" {
+		statusMatches = append(
+			statusMatches,
+			generateUpstreamStatusMatch(upstreamName, u.HealthCheck.StatusMatch),
+		)
+	}
+	return statusMatches
 }
 
 // rateLimit hold the configuration for the ratelimiting Policy
