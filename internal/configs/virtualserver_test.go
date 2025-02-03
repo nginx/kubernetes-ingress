@@ -6450,7 +6450,7 @@ func TestGenerateVirtualServerConfigRateLimitPolicyAuthJwt(t *testing.T) {
 						ZoneSize: "10M",
 						Rate:     "10r/s",
 						Condition: &conf_v1.RateLimitCondition{
-							JWT: conf_v1.JWTCondition{
+							JWT: &conf_v1.JWTCondition{
 								Claim: "user_type.tier",
 								Match: "gold",
 							},
@@ -6465,7 +6465,7 @@ func TestGenerateVirtualServerConfigRateLimitPolicyAuthJwt(t *testing.T) {
 						ZoneSize: "20M",
 						Rate:     "20r/s",
 						Condition: &conf_v1.RateLimitCondition{
-							JWT: conf_v1.JWTCondition{
+							JWT: &conf_v1.JWTCondition{
 								Claim: "user_type.tier",
 								Match: "silver",
 							},

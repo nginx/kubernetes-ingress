@@ -348,6 +348,8 @@ spec:
                       default:
                         type: boolean
                       jwt:
+                        description: JWTCondition defines a condition for a rate limit
+                          by JWT claim.
                         properties:
                           claim:
                             pattern: ^([^$\s"'])*$

@@ -1021,7 +1021,7 @@ func (p *policiesCfg) addRateLimitConfig(
 	p.RateLimit.Reqs = append(p.RateLimit.Reqs, generateLimitReq(rlZoneName, rateLimit))
 	p.RateLimit.Zones = append(p.RateLimit.Zones, generateLimitReqZone(rlZoneName, rateLimit, podReplicas))
 	if rateLimit.Condition != nil && rateLimit.Condition.JWT.Claim != "" && rateLimit.Condition.JWT.Match != "" {
-		p.AuthJWTClaimSets = append(p.AuthJWTClaimSets, generateAuthJwtClaimSet(rateLimit.Condition.JWT, vsNamespace, vsName))
+		p.AuthJWTClaimSets = append(p.AuthJWTClaimSets, generateAuthJwtClaimSet(*rateLimit.Condition.JWT, vsNamespace, vsName))
 	}
 	if len(p.RateLimit.Reqs) == 1 {
 		p.RateLimit.Options = generateLimitReqOptions(rateLimit)
