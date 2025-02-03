@@ -457,7 +457,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	limitReqZones = append(limitReqZones, policiesCfg.RateLimit.Zones...)
 
-	authJWTClaimSets = append(authJWTClaimSets, policiesCfg.AuthJWTClaimSets...)
+	authJWTClaimSets = append(authJWTClaimSets, policiesCfg.RateLimit.AuthJWTClaimSets...)
 
 	// generate upstreams for VirtualServer
 	for _, u := range vsEx.VirtualServer.Spec.Upstreams {
@@ -609,7 +609,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		}
 		limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
 
-		authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.AuthJWTClaimSets...)
+		authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.RateLimit.AuthJWTClaimSets...)
 
 		dosRouteCfg := generateDosCfg(dosResources[r.Path])
 
@@ -752,7 +752,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 			limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
 
-			authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.AuthJWTClaimSets...)
+			authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.RateLimit.AuthJWTClaimSets...)
 
 			dosRouteCfg := generateDosCfg(dosResources[r.Path])
 
@@ -901,9 +901,10 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 // rateLimit hold the configuration for the ratelimiting Policy
 type rateLimit struct {
-	Reqs    []version2.LimitReq
-	Zones   []version2.LimitReqZone
-	Options version2.LimitReqOptions
+	Reqs             []version2.LimitReq
+	Zones            []version2.LimitReqZone
+	Options          version2.LimitReqOptions
+	AuthJWTClaimSets []version2.AuthJWTClaimSet
 }
 
 // jwtAuth hold the configuration for the JWTAuth & JWKSAuth Policies
@@ -922,19 +923,18 @@ type apiKeyAuth struct {
 }
 
 type policiesCfg struct {
-	Allow            []string
-	Deny             []string
-	RateLimit        rateLimit
-	JWTAuth          jwtAuth
-	AuthJWTClaimSets []version2.AuthJWTClaimSet
-	BasicAuth        *version2.BasicAuth
-	IngressMTLS      *version2.IngressMTLS
-	EgressMTLS       *version2.EgressMTLS
-	OIDC             bool
-	APIKey           apiKeyAuth
-	WAF              *version2.WAF
-	ErrorReturn      *version2.Return
-	BundleValidator  bundleValidator
+	Allow           []string
+	Deny            []string
+	RateLimit       rateLimit
+	JWTAuth         jwtAuth
+	BasicAuth       *version2.BasicAuth
+	IngressMTLS     *version2.IngressMTLS
+	EgressMTLS      *version2.EgressMTLS
+	OIDC            bool
+	APIKey          apiKeyAuth
+	WAF             *version2.WAF
+	ErrorReturn     *version2.Return
+	BundleValidator bundleValidator
 }
 
 type bundleValidator interface {
@@ -1021,7 +1021,7 @@ func (p *policiesCfg) addRateLimitConfig(
 	p.RateLimit.Reqs = append(p.RateLimit.Reqs, generateLimitReq(rlZoneName, rateLimit))
 	p.RateLimit.Zones = append(p.RateLimit.Zones, generateLimitReqZone(rlZoneName, rateLimit, podReplicas))
 	if rateLimit.Condition != nil && rateLimit.Condition.JWT.Claim != "" && rateLimit.Condition.JWT.Match != "" {
-		p.AuthJWTClaimSets = append(p.AuthJWTClaimSets, generateAuthJwtClaimSet(*rateLimit.Condition.JWT, vsNamespace, vsName))
+		p.RateLimit.AuthJWTClaimSets = append(p.RateLimit.AuthJWTClaimSets, generateAuthJwtClaimSet(*rateLimit.Condition.JWT, vsNamespace, vsName))
 	}
 	if len(p.RateLimit.Reqs) == 1 {
 		p.RateLimit.Options = generateLimitReqOptions(rateLimit)
