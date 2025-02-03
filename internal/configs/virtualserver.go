@@ -552,11 +552,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	// generates config for VirtualServer routes
 	for _, r := range vsEx.VirtualServer.Spec.Routes {
-		errorPages := errorPageDetails{
-			pages: r.ErrorPages,
-			index: len(errorPageLocations),
-			owner: vsEx.VirtualServer,
-		}
+		errorPages := generateErrorPageDetails(r.ErrorPages, errorPageLocations, vsEx.VirtualServer)
 		errorPageLocations = append(errorPageLocations, generateErrorPageLocations(errorPages.index, errorPages.pages)...)
 
 		// ignore routes that reference VirtualServerRoute
@@ -700,11 +696,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		isVSR := true
 		upstreamNamer := NewUpstreamNamerForVirtualServerRoute(vsEx.VirtualServer, vsr)
 		for _, r := range vsr.Spec.Subroutes {
-			errorPages := errorPageDetails{
-				pages: r.ErrorPages,
-				index: len(errorPageLocations),
-				owner: vsr,
-			}
+			errorPages := generateErrorPageDetails(r.ErrorPages, errorPageLocations, vsr)
 			errorPageLocations = append(errorPageLocations, generateErrorPageLocations(errorPages.index, errorPages.pages)...)
 			vsrNamespaceName := fmt.Sprintf("%v/%v", vsr.Namespace, vsr.Name)
 			// use the VirtualServer error pages if the route does not define any
@@ -3263,6 +3255,14 @@ func generateErrorPages(errPageIndex int, errorPages []conf_v1.ErrorPage) []vers
 	}
 
 	return ePages
+}
+
+func generateErrorPageDetails(errorPages []conf_v1.ErrorPage, errorPageLocations []version2.ErrorPageLocation, owner runtime.Object) errorPageDetails {
+	return errorPageDetails{
+		pages: errorPages,
+		index: len(errorPageLocations),
+		owner: owner,
+	}
 }
 
 func generateErrorPageLocations(errPageIndex int, errorPages []conf_v1.ErrorPage) []version2.ErrorPageLocation {

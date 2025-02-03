@@ -20019,6 +20019,75 @@ func TestGenerateErrorPageLocations(t *testing.T) {
 	}
 }
 
+func TestGenerateErrorPageDetails(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		errorPages     []conf_v1.ErrorPage
+		errorLocations []version2.ErrorPageLocation
+		owner          runtime.Object
+		expected       errorPageDetails
+	}{
+		{}, // empty
+		{
+			errorPages: []conf_v1.ErrorPage{
+				{
+					Codes: []int{404, 405, 500, 502},
+					Return: &conf_v1.ErrorPageReturn{
+						ActionReturn: conf_v1.ActionReturn{
+							Code:    200,
+							Headers: nil,
+						},
+					},
+					Redirect: nil,
+				},
+			},
+			errorLocations: []version2.ErrorPageLocation{
+				{
+					Name:        "@error_page_0_0",
+					DefaultType: "text/plain",
+					Return: &version2.Return{
+						Text: "All Good",
+					},
+				},
+			},
+			owner: &conf_v1.VirtualServer{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Namespace: "namespace",
+					Name:      "name",
+				},
+			},
+			expected: errorPageDetails{
+				pages: []conf_v1.ErrorPage{
+					{
+						Codes: []int{404, 405, 500, 502},
+						Return: &conf_v1.ErrorPageReturn{
+							ActionReturn: conf_v1.ActionReturn{
+								Code:    200,
+								Headers: nil,
+							},
+						},
+						Redirect: nil,
+					},
+				},
+				index: 1,
+				owner: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Namespace: "namespace",
+						Name:      "name",
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		result := generateErrorPageDetails(test.errorPages, test.errorLocations, test.owner)
+		if !reflect.DeepEqual(result, test.expected) {
+			t.Errorf("generateErrorPageDetails() returned %v but expected %v", result, test.expected)
+		}
+	}
+}
+
 func TestGenerateProxySSLName(t *testing.T) {
 	t.Parallel()
 	result := generateProxySSLName("coffee-v1", "default")
