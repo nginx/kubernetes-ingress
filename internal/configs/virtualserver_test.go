@@ -9138,7 +9138,6 @@ func TestRemoveDuplicateLimitReqZones(t *testing.T) {
 	}
 }
 
-// TODO: write test for removeDuplicateAuthJWTClaimSets
 func TestRemoveDuplicateAuthJWTClaimSets(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
