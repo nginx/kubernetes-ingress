@@ -481,13 +481,12 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		upstreamName := virtualServerUpstreamNamer.GetNameForUpstream(u.Name)
 		upstreamNamespace := vsEx.VirtualServer.Namespace
 		endpoints := vsc.generateEndpointsForUpstream(vsEx.VirtualServer, upstreamNamespace, u, vsEx)
-		backupEndpoints := vsc.generateBackupEndpointsForUpstream(vsEx.VirtualServer, upstreamNamespace, u, vsEx)
+		backup := vsc.generateBackupEndpointsForUpstream(vsEx.VirtualServer, upstreamNamespace, u, vsEx)
 
 		// isExternalNameSvc is always false for OSS
 		_, isExternalNameSvc := vsEx.ExternalNameSvcs[GenerateExternalNameSvcKey(upstreamNamespace, u.Service)]
-		ups := vsc.generateUpstream(vsEx.VirtualServer, upstreamName, u, isExternalNameSvc, endpoints, backupEndpoints)
+		ups := vsc.generateUpstream(vsEx.VirtualServer, upstreamName, u, isExternalNameSvc, endpoints, backup)
 		upstreams = append(upstreams, ups)
-
 		u.TLS.Enable = isTLSEnabled(u, vsc.spiffeCerts, vsEx.VirtualServer.Spec.InternalRoute)
 		crUpstreams[upstreamName] = u
 
