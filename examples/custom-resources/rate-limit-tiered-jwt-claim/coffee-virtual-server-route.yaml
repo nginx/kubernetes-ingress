@@ -1,0 +1,19 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
+  name: coffee
+  namespace: cafe
+spec:
+  host: cafe.example.com
+  upstreams:
+  - name: coffee
+    service: coffee-svc
+    port: 80
+  subroutes:
+  - path: /coffee
+    action:
+      pass: coffee
+    policies:
+    - name: rate-limit-jwt-gold2
+    - name: rate-limit-jwt-silver2
+    - name: rate-limit-jwt-bronze2

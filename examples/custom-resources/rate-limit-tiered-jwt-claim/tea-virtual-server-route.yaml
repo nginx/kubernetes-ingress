@@ -1,0 +1,15 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
+  name: tea
+  namespace: cafe
+spec:
+  host: cafe.example.com
+  upstreams:
+  - name: tea
+    service: tea-svc
+    port: 80
+  subroutes:
+  - path: /tea
+    action:
+      pass: tea
