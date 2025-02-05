@@ -360,14 +360,16 @@ type Queue struct {
 
 // LimitReqZone defines a rate limit shared memory zone.
 type LimitReqZone struct {
-	Key      string
-	ZoneName string
-	ZoneSize string
-	Rate     string
+	Key           string
+	ZoneName      string
+	ZoneSize      string
+	Rate          string
+	GroupName     string
+	GroupVariable string
 }
 
 func (rlz LimitReqZone) String() string {
-	return fmt.Sprintf("{Key %q, ZoneName %q, ZoneSize %v, Rate %q}", rlz.Key, rlz.ZoneName, rlz.ZoneSize, rlz.Rate)
+	return fmt.Sprintf("{Key %q, ZoneName %q, ZoneSize %v, Rate %q, GroupName %q, GroupVariable %q}", rlz.Key, rlz.ZoneName, rlz.ZoneSize, rlz.Rate, rlz.GroupName, rlz.GroupVariable)
 }
 
 // LimitReq defines a rate limit.

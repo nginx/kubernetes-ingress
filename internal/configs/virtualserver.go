@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/nginx/kubernetes-ingress/internal/certmanager/test"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
@@ -1019,7 +1020,7 @@ func (p *policiesCfg) addRateLimitConfig(
 	res := newValidationResults()
 	rlZoneName := fmt.Sprintf("pol_rl_%v_%v_%v_%v", polNamespace, polName, vsNamespace, vsName)
 	p.RateLimit.Reqs = append(p.RateLimit.Reqs, generateLimitReq(rlZoneName, rateLimit))
-	p.RateLimit.Zones = append(p.RateLimit.Zones, generateLimitReqZone(rlZoneName, rateLimit, podReplicas))
+	p.RateLimit.Zones = append(p.RateLimit.Zones, generateLimitReqZone(rlZoneName, rateLimit, podReplicas, vsNamespace, vsName))
 	if rateLimit.Condition != nil && rateLimit.Condition.JWT.Claim != "" && rateLimit.Condition.JWT.Match != "" {
 		p.RateLimit.AuthJWTClaimSets = append(p.RateLimit.AuthJWTClaimSets, generateAuthJwtClaimSet(*rateLimit.Condition.JWT, vsNamespace, vsName))
 	}
@@ -1644,17 +1645,25 @@ func generateLimitReq(zoneName string, rateLimitPol *conf_v1.RateLimit) version2
 	return limitReq
 }
 
-func generateLimitReqZone(zoneName string, rateLimitPol *conf_v1.RateLimit, podReplicas int) version2.LimitReqZone {
+func generateLimitReqZone(zoneName string, rateLimitPol *conf_v1.RateLimit, podReplicas int, vsNamspace, vsName string) version2.LimitReqZone {
 	rate := rateLimitPol.Rate
 	if rateLimitPol.Scale {
 		rate = scaleRatelimit(rateLimitPol.Rate, podReplicas)
 	}
-	return version2.LimitReqZone{
+	lrz := version2.LimitReqZone{
 		ZoneName: zoneName,
 		Key:      rateLimitPol.Key,
 		ZoneSize: rateLimitPol.ZoneSize,
 		Rate:     rate,
 	}
+	if rateLimitPol.Condition != nil && rateLimitPol.Condition.JWT != nil {
+		randString := test.RandStringBytes(5)
+		lrz.GroupName = fmt.Sprintf("rl_%s_%s_match_%s_%s", vsNamspace, vsName, strings.ToLower(rateLimitPol.Condition.JWT.Match), randString)
+		lrz.GroupVariable = fmt.Sprintf("$rl_%s_%s_group_%s_%s", vsNamspace, vsName, strings.ToLower(strings.Join(strings.Split(rateLimitPol.Condition.JWT.Claim, "."), "_")), randString)
+		lrz.Key = zoneName
+	}
+
+	return lrz
 }
 
 func generateLimitReqOptions(rateLimitPol *conf_v1.RateLimit) version2.LimitReqOptions {
