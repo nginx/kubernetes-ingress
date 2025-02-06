@@ -29,7 +29,7 @@ permissions:
 jobs:
   checks:
     name: Checks and variables
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     permissions:
       contents: read
       id-token: write
@@ -114,7 +114,7 @@ jobs:
 
   govulncheck:
     name: Run govulncheck
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     permissions:
       contents: read
       security-events: write
@@ -150,7 +150,7 @@ jobs:
 
   binaries:
     name: Build Binaries
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     needs: [checks]
     permissions:
       contents: read
@@ -368,7 +368,7 @@ jobs:
   certify-openshift-images:
     if: ${{ !cancelled() && !failure() && github.ref_name == github.event.repository.default_branch }}
     name: Certify OpenShift UBI images
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     needs: [release-oss]
     steps:
       - name: Checkout Repository
@@ -385,7 +385,7 @@ jobs:
 
   scan-docker-oss:
     name: Scan ${{ matrix.image }}-${{ matrix.target }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     needs: [checks, tag-candidate]
     permissions:
       contents: read
@@ -474,7 +474,7 @@ jobs:
 
   scan-docker-plus:
     name: Scan ${{ matrix.image }}-${{ matrix.target }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     needs: [checks, tag-candidate]
     permissions:
       contents: read
@@ -563,7 +563,7 @@ jobs:
 
   scan-docker-nap:
     name: Scan ${{ matrix.image }}-${{ matrix.target }}-${{ matrix.nap_modules }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     needs: [checks, tag-candidate]
     permissions:
       contents: read
@@ -660,7 +660,7 @@ jobs:
 
   update-release-draft:
     name: Update Release Draft
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     needs: [checks]
     permissions:
       contents: write

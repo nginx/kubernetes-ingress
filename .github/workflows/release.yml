@@ -48,7 +48,7 @@ permissions:
 jobs:
   variables:
     name: Set Variables
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     permissions:
       contents: read
     outputs:
@@ -92,7 +92,7 @@ jobs:
 
   tag:
     name: Create Tag on release branch in NIC repo
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     permissions:
       contents: write
     steps:
@@ -286,7 +286,7 @@ jobs:
   certify-openshift-images:
     if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'certify-openshift-images') }}
     name: Certify OpenShift UBI images
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     needs: [release-oss]
     steps:
       - name: Checkout Repository
@@ -306,7 +306,7 @@ jobs:
   operator:
     if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'operator') && !contains(inputs.skip_step, 'publish-helm-chart') }}
     name: Trigger PR for Operator
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     needs: [variables,publish-helm-chart]
     steps:
       - name:
@@ -330,7 +330,7 @@ jobs:
   gcp-marketplace:
     if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'gcp-marketplace') }}
     name: Trigger PR for GCP Marketplace
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     needs: [publish-helm-chart,release-plus-gcr-mktpl]
     steps:
       - name:
@@ -351,7 +351,7 @@ jobs:
   azure-marketplace:
     if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'azure-marketplace') }}
     name: Trigger CNAB Build for Azure Marketplace
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     needs: [publish-helm-chart,release-plus-azure-mktpl]
     steps:
       - name:
@@ -374,7 +374,7 @@ jobs:
   aws-marketplace:
     if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'aws-marketplace') }}
     name: Publish to AWS Marketplace
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     needs: [release-plus-aws-mktpl]
     permissions:
       contents: read
@@ -421,7 +421,7 @@ jobs:
 
   binaries:
     name: Process Binaries
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     needs: [variables]
     permissions:
       contents: read
@@ -445,7 +445,7 @@ jobs:
         if: ${{ needs.variables.outputs.binary_cache_sign_hit != 'true' }}
 
       - name: Install Cosign
-        uses: sigstore/cosign-installer@dc72c7d5c4d10cd6bcb8cf6e3fd625a9e5e537da # v3.7.0
+        uses: sigstore/cosign-installer@c56c2d3e59e4281cc41dea2217323ba5694b171e # v3.8.0
         if: ${{ needs.variables.outputs.binary_cache_sign_hit != 'true' }}
 
       - name: Create Tarballs
@@ -465,7 +465,7 @@ jobs:
   azure-upload:
     if: ${{ ! cancelled() && ! failure() && ! contains(inputs.skip_step, 'azure-upload') }}
     name: Upload packages to Azure
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     needs: [variables, binaries]
     permissions:
       id-token: write
@@ -508,7 +508,7 @@ jobs:
   github-release:
     if: ${{ ! cancelled() && ! failure() && ! contains(inputs.skip_step, 'github-release') }}
     name: Publish release to GitHub
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     needs: [variables, binaries, release-oss, release-plus-gcr-nginx, azure-upload]
     permissions:
       contents: write # to modify the release
@@ -613,7 +613,7 @@ jobs:
   release-image-notification:
     if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'release-image-notification') }}
     name: Notify Slack channels about image release
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     needs: [variables, binaries, release-oss, release-plus-gcr-nginx]
     permissions:
       contents: read

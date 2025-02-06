@@ -20,7 +20,7 @@ permissions:
 jobs:
   checks:
     name: Checks and variables
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     outputs:
       docker_md5: ${{ steps.vars.outputs.docker_md5 }}
       ic_version: ${{ steps.vars.outputs.ic_version }}
@@ -44,7 +44,7 @@ jobs:
 
   build-oss:
     name: Build OSS base images
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     needs: checks
     permissions:
       contents: read
@@ -109,7 +109,7 @@ jobs:
 
   build-plus:
     name: Build Plus base images
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     needs: checks
     permissions:
       contents: read
@@ -177,7 +177,7 @@ jobs:
 
   build-plus-nap:
     name: Build Plus NAP base images
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     needs: checks
     permissions:
       contents: read

@@ -72,7 +72,7 @@ permissions:
 jobs:
   release-to-gcr-release-registry:
     name: Push images to the GCR Release Registry
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     permissions:
       contents: read
       id-token: write
@@ -110,7 +110,7 @@ jobs:
 
   release-oss-to-ecr-public-registry:
     name: Push OSS images to the AWS Public Registry
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     permissions:
       contents: read
       id-token: write
@@ -159,7 +159,7 @@ jobs:
 
   release-oss-to-dockerhub-public-registry:
     name: Push OSS images to the DockerHub Public Registry
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     permissions:
       contents: read
       id-token: write
@@ -203,7 +203,7 @@ jobs:
 
   release-oss-to-quay-public-registry:
     name: Push OSS images to the Quay Public Registry
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     permissions:
       contents: read
       id-token: write
@@ -248,7 +248,7 @@ jobs:
 
   release-oss-to-github-public-registry:
     name: Push OSS images to the GitHub Public Registry
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     permissions:
       contents: read
       id-token: write

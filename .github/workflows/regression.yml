@@ -25,7 +25,7 @@ permissions:
 jobs:
   checks:
     name: Checks and variables
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     permissions:
       contents: read
       id-token: write
@@ -44,7 +44,7 @@ jobs:
         id: vars
         run: |
           kindest_latest=$(curl -s "https://hub.docker.com/v2/repositories/kindest/node/tags" \
-            | jq -r .results.[].name \
+            | jq -r '.results[].name' \
             | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
             | sort -rV \
             | grep -v v1.32.1 \
@@ -53,7 +53,7 @@ jobs:
             | tr -d '\n')
           echo "k8s_latest=$kindest_latest" >> $GITHUB_OUTPUT
           kindest_versions=$(curl -s "https://hub.docker.com/v2/repositories/kindest/node/tags/?page_size=50" \
-            | jq -r .results.[].name \
+            | jq -r '.results[].name' \
             | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
             | sort -rV \
             | grep -v v1.32.1 \
@@ -82,7 +82,7 @@ jobs:
 
   unit-tests:
     name: Unit Tests
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     needs: [checks]
     steps:
       - name: Checkout Repository
@@ -106,7 +106,7 @@ jobs:
 
   helm-tests:
     name: Helm Tests ${{ matrix.base-os }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     needs: [checks]
     strategy:
       fail-fast: false
@@ -198,7 +198,7 @@ jobs:
 
   setup-regression-matrix:
     name: Setup Matrix for Smoke Tests
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     needs: [checks]
     permissions:
       contents: read
@@ -217,7 +217,7 @@ jobs:
 
   regression-tests:
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} regression tests
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     needs: [checks, setup-regression-matrix]
     strategy:
       fail-fast: false

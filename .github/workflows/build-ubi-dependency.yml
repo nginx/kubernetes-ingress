@@ -31,7 +31,7 @@ permissions:
 jobs:
   checks:
     name: Check versions
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     permissions:
       packages: read
       contents: read
@@ -81,7 +81,7 @@ jobs:
     name: Build Binary Container Image
     if: ${{ needs.checks.outputs.target_exists != 'true' || inputs.force }}
     needs: checks
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     permissions:
       packages: write
       contents: read

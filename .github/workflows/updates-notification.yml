@@ -26,7 +26,7 @@ permissions:
 jobs:
   send-notifications:
     name: Send Notifications
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     permissions:
       contents: read
       actions: read # for 8398a7/action-slack
