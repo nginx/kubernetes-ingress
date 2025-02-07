@@ -690,6 +690,9 @@ jobs:
           smokeOSSResult="${{ needs.smoke-tests-oss.result }}"
           smokePlusResult="${{ needs.smoke-tests-plus.result }}"
           smokeNAPResult="${{ needs.smoke-tests-nap.result }}"
+          buildOSSResult="${{ needs.build-docker.result }}"
+          buildPlusResult="${{ needs.build-docker-plus.result }}"
+          buildNAPResult="${{ needs.build-docker-nap.result }}"
           if [[ $tagResult != "success" && $tagResult != "skipped" ]]; then
             exit 1
           fi
@@ -700,6 +703,15 @@ jobs:
             exit 1
           fi
           if [[ $smokeNAPResult != "success" && $smokeNAPResult != "skipped" ]]; then
+            exit 1
+          fi
+          if [[ $buildOSSResult != "success" && $buildOSSResult != "skipped" ]]; then
+            exit 1
+          fi
+          if [[ $buildPlusResult != "success" && $buildPlusResult != "skipped" ]]; then
+            exit 1
+          fi
+          if [[ $buildNAPResult != "success" && $buildNAPResult != "skipped" ]]; then
             exit 1
           fi
 
