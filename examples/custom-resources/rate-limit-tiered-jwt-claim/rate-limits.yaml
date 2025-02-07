@@ -10,7 +10,7 @@ spec:
     zoneSize: 10M
     condition:
       jwt:
-        claim: sub
+        claim: consumer_group.tier
         match: Gold
 ---
 apiVersion: k8s.nginx.org/v1
@@ -25,7 +25,7 @@ spec:
     zoneSize: 10M
     condition:
       jwt:
-        claim: sub
+        claim: consumer_group.tier
         match: Silver
 ---
 apiVersion: k8s.nginx.org/v1
@@ -40,7 +40,7 @@ spec:
     zoneSize: 10M
     condition:
       jwt:
-        claim: sub
+        claim: consumer_group.tier
         match: Bronze
       default: true
 ---
@@ -56,7 +56,7 @@ spec:
     zoneSize: 10M
     condition:
       jwt:
-        claim: sub
+        claim: consumer_group.tier
         match: Gold
 ---
 apiVersion: k8s.nginx.org/v1
@@ -71,7 +71,7 @@ spec:
     zoneSize: 10M
     condition:
       jwt:
-        claim: sub
+        claim: consumer_group.tier
         match: Silver
 ---
 apiVersion: k8s.nginx.org/v1
@@ -86,6 +86,6 @@ spec:
     zoneSize: 10M
     condition:
       jwt:
-        claim: sub
+        claim: consumer_group.tier
         match: Bronze
       default: true
