@@ -366,6 +366,8 @@ type LimitReqZone struct {
 	Rate          string
 	GroupName     string
 	GroupVariable string
+	GroupKey      string
+	GroupDefault  bool
 }
 
 func (rlz LimitReqZone) String() string {

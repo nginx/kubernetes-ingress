@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/nginx/kubernetes-ingress/internal/certmanager/test"
+	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
@@ -824,6 +824,10 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		maps = append(maps, *generateAPIKeyClientMap(mapName, apiKeyClients))
 	}
 
+	for _, lrz := range removeDuplicateLimitReqZones(limitReqZones) {
+		maps = append(maps, *generateLRZGroupMap(lrz))
+	}
+
 	httpSnippets := generateSnippets(vsc.enableSnippets, vsEx.VirtualServer.Spec.HTTPSnippets, []string{})
 	serverSnippets := generateSnippets(
 		vsc.enableSnippets,
@@ -1016,11 +1020,12 @@ func (p *policiesCfg) addRateLimitConfig(
 	vsNamespace string,
 	vsName string,
 	podReplicas int,
+	context string,
 ) *validationResults {
 	res := newValidationResults()
 	rlZoneName := fmt.Sprintf("pol_rl_%v_%v_%v_%v", polNamespace, polName, vsNamespace, vsName)
 	p.RateLimit.Reqs = append(p.RateLimit.Reqs, generateLimitReq(rlZoneName, rateLimit))
-	p.RateLimit.Zones = append(p.RateLimit.Zones, generateLimitReqZone(rlZoneName, rateLimit, podReplicas, vsNamespace, vsName))
+	p.RateLimit.Zones = append(p.RateLimit.Zones, generateLimitReqZone(rlZoneName, rateLimit, podReplicas, vsNamespace, vsName, context))
 	if rateLimit.Condition != nil && rateLimit.Condition.JWT.Claim != "" && rateLimit.Condition.JWT.Match != "" {
 		p.RateLimit.AuthJWTClaimSets = append(p.RateLimit.AuthJWTClaimSets, generateAuthJwtClaimSet(*rateLimit.Condition.JWT, vsNamespace, vsName))
 	}
@@ -1468,6 +1473,24 @@ func generateAPIKeyClientMap(mapName string, apiKeyClients []apiKeyClient) *vers
 	}
 }
 
+func generateLRZGroupMap(lrz version2.LimitReqZone) *version2.Map {
+	defaultParam := version2.Parameter{
+		Value:  "default",
+		Result: "''",
+	}
+
+	params := []version2.Parameter{defaultParam}
+	params = append(params, version2.Parameter{
+		Value:  lrz.GroupName,
+		Result: lrz.GroupKey,
+	})
+	return &version2.Map{
+		Source:     lrz.GroupVariable,
+		Variable:   fmt.Sprintf("$%s", lrz.ZoneName),
+		Parameters: params,
+	}
+}
+
 func (p *policiesCfg) addWAFConfig(
 	ctx context.Context,
 	waf *conf_v1.WAF,
@@ -1582,6 +1605,7 @@ func (vsc *virtualServerConfigurator) generatePolicies(
 					ownerDetails.vsNamespace,
 					ownerDetails.vsName,
 					vsc.IngressControllerReplicas,
+					context,
 				)
 			case pol.Spec.JWTAuth != nil:
 				res = config.addJWTAuthConfig(pol.Spec.JWTAuth, key, polNamespace, policyOpts.secretRefs)
@@ -1645,7 +1669,13 @@ func generateLimitReq(zoneName string, rateLimitPol *conf_v1.RateLimit) version2
 	return limitReq
 }
 
-func generateLimitReqZone(zoneName string, rateLimitPol *conf_v1.RateLimit, podReplicas int, vsNamspace, vsName string) version2.LimitReqZone {
+func generateLimitReqZone(zoneName string,
+	rateLimitPol *conf_v1.RateLimit,
+	podReplicas int,
+	vsNamspace,
+	vsName string,
+	context string,
+) version2.LimitReqZone {
 	rate := rateLimitPol.Rate
 	if rateLimitPol.Scale {
 		rate = scaleRatelimit(rateLimitPol.Rate, podReplicas)
@@ -1657,10 +1687,12 @@ func generateLimitReqZone(zoneName string, rateLimitPol *conf_v1.RateLimit, podR
 		Rate:     rate,
 	}
 	if rateLimitPol.Condition != nil && rateLimitPol.Condition.JWT != nil {
-		randString := test.RandStringBytes(5)
+		randString := commonhelpers.RandStringBytes(5)
 		lrz.GroupName = fmt.Sprintf("rl_%s_%s_match_%s_%s", vsNamspace, vsName, strings.ToLower(rateLimitPol.Condition.JWT.Match), randString)
-		lrz.GroupVariable = fmt.Sprintf("$rl_%s_%s_group_%s_%s", vsNamspace, vsName, strings.ToLower(strings.Join(strings.Split(rateLimitPol.Condition.JWT.Claim, "."), "_")), randString)
-		lrz.Key = zoneName
+		lrz.GroupVariable = fmt.Sprintf("$rl_%s_%s_group_%s_%s", vsNamspace, vsName, strings.ToLower(strings.Join(strings.Split(rateLimitPol.Condition.JWT.Claim, "."), "_")), context)
+		lrz.Key = fmt.Sprintf("$%s", zoneName)
+		lrz.GroupKey = rateLimitPol.Key
+		lrz.GroupDefault = rateLimitPol.Condition.Default
 	}
 
 	return lrz
