@@ -6484,7 +6484,36 @@ func TestGenerateVirtualServerConfigRateLimitPolicyAuthJwt(t *testing.T) {
 		},
 	}
 	expected := version2.VirtualServerConfig{
-		Maps:             nil,
+		Maps: []version2.Map{
+			{
+				Source:   "$rl_default_cafe_group_user_type_tier_spec",
+				Variable: "$pol_rl_default_gold-rate-limit-policy_default_cafe",
+				Parameters: []version2.Parameter{
+					{
+						Value:  "default",
+						Result: "''",
+					},
+					{
+						Value:  "rl_default_cafe_match_gold",
+						Result: "test",
+					},
+				},
+			},
+			{
+				Source:   "$rl_default_cafe_group_user_type_tier_spec",
+				Variable: "$pol_rl_default_silver-rate-limit-policy_default_cafe",
+				Parameters: []version2.Parameter{
+					{
+						Value:  "default",
+						Result: "''",
+					},
+					{
+						Value:  "rl_default_cafe_match_silver",
+						Result: "test",
+					},
+				},
+			},
+		},
 		AuthJWTClaimSets: []version2.AuthJWTClaimSet{{Variable: "$jwt_default_cafe_user_type_tier", Claim: "user_type tier"}},
 		Upstreams: []version2.Upstream{
 			{
@@ -6520,8 +6549,24 @@ func TestGenerateVirtualServerConfigRateLimitPolicyAuthJwt(t *testing.T) {
 		},
 		HTTPSnippets: []string{},
 		LimitReqZones: []version2.LimitReqZone{
-			{Key: "test", ZoneName: "pol_rl_default_gold-rate-limit-policy_default_cafe", ZoneSize: "10M", Rate: "10r/s"},
-			{Key: "test", ZoneName: "pol_rl_default_silver-rate-limit-policy_default_cafe", ZoneSize: "20M", Rate: "20r/s"},
+			{
+				Key:           "$pol_rl_default_gold-rate-limit-policy_default_cafe",
+				ZoneName:      "pol_rl_default_gold-rate-limit-policy_default_cafe",
+				ZoneSize:      "10M",
+				Rate:          "10r/s",
+				GroupKey:      "test",
+				GroupVariable: "$rl_default_cafe_group_user_type_tier_spec",
+				GroupName:     "rl_default_cafe_match_gold",
+			},
+			{
+				Key:           "$pol_rl_default_silver-rate-limit-policy_default_cafe",
+				ZoneName:      "pol_rl_default_silver-rate-limit-policy_default_cafe",
+				ZoneSize:      "20M",
+				Rate:          "20r/s",
+				GroupKey:      "test",
+				GroupVariable: "$rl_default_cafe_group_user_type_tier_spec",
+				GroupName:     "rl_default_cafe_match_silver",
+			},
 		},
 		Server: version2.Server{
 			JWTAuthList:     nil,

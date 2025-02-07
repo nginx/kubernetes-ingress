@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
@@ -1687,8 +1686,7 @@ func generateLimitReqZone(zoneName string,
 		Rate:     rate,
 	}
 	if rateLimitPol.Condition != nil && rateLimitPol.Condition.JWT != nil {
-		randString := commonhelpers.RandStringBytes(5)
-		lrz.GroupName = fmt.Sprintf("rl_%s_%s_match_%s_%s", vsNamspace, vsName, strings.ToLower(rateLimitPol.Condition.JWT.Match), randString)
+		lrz.GroupName = fmt.Sprintf("rl_%s_%s_match_%s", vsNamspace, vsName, strings.ToLower(rateLimitPol.Condition.JWT.Match))
 		lrz.GroupVariable = fmt.Sprintf("$rl_%s_%s_group_%s_%s", vsNamspace, vsName, strings.ToLower(strings.Join(strings.Split(rateLimitPol.Condition.JWT.Claim, "."), "_")), context)
 		lrz.Key = fmt.Sprintf("$%s", zoneName)
 		lrz.GroupKey = rateLimitPol.Key
