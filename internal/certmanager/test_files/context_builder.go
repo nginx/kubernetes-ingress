@@ -38,6 +38,7 @@ import (
 	cmfake "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned/fake"
 	informers "github.com/cert-manager/cert-manager/pkg/client/informers/externalversions"
 	"github.com/cert-manager/cert-manager/pkg/util"
+	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
 	k8s_nginx "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned"
 	vsfake "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/fake"
 	vsinformers "github.com/nginx/kubernetes-ingress/pkg/client/informers/externalversions"
@@ -98,7 +99,7 @@ func (b *Builder) Init() {
 		}
 	}
 	if b.StringGenerator == nil {
-		b.StringGenerator = RandStringBytes
+		b.StringGenerator = commonhelpers.RandStringBytes
 	}
 	b.requiredReactors = make(map[string]bool)
 	b.Client = kubefake.NewSimpleClientset(b.KubeObjects...)
