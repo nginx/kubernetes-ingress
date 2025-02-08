@@ -82,7 +82,7 @@ controller:
         repository: private-registry.nginx.com/nap/waf-enforcer
 
         ## The tag of the App Protect WAF v5 Enforcer image.
-        tag: "5.4.0"
+        tag: "5.5.0"
         ## The digest of the App Protect WAF v5 Enforcer image.
         ## If digest is specified it has precedence over tag and will be used instead
         # digest: "sha256:CHANGEME"
@@ -98,7 +98,7 @@ controller:
         repository: private-registry.nginx.com/nap/waf-config-mgr
 
         ## The tag of the App Protect WAF v5 Configuration Manager image.
-        tag: "5.4.0"
+        tag: "5.5.0"
         ## The digest of the App Protect WAF v5 Configuration Manager image.
         ## If digest is specified it has precedence over tag and will be used instead
         # digest: "sha256:CHANGEME"
