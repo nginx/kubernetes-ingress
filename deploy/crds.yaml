@@ -252,9 +252,16 @@ spec:
                 description: BasicAuth holds HTTP Basic authentication configuration
                 properties:
                   realm:
+                    description: The realm for basic authentication
+                    pattern: ^([^"$\\]|\\[^$])*$
                     type: string
                   secret:
+                    description: The name of the Kubernetes secret that stores the
+                      Htpasswd configuration
+                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                     type: string
+                required:
+                - secret
                 type: object
               egressMTLS:
                 description: EgressMTLS defines an Egress MTLS policy.
