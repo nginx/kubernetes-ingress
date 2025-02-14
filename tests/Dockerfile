@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.5
 # this is here so we can grab the latest version of kind and have dependabot keep it up to date
-FROM kindest/node:v1.32.1@sha256:6afef2b7f69d627ea7bf27ee6696b6868d18e03bf98167c420df486da4662db6
+FROM kindest/node:v1.32.2@sha256:ec2582d73b2982e0c515f6630a6d3af5a599f5f8a830d2f65f09e61600314b88
 
 # this is here so we can grab the latest version of skopeo and have dependabot keep it up to date
 FROM quay.io/skopeo/stable:v1.17.0
