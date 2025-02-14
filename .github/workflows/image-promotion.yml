@@ -450,7 +450,7 @@ jobs:
 
       - name: Run Docker Scout vulnerability scanner
         id: docker-scout
-        uses: docker/scout-action@b23590dc1e4d09febc00cfcbc51e9e8c0f7ee9f3 # v1.16.1
+        uses: docker/scout-action@0133ff88fe16d4a412dc4827a8fccbccb6b583e0 # v1.16.3
         with:
           command: cves
           image: ${{ steps.meta.outputs.tags }}
@@ -539,7 +539,7 @@ jobs:
 
       - name: Run Docker Scout vulnerability scanner
         id: docker-scout
-        uses: docker/scout-action@b23590dc1e4d09febc00cfcbc51e9e8c0f7ee9f3 # v1.16.1
+        uses: docker/scout-action@0133ff88fe16d4a412dc4827a8fccbccb6b583e0 # v1.16.3
         with:
           command: cves
           image: ${{ steps.meta.outputs.tags }}
@@ -635,7 +635,7 @@ jobs:
 
       - name: Run Docker Scout vulnerability scanner
         id: docker-scout
-        uses: docker/scout-action@b23590dc1e4d09febc00cfcbc51e9e8c0f7ee9f3 # v1.16.1
+        uses: docker/scout-action@0133ff88fe16d4a412dc4827a8fccbccb6b583e0 # v1.16.3
         with:
           command: cves
           image: ${{ steps.meta.outputs.tags }}
