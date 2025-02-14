@@ -642,7 +642,13 @@ type JWTAuth struct {
 
 // BasicAuth holds HTTP Basic authentication configuration
 type BasicAuth struct {
-	Realm  string `json:"realm"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^([^"$\\]|\\[^$])*$`
+	// The realm for basic authentication
+	Realm string `json:"realm,omitempty"`
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`
+	// The name of the Kubernetes secret that stores the Htpasswd configuration
 	Secret string `json:"secret"`
 }
 
