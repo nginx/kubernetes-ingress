@@ -395,6 +395,9 @@ controller:
     ## Creates the GlobalConfiguration custom resource. Requires controller.enableCustomResources.
     create: false
 
+    ## customName: "the-namespace/the-name-of-the-global-configuration-custom-resource"
+    ## The name of the GlobalConfiguration custom resource to use instead of the one provided by default.
+
     ## The spec of the GlobalConfiguration for defining the global configuration parameters of the Ingress Controller.
     spec: {} ## Ensure both curly brackets are removed when adding listeners in YAML format.
     # listeners:
