@@ -1,8 +1,14 @@
 package k8s
 
 import (
+	"context"
+	"fmt"
 	"reflect"
 	"sort"
+
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	v1 "k8s.io/api/core/v1"
@@ -61,6 +67,11 @@ func createServiceHandlers(lbc *LoadBalancerController) cache.ResourceEventHandl
 	}
 }
 
+// isHeadless returns true if the Service is headless (clusterIP == "None").
+func isHeadless(svc *v1.Service) bool {
+	return svc.Spec.ClusterIP == v1.ClusterIPNone
+}
+
 // hasServicedChanged checks if the service has changed based on custom rules we define (eg. port).
 func hasServiceChanges(oldSvc, curSvc *v1.Service) bool {
 	if hasServicePortChanges(oldSvc.Spec.Ports, curSvc.Spec.Ports) {
@@ -69,6 +80,11 @@ func hasServiceChanges(oldSvc, curSvc *v1.Service) bool {
 	if hasServiceExternalNameChanges(oldSvc, curSvc) {
 		return true
 	}
+
+	if isHeadless(oldSvc) || isHeadless(curSvc) {
+		return true
+	}
+
 	return false
 }
 
@@ -121,6 +137,73 @@ func (nsi *namespacedInformer) addServiceHandler(handlers cache.ResourceEventHan
 	nsi.cacheSyncs = append(nsi.cacheSyncs, informer.HasSynced)
 }
 
+func (lbc *LoadBalancerController) syncZoneSyncHeadlessService(svcName string) error {
+	if lbc.configurator.CfgParams.ZoneSync.Enable && lbc.configurator.CfgParams.ZoneSync.Port != 0 {
+		_, err := lbc.client.CoreV1().Services(lbc.controllerNamespace).Get(context.Background(), svcName, meta_v1.GetOptions{})
+		if err == nil {
+			return nil
+		}
+
+		newSvc := &v1.Service{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      svcName,
+				Namespace: lbc.controllerNamespace,
+				OwnerReferences: []meta_v1.OwnerReference{
+					{
+						APIVersion:         "v1",
+						Kind:               "IngressClass",
+						Name:               lbc.ingressClass,
+						UID:                lbc.getIngressClassUUID(),
+						Controller:         boolToPointerBool(true),
+						BlockOwnerDeletion: boolToPointerBool(true),
+					},
+				},
+			},
+			Spec: v1.ServiceSpec{
+				ClusterIP: v1.ClusterIPNone,
+				Selector: map[string]string{
+					"app": lbc.controllerNamespace,
+				},
+			},
+		}
+
+		createdSvc, err := lbc.client.CoreV1().Services(lbc.controllerNamespace).Create(context.Background(), newSvc, meta_v1.CreateOptions{})
+		if err != nil {
+			return fmt.Errorf("error creating headless service: %w", err)
+		}
+		nl.Infof(lbc.Logger, "Successfully created headless service %q in namespace %q", createdSvc.Name, lbc.controllerNamespace)
+		return nil
+	}
+
+	_, err := lbc.client.CoreV1().Services(lbc.controllerNamespace).Get(context.Background(), svcName, meta_v1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("error retrieving headless service: %w", err)
+	}
+
+	err = lbc.client.CoreV1().Services(lbc.controllerNamespace).Delete(context.Background(), svcName, meta_v1.DeleteOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("error deleting headless service: %w", err)
+	}
+	nl.Infof(lbc.Logger, "Successfully deleted headless service %q in namespace %q", svcName, lbc.controllerNamespace)
+	return nil
+}
+
+func (lbc *LoadBalancerController) getIngressClassUUID() types.UID {
+	ingressClass, err := lbc.client.NetworkingV1().IngressClasses().Get(context.Background(), lbc.ingressClass, meta_v1.GetOptions{})
+	if err != nil {
+		nl.Errorf(lbc.Logger, "Error getting IngressClass: %v", err)
+		return types.UID("")
+	}
+	return ingressClass.UID
+}
+
+func boolToPointerBool(b bool) *bool {
+	return &b
+}
+
 func (lbc *LoadBalancerController) syncService(task task) {
 	key := task.Key
 
@@ -137,7 +220,6 @@ func (lbc *LoadBalancerController) syncService(task task) {
 
 	// First case: the service is the external service for the Ingress Controller
 	// In that case we need to update the statuses of all resources
-
 	if lbc.IsExternalServiceKeyForStatus(key) {
 		nl.Infof(lbc.Logger, "Syncing service %v", key)
 

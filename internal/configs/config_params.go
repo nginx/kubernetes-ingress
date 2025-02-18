@@ -178,9 +178,12 @@ type Listener struct {
 
 // ZoneSync holds zone sync values for state sharing.
 type ZoneSync struct {
-	Enable bool
-	Port   int
-	Domain string
+	Enable            bool
+	Port              int
+	Domain            string
+	ResolverAddresses []string
+	ResolverValid     string
+	ResolverIPV6      *bool
 }
 
 // MGMTSecrets holds mgmt block secret names

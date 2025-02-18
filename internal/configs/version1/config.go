@@ -191,9 +191,13 @@ type Location struct {
 
 // ZoneSyncConfig is tbe configuration for the zone_sync directives for state sharing.
 type ZoneSyncConfig struct {
-	Enable bool
-	Port   int
-	Domain string
+	Enable            bool
+	Port              int
+	Domain            string
+	ResolverAddresses []string
+	// Time the resolver is valid. Go time string format: "5s", "10s".
+	ResolverValid string
+	ResolverIPV6  *bool
 }
 
 // MGMTConfig is tbe configuration for the MGMT block.
