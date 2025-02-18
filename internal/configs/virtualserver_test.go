@@ -6484,7 +6484,36 @@ func TestGenerateVirtualServerConfigRateLimitPolicyAuthJwt(t *testing.T) {
 		},
 	}
 	expected := version2.VirtualServerConfig{
-		Maps:             nil,
+		Maps: []version2.Map{
+			{
+				Source:   "$rl_default_cafe_group_user_type_tier_spec",
+				Variable: "$pol_rl_default_gold-rate-limit-policy_default_cafe",
+				Parameters: []version2.Parameter{
+					{
+						Value:  "default",
+						Result: "''",
+					},
+					{
+						Value:  "rl_default_cafe_match_gold",
+						Result: "test",
+					},
+				},
+			},
+			{
+				Source:   "$rl_default_cafe_group_user_type_tier_spec",
+				Variable: "$pol_rl_default_silver-rate-limit-policy_default_cafe",
+				Parameters: []version2.Parameter{
+					{
+						Value:  "default",
+						Result: "''",
+					},
+					{
+						Value:  "rl_default_cafe_match_silver",
+						Result: "test",
+					},
+				},
+			},
+		},
 		AuthJWTClaimSets: []version2.AuthJWTClaimSet{{Variable: "$jwt_default_cafe_user_type_tier", Claim: "user_type tier"}},
 		Upstreams: []version2.Upstream{
 			{
@@ -6520,8 +6549,24 @@ func TestGenerateVirtualServerConfigRateLimitPolicyAuthJwt(t *testing.T) {
 		},
 		HTTPSnippets: []string{},
 		LimitReqZones: []version2.LimitReqZone{
-			{Key: "test", ZoneName: "pol_rl_default_gold-rate-limit-policy_default_cafe", ZoneSize: "10M", Rate: "10r/s"},
-			{Key: "test", ZoneName: "pol_rl_default_silver-rate-limit-policy_default_cafe", ZoneSize: "20M", Rate: "20r/s"},
+			{
+				Key:             "$pol_rl_default_gold-rate-limit-policy_default_cafe",
+				ZoneName:        "pol_rl_default_gold-rate-limit-policy_default_cafe",
+				ZoneSize:        "10M",
+				Rate:            "10r/s",
+				GroupMatchValue: "test",
+				GroupVariable:   "$rl_default_cafe_group_user_type_tier_spec",
+				GroupMatchKey:   "rl_default_cafe_match_gold",
+			},
+			{
+				Key:             "$pol_rl_default_silver-rate-limit-policy_default_cafe",
+				ZoneName:        "pol_rl_default_silver-rate-limit-policy_default_cafe",
+				ZoneSize:        "20M",
+				Rate:            "20r/s",
+				GroupMatchValue: "test",
+				GroupVariable:   "$rl_default_cafe_group_user_type_tier_spec",
+				GroupMatchKey:   "rl_default_cafe_match_silver",
+			},
 		},
 		Server: version2.Server{
 			JWTAuthList:     nil,
@@ -9198,6 +9243,270 @@ func TestRemoveDuplicateAuthJWTClaimSets(t *testing.T) {
 		result := removeDuplicateAuthJWTClaimSets(test.ajcs)
 		if !reflect.DeepEqual(result, test.expected) {
 			t.Errorf("removeDuplicateAuthJWTClaimSets() returned \n%v, but expected \n%v", result, test.expected)
+		}
+	}
+}
+
+func TestGenerateLRZPolicyGroupMap(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		lrz      version2.LimitReqZone
+		expected *version2.Map
+	}{
+		{
+			lrz: version2.LimitReqZone{
+				ZoneName:        "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+				Key:             "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+				GroupMatchKey:   "rl_vsnamespace_vsname_match_gold",
+				GroupVariable:   "$rl_vsnamespace_vsname_group_sub_spec",
+				GroupMatchValue: "$jwt_claim_sub",
+			},
+			expected: &version2.Map{
+				Source:   "$rl_vsnamespace_vsname_group_sub_spec",
+				Variable: "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+				Parameters: []version2.Parameter{
+					{
+						Value:  "default",
+						Result: "''",
+					},
+					{
+						Value:  "rl_vsnamespace_vsname_match_gold",
+						Result: "$jwt_claim_sub",
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		result := generateLRZPolicyGroupMap(test.lrz)
+		if !reflect.DeepEqual(result, test.expected) {
+			t.Errorf("generateLRZPolicyGroupMap() returned \n%v, but expected \n%v", result, test.expected)
+		}
+	}
+}
+
+func TestGenerateLRZGroupMaps(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		lrzs     []version2.LimitReqZone
+		expected map[string]*version2.Map
+	}{
+		{
+			lrzs: []version2.LimitReqZone{
+				{
+					ZoneName:        "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:             "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupKey:        "Gold",
+					GroupVariable:   "$rl_vsnamespace_vsname_group_sub_spec",
+					GroupMatchKey:   "rl_vsnamespace_vsname_match_gold",
+					GroupMatchValue: "$jwt_claim_sub",
+					ClaimVariable:   "$jwt_vsnamespace_vsname_sub",
+				},
+				{
+					ZoneName:        "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:             "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupKey:        "Silver",
+					GroupVariable:   "$rl_vsnamespace_vsname_group_sub_spec",
+					GroupMatchKey:   "rl_vsnamespace_vsname_match_silver",
+					GroupMatchValue: "$jwt_claim_sub",
+					ClaimVariable:   "$jwt_vsnamespace_vsname_sub",
+				},
+				{
+					ZoneName:        "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:             "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupKey:        "Bronze",
+					GroupVariable:   "$rl_vsnamespace_vsname_group_sub_spec",
+					GroupMatchKey:   "rl_vsnamespace_vsname_match_bronze",
+					GroupMatchValue: "$jwt_claim_sub",
+					GroupDefault:    true,
+					ClaimVariable:   "$jwt_vsnamespace_vsname_sub",
+				},
+			},
+			expected: map[string]*version2.Map{
+				"$rl_vsnamespace_vsname_group_sub_spec": {
+					Source:   "$jwt_vsnamespace_vsname_sub",
+					Variable: "$rl_vsnamespace_vsname_group_sub_spec",
+					Parameters: []version2.Parameter{
+						{
+							Value:  "default",
+							Result: "rl_vsnamespace_vsname_match_bronze",
+						},
+						{
+							Value:  "Gold",
+							Result: "rl_vsnamespace_vsname_match_gold",
+						},
+						{
+							Value:  "Silver",
+							Result: "rl_vsnamespace_vsname_match_silver",
+						},
+						{
+							Value:  "Bronze",
+							Result: "rl_vsnamespace_vsname_match_bronze",
+						},
+					},
+				},
+			},
+		},
+		{
+			lrzs: []version2.LimitReqZone{
+				{
+					ZoneName:        "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:             "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupKey:        "Gold",
+					GroupVariable:   "$rl_vsnamespace_vsname_group_sub_spec",
+					GroupMatchKey:   "rl_vsnamespace_vsname_match_gold",
+					GroupMatchValue: "$jwt_claim_sub",
+					ClaimVariable:   "$jwt_vsnamespace_vsname_sub",
+				},
+				{
+					ZoneName:        "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:             "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupKey:        "Silver",
+					GroupVariable:   "$rl_vsnamespace_vsname_group_sub_spec",
+					GroupMatchKey:   "rl_vsnamespace_vsname_match_silver",
+					GroupMatchValue: "$jwt_claim_sub",
+					ClaimVariable:   "$jwt_vsnamespace_vsname_sub",
+				},
+				{
+					ZoneName:        "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:             "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupKey:        "Bronze",
+					GroupVariable:   "$rl_vsnamespace_vsname_group_sub_spec",
+					GroupMatchKey:   "rl_vsnamespace_vsname_match_bronze",
+					GroupMatchValue: "$jwt_claim_sub",
+					GroupDefault:    true,
+					ClaimVariable:   "$jwt_vsnamespace_vsname_sub",
+				},
+				{
+					ZoneName:        "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:             "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupKey:        "Gold",
+					GroupVariable:   "$rl_vsnamespace_vsname_group_sub_subroute",
+					GroupMatchKey:   "rl_vsnamespace_vsname_match_gold",
+					GroupMatchValue: "$jwt_claim_sub",
+					ClaimVariable:   "$jwt_vsnamespace_vsname_sub",
+				},
+				{
+					ZoneName:        "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:             "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupKey:        "Silver",
+					GroupVariable:   "$rl_vsnamespace_vsname_group_sub_subroute",
+					GroupMatchKey:   "rl_vsnamespace_vsname_match_silver",
+					GroupMatchValue: "$jwt_claim_sub",
+					ClaimVariable:   "$jwt_vsnamespace_vsname_sub",
+				},
+				{
+					ZoneName:        "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:             "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupKey:        "Bronze",
+					GroupVariable:   "$rl_vsnamespace_vsname_group_sub_subroute",
+					GroupMatchKey:   "rl_vsnamespace_vsname_match_bronze",
+					GroupMatchValue: "$jwt_claim_sub",
+					GroupDefault:    true,
+					ClaimVariable:   "$jwt_vsnamespace_vsname_sub",
+				},
+			},
+			expected: map[string]*version2.Map{
+				"$rl_vsnamespace_vsname_group_sub_spec": {
+					Source:   "$jwt_vsnamespace_vsname_sub",
+					Variable: "$rl_vsnamespace_vsname_group_sub_spec",
+					Parameters: []version2.Parameter{
+						{
+							Value:  "default",
+							Result: "rl_vsnamespace_vsname_match_bronze",
+						},
+						{
+							Value:  "Gold",
+							Result: "rl_vsnamespace_vsname_match_gold",
+						},
+						{
+							Value:  "Silver",
+							Result: "rl_vsnamespace_vsname_match_silver",
+						},
+						{
+							Value:  "Bronze",
+							Result: "rl_vsnamespace_vsname_match_bronze",
+						},
+					},
+				},
+				"$rl_vsnamespace_vsname_group_sub_subroute": {
+					Source:   "$jwt_vsnamespace_vsname_sub",
+					Variable: "$rl_vsnamespace_vsname_group_sub_subroute",
+					Parameters: []version2.Parameter{
+						{
+							Value:  "default",
+							Result: "rl_vsnamespace_vsname_match_bronze",
+						},
+						{
+							Value:  "Gold",
+							Result: "rl_vsnamespace_vsname_match_gold",
+						},
+						{
+							Value:  "Silver",
+							Result: "rl_vsnamespace_vsname_match_silver",
+						},
+						{
+							Value:  "Bronze",
+							Result: "rl_vsnamespace_vsname_match_bronze",
+						},
+					},
+				},
+			},
+		},
+		{
+			lrzs: []version2.LimitReqZone{
+				{
+					ZoneName:        "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:             "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupKey:        "Premium",
+					GroupVariable:   "$rl_vsnamespace_vsname_group_sub_route",
+					GroupMatchKey:   "rl_vsnamespace_vsname_match_premium",
+					GroupMatchValue: "$jwt_claim_sub",
+					ClaimVariable:   "$jwt_vsnamespace_vsname_sub",
+				},
+				{
+					ZoneName:        "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:             "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupKey:        "Basic",
+					GroupVariable:   "$rl_vsnamespace_vsname_group_sub_route",
+					GroupMatchKey:   "rl_vsnamespace_vsname_match_basic",
+					GroupMatchValue: "$jwt_claim_sub",
+					GroupDefault:    true,
+					ClaimVariable:   "$jwt_vsnamespace_vsname_sub",
+				},
+			},
+			expected: map[string]*version2.Map{
+				"$rl_vsnamespace_vsname_group_sub_route": {
+					Source:   "$jwt_vsnamespace_vsname_sub",
+					Variable: "$rl_vsnamespace_vsname_group_sub_route",
+					Parameters: []version2.Parameter{
+						{
+							Value:  "default",
+							Result: "rl_vsnamespace_vsname_match_basic",
+						},
+						{
+							Value:  "Premium",
+							Result: "rl_vsnamespace_vsname_match_premium",
+						},
+						{
+							Value:  "Basic",
+							Result: "rl_vsnamespace_vsname_match_basic",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		result := generateLRZGroupMaps(test.lrzs)
+		for k, v := range test.expected {
+			sort.Slice(v.Parameters, func(i, j int) bool { return v.Parameters[i].Value < v.Parameters[j].Value })
+			sort.Slice(result[k].Parameters, func(i, j int) bool { return result[k].Parameters[i].Value < result[k].Parameters[j].Value })
+			if !reflect.DeepEqual(result[k], v) {
+				t.Errorf("generateLRZGroupMaps() returned \n%v, but expected \n%v", result, test.expected)
+			}
 		}
 	}
 }
