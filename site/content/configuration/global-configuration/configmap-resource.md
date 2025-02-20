@@ -185,11 +185,11 @@ For more information, view the [VirtualServer and VirtualServerRoute resources](
 {{<bootstrap-table "table table-striped table-bordered table-responsive">}}
 |ConfigMap Key | Description | Default | Example |
 | ---| ---| ---| --- |
-|*zone-sync* | Enables zone synchronization between NGINX Ingress Controller Pods. NGINX Plus Required. | *False* |  |
+|*zone-sync* | Enables zone synchronization between NGINX Ingress Controller Pods. This autogenerates a `zone_sync_server` and headless service using the `IngressClass` name. NGINX Plus Required. | *False* |  |
 |*zone-sync-port* | Specifies the optional port on which NGINX Ingress Controller listens for zone sync traffic. NGINX Plus & `zone-sync` Required. | *12345* |  |
-|*zone-sync-resolver-addresses* | Configures optional addresses used in the [resolver](https://nginx.org/en/docs/http/ngx_http_core_module.html#resolver) directive for zone-sync. This field takes a comma separated list of addresses. NGINX Plus & `zone-sync` Required | `kube-dns.kube-system.svc.cluster.local` |
-|*zone-sync-resolver-ipv6* | Configures whether the optional [resolver](https://nginx.org/en/docs/http/ngx_http_core_module.html#resolver) directive for zone-sync will look up IPv6 addresses. NGINX Plus & `zone-sync` Required | `true` |
-|*zone-sync-resolver-valid* | Configures an [NGINX time](https://nginx.org/en/docs/syntax.html) that the optional [resolver](https://nginx.org/en/docs/http/ngx_http_core_module.html#resolver) directive for zone-sync will override the TTL value of responses from nameservers with. NGINX Plus & `zone-sync` Required | `5s` |
+|*zone-sync-resolver-addresses* | Configures optional addresses used in the [resolver](https://nginx.org/en/docs/http/ngx_http_core_module.html#resolver) directive for zone-sync. This field takes a comma separated list of addresses. NGINX Plus & `zone-sync` Required | `kube-dns.kube-system.svc.cluster.local` |  |
+|*zone-sync-resolver-ipv6* | Configures whether the optional [resolver](https://nginx.org/en/docs/http/ngx_http_core_module.html#resolver) directive for zone-sync will look up IPv6 addresses. NGINX Plus & `zone-sync` Required | `true` |  |
+|*zone-sync-resolver-valid* | Configures an [NGINX time](https://nginx.org/en/docs/syntax.html) that the optional [resolver](https://nginx.org/en/docs/http/ngx_http_core_module.html#resolver) directive for zone-sync will override the TTL value of responses from nameservers with. NGINX Plus & `zone-sync` Required | `5s` |  |
 {{</bootstrap-table>}}
 
 ---
