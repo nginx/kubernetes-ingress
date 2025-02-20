@@ -180,7 +180,7 @@ For more information, view the [VirtualServer and VirtualServerRoute resources](
 
 ---
 
-### State Sharing & Zone Sync
+### Zone Sync
 
 {{<bootstrap-table "table table-striped table-bordered table-responsive">}}
 |ConfigMap Key | Description | Default | Example |
