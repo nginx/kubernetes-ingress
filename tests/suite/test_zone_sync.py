@@ -1,4 +1,3 @@
-
 import pytest
 from kubernetes.client.exceptions import ApiException
 from settings import (
