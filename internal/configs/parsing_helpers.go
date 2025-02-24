@@ -413,8 +413,3 @@ func VerifyAppProtectThresholds(value string) bool {
 func VerifyPath(s string) bool {
 	return pathRegexp.MatchString(s)
 }
-
-// BoolToPointerBool turns a bool into a pointer bool
-func BoolToPointerBool(b bool) *bool {
-	return &b
-}

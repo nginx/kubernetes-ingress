@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
+	"log/slog"
 	"strings"
 	"time"
+
+	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/record"
@@ -17,7 +19,9 @@ import (
 )
 
 const (
-	minimumInterval = 60
+	minimumInterval     = 60
+	zoneSyncDefaultPort = 12345
+	kubeDNSDefault      = "kube-dns.kube-system.svc.cluster.local"
 )
 
 // ParseConfigMap parses ConfigMap into ConfigParams.
@@ -400,45 +404,9 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		}
 	}
 
-	if zoneSync, exists, err := GetMapKeyAsBool(cfgm.Data, "zone-sync", cfgm); exists {
-		if err != nil {
-			nl.Error(l, err)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
-			configOk = false
-		} else {
-			if nginxPlus {
-				cfgParams.ZoneSync.Enable = zoneSync
-			} else {
-				errorText := fmt.Sprintf("ConfigMap %s/%s key %s requires NGINX Plus", cfgm.Namespace, cfgm.Name, "zone-sync")
-				nl.Warn(l, errorText)
-				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-				configOk = false
-			}
-		}
-	}
-
-	if zoneSyncPort, exists, err := GetMapKeyAsInt(cfgm.Data, "zone-sync-port", cfgm); exists {
-		if err != nil {
-			nl.Error(l, err)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
-			configOk = false
-		} else {
-			if cfgParams.ZoneSync.Enable {
-				portValidationError := validation.ValidatePort(zoneSyncPort)
-				if portValidationError != nil {
-					nl.Error(l, portValidationError)
-					eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, portValidationError.Error())
-					configOk = false
-				} else {
-					cfgParams.ZoneSync.Port = zoneSyncPort
-				}
-			} else {
-				errorText := fmt.Sprintf("ConfigMap %s/%s key %s requires 'zone-sync' to be enabled", cfgm.Namespace, cfgm.Name, "zone-sync-port")
-				nl.Warn(l, errorText)
-				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-				configOk = false
-			}
-		}
+	_, err := parseConfigMapZoneSync(l, cfgm, cfgParams, eventLog, nginxPlus)
+	if err != nil {
+		configOk = false
 	}
 
 	if upstreamZoneSize, exists := cfgm.Data["upstream-zone-size"]; exists {
@@ -700,6 +668,102 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 	return cfgParams, configOk
 }
 
+//nolint:gocyclo
+func parseConfigMapZoneSync(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *ConfigParams, eventLog record.EventRecorder, nginxPlus bool) (*ZoneSync, error) {
+	if zoneSync, exists, err := GetMapKeyAsBool(cfgm.Data, "zone-sync", cfgm); exists {
+		if err != nil {
+			nl.Error(l, err)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
+			return nil, err
+		}
+		if nginxPlus {
+			cfgParams.ZoneSync.Enable = zoneSync
+		} else {
+			errorText := fmt.Sprintf("ConfigMap %s/%s key %s requires NGINX Plus", cfgm.Namespace, cfgm.Name, "zone-sync")
+			nl.Warn(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			return nil, errors.New(errorText)
+		}
+	}
+
+	if zoneSyncPort, exists, err := GetMapKeyAsInt(cfgm.Data, "zone-sync-port", cfgm); exists {
+		if err != nil {
+			nl.Warn(l, err)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
+			return nil, err
+		}
+		if !cfgParams.ZoneSync.Enable {
+			errorText := fmt.Sprintf("ConfigMap %s/%s key %s requires 'zone-sync' to be enabled", cfgm.Namespace, cfgm.Name, "zone-sync-port")
+			nl.Warn(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			return nil, errors.New(errorText)
+		}
+		if portValidationError := validation.ValidatePort(zoneSyncPort); portValidationError != nil {
+			nl.Error(l, portValidationError)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, portValidationError.Error())
+			return nil, portValidationError
+		}
+		cfgParams.ZoneSync.Port = zoneSyncPort
+	} else {
+		cfgParams.ZoneSync.Port = zoneSyncDefaultPort
+	}
+
+	if zoneSyncResolverAddresses, exists := GetMapKeyAsStringSlice(cfgm.Data, "zone-sync-resolver-addresses", cfgm, ","); exists {
+		if !cfgParams.ZoneSync.Enable {
+			errorText := fmt.Sprintf("ConfigMap %s/%s key %s requires 'zone-sync' to be enabled", cfgm.Namespace, cfgm.Name, "zone-sync-resolver-addresses")
+			nl.Warn(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			return nil, errors.New(errorText)
+		}
+		for _, addr := range zoneSyncResolverAddresses {
+			if err := validation.ValidateHost(addr); err != nil {
+				nl.Warn(l, err)
+				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
+				return nil, err
+			}
+		}
+		cfgParams.ZoneSync.ResolverAddresses = zoneSyncResolverAddresses
+	} else {
+		cfgParams.ZoneSync.ResolverAddresses = []string{kubeDNSDefault}
+	}
+
+	if zoneSyncResolverValid, exists := cfgm.Data["zone-sync-resolver-valid"]; exists {
+		if !cfgParams.ZoneSync.Enable {
+			errorText := fmt.Sprintf("ConfigMap %s/%s key %s requires 'zone-sync' to be enabled", cfgm.Namespace, cfgm.Name, "zone-sync-resolver-valid")
+			nl.Warn(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			return nil, errors.New(errorText)
+		}
+		zoneSyncResolverValidTime, err := ParseTime(zoneSyncResolverValid)
+		if err != nil {
+			errorText := fmt.Sprintf("ConfigMap %s/%s key %s contains invalid nginx time: %s, eg. 10s\",", cfgm.Namespace, cfgm.Name, "zone-sync-resolver-valid", zoneSyncResolverValid)
+			nl.Warn(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			return nil, errors.New(errorText)
+		}
+		cfgParams.ZoneSync.ResolverValid = zoneSyncResolverValidTime
+	} else {
+		cfgParams.ZoneSync.ResolverValid = "5s"
+	}
+
+	if zoneSyncResolverIpv6, exists, err := GetMapKeyAsBool(cfgm.Data, "zone-sync-resolver-ipv6", cfgm); exists {
+		if err != nil {
+			nl.Warn(l, err)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
+			return nil, err
+		}
+		if !cfgParams.ZoneSync.Enable {
+			errorText := fmt.Sprintf("ConfigMap %s/%s key %s requires 'zone-sync' to be enabled", cfgm.Namespace, cfgm.Name, "zone-sync-resolver-ipv6")
+			nl.Warn(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			return nil, errors.New(errorText)
+		}
+		cfgParams.ZoneSync.ResolverIPV6 = commonhelpers.BoolToPointerBool(zoneSyncResolverIpv6)
+	}
+
+	return &cfgParams.ZoneSync, nil
+}
+
 // ParseMGMTConfigMap parses the mgmt block ConfigMap into MGMTConfigParams.
 //
 //nolint:gocyclo
@@ -724,7 +788,7 @@ func ParseMGMTConfigMap(ctx context.Context, cfgm *v1.ConfigMap, eventLog record
 			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
 			configWarnings = true
 		} else {
-			mgmtCfgParams.SSLVerify = BoolToPointerBool(sslVerify)
+			mgmtCfgParams.SSLVerify = commonhelpers.BoolToPointerBool(sslVerify)
 		}
 	}
 
@@ -738,7 +802,7 @@ func ParseMGMTConfigMap(ctx context.Context, cfgm *v1.ConfigMap, eventLog record
 			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
 			configWarnings = true
 		} else {
-			mgmtCfgParams.ResolverIPV6 = BoolToPointerBool(resolverIpv6)
+			mgmtCfgParams.ResolverIPV6 = commonhelpers.BoolToPointerBool(resolverIpv6)
 		}
 	}
 
@@ -753,7 +817,7 @@ func ParseMGMTConfigMap(ctx context.Context, cfgm *v1.ConfigMap, eventLog record
 			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
 			configWarnings = true
 		} else {
-			mgmtCfgParams.EnforceInitialReport = BoolToPointerBool(enforceInitialReport)
+			mgmtCfgParams.EnforceInitialReport = commonhelpers.BoolToPointerBool(enforceInitialReport)
 		}
 	}
 
@@ -819,11 +883,13 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		}
 	}
 
-	podNamespace := os.Getenv("POD_NAMESPACE")
 	zoneSyncConfig := version1.ZoneSyncConfig{
-		Enable: config.ZoneSync.Enable,
-		Port:   config.ZoneSync.Port,
-		Domain: fmt.Sprintf("%s-headless.%s.svc.cluster.local", podNamespace, podNamespace),
+		Enable:            config.ZoneSync.Enable,
+		Port:              config.ZoneSync.Port,
+		Domain:            fmt.Sprintf("%s-headless.%s.svc.cluster.local", config.ZoneSync.Domain, config.ZoneSync.Domain),
+		ResolverAddresses: config.ZoneSync.ResolverAddresses,
+		ResolverIPV6:      config.ZoneSync.ResolverIPV6,
+		ResolverValid:     config.ZoneSync.ResolverValid,
 	}
 
 	nginxCfg := &version1.MainConfig{

@@ -351,6 +351,15 @@ stream {
     }
     {{end}}
 
+    {{- if .ZoneSyncConfig.Enable }}
+    server {
+        listen {{ .ZoneSyncConfig.Port }};
+        {{ if not .DisableIPV6}}listen [::]:{{ .ZoneSyncConfig.Port }}{{end}};
+        {{ makeResolver .ZoneSyncConfig.ResolverAddresses .ZoneSyncConfig.ResolverValid .ZoneSyncConfig.ResolverIPV6 }}
+        zone_sync;
+        zone_sync_server {{ .ZoneSyncConfig.Domain }}:{{ .ZoneSyncConfig.Port }} resolve;
+    }
+    {{- end }}
     include /etc/nginx/stream-conf.d/*.conf;
 }
 
