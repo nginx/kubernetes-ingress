@@ -1,11 +1,9 @@
-import datetime
 
 import pytest
+from kubernetes.client.exceptions import ApiException
 from settings import (
     TEST_DATA,
-    DEFAULT_DEPLOYMENT_TYPE,
 )
-from kubernetes.client.exceptions import ApiException
 from suite.utils.resources_utils import (
     get_nginx_template_conf,
     read_service,
@@ -15,6 +13,7 @@ from suite.utils.resources_utils import (
 
 WAIT_TIME = 1
 DEPOYMENT_NAME = "nginx-ingress"
+
 
 def assert_event(event_list, event_type, reason, message_substring):
     """
@@ -67,13 +66,13 @@ def service_exists(v1, cli_arguments, namespace) -> bool:
     :return: Bool
     """
     deployment_type = cli_arguments["deployment-type"].lower()
-    
+
     service_name = "nginx-ingress-replicaset-hl"
     if deployment_type == "daemon-set":
-        service_name = "nginx-ingress-daemonset-hl"    
-    
+        service_name = "nginx-ingress-daemonset-hl"
+
     try:
-        svc = read_service(v1, service_name, namespace)
+        read_service(v1, service_name, namespace)
     except ApiException:
         print(f"service {service_name} doesn't exist")
         return False
@@ -129,11 +128,14 @@ class TestZoneSyncLifecycle:
         assert_zonesync_disabled(nginx_config)
 
         print("Step 4: verify headless service doesn't exist")
-        assert service_exists(
-            kube_apis.v1,
-            cli_arguments,
-            ingress_controller_prerequisites.namespace,
-        ) is False
+        assert (
+            service_exists(
+                kube_apis.v1,
+                cli_arguments,
+                ingress_controller_prerequisites.namespace,
+            )
+            is False
+        )
 
         print("Step 4: cleanup: apply default nginx-config map")
         replace_configmap_from_yaml(
@@ -189,11 +191,14 @@ class TestZoneSyncLifecycle:
         wait_before_test(5)
 
         print("Step 3: verify headless service exists")
-        assert service_exists(
-            kube_apis.v1,
-            cli_arguments,
-            ingress_controller_prerequisites.namespace,
-        ) is True
+        assert (
+            service_exists(
+                kube_apis.v1,
+                cli_arguments,
+                ingress_controller_prerequisites.namespace,
+            )
+            is True
+        )
 
         print("Step 4: cleanup:  apply default nginx-config map")
         replace_configmap_from_yaml(
@@ -247,11 +252,14 @@ class TestZoneSyncLifecycle:
         assert_zonesync_enabled(nginx_config, resolver_valid="10s")
 
         print("Step 4: verify headless service exists")
-        assert service_exists(
-            kube_apis.v1,
-            cli_arguments,
-            ingress_controller_prerequisites.namespace,
-        ) is True
+        assert (
+            service_exists(
+                kube_apis.v1,
+                cli_arguments,
+                ingress_controller_prerequisites.namespace,
+            )
+            is True
+        )
 
         print("Step 4: cleanup: apply default nginx-config map")
         replace_configmap_from_yaml(
@@ -292,11 +300,14 @@ class TestZoneSyncLifecycle:
         assert_zonesync_enabled(nginx_config, port="12345")
 
         print("Step 2: verify headless service exists")
-        assert service_exists(
-            kube_apis.v1,
-            cli_arguments,
-            ingress_controller_prerequisites.namespace,
-        ) is True
+        assert (
+            service_exists(
+                kube_apis.v1,
+                cli_arguments,
+                ingress_controller_prerequisites.namespace,
+            )
+            is True
+        )
 
         wait_before_test(WAIT_TIME)
 
@@ -315,11 +326,14 @@ class TestZoneSyncLifecycle:
         assert_zonesync_enabled(nginx_config, port="34100")
 
         print("Step 5: verify headless service exists")
-        assert service_exists(
-            kube_apis.v1,
-            cli_arguments,
-            ingress_controller_prerequisites.namespace,
-        ) is True
+        assert (
+            service_exists(
+                kube_apis.v1,
+                cli_arguments,
+                ingress_controller_prerequisites.namespace,
+            )
+            is True
+        )
 
         print("Step 6: cleanup:  apply default nginx-config map")
         replace_configmap_from_yaml(
@@ -358,11 +372,14 @@ class TestZoneSyncLifecycle:
         assert_zonesync_enabled(nginx_config, port="12345")
 
         print("Step 2: verify headless service exists")
-        assert service_exists(
-            kube_apis.v1,
-            cli_arguments,
-            ingress_controller_prerequisites.namespace,
-        ) is True
+        assert (
+            service_exists(
+                kube_apis.v1,
+                cli_arguments,
+                ingress_controller_prerequisites.namespace,
+            )
+            is True
+        )
 
         wait_before_test(WAIT_TIME)
 
@@ -379,11 +396,14 @@ class TestZoneSyncLifecycle:
         assert_zonesync_disabled(nginx_config)
 
         print("Step 5: verify headless service doesn't exist")
-        assert service_exists(
-            kube_apis.v1,
-            cli_arguments,
-            ingress_controller_prerequisites.namespace,
-        ) is False
+        assert (
+            service_exists(
+                kube_apis.v1,
+                cli_arguments,
+                ingress_controller_prerequisites.namespace,
+            )
+            is False
+        )
 
         print("Step 6: cleanup:  apply default nginx-config map")
         replace_configmap_from_yaml(
