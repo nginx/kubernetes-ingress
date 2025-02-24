@@ -11,7 +11,7 @@ from suite.utils.resources_utils import (
 )
 
 WAIT_TIME = 1
-DEPOYMENT_NAME = "nginx-ingress"
+DEPLOYMENT_NAME = "nginx-ingress"
 
 
 def assert_event(event_list, event_type, reason, message_substring):
@@ -66,9 +66,9 @@ def service_exists(v1, cli_arguments, namespace) -> bool:
     """
     deployment_type = cli_arguments["deployment-type"].lower()
 
-    service_name = "nginx-ingress-replicaset-hl"
+    service_name = f"{DEPLOYMENT_NAME}-replicaset-hl"
     if deployment_type == "daemon-set":
-        service_name = "nginx-ingress-daemonset-hl"
+        service_name = f"{DEPLOYMENT_NAME}-daemonset-hl"
 
     try:
         read_service(v1, service_name, namespace)
