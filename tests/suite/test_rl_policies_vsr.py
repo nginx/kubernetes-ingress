@@ -1,5 +1,6 @@
 import time
 
+import jwt
 import pytest
 import requests
 from settings import TEST_DATA
@@ -24,6 +25,8 @@ rl_vsr_invalid_src = f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-rout
 rl_vsr_override_src = f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-route-override-subroute.yaml"
 rl_vsr_override_vs_spec_src = f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-vsr-spec-override.yaml"
 rl_vsr_override_vs_route_src = f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-vsr-route-override.yaml"
+rl_vsr_jwt_claim_sub_src = f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-route-jwt-claim-sub.yaml"
+rl_pol_jwt_claim_sub_src = f"{TEST_DATA}/rate-limit/policies/rate-limit-jwt-claim-sub.yaml"
 
 
 @pytest.mark.policies
@@ -416,3 +419,89 @@ class TestRateLimitingPoliciesVsr:
             and policy_info["status"]["reason"] == "AddedOrUpdated"
             and policy_info["status"]["state"] == "Valid"
         )
+
+    @pytest.mark.smoke
+    @pytest.mark.parametrize("src", [rl_vsr_jwt_claim_sub_src])
+    def test_rl_policy_jwt_claim_sub_vsr(
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        crd_ingress_controller,
+        v_s_route_app_setup,
+        v_s_route_setup,
+        test_namespace,
+        src,
+    ):
+        """
+        Test if rate-limiting policy is working with 1 rps using $jwt_claim_sub as the rate limit key in vsr:subroute
+        """
+
+        req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
+        print(f"Create rl policy")
+        pol_name = create_policy_from_yaml(
+            kube_apis.custom_objects, rl_pol_jwt_claim_sub_src, v_s_route_setup.route_m.namespace
+        )
+        wait_before_test(1)
+        policy_info = read_custom_resource(
+            kube_apis.custom_objects, v_s_route_setup.route_m.namespace, "policies", pol_name
+        )
+        assert (
+            policy_info["status"]
+            and policy_info["status"]["reason"] == "AddedOrUpdated"
+            and policy_info["status"]["state"] == "Valid"
+        )
+
+        print(f"Patch vsr with policy: {src}")
+        patch_v_s_route_from_yaml(
+            kube_apis.custom_objects,
+            v_s_route_setup.route_m.name,
+            src,
+            v_s_route_setup.route_m.namespace,
+        )
+        wait_before_test(1)
+        vsr_info = read_custom_resource(
+            kube_apis.custom_objects,
+            v_s_route_setup.route_m.namespace,
+            "virtualserverroutes",
+            v_s_route_setup.route_m.name,
+        )
+        assert (
+            vsr_info["status"]
+            and vsr_info["status"]["reason"] == "AddedOrUpdated"
+            and vsr_info["status"]["state"] == "Valid"
+        )
+
+        vs_info = read_custom_resource(
+            kube_apis.custom_objects, v_s_route_setup.namespace, "virtualservers", v_s_route_setup.vs_name
+        )
+        assert (
+            vs_info["status"]
+            and vs_info["status"]["reason"] == "AddedOrUpdated"
+            and vs_info["status"]["state"] == "Valid"
+        )
+
+        wait_before_test()
+        jwt_token = jwt.encode(
+            {"sub": "client1"},
+            "nginx",
+            algorithm="HS256",
+        )
+        occur = []
+        t_end = time.perf_counter() + 1
+        resp = requests.get(
+            f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {jwt_token}"},
+        )
+
+        print(resp.status_code)
+        assert resp.status_code == 200
+        while time.perf_counter() < t_end:
+            resp = requests.get(
+                f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+                headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {jwt_token}"},
+            )
+            occur.append(resp.status_code)
+        delete_policy(kube_apis.custom_objects, pol_name, v_s_route_setup.route_m.namespace)
+        self.restore_default_vsr(kube_apis, v_s_route_setup)
+
+        assert occur.count(200) <= 1
