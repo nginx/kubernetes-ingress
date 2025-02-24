@@ -1,5 +1,6 @@
 import time
 
+import jwt
 import pytest
 import requests
 from settings import TEST_DATA
@@ -26,7 +27,6 @@ rl_vs_override_route = f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-ov
 rl_vs_override_spec_route = f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-override-spec-route.yaml"
 rl_vs_jwt_claim_sub = f"{TEST_DATA}/rate-limit/spec/virtual-server-jwt-claim-sub.yaml"
 rl_pol_jwt_claim_sub = f"{TEST_DATA}/rate-limit/policies/rate-limit-jwt-claim-sub.yaml"
-token = f"{TEST_DATA}/jwt-policy/token.jwt"
 
 
 @pytest.mark.policies
@@ -387,11 +387,17 @@ class TestRateLimitingPolicies:
         wait_before_test()
 
         policy_info = read_custom_resource(kube_apis.custom_objects, test_namespace, "policies", pol_name)
+        jwt_token = jwt.encode(
+            {"sub": "client1"},
+            "nginx",
+            algorithm="HS256",
+        )
         occur = []
         t_end = time.perf_counter() + 1
+
         resp = requests.get(
             virtual_server_setup.backend_1_url,
-            headers={"host": virtual_server_setup.vs_host, "Authorization": f"Bearer {token}"},
+            headers={"host": virtual_server_setup.vs_host, "Authorization": f"Bearer {jwt_token}"},
         )
         print(resp.status_code)
         wait_before_test()
@@ -399,7 +405,7 @@ class TestRateLimitingPolicies:
         while time.perf_counter() < t_end:
             resp = requests.get(
                 virtual_server_setup.backend_1_url,
-                headers={"host": virtual_server_setup.vs_host, "Authorization": f"Bearer {token}"},
+                headers={"host": virtual_server_setup.vs_host, "Authorization": f"Bearer {jwt_token}"},
             )
             occur.append(resp.status_code)
         delete_policy(kube_apis.custom_objects, pol_name, test_namespace)
