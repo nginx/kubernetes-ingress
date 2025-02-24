@@ -323,7 +323,7 @@ class TestZoneSyncLifecycle:
 
         print("Step 4: check if zone_syns port is updated")
         nginx_config = get_nginx_template_conf(kube_apis.v1, ingress_controller_prerequisites.namespace)
-        assert_zonesync_enabled(nginx_config, port="34100")
+        assert_zonesync_enabled(nginx_config, port="13344")
 
         print("Step 5: verify headless service exists")
         assert (
