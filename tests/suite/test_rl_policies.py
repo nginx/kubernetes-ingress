@@ -79,6 +79,17 @@ class TestRateLimitingPolicies:
         create_virtual_server_from_yaml(kube_apis.custom_objects, std_vs_src, virtual_server_setup.namespace)
         wait_before_test()
 
+    def check_rate_limit(self, url, code, counter, headers={}):
+        occur = []
+        t_end = time.perf_counter() + 1
+        while time.perf_counter() < t_end:
+            resp = requests.get(
+                url,
+                headers=headers,
+            )
+            occur.append(resp.status_code)
+        assert occur.count(code) == counter
+
     @pytest.mark.smoke
     @pytest.mark.parametrize("src", [rl_vs_pri_src])
     def test_rl_policy_1rs(
@@ -396,8 +407,7 @@ class TestRateLimitingPolicies:
         Test if rate-limiting policy is working with 1 rps using $jwt_claim_sub as the rate limit key
         Policy is applied at the VirtualServer Spec level
         """
-        print(f"Create rl policy")
-        pol_name = create_policy_from_yaml(kube_apis.custom_objects, rl_pol_jwt_claim_sub, test_namespace)
+        pol_name = apply_and_assert_valid_policy(kube_apis, test_namespace, rl_pol_jwt_claim_sub)
         print(f"Patch vs with policy: {src}")
         patch_virtual_server_from_yaml(
             kube_apis.custom_objects,
@@ -405,38 +415,32 @@ class TestRateLimitingPolicies:
             src,
             virtual_server_setup.namespace,
         )
-        wait_before_test()
+        wait_before_test(1)
+        vs_info = read_custom_resource(
+            kube_apis.custom_objects, virtual_server_setup.namespace, "virtualservers", virtual_server_setup.vs_name
+        )
+        assert (
+            vs_info["status"]
+            and vs_info["status"]["reason"] == "AddedOrUpdated"
+            and vs_info["status"]["state"] == "Valid"
+        )
 
-        policy_info = read_custom_resource(kube_apis.custom_objects, test_namespace, "policies", pol_name)
         jwt_token = jwt.encode(
             {"sub": "client1"},
             "nginx",
             algorithm="HS256",
         )
-        occur = []
-        t_end = time.perf_counter() + 1
 
-        resp = requests.get(
+        self.check_rate_limit(
             virtual_server_setup.backend_1_url,
+            200,
+            1,
             headers={"host": virtual_server_setup.vs_host, "Authorization": f"Bearer {jwt_token}"},
         )
-        print(resp.status_code)
-        wait_before_test()
-        assert resp.status_code == 200
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                virtual_server_setup.backend_1_url,
-                headers={"host": virtual_server_setup.vs_host, "Authorization": f"Bearer {jwt_token}"},
-            )
-            occur.append(resp.status_code)
+        wait_before_test(1)
+
         delete_policy(kube_apis.custom_objects, pol_name, test_namespace)
         self.restore_default_vs(kube_apis, virtual_server_setup)
-        assert (
-            policy_info["status"]
-            and policy_info["status"]["reason"] == "AddedOrUpdated"
-            and policy_info["status"]["state"] == "Valid"
-        )
-        assert occur.count(200) <= 1
 
     @pytest.mark.skip_for_nginx_oss
     @pytest.mark.parametrize("src", [rl_vs_basic_premium_jwt_claim_sub])
@@ -489,39 +493,27 @@ class TestRateLimitingPolicies:
         )
 
         ##  Test Basic Rate Limit 1r/s
-        basic_occur = []
-        t_end = time.perf_counter() + 1
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                virtual_server_setup.backend_1_url,
-                headers={"host": virtual_server_setup.vs_host, "Authorization": f"Bearer {basic_jwt_token}"},
-            )
-            basic_occur.append(resp.status_code)
-        assert basic_occur.count(200) == 1
+        self.check_rate_limit(
+            virtual_server_setup.backend_1_url,
+            200,
+            1,
+            headers={"host": virtual_server_setup.vs_host, "Authorization": f"Bearer {basic_jwt_token}"},
+        )
         wait_before_test(1)
 
         ##  Test Premium Rate Limit 5r/s
-        premium_occur = []
-        t_end = time.perf_counter() + 1
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                virtual_server_setup.backend_1_url,
-                headers={"host": virtual_server_setup.vs_host, "Authorization": f"Bearer {premium_jwt_token}"},
-            )
-            premium_occur.append(resp.status_code)
-        assert premium_occur.count(200) >= 5 and premium_occur.count(200) <= 6  # allow 5 or 6 requests in the results
+        self.check_rate_limit(
+            virtual_server_setup.backend_1_url,
+            200,
+            5,
+            headers={"host": virtual_server_setup.vs_host, "Authorization": f"Bearer {premium_jwt_token}"},
+        )
         wait_before_test(1)
 
         ##  Test Default Rate Limit unlimited
-        default_occur = []
-        t_end = time.perf_counter() + 1
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                virtual_server_setup.backend_1_url,
-                headers={"host": virtual_server_setup.vs_host},
-            )
-            default_occur.append(resp.status_code)
-        assert default_occur.count(503) == 0
+        self.check_rate_limit(
+            virtual_server_setup.backend_1_url, 503, 0, headers={"host": virtual_server_setup.vs_host}
+        )
 
         delete_policy(kube_apis.custom_objects, basic_pol_name, test_namespace)
         delete_policy(kube_apis.custom_objects, premium_pol_name, test_namespace)
@@ -580,39 +572,27 @@ class TestRateLimitingPolicies:
         )
 
         ##  Test Default Rate Limit 1r/s
-        basic_occur = []
-        t_end = time.perf_counter() + 1
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                virtual_server_setup.backend_1_url,
-                headers={"host": virtual_server_setup.vs_host, "Authorization": f"Bearer {basic_jwt_token}"},
-            )
-            basic_occur.append(resp.status_code)
-        assert basic_occur.count(200) == 1
+        self.check_rate_limit(
+            virtual_server_setup.backend_1_url,
+            200,
+            1,
+            headers={"host": virtual_server_setup.vs_host, "Authorization": f"Bearer {basic_jwt_token}"},
+        )
         wait_before_test(1)
 
         ##  Test Premium Rate Limit 5r/s
-        premium_occur = []
-        t_end = time.perf_counter() + 1
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                virtual_server_setup.backend_1_url,
-                headers={"host": virtual_server_setup.vs_host, "Authorization": f"Bearer {premium_jwt_token}"},
-            )
-            premium_occur.append(resp.status_code)
-        assert premium_occur.count(200) == 5
+        self.check_rate_limit(
+            virtual_server_setup.backend_1_url,
+            200,
+            5,
+            headers={"host": virtual_server_setup.vs_host, "Authorization": f"Bearer {premium_jwt_token}"},
+        )
         wait_before_test(1)
 
         ##  Test Default Rate Limit 1r/s
-        default_occur = []
-        t_end = time.perf_counter() + 1
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                virtual_server_setup.backend_1_url,
-                headers={"host": virtual_server_setup.vs_host},
-            )
-            default_occur.append(resp.status_code)
-        assert default_occur.count(200) == 1
+        self.check_rate_limit(
+            virtual_server_setup.backend_1_url, 200, 1, headers={"host": virtual_server_setup.vs_host}
+        )
 
         delete_policy(kube_apis.custom_objects, basic_pol_name, test_namespace)
         delete_policy(kube_apis.custom_objects, premium_pol_name, test_namespace)
@@ -672,50 +652,33 @@ class TestRateLimitingPolicies:
         )
 
         ##  Test Basic Rate Limit 1r/s
-        basic_occur = []
-        t_end = time.perf_counter() + 1
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                virtual_server_setup.backend_1_url,
-                headers={"host": virtual_server_setup.vs_host, "Authorization": f"Bearer {basic_jwt_token}"},
-            )
-            basic_occur.append(resp.status_code)
-        assert basic_occur.count(200) == 1
+        self.check_rate_limit(
+            virtual_server_setup.backend_1_url,
+            200,
+            1,
+            headers={"host": virtual_server_setup.vs_host, "Authorization": f"Bearer {basic_jwt_token}"},
+        )
         wait_before_test(1)
 
         ##  Test Premium Rate Limit 5r/s
-        premium_occur = []
-        t_end = time.perf_counter() + 1
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                virtual_server_setup.backend_1_url,
-                headers={"host": virtual_server_setup.vs_host, "Authorization": f"Bearer {premium_jwt_token}"},
-            )
-            premium_occur.append(resp.status_code)
-        assert premium_occur.count(200) == 5
+        self.check_rate_limit(
+            virtual_server_setup.backend_1_url,
+            200,
+            5,
+            headers={"host": virtual_server_setup.vs_host, "Authorization": f"Bearer {premium_jwt_token}"},
+        )
         wait_before_test(1)
 
         ##  Test Default Rate Limit 1r/s
-        default_occur = []
-        t_end = time.perf_counter() + 1
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                virtual_server_setup.backend_1_url,
-                headers={"host": virtual_server_setup.vs_host},
-            )
-            default_occur.append(resp.status_code)
-        assert default_occur.count(200) == 1
+        self.check_rate_limit(
+            virtual_server_setup.backend_1_url, 200, 1, headers={"host": virtual_server_setup.vs_host}
+        )
+        wait_before_test(1)
 
         ##  Test different backend route
-        unlimited_occur = []
-        t_end = time.perf_counter() + 1
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                virtual_server_setup.backend_2_url,
-                headers={"host": virtual_server_setup.vs_host},
-            )
-            unlimited_occur.append(resp.status_code)
-        assert unlimited_occur.count(503) == 0
+        self.check_rate_limit(
+            virtual_server_setup.backend_2_url, 503, 0, headers={"host": virtual_server_setup.vs_host}
+        )
 
         delete_policy(kube_apis.custom_objects, basic_pol_name, test_namespace)
         delete_policy(kube_apis.custom_objects, premium_pol_name, test_namespace)
@@ -739,9 +702,7 @@ class TestRateLimitingPolicies:
         if a route without policies is unlimited.
         Policies are applied at the VirtualServer Route level
         """
-        basic_pol_name = apply_and_assert_valid_policy(
-            kube_apis, test_namespace, rl_pol_basic_with_default_jwt_claim_sub
-        )
+        basic_pol_name = apply_and_assert_valid_policy(kube_apis, test_namespace, rl_pol_basic_no_default_jwt_claim_sub)
         premium_pol_name = apply_and_assert_valid_policy(
             kube_apis, test_namespace, rl_pol_premium_no_default_jwt_claim_sub
         )
@@ -774,50 +735,34 @@ class TestRateLimitingPolicies:
             algorithm="HS256",
         )
 
-        basic_occur = []
-        t_end = time.perf_counter() + 1
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                virtual_server_setup.backend_1_url,
-                headers={"host": virtual_server_setup.vs_host, "Authorization": f"Bearer {basic_jwt_token}"},
-            )
-            basic_occur.append(resp.status_code)
-        assert basic_occur.count(200) == 1
+        self.check_rate_limit(
+            virtual_server_setup.backend_1_url,
+            200,
+            1,
+            headers={"host": virtual_server_setup.vs_host, "Authorization": f"Bearer {basic_jwt_token}"},
+        )
         wait_before_test(1)
 
         ##  Test Premium Rate Limit 5r/s
-        premium_occur = []
-        t_end = time.perf_counter() + 1
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                virtual_server_setup.backend_1_url,
-                headers={"host": virtual_server_setup.vs_host, "Authorization": f"Bearer {premium_jwt_token}"},
-            )
-            premium_occur.append(resp.status_code)
-        assert premium_occur.count(200) == 5
+        self.check_rate_limit(
+            virtual_server_setup.backend_1_url,
+            200,
+            5,
+            headers={"host": virtual_server_setup.vs_host, "Authorization": f"Bearer {premium_jwt_token}"},
+        )
         wait_before_test(1)
 
         ##  Test Default Rate Limit unlimited
-        default_occur = []
-        t_end = time.perf_counter() + 1
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                virtual_server_setup.backend_1_url,
-                headers={"host": virtual_server_setup.vs_host},
-            )
-            default_occur.append(resp.status_code)
-        assert default_occur.count(503) == 0
+        self.check_rate_limit(
+            virtual_server_setup.backend_1_url, 503, 0, headers={"host": virtual_server_setup.vs_host}
+        )
+        wait_before_test(1)
 
         ##  Test different backend route
-        unlimited_occur = []
-        t_end = time.perf_counter() + 1
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                virtual_server_setup.backend_2_url,
-                headers={"host": virtual_server_setup.vs_host},
-            )
-            unlimited_occur.append(resp.status_code)
-        assert unlimited_occur.count(503) == 0
+        self.check_rate_limit(
+            virtual_server_setup.backend_2_url, 503, 0, headers={"host": virtual_server_setup.vs_host}
+        )
+        wait_before_test(1)
 
         delete_policy(kube_apis.custom_objects, basic_pol_name, test_namespace)
         delete_policy(kube_apis.custom_objects, premium_pol_name, test_namespace)
