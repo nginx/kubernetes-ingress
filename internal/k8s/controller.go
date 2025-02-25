@@ -1074,8 +1074,7 @@ func (lbc *LoadBalancerController) sync(task task) {
 
 	if lbc.isNginxPlus && lbc.isNginxReady {
 		if task.Kind == configMap || task.Kind == service {
-			combinedDeployment := lbc.createCombinedDeploymentHeadlessServiceName()
-			err := lbc.syncZoneSyncHeadlessService(fmt.Sprintf("%s-hl", combinedDeployment))
+			err := lbc.syncZoneSyncHeadlessService(fmt.Sprintf("%s-hl", lbc.configurator.CfgParams.ZoneSync.Domain))
 			if err != nil {
 				nl.Errorf(lbc.Logger, "error syncing zone sync headless service: %v", err)
 			}
