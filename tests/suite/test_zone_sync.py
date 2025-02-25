@@ -71,11 +71,13 @@ def service_exists(v1, cli_arguments, namespace) -> bool:
         service_name = f"{DEPLOYMENT_NAME}-daemonset-hl"
 
     try:
-        read_service(v1, service_name, namespace)
+        svc = read_service(v1, service_name, namespace)
     except ApiException:
         print(f"service {service_name} doesn't exist")
         return False
     else:
+        print(f"service {service_name} exists")
+        print(f"{svc}")
         return True
 
 
