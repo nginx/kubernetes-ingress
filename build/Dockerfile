@@ -122,8 +122,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 	&& printf "%s\n" "https://${PACKAGE_REPO}/plus/${NGINX_PLUS_VERSION}/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
 	&& apk add --no-cache nginx-plus nginx-plus-module-njs nginx-plus-module-opentracing nginx-plus-module-fips-check libcap libcurl \
 	&& cp -av /tmp/ot/usr/local/lib/libjaegertracing*so* /tmp/ot/usr/local/lib/libzipkin*so* /tmp/ot/usr/local/lib/libdd*so* /tmp/ot/usr/local/lib/libyaml*so* /usr/local/lib/ \
-	&& mkdir -p /etc/nginx/reporting/ \
-	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
+	&& mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
 	&& ldconfig /usr/local/lib/ \
 	&& sed -i -e '/nginx.com/d' /etc/apk/repositories
 
@@ -273,9 +272,8 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=nap-waf.sh,target=/usr/local/bin/nap-waf.sh \
 	--mount=type=bind,from=nginx-files,src=nap-dos.sh,target=/usr/local/bin/nap-dos.sh \
 	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
-	&& mkdir -p /etc/nginx/reporting/ \
-	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
-	if [ -z "${NAP_MODULES##*waf*}" ]; then \
+	mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
+	&& if [ -z "${NAP_MODULES##*waf*}" ]; then \
 	cp /tmp/app-protect.sources /etc/apt/sources.list.d/app-protect.sources; \
 	fi \
 	&& if [ -z "${NAP_MODULES##*dos*}" ]; then \
@@ -316,9 +314,8 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=nap-waf.sh,target=/usr/local/bin/nap-waf.sh \
 	--mount=type=bind,from=nginx-files,src=debian-agent-12.sources,target=/etc/apt/sources.list.d/nginx-agent.sources \
 	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
-	&& mkdir -p /etc/nginx/reporting/ \
-	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
-	if [ -z "${NAP_MODULES##*waf*}" ]; then \
+	mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
+	&& if [ -z "${NAP_MODULES##*waf*}" ]; then \
 	cp /tmp/app-protect.sources /etc/apt/sources.list.d/app-protect.sources; \
 	fi \
 	&& apt-get update \
@@ -388,9 +385,8 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=ubi-setup.sh,target=/usr/local/bin/ubi-setup.sh \
 	--mount=type=bind,from=nginx-files,src=ubi-clean.sh,target=/usr/local/bin/ubi-clean.sh \
 	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
-	&& mkdir -p /etc/nginx/reporting/ \
-	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
-	ubi-setup.sh \
+	mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
+	&& ubi-setup.sh \
 	&& microdnf --nodocs install -y nginx-plus nginx-plus-module-njs nginx-plus-module-fips-check \
 	&& ubi-clean.sh
 
@@ -413,9 +409,8 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=nap-dos.sh,target=/usr/local/bin/nap-dos.sh \
 	--mount=type=bind,from=nginx-files,src=ubi-clean.sh,target=/usr/local/bin/ubi-clean.sh \
 	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
-	&& mkdir -p /etc/nginx/reporting/ \
-	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
-	source /tmp/rhel_license \
+	mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
+	&& source /tmp/rhel_license \
 	&& rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm \
 	&& microdnf --nodocs install -y ca-certificates shadow-utils subscription-manager \
 	&& if [ "${NGINX_AGENT}" = "true" ]; then microdnf --nodocs install -y nginx-agent; fi \
@@ -455,9 +450,8 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=nap-waf.sh,target=/usr/local/bin/nap-waf.sh \
 	--mount=type=bind,from=nginx-files,src=ubi-clean.sh,target=/usr/local/bin/ubi-clean.sh \
 	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
-	&& mkdir -p /etc/nginx/reporting/ \
-	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
-	source /tmp/rhel_license \
+	mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
+	&& source /tmp/rhel_license \
 	&& rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm \
 	&& microdnf --nodocs install -y ca-certificates shadow-utils subscription-manager \
 	&& if [ "${NGINX_AGENT}" = "true" ]; then microdnf --nodocs install -y nginx-agent; fi \
@@ -490,9 +484,8 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=nap-waf.sh,target=/usr/local/bin/nap-waf.sh \
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
 	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
-	&& mkdir -p /etc/nginx/reporting/ \
-	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
-	source /tmp/rhel_license \
+	mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
+	&& source /tmp/rhel_license \
 	&& if [ -z "${NAP_MODULES##*waf*}" ]; then \
 	cp /tmp/app-protect-8.repo /etc/yum.repos.d/app-protect-8.repo; \
 	fi \
@@ -537,9 +530,8 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=nap-waf.sh,target=/usr/local/bin/nap-waf.sh \
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
 	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
-	&& mkdir -p /etc/nginx/reporting/ \
-	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
-	source /tmp/rhel_license \
+	mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
+	&& source /tmp/rhel_license \
 	&& if [ -z "${NAP_MODULES##*waf*}" ]; then \
 	cp /tmp/app-protect-8.repo /etc/yum.repos.d/app-protect-8.repo; \
 	fi \
