@@ -58,7 +58,7 @@ func createServiceHandlers(lbc *LoadBalancerController) cache.ResourceEventHandl
 					return
 				}
 				oldSvc := old.(*v1.Service)
-				if hasServiceChanges(oldSvc, curSvc) {
+				if hasServicedChanged(oldSvc, curSvc) {
 					nl.Infof(lbc.Logger, "Service %v changed, syncing", curSvc.Name)
 					lbc.AddSyncQueue(curSvc)
 				}
@@ -73,7 +73,7 @@ func isHeadless(svc *v1.Service) bool {
 }
 
 // hasServicedChanged checks if the service has changed based on custom rules we define (eg. port).
-func hasServiceChanges(oldSvc, curSvc *v1.Service) bool {
+func hasServicedChanged(oldSvc, curSvc *v1.Service) bool {
 	if hasServicePortChanges(oldSvc.Spec.Ports, curSvc.Spec.Ports) {
 		return true
 	}
@@ -169,7 +169,7 @@ func (lbc *LoadBalancerController) syncZoneSyncHeadlessService(svcName string) e
 
 		createdSvc, err := lbc.client.CoreV1().Services(lbc.metadata.namespace).Create(context.Background(), newSvc, meta_v1.CreateOptions{})
 		if err != nil {
-			lbc.recorder.Eventf(lbc.metadata.pod, v1.EventTypeWarning, nl.EventReasonServiceFailedToCreate, "error creating headless service: %+v", newSvc)
+			lbc.recorder.Eventf(lbc.metadata.pod, v1.EventTypeWarning, nl.EventReasonServiceFailedToCreate, "error creating headless service: %v", err)
 			return fmt.Errorf("error creating headless service: %w", err)
 		}
 		nl.Infof(lbc.Logger, "successfully created headless service: %s/%s", lbc.metadata.namespace, createdSvc.Name)

@@ -687,21 +687,25 @@ func parseConfigMapZoneSync(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *Confi
 	}
 
 	if zoneSyncPort, exists, err := GetMapKeyAsInt(cfgm.Data, "zone-sync-port", cfgm); exists {
-		if err != nil {
-			nl.Warn(l, err)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
-			return nil, err
-		}
 		if !cfgParams.ZoneSync.Enable {
 			errorText := fmt.Sprintf("ConfigMap %s/%s key %s requires 'zone-sync' to be enabled", cfgm.Namespace, cfgm.Name, "zone-sync-port")
 			nl.Warn(l, errorText)
 			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
 			return nil, errors.New(errorText)
 		}
+		if err != nil {
+			cfgParams.ZoneSync.Port = zoneSyncDefaultPort
+			errorText := fmt.Sprintf("ConfigMap %s/%s key %s has an errored port %d set, defaulting to 12345 -  %v", cfgm.Namespace, cfgm.Name, "zone-sync-port", zoneSyncPort, err)
+			nl.Warn(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			return nil, errors.New(errorText)
+		}
 		if portValidationError := validation.ValidatePort(zoneSyncPort); portValidationError != nil {
-			nl.Error(l, portValidationError)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, portValidationError.Error())
-			return nil, portValidationError
+			cfgParams.ZoneSync.Port = zoneSyncDefaultPort
+			errorText := fmt.Sprintf("ConfigMap %s/%s key %s has invalid port %d set, defaulting to 12345 -  %v", cfgm.Namespace, cfgm.Name, "zone-sync-port", zoneSyncPort, portValidationError)
+			nl.Error(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			return nil, errors.New(errorText)
 		}
 		cfgParams.ZoneSync.Port = zoneSyncPort
 	} else {
