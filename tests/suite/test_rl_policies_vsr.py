@@ -5,7 +5,7 @@ import pytest
 import requests
 from settings import TEST_DATA
 from suite.utils.custom_resources_utils import read_custom_resource
-from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_policy
+from suite.utils.policy_resources_utils import apply_and_assert_valid_policy, create_policy_from_yaml, delete_policy
 from suite.utils.resources_utils import get_pod_list, scale_deployment, wait_before_test
 from suite.utils.vs_vsr_resources_utils import (
     get_vs_nginx_template_conf,
@@ -461,19 +461,7 @@ class TestRateLimitingPoliciesVsr:
         """
 
         req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
-        print(f"Create rl policy")
-        pol_name = create_policy_from_yaml(
-            kube_apis.custom_objects, rl_pol_jwt_claim_sub_src, v_s_route_setup.route_m.namespace
-        )
-        wait_before_test(1)
-        policy_info = read_custom_resource(
-            kube_apis.custom_objects, v_s_route_setup.route_m.namespace, "policies", pol_name
-        )
-        assert (
-            policy_info["status"]
-            and policy_info["status"]["reason"] == "AddedOrUpdated"
-            and policy_info["status"]["state"] == "Valid"
-        )
+        pol_name = apply_and_assert_valid_policy(kube_apis, v_s_route_setup.route_m.namespace, rl_pol_jwt_claim_sub_src)
 
         print(f"Patch vsr with policy: {src}")
         patch_v_s_route_from_yaml(
@@ -541,32 +529,11 @@ class TestRateLimitingPoliciesVsr:
         Policies are applied at the VirtualServerRoute level
         """
 
-        print(f"Create Basic rl policy")
-        basic_pol_name = create_policy_from_yaml(
-            kube_apis.custom_objects, rl_pol_basic_no_default_jwt_claim_sub, v_s_route_setup.route_m.namespace
+        basic_pol_name = apply_and_assert_valid_policy(
+            kube_apis, v_s_route_setup.route_m.namespace, rl_pol_basic_no_default_jwt_claim_sub
         )
-        wait_before_test(1)
-        basic_policy_info = read_custom_resource(
-            kube_apis.custom_objects, v_s_route_setup.route_m.namespace, "policies", basic_pol_name
-        )
-        assert (
-            basic_policy_info["status"]
-            and basic_policy_info["status"]["reason"] == "AddedOrUpdated"
-            and basic_policy_info["status"]["state"] == "Valid"
-        )
-
-        print(f"Create Premium rl policy")
-        premium_pol_name = create_policy_from_yaml(
-            kube_apis.custom_objects, rl_pol_premium_no_default_jwt_claim_sub, v_s_route_setup.route_m.namespace
-        )
-        wait_before_test(1)
-        premium_policy_info = read_custom_resource(
-            kube_apis.custom_objects, v_s_route_setup.route_m.namespace, "policies", premium_pol_name
-        )
-        assert (
-            premium_policy_info["status"]
-            and premium_policy_info["status"]["reason"] == "AddedOrUpdated"
-            and premium_policy_info["status"]["state"] == "Valid"
+        premium_pol_name = apply_and_assert_valid_policy(
+            kube_apis, v_s_route_setup.route_m.namespace, rl_pol_premium_no_default_jwt_claim_sub
         )
 
         print(f"Patch vsr with policy: {src}")
@@ -660,32 +627,11 @@ class TestRateLimitingPoliciesVsr:
         Policies are applied at the VirtualServerRoute level
         """
 
-        print(f"Create Basic rl policy")
-        basic_pol_name = create_policy_from_yaml(
-            kube_apis.custom_objects, rl_pol_basic_with_default_jwt_claim_sub, v_s_route_setup.route_m.namespace
+        basic_pol_name = apply_and_assert_valid_policy(
+            kube_apis, v_s_route_setup.route_m.namespace, rl_pol_basic_with_default_jwt_claim_sub
         )
-        wait_before_test(1)
-        basic_policy_info = read_custom_resource(
-            kube_apis.custom_objects, v_s_route_setup.route_m.namespace, "policies", basic_pol_name
-        )
-        assert (
-            basic_policy_info["status"]
-            and basic_policy_info["status"]["reason"] == "AddedOrUpdated"
-            and basic_policy_info["status"]["state"] == "Valid"
-        )
-
-        print(f"Create Premium rl policy")
-        premium_pol_name = create_policy_from_yaml(
-            kube_apis.custom_objects, rl_pol_premium_no_default_jwt_claim_sub, v_s_route_setup.route_m.namespace
-        )
-        wait_before_test(1)
-        premium_policy_info = read_custom_resource(
-            kube_apis.custom_objects, v_s_route_setup.route_m.namespace, "policies", premium_pol_name
-        )
-        assert (
-            premium_policy_info["status"]
-            and premium_policy_info["status"]["reason"] == "AddedOrUpdated"
-            and premium_policy_info["status"]["state"] == "Valid"
+        premium_pol_name = apply_and_assert_valid_policy(
+            kube_apis, v_s_route_setup.route_m.namespace, rl_pol_premium_no_default_jwt_claim_sub
         )
 
         print(f"Patch vsr with policy: {src}")
@@ -778,74 +724,20 @@ class TestRateLimitingPoliciesVsr:
         Policies are applied at the VirtualServerRoute level
         """
 
-        print(f"Create Basic rl policy")
-        basic_pol_name = create_policy_from_yaml(
-            kube_apis.custom_objects, rl_pol_basic_with_default_jwt_claim_sub, v_s_route_setup.route_m.namespace
+        basic_pol_name = apply_and_assert_valid_policy(
+            kube_apis, v_s_route_setup.route_m.namespace, rl_pol_basic_with_default_jwt_claim_sub
         )
-        wait_before_test(1)
-        basic_policy_info = read_custom_resource(
-            kube_apis.custom_objects, v_s_route_setup.route_m.namespace, "policies", basic_pol_name
+        premium_pol_name = apply_and_assert_valid_policy(
+            kube_apis, v_s_route_setup.route_m.namespace, rl_pol_premium_no_default_jwt_claim_sub
         )
-        assert (
-            basic_policy_info["status"]
-            and basic_policy_info["status"]["reason"] == "AddedOrUpdated"
-            and basic_policy_info["status"]["state"] == "Valid"
+        bronze_pol_name = apply_and_assert_valid_policy(
+            kube_apis, v_s_route_setup.route_m.namespace, rl_pol_bronze_with_default_jwt_claim_sub
         )
-
-        print(f"Create Premium rl policy")
-        premium_pol_name = create_policy_from_yaml(
-            kube_apis.custom_objects, rl_pol_premium_no_default_jwt_claim_sub, v_s_route_setup.route_m.namespace
+        silver_pol_name = apply_and_assert_valid_policy(
+            kube_apis, v_s_route_setup.route_m.namespace, rl_pol_silver_no_default_jwt_claim_sub
         )
-        wait_before_test(1)
-        premium_policy_info = read_custom_resource(
-            kube_apis.custom_objects, v_s_route_setup.route_m.namespace, "policies", premium_pol_name
-        )
-        assert (
-            premium_policy_info["status"]
-            and premium_policy_info["status"]["reason"] == "AddedOrUpdated"
-            and premium_policy_info["status"]["state"] == "Valid"
-        )
-
-        print(f"Create Bronze rl policy")
-        bronze_pol_name = create_policy_from_yaml(
-            kube_apis.custom_objects, rl_pol_bronze_with_default_jwt_claim_sub, v_s_route_setup.route_m.namespace
-        )
-        wait_before_test(1)
-        bronze_policy_info = read_custom_resource(
-            kube_apis.custom_objects, v_s_route_setup.route_m.namespace, "policies", bronze_pol_name
-        )
-        assert (
-            bronze_policy_info["status"]
-            and bronze_policy_info["status"]["reason"] == "AddedOrUpdated"
-            and bronze_policy_info["status"]["state"] == "Valid"
-        )
-
-        print(f"Create Silver rl policy")
-        silver_pol_name = create_policy_from_yaml(
-            kube_apis.custom_objects, rl_pol_silver_no_default_jwt_claim_sub, v_s_route_setup.route_m.namespace
-        )
-        wait_before_test(1)
-        silver_policy_info = read_custom_resource(
-            kube_apis.custom_objects, v_s_route_setup.route_m.namespace, "policies", silver_pol_name
-        )
-        assert (
-            silver_policy_info["status"]
-            and silver_policy_info["status"]["reason"] == "AddedOrUpdated"
-            and silver_policy_info["status"]["state"] == "Valid"
-        )
-
-        print(f"Create Gold rl policy")
-        gold_pol_name = create_policy_from_yaml(
-            kube_apis.custom_objects, rl_pol_gold_no_default_jwt_claim_sub, v_s_route_setup.route_m.namespace
-        )
-        wait_before_test(1)
-        gold_policy_info = read_custom_resource(
-            kube_apis.custom_objects, v_s_route_setup.route_m.namespace, "policies", gold_pol_name
-        )
-        assert (
-            gold_policy_info["status"]
-            and gold_policy_info["status"]["reason"] == "AddedOrUpdated"
-            and gold_policy_info["status"]["state"] == "Valid"
+        gold_pol_name = apply_and_assert_valid_policy(
+            kube_apis, v_s_route_setup.route_m.namespace, rl_pol_gold_no_default_jwt_claim_sub
         )
 
         print(f"Patch vsr with policy: {src}")

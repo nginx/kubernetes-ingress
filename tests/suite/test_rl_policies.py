@@ -5,7 +5,7 @@ import pytest
 import requests
 from settings import TEST_DATA
 from suite.utils.custom_resources_utils import read_custom_resource
-from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_policy
+from suite.utils.policy_resources_utils import apply_and_assert_valid_policy, create_policy_from_yaml, delete_policy
 from suite.utils.resources_utils import (
     get_pod_list,
     get_vs_nginx_template_conf,
@@ -455,31 +455,9 @@ class TestRateLimitingPolicies:
         if the default is unlimited when no default policy is applied.
         Policies are applied at the VirtualServer Spec level
         """
-        print(f"Create Basic rl policy")
-        basic_pol_name = create_policy_from_yaml(
-            kube_apis.custom_objects, rl_pol_basic_no_default_jwt_claim_sub, test_namespace
-        )
-        wait_before_test(1)
-        basic_policy_info = read_custom_resource(kube_apis.custom_objects, test_namespace, "policies", basic_pol_name)
-        print(basic_policy_info)
-        assert (
-            "status" in basic_policy_info
-            and basic_policy_info["status"]["reason"] == "AddedOrUpdated"
-            and basic_policy_info["status"]["state"] == "Valid"
-        )
-
-        print(f"Create Premium rl policy")
-        premium_pol_name = create_policy_from_yaml(
-            kube_apis.custom_objects, rl_pol_premium_no_default_jwt_claim_sub, test_namespace
-        )
-        wait_before_test(1)
-        premium_policy_info = read_custom_resource(
-            kube_apis.custom_objects, test_namespace, "policies", premium_pol_name
-        )
-        assert (
-            premium_policy_info["status"]
-            and premium_policy_info["status"]["reason"] == "AddedOrUpdated"
-            and premium_policy_info["status"]["state"] == "Valid"
+        basic_pol_name = apply_and_assert_valid_policy(kube_apis, test_namespace, rl_pol_basic_no_default_jwt_claim_sub)
+        premium_pol_name = apply_and_assert_valid_policy(
+            kube_apis, test_namespace, rl_pol_premium_no_default_jwt_claim_sub
         )
 
         print(f"Patch vs with policy: {src}")
@@ -566,31 +544,11 @@ class TestRateLimitingPolicies:
         if the default basic rate limit of 1r/s is applied.
         Policies are applied at the VirtualServer Spec level
         """
-        print(f"Create Basic rl policy")
-        basic_pol_name = create_policy_from_yaml(
-            kube_apis.custom_objects, rl_pol_basic_with_default_jwt_claim_sub, test_namespace
+        basic_pol_name = apply_and_assert_valid_policy(
+            kube_apis, test_namespace, rl_pol_basic_with_default_jwt_claim_sub
         )
-        wait_before_test(1)
-        basic_policy_info = read_custom_resource(kube_apis.custom_objects, test_namespace, "policies", basic_pol_name)
-        print(basic_policy_info)
-        assert (
-            "status" in basic_policy_info
-            and basic_policy_info["status"]["reason"] == "AddedOrUpdated"
-            and basic_policy_info["status"]["state"] == "Valid"
-        )
-
-        print(f"Create Premium rl policy")
-        premium_pol_name = create_policy_from_yaml(
-            kube_apis.custom_objects, rl_pol_premium_no_default_jwt_claim_sub, test_namespace
-        )
-        wait_before_test(1)
-        premium_policy_info = read_custom_resource(
-            kube_apis.custom_objects, test_namespace, "policies", premium_pol_name
-        )
-        assert (
-            premium_policy_info["status"]
-            and premium_policy_info["status"]["reason"] == "AddedOrUpdated"
-            and premium_policy_info["status"]["state"] == "Valid"
+        premium_pol_name = apply_and_assert_valid_policy(
+            kube_apis, test_namespace, rl_pol_premium_no_default_jwt_claim_sub
         )
 
         print(f"Patch vs with policy: {src}")
@@ -678,31 +636,11 @@ class TestRateLimitingPolicies:
         if a route without policies is unlimited.
         Policies are applied at the VirtualServer Route level
         """
-        print(f"Create Basic rl policy")
-        basic_pol_name = create_policy_from_yaml(
-            kube_apis.custom_objects, rl_pol_basic_with_default_jwt_claim_sub, test_namespace
+        basic_pol_name = apply_and_assert_valid_policy(
+            kube_apis, test_namespace, rl_pol_basic_with_default_jwt_claim_sub
         )
-        wait_before_test(1)
-        basic_policy_info = read_custom_resource(kube_apis.custom_objects, test_namespace, "policies", basic_pol_name)
-        print(basic_policy_info)
-        assert (
-            "status" in basic_policy_info
-            and basic_policy_info["status"]["reason"] == "AddedOrUpdated"
-            and basic_policy_info["status"]["state"] == "Valid"
-        )
-
-        print(f"Create Premium rl policy")
-        premium_pol_name = create_policy_from_yaml(
-            kube_apis.custom_objects, rl_pol_premium_no_default_jwt_claim_sub, test_namespace
-        )
-        wait_before_test(1)
-        premium_policy_info = read_custom_resource(
-            kube_apis.custom_objects, test_namespace, "policies", premium_pol_name
-        )
-        assert (
-            premium_policy_info["status"]
-            and premium_policy_info["status"]["reason"] == "AddedOrUpdated"
-            and premium_policy_info["status"]["state"] == "Valid"
+        premium_pol_name = apply_and_assert_valid_policy(
+            kube_apis, test_namespace, rl_pol_premium_no_default_jwt_claim_sub
         )
 
         print(f"Patch vs with policy: {src}")
@@ -801,31 +739,11 @@ class TestRateLimitingPolicies:
         if a route without policies is unlimited.
         Policies are applied at the VirtualServer Route level
         """
-        print(f"Create Basic rl policy")
-        basic_pol_name = create_policy_from_yaml(
-            kube_apis.custom_objects, rl_pol_basic_no_default_jwt_claim_sub, test_namespace
+        basic_pol_name = apply_and_assert_valid_policy(
+            kube_apis, test_namespace, rl_pol_basic_with_default_jwt_claim_sub
         )
-        wait_before_test(1)
-        basic_policy_info = read_custom_resource(kube_apis.custom_objects, test_namespace, "policies", basic_pol_name)
-        print(basic_policy_info)
-        assert (
-            "status" in basic_policy_info
-            and basic_policy_info["status"]["reason"] == "AddedOrUpdated"
-            and basic_policy_info["status"]["state"] == "Valid"
-        )
-
-        print(f"Create Premium rl policy")
-        premium_pol_name = create_policy_from_yaml(
-            kube_apis.custom_objects, rl_pol_premium_no_default_jwt_claim_sub, test_namespace
-        )
-        wait_before_test(1)
-        premium_policy_info = read_custom_resource(
-            kube_apis.custom_objects, test_namespace, "policies", premium_pol_name
-        )
-        assert (
-            premium_policy_info["status"]
-            and premium_policy_info["status"]["reason"] == "AddedOrUpdated"
-            and premium_policy_info["status"]["state"] == "Valid"
+        premium_pol_name = apply_and_assert_valid_policy(
+            kube_apis, test_namespace, rl_pol_premium_no_default_jwt_claim_sub
         )
 
         print(f"Patch vs with policy: {src}")
