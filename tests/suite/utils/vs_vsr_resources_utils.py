@@ -217,11 +217,11 @@ def apply_and_assert_valid_vsr(kube_apis, namespace, name, vsr_yaml):
     )
 
 
-def apply_and_assert_valid_vs(kube_apis, namespace, name, vsr_yaml):
+def apply_and_assert_valid_vs(kube_apis, namespace, name, vs_yaml):
     patch_virtual_server_from_yaml(
         kube_apis.custom_objects,
         name,
-        vsr_yaml,
+        vs_yaml,
         namespace,
     )
     wait_before_test(1)
