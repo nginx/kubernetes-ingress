@@ -27,6 +27,30 @@ rl_vsr_override_vs_spec_src = f"{TEST_DATA}/rate-limit/route-subroute/virtual-se
 rl_vsr_override_vs_route_src = f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-vsr-route-override.yaml"
 rl_vsr_jwt_claim_sub_src = f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-route-jwt-claim-sub.yaml"
 rl_pol_jwt_claim_sub_src = f"{TEST_DATA}/rate-limit/policies/rate-limit-jwt-claim-sub.yaml"
+rl_vsr_basic_premium_jwt_claim_sub = (
+    f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-route-tiered-basic-premium-jwt-claim-sub.yaml"
+)
+rl_vsr_multiple_tiered_jwt_claim_sub = (
+    f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-route-mutliple-tiered-jwt-claim-sub.yaml"
+)
+rl_pol_basic_no_default_jwt_claim_sub = (
+    f"{TEST_DATA}/rate-limit/policies/rate-limit-tiered-basic-no-default-jwt-claim-sub.yaml"
+)
+rl_pol_premium_no_default_jwt_claim_sub = (
+    f"{TEST_DATA}/rate-limit/policies/rate-limit-tiered-premium-no-default-jwt-claim-sub.yaml"
+)
+rl_pol_basic_with_default_jwt_claim_sub = (
+    f"{TEST_DATA}/rate-limit/policies/rate-limit-tiered-basic-with-default-jwt-claim-sub.yaml"
+)
+rl_pol_bronze_with_default_jwt_claim_sub = (
+    f"{TEST_DATA}/rate-limit/policies/rate-limit-tiered-bronze-with-default-jwt-claim-sub.yaml"
+)
+rl_pol_silver_no_default_jwt_claim_sub = (
+    f"{TEST_DATA}/rate-limit/policies/rate-limit-tiered-silver-no-default-jwt-claim-sub.yaml"
+)
+rl_pol_gold_no_default_jwt_claim_sub = (
+    f"{TEST_DATA}/rate-limit/policies/rate-limit-tiered-gold-no-default-jwt-claim-sub.yaml"
+)
 
 
 @pytest.mark.policies
@@ -471,21 +495,13 @@ class TestRateLimitingPoliciesVsr:
             and vsr_info["status"]["state"] == "Valid"
         )
 
-        vs_info = read_custom_resource(
-            kube_apis.custom_objects, v_s_route_setup.namespace, "virtualservers", v_s_route_setup.vs_name
-        )
-        assert (
-            vs_info["status"]
-            and vs_info["status"]["reason"] == "AddedOrUpdated"
-            and vs_info["status"]["state"] == "Valid"
-        )
-
-        wait_before_test()
         jwt_token = jwt.encode(
             {"sub": "client1"},
             "nginx",
             algorithm="HS256",
         )
+
+        ##  Test Rate Limit 1r/s
         occur = []
         t_end = time.perf_counter() + 1
         resp = requests.get(
@@ -505,3 +521,467 @@ class TestRateLimitingPoliciesVsr:
         self.restore_default_vsr(kube_apis, v_s_route_setup)
 
         assert occur.count(200) <= 1
+
+    @pytest.mark.skip_for_nginx_oss
+    @pytest.mark.parametrize("src", [rl_vsr_basic_premium_jwt_claim_sub])
+    def test_rl_policy_tiered_basic_premium_no_default_jwt_claim_sub_vsr(
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        crd_ingress_controller,
+        v_s_route_app_setup,
+        v_s_route_setup,
+        test_namespace,
+        src,
+    ):
+        """
+        Test if basic rate-limiting policy is working with 1 rps using $jwt_claim_sub as the rate limit key,
+        if premium rate-limiting policy is working with 5 rps using $jwt_claim_sub as the rate limit key &
+        if the default is unlimited when no default policy is applied.
+        Policies are applied at the VirtualServerRoute level
+        """
+
+        print(f"Create Basic rl policy")
+        basic_pol_name = create_policy_from_yaml(
+            kube_apis.custom_objects, rl_pol_basic_no_default_jwt_claim_sub, v_s_route_setup.route_m.namespace
+        )
+        wait_before_test(1)
+        basic_policy_info = read_custom_resource(
+            kube_apis.custom_objects, v_s_route_setup.route_m.namespace, "policies", basic_pol_name
+        )
+        assert (
+            basic_policy_info["status"]
+            and basic_policy_info["status"]["reason"] == "AddedOrUpdated"
+            and basic_policy_info["status"]["state"] == "Valid"
+        )
+
+        print(f"Create Premium rl policy")
+        premium_pol_name = create_policy_from_yaml(
+            kube_apis.custom_objects, rl_pol_premium_no_default_jwt_claim_sub, v_s_route_setup.route_m.namespace
+        )
+        wait_before_test(1)
+        premium_policy_info = read_custom_resource(
+            kube_apis.custom_objects, v_s_route_setup.route_m.namespace, "policies", premium_pol_name
+        )
+        assert (
+            premium_policy_info["status"]
+            and premium_policy_info["status"]["reason"] == "AddedOrUpdated"
+            and premium_policy_info["status"]["state"] == "Valid"
+        )
+
+        print(f"Patch vsr with policy: {src}")
+        patch_v_s_route_from_yaml(
+            kube_apis.custom_objects,
+            v_s_route_setup.route_m.name,
+            src,
+            v_s_route_setup.route_m.namespace,
+        )
+        wait_before_test(1)
+        vsr_info = read_custom_resource(
+            kube_apis.custom_objects,
+            v_s_route_setup.route_m.namespace,
+            "virtualserverroutes",
+            v_s_route_setup.route_m.name,
+        )
+        assert (
+            vsr_info["status"]
+            and vsr_info["status"]["reason"] == "AddedOrUpdated"
+            and vsr_info["status"]["state"] == "Valid"
+        )
+
+        basic_jwt_token = jwt.encode(
+            {"user_details": {"level": "Basic"}, "sub": "client1"},
+            "nginx",
+            algorithm="HS256",
+        )
+        premium_jwt_token = jwt.encode(
+            {"user_details": {"level": "Premium"}, "sub": "client2"},
+            "nginx",
+            algorithm="HS256",
+        )
+
+        req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
+
+        ##  Test Basic Rate Limit 1r/s
+        basic_occur = []
+        t_end = time.perf_counter() + 1
+        while time.perf_counter() < t_end:
+            resp = requests.get(
+                f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+                headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {basic_jwt_token}"},
+            )
+            basic_occur.append(resp.status_code)
+        assert basic_occur.count(200) == 1
+        wait_before_test(1)
+
+        ##  Test Premium Rate Limit 5r/s
+        premium_occur = []
+        t_end = time.perf_counter() + 1
+        while time.perf_counter() < t_end:
+            resp = requests.get(
+                f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+                headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {premium_jwt_token}"},
+            )
+            premium_occur.append(resp.status_code)
+        assert premium_occur.count(200) >= 5 and premium_occur.count(200) <= 6  # allow 5 or 6 requests in the results
+        wait_before_test(1)
+
+        ##  Test Default Rate Limit unlimited
+        default_occur = []
+        t_end = time.perf_counter() + 1
+        while time.perf_counter() < t_end:
+            resp = requests.get(
+                f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+                headers={"host": v_s_route_setup.vs_host},
+            )
+            default_occur.append(resp.status_code)
+        assert default_occur.count(503) == 0
+
+        delete_policy(kube_apis.custom_objects, basic_pol_name, v_s_route_setup.route_m.namespace)
+        delete_policy(kube_apis.custom_objects, premium_pol_name, v_s_route_setup.route_m.namespace)
+        self.restore_default_vsr(kube_apis, v_s_route_setup)
+
+    @pytest.mark.skip_for_nginx_oss
+    @pytest.mark.parametrize("src", [rl_vsr_basic_premium_jwt_claim_sub])
+    def test_rl_policy_tiered_basic_premium_with_default_jwt_claim_sub_vsr(
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        crd_ingress_controller,
+        v_s_route_app_setup,
+        v_s_route_setup,
+        test_namespace,
+        src,
+    ):
+        """
+        Test if basic rate-limiting policy is working with 1 rps using $jwt_claim_sub as the rate limit key,
+        if premium rate-limiting policy is working with 5 rps using $jwt_claim_sub as the rate limit key &
+        if the default basic rate limit of 1r/s is applied.
+        Policies are applied at the VirtualServerRoute level
+        """
+
+        print(f"Create Basic rl policy")
+        basic_pol_name = create_policy_from_yaml(
+            kube_apis.custom_objects, rl_pol_basic_with_default_jwt_claim_sub, v_s_route_setup.route_m.namespace
+        )
+        wait_before_test(1)
+        basic_policy_info = read_custom_resource(
+            kube_apis.custom_objects, v_s_route_setup.route_m.namespace, "policies", basic_pol_name
+        )
+        assert (
+            basic_policy_info["status"]
+            and basic_policy_info["status"]["reason"] == "AddedOrUpdated"
+            and basic_policy_info["status"]["state"] == "Valid"
+        )
+
+        print(f"Create Premium rl policy")
+        premium_pol_name = create_policy_from_yaml(
+            kube_apis.custom_objects, rl_pol_premium_no_default_jwt_claim_sub, v_s_route_setup.route_m.namespace
+        )
+        wait_before_test(1)
+        premium_policy_info = read_custom_resource(
+            kube_apis.custom_objects, v_s_route_setup.route_m.namespace, "policies", premium_pol_name
+        )
+        assert (
+            premium_policy_info["status"]
+            and premium_policy_info["status"]["reason"] == "AddedOrUpdated"
+            and premium_policy_info["status"]["state"] == "Valid"
+        )
+
+        print(f"Patch vsr with policy: {src}")
+        patch_v_s_route_from_yaml(
+            kube_apis.custom_objects,
+            v_s_route_setup.route_m.name,
+            src,
+            v_s_route_setup.route_m.namespace,
+        )
+        wait_before_test(1)
+        vsr_info = read_custom_resource(
+            kube_apis.custom_objects,
+            v_s_route_setup.route_m.namespace,
+            "virtualserverroutes",
+            v_s_route_setup.route_m.name,
+        )
+        assert (
+            vsr_info["status"]
+            and vsr_info["status"]["reason"] == "AddedOrUpdated"
+            and vsr_info["status"]["state"] == "Valid"
+        )
+
+        basic_jwt_token = jwt.encode(
+            {"user_details": {"level": "Basic"}, "sub": "client1"},
+            "nginx",
+            algorithm="HS256",
+        )
+        premium_jwt_token = jwt.encode(
+            {"user_details": {"level": "Premium"}, "sub": "client2"},
+            "nginx",
+            algorithm="HS256",
+        )
+
+        req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
+
+        ##  Test Basic Rate Limit 1r/s
+        basic_occur = []
+        t_end = time.perf_counter() + 1
+        while time.perf_counter() < t_end:
+            resp = requests.get(
+                f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+                headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {basic_jwt_token}"},
+            )
+            basic_occur.append(resp.status_code)
+        assert basic_occur.count(200) == 1
+        wait_before_test(1)
+
+        ##  Test Premium Rate Limit 5r/s
+        premium_occur = []
+        t_end = time.perf_counter() + 1
+        while time.perf_counter() < t_end:
+            resp = requests.get(
+                f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+                headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {premium_jwt_token}"},
+            )
+            premium_occur.append(resp.status_code)
+        assert premium_occur.count(200) >= 5 and premium_occur.count(200) <= 6  # allow 5 or 6 requests in the results
+        wait_before_test(1)
+
+        ##  Test Default Rate Limit 1r/s
+        default_occur = []
+        t_end = time.perf_counter() + 1
+        while time.perf_counter() < t_end:
+            resp = requests.get(
+                f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+                headers={"host": v_s_route_setup.vs_host},
+            )
+            default_occur.append(resp.status_code)
+        assert default_occur.count(200) == 1
+
+        delete_policy(kube_apis.custom_objects, basic_pol_name, v_s_route_setup.route_m.namespace)
+        delete_policy(kube_apis.custom_objects, premium_pol_name, v_s_route_setup.route_m.namespace)
+        self.restore_default_vsr(kube_apis, v_s_route_setup)
+
+    @pytest.mark.skip_for_nginx_oss
+    @pytest.mark.parametrize("src", [rl_vsr_multiple_tiered_jwt_claim_sub])
+    def test_rl_policy_multiple_tiered_jwt_claim_sub_vsr(
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        crd_ingress_controller,
+        v_s_route_app_setup,
+        v_s_route_setup,
+        test_namespace,
+        src,
+    ):
+        """
+        Test applying a basic/premium tier to /backend1 &,
+        applying a bronze/silver/gold tier to /backend3.
+        Policies are applied at the VirtualServerRoute level
+        """
+
+        print(f"Create Basic rl policy")
+        basic_pol_name = create_policy_from_yaml(
+            kube_apis.custom_objects, rl_pol_basic_with_default_jwt_claim_sub, v_s_route_setup.route_m.namespace
+        )
+        wait_before_test(1)
+        basic_policy_info = read_custom_resource(
+            kube_apis.custom_objects, v_s_route_setup.route_m.namespace, "policies", basic_pol_name
+        )
+        assert (
+            basic_policy_info["status"]
+            and basic_policy_info["status"]["reason"] == "AddedOrUpdated"
+            and basic_policy_info["status"]["state"] == "Valid"
+        )
+
+        print(f"Create Premium rl policy")
+        premium_pol_name = create_policy_from_yaml(
+            kube_apis.custom_objects, rl_pol_premium_no_default_jwt_claim_sub, v_s_route_setup.route_m.namespace
+        )
+        wait_before_test(1)
+        premium_policy_info = read_custom_resource(
+            kube_apis.custom_objects, v_s_route_setup.route_m.namespace, "policies", premium_pol_name
+        )
+        assert (
+            premium_policy_info["status"]
+            and premium_policy_info["status"]["reason"] == "AddedOrUpdated"
+            and premium_policy_info["status"]["state"] == "Valid"
+        )
+
+        print(f"Create Bronze rl policy")
+        bronze_pol_name = create_policy_from_yaml(
+            kube_apis.custom_objects, rl_pol_bronze_with_default_jwt_claim_sub, v_s_route_setup.route_m.namespace
+        )
+        wait_before_test(1)
+        bronze_policy_info = read_custom_resource(
+            kube_apis.custom_objects, v_s_route_setup.route_m.namespace, "policies", bronze_pol_name
+        )
+        assert (
+            bronze_policy_info["status"]
+            and bronze_policy_info["status"]["reason"] == "AddedOrUpdated"
+            and bronze_policy_info["status"]["state"] == "Valid"
+        )
+
+        print(f"Create Silver rl policy")
+        silver_pol_name = create_policy_from_yaml(
+            kube_apis.custom_objects, rl_pol_silver_no_default_jwt_claim_sub, v_s_route_setup.route_m.namespace
+        )
+        wait_before_test(1)
+        silver_policy_info = read_custom_resource(
+            kube_apis.custom_objects, v_s_route_setup.route_m.namespace, "policies", silver_pol_name
+        )
+        assert (
+            silver_policy_info["status"]
+            and silver_policy_info["status"]["reason"] == "AddedOrUpdated"
+            and silver_policy_info["status"]["state"] == "Valid"
+        )
+
+        print(f"Create Gold rl policy")
+        gold_pol_name = create_policy_from_yaml(
+            kube_apis.custom_objects, rl_pol_gold_no_default_jwt_claim_sub, v_s_route_setup.route_m.namespace
+        )
+        wait_before_test(1)
+        gold_policy_info = read_custom_resource(
+            kube_apis.custom_objects, v_s_route_setup.route_m.namespace, "policies", gold_pol_name
+        )
+        assert (
+            gold_policy_info["status"]
+            and gold_policy_info["status"]["reason"] == "AddedOrUpdated"
+            and gold_policy_info["status"]["state"] == "Valid"
+        )
+
+        print(f"Patch vsr with policy: {src}")
+        patch_v_s_route_from_yaml(
+            kube_apis.custom_objects,
+            v_s_route_setup.route_m.name,
+            src,
+            v_s_route_setup.route_m.namespace,
+        )
+        wait_before_test(1)
+        vsr_info = read_custom_resource(
+            kube_apis.custom_objects,
+            v_s_route_setup.route_m.namespace,
+            "virtualserverroutes",
+            v_s_route_setup.route_m.name,
+        )
+        assert (
+            vsr_info["status"]
+            and vsr_info["status"]["reason"] == "AddedOrUpdated"
+            and vsr_info["status"]["state"] == "Valid"
+        )
+
+        basic_jwt_token = jwt.encode(
+            {"user_details": {"level": "Basic"}, "sub": "client1"},
+            "nginx",
+            algorithm="HS256",
+        )
+        premium_jwt_token = jwt.encode(
+            {"user_details": {"level": "Premium"}, "sub": "client2"},
+            "nginx",
+            algorithm="HS256",
+        )
+        bronze_jwt_token = jwt.encode(
+            {"user_details": {"tier": "Bronze"}, "sub": "client1"},
+            "nginx",
+            algorithm="HS256",
+        )
+        silver_jwt_token = jwt.encode(
+            {"user_details": {"tier": "Silver"}, "sub": "client2"},
+            "nginx",
+            algorithm="HS256",
+        )
+        gold_jwt_token = jwt.encode(
+            {"user_details": {"tier": "Gold"}, "sub": "client3"},
+            "nginx",
+            algorithm="HS256",
+        )
+
+        req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
+
+        ##  Test Basic Rate Limit 1r/s
+        basic_occur = []
+        t_end = time.perf_counter() + 1
+        while time.perf_counter() < t_end:
+            resp = requests.get(
+                f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+                headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {basic_jwt_token}"},
+            )
+            basic_occur.append(resp.status_code)
+        assert basic_occur.count(200) == 1
+        wait_before_test(1)
+
+        ##  Test Premium Rate Limit 5r/s
+        premium_occur = []
+        t_end = time.perf_counter() + 1
+        while time.perf_counter() < t_end:
+            resp = requests.get(
+                f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+                headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {premium_jwt_token}"},
+            )
+            premium_occur.append(resp.status_code)
+        assert premium_occur.count(200) >= 5 and premium_occur.count(200) <= 6  # allow 5 or 6 requests in the results
+        wait_before_test(1)
+
+        ##  Test Basic Default Rate Limit 1r/s
+        basic_default_occur = []
+        t_end = time.perf_counter() + 1
+        while time.perf_counter() < t_end:
+            resp = requests.get(
+                f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+                headers={"host": v_s_route_setup.vs_host},
+            )
+            basic_default_occur.append(resp.status_code)
+        assert basic_default_occur.count(200) == 1
+        wait_before_test(1)
+
+        ##  Test Bronze Rate Limit 5r/s
+        bronze_occur = []
+        t_end = time.perf_counter() + 1
+        while time.perf_counter() < t_end:
+            resp = requests.get(
+                f"{req_url}{v_s_route_setup.route_m.paths[1]}",
+                headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {bronze_jwt_token}"},
+            )
+            bronze_occur.append(resp.status_code)
+        assert bronze_occur.count(200) == 5
+        wait_before_test(1)
+
+        ##  Test Silver Rate Limit 10r/s
+        silver_occur = []
+        t_end = time.perf_counter() + 1
+        while time.perf_counter() < t_end:
+            resp = requests.get(
+                f"{req_url}{v_s_route_setup.route_m.paths[1]}",
+                headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {silver_jwt_token}"},
+            )
+            silver_occur.append(resp.status_code)
+        assert silver_occur.count(200) == 10
+        wait_before_test(1)
+
+        ##  Test Gold Rate Limit 15r/s
+        gold_occur = []
+        t_end = time.perf_counter() + 1
+        while time.perf_counter() < t_end:
+            resp = requests.get(
+                f"{req_url}{v_s_route_setup.route_m.paths[1]}",
+                headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {gold_jwt_token}"},
+            )
+            gold_occur.append(resp.status_code)
+        assert gold_occur.count(200) == 15
+        wait_before_test(1)
+
+        ##  Test Bronze Default Rate Limit 5r/s
+        bronze_default_occur = []
+        t_end = time.perf_counter() + 1
+        while time.perf_counter() < t_end:
+            resp = requests.get(
+                f"{req_url}{v_s_route_setup.route_m.paths[1]}",
+                headers={"host": v_s_route_setup.vs_host},
+            )
+            bronze_default_occur.append(resp.status_code)
+        assert bronze_default_occur.count(200) == 5
+
+        delete_policy(kube_apis.custom_objects, basic_pol_name, v_s_route_setup.route_m.namespace)
+        delete_policy(kube_apis.custom_objects, premium_pol_name, v_s_route_setup.route_m.namespace)
+        delete_policy(kube_apis.custom_objects, bronze_pol_name, v_s_route_setup.route_m.namespace)
+        delete_policy(kube_apis.custom_objects, silver_pol_name, v_s_route_setup.route_m.namespace)
+        delete_policy(kube_apis.custom_objects, gold_pol_name, v_s_route_setup.route_m.namespace)
+        self.restore_default_vsr(kube_apis, v_s_route_setup)

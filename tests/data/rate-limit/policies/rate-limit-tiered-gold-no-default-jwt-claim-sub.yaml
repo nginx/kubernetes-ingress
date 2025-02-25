@@ -1,0 +1,13 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: rate-limit-jwt-claim-sub-gold
+spec:
+  rateLimit:
+    rate: 15r/s
+    key: ${jwt_claim_sub}
+    zoneSize: 10M
+    condition:
+      jwt:
+        match: Gold
+        claim: user_details.tier
