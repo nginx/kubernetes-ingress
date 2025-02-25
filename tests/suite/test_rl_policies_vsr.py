@@ -8,6 +8,8 @@ from suite.utils.custom_resources_utils import read_custom_resource
 from suite.utils.policy_resources_utils import apply_and_assert_valid_policy, create_policy_from_yaml, delete_policy
 from suite.utils.resources_utils import get_pod_list, scale_deployment, wait_before_test
 from suite.utils.vs_vsr_resources_utils import (
+    apply_and_assert_valid_vs,
+    apply_and_assert_valid_vsr,
     get_vs_nginx_template_conf,
     patch_v_s_route_from_yaml,
     patch_virtual_server_from_yaml,
@@ -85,6 +87,17 @@ class TestRateLimitingPoliciesVsr:
         )
         wait_before_test()
 
+    def check_rate_limit(self, url, code, counter, headers={}):
+        occur = []
+        t_end = time.perf_counter() + 1
+        while time.perf_counter() < t_end:
+            resp = requests.get(
+                url,
+                headers=headers,
+            )
+            occur.append(resp.status_code)
+        assert occur.count(code) == counter
+
     @pytest.mark.smoke
     @pytest.mark.parametrize("src", [rl_vsr_pri_src])
     def test_rl_policy_1rs_vsr(
@@ -101,42 +114,24 @@ class TestRateLimitingPoliciesVsr:
         """
 
         req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
-        print(f"Create rl policy")
-        pol_name = create_policy_from_yaml(kube_apis.custom_objects, rl_pol_pri_src, v_s_route_setup.route_m.namespace)
-        print(f"Patch vsr with policy: {src}")
-        patch_v_s_route_from_yaml(
-            kube_apis.custom_objects,
+        pol_name = apply_and_assert_valid_policy(kube_apis, v_s_route_setup.route_m.namespace, rl_pol_pri_src)
+
+        apply_and_assert_valid_vsr(
+            kube_apis,
+            v_s_route_setup.route_m.namespace,
             v_s_route_setup.route_m.name,
             src,
-            v_s_route_setup.route_m.namespace,
         )
 
-        wait_before_test()
-        policy_info = read_custom_resource(
-            kube_apis.custom_objects, v_s_route_setup.route_m.namespace, "policies", pol_name
-        )
-        occur = []
-        t_end = time.perf_counter() + 1
-        resp = requests.get(
+        self.check_rate_limit(
             f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            200,
+            1,
             headers={"host": v_s_route_setup.vs_host},
         )
-        print(resp.status_code)
-        assert resp.status_code == 200
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                f"{req_url}{v_s_route_setup.route_m.paths[0]}",
-                headers={"host": v_s_route_setup.vs_host},
-            )
-            occur.append(resp.status_code)
+
         delete_policy(kube_apis.custom_objects, pol_name, v_s_route_setup.route_m.namespace)
         self.restore_default_vsr(kube_apis, v_s_route_setup)
-        assert (
-            policy_info["status"]
-            and policy_info["status"]["reason"] == "AddedOrUpdated"
-            and policy_info["status"]["state"] == "Valid"
-        )
-        assert occur.count(200) <= 1
 
     @pytest.mark.parametrize("src", [rl_vsr_sec_src])
     def test_rl_policy_5rs_vsr(
@@ -151,44 +146,24 @@ class TestRateLimitingPoliciesVsr:
         """
         Test if rate-limiting policy is working with ~5 rps in vsr:subroute
         """
-        rate_sec = 5
         req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
-        print(f"Create rl policy")
-        pol_name = create_policy_from_yaml(kube_apis.custom_objects, rl_pol_sec_src, v_s_route_setup.route_m.namespace)
-        print(f"Patch vsr with policy: {src}")
-        patch_v_s_route_from_yaml(
-            kube_apis.custom_objects,
+        pol_name = apply_and_assert_valid_policy(kube_apis, v_s_route_setup.route_m.namespace, rl_pol_sec_src)
+
+        apply_and_assert_valid_vsr(
+            kube_apis,
+            v_s_route_setup.route_m.namespace,
             v_s_route_setup.route_m.name,
             src,
-            v_s_route_setup.route_m.namespace,
         )
 
-        wait_before_test()
-        policy_info = read_custom_resource(
-            kube_apis.custom_objects, v_s_route_setup.route_m.namespace, "policies", pol_name
-        )
-        occur = []
-        t_end = time.perf_counter() + 1
-        resp = requests.get(
+        self.check_rate_limit(
             f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            200,
+            5,
             headers={"host": v_s_route_setup.vs_host},
         )
-        print(resp.status_code)
-        assert resp.status_code == 200
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                f"{req_url}{v_s_route_setup.route_m.paths[0]}",
-                headers={"host": v_s_route_setup.vs_host},
-            )
-            occur.append(resp.status_code)
+
         delete_policy(kube_apis.custom_objects, pol_name, v_s_route_setup.route_m.namespace)
-        self.restore_default_vsr(kube_apis, v_s_route_setup)
-        assert (
-            policy_info["status"]
-            and policy_info["status"]["reason"] == "AddedOrUpdated"
-            and policy_info["status"]["state"] == "Valid"
-        )
-        assert rate_sec >= occur.count(200) >= (rate_sec - 2)
 
     @pytest.mark.parametrize("src", [rl_vsr_override_src])
     def test_rl_policy_override_vsr(
@@ -206,40 +181,26 @@ class TestRateLimitingPoliciesVsr:
         """
 
         req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
-        print(f"Create rl policy: 1rps")
-        pol_name_pri = create_policy_from_yaml(
-            kube_apis.custom_objects, rl_pol_pri_src, v_s_route_setup.route_m.namespace
-        )
-        print(f"Create rl policy: 5rps")
-        pol_name_sec = create_policy_from_yaml(
-            kube_apis.custom_objects, rl_pol_sec_src, v_s_route_setup.route_m.namespace
-        )
-        print(f"Patch vsr with policy: {src}")
-        patch_v_s_route_from_yaml(
-            kube_apis.custom_objects,
+        pol_name_pri = apply_and_assert_valid_policy(kube_apis, v_s_route_setup.route_m.namespace, rl_pol_pri_src)
+        pol_name_sec = apply_and_assert_valid_policy(kube_apis, v_s_route_setup.route_m.namespace, rl_pol_sec_src)
+
+        apply_and_assert_valid_vsr(
+            kube_apis,
+            v_s_route_setup.route_m.namespace,
             v_s_route_setup.route_m.name,
             src,
-            v_s_route_setup.route_m.namespace,
         )
-        wait_before_test()
-        occur = []
-        t_end = time.perf_counter() + 1
-        resp = requests.get(
+
+        self.check_rate_limit(
             f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            200,
+            1,
             headers={"host": v_s_route_setup.vs_host},
         )
-        print(resp.status_code)
-        assert resp.status_code == 200
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                f"{req_url}{v_s_route_setup.route_m.paths[0]}",
-                headers={"host": v_s_route_setup.vs_host},
-            )
-            occur.append(resp.status_code)
+
         delete_policy(kube_apis.custom_objects, pol_name_pri, v_s_route_setup.route_m.namespace)
         delete_policy(kube_apis.custom_objects, pol_name_sec, v_s_route_setup.route_m.namespace)
         self.restore_default_vsr(kube_apis, v_s_route_setup)
-        assert occur.count(200) <= 1
 
     @pytest.mark.parametrize("src", [rl_vsr_pri_src])
     def test_rl_policy_deleted_vsr(
@@ -340,54 +301,40 @@ class TestRateLimitingPoliciesVsr:
         Test if vsr subroute policy overrides vs spec policy
         And vsr subroute policy overrides vs route policy
         """
-        rate_sec = 5
         req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
 
         # policy for virtualserver
-        print(f"Create rl policy: 1rps")
-        pol_name_vs = create_policy_from_yaml(
-            kube_apis.custom_objects, rl_pol_pri_src, v_s_route_setup.route_m.namespace
-        )
-        # policy for virtualserverroute
-        print(f"Create rl policy: 5rps")
-        pol_name_vsr = create_policy_from_yaml(
-            kube_apis.custom_objects, rl_pol_sec_src, v_s_route_setup.route_m.namespace
-        )
+        pol_name_pri = apply_and_assert_valid_policy(kube_apis, v_s_route_setup.route_m.namespace, rl_pol_pri_src)
+        pol_name_sec = apply_and_assert_valid_policy(kube_apis, v_s_route_setup.route_m.namespace, rl_pol_sec_src)
 
         # patch vsr with 5rps policy
-        patch_v_s_route_from_yaml(
-            kube_apis.custom_objects,
+        apply_and_assert_valid_vsr(
+            kube_apis,
+            v_s_route_setup.route_m.namespace,
             v_s_route_setup.route_m.name,
             rl_vsr_sec_src,
-            v_s_route_setup.route_m.namespace,
         )
+
         # patch vs with 1rps policy
-        patch_virtual_server_from_yaml(
-            kube_apis.custom_objects, v_s_route_setup.vs_name, src, v_s_route_setup.namespace
+        apply_and_assert_valid_vs(
+            kube_apis,
+            v_s_route_setup.namespace,
+            v_s_route_setup.vs_name,
+            src,
         )
-        wait_before_test()
-        occur = []
-        t_end = time.perf_counter() + 1
-        resp = requests.get(
+
+        self.check_rate_limit(
             f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            200,
+            5,
             headers={"host": v_s_route_setup.vs_host},
         )
-        print(resp.status_code)
-        assert resp.status_code == 200
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                f"{req_url}{v_s_route_setup.route_m.paths[0]}",
-                headers={"host": v_s_route_setup.vs_host},
-            )
-            occur.append(resp.status_code)
-
-        delete_policy(kube_apis.custom_objects, pol_name_vs, v_s_route_setup.route_m.namespace)
-        delete_policy(kube_apis.custom_objects, pol_name_vsr, v_s_route_setup.route_m.namespace)
+        delete_policy(kube_apis.custom_objects, pol_name_pri, v_s_route_setup.route_m.namespace)
+        delete_policy(kube_apis.custom_objects, pol_name_sec, v_s_route_setup.route_m.namespace)
         self.restore_default_vsr(kube_apis, v_s_route_setup)
         patch_virtual_server_from_yaml(
             kube_apis.custom_objects, v_s_route_setup.vs_name, std_vs_src, v_s_route_setup.namespace
         )
-        assert rate_sec >= occur.count(200) >= (rate_sec - 2)
 
     @pytest.mark.parametrize("src", [rl_vsr_pri_sca_src])
     def test_rl_policy_scaled_vsr(
@@ -407,21 +354,13 @@ class TestRateLimitingPoliciesVsr:
         ns = ingress_controller_prerequisites.namespace
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ns, 4)
 
-        print(f"Create rl policy")
-        pol_name = create_policy_from_yaml(
-            kube_apis.custom_objects, rl_pol_pri_sca_src, v_s_route_setup.route_m.namespace
-        )
-        print(f"Patch vsr with policy: {src}")
-        patch_v_s_route_from_yaml(
-            kube_apis.custom_objects,
+        pol_name = apply_and_assert_valid_policy(kube_apis, v_s_route_setup.route_m.namespace, rl_pol_pri_sca_src)
+
+        apply_and_assert_valid_vsr(
+            kube_apis,
+            v_s_route_setup.route_m.namespace,
             v_s_route_setup.route_m.name,
             src,
-            v_s_route_setup.route_m.namespace,
-        )
-
-        wait_before_test()
-        policy_info = read_custom_resource(
-            kube_apis.custom_objects, v_s_route_setup.route_m.namespace, "policies", pol_name
         )
 
         ic_pods = get_pod_list(kube_apis.v1, ns)
@@ -438,11 +377,6 @@ class TestRateLimitingPoliciesVsr:
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ns, 1)
         delete_policy(kube_apis.custom_objects, pol_name, v_s_route_setup.route_m.namespace)
         self.restore_default_vsr(kube_apis, v_s_route_setup)
-        assert (
-            policy_info["status"]
-            and policy_info["status"]["reason"] == "AddedOrUpdated"
-            and policy_info["status"]["state"] == "Valid"
-        )
 
     @pytest.mark.smoke
     @pytest.mark.parametrize("src", [rl_vsr_jwt_claim_sub_src])
@@ -464,23 +398,11 @@ class TestRateLimitingPoliciesVsr:
         pol_name = apply_and_assert_valid_policy(kube_apis, v_s_route_setup.route_m.namespace, rl_pol_jwt_claim_sub_src)
 
         print(f"Patch vsr with policy: {src}")
-        patch_v_s_route_from_yaml(
-            kube_apis.custom_objects,
+        apply_and_assert_valid_vsr(
+            kube_apis,
+            v_s_route_setup.route_m.namespace,
             v_s_route_setup.route_m.name,
             src,
-            v_s_route_setup.route_m.namespace,
-        )
-        wait_before_test(1)
-        vsr_info = read_custom_resource(
-            kube_apis.custom_objects,
-            v_s_route_setup.route_m.namespace,
-            "virtualserverroutes",
-            v_s_route_setup.route_m.name,
-        )
-        assert (
-            vsr_info["status"]
-            and vsr_info["status"]["reason"] == "AddedOrUpdated"
-            and vsr_info["status"]["state"] == "Valid"
         )
 
         jwt_token = jwt.encode(
@@ -490,25 +412,15 @@ class TestRateLimitingPoliciesVsr:
         )
 
         ##  Test Rate Limit 1r/s
-        occur = []
-        t_end = time.perf_counter() + 1
-        resp = requests.get(
+        self.check_rate_limit(
             f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            200,
+            1,
             headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {jwt_token}"},
         )
 
-        print(resp.status_code)
-        assert resp.status_code == 200
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                f"{req_url}{v_s_route_setup.route_m.paths[0]}",
-                headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {jwt_token}"},
-            )
-            occur.append(resp.status_code)
         delete_policy(kube_apis.custom_objects, pol_name, v_s_route_setup.route_m.namespace)
         self.restore_default_vsr(kube_apis, v_s_route_setup)
-
-        assert occur.count(200) <= 1
 
     @pytest.mark.skip_for_nginx_oss
     @pytest.mark.parametrize("src", [rl_vsr_basic_premium_jwt_claim_sub])
@@ -536,24 +448,11 @@ class TestRateLimitingPoliciesVsr:
             kube_apis, v_s_route_setup.route_m.namespace, rl_pol_premium_no_default_jwt_claim_sub
         )
 
-        print(f"Patch vsr with policy: {src}")
-        patch_v_s_route_from_yaml(
-            kube_apis.custom_objects,
+        apply_and_assert_valid_vsr(
+            kube_apis,
+            v_s_route_setup.route_m.namespace,
             v_s_route_setup.route_m.name,
             src,
-            v_s_route_setup.route_m.namespace,
-        )
-        wait_before_test(1)
-        vsr_info = read_custom_resource(
-            kube_apis.custom_objects,
-            v_s_route_setup.route_m.namespace,
-            "virtualserverroutes",
-            v_s_route_setup.route_m.name,
-        )
-        assert (
-            vsr_info["status"]
-            and vsr_info["status"]["reason"] == "AddedOrUpdated"
-            and vsr_info["status"]["state"] == "Valid"
         )
 
         basic_jwt_token = jwt.encode(
@@ -569,40 +468,31 @@ class TestRateLimitingPoliciesVsr:
 
         req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
 
-        ##  Test Basic Rate Limit 1r/s
-        basic_occur = []
-        t_end = time.perf_counter() + 1
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                f"{req_url}{v_s_route_setup.route_m.paths[0]}",
-                headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {basic_jwt_token}"},
-            )
-            basic_occur.append(resp.status_code)
-        assert basic_occur.count(200) == 1
+        ##  Test Basic Rate Limit 1r/s+
+        self.check_rate_limit(
+            f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            200,
+            1,
+            headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {basic_jwt_token}"},
+        )
         wait_before_test(1)
 
         ##  Test Premium Rate Limit 5r/s
-        premium_occur = []
-        t_end = time.perf_counter() + 1
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                f"{req_url}{v_s_route_setup.route_m.paths[0]}",
-                headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {premium_jwt_token}"},
-            )
-            premium_occur.append(resp.status_code)
-        assert premium_occur.count(200) >= 5 and premium_occur.count(200) <= 6  # allow 5 or 6 requests in the results
+        self.check_rate_limit(
+            f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            200,
+            5,
+            headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {premium_jwt_token}"},
+        )
         wait_before_test(1)
 
         ##  Test Default Rate Limit unlimited
-        default_occur = []
-        t_end = time.perf_counter() + 1
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                f"{req_url}{v_s_route_setup.route_m.paths[0]}",
-                headers={"host": v_s_route_setup.vs_host},
-            )
-            default_occur.append(resp.status_code)
-        assert default_occur.count(503) == 0
+        self.check_rate_limit(
+            f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            503,
+            0,
+            headers={"host": v_s_route_setup.vs_host},
+        )
 
         delete_policy(kube_apis.custom_objects, basic_pol_name, v_s_route_setup.route_m.namespace)
         delete_policy(kube_apis.custom_objects, premium_pol_name, v_s_route_setup.route_m.namespace)
@@ -634,24 +524,11 @@ class TestRateLimitingPoliciesVsr:
             kube_apis, v_s_route_setup.route_m.namespace, rl_pol_premium_no_default_jwt_claim_sub
         )
 
-        print(f"Patch vsr with policy: {src}")
-        patch_v_s_route_from_yaml(
-            kube_apis.custom_objects,
+        apply_and_assert_valid_vsr(
+            kube_apis,
+            v_s_route_setup.route_m.namespace,
             v_s_route_setup.route_m.name,
             src,
-            v_s_route_setup.route_m.namespace,
-        )
-        wait_before_test(1)
-        vsr_info = read_custom_resource(
-            kube_apis.custom_objects,
-            v_s_route_setup.route_m.namespace,
-            "virtualserverroutes",
-            v_s_route_setup.route_m.name,
-        )
-        assert (
-            vsr_info["status"]
-            and vsr_info["status"]["reason"] == "AddedOrUpdated"
-            and vsr_info["status"]["state"] == "Valid"
         )
 
         basic_jwt_token = jwt.encode(
@@ -668,39 +545,30 @@ class TestRateLimitingPoliciesVsr:
         req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
 
         ##  Test Basic Rate Limit 1r/s
-        basic_occur = []
-        t_end = time.perf_counter() + 1
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                f"{req_url}{v_s_route_setup.route_m.paths[0]}",
-                headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {basic_jwt_token}"},
-            )
-            basic_occur.append(resp.status_code)
-        assert basic_occur.count(200) == 1
+        self.check_rate_limit(
+            f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            200,
+            1,
+            headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {basic_jwt_token}"},
+        )
         wait_before_test(1)
 
         ##  Test Premium Rate Limit 5r/s
-        premium_occur = []
-        t_end = time.perf_counter() + 1
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                f"{req_url}{v_s_route_setup.route_m.paths[0]}",
-                headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {premium_jwt_token}"},
-            )
-            premium_occur.append(resp.status_code)
-        assert premium_occur.count(200) >= 5 and premium_occur.count(200) <= 6  # allow 5 or 6 requests in the results
+        self.check_rate_limit(
+            f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            200,
+            5,
+            headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {premium_jwt_token}"},
+        )
         wait_before_test(1)
 
         ##  Test Default Rate Limit 1r/s
-        default_occur = []
-        t_end = time.perf_counter() + 1
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                f"{req_url}{v_s_route_setup.route_m.paths[0]}",
-                headers={"host": v_s_route_setup.vs_host},
-            )
-            default_occur.append(resp.status_code)
-        assert default_occur.count(200) == 1
+        self.check_rate_limit(
+            f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            200,
+            1,
+            headers={"host": v_s_route_setup.vs_host},
+        )
 
         delete_policy(kube_apis.custom_objects, basic_pol_name, v_s_route_setup.route_m.namespace)
         delete_policy(kube_apis.custom_objects, premium_pol_name, v_s_route_setup.route_m.namespace)
@@ -740,24 +608,11 @@ class TestRateLimitingPoliciesVsr:
             kube_apis, v_s_route_setup.route_m.namespace, rl_pol_gold_no_default_jwt_claim_sub
         )
 
-        print(f"Patch vsr with policy: {src}")
-        patch_v_s_route_from_yaml(
-            kube_apis.custom_objects,
+        apply_and_assert_valid_vsr(
+            kube_apis,
+            v_s_route_setup.route_m.namespace,
             v_s_route_setup.route_m.name,
             src,
-            v_s_route_setup.route_m.namespace,
-        )
-        wait_before_test(1)
-        vsr_info = read_custom_resource(
-            kube_apis.custom_objects,
-            v_s_route_setup.route_m.namespace,
-            "virtualserverroutes",
-            v_s_route_setup.route_m.name,
-        )
-        assert (
-            vsr_info["status"]
-            and vsr_info["status"]["reason"] == "AddedOrUpdated"
-            and vsr_info["status"]["state"] == "Valid"
         )
 
         basic_jwt_token = jwt.encode(
@@ -789,87 +644,66 @@ class TestRateLimitingPoliciesVsr:
         req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
 
         ##  Test Basic Rate Limit 1r/s
-        basic_occur = []
-        t_end = time.perf_counter() + 1
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                f"{req_url}{v_s_route_setup.route_m.paths[0]}",
-                headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {basic_jwt_token}"},
-            )
-            basic_occur.append(resp.status_code)
-        assert basic_occur.count(200) == 1
+        self.check_rate_limit(
+            f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            200,
+            1,
+            headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {basic_jwt_token}"},
+        )
         wait_before_test(1)
 
         ##  Test Premium Rate Limit 5r/s
-        premium_occur = []
-        t_end = time.perf_counter() + 1
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                f"{req_url}{v_s_route_setup.route_m.paths[0]}",
-                headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {premium_jwt_token}"},
-            )
-            premium_occur.append(resp.status_code)
-        assert premium_occur.count(200) >= 5 and premium_occur.count(200) <= 6  # allow 5 or 6 requests in the results
+        self.check_rate_limit(
+            f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            200,
+            5,
+            headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {premium_jwt_token}"},
+        )
         wait_before_test(1)
 
         ##  Test Basic Default Rate Limit 1r/s
-        basic_default_occur = []
-        t_end = time.perf_counter() + 1
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                f"{req_url}{v_s_route_setup.route_m.paths[0]}",
-                headers={"host": v_s_route_setup.vs_host},
-            )
-            basic_default_occur.append(resp.status_code)
-        assert basic_default_occur.count(200) == 1
+        self.check_rate_limit(
+            f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            200,
+            1,
+            headers={"host": v_s_route_setup.vs_host},
+        )
         wait_before_test(1)
 
         ##  Test Bronze Rate Limit 5r/s
-        bronze_occur = []
-        t_end = time.perf_counter() + 1
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                f"{req_url}{v_s_route_setup.route_m.paths[1]}",
-                headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {bronze_jwt_token}"},
-            )
-            bronze_occur.append(resp.status_code)
-        assert bronze_occur.count(200) == 5
+        self.check_rate_limit(
+            f"{req_url}{v_s_route_setup.route_m.paths[1]}",
+            200,
+            5,
+            headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {bronze_jwt_token}"},
+        )
         wait_before_test(1)
 
         ##  Test Silver Rate Limit 10r/s
-        silver_occur = []
-        t_end = time.perf_counter() + 1
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                f"{req_url}{v_s_route_setup.route_m.paths[1]}",
-                headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {silver_jwt_token}"},
-            )
-            silver_occur.append(resp.status_code)
-        assert silver_occur.count(200) == 10
+        self.check_rate_limit(
+            f"{req_url}{v_s_route_setup.route_m.paths[1]}",
+            200,
+            10,
+            headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {silver_jwt_token}"},
+        )
         wait_before_test(1)
 
         ##  Test Gold Rate Limit 15r/s
-        gold_occur = []
-        t_end = time.perf_counter() + 1
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                f"{req_url}{v_s_route_setup.route_m.paths[1]}",
-                headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {gold_jwt_token}"},
-            )
-            gold_occur.append(resp.status_code)
-        assert gold_occur.count(200) == 15
+        self.check_rate_limit(
+            f"{req_url}{v_s_route_setup.route_m.paths[1]}",
+            200,
+            15,
+            headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {gold_jwt_token}"},
+        )
         wait_before_test(1)
 
         ##  Test Bronze Default Rate Limit 5r/s
-        bronze_default_occur = []
-        t_end = time.perf_counter() + 1
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                f"{req_url}{v_s_route_setup.route_m.paths[1]}",
-                headers={"host": v_s_route_setup.vs_host},
-            )
-            bronze_default_occur.append(resp.status_code)
-        assert bronze_default_occur.count(200) == 5
+        self.check_rate_limit(
+            f"{req_url}{v_s_route_setup.route_m.paths[1]}",
+            200,
+            5,
+            headers={"host": v_s_route_setup.vs_host},
+        )
 
         delete_policy(kube_apis.custom_objects, basic_pol_name, v_s_route_setup.route_m.namespace)
         delete_policy(kube_apis.custom_objects, premium_pol_name, v_s_route_setup.route_m.namespace)

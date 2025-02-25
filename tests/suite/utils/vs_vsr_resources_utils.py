@@ -196,6 +196,46 @@ def patch_v_s_route_from_yaml(custom_objects: CustomObjectsApi, name, yaml_manif
         raise
 
 
+def apply_and_assert_valid_vsr(kube_apis, namespace, name, vsr_yaml):
+    patch_v_s_route_from_yaml(
+        kube_apis.custom_objects,
+        name,
+        vsr_yaml,
+        namespace,
+    )
+    wait_before_test(1)
+    vsr_info = read_custom_resource(
+        kube_apis.custom_objects,
+        namespace,
+        "virtualserverroutes",
+        name,
+    )
+    assert (
+        vsr_info["status"]
+        and vsr_info["status"]["reason"] == "AddedOrUpdated"
+        and vsr_info["status"]["state"] == "Valid"
+    )
+
+
+def apply_and_assert_valid_vs(kube_apis, namespace, name, vsr_yaml):
+    patch_virtual_server_from_yaml(
+        kube_apis.custom_objects,
+        name,
+        vsr_yaml,
+        namespace,
+    )
+    wait_before_test(1)
+    vs_info = read_custom_resource(
+        kube_apis.custom_objects,
+        namespace,
+        "virtualservers",
+        name,
+    )
+    assert (
+        vs_info["status"] and vs_info["status"]["reason"] == "AddedOrUpdated" and vs_info["status"]["state"] == "Valid"
+    )
+
+
 def get_vs_nginx_template_conf(v1: CoreV1Api, vs_namespace, vs_name, pod_name, pod_namespace) -> str:
     """
     Get contents of /etc/nginx/conf.d/vs_{namespace}_{vs_name}.conf in the pod.
