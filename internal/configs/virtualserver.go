@@ -1048,7 +1048,7 @@ func (p *policiesCfg) addRateLimitConfig(
 ) *validationResults {
 	res := newValidationResults()
 
-	rlZoneName := fmt.Sprintf("pol_rl_%v_%v_%v_%v", polNamespace, polName, ownerDetails.vsNamespace, ownerDetails.vsName)
+	rlZoneName := rfc1123ToSnake(fmt.Sprintf("pol_rl_%v_%v_%v_%v", polNamespace, polName, ownerDetails.vsNamespace, ownerDetails.vsName))
 	if rateLimit.Condition != nil && rateLimit.Condition.JWT.Claim != "" && rateLimit.Condition.JWT.Match != "" {
 		lrz := generateGroupedLimitReqZone(rlZoneName, rateLimit, podReplicas, ownerDetails)
 		p.RateLimit.PolicyGroupMaps = append(p.RateLimit.PolicyGroupMaps, *generateLRZPolicyGroupMap(lrz))
@@ -1778,7 +1778,7 @@ func generateGroupedLimitReqZone(zoneName string,
 			strings.ToLower(rateLimitPol.Condition.JWT.Match),
 		)
 
-		lrz.GroupVariable = fmt.Sprintf("$rl_%s_%s_group_%s",
+		lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf("$rl_%s_%s_group_%s",
 			ownerDetails.vsNamespace,
 			ownerDetails.vsName,
 			strings.ToLower(
@@ -1786,8 +1786,8 @@ func generateGroupedLimitReqZone(zoneName string,
 					strings.Split(rateLimitPol.Condition.JWT.Claim, "."), "_",
 				),
 			),
-		)
-		lrz.Key = fmt.Sprintf("$%s", strings.Replace(zoneName, "-", "_", -1))
+		))
+		lrz.Key = rfc1123ToSnake(fmt.Sprintf("$%s", zoneName))
 		lrz.PolicyResult = rateLimitPol.Key
 		lrz.GroupDefault = rateLimitPol.Condition.Default
 		lrz.GroupSource = generateAuthJwtClaimSetVariable(rateLimitPol.Condition.JWT.Claim, ownerDetails.vsNamespace, ownerDetails.vsName)
@@ -1858,7 +1858,7 @@ func generateAuthJwtClaimSet(jwtCondition conf_v1.JWTCondition, owner policyOwne
 }
 
 func generateAuthJwtClaimSetVariable(claim string, vsNamespace string, vsName string) string {
-	return fmt.Sprintf("$jwt_%v_%v_%v", vsNamespace, vsName, strings.Join(strings.Split(claim, "."), "_"))
+	return strings.ReplaceAll(fmt.Sprintf("$jwt_%v_%v_%v", vsNamespace, vsName, strings.Join(strings.Split(claim, "."), "_")), "-", "_")
 }
 
 func generateAuthJwtClaimSetClaim(claim string) string {
