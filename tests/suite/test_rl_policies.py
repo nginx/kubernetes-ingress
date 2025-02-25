@@ -103,8 +103,8 @@ class TestRateLimitingPolicies:
         """
         Test if rate-limiting policy is working with 1 rps
         """
-        print(f"Create rl policy")
-        pol_name = create_policy_from_yaml(kube_apis.custom_objects, rl_pol_pri_src, test_namespace)
+        pol_name = apply_and_assert_valid_policy(kube_apis, test_namespace, rl_pol_pri_src)
+
         print(f"Patch vs with policy: {src}")
         patch_virtual_server_from_yaml(
             kube_apis.custom_objects,
@@ -112,31 +112,25 @@ class TestRateLimitingPolicies:
             src,
             virtual_server_setup.namespace,
         )
+        wait_before_test(1)
+        vs_info = read_custom_resource(
+            kube_apis.custom_objects, virtual_server_setup.namespace, "virtualservers", virtual_server_setup.vs_name
+        )
+        assert (
+            vs_info["status"]
+            and vs_info["status"]["reason"] == "AddedOrUpdated"
+            and vs_info["status"]["state"] == "Valid"
+        )
 
-        wait_before_test()
-        policy_info = read_custom_resource(kube_apis.custom_objects, test_namespace, "policies", pol_name)
-        occur = []
-        t_end = time.perf_counter() + 1
-        resp = requests.get(
+        self.check_rate_limit(
             virtual_server_setup.backend_1_url,
+            200,
+            1,
             headers={"host": virtual_server_setup.vs_host},
         )
-        print(resp.status_code)
-        assert resp.status_code == 200
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                virtual_server_setup.backend_1_url,
-                headers={"host": virtual_server_setup.vs_host},
-            )
-            occur.append(resp.status_code)
+
         delete_policy(kube_apis.custom_objects, pol_name, test_namespace)
         self.restore_default_vs(kube_apis, virtual_server_setup)
-        assert (
-            policy_info["status"]
-            and policy_info["status"]["reason"] == "AddedOrUpdated"
-            and policy_info["status"]["state"] == "Valid"
-        )
-        assert occur.count(200) <= 1
 
     @pytest.mark.parametrize("src", [rl_vs_sec_src])
     def test_rl_policy_5rs(
@@ -150,9 +144,8 @@ class TestRateLimitingPolicies:
         """
         Test if rate-limiting policy is working with 5 rps
         """
-        rate_sec = 5
-        print(f"Create rl policy")
-        pol_name = create_policy_from_yaml(kube_apis.custom_objects, rl_pol_sec_src, test_namespace)
+        pol_name = apply_and_assert_valid_policy(kube_apis, test_namespace, rl_pol_sec_src)
+
         print(f"Patch vs with policy: {src}")
         patch_virtual_server_from_yaml(
             kube_apis.custom_objects,
@@ -160,30 +153,25 @@ class TestRateLimitingPolicies:
             src,
             virtual_server_setup.namespace,
         )
+        wait_before_test(1)
+        vs_info = read_custom_resource(
+            kube_apis.custom_objects, virtual_server_setup.namespace, "virtualservers", virtual_server_setup.vs_name
+        )
+        assert (
+            vs_info["status"]
+            and vs_info["status"]["reason"] == "AddedOrUpdated"
+            and vs_info["status"]["state"] == "Valid"
+        )
 
-        wait_before_test()
-        policy_info = read_custom_resource(kube_apis.custom_objects, test_namespace, "policies", pol_name)
-        occur = []
-        t_end = time.perf_counter() + 1
-        resp = requests.get(
+        self.check_rate_limit(
             virtual_server_setup.backend_1_url,
+            200,
+            5,
             headers={"host": virtual_server_setup.vs_host},
         )
-        assert resp.status_code == 200
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                virtual_server_setup.backend_1_url,
-                headers={"host": virtual_server_setup.vs_host},
-            )
-            occur.append(resp.status_code)
+
         delete_policy(kube_apis.custom_objects, pol_name, test_namespace)
         self.restore_default_vs(kube_apis, virtual_server_setup)
-        assert (
-            policy_info["status"]
-            and policy_info["status"]["reason"] == "AddedOrUpdated"
-            and policy_info["status"]["state"] == "Valid"
-        )
-        assert rate_sec >= occur.count(200) >= (rate_sec - 2)
 
     @pytest.mark.parametrize("src", [rl_vs_invalid])
     def test_rl_policy_invalid(
@@ -271,9 +259,9 @@ class TestRateLimitingPolicies:
         """
         List multiple policies in vs and test if the one with less rps is used
         """
-        print(f"Create rl policy")
-        pol_name_pri = create_policy_from_yaml(kube_apis.custom_objects, rl_pol_pri_src, test_namespace)
-        pol_name_sec = create_policy_from_yaml(kube_apis.custom_objects, rl_pol_sec_src, test_namespace)
+        pol_name_pri = apply_and_assert_valid_policy(kube_apis, test_namespace, rl_pol_pri_src)
+        pol_name_sec = apply_and_assert_valid_policy(kube_apis, test_namespace, rl_pol_sec_src)
+
         print(f"Patch vs with policy: {src}")
         patch_virtual_server_from_yaml(
             kube_apis.custom_objects,
@@ -281,24 +269,26 @@ class TestRateLimitingPolicies:
             src,
             virtual_server_setup.namespace,
         )
-        wait_before_test()
-        occur = []
-        t_end = time.perf_counter() + 1
-        resp = requests.get(
+        wait_before_test(1)
+        vs_info = read_custom_resource(
+            kube_apis.custom_objects, virtual_server_setup.namespace, "virtualservers", virtual_server_setup.vs_name
+        )
+        assert (
+            vs_info["status"]
+            and vs_info["status"]["reason"] == "AddedOrUpdated"
+            and vs_info["status"]["state"] == "Valid"
+        )
+
+        self.check_rate_limit(
             virtual_server_setup.backend_1_url,
+            200,
+            1,
             headers={"host": virtual_server_setup.vs_host},
         )
-        assert resp.status_code == 200
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                virtual_server_setup.backend_1_url,
-                headers={"host": virtual_server_setup.vs_host},
-            )
-            occur.append(resp.status_code)
+
         delete_policy(kube_apis.custom_objects, pol_name_pri, test_namespace)
         delete_policy(kube_apis.custom_objects, pol_name_sec, test_namespace)
         self.restore_default_vs(kube_apis, virtual_server_setup)
-        assert occur.count(200) <= 1
 
     @pytest.mark.parametrize("src", [rl_vs_override_spec_route])
     def test_rl_override_spec_route(
@@ -314,10 +304,9 @@ class TestRateLimitingPolicies:
         route:policy = secondary (5 rps)
         spec:policy = primary (1 rps)
         """
-        rate_sec = 5
-        print(f"Create rl policy")
-        pol_name_pri = create_policy_from_yaml(kube_apis.custom_objects, rl_pol_pri_src, test_namespace)
-        pol_name_sec = create_policy_from_yaml(kube_apis.custom_objects, rl_pol_sec_src, test_namespace)
+        pol_name_pri = apply_and_assert_valid_policy(kube_apis, test_namespace, rl_pol_pri_src)
+        pol_name_sec = apply_and_assert_valid_policy(kube_apis, test_namespace, rl_pol_sec_src)
+
         print(f"Patch vs with policy: {src}")
         patch_virtual_server_from_yaml(
             kube_apis.custom_objects,
@@ -325,24 +314,26 @@ class TestRateLimitingPolicies:
             src,
             virtual_server_setup.namespace,
         )
-        wait_before_test()
-        occur = []
-        t_end = time.perf_counter() + 1
-        resp = requests.get(
+        wait_before_test(1)
+        vs_info = read_custom_resource(
+            kube_apis.custom_objects, virtual_server_setup.namespace, "virtualservers", virtual_server_setup.vs_name
+        )
+        assert (
+            vs_info["status"]
+            and vs_info["status"]["reason"] == "AddedOrUpdated"
+            and vs_info["status"]["state"] == "Valid"
+        )
+
+        self.check_rate_limit(
             virtual_server_setup.backend_1_url,
+            200,
+            5,
             headers={"host": virtual_server_setup.vs_host},
         )
-        assert resp.status_code == 200
-        while time.perf_counter() < t_end:
-            resp = requests.get(
-                virtual_server_setup.backend_1_url,
-                headers={"host": virtual_server_setup.vs_host},
-            )
-            occur.append(resp.status_code)
+
         delete_policy(kube_apis.custom_objects, pol_name_pri, test_namespace)
         delete_policy(kube_apis.custom_objects, pol_name_sec, test_namespace)
         self.restore_default_vs(kube_apis, virtual_server_setup)
-        assert rate_sec >= occur.count(200) >= (rate_sec - 2)
 
     @pytest.mark.parametrize("src", [rl_vs_pri_sca_src])
     def test_rl_policy_scaled(
