@@ -13,6 +13,7 @@ from suite.utils.resources_utils import (
     wait_before_test,
 )
 from suite.utils.vs_vsr_resources_utils import (
+    apply_and_assert_valid_vs,
     create_virtual_server_from_yaml,
     delete_virtual_server,
     patch_virtual_server_from_yaml,
@@ -105,23 +106,15 @@ class TestRateLimitingPolicies:
         """
         pol_name = apply_and_assert_valid_policy(kube_apis, test_namespace, rl_pol_pri_src)
 
-        print(f"Patch vs with policy: {src}")
-        patch_virtual_server_from_yaml(
-            kube_apis.custom_objects,
+        # Patch VirtualServer
+        apply_and_assert_valid_vs(
+            kube_apis,
+            virtual_server_setup.namespace,
             virtual_server_setup.vs_name,
             src,
-            virtual_server_setup.namespace,
-        )
-        wait_before_test(1)
-        vs_info = read_custom_resource(
-            kube_apis.custom_objects, virtual_server_setup.namespace, "virtualservers", virtual_server_setup.vs_name
-        )
-        assert (
-            vs_info["status"]
-            and vs_info["status"]["reason"] == "AddedOrUpdated"
-            and vs_info["status"]["state"] == "Valid"
         )
 
+        # Run rate limit test 1r/s
         self.check_rate_limit(
             virtual_server_setup.backend_1_url,
             200,
@@ -146,23 +139,15 @@ class TestRateLimitingPolicies:
         """
         pol_name = apply_and_assert_valid_policy(kube_apis, test_namespace, rl_pol_sec_src)
 
-        print(f"Patch vs with policy: {src}")
-        patch_virtual_server_from_yaml(
-            kube_apis.custom_objects,
+        # Patch VirtualServer
+        apply_and_assert_valid_vs(
+            kube_apis,
+            virtual_server_setup.namespace,
             virtual_server_setup.vs_name,
             src,
-            virtual_server_setup.namespace,
-        )
-        wait_before_test(1)
-        vs_info = read_custom_resource(
-            kube_apis.custom_objects, virtual_server_setup.namespace, "virtualservers", virtual_server_setup.vs_name
-        )
-        assert (
-            vs_info["status"]
-            and vs_info["status"]["reason"] == "AddedOrUpdated"
-            and vs_info["status"]["state"] == "Valid"
         )
 
+        # Run rate limit test 5r/s
         self.check_rate_limit(
             virtual_server_setup.backend_1_url,
             200,
@@ -262,23 +247,15 @@ class TestRateLimitingPolicies:
         pol_name_pri = apply_and_assert_valid_policy(kube_apis, test_namespace, rl_pol_pri_src)
         pol_name_sec = apply_and_assert_valid_policy(kube_apis, test_namespace, rl_pol_sec_src)
 
-        print(f"Patch vs with policy: {src}")
-        patch_virtual_server_from_yaml(
-            kube_apis.custom_objects,
+        # Patch VirtualServer
+        apply_and_assert_valid_vs(
+            kube_apis,
+            virtual_server_setup.namespace,
             virtual_server_setup.vs_name,
             src,
-            virtual_server_setup.namespace,
-        )
-        wait_before_test(1)
-        vs_info = read_custom_resource(
-            kube_apis.custom_objects, virtual_server_setup.namespace, "virtualservers", virtual_server_setup.vs_name
-        )
-        assert (
-            vs_info["status"]
-            and vs_info["status"]["reason"] == "AddedOrUpdated"
-            and vs_info["status"]["state"] == "Valid"
         )
 
+        # Run rate limit test 1r/s
         self.check_rate_limit(
             virtual_server_setup.backend_1_url,
             200,
@@ -307,23 +284,15 @@ class TestRateLimitingPolicies:
         pol_name_pri = apply_and_assert_valid_policy(kube_apis, test_namespace, rl_pol_pri_src)
         pol_name_sec = apply_and_assert_valid_policy(kube_apis, test_namespace, rl_pol_sec_src)
 
-        print(f"Patch vs with policy: {src}")
-        patch_virtual_server_from_yaml(
-            kube_apis.custom_objects,
+        # Patch VirtualServer
+        apply_and_assert_valid_vs(
+            kube_apis,
+            virtual_server_setup.namespace,
             virtual_server_setup.vs_name,
             src,
-            virtual_server_setup.namespace,
-        )
-        wait_before_test(1)
-        vs_info = read_custom_resource(
-            kube_apis.custom_objects, virtual_server_setup.namespace, "virtualservers", virtual_server_setup.vs_name
-        )
-        assert (
-            vs_info["status"]
-            and vs_info["status"]["reason"] == "AddedOrUpdated"
-            and vs_info["status"]["state"] == "Valid"
         )
 
+        # Run rate limit test 5r/s
         self.check_rate_limit(
             virtual_server_setup.backend_1_url,
             200,
@@ -351,18 +320,16 @@ class TestRateLimitingPolicies:
         ns = ingress_controller_prerequisites.namespace
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ns, 4)
 
-        print(f"Create rl policy")
-        pol_name = create_policy_from_yaml(kube_apis.custom_objects, rl_pol_pri_sca_src, test_namespace)
-        print(f"Patch vs with policy: {src}")
-        patch_virtual_server_from_yaml(
-            kube_apis.custom_objects,
+        pol_name = apply_and_assert_valid_policy(kube_apis, test_namespace, rl_pol_pri_sca_src)
+
+        # Patch VirtualServer
+        apply_and_assert_valid_vs(
+            kube_apis,
+            virtual_server_setup.namespace,
             virtual_server_setup.vs_name,
             src,
-            virtual_server_setup.namespace,
         )
-        wait_before_test()
 
-        policy_info = read_custom_resource(kube_apis.custom_objects, test_namespace, "policies", pol_name)
         ic_pods = get_pod_list(kube_apis.v1, ns)
         for i in range(len(ic_pods)):
             conf = get_vs_nginx_template_conf(
@@ -377,11 +344,6 @@ class TestRateLimitingPolicies:
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ns, 1)
         delete_policy(kube_apis.custom_objects, pol_name, test_namespace)
         self.restore_default_vs(kube_apis, virtual_server_setup)
-        assert (
-            policy_info["status"]
-            and policy_info["status"]["reason"] == "AddedOrUpdated"
-            and policy_info["status"]["state"] == "Valid"
-        )
 
     @pytest.mark.skip_for_nginx_oss
     @pytest.mark.parametrize("src", [rl_vs_jwt_claim_sub])
@@ -399,21 +361,13 @@ class TestRateLimitingPolicies:
         Policy is applied at the VirtualServer Spec level
         """
         pol_name = apply_and_assert_valid_policy(kube_apis, test_namespace, rl_pol_jwt_claim_sub)
-        print(f"Patch vs with policy: {src}")
-        patch_virtual_server_from_yaml(
-            kube_apis.custom_objects,
+
+        # Patch VirtualServer
+        apply_and_assert_valid_vs(
+            kube_apis,
+            virtual_server_setup.namespace,
             virtual_server_setup.vs_name,
             src,
-            virtual_server_setup.namespace,
-        )
-        wait_before_test(1)
-        vs_info = read_custom_resource(
-            kube_apis.custom_objects, virtual_server_setup.namespace, "virtualservers", virtual_server_setup.vs_name
-        )
-        assert (
-            vs_info["status"]
-            and vs_info["status"]["reason"] == "AddedOrUpdated"
-            and vs_info["status"]["state"] == "Valid"
         )
 
         jwt_token = jwt.encode(
@@ -455,21 +409,12 @@ class TestRateLimitingPolicies:
             kube_apis, test_namespace, rl_pol_premium_no_default_jwt_claim_sub
         )
 
-        print(f"Patch vs with policy: {src}")
-        patch_virtual_server_from_yaml(
-            kube_apis.custom_objects,
+        # Patch VirtualServer
+        apply_and_assert_valid_vs(
+            kube_apis,
+            virtual_server_setup.namespace,
             virtual_server_setup.vs_name,
             src,
-            virtual_server_setup.namespace,
-        )
-        wait_before_test(1)
-        vs_info = read_custom_resource(
-            kube_apis.custom_objects, virtual_server_setup.namespace, "virtualservers", virtual_server_setup.vs_name
-        )
-        assert (
-            vs_info["status"]
-            and vs_info["status"]["reason"] == "AddedOrUpdated"
-            and vs_info["status"]["state"] == "Valid"
         )
 
         basic_jwt_token = jwt.encode(
@@ -534,21 +479,12 @@ class TestRateLimitingPolicies:
             kube_apis, test_namespace, rl_pol_premium_no_default_jwt_claim_sub
         )
 
-        print(f"Patch vs with policy: {src}")
-        patch_virtual_server_from_yaml(
-            kube_apis.custom_objects,
+        # Patch VirtualServer
+        apply_and_assert_valid_vs(
+            kube_apis,
+            virtual_server_setup.namespace,
             virtual_server_setup.vs_name,
             src,
-            virtual_server_setup.namespace,
-        )
-        wait_before_test(1)
-        vs_info = read_custom_resource(
-            kube_apis.custom_objects, virtual_server_setup.namespace, "virtualservers", virtual_server_setup.vs_name
-        )
-        assert (
-            vs_info["status"]
-            and vs_info["status"]["reason"] == "AddedOrUpdated"
-            and vs_info["status"]["state"] == "Valid"
         )
 
         basic_jwt_token = jwt.encode(
@@ -614,21 +550,12 @@ class TestRateLimitingPolicies:
             kube_apis, test_namespace, rl_pol_premium_no_default_jwt_claim_sub
         )
 
-        print(f"Patch vs with policy: {src}")
-        patch_virtual_server_from_yaml(
-            kube_apis.custom_objects,
+        # Patch VirtualServer
+        apply_and_assert_valid_vs(
+            kube_apis,
+            virtual_server_setup.namespace,
             virtual_server_setup.vs_name,
             src,
-            virtual_server_setup.namespace,
-        )
-        wait_before_test(1)
-        vs_info = read_custom_resource(
-            kube_apis.custom_objects, virtual_server_setup.namespace, "virtualservers", virtual_server_setup.vs_name
-        )
-        assert (
-            vs_info["status"]
-            and vs_info["status"]["reason"] == "AddedOrUpdated"
-            and vs_info["status"]["state"] == "Valid"
         )
 
         basic_jwt_token = jwt.encode(
@@ -698,21 +625,12 @@ class TestRateLimitingPolicies:
             kube_apis, test_namespace, rl_pol_premium_no_default_jwt_claim_sub
         )
 
-        print(f"Patch vs with policy: {src}")
-        patch_virtual_server_from_yaml(
-            kube_apis.custom_objects,
+        # Patch VirtualServer
+        apply_and_assert_valid_vs(
+            kube_apis,
+            virtual_server_setup.namespace,
             virtual_server_setup.vs_name,
             src,
-            virtual_server_setup.namespace,
-        )
-        wait_before_test(1)
-        vs_info = read_custom_resource(
-            kube_apis.custom_objects, virtual_server_setup.namespace, "virtualservers", virtual_server_setup.vs_name
-        )
-        assert (
-            vs_info["status"]
-            and vs_info["status"]["reason"] == "AddedOrUpdated"
-            and vs_info["status"]["state"] == "Valid"
         )
 
         basic_jwt_token = jwt.encode(
