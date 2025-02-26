@@ -217,6 +217,27 @@ def apply_and_assert_valid_vsr(kube_apis, namespace, name, vsr_yaml):
     )
 
 
+def apply_and_assert_warning_vsr(kube_apis, namespace, name, vsr_yaml):
+    patch_v_s_route_from_yaml(
+        kube_apis.custom_objects,
+        name,
+        vsr_yaml,
+        namespace,
+    )
+    wait_before_test(1)
+    vsr_info = read_custom_resource(
+        kube_apis.custom_objects,
+        namespace,
+        "virtualserverroutes",
+        name,
+    )
+    assert (
+        vsr_info["status"]
+        and vsr_info["status"]["reason"] == "AddedOrUpdatedWithWarning"
+        and vsr_info["status"]["state"] == "Warning"
+    )
+
+
 def apply_and_assert_valid_vs(kube_apis, namespace, name, vs_yaml):
     patch_virtual_server_from_yaml(
         kube_apis.custom_objects,
@@ -233,6 +254,27 @@ def apply_and_assert_valid_vs(kube_apis, namespace, name, vs_yaml):
     )
     assert (
         vs_info["status"] and vs_info["status"]["reason"] == "AddedOrUpdated" and vs_info["status"]["state"] == "Valid"
+    )
+
+
+def apply_and_assert_warning_vs(kube_apis, namespace, name, vs_yaml):
+    patch_virtual_server_from_yaml(
+        kube_apis.custom_objects,
+        name,
+        vs_yaml,
+        namespace,
+    )
+    wait_before_test(1)
+    vs_info = read_custom_resource(
+        kube_apis.custom_objects,
+        namespace,
+        "virtualservers",
+        name,
+    )
+    assert (
+        vs_info["status"]
+        and vs_info["status"]["reason"] == "AddedOrUpdatedWithWarning"
+        and vs_info["status"]["state"] == "Warning"
     )
 
 

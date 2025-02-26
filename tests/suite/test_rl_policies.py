@@ -4,9 +4,11 @@ import jwt
 import pytest
 import requests
 from settings import TEST_DATA
+from suite.utils.custom_assertions import assert_event
 from suite.utils.custom_resources_utils import read_custom_resource
 from suite.utils.policy_resources_utils import apply_and_assert_valid_policy, create_policy_from_yaml, delete_policy
 from suite.utils.resources_utils import (
+    get_events,
     get_pod_list,
     get_vs_nginx_template_conf,
     scale_deployment,
@@ -14,6 +16,7 @@ from suite.utils.resources_utils import (
 )
 from suite.utils.vs_vsr_resources_utils import (
     apply_and_assert_valid_vs,
+    apply_and_assert_warning_vs,
     create_virtual_server_from_yaml,
     delete_virtual_server,
     patch_virtual_server_from_yaml,
@@ -47,6 +50,9 @@ rl_pol_premium_no_default_jwt_claim_sub = (
 )
 rl_pol_basic_with_default_jwt_claim_sub = (
     f"{TEST_DATA}/rate-limit/policies/rate-limit-tiered-basic-with-default-jwt-claim-sub.yaml"
+)
+rl_pol_premium_with_default_jwt_claim_sub = (
+    f"{TEST_DATA}/rate-limit/policies/rate-limit-tiered-premium-with-default-jwt-claim-sub.yaml"
 )
 
 
@@ -672,6 +678,48 @@ class TestRateLimitingPolicies:
             virtual_server_setup.backend_2_url, 503, 0, headers={"host": virtual_server_setup.vs_host}
         )
         wait_before_test(1)
+
+        delete_policy(kube_apis.custom_objects, basic_pol_name, test_namespace)
+        delete_policy(kube_apis.custom_objects, premium_pol_name, test_namespace)
+        self.restore_default_vs(kube_apis, virtual_server_setup)
+
+    @pytest.mark.skip_for_nginx_oss
+    @pytest.mark.parametrize("src", [rl_vs_route_basic_premium_jwt_claim_sub])
+    def test_rl_duplicate_default_policy_tiered_basic_premium_with_default_jwt_claim_sub(
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        crd_ingress_controller,
+        virtual_server_setup,
+        test_namespace,
+        src,
+    ):
+        """
+        Test if when both a basic and premium rate-limiting policy are the default for the tier,
+        the VS goes into a Invalid state and emits a Warning Event.
+        Policies are applied at the VirtualServer Route level
+        """
+        basic_pol_name = apply_and_assert_valid_policy(
+            kube_apis, test_namespace, rl_pol_basic_with_default_jwt_claim_sub
+        )
+        premium_pol_name = apply_and_assert_valid_policy(
+            kube_apis, test_namespace, rl_pol_premium_with_default_jwt_claim_sub
+        )
+
+        # Patch VirtualServer
+        apply_and_assert_warning_vs(
+            kube_apis,
+            virtual_server_setup.namespace,
+            virtual_server_setup.vs_name,
+            src,
+        )
+
+        wait_before_test(60)
+        # Assert that the 'AddedOrUpdatedWithWarning' event is present
+        assert_event(
+            f"Tiered rate-limit Policies on [{virtual_server_setup.namespace}/{virtual_server_setup.vs_name}] contain conflicting default values",
+            get_events(kube_apis.v1, virtual_server_setup.namespace),
+        )
 
         delete_policy(kube_apis.custom_objects, basic_pol_name, test_namespace)
         delete_policy(kube_apis.custom_objects, premium_pol_name, test_namespace)
