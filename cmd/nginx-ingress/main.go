@@ -1143,7 +1143,7 @@ func createHeadlessService(l *slog.Logger, kubeClient *kubernetes.Clientset, con
 		Spec: api_v1.ServiceSpec{
 			ClusterIP: api_v1.ClusterIPNone,
 			Selector: map[string]string{
-				"app": controllerNamespace,
+				"app": "nginx-ingress",
 			},
 		},
 	}

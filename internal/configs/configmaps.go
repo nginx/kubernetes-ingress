@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
@@ -890,7 +891,7 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 	zoneSyncConfig := version1.ZoneSyncConfig{
 		Enable:            config.ZoneSync.Enable,
 		Port:              config.ZoneSync.Port,
-		Domain:            fmt.Sprintf("%s-headless.%s.svc.cluster.local", config.ZoneSync.Domain, config.ZoneSync.Domain),
+		Domain:            fmt.Sprintf("%s-hl.%s.svc.cluster.local", config.ZoneSync.Domain, os.Getenv("POD_NAMESPACE")),
 		ResolverAddresses: config.ZoneSync.ResolverAddresses,
 		ResolverIPV6:      config.ZoneSync.ResolverIPV6,
 		ResolverValid:     config.ZoneSync.ResolverValid,
