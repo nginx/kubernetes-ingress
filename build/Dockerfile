@@ -85,6 +85,10 @@ ADD --link --chown=101:0 --chmod=0755 build/scripts/agent.sh agent.sh
 ADD --link --chown=101:0 --chmod=0755 build/scripts/ubi-setup.sh ubi-setup.sh
 ADD --link --chown=101:0 --chmod=0755 build/scripts/ubi-clean.sh ubi-clean.sh
 
+# Startup is non-deterministic between NGINX Plus reporting usage and licence reporter initialising. This
+# is a workaround to attribute the installation to nic even if licence reporter isn't ready yet.
+# @See https://github.com/nginx/kubernetes-ingress/issues/7360
+ADD --link --chown=101:0 --chmod=0755 build/dependencies/tracking.info.default tracking.info
 
 ############################################# Patch Image #############################################
 FROM ${IMAGE_NAME} AS patched
@@ -113,10 +117,12 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 	--mount=type=bind,from=alpine-opentracing-lib,target=/tmp/ot/ \
 	--mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk/keys/nginx_signing.rsa.pub \
 	--mount=type=bind,from=nginx-files,src=user_agent,target=/tmp/user_agent \
+	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
 	export $(cat /tmp/user_agent) \
 	&& printf "%s\n" "https://${PACKAGE_REPO}/plus/${NGINX_PLUS_VERSION}/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
 	&& apk add --no-cache nginx-plus nginx-plus-module-njs nginx-plus-module-opentracing nginx-plus-module-fips-check libcap libcurl \
 	&& cp -av /tmp/ot/usr/local/lib/libjaegertracing*so* /tmp/ot/usr/local/lib/libzipkin*so* /tmp/ot/usr/local/lib/libdd*so* /tmp/ot/usr/local/lib/libyaml*so* /usr/local/lib/ \
+	&& mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
 	&& ldconfig /usr/local/lib/ \
 	&& sed -i -e '/nginx.com/d' /etc/apk/repositories
 
@@ -128,10 +134,12 @@ ARG NGINX_PLUS_VERSION
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
 
 RUN --mount=type=bind,from=alpine-fips-3.20,target=/tmp/fips/ \
+	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
 	mkdir -p /usr/ssl \
 	&& cp -av /tmp/fips/usr/lib/ossl-modules/fips.so /usr/lib/ossl-modules/fips.so \
 	&& cp -av /tmp/fips/usr/ssl/fipsmodule.cnf /usr/ssl/fipsmodule.cnf \
-	&& cp -av /tmp/fips/etc/ssl/openssl.cnf /etc/ssl/openssl.cnf
+	&& cp -av /tmp/fips/etc/ssl/openssl.cnf /etc/ssl/openssl.cnf \
+	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info
 
 
 ############################################# Base image for Alpine with NGINX Plus, App Protect WAF and FIPS #############################################
@@ -151,6 +159,7 @@ RUN --mount=type=bind,from=alpine-fips-3.17,target=/tmp/fips/ \
 	--mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk/keys/nginx_signing.rsa.pub \
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
 	--mount=type=bind,from=nginx-files,src=nap-waf.sh,target=/usr/local/bin/nap-waf.sh \
+	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
 	printf "%s\n" "https://${PACKAGE_REPO}/plus/${NGINX_PLUS_VERSION}/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
 	&& printf "%s\n" "https://${PACKAGE_REPO}/app-protect/${NGINX_PLUS_VERSION}/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
 	&& printf "%s\n" "https://pkgs.nginx.com/app-protect-security-updates/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
@@ -162,6 +171,8 @@ RUN --mount=type=bind,from=alpine-fips-3.17,target=/tmp/fips/ \
 	&& cp -av /tmp/fips/usr/ssl/fipsmodule.cnf /usr/ssl/fipsmodule.cnf \
 	&& cp -av /tmp/fips/etc/ssl/openssl.cnf /etc/ssl/openssl.cnf \
 	&& cp -av /tmp/ot/usr/local/lib/libjaegertracing*so* /tmp/ot/usr/local/lib/libzipkin*so* /tmp/ot/usr/local/lib/libdd*so* /tmp/ot/usr/local/lib/libyaml*so* /usr/local/lib/ \
+	&& mkdir -p /etc/nginx/reporting/ \
+	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
 	&& ldconfig /usr/local/lib/ \
 	&& apk add --no-cache app-protect app-protect-attack-signatures app-protect-threat-campaigns \
 	&& sed -i -e '/nginx.com/d' /etc/apk/repositories \
@@ -187,6 +198,7 @@ RUN --mount=type=bind,from=alpine-fips-3.17,target=/tmp/fips/ \
 	--mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk/keys/nginx_signing.rsa.pub \
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
 	--mount=type=bind,from=nginx-files,src=nap-waf.sh,target=/usr/local/bin/nap-waf.sh \
+	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
 	printf "%s\n" "https://${PACKAGE_REPO}/plus/${NGINX_PLUS_VERSION}/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
 	&& printf "%s\n" "https://${PACKAGE_REPO}/app-protect-x-plus/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
 	&& printf "%s\n" "https://${PACKAGE_REPO}/nginx-agent/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
@@ -197,6 +209,8 @@ RUN --mount=type=bind,from=alpine-fips-3.17,target=/tmp/fips/ \
 	&& cp -av /tmp/fips/usr/ssl/fipsmodule.cnf /usr/ssl/fipsmodule.cnf \
 	&& cp -av /tmp/fips/etc/ssl/openssl.cnf /etc/ssl/openssl.cnf \
 	&& cp -av /tmp/ot/usr/local/lib/libjaegertracing*so* /tmp/ot/usr/local/lib/libzipkin*so* /tmp/ot/usr/local/lib/libdd*so* /tmp/ot/usr/local/lib/libyaml*so* /usr/local/lib/ \
+	&& mkdir -p /etc/nginx/reporting/ \
+	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
 	&& ldconfig /usr/local/lib/ \
 	&& apk add --no-cache app-protect-module-plus~=33.5.210 \
 	&& sed -i -e '/nginx.com/d' /etc/apk/repositories \
@@ -220,6 +234,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=app-protect-security-updates.key,target=/tmp/app-protect-security-updates.key \
 	--mount=type=bind,from=nginx-files,src=90pkgs-nginx,target=/etc/apt/apt.conf.d/90pkgs-nginx \
 	--mount=type=bind,from=nginx-files,src=debian-plus-12.sources,target=/tmp/nginx-plus.sources \
+	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
 	apt-get update \
 	&& apt-get install --no-install-recommends --no-install-suggests -y gpg ca-certificates libcap2-bin libcurl4 \
 	&& groupadd --system --gid 101 nginx \
@@ -231,6 +246,8 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& apt-get install --no-install-recommends --no-install-suggests -y nginx-plus nginx-plus-module-njs nginx-plus-module-opentracing nginx-plus-module-fips-check \
 	&& apt-get purge --auto-remove -y gpg \
 	&& cp -av /tmp/ot/usr/local/lib/libjaegertracing*so* /tmp/ot/usr/local/lib/libzipkin*so* /tmp/ot/usr/local/lib/libdd*so* /tmp/ot/usr/local/lib/libyaml*so* /usr/local/lib/ \
+	&& mkdir -p /etc/nginx/reporting/ \
+	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
 	&& ldconfig \
 	&& rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/nginx-plus.sources
 
@@ -254,7 +271,9 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
 	--mount=type=bind,from=nginx-files,src=nap-waf.sh,target=/usr/local/bin/nap-waf.sh \
 	--mount=type=bind,from=nginx-files,src=nap-dos.sh,target=/usr/local/bin/nap-dos.sh \
-	if [ -z "${NAP_MODULES##*waf*}" ]; then \
+	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
+	mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
+	&& if [ -z "${NAP_MODULES##*waf*}" ]; then \
 	cp /tmp/app-protect.sources /etc/apt/sources.list.d/app-protect.sources; \
 	fi \
 	&& if [ -z "${NAP_MODULES##*dos*}" ]; then \
@@ -294,7 +313,9 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
 	--mount=type=bind,from=nginx-files,src=nap-waf.sh,target=/usr/local/bin/nap-waf.sh \
 	--mount=type=bind,from=nginx-files,src=debian-agent-12.sources,target=/etc/apt/sources.list.d/nginx-agent.sources \
-	if [ -z "${NAP_MODULES##*waf*}" ]; then \
+	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
+	mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
+	&& if [ -z "${NAP_MODULES##*waf*}" ]; then \
 	cp /tmp/app-protect.sources /etc/apt/sources.list.d/app-protect.sources; \
 	fi \
 	&& apt-get update \
@@ -363,7 +384,9 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=nginx-plus-9.repo,target=/etc/yum.repos.d/nginx-plus.repo \
 	--mount=type=bind,from=nginx-files,src=ubi-setup.sh,target=/usr/local/bin/ubi-setup.sh \
 	--mount=type=bind,from=nginx-files,src=ubi-clean.sh,target=/usr/local/bin/ubi-clean.sh \
-	ubi-setup.sh \
+	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
+	mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
+	&& ubi-setup.sh \
 	&& microdnf --nodocs install -y nginx-plus nginx-plus-module-njs nginx-plus-module-fips-check \
 	&& ubi-clean.sh
 
@@ -385,7 +408,9 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=nap-waf.sh,target=/usr/local/bin/nap-waf.sh \
 	--mount=type=bind,from=nginx-files,src=nap-dos.sh,target=/usr/local/bin/nap-dos.sh \
 	--mount=type=bind,from=nginx-files,src=ubi-clean.sh,target=/usr/local/bin/ubi-clean.sh \
-	source /tmp/rhel_license \
+	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
+	mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
+	&& source /tmp/rhel_license \
 	&& rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm \
 	&& microdnf --nodocs install -y ca-certificates shadow-utils subscription-manager \
 	&& if [ "${NGINX_AGENT}" = "true" ]; then microdnf --nodocs install -y nginx-agent; fi \
@@ -424,7 +449,9 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
 	--mount=type=bind,from=nginx-files,src=nap-waf.sh,target=/usr/local/bin/nap-waf.sh \
 	--mount=type=bind,from=nginx-files,src=ubi-clean.sh,target=/usr/local/bin/ubi-clean.sh \
-	source /tmp/rhel_license \
+	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
+	mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
+	&& source /tmp/rhel_license \
 	&& rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm \
 	&& microdnf --nodocs install -y ca-certificates shadow-utils subscription-manager \
 	&& if [ "${NGINX_AGENT}" = "true" ]; then microdnf --nodocs install -y nginx-agent; fi \
@@ -456,7 +483,9 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=app-protect-8.repo,target=/tmp/app-protect-8.repo \
 	--mount=type=bind,from=nginx-files,src=nap-waf.sh,target=/usr/local/bin/nap-waf.sh \
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
-	source /tmp/rhel_license \
+	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
+	mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
+	&& source /tmp/rhel_license \
 	&& if [ -z "${NAP_MODULES##*waf*}" ]; then \
 	cp /tmp/app-protect-8.repo /etc/yum.repos.d/app-protect-8.repo; \
 	fi \
@@ -500,7 +529,9 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=app-protect-v5-8.repo,target=/tmp/app-protect-8.repo \
 	--mount=type=bind,from=nginx-files,src=nap-waf.sh,target=/usr/local/bin/nap-waf.sh \
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
-	source /tmp/rhel_license \
+	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
+	mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
+	&& source /tmp/rhel_license \
 	&& if [ -z "${NAP_MODULES##*waf*}" ]; then \
 	cp /tmp/app-protect-8.repo /etc/yum.repos.d/app-protect-8.repo; \
 	fi \
