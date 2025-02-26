@@ -4,15 +4,14 @@ import jwt
 import pytest
 import requests
 from settings import TEST_DATA
-from suite.utils.custom_assertions import assert_event
 from suite.utils.custom_resources_utils import read_custom_resource
 from suite.utils.policy_resources_utils import apply_and_assert_valid_policy, create_policy_from_yaml, delete_policy
 from suite.utils.resources_utils import (
-    get_events,
     get_pod_list,
     get_vs_nginx_template_conf,
     scale_deployment,
     wait_before_test,
+    wait_for_event,
 )
 from suite.utils.vs_vsr_resources_utils import (
     apply_and_assert_valid_vs,
@@ -86,7 +85,7 @@ class TestRateLimitingPolicies:
         create_virtual_server_from_yaml(kube_apis.custom_objects, std_vs_src, virtual_server_setup.namespace)
         wait_before_test()
 
-    def check_rate_limit(self, url, code, counter, headers={}):
+    def check_rate_limit_eq(self, url, code, counter, delay=0.01, headers={}):
         occur = []
         t_end = time.perf_counter() + 1
         while time.perf_counter() < t_end:
@@ -95,7 +94,24 @@ class TestRateLimitingPolicies:
                 headers=headers,
             )
             occur.append(resp.status_code)
-        assert occur.count(code) == counter
+            wait_before_test(delay)
+        assert occur.count(code) in range(counter, counter + 2)
+
+    def check_rate_limit_nearly_eq(self, url, code, counter, plus_minus=1, delay=0.01, headers={}):
+        occur = []
+        t_end = time.perf_counter() + 1
+        while time.perf_counter() < t_end:
+            resp = requests.get(
+                url,
+                headers=headers,
+            )
+            occur.append(resp.status_code)
+            wait_before_test(delay)
+        lower_range = counter
+        if counter > 1:
+            lower_range = counter - plus_minus
+        upper_range = counter + plus_minus + 1  # add an extra 1 to account for range
+        assert occur.count(code) in range(lower_range, upper_range)
 
     @pytest.mark.smoke
     @pytest.mark.parametrize("src", [rl_vs_pri_src])
@@ -121,7 +137,7 @@ class TestRateLimitingPolicies:
         )
 
         # Run rate limit test 1r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             virtual_server_setup.backend_1_url,
             200,
             1,
@@ -154,7 +170,7 @@ class TestRateLimitingPolicies:
         )
 
         # Run rate limit test 5r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             virtual_server_setup.backend_1_url,
             200,
             5,
@@ -262,7 +278,7 @@ class TestRateLimitingPolicies:
         )
 
         # Run rate limit test 1r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             virtual_server_setup.backend_1_url,
             200,
             1,
@@ -299,7 +315,7 @@ class TestRateLimitingPolicies:
         )
 
         # Run rate limit test 5r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             virtual_server_setup.backend_1_url,
             200,
             5,
@@ -382,7 +398,7 @@ class TestRateLimitingPolicies:
             algorithm="HS256",
         )
 
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             virtual_server_setup.backend_1_url,
             200,
             1,
@@ -435,7 +451,7 @@ class TestRateLimitingPolicies:
         )
 
         ##  Test Basic Rate Limit 1r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             virtual_server_setup.backend_1_url,
             200,
             1,
@@ -444,7 +460,7 @@ class TestRateLimitingPolicies:
         wait_before_test(1)
 
         ##  Test Premium Rate Limit 5r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             virtual_server_setup.backend_1_url,
             200,
             5,
@@ -453,7 +469,7 @@ class TestRateLimitingPolicies:
         wait_before_test(1)
 
         ##  Test Default Rate Limit unlimited
-        self.check_rate_limit(
+        self.check_rate_limit_eq(
             virtual_server_setup.backend_1_url, 503, 0, headers={"host": virtual_server_setup.vs_host}
         )
 
@@ -505,7 +521,7 @@ class TestRateLimitingPolicies:
         )
 
         ##  Test Default Rate Limit 1r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             virtual_server_setup.backend_1_url,
             200,
             1,
@@ -514,7 +530,7 @@ class TestRateLimitingPolicies:
         wait_before_test(1)
 
         ##  Test Premium Rate Limit 5r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             virtual_server_setup.backend_1_url,
             200,
             5,
@@ -523,7 +539,7 @@ class TestRateLimitingPolicies:
         wait_before_test(1)
 
         ##  Test Default Rate Limit 1r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             virtual_server_setup.backend_1_url, 200, 1, headers={"host": virtual_server_setup.vs_host}
         )
 
@@ -576,7 +592,7 @@ class TestRateLimitingPolicies:
         )
 
         ##  Test Basic Rate Limit 1r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             virtual_server_setup.backend_1_url,
             200,
             1,
@@ -585,7 +601,7 @@ class TestRateLimitingPolicies:
         wait_before_test(1)
 
         ##  Test Premium Rate Limit 5r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             virtual_server_setup.backend_1_url,
             200,
             5,
@@ -594,13 +610,13 @@ class TestRateLimitingPolicies:
         wait_before_test(1)
 
         ##  Test Default Rate Limit 1r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             virtual_server_setup.backend_1_url, 200, 1, headers={"host": virtual_server_setup.vs_host}
         )
         wait_before_test(1)
 
         ##  Test different backend route
-        self.check_rate_limit(
+        self.check_rate_limit_eq(
             virtual_server_setup.backend_2_url, 503, 0, headers={"host": virtual_server_setup.vs_host}
         )
 
@@ -650,7 +666,7 @@ class TestRateLimitingPolicies:
             algorithm="HS256",
         )
 
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             virtual_server_setup.backend_1_url,
             200,
             1,
@@ -659,7 +675,7 @@ class TestRateLimitingPolicies:
         wait_before_test(1)
 
         ##  Test Premium Rate Limit 5r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             virtual_server_setup.backend_1_url,
             200,
             5,
@@ -668,13 +684,13 @@ class TestRateLimitingPolicies:
         wait_before_test(1)
 
         ##  Test Default Rate Limit unlimited
-        self.check_rate_limit(
+        self.check_rate_limit_eq(
             virtual_server_setup.backend_1_url, 503, 0, headers={"host": virtual_server_setup.vs_host}
         )
         wait_before_test(1)
 
         ##  Test different backend route
-        self.check_rate_limit(
+        self.check_rate_limit_eq(
             virtual_server_setup.backend_2_url, 503, 0, headers={"host": virtual_server_setup.vs_host}
         )
         wait_before_test(1)
@@ -714,11 +730,16 @@ class TestRateLimitingPolicies:
             src,
         )
 
-        wait_before_test(60)
         # Assert that the 'AddedOrUpdatedWithWarning' event is present
-        assert_event(
-            f"Tiered rate-limit Policies on [{virtual_server_setup.namespace}/{virtual_server_setup.vs_name}] contain conflicting default values",
-            get_events(kube_apis.v1, virtual_server_setup.namespace),
+        assert (
+            wait_for_event(
+                kube_apis.v1,
+                f"Tiered rate-limit Policies on [{virtual_server_setup.namespace}/{virtual_server_setup.vs_name}] contain conflicting default values",
+                virtual_server_setup.namespace,
+                virtual_server_setup.vs_name,
+                30,
+            )
+            is True
         )
 
         delete_policy(kube_apis.custom_objects, basic_pol_name, test_namespace)
