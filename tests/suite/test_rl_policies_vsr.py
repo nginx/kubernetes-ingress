@@ -371,6 +371,7 @@ class TestRateLimitingPoliciesVsr:
                 v_s_route_setup.vs_name,
                 ic_pods[i].metadata.name,
                 ingress_controller_prerequisites.namespace,
+                print_log=False,
             )
             assert "rate=10r/s" in conf
         # restore replicas, policy and vsr

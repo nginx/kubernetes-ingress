@@ -236,7 +236,7 @@ def apply_and_assert_valid_vs(kube_apis, namespace, name, vs_yaml):
     )
 
 
-def get_vs_nginx_template_conf(v1: CoreV1Api, vs_namespace, vs_name, pod_name, pod_namespace) -> str:
+def get_vs_nginx_template_conf(v1: CoreV1Api, vs_namespace, vs_name, pod_name, pod_namespace, print_log=True) -> str:
     """
     Get contents of /etc/nginx/conf.d/vs_{namespace}_{vs_name}.conf in the pod.
 
@@ -245,10 +245,11 @@ def get_vs_nginx_template_conf(v1: CoreV1Api, vs_namespace, vs_name, pod_name, p
     :param vs_name:
     :param pod_name:
     :param pod_namespace:
+    :param print_log:
     :return: str
     """
     file_path = f"/etc/nginx/conf.d/vs_{vs_namespace}_{vs_name}.conf"
-    return get_file_contents(v1, file_path, pod_name, pod_namespace)
+    return get_file_contents(v1, file_path, pod_name, pod_namespace, print_log)
 
 
 def create_v_s_route_from_yaml(custom_objects: CustomObjectsApi, yaml_manifest, namespace) -> str:
