@@ -80,7 +80,6 @@ rules:
   verbs:
   - get
   - list
-  - delete
 {{- if .Values.controller.reportIngressStatus.enable }}
 - apiGroups:
   - networking.k8s.io
