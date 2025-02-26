@@ -27,10 +27,19 @@ rl_vsr_invalid_src = f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-rout
 rl_vsr_override_src = f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-route-override-subroute.yaml"
 rl_vsr_override_vs_spec_src = f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-vsr-spec-override.yaml"
 rl_vsr_override_vs_route_src = f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-vsr-route-override.yaml"
+rl_vsr_override_tiered_basic_premium_vs_spec_src = (
+    f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-vsr-tiered-basic-premium-spec-override.yaml"
+)
+rl_vsr_override_tiered_basic_premium_vs_route_src = (
+    f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-vsr-tiered-basic-premium-route-override.yaml"
+)
 rl_vsr_jwt_claim_sub_src = f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-route-jwt-claim-sub.yaml"
 rl_pol_jwt_claim_sub_src = f"{TEST_DATA}/rate-limit/policies/rate-limit-jwt-claim-sub.yaml"
 rl_vsr_basic_premium_jwt_claim_sub = (
     f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-route-tiered-basic-premium-jwt-claim-sub.yaml"
+)
+rl_vsr_bronze_silver_gold_jwt_claim_sub = (
+    f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-route-tiered-bronze-silver-gold-jwt-claim-sub.yaml"
 )
 rl_vsr_multiple_tiered_jwt_claim_sub = (
     f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-route-mutliple-tiered-jwt-claim-sub.yaml"
@@ -712,3 +721,154 @@ class TestRateLimitingPoliciesVsr:
         delete_policy(kube_apis.custom_objects, silver_pol_name, v_s_route_setup.route_m.namespace)
         delete_policy(kube_apis.custom_objects, gold_pol_name, v_s_route_setup.route_m.namespace)
         self.restore_default_vsr(kube_apis, v_s_route_setup)
+
+    @pytest.mark.skip_for_nginx_oss
+    @pytest.mark.parametrize(
+        "src", [rl_vsr_override_tiered_basic_premium_vs_spec_src, rl_vsr_override_tiered_basic_premium_vs_route_src]
+    )
+    def test_override_multiple_tiered_jwt_claim_sub_vs_vsr(
+        self,
+        kube_apis,
+        crd_ingress_controller,
+        v_s_route_app_setup,
+        test_namespace,
+        v_s_route_setup,
+        src,
+    ):
+        """
+        Test if vsr subroute policy overrides vs spec policy
+        And vsr subroute policy overrides vs route policy
+        """
+
+        # policies for virtualserver/vsr
+        basic_pol_name = apply_and_assert_valid_policy(
+            kube_apis, v_s_route_setup.route_m.namespace, rl_pol_basic_with_default_jwt_claim_sub
+        )
+        premium_pol_name = apply_and_assert_valid_policy(
+            kube_apis, v_s_route_setup.route_m.namespace, rl_pol_premium_no_default_jwt_claim_sub
+        )
+        bronze_pol_name = apply_and_assert_valid_policy(
+            kube_apis, v_s_route_setup.route_m.namespace, rl_pol_bronze_with_default_jwt_claim_sub
+        )
+        silver_pol_name = apply_and_assert_valid_policy(
+            kube_apis, v_s_route_setup.route_m.namespace, rl_pol_silver_no_default_jwt_claim_sub
+        )
+        gold_pol_name = apply_and_assert_valid_policy(
+            kube_apis, v_s_route_setup.route_m.namespace, rl_pol_gold_no_default_jwt_claim_sub
+        )
+
+        # patch vsr with bronze/silver/gold tier policies
+        apply_and_assert_valid_vsr(
+            kube_apis,
+            v_s_route_setup.route_m.namespace,
+            v_s_route_setup.route_m.name,
+            rl_vsr_bronze_silver_gold_jwt_claim_sub,
+        )
+
+        # patch vs with basic/premium policies
+        apply_and_assert_valid_vs(
+            kube_apis,
+            v_s_route_setup.namespace,
+            v_s_route_setup.vs_name,
+            src,
+        )
+
+        basic_jwt_token = jwt.encode(
+            {"user_details": {"level": "Basic"}, "sub": "client1"},
+            "nginx",
+            algorithm="HS256",
+        )
+        premium_jwt_token = jwt.encode(
+            {"user_details": {"level": "Premium"}, "sub": "client2"},
+            "nginx",
+            algorithm="HS256",
+        )
+        bronze_jwt_token = jwt.encode(
+            {"user_details": {"tier": "Bronze"}, "sub": "client1"},
+            "nginx",
+            algorithm="HS256",
+        )
+        silver_jwt_token = jwt.encode(
+            {"user_details": {"tier": "Silver"}, "sub": "client2"},
+            "nginx",
+            algorithm="HS256",
+        )
+        gold_jwt_token = jwt.encode(
+            {"user_details": {"tier": "Gold"}, "sub": "client3"},
+            "nginx",
+            algorithm="HS256",
+        )
+
+        req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
+
+        ##  Test Basic Rate Limit 1r/s
+        self.check_rate_limit(
+            f"{req_url}{v_s_route_setup.route_m.paths[1]}",
+            200,
+            1,
+            headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {basic_jwt_token}"},
+        )
+        wait_before_test(1)
+
+        ##  Test Premium Rate Limit 5r/s
+        self.check_rate_limit(
+            f"{req_url}{v_s_route_setup.route_m.paths[1]}",
+            200,
+            5,
+            headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {premium_jwt_token}"},
+        )
+        wait_before_test(1)
+
+        ##  Test Basic Default Rate Limit 1r/s
+        self.check_rate_limit(
+            f"{req_url}{v_s_route_setup.route_m.paths[1]}",
+            200,
+            1,
+            headers={"host": v_s_route_setup.vs_host},
+        )
+        wait_before_test(1)
+
+        ##  Test Bronze Rate Limit 5r/s
+        self.check_rate_limit(
+            f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            200,
+            5,
+            headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {bronze_jwt_token}"},
+        )
+        wait_before_test(1)
+
+        ##  Test Silver Rate Limit 10r/s
+        self.check_rate_limit(
+            f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            200,
+            10,
+            headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {silver_jwt_token}"},
+        )
+        wait_before_test(1)
+
+        ##  Test Gold Rate Limit 15r/s
+        self.check_rate_limit(
+            f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            200,
+            15,
+            headers={"host": v_s_route_setup.vs_host, "Authorization": f"Bearer {gold_jwt_token}"},
+        )
+        wait_before_test(1)
+
+        ##  Test Bronze Default Rate Limit 5r/s
+        self.check_rate_limit(
+            f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            200,
+            5,
+            headers={"host": v_s_route_setup.vs_host},
+        )
+
+        delete_policy(kube_apis.custom_objects, basic_pol_name, v_s_route_setup.route_m.namespace)
+        delete_policy(kube_apis.custom_objects, premium_pol_name, v_s_route_setup.route_m.namespace)
+        delete_policy(kube_apis.custom_objects, bronze_pol_name, v_s_route_setup.route_m.namespace)
+        delete_policy(kube_apis.custom_objects, silver_pol_name, v_s_route_setup.route_m.namespace)
+        delete_policy(kube_apis.custom_objects, gold_pol_name, v_s_route_setup.route_m.namespace)
+        self.restore_default_vsr(kube_apis, v_s_route_setup)
+        delete_and_create_vs_from_yaml(
+            kube_apis.custom_objects, v_s_route_setup.vs_name, std_vs_src, v_s_route_setup.namespace
+        )
