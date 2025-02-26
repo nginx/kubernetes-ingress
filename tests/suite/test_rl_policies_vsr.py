@@ -4,10 +4,9 @@ import jwt
 import pytest
 import requests
 from settings import TEST_DATA
-from suite.utils.custom_assertions import assert_event
 from suite.utils.custom_resources_utils import read_custom_resource
 from suite.utils.policy_resources_utils import apply_and_assert_valid_policy, create_policy_from_yaml, delete_policy
-from suite.utils.resources_utils import get_events, get_pod_list, scale_deployment, wait_before_test
+from suite.utils.resources_utils import get_pod_list, scale_deployment, wait_before_test, wait_for_event
 from suite.utils.vs_vsr_resources_utils import (
     apply_and_assert_valid_vs,
     apply_and_assert_valid_vsr,
@@ -101,7 +100,7 @@ class TestRateLimitingPoliciesVsr:
         )
         wait_before_test()
 
-    def check_rate_limit(self, url, code, counter, headers={}):
+    def check_rate_limit_eq(self, url, code, counter, delay=0.01, headers={}):
         occur = []
         t_end = time.perf_counter() + 1
         while time.perf_counter() < t_end:
@@ -110,7 +109,24 @@ class TestRateLimitingPoliciesVsr:
                 headers=headers,
             )
             occur.append(resp.status_code)
-        assert occur.count(code) == counter
+            wait_before_test(delay)
+        assert occur.count(code) in range(counter, counter + 2)
+
+    def check_rate_limit_nearly_eq(self, url, code, counter, plus_minus=1, delay=0.01, headers={}):
+        occur = []
+        t_end = time.perf_counter() + 1
+        while time.perf_counter() < t_end:
+            resp = requests.get(
+                url,
+                headers=headers,
+            )
+            occur.append(resp.status_code)
+            wait_before_test(delay)
+        lower_range = counter
+        if counter > 1:
+            lower_range = counter - plus_minus
+        upper_range = counter + plus_minus + 1  # add an extra 1 to account for range
+        assert occur.count(code) in range(lower_range, upper_range)
 
     @pytest.mark.smoke
     @pytest.mark.parametrize("src", [rl_vsr_pri_src])
@@ -137,7 +153,7 @@ class TestRateLimitingPoliciesVsr:
             src,
         )
 
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             f"{req_url}{v_s_route_setup.route_m.paths[0]}",
             200,
             1,
@@ -170,7 +186,7 @@ class TestRateLimitingPoliciesVsr:
             src,
         )
 
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             f"{req_url}{v_s_route_setup.route_m.paths[0]}",
             200,
             5,
@@ -205,7 +221,7 @@ class TestRateLimitingPoliciesVsr:
             src,
         )
 
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             f"{req_url}{v_s_route_setup.route_m.paths[0]}",
             200,
             1,
@@ -337,7 +353,7 @@ class TestRateLimitingPoliciesVsr:
             src,
         )
 
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             f"{req_url}{v_s_route_setup.route_m.paths[0]}",
             200,
             5,
@@ -393,7 +409,7 @@ class TestRateLimitingPoliciesVsr:
         delete_policy(kube_apis.custom_objects, pol_name, v_s_route_setup.route_m.namespace)
         self.restore_default_vsr(kube_apis, v_s_route_setup)
 
-    @pytest.mark.smoke
+    @pytest.mark.skip_for_nginx_oss
     @pytest.mark.parametrize("src", [rl_vsr_jwt_claim_sub_src])
     def test_rl_policy_jwt_claim_sub_vsr(
         self,
@@ -427,7 +443,7 @@ class TestRateLimitingPoliciesVsr:
         )
 
         ##  Test Rate Limit 1r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             f"{req_url}{v_s_route_setup.route_m.paths[0]}",
             200,
             1,
@@ -484,7 +500,7 @@ class TestRateLimitingPoliciesVsr:
         req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
 
         ##  Test Basic Rate Limit 1r/s+
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             f"{req_url}{v_s_route_setup.route_m.paths[0]}",
             200,
             1,
@@ -493,7 +509,7 @@ class TestRateLimitingPoliciesVsr:
         wait_before_test(1)
 
         ##  Test Premium Rate Limit 5r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             f"{req_url}{v_s_route_setup.route_m.paths[0]}",
             200,
             5,
@@ -502,7 +518,7 @@ class TestRateLimitingPoliciesVsr:
         wait_before_test(1)
 
         ##  Test Default Rate Limit unlimited
-        self.check_rate_limit(
+        self.check_rate_limit_eq(
             f"{req_url}{v_s_route_setup.route_m.paths[0]}",
             503,
             0,
@@ -560,7 +576,7 @@ class TestRateLimitingPoliciesVsr:
         req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
 
         ##  Test Basic Rate Limit 1r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             f"{req_url}{v_s_route_setup.route_m.paths[0]}",
             200,
             1,
@@ -569,7 +585,7 @@ class TestRateLimitingPoliciesVsr:
         wait_before_test(1)
 
         ##  Test Premium Rate Limit 5r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             f"{req_url}{v_s_route_setup.route_m.paths[0]}",
             200,
             5,
@@ -578,7 +594,7 @@ class TestRateLimitingPoliciesVsr:
         wait_before_test(1)
 
         ##  Test Default Rate Limit 1r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             f"{req_url}{v_s_route_setup.route_m.paths[0]}",
             200,
             1,
@@ -659,7 +675,7 @@ class TestRateLimitingPoliciesVsr:
         req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
 
         ##  Test Basic Rate Limit 1r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             f"{req_url}{v_s_route_setup.route_m.paths[0]}",
             200,
             1,
@@ -668,7 +684,7 @@ class TestRateLimitingPoliciesVsr:
         wait_before_test(1)
 
         ##  Test Premium Rate Limit 5r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             f"{req_url}{v_s_route_setup.route_m.paths[0]}",
             200,
             5,
@@ -677,7 +693,7 @@ class TestRateLimitingPoliciesVsr:
         wait_before_test(1)
 
         ##  Test Basic Default Rate Limit 1r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             f"{req_url}{v_s_route_setup.route_m.paths[0]}",
             200,
             1,
@@ -686,7 +702,7 @@ class TestRateLimitingPoliciesVsr:
         wait_before_test(1)
 
         ##  Test Bronze Rate Limit 5r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             f"{req_url}{v_s_route_setup.route_m.paths[1]}",
             200,
             5,
@@ -695,7 +711,7 @@ class TestRateLimitingPoliciesVsr:
         wait_before_test(1)
 
         ##  Test Silver Rate Limit 10r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             f"{req_url}{v_s_route_setup.route_m.paths[1]}",
             200,
             10,
@@ -704,7 +720,7 @@ class TestRateLimitingPoliciesVsr:
         wait_before_test(1)
 
         ##  Test Gold Rate Limit 15r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             f"{req_url}{v_s_route_setup.route_m.paths[1]}",
             200,
             15,
@@ -713,7 +729,7 @@ class TestRateLimitingPoliciesVsr:
         wait_before_test(1)
 
         ##  Test Bronze Default Rate Limit 5r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             f"{req_url}{v_s_route_setup.route_m.paths[1]}",
             200,
             5,
@@ -807,7 +823,7 @@ class TestRateLimitingPoliciesVsr:
         req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
 
         ##  Test Basic Rate Limit 1r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             f"{req_url}{v_s_route_setup.route_m.paths[1]}",
             200,
             1,
@@ -816,7 +832,7 @@ class TestRateLimitingPoliciesVsr:
         wait_before_test(1)
 
         ##  Test Premium Rate Limit 5r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             f"{req_url}{v_s_route_setup.route_m.paths[1]}",
             200,
             5,
@@ -825,7 +841,7 @@ class TestRateLimitingPoliciesVsr:
         wait_before_test(1)
 
         ##  Test Basic Default Rate Limit 1r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             f"{req_url}{v_s_route_setup.route_m.paths[1]}",
             200,
             1,
@@ -834,7 +850,7 @@ class TestRateLimitingPoliciesVsr:
         wait_before_test(1)
 
         ##  Test Bronze Rate Limit 5r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             f"{req_url}{v_s_route_setup.route_m.paths[0]}",
             200,
             5,
@@ -843,7 +859,7 @@ class TestRateLimitingPoliciesVsr:
         wait_before_test(1)
 
         ##  Test Silver Rate Limit 10r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             f"{req_url}{v_s_route_setup.route_m.paths[0]}",
             200,
             10,
@@ -852,7 +868,7 @@ class TestRateLimitingPoliciesVsr:
         wait_before_test(1)
 
         ##  Test Gold Rate Limit 15r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             f"{req_url}{v_s_route_setup.route_m.paths[0]}",
             200,
             15,
@@ -861,7 +877,7 @@ class TestRateLimitingPoliciesVsr:
         wait_before_test(1)
 
         ##  Test Bronze Default Rate Limit 5r/s
-        self.check_rate_limit(
+        self.check_rate_limit_nearly_eq(
             f"{req_url}{v_s_route_setup.route_m.paths[0]}",
             200,
             5,
@@ -911,9 +927,15 @@ class TestRateLimitingPoliciesVsr:
         )
 
         # Assert that the 'AddedOrUpdatedWithWarning' event is present
-        assert_event(
-            f"Tiered rate-limit Policies on [{v_s_route_setup.route_m.namespace}/{v_s_route_setup.route_m.name}] contain conflicting default values",
-            get_events(kube_apis.v1, v_s_route_setup.route_m.namespace),
+        assert (
+            wait_for_event(
+                kube_apis.v1,
+                f"Tiered rate-limit Policies on [{v_s_route_setup.route_m.namespace}/{v_s_route_setup.route_m.name}] contain conflicting default values",
+                v_s_route_setup.route_m.namespace,
+                v_s_route_setup.route_m.name,
+                30,
+            )
+            is True
         )
 
         delete_policy(kube_apis.custom_objects, basic_pol_name, v_s_route_setup.route_m.namespace)

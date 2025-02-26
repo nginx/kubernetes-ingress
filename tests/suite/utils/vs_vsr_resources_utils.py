@@ -214,7 +214,7 @@ def apply_and_assert_valid_vsr(kube_apis, namespace, name, vsr_yaml):
         vsr_info["status"]
         and vsr_info["status"]["reason"] == "AddedOrUpdated"
         and vsr_info["status"]["state"] == "Valid"
-    )
+    ), vsr_info
 
 
 def apply_and_assert_warning_vsr(kube_apis, namespace, name, vsr_yaml):
@@ -235,7 +235,7 @@ def apply_and_assert_warning_vsr(kube_apis, namespace, name, vsr_yaml):
         vsr_info["status"]
         and vsr_info["status"]["reason"] == "AddedOrUpdatedWithWarning"
         and vsr_info["status"]["state"] == "Warning"
-    )
+    ), vsr_info
 
 
 def apply_and_assert_valid_vs(kube_apis, namespace, name, vs_yaml):
@@ -254,7 +254,7 @@ def apply_and_assert_valid_vs(kube_apis, namespace, name, vs_yaml):
     )
     assert (
         vs_info["status"] and vs_info["status"]["reason"] == "AddedOrUpdated" and vs_info["status"]["state"] == "Valid"
-    )
+    ), vs_info
 
 
 def apply_and_assert_warning_vs(kube_apis, namespace, name, vs_yaml):
@@ -275,7 +275,7 @@ def apply_and_assert_warning_vs(kube_apis, namespace, name, vs_yaml):
         vs_info["status"]
         and vs_info["status"]["reason"] == "AddedOrUpdatedWithWarning"
         and vs_info["status"]["state"] == "Warning"
-    )
+    ), vs_info
 
 
 def get_vs_nginx_template_conf(v1: CoreV1Api, vs_namespace, vs_name, pod_name, pod_namespace, print_log=True) -> str:
