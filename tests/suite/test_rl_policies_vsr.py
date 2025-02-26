@@ -10,9 +10,9 @@ from suite.utils.resources_utils import get_pod_list, scale_deployment, wait_bef
 from suite.utils.vs_vsr_resources_utils import (
     apply_and_assert_valid_vs,
     apply_and_assert_valid_vsr,
+    delete_and_create_vs_from_yaml,
     get_vs_nginx_template_conf,
     patch_v_s_route_from_yaml,
-    patch_virtual_server_from_yaml,
 )
 
 std_vs_src = f"{TEST_DATA}/virtual-server-route/standard/virtual-server.yaml"
@@ -332,7 +332,7 @@ class TestRateLimitingPoliciesVsr:
         delete_policy(kube_apis.custom_objects, pol_name_pri, v_s_route_setup.route_m.namespace)
         delete_policy(kube_apis.custom_objects, pol_name_sec, v_s_route_setup.route_m.namespace)
         self.restore_default_vsr(kube_apis, v_s_route_setup)
-        patch_virtual_server_from_yaml(
+        delete_and_create_vs_from_yaml(
             kube_apis.custom_objects, v_s_route_setup.vs_name, std_vs_src, v_s_route_setup.namespace
         )
 
