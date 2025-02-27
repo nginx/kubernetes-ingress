@@ -1744,21 +1744,20 @@ def get_events(v1: CoreV1Api, namespace) -> []:
     return res.items
 
 
-def wait_for_event(v1: CoreV1Api, text, namespace, name, retry=30, interval=1) -> None:
+def wait_for_event(v1: CoreV1Api, text, namespace, retry=30, interval=1) -> None:
     """
     Wait for an event on an object in a namespace.
 
     :param v1: CoreV1Api
     :param text: event text
     :param namespace: object namespace
-    :param name:
     :param retry:
     :param interval:
     :return:
     """
     c = 0
     while c < retry:
-        events = get_events_for_object(v1, namespace, name)
+        events = get_events(v1, namespace)
         for i in range(len(events) - 1, -1, -1):
             if text in events[i].message:
                 print(events[i])
