@@ -1759,6 +1759,7 @@ def wait_for_event(v1: CoreV1Api, text, namespace, retry=30, interval=1) -> None
     while c < retry:
         events = get_events(v1, namespace)
         for i in range(len(events) - 1, -1, -1):
+            print(i)
             if text in events[i].message:
                 return True
         wait_before_test(interval)
