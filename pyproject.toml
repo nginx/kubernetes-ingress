@@ -47,6 +47,7 @@ markers =[
     "multi_ns",
     "oidc",
     "policies",
+    "policies_paul",
     "policies_rl",
     "policies_jwt",
     "policies_ac",
