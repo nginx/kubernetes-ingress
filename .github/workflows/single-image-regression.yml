@@ -26,11 +26,6 @@ on:
         description: "pytest markers to apply"
         required: false
         default: "'not upgrade'"
-      test-image-tag:
-        type: string
-        description: "The tag for the test image"
-        required: false
-        default: latest
   workflow_call:
     inputs:
       image:
@@ -100,7 +95,7 @@ jobs:
       - name: Check if test image exists
         id: check-image
         run: |
-          docker manifest inspect "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') || 'latest' }}"
+          docker manifest inspect "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') }}"
         shell: bash
         continue-on-error: true
 
@@ -110,7 +105,7 @@ jobs:
           file: tests/Dockerfile
           context: "."
           cache-from: type=gha,scope=test-runner
-          tags: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') || 'latest' }}"
+          tags: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') }}"
           pull: true
           push: false
           load: true
@@ -127,5 +122,5 @@ jobs:
           k8s-version: ${{ inputs.k8s-version }}
           azure-ad-secret: ${{ secrets.AZURE_AD_AUTOMATION }}
           registry-token: ${{ steps.auth.outputs.access_token }}
-          test-image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:${{ inputs.test-image-tag }}"
+          test-image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') }}"
           plus-jwt: ${{ secrets.PLUS_JWT }}
