@@ -284,3 +284,22 @@ def delete_v_s_route(custom_objects: CustomObjectsApi, name, namespace) -> None:
         name,
     )
     print(f"VirtualServerRoute was removed with the name '{name}'")
+
+
+def delete_and_create_v_s_route_from_yaml(custom_objects: CustomObjectsApi, name, yaml_manifest, namespace) -> None:
+    """
+    Update a VirtualServerRoute based on yaml manifest
+
+    :param custom_objects: CustomObjectsApi
+    :param name:
+    :param yaml_manifest: an absolute path to file
+    :param namespace:
+    :return:
+    """
+    try:
+        delete_v_s_route(custom_objects, name, namespace)
+        create_v_s_route_from_yaml(custom_objects, yaml_manifest, namespace)
+        wait_before_test()
+    except ApiException:
+        logging.exception(f"Failed with exception while patching VirtualServerRoute: {name}")
+        raise
