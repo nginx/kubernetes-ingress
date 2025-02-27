@@ -895,6 +895,7 @@ class TestRateLimitingPoliciesVsr:
         )
 
     @pytest.mark.skip_for_nginx_oss
+    @pytest.mark.paul
     @pytest.mark.parametrize("src", [rl_vsr_basic_premium_jwt_claim_sub])
     def test_rl_duplicate_default_policy_tiered_basic_premium_with_default_jwt_claim_sub_vsr(
         self,
