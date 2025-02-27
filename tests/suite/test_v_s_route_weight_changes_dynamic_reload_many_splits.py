@@ -173,19 +173,19 @@ class TestVSRWeightChangesDynamicReloadManySplits:
         print("Step 3: Verify hitting the other backend.")
         ensure_response_from_backend(backends32_url, vsr_weight_changes_dynamic_reload_many_splits_setup.vs_host)
         wait_and_assert_status_code(200, backends32_url, vsr_weight_changes_dynamic_reload_many_splits_setup.vs_host)
-        found = False
-        interval = 1
-        for _ in range(60):
+        retry_count = 0
+        backend2_detected = False
+
+        while retry_count < 5 and not backend2_detected:
             resp = requests.get(
                 backends32_url,
                 headers={"host": vsr_weight_changes_dynamic_reload_many_splits_setup.vs_host},
             )
-            if resp.status_code == 200 and "backend2" in resp.text:
-                print(
-                    f"After {_} retries at {interval} second interval, got {resp.status_code} & found backend2 in response. Continue with tests..."
-                )
-                found = True
-                break
-            wait_before_test(interval)
-
-        assert found is True
+            if "backend2" in resp.text:
+                backend2_detected = True
+                print(f"Successfully detected backend2 after {retry_count + 1} attempts")
+            else:
+                retry_count += 1
+                print(f"Attempt {retry_count}/5: Expected backend2, got: {resp.text}")
+                wait_before_test()
+        assert backend2_detected, f"Failed to get response from backend2 after 5 attempts"
