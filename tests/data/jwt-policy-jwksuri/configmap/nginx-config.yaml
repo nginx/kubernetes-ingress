@@ -5,5 +5,3 @@ metadata:
   namespace: nginx-ingress
 data:
   resolver-addresses: "kube-dns.kube-system.svc.cluster.local"
-  http-snippets: |
-    subrequest_output_buffer_size 64k;

@@ -6,9 +6,9 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
-        exclude: '(\.md|\.snap|\.avdl)$'
+        exclude: '(\.md|\.jwt|\.snap|\.avdl)$'
       - id: end-of-file-fixer
-        exclude: site/layouts/shortcodes/nic-.*.html
+        exclude: (site/layouts/shortcodes/nic-.*.html|\.jwt)
       - id: check-yaml
         args: [--allow-multiple-documents]
         exclude: ^(charts/nginx-ingress/templates)
@@ -45,7 +45,7 @@ repos:
         pass_filenames: false
 
   - repo: https://github.com/golangci/golangci-lint
-    rev: v1.63.4
+    rev: v1.64.5
     hooks:
       - id: golangci-lint
         args: [--new-from-patch=/tmp/diff.patch]

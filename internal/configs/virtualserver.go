@@ -400,6 +400,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 ) (version2.VirtualServerConfig, Warnings) {
 	vsc.clearWarnings()
 
+	var maps []version2.Map
 	useCustomListeners := false
 
 	if vsEx.VirtualServer.Spec.Listener != nil {
@@ -417,6 +418,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	ownerDetails := policyOwnerDetails{
 		owner:          vsEx.VirtualServer,
+		ownerName:      vsEx.VirtualServer.Name,
 		ownerNamespace: vsEx.VirtualServer.Namespace,
 		vsNamespace:    vsEx.VirtualServer.Namespace,
 		vsName:         vsEx.VirtualServer.Name,
@@ -433,6 +435,14 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		apiMapName := policiesCfg.APIKey.Key.MapName
 		policiesCfg.APIKey.ClientMap = make(map[string][]apiKeyClient)
 		policiesCfg.APIKey.ClientMap[apiMapName] = policiesCfg.APIKey.Clients
+	}
+
+	if len(policiesCfg.RateLimit.GroupMaps) > 0 {
+		maps = append(maps, policiesCfg.RateLimit.GroupMaps...)
+	}
+
+	if len(policiesCfg.RateLimit.PolicyGroupMaps) > 0 {
+		maps = append(maps, policiesCfg.RateLimit.PolicyGroupMaps...)
 	}
 
 	dosCfg := generateDosCfg(dosResources[""])
@@ -456,7 +466,6 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	var authJWTClaimSets []version2.AuthJWTClaimSet
 
 	limitReqZones = append(limitReqZones, policiesCfg.RateLimit.Zones...)
-
 	authJWTClaimSets = append(authJWTClaimSets, policiesCfg.RateLimit.AuthJWTClaimSets...)
 
 	// generate upstreams for VirtualServer
@@ -525,7 +534,6 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	var internalRedirectLocations []version2.InternalRedirectLocation
 	var returnLocations []version2.ReturnLocation
 	var splitClients []version2.SplitClient
-	var maps []version2.Map
 	var errorPageLocations []version2.ErrorPageLocation
 	var keyValZones []version2.KeyValZone
 	var keyVals []version2.KeyVal
@@ -577,6 +585,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		vsLocSnippets := r.LocationSnippets
 		ownerDetails := policyOwnerDetails{
 			owner:          vsEx.VirtualServer,
+			ownerName:      vsEx.VirtualServer.Name,
 			ownerNamespace: vsEx.VirtualServer.Namespace,
 			vsNamespace:    vsEx.VirtualServer.Namespace,
 			vsName:         vsEx.VirtualServer.Name,
@@ -607,6 +616,15 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				policiesCfg.APIKey.ClientMap[apiMapName] = routePoliciesCfg.APIKey.Clients
 			}
 		}
+
+		if len(routePoliciesCfg.RateLimit.GroupMaps) > 0 {
+			maps = append(maps, routePoliciesCfg.RateLimit.GroupMaps...)
+		}
+
+		if len(routePoliciesCfg.RateLimit.PolicyGroupMaps) > 0 {
+			maps = append(maps, routePoliciesCfg.RateLimit.PolicyGroupMaps...)
+		}
+
 		limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
 
 		authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.RateLimit.AuthJWTClaimSets...)
@@ -707,6 +725,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				// use the VirtualServer route policies if the route does not define any
 				ownerDetails = policyOwnerDetails{
 					owner:          vsEx.VirtualServer,
+					ownerName:      vsEx.VirtualServer.Name,
 					ownerNamespace: vsEx.VirtualServer.Namespace,
 					vsNamespace:    vsEx.VirtualServer.Namespace,
 					vsName:         vsEx.VirtualServer.Name,
@@ -716,6 +735,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			} else {
 				ownerDetails = policyOwnerDetails{
 					owner:          vsr,
+					ownerName:      vsr.Name,
 					ownerNamespace: vsr.Namespace,
 					vsNamespace:    vsEx.VirtualServer.Namespace,
 					vsName:         vsEx.VirtualServer.Name,
@@ -748,6 +768,14 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				if _, exists := policiesCfg.APIKey.ClientMap[apiMapName]; !exists {
 					policiesCfg.APIKey.ClientMap[apiMapName] = routePoliciesCfg.APIKey.Clients
 				}
+			}
+
+			if len(routePoliciesCfg.RateLimit.GroupMaps) > 0 {
+				maps = append(maps, routePoliciesCfg.RateLimit.GroupMaps...)
+			}
+
+			if len(routePoliciesCfg.RateLimit.PolicyGroupMaps) > 0 {
+				maps = append(maps, routePoliciesCfg.RateLimit.PolicyGroupMaps...)
 			}
 
 			limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
@@ -837,7 +865,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	vsCfg := version2.VirtualServerConfig{
 		Upstreams:        upstreams,
 		SplitClients:     splitClients,
-		Maps:             maps,
+		Maps:             removeDuplicateMaps(maps),
 		StatusMatches:    statusMatches,
 		LimitReqZones:    removeDuplicateLimitReqZones(limitReqZones),
 		AuthJWTClaimSets: removeDuplicateAuthJWTClaimSets(authJWTClaimSets),
@@ -903,6 +931,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 type rateLimit struct {
 	Reqs             []version2.LimitReq
 	Zones            []version2.LimitReqZone
+	GroupMaps        []version2.Map
+	PolicyGroupMaps  []version2.Map
 	Options          version2.LimitReqOptions
 	AuthJWTClaimSets []version2.AuthJWTClaimSet
 }
@@ -971,6 +1001,7 @@ func newPoliciesConfig(bv bundleValidator) *policiesCfg {
 
 type policyOwnerDetails struct {
 	owner          runtime.Object
+	ownerName      string
 	ownerNamespace string
 	vsNamespace    string
 	vsName         string
@@ -1012,17 +1043,22 @@ func (p *policiesCfg) addRateLimitConfig(
 	polKey string,
 	polNamespace string,
 	polName string,
-	vsNamespace string,
-	vsName string,
+	ownerDetails policyOwnerDetails,
 	podReplicas int,
 ) *validationResults {
 	res := newValidationResults()
-	rlZoneName := fmt.Sprintf("pol_rl_%v_%v_%v_%v", polNamespace, polName, vsNamespace, vsName)
-	p.RateLimit.Reqs = append(p.RateLimit.Reqs, generateLimitReq(rlZoneName, rateLimit))
-	p.RateLimit.Zones = append(p.RateLimit.Zones, generateLimitReqZone(rlZoneName, rateLimit, podReplicas))
+
+	rlZoneName := fmt.Sprintf("pol_rl_%v_%v_%v_%v", polNamespace, polName, ownerDetails.vsNamespace, ownerDetails.vsName)
 	if rateLimit.Condition != nil && rateLimit.Condition.JWT.Claim != "" && rateLimit.Condition.JWT.Match != "" {
-		p.RateLimit.AuthJWTClaimSets = append(p.RateLimit.AuthJWTClaimSets, generateAuthJwtClaimSet(*rateLimit.Condition.JWT, vsNamespace, vsName))
+		lrz := generateGroupedLimitReqZone(rlZoneName, rateLimit, podReplicas, ownerDetails)
+		p.RateLimit.PolicyGroupMaps = append(p.RateLimit.PolicyGroupMaps, *generateLRZPolicyGroupMap(lrz))
+		p.RateLimit.AuthJWTClaimSets = append(p.RateLimit.AuthJWTClaimSets, generateAuthJwtClaimSet(*rateLimit.Condition.JWT, ownerDetails))
+		p.RateLimit.Zones = append(p.RateLimit.Zones, lrz)
+	} else {
+		p.RateLimit.Zones = append(p.RateLimit.Zones, generateLimitReqZone(rlZoneName, rateLimit, podReplicas))
 	}
+
+	p.RateLimit.Reqs = append(p.RateLimit.Reqs, generateLimitReq(rlZoneName, rateLimit))
 	if len(p.RateLimit.Reqs) == 1 {
 		p.RateLimit.Options = generateLimitReqOptions(rateLimit)
 	} else {
@@ -1467,6 +1503,57 @@ func generateAPIKeyClientMap(mapName string, apiKeyClients []apiKeyClient) *vers
 	}
 }
 
+func generateLRZGroupMaps(rlzs []version2.LimitReqZone) map[string]*version2.Map {
+	m := make(map[string]*version2.Map)
+
+	for _, lrz := range rlzs {
+		if lrz.GroupVariable != "" {
+			s := &version2.Map{
+				Source:   lrz.GroupSource,
+				Variable: lrz.GroupVariable,
+				Parameters: []version2.Parameter{
+					{
+						Value:  lrz.GroupValue,
+						Result: lrz.PolicyValue,
+					},
+				},
+			}
+			if lrz.GroupDefault {
+				s.Parameters = append(s.Parameters, version2.Parameter{
+					Value:  "default",
+					Result: lrz.PolicyValue,
+				})
+			}
+			if _, ok := m[lrz.GroupVariable]; ok {
+				s.Parameters = append(s.Parameters, m[lrz.GroupVariable].Parameters...)
+			}
+			m[lrz.GroupVariable] = s
+		}
+	}
+
+	return m
+}
+
+func generateLRZPolicyGroupMap(lrz version2.LimitReqZone) *version2.Map {
+	defaultParam := version2.Parameter{
+		Value:  "default",
+		Result: "''",
+	}
+
+	params := []version2.Parameter{defaultParam}
+	params = append(params, version2.Parameter{
+		Value: lrz.PolicyValue,
+		// Result needs prefixing with a value here, otherwise the zone key may end up being an empty value
+		//   and the default rate limit would not be applied
+		Result: fmt.Sprintf("Val%s", lrz.PolicyResult),
+	})
+	return &version2.Map{
+		Source:     lrz.GroupVariable,
+		Variable:   fmt.Sprintf("$%s", rfc1123ToSnake(lrz.ZoneName)),
+		Parameters: params,
+	}
+}
+
 func (p *policiesCfg) addWAFConfig(
 	ctx context.Context,
 	waf *conf_v1.WAF,
@@ -1578,8 +1665,7 @@ func (vsc *virtualServerConfigurator) generatePolicies(
 					key,
 					polNamespace,
 					p.Name,
-					ownerDetails.vsNamespace,
-					ownerDetails.vsName,
+					ownerDetails,
 					vsc.IngressControllerReplicas,
 				)
 			case pol.Spec.JWTAuth != nil:
@@ -1621,6 +1707,18 @@ func (vsc *virtualServerConfigurator) generatePolicies(
 		}
 	}
 
+	if len(config.RateLimit.PolicyGroupMaps) > 0 {
+		for _, v := range generateLRZGroupMaps(config.RateLimit.Zones) {
+			if hasDuplicateMapDefaults(v) {
+				vsc.addWarningf(ownerDetails.owner, "Tiered rate-limit Policies on [%v/%v] contain conflicting default values", ownerDetails.ownerNamespace, ownerDetails.ownerName)
+				return policiesCfg{
+					ErrorReturn: &version2.Return{Code: 500},
+				}
+			}
+			config.RateLimit.GroupMaps = append(config.RateLimit.GroupMaps, *v)
+		}
+	}
+
 	return *config
 }
 
@@ -1657,6 +1755,47 @@ func generateLimitReqZone(zoneName string, rateLimitPol *conf_v1.RateLimit, podR
 	}
 }
 
+func generateGroupedLimitReqZone(zoneName string,
+	rateLimitPol *conf_v1.RateLimit,
+	podReplicas int,
+	ownerDetails policyOwnerDetails,
+) version2.LimitReqZone {
+	rate := rateLimitPol.Rate
+	if rateLimitPol.Scale {
+		rate = scaleRatelimit(rateLimitPol.Rate, podReplicas)
+	}
+	lrz := version2.LimitReqZone{
+		ZoneName: zoneName,
+		Key:      rateLimitPol.Key,
+		ZoneSize: rateLimitPol.ZoneSize,
+		Rate:     rate,
+	}
+	if rateLimitPol.Condition != nil && rateLimitPol.Condition.JWT != nil {
+		lrz.GroupValue = rateLimitPol.Condition.JWT.Match
+		lrz.PolicyValue = fmt.Sprintf("rl_%s_%s_match_%s",
+			ownerDetails.vsNamespace,
+			ownerDetails.vsName,
+			strings.ToLower(rateLimitPol.Condition.JWT.Match),
+		)
+
+		lrz.GroupVariable = fmt.Sprintf("$rl_%s_%s_group_%s",
+			ownerDetails.vsNamespace,
+			ownerDetails.vsName,
+			strings.ToLower(
+				strings.Join(
+					strings.Split(rateLimitPol.Condition.JWT.Claim, "."), "_",
+				),
+			),
+		)
+		lrz.Key = fmt.Sprintf("$%s", strings.Replace(zoneName, "-", "_", -1))
+		lrz.PolicyResult = rateLimitPol.Key
+		lrz.GroupDefault = rateLimitPol.Condition.Default
+		lrz.GroupSource = generateAuthJwtClaimSetVariable(rateLimitPol.Condition.JWT.Claim, ownerDetails.vsNamespace, ownerDetails.vsName)
+	}
+
+	return lrz
+}
+
 func generateLimitReqOptions(rateLimitPol *conf_v1.RateLimit) version2.LimitReqOptions {
 	return version2.LimitReqOptions{
 		DryRun:     generateBool(rateLimitPol.DryRun, false),
@@ -1679,6 +1818,24 @@ func removeDuplicateLimitReqZones(rlz []version2.LimitReqZone) []version2.LimitR
 	return result
 }
 
+func removeDuplicateMaps(maps []version2.Map) []version2.Map {
+	if len(maps) == 0 {
+		return nil
+	}
+
+	encountered := make(map[string]struct{})
+	result := make([]version2.Map, 0)
+
+	for _, v := range maps {
+		if _, ok := encountered[fmt.Sprintf("%v%v", v.Source, v.Variable)]; !ok {
+			encountered[fmt.Sprintf("%v%v", v.Source, v.Variable)] = struct{}{}
+			result = append(result, v)
+		}
+	}
+
+	return result
+}
+
 func removeDuplicateAuthJWTClaimSets(ajcs []version2.AuthJWTClaimSet) []version2.AuthJWTClaimSet {
 	encountered := make(map[string]bool)
 	var result []version2.AuthJWTClaimSet
@@ -1693,9 +1850,9 @@ func removeDuplicateAuthJWTClaimSets(ajcs []version2.AuthJWTClaimSet) []version2
 	return result
 }
 
-func generateAuthJwtClaimSet(jwtCondition conf_v1.JWTCondition, vsNamespace string, vsName string) version2.AuthJWTClaimSet {
+func generateAuthJwtClaimSet(jwtCondition conf_v1.JWTCondition, owner policyOwnerDetails) version2.AuthJWTClaimSet {
 	return version2.AuthJWTClaimSet{
-		Variable: generateAuthJwtClaimSetVariable(jwtCondition.Claim, vsNamespace, vsName),
+		Variable: generateAuthJwtClaimSetVariable(jwtCondition.Claim, owner.vsNamespace, owner.vsName),
 		Claim:    generateAuthJwtClaimSetClaim(jwtCondition.Claim),
 	}
 }
@@ -1706,6 +1863,18 @@ func generateAuthJwtClaimSetVariable(claim string, vsNamespace string, vsName st
 
 func generateAuthJwtClaimSetClaim(claim string) string {
 	return strings.Join(strings.Split(claim, "."), " ")
+}
+
+func hasDuplicateMapDefaults(m *version2.Map) bool {
+	count := 0
+
+	for _, p := range m.Parameters {
+		if p.Value == "default" {
+			count++
+		}
+	}
+
+	return count > 1
 }
 
 func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {

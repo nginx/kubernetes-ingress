@@ -30,7 +30,7 @@ kubectl apply -f webapp.yaml
 ## Step 2 - Deploy the Rate Limit Policy
 
 In this step, we create a policy with the name `rate-limit-jwt` that allows only 1 request per second coming from a
-single IP address.
+request containing a JWT claim `sub`.
 
 Create the policy:
 

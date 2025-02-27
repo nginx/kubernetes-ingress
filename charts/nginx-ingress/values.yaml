@@ -478,6 +478,9 @@ controller:
       ## The HTTP port on the POD where the Ingress Controller service is running.
       targetPort: 80
 
+      ## The name of the HTTP port.
+      name: "http"
+
     httpsPort:
       ## Enables the HTTPS port for the Ingress Controller service.
       enable: true
@@ -490,6 +493,9 @@ controller:
 
       ## The HTTPS port on the POD where the Ingress Controller service is running.
       targetPort: 443
+
+      ## The name of the HTTPS port.
+      name: "https"
 
     ## A list of custom ports to expose through the Ingress Controller service. Follows the conventional Kubernetes yaml syntax for service ports.
     customPorts: []
