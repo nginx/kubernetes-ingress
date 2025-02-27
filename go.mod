@@ -87,7 +87,7 @@ require (
 	github.com/gkampitakis/go-diff v1.3.2 // indirect
 	github.com/go-asn1-ber/asn1-ber v1.5.6 // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
-	github.com/go-jose/go-jose/v4 v4.0.4 // indirect
+	github.com/go-jose/go-jose/v4 v4.0.5 // indirect
 	github.com/go-ldap/ldap/v3 v3.4.8 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
