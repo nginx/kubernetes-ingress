@@ -736,7 +736,6 @@ class TestRateLimitingPolicies:
                 kube_apis.v1,
                 f"Tiered rate-limit Policies on [{virtual_server_setup.namespace}/{virtual_server_setup.vs_name}] contain conflicting default values",
                 virtual_server_setup.namespace,
-                virtual_server_setup.vs_name,
                 30,
             )
             is True
