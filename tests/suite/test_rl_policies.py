@@ -57,6 +57,7 @@ rl_pol_premium_with_default_jwt_claim_sub = (
 
 @pytest.mark.policies
 @pytest.mark.policies_rl
+@pytest.mark.policies_rl_vs
 @pytest.mark.parametrize(
     "crd_ingress_controller, virtual_server_setup",
     [

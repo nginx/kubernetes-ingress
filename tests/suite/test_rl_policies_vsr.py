@@ -70,6 +70,7 @@ rl_pol_gold_no_default_jwt_claim_sub = (
 
 @pytest.mark.policies
 @pytest.mark.policies_rl
+@pytest.mark.policies_rl_vsr
 @pytest.mark.parametrize(
     "crd_ingress_controller, v_s_route_setup",
     [
