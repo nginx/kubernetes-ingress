@@ -132,6 +132,7 @@ The feature is implemented using the NGINX [ngx_http_limit_req_module](https://n
 |``logLevel`` | Sets the desired logging level for cases when the server refuses to process requests due to rate exceeding, or delays request processing. Allowed values are ``info``, ``notice``, ``warn`` or ``error``. Default is ``error``. | ``string`` | No |
 |``rejectCode`` | Sets the status code to return in response to rejected requests. Must fall into the range ``400..599``. Default is ``503``. | ``int`` | No |
 |``scale`` | Enables a constant rate-limit by dividing the configured rate by the number of nginx-ingress pods currently serving traffic. This adjustment ensures that the rate-limit remains consistent, even as the number of nginx-pods fluctuates due to autoscaling. **This will not work properly if requests from a client are not evenly distributed across all ingress pods** (Such as with sticky sessions, long lived TCP Connections with many requests, and so forth). In such cases using [zone-sync]({{< ref "/configuration/global-configuration/configmap-resource.md#zone-sync" >}}) instead would give better results. | ``bool`` | No |
+|``condition`` | Add a condition to a rate-limit policy | [ratelimit.condition](#ratelimitcondition) | No |
 {{% /table %}}
 
 {{< note >}}
@@ -152,6 +153,57 @@ policies:
 
 When you reference more than one rate limit policy, NGINX Ingress Controller will configure NGINX to use all referenced rate limits. When you define multiple policies, each additional policy inherits the `dryRun`, `logLevel`, and `rejectCode` parameters from the first policy referenced (`rate-limit-policy-one`, in the example above).
 
+### RateLimit.Condition
+
+RateLimit.Condition defines a condition for a rate limit policy. For example:
+
+```yaml
+condition:
+  jwt:
+    claim: user_details.level
+    match: premium
+  default: true
+```
+
+{{% table %}}
+|Field | Description | Type | Required |
+| ---| ---| ---| --- |
+|``jwt`` | JWT defines a condition for a rate limit | [ratelimit.condition.jwt](#ratelimitconditionjwt) | No |
+|``default`` | sets the policy to be default in a group. | ``bool`` | No |
+{{% /table %}}
+
+### RateLimit.Condition.JWT
+{{< note >}}
+
+This feature is only available with NGINX Plus.
+
+{{< /note >}}
+
+RateLimit.Condition.JWT defines a condition for a rate limit by JWT claim. For example, here we define a condition for a rate limit policy that only applies to requests with a JWT claim `user_details.level` with a value of `premium`:
+
+```yaml
+jwt:
+  claim: user_details.level
+  match: premium
+```
+
+The rate limit policy will only apply to requests that contain a JWT with the specified claim and value. For example, the following JWT payload will match the JWT condition:
+
+```json
+{
+  "user_details": {
+    "level": "premium"
+  }, 
+  "sub": "client1"
+}
+```
+
+{{% table %}}
+|Field | Description | Type | Required |
+| ---| ---| ---| --- |
+|``claim`` | Claim is the JWT claim to be rate limit by. Nested claims should be separated by "." | ``string`` | Yes |
+|``match`` | the value of the claim to match against. | ``string`` | Yes |
+{{% /table %}}
 
 ### APIKey
 
