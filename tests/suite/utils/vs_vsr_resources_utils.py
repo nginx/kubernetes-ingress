@@ -197,7 +197,7 @@ def patch_v_s_route_from_yaml(custom_objects: CustomObjectsApi, name, yaml_manif
 
 
 def apply_and_assert_valid_vsr(kube_apis, namespace, name, vsr_yaml):
-    patch_v_s_route_from_yaml(
+    delete_and_create_v_s_route_from_yaml(
         kube_apis.custom_objects,
         name,
         vsr_yaml,
@@ -218,7 +218,7 @@ def apply_and_assert_valid_vsr(kube_apis, namespace, name, vsr_yaml):
 
 
 def apply_and_assert_warning_vsr(kube_apis, namespace, name, vsr_yaml):
-    patch_v_s_route_from_yaml(
+    delete_and_create_v_s_route_from_yaml(
         kube_apis.custom_objects,
         name,
         vsr_yaml,
