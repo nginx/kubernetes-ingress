@@ -11,9 +11,9 @@ from suite.utils.vs_vsr_resources_utils import (
     apply_and_assert_valid_vs,
     apply_and_assert_valid_vsr,
     apply_and_assert_warning_vsr,
+    delete_and_create_v_s_route_from_yaml,
     delete_and_create_vs_from_yaml,
     get_vs_nginx_template_conf,
-    delete_and_create_v_s_route_from_yaml,
 )
 
 std_vs_src = f"{TEST_DATA}/virtual-server-route/standard/virtual-server.yaml"
