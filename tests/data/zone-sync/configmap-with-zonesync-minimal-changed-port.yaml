@@ -5,5 +5,4 @@ metadata:
   namespace: nginx-ingress
 data:
   zone-sync: "true"
-  resolver-addresses: kube-dns.kube-system.svc.cluster.local
-  resolver-valid: 5s
+  zone-sync-port: "34100"
