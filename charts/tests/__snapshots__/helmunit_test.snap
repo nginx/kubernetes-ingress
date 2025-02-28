@@ -144,7 +144,6 @@ rules:
   verbs:
   - get
   - list
-  - delete
 - apiGroups:
   - networking.k8s.io
   resources:
@@ -617,7 +616,6 @@ rules:
   verbs:
   - get
   - list
-  - delete
 - apiGroups:
   - networking.k8s.io
   resources:
@@ -1085,7 +1083,6 @@ rules:
   verbs:
   - get
   - list
-  - delete
 - apiGroups:
   - networking.k8s.io
   resources:
@@ -1584,7 +1581,6 @@ rules:
   verbs:
   - get
   - list
-  - delete
 - apiGroups:
   - networking.k8s.io
   resources:
@@ -2001,7 +1997,6 @@ rules:
   verbs:
   - get
   - list
-  - delete
 - apiGroups:
   - networking.k8s.io
   resources:
@@ -2445,7 +2440,6 @@ rules:
   verbs:
   - get
   - list
-  - delete
 - apiGroups:
   - networking.k8s.io
   resources:
@@ -2889,7 +2883,6 @@ rules:
   verbs:
   - get
   - list
-  - delete
 - apiGroups:
   - networking.k8s.io
   resources:
@@ -3355,7 +3348,6 @@ rules:
   verbs:
   - get
   - list
-  - delete
 - apiGroups:
   - networking.k8s.io
   resources:
@@ -3801,7 +3793,6 @@ rules:
   verbs:
   - get
   - list
-  - delete
 - apiGroups:
   - networking.k8s.io
   resources:
@@ -4261,7 +4252,6 @@ rules:
   verbs:
   - get
   - list
-  - delete
 - apiGroups:
   - networking.k8s.io
   resources:
@@ -4719,7 +4709,6 @@ rules:
   verbs:
   - get
   - list
-  - delete
 - apiGroups:
   - networking.k8s.io
   resources:
