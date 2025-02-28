@@ -129,7 +129,7 @@ jobs:
         run: |
           make ${{ inputs.target }}
         env:
-          REGISTRY: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr
+          REGISTRY: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev
           PREFIX: ${{ inputs.prefix }}
           TAG: ${{ inputs.tag }}
           PLUS_REPO: ${{ inputs.plus_repo }}
@@ -139,6 +139,6 @@ jobs:
         run:
           docker push ${REGISTRY}/${PREFIX}:${TAG}
         env:
-          REGISTRY: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr
+          REGISTRY: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev
           PREFIX: ${{ inputs.prefix }}
           TAG: ${{ inputs.tag }}
