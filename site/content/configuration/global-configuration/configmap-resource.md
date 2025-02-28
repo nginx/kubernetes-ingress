@@ -182,6 +182,8 @@ For more information, view the [VirtualServer and VirtualServerRoute resources](
 
 ### Zone Sync
 
+**Note**: If you previously installed OIDC or used `zone_sync` in the stream-snippets in [v4.0.1](https://github.com/nginx/kubernetes-ingress/tree/v4.0.1) or earlier, and you plan to enable the `zone-sync` ConfigMap key, please remove `zone_sync` from the old [stream-snippets](https://github.com/nginx/kubernetes-ingress/blob/v4.0.1/examples/custom-resources/oidc/nginx-config.yaml#L7) and any [associated headless service](https://github.com/nginx/kubernetes-ingress/blob/v4.0.1/examples/custom-resources/oidc/nginx-ingress-headless.yaml) deployed for OIDC. Otherwise, NGINX Plus will encounter errors.
+
 {{<bootstrap-table "table table-striped table-bordered table-responsive">}}
 |ConfigMap Key | Description | Default | Example |
 | ---| ---| ---| --- |
