@@ -1,10 +1,10 @@
 package appprotectdos
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/goccy/go-yaml/internal/errors"
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotectcommon"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
