@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/goccy/go-yaml/internal/errors"
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotectcommon"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
@@ -198,7 +199,7 @@ func (ci *Configuration) getPolicy(key string) (*unstructured.Unstructured, erro
 		return nil, fmt.Errorf("DosPolicy %s not found", key)
 	}
 	if !obj.IsValid {
-		return nil, fmt.Errorf(obj.ErrorMsg)
+		return nil, errors.New(obj.ErrorMsg)
 	}
 	return obj.Obj, nil
 }
@@ -209,7 +210,7 @@ func (ci *Configuration) getLogConf(key string) (*unstructured.Unstructured, err
 		return nil, fmt.Errorf("DosLogConf %s not found", key)
 	}
 	if !obj.IsValid {
-		return nil, fmt.Errorf(obj.ErrorMsg)
+		return nil, errors.New(obj.ErrorMsg)
 	}
 	return obj.Obj, nil
 }
@@ -219,7 +220,7 @@ func (ci *Configuration) getDosProtected(key string) (*v1beta1.DosProtectedResou
 		if obj.IsValid {
 			return obj.Obj, nil
 		}
-		return nil, fmt.Errorf(obj.ErrorMsg)
+		return nil, errors.New(obj.ErrorMsg)
 	}
 	return nil, fmt.Errorf("DosProtectedResource %s not found", key)
 }
@@ -236,7 +237,7 @@ func (ci *Configuration) GetValidDosEx(parentNamespace string, nsName string) (*
 		return nil, fmt.Errorf("DosProtectedResource %s not found", key)
 	}
 	if !protectedEx.IsValid {
-		return nil, fmt.Errorf(protectedEx.ErrorMsg)
+		return nil, errors.New(protectedEx.ErrorMsg)
 	}
 	dosEx.DosProtected = protectedEx.Obj
 	if protectedEx.Obj.Spec.ApDosPolicy != "" {
