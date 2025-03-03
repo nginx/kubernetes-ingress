@@ -6,7 +6,7 @@ import requests
 from settings import TEST_DATA
 from suite.utils.custom_resources_utils import read_custom_resource
 from suite.utils.policy_resources_utils import apply_and_assert_valid_policy, create_policy_from_yaml, delete_policy
-from suite.utils.resources_utils import get_pod_list, scale_deployment, wait_before_test
+from suite.utils.resources_utils import get_pod_list, scale_deployment, wait_before_test, wait_for_event
 from suite.utils.vs_vsr_resources_utils import (
     apply_and_assert_valid_vs,
     apply_and_assert_valid_vsr,
@@ -478,7 +478,7 @@ class TestTieredRateLimitingPoliciesVsr:
         Function to revert vsr deployments to valid state
         """
         patch_src_m = f"{TEST_DATA}/virtual-server-route/route-multiple.yaml"
-        patch_v_s_route_from_yaml(
+        delete_and_create_v_s_route_from_yaml(
             kube_apis.custom_objects,
             v_s_route_setup.route_m.name,
             patch_src_m,
@@ -985,6 +985,17 @@ class TestTieredRateLimitingPoliciesVsr:
             v_s_route_setup.route_m.namespace,
             v_s_route_setup.route_m.name,
             src,
+        )
+
+        # Assert that the 'AddedOrUpdatedWithWarning' event is present
+        assert (
+            wait_for_event(
+                kube_apis.v1,
+                f"Tiered rate-limit Policies on [{v_s_route_setup.route_m.namespace}/{v_s_route_setup.route_m.name}] contain conflicting default values",
+                v_s_route_setup.route_m.namespace,
+                30,
+            )
+            is True
         )
 
         delete_policy(kube_apis.custom_objects, basic_pol_name, v_s_route_setup.route_m.namespace)

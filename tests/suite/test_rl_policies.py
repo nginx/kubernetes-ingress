@@ -11,6 +11,7 @@ from suite.utils.resources_utils import (
     get_vs_nginx_template_conf,
     scale_deployment,
     wait_before_test,
+    wait_for_event,
 )
 from suite.utils.vs_vsr_resources_utils import (
     apply_and_assert_valid_vs,
@@ -786,6 +787,17 @@ class TestTieredRateLimitingPolicies:
             virtual_server_setup.namespace,
             virtual_server_setup.vs_name,
             src,
+        )
+
+        # Assert that the 'AddedOrUpdatedWithWarning' event is present
+        assert (
+            wait_for_event(
+                kube_apis.v1,
+                f"Tiered rate-limit Policies on [{virtual_server_setup.namespace}/{virtual_server_setup.vs_name}] contain conflicting default values",
+                virtual_server_setup.namespace,
+                30,
+            )
+            is True
         )
 
         delete_policy(kube_apis.custom_objects, basic_pol_name, test_namespace)
