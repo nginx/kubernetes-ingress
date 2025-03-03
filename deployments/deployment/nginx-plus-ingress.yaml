@@ -8,6 +8,7 @@ spec:
   selector:
     matchLabels:
       app: nginx-ingress
+      zone-sync.nginx.com/name: nginx-ingress
   template:
     metadata:
       labels:
