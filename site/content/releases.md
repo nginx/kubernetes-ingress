@@ -8,7 +8,7 @@ docs: DOCS-616
 ---
 ## 4.0.1
 
-07 Feb 2024
+07 Feb 2025
 
 ### <i class="fa-solid fa-bug-slash"></i> Fixes
 - [7295](https://github.com/nginx/kubernetes-ingress/pull/7295) Clean up and fix for NIC Pod failing to bind when NGINX exits unexpectedly
