@@ -1,6 +1,9 @@
 package version2
 
-import "fmt"
+import (
+	"bytes"
+	"fmt"
+)
 
 // UpstreamLabels describes the Prometheus labels for an NGINX upstream.
 type UpstreamLabels struct {
@@ -340,6 +343,16 @@ type Map struct {
 	Parameters []Parameter
 }
 
+func (m *Map) String() string {
+	buf := &bytes.Buffer{}
+	fmt.Fprintf(buf, "Source: %s\n", m.Source)
+	fmt.Fprintf(buf, "Variable: %s\n", m.Variable)
+	for _, v := range m.Parameters {
+		fmt.Fprintf(buf, "\t%s: %s\n", v.Value, v.Result)
+	}
+	return buf.String()
+}
+
 // Parameter defines a Parameter in a Map.
 type Parameter struct {
 	Value  string
@@ -360,14 +373,31 @@ type Queue struct {
 
 // LimitReqZone defines a rate limit shared memory zone.
 type LimitReqZone struct {
-	Key      string
-	ZoneName string
-	ZoneSize string
-	Rate     string
+	Key           string
+	ZoneName      string
+	ZoneSize      string
+	Rate          string
+	GroupValue    string
+	GroupVariable string
+	PolicyValue   string
+	PolicyResult  string
+	GroupDefault  bool
+	GroupSource   string
 }
 
 func (rlz LimitReqZone) String() string {
-	return fmt.Sprintf("{Key %q, ZoneName %q, ZoneSize %v, Rate %q}", rlz.Key, rlz.ZoneName, rlz.ZoneSize, rlz.Rate)
+	return fmt.Sprintf("{Key %q, ZoneName %q, ZoneSize %v, Rate %q, GroupValue %q, PolicyValue %q, GroupVariable %q, PolicyResult %q, GroupDefault %t, GroupSource %q}",
+		rlz.Key,
+		rlz.ZoneName,
+		rlz.ZoneSize,
+		rlz.Rate,
+		rlz.GroupValue,
+		rlz.PolicyValue,
+		rlz.GroupVariable,
+		rlz.PolicyResult,
+		rlz.GroupDefault,
+		rlz.GroupSource,
+	)
 }
 
 // LimitReq defines a rate limit.

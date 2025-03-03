@@ -92,6 +92,7 @@ markers =[
     "vsr_upstream",
     "watch_namespace",
     "wildcard_tls",
+    "zonesync",
 ]
 testpaths = [
     "tests",

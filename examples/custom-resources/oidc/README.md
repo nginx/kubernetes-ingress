@@ -1,7 +1,7 @@
 # OIDC
 
 In this example, we deploy a web application, configure load balancing for it via a VirtualServer, and protect the
-application using an OpenID Connect policy and [Keycloak](https://www.keycloak.org/).
+application using an OpenID Connect policy and [Keycloak](https://www.keycloak.org/), and ensure behaviour is consistent across multiple replicas by enabling [Zone Synchronization](https://docs.nginx.com/nginx/admin-guide/high-availability/zone_sync/).
 
 **Note**: The KeyCloak container does not support IPv6 environments.
 
@@ -84,25 +84,18 @@ To set up Keycloak:
     kubectl apply -f client-secret.yaml
     ```
 
-## Step 6 - Configure NGINX Plus Zone Synchronization and Resolver
+## Step 6 - Configure Zone Synchronization and Resolver
 
 In this step we configure:
 
 - [Zone Synchronization](https://docs.nginx.com/nginx/admin-guide/high-availability/zone_sync/). For the OIDC feature to
   work when you have two or more replicas of the Ingress Controller, it is necessary to enable zone synchronization
-  among the replicas.
-- The resolver, so that an NGINX Plus can discover the other Ingress Controller replicas and resolve the Keycloak
-  endpoint.
+  among the replicas. This is to ensure that each replica has access to the required session information when authenticating via IDP such as Keycloak.
+- The resolver can resolve the host names.
 
 Steps:
 
-1. Deploy a headless service for the Ingress Controller.
-
-    ```console
-    kubectl apply -f nginx-ingress-headless.yaml
-    ```
-
-1. Apply the ConfigMap `nginx-config.yaml`, which contains a stream snippet that enables zone synchronization and the resolver using the kube-dns service.
+1. Apply the ConfigMap `nginx-config.yaml`, which contains `zone-sync` configuration parameter that enable zone synchronization and the resolver using the kube-dns service.
 
     ```console
     kubectl apply -f nginx-config.yaml
