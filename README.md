@@ -10,7 +10,6 @@
 [![Docker Pulls](https://img.shields.io/docker/pulls/nginx/nginx-ingress?logo=docker&logoColor=white)](https://hub.docker.com/r/nginx/nginx-ingress)
 ![Docker Image Size (latest semver)](https://img.shields.io/docker/image-size/nginx/nginx-ingress?logo=docker&logoColor=white&sort=semver)
 [![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/nginx-ingress)](https://artifacthub.io/packages/container/nginx-ingress/kubernetes-ingress)
-[![Slack](https://img.shields.io/badge/slack-%23nginx--ingress--controller-green?logo=slack)](https://nginxcommunity.slack.com/channels/nginx-ingress-controller)
 [![Project Status: Active – The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
 ![Commercial Support](https://badgen.net/badge/support/commercial/green?icon=awesome)
 
@@ -30,7 +29,6 @@ We value community input and would love to see you at the next community call. A
 
 **Passcode:** `jpx5TM`
 
-**Slack**: Join our channel `#nginx-ingress-controller` on the [NGINX Community Slack](https://nginxcommunity.slack.com/channels/nginx-ingress-controller) for updates and discussions.
 **When**: 16:00 GMT / [Convert to your timezone](https://dateful.com/convert/gmt?t=16), every other Monday.
 
 | **Community Call Dates** |
@@ -175,8 +173,7 @@ docker buildx imagetools inspect nginx/nginx-ingress:edge --format '{{ json (ind
 ## Contacts
 
 We’d like to hear your feedback! If you have any suggestions or experience issues with our Ingress Controller, please
-create an issue or send a pull request on GitHub. You can contact us directly via [NGINX Community
-Slack](https://nginxcommunity.slack.com/channels/nginx-ingress-controller).
+create an issue or send a pull request on GitHub.
 
 ## Contributing
 

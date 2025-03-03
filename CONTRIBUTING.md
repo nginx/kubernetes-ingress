@@ -22,7 +22,7 @@ considering contributing!
 
 To ask a question please use [Github Discussions](https://github.com/nginx/kubernetes-ingress/discussions).
 
-You can also join our [Community Slack](https://community.nginx.org/joinslack) which has a wider NGINX audience.
+You can also get help through the [NGINX Community Forum](https://community.nginx.org/).
 
 Please reserve GitHub issues for feature requests and bugs rather than general questions.
 
