@@ -453,6 +453,67 @@ class TestRateLimitingPoliciesVsr:
         delete_policy(kube_apis.custom_objects, pol_name, v_s_route_setup.route_m.namespace)
         self.restore_default_vsr(kube_apis, v_s_route_setup)
 
+
+@pytest.mark.policies
+@pytest.mark.policies_rl
+@pytest.mark.parametrize(
+    "crd_ingress_controller, v_s_route_setup",
+    [
+        (
+            {
+                "type": "complete",
+                "extra_args": [
+                    f"-enable-custom-resources",
+                    f"-enable-leader-election=false",
+                ],
+            },
+            {"example": "virtual-server-route"},
+        )
+    ],
+    indirect=True,
+)
+class TestTieredRateLimitingPoliciesVsr:
+    def restore_default_vsr(self, kube_apis, v_s_route_setup) -> None:
+        """
+        Function to revert vsr deployments to valid state
+        """
+        patch_src_m = f"{TEST_DATA}/virtual-server-route/route-multiple.yaml"
+        patch_v_s_route_from_yaml(
+            kube_apis.custom_objects,
+            v_s_route_setup.route_m.name,
+            patch_src_m,
+            v_s_route_setup.route_m.namespace,
+        )
+        wait_before_test()
+
+    def check_rate_limit_eq(self, url, code, counter, delay=0.01, headers={}):
+        occur = []
+        t_end = time.perf_counter() + 1
+        while time.perf_counter() < t_end:
+            resp = requests.get(
+                url,
+                headers=headers,
+            )
+            occur.append(resp.status_code)
+            wait_before_test(delay)
+        assert occur.count(code) in range(counter, counter + 2)
+
+    def check_rate_limit_nearly_eq(self, url, code, counter, plus_minus=1, delay=0.01, headers={}):
+        occur = []
+        t_end = time.perf_counter() + 1
+        while time.perf_counter() < t_end:
+            resp = requests.get(
+                url,
+                headers=headers,
+            )
+            occur.append(resp.status_code)
+            wait_before_test(delay)
+        lower_range = counter
+        if counter > 1:
+            lower_range = counter - plus_minus
+        upper_range = counter + plus_minus + 1  # add an extra 1 to account for range
+        assert occur.count(code) in range(lower_range, upper_range)
+
     @pytest.mark.skip_for_nginx_oss
     @pytest.mark.parametrize("src", [rl_vsr_basic_premium_jwt_claim_sub])
     def test_rl_policy_tiered_basic_premium_no_default_jwt_claim_sub_vsr(
