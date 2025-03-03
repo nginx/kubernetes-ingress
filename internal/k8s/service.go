@@ -162,7 +162,7 @@ func (lbc *LoadBalancerController) syncZoneSyncHeadlessService(svcName string) e
 			Spec: v1.ServiceSpec{
 				ClusterIP: v1.ClusterIPNone,
 				Selector: map[string]string{
-					"app": "nginx-ingress",
+					"zone-sync.nginx.com/name": "nginx-ingress",
 				},
 			},
 		}
