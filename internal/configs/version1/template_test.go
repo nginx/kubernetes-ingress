@@ -9,6 +9,7 @@ import (
 	"text/template"
 
 	"github.com/gkampitakis/go-snaps/snaps"
+	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
 )
 
@@ -874,6 +875,144 @@ func TestExecuteTemplate_ForMainForNGINXPlusWithHTTP2Off(t *testing.T) {
 
 	for _, want := range unwantDirectives {
 		if strings.Contains(mainConf, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForMainForNGINXWithZoneSyncEnabledDefaultPort(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusMainTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, mainCfgWithZoneSyncEnabledDefaultPort)
+	t.Log(buf.String())
+
+	if err != nil {
+		t.Fatalf("Failed to write template %v", err)
+	}
+
+	wantDirectives := []string{
+		"zone_sync;",
+		"zone_sync_server nginx-ingress-headless.nginx-ingress.svc.cluster.local:12345 resolve;",
+	}
+
+	mainConf := buf.String()
+	for _, want := range wantDirectives {
+		if !strings.Contains(mainConf, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForMainForNGINXWithZoneSyncEnabledCustomPort(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusMainTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, mainCfgWithZoneSyncEnabledCustomPort)
+	t.Log(buf.String())
+
+	if err != nil {
+		t.Fatalf("Failed to write template %v", err)
+	}
+
+	wantDirectives := []string{
+		"zone_sync;",
+		"zone_sync_server nginx-ingress-headless.nginx-ingress.svc.cluster.local:1337 resolve;",
+	}
+
+	mainConf := buf.String()
+	for _, want := range wantDirectives {
+		if !strings.Contains(mainConf, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForMainForNGINXWithZoneSyncEnabledCustomResolverAddress(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusMainTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, mainCfgWithZoneSyncEnabledCustomResolverAddress)
+	t.Log(buf.String())
+
+	if err != nil {
+		t.Fatalf("Failed to write template %v", err)
+	}
+
+	wantDirectives := []string{
+		"resolver example.com",
+		"zone_sync;",
+		"zone_sync_server nginx-ingress-headless.nginx-ingress.svc.cluster.local:12345 resolve;",
+	}
+
+	mainConf := buf.String()
+	for _, want := range wantDirectives {
+		if !strings.Contains(mainConf, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForMainForNGINXWithZoneSyncEnabledCustomResolverAddressAndValid(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusMainTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, mainCfgWithZoneSyncEnabledCustomResolverAddressAndValid)
+	t.Log(buf.String())
+
+	if err != nil {
+		t.Fatalf("Failed to write template %v", err)
+	}
+
+	wantDirectives := []string{
+		"resolver example.com valid",
+		"zone_sync;",
+		"zone_sync_server nginx-ingress-headless.nginx-ingress.svc.cluster.local:1223 resolve;",
+	}
+
+	mainConf := buf.String()
+	for _, want := range wantDirectives {
+		if !strings.Contains(mainConf, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForMainForNGINXWithZoneSyncEnabledCustomResolverAddressAndValidAndIPV6Off(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusMainTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, mainCfgWithZoneSyncEnabledCustomResolverAddressAndValidAndIPV6Off)
+	t.Log(buf.String())
+
+	if err != nil {
+		t.Fatalf("Failed to write template %v", err)
+	}
+
+	wantDirectives := []string{
+		"resolver example.com valid=20s ipv6=off;",
+		"zone_sync;",
+		"zone_sync_server nginx-ingress-headless.nginx-ingress.svc.cluster.local:1223 resolve;",
+	}
+
+	mainConf := buf.String()
+	for _, want := range wantDirectives {
+		if !strings.Contains(mainConf, want) {
 			t.Errorf("want %q in generated config", want)
 		}
 	}
@@ -2256,6 +2395,52 @@ var (
 		VariablesHashMaxSize:     1024,
 		NginxVersion:             nginx.NewVersion("nginx version: nginx/1.27.2 (nginx-plus-r33)"),
 		AccessLog:                "/dev/stdout main",
+	}
+
+	mainCfgWithZoneSyncEnabledDefaultPort = MainConfig{
+		ZoneSyncConfig: ZoneSyncConfig{
+			Enable: true,
+			Port:   12345,
+			Domain: "nginx-ingress-headless.nginx-ingress.svc.cluster.local",
+		},
+		NginxVersion: nginx.NewVersion("nginx version: nginx/1.27.2 (nginx-plus-r33)"),
+	}
+
+	mainCfgWithZoneSyncEnabledCustomPort = MainConfig{
+		ZoneSyncConfig: ZoneSyncConfig{
+			Enable: true,
+			Port:   1337,
+			Domain: "nginx-ingress-headless.nginx-ingress.svc.cluster.local",
+		},
+	}
+	mainCfgWithZoneSyncEnabledCustomResolverAddress = MainConfig{
+		ZoneSyncConfig: ZoneSyncConfig{
+			Enable:            true,
+			Port:              12345,
+			Domain:            "nginx-ingress-headless.nginx-ingress.svc.cluster.local",
+			ResolverAddresses: []string{"example.com"},
+		},
+	}
+
+	mainCfgWithZoneSyncEnabledCustomResolverAddressAndValid = MainConfig{
+		ZoneSyncConfig: ZoneSyncConfig{
+			Enable:            true,
+			Port:              1223,
+			Domain:            "nginx-ingress-headless.nginx-ingress.svc.cluster.local",
+			ResolverAddresses: []string{"example.com"},
+			ResolverValid:     "20s",
+		},
+	}
+
+	mainCfgWithZoneSyncEnabledCustomResolverAddressAndValidAndIPV6Off = MainConfig{
+		ZoneSyncConfig: ZoneSyncConfig{
+			Enable:            true,
+			Port:              1223,
+			Domain:            "nginx-ingress-headless.nginx-ingress.svc.cluster.local",
+			ResolverAddresses: []string{"example.com"},
+			ResolverValid:     "20s",
+			ResolverIPV6:      commonhelpers.BoolToPointerBool(false),
+		},
 	}
 
 	// Vars for Mergable Ingress Master - Minion tests

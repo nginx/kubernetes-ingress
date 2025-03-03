@@ -11,9 +11,9 @@ from suite.utils.vs_vsr_resources_utils import (
     apply_and_assert_valid_vs,
     apply_and_assert_valid_vsr,
     apply_and_assert_warning_vsr,
+    delete_and_create_v_s_route_from_yaml,
     delete_and_create_vs_from_yaml,
     get_vs_nginx_template_conf,
-    patch_v_s_route_from_yaml,
 )
 
 std_vs_src = f"{TEST_DATA}/virtual-server-route/standard/virtual-server.yaml"
@@ -92,7 +92,7 @@ class TestRateLimitingPoliciesVsr:
         Function to revert vsr deployments to valid state
         """
         patch_src_m = f"{TEST_DATA}/virtual-server-route/route-multiple.yaml"
-        patch_v_s_route_from_yaml(
+        delete_and_create_v_s_route_from_yaml(
             kube_apis.custom_objects,
             v_s_route_setup.route_m.name,
             patch_src_m,
@@ -249,7 +249,7 @@ class TestRateLimitingPoliciesVsr:
         print(f"Create rl policy")
         pol_name = create_policy_from_yaml(kube_apis.custom_objects, rl_pol_pri_src, v_s_route_setup.route_m.namespace)
         print(f"Patch vsr with policy: {src}")
-        patch_v_s_route_from_yaml(
+        delete_and_create_v_s_route_from_yaml(
             kube_apis.custom_objects,
             v_s_route_setup.route_m.name,
             src,
@@ -289,7 +289,7 @@ class TestRateLimitingPoliciesVsr:
             kube_apis.custom_objects, rl_pol_invalid_src, v_s_route_setup.route_m.namespace
         )
         print(f"Patch vsr with policy: {src}")
-        patch_v_s_route_from_yaml(
+        delete_and_create_v_s_route_from_yaml(
             kube_apis.custom_objects,
             v_s_route_setup.route_m.name,
             src,
