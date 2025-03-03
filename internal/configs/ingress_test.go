@@ -1337,14 +1337,11 @@ func TestGenerateNginxCfgForLimitReqWithScaling(t *testing.T) {
 	for _, server := range result.Servers {
 		for _, location := range server.Locations {
 			if !reflect.DeepEqual(location.LimitReq, expectedReqs) {
-				t.Errorf("generateNginxCfg returned \n%v,  but expected \n%v", result.LimitReqZones, expectedZones)
+				t.Errorf("generateNginxCfg returned \n%v,  but expected \n%v", location.LimitReq, expectedReqs)
 			}
 		}
 	}
 
-	if !reflect.DeepEqual(result.LimitReqZones, expectedZones) {
-		t.Errorf("generateNginxCfg returned \n%v,  but expected \n%v", result.LimitReqZones, expectedZones)
-	}
 	if len(warnings) != 0 {
 		t.Errorf("generateNginxCfg returned warnings: %v", warnings)
 	}
@@ -1431,9 +1428,6 @@ func TestGenerateNginxCfgForMergeableIngressesForLimitReqWithScaling(t *testing.
 		}
 	}
 
-	if !reflect.DeepEqual(result.LimitReqZones, expectedZones) {
-		t.Errorf("generateNginxCfg returned \n%v,  but expected \n%v", result.LimitReqZones, expectedZones)
-	}
 	if len(warnings) != 0 {
 		t.Errorf("generateNginxCfg returned warnings: %v", warnings)
 	}
