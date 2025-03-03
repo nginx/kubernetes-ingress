@@ -33,6 +33,7 @@ oidc_pol_src = f"{TEST_DATA}/oidc/oidc.yaml"
 oidc_vs_src = f"{TEST_DATA}/oidc/virtual-server.yaml"
 orig_vs_src = f"{TEST_DATA}/virtual-server-tls/standard/virtual-server.yaml"
 cm_src = f"{TEST_DATA}/oidc/nginx-config.yaml"
+cm_zs_src = f"{TEST_DATA}/oidc/nginx-config-zs.yaml"
 orig_cm_src = f"{DEPLOYMENTS}/common/nginx-config.yaml"
 svc_src = f"{TEST_DATA}/oidc/nginx-ingress-headless.yaml"
 
@@ -126,6 +127,7 @@ def keycloak_setup(request, kube_apis, test_namespace, ingress_controller_endpoi
     indirect=True,
 )
 class TestOIDC:
+    @pytest.mark.parametrize("configmap", [cm_src, cm_zs_src])
     def test_oidc(
         self,
         request,
@@ -136,6 +138,7 @@ class TestOIDC:
         test_namespace,
         virtual_server_setup,
         keycloak_setup,
+        configmap,
     ):
         print(f"Create oidc secret")
         with open(oidc_secret_src) as f:
@@ -159,16 +162,28 @@ class TestOIDC:
         )
         wait_before_test()
 
-        print(f"Update nginx configmap")
-        replace_configmap_from_yaml(
-            kube_apis.v1,
-            ingress_controller_prerequisites.config_map["metadata"]["name"],
-            ingress_controller_prerequisites.namespace,
-            cm_src,
-        )
-        wait_before_test()
-        print(f"Create headless service")
-        create_items_from_yaml(kube_apis, svc_src, ingress_controller_prerequisites.namespace)
+        if configmap == cm_src:
+            print(f"Update nginx configmap")
+            replace_configmap_from_yaml(
+                kube_apis.v1,
+                ingress_controller_prerequisites.config_map["metadata"]["name"],
+                ingress_controller_prerequisites.namespace,
+                cm_src,
+            )
+            wait_before_test()
+            print(f"Create headless service")
+            create_items_from_yaml(kube_apis, svc_src, ingress_controller_prerequisites.namespace)
+        elif configmap == cm_zs_src:
+            print(f"Update nginx configmap")
+            replace_configmap_from_yaml(
+                kube_apis.v1,
+                ingress_controller_prerequisites.config_map["metadata"]["name"],
+                ingress_controller_prerequisites.namespace,
+                cm_zs_src,
+            )
+            wait_before_test()
+        else:
+            assert False, "Invalid configmap"
 
         with sync_playwright() as playwright:
             run_oidc(playwright.chromium, ingress_controller_endpoint.public_ip, ingress_controller_endpoint.port_ssl)
