@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"reflect"
 	"sort"
 	"strings"
@@ -11,6 +13,8 @@ import (
 	"time"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	nic_glog "github.com/nginx/kubernetes-ingress/internal/logger/glog"
+	"github.com/nginx/kubernetes-ingress/internal/logger/levels"
 	"github.com/nginx/kubernetes-ingress/internal/telemetry"
 
 	discovery_v1 "k8s.io/api/discovery/v1"
@@ -23,12 +27,15 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/metrics/collectors"
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	fake_v1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/fake"
 	api_v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/record"
 )
 
 func TestHasCorrectIngressClass(t *testing.T) {
@@ -3636,6 +3643,298 @@ func TestCreateIngressExWithZoneSync(t *testing.T) {
 		ingressEx := lbc.createIngressEx(tc.ingress, nil, nil)
 		if reflect.DeepEqual(ingressEx, tc.expected) {
 			t.Fatalf("Expected %v, but got %v", tc.expected, ingressEx)
+		}
+	}
+}
+
+func TestGetReference(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		testCase string
+		input    runtime.Object
+	}{
+		{
+			testCase: "Get VirtualServer ref",
+			input: &conf_v1.VirtualServer{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "test-vs",
+					Namespace: "default",
+				},
+				TypeMeta: meta_v1.TypeMeta{
+					Kind:       "VirtualServer",
+					APIVersion: "v1",
+				},
+			},
+		},
+		{
+			testCase: "Get VirtualServerRoute ref",
+			input: &conf_v1.VirtualServerRoute{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "test-vsr",
+					Namespace: "default",
+				},
+				TypeMeta: meta_v1.TypeMeta{
+					Kind:       "VirtualServerRoute",
+					APIVersion: "v1",
+				},
+			},
+		},
+		{
+			testCase: "Get Policy ref",
+			input: &conf_v1.Policy{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "test-pol",
+					Namespace: "default",
+				},
+				TypeMeta: meta_v1.TypeMeta{
+					Kind:       "Policy",
+					APIVersion: "v1",
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		ref, err := getReference(tc.input)
+		if err != nil {
+			t.Fatalf("getReference() returned an unexpected error %v", err)
+		}
+		if ref.Namespace != tc.input.(meta_v1.Object).GetNamespace() {
+			t.Fatalf("Expected %v, but got %v", tc.input.(meta_v1.Object).GetNamespace(), ref.Namespace)
+		}
+		if ref.Name != tc.input.(meta_v1.Object).GetName() {
+			t.Fatalf("Expected %v, but got %v", tc.input.(meta_v1.Object).GetName(), ref.Name)
+		}
+	}
+}
+
+func TestUpdateVirtualServerStatusAndEventsWithPolicyWarning(t *testing.T) {
+	t.Parallel()
+
+	policy := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "test-pol",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			RateLimit: &conf_v1.RateLimit{
+				Scale: true,
+			},
+		},
+		TypeMeta: meta_v1.TypeMeta{
+			Kind:       "Policy",
+			APIVersion: "v1",
+		},
+	}
+
+	vs := &conf_v1.VirtualServer{
+		Spec: conf_v1.VirtualServerSpec{
+			Policies: []conf_v1.PolicyReference{
+				{
+					Name:      "test-pol",
+					Namespace: "default",
+				},
+			},
+		},
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "test-vs",
+			Namespace: "default",
+		},
+		TypeMeta: meta_v1.TypeMeta{
+			Kind:       "VirtualServer",
+			APIVersion: "v1",
+		},
+	}
+
+	testCases := []struct {
+		name     string
+		input    *VirtualServerConfiguration
+		warnings configs.Warnings
+	}{
+		{
+			name: "VirtualServerConfiguration with policy warnings",
+			input: &VirtualServerConfiguration{
+				VirtualServer: vs,
+			},
+			warnings: configs.Warnings{
+				policy: []string{"both zone sync and rate limit scale are enabled, the rate limit scale value will not be used."},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		fmt.Printf("WARNINGS: %s", tc.warnings)
+
+		fakeClient := fake_v1.NewSimpleClientset(
+			&conf_v1.VirtualServerList{
+				Items: []conf_v1.VirtualServer{
+					*tc.input.VirtualServer,
+				},
+			},
+		)
+
+		vsLister := cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
+
+		err := vsLister.Add(vs)
+		if err != nil {
+			t.Errorf("Error adding VirtualServer to the virtualserver lister: %v", err)
+		}
+		nsi := make(map[string]*namespacedInformer)
+		nsi["default"] = &namespacedInformer{virtualServerLister: vsLister}
+		su := statusUpdater{
+			namespacedInformers: nsi,
+			confClient:          fakeClient,
+			keyFunc:             cache.DeletionHandlingMetaNamespaceKeyFunc,
+		}
+		lbc := NewLoadBalancerController(NewLoadBalancerControllerInput{
+			KubeClient:               fake.NewSimpleClientset(),
+			EnableTelemetryReporting: false,
+			LoggerContext:            context.Background(),
+			Recorder:                 record.NewFakeRecorder(1024),
+		})
+		lbc.statusUpdater = &su
+		lbc.updateVirtualServerStatusAndEvents(tc.input, tc.warnings, nil)
+
+		if tc.warnings == nil {
+			t.Fatal("Expected warnings, but got nil")
+		}
+		if tc.input.VirtualServer.Spec.Policies[0].Name != policy.Name {
+			t.Fatalf("Expected %v, but got %v", policy.Name, tc.input.VirtualServer.Spec.Policies[0].Name)
+		}
+	}
+}
+
+func TestUpdateVirtualServerRouteStatusAndEventsWithPolicyWarning(t *testing.T) {
+	t.Parallel()
+
+	l := slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo}))
+	ctx := nl.ContextWithLogger(context.Background(), l)
+
+	policy := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "test-pol",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			RateLimit: &conf_v1.RateLimit{
+				Scale: true,
+			},
+		},
+		TypeMeta: meta_v1.TypeMeta{
+			Kind:       "Policy",
+			APIVersion: "v1",
+		},
+	}
+
+	vs := &conf_v1.VirtualServer{
+		Spec: conf_v1.VirtualServerSpec{
+			Policies: []conf_v1.PolicyReference{
+				{
+					Name:      "test-pol",
+					Namespace: "default",
+				},
+			},
+		},
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "test-vs",
+			Namespace: "default",
+		},
+		TypeMeta: meta_v1.TypeMeta{
+			Kind:       "VirtualServer",
+			APIVersion: "v1",
+		},
+	}
+
+	vsr := &conf_v1.VirtualServerRoute{
+		Spec: conf_v1.VirtualServerRouteSpec{
+			Subroutes: []conf_v1.Route{
+				{
+					Policies: []conf_v1.PolicyReference{
+						{
+							Name:      "test-pol",
+							Namespace: "default",
+						},
+					},
+				},
+			},
+		},
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "test-vsr",
+			Namespace: "default",
+		},
+		TypeMeta: meta_v1.TypeMeta{
+			Kind:       "VirtualServerRoute",
+			APIVersion: "v1",
+		},
+	}
+
+	testCases := []struct {
+		name     string
+		input    *VirtualServerConfiguration
+		warnings configs.Warnings
+	}{
+		{
+			name: "VirtualServerConfiguration with policy warnings",
+			input: &VirtualServerConfiguration{
+				VirtualServer: vs,
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
+					vsr,
+				},
+			},
+			warnings: configs.Warnings{
+				policy: []string{"both zone sync and rate limit scale are enabled, the rate limit scale value will not be used."},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+
+		fakeClient := fake_v1.NewSimpleClientset(
+			&conf_v1.VirtualServerRouteList{
+				Items: []conf_v1.VirtualServerRoute{
+					*tc.input.VirtualServerRoutes[0],
+				},
+			},
+		)
+
+		vsLister := cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
+		vsrLister := cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
+
+		err := vsLister.Add(vs)
+		if err != nil {
+			t.Errorf("Error adding VirtualServer to the virtualserver lister: %v", err)
+		}
+
+		err = vsrLister.Add(vsr)
+		if err != nil {
+			t.Errorf("Error adding VirtualServerRoute to the virtualserverroute lister: %v", err)
+		}
+		nsi := make(map[string]*namespacedInformer)
+		nsi["default"] = &namespacedInformer{
+			virtualServerLister:      vsLister,
+			virtualServerRouteLister: vsrLister,
+		}
+		su := statusUpdater{
+			namespacedInformers: nsi,
+			confClient:          fakeClient,
+			keyFunc:             cache.DeletionHandlingMetaNamespaceKeyFunc,
+			logger:              nl.LoggerFromContext(ctx),
+		}
+		lbc := NewLoadBalancerController(NewLoadBalancerControllerInput{
+			KubeClient:               fake.NewSimpleClientset(),
+			EnableTelemetryReporting: false,
+			LoggerContext:            ctx,
+			Recorder:                 record.NewFakeRecorder(1024),
+		})
+		lbc.statusUpdater = &su
+		lbc.updateVirtualServerStatusAndEvents(tc.input, tc.warnings, nil)
+
+		if tc.warnings == nil {
+			t.Fatal("Expected warnings, but got nil")
+		}
+		if tc.input.VirtualServerRoutes[0].Spec.Subroutes[0].Policies[0].Name != policy.Name {
+			t.Fatalf("Expected %v, but got %v", policy.Name, tc.input.VirtualServerRoutes[0].Spec.Subroutes[0].Policies[0].Name)
 		}
 	}
 }

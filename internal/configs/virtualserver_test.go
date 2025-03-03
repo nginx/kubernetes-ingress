@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"reflect"
 	"sort"
 	"strings"
@@ -12,6 +14,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	nic_glog "github.com/nginx/kubernetes-ingress/internal/logger/glog"
+	"github.com/nginx/kubernetes-ingress/internal/logger/levels"
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	api_v1 "k8s.io/api/core/v1"
@@ -6455,6 +6460,10 @@ func TestGenerateVirtualServerConfigRateLimit(t *testing.T) {
 								Rate:     "10r/s",
 							},
 						},
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "rate-limit-policy",
+							Namespace: "default",
+						},
 					},
 				},
 				Endpoints: map[string][]string{
@@ -6600,6 +6609,10 @@ func TestGenerateVirtualServerConfigRateLimit(t *testing.T) {
 								ZoneSize: "10M",
 								Rate:     "10r/s",
 							},
+						},
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "rate-limit-policy",
+							Namespace: "default",
 						},
 					},
 				},
@@ -6801,6 +6814,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 								},
 							},
 						},
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
 					},
 					"default/basic-rate-limit-policy": {
 						Spec: conf_v1.PolicySpec{
@@ -6815,6 +6832,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 									},
 								},
 							},
+						},
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
 						},
 					},
 				},
@@ -7034,6 +7055,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 								},
 							},
 						},
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
 					},
 					"default/basic-rate-limit-policy": {
 						Spec: conf_v1.PolicySpec{
@@ -7048,6 +7073,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 									},
 								},
 							},
+						},
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
 						},
 					},
 				},
@@ -7264,6 +7293,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 								},
 							},
 						},
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
 					},
 					"default/basic-rate-limit-policy": {
 						Spec: conf_v1.PolicySpec{
@@ -7279,6 +7312,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 									Default: true,
 								},
 							},
+						},
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
 						},
 					},
 				},
@@ -7500,6 +7537,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 								},
 							},
 						},
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
 					},
 					"default/basic-rate-limit-policy": {
 						Spec: conf_v1.PolicySpec{
@@ -7515,6 +7556,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 									Default: true,
 								},
 							},
+						},
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
 						},
 					},
 				},
@@ -7721,6 +7766,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 								},
 							},
 						},
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
 					},
 					"default/basic-rate-limit-policy": {
 						Spec: conf_v1.PolicySpec{
@@ -7736,6 +7785,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 									Default: true,
 								},
 							},
+						},
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
 						},
 					},
 				},
@@ -7987,6 +8040,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 								},
 							},
 						},
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
 					},
 					"default/basic-rate-limit-policy": {
 						Spec: conf_v1.PolicySpec{
@@ -8002,6 +8059,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 									Default: true,
 								},
 							},
+						},
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
 						},
 					},
 				},
@@ -8506,6 +8567,184 @@ func TestGenerateVirtualServerConfigWithRateLimitGroupsWarning(t *testing.T) {
 	}
 }
 
+func TestGenerateVirtualServerConfigWithRateLimitScaleWarning(t *testing.T) {
+	t.Parallel()
+
+	virtualServerEx := VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "cafe.example.com",
+				Policies: []conf_v1.PolicyReference{
+					{
+						Name: "rate-limit-policy",
+					},
+				},
+				Upstreams: []conf_v1.Upstream{
+					{
+						Name:    "tea",
+						Service: "tea-svc",
+						Port:    80,
+					},
+					{
+						Name:    "coffee",
+						Service: "coffee-svc",
+						Port:    80,
+					},
+				},
+				Routes: []conf_v1.Route{
+					{
+						Path: "/tea",
+						Action: &conf_v1.Action{
+							Pass: "tea",
+						},
+					},
+					{
+						Path: "/coffee",
+						Action: &conf_v1.Action{
+							Pass: "coffee",
+						},
+					},
+				},
+			},
+		},
+		Policies: map[string]*conf_v1.Policy{
+			"default/rate-limit-policy": {
+				Spec: conf_v1.PolicySpec{
+					RateLimit: &conf_v1.RateLimit{
+						Key:      "$binary_remote_addr",
+						ZoneSize: "10M",
+						Rate:     "10r/s",
+						Scale:    true,
+					},
+				},
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "rate-limit-policy",
+					Namespace: "default",
+				},
+			},
+		},
+		Endpoints: map[string][]string{
+			"default/tea-svc:80": {
+				"10.0.0.20:80",
+			},
+			"default/coffee-svc:80": {
+				"10.0.0.30:80",
+			},
+		},
+		ZoneSync: true,
+	}
+	expected := version2.VirtualServerConfig{
+		Upstreams: []version2.Upstream{
+			{
+				UpstreamLabels: version2.UpstreamLabels{
+					Service:           "coffee-svc",
+					ResourceType:      "virtualserver",
+					ResourceName:      "cafe",
+					ResourceNamespace: "default",
+				},
+				Name: "vs_default_cafe_coffee",
+				Servers: []version2.UpstreamServer{
+					{
+						Address: "10.0.0.30:80",
+					},
+				},
+			},
+			{
+				UpstreamLabels: version2.UpstreamLabels{
+					Service:           "tea-svc",
+					ResourceType:      "virtualserver",
+					ResourceName:      "cafe",
+					ResourceNamespace: "default",
+				},
+				Name: "vs_default_cafe_tea",
+				Servers: []version2.UpstreamServer{
+					{
+						Address: "10.0.0.20:80",
+					},
+				},
+			},
+		},
+		HTTPSnippets: []string{},
+		LimitReqZones: []version2.LimitReqZone{
+			{
+				Key:      "$binary_remote_addr",
+				ZoneName: "pol_rl_default_rate-limit-policy_default_cafe",
+				ZoneSize: "10M",
+				Rate:     "10r/s",
+			},
+		},
+		Server: version2.Server{
+			ServerName:   "cafe.example.com",
+			StatusZone:   "cafe.example.com",
+			ServerTokens: "off",
+			VSNamespace:  "default",
+			VSName:       "cafe",
+			LimitReqs: []version2.LimitReq{
+				{ZoneName: "pol_rl_default_rate-limit-policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+			},
+			LimitReqOptions: version2.LimitReqOptions{
+				DryRun:     false,
+				LogLevel:   "error",
+				RejectCode: 503,
+			},
+			Locations: []version2.Location{
+				{
+					Path:                     "/tea",
+					ProxyPass:                "http://vs_default_cafe_tea",
+					ProxyNextUpstream:        "error timeout",
+					ProxyNextUpstreamTimeout: "0s",
+					ProxyNextUpstreamTries:   0,
+					ProxySSLName:             "tea-svc.default.svc",
+					ProxyPassRequestHeaders:  true,
+					ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+					ServiceName:              "tea-svc",
+				},
+				{
+					Path:                     "/coffee",
+					ProxyPass:                "http://vs_default_cafe_coffee",
+					ProxyNextUpstream:        "error timeout",
+					ProxyNextUpstreamTimeout: "0s",
+					ProxyNextUpstreamTries:   0,
+					ProxySSLName:             "coffee-svc.default.svc",
+					ProxyPassRequestHeaders:  true,
+					ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+					ServiceName:              "coffee-svc",
+				},
+			},
+		},
+	}
+
+	baseCfgParams := ConfigParams{
+		Context:         context.Background(),
+		ServerTokens:    "off",
+		Keepalive:       16,
+		ServerSnippets:  []string{"# server snippet"},
+		ProxyProtocol:   true,
+		SetRealIPFrom:   []string{"0.0.0.0/0"},
+		RealIPHeader:    "X-Real-IP",
+		RealIPRecursive: true,
+	}
+
+	isPlus := true
+	isResolverConfigured := false
+	staticConfigParams := &StaticConfigParams{TLSPassthrough: true, NginxServiceMesh: true, EnableInternalRoutes: false}
+	isWildcardEnabled := false
+	vsc := newVirtualServerConfigurator(&baseCfgParams, isPlus, isResolverConfigured, staticConfigParams, isWildcardEnabled, &fakeBV)
+
+	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+	if diff := cmp.Diff(expected, result); diff == "" {
+		t.Errorf("GenerateVirtualServerConfig() should not configure internal route")
+	}
+
+	if len(warnings) != 1 {
+		t.Errorf("GenerateVirtualServerConfig should return warning about Zone Sync and rate limit scales: %v", warnings)
+	}
+}
+
 func TestGeneratePolicies(t *testing.T) {
 	t.Parallel()
 	ownerDetails := policyOwnerDetails{
@@ -8519,7 +8758,7 @@ func TestGeneratePolicies(t *testing.T) {
 	mTLSCertAndCrlPath := fmt.Sprintf("%s %s", mTLSCertPath, mTLSCrlPath)
 	policyOpts := policyOptions{
 		tls:      true,
-		zoneSync: true,
+		zoneSync: false,
 		secretRefs: map[string]*secrets.SecretReference{
 			"default/ingress-mtls-secret": {
 				Secret: &api_v1.Secret{
@@ -8696,6 +8935,10 @@ func TestGeneratePolicies(t *testing.T) {
 							LogLevel: "notice",
 						},
 					},
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy",
+						Namespace: "default",
+					},
 				},
 			},
 			expected: policiesCfg{
@@ -8711,7 +8954,6 @@ func TestGeneratePolicies(t *testing.T) {
 							ZoneSize: "10M",
 							Rate:     "10r/s",
 							ZoneName: "pol_rl_default_rateLimit_policy_default_test",
-							Sync:     true,
 						},
 					},
 					Options: version2.LimitReqOptions{
@@ -8742,6 +8984,10 @@ func TestGeneratePolicies(t *testing.T) {
 							Rate:     "10r/s",
 						},
 					},
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy",
+						Namespace: "default",
+					},
 				},
 				"default/rateLimit-policy2": {
 					Spec: conf_v1.PolicySpec{
@@ -8750,6 +8996,10 @@ func TestGeneratePolicies(t *testing.T) {
 							ZoneSize: "20M",
 							Rate:     "20r/s",
 						},
+					},
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy2",
+						Namespace: "default",
 					},
 				},
 			},
@@ -8761,14 +9011,12 @@ func TestGeneratePolicies(t *testing.T) {
 							ZoneSize: "10M",
 							Rate:     "10r/s",
 							ZoneName: "pol_rl_default_rateLimit_policy_default_test",
-							Sync:     true,
 						},
 						{
 							Key:      "test2",
 							ZoneSize: "20M",
 							Rate:     "20r/s",
 							ZoneName: "pol_rl_default_rateLimit_policy2_default_test",
-							Sync:     true,
 						},
 					},
 					Options: version2.LimitReqOptions{
@@ -8805,6 +9053,10 @@ func TestGeneratePolicies(t *testing.T) {
 							Scale:    true,
 						},
 					},
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimitScale-policy",
+						Namespace: "default",
+					},
 				},
 			},
 			expected: policiesCfg{
@@ -8815,7 +9067,6 @@ func TestGeneratePolicies(t *testing.T) {
 							ZoneSize: "10M",
 							Rate:     "5r/s",
 							ZoneName: "pol_rl_default_rateLimitScale_policy_default_test",
-							Sync:     true,
 						},
 					},
 					Options: version2.LimitReqOptions{
@@ -9514,6 +9765,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 							Rate:     "10r/s",
 						},
 					},
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy",
+						Namespace: "default",
+					},
 				},
 				"default/rateLimit-policy2": {
 					Spec: conf_v1.PolicySpec{
@@ -9525,6 +9780,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 							LogLevel:   "info",
 							RejectCode: &rejectCodeOverride,
 						},
+					},
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy2",
+						Namespace: "default",
 					},
 				},
 			},
@@ -9596,6 +9855,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 							},
 						},
 					},
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy",
+						Namespace: "default",
+					},
 				},
 				"default/rateLimit-policy2": {
 					Spec: conf_v1.PolicySpec{
@@ -9611,6 +9874,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 								Default: true,
 							},
 						},
+					},
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy2",
+						Namespace: "default",
 					},
 				},
 			},
@@ -17816,7 +18083,10 @@ func TestGenerateTimeWithDefault(t *testing.T) {
 }
 
 var (
+	l             = slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo}))
+	ctx           = nl.ContextWithLogger(context.Background(), l)
 	baseCfgParams = ConfigParams{
+		Context:         ctx,
 		ServerTokens:    "off",
 		Keepalive:       16,
 		ServerSnippets:  []string{"# server snippet"},

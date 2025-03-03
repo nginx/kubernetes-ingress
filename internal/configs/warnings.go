@@ -9,6 +9,16 @@ import (
 // Warnings stores a list of warnings for a given runtime k8s object in a map
 type Warnings map[runtime.Object][]string
 
+func (w Warnings) String() string {
+	var str string
+	for _, warnings := range w {
+		for _, warning := range warnings {
+			str += fmt.Sprintf("%s\n", warning)
+		}
+	}
+	return str
+}
+
 func newWarnings() Warnings {
 	return make(map[runtime.Object][]string)
 }

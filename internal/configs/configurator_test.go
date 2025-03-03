@@ -23,6 +23,13 @@ import (
 	api_v1 "k8s.io/api/core/v1"
 )
 
+const (
+	mainTemplatePath            = "version1/nginx-plus.tmpl"
+	ingressTemplatePath         = "version1/nginx-plus.ingress.tmpl"
+	virtualServerTemplatePath   = "version2/nginx-plus.virtualserver.tmpl"
+	transportServerTemplatePath = "version2/nginx-plus.transportserver.tmpl"
+)
+
 func createTestStaticConfigParams() *StaticConfigParams {
 	return &StaticConfigParams{
 		HealthStatus:                   true,
@@ -1959,6 +1966,112 @@ func createTransportServerExWithHostNoTLSPassthrough() TransportServerEx {
 			},
 		},
 	}
+}
+
+func TestVirtualServerWithZoneSyncAndScale(t *testing.T) {
+	t.Parallel()
+
+	tt := []struct {
+		name string
+		vs   []*VirtualServerEx
+		want int
+	}{
+		{
+			name: "Single VirtualServer",
+			vs: []*VirtualServerEx{
+				{
+					VirtualServer: &conf_v1.VirtualServer{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Namespace: "ns-1",
+							Name:      "coffee",
+						},
+						TypeMeta: meta_v1.TypeMeta{
+							Kind:       "VirtualServer",
+							APIVersion: "v1",
+						},
+						Spec: conf_v1.VirtualServerSpec{
+							Policies: []conf_v1.PolicyReference{
+								{
+									Name:      "policy-1",
+									Namespace: "ns-1",
+								},
+							},
+						},
+					},
+					Policies: map[string]*conf_v1.Policy{
+						"ns-1/policy-1": &conf_v1.Policy{
+							ObjectMeta: meta_v1.ObjectMeta{
+								Name:      "policy-1",
+								Namespace: "ns-1",
+							},
+							TypeMeta: meta_v1.TypeMeta{
+								Kind:       "Policy",
+								APIVersion: "v1",
+							},
+							Spec: conf_v1.PolicySpec{
+								RateLimit: &conf_v1.RateLimit{
+									Scale: true,
+								},
+							},
+						},
+					},
+					ZoneSync: true,
+				},
+			},
+			want: 1,
+		},
+	}
+
+	for _, tc := range tt {
+		configurator := newConfigurator(t)
+		for _, v := range tc.vs {
+			warnings, err := configurator.AddOrUpdateVirtualServer(v)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(warnings) != tc.want {
+				t.Fatalf("Got %d warnings, expected %d", len(warnings), tc.want)
+			}
+		}
+	}
+}
+
+func newConfigurator(t *testing.T) *Configurator {
+	t.Helper()
+
+	templateExecutor, err := version1.NewTemplateExecutor(mainTemplatePath, ingressTemplatePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	templateExecutorV2, err := version2.NewTemplateExecutor(virtualServerTemplatePath, transportServerTemplatePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	manager := nginx.NewFakeManager("/etc/nginx")
+	cnf := NewConfigurator(ConfiguratorParams{
+		NginxManager: manager,
+		StaticCfgParams: &StaticConfigParams{
+			HealthStatus:                   true,
+			HealthStatusURI:                "/nginx-health",
+			NginxStatus:                    true,
+			NginxStatusAllowCIDRs:          []string{"127.0.0.1"},
+			NginxStatusPort:                8080,
+			StubStatusOverUnixSocketForOSS: false,
+			NginxVersion:                   nginx.NewVersion("nginx version: nginx/1.25.3 (nginx-plus-r31)"),
+		},
+		Config:                  NewDefaultConfigParams(context.Background(), false),
+		TemplateExecutor:        templateExecutor,
+		TemplateExecutorV2:      templateExecutorV2,
+		LatencyCollector:        nil,
+		LabelUpdater:            nil,
+		IsPlus:                  true,
+		IsWildcardEnabled:       false,
+		IsPrometheusEnabled:     false,
+		IsLatencyMetricsEnabled: false,
+	})
+	return cnf
 }
 
 var (
