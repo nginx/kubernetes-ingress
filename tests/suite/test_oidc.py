@@ -161,29 +161,18 @@ class TestOIDC:
             kube_apis.custom_objects, virtual_server_setup.vs_name, oidc_vs_src, test_namespace
         )
         wait_before_test()
+        print(f"Update nginx configmap")
+        replace_configmap_from_yaml(
+            kube_apis.v1,
+            ingress_controller_prerequisites.config_map["metadata"]["name"],
+            ingress_controller_prerequisites.namespace,
+            configmap,
+        )
+        wait_before_test()
 
         if configmap == cm_src:
-            print(f"Update nginx configmap")
-            replace_configmap_from_yaml(
-                kube_apis.v1,
-                ingress_controller_prerequisites.config_map["metadata"]["name"],
-                ingress_controller_prerequisites.namespace,
-                cm_src,
-            )
-            wait_before_test()
             print(f"Create headless service")
             create_items_from_yaml(kube_apis, svc_src, ingress_controller_prerequisites.namespace)
-        elif configmap == cm_zs_src:
-            print(f"Update nginx configmap")
-            replace_configmap_from_yaml(
-                kube_apis.v1,
-                ingress_controller_prerequisites.config_map["metadata"]["name"],
-                ingress_controller_prerequisites.namespace,
-                cm_zs_src,
-            )
-            wait_before_test()
-        else:
-            assert False, "Invalid configmap"
 
         with sync_playwright() as playwright:
             run_oidc(playwright.chromium, ingress_controller_endpoint.public_ip, ingress_controller_endpoint.port_ssl)
