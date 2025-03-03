@@ -23,4 +23,5 @@ const (
 	EventReasonUpdateDNSEndpoint         = "UpdateDNSEndpoint"         //nolint:revive
 	EventReasonUpdatePodLabel            = "UpdatePodLabel"            //nolint:revive
 	EventReasonUsageGraceEnding          = "UsageGraceEnding"          //nolint:revive
+	EventReasonServiceFailedToCreate     = "ServiceFailedToCreate"     //nolint:revive
 )

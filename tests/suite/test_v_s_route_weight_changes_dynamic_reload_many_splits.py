@@ -18,7 +18,7 @@ from tests.suite.utils.custom_assertions import wait_and_assert_status_code
 from tests.suite.utils.vs_vsr_resources_utils import (
     create_v_s_route_from_yaml,
     create_virtual_server_from_yaml,
-    patch_v_s_route_from_yaml,
+    delete_and_create_v_s_route_from_yaml,
 )
 
 
@@ -163,7 +163,7 @@ class TestVSRWeightChangesDynamicReloadManySplits:
         assert "backend1" in resp.text
 
         print("Step 2: Apply a configuration that swaps the weights (0 100) to (100 0).")
-        patch_v_s_route_from_yaml(
+        delete_and_create_v_s_route_from_yaml(
             kube_apis.custom_objects,
             vsr_weight_changes_dynamic_reload_many_splits_setup.route.name,
             swap_weights_config,

@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"text/template"
+
+	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
 )
 
 func TestMakeLocationPath_WithRegexCaseSensitiveModifier(t *testing.T) {
@@ -845,63 +847,63 @@ func TestMakeResolver(t *testing.T) {
 			name:              "No addresses",
 			resolverAddresses: []string{},
 			resolverValid:     "",
-			resolverIPV6:      boolToPointerBool(true),
+			resolverIPV6:      commonhelpers.BoolToPointerBool(true),
 			expected:          "",
 		},
 		{
 			name:              "Single address, default options",
 			resolverAddresses: []string{"8.8.8.8"},
 			resolverValid:     "",
-			resolverIPV6:      boolToPointerBool(true),
+			resolverIPV6:      commonhelpers.BoolToPointerBool(true),
 			expected:          "resolver 8.8.8.8;",
 		},
 		{
 			name:              "Multiple addresses, valid time, ipv6 on",
 			resolverAddresses: []string{"8.8.8.8", "8.8.4.4"},
 			resolverValid:     "30s",
-			resolverIPV6:      boolToPointerBool(true),
+			resolverIPV6:      commonhelpers.BoolToPointerBool(true),
 			expected:          "resolver 8.8.8.8 8.8.4.4 valid=30s;",
 		},
 		{
 			name:              "Single address, ipv6 off",
 			resolverAddresses: []string{"8.8.8.8"},
 			resolverValid:     "",
-			resolverIPV6:      boolToPointerBool(false),
+			resolverIPV6:      commonhelpers.BoolToPointerBool(false),
 			expected:          "resolver 8.8.8.8 ipv6=off;",
 		},
 		{
 			name:              "Multiple addresses, valid time, ipv6 off",
 			resolverAddresses: []string{"8.8.8.8", "8.8.4.4"},
 			resolverValid:     "30s",
-			resolverIPV6:      boolToPointerBool(false),
+			resolverIPV6:      commonhelpers.BoolToPointerBool(false),
 			expected:          "resolver 8.8.8.8 8.8.4.4 valid=30s ipv6=off;",
 		},
 		{
 			name:              "No valid time, ipv6 off",
 			resolverAddresses: []string{"8.8.8.8"},
 			resolverValid:     "",
-			resolverIPV6:      boolToPointerBool(false),
+			resolverIPV6:      commonhelpers.BoolToPointerBool(false),
 			expected:          "resolver 8.8.8.8 ipv6=off;",
 		},
 		{
 			name:              "Valid time only",
 			resolverAddresses: []string{"8.8.8.8"},
 			resolverValid:     "10s",
-			resolverIPV6:      boolToPointerBool(true),
+			resolverIPV6:      commonhelpers.BoolToPointerBool(true),
 			expected:          "resolver 8.8.8.8 valid=10s;",
 		},
 		{
 			name:              "IPv6 only",
 			resolverAddresses: []string{"8.8.8.8"},
 			resolverValid:     "",
-			resolverIPV6:      boolToPointerBool(false),
+			resolverIPV6:      commonhelpers.BoolToPointerBool(false),
 			expected:          "resolver 8.8.8.8 ipv6=off;",
 		},
 		{
 			name:              "All options",
 			resolverAddresses: []string{"8.8.8.8", "8.8.4.4", "1.1.1.1"},
 			resolverValid:     "60s",
-			resolverIPV6:      boolToPointerBool(false),
+			resolverIPV6:      commonhelpers.BoolToPointerBool(false),
 			expected:          "resolver 8.8.8.8 8.8.4.4 1.1.1.1 valid=60s ipv6=off;",
 		},
 		{

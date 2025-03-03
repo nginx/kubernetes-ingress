@@ -31,7 +31,7 @@ RUN --mount=type=bind,from=alpine-opentracing-lib,target=/tmp/ot/ \
 
 
 ############################################# Base image for Debian #############################################
-FROM nginx:1.27.4@sha256:91734281c0ebfc6f1aea979cffeed5079cfe786228a71cc6f1f46a228cde6e34 AS debian
+FROM nginx:1.27.4@sha256:9d6b58feebd2dbd3c56ab5853333d627cc6e281011cfd6050fa4bcf2072c9496 AS debian
 
 RUN --mount=type=bind,from=opentracing-lib,target=/tmp/ot/ \
 	apt-get update \
@@ -212,7 +212,7 @@ RUN --mount=type=bind,from=alpine-fips-3.17,target=/tmp/fips/ \
 	&& mkdir -p /etc/nginx/reporting/ \
 	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
 	&& ldconfig /usr/local/lib/ \
-	&& apk add --no-cache app-protect-module-plus~=33.5.210 \
+	&& apk add --no-cache app-protect-module-plus~=33.5.264 \
 	&& sed -i -e '/nginx.com/d' /etc/apk/repositories \
 	&& nap-waf.sh \
 	&& if [ "${NGINX_AGENT}" = "true" ]; then \
@@ -221,7 +221,7 @@ RUN --mount=type=bind,from=alpine-fips-3.17,target=/tmp/fips/ \
 
 
 ############################################# Base image for Debian with NGINX Plus #############################################
-FROM debian:12-slim@sha256:40b107342c492725bc7aacbe93a49945445191ae364184a6d24fedb28172f6f7 AS debian-plus
+FROM debian:12-slim@sha256:12c396bd585df7ec21d5679bb6a83d4878bc4415ce926c9e5ea6426d23c60bdc AS debian-plus
 ARG NGINX_PLUS_VERSION
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
@@ -321,7 +321,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& apt-get update \
 	&& if [ "${NGINX_AGENT}" = "true" ]; then apt-get install --no-install-recommends --no-install-suggests -y nginx-agent; fi \
 	&& if [ -z "${NAP_MODULES##*waf*}" ]; then \
-	apt-get install --no-install-recommends --no-install-suggests -y app-protect-module-plus=33+5.210* nginx-plus-module-appprotect=33+5.210*; \
+	apt-get install --no-install-recommends --no-install-suggests -y app-protect-module-plus=33+5.264* nginx-plus-module-appprotect=33+5.264*; \
 	rm -f /etc/apt/sources.list.d/app-protect.sources; \
 	nap-waf.sh; \
 	fi \
@@ -457,7 +457,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& if [ "${NGINX_AGENT}" = "true" ]; then microdnf --nodocs install -y nginx-agent; fi \
 	&& if [ -z "${NAP_MODULES##*waf*}" ]; then \
 	cp /tmp/app-protect-9.repo /etc/yum.repos.d/app-protect-9.repo \
-	&& microdnf --nodocs install -y app-protect-module-plus-33+5.210* \
+	&& microdnf --nodocs install -y app-protect-module-plus-33+5.264* \
 	&& nap-waf.sh \
 	&& rm -f /etc/yum.repos.d/app-protect-9.repo; \
 	fi \
@@ -466,7 +466,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 
 
 ############################################# Base image for UBI8 with NGINX Plus and App Protect WAF #############################################
-FROM redhat/ubi8@sha256:881aaf5fa0d1f85925a1b9668a1fc7f850a11ca30fd3e37ea194db4edff892a5 AS ubi-8-plus-nap
+FROM redhat/ubi8@sha256:fb25b47426c1c43ef583dec35c9e3feb304caf143949e8a7e42d45e2792e6c7b AS ubi-8-plus-nap
 ARG NAP_MODULES
 ARG NGINX_AGENT
 ARG NGINX_PLUS_VERSION
@@ -513,7 +513,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 
 
 ############################################# Base image for UBI8 with NGINX Plus and App Protect WAFv5  #############################################
-FROM redhat/ubi8@sha256:881aaf5fa0d1f85925a1b9668a1fc7f850a11ca30fd3e37ea194db4edff892a5 AS ubi-8-plus-nap-v5
+FROM redhat/ubi8@sha256:fb25b47426c1c43ef583dec35c9e3feb304caf143949e8a7e42d45e2792e6c7b AS ubi-8-plus-nap-v5
 ARG NAP_MODULES
 ARG NGINX_AGENT
 ARG NGINX_PLUS_VERSION
@@ -548,7 +548,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& dnf config-manager --set-enabled codeready-builder-for-rhel-8-x86_64-rpms \
 	&& dnf --nodocs install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm \
 	&& if [ -z "${NAP_MODULES##*waf*}" ]; then \
-	dnf --nodocs install -y app-protect-module-plus-33+5.210*; \
+	dnf --nodocs install -y app-protect-module-plus-33+5.264*; \
 	fi \
 	&& subscription-manager unregister \
 	&& if [ -z "${NAP_MODULES##*waf*}" ]; then \
