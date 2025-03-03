@@ -99,7 +99,7 @@ jobs:
         run: make cover
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@13ce06bfc6bbe3ecf90edbbf1bc32fe5978ca1d3 # v5.3.1
+        uses: codecov/codecov-action@0565863a31f2c772f9f0395002a31e3f06189574 # v5.4.0
         with:
           files: ./coverage.txt
           token: ${{ secrets.CODECOV_TOKEN }} # required
@@ -265,7 +265,7 @@ jobs:
 
       - name: Generate WAF v5 tgz from JSON
         run: |
-          docker run --rm --user root -v /var/run/docker.sock:/var/run/docker.sock -v ${{ github.workspace }}/tests/data/ap-waf-v5:/data gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/nap/waf-compiler:5.4.0 -p /data/wafv5.json -o /data/wafv5.tgz
+          docker run --rm --user root -v /var/run/docker.sock:/var/run/docker.sock -v ${{ github.workspace }}/tests/data/ap-waf-v5:/data gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/nap/waf-compiler:5.5.0 -p /data/wafv5.json -o /data/wafv5.tgz
         if: ${{ contains(matrix.images.image, 'nap-v5')}}
 
       - name: Run Regression Tests
@@ -284,7 +284,7 @@ jobs:
           plus-jwt: ${{ secrets.PLUS_JWT }}
 
       - name: Upload Test Results
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: ${{ steps.regression-tests.outputs.test-results-name }}
           path: ${{ steps.regression-tests.outputs.test-results-path }}

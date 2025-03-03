@@ -1,8 +1,6 @@
 import pytest
 from kubernetes.client.exceptions import ApiException
-from settings import (
-    TEST_DATA,
-)
+from settings import TEST_DATA
 from suite.utils.resources_utils import (
     get_nginx_template_conf,
     read_service,

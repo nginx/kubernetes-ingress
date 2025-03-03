@@ -139,4 +139,4 @@ milestones:
   - close: true
 
 snapshot:
-  name_template: '{{.Version}}'
+  version_template: '{{.Version}}'
