@@ -47,8 +47,8 @@ github.com/aws/aws-sdk-go-v2/service/ecs v1.52.0 h1:7/vgFWplkusJN/m+3QOa+W9FNRqa
 github.com/aws/aws-sdk-go-v2/service/ecs v1.52.0/go.mod h1:dPTOvmjJQ1T7Q+2+Xs2KSPrMvx+p0rpyV+HsQVnUK4o=
 github.com/aws/aws-sdk-go-v2/service/iam v1.38.1 h1:hfkzDZHBp9jAT4zcd5mtqckpU4E3Ax0LQaEWWk1VgN8=
 github.com/aws/aws-sdk-go-v2/service/iam v1.38.1/go.mod h1:u36ahDtZcQHGmVm/r+0L1sfKX4fzLEMdCqiKRKkUMVM=
-github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.2 h1:D4oz8/CzT9bAEYtVhSBmFj2dNOtaHOtMKc2vHBwYizA=
-github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.2/go.mod h1:Za3IHqTQ+yNcRHxu1OFucBh0ACZT4j4VQFF0BqpZcLY=
+github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.3 h1:eAh2A4b5IzM/lum78bZ590jy36+d/aFLgKF/4Vd1xPE=
+github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.3/go.mod h1:0yKJC/kb8sAnmlYa6Zs3QVYqaC8ug2AbnNChv5Ox3uA=
 github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.4.5 h1:gvZOjQKPxFXy1ft3QnEyXmT+IqneM9QAUWlM3r0mfqw=
 github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.4.5/go.mod h1:DLWnfvIcm9IET/mmjdxeXbBKmTCm0ZB8p1za9BVteM8=
 github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.10.5 h1:3Y457U2eGukmjYjeHG6kanZpDzJADa2m0ADqnuePYVQ=
