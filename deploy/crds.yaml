@@ -346,16 +346,17 @@ spec:
                       limit policy.
                     properties:
                       default:
-                        description: 'default sets the policy to be default in a group.
-                          #TODO'
+                        description: sets the rate limit in this policy to be the
+                          default if no conditions are met.   In a group of policies
+                          with the same JWT condition, only one policy can be the
+                          default.
                         type: boolean
                       jwt:
-                        description: JWTCondition defines a condition for a rate limit
-                          by JWT claim.
+                        description: defines a JWT condition to rate limit against.
                         properties:
                           claim:
-                            description: Claim is the JWT claim to be rate limit by.
-                              Nested claims should be separated by "."
+                            description: the JWT claim to be rate limit by. Nested
+                              claims should be separated by "."
                             pattern: ^([^$\s"'])*$
                             type: string
                           match:
