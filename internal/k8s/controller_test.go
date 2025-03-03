@@ -3534,3 +3534,63 @@ func TestGenerateSecretNSName(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateVirtualServerExWithZoneSync(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		testCase string
+		input    NewLoadBalancerControllerInput
+		vs       conf_v1.VirtualServer
+		vsr      []*conf_v1.VirtualServerRoute
+		expected configs.VirtualServerEx
+	}{
+		{
+			testCase: "VirtualServerEx without Zone sync",
+			input: NewLoadBalancerControllerInput{
+				KubeClient:               fake.NewSimpleClientset(),
+				EnableTelemetryReporting: false,
+				LoggerContext:            context.Background(),
+			},
+			vs:  conf_v1.VirtualServer{},
+			vsr: []*conf_v1.VirtualServerRoute{{}},
+			expected: configs.VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
+					{},
+				},
+			},
+		},
+		{
+			testCase: "VirtualServerEx with Zone sync",
+			input: NewLoadBalancerControllerInput{
+				KubeClient:               fake.NewSimpleClientset(),
+				EnableTelemetryReporting: false,
+				LoggerContext:            context.Background(),
+				NginxConfigurator: &configs.Configurator{
+					CfgParams: &configs.ConfigParams{
+						ZoneSync: configs.ZoneSync{
+							Enable: true,
+						},
+					},
+				},
+			},
+			vs:  conf_v1.VirtualServer{},
+			vsr: []*conf_v1.VirtualServerRoute{{}},
+			expected: configs.VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
+					{},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		lbc := NewLoadBalancerController(tc.input)
+		vsEx := lbc.createVirtualServerEx(&tc.vs, tc.vsr)
+		if reflect.DeepEqual(vsEx, tc.expected) {
+			t.Fatalf("Expected %v, but got %v", tc.expected, vsEx)
+		}
+	}
+}

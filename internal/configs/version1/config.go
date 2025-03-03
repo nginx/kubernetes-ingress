@@ -73,6 +73,7 @@ type LimitReqZone struct {
 	Key  string
 	Size string
 	Rate string
+	Sync bool
 }
 
 // Server describes an NGINX server.

@@ -2356,6 +2356,9 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 		LogConfRefs:    make(map[string]*unstructured.Unstructured),
 		DosProtectedEx: make(map[string]*configs.DosEx),
 	}
+	if lbc.configurator != nil && lbc.configurator.CfgParams != nil {
+		virtualServerEx.ZoneSync = lbc.configurator.CfgParams.ZoneSync.Enable
+	}
 
 	resource := lbc.configuration.hosts[virtualServer.Spec.Host]
 	if vsc, ok := resource.(*VirtualServerConfiguration); ok {
