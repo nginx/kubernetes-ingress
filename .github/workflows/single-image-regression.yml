@@ -26,11 +26,6 @@ on:
         description: "pytest markers to apply"
         required: false
         default: "'not upgrade'"
-      test-image-tag:
-        type: string
-        description: "The tag for the test image"
-        required: false
-        default: latest
   workflow_call:
     inputs:
       image:
@@ -97,6 +92,25 @@ jobs:
         run: |
           docker pull ${{ inputs.image }}:${{ inputs.tag }}
 
+      - name: Check if test image exists
+        id: check-image
+        run: |
+          docker manifest inspect "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') }}"
+        shell: bash
+        continue-on-error: true
+
+      - name: Build Test-Runner Container
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        with:
+          file: tests/Dockerfile
+          context: "."
+          cache-from: type=gha,scope=test-runner
+          tags: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') }}"
+          pull: true
+          push: false
+          load: true
+        if: ${{ steps.check-image.outcome == 'failure' }}
+
       - name: Run Tests
         uses: ./.github/actions/smoke-tests
         with:
@@ -108,5 +122,5 @@ jobs:
           k8s-version: ${{ inputs.k8s-version }}
           azure-ad-secret: ${{ secrets.AZURE_AD_AUTOMATION }}
           registry-token: ${{ steps.auth.outputs.access_token }}
-          test-image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:${{ inputs.test-image-tag }}"
+          test-image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') }}"
           plus-jwt: ${{ secrets.PLUS_JWT }}

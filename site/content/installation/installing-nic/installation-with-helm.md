@@ -423,12 +423,12 @@ The following tables lists the configurable parameters of the NGINX Ingress Cont
 | **controller.appprotect.enforcer.host** | Host that the App Protect WAF v5 Enforcer runs on. | "127.0.0.1" |
 | **controller.appprotect.enforcer.port** | Port that the App Protect WAF v5 Enforcer runs on. | 50000 |
 | **controller.appprotect.enforcer.image.repository** | The image repository of the App Protect WAF v5 Enforcer. | private-registry.nginx.com/nap/waf-enforcer |
-| **controller.appprotect.enforcer.image.tag** | The tag of the App Protect WAF v5 Enforcer. | "5.4.0" |
+| **controller.appprotect.enforcer.image.tag** | The tag of the App Protect WAF v5 Enforcer. | "5.5.0" |
 | **controller.appprotect.enforcer.image.digest** | The digest of the App Protect WAF v5 Enforcer. Takes precedence over tag if set. | "" |
 | **controller.appprotect.enforcer.image.pullPolicy** | The pull policy for the App Protect WAF v5 Enforcer image. | IfNotPresent |
 | **controller.appprotect.enforcer.securityContext** | The security context for App Protect WAF v5 Enforcer container. | {} |
 | **controller.appprotect.configManager.image.repository** | The image repository of the App Protect WAF v5 Configuration Manager. | private-registry.nginx.com/nap/waf-config-mgr |
-| **controller.appprotect.configManager.image.tag** | The tag of the App Protect WAF v5 Configuration Manager. | "5.4.0" |
+| **controller.appprotect.configManager.image.tag** | The tag of the App Protect WAF v5 Configuration Manager. | "5.5.0" |
 | **controller.appprotect.configManager.image.digest** | The digest of the App Protect WAF v5 Configuration Manager. Takes precedence over tag if set. | "" |
 | **controller.appprotect.configManager.image.pullPolicy** | The pull policy for the App Protect WAF v5 Configuration Manager image. | IfNotPresent |
 | **controller.appprotect.configManager.securityContext** | The security context for App Protect WAF v5 Configuration Manager container. | {"allowPrivilegeEscalation":false,"runAsUser":101,"runAsNonRoot":true,"capabilities":{"drop":["all"]}} |
