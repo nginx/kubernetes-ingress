@@ -10,6 +10,7 @@ KUBE_CONFIG_FOLDER          = ${HOME}/.kube
 KIND_KUBE_CONFIG_FOLDER     = $(KUBE_CONFIG_FOLDER)/kind
 MINIKUBE_KUBE_CONFIG_FOLDER = $(KUBE_CONFIG_FOLDER)/minikube
 DOCKERFILEPATH              := ${ROOT_DIR}/tests/Dockerfile
+PYTHON                      ?= python3
 IP_FAMILY                   = dual
 IC_TYPE                     ?= nginx-ingress ## The Ingress Controller type to use, "nginx-ingress" or "nginx-plus-ingress".  Defaults to "nginx-ingress"
 SHOW_IC_LOGS                ?= no ## Should the tests show the Ingress Controller logs on failure, "yes" or "no". Defaults to "no"
@@ -36,7 +37,7 @@ help: ## Show available make targets
 
 .PHONY: build
 build: ## Run build
-	docker build -t $(TEST_PREFIX):$(TEST_TAG) -f $(DOCKERFILEPATH) ..
+	docker build -t $(TEST_PREFIX):$(TEST_TAG) -f $(DOCKERFILEPATH) $(ROOT_DIR)
 
 
 $(KUBE_CONFIG_FOLDER):
@@ -51,9 +52,49 @@ $(MINIKUBE_KUBE_CONFIG_FOLDER): $(KUBE_CONFIG_FOLDER)
 	@mkdir -p $@
 
 
+.PHONY: setup-venv
+setup-venv:
+	$(PYTHON) -m venv $(ROOT_DIR)/tests/venv;
+	source $(ROOT_DIR)/tests/venv/bin/activate \
+	&& pip install --require-hashes -r requirements.txt --no-deps \
+	&& playwright install --with-deps chromium
+
+
+.PHONY: clean-venv
+clean-venv:
+	@rm -rf $(ROOT_DIR)/tests/venv
+
+
+.PHONY: run-local-tests
+run-local-tests: ## Run tests
+	source $(ROOT_DIR)/tests/venv/bin/activate \
+	&& pytest \
+		--image=$(BUILD_IMAGE) \
+		--image-pull-policy=$(PULL_POLICY) \
+		--deployment-type=$(DEPLOYMENT_TYPE) \
+		--ic-type=$(IC_TYPE) \
+		--service=$(SERVICE) \
+		--node-ip=$(NODE_IP) \
+		--show-ic-logs=$(SHOW_IC_LOGS) \
+		--plus-jwt=$(PLUS_JWT) \
+		-sv \
+		$(PYTEST_ARGS)
+
+
 .PHONY: run-tests
 run-tests: ## Run tests
-	docker run --rm -v $(KUBE_CONFIG_FOLDER):/root/.kube $(TEST_PREFIX):$(TEST_TAG) --context=$(CONTEXT) --image=$(BUILD_IMAGE) --image-pull-policy=$(PULL_POLICY) --deployment-type=$(DEPLOYMENT_TYPE) --ic-type=$(IC_TYPE) --service=$(SERVICE) --node-ip=$(NODE_IP) --show-ic-logs=$(SHOW_IC_LOGS) $(PYTEST_ARGS)
+	docker run --rm -v $(KUBE_CONFIG_FOLDER):/root/.kube \
+		$(TEST_PREFIX):$(TEST_TAG) \
+		--context=$(CONTEXT) \
+		--image=$(BUILD_IMAGE) \
+		--image-pull-policy=$(PULL_POLICY) \
+		--deployment-type=$(DEPLOYMENT_TYPE) \
+		--ic-type=$(IC_TYPE) \
+		--service=$(SERVICE) \
+		--node-ip=$(NODE_IP) \
+		--show-ic-logs=$(SHOW_IC_LOGS) \
+		--plus-jwt=$(PLUS_JWT) \
+		$(PYTEST_ARGS)
 
 
 .PHONY: run-tests-in-kind
