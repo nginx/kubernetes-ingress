@@ -2216,6 +2216,10 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 				}
 			}
 		}
+
+		if lbc.configurator != nil && lbc.configurator.CfgParams != nil {
+			ingEx.ZoneSync = lbc.configurator.CfgParams.ZoneSync.Enable
+		}
 	}
 
 	ingEx.Endpoints = make(map[string][]string)

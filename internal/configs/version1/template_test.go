@@ -1815,6 +1815,52 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithRequestRateLimitMinions(t *te
 	snaps.MatchSnapshot(t, buf.String())
 }
 
+func TestExecuteTemplate_ForIngressForNGINXPlusWithRequestRateLimitZoneSync(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	ingressCfg := IngressNginxConfig{
+		Ingress: Ingress{
+			Name:      "myingress",
+			Namespace: "default",
+		},
+		Servers: []Server{
+			{
+				Name: "test.example.com",
+			},
+		},
+		LimitReqZones: []LimitReqZone{
+			{
+				Name: "default/zone1",
+				Key:  "${binary_remote_addr}",
+				Size: "10m",
+				Rate: "200r/s",
+				Sync: true,
+			},
+		},
+	}
+
+	err := tmpl.Execute(buf, ingressCfg)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ingConf := buf.String()
+
+	wantDirectives := []string{
+		"limit_req_zone ${binary_remote_addr} zone=default/zone1:10m rate=200r/s sync;",
+	}
+
+	for _, want := range wantDirectives {
+		if !strings.Contains(ingConf, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
 func newNGINXPlusIngressTmpl(t *testing.T) *template.Template {
 	t.Helper()
 	tmpl, err := template.New("nginx-plus.ingress.tmpl").Funcs(helperFunctions).ParseFiles("nginx-plus.ingress.tmpl")

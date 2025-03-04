@@ -3594,3 +3594,48 @@ func TestCreateVirtualServerExWithZoneSync(t *testing.T) {
 		}
 	}
 }
+
+func TestCreateIngressExWithZoneSync(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		testCase string
+		input    NewLoadBalancerControllerInput
+		ingress  *networking.Ingress
+		expected configs.IngressEx
+	}{
+		{
+			testCase: "IngressEx without Zone sync",
+			input: NewLoadBalancerControllerInput{
+				KubeClient:               fake.NewSimpleClientset(),
+				EnableTelemetryReporting: false,
+				LoggerContext:            context.Background(),
+			},
+			ingress: &networking.Ingress{},
+			expected: configs.IngressEx{
+				Ingress: &networking.Ingress{},
+			},
+		},
+		{
+			testCase: "IngressEx with Zone sync",
+			input: NewLoadBalancerControllerInput{
+				KubeClient:               fake.NewSimpleClientset(),
+				EnableTelemetryReporting: false,
+				LoggerContext:            context.Background(),
+			},
+			ingress: &networking.Ingress{},
+			expected: configs.IngressEx{
+				Ingress:  &networking.Ingress{},
+				ZoneSync: true,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		lbc := NewLoadBalancerController(tc.input)
+		ingressEx := lbc.createIngressEx(tc.ingress, nil, nil)
+		if reflect.DeepEqual(ingressEx, tc.expected) {
+			t.Fatalf("Expected %v, but got %v", tc.expected, ingressEx)
+		}
+	}
+}

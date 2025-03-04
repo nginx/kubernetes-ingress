@@ -1768,7 +1768,7 @@ func generateGroupedLimitReqZone(zoneName string,
 	zoneSync bool,
 ) version2.LimitReqZone {
 	rate := rateLimitPol.Rate
-	if rateLimitPol.Scale && !zoneSync {
+	if rateLimitPol.Scale {
 		rate = scaleRatelimit(rateLimitPol.Rate, podReplicas)
 	}
 	lrz := version2.LimitReqZone{
