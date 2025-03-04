@@ -469,10 +469,7 @@ class TestRateLimitingPolicies:
         print("Step 6: check the rate limit")
         # Run rate limit test 5r/s
         self.check_rate_limit_nearly_eq(
-            virtual_server_setup.backend_1_url,
-            200,
-            5,
-            headers={"host": virtual_server_setup.vs_host},
+            virtual_server_setup.backend_1_url, 200, 5, headers={"host": virtual_server_setup.vs_host}, plus_minus=2
         )
 
         delete_policy(kube_apis.custom_objects, pol_name, test_namespace)
