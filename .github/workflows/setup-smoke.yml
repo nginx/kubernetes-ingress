@@ -98,7 +98,7 @@ jobs:
         if: ${{ inputs.authenticated && steps.stable_exists.outputs.exists != 'true'  }}
 
       - name: Fetch Cached Artifacts
-        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ inputs.go-md5 }}
@@ -114,7 +114,7 @@ jobs:
         if: ${{ inputs.authenticated  }}
 
       - name: Build Test-Runner Container
-        uses: docker/build-push-action@ca877d9245402d1537745e0e356eab47c3520991 # v6.13.0
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           file: tests/Dockerfile
           context: "."
@@ -126,7 +126,7 @@ jobs:
         if: ${{ ( !inputs.authenticated || steps.check-image.outcome == 'failure' )  }}
 
       - name: Build ${{ inputs.image }} Container
-        uses: docker/build-push-action@ca877d9245402d1537745e0e356eab47c3520991 # v6.13.0
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           file: build/Dockerfile
           context: "."
@@ -169,7 +169,7 @@ jobs:
         if: ${{ steps.stable_exists.outputs.exists != 'true'  }}
 
       - name: Upload Test Results
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: ${{ steps.smoke-tests.outputs.test-results-name }}
           path: ${{ steps.smoke-tests.outputs.test-results-path }}
