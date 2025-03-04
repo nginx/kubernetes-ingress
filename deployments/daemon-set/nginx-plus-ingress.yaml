@@ -7,11 +7,13 @@ spec:
   selector:
     matchLabels:
       app: nginx-ingress
+      zone-sync.nginx.com/name: nginx-ingress
   template:
     metadata:
       labels:
         app: nginx-ingress
         app.kubernetes.io/name: nginx-ingress
+        zone-sync.nginx.com/name: nginx-ingress
      #annotations:
        #prometheus.io/scrape: "true"
        #prometheus.io/port: "9113"
