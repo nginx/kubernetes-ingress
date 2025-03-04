@@ -59,6 +59,41 @@ rl_pol_premium_with_default_jwt_claim_sub = (
 )
 
 
+def wait_for_zone_sync_enabled(url):
+    interval = 1
+    retry = 120
+    count = 1
+    while count <= retry:
+        print(f"{count}: Calling get on {url}")
+        resp = requests.get(url)
+        if resp.status_code != 200:
+            return False
+        if "zone_sync" in resp.json():
+            return True
+        count += 1
+        wait_before_test(interval)
+    return False
+
+
+def wait_for_zone_sync_nodes_online(url, node_count):
+    interval = 1
+    retry = 120
+    count = 1
+    while count <= retry:
+        print(f"{count}: Calling get on {url}")
+        resp = requests.get(url)
+        if resp.status_code != 200:
+            return False
+        body = resp.json()
+        nodes = body["status"]["nodes_online"]
+        online = node_count - 1  # NGINX only shows remote peers in the `nodes_online` field
+        if nodes == online:
+            return True
+        count += 1
+        wait_before_test(interval)
+    return False
+
+
 @pytest.mark.policies
 @pytest.mark.policies_rl
 @pytest.mark.parametrize(
@@ -384,17 +419,10 @@ class TestRateLimitingPolicies:
         src,
     ):
         """
-        Test if rate-limiting policy is working with 5 rps
+        Test if rate-limiting policy is working with 5 rps, pods are scaled to 3 and ZoneSync is enabled
         """
+        replica_count = 5
         pol_name = apply_and_assert_valid_policy(kube_apis, test_namespace, rl_pol_sec_src)
-
-        # Patch VirtualServer
-        apply_and_assert_valid_vs(
-            kube_apis,
-            virtual_server_setup.namespace,
-            virtual_server_setup.vs_name,
-            src,
-        )
 
         configmap_name = "nginx-config"
 
@@ -406,9 +434,22 @@ class TestRateLimitingPolicies:
             f"{TEST_DATA}/zone-sync/configmap-with-zonesync-minimal.yaml",
         )
 
-        print("Step 3: scale deployments to 3")
+        print("Step 2: apply the policy to the virtual server")
+        # Patch VirtualServer
+        apply_and_assert_valid_vs(
+            kube_apis,
+            virtual_server_setup.namespace,
+            virtual_server_setup.vs_name,
+            src,
+        )
+
+        print(f"Step 3: scale deployments to {replica_count}")
         scale_deployment(
-            kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ingress_controller_prerequisites.namespace, 3
+            kube_apis.v1,
+            kube_apis.apps_v1_api,
+            "nginx-ingress",
+            ingress_controller_prerequisites.namespace,
+            replica_count,
         )
 
         wait_before_test()
@@ -416,18 +457,16 @@ class TestRateLimitingPolicies:
         print("Step 4: check if pods are ready")
         wait_until_all_pods_are_ready(kube_apis.v1, ingress_controller_prerequisites.namespace)
 
-        wait_before_test(60)
-
         print("Step 5: check plus api for zone sync")
         api_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.api_port}"
-        stream_url = f"{api_url}/api/{NGINX_API_VERSION}/stream/zone_sync"
 
-        resp = requests.get(stream_url)
-        print(f"response: {resp.text}")
-        assert "zone_sync" in resp, f"got {resp.text}"
+        stream_url = f"{api_url}/api/{NGINX_API_VERSION}/stream"
+        assert wait_for_zone_sync_enabled(stream_url)
 
-        wait_before_test()
+        zone_sync_url = f"{stream_url}/zone_sync"
+        assert wait_for_zone_sync_nodes_online(zone_sync_url, replica_count)
 
+        print("Step 6: check the rate limit")
         # Run rate limit test 5r/s
         self.check_rate_limit_nearly_eq(
             virtual_server_setup.backend_1_url,
