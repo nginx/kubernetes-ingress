@@ -616,8 +616,10 @@ type RateLimit struct {
 
 // RateLimitCondition defines a condition for a rate limit policy.
 type RateLimitCondition struct {
+	// defines a JWT condition to rate limit against.
 	JWT *JWTCondition `json:"jwt"`
 	// +kubebuilder:validation:Optional
+	// sets the rate limit in this policy to be the default if no conditions are met. In a group of policies with the same JWT condition, only one policy can be the default.
 	Default bool `json:"default"`
 }
 
@@ -625,9 +627,11 @@ type RateLimitCondition struct {
 type JWTCondition struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^([^$\s"'])*$`
+	// the JWT claim to be rate limit by. Nested claims should be separated by "."
 	Claim string `json:"claim"`
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^([^$\s."'])*$`
+	// the value of the claim to match against.
 	Match string `json:"match"`
 }
 
