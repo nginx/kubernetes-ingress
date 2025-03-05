@@ -5,6 +5,11 @@ import pytest
 import requests
 from settings import TEST_DATA
 from suite.utils.custom_resources_utils import read_custom_resource
+from suite.utils.nginx_api_utils import (
+    check_synced_zone_exists,
+    wait_for_zone_sync_enabled,
+    wait_for_zone_sync_nodes_online,
+)
 from suite.utils.policy_resources_utils import apply_and_assert_valid_policy, create_policy_from_yaml, delete_policy
 from suite.utils.resources_utils import (
     get_pod_list,
@@ -57,52 +62,6 @@ rl_pol_basic_with_default_jwt_claim_sub = (
 rl_pol_premium_with_default_jwt_claim_sub = (
     f"{TEST_DATA}/rate-limit/policies/rate-limit-tiered-premium-with-default-jwt-claim-sub.yaml"
 )
-
-
-def wait_for_zone_sync_enabled(url):
-    interval = 1
-    retry = 120
-    count = 1
-    while count <= retry:
-        print(f"{count}: Calling get on {url}")
-        resp = requests.get(url)
-        if resp.status_code != 200:
-            return False
-        if "zone_sync" in resp.json():
-            return True
-        count += 1
-        wait_before_test(interval)
-    return False
-
-
-def wait_for_zone_sync_nodes_online(url, node_count):
-    interval = 1
-    retry = 120
-    count = 1
-    while count <= retry:
-        print(f"{count}: Calling get on {url}")
-        resp = requests.get(url)
-        if resp.status_code != 200:
-            return False
-        body = resp.json()
-        nodes = body["status"]["nodes_online"]
-        online = node_count - 1  # NGINX only shows remote peers in the `nodes_online` field
-        if nodes == online:
-            return True
-        count += 1
-        wait_before_test(interval)
-    return False
-
-
-def check_synced_zone_exists(url, zone_name):
-    resp = requests.get(url)
-    if resp.status_code != 200:
-        return False
-    body = resp.json()
-    for zone in body["zones"].keys():
-        if zone_name in zone:
-            return True
-    return False
 
 
 @pytest.mark.policies
@@ -480,8 +439,22 @@ class TestRateLimitingPolicies:
         print("Step 6: check plus api if zone is synced")
         assert check_synced_zone_exists(zone_sync_url, pol_name.replace("-", "_", -1))
 
-        delete_policy(kube_apis.custom_objects, pol_name, test_namespace)
+        # revert changes
+        scale_deployment(
+            kube_apis.v1,
+            kube_apis.apps_v1_api,
+            "nginx-ingress",
+            ingress_controller_prerequisites.namespace,
+            1,
+        )
         self.restore_default_vs(kube_apis, virtual_server_setup)
+        replace_configmap_from_yaml(
+            kube_apis.v1,
+            configmap_name,
+            ingress_controller_prerequisites.namespace,
+            f"{TEST_DATA}/zone-sync/default-configmap.yaml",
+        )
+        delete_policy(kube_apis.custom_objects, pol_name, test_namespace)
 
     @pytest.mark.skip_for_nginx_oss
     @pytest.mark.parametrize("src", [rl_vs_jwt_claim_sub])
