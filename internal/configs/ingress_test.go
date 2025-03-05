@@ -1337,14 +1337,11 @@ func TestGenerateNginxCfgForLimitReqWithScaling(t *testing.T) {
 	for _, server := range result.Servers {
 		for _, location := range server.Locations {
 			if !reflect.DeepEqual(location.LimitReq, expectedReqs) {
-				t.Errorf("generateNginxCfg returned \n%v,  but expected \n%v", result.LimitReqZones, expectedZones)
+				t.Errorf("generateNginxCfg returned \n%v,  but expected \n%v", location.LimitReq, expectedReqs)
 			}
 		}
 	}
 
-	if !reflect.DeepEqual(result.LimitReqZones, expectedZones) {
-		t.Errorf("generateNginxCfg returned \n%v,  but expected \n%v", result.LimitReqZones, expectedZones)
-	}
 	if len(warnings) != 0 {
 		t.Errorf("generateNginxCfg returned warnings: %v", warnings)
 	}
@@ -1431,10 +1428,60 @@ func TestGenerateNginxCfgForMergeableIngressesForLimitReqWithScaling(t *testing.
 		}
 	}
 
-	if !reflect.DeepEqual(result.LimitReqZones, expectedZones) {
-		t.Errorf("generateNginxCfg returned \n%v,  but expected \n%v", result.LimitReqZones, expectedZones)
-	}
 	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfg returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgForLimitReqWithScalingAndZoneSync(t *testing.T) {
+	t.Parallel()
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations["nginx.org/limit-req-rate"] = "200r/s"
+	cafeIngressEx.Ingress.Annotations["nginx.org/limit-req-key"] = "${request_uri}"
+	cafeIngressEx.Ingress.Annotations["nginx.org/limit-req-zone-size"] = "11m"
+	cafeIngressEx.Ingress.Annotations["nginx.org/limit-req-scale"] = "true"
+
+	isPlus := true
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+	cafeIngressEx.ZoneSync = true
+
+	expectedZones := []version1.LimitReqZone{
+		{
+			Name: "default/cafe-ingress",
+			Key:  "${request_uri}",
+			Size: "11m",
+			Rate: "200r/s",
+			Sync: true,
+		},
+	}
+
+	expectedReqs := &version1.LimitReq{
+		Zone:       "default/cafe-ingress",
+		LogLevel:   "error",
+		RejectCode: 429,
+	}
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		ingEx:                     &cafeIngressEx,
+		BaseCfgParams:             configParams,
+		staticParams:              &StaticConfigParams{},
+		isPlus:                    isPlus,
+		ingressControllerReplicas: 4,
+	})
+
+	if !reflect.DeepEqual(result.LimitReqZones, expectedZones) {
+		t.Errorf("generateNginxCfg returned \n%+v,  but expected \n%+v", result.LimitReqZones, expectedZones)
+	}
+
+	for _, server := range result.Servers {
+		for _, location := range server.Locations {
+			if !reflect.DeepEqual(location.LimitReq, expectedReqs) {
+				t.Errorf("generateNginxCfg returned \n%+v,  but expected \n%+v", location.LimitReq, expectedReqs)
+			}
+		}
+	}
+
+	if len(warnings) != 1 {
 		t.Errorf("generateNginxCfg returned warnings: %v", warnings)
 	}
 }
