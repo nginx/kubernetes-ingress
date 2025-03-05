@@ -6455,6 +6455,10 @@ func TestGenerateVirtualServerConfigRateLimit(t *testing.T) {
 								Rate:     "10r/s",
 							},
 						},
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "rate-limit-policy",
+							Namespace: "default",
+						},
 					},
 				},
 				Endpoints: map[string][]string{
@@ -6600,6 +6604,10 @@ func TestGenerateVirtualServerConfigRateLimit(t *testing.T) {
 								ZoneSize: "10M",
 								Rate:     "10r/s",
 							},
+						},
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "rate-limit-policy",
+							Namespace: "default",
 						},
 					},
 				},
@@ -6801,6 +6809,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 								},
 							},
 						},
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
 					},
 					"default/basic-rate-limit-policy": {
 						Spec: conf_v1.PolicySpec{
@@ -6815,6 +6827,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 									},
 								},
 							},
+						},
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
 						},
 					},
 				},
@@ -7034,6 +7050,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 								},
 							},
 						},
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
 					},
 					"default/basic-rate-limit-policy": {
 						Spec: conf_v1.PolicySpec{
@@ -7048,6 +7068,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 									},
 								},
 							},
+						},
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
 						},
 					},
 				},
@@ -7264,6 +7288,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 								},
 							},
 						},
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
 					},
 					"default/basic-rate-limit-policy": {
 						Spec: conf_v1.PolicySpec{
@@ -7279,6 +7307,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 									Default: true,
 								},
 							},
+						},
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
 						},
 					},
 				},
@@ -7500,6 +7532,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 								},
 							},
 						},
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
 					},
 					"default/basic-rate-limit-policy": {
 						Spec: conf_v1.PolicySpec{
@@ -7515,6 +7551,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 									Default: true,
 								},
 							},
+						},
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
 						},
 					},
 				},
@@ -7721,6 +7761,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 								},
 							},
 						},
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
 					},
 					"default/basic-rate-limit-policy": {
 						Spec: conf_v1.PolicySpec{
@@ -7736,6 +7780,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 									Default: true,
 								},
 							},
+						},
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
 						},
 					},
 				},
@@ -7987,6 +8035,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 								},
 							},
 						},
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
 					},
 					"default/basic-rate-limit-policy": {
 						Spec: conf_v1.PolicySpec{
@@ -8002,6 +8054,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 									Default: true,
 								},
 							},
+						},
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
 						},
 					},
 				},
@@ -8519,7 +8575,7 @@ func TestGeneratePolicies(t *testing.T) {
 	mTLSCertAndCrlPath := fmt.Sprintf("%s %s", mTLSCertPath, mTLSCrlPath)
 	policyOpts := policyOptions{
 		tls:      true,
-		zoneSync: true,
+		zoneSync: false,
 		secretRefs: map[string]*secrets.SecretReference{
 			"default/ingress-mtls-secret": {
 				Secret: &api_v1.Secret{
@@ -8696,6 +8752,10 @@ func TestGeneratePolicies(t *testing.T) {
 							LogLevel: "notice",
 						},
 					},
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy",
+						Namespace: "default",
+					},
 				},
 			},
 			expected: policiesCfg{
@@ -8711,7 +8771,6 @@ func TestGeneratePolicies(t *testing.T) {
 							ZoneSize: "10M",
 							Rate:     "10r/s",
 							ZoneName: "pol_rl_default_rateLimit_policy_default_test",
-							Sync:     true,
 						},
 					},
 					Options: version2.LimitReqOptions{
@@ -8742,6 +8801,10 @@ func TestGeneratePolicies(t *testing.T) {
 							Rate:     "10r/s",
 						},
 					},
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy",
+						Namespace: "default",
+					},
 				},
 				"default/rateLimit-policy2": {
 					Spec: conf_v1.PolicySpec{
@@ -8750,6 +8813,10 @@ func TestGeneratePolicies(t *testing.T) {
 							ZoneSize: "20M",
 							Rate:     "20r/s",
 						},
+					},
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy2",
+						Namespace: "default",
 					},
 				},
 			},
@@ -8761,14 +8828,12 @@ func TestGeneratePolicies(t *testing.T) {
 							ZoneSize: "10M",
 							Rate:     "10r/s",
 							ZoneName: "pol_rl_default_rateLimit_policy_default_test",
-							Sync:     true,
 						},
 						{
 							Key:      "test2",
 							ZoneSize: "20M",
 							Rate:     "20r/s",
 							ZoneName: "pol_rl_default_rateLimit_policy2_default_test",
-							Sync:     true,
 						},
 					},
 					Options: version2.LimitReqOptions{
@@ -8805,6 +8870,10 @@ func TestGeneratePolicies(t *testing.T) {
 							Scale:    true,
 						},
 					},
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimitScale-policy",
+						Namespace: "default",
+					},
 				},
 			},
 			expected: policiesCfg{
@@ -8815,7 +8884,6 @@ func TestGeneratePolicies(t *testing.T) {
 							ZoneSize: "10M",
 							Rate:     "5r/s",
 							ZoneName: "pol_rl_default_rateLimitScale_policy_default_test",
-							Sync:     true,
 						},
 					},
 					Options: version2.LimitReqOptions{
@@ -9514,6 +9582,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 							Rate:     "10r/s",
 						},
 					},
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy",
+						Namespace: "default",
+					},
 				},
 				"default/rateLimit-policy2": {
 					Spec: conf_v1.PolicySpec{
@@ -9525,6 +9597,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 							LogLevel:   "info",
 							RejectCode: &rejectCodeOverride,
 						},
+					},
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy2",
+						Namespace: "default",
 					},
 				},
 			},
@@ -9596,6 +9672,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 							},
 						},
 					},
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy",
+						Namespace: "default",
+					},
 				},
 				"default/rateLimit-policy2": {
 					Spec: conf_v1.PolicySpec{
@@ -9611,6 +9691,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 								Default: true,
 							},
 						},
+					},
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy2",
+						Namespace: "default",
 					},
 				},
 			},
