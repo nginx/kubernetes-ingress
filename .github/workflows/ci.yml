@@ -242,7 +242,7 @@ jobs:
       - name: Run static check
         uses: dominikh/staticcheck-action@fe1dd0c3658873b46f8c9bb3291096a617310ca6 # v1.3.1
         with:
-          version: "v0.5.1"
+          version: "v0.6.0"
           install-go: false
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 

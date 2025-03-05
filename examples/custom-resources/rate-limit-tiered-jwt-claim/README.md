@@ -1,4 +1,4 @@
-# Rate Limit JWT claim
+# Tiered Rate Limits with JWT Claim
 
 In this example, we deploy a web application, configure load balancing for it via a VirtualServer, and apply two rate
 limit Policies, grouped in a tier, using a JWT claim `sub` as the key to the rate limit and using another JWT claim
