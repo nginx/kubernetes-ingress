@@ -423,6 +423,8 @@ class TestRateLimitingPoliciesVsr:
         delete_policy(kube_apis.custom_objects, pol_name, v_s_route_setup.route_m.namespace)
         self.restore_default_vsr(kube_apis, v_s_route_setup)
 
+    @pytest.mark.skip_for_nginx_oss
+    @pytest.mark.zonesync
     @pytest.mark.parametrize("src", [rl_vsr_sec_src])
     def test_rl_policy_5rs_with_zone_sync_vsr(
         self,
@@ -436,7 +438,7 @@ class TestRateLimitingPoliciesVsr:
         src,
     ):
         """
-        Test if rate-limiting policy is working with 5 rps, pods are scaled to 3 and ZoneSync is enabled
+        Test pods are scaled to 3, ZoneSync is enabled & Policy zone is synced
         """
         replica_count = 3
         NGINX_API_VERSION = 9

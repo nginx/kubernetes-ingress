@@ -377,6 +377,8 @@ class TestRateLimitingPolicies:
         delete_policy(kube_apis.custom_objects, pol_name, test_namespace)
         self.restore_default_vs(kube_apis, virtual_server_setup)
 
+    @pytest.mark.skip_for_nginx_oss
+    @pytest.mark.zonesync
     @pytest.mark.parametrize("src", [rl_vs_sec_src])
     def test_rl_policy_5rs_with_zone_sync(
         self,
@@ -389,7 +391,7 @@ class TestRateLimitingPolicies:
         src,
     ):
         """
-        Test if rate-limiting policy is working with 5 rps, pods are scaled to 3 and ZoneSync is enabled
+        Test pods are scaled to 3, ZoneSync is enabled & Policy zone is synced
         """
         replica_count = 3
         pol_name = apply_and_assert_valid_policy(kube_apis, test_namespace, rl_pol_sec_src)
