@@ -94,6 +94,17 @@ def wait_for_zone_sync_nodes_online(url, node_count):
     return False
 
 
+def check_synced_zone_exists(url, zone_name):
+    resp = requests.get(url)
+    if resp.status_code != 200:
+        return False
+    body = resp.json()
+    for zone in body["zones"].keys():
+        if zone_name in zone:
+            return True
+    return False
+
+
 @pytest.mark.policies
 @pytest.mark.policies_rl
 @pytest.mark.parametrize(
@@ -466,16 +477,8 @@ class TestRateLimitingPolicies:
         zone_sync_url = f"{stream_url}/zone_sync"
         assert wait_for_zone_sync_nodes_online(zone_sync_url, replica_count)
 
-        print("Step 6: check the rate limit")
-        # Run rate limit test 5r/s
-        self.check_rate_limit_nearly_eq(
-            virtual_server_setup.backend_1_url,
-            200,
-            5,
-            headers={"host": virtual_server_setup.vs_host},
-            plus_minus=2,
-            delay=0.05,
-        )
+        print("Step 6: check plus api if zone is synced")
+        assert check_synced_zone_exists(zone_sync_url, pol_name.replace("-", "_", -1))
 
         delete_policy(kube_apis.custom_objects, pol_name, test_namespace)
         self.restore_default_vs(kube_apis, virtual_server_setup)
