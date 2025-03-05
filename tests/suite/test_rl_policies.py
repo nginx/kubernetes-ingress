@@ -421,7 +421,7 @@ class TestRateLimitingPolicies:
         """
         Test if rate-limiting policy is working with 5 rps, pods are scaled to 3 and ZoneSync is enabled
         """
-        replica_count = 5
+        replica_count = 3
         pol_name = apply_and_assert_valid_policy(kube_apis, test_namespace, rl_pol_sec_src)
 
         configmap_name = "nginx-config"
@@ -469,7 +469,12 @@ class TestRateLimitingPolicies:
         print("Step 6: check the rate limit")
         # Run rate limit test 5r/s
         self.check_rate_limit_nearly_eq(
-            virtual_server_setup.backend_1_url, 200, 5, headers={"host": virtual_server_setup.vs_host}, plus_minus=2
+            virtual_server_setup.backend_1_url,
+            200,
+            5,
+            headers={"host": virtual_server_setup.vs_host},
+            plus_minus=2,
+            delay=0.05,
         )
 
         delete_policy(kube_apis.custom_objects, pol_name, test_namespace)
