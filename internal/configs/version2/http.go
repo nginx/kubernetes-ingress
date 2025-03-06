@@ -383,10 +383,11 @@ type LimitReqZone struct {
 	PolicyResult  string
 	GroupDefault  bool
 	GroupSource   string
+	Sync          bool
 }
 
 func (rlz LimitReqZone) String() string {
-	return fmt.Sprintf("{Key %q, ZoneName %q, ZoneSize %v, Rate %q, GroupValue %q, PolicyValue %q, GroupVariable %q, PolicyResult %q, GroupDefault %t, GroupSource %q}",
+	return fmt.Sprintf("{Key %q, ZoneName %q, ZoneSize %v, Rate %q, GroupValue %q, PolicyValue %q, GroupVariable %q, PolicyResult %q, GroupDefault %t, GroupSource %q, Sync %t}",
 		rlz.Key,
 		rlz.ZoneName,
 		rlz.ZoneSize,
@@ -397,6 +398,7 @@ func (rlz LimitReqZone) String() string {
 		rlz.PolicyResult,
 		rlz.GroupDefault,
 		rlz.GroupSource,
+		rlz.Sync,
 	)
 }
 
