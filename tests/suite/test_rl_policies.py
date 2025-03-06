@@ -380,7 +380,7 @@ class TestRateLimitingPolicies:
     @pytest.mark.skip_for_nginx_oss
     @pytest.mark.zonesync
     @pytest.mark.parametrize("src", [rl_vs_sec_src])
-    def test_rl_policy_5rs_with_zone_sync(
+    def test_rl_policy_with_zone_sync(
         self,
         kube_apis,
         crd_ingress_controller,
@@ -450,6 +450,81 @@ class TestRateLimitingPolicies:
             1,
         )
         self.restore_default_vs(kube_apis, virtual_server_setup)
+        replace_configmap_from_yaml(
+            kube_apis.v1,
+            configmap_name,
+            ingress_controller_prerequisites.namespace,
+            f"{TEST_DATA}/zone-sync/default-configmap.yaml",
+        )
+        delete_policy(kube_apis.custom_objects, pol_name, test_namespace)
+
+    @pytest.mark.skip_for_nginx_oss
+    @pytest.mark.parametrize("src", [rl_vs_pri_sca_src])
+    def test_rl_policy_with_scale_and_zone_sync(
+        self,
+        kube_apis,
+        crd_ingress_controller,
+        ingress_controller_prerequisites,
+        ingress_controller_endpoint,
+        virtual_server_setup,
+        test_namespace,
+        src,
+    ):
+        """
+        Test pods are scaled to 3, ZoneSync is enabled, Scale is applied on the Policy & checking event warnings
+        """
+        replica_count = 3
+        pol_name = apply_and_assert_valid_policy(kube_apis, test_namespace, rl_pol_pri_sca_src)
+
+        configmap_name = "nginx-config"
+
+        print("Step 1: apply minimal zone_sync nginx-config map")
+        replace_configmap_from_yaml(
+            kube_apis.v1,
+            configmap_name,
+            ingress_controller_prerequisites.namespace,
+            f"{TEST_DATA}/zone-sync/configmap-with-zonesync-minimal.yaml",
+        )
+        
+        print(f"Step 2: scale deployments to {replica_count}")
+        scale_deployment(
+            kube_apis.v1,
+            kube_apis.apps_v1_api,
+            "nginx-ingress",
+            ingress_controller_prerequisites.namespace,
+            replica_count,
+        )
+        
+        wait_before_test()
+        
+        print("Step 3: check if pods are ready")
+        wait_until_all_pods_are_ready(kube_apis.v1, ingress_controller_prerequisites.namespace)
+
+        print("Step 4: apply the policy to the virtual server")
+        # Patch VirtualServer
+        apply_and_assert_valid_vs(
+            kube_apis,
+            virtual_server_setup.namespace,
+            virtual_server_setup.vs_name,
+            src,
+        )
+
+        print("Step 5: check for warning events on the policy")
+        assert wait_for_event(
+            kube_apis.v1,
+            "both zone sync and rate limit scale are enabled, the rate limit scale value will not be used.",
+            test_namespace
+        )
+        
+        # revert changes
+        self.restore_default_vs(kube_apis, virtual_server_setup)
+        scale_deployment(
+            kube_apis.v1,
+            kube_apis.apps_v1_api,
+            "nginx-ingress",
+            ingress_controller_prerequisites.namespace,
+            1,
+        )
         replace_configmap_from_yaml(
             kube_apis.v1,
             configmap_name,

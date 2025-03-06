@@ -1050,8 +1050,8 @@ func (p *policiesCfg) addRateLimitConfig(
 	ownerDetails policyOwnerDetails,
 	podReplicas int,
 	zoneSync bool,
-) *validationResults {
-	res := newValidationResults()
+) Warnings {
+	res := newWarnings()
 	rateLimit := policy.Spec.RateLimit
 	polKey := fmt.Sprintf("%v/%v", policy.Namespace, policy.Name)
 
@@ -1059,7 +1059,7 @@ func (p *policiesCfg) addRateLimitConfig(
 	if rateLimit.Condition != nil && rateLimit.Condition.JWT.Claim != "" && rateLimit.Condition.JWT.Match != "" {
 		lrz, warningText := generateGroupedLimitReqZone(rlZoneName, policy, podReplicas, ownerDetails, zoneSync)
 		if warningText != "" {
-			res.addWarning(warningText)
+			res.AddWarning(policy, warningText)
 		}
 		p.RateLimit.PolicyGroupMaps = append(p.RateLimit.PolicyGroupMaps, *generateLRZPolicyGroupMap(lrz))
 		p.RateLimit.AuthJWTClaimSets = append(p.RateLimit.AuthJWTClaimSets, generateAuthJwtClaimSet(*rateLimit.Condition.JWT, ownerDetails))
@@ -1067,7 +1067,7 @@ func (p *policiesCfg) addRateLimitConfig(
 	} else {
 		lrz, warningText := generateLimitReqZone(rlZoneName, policy, podReplicas, zoneSync)
 		if warningText != "" {
-			res.addWarning(warningText)
+			res.AddWarning(policy, warningText)
 		}
 		p.RateLimit.Zones = append(p.RateLimit.Zones, lrz)
 	}
@@ -1078,13 +1078,13 @@ func (p *policiesCfg) addRateLimitConfig(
 	} else {
 		curOptions := generateLimitReqOptions(rateLimit)
 		if curOptions.DryRun != p.RateLimit.Options.DryRun {
-			res.addWarningf("RateLimit policy %s with limit request option dryRun='%v' is overridden to dryRun='%v' by the first policy reference in this context", polKey, curOptions.DryRun, p.RateLimit.Options.DryRun)
+			res.AddWarningf(ownerDetails.owner, "RateLimit policy %s with limit request option dryRun='%v' is overridden to dryRun='%v' by the first policy reference in this context", polKey, curOptions.DryRun, p.RateLimit.Options.DryRun)
 		}
 		if curOptions.LogLevel != p.RateLimit.Options.LogLevel {
-			res.addWarningf("RateLimit policy %s with limit request option logLevel='%v' is overridden to logLevel='%v' by the first policy reference in this context", polKey, curOptions.LogLevel, p.RateLimit.Options.LogLevel)
+			res.AddWarningf(ownerDetails.owner, "RateLimit policy %s with limit request option logLevel='%v' is overridden to logLevel='%v' by the first policy reference in this context", polKey, curOptions.LogLevel, p.RateLimit.Options.LogLevel)
 		}
 		if curOptions.RejectCode != p.RateLimit.Options.RejectCode {
-			res.addWarningf("RateLimit policy %s with limit request option rejectCode='%v' is overridden to rejectCode='%v' by the first policy reference in this context", polKey, curOptions.RejectCode, p.RateLimit.Options.RejectCode)
+			res.AddWarningf(ownerDetails.owner, "RateLimit policy %s with limit request option rejectCode='%v' is overridden to rejectCode='%v' by the first policy reference in this context", polKey, curOptions.RejectCode, p.RateLimit.Options.RejectCode)
 		}
 	}
 	return res
@@ -1669,17 +1669,21 @@ func (vsc *virtualServerConfigurator) generatePolicies(
 		key := fmt.Sprintf("%s/%s", polNamespace, p.Name)
 
 		if pol, exists := policies[key]; exists {
-			var res *validationResults
+			res := newValidationResults()
 			switch {
 			case pol.Spec.AccessControl != nil:
 				res = config.addAccessControlConfig(pol.Spec.AccessControl)
 			case pol.Spec.RateLimit != nil:
-				res = config.addRateLimitConfig(
+				if warnings := config.addRateLimitConfig(
 					pol,
 					ownerDetails,
 					vsc.IngressControllerReplicas,
 					policyOpts.zoneSync,
-				)
+				); warnings != nil {
+					for obj, msgs := range warnings {
+						vsc.addWarnings(obj, msgs)
+					}
+				}
 			case pol.Spec.JWTAuth != nil:
 				res = config.addJWTAuthConfig(pol.Spec.JWTAuth, key, polNamespace, policyOpts.secretRefs)
 			case pol.Spec.BasicAuth != nil:

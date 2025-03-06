@@ -4,6 +4,7 @@ metadata:
   name: rate-limit-policy
 spec:
   rateLimit:
-    rate: 1r/s
+    rate: 10r/s
     key: ${binary_remote_addr}
     zoneSize: 10M
+    scale: true
