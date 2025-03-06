@@ -1250,7 +1250,6 @@ func TestOpenTracingConfiguration(t *testing.T) {
 				t.Errorf("MainOpenTracingTracerConfig: want %q, got %q",
 					test.tracerConfig, result.MainOpenTracingTracerConfig)
 			}
-
 		})
 	}
 }
