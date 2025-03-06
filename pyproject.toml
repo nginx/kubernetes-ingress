@@ -22,7 +22,7 @@ pythonpath = [
 ]
 addopts = "--tb=native -ra --disable-warnings -x -l -v --strict-markers"
 log_cli = true
-markers =[
+markers = [
     "agent",
     "annotations",
     "appprotect",
@@ -92,7 +92,6 @@ markers =[
     "vsr_upstream",
     "watch_namespace",
     "wildcard_tls",
-    "zonesync",
 ]
 testpaths = [
     "tests",

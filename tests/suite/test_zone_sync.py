@@ -117,7 +117,6 @@ def assert_headless_service_doesnt_exist(v1, cli_arguments, namespace):
     assert service_exists(v1, cli_arguments, namespace) is False
 
 
-@pytest.mark.zonesync
 @pytest.mark.skip_for_nginx_oss
 @pytest.mark.ingresses
 @pytest.mark.smoke

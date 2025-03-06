@@ -378,7 +378,6 @@ class TestRateLimitingPolicies:
         self.restore_default_vs(kube_apis, virtual_server_setup)
 
     @pytest.mark.skip_for_nginx_oss
-    @pytest.mark.zonesync
     @pytest.mark.parametrize("src", [rl_vs_sec_src])
     def test_rl_policy_5rs_with_zone_sync(
         self,
