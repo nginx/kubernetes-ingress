@@ -1213,6 +1213,32 @@ server {
 
 ---
 
+[TestExecuteTemplate_ForIngressForNGINXPlusWithRequestRateLimitZoneSync - 1]
+# configuration for default/myingress
+
+
+limit_req_zone ${binary_remote_addr} zone=default/zone1:10m rate=200r/s sync;
+
+
+
+server {
+
+    server_tokens "";
+
+    server_name test.example.com;
+
+    status_zone ;
+    set $resource_type "ingress";
+    set $resource_name "myingress";
+    set $resource_namespace "default";
+
+    
+
+    
+}
+
+---
+
 [TestExecuteTemplate_ForIngressForNGINXWithHTTP2Off - 1]
 # configuration for default/cafe-ingress
 upstream test {zone test 256k;

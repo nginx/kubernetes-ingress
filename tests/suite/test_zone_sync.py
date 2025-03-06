@@ -1,4 +1,5 @@
 import pytest
+import requests
 from kubernetes.client.exceptions import ApiException
 from settings import TEST_DATA
 from suite.utils.resources_utils import (
@@ -10,6 +11,35 @@ from suite.utils.resources_utils import (
 
 WAIT_TIME = 1
 DEPLOYMENT_NAME = "nginx-ingress"
+NGINX_API_VERSION = 9
+
+
+def assert_zonesync_in_plus_api(ingress_controller_endpoint):
+    """
+    Assert that zone_sync is present in the NGINX Plus API response.
+
+    :param ingress_controller_endpoint: Ingress Controller Endpoint
+    """
+    api_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.api_port}"
+    stream_url = f"{api_url}/api/{NGINX_API_VERSION}/stream"
+
+    resp = requests.get(stream_url).json()
+    print(f"response: {resp}")
+    assert "zone_sync" in resp, f"got {resp}"
+
+
+def assert_zonesync_not_in_plus_api(ingress_controller_endpoint):
+    """
+    Assert that zone_sync is not present in the NGINX Plus API response.
+
+    :param ingress_controller_endpoint: Ingress Controller Endpoint
+    """
+    api_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.api_port}"
+    stream_url = f"{api_url}/api/{NGINX_API_VERSION}/stream"
+
+    resp = requests.get(stream_url).json()
+    print(f"response: {resp}")
+    assert "zone_sync" not in resp, f"got {resp}"
 
 
 def assert_event(event_list, event_type, reason, message_substring):
@@ -87,10 +117,18 @@ def assert_headless_service_doesnt_exist(v1, cli_arguments, namespace):
     assert service_exists(v1, cli_arguments, namespace) is False
 
 
-@pytest.mark.zonesync
 @pytest.mark.skip_for_nginx_oss
 @pytest.mark.ingresses
 @pytest.mark.smoke
+@pytest.mark.parametrize(
+    "ingress_controller",
+    [
+        pytest.param(
+            {"extra_args": ["-nginx-status-allow-cidrs=0.0.0.0/0,::/0"]},
+        )
+    ],
+    indirect=["ingress_controller"],
+)
 class TestZoneSyncLifecycle:
     def test_nic_starts_without_zonesync(
         self,
@@ -130,14 +168,17 @@ class TestZoneSyncLifecycle:
 
         wait_before_test(WAIT_TIME)
 
-        print("Step 3: verify zone_sync not present in nginx.conf")
+        print("Step 2: verify zone_sync not present in nginx.conf")
         nginx_config = get_nginx_template_conf(kube_apis.v1, ingress_controller_prerequisites.namespace)
         assert_zonesync_disabled(nginx_config)
 
-        print("Step 4: verify headless service doesn't exist")
+        print("Step 3: verify headless service doesn't exist")
         assert_headless_service_doesnt_exist(kube_apis.v1, cli_arguments, ingress_controller_prerequisites.namespace)
 
-        print("Step 4: cleanup: apply default nginx-config map")
+        print("Step 4: check plus api for no zone sync")
+        assert_zonesync_not_in_plus_api(ingress_controller_endpoint)
+
+        print("Step 5: cleanup: apply default nginx-config map")
         replace_configmap_from_yaml(
             kube_apis.v1,
             configmap_name,
@@ -188,12 +229,15 @@ class TestZoneSyncLifecycle:
         nginx_config = get_nginx_template_conf(kube_apis.v1, ingress_controller_prerequisites.namespace)
         assert_zonesync_enabled(nginx_config)
 
-        wait_before_test(5)
+        wait_before_test(WAIT_TIME)
 
         print("Step 3: verify headless service exists")
         assert_headless_service_exists(kube_apis.v1, cli_arguments, ingress_controller_prerequisites.namespace)
 
-        print("Step 4: cleanup:  apply default nginx-config map")
+        print("Step 4: check plus api for zone sync")
+        assert_zonesync_in_plus_api(ingress_controller_endpoint)
+
+        print("Step 5: cleanup:  apply default nginx-config map")
         replace_configmap_from_yaml(
             kube_apis.v1,
             configmap_name,
@@ -247,7 +291,10 @@ class TestZoneSyncLifecycle:
         print("Step 4: verify headless service exists")
         assert_headless_service_exists(kube_apis.v1, cli_arguments, ingress_controller_prerequisites.namespace)
 
-        print("Step 4: cleanup: apply default nginx-config map")
+        print("Step 5: check plus api for zone sync")
+        assert_zonesync_in_plus_api(ingress_controller_endpoint)
+
+        print("Step 6: cleanup: apply default nginx-config map")
         replace_configmap_from_yaml(
             kube_apis.v1,
             configmap_name,
@@ -288,9 +335,12 @@ class TestZoneSyncLifecycle:
         print("Step 2: verify headless service exists")
         assert_headless_service_exists(kube_apis.v1, cli_arguments, ingress_controller_prerequisites.namespace)
 
+        print("Step 3: check plus api for zone sync")
+        assert_zonesync_in_plus_api(ingress_controller_endpoint)
+
         wait_before_test(WAIT_TIME)
 
-        print("Step 3: update the ConfigMap nginx-config - set zone-sync-port to custom value")
+        print("Step 4: update the ConfigMap nginx-config - set zone-sync-port to custom value")
         replace_configmap_from_yaml(
             kube_apis.v1,
             configmap_name,
@@ -300,14 +350,17 @@ class TestZoneSyncLifecycle:
 
         wait_before_test(WAIT_TIME)
 
-        print("Step 4: check if zone_syns port is updated")
+        print("Step 5: check if zone_syns port is updated")
         nginx_config = get_nginx_template_conf(kube_apis.v1, ingress_controller_prerequisites.namespace)
         assert_zonesync_enabled(nginx_config, port="34100")
 
-        print("Step 5: verify headless service exists")
+        print("Step 6: verify headless service exists")
         assert_headless_service_exists(kube_apis.v1, cli_arguments, ingress_controller_prerequisites.namespace)
 
-        print("Step 6: cleanup:  apply default nginx-config map")
+        print("Step 7: check plus api for zone sync")
+        assert_zonesync_in_plus_api(ingress_controller_endpoint)
+
+        print("Step 8: cleanup:  apply default nginx-config map")
         replace_configmap_from_yaml(
             kube_apis.v1,
             configmap_name,
@@ -346,9 +399,12 @@ class TestZoneSyncLifecycle:
         print("Step 2: verify headless service exists")
         assert_headless_service_exists(kube_apis.v1, cli_arguments, ingress_controller_prerequisites.namespace)
 
+        print("Step 3: check plus api for zone sync")
+        assert_zonesync_in_plus_api(ingress_controller_endpoint)
+
         wait_before_test(WAIT_TIME)
 
-        print("Step 3: update the ConfigMap nginx-config - set zone-sync disabled")
+        print("Step 4: update the ConfigMap nginx-config - set zone-sync disabled")
         replace_configmap_from_yaml(
             kube_apis.v1,
             configmap_name,
@@ -356,14 +412,17 @@ class TestZoneSyncLifecycle:
             f"{TEST_DATA}/zone-sync/configmap-with-zonesync-disabled.yaml",
         )
 
-        print("Step 4: verify zone_sync disabled - not present in nginx.conf")
+        print("Step 5: verify zone_sync disabled - not present in nginx.conf")
         nginx_config = get_nginx_template_conf(kube_apis.v1, ingress_controller_prerequisites.namespace)
         assert_zonesync_disabled(nginx_config)
 
-        print("Step 5: verify headless service doesn't exist")
+        print("Step 6: verify headless service doesn't exist")
         assert_headless_service_doesnt_exist(kube_apis.v1, cli_arguments, ingress_controller_prerequisites.namespace)
 
-        print("Step 6: cleanup:  apply default nginx-config map")
+        print("Step 7: check plus api for zone sync")
+        assert_zonesync_not_in_plus_api(ingress_controller_endpoint)
+
+        print("Step 8: cleanup:  apply default nginx-config map")
         replace_configmap_from_yaml(
             kube_apis.v1,
             configmap_name,
