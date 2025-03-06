@@ -1147,7 +1147,7 @@ var (
 	virtualServerCfg = VirtualServerConfig{
 		LimitReqZones: []LimitReqZone{
 			{
-				ZoneName: "pol_rl_test_test_test", Rate: "10r/s", ZoneSize: "10m", Key: "$url",
+				ZoneName: "pol_rl_test_test_test", Rate: "10r/s", ZoneSize: "10m", Key: "$url", Sync: true,
 			},
 		},
 		Upstreams: []Upstream{

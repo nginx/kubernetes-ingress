@@ -2216,6 +2216,10 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 				}
 			}
 		}
+
+		if lbc.configurator != nil && lbc.configurator.CfgParams != nil {
+			ingEx.ZoneSync = lbc.configurator.CfgParams.ZoneSync.Enable
+		}
 	}
 
 	ingEx.Endpoints = make(map[string][]string)
@@ -2355,6 +2359,9 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 		ApPolRefs:      make(map[string]*unstructured.Unstructured),
 		LogConfRefs:    make(map[string]*unstructured.Unstructured),
 		DosProtectedEx: make(map[string]*configs.DosEx),
+	}
+	if lbc.configurator != nil && lbc.configurator.CfgParams != nil {
+		virtualServerEx.ZoneSync = lbc.configurator.CfgParams.ZoneSync.Enable
 	}
 
 	resource := lbc.configuration.hosts[virtualServer.Spec.Host]

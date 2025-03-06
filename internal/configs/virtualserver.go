@@ -102,6 +102,7 @@ type VirtualServerEx struct {
 	LogConfRefs         map[string]*unstructured.Unstructured
 	DosProtectedRefs    map[string]*unstructured.Unstructured
 	DosProtectedEx      map[string]*DosEx
+	ZoneSync            bool
 }
 
 func (vsx *VirtualServerEx) String() string {
@@ -412,6 +413,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	policyOpts := policyOptions{
 		tls:         sslConfig != nil,
+		zoneSync:    vsEx.ZoneSync,
 		secretRefs:  vsEx.SecretRefs,
 		apResources: apResources,
 	}
@@ -1009,6 +1011,7 @@ type policyOwnerDetails struct {
 
 type policyOptions struct {
 	tls         bool
+	zoneSync    bool
 	secretRefs  map[string]*secrets.SecretReference
 	apResources *appProtectResourcesForVS
 }
@@ -1020,6 +1023,10 @@ type validationResults struct {
 
 func newValidationResults() *validationResults {
 	return &validationResults{}
+}
+
+func (v *validationResults) addWarning(msg string) {
+	v.warnings = append(v.warnings, msg)
 }
 
 func (v *validationResults) addWarningf(msgFmt string, args ...interface{}) {
@@ -1039,23 +1046,30 @@ func (p *policiesCfg) addAccessControlConfig(accessControl *conf_v1.AccessContro
 }
 
 func (p *policiesCfg) addRateLimitConfig(
-	rateLimit *conf_v1.RateLimit,
-	polKey string,
-	polNamespace string,
-	polName string,
+	policy *conf_v1.Policy,
 	ownerDetails policyOwnerDetails,
 	podReplicas int,
+	zoneSync bool,
 ) *validationResults {
 	res := newValidationResults()
+	rateLimit := policy.Spec.RateLimit
+	polKey := fmt.Sprintf("%v/%v", policy.Namespace, policy.Name)
 
-	rlZoneName := rfc1123ToSnake(fmt.Sprintf("pol_rl_%v_%v_%v_%v", polNamespace, polName, ownerDetails.vsNamespace, ownerDetails.vsName))
+	rlZoneName := rfc1123ToSnake(fmt.Sprintf("pol_rl_%v_%v_%v_%v", policy.Namespace, policy.Name, ownerDetails.vsNamespace, ownerDetails.vsName))
 	if rateLimit.Condition != nil && rateLimit.Condition.JWT.Claim != "" && rateLimit.Condition.JWT.Match != "" {
-		lrz := generateGroupedLimitReqZone(rlZoneName, rateLimit, podReplicas, ownerDetails)
+		lrz, warningText := generateGroupedLimitReqZone(rlZoneName, policy, podReplicas, ownerDetails, zoneSync)
+		if warningText != "" {
+			res.addWarning(warningText)
+		}
 		p.RateLimit.PolicyGroupMaps = append(p.RateLimit.PolicyGroupMaps, *generateLRZPolicyGroupMap(lrz))
 		p.RateLimit.AuthJWTClaimSets = append(p.RateLimit.AuthJWTClaimSets, generateAuthJwtClaimSet(*rateLimit.Condition.JWT, ownerDetails))
 		p.RateLimit.Zones = append(p.RateLimit.Zones, lrz)
 	} else {
-		p.RateLimit.Zones = append(p.RateLimit.Zones, generateLimitReqZone(rlZoneName, rateLimit, podReplicas))
+		lrz, warningText := generateLimitReqZone(rlZoneName, policy, podReplicas, zoneSync)
+		if warningText != "" {
+			res.addWarning(warningText)
+		}
+		p.RateLimit.Zones = append(p.RateLimit.Zones, lrz)
 	}
 
 	p.RateLimit.Reqs = append(p.RateLimit.Reqs, generateLimitReq(rlZoneName, rateLimit))
@@ -1661,12 +1675,10 @@ func (vsc *virtualServerConfigurator) generatePolicies(
 				res = config.addAccessControlConfig(pol.Spec.AccessControl)
 			case pol.Spec.RateLimit != nil:
 				res = config.addRateLimitConfig(
-					pol.Spec.RateLimit,
-					key,
-					polNamespace,
-					p.Name,
+					pol,
 					ownerDetails,
 					vsc.IngressControllerReplicas,
+					policyOpts.zoneSync,
 				)
 			case pol.Spec.JWTAuth != nil:
 				res = config.addJWTAuthConfig(pol.Spec.JWTAuth, key, polNamespace, policyOpts.secretRefs)
@@ -1742,33 +1754,50 @@ func generateLimitReq(zoneName string, rateLimitPol *conf_v1.RateLimit) version2
 	return limitReq
 }
 
-func generateLimitReqZone(zoneName string, rateLimitPol *conf_v1.RateLimit, podReplicas int) version2.LimitReqZone {
+func generateLimitReqZone(zoneName string, policy *conf_v1.Policy, podReplicas int, zoneSync bool) (version2.LimitReqZone, string) {
+	rateLimitPol := policy.Spec.RateLimit
 	rate := rateLimitPol.Rate
+	warningText := ""
+
 	if rateLimitPol.Scale {
-		rate = scaleRatelimit(rateLimitPol.Rate, podReplicas)
+		if zoneSync {
+			warningText = fmt.Sprintf("Policy %s/%s: both zone sync and rate limit scale are enabled, the rate limit scale value will not be used.", policy.Namespace, policy.Name)
+		} else {
+			rate = scaleRatelimit(rateLimitPol.Rate, podReplicas)
+		}
 	}
 	return version2.LimitReqZone{
 		ZoneName: zoneName,
 		Key:      rateLimitPol.Key,
 		ZoneSize: rateLimitPol.ZoneSize,
 		Rate:     rate,
-	}
+		Sync:     zoneSync,
+	}, warningText
 }
 
 func generateGroupedLimitReqZone(zoneName string,
-	rateLimitPol *conf_v1.RateLimit,
+	policy *conf_v1.Policy,
 	podReplicas int,
 	ownerDetails policyOwnerDetails,
-) version2.LimitReqZone {
+	zoneSync bool,
+) (version2.LimitReqZone, string) {
+	rateLimitPol := policy.Spec.RateLimit
 	rate := rateLimitPol.Rate
+	warningText := ""
+
 	if rateLimitPol.Scale {
-		rate = scaleRatelimit(rateLimitPol.Rate, podReplicas)
+		if zoneSync {
+			warningText = fmt.Sprintf("Policy %s/%s: both zone sync and rate limit scale are enabled, the rate limit scale value will not be used.", policy.Namespace, policy.Name)
+		} else {
+			rate = scaleRatelimit(rateLimitPol.Rate, podReplicas)
+		}
 	}
 	lrz := version2.LimitReqZone{
 		ZoneName: zoneName,
 		Key:      rateLimitPol.Key,
 		ZoneSize: rateLimitPol.ZoneSize,
 		Rate:     rate,
+		Sync:     zoneSync,
 	}
 	if rateLimitPol.Condition != nil && rateLimitPol.Condition.JWT != nil {
 		lrz.GroupValue = rateLimitPol.Condition.JWT.Match
@@ -1793,7 +1822,7 @@ func generateGroupedLimitReqZone(zoneName string,
 		lrz.GroupSource = generateAuthJwtClaimSetVariable(rateLimitPol.Condition.JWT.Claim, ownerDetails.vsNamespace, ownerDetails.vsName)
 	}
 
-	return lrz
+	return lrz, warningText
 }
 
 func generateLimitReqOptions(rateLimitPol *conf_v1.RateLimit) version2.LimitReqOptions {

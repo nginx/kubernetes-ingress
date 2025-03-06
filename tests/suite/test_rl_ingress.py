@@ -4,6 +4,11 @@ import pytest
 import requests
 from settings import TEST_DATA
 from suite.fixtures.fixtures import PublicEndpoint
+from suite.utils.nginx_api_utils import (
+    check_synced_zone_exists,
+    wait_for_zone_sync_enabled,
+    wait_for_zone_sync_nodes_online,
+)
 from suite.utils.resources_utils import (
     are_all_pods_in_ready_state,
     create_example_app,
@@ -15,6 +20,7 @@ from suite.utils.resources_utils import (
     get_first_pod_name,
     get_ingress_nginx_template_conf,
     get_pod_list,
+    replace_configmap_from_yaml,
     scale_deployment,
     wait_before_test,
     wait_until_all_pods_are_ready,
@@ -114,6 +120,90 @@ class TestRateLimitIngress:
             )
             counter.append(resp.status_code)
         assert (counter.count(200)) <= 2 and (429 in counter)  # check for only 2 200s in the list
+
+
+@pytest.mark.skip_for_nginx_oss
+@pytest.mark.zonesync
+@pytest.mark.annotations
+@pytest.mark.parametrize(
+    "ingress_controller",
+    [
+        pytest.param(
+            {"extra_args": ["-nginx-status-allow-cidrs=0.0.0.0/0,::/0"]},
+        )
+    ],
+    indirect=["ingress_controller"],
+)
+class TestRateLimitIngressZoneSync:
+    def test_ingress_rate_limit_with_zone_sync(
+        self,
+        kube_apis,
+        ingress_controller,
+        ingress_controller_endpoint,
+        ingress_controller_prerequisites,
+        test_namespace,
+    ):
+        """
+        Test pods are scaled to 3, ZoneSync is enabled & annotated ratelimit zone is synced
+        """
+        src = f"{TEST_DATA}/rate-limit/ingress/standard/annotations-rl-ingress.yaml"
+        NGINX_API_VERSION = 9
+        replica_count = 3
+        configmap_name = "nginx-config"
+
+        print("Step 1: apply minimal zone_sync nginx-config map")
+        replace_configmap_from_yaml(
+            kube_apis.v1,
+            configmap_name,
+            ingress_controller_prerequisites.namespace,
+            f"{TEST_DATA}/zone-sync/configmap-with-zonesync-minimal.yaml",
+        )
+
+        ingress_name = get_name_from_yaml(src)
+
+        create_items_from_yaml(kube_apis, src, test_namespace)
+
+        print(f"Step 3: scale deployments to {replica_count}")
+        scale_deployment(
+            kube_apis.v1,
+            kube_apis.apps_v1_api,
+            "nginx-ingress",
+            ingress_controller_prerequisites.namespace,
+            replica_count,
+        )
+
+        wait_before_test()
+
+        print("Step 4: check if pods are ready")
+        wait_until_all_pods_are_ready(kube_apis.v1, ingress_controller_prerequisites.namespace)
+
+        print("Step 5: check plus api for zone sync")
+        api_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.api_port}"
+
+        stream_url = f"{api_url}/api/{NGINX_API_VERSION}/stream"
+        assert wait_for_zone_sync_enabled(stream_url)
+
+        zone_sync_url = f"{stream_url}/zone_sync"
+        assert wait_for_zone_sync_nodes_online(zone_sync_url, replica_count)
+
+        print("Step 6: check plus api if zone is synced")
+        assert check_synced_zone_exists(zone_sync_url, ingress_name)
+
+        # revert changes
+        scale_deployment(
+            kube_apis.v1,
+            kube_apis.apps_v1_api,
+            "nginx-ingress",
+            ingress_controller_prerequisites.namespace,
+            1,
+        )
+        delete_items_from_yaml(kube_apis, src, test_namespace)
+        replace_configmap_from_yaml(
+            kube_apis.v1,
+            configmap_name,
+            ingress_controller_prerequisites.namespace,
+            f"{TEST_DATA}/zone-sync/default-configmap.yaml",
+        )
 
 
 @pytest.mark.annotations

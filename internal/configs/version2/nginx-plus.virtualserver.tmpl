@@ -67,7 +67,7 @@ map {{ $m.Source }} {{ $m.Variable }} {
 {{- end }}
 
 {{- range $z := .LimitReqZones }}
-limit_req_zone {{ $z.Key }} zone={{ $z.ZoneName }}:{{ $z.ZoneSize }} rate={{ $z.Rate }};
+limit_req_zone {{ $z.Key }} zone={{ $z.ZoneName }}:{{ $z.ZoneSize }} rate={{ $z.Rate }}{{- if $z.Sync }} sync{{- end }};
 {{- end }}
 
 {{- range $m := .StatusMatches }}
