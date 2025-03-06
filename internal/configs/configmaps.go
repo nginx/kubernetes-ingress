@@ -550,6 +550,8 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		} else if !openTracing {
 			cfgParams.MainOpenTracingEnabled = false
 			cfgParams.MainOpenTracingLoadModule = false
+			cfgParams.MainOpenTracingTracer = ""
+			cfgParams.MainOpenTracingTracerConfig = ""
 		} else {
 			if cfgParams.MainOpenTracingLoadModule {
 				cfgParams.MainOpenTracingEnabled = openTracing

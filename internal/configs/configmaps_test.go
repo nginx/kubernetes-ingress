@@ -1166,3 +1166,91 @@ func TestParseZoneSyncResolverIPV6MapResolverIPV6(t *testing.T) {
 func makeEventLogger() record.EventRecorder {
 	return record.NewFakeRecorder(1024)
 }
+
+func TestOpenTracingConfiguration(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap    *v1.ConfigMap
+		enabled      bool
+		loadModule   bool
+		tracer       string
+		tracerConfig string
+		msg          string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"opentracing":               "true",
+					"opentracing-tracer":        "/usr/local/lib/libjaegertracing.so",
+					"opentracing-tracer-config": "/etc/nginx/opentracing.json",
+				},
+			},
+			enabled:      true,
+			loadModule:   true,
+			tracer:       "/usr/local/lib/libjaegertracing.so",
+			tracerConfig: "/etc/nginx/opentracing.json",
+			msg:          "opentracing enabled",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"opentracing":               "false",
+					"opentracing-tracer":        "/usr/local/lib/libjaegertracing.so",
+					"opentracing-tracer-config": "/etc/nginx/opentracing.json",
+				},
+			},
+			enabled:      false,
+			loadModule:   false,
+			tracer:       "",
+			tracerConfig: "",
+			msg:          "opentracing disabled",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"opentracing": "false",
+				},
+			},
+			enabled:      false,
+			loadModule:   false,
+			tracer:       "",
+			tracerConfig: "",
+			msg:          "opentracing disabled",
+		},
+	}
+	nginxPlus := false
+	hasAppProtect := false
+	hasAppProtectDos := false
+	hasTLSPassthrough := false
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus,
+				hasAppProtect, hasAppProtectDos, hasTLSPassthrough, makeEventLogger())
+
+			if !configOk {
+				t.Errorf("Expected valid config, got invalid")
+			}
+			if result.MainOpenTracingEnabled != test.enabled {
+				t.Errorf("MainOpenTracingEnabled: want %v, got %v",
+					test.enabled, result.MainOpenTracingEnabled)
+			}
+
+			if result.MainOpenTracingLoadModule != test.loadModule {
+				t.Errorf("MainOpenTracingLoadModule: want %v, got %v",
+					test.loadModule, result.MainOpenTracingLoadModule)
+			}
+
+			if result.MainOpenTracingTracer != test.tracer {
+				t.Errorf("MainOpenTracingTracer: want %q, got %q",
+					test.tracer, result.MainOpenTracingTracer)
+			}
+
+			if result.MainOpenTracingTracerConfig != test.tracerConfig {
+				t.Errorf("MainOpenTracingTracerConfig: want %q, got %q",
+					test.tracerConfig, result.MainOpenTracingTracerConfig)
+			}
+
+		})
+	}
+}
