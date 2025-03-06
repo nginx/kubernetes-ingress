@@ -119,6 +119,12 @@ The feature is implemented using the NGINX [ngx_http_limit_req_module](https://n
 
 {{< /note >}}
 
+{{< note >}}
+
+When the [Zone Sync feature]({{< ref "/configuration/global-configuration/configmap-resource.md#zone-sync" >}}) is enabled with NGINX Plus, the rate limiting zone will be synchronized across all replicas in the cluster.  This means all replicas are aware of the requests that have been rate limited by other replicas in the cluster.
+
+{{< /note >}}
+
 {{% table %}}
 |Field | Description | Type | Required |
 | ---| ---| ---| --- |
