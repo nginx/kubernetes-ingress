@@ -473,7 +473,6 @@ class TestRateLimitingPolicies:
         """
         Test pods are scaled to 3, ZoneSync is enabled, Scale is applied on the Policy & checking event warnings
         """
-        replica_count = 3
         pol_name = apply_and_assert_valid_policy(kube_apis, test_namespace, rl_pol_pri_sca_src)
 
         configmap_name = "nginx-config"
@@ -485,22 +484,8 @@ class TestRateLimitingPolicies:
             ingress_controller_prerequisites.namespace,
             f"{TEST_DATA}/zone-sync/configmap-with-zonesync-minimal.yaml",
         )
-        
-        print(f"Step 2: scale deployments to {replica_count}")
-        scale_deployment(
-            kube_apis.v1,
-            kube_apis.apps_v1_api,
-            "nginx-ingress",
-            ingress_controller_prerequisites.namespace,
-            replica_count,
-        )
-        
-        wait_before_test()
-        
-        print("Step 3: check if pods are ready")
-        wait_until_all_pods_are_ready(kube_apis.v1, ingress_controller_prerequisites.namespace)
 
-        print("Step 4: apply the policy to the virtual server")
+        print("Step 2: apply the policy to the virtual server")
         # Patch VirtualServer
         apply_and_assert_valid_vs(
             kube_apis,
@@ -509,22 +494,17 @@ class TestRateLimitingPolicies:
             src,
         )
 
-        print("Step 5: check for warning events on the policy")
+        wait_before_test(60)
+
+        print("Step 3: check for warning events on the policy")
         assert wait_for_event(
             kube_apis.v1,
             "both zone sync and rate limit scale are enabled, the rate limit scale value will not be used.",
-            test_namespace
+            test_namespace,
         )
-        
+
         # revert changes
         self.restore_default_vs(kube_apis, virtual_server_setup)
-        scale_deployment(
-            kube_apis.v1,
-            kube_apis.apps_v1_api,
-            "nginx-ingress",
-            ingress_controller_prerequisites.namespace,
-            1,
-        )
         replace_configmap_from_yaml(
             kube_apis.v1,
             configmap_name,

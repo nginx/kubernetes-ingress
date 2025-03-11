@@ -1659,6 +1659,7 @@ func (vsc *virtualServerConfigurator) generatePolicies(
 	policyOpts policyOptions,
 ) policiesCfg {
 	config := newPoliciesConfig(vsc.bundleValidator)
+	l := nl.LoggerFromContext(vsc.cfgParams.Context)
 
 	for _, p := range policyRefs {
 		polNamespace := p.Namespace
@@ -1681,6 +1682,7 @@ func (vsc *virtualServerConfigurator) generatePolicies(
 					policyOpts.zoneSync,
 				); warnings != nil {
 					for obj, msgs := range warnings {
+						nl.Warn(l, msgs)
 						vsc.addWarnings(obj, msgs)
 					}
 				}

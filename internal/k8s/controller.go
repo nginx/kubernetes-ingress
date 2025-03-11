@@ -18,6 +18,7 @@ package k8s
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -39,8 +40,10 @@ import (
 	"github.com/nginxinc/nginx-service-mesh/pkg/spiffe"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
@@ -54,6 +57,7 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/metrics/collectors"
 
 	api_v1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	discovery_v1 "k8s.io/api/discovery/v1"
 	networking "k8s.io/api/networking/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1612,6 +1616,20 @@ func (lbc *LoadBalancerController) updateVirtualServerStatusAndEvents(vsConfig *
 		}
 	}
 
+	for _, polRef := range vsConfig.VirtualServer.Spec.Policies {
+		for obj, msgs := range warnings {
+			ref, err := getReference(obj)
+			if err != nil {
+				nl.Errorf(lbc.Logger, "Error getting reference for %v: %v", obj, err)
+			}
+			if ref.Kind == "Policy" && ref.Name == polRef.Name && ref.Namespace == polRef.Namespace {
+				eventType = api_v1.EventTypeWarning
+				eventTitle = nl.EventReasonIgnored
+				lbc.recorder.Event(obj, eventType, eventTitle, fmt.Sprintf("Policy %s/%s was added or updated with warning(s): %s", polRef.Namespace, polRef.Name, formatWarningMessages(msgs)))
+			}
+		}
+	}
+
 	for _, vsr := range vsConfig.VirtualServerRoutes {
 		vsrEventType := api_v1.EventTypeNormal
 		vsrEventTitle := nl.EventReasonAddedOrUpdated
@@ -1640,6 +1658,21 @@ func (lbc *LoadBalancerController) updateVirtualServerStatusAndEvents(vsConfig *
 			err := lbc.statusUpdater.UpdateVirtualServerRouteStatusWithReferencedBy(vsr, vsrState, vsrEventTitle, msg, vss)
 			if err != nil {
 				nl.Errorf(lbc.Logger, "Error when updating the status for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
+			}
+		}
+		for _, subroute := range vsr.Spec.Subroutes {
+			for _, polRef := range subroute.Policies {
+				for obj, msgs := range warnings {
+					ref, err := getReference(obj)
+					if err != nil {
+						nl.Errorf(lbc.Logger, "Error getting reference for %v: %v", obj, err)
+					}
+					if ref.Kind == "Policy" && ref.Name == polRef.Name && ref.Namespace == polRef.Namespace {
+						eventType = api_v1.EventTypeWarning
+						eventTitle = nl.EventReasonIgnored
+						lbc.recorder.Event(obj, eventType, eventTitle, fmt.Sprintf("Policy %s/%s was added or updated with warning(s): %s", polRef.Namespace, polRef.Name, formatWarningMessages(msgs)))
+					}
+				}
 			}
 		}
 	}
@@ -3644,4 +3677,47 @@ func (lbc *LoadBalancerController) createCombinedDeploymentHeadlessServiceName()
 	}
 	combinedDeployment := fmt.Sprintf("%s-%s", name, strings.ToLower(owner.Kind))
 	return combinedDeployment
+}
+
+// taken getReference from https://pkg.go.dev/k8s.io/client-go@v0.32.2/tools/reference#GetReference
+func getReference(obj runtime.Object) (*api_v1.ObjectReference, error) {
+	if obj == nil {
+		return nil, errors.New("can't reference a nil object")
+	}
+	if ref, ok := obj.(*api_v1.ObjectReference); ok {
+		return ref, nil
+	}
+
+	var listMeta meta_v1.Common
+	objectMeta, err := meta.Accessor(obj)
+	if err != nil {
+		listMeta, err = meta.CommonAccessor(obj)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		listMeta = objectMeta
+	}
+
+	gvk := obj.GetObjectKind().GroupVersionKind()
+
+	kind := gvk.Kind
+	version := gvk.GroupVersion().String()
+
+	if objectMeta == nil {
+		return &v1.ObjectReference{
+			Kind:            kind,
+			APIVersion:      version,
+			ResourceVersion: listMeta.GetResourceVersion(),
+		}, nil
+	}
+
+	return &v1.ObjectReference{
+		Kind:            kind,
+		APIVersion:      version,
+		Name:            objectMeta.GetName(),
+		Namespace:       objectMeta.GetNamespace(),
+		UID:             objectMeta.GetUID(),
+		ResourceVersion: objectMeta.GetResourceVersion(),
+	}, nil
 }
