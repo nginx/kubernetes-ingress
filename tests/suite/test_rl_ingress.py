@@ -123,7 +123,6 @@ class TestRateLimitIngress:
 
 
 @pytest.mark.skip_for_nginx_oss
-@pytest.mark.zonesync
 @pytest.mark.annotations
 @pytest.mark.parametrize(
     "ingress_controller",

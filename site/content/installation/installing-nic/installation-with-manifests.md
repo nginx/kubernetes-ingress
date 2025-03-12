@@ -187,7 +187,7 @@ For more information about the _LoadBalancer_ service, refer to the [Kubernetes 
         kubectl apply -f deployments/service/loadbalancer-aws-elb.yaml
         ```
 
-        If you're using AWS, Kubernetes will set up a Classic Load Balancer (ELB) in TCP mode. This load balancer will have the PROXY protocol enabled to pass along the client's IP address and port.
+        For more details see service guide [here](https://kubernetes-sigs.github.io/aws-load-balancer-controller/latest/)
 
 2. AWS users: Follow these additional steps to work with ELB in TCP mode.
 
