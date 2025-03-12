@@ -1625,7 +1625,8 @@ func (lbc *LoadBalancerController) updateVirtualServerStatusAndEvents(vsConfig *
 			if ref.Kind == "Policy" && ref.Name == polRef.Name && ref.Namespace == polRef.Namespace {
 				eventType = api_v1.EventTypeWarning
 				eventTitle = nl.EventReasonIgnored
-				lbc.recorder.Event(obj, eventType, eventTitle, fmt.Sprintf("Policy %s/%s was added or updated with warning(s): %s", polRef.Namespace, polRef.Name, formatWarningMessages(msgs)))
+				eventWarningMessage = fmt.Sprintf("Policy %s/%s was added or updated with warning(s): %s", polRef.Namespace, polRef.Name, formatWarningMessages(msgs))
+				lbc.recorder.Event(obj, eventType, eventTitle, eventWarningMessage)
 			}
 		}
 	}

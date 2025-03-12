@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"os"
 	"reflect"
 	"testing"
@@ -1969,7 +1968,7 @@ func createTransportServerExWithHostNoTLSPassthrough() TransportServerEx {
 	}
 }
 
-func TestCountVirtualServersOnCustomResourceEnabled(t *testing.T) {
+func TestVirtualServerWithZoneSyncAndScale(t *testing.T) {
 	t.Parallel()
 
 	tt := []struct {
@@ -1986,8 +1985,37 @@ func TestCountVirtualServersOnCustomResourceEnabled(t *testing.T) {
 							Namespace: "ns-1",
 							Name:      "coffee",
 						},
-						Spec: conf_v1.VirtualServerSpec{},
+						TypeMeta: meta_v1.TypeMeta{
+							Kind:       "VirtualServer",
+							APIVersion: "v1",
+						},
+						Spec: conf_v1.VirtualServerSpec{
+							Policies: []conf_v1.PolicyReference{
+								{
+									Name:      "policy-1",
+									Namespace: "ns-1",
+								},
+							},
+						},
 					},
+					Policies: map[string]*conf_v1.Policy{
+						"ns-1/policy-1": &conf_v1.Policy{
+							ObjectMeta: meta_v1.ObjectMeta{
+								Name:      "policy-1",
+								Namespace: "ns-1",
+							},
+							TypeMeta: meta_v1.TypeMeta{
+								Kind:       "Policy",
+								APIVersion: "v1",
+							},
+							Spec: conf_v1.PolicySpec{
+								RateLimit: &conf_v1.RateLimit{
+									Scale: true,
+								},
+							},
+						},
+					},
+					ZoneSync: true,
 				},
 			},
 			want: 1,
@@ -2001,7 +2029,9 @@ func TestCountVirtualServersOnCustomResourceEnabled(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			fmt.Println(warnings)
+			if len(warnings) != tc.want {
+				t.Fatalf("Got %d warnings, expected %d", len(warnings), tc.want)
+			}
 		}
 	}
 }

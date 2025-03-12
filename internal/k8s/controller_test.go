@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"reflect"
 	"sort"
 	"strings"
@@ -11,6 +13,8 @@ import (
 	"time"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	nic_glog "github.com/nginx/kubernetes-ingress/internal/logger/glog"
+	"github.com/nginx/kubernetes-ingress/internal/logger/levels"
 	"github.com/nginx/kubernetes-ingress/internal/telemetry"
 
 	discovery_v1 "k8s.io/api/discovery/v1"
@@ -3797,6 +3801,140 @@ func TestUpdateVirtualServerStatusAndEventsWithPolicyWarning(t *testing.T) {
 		}
 		if tc.input.VirtualServer.Spec.Policies[0].Name != policy.Name {
 			t.Fatalf("Expected %v, but got %v", policy.Name, tc.input.VirtualServer.Spec.Policies[0].Name)
+		}
+	}
+}
+
+func TestUpdateVirtualServerRouteStatusAndEventsWithPolicyWarning(t *testing.T) {
+	t.Parallel()
+
+	l := slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo}))
+	ctx := nl.ContextWithLogger(context.Background(), l)
+
+	policy := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "test-pol",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			RateLimit: &conf_v1.RateLimit{
+				Scale: true,
+			},
+		},
+		TypeMeta: meta_v1.TypeMeta{
+			Kind:       "Policy",
+			APIVersion: "v1",
+		},
+	}
+
+	vs := &conf_v1.VirtualServer{
+		Spec: conf_v1.VirtualServerSpec{
+			Policies: []conf_v1.PolicyReference{
+				{
+					Name:      "test-pol",
+					Namespace: "default",
+				},
+			},
+		},
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "test-vs",
+			Namespace: "default",
+		},
+		TypeMeta: meta_v1.TypeMeta{
+			Kind:       "VirtualServer",
+			APIVersion: "v1",
+		},
+	}
+
+	vsr := &conf_v1.VirtualServerRoute{
+		Spec: conf_v1.VirtualServerRouteSpec{
+			Subroutes: []conf_v1.Route{
+				{
+					Policies: []conf_v1.PolicyReference{
+						{
+							Name:      "test-pol",
+							Namespace: "default",
+						},
+					},
+				},
+			},
+		},
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "test-vsr",
+			Namespace: "default",
+		},
+		TypeMeta: meta_v1.TypeMeta{
+			Kind:       "VirtualServerRoute",
+			APIVersion: "v1",
+		},
+	}
+
+	testCases := []struct {
+		name     string
+		input    *VirtualServerConfiguration
+		warnings configs.Warnings
+	}{
+		{
+			name: "VirtualServerConfiguration with policy warnings",
+			input: &VirtualServerConfiguration{
+				VirtualServer: vs,
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
+					vsr,
+				},
+			},
+			warnings: configs.Warnings{
+				policy: []string{"both zone sync and rate limit scale are enabled, the rate limit scale value will not be used."},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+
+		fakeClient := fake_v1.NewSimpleClientset(
+			&conf_v1.VirtualServerRouteList{
+				Items: []conf_v1.VirtualServerRoute{
+					*tc.input.VirtualServerRoutes[0],
+				},
+			},
+		)
+
+		vsLister := cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
+		vsrLister := cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
+
+		err := vsLister.Add(vs)
+		if err != nil {
+			t.Errorf("Error adding VirtualServer to the virtualserver lister: %v", err)
+		}
+
+		err = vsrLister.Add(vsr)
+		if err != nil {
+			t.Errorf("Error adding VirtualServerRoute to the virtualserverroute lister: %v", err)
+		}
+		nsi := make(map[string]*namespacedInformer)
+		nsi["default"] = &namespacedInformer{
+			virtualServerLister:      vsLister,
+			virtualServerRouteLister: vsrLister,
+		}
+		su := statusUpdater{
+			namespacedInformers: nsi,
+			confClient:          fakeClient,
+			keyFunc:             cache.DeletionHandlingMetaNamespaceKeyFunc,
+			logger:              nl.LoggerFromContext(ctx),
+		}
+		lbc := NewLoadBalancerController(NewLoadBalancerControllerInput{
+			KubeClient:               fake.NewSimpleClientset(),
+			EnableTelemetryReporting: false,
+			LoggerContext:            ctx,
+			Recorder:                 record.NewFakeRecorder(1024),
+		})
+		lbc.statusUpdater = &su
+		lbc.updateVirtualServerStatusAndEvents(tc.input, tc.warnings, nil)
+
+		if tc.warnings == nil {
+			t.Fatal("Expected warnings, but got nil")
+		}
+		if tc.input.VirtualServerRoutes[0].Spec.Subroutes[0].Policies[0].Name != policy.Name {
+			t.Fatalf("Expected %v, but got %v", policy.Name, tc.input.VirtualServerRoutes[0].Spec.Subroutes[0].Policies[0].Name)
 		}
 	}
 }
