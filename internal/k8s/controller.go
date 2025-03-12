@@ -1622,7 +1622,7 @@ func (lbc *LoadBalancerController) updateVirtualServerStatusAndEvents(vsConfig *
 			if err != nil {
 				nl.Errorf(lbc.Logger, "Error getting reference for %v: %v", obj, err)
 			}
-			if ref.Kind == "Policy" && ref.Name == polRef.Name && ref.Namespace == polRef.Namespace {
+			if ref.Kind == "Policy" && ref.Name == polRef.Name {
 				eventType = api_v1.EventTypeWarning
 				eventTitle = nl.EventReasonIgnored
 				eventWarningMessage = fmt.Sprintf("Policy %s/%s was added or updated with warning(s): %s", polRef.Namespace, polRef.Name, formatWarningMessages(msgs))
@@ -1668,7 +1668,7 @@ func (lbc *LoadBalancerController) updateVirtualServerStatusAndEvents(vsConfig *
 					if err != nil {
 						nl.Errorf(lbc.Logger, "Error getting reference for %v: %v", obj, err)
 					}
-					if ref.Kind == "Policy" && ref.Name == polRef.Name && ref.Namespace == polRef.Namespace {
+					if ref.Kind == "Policy" && ref.Name == polRef.Name {
 						eventType = api_v1.EventTypeWarning
 						eventTitle = nl.EventReasonIgnored
 						lbc.recorder.Event(obj, eventType, eventTitle, fmt.Sprintf("Policy %s/%s was added or updated with warning(s): %s", polRef.Namespace, polRef.Name, formatWarningMessages(msgs)))
@@ -3581,6 +3581,7 @@ func (lbc *LoadBalancerController) haltIfVSConfigInvalid(vsNew *conf_v1.VirtualS
 		if c.Op == AddOrUpdate {
 			switch impl := c.Resource.(type) {
 			case *VirtualServerConfiguration:
+				nl.Debugf(lbc.Logger, "haltIfVSConfigInvalid warnings: %v", configs.Warnings{})
 				lbc.updateVirtualServerStatusAndEvents(impl, configs.Warnings{}, nil)
 			}
 		} else if c.Op == Delete {
@@ -3638,6 +3639,7 @@ func (lbc *LoadBalancerController) haltIfVSRConfigInvalid(vsrNew *conf_v1.Virtua
 			switch impl := c.Resource.(type) {
 			case *VirtualServerConfiguration:
 				vsEx = lbc.createVirtualServerEx(impl.VirtualServer, impl.VirtualServerRoutes)
+				nl.Debugf(lbc.Logger, "haltIfVSRConfigInvalid warnings: %v", configs.Warnings{})
 				lbc.updateVirtualServerStatusAndEvents(impl, configs.Warnings{}, nil)
 			}
 		}

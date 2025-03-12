@@ -3747,6 +3747,24 @@ func TestUpdateVirtualServerStatusAndEventsWithPolicyWarning(t *testing.T) {
 		},
 	}
 
+	vsWithoutPolicyRefNameSpace := &conf_v1.VirtualServer{
+		Spec: conf_v1.VirtualServerSpec{
+			Policies: []conf_v1.PolicyReference{
+				{
+					Name: "test-pol",
+				},
+			},
+		},
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "test-vs",
+			Namespace: "default",
+		},
+		TypeMeta: meta_v1.TypeMeta{
+			Kind:       "VirtualServer",
+			APIVersion: "v1",
+		},
+	}
+
 	testCases := []struct {
 		name     string
 		input    *VirtualServerConfiguration
@@ -3756,6 +3774,15 @@ func TestUpdateVirtualServerStatusAndEventsWithPolicyWarning(t *testing.T) {
 			name: "VirtualServerConfiguration with policy warnings",
 			input: &VirtualServerConfiguration{
 				VirtualServer: vs,
+			},
+			warnings: configs.Warnings{
+				policy: []string{"both zone sync and rate limit scale are enabled, the rate limit scale value will not be used."},
+			},
+		},
+		{
+			name: "VirtualServerConfiguration with policy warnings without vs policy ref namespace",
+			input: &VirtualServerConfiguration{
+				VirtualServer: vsWithoutPolicyRefNameSpace,
 			},
 			warnings: configs.Warnings{
 				policy: []string{"both zone sync and rate limit scale are enabled, the rate limit scale value will not be used."},
@@ -3787,21 +3814,20 @@ func TestUpdateVirtualServerStatusAndEventsWithPolicyWarning(t *testing.T) {
 			confClient:          fakeClient,
 			keyFunc:             cache.DeletionHandlingMetaNamespaceKeyFunc,
 		}
+		recorder := record.NewFakeRecorder(1024)
+		recorder.IncludeObject = true
 		lbc := NewLoadBalancerController(NewLoadBalancerControllerInput{
 			KubeClient:               fake.NewSimpleClientset(),
 			EnableTelemetryReporting: false,
 			LoggerContext:            context.Background(),
-			Recorder:                 record.NewFakeRecorder(1024),
+			Recorder:                 recorder,
 		})
 		lbc.statusUpdater = &su
 		lbc.updateVirtualServerStatusAndEvents(tc.input, tc.warnings, nil)
-
 		if tc.warnings == nil {
 			t.Fatal("Expected warnings, but got nil")
 		}
-		if tc.input.VirtualServer.Spec.Policies[0].Name != policy.Name {
-			t.Fatalf("Expected %v, but got %v", policy.Name, tc.input.VirtualServer.Spec.Policies[0].Name)
-		}
+
 	}
 }
 
@@ -3828,20 +3854,34 @@ func TestUpdateVirtualServerRouteStatusAndEventsWithPolicyWarning(t *testing.T) 
 	}
 
 	vs := &conf_v1.VirtualServer{
-		Spec: conf_v1.VirtualServerSpec{
-			Policies: []conf_v1.PolicyReference{
-				{
-					Name:      "test-pol",
-					Namespace: "default",
-				},
-			},
-		},
 		ObjectMeta: meta_v1.ObjectMeta{
 			Name:      "test-vs",
 			Namespace: "default",
 		},
 		TypeMeta: meta_v1.TypeMeta{
 			Kind:       "VirtualServer",
+			APIVersion: "v1",
+		},
+	}
+
+	vsrWithoutPolicyRefNameSpace := &conf_v1.VirtualServerRoute{
+		Spec: conf_v1.VirtualServerRouteSpec{
+			Subroutes: []conf_v1.Route{
+				{
+					Policies: []conf_v1.PolicyReference{
+						{
+							Name: "test-pol",
+						},
+					},
+				},
+			},
+		},
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "test-vsr",
+			Namespace: "default",
+		},
+		TypeMeta: meta_v1.TypeMeta{
+			Kind:       "VirtualServerRoute",
 			APIVersion: "v1",
 		},
 	}
@@ -3880,6 +3920,18 @@ func TestUpdateVirtualServerRouteStatusAndEventsWithPolicyWarning(t *testing.T) 
 				VirtualServer: vs,
 				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
 					vsr,
+				},
+			},
+			warnings: configs.Warnings{
+				policy: []string{"both zone sync and rate limit scale are enabled, the rate limit scale value will not be used."},
+			},
+		},
+		{
+			name: "VirtualServerConfiguration with policy warnings without vs policy ref namespace",
+			input: &VirtualServerConfiguration{
+				VirtualServer: vs,
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
+					vsrWithoutPolicyRefNameSpace,
 				},
 			},
 			warnings: configs.Warnings{
@@ -3930,9 +3982,6 @@ func TestUpdateVirtualServerRouteStatusAndEventsWithPolicyWarning(t *testing.T) 
 		lbc.statusUpdater = &su
 		lbc.updateVirtualServerStatusAndEvents(tc.input, tc.warnings, nil)
 
-		if tc.warnings == nil {
-			t.Fatal("Expected warnings, but got nil")
-		}
 		if tc.input.VirtualServerRoutes[0].Spec.Subroutes[0].Policies[0].Name != policy.Name {
 			t.Fatalf("Expected %v, but got %v", policy.Name, tc.input.VirtualServerRoutes[0].Spec.Subroutes[0].Policies[0].Name)
 		}
