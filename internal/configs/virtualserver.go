@@ -956,6 +956,7 @@ type apiKeyAuth struct {
 
 type policiesCfg struct {
 	Allow           []string
+	Context         context.Context
 	Deny            []string
 	RateLimit       rateLimit
 	JWTAuth         jwtAuth
@@ -1025,10 +1026,6 @@ func newValidationResults() *validationResults {
 	return &validationResults{}
 }
 
-func (v *validationResults) addWarning(msg string) {
-	v.warnings = append(v.warnings, msg)
-}
-
 func (v *validationResults) addWarningf(msgFmt string, args ...interface{}) {
 	v.warnings = append(v.warnings, fmt.Sprintf(msgFmt, args...))
 }
@@ -1054,12 +1051,13 @@ func (p *policiesCfg) addRateLimitConfig(
 	res := newValidationResults()
 	rateLimit := policy.Spec.RateLimit
 	polKey := fmt.Sprintf("%v/%v", policy.Namespace, policy.Name)
+	l := nl.LoggerFromContext(p.Context)
 
 	rlZoneName := rfc1123ToSnake(fmt.Sprintf("pol_rl_%v_%v_%v_%v", policy.Namespace, policy.Name, ownerDetails.vsNamespace, ownerDetails.vsName))
 	if rateLimit.Condition != nil && rateLimit.Condition.JWT.Claim != "" && rateLimit.Condition.JWT.Match != "" {
 		lrz, warningText := generateGroupedLimitReqZone(rlZoneName, policy, podReplicas, ownerDetails, zoneSync)
 		if warningText != "" {
-			res.addWarning(warningText)
+			nl.Warn(l, warningText)
 		}
 		p.RateLimit.PolicyGroupMaps = append(p.RateLimit.PolicyGroupMaps, *generateLRZPolicyGroupMap(lrz))
 		p.RateLimit.AuthJWTClaimSets = append(p.RateLimit.AuthJWTClaimSets, generateAuthJwtClaimSet(*rateLimit.Condition.JWT, ownerDetails))
@@ -1067,7 +1065,7 @@ func (p *policiesCfg) addRateLimitConfig(
 	} else {
 		lrz, warningText := generateLimitReqZone(rlZoneName, policy, podReplicas, zoneSync)
 		if warningText != "" {
-			res.addWarning(warningText)
+			nl.Warn(l, warningText)
 		}
 		p.RateLimit.Zones = append(p.RateLimit.Zones, lrz)
 	}
@@ -1659,7 +1657,7 @@ func (vsc *virtualServerConfigurator) generatePolicies(
 	policyOpts policyOptions,
 ) policiesCfg {
 	config := newPoliciesConfig(vsc.bundleValidator)
-	l := nl.LoggerFromContext(vsc.cfgParams.Context)
+	config.Context = vsc.cfgParams.Context
 
 	for _, p := range policyRefs {
 		polNamespace := p.Namespace
@@ -1681,9 +1679,6 @@ func (vsc *virtualServerConfigurator) generatePolicies(
 					vsc.IngressControllerReplicas,
 					policyOpts.zoneSync,
 				)
-				for _, msgs := range res.warnings {
-					nl.Warn(l, msgs)
-				}
 			case pol.Spec.JWTAuth != nil:
 				res = config.addJWTAuthConfig(pol.Spec.JWTAuth, key, polNamespace, policyOpts.secretRefs)
 			case pol.Spec.BasicAuth != nil:

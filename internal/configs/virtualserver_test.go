@@ -8686,7 +8686,8 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
-				Allow: []string{"127.0.0.1"},
+				Allow:   []string{"127.0.0.1"},
+				Context: ctx,
 			},
 			msg: "explicit reference",
 		},
@@ -8706,7 +8707,8 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
-				Allow: []string{"127.0.0.1"},
+				Allow:   []string{"127.0.0.1"},
+				Context: ctx,
 			},
 			msg: "implicit reference",
 		},
@@ -8736,7 +8738,8 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
-				Allow: []string{"127.0.0.1", "127.0.0.2"},
+				Allow:   []string{"127.0.0.1", "127.0.0.2"},
+				Context: ctx,
 			},
 			msg: "merging",
 		},
@@ -8764,6 +8767,7 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
+				Context: ctx,
 				RateLimit: rateLimit{
 					Reqs: []version2.LimitReq{
 						{
@@ -8826,6 +8830,7 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
+				Context: ctx,
 				RateLimit: rateLimit{
 					Zones: []version2.LimitReqZone{
 						{
@@ -8882,6 +8887,7 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
+				Context: ctx,
 				RateLimit: rateLimit{
 					Zones: []version2.LimitReqZone{
 						{
@@ -8926,6 +8932,7 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
+				Context: ctx,
 				JWTAuth: jwtAuth{
 					Auth: &version2.JWTAuth{
 						Secret: "/etc/nginx/secrets/default-jwt-secret",
@@ -8959,6 +8966,7 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
+				Context: ctx,
 				JWTAuth: jwtAuth{
 					Auth: &version2.JWTAuth{
 						Key:   "default/jwt-policy-2",
@@ -8999,6 +9007,7 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
+				Context: ctx,
 				JWTAuth: jwtAuth{
 					Auth: &version2.JWTAuth{
 						Key:   "default/jwt-policy-2",
@@ -9038,6 +9047,7 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
+				Context: ctx,
 				BasicAuth: &version2.BasicAuth{
 					Secret: "/etc/nginx/secrets/default-htpasswd-secret",
 					Realm:  "My Test API",
@@ -9068,6 +9078,7 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 			context: "spec",
 			expected: policiesCfg{
+				Context: ctx,
 				IngressMTLS: &version2.IngressMTLS{
 					ClientCert:   mTLSCertPath,
 					VerifyClient: "off",
@@ -9099,6 +9110,7 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 			context: "spec",
 			expected: policiesCfg{
+				Context: ctx,
 				IngressMTLS: &version2.IngressMTLS{
 					ClientCert:   mTLSCertPath,
 					ClientCrl:    mTLSCrlPath,
@@ -9132,6 +9144,7 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 			context: "spec",
 			expected: policiesCfg{
+				Context: ctx,
 				IngressMTLS: &version2.IngressMTLS{
 					ClientCert:   mTLSCertPath,
 					ClientCrl:    mTLSCrlPath,
@@ -9162,6 +9175,7 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 			context: "route",
 			expected: policiesCfg{
+				Context: ctx,
 				EgressMTLS: &version2.EgressMTLS{
 					Certificate:    "/etc/nginx/secrets/default-egress-mtls-secret",
 					CertificateKey: "/etc/nginx/secrets/default-egress-mtls-secret",
@@ -9198,6 +9212,7 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 			context: "route",
 			expected: policiesCfg{
+				Context: ctx,
 				EgressMTLS: &version2.EgressMTLS{
 					Certificate:    "/etc/nginx/secrets/default-egress-mtls-secret",
 					CertificateKey: "/etc/nginx/secrets/default-egress-mtls-secret",
@@ -9244,7 +9259,8 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
-				OIDC: true,
+				Context: ctx,
+				OIDC:    true,
 			},
 			msg: "oidc reference",
 		},
@@ -9273,6 +9289,7 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
+				Context: ctx,
 				APIKey: apiKeyAuth{
 					Key: &version2.APIKey{
 						Header:  []string{"X-API-Key"},
@@ -9316,6 +9333,7 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
+				Context: ctx,
 				APIKey: apiKeyAuth{
 					Key: &version2.APIKey{
 						Header:  []string{"X-API-Key"},
@@ -9358,6 +9376,7 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 			context: "route",
 			expected: policiesCfg{
+				Context: ctx,
 				WAF: &version2.WAF{
 					Enable:              "on",
 					ApPolicy:            "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
@@ -9369,7 +9388,7 @@ func TestGeneratePolicies(t *testing.T) {
 		},
 	}
 
-	vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background()}, false, false, &StaticConfigParams{}, false, &fakeBV)
+	vsc := newVirtualServerConfigurator(&ConfigParams{Context: ctx}, false, false, &StaticConfigParams{}, false, &fakeBV)
 	// required to test the scaling of the ratelimit
 	vsc.IngressControllerReplicas = 2
 
@@ -9378,7 +9397,7 @@ func TestGeneratePolicies(t *testing.T) {
 			result := vsc.generatePolicies(ownerDetails, tc.policyRefs, tc.policies, tc.context, policyOpts)
 			result.BundleValidator = nil
 
-			if !cmp.Equal(tc.expected, result) {
+			if !reflect.DeepEqual(tc.expected, result) {
 				t.Error(cmp.Diff(tc.expected, result))
 			}
 			if len(vsc.warnings) > 0 {
@@ -9426,6 +9445,7 @@ func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 			},
 			context: "route",
 			want: policiesCfg{
+				Context: ctx,
 				WAF: &version2.WAF{
 					Enable:   "on",
 					ApBundle: "/fake/bundle/path/testWAFPolicyBundle.tgz",
@@ -9458,6 +9478,7 @@ func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 			},
 			context: "route",
 			want: policiesCfg{
+				Context: ctx,
 				WAF: &version2.WAF{
 					Enable:              "on",
 					ApBundle:            "/fake/bundle/path/testWAFPolicyBundle.tgz",
@@ -9469,10 +9490,10 @@ func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background()}, false, false, &StaticConfigParams{}, false, &fakeBV)
+			vsc := newVirtualServerConfigurator(&ConfigParams{Context: ctx}, false, false, &StaticConfigParams{}, false, &fakeBV)
 			res := vsc.generatePolicies(ownerDetails, tc.policyRefs, tc.policies, tc.context, policyOptions{apResources: &appProtectResourcesForVS{}})
 			res.BundleValidator = nil
-			if !cmp.Equal(tc.want, res) {
+			if !reflect.DeepEqual(tc.want, res) {
 				t.Error(cmp.Diff(tc.want, res))
 			}
 		})
@@ -9556,8 +9577,9 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			policyOpts: policyOptions{},
 			expected: policiesCfg{
-				Allow: []string{"127.0.0.1"},
-				Deny:  []string{"127.0.0.2"},
+				Context: ctx,
+				Allow:   []string{"127.0.0.1"},
+				Deny:    []string{"127.0.0.2"},
 			},
 			expectedWarnings: Warnings{
 				nil: {
@@ -9611,6 +9633,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			policyOpts: policyOptions{},
 			expected: policiesCfg{
+				Context: ctx,
 				RateLimit: rateLimit{
 					Zones: []version2.LimitReqZone{
 						{
@@ -9858,6 +9881,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
+				Context: ctx,
 				JWTAuth: jwtAuth{
 					Auth: &version2.JWTAuth{
 						Secret: "/etc/nginx/secrets/default-jwt-secret",
@@ -10014,6 +10038,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
+				Context: ctx,
 				BasicAuth: &version2.BasicAuth{
 					Secret: "/etc/nginx/secrets/default-htpasswd-secret",
 					Realm:  "test",
@@ -10157,6 +10182,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			context: "spec",
 			expected: policiesCfg{
+				Context: ctx,
 				IngressMTLS: &version2.IngressMTLS{
 					ClientCert:   ingressMTLSCertPath,
 					VerifyClient: "on",
@@ -10298,6 +10324,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			context: "spec",
 			expected: policiesCfg{
+				Context: ctx,
 				IngressMTLS: &version2.IngressMTLS{
 					ClientCert:   ingressMTLSCertPath,
 					ClientCrl:    ingressMTLSCrlPath,
@@ -10361,6 +10388,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			context: "route",
 			expected: policiesCfg{
+				Context: ctx,
 				EgressMTLS: &version2.EgressMTLS{
 					Certificate:    "/etc/nginx/secrets/default-egress-mtls-secret",
 					CertificateKey: "/etc/nginx/secrets/default-egress-mtls-secret",
@@ -10815,7 +10843,8 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			context: "route",
 			expected: policiesCfg{
-				OIDC: true,
+				Context: ctx,
+				OIDC:    true,
 			},
 			expectedWarnings: Warnings{
 				nil: {
@@ -11095,6 +11124,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			context: "route",
 			expected: policiesCfg{
+				Context: ctx,
 				WAF: &version2.WAF{
 					Enable:   "on",
 					ApPolicy: "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
@@ -11112,7 +11142,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
-			vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background()}, false, false, &StaticConfigParams{}, false, &fakeBV)
+			vsc := newVirtualServerConfigurator(&ConfigParams{Context: ctx}, false, false, &StaticConfigParams{}, false, &fakeBV)
 
 			if test.oidcPolCfg != nil {
 				vsc.oidcPolCfg = test.oidcPolCfg
@@ -11120,8 +11150,9 @@ func TestGeneratePoliciesFails(t *testing.T) {
 
 			result := vsc.generatePolicies(ownerDetails, test.policyRefs, test.policies, test.context, test.policyOpts)
 			result.BundleValidator = nil
-			if diff := cmp.Diff(test.expected, result); diff != "" {
-				t.Errorf("generatePolicies() '%v' mismatch (-want +got):\n%s", test.msg, diff)
+
+			if !reflect.DeepEqual(test.expected, result) {
+				t.Errorf("generatePolicies() '%v' mismatch (-want +got):\n%s", test.msg, cmp.Diff(test.expected, result))
 			}
 			if !reflect.DeepEqual(vsc.warnings, test.expectedWarnings) {
 				t.Errorf(
@@ -11131,11 +11162,11 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					test.msg,
 				)
 			}
-			if diff := cmp.Diff(test.expectedOidc.oidc, vsc.oidcPolCfg.oidc); diff != "" {
-				t.Errorf("generatePolicies() '%v' mismatch (-want +got):\n%s", test.msg, diff)
+			if !reflect.DeepEqual(test.expectedOidc.oidc, vsc.oidcPolCfg.oidc) {
+				t.Errorf("generatePolicies() '%v' mismatch (-want +got):\n%s", test.msg, cmp.Diff(test.expectedOidc.oidc, vsc.oidcPolCfg.oidc))
 			}
-			if diff := cmp.Diff(test.expectedOidc.key, vsc.oidcPolCfg.key); diff != "" {
-				t.Errorf("generatePolicies() '%v' mismatch (-want +got):\n%s", test.msg, diff)
+			if !reflect.DeepEqual(test.expectedOidc.key, vsc.oidcPolCfg.key) {
+				t.Errorf("generatePolicies() '%v' mismatch (-want +got):\n%s", test.msg, cmp.Diff(test.expectedOidc.key, vsc.oidcPolCfg.key))
 			}
 		})
 	}

@@ -10,8 +10,14 @@ from suite.utils.nginx_api_utils import (
     wait_for_zone_sync_enabled,
     wait_for_zone_sync_nodes_online,
 )
-from suite.utils.policy_resources_utils import apply_and_assert_valid_policy, create_policy_from_yaml, delete_policy
+from suite.utils.policy_resources_utils import (
+    apply_and_assert_valid_policy,
+    create_policy_from_yaml,
+    delete_policy,
+    read_policy,
+)
 from suite.utils.resources_utils import (
+    get_first_pod_name,
     get_pod_list,
     replace_configmap_from_yaml,
     scale_deployment,
@@ -505,8 +511,8 @@ class TestRateLimitingPoliciesVsr:
         delete_policy(kube_apis.custom_objects, pol_name, v_s_route_setup.route_m.namespace)
 
     @pytest.mark.skip_for_nginx_oss
-    @pytest.mark.parametrize("src", [rl_vsr_sec_src])
-    def test_rl_policy_5rs_with_zone_sync_vsr(
+    @pytest.mark.parametrize("src", [rl_vsr_pri_sca_src])
+    def test_rl_policy_with_scale_and_zone_sync_vsr(
         self,
         kube_apis,
         ingress_controller_prerequisites,
@@ -522,7 +528,7 @@ class TestRateLimitingPoliciesVsr:
         """
         replica_count = 3
         NGINX_API_VERSION = 9
-        pol_name = apply_and_assert_valid_policy(kube_apis, v_s_route_setup.route_m.namespace, rl_pol_sec_src)
+        pol_name = apply_and_assert_valid_policy(kube_apis, v_s_route_setup.route_m.namespace, rl_pol_pri_sca_src)
 
         configmap_name = "nginx-config"
 
@@ -567,6 +573,20 @@ class TestRateLimitingPoliciesVsr:
 
         print("Step 6: check plus api if zone is synced")
         assert check_synced_zone_exists(zone_sync_url, pol_name.replace("-", "_", -1))
+
+        print("Step 7: check sync in config")
+        pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        vsr_config = get_vs_nginx_template_conf(
+            kube_apis.v1,
+            v_s_route_setup.namespace,
+            v_s_route_setup.vs_name,
+            pod_name,
+            ingress_controller_prerequisites.namespace,
+        )
+
+        policy = read_policy(kube_apis.custom_objects, v_s_route_setup.route_m.namespace, pol_name)
+        expected_conf_line = f"limit_req_zone {policy["spec"]["rateLimit"]["key"]} zone=pol_rl_{policy["metadata"]["namespace"].replace("-", "_", -1)}_{pol_name.replace("-", "_", -1)}_{v_s_route_setup.route_m.namespace.replace("-", "_", -1)}_{v_s_route_setup.vs_name.replace("-", "_", -1)}:{policy["spec"]["rateLimit"]["zoneSize"]} rate={policy["spec"]["rateLimit"]["rate"]} sync;"
+        assert expected_conf_line in vsr_config
 
         # revert changes
         scale_deployment(
