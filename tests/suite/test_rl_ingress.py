@@ -20,6 +20,7 @@ from suite.utils.resources_utils import (
     get_first_pod_name,
     get_ingress_nginx_template_conf,
     get_pod_list,
+    read_ingress,
     replace_configmap_from_yaml,
     scale_deployment,
     wait_before_test,
@@ -158,8 +159,8 @@ class TestRateLimitIngressZoneSync:
             f"{TEST_DATA}/zone-sync/configmap-with-zonesync-minimal.yaml",
         )
 
+        print("Step 2: apply Ingress")
         ingress_name = get_name_from_yaml(src)
-
         create_items_from_yaml(kube_apis, src, test_namespace)
 
         print(f"Step 3: scale deployments to {replica_count}")
@@ -238,4 +239,55 @@ class TestRateLimitIngressScaled:
                 flag = ("rate=10r/s" in conf) or ("rate=13r/s" in conf)
 
         assert flag
+        scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ns, 1)
+
+
+@pytest.mark.annotations
+@pytest.mark.parametrize("annotations_setup", ["standard-scaled", "mergeable-scaled"], indirect=True)
+class TestRateLimitIngressScaledWithZoneSync:
+    def test_ingress_rate_limit_scaled_with_zone_sync(
+        self, kube_apis, annotations_setup, ingress_controller_prerequisites, test_namespace
+    ):
+        """
+        Test if rate-limit scaling works with standard and mergeable ingresses
+        """
+        print("Step 1: apply minimal zone_sync nginx-config map")
+        configmap_name = "nginx-config"
+        replace_configmap_from_yaml(
+            kube_apis.v1,
+            configmap_name,
+            ingress_controller_prerequisites.namespace,
+            f"{TEST_DATA}/zone-sync/configmap-with-zonesync-minimal.yaml",
+        )
+
+        print("Step 3: scale deployments to 2")
+        ns = ingress_controller_prerequisites.namespace
+        scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ns, 2)
+
+        print("Step 4: check if pods are ready")
+        wait_until_all_pods_are_ready(kube_apis.v1, ingress_controller_prerequisites.namespace)
+
+        print("Step 5: check sync in config")
+        pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+
+        ing_config = get_ingress_nginx_template_conf(
+            kube_apis.v1,
+            annotations_setup.namespace,
+            annotations_setup.ingress_name,
+            pod_name,
+            ingress_controller_prerequisites.namespace,
+        )
+        ingress_name = annotations_setup.ingress_name
+        # if annotations_setup.get("upstream_names") is not None:
+        #     print(f"upstream names: {annotations_setup.upstream_names}")
+        ingress = read_ingress(kube_apis.networking_v1, ingress_name, annotations_setup.namespace)
+        key = ingress.metadata.annotations.get("nginx.org/limit-req-key")
+        rate = ingress.metadata.annotations.get("nginx.org/limit-req-rate")
+        zone_size = ingress.metadata.annotations.get("nginx.org/limit-req-zone-size")
+        expected_conf_line = (
+            f"limit_req_zone {key} zone={annotations_setup.namespace}/{ingress_name}:{zone_size} rate={rate} sync;"
+        )
+        assert expected_conf_line in ing_config
+
+        print("Step 6: clean up")
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ns, 1)
