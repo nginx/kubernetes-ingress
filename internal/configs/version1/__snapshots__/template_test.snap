@@ -1217,7 +1217,7 @@ server {
 # configuration for default/myingress
 
 
-limit_req_zone ${binary_remote_addr} zone=default/zone1:10m rate=200r/s sync;
+limit_req_zone ${binary_remote_addr} zone=default/zone1_sync:10m rate=200r/s sync;
 
 
 

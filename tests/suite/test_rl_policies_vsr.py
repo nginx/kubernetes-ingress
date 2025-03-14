@@ -511,6 +511,7 @@ class TestRateLimitingPoliciesVsr:
         delete_policy(kube_apis.custom_objects, pol_name, v_s_route_setup.route_m.namespace)
 
     @pytest.mark.skip_for_nginx_oss
+    @pytest.mark.alex  # temp
     @pytest.mark.parametrize("src", [rl_vsr_pri_sca_src])
     def test_rl_policy_with_scale_and_zone_sync_vsr(
         self,
@@ -541,7 +542,7 @@ class TestRateLimitingPoliciesVsr:
         )
 
         print("Step 2: apply the policy to the virtual server route")
-        apply_and_assert_valid_vsr(
+        apply_and_assert_valid_vsr(  # failing as it cannot find state?
             kube_apis,
             v_s_route_setup.route_m.namespace,
             v_s_route_setup.route_m.name,
@@ -585,7 +586,7 @@ class TestRateLimitingPoliciesVsr:
         )
 
         policy = read_policy(kube_apis.custom_objects, v_s_route_setup.route_m.namespace, pol_name)
-        expected_conf_line = f"limit_req_zone {policy["spec"]["rateLimit"]["key"]} zone=pol_rl_{policy["metadata"]["namespace"].replace("-", "_", -1)}_{pol_name.replace("-", "_", -1)}_{v_s_route_setup.route_m.namespace.replace("-", "_", -1)}_{v_s_route_setup.vs_name.replace("-", "_", -1)}:{policy["spec"]["rateLimit"]["zoneSize"]} rate={policy["spec"]["rateLimit"]["rate"]} sync;"
+        expected_conf_line = f"limit_req_zone {policy["spec"]["rateLimit"]["key"]} zone=pol_rl_{policy["metadata"]["namespace"].replace("-", "_", -1)}_{pol_name.replace("-", "_", -1)}_{v_s_route_setup.route_m.namespace.replace("-", "_", -1)}_{v_s_route_setup.vs_name.replace("-", "_", -1)}_sync:{policy["spec"]["rateLimit"]["zoneSize"]} rate={policy["spec"]["rateLimit"]["rate"]} sync;"
         assert expected_conf_line in vsr_config
 
         # revert changes

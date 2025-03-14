@@ -2913,7 +2913,7 @@ map $http_x_version $match_0_0 {
     default 0;
 }
 # HTTP snippet
-limit_req_zone $url zone=pol_rl_test_test_test:10m rate=10r/s sync;
+limit_req_zone $url zone=pol_rl_test_test_test_sync:10m rate=10r/s sync;
 
 server {
     listen 80 proxy_protocol;

@@ -285,7 +285,7 @@ class TestRateLimitIngressScaledWithZoneSync:
         rate = ingress.metadata.annotations.get("nginx.org/limit-req-rate")
         zone_size = ingress.metadata.annotations.get("nginx.org/limit-req-zone-size")
         expected_conf_line = (
-            f"limit_req_zone {key} zone={annotations_setup.namespace}/{ingress_name}:{zone_size} rate={rate} sync;"
+            f"limit_req_zone {key} zone={annotations_setup.namespace}/{ingress_name}_sync:{zone_size} rate={rate} sync;"
         )
         assert expected_conf_line in ing_config
 

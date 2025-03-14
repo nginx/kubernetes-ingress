@@ -537,7 +537,7 @@ class TestRateLimitingPolicies:
         )
 
         policy = read_policy(kube_apis.custom_objects, test_namespace, pol_name)
-        expected_conf_line = f"limit_req_zone {policy["spec"]["rateLimit"]["key"]} zone=pol_rl_{policy["metadata"]["namespace"].replace("-", "_", -1)}_{pol_name.replace("-", "_", -1)}_{virtual_server_setup.namespace.replace("-", "_", -1)}_{virtual_server_setup.vs_name.replace("-", "_", -1)}:{policy["spec"]["rateLimit"]["zoneSize"]} rate={policy["spec"]["rateLimit"]["rate"]} sync;"
+        expected_conf_line = f"limit_req_zone {policy["spec"]["rateLimit"]["key"]} zone=pol_rl_{policy["metadata"]["namespace"].replace("-", "_", -1)}_{pol_name.replace("-", "_", -1)}_{virtual_server_setup.namespace.replace("-", "_", -1)}_{virtual_server_setup.vs_name.replace("-", "_", -1)}_sync:{policy["spec"]["rateLimit"]["zoneSize"]} rate={policy["spec"]["rateLimit"]["rate"]} sync;"
         assert expected_conf_line in vs_config
 
         # revert changes

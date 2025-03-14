@@ -161,6 +161,7 @@ type LimitReq struct {
 	RejectCode int
 	DryRun     bool
 	LogLevel   string
+	Sync       bool
 }
 
 // Location describes an NGINX location.

@@ -6524,7 +6524,7 @@ func TestGenerateVirtualServerConfigRateLimit(t *testing.T) {
 					VSNamespace:  "default",
 					VSName:       "cafe",
 					LimitReqs: []version2.LimitReq{
-						{ZoneName: "pol_rl_default_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+						{ZoneName: "pol_rl_default_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0, Sync: true},
 					},
 					LimitReqOptions: version2.LimitReqOptions{
 						DryRun:     false,
@@ -6959,8 +6959,8 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 					VSNamespace:  "default",
 					VSName:       "cafe",
 					LimitReqs: []version2.LimitReq{
-						{ZoneName: "pol_rl_default_premium_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
-						{ZoneName: "pol_rl_default_basic_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+						{ZoneName: "pol_rl_default_premium_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0, Sync: true},
+						{ZoneName: "pol_rl_default_basic_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0, Sync: true},
 					},
 					LimitReqOptions: version2.LimitReqOptions{
 						DryRun:     false,

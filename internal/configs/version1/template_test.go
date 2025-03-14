@@ -1850,7 +1850,7 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithRequestRateLimitZoneSync(t *t
 	ingConf := buf.String()
 
 	wantDirectives := []string{
-		"limit_req_zone ${binary_remote_addr} zone=default/zone1:10m rate=200r/s sync;",
+		"limit_req_zone ${binary_remote_addr} zone=default/zone1_sync:10m rate=200r/s sync;",
 	}
 
 	for _, want := range wantDirectives {

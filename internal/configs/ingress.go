@@ -280,6 +280,7 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 					DryRun:     cfgParams.LimitReqDryRun,
 					LogLevel:   cfgParams.LimitReqLogLevel,
 					RejectCode: cfgParams.LimitReqRejectCode,
+					Sync:       cfgParams.ZoneSync.Enable,
 				}
 				if !limitReqZoneExists(limitReqZones, zoneName) {
 					rate := cfgParams.LimitReqRate
