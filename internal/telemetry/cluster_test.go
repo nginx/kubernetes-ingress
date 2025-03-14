@@ -577,8 +577,9 @@ var (
 				},
 			},
 			Labels: map[string]string{
-				"app":                    "nginx-ingress",
-				"app.kubernetes.io/name": "nginx-ingress",
+				"app":                      "nginx-ingress",
+				"zone-sync.nginx.com/name": "nginx-ingress",
+				"app.kubernetes.io/name":   "nginx-ingress",
 			},
 		},
 		Spec: apiCoreV1.PodSpec{
@@ -612,8 +613,9 @@ var (
 			Name:      "nginx-ingress",
 			Namespace: "nginx-ingress",
 			Labels: map[string]string{
-				"app":                    "nginx-ingress",
-				"app.kubernetes.io/name": "nginx-ingress",
+				"app":                      "nginx-ingress",
+				"zone-sync.nginx.com/name": "nginx-ingress",
+				"app.kubernetes.io/name":   "nginx-ingress",
 			},
 			OwnerReferences: []metaV1.OwnerReference{
 				{
@@ -650,8 +652,9 @@ var (
 				},
 			},
 			Labels: map[string]string{
-				"app":                    "nginx-ingress",
-				"app.kubernetes.io/name": "nginx-ingress",
+				"app":                      "nginx-ingress",
+				"zone-sync.nginx.com/name": "nginx-ingress",
+				"app.kubernetes.io/name":   "nginx-ingress",
 			},
 		},
 		Spec: apiCoreV1.PodSpec{
@@ -685,7 +688,7 @@ var (
 			Name:      "nginx-ingress",
 			Namespace: "nginx-ingress",
 			UID:       types.UID(installationIDDaemonSet),
-			Labels:    map[string]string{"app": "nginx-ingress"},
+			Labels:    map[string]string{"app": "nginx-ingress", "zone-sync.nginx.com/name": "nginx-ingress"},
 		},
 		Spec: appsV1.DaemonSetSpec{},
 		Status: appsV1.DaemonSetStatus{

@@ -33,4 +33,4 @@ NS_COUNT = 0
 # Nginx registry address to pull waf components from
 NGX_REG = "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr"
 # WAF component version to pull from above registry
-WAF_V5_VERSION = "5.4.0"
+WAF_V5_VERSION = "5.5.0"

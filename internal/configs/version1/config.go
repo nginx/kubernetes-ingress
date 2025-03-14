@@ -73,6 +73,7 @@ type LimitReqZone struct {
 	Key  string
 	Size string
 	Rate string
+	Sync bool
 }
 
 // Server describes an NGINX server.
@@ -189,6 +190,17 @@ type Location struct {
 	MinionIngress *Ingress
 }
 
+// ZoneSyncConfig is tbe configuration for the zone_sync directives for state sharing.
+type ZoneSyncConfig struct {
+	Enable            bool
+	Port              int
+	Domain            string
+	ResolverAddresses []string
+	// Time the resolver is valid. Go time string format: "5s", "10s".
+	ResolverValid string
+	ResolverIPV6  *bool
+}
+
 // MGMTConfig is tbe configuration for the MGMT block.
 type MGMTConfig struct {
 	SSLVerify            *bool
@@ -276,6 +288,7 @@ type MainConfig struct {
 	InternalRouteServer                bool
 	InternalRouteServerName            string
 	LatencyMetrics                     bool
+	ZoneSyncConfig                     ZoneSyncConfig
 	OIDC                               bool
 	DynamicSSLReloadEnabled            bool
 	StaticSSLPath                      string

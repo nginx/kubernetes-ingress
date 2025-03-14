@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/record"
 )
@@ -478,7 +480,7 @@ func TestParseMGMTConfigMapEnforceInitialReport(t *testing.T) {
 				},
 			},
 			want: &MGMTConfigParams{
-				EnforceInitialReport: BoolToPointerBool(false),
+				EnforceInitialReport: commonhelpers.BoolToPointerBool(false),
 				Secrets: MGMTSecrets{
 					License: "license-token",
 				},
@@ -493,7 +495,7 @@ func TestParseMGMTConfigMapEnforceInitialReport(t *testing.T) {
 				},
 			},
 			want: &MGMTConfigParams{
-				EnforceInitialReport: BoolToPointerBool(true),
+				EnforceInitialReport: commonhelpers.BoolToPointerBool(true),
 				Secrets: MGMTSecrets{
 					License: "license-token",
 				},
@@ -537,7 +539,7 @@ func TestParseMGMTConfigMapSSLVerify(t *testing.T) {
 				},
 			},
 			want: &MGMTConfigParams{
-				SSLVerify: BoolToPointerBool(false),
+				SSLVerify: commonhelpers.BoolToPointerBool(false),
 				Secrets: MGMTSecrets{
 					License: "license-token",
 				},
@@ -552,7 +554,7 @@ func TestParseMGMTConfigMapSSLVerify(t *testing.T) {
 				},
 			},
 			want: &MGMTConfigParams{
-				SSLVerify: BoolToPointerBool(true),
+				SSLVerify: commonhelpers.BoolToPointerBool(true),
 				Secrets: MGMTSecrets{
 					License: "license-token",
 				},
@@ -685,7 +687,7 @@ func TestParseMGMTConfigMapResolverIPV6(t *testing.T) {
 				},
 			},
 			want: &MGMTConfigParams{
-				ResolverIPV6: BoolToPointerBool(false),
+				ResolverIPV6: commonhelpers.BoolToPointerBool(false),
 				Secrets: MGMTSecrets{
 					License: "license-token",
 				},
@@ -700,7 +702,7 @@ func TestParseMGMTConfigMapResolverIPV6(t *testing.T) {
 				},
 			},
 			want: &MGMTConfigParams{
-				ResolverIPV6: BoolToPointerBool(true),
+				ResolverIPV6: commonhelpers.BoolToPointerBool(true),
 				Secrets: MGMTSecrets{
 					License: "license-token",
 				},
@@ -788,6 +790,466 @@ func TestParseMGMTConfigMapUsageReportEndpoint(t *testing.T) {
 	}
 }
 
+func TestParseZoneSync(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap *v1.ConfigMap
+		want      *ZoneSync
+		msg       string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync": "true",
+				},
+			},
+			want: &ZoneSync{
+				Enable: true,
+				Port:   12345,
+			},
+			msg: "zone-sync set to true",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync": "false",
+				},
+			},
+			want: &ZoneSync{
+				Enable: false,
+				Port:   0,
+			},
+			msg: "zone-sync set to false",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, _ := ParseConfigMap(context.Background(), test.configMap, true, false, false, false, makeEventLogger())
+			if result.ZoneSync.Enable != test.want.Enable {
+				t.Errorf("Enable: want %v, got %v", test.want.Enable, result.ZoneSync)
+			}
+		})
+	}
+}
+
+func TestParseZoneSyncForOSS(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap *v1.ConfigMap
+		want      *ZoneSync
+		msg       string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync": "true",
+				},
+			},
+			want: &ZoneSync{
+				Enable: true,
+				Port:   12345,
+			},
+			msg: "zone-sync set to true",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync": "false",
+				},
+			},
+			want: &ZoneSync{
+				Enable: false,
+				Port:   0,
+			},
+			msg: "zone-sync set to false",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			_, configOk := ParseConfigMap(context.Background(), test.configMap, false, false, false, false, makeEventLogger())
+			if configOk {
+				t.Errorf("Expected config not valid, got valid")
+			}
+		})
+	}
+}
+
+func TestParseZoneSyncPort(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap *v1.ConfigMap
+		want      *ZoneSync
+		msg       string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync":      "true",
+					"zone-sync-port": "1234",
+				},
+			},
+			want: &ZoneSync{
+				Enable:            true,
+				Port:              1234,
+				Domain:            "",
+				ResolverAddresses: []string{"add default one"},
+				ResolverValid:     "5s",
+			},
+			msg: "zone-sync-port set to 1234",
+		},
+	}
+
+	nginxPlus := true
+	hasAppProtect := true
+	hasAppProtectDos := false
+	hasTLSPassthrough := false
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, _ := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, makeEventLogger())
+			if result.ZoneSync.Port != test.want.Port {
+				t.Errorf("Port: want %v, got %v", test.want.Port, result.ZoneSync.Port)
+			}
+		})
+	}
+}
+
+func TestZoneSyncPortSetToDefaultOnZoneSyncEnabledAndPortNotProvided(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap *v1.ConfigMap
+		want      *ZoneSync
+		msg       string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync": "true",
+				},
+			},
+			want: &ZoneSync{
+				Enable: true,
+				Port:   12345,
+			},
+			msg: "zone-sync-port set to default value 12345",
+		},
+	}
+	nginxPlus := true
+	hasAppProtect := false
+	hasAppProtectDos := false
+	hasTLSPassthrough := false
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, makeEventLogger())
+			if !configOk {
+				t.Error("zone-sync: want configOk true, got configOk false ")
+			}
+			if result.ZoneSync.Port != test.want.Port {
+				t.Errorf("Port: want %v, got %v", test.want.Port, result.ZoneSync.Port)
+			}
+		})
+	}
+}
+
+func TestParseZoneSyncPortErrors(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap *v1.ConfigMap
+		msg       string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync":      "true",
+					"zone-sync-port": "0",
+				},
+			},
+			msg: "port out of range (0)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync":      "true",
+					"zone-sync-port": "-1",
+				},
+			},
+			msg: "port out of range (negative)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync":      "true",
+					"zone-sync-port": "65536",
+				},
+			},
+			msg: "port out of range (greater than 65535)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync":      "true",
+					"zone-sync-port": "not-a-number",
+				},
+			},
+			msg: "invalid non-numeric port",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync":      "true",
+					"zone-sync-port": "",
+				},
+			},
+			msg: "empty string port",
+		},
+	}
+
+	nginxPlus := true
+	hasAppProtect := true
+	hasAppProtectDos := false
+	hasTLSPassthrough := false
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			_, ok := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, makeEventLogger())
+			if ok {
+				t.Error("Expected config not valid, got valid")
+			}
+		})
+	}
+}
+
+func TestParseZoneSyncResolverErrors(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap *v1.ConfigMap
+		msg       string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync":                    "true",
+					"zone-sync-resolver-addresses": "nginx",
+				},
+			},
+			msg: "invalid resolver address",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync":                    "true",
+					"zone-sync-resolver-addresses": "nginx, example.com",
+				},
+			},
+			msg: "one valid and one invalid resolver addresses",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync":                "true",
+					"zone-sync-resolver-valid": "10x",
+				},
+			},
+			msg: "invalid resolver valid 10x",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync":                "true",
+					"zone-sync-resolver-valid": "nginx",
+				},
+			},
+			msg: "invalid resolver valid string",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync": "nginx",
+				},
+			},
+			msg: "zone-sync = nginx",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync":               "true",
+					"zone-sync-resolver-ipv6": "nginx",
+				},
+			},
+			msg: "invalid resolver ipv6 string",
+		},
+	}
+
+	nginxPlus := false
+	hasAppProtect := true
+	hasAppProtectDos := false
+	hasTLSPassthrough := false
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			_, ok := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, makeEventLogger())
+			if ok {
+				t.Error("Expected config not valid, got valid")
+			}
+		})
+	}
+}
+
+func TestParseZoneSyncResolverIPV6MapResolverIPV6(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap *v1.ConfigMap
+		want      *ZoneSync
+		msg       string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync":                    "true",
+					"zone-sync-resolver-ipv6":      "true",
+					"zone-sync-resolver-addresses": "example.com",
+				},
+			},
+			want: &ZoneSync{
+				Enable:            true,
+				Port:              12345,
+				ResolverIPV6:      commonhelpers.BoolToPointerBool(true),
+				ResolverAddresses: []string{"example.com"},
+			},
+			msg: "zone-sync-resolver-ipv6 set to true",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync-port":               "12345",
+					"zone-sync":                    "true",
+					"zone-sync-resolver-ipv6":      "false",
+					"zone-sync-resolver-addresses": "example.com",
+				},
+			},
+			want: &ZoneSync{
+				Enable:            true,
+				Port:              12345,
+				ResolverIPV6:      commonhelpers.BoolToPointerBool(false),
+				ResolverAddresses: []string{"example.com"},
+			},
+			msg: "zone-sync-resolver-ipv6 set to false",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			nginxPlus := true
+			hasAppProtect := false
+			hasAppProtectDos := false
+			hasTLSPassthrough := false
+
+			result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, makeEventLogger())
+
+			if !configOk {
+				t.Errorf("zone-sync-resolver-ipv6: want configOk true, got configOk %v  ", configOk)
+			}
+
+			if result.ZoneSync.ResolverIPV6 == nil {
+				t.Errorf("zone-sync-resolver-ipv6: want %v, got nil", *test.want.ResolverIPV6)
+			}
+
+			if *result.ZoneSync.ResolverIPV6 != *test.want.ResolverIPV6 {
+				t.Errorf("zone-sync-resolver-ipv6: want %v, got %v", *test.want.ResolverIPV6, *result.ZoneSync.ResolverIPV6)
+			}
+		})
+	}
+}
+
 func makeEventLogger() record.EventRecorder {
 	return record.NewFakeRecorder(1024)
+}
+
+func TestOpenTracingConfiguration(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap    *v1.ConfigMap
+		enabled      bool
+		loadModule   bool
+		tracer       string
+		tracerConfig string
+		msg          string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"opentracing":               "true",
+					"opentracing-tracer":        "/usr/local/lib/libjaegertracing.so",
+					"opentracing-tracer-config": "/etc/nginx/opentracing.json",
+				},
+			},
+			enabled:      true,
+			loadModule:   true,
+			tracer:       "/usr/local/lib/libjaegertracing.so",
+			tracerConfig: "/etc/nginx/opentracing.json",
+			msg:          "opentracing enabled",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"opentracing":               "false",
+					"opentracing-tracer":        "/usr/local/lib/libjaegertracing.so",
+					"opentracing-tracer-config": "/etc/nginx/opentracing.json",
+				},
+			},
+			enabled:      false,
+			loadModule:   false,
+			tracer:       "",
+			tracerConfig: "",
+			msg:          "opentracing disabled",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"opentracing": "false",
+				},
+			},
+			enabled:      false,
+			loadModule:   false,
+			tracer:       "",
+			tracerConfig: "",
+			msg:          "opentracing disabled",
+		},
+	}
+	nginxPlus := false
+	hasAppProtect := false
+	hasAppProtectDos := false
+	hasTLSPassthrough := false
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus,
+				hasAppProtect, hasAppProtectDos, hasTLSPassthrough, makeEventLogger())
+
+			if !configOk {
+				t.Errorf("Expected valid config, got invalid")
+			}
+			if result.MainOpenTracingEnabled != test.enabled {
+				t.Errorf("MainOpenTracingEnabled: want %v, got %v",
+					test.enabled, result.MainOpenTracingEnabled)
+			}
+
+			if result.MainOpenTracingLoadModule != test.loadModule {
+				t.Errorf("MainOpenTracingLoadModule: want %v, got %v",
+					test.loadModule, result.MainOpenTracingLoadModule)
+			}
+
+			if result.MainOpenTracingTracer != test.tracer {
+				t.Errorf("MainOpenTracingTracer: want %q, got %q",
+					test.tracer, result.MainOpenTracingTracer)
+			}
+
+			if result.MainOpenTracingTracerConfig != test.tracerConfig {
+				t.Errorf("MainOpenTracingTracerConfig: want %q, got %q",
+					test.tracerConfig, result.MainOpenTracingTracerConfig)
+			}
+		})
+	}
 }

@@ -196,7 +196,89 @@ def patch_v_s_route_from_yaml(custom_objects: CustomObjectsApi, name, yaml_manif
         raise
 
 
-def get_vs_nginx_template_conf(v1: CoreV1Api, vs_namespace, vs_name, pod_name, pod_namespace) -> str:
+def apply_and_assert_valid_vsr(kube_apis, namespace, name, vsr_yaml):
+    delete_and_create_v_s_route_from_yaml(
+        kube_apis.custom_objects,
+        name,
+        vsr_yaml,
+        namespace,
+    )
+    wait_before_test(1)
+    vsr_info = read_custom_resource(
+        kube_apis.custom_objects,
+        namespace,
+        "virtualserverroutes",
+        name,
+    )
+    assert (
+        vsr_info["status"]
+        and vsr_info["status"]["reason"] == "AddedOrUpdated"
+        and vsr_info["status"]["state"] == "Valid"
+    ), vsr_info
+
+
+def apply_and_assert_warning_vsr(kube_apis, namespace, name, vsr_yaml):
+    delete_and_create_v_s_route_from_yaml(
+        kube_apis.custom_objects,
+        name,
+        vsr_yaml,
+        namespace,
+    )
+    wait_before_test(1)
+    vsr_info = read_custom_resource(
+        kube_apis.custom_objects,
+        namespace,
+        "virtualserverroutes",
+        name,
+    )
+    assert (
+        vsr_info["status"]
+        and vsr_info["status"]["reason"] == "AddedOrUpdatedWithWarning"
+        and vsr_info["status"]["state"] == "Warning"
+    ), vsr_info
+
+
+def apply_and_assert_valid_vs(kube_apis, namespace, name, vs_yaml):
+    patch_virtual_server_from_yaml(
+        kube_apis.custom_objects,
+        name,
+        vs_yaml,
+        namespace,
+    )
+    wait_before_test(1)
+    vs_info = read_custom_resource(
+        kube_apis.custom_objects,
+        namespace,
+        "virtualservers",
+        name,
+    )
+    assert (
+        vs_info["status"] and vs_info["status"]["reason"] == "AddedOrUpdated" and vs_info["status"]["state"] == "Valid"
+    ), vs_info
+
+
+def apply_and_assert_warning_vs(kube_apis, namespace, name, vs_yaml):
+    patch_virtual_server_from_yaml(
+        kube_apis.custom_objects,
+        name,
+        vs_yaml,
+        namespace,
+    )
+    wait_before_test(1)
+    vs_info = read_custom_resource(
+        kube_apis.custom_objects,
+        namespace,
+        "virtualservers",
+        name,
+    )
+    assert (
+        vs_info["status"]
+        and vs_info["status"]["reason"] == "AddedOrUpdatedWithWarning"
+        and vs_info["status"]["state"] == "Warning"
+    ), vs_info
+
+
+def get_vs_nginx_template_conf(v1: CoreV1Api, vs_namespace, vs_name, pod_name, pod_namespace, print_log=True) -> str:
     """
     Get contents of /etc/nginx/conf.d/vs_{namespace}_{vs_name}.conf in the pod.
 
@@ -205,10 +287,11 @@ def get_vs_nginx_template_conf(v1: CoreV1Api, vs_namespace, vs_name, pod_name, p
     :param vs_name:
     :param pod_name:
     :param pod_namespace:
+    :param print_log:
     :return: str
     """
     file_path = f"/etc/nginx/conf.d/vs_{vs_namespace}_{vs_name}.conf"
-    return get_file_contents(v1, file_path, pod_name, pod_namespace)
+    return get_file_contents(v1, file_path, pod_name, pod_namespace, print_log)
 
 
 def create_v_s_route_from_yaml(custom_objects: CustomObjectsApi, yaml_manifest, namespace) -> str:
@@ -284,3 +367,22 @@ def delete_v_s_route(custom_objects: CustomObjectsApi, name, namespace) -> None:
         name,
     )
     print(f"VirtualServerRoute was removed with the name '{name}'")
+
+
+def delete_and_create_v_s_route_from_yaml(custom_objects: CustomObjectsApi, name, yaml_manifest, namespace) -> None:
+    """
+    Update a VirtualServerRoute based on yaml manifest
+
+    :param custom_objects: CustomObjectsApi
+    :param name:
+    :param yaml_manifest: an absolute path to file
+    :param namespace:
+    :return:
+    """
+    try:
+        delete_v_s_route(custom_objects, name, namespace)
+        create_v_s_route_from_yaml(custom_objects, yaml_manifest, namespace)
+        wait_before_test()
+    except ApiException:
+        logging.exception(f"Failed with exception while patching VirtualServerRoute: {name}")
+        raise

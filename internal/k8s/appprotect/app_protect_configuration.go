@@ -401,7 +401,7 @@ func (ci *ConfigurationImpl) GetAppResource(kind, key string) (*unstructured.Uns
 			if obj.IsValid {
 				return obj.Obj, nil
 			}
-			return nil, fmt.Errorf(obj.ErrorMsg)
+			return nil, errors.New(obj.ErrorMsg)
 		}
 		return nil, fmt.Errorf("app protect Policy %s not found", key)
 	case LogConfGVK.Kind:
@@ -409,7 +409,7 @@ func (ci *ConfigurationImpl) GetAppResource(kind, key string) (*unstructured.Uns
 			if obj.IsValid {
 				return obj.Obj, nil
 			}
-			return nil, fmt.Errorf(obj.ErrorMsg)
+			return nil, errors.New(obj.ErrorMsg)
 		}
 		return nil, fmt.Errorf("app protect LogConf %s not found", key)
 	case UserSigGVK.Kind:
@@ -417,7 +417,7 @@ func (ci *ConfigurationImpl) GetAppResource(kind, key string) (*unstructured.Uns
 			if obj.IsValid {
 				return obj.Obj, nil
 			}
-			return nil, fmt.Errorf(obj.ErrorMsg)
+			return nil, errors.New(obj.ErrorMsg)
 		}
 		return nil, fmt.Errorf("app protect UserSig %s not found", key)
 	}

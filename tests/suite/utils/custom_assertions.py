@@ -141,7 +141,7 @@ def assert_event(event_text, events_list) -> None:
     for i in range(len(events_list) - 1, -1, -1):
         if event_text in events_list[i].message:
             return
-    pytest.fail(f'Failed to find the event "{event_text}" in the list. Exiting...')
+    pytest.fail(f'Failed to find the event "{event_text}" in {events_list}. Exiting...')
 
 
 def assert_event_not_present(event_text, events_list) -> None:

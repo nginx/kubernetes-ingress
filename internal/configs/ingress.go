@@ -46,6 +46,7 @@ type IngressEx struct {
 	AppProtectLogs   []AppProtectLog
 	DosEx            *DosEx
 	SecretRefs       map[string]*secrets.SecretReference
+	ZoneSync         bool
 }
 
 // DosEx holds a DosProtectedResource and the dos policy and log confs it references.
@@ -290,6 +291,7 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 						Key:  cfgParams.LimitReqKey,
 						Size: cfgParams.LimitReqZoneSize,
 						Rate: rate,
+						Sync: p.ingEx.ZoneSync,
 					})
 				}
 			}

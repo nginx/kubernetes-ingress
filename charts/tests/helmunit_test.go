@@ -50,6 +50,11 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "plus",
 			namespace:   "default",
 		},
+		"plus-debug": {
+			valuesFile:  "testdata/plus-debug.yaml",
+			releaseName: "plus-debug",
+			namespace:   "default",
+		},
 		"ingressClass": {
 			valuesFile:  "testdata/ingress-class.yaml",
 			releaseName: "ingress-class",

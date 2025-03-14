@@ -14,6 +14,10 @@ body:
       description: What version of our F5 NGINX Ingress Controller are you running?
       options:
         - edge
+        - 4.0.1
+        - 4.0.0
+        - 3.7.2
+        - 3.7.1
         - 3.7.0
         - 3.6.2
         - 3.6.1

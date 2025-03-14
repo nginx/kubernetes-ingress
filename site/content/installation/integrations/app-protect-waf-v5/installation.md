@@ -507,7 +507,7 @@ If you prefer not to build your own NGINX Ingress Controller image, you can use 
 {{< bootstrap-table "table table-bordered table-striped table-responsive" >}}
 | NIC Version | App Protect WAFv5 Version | Config Manager | Enforcer |
 | --- | --- | --- | --- |
-| {{< nic-version >}} | 33_5.210 | 5.4.0 | 5.4.0 |
+| {{< nic-version >}} | 33_5.264 | 5.5.0 | 5.5.0 |
 | 3.7.2 | 32_5.144 | 5.3.0 | 5.3.0 |
 | 3.6.2 | 32_5.48 | 5.2.0 | 5.2.0 |
 {{% /bootstrap-table %}}
