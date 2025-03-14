@@ -356,6 +356,8 @@ List of volumes for controller.
   emptyDir: {}
 - name: nginx-lib
   emptyDir: {}
+- name: nginx-state
+  emptyDir: {}
 - name: nginx-log
   emptyDir: {}
 {{- end }}
@@ -407,6 +409,8 @@ volumeMounts:
   name: nginx-cache
 - mountPath: /var/lib/nginx
   name: nginx-lib
+- mountPath: /var/lib/nginx/state
+  name: nginx-state
 - mountPath: /var/log/nginx
   name: nginx-log
 {{- end }}
