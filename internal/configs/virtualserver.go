@@ -1071,6 +1071,9 @@ func (p *policiesCfg) addRateLimitConfig(
 	}
 
 	p.RateLimit.Reqs = append(p.RateLimit.Reqs, generateLimitReq(rlZoneName, rateLimit))
+	for i := range p.RateLimit.Zones {
+		p.RateLimit.Reqs[i].Sync = p.RateLimit.Zones[i].Sync
+	}
 	if len(p.RateLimit.Reqs) == 1 {
 		p.RateLimit.Options = generateLimitReqOptions(rateLimit)
 	} else {

@@ -408,10 +408,11 @@ type LimitReq struct {
 	Burst    int
 	NoDelay  bool
 	Delay    int
+	Sync     bool
 }
 
 func (rl LimitReq) String() string {
-	return fmt.Sprintf("{ZoneName %q, Burst %q, NoDelay %v, Delay %q}", rl.ZoneName, rl.Burst, rl.NoDelay, rl.Delay)
+	return fmt.Sprintf("{ZoneName %q, Burst %q, NoDelay %v, Delay %q, Sync %v}", rl.ZoneName, rl.Burst, rl.NoDelay, rl.Delay, rl.Sync)
 }
 
 // LimitReqOptions defines rate limit options.

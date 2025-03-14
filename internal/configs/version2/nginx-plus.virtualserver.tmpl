@@ -67,7 +67,7 @@ map {{ $m.Source }} {{ $m.Variable }} {
 {{- end }}
 
 {{- range $z := .LimitReqZones }}
-limit_req_zone {{ $z.Key }} zone={{ $z.ZoneName }}:{{ $z.ZoneSize }} rate={{ $z.Rate }}{{- if $z.Sync }} sync{{- end }};
+limit_req_zone {{ $z.Key }} {{- if $z.Sync }} zone={{ $z.ZoneName }}_sync:{{ $z.ZoneSize }}{{ else }} zone={{ $z.ZoneName }}:{{ $z.ZoneSize }}{{- end }} rate={{ $z.Rate }}{{- if $z.Sync }} sync{{- end }};
 {{- end }}
 
 {{- range $m := .StatusMatches }}
@@ -202,7 +202,7 @@ server {
     {{- end }}
 
     {{- range $rl := $s.LimitReqs }}
-    limit_req zone={{ $rl.ZoneName }}{{ if $rl.Burst }} burst={{ $rl.Burst }}{{ end }}
+    limit_req {{- if $rl.Sync }} zone={{ $rl.ZoneName }}_sync{{ else }} zone={{ $rl.ZoneName }}{{ end }}{{ if $rl.Burst }} burst={{ $rl.Burst }}{{ end }}
         {{- if $rl.Delay }} delay={{ $rl.Delay }}{{ end }}{{ if $rl.NoDelay }} nodelay{{ end }};
     {{- end }}
 
