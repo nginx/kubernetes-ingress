@@ -4,6 +4,7 @@ import pytest
 import requests
 from settings import TEST_DATA
 from suite.fixtures.fixtures import PublicEndpoint
+from suite.test_annotations import get_minions_info_from_yaml
 from suite.utils.nginx_api_utils import (
     check_synced_zone_exists,
     wait_for_zone_sync_enabled,
@@ -278,8 +279,9 @@ class TestRateLimitIngressScaledWithZoneSync:
             ingress_controller_prerequisites.namespace,
         )
         ingress_name = annotations_setup.ingress_name
-        # if annotations_setup.get("upstream_names") is not None:
-        #     print(f"upstream names: {annotations_setup.upstream_names}")
+        if "mergeable-scaled" in annotations_setup.ingress_src_file:
+            minions_info = get_minions_info_from_yaml(annotations_setup.ingress_src_file)
+            ingress_name = minions_info[0].get("name")
         ingress = read_ingress(kube_apis.networking_v1, ingress_name, annotations_setup.namespace)
         key = ingress.metadata.annotations.get("nginx.org/limit-req-key")
         rate = ingress.metadata.annotations.get("nginx.org/limit-req-rate")
