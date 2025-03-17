@@ -243,6 +243,7 @@ class TestRateLimitIngressScaled:
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ns, 1)
 
 
+@pytest.mark.skip_for_nginx_oss
 @pytest.mark.annotations
 @pytest.mark.parametrize("annotations_setup", ["standard-scaled", "mergeable-scaled"], indirect=True)
 class TestRateLimitIngressScaledWithZoneSync:
