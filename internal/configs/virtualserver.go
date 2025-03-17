@@ -1054,6 +1054,9 @@ func (p *policiesCfg) addRateLimitConfig(
 	l := nl.LoggerFromContext(p.Context)
 
 	rlZoneName := rfc1123ToSnake(fmt.Sprintf("pol_rl_%v_%v_%v_%v", policy.Namespace, policy.Name, ownerDetails.vsNamespace, ownerDetails.vsName))
+	if zoneSync {
+		rlZoneName = fmt.Sprintf("%v_sync", rlZoneName)
+	}
 	if rateLimit.Condition != nil && rateLimit.Condition.JWT.Claim != "" && rateLimit.Condition.JWT.Match != "" {
 		lrz, warningText := generateGroupedLimitReqZone(rlZoneName, policy, podReplicas, ownerDetails, zoneSync)
 		if warningText != "" {
@@ -1071,9 +1074,6 @@ func (p *policiesCfg) addRateLimitConfig(
 	}
 
 	p.RateLimit.Reqs = append(p.RateLimit.Reqs, generateLimitReq(rlZoneName, rateLimit))
-	for i := range p.RateLimit.Zones {
-		p.RateLimit.Reqs[i].Sync = p.RateLimit.Zones[i].Sync
-	}
 	if len(p.RateLimit.Reqs) == 1 {
 		p.RateLimit.Options = generateLimitReqOptions(rateLimit)
 	} else {

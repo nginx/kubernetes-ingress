@@ -6511,7 +6511,7 @@ func TestGenerateVirtualServerConfigRateLimit(t *testing.T) {
 				LimitReqZones: []version2.LimitReqZone{
 					{
 						Key:      "$binary_remote_addr",
-						ZoneName: "pol_rl_default_rate_limit_policy_default_cafe",
+						ZoneName: "pol_rl_default_rate_limit_policy_default_cafe_sync",
 						ZoneSize: "10M",
 						Rate:     "10r/s",
 						Sync:     true,
@@ -6524,7 +6524,7 @@ func TestGenerateVirtualServerConfigRateLimit(t *testing.T) {
 					VSNamespace:  "default",
 					VSName:       "cafe",
 					LimitReqs: []version2.LimitReq{
-						{ZoneName: "pol_rl_default_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0, Sync: true},
+						{ZoneName: "pol_rl_default_rate_limit_policy_default_cafe_sync", Burst: 0, NoDelay: false, Delay: 0},
 					},
 					LimitReqOptions: version2.LimitReqOptions{
 						DryRun:     false,
@@ -6853,7 +6853,7 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 				Maps: []version2.Map{
 					{
 						Source:   "$rl_default_cafe_group_user_type_tier",
-						Variable: "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						Variable: "$pol_rl_default_basic_rate_limit_policy_default_cafe_sync",
 						Parameters: []version2.Parameter{
 							{
 								Value:  "default",
@@ -6867,7 +6867,7 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 					},
 					{
 						Source:   "$rl_default_cafe_group_user_type_tier",
-						Variable: "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						Variable: "$pol_rl_default_premium_rate_limit_policy_default_cafe_sync",
 						Parameters: []version2.Parameter{
 							{
 								Value:  "default",
@@ -6928,8 +6928,8 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 				HTTPSnippets: []string{},
 				LimitReqZones: []version2.LimitReqZone{
 					{
-						Key:           "$pol_rl_default_premium_rate_limit_policy_default_cafe",
-						ZoneName:      "pol_rl_default_premium_rate_limit_policy_default_cafe",
+						Key:           "$pol_rl_default_premium_rate_limit_policy_default_cafe_sync",
+						ZoneName:      "pol_rl_default_premium_rate_limit_policy_default_cafe_sync",
 						ZoneSize:      "10M",
 						Rate:          "10r/s",
 						PolicyResult:  "$jwt_claim_sub",
@@ -6940,8 +6940,8 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 						Sync:          true,
 					},
 					{
-						Key:           "$pol_rl_default_basic_rate_limit_policy_default_cafe",
-						ZoneName:      "pol_rl_default_basic_rate_limit_policy_default_cafe",
+						Key:           "$pol_rl_default_basic_rate_limit_policy_default_cafe_sync",
+						ZoneName:      "pol_rl_default_basic_rate_limit_policy_default_cafe_sync",
 						ZoneSize:      "20M",
 						Rate:          "20r/s",
 						PolicyResult:  "$jwt_claim_sub",
@@ -6959,8 +6959,8 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 					VSNamespace:  "default",
 					VSName:       "cafe",
 					LimitReqs: []version2.LimitReq{
-						{ZoneName: "pol_rl_default_premium_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0, Sync: true},
-						{ZoneName: "pol_rl_default_basic_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0, Sync: true},
+						{ZoneName: "pol_rl_default_premium_rate_limit_policy_default_cafe_sync", Burst: 0, NoDelay: false, Delay: 0},
+						{ZoneName: "pol_rl_default_basic_rate_limit_policy_default_cafe_sync", Burst: 0, NoDelay: false, Delay: 0},
 					},
 					LimitReqOptions: version2.LimitReqOptions{
 						DryRun:     false,
