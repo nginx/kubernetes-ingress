@@ -1829,11 +1829,22 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithRequestRateLimitZoneSync(t *t
 		Servers: []Server{
 			{
 				Name: "test.example.com",
+				Locations: []Location{
+					{
+						Path:     "/",
+						Upstream: testUpstream,
+						LimitReq: &LimitReq{
+							Zone:       "default/myingress_sync",
+							Burst:      100,
+							RejectCode: 429,
+						},
+					},
+				},
 			},
 		},
 		LimitReqZones: []LimitReqZone{
 			{
-				Name: "default/zone1",
+				Name: "default/zone1_sync",
 				Key:  "${binary_remote_addr}",
 				Size: "10m",
 				Rate: "200r/s",
@@ -1851,6 +1862,7 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithRequestRateLimitZoneSync(t *t
 
 	wantDirectives := []string{
 		"limit_req_zone ${binary_remote_addr} zone=default/zone1_sync:10m rate=200r/s sync;",
+		"limit_req zone=default/myingress_sync burst=100;",
 	}
 
 	for _, want := range wantDirectives {

@@ -1173,7 +1173,7 @@ func TestGenerateNginxCfgForLimitReqZoneSync(t *testing.T) {
 
 	expectedZones := []version1.LimitReqZone{
 		{
-			Name: "default/cafe-ingress",
+			Name: "default/cafe-ingress_sync",
 			Key:  "${request_uri}",
 			Size: "11m",
 			Rate: "200r/s",

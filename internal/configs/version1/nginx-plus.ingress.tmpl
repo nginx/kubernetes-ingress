@@ -22,7 +22,7 @@ upstream {{$upstream.Name}} {
 {{- end}}
 
 {{range $limitReqZone := .LimitReqZones}}
-limit_req_zone {{ $limitReqZone.Key }}{{- if $limitReqZone.Sync }} zone={{ $limitReqZone.Name }}_sync:{{$limitReqZone.Size}}{{ else }} zone={{ $limitReqZone.Name }}:{{$limitReqZone.Size}} {{- end }} rate={{$limitReqZone.Rate}}{{- if $limitReqZone.Sync }} sync{{- end }};
+limit_req_zone {{ $limitReqZone.Key }} zone={{ $limitReqZone.Name }}:{{$limitReqZone.Size}} rate={{$limitReqZone.Rate}}{{- if $limitReqZone.Sync }} sync{{- end }};
 {{end}}
 
 {{range $server := .Servers}}
@@ -321,7 +321,7 @@ server {
 		{{- end}}
 
 		{{with $location.LimitReq}}
-		limit_req zone={{- if $location.LimitReq.Sync }}{{ $location.LimitReq.Zone }}_sync {{ else }}{{ $location.LimitReq.Zone }}{{- end }} {{if $location.LimitReq.Burst}}burst={{$location.LimitReq.Burst}}{{end}} {{if $location.LimitReq.NoDelay}}nodelay{{else if $location.LimitReq.Delay}}delay={{$location.LimitReq.Delay}}{{end}};
+		limit_req zone={{ $location.LimitReq.Zone }}{{- if $location.LimitReq.Burst }} burst={{$location.LimitReq.Burst}}{{- end }}{{- if $location.LimitReq.NoDelay }} nodelay{{- else if $location.LimitReq.Delay }} delay={{$location.LimitReq.Delay}}{{- end }};
 		{{if $location.LimitReq.DryRun}}limit_req_dry_run on;{{end}}
 		{{if $location.LimitReq.LogLevel}}limit_req_log_level {{$location.LimitReq.LogLevel}};{{end}}
 		{{if $location.LimitReq.RejectCode}}limit_req_status {{$location.LimitReq.RejectCode}};{{end}}
