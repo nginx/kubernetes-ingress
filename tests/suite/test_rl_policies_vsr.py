@@ -511,7 +511,6 @@ class TestRateLimitingPoliciesVsr:
         delete_policy(kube_apis.custom_objects, pol_name, v_s_route_setup.route_m.namespace)
 
     @pytest.mark.skip_for_nginx_oss
-    @pytest.mark.alex  # temp
     @pytest.mark.parametrize("src", [rl_vsr_pri_sca_src])
     def test_rl_policy_with_scale_and_zone_sync_vsr(
         self,
