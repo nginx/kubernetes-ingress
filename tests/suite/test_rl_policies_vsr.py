@@ -541,7 +541,7 @@ class TestRateLimitingPoliciesVsr:
         )
 
         print("Step 2: apply the policy to the virtual server route")
-        apply_and_assert_valid_vsr(  # failing as it cannot find state?
+        apply_and_assert_valid_vsr(
             kube_apis,
             v_s_route_setup.route_m.namespace,
             v_s_route_setup.route_m.name,
