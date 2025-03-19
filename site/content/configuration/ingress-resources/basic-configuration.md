@@ -1,43 +1,15 @@
 ---
-docs: DOCS-593
-doctypes:
-- ''
 title: Basic configuration
-toc: true
 weight: 100
+toc: true
+type: reference
+product: NIC
+docs: DOCS-593
 ---
 
 This document shows a basic Ingress resource definition for F5 NGINX Ingress Controller. It load balances requests for two services as part of a single application.
 
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: cafe-ingress
-spec:
-  tls:
-  - hosts:
-    - cafe.example.com
-    secretName: cafe-secret
-  rules:
-  - host: cafe.example.com
-    http:
-      paths:
-      - path: /tea
-        pathType: Prefix
-        backend:
-          service:
-            name: tea-svc
-            port:
-              number: 80
-      - path: /coffee
-        pathType: Prefix
-        backend:
-          service:
-            name: coffee-svc
-            port:
-              number: 80
-```
+{{< ghcode `https://raw.githubusercontent.com/nginx/kubernetes-ingress/refs/heads/main/examples/ingress-resources/complete-example/cafe-ingress.yaml`>}}
 
 Here is a breakdown of what this Ingress resource definition means:
 
@@ -55,6 +27,7 @@ To learn more about the Ingress resource, view [the official Kubernetes document
 
 {{< note >}} For complete instructions on deploying Ingress and Secret resources in the cluster, see the [complete example](https://github.com/nginx/kubernetes-ingress/tree/v{{< nic-version >}}/examples/ingress-resources/complete-example) in the GitHub repository. {{< /note >}}
 
+---
 
 ## New features available in Kubernetes 1.18
 
@@ -63,7 +36,7 @@ Starting from Kubernetes 1.18, you can use the following new features:
 - The host field supports wildcard domain names, such as `*.example.com`.
 - The path supports different matching rules with the new field `pathType`, which takes the following values: `Prefix` for prefix-based matching, `Exact` for exact matching and `ImplementationSpecific`, which is the default type and is the same as `Prefix`. For example:
 
-  ```yaml
+  ```yaml {hl_lines=[2, 7, 14]}
     - path: /tea
       pathType: Prefix
       backend:
@@ -87,7 +60,7 @@ Starting from Kubernetes 1.18, you can use the following new features:
 
 - The `ingressClassName` field is now supported:
 
-  ```yaml
+  ```yaml {hl_lines=[6]}
     apiVersion: networking.k8s.io/v1
     kind: Ingress
     metadata:
@@ -105,6 +78,8 @@ Starting from Kubernetes 1.18, you can use the following new features:
 
   When using this field you need to create the `IngressClass` resource with the corresponding `name`. View the [Create common resources]({{< relref "installation/installing-nic/installation-with-manifests.md#create-common-resources" >}}) section of the Installation with Manifests topic for more information.
 
+---
+
 ## Restrictions
 
 NGINX Ingress Controller imposes the following restrictions on Ingress resources:
@@ -114,12 +89,16 @@ NGINX Ingress Controller imposes the following restrictions on Ingress resources
 - The `path` field in `spec.rules[].http.paths[]` is required for `Exact` and `Prefix` `pathTypes`.
 - The ImplementationSpecific `pathType` is treated as equivalent to `Prefix` `pathType`, with the exception that when this `pathType` is configured, the `path` field in `spec.rules[].http.paths[]` is not mandatory. `path` defaults to `/` if not set but the `pathType` is set to ImplementationSpecific.
 
+---
+
 ## Advanced configuration
 
-NGINX Ingress Controller generates NGINX configuration by executing a template file that contains the configuration options. These options are set with the Ingress resource and NGINX Ingress Controller's ConfigMap. The Ingress resource only allows you to use basic NGINX features: host and path-based routing and TLS termination.
+NGINX Ingress Controller generates NGINX configuration by executing a template file that contains the configuration options. 
 
-Advanced features like rewriting the request URI or inserting additional response headers are available through annotations. View the [Advanced configuration with Annotations]({{< relref "configuration/ingress-resources/advanced-configuration-with-annotations.md" >}}) topic for more information.
+These options are set with the Ingress resource and NGINX Ingress Controller's ConfigMap.  
 
-Advanced NGINX users who require more control over the generated NGINX configurations can use snippets to insert raw NGINX config. View the [Advanced configuration with Snippets]({{< relref "configuration/ingress-resources/advanced-configuration-with-snippets" >}}) topic for more information.
+The Ingress resource only allows you to use basic NGINX features: host and path-based routing and TLS termination.
+
+Advanced features like rewriting the request URI or inserting additional response headers are available through annotations. View the [Advanced configuration with Annotations]({{< ref "/configuration/ingress-resources/advanced-configuration-with-annotations.md" >}}) topic for more information.
 
 Additionally, it is possible to customize the template, described in the [Custom templates]({{< relref "/configuration/global-configuration/custom-templates.md" >}}) topic.
