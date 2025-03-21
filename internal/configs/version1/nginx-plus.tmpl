@@ -368,6 +368,15 @@ mgmt {
     usage_report
     {{- if ne .MGMTConfig.Endpoint "" }} endpoint={{ .MGMTConfig.Endpoint }} {{- end }} {{- if ne .MGMTConfig.Interval "" }} interval={{ .MGMTConfig.Interval }} {{- end }};
     {{- end }}
+    {{- if .MGMTConfig.ProxyHost }}
+    proxy .MGMTConfig.ProxyHost;
+    {{- end }}
+    {{- if ne .MGMTConfig.ProxyUser "" }}
+    proxy_username {{ .MGMTConfig.ProxyUser }};
+    {{- end }}
+    {{- if ne .MGMTConfig.ProxyPass "" }}
+    proxy_password {{ .MGMTConfig.ProxyPass }};
+    {{- end }}
     license_token {{ printf "%s/license.jwt" .StaticSSLPath }};
     enforce_initial_report {{ makeOnOffFromBool .MGMTConfig.EnforceInitialReport}};
     {{ if .MGMTConfig.SSLVerify -}}
