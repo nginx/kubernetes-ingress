@@ -127,6 +127,18 @@ spec:
             fieldRef:
               fieldPath: spec.serviceAccountName
 {{- end }}
+{{- if ne .Values.controller.mgmt.usageReport.proxyCredentialsSecret "" }}
+        - name: PROXY_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.controller.mgmt.usageReport.proxyCredentialsSecret }}
+              key: username
+        - name: PROXY_PASS
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.controller.mgmt.usageReport.proxyCredentialsSecret }}
+              key: password
+{{- end }}
         resources:
 {{ toYaml .Values.controller.resources | indent 10 }}
         args:

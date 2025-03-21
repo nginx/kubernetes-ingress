@@ -16,7 +16,6 @@ ARCH                          ?= amd64 ## The architecture of the image or binar
 GOOS                          ?= linux ## The OS of the binary. For example linux, darwin
 NGINX_AGENT                   ?= true
 TELEMETRY_ENDPOINT            ?= oss.edge.df.f5.com:443
-
 # Additional flags added here can be accessed in main.go.
 # e.g. `main.version` maps to `var version` in main.go
 GO_LINKER_FLAGS_VARS = -X main.version=${VERSION} -X main.telemetryEndpoint=${TELEMETRY_ENDPOINT}
