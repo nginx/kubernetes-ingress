@@ -483,32 +483,32 @@ log:
   path: ""
 
 allowed_directories:
-    - /etc/nginx
-    - /usr/local/etc/nginx
-    - /usr/share/nginx/modules
-    - /var/run/nginx
-    - /var/log/nginx
+  - /etc/nginx
+  - /usr/local/etc/nginx
+  - /usr/share/nginx/modules
+  - /var/run/nginx
+  - /var/log/nginx
 
 ## command server settings
 command:
- server:
-   host: {{ required ".Values.nginxAgent.instanceManager.host is required when setting .Values.nginxAgent.enable to true" .Values.nginxAgent.instanceManager.host }}
-   port: {{ .Values.nginxAgent.instanceManager.grpcPort }}
-   type: grpc
- auth:
-   token: "{{ .Values.nginxAgent.instanceManager.token }}"
- tls:
-  skip_verify: {{ .Values.nginxAgent.instanceManager.tls.skipVerify | default false }}
-  {{- if ne .Values.nginxAgent.instanceManager.tls.secret "" }}
-  cert: "/etc/ssl/nms/tls.crt"
-  key: "/etc/ssl/nms/tls.key"
-  {{- end }}
-  {{- if ne .Values.nginxAgent.instanceManager.tls.caSecret "" }}
-  ca: "/etc/ssl/nms/ca.crt"
-  {{- end }}
-  {{- if ne .Values.nginxAgent.instanceManager.sni "" }}
-  server_name: {{ .Values.nginxAgent.instanceManager.sni }}
-  {{- end }}
+  server:
+    host: {{ required ".Values.nginxAgent.instanceManager.host is required when setting .Values.nginxAgent.enable to true" .Values.nginxAgent.instanceManager.host }}
+    port: {{ .Values.nginxAgent.instanceManager.grpcPort }}
+    type: grpc
+  auth:
+    token: "{{ .Values.nginxAgent.instanceManager.token }}"
+  tls:
+    skip_verify: {{ .Values.nginxAgent.instanceManager.tls.skipVerify | default false }}
+    {{- if ne .Values.nginxAgent.instanceManager.tls.secret "" }}
+    cert: "/etc/ssl/nms/tls.crt"
+    key: "/etc/ssl/nms/tls.key"
+    {{- end }}
+    {{- if ne .Values.nginxAgent.instanceManager.tls.caSecret "" }}
+    ca: "/etc/ssl/nms/ca.crt"
+    {{- end }}
+    {{- if ne .Values.nginxAgent.instanceManager.sni "" }}
+    server_name: {{ .Values.nginxAgent.instanceManager.sni }}
+    {{- end }}
 
 ## collector metrics settings
 collector:
