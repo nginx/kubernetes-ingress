@@ -15,6 +15,7 @@ from kubernetes.client import (
     CoreV1Api,
     NetworkingV1Api,
     RbacAuthorizationV1Api,
+    V1Ingress,
     V1ObjectMeta,
     V1Secret,
     V1Service,
@@ -2033,3 +2034,16 @@ def get_apikey_policy_details_from_yaml(yaml_manifest) -> dict:
                 details["queries"] = data["spec"]["apiKey"]["suppliedIn"]["query"]
 
     return details
+
+
+def read_ingress(v1: NetworkingV1Api, name, namespace) -> V1Ingress:
+    """
+    Get details of an Ingress.
+
+    :param v1: NetworkingV1Api
+    :param name: ingress name
+    :param namespace: namespace name
+    :return: V1Ingress
+    """
+    print(f"Read an ingress named '{name}'")
+    return v1.read_namespaced_ingress(name, namespace)
