@@ -2,8 +2,7 @@
 VER = $(shell grep IC_VERSION .github/data/version.txt | cut -d '=' -f 2)
 GIT_TAG = $(shell git describe --exact-match --tags || echo untagged)
 VERSION = $(VER)-SNAPSHOT
-NGINX_PLUS_VERSION			  ?= R33
-PLUS_ARGS                     = --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --secret id=nginx-repo.crt,src=nginx-repo.crt --secret id=nginx-repo.key,src=nginx-repo.key
+PLUS_ARGS = --secret id=nginx-repo.crt,src=nginx-repo.crt --secret id=nginx-repo.key,src=nginx-repo.key
 
 # Variables that can be overridden
 REGISTRY                      ?= ## The registry where the image is located.
@@ -16,6 +15,7 @@ ARCH                          ?= amd64 ## The architecture of the image or binar
 GOOS                          ?= linux ## The OS of the binary. For example linux, darwin
 NGINX_AGENT                   ?= true
 TELEMETRY_ENDPOINT            ?= oss.edge.df.f5.com:443
+
 # Additional flags added here can be accessed in main.go.
 # e.g. `main.version` maps to `var version` in main.go
 GO_LINKER_FLAGS_VARS = -X main.version=${VERSION} -X main.telemetryEndpoint=${TELEMETRY_ENDPOINT}
