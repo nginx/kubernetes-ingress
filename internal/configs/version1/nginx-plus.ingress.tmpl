@@ -22,7 +22,7 @@ upstream {{$upstream.Name}} {
 {{- end}}
 
 {{range $limitReqZone := .LimitReqZones}}
-limit_req_zone {{ $limitReqZone.Key }} zone={{ $limitReqZone.Name }}:{{$limitReqZone.Size}} rate={{$limitReqZone.Rate}};
+limit_req_zone {{ $limitReqZone.Key }} zone={{ $limitReqZone.Name }}:{{$limitReqZone.Size}} rate={{$limitReqZone.Rate}}{{- if $limitReqZone.Sync }} sync{{- end }};
 {{end}}
 
 {{range $server := .Servers}}
