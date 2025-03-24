@@ -136,7 +136,7 @@ spec:
             fieldRef:
               fieldPath: spec.serviceAccountName
 {{- end }}
-{{- if ne .Values.controller.mgmt.usageReport.proxyCredentialsSecret "" }}
+{{- if hasKey .Values.controller.mgmt.usageReport "proxyCredentialsSecret" }}
         - name: PROXY_USER
           valueFrom:
             secretKeyRef:
