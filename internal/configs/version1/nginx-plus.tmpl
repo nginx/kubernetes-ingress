@@ -368,8 +368,8 @@ mgmt {
     usage_report
     {{- if ne .MGMTConfig.Endpoint "" }} endpoint={{ .MGMTConfig.Endpoint }} {{- end }} {{- if ne .MGMTConfig.Interval "" }} interval={{ .MGMTConfig.Interval }} {{- end }};
     {{- end }}
-    {{- if .MGMTConfig.ProxyHost }}
-    proxy .MGMTConfig.ProxyHost;
+    {{- if ne .MGMTConfig.ProxyHost "" }}
+    proxy {{ .MGMTConfig.ProxyHost }};
     {{- end }}
     {{- if ne .MGMTConfig.ProxyUser "" }}
     proxy_username {{ .MGMTConfig.ProxyUser }};
