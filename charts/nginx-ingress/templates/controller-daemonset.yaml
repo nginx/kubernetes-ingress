@@ -127,6 +127,7 @@ spec:
             fieldRef:
               fieldPath: spec.serviceAccountName
 {{- end }}
+{{- if hasKey .Values.controller.mgmt "usageReport" -}}
 {{- if hasKey .Values.controller.mgmt.usageReport "proxyCredentialsSecretName" }}
 {{- if not (hasKey .Values.controller.mgmt.usageReport "proxyHost") -}}
 {{- fail "Error: 'controller.mgmt.usageReport.proxyHost' must be set when using 'controller.mgmt.usageReport.proxyCredentialsSecretName'." }}
@@ -141,6 +142,7 @@ spec:
             secretKeyRef:
               name: {{ .Values.controller.mgmt.usageReport.proxyCredentialsSecretName }}
               key: password
+{{- end }}
 {{- end }}
         resources:
 {{ toYaml .Values.controller.resources | indent 10 }}
