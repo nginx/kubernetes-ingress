@@ -2,6 +2,8 @@ package configs
 
 import (
 	"context"
+	"os"
+	"reflect"
 	"testing"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
@@ -416,6 +418,15 @@ func TestParseMGMTConfigMapWarnings(t *testing.T) {
 			},
 			msg: "resolver-ipv6 set to an invalid int",
 		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-proxy-host":   "10",
+				},
+			},
+			msg: "usage-report-proxy-host set to an invalid host",
+		},
 	}
 
 	for _, test := range tests {
@@ -785,6 +796,209 @@ func TestParseMGMTConfigMapUsageReportEndpoint(t *testing.T) {
 			}
 			if result.Endpoint != test.want.Endpoint {
 				t.Errorf("UsageReportEndpoint: want %v, got %v", test.want.Endpoint, result.Endpoint)
+			}
+		})
+	}
+}
+
+func TestParseMGMTConfigMapUsageReportProxyHost(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap *v1.ConfigMap
+		want      *MGMTConfigParams
+		msg       string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-proxy-host":   "proxy.example.com",
+				},
+			},
+			want: &MGMTConfigParams{
+				Endpoint: "product.connect.nginx.com",
+				Secrets: MGMTSecrets{
+					License: "license-token",
+				},
+				ProxyHost: "proxy.example.com",
+			},
+			msg: "usage report proxy-host set to proxy.example.com",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-proxy-host":   "proxy.example.com:3128",
+				},
+			},
+			want: &MGMTConfigParams{
+				Endpoint: "product.connect.nginx.com",
+				Secrets: MGMTSecrets{
+					License: "license-token",
+				},
+				ProxyHost: "proxy.example.com:3128",
+			},
+			msg: "usage report proxy-host set to proxy.example.com with port 3128",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-proxy-host":   "proxy",
+				},
+			},
+			want: &MGMTConfigParams{
+				Endpoint: "product.connect.nginx.com",
+				Secrets: MGMTSecrets{
+					License: "license-token",
+				},
+				ProxyHost: "proxy",
+			},
+			msg: "usage report proxy-host set to proxy",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-proxy-host":   "proxy:3128",
+				},
+			},
+			want: &MGMTConfigParams{
+				Endpoint: "product.connect.nginx.com",
+				Secrets: MGMTSecrets{
+					License: "license-token",
+				},
+				ProxyHost: "proxy:3128",
+			},
+			msg: "usage report proxy-host set to proxy with port 3128",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-proxy-host":   "192.168.1.254",
+				},
+			},
+			want: &MGMTConfigParams{
+				Endpoint: "product.connect.nginx.com",
+				Secrets: MGMTSecrets{
+					License: "license-token",
+				},
+				ProxyHost: "192.168.1.254",
+			},
+			msg: "usage report proxy-host set to 192.168.1.254",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-proxy-host":   "192.168.1.254:3128",
+				},
+			},
+			want: &MGMTConfigParams{
+				Endpoint: "product.connect.nginx.com",
+				Secrets: MGMTSecrets{
+					License: "license-token",
+				},
+				ProxyHost: "192.168.1.254:3128",
+			},
+			msg: "usage report proxy-host set to 192.168.1.254 with port 3128",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, warnings, err := ParseMGMTConfigMap(context.Background(), test.configMap, makeEventLogger())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if warnings {
+				t.Error("Unexpected warnings")
+			}
+
+			if result.ProxyHost == "" {
+				t.Errorf("UsageReportProxyHost: want %s, got empty string", test.want.ProxyHost)
+			}
+			if result.ProxyHost != test.want.ProxyHost {
+				t.Errorf("UsageReportProxyHost: want %v, got %v", test.want.ProxyHost, result.ProxyHost)
+			}
+		})
+	}
+}
+
+func TestParseMGMTConfigMapUsageReportProxyCredentials(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap *v1.ConfigMap
+		user      string
+		pass      string
+		want      *MGMTConfigParams
+		msg       string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-proxy-host":   "proxy.example.com:3128",
+				},
+			},
+			user: "user",
+			pass: "pass",
+			want: &MGMTConfigParams{
+				Context: context.Background(),
+				Secrets: MGMTSecrets{
+					License: "license-token",
+				},
+				ProxyHost: "proxy.example.com:3128",
+				ProxyUser: "user",
+				ProxyPass: "pass",
+			},
+			msg: "usage report proxy user and pass set",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-proxy-host":   "proxy.example.com:3128",
+				},
+			},
+			user: "user",
+			pass: "",
+			want: &MGMTConfigParams{
+				Context: context.Background(),
+				Secrets: MGMTSecrets{
+					License: "license-token",
+				},
+				ProxyHost: "proxy.example.com:3128",
+				ProxyUser: "user",
+				ProxyPass: "",
+			},
+			msg: "usage report proxy user set with no pass",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			err := os.Setenv("PROXY_USER", test.user)
+			if err != nil {
+				t.Error(err)
+			}
+
+			err = os.Setenv("PROXY_PASS", test.pass)
+			if err != nil {
+				t.Error(err)
+			}
+
+			result, warnings, err := ParseMGMTConfigMap(context.Background(), test.configMap, makeEventLogger())
+			if err != nil {
+				t.Error(err)
+			}
+			if warnings {
+				t.Error("Unexpected warnings")
+			}
+
+			if !reflect.DeepEqual(result, test.want) {
+				t.Errorf("got %v, want %v", result, test.want)
 			}
 		})
 	}
