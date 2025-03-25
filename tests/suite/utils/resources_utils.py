@@ -1294,6 +1294,7 @@ def create_ingress_controller_wafv5(
                 {"name": "nginx-log", "emptyDir": {}},
                 {"name": "nginx-cache", "emptyDir": {}},
                 {"name": "nginx-lib", "emptyDir": {}},
+                {"name": "nginx-lib-state", "emptyDir": {}},
             ]
         )
     else:
@@ -1337,6 +1338,7 @@ def create_ingress_controller_wafv5(
                 {"name": "nginx-log", "mountPath": "/var/log/nginx"},
                 {"name": "nginx-cache", "mountPath": "/var/cache/nginx"},
                 {"name": "nginx-lib", "mountPath": "/var/lib/nginx"},
+                {"name": "nginx-lib-state", "mountPath": "/var/lib/nginx/state"},
             ]
         )
     else:
