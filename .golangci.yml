@@ -51,7 +51,6 @@ linters:
     - promlinter
     - revive
     - staticcheck
-    - typecheck
     - unconvert
     - unparam
     - unused
