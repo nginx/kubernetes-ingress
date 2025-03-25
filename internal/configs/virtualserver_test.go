@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"reflect"
 	"sort"
 	"strings"
@@ -12,6 +14,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	nic_glog "github.com/nginx/kubernetes-ingress/internal/logger/glog"
+	"github.com/nginx/kubernetes-ingress/internal/logger/levels"
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	api_v1 "k8s.io/api/core/v1"
@@ -6448,6 +6453,10 @@ func TestGenerateVirtualServerConfigRateLimit(t *testing.T) {
 				},
 				Policies: map[string]*conf_v1.Policy{
 					"default/rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "rate-limit-policy",
+							Namespace: "default",
+						},
 						Spec: conf_v1.PolicySpec{
 							RateLimit: &conf_v1.RateLimit{
 								Key:      "$binary_remote_addr",
@@ -6502,7 +6511,7 @@ func TestGenerateVirtualServerConfigRateLimit(t *testing.T) {
 				LimitReqZones: []version2.LimitReqZone{
 					{
 						Key:      "$binary_remote_addr",
-						ZoneName: "pol_rl_default_rate_limit_policy_default_cafe",
+						ZoneName: "pol_rl_default_rate_limit_policy_default_cafe_sync",
 						ZoneSize: "10M",
 						Rate:     "10r/s",
 						Sync:     true,
@@ -6515,7 +6524,7 @@ func TestGenerateVirtualServerConfigRateLimit(t *testing.T) {
 					VSNamespace:  "default",
 					VSName:       "cafe",
 					LimitReqs: []version2.LimitReq{
-						{ZoneName: "pol_rl_default_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+						{ZoneName: "pol_rl_default_rate_limit_policy_default_cafe_sync", Burst: 0, NoDelay: false, Delay: 0},
 					},
 					LimitReqOptions: version2.LimitReqOptions{
 						DryRun:     false,
@@ -6594,6 +6603,10 @@ func TestGenerateVirtualServerConfigRateLimit(t *testing.T) {
 				},
 				Policies: map[string]*conf_v1.Policy{
 					"default/rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "rate-limit-policy",
+							Namespace: "default",
+						},
 						Spec: conf_v1.PolicySpec{
 							RateLimit: &conf_v1.RateLimit{
 								Key:      "$binary_remote_addr",
@@ -6788,6 +6801,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 				},
 				Policies: map[string]*conf_v1.Policy{
 					"default/premium-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
 						Spec: conf_v1.PolicySpec{
 							RateLimit: &conf_v1.RateLimit{
 								Key:      "$jwt_claim_sub",
@@ -6803,6 +6820,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 						},
 					},
 					"default/basic-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
+						},
 						Spec: conf_v1.PolicySpec{
 							RateLimit: &conf_v1.RateLimit{
 								Key:      "$jwt_claim_sub",
@@ -6832,7 +6853,7 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 				Maps: []version2.Map{
 					{
 						Source:   "$rl_default_cafe_group_user_type_tier",
-						Variable: "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						Variable: "$pol_rl_default_basic_rate_limit_policy_default_cafe_sync",
 						Parameters: []version2.Parameter{
 							{
 								Value:  "default",
@@ -6846,7 +6867,7 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 					},
 					{
 						Source:   "$rl_default_cafe_group_user_type_tier",
-						Variable: "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						Variable: "$pol_rl_default_premium_rate_limit_policy_default_cafe_sync",
 						Parameters: []version2.Parameter{
 							{
 								Value:  "default",
@@ -6907,8 +6928,8 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 				HTTPSnippets: []string{},
 				LimitReqZones: []version2.LimitReqZone{
 					{
-						Key:           "$pol_rl_default_premium_rate_limit_policy_default_cafe",
-						ZoneName:      "pol_rl_default_premium_rate_limit_policy_default_cafe",
+						Key:           "$pol_rl_default_premium_rate_limit_policy_default_cafe_sync",
+						ZoneName:      "pol_rl_default_premium_rate_limit_policy_default_cafe_sync",
 						ZoneSize:      "10M",
 						Rate:          "10r/s",
 						PolicyResult:  "$jwt_claim_sub",
@@ -6919,8 +6940,8 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 						Sync:          true,
 					},
 					{
-						Key:           "$pol_rl_default_basic_rate_limit_policy_default_cafe",
-						ZoneName:      "pol_rl_default_basic_rate_limit_policy_default_cafe",
+						Key:           "$pol_rl_default_basic_rate_limit_policy_default_cafe_sync",
+						ZoneName:      "pol_rl_default_basic_rate_limit_policy_default_cafe_sync",
 						ZoneSize:      "20M",
 						Rate:          "20r/s",
 						PolicyResult:  "$jwt_claim_sub",
@@ -6938,8 +6959,8 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 					VSNamespace:  "default",
 					VSName:       "cafe",
 					LimitReqs: []version2.LimitReq{
-						{ZoneName: "pol_rl_default_premium_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
-						{ZoneName: "pol_rl_default_basic_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+						{ZoneName: "pol_rl_default_premium_rate_limit_policy_default_cafe_sync", Burst: 0, NoDelay: false, Delay: 0},
+						{ZoneName: "pol_rl_default_basic_rate_limit_policy_default_cafe_sync", Burst: 0, NoDelay: false, Delay: 0},
 					},
 					LimitReqOptions: version2.LimitReqOptions{
 						DryRun:     false,
@@ -7021,6 +7042,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 				},
 				Policies: map[string]*conf_v1.Policy{
 					"default/premium-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
 						Spec: conf_v1.PolicySpec{
 							RateLimit: &conf_v1.RateLimit{
 								Key:      "$jwt_claim_sub",
@@ -7036,6 +7061,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 						},
 					},
 					"default/basic-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
+						},
 						Spec: conf_v1.PolicySpec{
 							RateLimit: &conf_v1.RateLimit{
 								Key:      "$jwt_claim_sub",
@@ -7251,6 +7280,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 				},
 				Policies: map[string]*conf_v1.Policy{
 					"default/premium-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
 						Spec: conf_v1.PolicySpec{
 							RateLimit: &conf_v1.RateLimit{
 								Key:      "$jwt_claim_sub",
@@ -7266,6 +7299,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 						},
 					},
 					"default/basic-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
+						},
 						Spec: conf_v1.PolicySpec{
 							RateLimit: &conf_v1.RateLimit{
 								Key:      "$jwt_claim_sub",
@@ -7487,6 +7524,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 				},
 				Policies: map[string]*conf_v1.Policy{
 					"default/premium-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
 						Spec: conf_v1.PolicySpec{
 							RateLimit: &conf_v1.RateLimit{
 								Key:      "$jwt_claim_sub",
@@ -7502,6 +7543,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 						},
 					},
 					"default/basic-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
+						},
 						Spec: conf_v1.PolicySpec{
 							RateLimit: &conf_v1.RateLimit{
 								Key:      "$jwt_claim_sub",
@@ -7708,6 +7753,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 				},
 				Policies: map[string]*conf_v1.Policy{
 					"default/premium-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
 						Spec: conf_v1.PolicySpec{
 							RateLimit: &conf_v1.RateLimit{
 								Key:      "$jwt_claim_sub",
@@ -7723,6 +7772,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 						},
 					},
 					"default/basic-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
+						},
 						Spec: conf_v1.PolicySpec{
 							RateLimit: &conf_v1.RateLimit{
 								Key:      "$jwt_claim_sub",
@@ -7974,6 +8027,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 				},
 				Policies: map[string]*conf_v1.Policy{
 					"default/premium-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
 						Spec: conf_v1.PolicySpec{
 							RateLimit: &conf_v1.RateLimit{
 								Key:      "$jwt_claim_sub",
@@ -7989,6 +8046,10 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 						},
 					},
 					"default/basic-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
+						},
 						Spec: conf_v1.PolicySpec{
 							RateLimit: &conf_v1.RateLimit{
 								Key:      "$jwt_claim_sub",
@@ -8519,7 +8580,7 @@ func TestGeneratePolicies(t *testing.T) {
 	mTLSCertAndCrlPath := fmt.Sprintf("%s %s", mTLSCertPath, mTLSCrlPath)
 	policyOpts := policyOptions{
 		tls:      true,
-		zoneSync: true,
+		zoneSync: false,
 		secretRefs: map[string]*secrets.SecretReference{
 			"default/ingress-mtls-secret": {
 				Secret: &api_v1.Secret{
@@ -8625,7 +8686,8 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
-				Allow: []string{"127.0.0.1"},
+				Allow:   []string{"127.0.0.1"},
+				Context: ctx,
 			},
 			msg: "explicit reference",
 		},
@@ -8645,7 +8707,8 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
-				Allow: []string{"127.0.0.1"},
+				Allow:   []string{"127.0.0.1"},
+				Context: ctx,
 			},
 			msg: "implicit reference",
 		},
@@ -8675,7 +8738,8 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
-				Allow: []string{"127.0.0.1", "127.0.0.2"},
+				Allow:   []string{"127.0.0.1", "127.0.0.2"},
+				Context: ctx,
 			},
 			msg: "merging",
 		},
@@ -8688,6 +8752,10 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 			policies: map[string]*conf_v1.Policy{
 				"default/rateLimit-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy",
+						Namespace: "default",
+					},
 					Spec: conf_v1.PolicySpec{
 						RateLimit: &conf_v1.RateLimit{
 							Key:      "test",
@@ -8699,6 +8767,7 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
+				Context: ctx,
 				RateLimit: rateLimit{
 					Reqs: []version2.LimitReq{
 						{
@@ -8711,7 +8780,6 @@ func TestGeneratePolicies(t *testing.T) {
 							ZoneSize: "10M",
 							Rate:     "10r/s",
 							ZoneName: "pol_rl_default_rateLimit_policy_default_test",
-							Sync:     true,
 						},
 					},
 					Options: version2.LimitReqOptions{
@@ -8735,6 +8803,10 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 			policies: map[string]*conf_v1.Policy{
 				"default/rateLimit-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy",
+						Namespace: "default",
+					},
 					Spec: conf_v1.PolicySpec{
 						RateLimit: &conf_v1.RateLimit{
 							Key:      "test",
@@ -8744,6 +8816,10 @@ func TestGeneratePolicies(t *testing.T) {
 					},
 				},
 				"default/rateLimit-policy2": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy2",
+						Namespace: "default",
+					},
 					Spec: conf_v1.PolicySpec{
 						RateLimit: &conf_v1.RateLimit{
 							Key:      "test2",
@@ -8754,6 +8830,7 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
+				Context: ctx,
 				RateLimit: rateLimit{
 					Zones: []version2.LimitReqZone{
 						{
@@ -8761,14 +8838,12 @@ func TestGeneratePolicies(t *testing.T) {
 							ZoneSize: "10M",
 							Rate:     "10r/s",
 							ZoneName: "pol_rl_default_rateLimit_policy_default_test",
-							Sync:     true,
 						},
 						{
 							Key:      "test2",
 							ZoneSize: "20M",
 							Rate:     "20r/s",
 							ZoneName: "pol_rl_default_rateLimit_policy2_default_test",
-							Sync:     true,
 						},
 					},
 					Options: version2.LimitReqOptions{
@@ -8796,6 +8871,10 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 			policies: map[string]*conf_v1.Policy{
 				"default/rateLimitScale-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimitScale-policy",
+						Namespace: "default",
+					},
 					Spec: conf_v1.PolicySpec{
 						RateLimit: &conf_v1.RateLimit{
 							Key:      "test",
@@ -8808,6 +8887,7 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
+				Context: ctx,
 				RateLimit: rateLimit{
 					Zones: []version2.LimitReqZone{
 						{
@@ -8815,7 +8895,6 @@ func TestGeneratePolicies(t *testing.T) {
 							ZoneSize: "10M",
 							Rate:     "5r/s",
 							ZoneName: "pol_rl_default_rateLimitScale_policy_default_test",
-							Sync:     true,
 						},
 					},
 					Options: version2.LimitReqOptions{
@@ -8853,6 +8932,7 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
+				Context: ctx,
 				JWTAuth: jwtAuth{
 					Auth: &version2.JWTAuth{
 						Secret: "/etc/nginx/secrets/default-jwt-secret",
@@ -8886,6 +8966,7 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
+				Context: ctx,
 				JWTAuth: jwtAuth{
 					Auth: &version2.JWTAuth{
 						Key:   "default/jwt-policy-2",
@@ -8926,6 +9007,7 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
+				Context: ctx,
 				JWTAuth: jwtAuth{
 					Auth: &version2.JWTAuth{
 						Key:   "default/jwt-policy-2",
@@ -8965,6 +9047,7 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
+				Context: ctx,
 				BasicAuth: &version2.BasicAuth{
 					Secret: "/etc/nginx/secrets/default-htpasswd-secret",
 					Realm:  "My Test API",
@@ -8995,6 +9078,7 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 			context: "spec",
 			expected: policiesCfg{
+				Context: ctx,
 				IngressMTLS: &version2.IngressMTLS{
 					ClientCert:   mTLSCertPath,
 					VerifyClient: "off",
@@ -9026,6 +9110,7 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 			context: "spec",
 			expected: policiesCfg{
+				Context: ctx,
 				IngressMTLS: &version2.IngressMTLS{
 					ClientCert:   mTLSCertPath,
 					ClientCrl:    mTLSCrlPath,
@@ -9059,6 +9144,7 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 			context: "spec",
 			expected: policiesCfg{
+				Context: ctx,
 				IngressMTLS: &version2.IngressMTLS{
 					ClientCert:   mTLSCertPath,
 					ClientCrl:    mTLSCrlPath,
@@ -9089,6 +9175,7 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 			context: "route",
 			expected: policiesCfg{
+				Context: ctx,
 				EgressMTLS: &version2.EgressMTLS{
 					Certificate:    "/etc/nginx/secrets/default-egress-mtls-secret",
 					CertificateKey: "/etc/nginx/secrets/default-egress-mtls-secret",
@@ -9125,6 +9212,7 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 			context: "route",
 			expected: policiesCfg{
+				Context: ctx,
 				EgressMTLS: &version2.EgressMTLS{
 					Certificate:    "/etc/nginx/secrets/default-egress-mtls-secret",
 					CertificateKey: "/etc/nginx/secrets/default-egress-mtls-secret",
@@ -9171,7 +9259,8 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
-				OIDC: true,
+				Context: ctx,
+				OIDC:    true,
 			},
 			msg: "oidc reference",
 		},
@@ -9200,6 +9289,7 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
+				Context: ctx,
 				APIKey: apiKeyAuth{
 					Key: &version2.APIKey{
 						Header:  []string{"X-API-Key"},
@@ -9243,6 +9333,7 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
+				Context: ctx,
 				APIKey: apiKeyAuth{
 					Key: &version2.APIKey{
 						Header:  []string{"X-API-Key"},
@@ -9285,6 +9376,7 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 			context: "route",
 			expected: policiesCfg{
+				Context: ctx,
 				WAF: &version2.WAF{
 					Enable:              "on",
 					ApPolicy:            "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
@@ -9296,7 +9388,7 @@ func TestGeneratePolicies(t *testing.T) {
 		},
 	}
 
-	vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background()}, false, false, &StaticConfigParams{}, false, &fakeBV)
+	vsc := newVirtualServerConfigurator(&ConfigParams{Context: ctx}, false, false, &StaticConfigParams{}, false, &fakeBV)
 	// required to test the scaling of the ratelimit
 	vsc.IngressControllerReplicas = 2
 
@@ -9305,7 +9397,7 @@ func TestGeneratePolicies(t *testing.T) {
 			result := vsc.generatePolicies(ownerDetails, tc.policyRefs, tc.policies, tc.context, policyOpts)
 			result.BundleValidator = nil
 
-			if !cmp.Equal(tc.expected, result) {
+			if !reflect.DeepEqual(tc.expected, result) {
 				t.Error(cmp.Diff(tc.expected, result))
 			}
 			if len(vsc.warnings) > 0 {
@@ -9353,6 +9445,7 @@ func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 			},
 			context: "route",
 			want: policiesCfg{
+				Context: ctx,
 				WAF: &version2.WAF{
 					Enable:   "on",
 					ApBundle: "/fake/bundle/path/testWAFPolicyBundle.tgz",
@@ -9385,6 +9478,7 @@ func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 			},
 			context: "route",
 			want: policiesCfg{
+				Context: ctx,
 				WAF: &version2.WAF{
 					Enable:              "on",
 					ApBundle:            "/fake/bundle/path/testWAFPolicyBundle.tgz",
@@ -9396,10 +9490,10 @@ func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background()}, false, false, &StaticConfigParams{}, false, &fakeBV)
+			vsc := newVirtualServerConfigurator(&ConfigParams{Context: ctx}, false, false, &StaticConfigParams{}, false, &fakeBV)
 			res := vsc.generatePolicies(ownerDetails, tc.policyRefs, tc.policies, tc.context, policyOptions{apResources: &appProtectResourcesForVS{}})
 			res.BundleValidator = nil
-			if !cmp.Equal(tc.want, res) {
+			if !reflect.DeepEqual(tc.want, res) {
 				t.Error(cmp.Diff(tc.want, res))
 			}
 		})
@@ -9483,8 +9577,9 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			policyOpts: policyOptions{},
 			expected: policiesCfg{
-				Allow: []string{"127.0.0.1"},
-				Deny:  []string{"127.0.0.2"},
+				Context: ctx,
+				Allow:   []string{"127.0.0.1"},
+				Deny:    []string{"127.0.0.2"},
 			},
 			expectedWarnings: Warnings{
 				nil: {
@@ -9507,6 +9602,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			policies: map[string]*conf_v1.Policy{
 				"default/rateLimit-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy",
+						Namespace: "default",
+					},
 					Spec: conf_v1.PolicySpec{
 						RateLimit: &conf_v1.RateLimit{
 							Key:      "test",
@@ -9516,6 +9615,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					},
 				},
 				"default/rateLimit-policy2": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy2",
+						Namespace: "default",
+					},
 					Spec: conf_v1.PolicySpec{
 						RateLimit: &conf_v1.RateLimit{
 							Key:        "test2",
@@ -9530,6 +9633,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			policyOpts: policyOptions{},
 			expected: policiesCfg{
+				Context: ctx,
 				RateLimit: rateLimit{
 					Zones: []version2.LimitReqZone{
 						{
@@ -9582,6 +9686,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			policies: map[string]*conf_v1.Policy{
 				"default/rateLimit-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy",
+						Namespace: "default",
+					},
 					Spec: conf_v1.PolicySpec{
 						RateLimit: &conf_v1.RateLimit{
 							Key:      "test",
@@ -9598,6 +9706,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					},
 				},
 				"default/rateLimit-policy2": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy2",
+						Namespace: "default",
+					},
 					Spec: conf_v1.PolicySpec{
 						RateLimit: &conf_v1.RateLimit{
 							Key:      "test2",
@@ -9769,6 +9881,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
+				Context: ctx,
 				JWTAuth: jwtAuth{
 					Auth: &version2.JWTAuth{
 						Secret: "/etc/nginx/secrets/default-jwt-secret",
@@ -9925,6 +10038,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
+				Context: ctx,
 				BasicAuth: &version2.BasicAuth{
 					Secret: "/etc/nginx/secrets/default-htpasswd-secret",
 					Realm:  "test",
@@ -10068,6 +10182,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			context: "spec",
 			expected: policiesCfg{
+				Context: ctx,
 				IngressMTLS: &version2.IngressMTLS{
 					ClientCert:   ingressMTLSCertPath,
 					VerifyClient: "on",
@@ -10209,6 +10324,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			context: "spec",
 			expected: policiesCfg{
+				Context: ctx,
 				IngressMTLS: &version2.IngressMTLS{
 					ClientCert:   ingressMTLSCertPath,
 					ClientCrl:    ingressMTLSCrlPath,
@@ -10272,6 +10388,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			context: "route",
 			expected: policiesCfg{
+				Context: ctx,
 				EgressMTLS: &version2.EgressMTLS{
 					Certificate:    "/etc/nginx/secrets/default-egress-mtls-secret",
 					CertificateKey: "/etc/nginx/secrets/default-egress-mtls-secret",
@@ -10726,7 +10843,8 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			context: "route",
 			expected: policiesCfg{
-				OIDC: true,
+				Context: ctx,
+				OIDC:    true,
 			},
 			expectedWarnings: Warnings{
 				nil: {
@@ -11006,6 +11124,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			context: "route",
 			expected: policiesCfg{
+				Context: ctx,
 				WAF: &version2.WAF{
 					Enable:   "on",
 					ApPolicy: "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
@@ -11023,7 +11142,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
-			vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background()}, false, false, &StaticConfigParams{}, false, &fakeBV)
+			vsc := newVirtualServerConfigurator(&ConfigParams{Context: ctx}, false, false, &StaticConfigParams{}, false, &fakeBV)
 
 			if test.oidcPolCfg != nil {
 				vsc.oidcPolCfg = test.oidcPolCfg
@@ -11031,8 +11150,9 @@ func TestGeneratePoliciesFails(t *testing.T) {
 
 			result := vsc.generatePolicies(ownerDetails, test.policyRefs, test.policies, test.context, test.policyOpts)
 			result.BundleValidator = nil
-			if diff := cmp.Diff(test.expected, result); diff != "" {
-				t.Errorf("generatePolicies() '%v' mismatch (-want +got):\n%s", test.msg, diff)
+
+			if !reflect.DeepEqual(test.expected, result) {
+				t.Errorf("generatePolicies() '%v' mismatch (-want +got):\n%s", test.msg, cmp.Diff(test.expected, result))
 			}
 			if !reflect.DeepEqual(vsc.warnings, test.expectedWarnings) {
 				t.Errorf(
@@ -11042,11 +11162,11 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					test.msg,
 				)
 			}
-			if diff := cmp.Diff(test.expectedOidc.oidc, vsc.oidcPolCfg.oidc); diff != "" {
-				t.Errorf("generatePolicies() '%v' mismatch (-want +got):\n%s", test.msg, diff)
+			if !reflect.DeepEqual(test.expectedOidc.oidc, vsc.oidcPolCfg.oidc) {
+				t.Errorf("generatePolicies() '%v' mismatch (-want +got):\n%s", test.msg, cmp.Diff(test.expectedOidc.oidc, vsc.oidcPolCfg.oidc))
 			}
-			if diff := cmp.Diff(test.expectedOidc.key, vsc.oidcPolCfg.key); diff != "" {
-				t.Errorf("generatePolicies() '%v' mismatch (-want +got):\n%s", test.msg, diff)
+			if !reflect.DeepEqual(test.expectedOidc.key, vsc.oidcPolCfg.key) {
+				t.Errorf("generatePolicies() '%v' mismatch (-want +got):\n%s", test.msg, cmp.Diff(test.expectedOidc.key, vsc.oidcPolCfg.key))
 			}
 		})
 	}
@@ -17816,7 +17936,10 @@ func TestGenerateTimeWithDefault(t *testing.T) {
 }
 
 var (
+	l             = slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo}))
+	ctx           = nl.ContextWithLogger(context.Background(), l)
 	baseCfgParams = ConfigParams{
+		Context:         ctx,
 		ServerTokens:    "off",
 		Keepalive:       16,
 		ServerSnippets:  []string{"# server snippet"},
