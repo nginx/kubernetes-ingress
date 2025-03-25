@@ -131,7 +131,7 @@ spec:
 {{- if hasKey .Values.controller.mgmt.usageReport "proxyCredentialsSecretName" }}
 {{- if not (hasKey .Values.controller.mgmt.usageReport "proxyHost") -}}
 {{- fail "Error: 'controller.mgmt.usageReport.proxyHost' must be set when using 'controller.mgmt.usageReport.proxyCredentialsSecretName'." }}
-{{- end -}}
+{{- end }}
         - name: PROXY_USER
           valueFrom:
             secretKeyRef:
