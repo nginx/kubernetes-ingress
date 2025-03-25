@@ -2518,7 +2518,7 @@ var (
 
 	mainCfgWithMGMTProxyWithNoAuth = MainConfig{
 		StaticSSLPath: fakeManager.GetSecretsDir(),
-		NginxVersion:  nginx.NewVersion("nginx version: nginx/1.27.2 (nginx-plus-r34)"),
+
 		MGMTConfig: MGMTConfig{
 			ProxyHost: "proxy.example.com",
 		},
@@ -2526,7 +2526,7 @@ var (
 
 	mainCfgWithMGMTProxyWithUser = MainConfig{
 		StaticSSLPath: fakeManager.GetSecretsDir(),
-		NginxVersion:  nginx.NewVersion("nginx version: nginx/1.27.2 (nginx-plus-r34)"),
+
 		MGMTConfig: MGMTConfig{
 			ProxyHost: "proxy.example.com",
 			ProxyUser: "user",
@@ -2535,7 +2535,7 @@ var (
 
 	mainCfgWithMGMTProxyWithUserAndPass = MainConfig{
 		StaticSSLPath: fakeManager.GetSecretsDir(),
-		NginxVersion:  nginx.NewVersion("nginx version: nginx/1.27.2 (nginx-plus-r34)"),
+
 		MGMTConfig: MGMTConfig{
 			ProxyHost: "proxy.example.com",
 			ProxyUser: "user",
