@@ -664,10 +664,19 @@ nginxAgent:
   ## Enables NGINX Agent.
   enable: false
   logLevel: "error"
-  ## If nginxAgent.instanceGroup or nginxAgent.configSyncGroup is not set the value of nginx-ingress.controller.fullname will be used
-  instanceGroup: "" # v2 only
-  configSyncGroup: "" # v3 only
-  key: "" # v3 only
+
+  # Agent V3 configuration
+  ## If nginxAgent.configSyncGroup is not set the value of nginx-ingress.controller.fullname will be used
+  configSyncGroup: ""
+  # Dataplane key is used to authenticate the agent with NGINX One SaaS Console
+  dataplaneKey: ""
+  endpointHost: "product.connect.nginx.com"
+  endpointPort: 443
+  tlsSkipVerify: false
+
+  # Agent V2 configuration
+  ## If nginxAgent.instanceGroup is not set the value of nginx-ingress.controller.fullname will be used
+  instanceGroup: ""
   # Dataplane key is used to authenticate the agent with NGINX One SaaS Console
   instanceManager:
     # FQDN or IP for connecting to NGINX Instance Manager, e.g. nim.example.com
@@ -675,18 +684,18 @@ nginxAgent:
     grpcPort: 443
     tls:
       skipVerify: false
-      enabled: true # v2 only
+      enabled: true
       ## kubernetes.io/tls secret with a TLS certificate and key for using mTLS between NGINX Agent and Instance Manager
-      secret: "" # v2 only
+      secret: ""
       ## nginx.org/ca secret for verification of Instance Manager TLS
-      caSecret: "" # v2 only
-    sni: "" # v2 only
+      caSecret: ""
+    sni: ""
   ## Syslog listener which NGINX Agent uses to accept messages from App Protect WAF
   syslog:
-    host: "127.0.0.1" # v2 only
-    port: 1514 # v2 only
+    host: "127.0.0.1"
+    port: 1514
   napMonitoring:
-    collectorBufferSize: 50000 # v2 only
-    processorBufferSize: 50000 # v2 only
+    collectorBufferSize: 50000
+    processorBufferSize: 50000
   ## The name of a custom ConfigMap to use instead of the one provided by default
   customConfigMap: ""

@@ -328,7 +328,7 @@ Build the args for the service binary.
 - -weight-changes-dynamic-reload={{ .Values.controller.enableWeightChangesDynamicReload}}
 {{- if .Values.nginxAgent.enable }}
 - -agent=true
-{{- if ne .Values.nginxAgent.key "" }}
+{{- if ne .Values.nginxAgent.dataplaneKey "" }}
 - -agent-instance-group={{ default (include "nginx-ingress.controller.fullname" .) .Values.nginxAgent.instanceGroup }}
 {{- end }}
 {{- end }}
@@ -478,7 +478,7 @@ volumeMounts:
 {{- end -}}
 
 {{- define "nginx-ingress.agentConfiguration" -}}
-{{- if ne .Values.nginxAgent.key "" }}
+{{- if ne .Values.nginxAgent.dataplaneKey "" }}
 log:
   # set log level (error, info, debug; default "info")
   level: {{ .Values.nginxAgent.logLevel }}
@@ -496,17 +496,17 @@ features:
   - file-watcher
 
 labels:
-  config-sync-group: "{{ default (include "nginx-ingress.controller.fullname" .) .Values.nginxAgent.instanceGroup }}"
+  config-sync-group: "{{ default (include "nginx-ingress.controller.fullname" .) .Values.nginxAgent.configSyncGroup }}"
 
 ## command server settings
 command:
   server:
-    host: {{ required ".Values.nginxAgent.instanceManager.host is required when setting .Values.nginxAgent.enable to true" .Values.nginxAgent.instanceManager.host }}
-    port: {{ .Values.nginxAgent.instanceManager.grpcPort }}
+    host: {{ .Values.nginxAgent.endpointHost }}
+    port: {{ .Values.nginxAgent.endpointPort }}
   auth:
-    token: "{{ .Values.nginxAgent.key }}"
+    token: "{{ .Values.nginxAgent.dataplaneKey }}"
   tls:
-    skip_verify: {{ .Values.nginxAgent.instanceManager.tls.skipVerify | default false }}
+    skip_verify: {{ .Values.nginxAgent.tlsSkipVerify | default false }}
 
 ## collector metrics settings
 collector:
@@ -530,18 +530,18 @@ collector:
   exporters:
     otlp_exporters:
       - server:
-          host: "{{ required ".Values.nginxAgent.instanceManager.host is required when setting .Values.nginxAgent.enable to true" .Values.nginxAgent.instanceManager.host }}"
-          port: {{ .Values.nginxAgent.instanceManager.grpcPort }}
+          host: "{{ .Values.nginxAgent.endpointHost }}"
+          port: {{ .Values.nginxAgent.endpointPort }}
         authenticator: headers_setter
         tls:
-          skip_verify: {{ .Values.nginxAgent.instanceManager.tls.skipVerify | default false }}
+          skip_verify: {{ .Values.nginxAgent.tlsSkipVerify | default false }}
 
   extensions:
     headers_setter:
       headers:
         - action: insert
           key: "authorization"
-          value: "{{ .Values.nginxAgent.key }}"
+          value: "{{ .Values.nginxAgent.dataplaneKey }}"
 
 {{- else }}
 log:
