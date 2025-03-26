@@ -227,6 +227,16 @@ func main() {
 		}
 	}
 
+	// Verify if NIC's version supports OpenTracing module.
+	otEnabled := func(version nginx.Version) bool {
+		supported, err := nginx.IsOpenTracingSupported(nginxVersion)
+		if err != nil {
+			logEventAndExit(ctx, eventRecorder, pod, nl.EventReasonBadConfig, err)
+		}
+		return supported
+	}(nginxVersion)
+	cfgParams.MainOpenTracingEnabled = otEnabled
+
 	mustWriteNginxMainConfig(staticCfgParams, cfgParams, mgmtCfgParams, templateExecutor, nginxManager)
 
 	if *enableTLSPassthrough {
