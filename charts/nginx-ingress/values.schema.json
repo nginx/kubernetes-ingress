@@ -2300,6 +2300,14 @@
             "error"
           ]
         },
+        "key": {
+          "type": "string",
+          "default": "",
+          "title": "Dataplane key is used to authenticate the agent with NGINX One SaaS Console",
+          "examples": [
+            "my_token"
+          ]
+        },
         "instanceManager": {
           "type": "object",
           "default": {},
@@ -2330,14 +2338,6 @@
               "default": "",
               "examples": [
                 "nim.example.com"
-              ]
-            },
-            "token": {
-              "type": "string",
-              "default": "",
-              "title": "Dataplane Token",
-              "examples": [
-                "my_token"
               ]
             },
             "tls": {
