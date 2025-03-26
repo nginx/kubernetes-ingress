@@ -506,16 +506,6 @@ command:
     token: "{{ .Values.nginxAgent.key }}"
   tls:
     skip_verify: {{ .Values.nginxAgent.instanceManager.tls.skipVerify | default false }}
-    {{- if ne .Values.nginxAgent.instanceManager.tls.secret "" }}
-    cert: "/etc/ssl/nms/tls.crt"
-    key: "/etc/ssl/nms/tls.key"
-    {{- end }}
-    {{- if ne .Values.nginxAgent.instanceManager.tls.caSecret "" }}
-    ca: "/etc/ssl/nms/ca.crt"
-    {{- end }}
-    {{- if ne .Values.nginxAgent.instanceManager.sni "" }}
-    server_name: {{ .Values.nginxAgent.instanceManager.sni }}
-    {{- end }}
 
 ## collector metrics settings
 collector:
@@ -544,16 +534,6 @@ collector:
         authenticator: headers_setter
         tls:
           skip_verify: {{ .Values.nginxAgent.instanceManager.tls.skipVerify | default false }}
-          {{- if ne .Values.nginxAgent.instanceManager.tls.secret "" }}
-          cert: "/etc/ssl/nms/tls.crt"
-          key: "/etc/ssl/nms/tls.key"
-          {{- end }}
-          {{- if ne .Values.nginxAgent.instanceManager.tls.caSecret "" }}
-          ca: "/etc/ssl/nms/ca.crt"
-          {{- end }}
-          {{- if ne .Values.nginxAgent.instanceManager.sni "" }}
-          server_name: {{ .Values.nginxAgent.instanceManager.tls.sni }}
-          {{- end }}
 
   extensions:
     headers_setter:
