@@ -105,10 +105,6 @@ func extractPlusVersionValues(input string) (int, int, error) {
 //
 // Support for OpenTracing is dropped in NGINX Plus R34.
 // Earlier NGINX Plus versions and NGINX OSS support OpenTracing.
-func IsOpenTracingSupported(version Version) (bool, error) {
-	if !version.IsPlus {
-		return true, nil
-	}
-	r34 := NewVersion("nginx version: nginx/1.25.1 (nginx-plus-r34)")
-	return version.PlusGreaterThanOrEqualTo(r34.Format())
+func IsOpenTracingSupported(version Version) bool {
+	return !version.IsPlus
 }
