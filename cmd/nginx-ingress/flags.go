@@ -80,7 +80,7 @@ var (
 		`Sets address for App Protect v5 Enforcer. Requires -nginx-plus and -enable-app-protect.`)
 
 	agent              = flag.Bool("agent", false, "Enable NGINX Agent")
-	agentInstanceGroup = flag.String("agent-instance-group", "", "Grouping used to associate NGINX Ingress Controller instances")
+	agentInstanceGroup = flag.String("agent-instance-group", "nginx-ingress-controller", "Grouping used to associate NGINX Ingress Controller instances")
 
 	ingressClass = flag.String("ingress-class", "nginx",
 		`A class of the Ingress Controller.
