@@ -667,6 +667,13 @@ nginxAgent:
   instanceGroup: ""
   configSyncGroup: ""
   logLevel: "error"
+  ## Syslog listener which NGINX Agent uses to accept messages from App Protect WAF
+  syslog:
+    host: "127.0.0.1"
+    port: 1514
+  napMonitoring:
+    collectorBufferSize: 50000
+    processorBufferSize: 50000
   # Dataplane key is used to authenticate the agent with NGINX One SaaS Console
   key: "" # v3 only
   instanceManager:
@@ -675,6 +682,7 @@ nginxAgent:
     grpcPort: 443
     sni: ""
     tls:
+      enabled: true
       skipVerify: false
       ## kubernetes.io/tls secret with a TLS certificate and key for using mTLS between NGINX Agent and Instance Manager
       secret: ""
