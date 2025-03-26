@@ -328,7 +328,7 @@ Build the args for the service binary.
 - -weight-changes-dynamic-reload={{ .Values.controller.enableWeightChangesDynamicReload}}
 {{- if .Values.nginxAgent.enable }}
 - -agent=true
-{{- if ne .Values.nginxAgent.dataplaneKey "" }}
+{{- if eq .Values.nginxAgent.dataplaneKey "" }}
 - -agent-instance-group={{ default (include "nginx-ingress.controller.fullname" .) .Values.nginxAgent.instanceGroup }}
 {{- end }}
 {{- end }}
