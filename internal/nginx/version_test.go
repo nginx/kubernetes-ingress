@@ -135,32 +135,21 @@ func TestIsOpenTracingSupported(t *testing.T) {
 		want    bool
 	}{
 		{
-			version: nginx.NewVersion("nginx version: nginx/1.25.1 (nginx-plus-r33)"),
-			want:    false,
-		},
-		{
-			version: nginx.NewVersion("nginx version: nginx/1.25.1 (nginx-plus-r33-p1)"),
-			want:    false,
-		},
-		{
 			version: nginx.NewVersion("nginx version: nginx/1.25.1"),
 			want:    true,
 		},
 		{
 			version: nginx.NewVersion("nginx version: nginx/1.25.1 (nginx-plus-r34)"),
-			want:    true,
+			want:    false,
 		},
 		{
 			version: nginx.NewVersion("nginx version: nginx/1.25.1 (nginx-plus-r34-p1)"),
-			want:    true,
+			want:    false,
 		},
 	}
 
 	for _, tc := range tt {
-		got, err := nginx.IsOpenTracingSupported(tc.version)
-		if err != nil {
-			t.Fatal(err)
-		}
+		got := nginx.IsOpenTracingSupported(tc.version)
 		if tc.want != got {
 			t.Errorf("%+v", tc.version)
 		}
