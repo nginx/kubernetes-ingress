@@ -6,9 +6,9 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
-        exclude: '(\.md|\.snap|\.avdl)$'
+        exclude: '(\.md|\.jwt|\.snap|\.avdl)$'
       - id: end-of-file-fixer
-        exclude: site/layouts/shortcodes/nic-.*.html
+        exclude: (site/layouts/shortcodes/nic-.*.html|\.jwt)
       - id: check-yaml
         args: [--allow-multiple-documents]
         exclude: ^(charts/nginx-ingress/templates)
@@ -45,7 +45,7 @@ repos:
         pass_filenames: false
 
   - repo: https://github.com/golangci/golangci-lint
-    rev: v1.63.4
+    rev: v2.0.0
     hooks:
       - id: golangci-lint
         args: [--new-from-patch=/tmp/diff.patch]
@@ -56,7 +56,7 @@ repos:
       - id: pyupgrade
 
   - repo: https://github.com/PyCQA/isort
-    rev: 6.0.0
+    rev: 6.0.1
     hooks:
       - id: isort
 
@@ -78,7 +78,7 @@ repos:
           ]
 
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0.31.1
+    rev: 0.31.3
     hooks:
       - id: check-jsonschema
         name: "Check Helm Chart JSON Schema"

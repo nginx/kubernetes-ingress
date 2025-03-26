@@ -1,13 +1,11 @@
 # syntax=docker/dockerfile:1.8
-FROM nginx:1.27.4@sha256:91734281c0ebfc6f1aea979cffeed5079cfe786228a71cc6f1f46a228cde6e34 AS nginx
+FROM nginx:1.27.4@sha256:124b44bfc9ccd1f3cedf4b592d4d1e8bddb78b51ec2ed5056c52d3692baebc19 AS nginx
 
-FROM redhat/ubi9:9.5@sha256:be214e191bbe3f4d0f16a5a4f5642e1f32fccd6fae7d2b6c6acb066ba51fb507 AS rpm-build
+FROM redhat/ubi9:9.5@sha256:a1804302f6f53e04cc1c6b20bc2204d5c9ae6e5a664174b38fbeeb30f7983d4e AS rpm-build
 ARG NGINX
 ARG NJS
-ENV NGINX_VERSION ${NGINX}
-ENV NJS_VERSION ${NJS}
-
-
+ENV NGINX_VERSION=${NGINX}
+ENV NJS_VERSION=${NJS}
 RUN mkdir -p /nginx/; \
     # only build for ppc64le but make multiarch image for mounting
     [ $(uname -p) = x86_64 ] && exit 0; \
@@ -26,7 +24,6 @@ RUN mkdir -p /nginx/; \
     nginx-module-image-filter-${NGINX_VERSION} \
     nginx-module-njs-${NGINX_VERSION}+${NJS_VERSION} \
     " \
-    && dnf config-manager --set-enabled ubi-9-codeready-builder \
     && dnf download --source ${nginxPackages} \
     && dnf builddep -y --srpm nginx*.rpm \
     && rpmbuild --rebuild --nodebuginfo nginx*.rpm \

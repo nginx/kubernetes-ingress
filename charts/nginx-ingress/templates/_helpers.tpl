@@ -58,6 +58,7 @@ helm.sh/chart: {{ include "nginx-ingress.chart" . }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
+zone-sync.nginx.com/name: {{ .Chart.Name }}
 {{- end }}
 
 {{/*
@@ -86,6 +87,7 @@ Selector labels
 {{ toYaml .Values.controller.selectorLabels }}
 {{- else -}}
 app.kubernetes.io/name: {{ include "nginx-ingress.name" . }}
+zone-sync.nginx.com/name: {{ include "nginx-ingress.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
@@ -372,6 +374,8 @@ List of volumes for controller.
   emptyDir: {}
 - name: nginx-lib
   emptyDir: {}
+- name: nginx-state
+  emptyDir: {}
 - name: nginx-log
   emptyDir: {}
 {{- end }}
@@ -423,6 +427,8 @@ volumeMounts:
   name: nginx-cache
 - mountPath: /var/lib/nginx
   name: nginx-lib
+- mountPath: /var/lib/nginx/state
+  name: nginx-state
 - mountPath: /var/log/nginx
   name: nginx-log
 {{- end }}

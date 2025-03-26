@@ -180,6 +180,29 @@ For more information, view the [VirtualServer and VirtualServerRoute resources](
 
 ---
 
+### Zone Sync
+
+Zone Sync enables the [ngx_stream_zone_sync_module](https://nginx.org/en/docs/stream/ngx_stream_zone_sync_module.html) in NGINX Ingress Controller when NGINX Plus is used.  Multiple replicas are required to effectively utililise this functionality.  See the [zone sync documentation for further details](https://docs.nginx.com/nginx/admin-guide/high-availability/zone_sync_details/).
+
+{{<bootstrap-table "table table-striped table-bordered table-responsive">}}
+|ConfigMap Key | Description | Default | Example |
+| ---| ---| ---| --- |
+|*zone-sync* | Enables zone synchronization between NGINX Ingress Controller Pods. This autogenerates a [zone_sync_server](https://nginx.org/en/docs/stream/ngx_stream_zone_sync_module.html#zone_sync_server) and a headless service using the `ReplicaSet` or `DaemonSet` name. Please note that this headless service will be automatically cleaned up when uninstalling via Helm or by removing the value from the ConfigMap. The headless service will need to be manually removed if the `controller.customConfigMap` value is set via Helm or the deployment is uninstalled via Manifests. Each Ingress Controller manages its own headless service.  NGINX Plus Required. | *False* |  |
+|*zone-sync-port* | Specifies the optional port on which NGINX Ingress Controller listens for zone sync traffic. NGINX Plus & `zone-sync` Required. | *12345* |  |
+|*zone-sync-resolver-addresses* | Configures optional addresses used in the [resolver](https://nginx.org/en/docs/http/ngx_http_core_module.html#resolver) directive for zone-sync. This field takes a comma separated list of addresses. NGINX Plus & `zone-sync` Required | `kube-dns.kube-system.svc.cluster.local` |  |
+|*zone-sync-resolver-ipv6* | Configures whether the optional [resolver](https://nginx.org/en/docs/http/ngx_http_core_module.html#resolver) directive for zone-sync will look up IPv6 addresses. NGINX Plus & `zone-sync` Required | `true` |  |
+|*zone-sync-resolver-valid* | Configures an [NGINX time](https://nginx.org/en/docs/syntax.html) that the optional [resolver](https://nginx.org/en/docs/http/ngx_http_core_module.html#resolver) directive for zone-sync will override the TTL value of responses from nameservers with. NGINX Plus & `zone-sync` Required | `5s` |  |
+{{</bootstrap-table>}}
+
+{{< note >}} 
+If you previously installed OIDC or used `zone_sync` in the stream-snippets in [v4.0.1](https://github.com/nginx/kubernetes-ingress/tree/v4.0.1) or earlier, and you plan to enable the `zone-sync` ConfigMap key, please remove `zone_sync` from the old [stream-snippets](https://github.com/nginx/kubernetes-ingress/blob/v4.0.1/examples/custom-resources/oidc/nginx-config.yaml#L7).  Otherwise, NGINX Plus will encounter duplicate directive error `[emerg] 13#13: "zone_sync" directive is duplicate in /etc/nginx/nginx.conf:164`.
+Once upgraded, remove the [old headless service](https://github.com/nginx/kubernetes-ingress/blob/v4.0.1/examples/custom-resources/oidc/nginx-ingress-headless.yaml) deployed for OIDC.
+
+If you want to enable TLS for zone synchronization for NGINX Ingress Controller, please refer to the [advanced configuration with snippets]({{< ref "/configuration/ingress-resources/advanced-configuration-with-snippets.md" >}}) and example snippets available in the [NGINX documentation](https://nginx.org/en/docs/stream/ngx_stream_zone_sync_module.html#zone_sync_ssl) for zone_sync_ssl.
+{{< /note >}}
+
+---
+
 ### Snippets and custom templates
 
 {{<bootstrap-table "table table-striped table-bordered table-responsive">}}

@@ -1159,6 +1159,47 @@ func TestGenerateNginxCfgForLimitReqDefaults(t *testing.T) {
 	}
 }
 
+func TestGenerateNginxCfgForLimitReqZoneSync(t *testing.T) {
+	t.Parallel()
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations["nginx.org/limit-req-rate"] = "200r/s"
+	cafeIngressEx.Ingress.Annotations["nginx.org/limit-req-key"] = "${request_uri}"
+	cafeIngressEx.Ingress.Annotations["nginx.org/limit-req-zone-size"] = "11m"
+
+	cafeIngressEx.ZoneSync = true
+	isPlus := true
+
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	expectedZones := []version1.LimitReqZone{
+		{
+			Name: "default/cafe-ingress_sync",
+			Key:  "${request_uri}",
+			Size: "11m",
+			Rate: "200r/s",
+			Sync: true,
+		},
+	}
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		ingEx:         &cafeIngressEx,
+		BaseCfgParams: configParams,
+		staticParams:  &StaticConfigParams{},
+		isPlus:        isPlus,
+	})
+
+	if !reflect.DeepEqual(result.LimitReqZones, expectedZones) {
+		t.Errorf("generateNginxCfg returned \n%v,  but expected \n%v", result.LimitReqZones, expectedZones)
+	}
+
+	if !reflect.DeepEqual(result.LimitReqZones, expectedZones) {
+		t.Errorf("generateNginxCfg returned \n%v,  but expected \n%v", result.LimitReqZones, expectedZones)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfg returned warnings: %v", warnings)
+	}
+}
+
 func TestGenerateNginxCfgForMergeableIngressesForLimitReq(t *testing.T) {
 	t.Parallel()
 	mergeableIngresses := createMergeableCafeIngress()
@@ -1296,14 +1337,11 @@ func TestGenerateNginxCfgForLimitReqWithScaling(t *testing.T) {
 	for _, server := range result.Servers {
 		for _, location := range server.Locations {
 			if !reflect.DeepEqual(location.LimitReq, expectedReqs) {
-				t.Errorf("generateNginxCfg returned \n%v,  but expected \n%v", result.LimitReqZones, expectedZones)
+				t.Errorf("generateNginxCfg returned \n%v,  but expected \n%v", location.LimitReq, expectedReqs)
 			}
 		}
 	}
 
-	if !reflect.DeepEqual(result.LimitReqZones, expectedZones) {
-		t.Errorf("generateNginxCfg returned \n%v,  but expected \n%v", result.LimitReqZones, expectedZones)
-	}
 	if len(warnings) != 0 {
 		t.Errorf("generateNginxCfg returned warnings: %v", warnings)
 	}
@@ -1390,9 +1428,6 @@ func TestGenerateNginxCfgForMergeableIngressesForLimitReqWithScaling(t *testing.
 		}
 	}
 
-	if !reflect.DeepEqual(result.LimitReqZones, expectedZones) {
-		t.Errorf("generateNginxCfg returned \n%v,  but expected \n%v", result.LimitReqZones, expectedZones)
-	}
 	if len(warnings) != 0 {
 		t.Errorf("generateNginxCfg returned warnings: %v", warnings)
 	}

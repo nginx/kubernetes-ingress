@@ -15,6 +15,7 @@ from kubernetes.client import (
     CoreV1Api,
     NetworkingV1Api,
     RbacAuthorizationV1Api,
+    V1Ingress,
     V1ObjectMeta,
     V1Secret,
     V1Service,
@@ -1293,6 +1294,7 @@ def create_ingress_controller_wafv5(
                 {"name": "nginx-log", "emptyDir": {}},
                 {"name": "nginx-cache", "emptyDir": {}},
                 {"name": "nginx-lib", "emptyDir": {}},
+                {"name": "nginx-lib-state", "emptyDir": {}},
             ]
         )
     else:
@@ -1336,6 +1338,7 @@ def create_ingress_controller_wafv5(
                 {"name": "nginx-log", "mountPath": "/var/log/nginx"},
                 {"name": "nginx-cache", "mountPath": "/var/cache/nginx"},
                 {"name": "nginx-lib", "mountPath": "/var/lib/nginx"},
+                {"name": "nginx-lib-state", "mountPath": "/var/lib/nginx/state"},
             ]
         )
     else:
@@ -1744,6 +1747,28 @@ def get_events(v1: CoreV1Api, namespace) -> []:
     return res.items
 
 
+def wait_for_event(v1: CoreV1Api, text, namespace, retry=30, interval=1) -> None:
+    """
+    Wait for an event on an object in a namespace.
+
+    :param v1: CoreV1Api
+    :param text: event text
+    :param namespace: object namespace
+    :param retry:
+    :param interval:
+    :return:
+    """
+    c = 0
+    while c < retry:
+        events = get_events(v1, namespace)
+        for i in range(len(events) - 1, -1, -1):
+            if text in events[i].message:
+                return True
+        wait_before_test(interval)
+        c += 1
+    return False
+
+
 def ensure_response_from_backend(req_url, host, additional_headers=None, check404=False, sni=False) -> None:
     """
     Wait for 502|504|404 to disappear.
@@ -2011,3 +2036,16 @@ def get_apikey_policy_details_from_yaml(yaml_manifest) -> dict:
                 details["queries"] = data["spec"]["apiKey"]["suppliedIn"]["query"]
 
     return details
+
+
+def read_ingress(v1: NetworkingV1Api, name, namespace) -> V1Ingress:
+    """
+    Get details of an Ingress.
+
+    :param v1: NetworkingV1Api
+    :param name: ingress name
+    :param namespace: namespace name
+    :return: V1Ingress
+    """
+    print(f"Read an ingress named '{name}'")
+    return v1.read_namespaced_ingress(name, namespace)

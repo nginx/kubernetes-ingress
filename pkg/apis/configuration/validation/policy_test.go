@@ -572,6 +572,7 @@ func TestValidateRateLimit_PassesOnValidInput(t *testing.T) {
 
 	tests := []struct {
 		rateLimit *v1.RateLimit
+		isPlus    bool
 		msg       string
 	}{
 		{
@@ -580,7 +581,8 @@ func TestValidateRateLimit_PassesOnValidInput(t *testing.T) {
 				ZoneSize: "10M",
 				Key:      "${request_uri}",
 			},
-			msg: "only required fields are set",
+			isPlus: false,
+			msg:    "only required fields are set",
 		},
 		{
 			rateLimit: &v1.RateLimit{
@@ -594,14 +596,29 @@ func TestValidateRateLimit_PassesOnValidInput(t *testing.T) {
 				LogLevel:   "info",
 				RejectCode: createPointerFromInt(505),
 			},
-			msg: "ratelimit all fields set",
+			isPlus: false,
+			msg:    "ratelimit all fields set",
+		},
+		{
+			rateLimit: &v1.RateLimit{
+				Rate:     "30r/m",
+				Key:      "${request_uri}",
+				ZoneSize: "10M",
+				Condition: &v1.RateLimitCondition{
+					JWT: &v1.JWTCondition{
+						Claim: "sub",
+						Match: "Gold",
+					},
+					Default: false,
+				},
+			},
+			isPlus: true,
+			msg:    "ratelimit JWT Condition",
 		},
 	}
 
-	isPlus := false
-
 	for _, test := range tests {
-		allErrs := validateRateLimit(test.rateLimit, field.NewPath("rateLimit"), isPlus)
+		allErrs := validateRateLimit(test.rateLimit, field.NewPath("rateLimit"), test.isPlus)
 		if len(allErrs) > 0 {
 			t.Errorf("validateRateLimit() returned errors %v for valid input for the case of %v", allErrs, test.msg)
 		}
@@ -622,56 +639,83 @@ func TestValidateRateLimit_FailsOnInvalidInput(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		rateLimit *v1.RateLimit
+		isPlus    bool
 		msg       string
 	}{
 		{
 			rateLimit: createInvalidRateLimit(func(r *v1.RateLimit) {
 				r.Rate = "0r/s"
 			}),
-			msg: "invalid rateLimit rate",
+			isPlus: false,
+			msg:    "invalid rateLimit rate",
 		},
 		{
 			rateLimit: createInvalidRateLimit(func(r *v1.RateLimit) {
 				r.Key = "${fail}"
 			}),
-			msg: "invalid rateLimit key variable use",
+			isPlus: false,
+			msg:    "invalid rateLimit key variable use",
 		},
 		{
 			rateLimit: createInvalidRateLimit(func(r *v1.RateLimit) {
 				r.Delay = createPointerFromInt(0)
 			}),
-			msg: "invalid rateLimit delay",
+			isPlus: false,
+			msg:    "invalid rateLimit delay",
 		},
 		{
 			rateLimit: createInvalidRateLimit(func(r *v1.RateLimit) {
 				r.Burst = createPointerFromInt(0)
 			}),
-			msg: "invalid rateLimit burst",
+			isPlus: false,
+			msg:    "invalid rateLimit burst",
 		},
 		{
 			rateLimit: createInvalidRateLimit(func(r *v1.RateLimit) {
 				r.ZoneSize = "31k"
 			}),
-			msg: "invalid rateLimit zoneSize",
+			isPlus: false,
+			msg:    "invalid rateLimit zoneSize",
 		},
 		{
 			rateLimit: createInvalidRateLimit(func(r *v1.RateLimit) {
 				r.RejectCode = createPointerFromInt(600)
 			}),
-			msg: "invalid rateLimit rejectCode",
+			isPlus: false,
+			msg:    "invalid rateLimit rejectCode",
 		},
 		{
 			rateLimit: createInvalidRateLimit(func(r *v1.RateLimit) {
 				r.LogLevel = "invalid"
 			}),
-			msg: "invalid rateLimit logLevel",
+			isPlus: false,
+			msg:    "invalid rateLimit logLevel",
+		},
+		{
+			rateLimit: createInvalidRateLimit(func(r *v1.RateLimit) {
+				r.Condition = &v1.RateLimitCondition{
+					JWT: &v1.JWTCondition{
+						Claim: "sub",
+						Match: "Gold",
+					},
+				}
+			}),
+			isPlus: false,
+			msg:    "must be plus",
+		},
+		{
+			rateLimit: createInvalidRateLimit(func(r *v1.RateLimit) {
+				r.Condition = &v1.RateLimitCondition{
+					Default: false,
+				}
+			}),
+			isPlus: true,
+			msg:    "missing JWTCondition",
 		},
 	}
 
-	isPlus := false
-
 	for _, test := range tests {
-		allErrs := validateRateLimit(test.rateLimit, field.NewPath("rateLimit"), isPlus)
+		allErrs := validateRateLimit(test.rateLimit, field.NewPath("rateLimit"), test.isPlus)
 		if len(allErrs) == 0 {
 			t.Errorf("validateRateLimit() returned no errors for invalid input for the case of %v", test.msg)
 		}

@@ -50,8 +50,8 @@ split_clients {{ $sc.Source }} {{ $sc.Variable }} {
 }
 {{- end }}
 
-{{- range $claim := .AuthJwtClaimSet }}
-auth_jwt_claim_set {{ $claim.Variable }} {{ $claim.Claims}}
+{{- range $claim := .AuthJWTClaimSets }}
+auth_jwt_claim_set {{ $claim.Variable }} {{ $claim.Claim}};
 {{- end }}
 
 {{- range $m := .Maps }}
@@ -67,7 +67,7 @@ map {{ $m.Source }} {{ $m.Variable }} {
 {{- end }}
 
 {{- range $z := .LimitReqZones }}
-limit_req_zone {{ $z.Key }} zone={{ $z.ZoneName }}:{{ $z.ZoneSize }} rate={{ $z.Rate }};
+limit_req_zone {{ $z.Key }} zone={{ $z.ZoneName }}:{{ $z.ZoneSize }} rate={{ $z.Rate }}{{- if $z.Sync }} sync{{- end }};
 {{- end }}
 
 {{- range $m := .StatusMatches }}

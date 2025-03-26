@@ -2,7 +2,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.1
+    controller-gen.kubebuilder.io/version: v0.17.2
   name: dnsendpoints.externaldns.nginx.org
 spec:
   group: externaldns.nginx.org
@@ -99,7 +99,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.1
+    controller-gen.kubebuilder.io/version: v0.17.2
   name: globalconfigurations.k8s.nginx.org
 spec:
   group: k8s.nginx.org
@@ -165,7 +165,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.1
+    controller-gen.kubebuilder.io/version: v0.17.2
   name: policies.k8s.nginx.org
 spec:
   group: k8s.nginx.org
@@ -341,6 +341,33 @@ spec:
                 properties:
                   burst:
                     type: integer
+                  condition:
+                    description: RateLimitCondition defines a condition for a rate
+                      limit policy.
+                    properties:
+                      default:
+                        description: sets the rate limit in this policy to be the
+                          default if no conditions are met.   In a group of policies
+                          with the same JWT condition, only one policy can be the
+                          default.
+                        type: boolean
+                      jwt:
+                        description: defines a JWT condition to rate limit against.
+                        properties:
+                          claim:
+                            description: the JWT claim to be rate limit by. Nested
+                              claims should be separated by "."
+                            pattern: ^([^$\s"'])*$
+                            type: string
+                          match:
+                            description: the value of the claim to match against.
+                            pattern: ^([^$\s."'])*$
+                            type: string
+                        required:
+                        - claim
+                        - match
+                        type: object
+                    type: object
                   delay:
                     type: integer
                   dryRun:
@@ -417,7 +444,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.1
+    controller-gen.kubebuilder.io/version: v0.17.2
   name: transportservers.k8s.nginx.org
 spec:
   group: k8s.nginx.org
@@ -592,7 +619,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.1
+    controller-gen.kubebuilder.io/version: v0.17.2
   name: virtualserverroutes.k8s.nginx.org
 spec:
   group: k8s.nginx.org
@@ -1321,7 +1348,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.1
+    controller-gen.kubebuilder.io/version: v0.17.2
   name: virtualservers.k8s.nginx.org
 spec:
   group: k8s.nginx.org

@@ -151,6 +151,14 @@ func validateRateLimit(rateLimit *v1.RateLimit, fieldPath *field.Path, isPlus bo
 		}
 	}
 
+	if rateLimit.Condition != nil && rateLimit.Condition.JWT == nil {
+		allErrs = append(allErrs, field.Required(fieldPath.Child("jwt"), "jwt cannot be nil"))
+	}
+
+	if rateLimit.Condition != nil && rateLimit.Condition.JWT != nil && !isPlus {
+		allErrs = append(allErrs, field.Forbidden(fieldPath.Child("condition.jwt"), "is only supported in NGINX Plus"))
+	}
+
 	return allErrs
 }
 

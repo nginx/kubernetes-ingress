@@ -140,3 +140,5 @@ for i in ${example_files}; do
         exit 2
     fi
 done
+
+make test-update-snaps

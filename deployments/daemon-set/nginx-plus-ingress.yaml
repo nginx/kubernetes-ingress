@@ -7,11 +7,13 @@ spec:
   selector:
     matchLabels:
       app: nginx-ingress
+      zone-sync.nginx.com/name: nginx-ingress
   template:
     metadata:
       labels:
         app: nginx-ingress
         app.kubernetes.io/name: nginx-ingress
+        zone-sync.nginx.com/name: nginx-ingress
      #annotations:
        #prometheus.io/scrape: "true"
        #prometheus.io/port: "9113"
@@ -29,10 +31,12 @@ spec:
 #        emptyDir: {}
 #      - name: nginx-lib
 #        emptyDir: {}
+#      - name: nginx-lib-state
+#        emptyDir: {}
 #      - name: nginx-log
 #        emptyDir: {}
       containers:
-      - image: nginx-plus-ingress:4.0.0
+      - image: nginx-plus-ingress:4.0.1
         imagePullPolicy: IfNotPresent
         name: nginx-plus-ingress
         ports:
@@ -75,6 +79,8 @@ spec:
 #          name: nginx-cache
 #        - mountPath: /var/lib/nginx
 #          name: nginx-lib
+#        - mountPath: /var/lib/nginx/state
+#          name: nginx-lib-state
 #        - mountPath: /var/log/nginx
 #          name: nginx-log
         env:
@@ -100,7 +106,7 @@ spec:
          #- -enable-prometheus-metrics
          #- -global-configuration=$(POD_NAMESPACE)/nginx-configuration
 #      initContainers:
-#      - image: nginx/nginx-ingress:4.0.0
+#      - image: nginx/nginx-ingress:4.0.1
 #        imagePullPolicy: IfNotPresent
 #        name: init-nginx-ingress
 #        command: ['cp', '-vdR', '/etc/nginx/.', '/mnt/etc']

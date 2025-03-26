@@ -896,6 +896,7 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 
 	lbc.configurator.CfgParams = cfgParams
 	lbc.configurator.MgmtCfgParams = mgmtCfgParams
+	cfgParams.ZoneSync.Domain = lbc.createCombinedDeploymentHeadlessServiceName()
 
 	// update special license secret in mgmtConfigParams
 	if lbc.mgmtConfigMap != nil && lbc.isNginxPlus {
@@ -1069,6 +1070,15 @@ func (lbc *LoadBalancerController) sync(task task) {
 		lbc.syncDosProtectedResource(task)
 	case ingressLink:
 		lbc.syncIngressLink(task)
+	}
+
+	if lbc.isNginxPlus && lbc.isNginxReady {
+		if task.Kind == configMap || task.Kind == service {
+			err := lbc.syncZoneSyncHeadlessService(fmt.Sprintf("%s-hl", lbc.configurator.CfgParams.ZoneSync.Domain))
+			if err != nil {
+				nl.Errorf(lbc.Logger, "error syncing zone sync headless service: %v", err)
+			}
+		}
 	}
 
 	if !lbc.isNginxReady && lbc.syncQueue.Len() == 0 {
@@ -2206,6 +2216,10 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 				}
 			}
 		}
+
+		if lbc.configurator != nil && lbc.configurator.CfgParams != nil {
+			ingEx.ZoneSync = lbc.configurator.CfgParams.ZoneSync.Enable
+		}
 	}
 
 	ingEx.Endpoints = make(map[string][]string)
@@ -2345,6 +2359,9 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 		ApPolRefs:      make(map[string]*unstructured.Unstructured),
 		LogConfRefs:    make(map[string]*unstructured.Unstructured),
 		DosProtectedEx: make(map[string]*configs.DosEx),
+	}
+	if lbc.configurator != nil && lbc.configurator.CfgParams != nil {
+		virtualServerEx.ZoneSync = lbc.configurator.CfgParams.ZoneSync.Enable
 	}
 
 	resource := lbc.configuration.hosts[virtualServer.Spec.Host]
@@ -3615,4 +3632,16 @@ func (lbc *LoadBalancerController) vsrHasWeightChanges(vsrOld *conf_v1.VirtualSe
 		}
 	}
 	return false
+}
+
+func (lbc *LoadBalancerController) createCombinedDeploymentHeadlessServiceName() string {
+	owner := lbc.metadata.pod.ObjectMeta.OwnerReferences[0]
+	name := owner.Name
+	if strings.ToLower(owner.Kind) == "replicaset" {
+		if dash := strings.LastIndex(name, "-"); dash != -1 {
+			name = name[:dash] // Remove hash
+		}
+	}
+	combinedDeployment := fmt.Sprintf("%s-%s", name, strings.ToLower(owner.Kind))
+	return combinedDeployment
 }

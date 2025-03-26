@@ -22,3 +22,8 @@ func MakeOnOffFromBool(b *bool) string {
 
 	return "on"
 }
+
+// BoolToPointerBool turns a bool into a pointer bool
+func BoolToPointerBool(b bool) *bool {
+	return &b
+}
