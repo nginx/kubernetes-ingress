@@ -478,6 +478,7 @@ volumeMounts:
 {{- end -}}
 
 {{- define "nginx-ingress.agentConfiguration" -}}
+{{- if ne .Values.nginxAgent.key "" }}
 log:
   # set log level (error, info, debug; default "info")
   level: {{ .Values.nginxAgent.logLevel }}
@@ -541,4 +542,46 @@ collector:
         - action: insert
           key: "authorization"
           value: "{{ .Values.nginxAgent.key }}"
+
+{{- else }}
+log:
+  level: {{ .Values.nginxAgent.logLevel }}
+  path: ""
+server:
+  host: {{ required ".Values.nginxAgent.instanceManager.host is required when setting .Values.nginxAgent.enable to true" .Values.nginxAgent.instanceManager.host }}
+  grpcPort: {{ .Values.nginxAgent.instanceManager.grpcPort }}
+{{- if ne (.Values.nginxAgent.instanceManager.sni | default "") ""  }}
+  metrics: {{ .Values.nginxAgent.instanceManager.sni }}
+  command: {{ .Values.nginxAgent.instanceManager.sni }}
+{{- end }}
+{{- if .Values.nginxAgent.instanceManager.tls  }}
+tls:
+  enable: {{ .Values.nginxAgent.instanceManager.tls.enable | default true }}
+  skip_verify: {{ .Values.nginxAgent.instanceManager.tls.skipVerify | default false }}
+  {{- if ne .Values.nginxAgent.instanceManager.tls.caSecret "" }}
+  ca: "/etc/ssl/nms/ca.crt"
+  {{- end }}
+  {{- if ne .Values.nginxAgent.instanceManager.tls.secret "" }}
+  cert: "/etc/ssl/nms/tls.crt"
+  key: "/etc/ssl/nms/tls.key"
+  {{- end }}
+{{- end }}
+features:
+  - registration
+  - nginx-counting
+  - metrics-sender
+  - dataplane-status
+extensions:
+  - nginx-app-protect
+  - nap-monitoring
+nginx_app_protect:
+  report_interval: 15s
+  precompiled_publication: true
+nap_monitoring:
+  collector_buffer_size: {{ .Values.nginxAgent.napMonitoring.collectorBufferSize }}
+  processor_buffer_size: {{ .Values.nginxAgent.napMonitoring.processorBufferSize }}
+  syslog_ip: {{ .Values.nginxAgent.syslog.host }}
+  syslog_port: {{ .Values.nginxAgent.syslog.port }}
+
+{{- end }}
 {{ end }}

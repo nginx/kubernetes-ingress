@@ -2345,6 +2345,11 @@
               "default": {},
               "title": "TLS configuration for connection between NGINX Agent and NGINX Instance Manager",
               "properties": {
+                "enable": {
+                  "type": "boolean",
+                  "default": "true",
+                  "title": "enable TLS for NGINX Instance Manager connection"
+                },
                 "secret": {
                   "type": "string",
                   "default": "",
@@ -2361,6 +2366,55 @@
                   "title": "skip certificate verification"
                 }
               }
+            }
+          }
+        },
+        "syslog": {
+          "type": "object",
+          "default": {
+            "host": "127.0.0.1",
+            "port": 1514
+          },
+          "title": "Syslog listener which NGINX Agent uses to accept messages from App Protect WAF",
+          "properties": {
+            "host": {
+              "type": "string",
+              "title": "Address for NGINX Agent to run syslog listener",
+              "default": "127.0.0.1",
+              "examples": [
+                "127.0.0.1"
+              ]
+            },
+            "port": {
+              "type": "integer",
+              "title": "Port for NGINX Agent to run syslog listener",
+              "default": 1514,
+              "examples": [
+                1514
+              ]
+            }
+          }
+        },
+        "napMonitoring": {
+          "type": "object",
+          "default": {},
+          "title": "NGINX App Protect Monitoring config",
+          "properties": {
+            "collectorBufferSize": {
+              "type": "integer",
+              "default": 50000,
+              "title": "Buffer size for collector. Will contain log lines and parsed log lines",
+              "examples": [
+                50000
+              ]
+            },
+            "processorBufferSize": {
+              "type": "integer",
+              "default": 50000,
+              "title": "Buffer size for processor. Will contain log lines and parsed log lines",
+              "examples": [
+                50000
+              ]
             }
           }
         },
