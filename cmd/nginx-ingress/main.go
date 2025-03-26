@@ -227,7 +227,7 @@ func main() {
 		}
 	}
 
-	// Verify if NIC's version supports OpenTracing module.
+	// Verify if NIC's version supports OpenTracing module and configure it.
 	otEnabled := func(version nginx.Version) bool {
 		supported, err := nginx.IsOpenTracingSupported(nginxVersion)
 		if err != nil {
@@ -236,6 +236,7 @@ func main() {
 		return supported
 	}(nginxVersion)
 	cfgParams.MainOpenTracingEnabled = otEnabled
+	cfgParams.MainOpenTracingLoadModule = otEnabled
 
 	mustWriteNginxMainConfig(staticCfgParams, cfgParams, mgmtCfgParams, templateExecutor, nginxManager)
 
