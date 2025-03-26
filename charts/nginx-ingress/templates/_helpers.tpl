@@ -328,7 +328,9 @@ Build the args for the service binary.
 - -weight-changes-dynamic-reload={{ .Values.controller.enableWeightChangesDynamicReload}}
 {{- if .Values.nginxAgent.enable }}
 - -agent=true
+{{- if ne .Values.nginxAgent.key "" }}
 - -agent-instance-group={{ default (include "nginx-ingress.controller.fullname" .) .Values.nginxAgent.instanceGroup }}
+{{- end }}
 {{- end }}
 {{- end -}}
 
@@ -484,19 +486,24 @@ log:
 
 allowed_directories:
   - /etc/nginx
-  - /usr/local/etc/nginx
-  - /usr/share/nginx/modules
-  - /var/run/nginx
-  - /var/log/nginx
+  - /usr/lib/nginx/modules
+
+features:
+  - certificates
+  - connection
+  - metrics
+  - file-watcher
+
+labels:
+  config-sync-group: "{{ default (include "nginx-ingress.controller.fullname" .) .Values.nginxAgent.instanceGroup }}"
 
 ## command server settings
 command:
   server:
     host: {{ required ".Values.nginxAgent.instanceManager.host is required when setting .Values.nginxAgent.enable to true" .Values.nginxAgent.instanceManager.host }}
     port: {{ .Values.nginxAgent.instanceManager.grpcPort }}
-    type: grpc
   auth:
-    token: "{{ .Values.nginxAgent.instanceManager.token }}"
+    token: "{{ .Values.nginxAgent.key }}"
   tls:
     skip_verify: {{ .Values.nginxAgent.instanceManager.tls.skipVerify | default false }}
     {{- if ne .Values.nginxAgent.instanceManager.tls.secret "" }}
@@ -514,9 +521,20 @@ command:
 collector:
   log:
     level: {{ .Values.nginxAgent.logLevel }}
+    path: ""
 
     processors:
     batch:
+
+  receivers:
+    host_metrics:
+      collection_interval: 1m0s
+      initial_delay: 1s
+      scrapers:
+        cpu: {}
+        memory: {}
+        disk: {}
+        network: {}
 
   exporters:
     otlp_exporters:
@@ -542,5 +560,5 @@ collector:
       headers:
         - action: insert
           key: "authorization"
-          value: "{{ .Values.nginxAgent.instanceManager.token }}"
-{{ end -}}
+          value: "{{ .Values.nginxAgent.key }}"
+{{ end }}

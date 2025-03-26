@@ -625,7 +625,7 @@ func (lm *LocalManager) AppProtectDosAgentStart(apdaDone chan error, debug bool,
 	}()
 }
 
-// AgentStart starts the AppProtect plugin and sets AppProtect log level.
+// AgentStart starts the NGINX Agent and sets the log level.
 func (lm *LocalManager) AgentStart(agentDone chan error, instanceGroup string) {
 	nl.Debugf(lm.logger, "Starting Agent")
 	args := []string{}

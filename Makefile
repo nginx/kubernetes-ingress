@@ -172,13 +172,6 @@ debian-image-agentv3-plus: build ## Create Docker image for Ingress Controller (
 debian-image-nap-plus: build ## Create Docker image for Ingress Controller (Debian with NGINX Plus and NGINX App Protect WAF)
 	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=debian-plus-nap --build-arg NAP_MODULES=waf --build-arg NGINX_AGENT=$(NGINX_AGENT)
 
-.PHONY: debian-image-nap-agentv3-plus
-debian-image-nap-agentv3-plus: build ## Create Docker image for Ingress Controller (Debian with NGINX Plus, Agent v3 and NGINX App Protect WAFv5)
-	$(DOCKER_CMD) $(PLUS_ARGS) \
-	--build-arg BUILD_OS=agent-v3-plus \
-	--build-arg NAP_MODULES=waf \
-	--build-arg NGINX_AGENT=$(NGINX_AGENT)
-
 .PHONY: debian-image-nap-v5-plus
 debian-image-nap-v5-plus: build ## Create Docker image for Ingress Controller (Debian with NGINX Plus and NGINX App Protect WAFv5)
 	$(DOCKER_CMD) $(PLUS_ARGS) \

@@ -665,14 +665,15 @@ nginxAgent:
   enable: false
   ## If nginxAgent.instanceGroup is not set the value of nginx-ingress.controller.fullname will be used
   instanceGroup: ""
+  configSyncGroup: ""
   logLevel: "error"
+  # Dataplane key is used to authenticate the agent with NGINX One SaaS Console
+  key: "" # v3 only
   instanceManager:
     # FQDN or IP for connecting to NGINX Instance Manager, e.g. nim.example.com
     host: ""
     grpcPort: 443
     sni: ""
-    # Dataplane token
-    token: ""
     tls:
       skipVerify: false
       ## kubernetes.io/tls secret with a TLS certificate and key for using mTLS between NGINX Agent and Instance Manager

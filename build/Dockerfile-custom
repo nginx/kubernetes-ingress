@@ -1,7 +1,0 @@
-# syntax=docker/dockerfile:1.6
-FROM gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/pdabel:agentv3
-
-COPY nginx-agent-3.0.0-SNAPSHOT-f41b4996.deb /nginx-agent-3.0.0-SNAPSHOT-f41b4996.deb
-USER 0
-RUN apt install -f /nginx-agent-3.0.0-SNAPSHOT-f41b4996.deb
-USER 101
