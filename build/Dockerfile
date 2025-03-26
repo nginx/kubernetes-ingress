@@ -14,9 +14,9 @@ ARG PACKAGE_REPO=pkgs.nginx.com
 FROM ghcr.io/nginx/dependencies/nginx-ot:nginx-1.27.4@sha256:89121c4736ab5a504ac570b169b6d5c98a2945488a00adff346d0538de954271 AS opentracing-lib
 FROM ghcr.io/nginx/dependencies/nginx-ot:nginx-1.27.4-alpine@sha256:5bfc1b13430d1fd33f2d0d0420f1fa1cc55d5886f174f7a6574753892448aca6 AS alpine-opentracing-lib
 FROM ghcr.io/nginx/dependencies/nginx-ubi-ppc64le:nginx-1.27.4@sha256:fff4dde599b89cb22e5cea5d8cfba8c47bcedaa8e6fa549f5fe74a89c733aa2f AS ubi-ppc64le
-FROM ghcr.io/nginx/alpine-fips:0.2.4-alpine3.17@sha256:73de48bf4ce75fe74c3b7169e63b28edeecafac8c14cc52509becb8b98f84202 AS alpine-fips-3.17
-FROM ghcr.io/nginx/alpine-fips:0.2.4-alpine3.20@sha256:d28eeb2c22f4ef223cd3e424943451a782aa0ba1a96a1dbd20c8d90e8c4341e0 AS alpine-fips-3.20
-FROM redhat/ubi9-minimal:9.5@sha256:bafd57451de2daa71ed301b277d49bd120b474ed438367f087eac0b885a668dc AS ubi-minimal
+FROM ghcr.io/nginx/alpine-fips:0.2.4-alpine3.19@sha256:2a7f8451110b588b733e4cb8727a48153057b1debac5c78ef8a539ff63712fa1 AS alpine-fips-3.19
+FROM ghcr.io/nginx/alpine-fips:0.2.4-alpine3.21@sha256:5221dec2e33436f2586c743c7aa3ef4626c0ec54184dc3364d101036d4f4a060 AS alpine-fips-3.21
+FROM redhat/ubi9-minimal:9.5@sha256:ac61c96b93894b9169221e87718733354dd3765dd4a62b275893c7ff0d876869 AS ubi-minimal
 FROM golang:1.24-alpine@sha256:43c094ad24b6ac0546c62193baeb3e6e49ce14d3250845d166c77c25f64b0386 AS golang-builder
 
 
