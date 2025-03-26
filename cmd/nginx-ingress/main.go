@@ -229,7 +229,7 @@ func main() {
 
 	// Verify if NIC's version supports OpenTracing module and configure it.
 	otEnabled := func(version nginx.Version) bool {
-		supported, err := nginx.IsOpenTracingSupported(nginxVersion)
+		supported, err := nginx.IsOpenTracingSupported(version)
 		if err != nil {
 			logEventAndExit(ctx, eventRecorder, pod, nl.EventReasonBadConfig, err)
 		}
