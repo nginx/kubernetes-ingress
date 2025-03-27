@@ -52,9 +52,10 @@ RUN --mount=from=busybox:musl,src=/bin/,dst=/bin/ printf "%s\n" "Acquire::https:
 	&& if ! grep -q "${PACKAGE_REPO}" 90pkgs-nginx ; then cat 90pkgs-nginx | sed -e "s/pkgs.nginx.com/${PACKAGE_REPO}/g" >> 90pkgs-nginx; fi \
 	&& printf "%s\n" "user_agent=k8s-ic-$IC_VERSION${BUILD_OS##ubi*plus}-dnf" | tee -a nginx-plus-*.repo \
 	&& sed -i -e "s;%VERSION%;${NGINX_PLUS_VERSION};g" -e "s;pkgs.nginx.com;${PACKAGE_REPO};g" -e "s;${PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" *.sources \
+	&& sed -e "y/0/1/" -e "s;nginx-agent/;nginx-agentv3/;g" nginx-agent.repo > nginx-agentv3.repo \
 	&& sed -i -e "y/0/1/" app-protect-v5-*.repo \
 	&& sed -i -e "y/0/1/" -e "1,8s;/centos;/${NGINX_PLUS_VERSION}/centos;" -e "s;pkgs.nginx.com;${PACKAGE_REPO};g" -e "s;${PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" nginx-plus-*.repo app-protect-?.repo app-protect-dos-9.repo \
-	&& sed -i -e "y/0/1/" -e "s;pkgs.nginx.com;${PACKAGE_REPO};g" nginx-agent.repo app-protect-v5-?.repo \
+	&& sed -i -e "y/0/1/" -e "s;pkgs.nginx.com;${PACKAGE_REPO};g" nginx-agent.repo nginx-agentv3.repo app-protect-v5-?.repo \
 	&& echo HTTP_USER_AGENT="k8s-ic-$IC_VERSION${BUILD_OS##alpine-plus}-apk" > user_agent
 
 ADD --link --chown=101:0 --chmod=0755 https://raw.githubusercontent.com/nginx/k8s-common/main/files/patch-os.sh patch-os.sh
@@ -90,20 +91,43 @@ USER 101
 FROM nginx:1.27.4-alpine@sha256:4ff102c5d78d254a6f0da062b3cf39eaf07f01eec0927fd21e219d0af8bc0591 AS alpine
 
 RUN --mount=type=bind,from=alpine-opentracing-lib,target=/tmp/ot/ \
+	--mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
+	--mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
+	--mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk/keys/nginx_signing.rsa.pub \
+	--mount=type=bind,from=nginx-files,src=user_agent,target=/tmp/user_agent \
+	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
 	apk add --no-cache libcap libstdc++ \
+	&& export $(cat /tmp/user_agent) \
+	&& printf "%s\n" "https://${PACKAGE_REPO}/nginx-agentv3/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
+	&& apk add --no-cache nginx-agent \
 	&& cp -av /tmp/ot/usr/local/lib/libopentracing.so* /tmp/ot/usr/local/lib/libjaegertracing*so* /tmp/ot/usr/local/lib/libzipkin*so* /tmp/ot/usr/local/lib/libdd*so* /tmp/ot/usr/local/lib/libyaml*so* /usr/local/lib/ \
 	&& cp -av /tmp/ot/usr/lib/nginx/modules/ngx_http_opentracing_module.so /usr/lib/nginx/modules/ \
-	&& ldconfig /usr/local/lib/
+	&& ldconfig /usr/local/lib/ \
+	&& agent.sh \
+	&& sed -i -e '/nginx.com/d' /etc/apk/repositories
 
 
 ############################################# Base image for Debian #############################################
 FROM nginx:1.27.4@sha256:124b44bfc9ccd1f3cedf4b592d4d1e8bddb78b51ec2ed5056c52d3692baebc19 AS debian
 
 RUN --mount=type=bind,from=opentracing-lib,target=/tmp/ot/ \
+	--mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
+	--mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
+	--mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_signing.key \
+	--mount=type=bind,from=nginx-files,src=90pkgs-nginx,target=/etc/apt/apt.conf.d/90pkgs-nginx \
+	--mount=type=bind,from=nginx-files,src=debian-agentv3-12.sources,target=/tmp/nginx-agent.sources \
+	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
 	apt-get update \
-	&& apt-get install --no-install-recommends --no-install-suggests -y libcap2-bin \
+	&& apt-get install --no-install-recommends --no-install-suggests -y gpg libcap2-bin \
+	&& gpg --dearmor -o /usr/share/keyrings/nginx-archive-keyring.gpg /tmp/nginx_signing.key \
+	&& cp /tmp/nginx-agent.sources /etc/apt/sources.list.d/nginx-agent.sources \
+	&& apt-get update \
+	&& apt-get install --no-install-recommends --no-install-suggests -y nginx-agent \
+	&& apt-get purge --auto-remove -y gpg \
 	&& cp -av /tmp/ot/usr/local/lib/libopentracing.so* /tmp/ot/usr/local/lib/libjaegertracing*so* /tmp/ot/usr/local/lib/libzipkin*so* /tmp/ot/usr/local/lib/libdd*so* /tmp/ot/usr/local/lib/libyaml*so* /usr/local/lib/ \
 	&& cp -av /tmp/ot/usr/lib/nginx/modules/ngx_http_opentracing_module.so /usr/lib/nginx/modules/ \
+	&& rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/nginx-agent.sources \
+	&& agent.sh \
 	&& ldconfig
 
 
@@ -128,10 +152,14 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_s
 	--mount=type=bind,from=nginx-files,src=ubi-setup.sh,target=/usr/local/bin/ubi-setup.sh \
 	--mount=type=bind,from=nginx-files,src=ubi-clean.sh,target=/usr/local/bin/ubi-clean.sh \
 	--mount=type=bind,from=ubi-ppc64le,src=/,target=/ubi-bin/ \
+	--mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
+	--mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
+	--mount=type=bind,from=nginx-files,src=nginx-agentv3.repo,target=/etc/yum.repos.d/nginx-agent.repo,rw \
+	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
 	ubi-setup.sh; \
 	if [ $(uname -p) = ppc64le ] || [ $(uname -p) = s390x ]; then \
 	rpm -qa --queryformat "%{NAME}\n" | sort > pkgs-installed \
-	&& microdnf --nodocs --setopt=install_weak_deps=0 install -y diffutils dnf \
+	&& microdnf --nodocs --setopt=install_weak_deps=0 install -y diffutils dnf nginx-agent \
 	&& rpm -qa --queryformat "%{NAME}\n" | sort > pkgs-new \
 	&& dnf install -y /ubi-bin/*.rpm \
 	&& dnf -q repoquery --resolve --requires --recursive --whatrequires nginx --queryformat "%{NAME}" > pkgs-nginx \
@@ -141,7 +169,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_s
 	printf "%s\n" "[nginx]" "name=nginx repo" \
 	"baseurl=https://nginx.org/packages/mainline/centos/9/\$basearch/" \
 	"gpgcheck=1" "enabled=1" "module_hotfixes=true" > /etc/yum.repos.d/nginx.repo \
-	&& microdnf --nodocs install -y nginx nginx-module-njs nginx-module-image-filter nginx-module-xslt \
+	&& microdnf --nodocs install -y nginx nginx-module-njs nginx-module-image-filter nginx-module-xslt nginx-agent \
 	&& rm /etc/yum.repos.d/nginx.repo; \
 	fi \
 	&& ubi-clean.sh
@@ -159,13 +187,16 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 	--mount=type=bind,from=alpine-opentracing-lib,target=/tmp/ot/ \
 	--mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk/keys/nginx_signing.rsa.pub \
 	--mount=type=bind,from=nginx-files,src=user_agent,target=/tmp/user_agent \
+	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
 	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
 	export $(cat /tmp/user_agent) \
 	&& printf "%s\n" "https://${PACKAGE_REPO}/plus/${NGINX_PLUS_VERSION}/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
-	&& apk add --no-cache nginx-plus nginx-plus-module-njs nginx-plus-module-opentracing nginx-plus-module-fips-check libcap libcurl \
+	&& printf "%s\n" "https://${PACKAGE_REPO}/nginx-agentv3/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
+	&& apk add --no-cache nginx-plus nginx-plus-module-njs nginx-plus-module-opentracing nginx-plus-module-fips-check nginx-agent libcap libcurl \
 	&& cp -av /tmp/ot/usr/local/lib/libjaegertracing*so* /tmp/ot/usr/local/lib/libzipkin*so* /tmp/ot/usr/local/lib/libdd*so* /tmp/ot/usr/local/lib/libyaml*so* /usr/local/lib/ \
 	&& mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
 	&& ldconfig /usr/local/lib/ \
+	&& agent.sh \
 	&& sed -i -e '/nginx.com/d' /etc/apk/repositories
 
 
@@ -276,6 +307,8 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=app-protect-security-updates.key,target=/tmp/app-protect-security-updates.key \
 	--mount=type=bind,from=nginx-files,src=90pkgs-nginx,target=/etc/apt/apt.conf.d/90pkgs-nginx \
 	--mount=type=bind,from=nginx-files,src=debian-plus-12.sources,target=/tmp/nginx-plus.sources \
+	--mount=type=bind,from=nginx-files,src=debian-agentv3-12.sources,target=/etc/apt/sources.list.d/nginx-agent.sources \
+	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
 	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
 	apt-get update \
 	&& apt-get install --no-install-recommends --no-install-suggests -y gpg ca-certificates libcap2-bin libcurl4 \
@@ -285,33 +318,14 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& gpg --dearmor -o /usr/share/keyrings/app-protect-archive-keyring.gpg /tmp/app-protect-security-updates.key \
 	&& cp /tmp/nginx-plus.sources /etc/apt/sources.list.d/nginx-plus.sources \
 	&& apt-get update \
-	&& apt-get install --no-install-recommends --no-install-suggests -y nginx-plus nginx-plus-module-njs nginx-plus-module-opentracing nginx-plus-module-fips-check \
+	&& apt-get install --no-install-recommends --no-install-suggests -y nginx-plus nginx-plus-module-njs nginx-plus-module-opentracing nginx-plus-module-fips-check nginx-agent \
 	&& apt-get purge --auto-remove -y gpg \
 	&& cp -av /tmp/ot/usr/local/lib/libjaegertracing*so* /tmp/ot/usr/local/lib/libzipkin*so* /tmp/ot/usr/local/lib/libdd*so* /tmp/ot/usr/local/lib/libyaml*so* /usr/local/lib/ \
 	&& mkdir -p /etc/nginx/reporting/ \
 	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
 	&& ldconfig \
+	&& agent.sh \
 	&& rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/nginx-plus.sources
-
-
-############################################# Base image for Debian with NGINX Plus and App Protect WAF/DoS #############################################
-FROM debian-plus AS agent-v3-plus
-ARG NGINX_AGENT
-ARG NGINX_PLUS_VERSION
-
-ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
-
-RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
-	--mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
-	--mount=type=bind,from=opentracing-lib,target=/tmp/ot/ \
-	--mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_signing.key \
-	--mount=type=bind,from=nginx-files,src=90pkgs-nginx,target=/etc/apt/apt.conf.d/90pkgs-nginx \
-	--mount=type=bind,from=nginx-files,src=debian-agentv3-12.sources,target=/etc/apt/sources.list.d/nginx-agent.sources \
-	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
-	apt-get update \
-	&& if [ "${NGINX_AGENT}" = "true" ]; then apt-get install --no-install-recommends --no-install-suggests -y nginx-agent; fi \
-	&& rm -rf /var/lib/apt/lists/* \
-	&& if [ "${NGINX_AGENT}" = "true" ]; then agent.sh; fi
 
 
 ############################################# Base image for Debian with NGINX Plus and App Protect WAF/DoS #############################################
@@ -406,10 +420,14 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=nginx-plus-9.repo,target=/etc/yum.repos.d/nginx-plus.repo \
 	--mount=type=bind,from=nginx-files,src=ubi-setup.sh,target=/usr/local/bin/ubi-setup.sh \
 	--mount=type=bind,from=nginx-files,src=ubi-clean.sh,target=/usr/local/bin/ubi-clean.sh \
+	--mount=type=bind,from=nginx-files,src=nginx-agentv3.repo,target=/etc/yum.repos.d/nginx-agent.repo,rw \
+	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
 	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
-	mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
+	mkdir -p /etc/nginx/reporting/ \
+	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
 	&& ubi-setup.sh \
-	&& microdnf --nodocs install -y nginx-plus nginx-plus-module-njs nginx-plus-module-fips-check \
+	&& microdnf --nodocs install -y nginx-plus nginx-plus-module-njs nginx-plus-module-fips-check nginx-agent \
+	&& agent.sh	\
 	&& ubi-clean.sh
 
 
