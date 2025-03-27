@@ -495,9 +495,6 @@ features:
   - metrics
   - file-watcher
 
-labels:
-  config-sync-group: "{{ default (include "nginx-ingress.controller.fullname" .) .Values.nginxAgent.configSyncGroup }}"
-
 ## command server settings
 command:
   server:
