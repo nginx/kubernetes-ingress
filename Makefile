@@ -2,7 +2,8 @@
 VER = $(shell grep IC_VERSION .github/data/version.txt | cut -d '=' -f 2)
 GIT_TAG = $(shell git describe --exact-match --tags || echo untagged)
 VERSION = $(VER)-SNAPSHOT
-PLUS_ARGS = --secret id=nginx-repo.crt,src=nginx-repo.crt --secret id=nginx-repo.key,src=nginx-repo.key
+CERT_ARGS = --secret id=nginx-repo.crt,src=nginx-repo.crt --secret id=nginx-repo.key,src=nginx-repo.key
+PLUS_ARGS = $(CERT_ARGS)
 
 # Variables that can be overridden
 REGISTRY                      ?= ## The registry where the image is located.
@@ -133,11 +134,11 @@ build-goreleaser: ## Build Ingress Controller binary using GoReleaser
 
 .PHONY: debian-image
 debian-image: build ## Create Docker image for Ingress Controller (Debian)
-	$(DOCKER_CMD) --build-arg BUILD_OS=debian
+	$(DOCKER_CMD) $(CERT_ARGS) --build-arg BUILD_OS=debian
 
 .PHONY: alpine-image
 alpine-image: build ## Create Docker image for Ingress Controller (Alpine)
-	$(DOCKER_CMD) --build-arg BUILD_OS=alpine
+	$(DOCKER_CMD) $(CERT_ARGS) --build-arg BUILD_OS=alpine
 
 .PHONY: alpine-image-plus
 alpine-image-plus: build ## Create Docker image for Ingress Controller (Alpine with NGINX Plus)
@@ -190,7 +191,7 @@ debian-image-nap-dos-plus: build ## Create Docker image for Ingress Controller (
 
 .PHONY: ubi-image
 ubi-image: build ## Create Docker image for Ingress Controller (UBI)
-	$(DOCKER_CMD) --build-arg BUILD_OS=ubi
+	$(DOCKER_CMD) $(CERT_ARGS) --build-arg BUILD_OS=ubi
 
 .PHONY: ubi-image-plus
 ubi-image-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus)
