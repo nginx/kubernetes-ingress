@@ -464,6 +464,7 @@ The following tables lists the configurable parameters of the NGINX Ingress Cont
 | **controller.enableWeightChangesDynamicReload** | Enable weight changes without reloading the NGINX configuration. May require increasing `map_hash_bucket_size`, `map_hash_max_size`, `variable_hash_bucket_size`, and `variable_hash_max_size` in the [ConfigMap](https://docs.nginx.com/nginx-ingress-controller/configuration/global-configuration/configmap-resource/) if there are many two-way splits. Requires `controller.nginxplus` | false |
 | **rbac.create** | Configures RBAC. | true |
 | **rbac.clusterrole.create** | Configures creation of ClusterRole. Creation can be disabled when more fine-grained control over RBAC is required. For example when controller.watchNamespace is used. | true |
+| **rbac.clusterrolebinding.create** | Configures creation of ClusterRoleBinding. Creation can be disabled when more fine-grained control over RBAC is required. For example when controller.watchNamespace is used. | true |
 | **prometheus.create** | Expose NGINX or NGINX Plus metrics in the Prometheus format. | true |
 | **prometheus.port** | Configures the port to scrape the metrics. | 9113 |
 | **prometheus.scheme** | Configures the HTTP scheme to use for connections to the Prometheus endpoint. | http |
