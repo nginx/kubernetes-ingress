@@ -872,6 +872,27 @@ func ParseMGMTConfigMap(ctx context.Context, cfgm *v1.ConfigMap, eventLog record
 		mgmtCfgParams.Secrets.ClientAuth = strings.TrimSpace(clientAuthSecretName)
 	}
 
+	if proxyHost, exists := cfgm.Data["usage-report-proxy-host"]; exists {
+		proxyHost := strings.TrimSpace(proxyHost)
+		err := validation.ValidateHost(proxyHost)
+		if err != nil {
+			errorText := fmt.Sprintf("Configmap %s/%s: Invalid value for the usage-report-proxy-host key: got %q: %v. Ignoring.", cfgm.GetNamespace(), cfgm.GetName(), proxyHost, err)
+			nl.Error(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonIgnored, errorText)
+			configWarnings = true
+		} else {
+			mgmtCfgParams.ProxyHost = strings.TrimSpace(proxyHost)
+		}
+
+		if proxyUser := os.Getenv("PROXY_USER"); proxyUser != "" {
+			mgmtCfgParams.ProxyUser = strings.TrimSpace(proxyUser)
+		}
+
+		if proxyPass := os.Getenv("PROXY_PASS"); proxyPass != "" {
+			mgmtCfgParams.ProxyPass = strings.TrimSpace(proxyPass)
+		}
+	}
+
 	return mgmtCfgParams, configWarnings, nil
 }
 
@@ -890,6 +911,9 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 			TrustedCert:          mgmtCfgParams.Secrets.TrustedCert != "",
 			TrustedCRL:           mgmtCfgParams.Secrets.TrustedCRL != "",
 			ClientAuth:           mgmtCfgParams.Secrets.ClientAuth != "",
+			ProxyHost:            mgmtCfgParams.ProxyHost,
+			ProxyUser:            mgmtCfgParams.ProxyUser,
+			ProxyPass:            mgmtCfgParams.ProxyPass,
 		}
 	}
 
