@@ -1,5 +1,5 @@
 ---
-title: Build NGINX Ingress Controller with NGINX App Protect WAF v5
+title: Build NGINX Ingress Controller with NGINX App Protect WAF
 weight: 100
 toc: true
 type: how-to
