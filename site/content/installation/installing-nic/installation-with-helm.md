@@ -13,8 +13,6 @@ This document explains how to install F5 NGINX Ingress Controller using [Helm](h
 
 {{< note >}} All documentation should only be used with the latest stable release, indicated on [the releases page]({{< relref "releases.md" >}}) of the GitHub repository. {{< /note >}}
 
-{{< note >}} From release 4.0.1 onwards Helm chart location has changed from oci://ghcr.io/nginxinc/charts/nginx-ingress to oci://ghcr.io/nginx/charts/nginx-ingress. {{< /note >}}
-
 - A [Kubernetes Version Supported by NGINX Ingress Controller](https://docs.nginx.com/nginx-ingress-controller/technical-specifications/#supported-kubernetes-versions)
 - Helm 3.0+.
 - If you’d like to use NGINX Plus:
