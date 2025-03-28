@@ -1,10 +1,10 @@
 ---
-docs: DOCS-579
-doctypes:
-- ''
 title: Build NGINX Ingress Controller with NGINX App Protect WAF
-toc: true
 weight: 100
+toc: true
+type: how-to
+product: NIC
+docs: DOCS-579
 ---
 
 This document explains how to build a F5 NGINX Ingress Controller image with F5 NGINX App Protect WAF from source code.
