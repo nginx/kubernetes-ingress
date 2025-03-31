@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	clusterInfo "github.com/nginx/kubernetes-ingress/internal/common_cluster_info"
@@ -197,6 +198,58 @@ func (c *Collector) ServiceCounts() (map[string]int, error) {
 // BuildOS returns a string which is the base operating system image tha NIC is running in.
 func (c *Collector) BuildOS() string {
 	return c.Config.BuildOS
+}
+
+// ConfigMapKeys gets the main ConfigMap Keys from K8s API and returns the keys and an error
+func (c *Collector) ConfigMapKeys(ctx context.Context) ([]string, error) {
+	if c.Config.MainConfigMapName == "" {
+		return nil, nil
+	}
+
+	parts := strings.Split(c.Config.MainConfigMapName, "/")
+	if len(parts) != 2 {
+		return nil, nil
+	}
+	namespace, name := parts[0], parts[1]
+
+	cm, err := c.Config.K8sClientReader.CoreV1().ConfigMaps(namespace).Get(ctx, name, metaV1.GetOptions{})
+	if err != nil {
+		return nil, nil
+	}
+
+	var keys []string
+	for k := range cm.Data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	return keys, nil
+}
+
+// MGMTConfigMapKeys gets the mgmtConfigMap Keys from K8s API and returns the keys and an error
+func (c *Collector) MGMTConfigMapKeys(ctx context.Context) ([]string, error) {
+	if c.Config.MGMTConfigMapName == "" {
+		return nil, nil
+	}
+
+	parts := strings.Split(c.Config.MGMTConfigMapName, "/")
+	if len(parts) != 2 {
+		return nil, nil
+	}
+	namespace, name := parts[0], parts[1]
+
+	cm, err := c.Config.K8sClientReader.CoreV1().ConfigMaps(namespace).Get(ctx, name, metaV1.GetOptions{})
+	if err != nil {
+		return nil, nil
+	}
+
+	var keys []string
+	for k := range cm.Data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	return keys, nil
 }
 
 // lookupPlatform takes a string representing a K8s PlatformID

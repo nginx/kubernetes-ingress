@@ -16,6 +16,7 @@ import (
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 
+	api_v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -82,6 +83,16 @@ type CollectorConfig struct {
 
 	// InstallationFlags represents the list of set flags managed by NIC
 	InstallationFlags []string
+
+	// MainConfigMap represents the main ConfigMap managed by NIC.
+	MainConfigMap *api_v1.ConfigMap
+	// MainConfigMapName represents the name of the main ConfigMap.
+	MainConfigMapName string
+
+	// MGMTConfigMap represents the mgmt ConfigMap managed by NIC.
+	MGMTConfigMap *api_v1.ConfigMap
+	// MGMTConfigMapName represents the name of the MGMT ConfigMap.
+	MGMTConfigMapName string
 
 	// Indicates if using of Custom Resources is enabled.
 	CustomResourcesEnabled bool
@@ -158,6 +169,8 @@ func (c *Collector) Collect(ctx context.Context) {
 			IsPlus:                report.IsPlus,
 			InstallationFlags:     report.InstallationFlags,
 			BuildOS:               report.BuildOS,
+			ConfigMapKeys:         report.MainConfigMapKeys,
+			MGMTConfigMapKeys:     report.MGMTConfigMapKeys,
 		},
 	}
 
@@ -208,6 +221,8 @@ type Report struct {
 	IsPlus               bool
 	InstallationFlags    []string
 	BuildOS              string
+	MainConfigMapKeys    []string
+	MGMTConfigMapKeys    []string
 }
 
 // BuildReport takes context, collects telemetry data and builds the report.
@@ -304,6 +319,17 @@ func (c *Collector) BuildReport(ctx context.Context) (Report, error) {
 	loadBalancerServices := serviceCounts["LoadBalancer"]
 	externalNameServices := serviceCounts["ExternalName"]
 
+	configMapKeys, err := c.ConfigMapKeys(ctx)
+	if err != nil {
+		nl.Debugf(l, "Error fetching main ConfigMap keys: %v", err)
+		configMapKeys = []string{}
+	}
+	mgmtConfigMapKeys, err := c.MGMTConfigMapKeys(ctx)
+	if err != nil {
+		nl.Debugf(l, "Error fetching MGMT ConfigMap keys: %v", err)
+		mgmtConfigMapKeys = []string{}
+	}
+
 	return Report{
 		Name:                 "NIC",
 		Version:              c.Config.Version,
@@ -341,5 +367,7 @@ func (c *Collector) BuildReport(ctx context.Context) (Report, error) {
 		IsPlus:               isPlus,
 		InstallationFlags:    installationFlags,
 		BuildOS:              c.BuildOS(),
+		MainConfigMapKeys:    configMapKeys,
+		MGMTConfigMapKeys:    mgmtConfigMapKeys,
 	}, err
 }

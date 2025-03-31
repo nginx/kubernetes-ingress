@@ -533,6 +533,136 @@ func TestGetServices(t *testing.T) {
 	}
 }
 
+func TestConfigMapKeys(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name   string
+		config telemetry.CollectorConfig
+		want   []string
+	}{
+		{
+			name: "ConfigMap With some keys",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(
+					&apiCoreV1.ConfigMap{
+						ObjectMeta: metaV1.ObjectMeta{
+							Name:      "nginx-ingress",
+							Namespace: "nginx-ingress",
+						},
+						Data: map[string]string{
+							"proxy-buffering": "false",
+							"zone-sync":       "true",
+						},
+					},
+				),
+				MainConfigMapName: "nginx-ingress/nginx-ingress",
+			},
+			want: []string{"proxy-buffering", "zone-sync"},
+		},
+		{
+			name: "ConfigMap With no keys",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(
+					&apiCoreV1.ConfigMap{
+						ObjectMeta: metaV1.ObjectMeta{
+							Name:      "nginx-ingress",
+							Namespace: "nginx-ingress",
+						},
+						Data: map[string]string{},
+					},
+				),
+				MainConfigMapName: "nginx-ingress/nginx-ingress",
+			},
+			want: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			c, err := telemetry.NewCollector(tc.config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := c.ConfigMapKeys(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !cmp.Equal(tc.want, got) {
+				t.Error(cmp.Diff(tc.want, got))
+			}
+		})
+	}
+}
+
+func TestMGMTConfigMapKeys(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name   string
+		config telemetry.CollectorConfig
+		want   []string
+	}{
+		{
+			name: "MGMTConfigMap With some keys",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(
+					&apiCoreV1.ConfigMap{
+						ObjectMeta: metaV1.ObjectMeta{
+							Name:      "nginx-ingress-mgmt",
+							Namespace: "nginx-ingress",
+						},
+						Data: map[string]string{
+							"enforce-initial-report":    "false",
+							"license-token-secret-name": "license-token",
+						},
+					},
+				),
+				MGMTConfigMapName: "nginx-ingress/nginx-ingress-mgmt",
+			},
+			want: []string{"enforce-initial-report", "license-token-secret-name"},
+		},
+		{
+			name: "MGMTConfigMap With no keys",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(
+					&apiCoreV1.ConfigMap{
+						ObjectMeta: metaV1.ObjectMeta{
+							Name:      "nginx-ingress-mgmt",
+							Namespace: "nginx-ingress",
+						},
+						Data: map[string]string{},
+					},
+				),
+				MGMTConfigMapName: "nginx-ingress/nginx-ingress-mgmt",
+			},
+			want: nil,
+		},
+		{
+			name: "No MGMTConfigMap",
+			config: telemetry.CollectorConfig{
+				K8sClientReader:   newTestClientset(),
+				MGMTConfigMapName: "default/nginx-ingress-mgmt",
+			},
+			want: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			c, err := telemetry.NewCollector(tc.config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := c.MGMTConfigMapKeys(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !cmp.Equal(tc.want, got) {
+				t.Error(cmp.Diff(tc.want, got))
+			}
+		})
+	}
+}
+
 // newTestCollectorForClusterWithNodes returns a telemetry collector configured
 // to simulate collecting data on a cluser with provided nodes.
 func newTestCollectorForClusterWithNodes(t *testing.T, nodes ...runtime.Object) *telemetry.Collector {

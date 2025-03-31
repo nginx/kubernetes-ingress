@@ -117,4 +117,8 @@ type NICResourceCounts struct {
 	InstallationFlags []string
 	// BuildOS represents the base operating system image
 	BuildOS string
+	// ConfigMapKeys is the list of keys for the main ConfigMaps
+	ConfigMapKeys []string
+	// MGMTConfigMapKeys is the list of keys for the MGMT ConfigMap
+	MGMTConfigMapKeys []string
 }

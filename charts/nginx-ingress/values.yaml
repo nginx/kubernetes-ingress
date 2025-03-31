@@ -46,7 +46,6 @@ controller:
     # the name should not include a namespace
     # configMapName: ""
 
-
   ## Timeout in milliseconds which the Ingress Controller will wait for a successful NGINX reload after a change or at the initial start.
   nginxReloadTimeout: 60000
 
@@ -182,7 +181,7 @@ controller:
   lifecycle: {}
 
   ## The custom ConfigMap to use instead of the one provided by default
-  customConfigMap: ""
+  customConfigMap: "mycustomconfigmap"
 
   config:
     ## The name of the ConfigMap used by the Ingress Controller.
