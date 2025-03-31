@@ -99,6 +99,9 @@ These options are set with the Ingress resource and NGINX Ingress Controller's C
 
 The Ingress resource only allows you to use basic NGINX features: host and path-based routing and TLS termination.
 
-Advanced features like rewriting the request URI or inserting additional response headers are available through annotations. View the [Advanced configuration with Annotations]({{< ref "/configuration/ingress-resources/advanced-configuration-with-annotations.md" >}}) topic for more information.
+For advanced configuration, you have two options:
+
+- [Annotations]({{< ref "/configuration/ingress-resources/advanced-configuration-with-annotations.md" >}}) can be used to rewrite request URIs or inserting additional response headers.
+- [Snippets]({{< ref "/configuration/ingress-resources/advanced-configuration-with-snippets" >}}) can be used to insert raw NGINX configuration, changing generated files.
 
 Additionally, it is possible to customize the template, described in the [Custom templates]({{< relref "/configuration/global-configuration/custom-templates.md" >}}) topic.
