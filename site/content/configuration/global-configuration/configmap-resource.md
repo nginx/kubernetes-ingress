@@ -197,7 +197,9 @@ Zone Sync enables the [ngx_stream_zone_sync_module](https://nginx.org/en/docs/st
 {{< note >}} 
 If you previously installed OIDC or used `zone_sync` in the stream-snippets in [v4.0.1](https://github.com/nginx/kubernetes-ingress/tree/v4.0.1) or earlier, and you plan to enable the `zone-sync` ConfigMap key, please remove `zone_sync` from the old [stream-snippets](https://github.com/nginx/kubernetes-ingress/blob/v4.0.1/examples/custom-resources/oidc/nginx-config.yaml#L7).  Otherwise, NGINX Plus will encounter duplicate directive error `[emerg] 13#13: "zone_sync" directive is duplicate in /etc/nginx/nginx.conf:164`.
 Once upgraded, remove the [old headless service](https://github.com/nginx/kubernetes-ingress/blob/v4.0.1/examples/custom-resources/oidc/nginx-ingress-headless.yaml) deployed for OIDC.
-{{< /note >}} 
+
+If you want to enable TLS for zone synchronization for NGINX Ingress Controller, please refer to the [advanced configuration with snippets]({{< ref "/configuration/ingress-resources/advanced-configuration-with-snippets.md" >}}) and example snippets available in the [NGINX documentation](https://nginx.org/en/docs/stream/ngx_stream_zone_sync_module.html#zone_sync_ssl) for zone_sync_ssl.
+{{< /note >}}
 
 ---
 
