@@ -17,8 +17,6 @@ This document explains how to build a F5 NGINX Ingress Controller image with NGI
 
 {{< include "/compatibility-tables/nic-nap.md" >}}
 
-{{< note >}} We recommend you compile your NGINX App Protect WAF Policies with each release of NGINX Ingress Controller. This ensures your Policies remain compatible and have the latest Attack Signatures, Bot Signatures, and Threat Campaigns. {{< /note >}}
-
 ---
 
 ## Prepare the environment

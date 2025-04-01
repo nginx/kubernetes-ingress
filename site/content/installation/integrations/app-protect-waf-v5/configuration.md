@@ -61,12 +61,6 @@ spec:
       logDest: "syslog:server=syslog-svc.default:514"
 ```
 
-{{< note >}}
-We recommend compiling your NGINX App Protect WAF Policy Bundles using the [NGINX App Protect Compiler](https://docs.nginx.com/nginx-app-protect-waf/v5/admin-guide/compiler/) with each release of NGINX Ingress Controller. 
-
-This ensures Policies remain compatible and are compiled with the latest attack signatures, bot signatures, and Threat campaigns.
-{{< /note >}}
-
 ---
 
 ## Configure NGINX Plus Ingress Controller using Virtual Server resources
