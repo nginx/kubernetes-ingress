@@ -1129,6 +1129,178 @@ func TestCollectInstallationFlags(t *testing.T) {
 	}
 }
 
+func TestCollectConfigMapKeys(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name      string
+		configMap map[string]string
+		want      []string
+	}{
+		{
+			name: "one key",
+			configMap: map[string]string{
+				"error-log-level": "debug",
+			},
+			want: []string{"error-log-level"},
+		},
+		{
+			name: "two keys",
+			configMap: map[string]string{
+				"error-log-level": "debug",
+				"zone-sync":       "true",
+			},
+			want: []string{"error-log-level", "zone-sync"},
+		},
+		{
+			name:      "no keys",
+			configMap: map[string]string{},
+			want:      []string{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			buf := &bytes.Buffer{}
+			exp := &telemetry.StdoutExporter{Endpoint: buf}
+
+			configurator := newConfigurator(t)
+			namespace := "default"
+			name := "nginx-config"
+
+			cfg := telemetry.CollectorConfig{
+				Version:      telemetryNICData.ProjectVersion,
+				Configurator: configurator,
+				K8sClientReader: newTestClientset(
+					&coreV1.ConfigMap{
+						ObjectMeta: metaV1.ObjectMeta{
+							Name:      name,
+							Namespace: namespace,
+						},
+						Data: tc.configMap,
+					},
+				),
+				MainConfigMapName: fmt.Sprintf("%s/%s", namespace, name),
+			}
+
+			c, err := telemetry.NewCollector(cfg, telemetry.WithExporter(exp))
+			if err != nil {
+				t.Fatal(err)
+			}
+			c.Collect(context.Background())
+
+			telData := tel.Data{
+				ProjectName:         telemetryNICData.ProjectName,
+				ProjectVersion:      telemetryNICData.ProjectVersion,
+				ProjectArchitecture: telemetryNICData.ProjectArchitecture,
+				ClusterVersion:      telemetryNICData.ClusterVersion,
+			}
+
+			nicResourceCounts := telemetry.NICResourceCounts{
+				ConfigMapKeys: tc.want,
+			}
+
+			td := telemetry.Data{
+				Data:              telData,
+				NICResourceCounts: nicResourceCounts,
+			}
+
+			want := fmt.Sprintf("%+v", &td)
+
+			got := buf.String()
+			if !cmp.Equal(want, got) {
+				t.Error(cmp.Diff(got, want))
+			}
+		})
+	}
+}
+
+func TestCollectMGMTConfigMapKeys(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name      string
+		configMap map[string]string
+		want      []string
+	}{
+		{
+			name: "one key",
+			configMap: map[string]string{
+				"license-token-secret-name": "license-token",
+			},
+			want: []string{"license-token-secret-name"},
+		},
+		{
+			name: "two keys",
+			configMap: map[string]string{
+				"license-token-secret-name": "license-token",
+				"enforce-initial-report":    "true",
+			},
+			want: []string{"enforce-initial-report", "license-token-secret-name"},
+		},
+		{
+			name:      "no keys",
+			configMap: map[string]string{},
+			want:      []string{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			buf := &bytes.Buffer{}
+			exp := &telemetry.StdoutExporter{Endpoint: buf}
+
+			configurator := newConfigurator(t)
+			namespace := "default"
+			name := "nginx-config-mgmt"
+
+			cfg := telemetry.CollectorConfig{
+				Version:      telemetryNICData.ProjectVersion,
+				Configurator: configurator,
+				IsPlus:       true,
+				K8sClientReader: newTestClientset(
+					&coreV1.ConfigMap{
+						ObjectMeta: metaV1.ObjectMeta{
+							Name:      name,
+							Namespace: namespace,
+						},
+						Data: tc.configMap,
+					},
+				),
+				MGMTConfigMapName: fmt.Sprintf("%s/%s", namespace, name),
+			}
+
+			c, err := telemetry.NewCollector(cfg, telemetry.WithExporter(exp))
+			if err != nil {
+				t.Fatal(err)
+			}
+			c.Collect(context.Background())
+
+			telData := tel.Data{
+				ProjectName:         telemetryNICData.ProjectName,
+				ProjectVersion:      telemetryNICData.ProjectVersion,
+				ProjectArchitecture: telemetryNICData.ProjectArchitecture,
+				ClusterVersion:      telemetryNICData.ClusterVersion,
+			}
+
+			nicResourceCounts := telemetry.NICResourceCounts{
+				MGMTConfigMapKeys: tc.want,
+				IsPlus:            true,
+			}
+
+			td := telemetry.Data{
+				Data:              telData,
+				NICResourceCounts: nicResourceCounts,
+			}
+
+			want := fmt.Sprintf("%+v", &td)
+
+			got := buf.String()
+			if !cmp.Equal(want, got) {
+				t.Error(cmp.Diff(got, want))
+			}
+		})
+	}
+}
+
 func TestCollectBuildOS(t *testing.T) {
 	t.Parallel()
 

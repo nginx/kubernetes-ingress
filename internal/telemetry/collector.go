@@ -324,10 +324,13 @@ func (c *Collector) BuildReport(ctx context.Context) (Report, error) {
 		nl.Debugf(l, "Error fetching main ConfigMap keys: %v", err)
 		configMapKeys = []string{}
 	}
-	mgmtConfigMapKeys, err := c.MGMTConfigMapKeys(ctx)
-	if err != nil {
-		nl.Debugf(l, "Error fetching MGMT ConfigMap keys: %v", err)
-		mgmtConfigMapKeys = []string{}
+	var mgmtConfigMapKeys []string
+	if isPlus {
+		mgmtConfigMapKeys, err = c.MGMTConfigMapKeys(ctx)
+		if err != nil {
+			nl.Debugf(l, "Error fetching MGMT ConfigMap keys: %v", err)
+			mgmtConfigMapKeys = []string{}
+		}
 	}
 
 	return Report{
