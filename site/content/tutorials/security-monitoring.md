@@ -46,8 +46,9 @@ If you use custom container images, NGINX Agent must be installed along with NGI
    ```yaml
     kind: ConfigMap
     apiVersion: v1
-    name: <configmap name>
-    namespace: <namespace where NGINX Ingress Controller will be installed>
+    metadata:
+      name: <configmap name>
+      namespace: <namespace where NGINX Ingress Controller will be installed>
     data:
       nginx-agent.conf: |-
         log:
