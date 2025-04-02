@@ -1166,6 +1166,7 @@ func TestParseZoneSyncResolverIPV6MapResolverIPV6(t *testing.T) {
 func makeEventLogger() record.EventRecorder {
 	return record.NewFakeRecorder(1024)
 }
+
 func TestOpenTracingConfiguration(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
