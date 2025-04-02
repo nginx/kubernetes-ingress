@@ -99,12 +99,3 @@ func extractPlusVersionValues(input string) (int, int, error) {
 
 	return rValue, pValue, nil
 }
-
-// IsOpenTracingSupported takes version and determines if the version
-// supports the Open Tracing lib.
-//
-// Support for OpenTracing is dropped in NGINX Plus R34.
-// Earlier NGINX Plus versions and NGINX OSS support OpenTracing.
-func IsOpenTracingSupported(version Version) bool {
-	return !version.IsPlus
-}

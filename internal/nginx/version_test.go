@@ -127,35 +127,6 @@ func TestNginxVersionPlusGreaterThanOrEqualTo(t *testing.T) {
 	}
 }
 
-func TestIsOpenTracingSupported(t *testing.T) {
-	t.Parallel()
-
-	tt := []struct {
-		version nginx.Version
-		want    bool
-	}{
-		{
-			version: nginx.NewVersion("nginx version: nginx/1.25.1"),
-			want:    true,
-		},
-		{
-			version: nginx.NewVersion("nginx version: nginx/1.25.1 (nginx-plus-r34)"),
-			want:    false,
-		},
-		{
-			version: nginx.NewVersion("nginx version: nginx/1.25.1 (nginx-plus-r34-p1)"),
-			want:    false,
-		},
-	}
-
-	for _, tc := range tt {
-		got := nginx.IsOpenTracingSupported(tc.version)
-		if tc.want != got {
-			t.Errorf("%+v", tc.version)
-		}
-	}
-}
-
 func TestNginxVersionPlusGreaterThanOrEqualToFailsOnInalidInput(t *testing.T) {
 	t.Parallel()
 

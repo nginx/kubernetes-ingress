@@ -538,7 +538,7 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		cfgParams.MainOpenTracingTracerConfig = openTracingTracerConfig
 	}
 
-	if cfgParams.MainOpenTracingTracer != "" || cfgParams.MainOpenTracingTracerConfig != "" {
+	if cfgParams.MainOpenTracingTracer != "" && cfgParams.MainOpenTracingTracerConfig != "" {
 		cfgParams.MainOpenTracingLoadModule = true
 	}
 
@@ -547,11 +547,14 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 			nl.Error(l, err)
 			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
 			configOk = false
+		} else if openTracing && nginxPlus {
+			errorText := fmt.Sprintf("ConfigMap %s/%s key %s is not compatible with NGINX Plus", cfgm.Namespace, cfgm.Name, "opentracing")
+			nl.Warn(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			configOk = false
+			clearOpenTracingParams(cfgParams)
 		} else if !openTracing {
-			cfgParams.MainOpenTracingEnabled = false
-			cfgParams.MainOpenTracingLoadModule = false
-			cfgParams.MainOpenTracingTracer = ""
-			cfgParams.MainOpenTracingTracerConfig = ""
+			clearOpenTracingParams(cfgParams)
 		} else {
 			if cfgParams.MainOpenTracingLoadModule {
 				cfgParams.MainOpenTracingEnabled = openTracing
@@ -672,6 +675,13 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 	}
 
 	return cfgParams, configOk
+}
+
+func clearOpenTracingParams(cfgParams *ConfigParams) {
+	cfgParams.MainOpenTracingEnabled = false
+	cfgParams.MainOpenTracingLoadModule = false
+	cfgParams.MainOpenTracingTracer = ""
+	cfgParams.MainOpenTracingTracerConfig = ""
 }
 
 //nolint:gocyclo
