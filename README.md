@@ -29,7 +29,7 @@ We value community input and would love to see you at the next community call. A
 
 **Passcode:** `jpx5TM`
 
-**When**: 16:00 GMT / [Convert to your timezone](https://dateful.com/convert/gmt?t=16), every other Monday.
+**When**: 16:00 Irish Time / [Convert to your timezone](https://dateful.com/convert/irish-summer-time-ist?t=16), every other Monday.
 
 | **Community Call Dates** |
 | ------------------------ |
