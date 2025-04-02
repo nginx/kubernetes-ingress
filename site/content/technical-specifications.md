@@ -28,7 +28,8 @@ We test NGINX Ingress Controller on a range of Kubernetes platforms for each rel
 {{< bootstrap-table "table table-bordered table-striped table-responsive" >}}
 | NIC Version | Supported Kubernetes Version | NIC Helm Chart Version | NIC Operator Version | NGINX / NGINX Plus version |
 | --- | --- | --- | --- | --- |
-| {{< nic-version >}} | 1.25 - 1.32 | {{< nic-helm-version >}} | {{< nic-operator-version >}} | 1.27.4 / R33 P2 |
+| {{< nic-version >}} | 1.25 - 1.32 | {{< nic-helm-version >}} | {{< nic-operator-version >}} | 1.27.4 / R34 |
+| 4.0.1 | 1.25 - 1.32 | 2.0.1 | 3.0.1 | 1.27.4 / R33 P2 |
 | 3.7.2 | 1.25 - 1.31 | 1.4.2 | 2.4.2 | 1.27.2 / R32 P1 |
 | 3.6.2 | 1.25 - 1.31 | 1.3.2 | 2.3.2 | 1.27.1 / R32 P1 |
 | 3.5.2 | 1.23 - 1.30 | 1.2.2 | 2.2.2 | 1.27.0 / R32 |
@@ -61,7 +62,7 @@ _All images include NGINX 1.27.4._
 
 ### Images with NGINX Plus
 
-_NGINX Plus images include NGINX Plus R33._
+_NGINX Plus images include NGINX Plus R34._
 
 ---
 
