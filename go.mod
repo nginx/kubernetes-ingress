@@ -1,6 +1,7 @@
 module github.com/nginx/kubernetes-ingress
 
 go 1.24.1
+
 require (
 	github.com/aws/aws-sdk-go-v2/config v1.29.12
 	github.com/aws/aws-sdk-go-v2/service/marketplacemetering v1.28.0
