@@ -557,7 +557,7 @@ spec:
                       properties:
                         $action:
                           enum:
-                            - delete
+                          - delete
                           type: string
                         countryCode:
                           enum:

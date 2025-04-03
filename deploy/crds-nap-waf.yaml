@@ -641,7 +641,7 @@ spec:
                       properties:
                         $action:
                           enum:
-                            - delete
+                          - delete
                           type: string
                         countryCode:
                           enum:
@@ -812,7 +812,7 @@ spec:
                           - NU
                           - NF
                           - MP
-                          - NO
+                          - "NO"
                           - OM
                           - ZZ
                           - PK
