@@ -2,7 +2,7 @@
   "images": [
     {
       "label": "AP_WAF 1/4",
-      "image": "ubi-8-plus-nap",
+      "image": "debian-plus-nap",
       "type": "plus",
       "nap_modules": "waf",
       "marker": "appprotect_waf_policies_allow",
@@ -10,7 +10,7 @@
     },
     {
       "label": "AP_WAF 2/4",
-      "image": "ubi-9-plus-nap",
+      "image": "debian-plus-nap",
       "type": "plus",
       "nap_modules": "waf",
       "marker": "'appprotect_waf_policies and not appprotect_waf_policies_allow and not appprotect_waf_policies_vsr'",
