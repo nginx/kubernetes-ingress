@@ -1170,12 +1170,14 @@ func makeEventLogger() record.EventRecorder {
 func TestOpenTracingConfiguration(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		configMap    *v1.ConfigMap
-		enabled      bool
-		loadModule   bool
-		tracer       string
-		tracerConfig string
-		msg          string
+		configMap                  *v1.ConfigMap
+		isPlus                     bool
+		expectedOpenTracingEnabled bool
+		expectedLoadModule         bool
+		expectedTracer             string
+		expectedTracerConfig       string
+		expectedConfigOk           bool
+		msg                        string
 	}{
 		{
 			configMap: &v1.ConfigMap{
@@ -1185,11 +1187,42 @@ func TestOpenTracingConfiguration(t *testing.T) {
 					"opentracing-tracer-config": "/etc/nginx/opentracing.json",
 				},
 			},
-			enabled:      true,
-			loadModule:   true,
-			tracer:       "/usr/local/lib/libjaegertracing.so",
-			tracerConfig: "/etc/nginx/opentracing.json",
-			msg:          "opentracing enabled",
+			isPlus:                     false,
+			expectedOpenTracingEnabled: true,
+			expectedLoadModule:         true,
+			expectedTracer:             "/usr/local/lib/libjaegertracing.so",
+			expectedTracerConfig:       "/etc/nginx/opentracing.json",
+			expectedConfigOk:           true,
+			msg:                        "oss: opentracing enabled (valid)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"opentracing":        "true",
+					"opentracing-tracer": "/usr/local/lib/libjaegertracing.so",
+				},
+			},
+			isPlus:                     false,
+			expectedOpenTracingEnabled: false,
+			expectedLoadModule:         false,
+			expectedTracer:             "/usr/local/lib/libjaegertracing.so",
+			expectedTracerConfig:       "",
+			expectedConfigOk:           false,
+			msg:                        "oss: opentracing enabled, tracer-config not set (invalid)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"opentracing": "true",
+				},
+			},
+			isPlus:                     false,
+			expectedOpenTracingEnabled: false,
+			expectedLoadModule:         false,
+			expectedTracer:             "",
+			expectedTracerConfig:       "",
+			expectedConfigOk:           false,
+			msg:                        "oss: opentracing enabled, tracer and tracer-config not set (invalid)",
 		},
 		{
 			configMap: &v1.ConfigMap{
@@ -1199,11 +1232,13 @@ func TestOpenTracingConfiguration(t *testing.T) {
 					"opentracing-tracer-config": "/etc/nginx/opentracing.json",
 				},
 			},
-			enabled:      false,
-			loadModule:   false,
-			tracer:       "",
-			tracerConfig: "",
-			msg:          "opentracing disabled",
+			isPlus:                     false,
+			expectedOpenTracingEnabled: false,
+			expectedLoadModule:         false,
+			expectedTracer:             "",
+			expectedTracerConfig:       "",
+			expectedConfigOk:           true,
+			msg:                        "oss: opentracing disabled, tracer and tracer-config set (valid)",
 		},
 		{
 			configMap: &v1.ConfigMap{
@@ -1211,44 +1246,118 @@ func TestOpenTracingConfiguration(t *testing.T) {
 					"opentracing": "false",
 				},
 			},
-			enabled:      false,
-			loadModule:   false,
-			tracer:       "",
-			tracerConfig: "",
-			msg:          "opentracing disabled",
+			isPlus:                     false,
+			expectedOpenTracingEnabled: false,
+			expectedLoadModule:         false,
+			expectedTracer:             "",
+			expectedTracerConfig:       "",
+			expectedConfigOk:           true,
+			msg:                        "oss: opentracing disabled  (valid)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"opentracing": "false",
+				},
+			},
+			isPlus:                     true,
+			expectedOpenTracingEnabled: false,
+			expectedLoadModule:         false,
+			expectedTracer:             "",
+			expectedTracerConfig:       "",
+			expectedConfigOk:           true,
+			msg:                        "plus: opentracing explicitly disabled (valid)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{},
+			},
+			isPlus:                     true,
+			expectedOpenTracingEnabled: false,
+			expectedLoadModule:         false,
+			expectedTracer:             "",
+			expectedTracerConfig:       "",
+			expectedConfigOk:           true,
+			msg:                        "plus: no opentracing keys set (valid)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"opentracing":               "false",
+					"opentracing-tracer":        "/usr/local/lib/libjaegertracing.so",
+					"opentracing-tracer-config": "/etc/nginx/opentracing.json",
+				},
+			},
+			isPlus:                     true,
+			expectedOpenTracingEnabled: false,
+			expectedLoadModule:         false,
+			expectedTracer:             "",
+			expectedTracerConfig:       "",
+			expectedConfigOk:           true,
+			msg:                        "plus: opentracing disabled, tracer and tracer-config set (valid)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"opentracing": "true",
+				},
+			},
+			isPlus:                     true,
+			expectedOpenTracingEnabled: false,
+			expectedLoadModule:         false,
+			expectedTracer:             "",
+			expectedTracerConfig:       "",
+			expectedConfigOk:           false,
+			msg:                        "plus: opentracing enabled (invalid)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"opentracing":               "true",
+					"opentracing-tracer":        "/usr/local/lib/libjaegertracing.so",
+					"opentracing-tracer-config": "/etc/nginx/opentracing.json",
+				},
+			},
+			isPlus:                     true,
+			expectedOpenTracingEnabled: false,
+			expectedLoadModule:         false,
+			expectedTracer:             "",
+			expectedTracerConfig:       "",
+			expectedConfigOk:           false,
+			msg:                        "plus: opentracing enabled, tracer and tracer-config set (invalid)",
 		},
 	}
-	nginxPlus := false
+
 	hasAppProtect := false
 	hasAppProtectDos := false
 	hasTLSPassthrough := false
 
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
-			result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus,
+			result, configOk := ParseConfigMap(context.Background(), test.configMap, test.isPlus,
 				hasAppProtect, hasAppProtectDos, hasTLSPassthrough, makeEventLogger())
 
-			if !configOk {
-				t.Errorf("Expected valid config, got invalid")
+			if configOk != test.expectedConfigOk {
+				t.Errorf("configOk: want %v, got %v", test.expectedConfigOk, configOk)
 			}
-			if result.MainOpenTracingEnabled != test.enabled {
+			if result.MainOpenTracingEnabled != test.expectedOpenTracingEnabled {
 				t.Errorf("MainOpenTracingEnabled: want %v, got %v",
-					test.enabled, result.MainOpenTracingEnabled)
+					test.expectedOpenTracingEnabled, result.MainOpenTracingEnabled)
 			}
 
-			if result.MainOpenTracingLoadModule != test.loadModule {
+			if result.MainOpenTracingLoadModule != test.expectedLoadModule {
 				t.Errorf("MainOpenTracingLoadModule: want %v, got %v",
-					test.loadModule, result.MainOpenTracingLoadModule)
+					test.expectedLoadModule, result.MainOpenTracingLoadModule)
 			}
 
-			if result.MainOpenTracingTracer != test.tracer {
+			if result.MainOpenTracingTracer != test.expectedTracer {
 				t.Errorf("MainOpenTracingTracer: want %q, got %q",
-					test.tracer, result.MainOpenTracingTracer)
+					test.expectedTracer, result.MainOpenTracingTracer)
 			}
 
-			if result.MainOpenTracingTracerConfig != test.tracerConfig {
+			if result.MainOpenTracingTracerConfig != test.expectedTracerConfig {
 				t.Errorf("MainOpenTracingTracerConfig: want %q, got %q",
-					test.tracerConfig, result.MainOpenTracingTracerConfig)
+					test.expectedTracerConfig, result.MainOpenTracingTracerConfig)
 			}
 		})
 	}
