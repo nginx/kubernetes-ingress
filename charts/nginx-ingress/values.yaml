@@ -25,6 +25,8 @@ controller:
     # usageReport:
     #   endpoint: "product.connect.nginx.com" # Endpoint for usage report
     #   interval: 1h
+    #   proxyHost: "proxy.example.com:3138" # Proxy server for usage report, with optional port
+    #   proxyCredentialsSecretName: "proxy-credentials" # Secret containing proxy credentials, must contain a `username` and `password` field
 
     ## Configures the ssl_verify directive in the mgmt block
     # sslVerify: true
