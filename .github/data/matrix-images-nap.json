@@ -16,6 +16,12 @@
   ],
   "include": [
     {
+      "image": "ubi-8-plus-nap",
+      "target": "goreleaser",
+      "platforms": "linux/amd64",
+      "nap_modules": "waf"
+    },
+    {
       "image": "ubi-8-plus-nap-v5",
       "target": "goreleaser",
       "platforms": "linux/amd64",
@@ -25,7 +31,19 @@
       "image": "ubi-9-plus-nap",
       "target": "goreleaser",
       "platforms": "linux/amd64",
+      "nap_modules": "waf"
+    },
+    {
+      "image": "ubi-9-plus-nap",
+      "target": "goreleaser",
+      "platforms": "linux/amd64",
       "nap_modules": "dos"
+    },
+    {
+      "image": "ubi-9-plus-nap",
+      "target": "goreleaser",
+      "platforms": "linux/amd64",
+      "nap_modules": "waf,dos"
     },
     {
       "image": "alpine-plus-nap-fips",
