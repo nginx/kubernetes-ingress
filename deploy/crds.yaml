@@ -347,7 +347,7 @@ spec:
                     properties:
                       default:
                         description: sets the rate limit in this policy to be the
-                          default if no conditions are met.   In a group of policies
+                          default if no conditions are met. In a group of policies
                           with the same JWT condition, only one policy can be the
                           default.
                         type: boolean
