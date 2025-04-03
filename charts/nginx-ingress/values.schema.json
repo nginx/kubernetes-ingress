@@ -142,6 +142,29 @@
                     "1h",
                     "24h"
                   ]
+                },
+                "proxyHost": {
+                  "type": "string",
+                  "title": "The proxy hostname with optional port",
+                  "default": "",
+                  "examples": [
+                    "proxy.example.com",
+                    "proxy.local",
+                    "proxy",
+                    "192.168.1.254",
+                    "proxy.example.com:3128",
+                    "proxy.local:3128",
+                    "proxy:3128",
+                    "192.168.1.254:3128"
+                  ]
+                },
+                "proxyCredentialsSecretName": {
+                  "type": "string",
+                  "default": "",
+                  "title": "The secret containing the proxy username/password combination.  Must contain a `username` and `password` field",
+                  "examples": [
+                    "proxy-credentials"
+                  ]
                 }
               }
             },
