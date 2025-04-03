@@ -1,19 +1,23 @@
 ---
-docs: DOCS-000
-doctypes:
-   - ''
-title: Build NGINX Ingress Controller with NGINX App Protect WAF v5
-toc: true
+title: Build NGINX Ingress Controller with NGINX App Protect WAF
 weight: 100
+toc: true
+type: how-to
+product: NIC
+docs: DOCS-000
 ---
 
-This document explains how to build a F5 NGINX Ingress Controller image with F5 NGINX App Protect WAF v5 from source code.
+This document explains how to build a F5 NGINX Ingress Controller image with NGINX App Protect WAF v5 from source code.
 
 {{<call-out "tip" "Pre-built image alternatives" >}} If you'd rather not build your own NGINX Ingress Controller image, see the [pre-built image options](#pre-built-images) at the end of this guide.{{</call-out>}}
 
-## Before you start
+## Before you begin
 
 - To use NGINX App Protect WAF with NGINX Ingress Controller, you must have NGINX Plus.
+
+{{< include "/compatibility-tables/nic-nap.md" >}}
+
+---
 
 ## Prepare the environment
 
@@ -499,18 +503,3 @@ If you prefer not to build your own NGINX Ingress Controller image, you can use 
 
 - Download the image using your NGINX Ingress Controller subscription certificate and key. View the [Get NGINX Ingress Controller from the F5 Registry]({{< relref "installation/nic-images/get-registry-image.md" >}}) topic.
 - The [Get the NGINX Ingress Controller image with JWT]({{< relref "installation/nic-images/get-image-using-jwt.md" >}}) topic describes how to use your subscription JWT token to get the image.
-
----
-
-## [NGINX App Protect WAF v5 version](https://docs.nginx.com/nginx-app-protect-waf/v5/releases/)
-
-{{< bootstrap-table "table table-bordered table-striped table-responsive" >}}
-| NIC Version | App Protect WAFv5 Version | Config Manager | Enforcer |
-| --- | --- | --- | --- |
-| {{< nic-version >}} | 33_5.342 | 5.6.0 | 5.6.0 |
-| 4.0.1 | 33_5.264 | 5.5.0 | 5.5.0 |
-| 3.7.2 | 32_5.144 | 5.3.0 | 5.3.0 |
-| 3.6.2 | 32_5.48 | 5.2.0 | 5.2.0 |
-{{% /bootstrap-table %}}
-
-{{< note >}} F5 recommends to re-compile your NGINX AppProtect WAF Policy Bundles with each release of NGINX Ingress Controller. This will ensure your Policies remain compatible and are compiled with the latest Attack Signatures, Bot Signatures, and Threat Campaigns.{{< /note >}}

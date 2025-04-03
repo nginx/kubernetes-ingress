@@ -1,17 +1,17 @@
 ---
-docs: DOCS-000
-title: Configuration
-toc: true
+title: Configure NGINX App Protect with NGINX Ingress Controller
 weight: 200
+toc: true
+type: how-to
+product: NIC
+docs: DOCS-000
 ---
 
 ## Overview
 
 This document explains how to use F5 NGINX Ingress Controller to configure [NGINX App Protect WAF v5](https://docs.nginx.com/nginx-app-protect-waf/v5/).
 
-{{< note >}} There are complete NGINX Ingress Controller with NGINX App Protect WAF [example resources on GitHub](https://github.com/nginx/kubernetes-ingress/tree/v{{< nic-version >}}/examples/custom-resources/app-protect-waf-v5).
-
-F5 recommends compiling/recompiling your NGINX AppProtect WAF Policy Bundles using the [NGINX App Protect Compiler](https://docs.nginx.com/nginx-app-protect-waf/v5/admin-guide/compiler/) with each release of NGINX Ingress Controller. This ensures Policies remain compatible and are compiled with the latest attack signatures, bot signatures, and Threat campaigns.{{< /note >}}
+{{< note >}} There are complete NGINX Ingress Controller with NGINX App Protect WAF [example resources on GitHub](https://github.com/nginx/kubernetes-ingress/tree/v{{< nic-version >}}/examples/custom-resources/app-protect-waf-v5). {{< /note >}}
 
 ## Global configuration
 
@@ -21,6 +21,7 @@ NGINX Ingress Controller has global configuration parameters that match those in
 
 NGINX App Protect WAF v5 can be enabled and configured for custom resources only(VirtualServer, VirtualServerRoute). You need to create a Policy Custom Resource referencing a policy bundle, then add it to the VirtualServer/VirtualServerRoute definition. Additional detail can be found in the [Policy Resource documentation]({{< relref "configuration/policy-resource.md#waf" >}}).
 
+---
 
 ## NGINX App Protect WAF Bundles
 
@@ -59,6 +60,8 @@ spec:
       apLogBundle: "<log_bundle_name>.tgz"
       logDest: "syslog:server=syslog-svc.default:514"
 ```
+
+---
 
 ## Configure NGINX Plus Ingress Controller using Virtual Server resources
 
