@@ -11,6 +11,109 @@ import (
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// configMapFilteredKeys and mgmtConfigMapFilteredKeys are lists containing keys from the main ConfigMap and MGMT ConfigMap that are allowed from NGINX Ingress Controller.
+// These will need to be updated if new keys are added to the ConfigMap or MGMTConfigMap.
+var configMapFilteredKeys = []string{
+	"external-status-address",
+	"server-tokens",
+	"lb-method",
+	"proxy-connect-timeout",
+	"proxy-read-timeout",
+	"proxy-send-timeout",
+	"proxy-hide-headers",
+	"proxy-pass-headers",
+	"client-max-body-size",
+	"server-names-hash-bucket-size",
+	"server-names-hash-max-size",
+	"map-hash-bucket-size",
+	"map-hash-max-size",
+	"http2",
+	"redirect-to-https",
+	"ssl-redirect",
+	"hsts",
+	"hsts-max-age",
+	"hsts-include-subdomains",
+	"hsts-behind-proxy",
+	"proxy-protocol",
+	"real-ip-header",
+	"set-real-ip-from",
+	"real-ip-recursive",
+	"ssl-protocols",
+	"ssl-prefer-server-ciphers",
+	"ssl-ciphers",
+	"ssl-dhparam-file",
+	"error-log-level",
+	"access-log",
+	"access-log-off",
+	"log-format",
+	"log-format-escaping",
+	"stream-log-format",
+	"stream-log-format-escaping",
+	"default-server-access-log-off",
+	"default-server-return",
+	"proxy-buffering",
+	"proxy-buffers",
+	"proxy-buffer-size",
+	"proxy-max-temp-file-size",
+	"main-snippets",
+	"http-snippets",
+	"location-snippets",
+	"server-snippets",
+	"worker-processes",
+	"worker-cpu-affinity",
+	"worker-shutdown-timeout",
+	"worker-connections",
+	"worker-rlimit-nofile",
+	"keepalive",
+	"max-fails",
+	"upstream-zone-size",
+	"fail-timeout",
+	"main-template",
+	"ingress-template",
+	"virtualserver-template",
+	"transportserver-template",
+	"stream-snippets",
+	"resolver-addresses",
+	"resolver-ipv6",
+	"resolver-valid",
+	"resolver-timeout",
+	"keepalive-timeout",
+	"keepalive-requests",
+	"variables-hash-bucket-size",
+	"variables-hash-max-size",
+	"opentracing-tracer",
+	"opentracing-tracer-config",
+	"opentracing",
+	"app-protect-failure-mode-action",
+	"app-protect-compressed-requests-action",
+	"app-protect-cookie-seed",
+	"app-protect-cpu-thresholds",
+	"app-protect-physical-memory-util-thresholds",
+	"app-protect-reconnect-period-seconds",
+	"app-protect-dos-log-format",
+	"app-protect-dos-log-format-escaping",
+	"app-protect-dos-arb-fqdn",
+	"zone-sync",
+	"zone-sync-port",
+	"zone-sync-resolver-addresses",
+	"zone-sync-resolver-valid",
+	"zone-sync-resolver-ipv6",
+}
+
+var mgmtConfigMapFilteredKeys = []string{
+	"license-token-secret-name",
+	"ssl-verify",
+	"resolver-addresses",
+	"resolver-ipv6",
+	"resolver-valid",
+	"enforce-initial-report",
+	"usage-report-endpoint",
+	"usage-report-interval",
+	"ssl-trusted-certificate-secret-name",
+	"ssl-certificate-secret-name",
+	"usage-report-proxy-host",
+}
+
 // NodeCount returns the total number of nodes in the cluster.
 // It returns an error if the underlying k8s API client errors.
 func (c *Collector) NodeCount(ctx context.Context) (int, error) {
@@ -200,7 +303,7 @@ func (c *Collector) BuildOS() string {
 	return c.Config.BuildOS
 }
 
-// ConfigMapKeys gets the main ConfigMap Keys from K8s API and returns the keys and an error
+// ConfigMapKeys gets the main ConfigMap keys from the K8s API and returns keys that are allowed from NGINX Ingress Controller.
 func (c *Collector) ConfigMapKeys(ctx context.Context) ([]string, error) {
 	if c.Config.MainConfigMapName == "" {
 		return nil, fmt.Errorf("config map name is required")
@@ -217,16 +320,23 @@ func (c *Collector) ConfigMapKeys(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 
+	filteredKeys := make(map[string]struct{}, len(configMapFilteredKeys))
+	for _, key := range configMapFilteredKeys {
+		filteredKeys[key] = struct{}{}
+	}
+
 	var keys []string
 	for k := range configMap.Data {
-		keys = append(keys, k)
+		if _, ok := filteredKeys[k]; ok {
+			keys = append(keys, k)
+		}
 	}
 	sort.Strings(keys)
 
 	return keys, nil
 }
 
-// MGMTConfigMapKeys gets the mgmtConfigMap Keys from K8s API and returns the keys and an error
+// MGMTConfigMapKeys gets the MGMT ConfigMap keys from the K8s API and returns keys that are allowed from NGINX Ingress Controller.
 func (c *Collector) MGMTConfigMapKeys(ctx context.Context) ([]string, error) {
 	if c.Config.MGMTConfigMapName == "" {
 		return nil, fmt.Errorf("mgmtConfigMapName is not set")
@@ -243,9 +353,16 @@ func (c *Collector) MGMTConfigMapKeys(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 
+	filteredKeys := make(map[string]struct{}, len(mgmtConfigMapFilteredKeys))
+	for _, key := range mgmtConfigMapFilteredKeys {
+		filteredKeys[key] = struct{}{}
+	}
+
 	var keys []string
 	for k := range configMap.Data {
-		keys = append(keys, k)
+		if _, ok := filteredKeys[k]; ok {
+			keys = append(keys, k)
+		}
 	}
 	sort.Strings(keys)
 
