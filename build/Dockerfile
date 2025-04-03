@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.6
 ARG BUILD_OS=debian
-ARG NGINX_PLUS_VERSION=R33
+ARG NGINX_PLUS_VERSION=R34
 ARG DOWNLOAD_TAG=edge
 ARG DEBIAN_FRONTEND=noninteractive
 ARG PREBUILT_BASE_IMG=nginx/nginx-ingress:${DOWNLOAD_TAG}
@@ -206,7 +206,7 @@ RUN --mount=type=bind,from=alpine-fips-3.19,target=/tmp/fips/ \
 	&& mkdir -p /etc/nginx/reporting/ \
 	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
 	&& ldconfig /usr/local/lib/ \
-	&& apk add --no-cache app-protect-module-plus~=33.5.264 \
+	&& apk add --no-cache app-protect-module-plus~=34.5.342 \
 	&& sed -i -e '/nginx.com/d' /etc/apk/repositories \
 	&& nap-waf.sh \
 	&& if [ "${NGINX_AGENT}" = "true" ]; then \
@@ -312,7 +312,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& apt-get update \
 	&& if [ "${NGINX_AGENT}" = "true" ]; then apt-get install --no-install-recommends --no-install-suggests -y nginx-agent; fi \
 	&& if [ -z "${NAP_MODULES##*waf*}" ]; then \
-	apt-get install --no-install-recommends --no-install-suggests -y app-protect-module-plus=33+5.264* nginx-plus-module-appprotect=33+5.264* app-protect-plugin=6.9.0*; \
+	apt-get install --no-install-recommends --no-install-suggests -y app-protect-module-plus=34+5.342* nginx-plus-module-appprotect=34+5.342* app-protect-plugin=6.12.0*; \
 	rm -f /etc/apt/sources.list.d/app-protect.sources; \
 	nap-waf.sh; \
 	fi \
@@ -448,7 +448,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& if [ "${NGINX_AGENT}" = "true" ]; then microdnf --nodocs install -y nginx-agent; fi \
 	&& if [ -z "${NAP_MODULES##*waf*}" ]; then \
 	cp /tmp/app-protect-9.repo /etc/yum.repos.d/app-protect-9.repo \
-	&& microdnf --nodocs install -y app-protect-module-plus-33+5.264* \
+	&& microdnf --nodocs install -y app-protect-module-plus-34+5.342* \
 	&& nap-waf.sh \
 	&& rm -f /etc/yum.repos.d/app-protect-9.repo; \
 	fi \
@@ -539,7 +539,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& dnf config-manager --set-enabled codeready-builder-for-rhel-8-x86_64-rpms \
 	&& dnf --nodocs install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm \
 	&& if [ -z "${NAP_MODULES##*waf*}" ]; then \
-	dnf --nodocs install -y app-protect-module-plus-33+5.264*; \
+	dnf --nodocs install -y app-protect-module-plus-34+5.342*; \
 	fi \
 	&& subscription-manager unregister \
 	&& if [ -z "${NAP_MODULES##*waf*}" ]; then \
