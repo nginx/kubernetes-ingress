@@ -340,6 +340,7 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
+
     
     
 
@@ -388,7 +389,9 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -476,6 +479,7 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
+
     
     
 
@@ -524,7 +528,9 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -613,6 +619,7 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
+
     
     
 
@@ -661,7 +668,9 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
