@@ -350,10 +350,10 @@
                     },
                     "tag": {
                       "type": "string",
-                      "default": "5.5.0",
+                      "default": "5.6.0",
                       "title": "The tag of the  App Protect WAF v5 Enforcer image",
                       "examples": [
-                        "5.5.0"
+                        "5.6.0"
                       ]
                     },
                     "digest": {
@@ -390,7 +390,7 @@
                   "examples": [
                     {
                       "repository": "private-registry.nginx.com/nap/waf-enforcer",
-                      "tag": "5.5.0",
+                      "tag": "5.6.0",
                       "pullPolicy": "IfNotPresent"
                     }
                   ]
@@ -424,10 +424,10 @@
                     },
                     "tag": {
                       "type": "string",
-                      "default": "5.5.0",
+                      "default": "5.6.0",
                       "title": "The tag of the  App Protect WAF v5 Config Manager image",
                       "examples": [
-                        "5.5.0"
+                        "5.6.0"
                       ]
                     },
                     "digest": {
@@ -464,7 +464,7 @@
                   "examples": [
                     {
                       "repository": "private-registry.nginx.com/nap/waf-config-mgr",
-                      "tag": "5.5.0",
+                      "tag": "5.6.0",
                       "pullPolicy": "IfNotPresent"
                     }
                   ]
@@ -1860,7 +1860,7 @@
               "port": 50000,
               "image": {
                 "repository": "private-registry.nginx.com/nap/waf-enforcer",
-                "tag": "5.5.0",
+                "tag": "5.6.0",
                 "pullPolicy": "IfNotPresent"
               },
               "securityContext": {}
@@ -1868,7 +1868,7 @@
             "configManager": {
               "image": {
                 "repository": "private-registry.nginx.com/nap/waf-config-mgr",
-                "tag": "5.5.0",
+                "tag": "5.6.0",
                 "pullPolicy": "IfNotPresent"
               },
               "securityContext": {
@@ -2474,7 +2474,7 @@
             "port": 50000,
             "image": {
               "repository": "private-registry.nginx.com/nap/waf-enforcer",
-              "tag": "5.5.0",
+              "tag": "5.6.0",
               "pullPolicy": "IfNotPresent"
             },
             "securityContext": {}
@@ -2482,7 +2482,7 @@
           "configManager": {
             "image": {
               "repository": "private-registry.nginx.com/nap/waf-config-mgr",
-              "tag": "5.5.0",
+              "tag": "5.6.0",
               "pullPolicy": "IfNotPresent"
             },
             "securityContext": {

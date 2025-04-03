@@ -200,6 +200,7 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
+
     resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
 
@@ -248,7 +249,9 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -2073,6 +2076,7 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
+
     resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
 
@@ -2121,7 +2125,9 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -2214,6 +2220,7 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
+
     resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
 
@@ -2262,7 +2269,9 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -2355,6 +2364,7 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
+
     resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
 
@@ -2403,7 +2413,9 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -2496,6 +2508,7 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
+
     resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
 
@@ -2544,7 +2557,9 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -2637,6 +2652,7 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
+
     resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
 
@@ -2686,7 +2702,9 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -2811,6 +2829,7 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
+
     resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
 
@@ -2859,7 +2878,9 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -2965,6 +2986,7 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
+
     resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
 
@@ -3014,7 +3036,9 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -3122,6 +3146,7 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
+
     resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
 
@@ -3170,7 +3195,9 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -3263,6 +3290,7 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
+
     resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
 
@@ -3312,7 +3340,9 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -4285,6 +4315,7 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
+
     
     
 
@@ -4333,7 +4364,9 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -4427,6 +4460,7 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
+
     
     
 
@@ -4475,7 +4509,9 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -4569,6 +4605,7 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
+
     
     
 
@@ -4617,7 +4654,9 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -4711,6 +4750,7 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
+
     
     
 
@@ -4759,7 +4799,9 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -4853,6 +4895,7 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
+
     
     
 
@@ -4901,7 +4944,9 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
