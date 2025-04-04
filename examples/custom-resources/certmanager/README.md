@@ -72,7 +72,7 @@ with ```cafe.example.com```
     ```
 
     ```text
-    Server address: 10.12.0.18:80
+    Server address: 10.12.1.08:80
     Server name: coffee-7586895968-r26zn
     ...
     ```
@@ -84,7 +84,7 @@ with ```cafe.example.com```
     ```
 
     ```text
-    Server address: 10.12.0.19:80
+    Server address: 10.12.1.09:80
     Server name: tea-7cd44fcb4d-xfw2x
     ...
     ```
