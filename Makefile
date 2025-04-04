@@ -2,8 +2,9 @@
 VER = $(shell grep IC_VERSION .github/data/version.txt | cut -d '=' -f 2)
 GIT_TAG = $(shell git describe --exact-match --tags || echo untagged)
 VERSION = $(VER)-SNAPSHOT
+NGINX_PLUS_VERSION            ?= R34
 CERT_ARGS = --secret id=nginx-repo.crt,src=nginx-repo.crt --secret id=nginx-repo.key,src=nginx-repo.key
-PLUS_ARGS = $(CERT_ARGS)
+PLUS_ARGS = --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) $(CERT_ARGS)
 
 # Variables that can be overridden
 REGISTRY                      ?= ## The registry where the image is located.
@@ -71,13 +72,14 @@ staticcheck: ## Run staticcheck linter
 
 .PHONY: test
 test: ## Run GoLang tests
-	go test -tags=aws,helmunit -shuffle=on -race -coverprofile=coverage.txt -covermode=atomic ./...
+	go test -tags=aws,helmunit -shuffle=on ./...
 
 .PHONY: test-update-snaps
 test-update-snaps:
-	UPDATE_SNAPS=true go test -tags=aws,helmunit -shuffle=on -race ./...
+	UPDATE_SNAPS=true go test -tags=aws,helmunit -shuffle=on ./...
 
-cover: test ## Generate coverage report
+cover: ## Generate coverage report
+	go test -tags=aws,helmunit -shuffle=on -race -coverprofile=coverage.txt -covermode=atomic ./...
 
 cover-html: test ## Generate and show coverage report in HTML format
 	go tool cover -html coverage.txt

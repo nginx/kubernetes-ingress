@@ -25,6 +25,8 @@ controller:
     # usageReport:
     #   endpoint: "product.connect.nginx.com" # Endpoint for usage report
     #   interval: 1h
+    #   proxyHost: "proxy.example.com:3138" # Proxy server for usage report, with optional port
+    #   proxyCredentialsSecretName: "proxy-credentials" # Secret containing proxy credentials, must contain a `username` and `password` field
 
     ## Configures the ssl_verify directive in the mgmt block
     # sslVerify: true
@@ -82,7 +84,7 @@ controller:
         repository: private-registry.nginx.com/nap/waf-enforcer
 
         ## The tag of the App Protect WAF v5 Enforcer image.
-        tag: "5.5.0"
+        tag: "5.6.0"
         ## The digest of the App Protect WAF v5 Enforcer image.
         ## If digest is specified it has precedence over tag and will be used instead
         # digest: "sha256:CHANGEME"
@@ -98,7 +100,7 @@ controller:
         repository: private-registry.nginx.com/nap/waf-config-mgr
 
         ## The tag of the App Protect WAF v5 Configuration Manager image.
-        tag: "5.5.0"
+        tag: "5.6.0"
         ## The digest of the App Protect WAF v5 Configuration Manager image.
         ## If digest is specified it has precedence over tag and will be used instead
         # digest: "sha256:CHANGEME"

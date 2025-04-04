@@ -29,16 +29,16 @@ We value community input and would love to see you at the next community call. A
 
 **Passcode:** `jpx5TM`
 
-**When**: 16:00 GMT / [Convert to your timezone](https://dateful.com/convert/gmt?t=16), every other Monday.
+**When**: 16:00 Irish Time / [Convert to your timezone](https://dateful.com/convert/irish-summer-time-ist?t=16), every other Monday.
 
 | **Community Call Dates** |
 | ------------------------ |
-| **2025-01-13**           |
-| **2025-01-27**           |
-| **2025-02-10**           |
-| **2025-02-24**           |
-| **2025-03-11**           |
-| **2025-03-24**           |
+| **2025-04-07**           |
+| **2025-04-22**           |
+| **2025-05-05**           |
+| **2025-05-19**           |
+| **2025-06-02**           |
+| **2025-06-16**           |
 
 ---
 
@@ -66,9 +66,7 @@ Controller with NGINX Plus.
 > **Note**
 >
 > This project is different from the NGINX Ingress Controller in
-[kubernetes/ingress-nginx](https://github.com/kubernetes/ingress-nginx) repo. See [this
-doc](https://docs.nginx.com/nginx-ingress-controller/intro/nginx-ingress-controllers) to find out about the key
-differences.
+[kubernetes/ingress-nginx](https://github.com/kubernetes/ingress-nginx) repo.
 
 ## Ingress and Ingress Controller
 

@@ -205,6 +205,9 @@ type MGMTConfigParams struct {
 	Endpoint             string
 	Interval             string
 	Secrets              MGMTSecrets
+	ProxyHost            string
+	ProxyUser            string
+	ProxyPass            string
 }
 
 // NewDefaultConfigParams creates a ConfigParams with default values.
