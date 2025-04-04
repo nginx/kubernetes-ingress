@@ -77,7 +77,7 @@ of a request with `webapp.example.com`
     ```
 
     ```text
-    Server address: 10.12.1.08:80
+    Server address: 10.12.0.18:80
     Server name: webapp-7586895968-r26zn
     ...
     ```
