@@ -42,6 +42,67 @@ func TestExecuteTemplate_FailsOnBogusIngressTemplatePath(t *testing.T) {
 	}
 }
 
+func TestExecuteMainTemplateForNGINXPlusMGMTProxyHost(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusMainTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, mainCfgWithMGMTProxyWithNoAuth)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !strings.Contains(buf.String(), "proxy proxy.example.com;") {
+		t.Errorf("want %q in generated config", "proxy proxy.example.com;")
+	}
+
+	snaps.MatchSnapshot(t, buf.String())
+	t.Log(buf.String())
+}
+
+func TestExecuteMainTemplateForNGINXPlusMGMTProxyUser(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusMainTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, mainCfgWithMGMTProxyWithUser)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !strings.Contains(buf.String(), "proxy_username user;") {
+		t.Errorf("want %q in generated config", "proxy_username user;")
+	}
+
+	snaps.MatchSnapshot(t, buf.String())
+	t.Log(buf.String())
+}
+
+func TestExecuteMainTemplateForNGINXPlusMGMTProxyUserAndPass(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusMainTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, mainCfgWithMGMTProxyWithUserAndPass)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !strings.Contains(buf.String(), "proxy_username user;") {
+		t.Errorf("want %q in generated config", "proxy_username user;")
+	}
+
+	if !strings.Contains(buf.String(), "proxy_password pass;") {
+		t.Errorf("want %q in generated config", "proxy_password pass;")
+	}
+
+	snaps.MatchSnapshot(t, buf.String())
+	t.Log(buf.String())
+}
+
 func TestExecuteMainTemplateForNGINXPlus(t *testing.T) {
 	t.Parallel()
 
@@ -2453,6 +2514,33 @@ var (
 		VariablesHashMaxSize:     1024,
 		NginxVersion:             nginx.NewVersion("nginx version: nginx/1.27.2 (nginx-plus-r33)"),
 		AccessLog:                "/dev/stdout main",
+	}
+
+	mainCfgWithMGMTProxyWithNoAuth = MainConfig{
+		StaticSSLPath: fakeManager.GetSecretsDir(),
+
+		MGMTConfig: MGMTConfig{
+			ProxyHost: "proxy.example.com",
+		},
+	}
+
+	mainCfgWithMGMTProxyWithUser = MainConfig{
+		StaticSSLPath: fakeManager.GetSecretsDir(),
+
+		MGMTConfig: MGMTConfig{
+			ProxyHost: "proxy.example.com",
+			ProxyUser: "user",
+		},
+	}
+
+	mainCfgWithMGMTProxyWithUserAndPass = MainConfig{
+		StaticSSLPath: fakeManager.GetSecretsDir(),
+
+		MGMTConfig: MGMTConfig{
+			ProxyHost: "proxy.example.com",
+			ProxyUser: "user",
+			ProxyPass: "pass",
+		},
 	}
 
 	mainCfgWithZoneSyncEnabledDefaultPort = MainConfig{

@@ -484,7 +484,7 @@ jobs:
           fail-on-cache-miss: true
 
       - name: Azure login
-        uses: azure/login@a65d910e8af852a8061c627c456678983e180302 # v2.2.0
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -591,7 +591,7 @@ jobs:
         if: ${{ ! inputs.dry_run }}
 
       - name: Send Notification
-        uses: 8398a7/action-slack@28ba43ae48961b90635b50953d216767a6bea486 # v3.16.2
+        uses: 8398a7/action-slack@1750b5085f3ec60384090fb7c52965ef822e869e # v3.18.0
         with:
           status: custom
           custom_payload: |
@@ -647,7 +647,7 @@ jobs:
           echo "sha_long=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
       - name: Send Notification
-        uses: 8398a7/action-slack@28ba43ae48961b90635b50953d216767a6bea486 # v3.16.2
+        uses: 8398a7/action-slack@1750b5085f3ec60384090fb7c52965ef822e869e # v3.18.0
         with:
           status: custom
           custom_payload: |

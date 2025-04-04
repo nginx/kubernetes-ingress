@@ -538,7 +538,7 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		cfgParams.MainOpenTracingTracerConfig = openTracingTracerConfig
 	}
 
-	if cfgParams.MainOpenTracingTracer != "" || cfgParams.MainOpenTracingTracerConfig != "" {
+	if cfgParams.MainOpenTracingTracer != "" && cfgParams.MainOpenTracingTracerConfig != "" {
 		cfgParams.MainOpenTracingLoadModule = true
 	}
 
@@ -547,11 +547,14 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 			nl.Error(l, err)
 			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
 			configOk = false
+		} else if openTracing && nginxPlus {
+			errorText := fmt.Sprintf("ConfigMap %s/%s key %s is not compatible with NGINX Plus", cfgm.Namespace, cfgm.Name, "opentracing")
+			nl.Warn(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			configOk = false
+			clearOpenTracingParams(cfgParams)
 		} else if !openTracing {
-			cfgParams.MainOpenTracingEnabled = false
-			cfgParams.MainOpenTracingLoadModule = false
-			cfgParams.MainOpenTracingTracer = ""
-			cfgParams.MainOpenTracingTracerConfig = ""
+			clearOpenTracingParams(cfgParams)
 		} else {
 			if cfgParams.MainOpenTracingLoadModule {
 				cfgParams.MainOpenTracingEnabled = openTracing
@@ -672,6 +675,13 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 	}
 
 	return cfgParams, configOk
+}
+
+func clearOpenTracingParams(cfgParams *ConfigParams) {
+	cfgParams.MainOpenTracingEnabled = false
+	cfgParams.MainOpenTracingLoadModule = false
+	cfgParams.MainOpenTracingTracer = ""
+	cfgParams.MainOpenTracingTracerConfig = ""
 }
 
 //nolint:gocyclo
@@ -872,6 +882,27 @@ func ParseMGMTConfigMap(ctx context.Context, cfgm *v1.ConfigMap, eventLog record
 		mgmtCfgParams.Secrets.ClientAuth = strings.TrimSpace(clientAuthSecretName)
 	}
 
+	if proxyHost, exists := cfgm.Data["usage-report-proxy-host"]; exists {
+		proxyHost := strings.TrimSpace(proxyHost)
+		err := validation.ValidateHost(proxyHost)
+		if err != nil {
+			errorText := fmt.Sprintf("Configmap %s/%s: Invalid value for the usage-report-proxy-host key: got %q: %v. Ignoring.", cfgm.GetNamespace(), cfgm.GetName(), proxyHost, err)
+			nl.Error(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonIgnored, errorText)
+			configWarnings = true
+		} else {
+			mgmtCfgParams.ProxyHost = strings.TrimSpace(proxyHost)
+		}
+
+		if proxyUser := os.Getenv("PROXY_USER"); proxyUser != "" {
+			mgmtCfgParams.ProxyUser = strings.TrimSpace(proxyUser)
+		}
+
+		if proxyPass := os.Getenv("PROXY_PASS"); proxyPass != "" {
+			mgmtCfgParams.ProxyPass = strings.TrimSpace(proxyPass)
+		}
+	}
+
 	return mgmtCfgParams, configWarnings, nil
 }
 
@@ -890,6 +921,9 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 			TrustedCert:          mgmtCfgParams.Secrets.TrustedCert != "",
 			TrustedCRL:           mgmtCfgParams.Secrets.TrustedCRL != "",
 			ClientAuth:           mgmtCfgParams.Secrets.ClientAuth != "",
+			ProxyHost:            mgmtCfgParams.ProxyHost,
+			ProxyUser:            mgmtCfgParams.ProxyUser,
+			ProxyPass:            mgmtCfgParams.ProxyPass,
 		}
 	}
 

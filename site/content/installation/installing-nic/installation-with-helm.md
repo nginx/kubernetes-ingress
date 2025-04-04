@@ -210,9 +210,9 @@ The steps you should follow depend on the Helm release name:
 
 2. Checkout the latest available tag using `git checkout v{{< nic-version >}}`
 
-3. Navigate to `/kubernates-ingress/charts/nginx-ingress`
+3. Navigate to `/kubernetes-ingress/charts/nginx-ingress`
 
-4. Update the `selectorLabels: {}` field in the `values.yaml` file located at `/kubernates-ingress/charts/nginx-ingress` with the copied `Selector` value.
+4. Update the `selectorLabels: {}` field in the `values.yaml` file located at `/kubernetes-ingress/charts/nginx-ingress` with the copied `Selector` value.
     ```shell
     selectorLabels: {app: nginx-ingress-nginx-ingress}
     ```
@@ -255,9 +255,9 @@ The steps you should follow depend on the Helm release name:
 
 2. Checkout the latest available tag using `git checkout v{{< nic-version >}}`
 
-3. Navigate to `/kubernates-ingress/charts/nginx-ingress`
+3. Navigate to `/kubernetes-ingress/charts/nginx-ingress`
 
-4. Update the `selectorLabels: {}` field in the `values.yaml` file located at `/kubernates-ingress/charts/nginx-ingress` with the copied `Selector` value.
+4. Update the `selectorLabels: {}` field in the `values.yaml` file located at `/kubernetes-ingress/charts/nginx-ingress` with the copied `Selector` value.
 
     ```shell
     selectorLabels: {app: <helm_release_name>-nginx-ingress}
@@ -315,6 +315,8 @@ The following tables lists the configurable parameters of the NGINX Ingress Cont
 | **controller.mgmt.enforceInitialReport** | Configures the [enforce_initial_report](https://nginx.org/en/docs/ngx_mgmt_module.html#enforce_initial_report) directive, which enables or disables the 180-day grace period for sending the initial usage report. | false |
 | **controller.mgmt.usageReport.endpoint** | Configures the endpoint of the [usage_report](https://nginx.org/en/docs/ngx_mgmt_module.html#usage_report) directive. This is used to configure the endpoint NGINX uses to send usage reports to NIM. | product.connect.nginx.com |
 | **controller.mgmt.usageReport.interval** | Configures the interval of the [usage_report](https://nginx.org/en/docs/ngx_mgmt_module.html#usage_report) directive. This specifies the frequency that usage reports are sent. This field takes an [NGINX time](https://nginx.org/en/docs/syntax.html). | 1h |
+| **controller.mgmt.usageReport.proxyHost** | Configures the host name of the [proxy](https://nginx.org/en/docs/ngx_mgmt_module.html#proxy) directive with optional port. | N/A |
+| **controller.mgmt.usageReport.proxyCredentialsSecretName** | Configures the [proxy_username](https://nginx.org/en/docs/ngx_mgmt_module.html#proxy_username) directive as well as the [proxy_password](https://nginx.org/en/docs/ngx_mgmt_module.html#proxy_password) directive using a Kubernetes Opaque Secret. The Secret must contain `username` and `password` fields. | N/A |
 | **controller.mgmt.sslVerify** | Configures the [ssl_verify](https://nginx.org/en/docs/ngx_mgmt_module.html#ssl_verify) directive, which enables or disables verification of the usage reporting endpoint certificate.  | true |
 | **controller.mgmt.resolver.ipv6** | Configures whether the mgmt block [resolver](https://nginx.org/en/docs/ngx_mgmt_module.html#resolver) directive will look up IPv6 addresses.  | true |
 | **controller.mgmt.resolver.valid** | Configures an [NGINX time](https://nginx.org/en/docs/syntax.html) that the mgmt block [resolver](https://nginx.org/en/docs/ngx_mgmt_module.html#resolver) directive will override the TTL value of responses from nameservers with.  | N/A |
@@ -423,12 +425,12 @@ The following tables lists the configurable parameters of the NGINX Ingress Cont
 | **controller.appprotect.enforcer.host** | Host that the App Protect WAF v5 Enforcer runs on. | "127.0.0.1" |
 | **controller.appprotect.enforcer.port** | Port that the App Protect WAF v5 Enforcer runs on. | 50000 |
 | **controller.appprotect.enforcer.image.repository** | The image repository of the App Protect WAF v5 Enforcer. | private-registry.nginx.com/nap/waf-enforcer |
-| **controller.appprotect.enforcer.image.tag** | The tag of the App Protect WAF v5 Enforcer. | "5.5.0" |
+| **controller.appprotect.enforcer.image.tag** | The tag of the App Protect WAF v5 Enforcer. | "5.6.0" |
 | **controller.appprotect.enforcer.image.digest** | The digest of the App Protect WAF v5 Enforcer. Takes precedence over tag if set. | "" |
 | **controller.appprotect.enforcer.image.pullPolicy** | The pull policy for the App Protect WAF v5 Enforcer image. | IfNotPresent |
 | **controller.appprotect.enforcer.securityContext** | The security context for App Protect WAF v5 Enforcer container. | {} |
 | **controller.appprotect.configManager.image.repository** | The image repository of the App Protect WAF v5 Configuration Manager. | private-registry.nginx.com/nap/waf-config-mgr |
-| **controller.appprotect.configManager.image.tag** | The tag of the App Protect WAF v5 Configuration Manager. | "5.5.0" |
+| **controller.appprotect.configManager.image.tag** | The tag of the App Protect WAF v5 Configuration Manager. | "5.6.0" |
 | **controller.appprotect.configManager.image.digest** | The digest of the App Protect WAF v5 Configuration Manager. Takes precedence over tag if set. | "" |
 | **controller.appprotect.configManager.image.pullPolicy** | The pull policy for the App Protect WAF v5 Configuration Manager image. | IfNotPresent |
 | **controller.appprotect.configManager.securityContext** | The security context for App Protect WAF v5 Configuration Manager container. | {"allowPrivilegeEscalation":false,"runAsUser":101,"runAsNonRoot":true,"capabilities":{"drop":["all"]}} |

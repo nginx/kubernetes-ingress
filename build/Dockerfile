@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.6
 ARG BUILD_OS=debian
-ARG NGINX_PLUS_VERSION=R33
+ARG NGINX_PLUS_VERSION=R34
 ARG DOWNLOAD_TAG=edge
 ARG DEBIAN_FRONTEND=noninteractive
 ARG PREBUILT_BASE_IMG=nginx/nginx-ingress:${DOWNLOAD_TAG}
@@ -11,13 +11,13 @@ ARG PACKAGE_REPO=pkgs.nginx.com
 
 
 ############################################# Base images containing libs for Opentracing and FIPS #############################################
-FROM ghcr.io/nginx/dependencies/nginx-ot:nginx-1.27.4@sha256:89121c4736ab5a504ac570b169b6d5c98a2945488a00adff346d0538de954271 AS opentracing-lib
-FROM ghcr.io/nginx/dependencies/nginx-ot:nginx-1.27.4-alpine@sha256:5bfc1b13430d1fd33f2d0d0420f1fa1cc55d5886f174f7a6574753892448aca6 AS alpine-opentracing-lib
+FROM ghcr.io/nginx/dependencies/nginx-ot:nginx-1.27.4@sha256:5c2b2b4a7732985295153ec4ebc8764385e1215548d3715f7b679004798b9a18 AS opentracing-lib
+FROM ghcr.io/nginx/dependencies/nginx-ot:nginx-1.27.4-alpine@sha256:540c7aa2ccfb26a39304324dfb9972c3eeb9734074397e4582b062e1db3b867c AS alpine-opentracing-lib
 FROM ghcr.io/nginx/dependencies/nginx-ubi-ppc64le:nginx-1.27.4@sha256:fff4dde599b89cb22e5cea5d8cfba8c47bcedaa8e6fa549f5fe74a89c733aa2f AS ubi-ppc64le
 FROM ghcr.io/nginx/alpine-fips:0.2.4-alpine3.19@sha256:2a7f8451110b588b733e4cb8727a48153057b1debac5c78ef8a539ff63712fa1 AS alpine-fips-3.19
 FROM ghcr.io/nginx/alpine-fips:0.2.4-alpine3.21@sha256:5221dec2e33436f2586c743c7aa3ef4626c0ec54184dc3364d101036d4f4a060 AS alpine-fips-3.21
 FROM redhat/ubi9-minimal:9.5@sha256:ac61c96b93894b9169221e87718733354dd3765dd4a62b275893c7ff0d876869 AS ubi-minimal
-FROM golang:1.24-alpine@sha256:43c094ad24b6ac0546c62193baeb3e6e49ce14d3250845d166c77c25f64b0386 AS golang-builder
+FROM golang:1.24-alpine@sha256:7772cb5322baa875edd74705556d08f0eeca7b9c4b5367754ce3f2f00041ccee AS golang-builder
 
 
 ############################################# Base image for Alpine #############################################
@@ -114,14 +114,12 @@ ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
 
 RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 	--mount=type=secret,id=nginx-repo.key,dst=/etc/apk/cert.key,mode=0644 \
-	--mount=type=bind,from=alpine-opentracing-lib,target=/tmp/ot/ \
 	--mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk/keys/nginx_signing.rsa.pub \
 	--mount=type=bind,from=nginx-files,src=user_agent,target=/tmp/user_agent \
 	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
 	export $(cat /tmp/user_agent) \
 	&& printf "%s\n" "https://${PACKAGE_REPO}/plus/${NGINX_PLUS_VERSION}/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
-	&& apk add --no-cache nginx-plus nginx-plus-module-njs nginx-plus-module-opentracing nginx-plus-module-fips-check libcap libcurl \
-	&& cp -av /tmp/ot/usr/local/lib/libjaegertracing*so* /tmp/ot/usr/local/lib/libzipkin*so* /tmp/ot/usr/local/lib/libdd*so* /tmp/ot/usr/local/lib/libyaml*so* /usr/local/lib/ \
+	&& apk add --no-cache nginx-plus nginx-plus-module-njs nginx-plus-module-fips-check libcap libcurl \
 	&& mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
 	&& ldconfig /usr/local/lib/ \
 	&& sed -i -e '/nginx.com/d' /etc/apk/repositories
@@ -154,7 +152,6 @@ ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
 RUN --mount=type=bind,from=alpine-fips-3.19,target=/tmp/fips/ \
 	--mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 	--mount=type=secret,id=nginx-repo.key,dst=/etc/apk/cert.key,mode=0644 \
-	--mount=type=bind,from=alpine-opentracing-lib,target=/tmp/ot/ \
 	--mount=type=bind,from=nginx-files,src=app-protect-security-updates.rsa.pub,target=/etc/apk/keys/app-protect-security-updates.rsa.pub \
 	--mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk/keys/nginx_signing.rsa.pub \
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
@@ -164,13 +161,12 @@ RUN --mount=type=bind,from=alpine-fips-3.19,target=/tmp/fips/ \
 	&& printf "%s\n" "https://${PACKAGE_REPO}/app-protect/${NGINX_PLUS_VERSION}/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
 	&& printf "%s\n" "https://pkgs.nginx.com/app-protect-security-updates/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
 	&& printf "%s\n" "https://${PACKAGE_REPO}/nginx-agent/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
-	&& apk add --no-cache libcap-utils libcurl nginx-plus nginx-plus-module-njs nginx-plus-module-opentracing nginx-plus-module-fips-check \
+	&& apk add --no-cache libcap-utils libcurl nginx-plus nginx-plus-module-njs nginx-plus-module-fips-check \
 	&& if [ "${NGINX_AGENT}" = "true" ]; then apk add --no-cache nginx-agent; fi \
 	&& mkdir -p /usr/ssl \
 	&& cp -av /tmp/fips/usr/lib/ossl-modules/fips.so /usr/lib/ossl-modules/fips.so \
 	&& cp -av /tmp/fips/usr/ssl/fipsmodule.cnf /usr/ssl/fipsmodule.cnf \
 	&& cp -av /tmp/fips/etc/ssl/openssl.cnf /etc/ssl/openssl.cnf \
-	&& cp -av /tmp/ot/usr/local/lib/libjaegertracing*so* /tmp/ot/usr/local/lib/libzipkin*so* /tmp/ot/usr/local/lib/libdd*so* /tmp/ot/usr/local/lib/libyaml*so* /usr/local/lib/ \
 	&& mkdir -p /etc/nginx/reporting/ \
 	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
 	&& ldconfig /usr/local/lib/ \
@@ -194,7 +190,6 @@ ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
 RUN --mount=type=bind,from=alpine-fips-3.19,target=/tmp/fips/ \
 	--mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 	--mount=type=secret,id=nginx-repo.key,dst=/etc/apk/cert.key,mode=0644 \
-	--mount=type=bind,from=alpine-opentracing-lib,target=/tmp/ot/ \
 	--mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk/keys/nginx_signing.rsa.pub \
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
 	--mount=type=bind,from=nginx-files,src=nap-waf.sh,target=/usr/local/bin/nap-waf.sh \
@@ -202,17 +197,16 @@ RUN --mount=type=bind,from=alpine-fips-3.19,target=/tmp/fips/ \
 	printf "%s\n" "https://${PACKAGE_REPO}/plus/${NGINX_PLUS_VERSION}/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
 	&& printf "%s\n" "https://${PACKAGE_REPO}/app-protect-x-plus/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
 	&& printf "%s\n" "https://${PACKAGE_REPO}/nginx-agent/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
-	&& apk add --no-cache libcap-utils libcurl nginx-plus nginx-plus-module-njs nginx-plus-module-opentracing nginx-plus-module-fips-check \
+	&& apk add --no-cache libcap-utils libcurl nginx-plus nginx-plus-module-njs nginx-plus-module-fips-check \
 	&& if [ "${NGINX_AGENT}" = "true" ]; then apk add --no-cache nginx-agent; fi \
 	&& mkdir -p /usr/ssl \
 	&& cp -av /tmp/fips/usr/lib/ossl-modules/fips.so /usr/lib/ossl-modules/fips.so \
 	&& cp -av /tmp/fips/usr/ssl/fipsmodule.cnf /usr/ssl/fipsmodule.cnf \
 	&& cp -av /tmp/fips/etc/ssl/openssl.cnf /etc/ssl/openssl.cnf \
-	&& cp -av /tmp/ot/usr/local/lib/libjaegertracing*so* /tmp/ot/usr/local/lib/libzipkin*so* /tmp/ot/usr/local/lib/libdd*so* /tmp/ot/usr/local/lib/libyaml*so* /usr/local/lib/ \
 	&& mkdir -p /etc/nginx/reporting/ \
 	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
 	&& ldconfig /usr/local/lib/ \
-	&& apk add --no-cache app-protect-module-plus~=33.5.264 \
+	&& apk add --no-cache app-protect-module-plus~=34.5.342 \
 	&& sed -i -e '/nginx.com/d' /etc/apk/repositories \
 	&& nap-waf.sh \
 	&& if [ "${NGINX_AGENT}" = "true" ]; then \
@@ -229,7 +223,6 @@ ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
 	--mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
-	--mount=type=bind,from=opentracing-lib,target=/tmp/ot/ \
 	--mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_signing.key \
 	--mount=type=bind,from=nginx-files,src=app-protect-security-updates.key,target=/tmp/app-protect-security-updates.key \
 	--mount=type=bind,from=nginx-files,src=90pkgs-nginx,target=/etc/apt/apt.conf.d/90pkgs-nginx \
@@ -243,9 +236,8 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& gpg --dearmor -o /usr/share/keyrings/app-protect-archive-keyring.gpg /tmp/app-protect-security-updates.key \
 	&& cp /tmp/nginx-plus.sources /etc/apt/sources.list.d/nginx-plus.sources \
 	&& apt-get update \
-	&& apt-get install --no-install-recommends --no-install-suggests -y nginx-plus nginx-plus-module-njs nginx-plus-module-opentracing nginx-plus-module-fips-check \
+	&& apt-get install --no-install-recommends --no-install-suggests -y nginx-plus nginx-plus-module-njs nginx-plus-module-fips-check \
 	&& apt-get purge --auto-remove -y gpg \
-	&& cp -av /tmp/ot/usr/local/lib/libjaegertracing*so* /tmp/ot/usr/local/lib/libzipkin*so* /tmp/ot/usr/local/lib/libdd*so* /tmp/ot/usr/local/lib/libyaml*so* /usr/local/lib/ \
 	&& mkdir -p /etc/nginx/reporting/ \
 	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
 	&& ldconfig \
@@ -262,7 +254,6 @@ ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
 
 RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
 	--mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
-	--mount=type=bind,from=opentracing-lib,target=/tmp/ot/ \
 	--mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_signing.key \
 	--mount=type=bind,from=nginx-files,src=90pkgs-nginx,target=/etc/apt/apt.conf.d/90pkgs-nginx \
 	--mount=type=bind,from=nginx-files,src=nap-waf-12.sources,target=/tmp/app-protect.sources \
@@ -321,7 +312,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& apt-get update \
 	&& if [ "${NGINX_AGENT}" = "true" ]; then apt-get install --no-install-recommends --no-install-suggests -y nginx-agent; fi \
 	&& if [ -z "${NAP_MODULES##*waf*}" ]; then \
-	apt-get install --no-install-recommends --no-install-suggests -y app-protect-module-plus=33+5.264* nginx-plus-module-appprotect=33+5.264*; \
+	apt-get install --no-install-recommends --no-install-suggests -y app-protect-module-plus=34+5.342* nginx-plus-module-appprotect=34+5.342* app-protect-plugin=6.12.0*; \
 	rm -f /etc/apt/sources.list.d/app-protect.sources; \
 	nap-waf.sh; \
 	fi \
@@ -457,7 +448,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& if [ "${NGINX_AGENT}" = "true" ]; then microdnf --nodocs install -y nginx-agent; fi \
 	&& if [ -z "${NAP_MODULES##*waf*}" ]; then \
 	cp /tmp/app-protect-9.repo /etc/yum.repos.d/app-protect-9.repo \
-	&& microdnf --nodocs install -y app-protect-module-plus-33+5.264* \
+	&& microdnf --nodocs install -y app-protect-module-plus-34+5.342* \
 	&& nap-waf.sh \
 	&& rm -f /etc/yum.repos.d/app-protect-9.repo; \
 	fi \
@@ -548,7 +539,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& dnf config-manager --set-enabled codeready-builder-for-rhel-8-x86_64-rpms \
 	&& dnf --nodocs install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm \
 	&& if [ -z "${NAP_MODULES##*waf*}" ]; then \
-	dnf --nodocs install -y app-protect-module-plus-33+5.264*; \
+	dnf --nodocs install -y app-protect-module-plus-34+5.342*; \
 	fi \
 	&& subscription-manager unregister \
 	&& if [ -z "${NAP_MODULES##*waf*}" ]; then \

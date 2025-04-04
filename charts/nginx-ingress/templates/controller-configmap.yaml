@@ -58,6 +58,9 @@ data:
 {{- if hasKey .Values.controller.mgmt.usageReport "interval" }}
   usage-report-interval: {{ quote .Values.controller.mgmt.usageReport.interval }}
 {{- end }}
+{{- if hasKey .Values.controller.mgmt.usageReport "proxyHost" }}
+  usage-report-proxy-host: {{ quote .Values.controller.mgmt.usageReport.proxyHost }}
+{{- end }}
 {{- end }}
 {{- if hasKey .Values.controller.mgmt "sslTrustedCertificateSecretName" }}
   ssl-trusted-certificate-secret-name: {{ quote .Values.controller.mgmt.sslTrustedCertificateSecretName }}
