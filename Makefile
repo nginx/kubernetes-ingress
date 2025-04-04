@@ -168,9 +168,7 @@ debian-image-nap-plus: build ## Create Docker image for Ingress Controller (Debi
 
 .PHONY: debian-image-nap-v5-plus
 debian-image-nap-v5-plus: build ## Create Docker image for Ingress Controller (Debian with NGINX Plus and NGINX App Protect WAFv5)
-	$(DOCKER_CMD) $(PLUS_ARGS) \
-	--build-arg BUILD_OS=debian-plus-nap-v5 \
-	--build-arg NAP_MODULES=waf
+	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=debian-plus-nap-v5
 
 .PHONY: debian-image-dos-plus
 debian-image-dos-plus: build ## Create Docker image for Ingress Controller (Debian with NGINX Plus and NGINX App Protect DoS)
@@ -199,14 +197,12 @@ ubi8-image-nap-plus: build ## Create Docker image for Ingress Controller (UBI wi
 .PHONY: ubi-image-nap-v5-plus
 ubi-image-nap-v5-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus and NGINX App Protect WAFv5)
 	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license \
-	--build-arg BUILD_OS=ubi-9-plus-nap-v5 \
-	--build-arg NAP_MODULES=waf
+	--build-arg BUILD_OS=ubi-9-plus-nap-v5
 
 .PHONY: ubi8-image-nap-v5-plus
 ubi8-image-nap-v5-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus and NGINX App Protect WAFv5)
 	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license \
-	--build-arg BUILD_OS=ubi-8-plus-nap-v5 \
-	--build-arg NAP_MODULES=waf
+	--build-arg BUILD_OS=ubi-8-plus-nap-v5
 
 .PHONY: ubi-image-dos-plus
 ubi-image-dos-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus and NGINX App Protect DoS)
