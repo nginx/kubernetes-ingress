@@ -106,6 +106,7 @@ spec:
                 type: string
               ingressClassName:
                 type: string
+                default: nginx
               internalRoute:
                 description: InternalRoute allows for the configuration of internal
                   routing.
