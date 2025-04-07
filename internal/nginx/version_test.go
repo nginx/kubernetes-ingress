@@ -224,6 +224,14 @@ func TestExtractAgentVersionValues(t *testing.T) {
 			err:   false,
 		},
 		{
+			name:  "v2 semver",
+			input: "v2.40.15",
+			major: 2,
+			minor: 40,
+			patch: 15,
+			err:   false,
+		},
+		{
 			name:  "v3 semver",
 			input: "v3.0.0-hash",
 			major: 3,
