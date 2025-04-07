@@ -29,7 +29,7 @@
       "image": "debian-plus-nap",
       "type": "plus",
       "nap_modules": "waf",
-      "marker": "'appprotect_watch or appprotect_batch or appprotect_integration or appprotect_waf_policies_vsr'",
+      "marker": "'appprotect and not appprotect_waf_policies'",
       "platforms": "linux/amd64"
     },
     {
@@ -62,14 +62,6 @@
       "type": "plus",
       "nap_modules": "dos",
       "marker": "dos_learning",
-      "platforms": "linux/amd64"
-    },
-    {
-      "label": "AGENT 1/1",
-      "image": "debian-plus-nap",
-      "type": "plus",
-      "nap_modules": "waf",
-      "marker": "agent",
       "platforms": "linux/amd64"
     }
   ],
