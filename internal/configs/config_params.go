@@ -34,10 +34,6 @@ type ConfigParams struct {
 	MainLogFormat                          []string
 	MainLogFormatEscaping                  string
 	MainMainSnippets                       []string
-	MainOpenTracingEnabled                 bool
-	MainOpenTracingLoadModule              bool
-	MainOpenTracingTracer                  string
-	MainOpenTracingTracerConfig            string
 	MainServerNamesHashBucketSize          string
 	MainServerNamesHashMaxSize             string
 	MainStreamLogFormat                    []string

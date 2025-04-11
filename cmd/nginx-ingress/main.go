@@ -739,16 +739,7 @@ func mustWriteNginxMainConfig(staticCfgParams *configs.StaticConfigParams, cfgPa
 	}
 	nginxManager.CreateMainConfig(content)
 
-	nginxManager.UpdateConfigVersionFile(ngxConfig.OpenTracingLoadModule)
-
-	nginxManager.SetOpenTracing(ngxConfig.OpenTracingLoadModule)
-
-	if ngxConfig.OpenTracingLoadModule {
-		err := nginxManager.CreateOpenTracingTracerConfig(cfgParams.MainOpenTracingTracerConfig)
-		if err != nil {
-			nl.Fatalf(l, "Error creating OpenTracing tracer config file: %v", err)
-		}
-	}
+	nginxManager.UpdateConfigVersionFile()
 }
 
 // getSocketClient gets a http.Client with a unix socket transport.

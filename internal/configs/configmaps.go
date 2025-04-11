@@ -530,43 +530,6 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		}
 	}
 
-	if openTracingTracer, exists := cfgm.Data["opentracing-tracer"]; exists {
-		cfgParams.MainOpenTracingTracer = openTracingTracer
-	}
-
-	if openTracingTracerConfig, exists := cfgm.Data["opentracing-tracer-config"]; exists {
-		cfgParams.MainOpenTracingTracerConfig = openTracingTracerConfig
-	}
-
-	if cfgParams.MainOpenTracingTracer != "" && cfgParams.MainOpenTracingTracerConfig != "" {
-		cfgParams.MainOpenTracingLoadModule = true
-	}
-
-	if openTracing, exists, err := GetMapKeyAsBool(cfgm.Data, "opentracing", cfgm); exists {
-		if err != nil {
-			nl.Error(l, err)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
-			configOk = false
-		} else if openTracing && nginxPlus {
-			errorText := fmt.Sprintf("ConfigMap %s/%s key %s is not compatible with NGINX Plus", cfgm.Namespace, cfgm.Name, "opentracing")
-			nl.Warn(l, errorText)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-			configOk = false
-			clearOpenTracingParams(cfgParams)
-		} else if !openTracing {
-			clearOpenTracingParams(cfgParams)
-		} else {
-			if cfgParams.MainOpenTracingLoadModule {
-				cfgParams.MainOpenTracingEnabled = openTracing
-			} else {
-				errorText := "ConfigMap key 'opentracing' requires both 'opentracing-tracer' and 'opentracing-tracer-config' keys configured, Opentracing will be disabled, ignoring"
-				nl.Error(l, errorText)
-				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-				configOk = false
-			}
-		}
-	}
-
 	if hasAppProtect {
 		if appProtectFailureModeAction, exists := cfgm.Data["app-protect-failure-mode-action"]; exists {
 			if appProtectFailureModeAction == "pass" || appProtectFailureModeAction == "drop" {
@@ -675,13 +638,6 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 	}
 
 	return cfgParams, configOk
-}
-
-func clearOpenTracingParams(cfgParams *ConfigParams) {
-	cfgParams.MainOpenTracingEnabled = false
-	cfgParams.MainOpenTracingLoadModule = false
-	cfgParams.MainOpenTracingTracer = ""
-	cfgParams.MainOpenTracingTracerConfig = ""
 }
 
 //nolint:gocyclo
@@ -957,10 +913,6 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		NginxStatus:                        staticCfgParams.NginxStatus,
 		NginxStatusAllowCIDRs:              staticCfgParams.NginxStatusAllowCIDRs,
 		NginxStatusPort:                    staticCfgParams.NginxStatusPort,
-		OpenTracingEnabled:                 config.MainOpenTracingEnabled,
-		OpenTracingLoadModule:              config.MainOpenTracingLoadModule,
-		OpenTracingTracer:                  config.MainOpenTracingTracer,
-		OpenTracingTracerConfig:            config.MainOpenTracingTracerConfig,
 		ProxyProtocol:                      config.ProxyProtocol,
 		ResolverAddresses:                  config.ResolverAddresses,
 		ResolverIPV6:                       config.ResolverIPV6,
