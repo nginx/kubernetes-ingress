@@ -61,8 +61,6 @@ These are the data points collected and reported by NGINX Ingress Controller:
 - **ConfigMapKeys** List of ConfigMap keys from the main ConfigMap configured for NGINX Ingress Controller.
 - **MGMTConfigMapKeys** List of MGMTConfigMap keys from the mgmt ConfigMap configured for NGINX Ingress Controller.
 
-
-
 ---
 
 ## Opt out
