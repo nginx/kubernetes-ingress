@@ -145,6 +145,22 @@ http {
     {{- if .SSLDHParam}}
     ssl_dhparam {{.SSLDHParam}};
     {{- end}}
+    
+    {{- if .MainOtelEnabled}}
+    # otel_exporter {
+    #    endpoint {{ .MainOtelExporterEndpoint}};
+    #   header {{ .MainOtelExporterHeaderName }} {{ .MainOtelExporterHeaderValue }};
+        {{ if .MainOtelExporterTrustedCA}}
+    #   trusted_certificate <path>;
+        {{- end }}
+    {{ if .MainOtelServiceName}}
+     # otel_service_name {{ .MainOtelServiceName }};
+    # }
+    {{- end }}
+    {{ if .MainOtelGlobalTraceEnabled }}
+     # otel_trace on;
+    {{- end}}
+    {{- end}}
 
     {{- if .MainOtelLoadModule }}
     otel_exporter {
