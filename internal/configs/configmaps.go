@@ -578,42 +578,7 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		cfgParams.MainOtelLoadModule = true
 	}
 
-	if otelExporterEndpoint, exists := cfgm.Data["otel-exporter-endpoint"]; exists {
-		otelExporterEndpoint = strings.TrimSpace(otelExporterEndpoint)
-		if otelExporterEndpoint != "" {
-			cfgParams.MainOtelExporterEndpoint = otelExporterEndpoint
-		}
-	}
-
-	if otelExporterTrustedCA, exists := cfgm.Data["otel-exporter-trusted-ca"]; exists {
-		otelExporterTrustedCA = strings.TrimSpace(otelExporterTrustedCA)
-		if otelExporterTrustedCA != "" {
-			cfgParams.MainOtelExporterTrustedCA = otelExporterTrustedCA
-		}
-	}
-
-	if otelExporterHeaderName, exists := cfgm.Data["otel-exporter-header-name"]; exists {
-		otelExporterHeaderName = strings.TrimSpace(otelExporterHeaderName)
-		if otelExporterHeaderName != "" {
-			cfgParams.MainOtelExporterHeaderName = otelExporterHeaderName
-		}
-	}
-
-	if otelExporterHeaderValue, exists := cfgm.Data["otel-exporter-header-value"]; exists {
-		otelExporterHeaderValue = strings.TrimSpace(otelExporterHeaderValue)
-		if otelExporterHeaderValue != "" {
-			cfgParams.MainOtelExporterHeaderValue = otelExporterHeaderValue
-		}
-	}
-
-	if otelServiceName, exists := cfgm.Data["otel-service-name"]; exists {
-		otelServiceName = strings.TrimSpace(otelServiceName)
-		if otelServiceName != "" {
-			cfgParams.MainOtelServiceName = otelServiceName
-		}
-	}
-
-	if otelGlobalTraceEnabled, exists, err := GetMapKeyAsBool(cfgm.Data, "otel-global-trace-enabled", cfgm); exists {
+	if otelEnabled, exists, err := GetMapKeyAsBool(cfgm.Data, "otel-enabled", cfgm); exists {
 		if err != nil {
 			nl.Error(l, err)
 			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
