@@ -244,6 +244,14 @@ type MainConfig struct {
 	OpenTracingLoadModule              bool
 	OpenTracingTracer                  string
 	OpenTracingTracerConfig            string
+	MainOtelEnabled                    bool
+	MainOtelLoadModule                 bool
+	MainOtelGlobalTraceEnabled         bool
+	MainOtelExporterEndpoint           string
+	MainOtelExporterTrustedCA          string
+	MainOtelExporterHeaderName         string
+	MainOtelExporterHeaderValue        string
+	MainOtelServiceName                string
 	ProxyProtocol                      bool
 	ResolverAddresses                  []string
 	ResolverIPV6                       bool

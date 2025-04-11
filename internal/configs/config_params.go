@@ -38,6 +38,14 @@ type ConfigParams struct {
 	MainOpenTracingLoadModule              bool
 	MainOpenTracingTracer                  string
 	MainOpenTracingTracerConfig            string
+	MainOtelEnabled                        bool
+	MainOtelLoadModule                     bool
+	MainOtelGlobalTraceEnabled             bool
+	MainOtelExporterEndpoint               string
+	MainOtelExporterTrustedCA              string
+	MainOtelExporterHeaderName             string
+	MainOtelExporterHeaderValue            string
+	MainOtelServiceName                    string
 	MainServerNamesHashBucketSize          string
 	MainServerNamesHashMaxSize             string
 	MainStreamLogFormat                    []string
