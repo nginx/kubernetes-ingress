@@ -578,10 +578,6 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		cfgParams.MainOtelLoadModule = true
 	}
 
-	if cfgParams.MainOtelExporterEndpoint != "" {
-		cfgParams.MainOtelLoadModule = true
-	}
-
 	if hasAppProtect {
 		if appProtectFailureModeAction, exists := cfgm.Data["app-protect-failure-mode-action"]; exists {
 			if appProtectFailureModeAction == "pass" || appProtectFailureModeAction == "drop" {
