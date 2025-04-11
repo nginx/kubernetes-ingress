@@ -201,12 +201,8 @@ If you encounter a duplicate directive error, `error [emerg] 13#13: "zone_sync" 
 If you want to enable TLS for zone synchronization for NGINX Ingress Controller, please configure your TLS settings via [`stream-snippets`]({{< ref "/configuration/ingress-resources/advanced-configuration-with-snippets.md" >}}) by adding the [zone_sync_ssl directive](https://nginx.org/en/docs/stream/ngx_stream_zone_sync_module.html#zone_sync_ssl) along with any other TLS parameters.
 Please only use `stream-snippets` if you want to enable TLS, enabling the `zone-sync` ConfigMap key will not enable TLS for zone synchronization. Please do not use both `zone-sync` and `stream-snippets` for zone synchronization, as this will cause a duplicate directive error as described above.
 
-Zone synchronization with TLS for NGINX Ingress Controller is not yet available via ConfigMap.  If you would like to enable Zone Sync with TLS, please remove Zone Sync from ConfigMap and add Zone Sync parameters via `stream-snippets`.  You will also need to manually add the headless service... etc
-
-
-
-{{< /note >}}. 
-
+Zone synchronization with TLS for NGINX Ingress Controller is not yet available via ConfigMap. If you would like to enable Zone Sync with TLS, please remove Zone Sync from ConfigMap and add Zone Sync parameters via [`stream-snippets`]({{< ref "/configuration/ingress-resources/advanced-configuration-with-snippets.md" >}}) similar to this [example](https://github.com/nginx/kubernetes-ingress/blob/v4.0.1/examples/custom-resources/oidc/nginx-config.yaml)] and adding the [zone_sync_ssl directive](https://nginx.org/en/docs/stream/ngx_stream_zone_sync_module.html#zone_sync_ssl) along with any other TLS parameters to the `stream-snippets`. You will also need to manually add the headless service, similar to [this](https://github.com/nginx/kubernetes-ingress/blob/v4.0.1/examples/custom-resources/oidc/nginx-ingress-headless.yaml).`
+{{< /note >}}
 
 ---
 
