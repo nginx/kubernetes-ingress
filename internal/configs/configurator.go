@@ -1416,6 +1416,10 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, er
 		allWarnings.Add(warnings)
 	}
 
+	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
+		return allWarnings, fmt.Errorf("error when updating config from ConfigMap: %w", err)
+	}
+
 	for _, weightUpdate := range allWeightUpdates {
 		cnf.nginxManager.UpsertSplitClientsKeyVal(weightUpdate.Zone, weightUpdate.Key, weightUpdate.Value)
 	}
