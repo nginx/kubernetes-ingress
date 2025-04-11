@@ -10,9 +10,7 @@ ARG WAF_VERSION=v4
 ARG PACKAGE_REPO=pkgs.nginx.com
 
 
-############################################# Base images containing libs for Opentracing and FIPS #############################################
-FROM ghcr.io/nginx/dependencies/nginx-ot:nginx-1.27.4@sha256:30f28c879254b50e533663aa04c6389625925f5022491377dd2c44b0d3bb6d34 AS opentracing-lib
-FROM ghcr.io/nginx/dependencies/nginx-ot:nginx-1.27.4-alpine@sha256:73d08d95b2a6f204f9cf1764af63cec0f942742142125fee0fd15f0f91b3650b AS alpine-opentracing-lib
+############################################# Base images containing libs for FIPS #############################################
 FROM ghcr.io/nginx/dependencies/nginx-ubi-ppc64le:nginx-1.27.4@sha256:fff4dde599b89cb22e5cea5d8cfba8c47bcedaa8e6fa549f5fe74a89c733aa2f AS ubi-ppc64le
 FROM ghcr.io/nginx/alpine-fips:0.2.4-alpine3.19@sha256:2a7f8451110b588b733e4cb8727a48153057b1debac5c78ef8a539ff63712fa1 AS alpine-fips-3.19
 FROM ghcr.io/nginx/alpine-fips:0.2.4-alpine3.21@sha256:5221dec2e33436f2586c743c7aa3ef4626c0ec54184dc3364d101036d4f4a060 AS alpine-fips-3.21
@@ -23,22 +21,14 @@ FROM golang:1.24-alpine@sha256:7772cb5322baa875edd74705556d08f0eeca7b9c4b5367754
 ############################################# Base image for Alpine #############################################
 FROM nginx:1.27.4-alpine@sha256:4ff102c5d78d254a6f0da062b3cf39eaf07f01eec0927fd21e219d0af8bc0591 AS alpine
 
-RUN --mount=type=bind,from=alpine-opentracing-lib,target=/tmp/ot/ \
-	apk add --no-cache libcap libstdc++ \
-	&& cp -av /tmp/ot/usr/local/lib/libopentracing.so* /tmp/ot/usr/local/lib/libjaegertracing*so* /tmp/ot/usr/local/lib/libzipkin*so* /tmp/ot/usr/local/lib/libdd*so* /tmp/ot/usr/local/lib/libyaml*so* /usr/local/lib/ \
-	&& cp -av /tmp/ot/usr/lib/nginx/modules/ngx_http_opentracing_module.so /usr/lib/nginx/modules/ \
-	&& ldconfig /usr/local/lib/
+RUN apk add --no-cache libcap libstdc++
 
 
 ############################################# Base image for Debian #############################################
 FROM nginx:1.27.4@sha256:09369da6b10306312cd908661320086bf87fbae1b6b0c49a1f50ba531fef2eab AS debian
 
-RUN --mount=type=bind,from=opentracing-lib,target=/tmp/ot/ \
-	apt-get update \
-	&& apt-get install --no-install-recommends --no-install-suggests -y libcap2-bin \
-	&& cp -av /tmp/ot/usr/local/lib/libopentracing.so* /tmp/ot/usr/local/lib/libjaegertracing*so* /tmp/ot/usr/local/lib/libzipkin*so* /tmp/ot/usr/local/lib/libdd*so* /tmp/ot/usr/local/lib/libyaml*so* /usr/local/lib/ \
-	&& cp -av /tmp/ot/usr/lib/nginx/modules/ngx_http_opentracing_module.so /usr/lib/nginx/modules/ \
-	&& ldconfig
+RUN apt-get update \
+	&& apt-get install --no-install-recommends --no-install-suggests -y libcap2-bin
 
 
 ############################################# NGINX files #############################################
