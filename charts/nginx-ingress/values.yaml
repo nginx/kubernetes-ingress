@@ -181,7 +181,7 @@ controller:
   lifecycle: {}
 
   ## The custom ConfigMap to use instead of the one provided by default
-  customConfigMap: "mycustomconfigmap"
+  customConfigMap: ""
 
   config:
     ## The name of the ConfigMap used by the Ingress Controller.

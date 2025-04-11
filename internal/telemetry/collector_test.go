@@ -1418,12 +1418,20 @@ func TestCountVirtualServersOnCustomResourceEnabled(t *testing.T) {
 			}
 		}
 
+		mainConfigMap := &coreV1.ConfigMap{
+			ObjectMeta: metaV1.ObjectMeta{
+				Name:      "nginx-config",
+				Namespace: "nginx-ingress",
+			},
+		}
+
 		c, err := telemetry.NewCollector(telemetry.CollectorConfig{
-			K8sClientReader:        newTestClientset(kubeNS, node1, pod1, replica),
+			K8sClientReader:        newTestClientset(kubeNS, node1, pod1, replica, mainConfigMap),
 			SecretStore:            newSecretStore(t),
 			Configurator:           configurator,
 			Version:                telemetryNICData.ProjectVersion,
 			CustomResourcesEnabled: true, // This field value indicates we count custom resources.
+			MainConfigMapName:      "nginx-ingress/nginx-config",
 		})
 		if err != nil {
 			t.Fatal(err)
