@@ -226,6 +226,9 @@ If you want to enable TLS for zone synchronization for NGINX Ingress Controller,
 {{<bootstrap-table "table table-striped table-bordered table-responsive">}}
 |ConfigMap Key | Description | Default | Example |
 | ---| ---| ---| --- |
+|*opentracing* | Deprecated in v5.0.0.  Enables [OpenTracing](https://opentracing.io) globally (for all Ingress, VirtualServer and VirtualServerRoute resources). Note: requires the Ingress Controller image with OpenTracing module and a tracer. See the [docs]({{< relref "/installation/integrations/opentracing.md" >}}) for more information. | *False* |  |
+|*opentracing-tracer* | Deprecated in v5.0.0.  Sets the path to the vendor tracer binary plugin. | N/A |  |
+|*opentracing-tracer-config* | Deprecated in v5.0.0.  Sets the tracer configuration in JSON format. | N/A |  |
 |*app-protect-compressed-requests-action* | Sets the *app_protect_compressed_requests_action* [global directive](/nginx-app-protect/configuration/#global-directives). | *drop* |  |
 |*app-protect-cookie-seed* | Sets the *app_protect_cookie_seed* [global directive](/nginx-app-protect/configuration/#global-directives). | Random automatically generated string |  |
 |*app-protect-failure-mode-action* | Sets the *app_protect_failure_mode_action* [global directive](/nginx-app-protect/configuration/#global-directives). | *pass* |  |
