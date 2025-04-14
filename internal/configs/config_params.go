@@ -38,7 +38,6 @@ type ConfigParams struct {
 	MainOpenTracingLoadModule              bool
 	MainOpenTracingTracer                  string
 	MainOpenTracingTracerConfig            string
-	MainOtelEnabled                        bool
 	MainOtelLoadModule                     bool
 	MainOtelGlobalTraceEnabled             bool
 	MainOtelExporterEndpoint               string
