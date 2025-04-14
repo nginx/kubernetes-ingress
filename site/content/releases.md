@@ -6,9 +6,9 @@ type: reference
 product: NIC
 docs: DOCS-616
 ---
-## 4.1.0
+## 5.0.0
 
-08 Apr 2025
+16 Apr 2025
 
 ### <i class="fa-solid fa-bomb"></i> Breaking Changes
 
@@ -22,11 +22,11 @@ docs: DOCS-616
 
 ### <i class="fa-solid fa-download"></i> Upgrade
 
-- For NGINX, use the 4.1.0 images from our
-[DockerHub](https://hub.docker.com/r/nginx/nginx-ingress/tags?page=1&ordering=last_updated&name=4.1.0),
+- For NGINX, use the 5.0.0 images from our
+[DockerHub](https://hub.docker.com/r/nginx/nginx-ingress/tags?page=1&ordering=last_updated&name=5.0.0),
 [GitHub Container](https://github.com/nginx/kubernetes-ingress/pkgs/container/kubernetes-ingress),
 [Amazon ECR Public Gallery](https://gallery.ecr.aws/nginx/nginx-ingress) or [Quay.io](https://quay.io/repository/nginx/nginx-ingress).
-- For NGINX Plus, use the 4.1.0 images from the F5 Container registry or build your own image using the 4.1.0 source code
+- For NGINX Plus, use the 5.0.0 images from the F5 Container registry or build your own image using the 5.0.0 source code
 - For Helm, use version 2.1.0 of the chart.
 
 ### <i class="fa-solid fa-life-ring"></i> Supported Platforms
