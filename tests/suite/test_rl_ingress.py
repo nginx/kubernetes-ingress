@@ -305,5 +305,5 @@ class TestRateLimitIngressScaledWithZoneSync:
 
             assert flag, f"Failed to find expected configuration line in pod {pod.metadata.name} after 5 retries"
 
-        print("Step 6: clean up")
+        print("Step 5: clean up")
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ns, 1)
