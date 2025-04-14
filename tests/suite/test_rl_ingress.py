@@ -262,23 +262,16 @@ class TestRateLimitIngressScaledWithZoneSync:
             f"{TEST_DATA}/zone-sync/configmap-with-zonesync-minimal.yaml",
         )
 
-        print("Step 3: scale deployments to 2")
+        print("Step 2: scale deployments to 2")
         ns = ingress_controller_prerequisites.namespace
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ns, 2)
 
-        print("Step 4: check if pods are ready")
+        print("Step 3: check if pods are ready")
         wait_until_all_pods_are_ready(kube_apis.v1, ingress_controller_prerequisites.namespace)
 
-        print("Step 5: check sync in config")
+        print("Step 4: check sync in config")
         pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
 
-        ing_config = get_ingress_nginx_template_conf(
-            kube_apis.v1,
-            annotations_setup.namespace,
-            annotations_setup.ingress_name,
-            pod_name,
-            ingress_controller_prerequisites.namespace,
-        )
         ingress_name = annotations_setup.ingress_name
         if "mergeable-scaled" in annotations_setup.ingress_src_file:
             minions_info = get_minions_info_from_yaml(annotations_setup.ingress_src_file)
@@ -290,7 +283,29 @@ class TestRateLimitIngressScaledWithZoneSync:
         expected_conf_line = (
             f"limit_req_zone {key} zone={annotations_setup.namespace}/{ingress_name}_sync:{zone_size} rate={rate} sync;"
         )
-        assert expected_conf_line in ing_config
 
-        print("Step 6: clean up")
-        scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ns, 1)
+        ic_pods = get_pod_list(kube_apis.v1, ns)
+        assert len(ic_pods) == 2, f"Expected 2 pods, but found {len(ic_pods)}"
+        for i, pod in enumerate(ic_pods):
+            flag = False
+            for retry in range(5):
+                conf = get_ingress_nginx_template_conf(
+                    kube_apis.v1,
+                    annotations_setup.namespace,
+                    annotations_setup.ingress_name,
+                    pod.metadata.name,
+                    ingress_controller_prerequisites.namespace,
+                )
+                
+                if expected_conf_line in conf:
+                    flag = True
+                    print(f"Expected configuration line found in pod {pod.metadata.name}")
+                    break
+                    
+                print(f"Expected configuration line not found in pod {pod.metadata.name}. Retrying...")
+                wait_before_test()
+            
+            assert flag, f"Failed to find expected configuration line in pod {pod.metadata.name} after 5 retries"
+
+            print("Step 6: clean up")
+            scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ns, 1)
