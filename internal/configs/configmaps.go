@@ -578,23 +578,6 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		cfgParams.MainOtelLoadModule = true
 	}
 
-	if otelEnabled, exists, err := GetMapKeyAsBool(cfgm.Data, "otel-enabled", cfgm); exists {
-		if err != nil {
-			nl.Error(l, err)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
-			configOk = false
-		} else {
-			if cfgParams.MainOtelLoadModule {
-				cfgParams.MainOtelEnabled = otelEnabled
-			} else {
-				errorText := fmt.Sprintf("ConfigMap %s/%s: 'otel-enabled' is ignored because 'otel-exporter-endpoint' is not set, ignoring", cfgm.GetNamespace(), cfgm.GetName())
-				nl.Error(l, errorText)
-				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-				configOk = false
-			}
-		}
-	}
-
 	if hasAppProtect {
 		if appProtectFailureModeAction, exists := cfgm.Data["app-protect-failure-mode-action"]; exists {
 			if appProtectFailureModeAction == "pass" || appProtectFailureModeAction == "drop" {
