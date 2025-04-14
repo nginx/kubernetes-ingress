@@ -149,18 +149,18 @@ http {
     {{- if .MainOtelLoadModule}}
     otel_exporter {
         endpoint {{ .MainOtelExporterEndpoint}};
-        {{ if and .MainOtelExporterHeaderName .MainOtelExporterHeaderValue }}
+        {{- if and .MainOtelExporterHeaderName .MainOtelExporterHeaderValue }}
         header {{ .MainOtelExporterHeaderName }} "{{ .MainOtelExporterHeaderValue }}";
         {{- end }}
-        {{ if .MainOtelExporterTrustedCA}}
+        {{- if .MainOtelExporterTrustedCA}}
     #   trusted_certificate <path>;
         {{- end }}
     }
 
-    {{ if .MainOtelServiceName}}
+    {{- if .MainOtelServiceName}}
     otel_service_name {{ .MainOtelServiceName }};
     {{- end }}
-    {{ if .MainOtelGlobalTraceEnabled }}
+    {{- if .MainOtelGlobalTraceEnabled }}
     otel_trace on;
     {{- end}}
     {{- end}}
