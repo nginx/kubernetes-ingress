@@ -145,20 +145,23 @@ http {
     {{- if .SSLDHParam}}
     ssl_dhparam {{.SSLDHParam}};
     {{- end}}
-    
-    {{- if .MainOtelEnabled}}
-    # otel_exporter {
-    #    endpoint {{ .MainOtelExporterEndpoint}};
-    #   header {{ .MainOtelExporterHeaderName }} {{ .MainOtelExporterHeaderValue }};
+
+    {{- if .MainOtelLoadModule}}
+    otel_exporter {
+        endpoint {{ .MainOtelExporterEndpoint}};
+        {{ if and .MainOtelExporterHeaderName .MainOtelExporterHeaderValue }}
+        header {{ .MainOtelExporterHeaderName }} "{{ .MainOtelExporterHeaderValue }}";
+        {{- end }}
         {{ if .MainOtelExporterTrustedCA}}
     #   trusted_certificate <path>;
         {{- end }}
+    }
+
     {{ if .MainOtelServiceName}}
-     # otel_service_name {{ .MainOtelServiceName }};
-    # }
+    otel_service_name {{ .MainOtelServiceName }};
     {{- end }}
     {{ if .MainOtelGlobalTraceEnabled }}
-     # otel_trace on;
+    otel_trace on;
     {{- end}}
     {{- end}}
 
