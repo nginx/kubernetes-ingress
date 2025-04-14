@@ -270,8 +270,6 @@ class TestRateLimitIngressScaledWithZoneSync:
         wait_until_all_pods_are_ready(kube_apis.v1, ingress_controller_prerequisites.namespace)
 
         print("Step 4: check sync in config")
-        get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
-
         ingress_name = annotations_setup.ingress_name
         if "mergeable-scaled" in annotations_setup.ingress_src_file:
             minions_info = get_minions_info_from_yaml(annotations_setup.ingress_src_file)
