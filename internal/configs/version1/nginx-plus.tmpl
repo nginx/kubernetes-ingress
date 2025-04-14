@@ -13,7 +13,7 @@ error_log  stderr {{.ErrorLogLevel}};
 pid        /var/lib/nginx/nginx.pid;
 
 {{- if .MainOtelLoadModule}}
-#load_module modules/ngx_otel_module.so;
+load_module modules/ngx_otel_module.so;
 {{- end}}
 {{- if .AppProtectLoadModule}}
 load_module modules/ngx_http_app_protect_module.so;
@@ -145,20 +145,23 @@ http {
     {{- if .SSLDHParam}}
     ssl_dhparam {{.SSLDHParam}};
     {{- end}}
-    
-    {{- if .MainOtelEnabled}}
-    # otel_exporter {
-    #    endpoint {{ .MainOtelExporterEndpoint}};
-    #   header {{ .MainOtelExporterHeaderName }} {{ .MainOtelExporterHeaderValue }};
+
+    {{- if .MainOtelLoadModule}}
+    otel_exporter {
+        endpoint {{ .MainOtelExporterEndpoint}};
+        {{ if and .MainOtelExporterHeaderName .MainOtelExporterHeaderValue }}
+        header {{ .MainOtelExporterHeaderName }} "{{ .MainOtelExporterHeaderValue }}";
+        {{- end }}
         {{ if .MainOtelExporterTrustedCA}}
     #   trusted_certificate <path>;
         {{- end }}
+    }
+
     {{ if .MainOtelServiceName}}
-     # otel_service_name {{ .MainOtelServiceName }};
-    # }
+    otel_service_name {{ .MainOtelServiceName }};
     {{- end }}
     {{ if .MainOtelGlobalTraceEnabled }}
-     # otel_trace on;
+    otel_trace on;
     {{- end}}
     {{- end}}
 
