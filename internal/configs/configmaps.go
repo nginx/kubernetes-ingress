@@ -578,15 +578,6 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		cfgParams.MainOtelLoadModule = true
 	}
 
-	if otelEnabled, exists, err := GetMapKeyAsBool(cfgm.Data, "otel-enabled", cfgm); exists {
-		if err != nil {
-			nl.Error(l, err)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
-			configOk = false
-		}
-		cfgParams.MainOtelGlobalTraceEnabled = otelGlobalTraceEnabled
-	}
-
 	if cfgParams.MainOtelExporterEndpoint != "" {
 		cfgParams.MainOtelLoadModule = true
 	}
