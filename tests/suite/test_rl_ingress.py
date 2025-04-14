@@ -270,7 +270,7 @@ class TestRateLimitIngressScaledWithZoneSync:
         wait_until_all_pods_are_ready(kube_apis.v1, ingress_controller_prerequisites.namespace)
 
         print("Step 4: check sync in config")
-        pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
 
         ingress_name = annotations_setup.ingress_name
         if "mergeable-scaled" in annotations_setup.ingress_src_file:
@@ -296,15 +296,15 @@ class TestRateLimitIngressScaledWithZoneSync:
                     pod.metadata.name,
                     ingress_controller_prerequisites.namespace,
                 )
-                
+
                 if expected_conf_line in conf:
                     flag = True
                     print(f"Expected configuration line found in pod {pod.metadata.name}")
                     break
-                    
+
                 print(f"Expected configuration line not found in pod {pod.metadata.name}. Retrying...")
                 wait_before_test()
-            
+
             assert flag, f"Failed to find expected configuration line in pod {pod.metadata.name} after 5 retries"
 
             print("Step 6: clean up")
