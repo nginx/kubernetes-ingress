@@ -17,7 +17,7 @@ docs: DOCS-616
 - [7054](https://github.com/nginx/kubernetes-ingress/pull/7054) Increase port number range
 - [7175](https://github.com/nginx/kubernetes-ingress/pull/7175) Ratelimit based on JWT claim
 - [7205](https://github.com/nginx/kubernetes-ingress/pull/7205), [7238](https://github.com/nginx/kubernetes-ingress/pull/7238), [7390](https://github.com/nginx/kubernetes-ingress/pull/7390) & [7393](https://github.com/nginx/kubernetes-ingress/pull/7393) Tiered Rate limit groups with JWT claim
-- [7239](https://github.com/nginx/kubernetes-ingress/pull/7239), [7347](https://github.com/nginx/kubernetes-ingress/pull/7347), [7445](https://github.com/nginx/kubernetes-ingress/pull/7445), [7468](https://github.com/nginx/kubernetes-ingress/pull/7468), [7521](https://github.com/nginx/kubernetes-ingress/pull/7521) Zone Sync support
+- [7239](https://github.com/nginx/kubernetes-ingress/pull/7239), [7347](https://github.com/nginx/kubernetes-ingress/pull/7347), [7445](https://github.com/nginx/kubernetes-ingress/pull/7445), [7468](https://github.com/nginx/kubernetes-ingress/pull/7468), [7521](https://github.com/nginx/kubernetes-ingress/pull/7521) & [7654](https://github.com/nginx/kubernetes-ingress/pull/7654) Zone Sync support
 - [7560](https://github.com/nginx/kubernetes-ingress/pull/7560) Add forward proxy support for NGINX Plus licensing connectivity
 - [7299](https://github.com/nginx/kubernetes-ingress/pull/7299) & [7597](https://github.com/nginx/kubernetes-ingress/pull/7597) Add support for NGINX OSS 1.27.4, NGINX Plus R34 & App Protect WAF 4.13 & 5.6
 
