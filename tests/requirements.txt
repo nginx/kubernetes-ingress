@@ -247,9 +247,9 @@ google-auth==2.38.0 \
     # via
     #   -r requirements.in
     #   kubernetes
-gprof2dot==2024.6.6 \
-    --hash=sha256:45b14ad7ce64e299c8f526881007b9eb2c6b75505d5613e96e66ee4d5ab33696 \
-    --hash=sha256:fa1420c60025a9eb7734f65225b4da02a10fc6dd741b37fa129bc6b41951e5ab
+gprof2dot==2025.4.14 \
+    --hash=sha256:0742e4c0b4409a5e8777e739388a11e1ed3750be86895655312ea7c20bd0090e \
+    --hash=sha256:35743e2d2ca027bf48fa7cba37021aaf4a27beeae1ae8e05a50b55f1f921a6ce
     # via -r requirements.in
 greenlet==3.1.1 \
     --hash=sha256:0153404a4bb921f0ff1abeb5ce8a5131da56b953eda6e14b88dc6bbc04d2049e \
@@ -729,15 +729,15 @@ six==1.17.0 \
     #   -r requirements.in
     #   kubernetes
     #   python-dateutil
-typing-extensions==4.13.1 \
-    --hash=sha256:4b6cf02909eb5495cfbc3f6e8fd49217e6cc7944e145cdda8caa3734777f9e69 \
-    --hash=sha256:98795af00fb9640edec5b8e31fc647597b4691f099ad75f469a2616be1a76dff
+typing-extensions==4.13.2 \
+    --hash=sha256:a439e7c04b49fec3e5d3e2beaa21755cadbbdc391694e28ccdd36ca4a1408f8c \
+    --hash=sha256:e6c81219bd689f51865d9e372991c540bda33a0379d5573cddb9a3a23f7caaef
     # via
     #   -r requirements.in
     #   pyee
-urllib3==2.3.0 \
-    --hash=sha256:1cee9ad369867bfdbbb48b7dd50374c0967a0bb7710050facf0dd6911440e3df \
-    --hash=sha256:f8c5449b3cf0861679ce7e0503c7b44b5ec981bec0d1d3795a07f1ba96f0204d
+urllib3==2.4.0 \
+    --hash=sha256:414bc6535b787febd7567804cc015fee39daab8ad86268f1310a9250697de466 \
+    --hash=sha256:4e16665048960a0900c702d4a66415956a584919c03361cac9f1df5c5dd7e813
     # via
     #   -r requirements.in
     #   kubernetes
