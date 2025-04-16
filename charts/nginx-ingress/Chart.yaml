@@ -1,8 +1,8 @@
 apiVersion: v2
 name: nginx-ingress
-version: 2.1.0
-appVersion: 5.0.0
-kubeVersion: ">= 1.23.0-0"
+version: 2.2.0
+appVersion: 5.1.0
+kubeVersion: ">= 1.25.0-0"
 type: application
 description: NGINX Ingress Controller
 icon: https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.0.0/charts/nginx-ingress/chart-icon.png
