@@ -16,7 +16,7 @@ Added support for [NGINX R34](https://docs.nginx.com/nginx/releases/#nginxplusre
 With the removal of the OpenTracing dynamic module from [NGINX R34](https://docs.nginx.com/nginx/releases/#nginxplusrelease-34-r34), NGINX Ingress Controller also removes full OpenTracing support.  This will affect users making use of OpenTracing with the ConfigMap, `server-snippets` & `location-snippets` parameters.  Support for tracing with OpenTelemetry will come in a future release.
 {{< /important >}}
 
-We have extended the rate-limit Policy to allow tiered rate limit groups with JWT claims.  This will also users to apply different rate limits to their VirtualServer or VirtualServerRoutes with the value of a JWT claim.  See [here](examples/custom-resources/rate-limit-tiered-jwt-claim/) for a working example.
+We have extended the rate-limit Policy to allow tiered rate limit groups with JWT claims.  This will also users to apply different rate limits to their VirtualServer or VirtualServerRoutes with the value of a JWT claim.  See [here](https://github.com/nginx/kubernetes-ingress/tree/v5.0.0/examples/custom-resources/rate-limit-tiered-jwt-claim/) for a working example.
 
 We introduced NGINX Plus Zone Sync as a managed service within NGINX Ingress Controller in this release.  In previous releases, we had examples using `stream-snippets` for OIDC support, users can now enable `zone-sync` without the need for `snippets`.  NGINX Plus Zone Sync is available when utilising two or more replicas, it supports OIDC & rate limiting. 
 
