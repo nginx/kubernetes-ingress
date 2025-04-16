@@ -13,7 +13,7 @@ docs: DOCS-616
 Added support for [NGINX R34](https://docs.nginx.com/nginx/releases/#nginxplusrelease-34-r34), users needing to use a forward proxy are now able to make use of the `proxy` directives available in F5 NGINX Plus.
 
 {{< important >}}
-With the removal of the OpenTracing dynamic module from [NGINX R34](https://docs.nginx.com/nginx/releases/#nginxplusrelease-34-r34), NGINX Ingress Controller also removes full OpenTracing support.  This will affect users making use of OpenTracing with the ConfigMap, `server-snippets` & `location-snippets` parameters.
+With the removal of the OpenTracing dynamic module from [NGINX R34](https://docs.nginx.com/nginx/releases/#nginxplusrelease-34-r34), NGINX Ingress Controller also removes full OpenTracing support.  This will affect users making use of OpenTracing with the ConfigMap, `server-snippets` & `location-snippets` parameters.  Support for tracing with OpenTelemetry will come in a future release.
 {{< /important >}}
 
 We have extended the rate-limit Policy to allow tiered rate limit groups with JWT claims.  This will also users to apply different rate limits to their VirtualServer or VirtualServerRoutes with the value of a JWT claim.  See [here](examples/custom-resources/rate-limit-tiered-jwt-claim/) for a working example.
