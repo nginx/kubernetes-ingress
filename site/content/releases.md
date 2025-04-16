@@ -24,7 +24,7 @@ We introduced NGINX Plus Zone Sync as a managed service within NGINX Ingress Con
 For users who have previously installed OIDC or used the `zone_sync` directive with `stream-snippets`, please see the note [here](https://docs.nginx.com//nginx-ingress-controller/configuration/global-configuration/configmap-resources/#zone-sync) to use the new `zone-sync` ConfigMap option.
 {{< /note >}}
 
-Open Source NGINX Ingress Controller architectures `armv7`, `s390x` & `ppc64le` are deprecated.
+Open Source NGINX Ingress Controller architectures `armv7`, `s390x` & `ppc64le` are deprecated and will be removed in the next minor release.
 
 ### <i class="fa-solid fa-bomb"></i> Breaking Changes
 - [7633](https://github.com/nginx/kubernetes-ingress/pull/7633) & [7567](https://github.com/nginx/kubernetes-ingress/pull/7567) Remove OpenTracing support
