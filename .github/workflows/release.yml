@@ -527,17 +527,39 @@ jobs:
           path: ${{ github.workspace }}/tarballs
           fail-on-cache-miss: true
 
+      ##################################################### MOHAMAD proposal TO SOLVE THE ISSUE 
+      - name: Generate Release Notes
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0)
+          git log $LAST_TAG..HEAD --pretty=format:"- %h %s" > release_notes.md
+
+##################################################### 
       - name: Upload Release Assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # clobber overwrites existing assets of the same name
         run: |
           if ! ${{ inputs.dry_run }}; then
             gh release upload --clobber v${{ inputs.nic_version }} \
-              $(find ./tarballs -type f)
+              $(find ./tarballs -type f) release_notes.md
           else
-            echo "Skipping adding binaries to Github Release, DRY_RUN"
+            echo "Skipping adding binaries and notes to GitHub Release, DRY_RUN"
           fi
+
+    ####################### this step will replace this below 
+      
+      # - name: Upload Release Assets
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #   # clobber overwrites existing assets of the same name
+      #   run: |
+      #     if ! ${{ inputs.dry_run }}; then
+      #       gh release upload --clobber v${{ inputs.nic_version }} \
+      #         $(find ./tarballs -type f)
+      #     else
+      #       echo "Skipping adding binaries to Github Release, DRY_RUN"
+      #     fi
+
+
 
       - name: Close Release Milestone
         env:
