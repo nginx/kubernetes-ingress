@@ -10,7 +10,21 @@ docs: DOCS-616
 
 16 Apr 2025
 
+Added support for [NGINX R34](https://docs.nginx.com/nginx/releases/#nginxplusrelease-34-r34), users needing to use a forward proxy are now able to make use of the `proxy` directives available in F5 NGINX Plus.
+
+{{< important >}}
+With the removal of the OpenTracing dynamic module from [NGINX R34](https://docs.nginx.com/nginx/releases/#nginxplusrelease-34-r34), NGINX Ingress Controller also removes full OpenTracing support.  This will affect users making use of OpenTracing with the ConfigMap, `server-snippets` & `location-snippets` parameters.
+{{< /important >}}
+
+We have extended the rate-limit Policy to allow tiered rate limit groups with JWT claims.  This will also users to apply different rate limits to their VirtualServer or VirtualServerRoutes with the value of a JWT claim.  See [here](examples/custom-resources/rate-limit-tiered-jwt-claim/) for a working example.
+
+We introduced NGINX Plus Zone Sync as a managed service within NGINX Ingress Controller in this release.  In previous releases, we had examples using `stream-snippets` for OIDC support, users can now enable `zone-sync` without the need for `snippets`.  NGINX Plus Zone Sync is available when utilising two or more replicas, it supports OIDC & rate limiting. 
+
+{{< note >}}
 For users who have previously installed OIDC or used the `zone_sync` directive with `stream-snippets`, please see the note [here](https://docs.nginx.com//nginx-ingress-controller/configuration/global-configuration/configmap-resources/#zone-sync) to use the new `zone-sync` ConfigMap option.
+{{< /note >}}
+
+Open Source NGINX Ingress Controller architectures `armv7`, `s390x` & `ppc64le` are deprecated.
 
 ### <i class="fa-solid fa-bomb"></i> Breaking Changes
 - [7633](https://github.com/nginx/kubernetes-ingress/pull/7633) & [7567](https://github.com/nginx/kubernetes-ingress/pull/7567) Remove OpenTracing support
