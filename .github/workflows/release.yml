@@ -590,26 +590,6 @@ jobs:
           RELEASE_ID: ${{ steps.release-id.outputs.release_id }}
         if: ${{ ! inputs.dry_run }}
 
-      - name: Send Notification
-        uses: 8398a7/action-slack@1750b5085f3ec60384090fb7c52965ef822e869e # v3.18.0
-        with:
-          status: custom
-          custom_payload: |
-            {
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "NGINX Ingress Controller v${{ inputs.nic_version }} is out! Check it out: https://github.com/nginx/kubernetes-ingress/releases/tag/v${{ inputs.nic_version }}"
-                  }
-                }
-              ]
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_COMMUNITY }}
-        if: ${{ ! inputs.dry_run }}
-
   release-image-notification:
     if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'release-image-notification') }}
     name: Notify Slack channels about image release
