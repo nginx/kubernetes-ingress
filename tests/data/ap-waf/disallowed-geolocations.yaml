@@ -1,0 +1,19 @@
+apiVersion: appprotect.f5.com/v1beta1
+kind: APPolicy
+metadata:
+  name: disallowed-geolocations
+spec:
+  policy:
+    applicationLanguage: utf-8
+    blocking-settings:
+      violations:
+      - alarm: true
+        block: true
+        name: VIOL_GEOLOCATION
+    disallowed-geolocations:
+    - countryCode: IL
+      countryName: Israel
+    enforcementMode: blocking
+    name: disallowed-geolocations
+    template:
+      name: POLICY_TEMPLATE_NGINX_BASE
