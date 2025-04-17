@@ -10,18 +10,18 @@ docs: DOCS-616
 
 16 Apr 2025
 
-Added support for [NGINX R34](https://docs.nginx.com/nginx/releases/#nginxplusrelease-34-r34), users needing to use a forward proxy are now able to make use of the `proxy` directives available in F5 NGINX Plus.
+Added support for [NGINX Plus R34](https://docs.nginx.com/nginx/releases/#nginxplusrelease-34-r34), users needing to use a forward proxy for license verification are now able to make use of the [`proxy`](https://nginx.org/en/docs/ngx_mgmt_module.html#proxy) directives available in F5 NGINX Plus.
 
 {{< important >}}
-With the removal of the OpenTracing dynamic module from [NGINX R34](https://docs.nginx.com/nginx/releases/#nginxplusrelease-34-r34), NGINX Ingress Controller also removes full OpenTracing support.  This will affect users making use of OpenTracing with the ConfigMap, `server-snippets` & `location-snippets` parameters.  Support for tracing with OpenTelemetry will come in a future release.
+With the removal of the OpenTracing dynamic module from [NGINX Plus R34](https://docs.nginx.com/nginx/releases/#nginxplusrelease-34-r34), NGINX Ingress Controller also removes full OpenTracing support.  This will affect users making use of OpenTracing with the ConfigMap, `server-snippets` & `location-snippets` parameters.  Support for tracing with [OpenTelemetry](https://docs.nginx.com/nginx/admin-guide/dynamic-modules/opentelemetry/) will come in a future release.
 {{< /important >}}
 
-We have extended the rate-limit Policy to allow tiered rate limit groups with JWT claims.  This will also users to apply different rate limits to their VirtualServer or VirtualServerRoutes with the value of a JWT claim.  See [here](https://github.com/nginx/kubernetes-ingress/tree/v5.0.0/examples/custom-resources/rate-limit-tiered-jwt-claim/) for a working example.
+We have extended the rate-limit Policy to allow tiered rate limit groups with JWT claims.  This will also allow users to apply different rate limits to their `VirtualServer` or `VirtualServerRoutes` with the value of a JWT claim.  See [here](https://github.com/nginx/kubernetes-ingress/tree/v5.0.0/examples/custom-resources/rate-limit-tiered-jwt-claim/) for a working example.
 
 We introduced NGINX Plus Zone Sync as a managed service within NGINX Ingress Controller in this release.  In previous releases, we had examples using `stream-snippets` for OIDC support, users can now enable `zone-sync` without the need for `snippets`.  NGINX Plus Zone Sync is available when utilising two or more replicas, it supports OIDC & rate limiting. 
 
 {{< note >}}
-For users who have previously installed OIDC or used the `zone_sync` directive with `stream-snippets`, please see the note [here](https://docs.nginx.com//nginx-ingress-controller/configuration/global-configuration/configmap-resources/#zone-sync) to use the new `zone-sync` ConfigMap option.
+For users who have previously installed OIDC or used the `zone_sync` directive with `stream-snippets`, please see the note [here](https://docs.nginx.com//nginx-ingress-controller/configuration/global-configuration/configmap-resource/#zone-sync) to use the new `zone-sync` ConfigMap option.
 {{< /note >}}
 
 Open Source NGINX Ingress Controller architectures `armv7`, `s390x` & `ppc64le` are deprecated and will be removed in the next minor release.
@@ -53,7 +53,7 @@ Open Source NGINX Ingress Controller architectures `armv7`, `s390x` & `ppc64le` 
 
 ### <i class="fa-solid fa-download"></i> Upgrade
 
-- For NGINX, use the 5.0.0 images from our
+- For NGINX Open Source, use the 5.0.0 images from our
 [DockerHub](https://hub.docker.com/r/nginx/nginx-ingress/tags?page=1&ordering=last_updated&name=5.0.0),
 [GitHub Container](https://github.com/nginx/kubernetes-ingress/pkgs/container/kubernetes-ingress),
 [Amazon ECR Public Gallery](https://gallery.ecr.aws/nginx/nginx-ingress) or [Quay.io](https://quay.io/repository/nginx/nginx-ingress).
