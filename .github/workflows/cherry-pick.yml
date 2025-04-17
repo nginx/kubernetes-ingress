@@ -22,6 +22,18 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.NGINX_PAT }}
 
+      - name: Check if Actor is a Member of one of the teams
+        uses: im-open/is-actor-team-member@v1.2.0
+        with:
+          github-actor: ${{ github.actor }}
+          github-organization: ${{ github.repository_owner}}
+          github-team-slugs: |
+            [
+              "nic",
+              "nginx-docs"
+            ]
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Set release branch variable
         id: branch
         env:
