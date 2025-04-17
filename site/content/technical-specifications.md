@@ -17,7 +17,7 @@ We recommend using the latest release of NGINX Ingress Controller. We provide so
 We test NGINX Ingress Controller on a range of Kubernetes platforms for each release, and list them in the [release notes]({{< relref "/releases.md" >}}). We provide technical support for NGINX Ingress Controller on any Kubernetes platform that is currently supported by its provider, and that passes the [Kubernetes conformance tests](https://www.cncf.io/certification/software-conformance/).
 
 {{< bootstrap-table "table table-bordered table-striped table-responsive" >}}
-| NIC Version | Kubernetes Version tested with | NIC Helm Chart Version | NIC Operator Version | NGINX / NGINX Plus version |
+| NIC version | Kubernetes versions tested  | NIC Helm Chart version | NIC Operator version | NGINX / NGINX Plus version |
 | --- | --- | --- | --- | --- |
 | {{< nic-version >}} | 1.25 - 1.32 | {{< nic-helm-version >}} | {{< nic-operator-version >}} | 1.27.4 / R34 |
 | 4.0.1 | 1.25 - 1.32 | 2.0.1 | 3.0.1 | 1.27.4 / R33 P2 |
