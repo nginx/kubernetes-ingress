@@ -11,10 +11,10 @@ This document describes how to build a local NGINX App Protect WAF Docker image 
 
 This is accomplished with the following steps:
 
-- Set up license secrets to enable deployment into kubernetes
-- Use a WAF docker image to compile a policy JSON file into a compiled bundle
-- Set up PersistentVolumes that the deployed WAF instance can access to read the bundle from
-- Deploy NGINX Plus Ingress Controller with NAP in Kubernetes
+- Prepare license secrets to enable a Kubernetes deployment
+- Use a NGINX App Protect WAF Docker image to transform a policy JSON file into a compiled bundle
+- Configure PersistentVolumes so the deployed NGINX App Protect WAF instance can access the compiled bundle
+- Deploy NGINX Plus Ingress Controller with NGINX App Protect
 - Test example services to validate that the WAF policies work
 
 ---
