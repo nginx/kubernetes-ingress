@@ -35,12 +35,13 @@ Store these files locally:
 └── nginx-repo.jwt
 ```
 
+
 ## Step 2: Pull the NGINX App Protect WAF Compiler image
 
 Log into the nginx private registry using your jwt file and the password `none` which you will have to type in when 
 asked:
 
-```bash
+```shell
 $ docker login private-registry.nginx.com --username=$(cat nginx-repo.jwt)
 
 i Info → A Personal Access Token (PAT) can be used instead.
@@ -53,7 +54,7 @@ Login Succeeded
 
 Once that's done, pull the `waf-compiler` image with:
 
-```bash
+```shell
 $ docker pull private-registry.nginx.com/nap/waf-compiler:5.6.0
 ```
 
@@ -63,13 +64,13 @@ $ docker pull private-registry.nginx.com/nap/waf-compiler:5.6.0
 
 Download the [provided WAF Policy JSON](https://raw.githubusercontent.com/nginx/kubernetes-ingress/main/tests/data/ap-waf-v5/wafv5.json):
 
-```bash
+```shell
 curl -LO https://raw.githubusercontent.com/nginx/kubernetes-ingress/main/tests/data/ap-waf-v5/wafv5.json
 ```
 
 Use your pulled NAP Docker image (`private-registry.nginx.com/nap/waf-compiler:5.6.0`) to compile the policy bundle:
 
-```bash
+```shell
 # Using your newly created image
 docker run --rm \
     -v $(pwd):$(pwd) \
@@ -127,13 +128,13 @@ spec:
 This sets up a 1Gi disk and attaches a claim to it that you will reference in the NIC deployment chart.
 
 Create these with:
-```bash
+```shell
 kubectl apply -f pvc.yaml
 ```
 
 Verify that the persistent volume and claim are created:
 
-```bash
+```shell
 # For the persistent volume
 kubectl get pv
 
@@ -144,13 +145,13 @@ kubectl get pvc
 ## Step 5: Deploy NGINX Plus NIC Controller with NAP Enabled using Helm
 
 Add the official NGINX Helm repository:
-```bash
+```shell
 helm repo add nginx-stable https://helm.nginx.com/stable
 helm repo update
 ```
 
 Create Kubernetes Docker and licensing secrets:
-```bash
+```shell
 kubectl create secret \
     docker-registry regcred \
     --docker-server=private-registry.nginx.com \
@@ -165,13 +166,13 @@ kubectl create secret \
 
 Install the required CRDs for NGINX Ingress Controller:
 
-```bash
+```shell
 kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.0.0/deploy/crds.yaml
 ```
 
 Using helm, install NGINX Ingress Controller
 
-```bash
+```shell
 helm upgrade nic nginx-stable/nginx-ingress \
     --set controller.image.repository="private-registry.nginx.com/nginx-ic-nap-v5/nginx-plus-ingress" \
     --set controller.image.tag="5.0.0-alpine-fips" \
@@ -186,7 +187,7 @@ helm upgrade nic nginx-stable/nginx-ingress \
 ```
 
 Verify deployment success:
-```bash
+```shell
 kubectl get pods
 ```
 
@@ -198,7 +199,7 @@ Get the name of the pod from the `kubectl get pods` command above.
 
 Copy the file into the `nginx-ingress` container within the pod:
 
-```bash
+```shell
 kubectl cp ./compiled_policy.tgz \
     <pod name>:/etc/app_protect/bundles/compiled_policy.tgz \
     -c nginx-ingress
@@ -206,7 +207,7 @@ kubectl cp ./compiled_policy.tgz \
 
 Replace `<pod name>` with the actual name of the pod, for example:
 
-```bash
+```shell
 kubectl cp ./compiled_policy.tgz \
     nic-nginx-ingress-controller-9bd89589d-j925h:/etc/app_protect/bundles/compiled_policy.tgz \
     -c nginx-ingress
@@ -214,7 +215,7 @@ kubectl cp ./compiled_policy.tgz \
 
 Confirm that the policy file is in the pod. The following command should list `compiled_policy.tgz`.
 
-```bash
+```shell
 kubectl exec --stdin --tty \
     -c nginx-ingress \
     <pod name> \
@@ -290,13 +291,13 @@ spec:
 
 Find out what they are with this:
 
-```bash
+```shell
 kubectl get svc
 ```
 Take note of the external IP of the `nic-nginx-ingress-controller` service and the port. Save them in the following 
 environment variables:
 
-```bash
+```shell
 IC_IP=XXX.YYY.ZZZ.III
 IC_HTTP_PORT=<port number>
 ```
@@ -305,7 +306,7 @@ IC_HTTP_PORT=<port number>
 
 Send a valid request to the deployed application:
 
-```bash
+```shell
 curl --resolve webapp.example.com:$IC_HTTP_PORT:$IC_IP http://webapp.example.com:$IC_HTTP_PORT/
 ```
 
@@ -319,7 +320,7 @@ Request ID: 4f378a01fb8a36ae27e2c3059d264527
 
 And send one that should be rejected
 
-```bash
+```shell
 curl --resolve webapp.example.com:$IC_HTTP_PORT:$IC_IP "http://webapp.example.com:$IC_HTTP_PORT/<script>"
 ```
 
