@@ -9,7 +9,9 @@ docs: DOCS-609
 
 ## How To: Build and Use a Local NGINX App Protect Docker Image to Compile WAF Policies and Integrate with NGINX Plus Ingress Controller
 
-This document outlines how to:
+This document describes how to build a local NGINX App Protect WAF Docker image with NGINX Plus Ingress Controller, which can be used to compile WAF policies.
+
+This is accomplished with the following steps:
 
 - Set up license secrets to enable deployment into kubernetes
 - Use a WAF docker image to compile a policy JSON file into a compiled bundle
