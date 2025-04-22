@@ -1,5 +1,5 @@
 ---
-title: Deploy NIC and WAF to Kubernetes using Helm
+title: Install NGINX Ingress Controller and NGINX App Protect WAF with Docker and Helm
 toc: true
 weight: 500
 type: how-to
