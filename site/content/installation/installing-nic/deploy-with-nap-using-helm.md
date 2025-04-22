@@ -19,7 +19,7 @@ This is accomplished with the following steps:
 
 ---
 
-## Step 1: Prepare Secrets and Credentials (From MyF5 Portal)
+## Prepare Secrets and credentials
 
 Download the following files from your [MyF5 Portal](https://my.f5.com):
 
