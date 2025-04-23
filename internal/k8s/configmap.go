@@ -125,6 +125,9 @@ func (lbc *LoadBalancerController) syncConfigMap(task task) {
 		nl.Debugf(lbc.Logger, "Skipping ConfigMap update because batch sync is on")
 		return
 	}
-
+	if err := lbc.ctx.Err(); err != nil {
+		nl.Debugf(lbc.Logger, "Context canceled, skipping ConfigMap sync for %v: %v", task.Key, err)
+		return
+	}
 	lbc.updateAllConfigs()
 }
