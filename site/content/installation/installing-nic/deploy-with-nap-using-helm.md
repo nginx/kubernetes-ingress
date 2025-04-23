@@ -153,17 +153,21 @@ kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.0
 Using helm, install NGINX Ingress Controller
 
 ```shell
-helm upgrade nic nginx-stable/nginx-ingress \
-    --set controller.image.repository="private-registry.nginx.com/nginx-ic-nap-v5/nginx-plus-ingress" \
-    --set controller.image.tag="5.0.0-alpine-fips" \
-    --set controller.nginxplus=true \
-    --set controller.appprotect.enable=true \
-    --set controller.appprotect.v5=true \
-    --set controller.appprotect.volumes[2].persistentVolumeClaim.claimName="task-pv-claim" \
-    --set controller.serviceAccount.imagePullSecretName="regcred" \
-    --set controller.volumeMounts[0].name="app-protect-bundles" \
-    --set controller.volumeMounts[0].mountPath="/etc/app_protect/bundles/" \
-    --install
+helm upgrade --install nic nginx-stable/nginx-ingress \
+   --set controller.image.repository="private-registry.nginx.com/nginx-ic-nap-v5/nginx-plus-ingress" \
+   --set controller.image.tag="5.0.0-alpine-fips" \
+   --set controller.nginxplus=true \
+   --set controller.appprotect.enable=true \
+   --set controller.appprotect.v5=true \
+   --set-json 'controller.appprotect.volumes=[
+      {"name":"app-protect-bd-config","emptyDir":{}},
+      {"name":"app-protect-config","emptyDir":{}},
+      {"name":"app-protect-bundles","persistentVolumeClaim":{"claimName":"task-pv-claim"}}
+   ]' \
+   --set controller.serviceAccount.imagePullSecretName=regcred \
+   --set 'controller.volumeMounts[0].name=app-protect-bundles' \
+   --set 'controller.volumeMounts[0].mountPath=/etc/app_protect/bundles/'
+
 ```
 
 Verify deployment success:
@@ -265,6 +269,17 @@ spec:
       name: http
   selector:
     app: webapp
+```
+
+Create the services with
+```shell
+kubectl apply -f webapp.yaml
+```
+
+Confirm that the services have started with
+
+```shell
+kubectl get pods
 ```
 
 ### Save the public IP and PORT in environment variables
