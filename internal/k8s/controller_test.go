@@ -3639,3 +3639,79 @@ func TestCreateIngressExWithZoneSync(t *testing.T) {
 		}
 	}
 }
+func TestIsPodMarkedForDeletion(t *testing.T) {
+	t.Parallel()
+
+	logger := nl.LoggerFromContext(context.Background())
+
+	tests := []struct {
+		name            string
+		shutdownFlag    bool
+		envPodName      string
+		envPodNamespace string
+		podExists       bool
+		podHasTimestamp bool
+		expectedResult  bool
+	}{
+		{
+			name:           "controller is shutting down",
+			shutdownFlag:   true,
+			expectedResult: true,
+		},
+		{
+			name:            "pod exists with deletion timestamp",
+			envPodName:      "test-pod",
+			envPodNamespace: "test-namespace",
+			podExists:       true,
+			podHasTimestamp: true,
+			expectedResult:  true,
+		},
+		{
+			name:            "pod exists without deletion timestamp",
+			envPodName:      "test-pod",
+			envPodNamespace: "test-namespace",
+			podExists:       true,
+			podHasTimestamp: false,
+			expectedResult:  false,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+
+			client := fake.NewSimpleClientset()
+
+			if test.podExists {
+				pod := &api_v1.Pod{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      test.envPodName,
+						Namespace: test.envPodNamespace,
+					},
+				}
+
+				if test.podHasTimestamp {
+					now := meta_v1.Now()
+					pod.DeletionTimestamp = &now
+				}
+
+				_, err := client.CoreV1().Pods(test.envPodNamespace).Create(context.Background(), pod, meta_v1.CreateOptions{})
+				if err != nil {
+					t.Fatalf("Error creating pod: %v", err)
+				}
+			}
+
+			lbc := &LoadBalancerController{
+				client:       client,
+				ShuttingDown: test.shutdownFlag,
+				Logger:       logger,
+			}
+
+			// Call the function and verify result
+			result := lbc.isPodMarkedForDeletion()
+			if result != test.expectedResult {
+				t.Errorf("Returned %v but expected %v", result, test.expectedResult)
+			}
+		})
+	}
+}

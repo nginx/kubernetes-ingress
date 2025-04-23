@@ -3652,18 +3652,16 @@ func (lbc *LoadBalancerController) createCombinedDeploymentHeadlessServiceName()
 func (lbc *LoadBalancerController) isPodMarkedForDeletion() bool {
 	// Check if the controller is shutting down
 	if lbc.ShuttingDown {
-		nl.Debugf(lbc.Logger, "SIGTERM already recieved, controller is shutting down")
+		nl.Debugf(lbc.Logger, "SIGTERM already received, controller is shutting down")
 		return true
 	}
 	podName := os.Getenv("POD_NAME")
 	podNamespace := os.Getenv("POD_NAMESPACE")
-
-	if podName != "" && podNamespace != "" {
-		pod, err := lbc.client.CoreV1().Pods(podNamespace).Get(context.Background(), podName, meta_v1.GetOptions{})
-		if err == nil && pod.DeletionTimestamp != nil {
-			nl.Debugf(lbc.Logger, "Pod %s/%s is marked for deletion", podNamespace, podName)
-			return true
-		}
+	pod, err := lbc.client.CoreV1().Pods(podNamespace).Get(context.Background(), podName, meta_v1.GetOptions{})
+	if err == nil && pod.DeletionTimestamp != nil {
+		nl.Debugf(lbc.Logger, "Pod %s/%s is marked for deletion", podNamespace, podName)
+		return true
 	}
+
 	return false
 }
