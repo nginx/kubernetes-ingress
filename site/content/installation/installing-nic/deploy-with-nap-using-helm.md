@@ -21,31 +21,18 @@ This is accomplished with the following steps:
 
 ## Prepare Secrets and credentials
 
-Download the following files from your [MyF5 Portal](https://my.f5.com):
+1. Download your NGINX Ingress Controller subscription's JSON Web Token, SSL Certificate, and Private Key from MyF5. 
+   You can use the same JSON Web Token, Certificate, and Key as NGINX Plus in your MyF5 portal.
+2. Rename the files to the following:
+   - `nginx-repo.crt`
+   - `nginx-repo.key`
+   - `nginx-repo.jwt`
+3. Log in to the Docker registry using the contents of the JSON Web Token file:
+   ```shell
+   $ docker login private-registry.nginx.com --username=$(cat nginx-repo.jwt) --password=none
+   ```
 
-- `nginx-repo.crt`
-- `nginx-repo.key`
-- `nginx-jwt.token`
-
-Store these files locally:
-
-```
-├── nginx-repo.crt
-├── nginx-repo.key
-└── nginx-repo.jwt
-```
-
-
-## Step 2: Pull the NGINX App Protect WAF Compiler image
-
-Log into the nginx private registry using your jwt file and the password `none` which you will have to type in when 
-asked:
-
-```shell
-$ docker login private-registry.nginx.com --username=$(cat nginx-repo.jwt)
-
-i Info → A Personal Access Token (PAT) can be used instead.
-         To create a PAT, visit https://app.docker.com/settings
+---
 
 
 Password:
