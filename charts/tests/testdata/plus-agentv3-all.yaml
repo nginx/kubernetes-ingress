@@ -7,4 +7,3 @@ nginxAgent:
   logLevel: debug
   endpointHost: my-host.example.com
   endpointPort: 8443
-  configSyncGroup: "my-sync-group"

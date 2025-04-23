@@ -30,82 +30,7 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: appprotect-dos-nginx-ingress-agent-config
-  namespace: appprotect-dos
-  labels:
-    helm.sh/chart: nginx-ingress-2.2.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: appprotect-dos
-    app.kubernetes.io/version: "5.1.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  nginx-agent.conf: |-
-    
-    log:
-      # set log level (error, info, debug; default "info")
-      level: error
-      # set log path. if empty, don't log to file.
-      path: ""
-    
-    allowed_directories:
-      - /etc/nginx
-      - /usr/lib/nginx/modules
-    
-    features:
-      - certificates
-      - connection
-      - metrics
-      - file-watcher
-    
-    ## command server settings
-    command:
-      server:
-        host: connect.saas.demo1.nginxlab.net
-        port: 443
-      auth:
-        token: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
-      tls:
-        skip_verify: false
-    
-    ## collector metrics settings
-    collector:
-      log:
-        level: error
-        path: ""
-    
-        processors:
-        batch:
-    
-      receivers:
-        host_metrics:
-          collection_interval: 1m0s
-          initial_delay: 1s
-          scrapers:
-            cpu: {}
-            memory: {}
-            disk: {}
-            network: {}
-    
-      exporters:
-        otlp_exporters:
-          - server:
-              host: "connect.saas.demo1.nginxlab.net"
-              port: 443
-            authenticator: headers_setter
-            tls:
-              skip_verify: false
-    
-      extensions:
-        headers_setter:
-          headers:
-            - action: insert
-              key: "authorization"
-              value: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
 /-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -411,19 +336,12 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: appprotect-dos
-        agent-configuration-revision-hash: "db09d63d"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
     spec:      
-      volumes:
-      
-      - name: agent-conf
-        configMap:
-          name: appprotect-dos-nginx-ingress-agent-config
-      - name: agent-dynamic
-        emptyDir: {}
+      volumes: []
       serviceAccountName: appprotect-dos-nginx-ingress
       automountServiceAccountToken: true
       securityContext:
@@ -467,13 +385,7 @@ spec:
             - ALL
             add:
             - NET_BIND_SERVICE        
-        volumeMounts:
-        
-        - name: agent-conf
-          mountPath: /etc/nginx-agent/nginx-agent.conf
-          subPath: nginx-agent.conf
-        - name: agent-dynamic
-          mountPath: /var/lib/nginx-agent
+        volumeMounts: []
         env:
         - name: POD_NAMESPACE
           valueFrom:
@@ -530,7 +442,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-          - -agent=true
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -591,82 +502,7 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: appprotect-waf-nginx-ingress-agent-config
-  namespace: appprotect-waf
-  labels:
-    helm.sh/chart: nginx-ingress-2.2.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: appprotect-waf
-    app.kubernetes.io/version: "5.1.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  nginx-agent.conf: |-
-    
-    log:
-      # set log level (error, info, debug; default "info")
-      level: error
-      # set log path. if empty, don't log to file.
-      path: ""
-    
-    allowed_directories:
-      - /etc/nginx
-      - /usr/lib/nginx/modules
-    
-    features:
-      - certificates
-      - connection
-      - metrics
-      - file-watcher
-    
-    ## command server settings
-    command:
-      server:
-        host: connect.saas.demo1.nginxlab.net
-        port: 443
-      auth:
-        token: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
-      tls:
-        skip_verify: false
-    
-    ## collector metrics settings
-    collector:
-      log:
-        level: error
-        path: ""
-    
-        processors:
-        batch:
-    
-      receivers:
-        host_metrics:
-          collection_interval: 1m0s
-          initial_delay: 1s
-          scrapers:
-            cpu: {}
-            memory: {}
-            disk: {}
-            network: {}
-    
-      exporters:
-        otlp_exporters:
-          - server:
-              host: "connect.saas.demo1.nginxlab.net"
-              port: 443
-            authenticator: headers_setter
-            tls:
-              skip_verify: false
-    
-      extensions:
-        headers_setter:
-          headers:
-            - action: insert
-              key: "authorization"
-              value: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
 /-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -972,19 +808,12 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: appprotect-waf
-        agent-configuration-revision-hash: "db09d63d"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
     spec:      
-      volumes:
-      
-      - name: agent-conf
-        configMap:
-          name: appprotect-waf-nginx-ingress-agent-config
-      - name: agent-dynamic
-        emptyDir: {}
+      volumes: []
       serviceAccountName: appprotect-waf-nginx-ingress
       automountServiceAccountToken: true
       securityContext:
@@ -1028,13 +857,7 @@ spec:
             - ALL
             add:
             - NET_BIND_SERVICE        
-        volumeMounts:
-        
-        - name: agent-conf
-          mountPath: /etc/nginx-agent/nginx-agent.conf
-          subPath: nginx-agent.conf
-        - name: agent-dynamic
-          mountPath: /var/lib/nginx-agent
+        volumeMounts: []
         env:
         - name: POD_NAMESPACE
           valueFrom:
@@ -1086,7 +909,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-          - -agent=true
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -1162,65 +984,35 @@ data:
   nginx-agent.conf: |-
     
     log:
-      # set log level (error, info, debug; default "info")
       level: error
-      # set log path. if empty, don't log to file.
       path: ""
-    
-    allowed_directories:
-      - /etc/nginx
-      - /usr/lib/nginx/modules
-    
+    server:
+      host: nim.example.com
+      grpcPort: 443
+      metrics: nim.example.com
+      command: nim.example.com
+    tls:
+      enable: true
+      skip_verify: false
+      ca: "/etc/ssl/nms/ca.crt"
+      cert: "/etc/ssl/nms/tls.crt"
+      key: "/etc/ssl/nms/tls.key"
     features:
-      - certificates
-      - connection
-      - metrics
-      - file-watcher
-    
-    ## command server settings
-    command:
-      server:
-        host: connect.saas.demo1.nginxlab.net
-        port: 443
-      auth:
-        token: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
-      tls:
-        skip_verify: false
-    
-    ## collector metrics settings
-    collector:
-      log:
-        level: error
-        path: ""
-    
-        processors:
-        batch:
-    
-      receivers:
-        host_metrics:
-          collection_interval: 1m0s
-          initial_delay: 1s
-          scrapers:
-            cpu: {}
-            memory: {}
-            disk: {}
-            network: {}
-    
-      exporters:
-        otlp_exporters:
-          - server:
-              host: "connect.saas.demo1.nginxlab.net"
-              port: 443
-            authenticator: headers_setter
-            tls:
-              skip_verify: false
-    
-      extensions:
-        headers_setter:
-          headers:
-            - action: insert
-              key: "authorization"
-              value: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
+      - registration
+      - nginx-counting
+      - metrics-sender
+      - dataplane-status
+    extensions:
+      - nginx-app-protect
+      - nap-monitoring
+    nginx_app_protect:
+      report_interval: 15s
+      precompiled_publication: true
+    nap_monitoring:
+      collector_buffer_size: 50001
+      processor_buffer_size: 50002
+      syslog_ip: 127.0.0.2
+      syslog_port: 514
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -1528,7 +1320,7 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: app-protect-waf-agentv2
-        agent-configuration-revision-hash: "db09d63d"
+        agent-configuration-revision-hash: "83cb4598"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
@@ -1653,6 +1445,7 @@ spec:
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
           - -agent=true
+          - -agent-instance-group=app-protect-waf-agentv2-nginx-ingress-controller
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -1713,82 +1506,7 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: appprotect-wafv5-nginx-ingress-agent-config
-  namespace: appprotect-wafv5
-  labels:
-    helm.sh/chart: nginx-ingress-2.2.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: appprotect-wafv5
-    app.kubernetes.io/version: "5.1.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  nginx-agent.conf: |-
-    
-    log:
-      # set log level (error, info, debug; default "info")
-      level: error
-      # set log path. if empty, don't log to file.
-      path: ""
-    
-    allowed_directories:
-      - /etc/nginx
-      - /usr/lib/nginx/modules
-    
-    features:
-      - certificates
-      - connection
-      - metrics
-      - file-watcher
-    
-    ## command server settings
-    command:
-      server:
-        host: connect.saas.demo1.nginxlab.net
-        port: 443
-      auth:
-        token: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
-      tls:
-        skip_verify: false
-    
-    ## collector metrics settings
-    collector:
-      log:
-        level: error
-        path: ""
-    
-        processors:
-        batch:
-    
-      receivers:
-        host_metrics:
-          collection_interval: 1m0s
-          initial_delay: 1s
-          scrapers:
-            cpu: {}
-            memory: {}
-            disk: {}
-            network: {}
-    
-      exporters:
-        otlp_exporters:
-          - server:
-              host: "connect.saas.demo1.nginxlab.net"
-              port: 443
-            authenticator: headers_setter
-            tls:
-              skip_verify: false
-    
-      extensions:
-        headers_setter:
-          headers:
-            - action: insert
-              key: "authorization"
-              value: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
 /-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -2094,7 +1812,6 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: appprotect-wafv5
-        agent-configuration-revision-hash: "db09d63d"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
@@ -2108,11 +1825,6 @@ spec:
         name: app-protect-config
       - emptyDir: {}
         name: app-protect-bundles
-      - name: agent-conf
-        configMap:
-          name: appprotect-wafv5-nginx-ingress-agent-config
-      - name: agent-dynamic
-        emptyDir: {}
       serviceAccountName: appprotect-wafv5-nginx-ingress
       automountServiceAccountToken: true
       securityContext:
@@ -2166,11 +1878,6 @@ spec:
           # can verify that referenced bundles are present
         - name: app-protect-bundles
           mountPath: /etc/app_protect/bundles
-        - name: agent-conf
-          mountPath: /etc/nginx-agent/nginx-agent.conf
-          subPath: nginx-agent.conf
-        - name: agent-dynamic
-          mountPath: /var/lib/nginx-agent
         env:
         - name: POD_NAMESPACE
           valueFrom:
@@ -2223,7 +1930,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-          - -agent=true
       
       - name: waf-enforcer
         image: my.private.reg/nap/waf-enforcer:5.6.0
@@ -2329,65 +2035,35 @@ data:
   nginx-agent.conf: |-
     
     log:
-      # set log level (error, info, debug; default "info")
       level: error
-      # set log path. if empty, don't log to file.
       path: ""
-    
-    allowed_directories:
-      - /etc/nginx
-      - /usr/lib/nginx/modules
-    
+    server:
+      host: nim.example.com
+      grpcPort: 443
+      metrics: nim.example.com
+      command: nim.example.com
+    tls:
+      enable: true
+      skip_verify: false
+      ca: "/etc/ssl/nms/ca.crt"
+      cert: "/etc/ssl/nms/tls.crt"
+      key: "/etc/ssl/nms/tls.key"
     features:
-      - certificates
-      - connection
-      - metrics
-      - file-watcher
-    
-    ## command server settings
-    command:
-      server:
-        host: connect.saas.demo1.nginxlab.net
-        port: 443
-      auth:
-        token: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
-      tls:
-        skip_verify: false
-    
-    ## collector metrics settings
-    collector:
-      log:
-        level: error
-        path: ""
-    
-        processors:
-        batch:
-    
-      receivers:
-        host_metrics:
-          collection_interval: 1m0s
-          initial_delay: 1s
-          scrapers:
-            cpu: {}
-            memory: {}
-            disk: {}
-            network: {}
-    
-      exporters:
-        otlp_exporters:
-          - server:
-              host: "connect.saas.demo1.nginxlab.net"
-              port: 443
-            authenticator: headers_setter
-            tls:
-              skip_verify: false
-    
-      extensions:
-        headers_setter:
-          headers:
-            - action: insert
-              key: "authorization"
-              value: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
+      - registration
+      - nginx-counting
+      - metrics-sender
+      - dataplane-status
+    extensions:
+      - nginx-app-protect
+      - nap-monitoring
+    nginx_app_protect:
+      report_interval: 15s
+      precompiled_publication: true
+    nap_monitoring:
+      collector_buffer_size: 50000
+      processor_buffer_size: 50000
+      syslog_ip: 127.0.0.1
+      syslog_port: 1514
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -2695,7 +2371,7 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: app-protect-wafv5-agentv2
-        agent-configuration-revision-hash: "db09d63d"
+        agent-configuration-revision-hash: "2199944f"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
@@ -2835,6 +2511,7 @@ spec:
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
           - -agent=true
+          - -agent-instance-group=app-protect-wafv5-agentv2-nginx-ingress-controller
       
       - name: waf-enforcer
         image: my.private.reg/nap/waf-enforcer:5.6.0
@@ -2923,82 +2600,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: custom-resources-nginx-ingress-agent-config
-  namespace: custom-resources
-  labels:
-    helm.sh/chart: nginx-ingress-2.2.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: custom-resources
-    app.kubernetes.io/version: "5.1.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  nginx-agent.conf: |-
-    
-    log:
-      # set log level (error, info, debug; default "info")
-      level: error
-      # set log path. if empty, don't log to file.
-      path: ""
-    
-    allowed_directories:
-      - /etc/nginx
-      - /usr/lib/nginx/modules
-    
-    features:
-      - certificates
-      - connection
-      - metrics
-      - file-watcher
-    
-    ## command server settings
-    command:
-      server:
-        host: connect.saas.demo1.nginxlab.net
-        port: 443
-      auth:
-        token: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
-      tls:
-        skip_verify: false
-    
-    ## collector metrics settings
-    collector:
-      log:
-        level: error
-        path: ""
-    
-        processors:
-        batch:
-    
-      receivers:
-        host_metrics:
-          collection_interval: 1m0s
-          initial_delay: 1s
-          scrapers:
-            cpu: {}
-            memory: {}
-            disk: {}
-            network: {}
-    
-      exporters:
-        otlp_exporters:
-          - server:
-              host: "connect.saas.demo1.nginxlab.net"
-              port: 443
-            authenticator: headers_setter
-            tls:
-              skip_verify: false
-    
-      extensions:
-        headers_setter:
-          headers:
-            - action: insert
-              key: "authorization"
-              value: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -3260,19 +2861,12 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: custom-resources
-        agent-configuration-revision-hash: "db09d63d"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
     spec:      
-      volumes:
-      
-      - name: agent-conf
-        configMap:
-          name: custom-resources-nginx-ingress-agent-config
-      - name: agent-dynamic
-        emptyDir: {}
+      volumes: []
       serviceAccountName: custom-resources-nginx-ingress
       automountServiceAccountToken: true
       securityContext:
@@ -3316,13 +2910,7 @@ spec:
             - ALL
             add:
             - NET_BIND_SERVICE        
-        volumeMounts:
-        
-        - name: agent-conf
-          mountPath: /etc/nginx-agent/nginx-agent.conf
-          subPath: nginx-agent.conf
-        - name: agent-dynamic
-          mountPath: /var/lib/nginx-agent
+        volumeMounts: []
         env:
         - name: POD_NAMESPACE
           valueFrom:
@@ -3367,7 +2955,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-          - -agent=true
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -3382,6 +2969,9 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -3426,82 +3016,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: daemonset-nginx-ingress-agent-config
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.2.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: daemonset
-    app.kubernetes.io/version: "5.1.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  nginx-agent.conf: |-
-    
-    log:
-      # set log level (error, info, debug; default "info")
-      level: error
-      # set log path. if empty, don't log to file.
-      path: ""
-    
-    allowed_directories:
-      - /etc/nginx
-      - /usr/lib/nginx/modules
-    
-    features:
-      - certificates
-      - connection
-      - metrics
-      - file-watcher
-    
-    ## command server settings
-    command:
-      server:
-        host: connect.saas.demo1.nginxlab.net
-        port: 443
-      auth:
-        token: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
-      tls:
-        skip_verify: false
-    
-    ## collector metrics settings
-    collector:
-      log:
-        level: error
-        path: ""
-    
-        processors:
-        batch:
-    
-      receivers:
-        host_metrics:
-          collection_interval: 1m0s
-          initial_delay: 1s
-          scrapers:
-            cpu: {}
-            memory: {}
-            disk: {}
-            network: {}
-    
-      exporters:
-        otlp_exporters:
-          - server:
-              host: "connect.saas.demo1.nginxlab.net"
-              port: 443
-            authenticator: headers_setter
-            tls:
-              skip_verify: false
-    
-      extensions:
-        headers_setter:
-          headers:
-            - action: insert
-              key: "authorization"
-              value: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -3783,7 +3297,6 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: daemonset
-        agent-configuration-revision-hash: "db09d63d"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
@@ -3795,13 +3308,7 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       terminationGracePeriodSeconds: 30      
-      volumes:
-      
-      - name: agent-conf
-        configMap:
-          name: daemonset-nginx-ingress-agent-config
-      - name: agent-dynamic
-        emptyDir: {}
+      volumes: []
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
@@ -3836,13 +3343,7 @@ spec:
             - ALL
             add:
             - NET_BIND_SERVICE        
-        volumeMounts:
-        
-        - name: agent-conf
-          mountPath: /etc/nginx-agent/nginx-agent.conf
-          subPath: nginx-agent.conf
-        - name: agent-dynamic
-          mountPath: /var/lib/nginx-agent
+        volumeMounts: []
         env:
         - name: POD_NAMESPACE
           valueFrom:
@@ -3897,7 +3398,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-          - -agent=true
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -3912,6 +3412,9 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -3956,82 +3459,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: default-nginx-ingress-agent-config
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.2.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: default
-    app.kubernetes.io/version: "5.1.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  nginx-agent.conf: |-
-    
-    log:
-      # set log level (error, info, debug; default "info")
-      level: error
-      # set log path. if empty, don't log to file.
-      path: ""
-    
-    allowed_directories:
-      - /etc/nginx
-      - /usr/lib/nginx/modules
-    
-    features:
-      - certificates
-      - connection
-      - metrics
-      - file-watcher
-    
-    ## command server settings
-    command:
-      server:
-        host: connect.saas.demo1.nginxlab.net
-        port: 443
-      auth:
-        token: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
-      tls:
-        skip_verify: false
-    
-    ## collector metrics settings
-    collector:
-      log:
-        level: error
-        path: ""
-    
-        processors:
-        batch:
-    
-      receivers:
-        host_metrics:
-          collection_interval: 1m0s
-          initial_delay: 1s
-          scrapers:
-            cpu: {}
-            memory: {}
-            disk: {}
-            network: {}
-    
-      exporters:
-        otlp_exporters:
-          - server:
-              host: "connect.saas.demo1.nginxlab.net"
-              port: 443
-            authenticator: headers_setter
-            tls:
-              skip_verify: false
-    
-      extensions:
-        headers_setter:
-          headers:
-            - action: insert
-              key: "authorization"
-              value: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -4314,19 +3741,12 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: default
-        agent-configuration-revision-hash: "db09d63d"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
     spec:      
-      volumes:
-      
-      - name: agent-conf
-        configMap:
-          name: default-nginx-ingress-agent-config
-      - name: agent-dynamic
-        emptyDir: {}
+      volumes: []
       serviceAccountName: default-nginx-ingress
       automountServiceAccountToken: true
       securityContext:
@@ -4370,13 +3790,7 @@ spec:
             - ALL
             add:
             - NET_BIND_SERVICE        
-        volumeMounts:
-        
-        - name: agent-conf
-          mountPath: /etc/nginx-agent/nginx-agent.conf
-          subPath: nginx-agent.conf
-        - name: agent-dynamic
-          mountPath: /var/lib/nginx-agent
+        volumeMounts: []
         env:
         - name: POD_NAMESPACE
           valueFrom:
@@ -4427,7 +3841,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-          - -agent=true
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -4442,6 +3855,9 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -4486,82 +3902,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: global-configuration-nginx-ingress-agent-config
-  namespace: gc
-  labels:
-    helm.sh/chart: nginx-ingress-2.2.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: global-configuration
-    app.kubernetes.io/version: "5.1.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  nginx-agent.conf: |-
-    
-    log:
-      # set log level (error, info, debug; default "info")
-      level: error
-      # set log path. if empty, don't log to file.
-      path: ""
-    
-    allowed_directories:
-      - /etc/nginx
-      - /usr/lib/nginx/modules
-    
-    features:
-      - certificates
-      - connection
-      - metrics
-      - file-watcher
-    
-    ## command server settings
-    command:
-      server:
-        host: connect.saas.demo1.nginxlab.net
-        port: 443
-      auth:
-        token: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
-      tls:
-        skip_verify: false
-    
-    ## collector metrics settings
-    collector:
-      log:
-        level: error
-        path: ""
-    
-        processors:
-        batch:
-    
-      receivers:
-        host_metrics:
-          collection_interval: 1m0s
-          initial_delay: 1s
-          scrapers:
-            cpu: {}
-            memory: {}
-            disk: {}
-            network: {}
-    
-      exporters:
-        otlp_exporters:
-          - server:
-              host: "connect.saas.demo1.nginxlab.net"
-              port: 443
-            authenticator: headers_setter
-            tls:
-              skip_verify: false
-    
-      extensions:
-        headers_setter:
-          headers:
-            - action: insert
-              key: "authorization"
-              value: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -4844,19 +4184,12 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: global-configuration
-        agent-configuration-revision-hash: "db09d63d"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
     spec:      
-      volumes:
-      
-      - name: agent-conf
-        configMap:
-          name: global-configuration-nginx-ingress-agent-config
-      - name: agent-dynamic
-        emptyDir: {}
+      volumes: []
       serviceAccountName: global-configuration-nginx-ingress
       automountServiceAccountToken: true
       securityContext:
@@ -4900,13 +4233,7 @@ spec:
             - ALL
             add:
             - NET_BIND_SERVICE        
-        volumeMounts:
-        
-        - name: agent-conf
-          mountPath: /etc/nginx-agent/nginx-agent.conf
-          subPath: nginx-agent.conf
-        - name: agent-dynamic
-          mountPath: /var/lib/nginx-agent
+        volumeMounts: []
         env:
         - name: POD_NAMESPACE
           valueFrom:
@@ -4958,7 +4285,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-          - -agent=true
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -4973,6 +4299,9 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-globalconfiguration.yaml
 apiVersion: k8s.nginx.org/v1
@@ -5038,82 +4367,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: ingress-class-nginx-ingress-agent-config
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.2.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: ingress-class
-    app.kubernetes.io/version: "5.1.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  nginx-agent.conf: |-
-    
-    log:
-      # set log level (error, info, debug; default "info")
-      level: error
-      # set log path. if empty, don't log to file.
-      path: ""
-    
-    allowed_directories:
-      - /etc/nginx
-      - /usr/lib/nginx/modules
-    
-    features:
-      - certificates
-      - connection
-      - metrics
-      - file-watcher
-    
-    ## command server settings
-    command:
-      server:
-        host: connect.saas.demo1.nginxlab.net
-        port: 443
-      auth:
-        token: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
-      tls:
-        skip_verify: false
-    
-    ## collector metrics settings
-    collector:
-      log:
-        level: error
-        path: ""
-    
-        processors:
-        batch:
-    
-      receivers:
-        host_metrics:
-          collection_interval: 1m0s
-          initial_delay: 1s
-          scrapers:
-            cpu: {}
-            memory: {}
-            disk: {}
-            network: {}
-    
-      exporters:
-        otlp_exporters:
-          - server:
-              host: "connect.saas.demo1.nginxlab.net"
-              port: 443
-            authenticator: headers_setter
-            tls:
-              skip_verify: false
-    
-      extensions:
-        headers_setter:
-          headers:
-            - action: insert
-              key: "authorization"
-              value: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -5396,19 +4649,12 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: ingress-class
-        agent-configuration-revision-hash: "db09d63d"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
     spec:      
-      volumes:
-      
-      - name: agent-conf
-        configMap:
-          name: ingress-class-nginx-ingress-agent-config
-      - name: agent-dynamic
-        emptyDir: {}
+      volumes: []
       serviceAccountName: ingress-class-nginx-ingress
       automountServiceAccountToken: true
       securityContext:
@@ -5452,13 +4698,7 @@ spec:
             - ALL
             add:
             - NET_BIND_SERVICE        
-        volumeMounts:
-        
-        - name: agent-conf
-          mountPath: /etc/nginx-agent/nginx-agent.conf
-          subPath: nginx-agent.conf
-        - name: agent-dynamic
-          mountPath: /var/lib/nginx-agent
+        volumeMounts: []
         env:
         - name: POD_NAMESPACE
           valueFrom:
@@ -5509,7 +4749,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-          - -agent=true
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -5526,6 +4765,9 @@ metadata:
     ingressclass.kubernetes.io/is-default-class: "true"
 spec:
   controller: nginx.org/ingress-controller
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -5570,82 +4812,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: namespace-nginx-ingress-agent-config
-  namespace: nginx-ingress
-  labels:
-    helm.sh/chart: nginx-ingress-2.2.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: namespace
-    app.kubernetes.io/version: "5.1.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  nginx-agent.conf: |-
-    
-    log:
-      # set log level (error, info, debug; default "info")
-      level: error
-      # set log path. if empty, don't log to file.
-      path: ""
-    
-    allowed_directories:
-      - /etc/nginx
-      - /usr/lib/nginx/modules
-    
-    features:
-      - certificates
-      - connection
-      - metrics
-      - file-watcher
-    
-    ## command server settings
-    command:
-      server:
-        host: connect.saas.demo1.nginxlab.net
-        port: 443
-      auth:
-        token: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
-      tls:
-        skip_verify: false
-    
-    ## collector metrics settings
-    collector:
-      log:
-        level: error
-        path: ""
-    
-        processors:
-        batch:
-    
-      receivers:
-        host_metrics:
-          collection_interval: 1m0s
-          initial_delay: 1s
-          scrapers:
-            cpu: {}
-            memory: {}
-            disk: {}
-            network: {}
-    
-      exporters:
-        otlp_exporters:
-          - server:
-              host: "connect.saas.demo1.nginxlab.net"
-              port: 443
-            authenticator: headers_setter
-            tls:
-              skip_verify: false
-    
-      extensions:
-        headers_setter:
-          headers:
-            - action: insert
-              key: "authorization"
-              value: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -5928,19 +5094,12 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: namespace
-        agent-configuration-revision-hash: "db09d63d"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
     spec:      
-      volumes:
-      
-      - name: agent-conf
-        configMap:
-          name: namespace-nginx-ingress-agent-config
-      - name: agent-dynamic
-        emptyDir: {}
+      volumes: []
       serviceAccountName: namespace-nginx-ingress
       automountServiceAccountToken: true
       securityContext:
@@ -5984,13 +5143,7 @@ spec:
             - ALL
             add:
             - NET_BIND_SERVICE        
-        volumeMounts:
-        
-        - name: agent-conf
-          mountPath: /etc/nginx-agent/nginx-agent.conf
-          subPath: nginx-agent.conf
-        - name: agent-dynamic
-          mountPath: /var/lib/nginx-agent
+        volumeMounts: []
         env:
         - name: POD_NAMESPACE
           valueFrom:
@@ -6041,7 +5194,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-          - -agent=true
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -6056,6 +5208,9 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -6135,7 +5290,7 @@ data:
     ## command server settings
     command:
       server:
-        host: connect.saas.demo1.nginxlab.net
+        host: product.connect.nginx.com
         port: 443
       auth:
         token: "base64hash="
@@ -6164,7 +5319,7 @@ data:
       exporters:
         otlp_exporters:
           - server:
-              host: "connect.saas.demo1.nginxlab.net"
+              host: "product.connect.nginx.com"
               port: 443
             authenticator: headers_setter
             tls:
@@ -6458,7 +5613,7 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: oss-agent
-        agent-configuration-revision-hash: "05fb53b6"
+        agent-configuration-revision-hash: "b19281a7"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
@@ -6632,82 +5787,7 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: plus-nginx-ingress-agent-config
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.2.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: plus
-    app.kubernetes.io/version: "5.1.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  nginx-agent.conf: |-
-    
-    log:
-      # set log level (error, info, debug; default "info")
-      level: error
-      # set log path. if empty, don't log to file.
-      path: ""
-    
-    allowed_directories:
-      - /etc/nginx
-      - /usr/lib/nginx/modules
-    
-    features:
-      - certificates
-      - connection
-      - metrics
-      - file-watcher
-    
-    ## command server settings
-    command:
-      server:
-        host: connect.saas.demo1.nginxlab.net
-        port: 443
-      auth:
-        token: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
-      tls:
-        skip_verify: false
-    
-    ## collector metrics settings
-    collector:
-      log:
-        level: error
-        path: ""
-    
-        processors:
-        batch:
-    
-      receivers:
-        host_metrics:
-          collection_interval: 1m0s
-          initial_delay: 1s
-          scrapers:
-            cpu: {}
-            memory: {}
-            disk: {}
-            network: {}
-    
-      exporters:
-        otlp_exporters:
-          - server:
-              host: "connect.saas.demo1.nginxlab.net"
-              port: 443
-            authenticator: headers_setter
-            tls:
-              skip_verify: false
-    
-      extensions:
-        headers_setter:
-          headers:
-            - action: insert
-              key: "authorization"
-              value: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
 /-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -7003,19 +6083,12 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: plus
-        agent-configuration-revision-hash: "db09d63d"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
     spec:      
-      volumes:
-      
-      - name: agent-conf
-        configMap:
-          name: plus-nginx-ingress-agent-config
-      - name: agent-dynamic
-        emptyDir: {}
+      volumes: []
       serviceAccountName: plus-nginx-ingress
       automountServiceAccountToken: true
       securityContext:
@@ -7059,13 +6132,7 @@ spec:
             - ALL
             add:
             - NET_BIND_SERVICE        
-        volumeMounts:
-        
-        - name: agent-conf
-          mountPath: /etc/nginx-agent/nginx-agent.conf
-          subPath: nginx-agent.conf
-        - name: agent-dynamic
-          mountPath: /var/lib/nginx-agent
+        volumeMounts: []
         env:
         - name: POD_NAMESPACE
           valueFrom:
@@ -7117,7 +6184,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-          - -agent=true
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -7178,82 +6244,7 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: plus-debug-nginx-ingress-agent-config
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.2.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: plus-debug
-    app.kubernetes.io/version: "5.1.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  nginx-agent.conf: |-
-    
-    log:
-      # set log level (error, info, debug; default "info")
-      level: error
-      # set log path. if empty, don't log to file.
-      path: ""
-    
-    allowed_directories:
-      - /etc/nginx
-      - /usr/lib/nginx/modules
-    
-    features:
-      - certificates
-      - connection
-      - metrics
-      - file-watcher
-    
-    ## command server settings
-    command:
-      server:
-        host: connect.saas.demo1.nginxlab.net
-        port: 443
-      auth:
-        token: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
-      tls:
-        skip_verify: false
-    
-    ## collector metrics settings
-    collector:
-      log:
-        level: error
-        path: ""
-    
-        processors:
-        batch:
-    
-      receivers:
-        host_metrics:
-          collection_interval: 1m0s
-          initial_delay: 1s
-          scrapers:
-            cpu: {}
-            memory: {}
-            disk: {}
-            network: {}
-    
-      exporters:
-        otlp_exporters:
-          - server:
-              host: "connect.saas.demo1.nginxlab.net"
-              port: 443
-            authenticator: headers_setter
-            tls:
-              skip_verify: false
-    
-      extensions:
-        headers_setter:
-          headers:
-            - action: insert
-              key: "authorization"
-              value: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
 /-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -7549,19 +6540,12 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: plus-debug
-        agent-configuration-revision-hash: "db09d63d"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
     spec:      
-      volumes:
-      
-      - name: agent-conf
-        configMap:
-          name: plus-debug-nginx-ingress-agent-config
-      - name: agent-dynamic
-        emptyDir: {}
+      volumes: []
       serviceAccountName: plus-debug-nginx-ingress
       automountServiceAccountToken: true
       securityContext:
@@ -7605,13 +6589,7 @@ spec:
             - ALL
             add:
             - NET_BIND_SERVICE        
-        volumeMounts:
-        
-        - name: agent-conf
-          mountPath: /etc/nginx-agent/nginx-agent.conf
-          subPath: nginx-agent.conf
-        - name: agent-dynamic
-          mountPath: /var/lib/nginx-agent
+        volumeMounts: []
         env:
         - name: POD_NAMESPACE
           valueFrom:
@@ -7673,7 +6651,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-          - -agent=true
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -7734,82 +6711,7 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: plus-mgmt-nginx-ingress-agent-config
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.2.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: plus-mgmt
-    app.kubernetes.io/version: "5.1.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  nginx-agent.conf: |-
-    
-    log:
-      # set log level (error, info, debug; default "info")
-      level: error
-      # set log path. if empty, don't log to file.
-      path: ""
-    
-    allowed_directories:
-      - /etc/nginx
-      - /usr/lib/nginx/modules
-    
-    features:
-      - certificates
-      - connection
-      - metrics
-      - file-watcher
-    
-    ## command server settings
-    command:
-      server:
-        host: connect.saas.demo1.nginxlab.net
-        port: 443
-      auth:
-        token: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
-      tls:
-        skip_verify: false
-    
-    ## collector metrics settings
-    collector:
-      log:
-        level: error
-        path: ""
-    
-        processors:
-        batch:
-    
-      receivers:
-        host_metrics:
-          collection_interval: 1m0s
-          initial_delay: 1s
-          scrapers:
-            cpu: {}
-            memory: {}
-            disk: {}
-            network: {}
-    
-      exporters:
-        otlp_exporters:
-          - server:
-              host: "connect.saas.demo1.nginxlab.net"
-              port: 443
-            authenticator: headers_setter
-            tls:
-              skip_verify: false
-    
-      extensions:
-        headers_setter:
-          headers:
-            - action: insert
-              key: "authorization"
-              value: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
 /-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -8115,19 +7017,12 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: plus-mgmt
-        agent-configuration-revision-hash: "db09d63d"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
     spec:      
-      volumes:
-      
-      - name: agent-conf
-        configMap:
-          name: plus-mgmt-nginx-ingress-agent-config
-      - name: agent-dynamic
-        emptyDir: {}
+      volumes: []
       serviceAccountName: plus-mgmt-nginx-ingress
       automountServiceAccountToken: true
       securityContext:
@@ -8171,13 +7066,7 @@ spec:
             - ALL
             add:
             - NET_BIND_SERVICE        
-        volumeMounts:
-        
-        - name: agent-conf
-          mountPath: /etc/nginx-agent/nginx-agent.conf
-          subPath: nginx-agent.conf
-        - name: agent-dynamic
-          mountPath: /var/lib/nginx-agent
+        volumeMounts: []
         env:
         - name: POD_NAMESPACE
           valueFrom:
@@ -8239,7 +7128,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-          - -agent=true
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -8300,82 +7188,7 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: plus-mgmt-custom-endpoint-nginx-ingress-agent-config
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.2.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: plus-mgmt-custom-endpoint
-    app.kubernetes.io/version: "5.1.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  nginx-agent.conf: |-
-    
-    log:
-      # set log level (error, info, debug; default "info")
-      level: error
-      # set log path. if empty, don't log to file.
-      path: ""
-    
-    allowed_directories:
-      - /etc/nginx
-      - /usr/lib/nginx/modules
-    
-    features:
-      - certificates
-      - connection
-      - metrics
-      - file-watcher
-    
-    ## command server settings
-    command:
-      server:
-        host: connect.saas.demo1.nginxlab.net
-        port: 443
-      auth:
-        token: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
-      tls:
-        skip_verify: false
-    
-    ## collector metrics settings
-    collector:
-      log:
-        level: error
-        path: ""
-    
-        processors:
-        batch:
-    
-      receivers:
-        host_metrics:
-          collection_interval: 1m0s
-          initial_delay: 1s
-          scrapers:
-            cpu: {}
-            memory: {}
-            disk: {}
-            network: {}
-    
-      exporters:
-        otlp_exporters:
-          - server:
-              host: "connect.saas.demo1.nginxlab.net"
-              port: 443
-            authenticator: headers_setter
-            tls:
-              skip_verify: false
-    
-      extensions:
-        headers_setter:
-          headers:
-            - action: insert
-              key: "authorization"
-              value: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
 /-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -8672,19 +7485,12 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: plus-mgmt-custom-endpoint
-        agent-configuration-revision-hash: "db09d63d"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
     spec:      
-      volumes:
-      
-      - name: agent-conf
-        configMap:
-          name: plus-mgmt-custom-endpoint-nginx-ingress-agent-config
-      - name: agent-dynamic
-        emptyDir: {}
+      volumes: []
       serviceAccountName: plus-mgmt-custom-endpoint-nginx-ingress
       automountServiceAccountToken: true
       securityContext:
@@ -8728,13 +7534,7 @@ spec:
             - ALL
             add:
             - NET_BIND_SERVICE        
-        volumeMounts:
-        
-        - name: agent-conf
-          mountPath: /etc/nginx-agent/nginx-agent.conf
-          subPath: nginx-agent.conf
-        - name: agent-dynamic
-          mountPath: /var/lib/nginx-agent
+        volumeMounts: []
         env:
         - name: POD_NAMESPACE
           valueFrom:
@@ -8786,7 +7586,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-          - -agent=true
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -8847,82 +7646,7 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: plus-mgmt-proxy-host-nginx-ingress-agent-config
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.2.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: plus-mgmt-proxy-host
-    app.kubernetes.io/version: "5.1.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  nginx-agent.conf: |-
-    
-    log:
-      # set log level (error, info, debug; default "info")
-      level: error
-      # set log path. if empty, don't log to file.
-      path: ""
-    
-    allowed_directories:
-      - /etc/nginx
-      - /usr/lib/nginx/modules
-    
-    features:
-      - certificates
-      - connection
-      - metrics
-      - file-watcher
-    
-    ## command server settings
-    command:
-      server:
-        host: connect.saas.demo1.nginxlab.net
-        port: 443
-      auth:
-        token: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
-      tls:
-        skip_verify: false
-    
-    ## collector metrics settings
-    collector:
-      log:
-        level: error
-        path: ""
-    
-        processors:
-        batch:
-    
-      receivers:
-        host_metrics:
-          collection_interval: 1m0s
-          initial_delay: 1s
-          scrapers:
-            cpu: {}
-            memory: {}
-            disk: {}
-            network: {}
-    
-      exporters:
-        otlp_exporters:
-          - server:
-              host: "connect.saas.demo1.nginxlab.net"
-              port: 443
-            authenticator: headers_setter
-            tls:
-              skip_verify: false
-    
-      extensions:
-        headers_setter:
-          headers:
-            - action: insert
-              key: "authorization"
-              value: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
 /-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -9219,19 +7943,12 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: plus-mgmt-proxy-host
-        agent-configuration-revision-hash: "db09d63d"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
     spec:      
-      volumes:
-      
-      - name: agent-conf
-        configMap:
-          name: plus-mgmt-proxy-host-nginx-ingress-agent-config
-      - name: agent-dynamic
-        emptyDir: {}
+      volumes: []
       serviceAccountName: plus-mgmt-proxy-host-nginx-ingress
       automountServiceAccountToken: true
       securityContext:
@@ -9275,13 +7992,7 @@ spec:
             - ALL
             add:
             - NET_BIND_SERVICE        
-        volumeMounts:
-        
-        - name: agent-conf
-          mountPath: /etc/nginx-agent/nginx-agent.conf
-          subPath: nginx-agent.conf
-        - name: agent-dynamic
-          mountPath: /var/lib/nginx-agent
+        volumeMounts: []
         env:
         - name: POD_NAMESPACE
           valueFrom:
@@ -9333,7 +8044,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-          - -agent=true
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -9394,82 +8104,7 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: plus-mgmt-proxy-host-auth-nginx-ingress-agent-config
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.2.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
-    app.kubernetes.io/version: "5.1.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  nginx-agent.conf: |-
-    
-    log:
-      # set log level (error, info, debug; default "info")
-      level: error
-      # set log path. if empty, don't log to file.
-      path: ""
-    
-    allowed_directories:
-      - /etc/nginx
-      - /usr/lib/nginx/modules
-    
-    features:
-      - certificates
-      - connection
-      - metrics
-      - file-watcher
-    
-    ## command server settings
-    command:
-      server:
-        host: connect.saas.demo1.nginxlab.net
-        port: 443
-      auth:
-        token: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
-      tls:
-        skip_verify: false
-    
-    ## collector metrics settings
-    collector:
-      log:
-        level: error
-        path: ""
-    
-        processors:
-        batch:
-    
-      receivers:
-        host_metrics:
-          collection_interval: 1m0s
-          initial_delay: 1s
-          scrapers:
-            cpu: {}
-            memory: {}
-            disk: {}
-            network: {}
-    
-      exporters:
-        otlp_exporters:
-          - server:
-              host: "connect.saas.demo1.nginxlab.net"
-              port: 443
-            authenticator: headers_setter
-            tls:
-              skip_verify: false
-    
-      extensions:
-        headers_setter:
-          headers:
-            - action: insert
-              key: "authorization"
-              value: "gd9UhwTtG0sNm7eSKkUMwiz39kUvJLpQ/tB6D3hvk6M="
 /-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -9766,19 +8401,12 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
-        agent-configuration-revision-hash: "db09d63d"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
     spec:      
-      volumes:
-      
-      - name: agent-conf
-        configMap:
-          name: plus-mgmt-proxy-host-auth-nginx-ingress-agent-config
-      - name: agent-dynamic
-        emptyDir: {}
+      volumes: []
       serviceAccountName: plus-mgmt-proxy-host-auth-nginx-ingress
       automountServiceAccountToken: true
       securityContext:
@@ -9822,13 +8450,7 @@ spec:
             - ALL
             add:
             - NET_BIND_SERVICE        
-        volumeMounts:
-        
-        - name: agent-conf
-          mountPath: /etc/nginx-agent/nginx-agent.conf
-          subPath: nginx-agent.conf
-        - name: agent-dynamic
-          mountPath: /var/lib/nginx-agent
+        volumeMounts: []
         env:
         - name: POD_NAMESPACE
           valueFrom:
@@ -9890,7 +8512,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-          - -agent=true
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -9984,7 +8605,7 @@ data:
     ## command server settings
     command:
       server:
-        host: connect.saas.demo1.nginxlab.net
+        host: product.connect.nginx.com
         port: 443
       auth:
         token: "base64hash="
@@ -10013,7 +8634,7 @@ data:
       exporters:
         otlp_exporters:
           - server:
-              host: "connect.saas.demo1.nginxlab.net"
+              host: "product.connect.nginx.com"
               port: 443
             authenticator: headers_setter
             tls:
@@ -10322,7 +8943,7 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: plus-agent
-        agent-configuration-revision-hash: "05fb53b6"
+        agent-configuration-revision-hash: "b19281a7"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"

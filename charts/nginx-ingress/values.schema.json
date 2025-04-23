@@ -2307,14 +2307,6 @@
             "my-instance-group"
           ]
         },
-        "configSyncGroup": {
-          "type": "string",
-          "default": "",
-          "title": "Set the config sync group for NGINX Agent",
-          "examples": [
-            "my-sync-group"
-          ]
-        },
         "logLevel": {
           "type": "string",
           "default": "info",
