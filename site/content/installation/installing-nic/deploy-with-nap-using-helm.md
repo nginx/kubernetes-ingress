@@ -7,7 +7,7 @@ product: NIC
 docs: DOCS-609
 ---
 
-This document describes how to build a local NGINX App Protect WAF Docker image with NGINX Plus Ingress Controller, which can be used to compile WAF policies.
+This document describes how to build a local F5 NGINX App Protect WAF Docker image with NGINX Plus Ingress Controller, which can be used to compile WAF policies.
 
 This is accomplished with the following steps:
 
@@ -23,13 +23,13 @@ This is accomplished with the following steps:
 
 1. Download your NGINX Ingress Controller subscription's JSON Web Token, SSL Certificate, and Private Key from MyF5. 
    You can use the same JSON Web Token, Certificate, and Key as NGINX Plus in your MyF5 portal.
-2. Rename the files to the following:
+1. Rename the files to the following:
    - `nginx-repo.crt`
    - `nginx-repo.key`
    - `nginx-repo.jwt`
-3. Log in to the Docker registry using the contents of the JSON Web Token file:
+1. Log in to the Docker registry using the contents of the JSON Web Token file:
    ```shell
-   $ docker login private-registry.nginx.com --username=$(cat nginx-repo.jwt) --password=none
+   docker login private-registry.nginx.com --username=$(cat nginx-repo.jwt) --password=none
    ```
 
 ---
@@ -39,7 +39,7 @@ This is accomplished with the following steps:
 Pull the `waf-compiler` image with:
 
 ```shell
-$ docker pull private-registry.nginx.com/nap/waf-compiler:5.6.0
+docker pull private-registry.nginx.com/nap/waf-compiler:5.6.0
 ```
 
 Download the [provided WAF Policy JSON](https://raw.githubusercontent.com/nginx/kubernetes-ingress/main/tests/data/ap-waf-v5/wafv5.json):
@@ -105,9 +105,10 @@ spec:
       storage: 1Gi
 ```
 
-This sets up a 1Gi disk and attaches a claim to it that you will reference in the NIC deployment chart.
+This sets up a 1Gi disk and attaches a claim to it that you will reference in the deployment chart.
 
 Create these with:
+
 ```shell
 kubectl apply -f pvc.yaml
 ```
@@ -125,6 +126,7 @@ kubectl get pvc
 ## Deploy NGINX Plus NIC Controller with NAP Enabled using Helm
 
 Add the official NGINX Helm repository:
+
 ```shell
 helm repo add nginx-stable https://helm.nginx.com/stable
 helm repo update
@@ -150,7 +152,7 @@ Install the required CRDs for NGINX Ingress Controller:
 kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.0.0/deploy/crds.yaml
 ```
 
-Using helm, install NGINX Ingress Controller
+Using Helm, install NGINX Ingress Controller
 
 ```shell
 helm upgrade --install nic nginx-stable/nginx-ingress \
@@ -171,6 +173,7 @@ helm upgrade --install nic nginx-stable/nginx-ingress \
 ```
 
 Verify deployment success:
+
 ```shell
 kubectl get pods
 ```
@@ -284,13 +287,13 @@ kubectl get pods
 
 ### Save the public IP and PORT in environment variables
 
-Find out what they are with this:
+Get the public IP and port of your instance with the following command:
 
 ```shell
 kubectl get svc
 ```
-Take note of the external IP of the `nic-nginx-ingress-controller` service and the port. Save them in the following 
-environment variables:
+
+Save them in the following environment variables:
 
 ```shell
 IC_IP=XXX.YYY.ZZZ.III
@@ -328,4 +331,6 @@ administrator.<br><br>Your support ID is: 11241918873745059631<br><br>
 This is mostly the same as the [examples/custom_resources/app-protect-waf-v5](https://github.com/nginx/kubernetes-ingress/tree/main/examples/custom-resources/app-protect-waf-v5)
 deployment in a single file with the policy bundle already set.
 
-You now have a fully operational NIC with NAP deployed in your Kubernetes environment. For further details, troubleshooting, or support, refer to the [official NGINX documentation](https://docs.nginx.com) or reach out directly to your F5/NGINX account team.
+You now have a fully operational NGINX Ingress Controller instance with NGINX App Protect deployed in your Kubernetes environment. 
+
+For further details, troubleshooting, or support, refer to the [official NGINX documentation](https://docs.nginx.com) or reach out directly to your F5/NGINX account team.
