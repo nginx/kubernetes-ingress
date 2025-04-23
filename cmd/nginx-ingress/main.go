@@ -323,6 +323,7 @@ func main() {
 		NICVersion:                   version,
 		DynamicWeightChangesReload:   *enableDynamicWeightChangesReload,
 		InstallationFlags:            parsedFlags,
+		ShuttingDown:                 false,
 	}
 
 	lbc := k8s.NewLoadBalancerController(lbcInput)
@@ -816,6 +817,7 @@ func handleTermination(lbc *k8s.LoadBalancerController, nginxManager nginx.Manag
 		nl.Fatalf(lbc.Logger, "AppProtectDosAgent command exited unexpectedly with status: %v", err)
 	case <-signalChan:
 		nl.Info(lbc.Logger, "Received SIGTERM, shutting down")
+		lbc.ShuttingDown = true
 		lbc.Stop()
 		nginxManager.Quit()
 		<-cpcfg.nginxDone
