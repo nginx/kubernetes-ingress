@@ -73,7 +73,7 @@ After this command, your workspace should contain:
 
 ## Create the persistent volume and claim to store the policy bundle
 
-Save the following configuration data as `pvc.yml` in the same directory.
+Save the following configuration data as `pvc.yaml` in the same directory.
 
 ```yaml
 apiVersion: v1
