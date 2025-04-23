@@ -1,10 +1,10 @@
 ---
-docs: DOCS-586
-doctypes:
-- ''
 title: ConfigMap resources
-toc: true
 weight: 300
+toc: true
+type: how-to
+product: NIC
+docs: DOCS-586
 ---
 
 When using F5 NGINX Ingress Controller, you can customize or fine tune NGINX behavior using ConfigMap resources. Examples include setting the number of worker processes or customizing the access log format.
@@ -182,7 +182,18 @@ For more information, view the [VirtualServer and VirtualServerRoute resources](
 
 ### Zone Sync
 
-Zone Sync enables the [ngx_stream_zone_sync_module](https://nginx.org/en/docs/stream/ngx_stream_zone_sync_module.html) in NGINX Ingress Controller when NGINX Plus is used.  Multiple replicas are required to effectively utililise this functionality.  See the [zone sync documentation for further details](https://docs.nginx.com/nginx/admin-guide/high-availability/zone_sync_details/).
+Zone Sync enables the [ngx_stream_zone_sync_module](https://nginx.org/en/docs/stream/ngx_stream_zone_sync_module.html) in NGINX Ingress Controller when NGINX Plus is used.  Multiple replicas are required to effectively utililise this functionality. More information is available in the [How NGINX Plus Performs Zone Synchronization](https://docs.nginx.com/nginx/admin-guide/high-availability/zone_sync_details/) topic.
+
+Zone synchronization with TLS for NGINX Ingress Controller is not yet available with ConfigMap. If you would like to enable Zone Sync with TLS, please remove `zone-sync` from ConfigMap and add Zone Sync parameters via [`stream-snippets`]({{< ref "/configuration/ingress-resources/advanced-configuration-with-snippets.md" >}}) similar to [this example](https://github.com/nginx/kubernetes-ingress/blob/v4.0.1/examples/custom-resources/oidc/nginx-config.yaml) and adding the [zone_sync_ssl directive](https://nginx.org/en/docs/stream/ngx_stream_zone_sync_module.html#zone_sync_ssl) along with any other TLS parameters to the `stream-snippets`. 
+
+You will also need to manually add the headless service, such as in [this example](https://github.com/nginx/kubernetes-ingress/blob/v4.0.1/examples/custom-resources/oidc/nginx-ingress-headless.yaml).
+
+{{< caution >}} 
+If you previously installed OIDC or used the `zone_sync` directive with `stream-snippets` in [v4.0.1](https://github.com/nginx/kubernetes-ingress/tree/v4.0.1) or earlier, and you plan to enable the `zone-sync` ConfigMap key, the `zone_sync` directive should be removed from `stream-snippets`. 
+
+If you encounter the error `error [emerg] 13#13: "zone_sync" directive is duplicate in /etc/nginx/nginx.conf:164` it is likely due to `zone_sync` being enabled in both `stream-snippets` and the ConfigMap. Once upgraded, remove the [old headless service](https://github.com/nginx/kubernetes-ingress/blob/v4.0.1/examples/custom-resources/oidc/nginx-ingress-headless.yaml) deployed for OIDC.
+{{< /caution >}}
+
 
 {{<bootstrap-table "table table-striped table-bordered table-responsive">}}
 |ConfigMap Key | Description | Default | Example |
@@ -193,13 +204,6 @@ Zone Sync enables the [ngx_stream_zone_sync_module](https://nginx.org/en/docs/st
 |*zone-sync-resolver-ipv6* | Configures whether the optional [resolver](https://nginx.org/en/docs/http/ngx_http_core_module.html#resolver) directive for zone-sync will look up IPv6 addresses. NGINX Plus & `zone-sync` Required | `true` |  |
 |*zone-sync-resolver-valid* | Configures an [NGINX time](https://nginx.org/en/docs/syntax.html) that the optional [resolver](https://nginx.org/en/docs/http/ngx_http_core_module.html#resolver) directive for zone-sync will override the TTL value of responses from nameservers with. NGINX Plus & `zone-sync` Required | `5s` |  |
 {{</bootstrap-table>}}
-
-{{< note >}} 
-If you previously installed OIDC or used the `zone_sync` directive with `stream-snippets` in [v4.0.1](https://github.com/nginx/kubernetes-ingress/tree/v4.0.1) or earlier, and you plan to enable the [`zone-sync` ConfigMap key](/nginx-ingress-controller/configuration/global-configuration/configmap-resources/#zone-sync), the `zone_sync` directive should be removed from `stream-snippets`. 
-If you encounter a duplicate directive error, `error [emerg] 13#13: "zone_sync" directive is duplicate in /etc/nginx/nginx.conf:164` it is likely due to `zone_sync` being enabled in both `stream-snippets` and the ConfigMap. Once upgraded, remove the [old headless service](https://github.com/nginx/kubernetes-ingress/blob/v4.0.1/examples/custom-resources/oidc/nginx-ingress-headless.yaml) deployed for OIDC.
-
-Zone synchronization with TLS for NGINX Ingress Controller is not yet available with ConfigMap. If you would like to enable Zone Sync with TLS, please remove `zone-sync` from ConfigMap and add Zone Sync parameters via [`stream-snippets`]({{< ref "/configuration/ingress-resources/advanced-configuration-with-snippets.md" >}}) similar to this [example](https://github.com/nginx/kubernetes-ingress/blob/v4.0.1/examples/custom-resources/oidc/nginx-config.yaml) and adding the [zone_sync_ssl directive](https://nginx.org/en/docs/stream/ngx_stream_zone_sync_module.html#zone_sync_ssl) along with any other TLS parameters to the `stream-snippets`. You will also need to manually add the headless service, similar to [this](https://github.com/nginx/kubernetes-ingress/blob/v4.0.1/examples/custom-resources/oidc/nginx-ingress-headless.yaml).
-{{< /note >}}
 
 ---
 
