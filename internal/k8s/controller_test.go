@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"reflect"
 	"sort"
 	"strings"
@@ -3681,7 +3682,8 @@ func TestIsPodMarkedForDeletion(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			client := fake.NewSimpleClientset()
-
+			os.Setenv("POD_NAME", test.envPodName)
+			os.Setenv("POD_NAMESPACE", test.envPodNamespace)
 			if test.podExists {
 				pod := &api_v1.Pod{
 					ObjectMeta: meta_v1.ObjectMeta{
