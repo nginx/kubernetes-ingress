@@ -3639,6 +3639,7 @@ func TestCreateIngressExWithZoneSync(t *testing.T) {
 		}
 	}
 }
+
 func TestIsPodMarkedForDeletion(t *testing.T) {
 	t.Parallel()
 
@@ -3679,7 +3680,6 @@ func TestIsPodMarkedForDeletion(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-
 			client := fake.NewSimpleClientset()
 
 			if test.podExists {
