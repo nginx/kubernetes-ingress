@@ -34,20 +34,13 @@ This is accomplished with the following steps:
 
 ---
 
+## Compile WAF Policy from JSON to Bundle
 
-Password:
-Login Succeeded
-```
-
-Once that's done, pull the `waf-compiler` image with:
+Pull the `waf-compiler` image with:
 
 ```shell
 $ docker pull private-registry.nginx.com/nap/waf-compiler:5.6.0
 ```
-
----
-
-## Step 3: Compile WAF Policy from JSON to Bundle
 
 Download the [provided WAF Policy JSON](https://raw.githubusercontent.com/nginx/kubernetes-ingress/main/tests/data/ap-waf-v5/wafv5.json):
 
@@ -78,7 +71,7 @@ After this command, your workspace should contain:
 
 ---
 
-## Step 4: Create the persistent volume and claim to store the policy bundle
+## Create the persistent volume and claim to store the policy bundle
 
 Save the following configuration data as `pvc.yml` in the same directory.
 
@@ -129,7 +122,7 @@ kubectl get pv
 kubectl get pvc
 ```
 
-## Step 5: Deploy NGINX Plus NIC Controller with NAP Enabled using Helm
+## Deploy NGINX Plus NIC Controller with NAP Enabled using Helm
 
 Add the official NGINX Helm repository:
 ```shell
@@ -180,7 +173,7 @@ kubectl get pods
 
 ---
 
-## Step 6: Copy the policy bundle into the running instance
+## Copy the policy bundle into the running instance
 
 Get the name of the pod from the `kubectl get pods` command above.
 
@@ -209,7 +202,7 @@ kubectl exec --stdin --tty \
     -- ls -la /etc/app_protect/bundles
 ```
 
-## Step 7: Confirm that the WAF policies work
+## Confirm that the WAF policies work
 
 Save the following kubernetes config file as `webapp.yaml`:
 
