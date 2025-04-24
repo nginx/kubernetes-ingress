@@ -1496,12 +1496,20 @@ func TestCountVirtualServersOnCustomResourceDisabled(t *testing.T) {
 			}
 		}
 
+		configmap := &coreV1.ConfigMap{
+			ObjectMeta: metaV1.ObjectMeta{
+				Name:      "nginx-config",
+				Namespace: "nginx-ingress",
+			},
+		}
+
 		c, err := telemetry.NewCollector(telemetry.CollectorConfig{
-			K8sClientReader:        newTestClientset(kubeNS, node1, pod1, replica),
+			K8sClientReader:        newTestClientset(kubeNS, node1, pod1, replica, configmap),
 			SecretStore:            newSecretStore(t),
 			Configurator:           configurator,
 			Version:                telemetryNICData.ProjectVersion,
 			CustomResourcesEnabled: false, // This field value indicates we don't count custom resources.
+			MainConfigMapName:      "nginx-ingress/nginx-config",
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -1593,12 +1601,20 @@ func TestCountTransportServersOnCustomResourcesEnabled(t *testing.T) {
 			}
 		}
 
+		configmap := &coreV1.ConfigMap{
+			ObjectMeta: metaV1.ObjectMeta{
+				Name:      "nginx-config",
+				Namespace: "nginx-ingress",
+			},
+		}
+
 		c, err := telemetry.NewCollector(telemetry.CollectorConfig{
-			K8sClientReader:        newTestClientset(kubeNS, node1, pod1, replica),
+			K8sClientReader:        newTestClientset(kubeNS, node1, pod1, replica, configmap),
 			SecretStore:            newSecretStore(t),
 			Configurator:           cfg,
 			Version:                telemetryNICData.ProjectVersion,
 			CustomResourcesEnabled: true, // This field value indicates we count custom resources.
+			MainConfigMapName:      "nginx-ingress/nginx-config",
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -1690,12 +1706,20 @@ func TestCountTransportServersOnCustomResourcesDisabled(t *testing.T) {
 			}
 		}
 
+		configmap := &coreV1.ConfigMap{
+			ObjectMeta: metaV1.ObjectMeta{
+				Name:      "nginx-config",
+				Namespace: "nginx-ingress",
+			},
+		}
+
 		c, err := telemetry.NewCollector(telemetry.CollectorConfig{
-			K8sClientReader:        newTestClientset(kubeNS, node1, pod1, replica),
+			K8sClientReader:        newTestClientset(kubeNS, node1, pod1, replica, configmap),
 			SecretStore:            newSecretStore(t),
 			Configurator:           cfg,
 			Version:                telemetryNICData.ProjectVersion,
 			CustomResourcesEnabled: false, // This field value indicates we do not count custom resources.
+			MainConfigMapName:      "nginx-ingress/nginx-config",
 		})
 		if err != nil {
 			t.Fatal(err)

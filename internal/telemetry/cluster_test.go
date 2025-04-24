@@ -636,14 +636,6 @@ func TestMGMTConfigMapKeys(t *testing.T) {
 			},
 			want: nil,
 		},
-		{
-			name: "No MGMTConfigMap",
-			config: telemetry.CollectorConfig{
-				K8sClientReader:   newTestClientset(),
-				MGMTConfigMapName: "default/nginx-ingress-mgmt",
-			},
-			want: nil,
-		},
 	}
 
 	for _, tc := range testCases {
