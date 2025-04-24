@@ -1,0 +1,5 @@
+controller:
+  nginxplus: true
+  mgmt:
+    usageReport:
+      endpoint: "11.22.33.44"

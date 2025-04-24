@@ -128,7 +128,7 @@ func (fm *FakeManager) Quit() {
 }
 
 // UpdateConfigVersionFile provides a fake implementation of UpdateConfigVersionFile.
-func (fm *FakeManager) UpdateConfigVersionFile(_ bool) {
+func (fm *FakeManager) UpdateConfigVersionFile() {
 	nl.Debugf(fm.logger, "Writing config version")
 }
 
@@ -146,17 +146,6 @@ func (fm *FakeManager) UpdateServersInPlus(upstream string, servers []string, _ 
 func (fm *FakeManager) UpdateStreamServersInPlus(upstream string, servers []string) error {
 	nl.Debugf(fm.logger, "Updating stream servers of %v: %v", upstream, servers)
 	return nil
-}
-
-// CreateOpenTracingTracerConfig creates a fake implementation of CreateOpenTracingTracerConfig.
-func (fm *FakeManager) CreateOpenTracingTracerConfig(_ string) error {
-	nl.Debugf(fm.logger, "Writing OpenTracing tracer config file")
-
-	return nil
-}
-
-// SetOpenTracing creates a fake implementation of SetOpenTracing.
-func (*FakeManager) SetOpenTracing(_ bool) {
 }
 
 // AppProtectPluginStart is a fake implementation AppProtectPluginStart
