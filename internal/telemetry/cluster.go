@@ -11,7 +11,7 @@ import (
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// configMapFilteredKeys and mgmtConfigMapFilteredKeys are lists containing keys from the main ConfigMap and MGMT ConfigMap that are allowed from NGINX Ingress Controller.
+// configMapFilteredKeys and mgmtConfigMapFilteredKeys are lists containing keys from the main ConfigMap and MGMT ConfigMap that are used by NIC
 // These will need to be updated if new keys are added to the ConfigMap or MGMTConfigMap.
 var configMapFilteredKeys = []string{
 	"external-status-address",
@@ -303,7 +303,7 @@ func (c *Collector) BuildOS() string {
 	return c.Config.BuildOS
 }
 
-// ConfigMapKeys gets the main ConfigMap keys from the K8s API and returns keys that are allowed from NGINX Ingress Controller.
+// ConfigMapKeys gets the main ConfigMap keys from the K8s API and returns keys that are filtered and used by NIC.
 func (c *Collector) ConfigMapKeys(ctx context.Context) ([]string, error) {
 	if c.Config.MainConfigMapName == "" {
 		return nil, fmt.Errorf("config map name is required")
@@ -336,7 +336,7 @@ func (c *Collector) ConfigMapKeys(ctx context.Context) ([]string, error) {
 	return keys, nil
 }
 
-// MGMTConfigMapKeys gets the MGMT ConfigMap keys from the K8s API and returns keys that are allowed from NGINX Ingress Controller.
+// MGMTConfigMapKeys gets the MGMT ConfigMap keys from the K8s API and returns keys that are filtered and used by NIC.
 func (c *Collector) MGMTConfigMapKeys(ctx context.Context) ([]string, error) {
 	if c.Config.MGMTConfigMapName == "" {
 		return nil, fmt.Errorf("mgmtConfigMapName is not set")

@@ -48,6 +48,7 @@ controller:
     # the name should not include a namespace
     # configMapName: ""
 
+
   ## Timeout in milliseconds which the Ingress Controller will wait for a successful NGINX reload after a change or at the initial start.
   nginxReloadTimeout: 60000
 
