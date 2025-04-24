@@ -4,7 +4,6 @@ toc: true
 weight: 500
 type: how-to
 product: NIC
-docs: DOCS-609
 ---
 
 This document describes how to build a local F5 NGINX App Protect WAF v5 Docker image with NGINX Plus Ingress 
