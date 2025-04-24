@@ -7,7 +7,8 @@ product: NIC
 docs: DOCS-609
 ---
 
-This document describes how to build a local F5 NGINX App Protect WAF Docker image with NGINX Plus Ingress Controller, which can be used to compile WAF policies.
+This document describes how to build a local F5 NGINX App Protect WAF v5 Docker image with NGINX Plus Ingress 
+Controller, which can be used to compile WAF policies.
 
 This is accomplished with the following steps:
 
