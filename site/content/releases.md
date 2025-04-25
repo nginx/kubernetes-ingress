@@ -21,7 +21,7 @@ We have extended the rate-limit Policy to allow tiered rate limit groups with JW
 We introduced NGINX Plus Zone Sync as a managed service within NGINX Ingress Controller in this release.  In previous releases, we had examples using `stream-snippets` for OIDC support, users can now enable `zone-sync` without the need for `snippets`.  NGINX Plus Zone Sync is available when utilising two or more replicas, it supports OIDC & rate limiting. 
 
 {{< note >}}
-For users who have previously installed OIDC or used the `zone_sync` directive with `stream-snippets`, please see the note [here](https://docs.nginx.com//nginx-ingress-controller/configuration/global-configuration/configmap-resource/#zone-sync) to use the new `zone-sync` ConfigMap option.
+For users who have previously installed OIDC or used the `zone_sync` directive with `stream-snippets`, please see the note [here](https://docs.nginx.com/nginx-ingress-controller/configuration/global-configuration/configmap-resource/#zone-sync) to use the new `zone-sync` ConfigMap option.
 {{< /note >}}
 
 Open Source NGINX Ingress Controller architectures `armv7`, `s390x` & `ppc64le` are deprecated and will be removed in the next minor release.
