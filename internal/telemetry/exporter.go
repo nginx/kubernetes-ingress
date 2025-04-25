@@ -2,12 +2,14 @@ package telemetry
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 
 	tel "github.com/nginx/telemetry-exporter/pkg/telemetry"
+	"github.com/pkg/errors"
 )
 
 // Exporter interface for exporters.
@@ -25,6 +27,24 @@ func (e *StdoutExporter) Export(_ context.Context, data tel.Exportable) error {
 	_, err := fmt.Fprintf(e.Endpoint, "%+v", data)
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+// JSONExporter represents a temporary telemetry data exporter in JSON format.
+type JSONExporter struct {
+	Endpoint io.Writer
+}
+
+// Export takes context and trace data and marshals it and writes to the endpoint.
+func (e *JSONExporter) Export(_ context.Context, data tel.Exportable) error {
+	marshaledBytes, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	_, err = e.Endpoint.Write(marshaledBytes)
+	if err != nil {
+		return errors.Wrap(err, "failed to write marshaled data")
 	}
 	return nil
 }

@@ -3,22 +3,24 @@ package telemetry_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"runtime"
+	"sort"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
-
-	"github.com/google/go-cmp/cmp"
 	"github.com/nginx/kubernetes-ingress/internal/telemetry"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	tel "github.com/nginx/telemetry-exporter/pkg/telemetry"
+	"github.com/stretchr/testify/assert"
 	coreV1 "k8s.io/api/core/v1"
 	networkingV1 "k8s.io/api/networking/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1152,6 +1154,15 @@ func TestCollectConfigMapKeys(t *testing.T) {
 			want: []string{"error-log-level", "zone-sync"},
 		},
 		{
+			name: "two keys and one key that will be ignored",
+			configMap: map[string]string{
+				"error-log-level": "debug",
+				"zone-sync":       "true",
+				"hello":           "world",
+			},
+			want: []string{"error-log-level", "zone-sync"},
+		},
+		{
 			name:      "no keys",
 			configMap: map[string]string{},
 			want:      []string{},
@@ -1161,7 +1172,7 @@ func TestCollectConfigMapKeys(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			buf := &bytes.Buffer{}
-			exp := &telemetry.StdoutExporter{Endpoint: buf}
+			exp := &telemetry.JSONExporter{Endpoint: buf}
 
 			configurator := newConfigurator(t)
 			namespace := "default"
@@ -1188,6 +1199,8 @@ func TestCollectConfigMapKeys(t *testing.T) {
 			}
 			c.Collect(context.Background())
 
+			sort.Strings(tc.want)
+
 			telData := tel.Data{
 				ProjectName:         telemetryNICData.ProjectName,
 				ProjectVersion:      telemetryNICData.ProjectVersion,
@@ -1204,12 +1217,15 @@ func TestCollectConfigMapKeys(t *testing.T) {
 				NICResourceCounts: nicResourceCounts,
 			}
 
-			want := fmt.Sprintf("%+v", &td)
-
 			got := buf.String()
-			if !cmp.Equal(want, got) {
-				t.Error(cmp.Diff(got, want))
+
+			tdGot := new(telemetry.Data)
+			err = json.Unmarshal([]byte(got), &tdGot)
+			if err != nil {
+				t.Fatalf("failed to unmarshal telemetry data: %v\n%s", err, got)
 			}
+
+			assert.ElementsMatchf(t, td.ConfigMapKeys, tdGot.ConfigMapKeys, "want: %s\ngot: %s", td.ConfigMapKeys, tdGot.ConfigMapKeys)
 		})
 	}
 }
@@ -1237,6 +1253,15 @@ func TestCollectMGMTConfigMapKeys(t *testing.T) {
 			want: []string{"enforce-initial-report", "license-token-secret-name"},
 		},
 		{
+			name: "ignored keys",
+			configMap: map[string]string{
+				"license":   "license",
+				"report":    "true",
+				"zone-sync": "true",
+			},
+			want: nil,
+		},
+		{
 			name:      "no keys",
 			configMap: map[string]string{},
 			want:      []string{},
@@ -1246,7 +1271,7 @@ func TestCollectMGMTConfigMapKeys(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			buf := &bytes.Buffer{}
-			exp := &telemetry.StdoutExporter{Endpoint: buf}
+			exp := &telemetry.JSONExporter{Endpoint: buf}
 
 			configurator := newConfigurator(t)
 			namespace := "default"
@@ -1274,6 +1299,8 @@ func TestCollectMGMTConfigMapKeys(t *testing.T) {
 			}
 			c.Collect(context.Background())
 
+			sort.Strings(tc.want)
+
 			telData := tel.Data{
 				ProjectName:         telemetryNICData.ProjectName,
 				ProjectVersion:      telemetryNICData.ProjectVersion,
@@ -1291,12 +1318,15 @@ func TestCollectMGMTConfigMapKeys(t *testing.T) {
 				NICResourceCounts: nicResourceCounts,
 			}
 
-			want := fmt.Sprintf("%+v", &td)
-
 			got := buf.String()
-			if !cmp.Equal(want, got) {
-				t.Error(cmp.Diff(got, want))
+
+			tdGot := new(telemetry.Data)
+			err = json.Unmarshal([]byte(got), &tdGot)
+			if err != nil {
+				t.Fatalf("failed to unmarshal telemetry data: %v\n%s", err, got)
 			}
+
+			assert.ElementsMatchf(t, td.MGMTConfigMapKeys, tdGot.MGMTConfigMapKeys, "want: %s\ngot: %s", td.MGMTConfigMapKeys, tdGot.MGMTConfigMapKeys)
 		})
 	}
 }

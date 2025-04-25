@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/nginx/kubernetes-ingress/internal/telemetry"
@@ -575,6 +577,48 @@ func TestConfigMapKeys(t *testing.T) {
 			},
 			want: nil,
 		},
+		{
+			name: "ConfigMap With ignored keys",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(
+					&apiCoreV1.ConfigMap{
+						ObjectMeta: metaV1.ObjectMeta{
+							Name:      "nginx-ingress",
+							Namespace: "nginx-ingress",
+						},
+						Data: map[string]string{
+							"enforce-initial-report": "false",
+							"sync":                   "hello",
+							"hello":                  "world",
+						},
+					},
+				),
+				MainConfigMapName: "nginx-ingress/nginx-ingress",
+			},
+			want: nil,
+		},
+		{
+			name: "ConfigMap With ignored keys and valid keys",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(
+					&apiCoreV1.ConfigMap{
+						ObjectMeta: metaV1.ObjectMeta{
+							Name:      "nginx-ingress",
+							Namespace: "nginx-ingress",
+						},
+						Data: map[string]string{
+							"proxy-buffering":        "false",
+							"enforce-initial-report": "false",
+							"sync":                   "hello",
+							"hello":                  "world",
+							"zone-sync":              "true",
+						},
+					},
+				),
+				MainConfigMapName: "nginx-ingress/nginx-ingress",
+			},
+			want: []string{"proxy-buffering", "zone-sync"},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -587,7 +631,7 @@ func TestConfigMapKeys(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !cmp.Equal(tc.want, got) {
+			if !assert.ElementsMatch(t, tc.want, got, "MGMTConfigMap keys do not match") {
 				t.Error(cmp.Diff(tc.want, got))
 			}
 		})
@@ -636,6 +680,46 @@ func TestMGMTConfigMapKeys(t *testing.T) {
 			},
 			want: nil,
 		},
+		{
+			name: "MGMTConfigMap With ignored keys",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(
+					&apiCoreV1.ConfigMap{
+						ObjectMeta: metaV1.ObjectMeta{
+							Name:      "nginx-ingress-mgmt",
+							Namespace: "nginx-ingress",
+						},
+						Data: map[string]string{
+							"zone-sync": "false",
+							"license":   "test",
+						},
+					},
+				),
+				MGMTConfigMapName: "nginx-ingress/nginx-ingress-mgmt",
+			},
+			want: nil,
+		},
+		{
+			name: "MGMTConfigMap With ignored keys and valid keys",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(
+					&apiCoreV1.ConfigMap{
+						ObjectMeta: metaV1.ObjectMeta{
+							Name:      "nginx-ingress-mgmt",
+							Namespace: "nginx-ingress",
+						},
+						Data: map[string]string{
+							"zone-sync":                 "false",
+							"license":                   "test",
+							"enforce-initial-report":    "false",
+							"license-token-secret-name": "license-token",
+						},
+					},
+				),
+				MGMTConfigMapName: "nginx-ingress/nginx-ingress-mgmt",
+			},
+			want: []string{"enforce-initial-report", "license-token-secret-name"},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -648,7 +732,7 @@ func TestMGMTConfigMapKeys(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !cmp.Equal(tc.want, got) {
+			if !assert.ElementsMatch(t, tc.want, got, "MGMTConfigMap keys do not match") {
 				t.Error(cmp.Diff(tc.want, got))
 			}
 		})

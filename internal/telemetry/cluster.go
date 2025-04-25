@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 
 	clusterInfo "github.com/nginx/kubernetes-ingress/internal/common_cluster_info"
@@ -303,48 +302,32 @@ func (c *Collector) BuildOS() string {
 	return c.Config.BuildOS
 }
 
-// ConfigMapKeys gets the main ConfigMap keys from the K8s API and returns keys that are filtered and used by NIC.
+// ConfigMapKeys gets the main ConfigMap keys from the configMapKeys function that accesses the K8s API and returns keys that are filtered and used by NIC.
 func (c *Collector) ConfigMapKeys(ctx context.Context) ([]string, error) {
-	if c.Config.MainConfigMapName == "" {
-		return nil, fmt.Errorf("config map name is required")
-	}
-
-	parts := strings.Split(c.Config.MainConfigMapName, "/")
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid config map name: %s", c.Config.MainConfigMapName)
-	}
-	namespace, name := parts[0], parts[1]
-
-	configMap, err := c.Config.K8sClientReader.CoreV1().ConfigMaps(namespace).Get(ctx, name, metaV1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	filteredKeys := make(map[string]struct{}, len(configMapFilteredKeys))
-	for _, key := range configMapFilteredKeys {
-		filteredKeys[key] = struct{}{}
-	}
-
-	var keys []string
-	for k := range configMap.Data {
-		if _, ok := filteredKeys[k]; ok {
-			keys = append(keys, k)
-		}
-	}
-	sort.Strings(keys)
-
-	return keys, nil
+	return c.configMapKeys(ctx,
+		c.Config.MainConfigMapName,
+		configMapFilteredKeys,
+	)
 }
 
-// MGMTConfigMapKeys gets the MGMT ConfigMap keys from the K8s API and returns keys that are filtered and used by NIC.
+// MGMTConfigMapKeys gets the MGMT ConfigMap keys from the configMapKeys function that accesses the K8s API and returns keys that are filtered and used by NIC.
 func (c *Collector) MGMTConfigMapKeys(ctx context.Context) ([]string, error) {
-	if c.Config.MGMTConfigMapName == "" {
-		return nil, fmt.Errorf("mgmtConfigMapName is not set")
-	}
+	return c.configMapKeys(ctx,
+		c.Config.MGMTConfigMapName,
+		mgmtConfigMapFilteredKeys,
+	)
+}
 
-	parts := strings.Split(c.Config.MGMTConfigMapName, "/")
+// / configMapKeys is a helper function that retrieves the keys from the ConfigMap
+// and filters them based on the provided filteredConfigMapKeys.
+func (c *Collector) configMapKeys(
+	ctx context.Context,
+	configMapName string,
+	filteredConfigMapKeys []string,
+) ([]string, error) {
+	parts := strings.Split(configMapName, "/")
 	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid config map name: %s", c.Config.MGMTConfigMapName)
+		return nil, fmt.Errorf("invalid config map name: %s", configMapName)
 	}
 	namespace, name := parts[0], parts[1]
 
@@ -353,8 +336,8 @@ func (c *Collector) MGMTConfigMapKeys(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 
-	filteredKeys := make(map[string]struct{}, len(mgmtConfigMapFilteredKeys))
-	for _, key := range mgmtConfigMapFilteredKeys {
+	filteredKeys := make(map[string]struct{}, len(filteredConfigMapKeys))
+	for _, key := range filteredConfigMapKeys {
 		filteredKeys[key] = struct{}{}
 	}
 
@@ -364,7 +347,6 @@ func (c *Collector) MGMTConfigMapKeys(ctx context.Context) ([]string, error) {
 			keys = append(keys, k)
 		}
 	}
-	sort.Strings(keys)
 
 	return keys, nil
 }
