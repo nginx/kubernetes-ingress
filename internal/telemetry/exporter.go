@@ -9,7 +9,6 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 
 	tel "github.com/nginx/telemetry-exporter/pkg/telemetry"
-	"github.com/pkg/errors"
 )
 
 // Exporter interface for exporters.
@@ -44,7 +43,7 @@ func (e *JSONExporter) Export(_ context.Context, data tel.Exportable) error {
 	}
 	_, err = e.Endpoint.Write(marshaledBytes)
 	if err != nil {
-		return errors.Wrap(err, "failed to write marshaled data")
+		return err
 	}
 	return nil
 }
