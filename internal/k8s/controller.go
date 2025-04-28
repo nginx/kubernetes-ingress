@@ -423,6 +423,10 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 			},
 			Policies:               lbc.getAllPolicies,
 			IsPlus:                 lbc.isNginxPlus,
+			MainConfigMap:          lbc.configMap,
+			MainConfigMapName:      lbc.nginxConfigMapName,
+			MGMTConfigMap:          lbc.mgmtConfigMap,
+			MGMTConfigMapName:      lbc.mgmtConfigMapName,
 			CustomResourcesEnabled: lbc.areCustomResourcesEnabled,
 		}
 		collector, err := telemetry.NewCollector(
