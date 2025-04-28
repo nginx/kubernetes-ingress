@@ -1156,13 +1156,29 @@ func logEventAndExit(ctx context.Context, eventLog record.EventRecorder, obj pkg
 func initLogger(logFormat string, level slog.Level, out io.Writer) context.Context {
 	programLevel := new(slog.LevelVar) // Info by default
 	var h slog.Handler
+
+	opts := &slog.HandlerOptions{
+		Level:     programLevel,
+		AddSource: true,
+		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.SourceKey {
+				if src, ok := a.Value.Any().(*slog.Source); ok {
+					src.Function = ""
+					src.File = filepath.Base(src.File)
+					a.Value = slog.AnyValue(src)
+				}
+			}
+			return a
+		},
+	}
+
 	switch {
 	case logFormat == "glog":
 		h = nic_glog.New(out, &nic_glog.Options{Level: programLevel})
 	case logFormat == "json":
-		h = slog.NewJSONHandler(out, &slog.HandlerOptions{Level: programLevel})
+		h = slog.NewJSONHandler(out, opts)
 	case logFormat == "text":
-		h = slog.NewTextHandler(out, &slog.HandlerOptions{Level: programLevel})
+		h = slog.NewTextHandler(out, opts)
 	default:
 		h = nic_glog.New(out, &nic_glog.Options{Level: programLevel})
 	}
