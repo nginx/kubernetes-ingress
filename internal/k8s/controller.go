@@ -3659,8 +3659,8 @@ func (lbc *LoadBalancerController) isPodMarkedForDeletion() bool {
 		nl.Debugf(lbc.Logger, "SIGTERM already received, controller is shutting down")
 		return true
 	}
-	podName := os.Getenv("POD_NAME")
-	podNamespace := os.Getenv("POD_NAMESPACE")
+	podName := lbc.metadata.pod.Name
+	podNamespace := lbc.metadata.pod.Namespace
 	pod, err := lbc.client.CoreV1().Pods(podNamespace).Get(context.Background(), podName, meta_v1.GetOptions{})
 	if err == nil && pod.DeletionTimestamp != nil {
 		nl.Debugf(lbc.Logger, "Pod %s/%s is marked for deletion", podNamespace, podName)

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"sort"
 	"strings"
@@ -3682,15 +3681,6 @@ func TestIsPodMarkedForDeletion(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			client := fake.NewSimpleClientset()
-
-			err := os.Setenv("POD_NAME", test.envPodName)
-			if err != nil {
-				t.Fatalf("Failed to set POD_NAME environment variable: %v", err)
-			}
-			err = os.Setenv("POD_NAMESPACE", test.envPodNamespace)
-			if err != nil {
-				t.Fatalf("Failed to set POD_NAMESPACE environment variable: %v", err)
-			}
 			if test.podExists {
 				pod := &api_v1.Pod{
 					ObjectMeta: meta_v1.ObjectMeta{
@@ -3711,7 +3701,15 @@ func TestIsPodMarkedForDeletion(t *testing.T) {
 			}
 
 			lbc := &LoadBalancerController{
-				client:       client,
+				client: client,
+				metadata: controllerMetadata{
+					pod: &api_v1.Pod{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      test.envPodName,
+							Namespace: test.envPodNamespace,
+						},
+					},
+				},
 				ShuttingDown: test.shutdownFlag,
 				Logger:       logger,
 			}
