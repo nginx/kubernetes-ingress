@@ -249,7 +249,7 @@ type NewLoadBalancerControllerInput struct {
 // NewLoadBalancerController creates a controller
 func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalancerController {
 	otelTrustedCertSecret := ""
-	if input.NginxConfigurator.CfgParams.MainOtelExporterTrustedCA != "" {
+	if input.NginxConfigurator != nil && input.NginxConfigurator.CfgParams.MainOtelExporterTrustedCA != "" {
 		otelTrustedCertSecret = fmt.Sprintf("%s/%s", input.ControllerNamespace, input.NginxConfigurator.CfgParams.MainOtelExporterTrustedCA)
 	}
 	specialSecrets := specialSecrets{
