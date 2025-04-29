@@ -182,12 +182,17 @@ func main() {
 	if err != nil {
 		logEventAndExit(ctx, eventRecorder, pod, secretErrorReason, err)
 	}
+
 	globalConfigurationValidator := createGlobalConfigurationValidator()
 
 	mustProcessGlobalConfiguration(ctx)
 
 	cfgParams := configs.NewDefaultConfigParams(ctx, *nginxPlus)
 	cfgParams = processConfigMaps(kubeClient, cfgParams, nginxManager, templateExecutor, eventRecorder)
+
+	if err := processOtelTrustedCertSecret(kubeClient, nginxManager, cfgParams, controllerNamespace); err != nil {
+		logEventAndExit(ctx, eventRecorder, pod, secretErrorReason, err)
+	}
 
 	staticCfgParams := &configs.StaticConfigParams{
 		DisableIPV6:                    *disableIPV6,
@@ -382,6 +387,23 @@ func processMgmtTrustedCertSecret(kubeClient *kubernetes.Clientset, nginxManager
 		mgmtCfgParams.Secrets.TrustedCRL = secret.Name
 		nginxManager.CreateSecret(fmt.Sprintf("mgmt/%s", configs.CACrlKey), crlBytes, nginx.ReadWriteOnlyFileMode)
 	}
+	return nil
+}
+
+func processOtelTrustedCertSecret(kubeClient *kubernetes.Clientset, nginxManager nginx.Manager, cfgParams *configs.ConfigParams, controllerNamespace string) error {
+	if cfgParams.MainOtelExporterTrustedCA == "" {
+		return nil
+	}
+
+	trustedCertSecretNsName := controllerNamespace + "/" + cfgParams.MainOtelExporterTrustedCA
+
+	secret, err := getAndValidateSecret(kubeClient, trustedCertSecretNsName, secrets.SecretTypeCA)
+	if err != nil {
+		return fmt.Errorf("error trying to get the trusted cert secret %v: %w", trustedCertSecretNsName, err)
+	}
+
+	caBytes, _ := configs.GenerateCAFileContent(secret)
+	nginxManager.CreateSecret(fmt.Sprintf("%s-%s-%s", controllerNamespace, cfgParams.MainOtelExporterTrustedCA, configs.CACrtKey), caBytes, nginx.ReadWriteOnlyFileMode)
 	return nil
 }
 
