@@ -46,26 +46,23 @@ def main():
     else:
         print(f"User does not have access to {nic_repo}")
 
-    # for pr in get_pull_requests(client, nic_repo):
-    #     print(f"Pull request #{pr.number} - {pr.title}")
-    #     print(f"Created by: {pr.user.login}")
-    #     print(f"URL: {pr.html_url}")
-    #     print(f"Created at: {pr.created_at}")
-    #     print(f"Updated at: {pr.updated_at}")
-    #     print(f"State: {pr.state}")
-    #     print(f"Labels: {[label.name for label in pr.labels]}")
-    #     print("-" * 40)
-
-    client.close()
+    pull_requests = get_pull_requests(client, nic_repo)
 
     with open(release_yaml) as file:
         content = file.read()
         parsed_yaml = load(content, Loader=Loader)
-        print(f"Parsed YAML content: {parsed_yaml}")
+
+        # Loop through the parsed YAML and print the categories and related PRs
         for category in parsed_yaml["changelog"]["categories"]:
-            print(f"Category: {category['title']}")
+            print(f"{category['title']}")
             for label in category["labels"]:
-                print(f"  Label: {label}")
+                # Loop through the pull requests and check if they have the label for this category
+                for pr in pull_requests:
+                    for pr_label in pr.labels:
+                        if label in pr_label.name:
+                            print(f"    PR: {pr.title} - {pr.html_url} - {pr_label.name}")
+
+    client.close()
 
 
 if __name__ == "__main__":
