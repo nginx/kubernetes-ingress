@@ -240,7 +240,6 @@ type MainConfig struct {
 	NginxStatus                        bool
 	NginxStatusAllowCIDRs              []string
 	NginxStatusPort                    int
-	MainOtelEnabled                    bool
 	MainOtelLoadModule                 bool
 	MainOtelGlobalTraceEnabled         bool
 	MainOtelExporterEndpoint           string
