@@ -67,7 +67,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: auth
-        uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935 # v2.1.8
+        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
         with:
           token_format: access_token
           workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
@@ -92,7 +92,7 @@ jobs:
             type=raw,value=${{ needs.checks.outputs.docker_md5 }},enable=${{ needs.checks.outputs.docker_md5 != '' }}
 
       - name: Build Base Container
-        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
         with:
           file: build/Dockerfile
           context: "."
@@ -132,7 +132,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: auth
-        uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935 # v2.1.8
+        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
         with:
           token_format: access_token
           workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
@@ -157,7 +157,7 @@ jobs:
             type=raw,value=${{ needs.checks.outputs.docker_md5 }},enable=${{ needs.checks.outputs.docker_md5 != '' }}
 
       - name: Build Base Container
-        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
         with:
           file: build/Dockerfile
           context: "."
@@ -195,7 +195,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: auth
-        uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935 # v2.1.8
+        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
         with:
           token_format: access_token
           workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
@@ -229,7 +229,7 @@ jobs:
             type=raw,value=${{ needs.checks.outputs.docker_md5 }},enable=${{ needs.checks.outputs.docker_md5 != '' }}
 
       - name: Build Base Container
-        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
         with:
           file: build/Dockerfile
           context: "."
