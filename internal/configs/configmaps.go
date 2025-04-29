@@ -1012,7 +1012,7 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		MainOtelLoadModule:                 config.MainOtelLoadModule,
 		MainOtelGlobalTraceEnabled:         config.MainOtelGlobalTraceEnabled,
 		MainOtelExporterEndpoint:           config.MainOtelExporterEndpoint,
-		MainOtelExporterTrustedCA:          config.MainOtelExporterTrustedCA,
+		MainOtelExporterTrustedCA:          fmt.Sprintf("%s-%s-%s", os.Getenv("POD_NAMESPACE"), config.MainOtelExporterTrustedCA, CACrtKey),
 		MainOtelExporterHeaderName:         config.MainOtelExporterHeaderName,
 		MainOtelExporterHeaderValue:        config.MainOtelExporterHeaderValue,
 		MainOtelServiceName:                config.MainOtelServiceName,
