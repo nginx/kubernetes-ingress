@@ -146,14 +146,14 @@ http {
     ssl_dhparam {{.SSLDHParam}};
     {{- end}}
 
-    {{- if .MainOtelLoadModule}}
+    {{- if .MainOtelLoadModule }}
     otel_exporter {
-        endpoint {{ .MainOtelExporterEndpoint}};
-        {{ if and .MainOtelExporterHeaderName .MainOtelExporterHeaderValue }}
+        endpoint {{ .MainOtelExporterEndpoint }};
+        {{- if and .MainOtelExporterHeaderName .MainOtelExporterHeaderValue }}
         header {{ .MainOtelExporterHeaderName }} "{{ .MainOtelExporterHeaderValue }}";
         {{- end }}
-        {{ if .MainOtelExporterTrustedCA}}
-    #   trusted_certificate <path>;
+        {{- if .MainOtelExporterTrustedCA }}
+        trusted_certificate /etc/nginx/secrets/{{ .MainOtelExporterTrustedCA }};
         {{- end }}
     }
 
