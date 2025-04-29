@@ -988,6 +988,11 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		ResolverValid:     config.ZoneSync.ResolverValid,
 	}
 
+	mainOtelExporterTrustedCA := ""
+	if config.MainOtelExporterTrustedCA != "" {
+		mainOtelExporterTrustedCA = fmt.Sprintf("%s-%s-%s", os.Getenv("POD_NAMESPACE"), config.MainOtelExporterTrustedCA, CACrtKey)
+	}
+
 	nginxCfg := &version1.MainConfig{
 		AccessLog:                          config.MainAccessLog,
 		DefaultServerAccessLogOff:          config.DefaultServerAccessLogOff,
@@ -1012,7 +1017,7 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		MainOtelLoadModule:                 config.MainOtelLoadModule,
 		MainOtelGlobalTraceEnabled:         config.MainOtelGlobalTraceEnabled,
 		MainOtelExporterEndpoint:           config.MainOtelExporterEndpoint,
-		MainOtelExporterTrustedCA:          fmt.Sprintf("%s-%s-%s", os.Getenv("POD_NAMESPACE"), config.MainOtelExporterTrustedCA, CACrtKey),
+		MainOtelExporterTrustedCA:          mainOtelExporterTrustedCA,
 		MainOtelExporterHeaderName:         config.MainOtelExporterHeaderName,
 		MainOtelExporterHeaderValue:        config.MainOtelExporterHeaderValue,
 		MainOtelServiceName:                config.MainOtelServiceName,
