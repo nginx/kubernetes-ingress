@@ -159,7 +159,7 @@ func main() {
 			logEventAndExit(ctx, eventRecorder, pod, secretErrorReason, err)
 		}
 
-		if err := processTrustedCertSecret(kubeClient, nginxManager, mgmtCfgParams, controllerNamespace); err != nil {
+		if err := processMgmtTrustedCertSecret(kubeClient, nginxManager, mgmtCfgParams, controllerNamespace); err != nil {
 			logEventAndExit(ctx, eventRecorder, pod, secretErrorReason, err)
 		}
 
@@ -364,7 +364,7 @@ func processClientAuthSecret(kubeClient *kubernetes.Clientset, nginxManager ngin
 	return nil
 }
 
-func processTrustedCertSecret(kubeClient *kubernetes.Clientset, nginxManager nginx.Manager, mgmtCfgParams *configs.MGMTConfigParams, controllerNamespace string) error {
+func processMgmtTrustedCertSecret(kubeClient *kubernetes.Clientset, nginxManager nginx.Manager, mgmtCfgParams *configs.MGMTConfigParams, controllerNamespace string) error {
 	if mgmtCfgParams.Secrets.TrustedCert == "" {
 		return nil
 	}
