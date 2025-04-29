@@ -1322,7 +1322,7 @@ the documentation here
 
 - The [-enable-preview-policies]({{< ref "/configuration/global-configuration/command-line-arguments.md#-enable-preview-policies" >}}) cli argument has been deprecated and is no longer required for the usage of any Policy resource type. This argument will be removed completely in v2.6.0.
 
-- A new [-enable-oidc]({{< ref "/configuration/global-configuration/command-line-arguments.md#-enable-oid" >}}c) cli argument has been added to enable OIDC policies. Previously, this behaviour was achieved through the usage of the `-enable-preview-policies` cli argument.
+- A new [-enable-oidc]({{< ref "/configuration/global-configuration/command-line-arguments.md#-enable-oidc" >}}) cli argument has been added to enable OIDC policies. Previously, this behaviour was achieved through the usage of the `-enable-preview-policies` cli argument.
 
 ### <i class="fa-solid fa-rocket"></i> Features
 
