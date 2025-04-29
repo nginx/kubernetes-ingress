@@ -1032,7 +1032,7 @@ We will provide technical support for NGINX Ingress Controller on any Kubernetes
 - *The minimum supported version of Kubernetes is now 1.21*. NGINX Ingress Controller 3.0.0 removes support for `k8s.io/v1/Endpoints` API in favor of `discovery.k8s.io/v1/EndpointSlices`. For older Kubernetes versions, use the 2.4.x release of the Ingress Controller.
 - Added support for [EndpointSlices](https://kubernetes.io/docs/concepts/services-networking/endpoint-slices/).
 - Added support to dynamically reconfigure namespace watchers using labels  [-watch-namespace-label]({{< ref "/configuration/global-configuration/command-line-arguments.md#-watch-namespace-label-string" >}}) and watching secrets using the [-watch-secret-namespace]({{< ref "/configuration/global-configuration/command-line-arguments.md#-watch-secret-namespace-string" >}}) cli arguments.
-- Allow configuration of NGINX directives `map-hash-bucket-size` and `map-hash-max-size` using the [ConfigMap resource]({{< ref "/configuration/global-configuration/configmap-resource.md#general-customization" >}}) .
+- Allow configuration of NGINX directives `map-hash-bucket-size` and `map-hash-max-size` using the [ConfigMap resource]({{< ref "/configuration/global-configuration/configmap-resource.md#general-customization" >}}).
 - Added support for [fetching JWKs from a remote URL]({{< ref "/configuration/policy-resource.md#jwt-using-jwks-from-remote-location" >}}) to dynamically validate JWT tokens and optimize performance through caching.
 - Beginning with NGINX Service Mesh release 1.7 it will include support for the free version of NGINX Ingress Controller as well as the paid version.
 - NGINX Ingress Controller + NGINX App Protect Denial of Service is now available through the AWS Marketplace.
