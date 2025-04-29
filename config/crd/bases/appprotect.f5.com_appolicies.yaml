@@ -184,6 +184,8 @@ spec:
                               - VIOL_ASM_COOKIE_HIJACKING
                               - VIOL_ASM_COOKIE_MODIFIED
                               - VIOL_BLACKLISTED_IP
+                              - VIOL_BOT_CLIENT
+                              - VIOL_BRUTE_FORCE
                               - VIOL_COOKIE_EXPIRED
                               - VIOL_COOKIE_LENGTH
                               - VIOL_COOKIE_MALFORMED
@@ -195,6 +197,7 @@ spec:
                               - VIOL_FILE_UPLOAD
                               - VIOL_FILE_UPLOAD_IN_BODY
                               - VIOL_FILETYPE
+                              - VIOL_GEOLOCATION
                               - VIOL_GRAPHQL_ERROR_RESPONSE
                               - VIOL_GRAPHQL_FORMAT
                               - VIOL_GRAPHQL_INTROSPECTION_QUERY
@@ -210,6 +213,9 @@ spec:
                               - VIOL_JSON_FORMAT
                               - VIOL_JSON_MALFORMED
                               - VIOL_JSON_SCHEMA
+                              - VIOL_LOGIN
+                              - VIOL_LOGIN_URL_BYPASSED
+                              - VIOL_LOGIN_URL_EXPIRED
                               - VIOL_MANDATORY_HEADER
                               - VIOL_MANDATORY_PARAMETER
                               - VIOL_MANDATORY_REQUEST_BODY
@@ -239,6 +245,7 @@ spec:
                               - VIOL_URL_CONTENT_TYPE
                               - VIOL_URL_LENGTH
                               - VIOL_URL_METACHAR
+                              - VIOL_WEBSOCKET_BAD_REQUEST
                               - VIOL_XML_FORMAT
                               - VIOL_XML_MALFORMED
                               type: string
