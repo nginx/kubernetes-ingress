@@ -34,7 +34,6 @@ type ConfigParams struct {
 	MainLogFormat                          []string
 	MainLogFormatEscaping                  string
 	MainMainSnippets                       []string
-	MainOtelEnabled                        bool
 	MainOtelLoadModule                     bool
 	MainOtelGlobalTraceEnabled             bool
 	MainOtelExporterEndpoint               string
