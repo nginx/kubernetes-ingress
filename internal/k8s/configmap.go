@@ -82,6 +82,11 @@ func (lbc *LoadBalancerController) syncConfigMap(task task) {
 	key := task.Key
 	nl.Debugf(lbc.Logger, "Syncing configmap %v", key)
 
+	if key == lbc.mgmtConfigMapName && lbc.isPodMarkedForDeletion() {
+		nl.Debugf(lbc.Logger, "Pod is shutting down, skipping management ConfigMap sync")
+		return
+	}
+
 	switch key {
 	case lbc.nginxConfigMapName:
 		obj, configExists, err := lbc.configMapLister.GetByKey(key)
@@ -120,6 +125,9 @@ func (lbc *LoadBalancerController) syncConfigMap(task task) {
 		nl.Debugf(lbc.Logger, "Skipping ConfigMap update because batch sync is on")
 		return
 	}
-
+	if err := lbc.ctx.Err(); err != nil {
+		nl.Debugf(lbc.Logger, "Context canceled, skipping ConfigMap sync for %v: %v", task.Key, err)
+		return
+	}
 	lbc.updateAllConfigs()
 }
