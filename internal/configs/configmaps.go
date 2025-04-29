@@ -1009,7 +1009,6 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		NginxStatus:                        staticCfgParams.NginxStatus,
 		NginxStatusAllowCIDRs:              staticCfgParams.NginxStatusAllowCIDRs,
 		NginxStatusPort:                    staticCfgParams.NginxStatusPort,
-		MainOtelEnabled:                    config.MainOtelEnabled,
 		MainOtelLoadModule:                 config.MainOtelLoadModule,
 		MainOtelGlobalTraceEnabled:         config.MainOtelGlobalTraceEnabled,
 		MainOtelExporterEndpoint:           config.MainOtelExporterEndpoint,
