@@ -370,14 +370,20 @@ class TestRateLimitingPolicies:
 
         ic_pods = get_pod_list(kube_apis.v1, ns)
         for i in range(len(ic_pods)):
-            conf = get_vs_nginx_template_conf(
-                kube_apis.v1,
-                virtual_server_setup.namespace,
-                virtual_server_setup.vs_name,
-                ic_pods[i].metadata.name,
-                ingress_controller_prerequisites.namespace,
-            )
-            assert "rate=10r/s" in conf
+            conf = ""
+            for attempt in range(5):
+                conf = get_vs_nginx_template_conf(
+                    kube_apis.v1,
+                    virtual_server_setup.namespace,
+                    virtual_server_setup.vs_name,
+                    ic_pods[i].metadata.name,
+                    ingress_controller_prerequisites.namespace,
+                )
+                if "rate=10r/s" in conf:
+                    break
+                print(f"rate=10r/s not found in config for pod. Retrying...")
+                wait_before_test()
+            assert "rate=10r/s" in conf, f"Failed to find 'rate=10r/s' in config after multiple retries"
         # restore replicas, policy and vs
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ns, 1)
         delete_policy(kube_apis.custom_objects, pol_name, test_namespace)

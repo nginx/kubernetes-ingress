@@ -697,10 +697,10 @@
             },
             "tag": {
               "type": "string",
-              "default": "4.0.1",
+              "default": "5.0.0",
               "title": "The tag of the Ingress Controller image",
               "examples": [
-                "4.0.1"
+                "5.0.0"
               ]
             },
             "digest": {
@@ -737,7 +737,7 @@
           "examples": [
             {
               "repository": "nginx/nginx-ingress",
-              "tag": "4.0.1",
+              "tag": "5.0.0",
               "pullPolicy": "IfNotPresent"
             }
           ]
@@ -1908,7 +1908,7 @@
           "customPorts": [],
           "image": {
             "repository": "nginx/nginx-ingress",
-            "tag": "4.0.1",
+            "tag": "5.0.0",
             "digest": "",
             "pullPolicy": "IfNotPresent"
           },
@@ -2307,14 +2307,6 @@
             "my-instance-group"
           ]
         },
-        "configSyncGroup": {
-          "type": "string",
-          "default": "",
-          "title": "Set the config sync group for NGINX Agent",
-          "examples": [
-            "my-sync-group"
-          ]
-        },
         "logLevel": {
           "type": "string",
           "default": "info",
@@ -2559,7 +2551,7 @@
         "customPorts": [],
         "image": {
           "repository": "nginx/nginx-ingress",
-          "tag": "4.0.1",
+          "tag": "5.0.0",
           "digest": "",
           "pullPolicy": "IfNotPresent"
         },

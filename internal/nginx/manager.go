@@ -33,10 +33,9 @@ const (
 	// HtpasswdSecretFileMode defines the default filemode for HTTP basic auth user files.
 	HtpasswdSecretFileMode = 0o644
 
-	configFileMode               = 0o644
-	jsonFileForOpenTracingTracer = "/var/lib/nginx/tracer-config.json"
-	nginxBinaryPath              = "/usr/sbin/nginx"
-	nginxBinaryPathDebug         = "/usr/sbin/nginx-debug"
+	configFileMode       = 0o644
+	nginxBinaryPath      = "/usr/sbin/nginx"
+	nginxBinaryPathDebug = "/usr/sbin/nginx-debug"
 
 	appProtectPluginStartCmd = "/usr/share/ts/bin/bd-socket-plugin"
 	appProtectLogLevelCmd    = "/opt/app_protect/bin/set_log_level"
@@ -81,16 +80,14 @@ type Manager interface {
 	ClearAppProtectFolder(name string)
 	GetFilenameForSecret(name string) string
 	CreateDHParam(content string) (string, error)
-	CreateOpenTracingTracerConfig(content string) error
 	Start(done chan error)
 	Version() Version
 	Reload(isEndpointsUpdate bool) error
 	Quit()
-	UpdateConfigVersionFile(openTracing bool)
+	UpdateConfigVersionFile()
 	SetPlusClients(plusClient *client.NginxClient, plusConfigVersionCheckClient *http.Client)
 	UpdateServersInPlus(upstream string, servers []string, config ServerConfig) error
 	UpdateStreamServersInPlus(upstream string, servers []string) error
-	SetOpenTracing(openTracing bool)
 	AppProtectPluginStart(appDone chan error, logLevel string)
 	AppProtectPluginQuit()
 	AppProtectDosAgentStart(apdaDone chan error, debug bool, maxDaemon int, maxWorkers int, memory int)
@@ -123,7 +120,6 @@ type LocalManager struct {
 	metricsCollector             collectors.ManagerCollector
 	licenseReporter              *license_reporting.LicenseReporter
 	licenseReporterCancel        context.CancelFunc
-	OpenTracing                  bool
 	appProtectPluginPid          int
 	appProtectDosAgentPid        int
 	agentPid                     int
@@ -332,7 +328,7 @@ func (lm *LocalManager) Start(done chan error) {
 func (lm *LocalManager) Reload(isEndpointsUpdate bool) error {
 	// write a new config version
 	lm.configVersion++
-	lm.UpdateConfigVersionFile(lm.OpenTracing)
+	lm.UpdateConfigVersionFile()
 
 	nl.Debugf(lm.logger, "Reloading nginx with configVersion: %v", lm.configVersion)
 
@@ -387,8 +383,8 @@ func (lm *LocalManager) Version() Version {
 }
 
 // UpdateConfigVersionFile writes the config version file.
-func (lm *LocalManager) UpdateConfigVersionFile(openTracing bool) {
-	cfg, err := lm.verifyConfigGenerator.GenerateVersionConfig(lm.configVersion, openTracing)
+func (lm *LocalManager) UpdateConfigVersionFile() {
+	cfg, err := lm.verifyConfigGenerator.GenerateVersionConfig(lm.configVersion)
 	if err != nil {
 		nl.Fatalf(lm.logger, "Error generating config version content: %v", err)
 	}
@@ -492,17 +488,6 @@ func (lm *LocalManager) UpdateStreamServersInPlus(upstream string, servers []str
 	return nil
 }
 
-// CreateOpenTracingTracerConfig creates a json configuration file for the OpenTracing tracer with the content of the string.
-func (lm *LocalManager) CreateOpenTracingTracerConfig(content string) error {
-	nl.Debugf(lm.logger, "Writing OpenTracing tracer config file to %v", jsonFileForOpenTracingTracer)
-	err := createFileAndWrite(jsonFileForOpenTracingTracer, []byte(content))
-	if err != nil {
-		return fmt.Errorf("failed to write config file: %w", err)
-	}
-
-	return nil
-}
-
 // verifyConfigVersion is used to check if the worker process that the API client is connected
 // to is using the latest version of nginx config. This way we avoid making changes on
 // a worker processes that is being shut down.
@@ -531,11 +516,6 @@ func verifyConfigVersion(httpClient *http.Client, configVersion int, timeout tim
 	}
 
 	return err
-}
-
-// SetOpenTracing sets the value of OpenTracing for the Manager
-func (lm *LocalManager) SetOpenTracing(openTracing bool) {
-	lm.OpenTracing = openTracing
 }
 
 // AppProtectPluginStart starts the AppProtect plugin and sets AppProtect log level.

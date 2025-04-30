@@ -48,7 +48,6 @@ controller:
     # the name should not include a namespace
     # configMapName: ""
 
-
   ## Timeout in milliseconds which the Ingress Controller will wait for a successful NGINX reload after a change or at the initial start.
   nginxReloadTimeout: 60000
 
@@ -172,7 +171,7 @@ controller:
     repository: nginx/nginx-ingress
 
     ## The tag of the Ingress Controller image. If not specified the appVersion from Chart.yaml is used as a tag.
-    # tag: "4.0.1"
+    # tag: "5.0.0"
     ## The digest of the Ingress Controller image.
     ## If digest is specified it has precedence over tag and will be used instead
     # digest: "sha256:CHANGEME"
@@ -668,8 +667,6 @@ nginxAgent:
   logLevel: "error"
 
   # Agent V3 configuration
-  ## If nginxAgent.configSyncGroup is not set the value of nginx-ingress.controller.fullname will be used
-  configSyncGroup: ""
   # Dataplane key is used to authenticate the agent with NGINX One SaaS Console
   dataplaneKey: ""
   endpointHost: "product.connect.nginx.com"
