@@ -231,6 +231,23 @@ func makeServerName(s StreamServer) string {
 	return fmt.Sprintf("server_name \"%s\";", s.ServerName)
 }
 
+// boolToInteger will do the following conversions:
+// false -> 0
+// true -> 1
+//
+// An example for where it's used is the OIDC PKCE Enable flag.
+func boolToInteger(b bool) int {
+	// The compiler currently only optimizes this form.
+	// See issue 6011.
+	var i int
+	if b {
+		i = 1
+	} else {
+		i = 0
+	}
+	return i
+}
+
 var helperFunctions = template.FuncMap{
 	"headerListToCIMap":     headerListToCIMap,
 	"hasCIKey":              hasCIKey,
@@ -246,4 +263,5 @@ var helperFunctions = template.FuncMap{
 	"makeHeaderQueryValue":  makeHeaderQueryValue,
 	"makeTransportListener": makeTransportListener,
 	"makeServerName":        makeServerName,
+	"boolToInteger":         boolToInteger,
 }
