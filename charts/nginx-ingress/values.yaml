@@ -566,6 +566,17 @@ controller:
     ## The number of seconds after the Ingress Controller pod has started before readiness probes are initiated.
     initialDelaySeconds: 0
 
+  startupStatus:
+  ## Enable the startup probe.
+    enable: true
+    port: 9999
+    path: /
+    initialDelaySeconds: 5
+    periodSeconds: 1
+    timeoutSeconds: 1
+    successThreshold: 1
+    failureThreshold: 30
+
   ## Enable collection of latency metrics for upstreams. Requires prometheus.create.
   enableLatencyMetrics: false
 
