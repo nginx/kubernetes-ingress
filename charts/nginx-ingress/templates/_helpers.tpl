@@ -503,41 +503,6 @@ command:
   tls:
     skip_verify: {{ .Values.nginxAgent.tlsSkipVerify | default false }}
 
-## collector metrics settings
-collector:
-  log:
-    level: {{ .Values.nginxAgent.logLevel }}
-    path: ""
-
-    processors:
-    batch:
-
-  receivers:
-    host_metrics:
-      collection_interval: 1m0s
-      initial_delay: 1s
-      scrapers:
-        cpu: {}
-        memory: {}
-        disk: {}
-        network: {}
-
-  exporters:
-    otlp_exporters:
-      - server:
-          host: "{{ .Values.nginxAgent.endpointHost }}"
-          port: {{ .Values.nginxAgent.endpointPort }}
-        authenticator: headers_setter
-        tls:
-          skip_verify: {{ .Values.nginxAgent.tlsSkipVerify | default false }}
-
-  extensions:
-    headers_setter:
-      headers:
-        - action: insert
-          key: "authorization"
-          value: "{{ .Values.nginxAgent.dataplaneKey }}"
-
 {{- else }}
 log:
   level: {{ .Values.nginxAgent.logLevel }}
