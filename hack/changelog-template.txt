@@ -26,3 +26,4 @@
 We will provide technical support for NGINX Ingress Controller on any Kubernetes platform that is currently supported by
 its provider and that passes the Kubernetes conformance tests. This release was fully tested on the following Kubernetes
 versions: %%K8S_VERSIONS%%
+---

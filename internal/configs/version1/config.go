@@ -213,6 +213,9 @@ type MGMTConfig struct {
 	ResolverAddresses    []string
 	ResolverIPV6         *bool
 	ResolverValid        string
+	ProxyHost            string
+	ProxyUser            string
+	ProxyPass            string
 }
 
 // MainConfig describe the main NGINX configuration file.
@@ -237,10 +240,6 @@ type MainConfig struct {
 	NginxStatus                        bool
 	NginxStatusAllowCIDRs              []string
 	NginxStatusPort                    int
-	OpenTracingEnabled                 bool
-	OpenTracingLoadModule              bool
-	OpenTracingTracer                  string
-	OpenTracingTracerConfig            string
 	ProxyProtocol                      bool
 	ResolverAddresses                  []string
 	ResolverIPV6                       bool

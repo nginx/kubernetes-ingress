@@ -11,10 +11,6 @@ daemon off;
 error_log  stderr {{.ErrorLogLevel}};
 pid        /var/lib/nginx/nginx.pid;
 
-{{- if .OpenTracingLoadModule}}
-load_module modules/ngx_http_opentracing_module.so;
-{{- end}}
-
 {{- if .MainSnippets}}
 {{range $value := .MainSnippets}}
 {{$value}}{{end}}
@@ -108,13 +104,6 @@ http {
     ssl_dhparam {{.SSLDHParam}};
     {{- end}}
 
-    {{- if .OpenTracingEnabled}}
-    opentracing on;
-    {{- end}}
-    {{- if .OpenTracingLoadModule}}
-    opentracing_load_tracer {{ .OpenTracingTracer }} /var/lib/nginx/tracer-config.json;
-    {{- end}}
-
     server {
         # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
         set $default_connection_header "";
@@ -157,10 +146,6 @@ http {
         access_log off;
         {{end -}}
 
-        {{- if .OpenTracingEnabled}}
-        opentracing off;
-        {{- end}}
-
         {{- if .HealthStatus}}
         location {{.HealthStatusURI}} {
             default_type text/plain;
@@ -183,9 +168,6 @@ http {
         allow {{$value}};{{end}}
 
         deny all;
-        {{if .OpenTracingEnabled}}
-        opentracing off;
-        {{end}}
         location /stub_status {
             stub_status;
         }
@@ -196,10 +178,6 @@ http {
     server {
         listen unix:/var/lib/nginx/nginx-status.sock;
         access_log off;
-
-        {{- if .OpenTracingEnabled}}
-        opentracing off;
-        {{- end}}
 
         location /stub_status {
             stub_status;
@@ -214,20 +192,12 @@ http {
         listen unix:/var/lib/nginx/nginx-502-server.sock;
         access_log off;
 
-        {{if .OpenTracingEnabled}}
-        opentracing off;
-        {{end}}
-
         return 502;
     }
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
         access_log off;
-
-        {{- if .OpenTracingEnabled}}
-        opentracing off;
-        {{- end -}}
 
         return 418;
     }

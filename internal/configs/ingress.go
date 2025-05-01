@@ -272,6 +272,9 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 
 			if cfgParams.LimitReqRate != "" {
 				zoneName := p.ingEx.Ingress.Namespace + "/" + p.ingEx.Ingress.Name
+				if p.ingEx.ZoneSync {
+					zoneName = fmt.Sprintf("%v_sync", zoneName)
+				}
 				loc.LimitReq = &version1.LimitReq{
 					Zone:       zoneName,
 					Burst:      cfgParams.LimitReqBurst,
@@ -284,7 +287,12 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 				if !limitReqZoneExists(limitReqZones, zoneName) {
 					rate := cfgParams.LimitReqRate
 					if cfgParams.LimitReqScale && p.ingressControllerReplicas > 0 {
-						rate = scaleRatelimit(rate, p.ingressControllerReplicas)
+						if p.ingEx.ZoneSync {
+							warningText := fmt.Sprintf("Ingress %s/%s: both zone sync and rate limit scale are enabled, the rate limit scale value will not be used.", p.ingEx.Ingress.Namespace, p.ingEx.Ingress.Name)
+							nl.Warn(l, warningText)
+						} else {
+							rate = scaleRatelimit(rate, p.ingressControllerReplicas)
+						}
 					}
 					limitReqZones = append(limitReqZones, version1.LimitReqZone{
 						Name: zoneName,

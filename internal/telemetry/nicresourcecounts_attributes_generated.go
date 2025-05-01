@@ -40,6 +40,8 @@ func (d *NICResourceCounts) Attributes() []attribute.KeyValue {
 	attrs = append(attrs, attribute.Bool("IsPlus", d.IsPlus))
 	attrs = append(attrs, attribute.StringSlice("InstallationFlags", d.InstallationFlags))
 	attrs = append(attrs, attribute.String("BuildOS", d.BuildOS))
+	attrs = append(attrs, attribute.StringSlice("ConfigMapKeys", d.ConfigMapKeys))
+	attrs = append(attrs, attribute.StringSlice("MGMTConfigMapKeys", d.MGMTConfigMapKeys))
 
 	return attrs
 }

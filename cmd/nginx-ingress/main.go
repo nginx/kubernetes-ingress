@@ -323,6 +323,7 @@ func main() {
 		NICVersion:                   version,
 		DynamicWeightChangesReload:   *enableDynamicWeightChangesReload,
 		InstallationFlags:            parsedFlags,
+		ShuttingDown:                 false,
 	}
 
 	lbc := k8s.NewLoadBalancerController(lbcInput)
@@ -739,16 +740,7 @@ func mustWriteNginxMainConfig(staticCfgParams *configs.StaticConfigParams, cfgPa
 	}
 	nginxManager.CreateMainConfig(content)
 
-	nginxManager.UpdateConfigVersionFile(ngxConfig.OpenTracingLoadModule)
-
-	nginxManager.SetOpenTracing(ngxConfig.OpenTracingLoadModule)
-
-	if ngxConfig.OpenTracingLoadModule {
-		err := nginxManager.CreateOpenTracingTracerConfig(cfgParams.MainOpenTracingTracerConfig)
-		if err != nil {
-			nl.Fatalf(l, "Error creating OpenTracing tracer config file: %v", err)
-		}
-	}
+	nginxManager.UpdateConfigVersionFile()
 }
 
 // getSocketClient gets a http.Client with a unix socket transport.
@@ -825,6 +817,7 @@ func handleTermination(lbc *k8s.LoadBalancerController, nginxManager nginx.Manag
 		nl.Fatalf(lbc.Logger, "AppProtectDosAgent command exited unexpectedly with status: %v", err)
 	case <-signalChan:
 		nl.Info(lbc.Logger, "Received SIGTERM, shutting down")
+		lbc.ShuttingDown = true
 		lbc.Stop()
 		nginxManager.Quit()
 		<-cpcfg.nginxDone
@@ -1100,14 +1093,14 @@ func createAndValidateHeadlessService(ctx context.Context, kubeClient *kubernete
 	}
 	combinedDeployment := fmt.Sprintf("%s-%s", name, strings.ToLower(owner.Kind))
 	cfgParams.ZoneSync.Domain = combinedDeployment
-	err := createHeadlessService(l, kubeClient, controllerNamespace, fmt.Sprintf("%s-hl", combinedDeployment), *nginxConfigMaps)
+	err := createHeadlessService(l, kubeClient, controllerNamespace, fmt.Sprintf("%s-hl", combinedDeployment), *nginxConfigMaps, pod)
 	if err != nil {
 		return fmt.Errorf("failed to create headless Service: %w", err)
 	}
 	return nil
 }
 
-func createHeadlessService(l *slog.Logger, kubeClient *kubernetes.Clientset, controllerNamespace string, svcName string, configMapNamespacedName string) error {
+func createHeadlessService(l *slog.Logger, kubeClient *kubernetes.Clientset, controllerNamespace string, svcName string, configMapNamespacedName string, pod *api_v1.Pod) error {
 	existing, err := kubeClient.CoreV1().Services(controllerNamespace).Get(context.Background(), svcName, meta_v1.GetOptions{})
 	if err == nil && existing != nil {
 		nl.Infof(l, "headless service %s/%s already exists, skipping creating.", controllerNamespace, svcName)
@@ -1142,9 +1135,7 @@ func createHeadlessService(l *slog.Logger, kubeClient *kubernetes.Clientset, con
 		},
 		Spec: api_v1.ServiceSpec{
 			ClusterIP: api_v1.ClusterIPNone,
-			Selector: map[string]string{
-				"zone-sync.nginx.com/name": "nginx-ingress",
-			},
+			Selector:  pod.Labels,
 		},
 	}
 
@@ -1167,13 +1158,29 @@ func logEventAndExit(ctx context.Context, eventLog record.EventRecorder, obj pkg
 func initLogger(logFormat string, level slog.Level, out io.Writer) context.Context {
 	programLevel := new(slog.LevelVar) // Info by default
 	var h slog.Handler
+
+	opts := &slog.HandlerOptions{
+		Level:     programLevel,
+		AddSource: true,
+		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.SourceKey {
+				if src, ok := a.Value.Any().(*slog.Source); ok {
+					src.Function = ""
+					src.File = filepath.Base(src.File)
+					a.Value = slog.AnyValue(src)
+				}
+			}
+			return a
+		},
+	}
+
 	switch {
 	case logFormat == "glog":
 		h = nic_glog.New(out, &nic_glog.Options{Level: programLevel})
 	case logFormat == "json":
-		h = slog.NewJSONHandler(out, &slog.HandlerOptions{Level: programLevel})
+		h = slog.NewJSONHandler(out, opts)
 	case logFormat == "text":
-		h = slog.NewTextHandler(out, &slog.HandlerOptions{Level: programLevel})
+		h = slog.NewTextHandler(out, opts)
 	default:
 		h = nic_glog.New(out, &nic_glog.Options{Level: programLevel})
 	}

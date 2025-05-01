@@ -55,6 +55,26 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "plus-debug",
 			namespace:   "default",
 		},
+		"plus-mgmt": {
+			valuesFile:  "testdata/plus-mgmt.yaml",
+			releaseName: "plus-mgmt",
+			namespace:   "default",
+		},
+		"plus-mgmt-custom-endpoint": {
+			valuesFile:  "testdata/plus-mgmt-custom-endpoint.yaml",
+			releaseName: "plus-mgmt-custom-endpoint",
+			namespace:   "default",
+		},
+		"plus-mgmt-proxy-host": {
+			valuesFile:  "testdata/plus-mgmt-proxy-host.yaml",
+			releaseName: "plus-mgmt-proxy-host",
+			namespace:   "default",
+		},
+		"plus-mgmt-proxy-host-auth": {
+			valuesFile:  "testdata/plus-mgmt-proxy-host-auth.yaml",
+			releaseName: "plus-mgmt-proxy-host-auth",
+			namespace:   "default",
+		},
 		"ingressClass": {
 			valuesFile:  "testdata/ingress-class.yaml",
 			releaseName: "ingress-class",

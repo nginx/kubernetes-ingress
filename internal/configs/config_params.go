@@ -34,10 +34,6 @@ type ConfigParams struct {
 	MainLogFormat                          []string
 	MainLogFormatEscaping                  string
 	MainMainSnippets                       []string
-	MainOpenTracingEnabled                 bool
-	MainOpenTracingLoadModule              bool
-	MainOpenTracingTracer                  string
-	MainOpenTracingTracerConfig            string
 	MainServerNamesHashBucketSize          string
 	MainServerNamesHashMaxSize             string
 	MainStreamLogFormat                    []string
@@ -205,6 +201,9 @@ type MGMTConfigParams struct {
 	Endpoint             string
 	Interval             string
 	Secrets              MGMTSecrets
+	ProxyHost            string
+	ProxyUser            string
+	ProxyPass            string
 }
 
 // NewDefaultConfigParams creates a ConfigParams with default values.

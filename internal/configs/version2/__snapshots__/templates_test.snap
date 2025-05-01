@@ -2913,7 +2913,7 @@ map $http_x_version $match_0_0 {
     default 0;
 }
 # HTTP snippet
-limit_req_zone $url zone=pol_rl_test_test_test:10m rate=10r/s sync;
+limit_req_zone $url zone=pol_rl_test_test_test_sync:10m rate=10r/s sync;
 
 server {
     listen 80 proxy_protocol;
@@ -2948,7 +2948,7 @@ server {
     allow all;
     limit_req_log_level error;
     limit_req_status 503;
-    limit_req zone=pol_rl_test_test_test burst=5 delay=10;
+    limit_req zone=pol_rl_test_test_test_sync burst=5 delay=10;
     auth_jwt "My Api";
     auth_jwt_key_file jwk-secret;
     app_protect_enable on;
@@ -3021,7 +3021,7 @@ server {
         deny all;
         deny 127.0.0.1;
         allow all;
-        limit_req zone=loc_pol_rl_test_test_test;
+        limit_req zone=loc_pol_rl_test_test_test_sync;
 
         
         proxy_ssl_certificate egress-mtls-secret.pem;

@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/nginx/kubernetes-ingress/internal/telemetry"
@@ -533,6 +535,210 @@ func TestGetServices(t *testing.T) {
 	}
 }
 
+func TestConfigMapKeys(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name   string
+		config telemetry.CollectorConfig
+		want   []string
+	}{
+		{
+			name: "ConfigMap With some keys",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(
+					&apiCoreV1.ConfigMap{
+						ObjectMeta: metaV1.ObjectMeta{
+							Name:      "nginx-ingress",
+							Namespace: "nginx-ingress",
+						},
+						Data: map[string]string{
+							"proxy-buffering": "false",
+							"zone-sync":       "true",
+						},
+					},
+				),
+				MainConfigMapName: "nginx-ingress/nginx-ingress",
+			},
+			want: []string{"proxy-buffering", "zone-sync"},
+		},
+		{
+			name: "ConfigMap With no keys",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(
+					&apiCoreV1.ConfigMap{
+						ObjectMeta: metaV1.ObjectMeta{
+							Name:      "nginx-ingress",
+							Namespace: "nginx-ingress",
+						},
+						Data: map[string]string{},
+					},
+				),
+				MainConfigMapName: "nginx-ingress/nginx-ingress",
+			},
+			want: nil,
+		},
+		{
+			name: "ConfigMap With ignored keys",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(
+					&apiCoreV1.ConfigMap{
+						ObjectMeta: metaV1.ObjectMeta{
+							Name:      "nginx-ingress",
+							Namespace: "nginx-ingress",
+						},
+						Data: map[string]string{
+							"enforce-initial-report": "false",
+							"sync":                   "hello",
+							"hello":                  "world",
+						},
+					},
+				),
+				MainConfigMapName: "nginx-ingress/nginx-ingress",
+			},
+			want: nil,
+		},
+		{
+			name: "ConfigMap With ignored keys and valid keys",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(
+					&apiCoreV1.ConfigMap{
+						ObjectMeta: metaV1.ObjectMeta{
+							Name:      "nginx-ingress",
+							Namespace: "nginx-ingress",
+						},
+						Data: map[string]string{
+							"proxy-buffering":        "false",
+							"enforce-initial-report": "false",
+							"sync":                   "hello",
+							"hello":                  "world",
+							"zone-sync":              "true",
+						},
+					},
+				),
+				MainConfigMapName: "nginx-ingress/nginx-ingress",
+			},
+			want: []string{"proxy-buffering", "zone-sync"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			c, err := telemetry.NewCollector(tc.config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := c.ConfigMapKeys(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !assert.ElementsMatch(t, tc.want, got, "MGMTConfigMap keys do not match") {
+				t.Error(cmp.Diff(tc.want, got))
+			}
+		})
+	}
+}
+
+func TestMGMTConfigMapKeys(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name   string
+		config telemetry.CollectorConfig
+		want   []string
+	}{
+		{
+			name: "MGMTConfigMap With some keys",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(
+					&apiCoreV1.ConfigMap{
+						ObjectMeta: metaV1.ObjectMeta{
+							Name:      "nginx-ingress-mgmt",
+							Namespace: "nginx-ingress",
+						},
+						Data: map[string]string{
+							"enforce-initial-report":    "false",
+							"license-token-secret-name": "license-token",
+						},
+					},
+				),
+				MGMTConfigMapName: "nginx-ingress/nginx-ingress-mgmt",
+			},
+			want: []string{"enforce-initial-report", "license-token-secret-name"},
+		},
+		{
+			name: "MGMTConfigMap With no keys",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(
+					&apiCoreV1.ConfigMap{
+						ObjectMeta: metaV1.ObjectMeta{
+							Name:      "nginx-ingress-mgmt",
+							Namespace: "nginx-ingress",
+						},
+						Data: map[string]string{},
+					},
+				),
+				MGMTConfigMapName: "nginx-ingress/nginx-ingress-mgmt",
+			},
+			want: nil,
+		},
+		{
+			name: "MGMTConfigMap With ignored keys",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(
+					&apiCoreV1.ConfigMap{
+						ObjectMeta: metaV1.ObjectMeta{
+							Name:      "nginx-ingress-mgmt",
+							Namespace: "nginx-ingress",
+						},
+						Data: map[string]string{
+							"zone-sync": "false",
+							"license":   "test",
+						},
+					},
+				),
+				MGMTConfigMapName: "nginx-ingress/nginx-ingress-mgmt",
+			},
+			want: nil,
+		},
+		{
+			name: "MGMTConfigMap With ignored keys and valid keys",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(
+					&apiCoreV1.ConfigMap{
+						ObjectMeta: metaV1.ObjectMeta{
+							Name:      "nginx-ingress-mgmt",
+							Namespace: "nginx-ingress",
+						},
+						Data: map[string]string{
+							"zone-sync":                 "false",
+							"license":                   "test",
+							"enforce-initial-report":    "false",
+							"license-token-secret-name": "license-token",
+						},
+					},
+				),
+				MGMTConfigMapName: "nginx-ingress/nginx-ingress-mgmt",
+			},
+			want: []string{"enforce-initial-report", "license-token-secret-name"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			c, err := telemetry.NewCollector(tc.config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := c.MGMTConfigMapKeys(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !assert.ElementsMatch(t, tc.want, got, "MGMTConfigMap keys do not match") {
+				t.Error(cmp.Diff(tc.want, got))
+			}
+		})
+	}
+}
+
 // newTestCollectorForClusterWithNodes returns a telemetry collector configured
 // to simulate collecting data on a cluser with provided nodes.
 func newTestCollectorForClusterWithNodes(t *testing.T, nodes ...runtime.Object) *telemetry.Collector {
@@ -577,9 +783,8 @@ var (
 				},
 			},
 			Labels: map[string]string{
-				"app":                      "nginx-ingress",
-				"zone-sync.nginx.com/name": "nginx-ingress",
-				"app.kubernetes.io/name":   "nginx-ingress",
+				"app":                    "nginx-ingress",
+				"app.kubernetes.io/name": "nginx-ingress",
 			},
 		},
 		Spec: apiCoreV1.PodSpec{
@@ -613,9 +818,8 @@ var (
 			Name:      "nginx-ingress",
 			Namespace: "nginx-ingress",
 			Labels: map[string]string{
-				"app":                      "nginx-ingress",
-				"zone-sync.nginx.com/name": "nginx-ingress",
-				"app.kubernetes.io/name":   "nginx-ingress",
+				"app":                    "nginx-ingress",
+				"app.kubernetes.io/name": "nginx-ingress",
 			},
 			OwnerReferences: []metaV1.OwnerReference{
 				{
@@ -652,9 +856,8 @@ var (
 				},
 			},
 			Labels: map[string]string{
-				"app":                      "nginx-ingress",
-				"zone-sync.nginx.com/name": "nginx-ingress",
-				"app.kubernetes.io/name":   "nginx-ingress",
+				"app":                    "nginx-ingress",
+				"app.kubernetes.io/name": "nginx-ingress",
 			},
 		},
 		Spec: apiCoreV1.PodSpec{
@@ -688,7 +891,7 @@ var (
 			Name:      "nginx-ingress",
 			Namespace: "nginx-ingress",
 			UID:       types.UID(installationIDDaemonSet),
-			Labels:    map[string]string{"app": "nginx-ingress", "zone-sync.nginx.com/name": "nginx-ingress"},
+			Labels:    map[string]string{"app": "nginx-ingress"},
 		},
 		Spec: appsV1.DaemonSetSpec{},
 		Status: appsV1.DaemonSetStatus{

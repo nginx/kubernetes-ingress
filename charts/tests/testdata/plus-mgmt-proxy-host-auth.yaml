@@ -1,0 +1,6 @@
+controller:
+  nginxplus: true
+  mgmt:
+    usageReport:
+      proxyHost: "44.55.66.77:88"
+      proxyCredentialsSecretName: "custom-credentials"

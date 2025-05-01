@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -23,6 +24,24 @@ type StdoutExporter struct {
 // Export takes context and trace data and writes to the endpoint.
 func (e *StdoutExporter) Export(_ context.Context, data tel.Exportable) error {
 	_, err := fmt.Fprintf(e.Endpoint, "%+v", data)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// JSONExporter represents a temporary telemetry data exporter in JSON format.
+type JSONExporter struct {
+	Endpoint io.Writer
+}
+
+// Export takes context and trace data and marshals it and writes to the endpoint.
+func (e *JSONExporter) Export(_ context.Context, data tel.Exportable) error {
+	marshaledBytes, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	_, err = e.Endpoint.Write(marshaledBytes)
 	if err != nil {
 		return err
 	}
@@ -117,4 +136,8 @@ type NICResourceCounts struct {
 	InstallationFlags []string
 	// BuildOS represents the base operating system image
 	BuildOS string
+	// ConfigMapKeys is the list of keys for the main ConfigMaps
+	ConfigMapKeys []string
+	// MGMTConfigMapKeys is the list of keys for the MGMT ConfigMap
+	MGMTConfigMapKeys []string
 }
