@@ -239,7 +239,7 @@ def apply_and_assert_warning_vsr(kube_apis, namespace, name, vsr_yaml):
 
 
 def apply_and_assert_valid_vs(kube_apis, namespace, name, vs_yaml):
-    patch_virtual_server_from_yaml(
+    delete_and_create_vs_from_yaml(
         kube_apis.custom_objects,
         name,
         vs_yaml,
@@ -258,7 +258,7 @@ def apply_and_assert_valid_vs(kube_apis, namespace, name, vs_yaml):
 
 
 def apply_and_assert_warning_vs(kube_apis, namespace, name, vs_yaml):
-    patch_virtual_server_from_yaml(
+    delete_and_create_vs_from_yaml(
         kube_apis.custom_objects,
         name,
         vs_yaml,

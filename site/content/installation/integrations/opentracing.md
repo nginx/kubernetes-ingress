@@ -2,10 +2,12 @@
 docs: DOCS-618
 doctypes:
 - ''
-title: OpenTracing
+title: OpenTracing (Deprecated in v5.0.0)
 toc: true
 weight: 500
 ---
+OpenTracing support has been deprecated from v5.0.0 of F5 NGINX Ingress Controller.
+
 
 Learn how to use OpenTracing with F5 NGINX Ingress Controller.
 

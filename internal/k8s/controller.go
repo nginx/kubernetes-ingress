@@ -185,6 +185,7 @@ type LoadBalancerController struct {
 	weightChangesDynamicReload    bool
 	nginxConfigMapName            string
 	mgmtConfigMapName             string
+	ShuttingDown                  bool
 }
 
 var keyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
@@ -241,6 +242,7 @@ type NewLoadBalancerControllerInput struct {
 	NICVersion                   string
 	DynamicWeightChangesReload   bool
 	InstallationFlags            []string
+	ShuttingDown                 bool
 }
 
 // NewLoadBalancerController creates a controller
@@ -286,6 +288,7 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		weightChangesDynamicReload:   input.DynamicWeightChangesReload,
 		nginxConfigMapName:           input.ConfigMaps,
 		mgmtConfigMapName:            input.MGMTConfigMap,
+		ShuttingDown:                 input.ShuttingDown,
 	}
 
 	lbc.syncQueue = newTaskQueue(lbc.Logger, lbc.sync)
@@ -420,6 +423,10 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 			},
 			Policies:               lbc.getAllPolicies,
 			IsPlus:                 lbc.isNginxPlus,
+			MainConfigMap:          lbc.configMap,
+			MainConfigMapName:      lbc.nginxConfigMapName,
+			MGMTConfigMap:          lbc.mgmtConfigMap,
+			MGMTConfigMapName:      lbc.mgmtConfigMapName,
 			CustomResourcesEnabled: lbc.areCustomResourcesEnabled,
 		}
 		collector, err := telemetry.NewCollector(
@@ -3644,4 +3651,21 @@ func (lbc *LoadBalancerController) createCombinedDeploymentHeadlessServiceName()
 	}
 	combinedDeployment := fmt.Sprintf("%s-%s", name, strings.ToLower(owner.Kind))
 	return combinedDeployment
+}
+
+func (lbc *LoadBalancerController) isPodMarkedForDeletion() bool {
+	// Check if the controller is shutting down
+	if lbc.ShuttingDown {
+		nl.Debugf(lbc.Logger, "SIGTERM already received, controller is shutting down")
+		return true
+	}
+	podName := lbc.metadata.pod.Name
+	podNamespace := lbc.metadata.pod.Namespace
+	pod, err := lbc.client.CoreV1().Pods(podNamespace).Get(context.Background(), podName, meta_v1.GetOptions{})
+	if err == nil && pod.DeletionTimestamp != nil {
+		nl.Debugf(lbc.Logger, "Pod %s/%s is marked for deletion", podNamespace, podName)
+		return true
+	}
+
+	return false
 }

@@ -1,10 +1,10 @@
 ---
-docs: DOCS-586
-doctypes:
-- ''
 title: ConfigMap resources
-toc: true
 weight: 300
+toc: true
+type: how-to
+product: NIC
+docs: DOCS-586
 ---
 
 When using F5 NGINX Ingress Controller, you can customize or fine tune NGINX behavior using ConfigMap resources. Examples include setting the number of worker processes or customizing the access log format.
@@ -182,7 +182,18 @@ For more information, view the [VirtualServer and VirtualServerRoute resources](
 
 ### Zone Sync
 
-Zone Sync enables the [ngx_stream_zone_sync_module](https://nginx.org/en/docs/stream/ngx_stream_zone_sync_module.html) in NGINX Ingress Controller when NGINX Plus is used.  Multiple replicas are required to effectively utililise this functionality.  See the [zone sync documentation for further details](https://docs.nginx.com/nginx/admin-guide/high-availability/zone_sync_details/).
+Zone Sync enables the [ngx_stream_zone_sync_module](https://nginx.org/en/docs/stream/ngx_stream_zone_sync_module.html) in NGINX Ingress Controller when NGINX Plus is used.  Multiple replicas are required to effectively utililise this functionality. More information is available in the [How NGINX Plus Performs Zone Synchronization](https://docs.nginx.com/nginx/admin-guide/high-availability/zone_sync_details/) topic.
+
+Zone synchronization with TLS for NGINX Ingress Controller is not yet available with ConfigMap. If you would like to enable Zone Sync with TLS, please remove `zone-sync` from ConfigMap and add Zone Sync parameters via [`stream-snippets`]({{< ref "/configuration/ingress-resources/advanced-configuration-with-snippets.md" >}}) similar to [this example](https://github.com/nginx/kubernetes-ingress/blob/v4.0.1/examples/custom-resources/oidc/nginx-config.yaml) and adding the [zone_sync_ssl directive](https://nginx.org/en/docs/stream/ngx_stream_zone_sync_module.html#zone_sync_ssl) along with any other TLS parameters to the `stream-snippets`. 
+
+You will also need to manually add the headless service, such as in [this example](https://github.com/nginx/kubernetes-ingress/blob/v4.0.1/examples/custom-resources/oidc/nginx-ingress-headless.yaml).
+
+{{< caution >}} 
+If you previously installed OIDC or used the `zone_sync` directive with `stream-snippets` in [v4.0.1](https://github.com/nginx/kubernetes-ingress/tree/v4.0.1) or earlier, and you plan to enable the `zone-sync` ConfigMap key, the `zone_sync` directive should be removed from `stream-snippets`. 
+
+If you encounter the error `error [emerg] 13#13: "zone_sync" directive is duplicate in /etc/nginx/nginx.conf:164` it is likely due to `zone_sync` being enabled in both `stream-snippets` and the ConfigMap. Once upgraded, remove the [old headless service](https://github.com/nginx/kubernetes-ingress/blob/v4.0.1/examples/custom-resources/oidc/nginx-ingress-headless.yaml) deployed for OIDC.
+{{< /caution >}}
+
 
 {{<bootstrap-table "table table-striped table-bordered table-responsive">}}
 |ConfigMap Key | Description | Default | Example |
@@ -193,13 +204,6 @@ Zone Sync enables the [ngx_stream_zone_sync_module](https://nginx.org/en/docs/st
 |*zone-sync-resolver-ipv6* | Configures whether the optional [resolver](https://nginx.org/en/docs/http/ngx_http_core_module.html#resolver) directive for zone-sync will look up IPv6 addresses. NGINX Plus & `zone-sync` Required | `true` |  |
 |*zone-sync-resolver-valid* | Configures an [NGINX time](https://nginx.org/en/docs/syntax.html) that the optional [resolver](https://nginx.org/en/docs/http/ngx_http_core_module.html#resolver) directive for zone-sync will override the TTL value of responses from nameservers with. NGINX Plus & `zone-sync` Required | `5s` |  |
 {{</bootstrap-table>}}
-
-{{< note >}} 
-If you previously installed OIDC or used `zone_sync` in the stream-snippets in [v4.0.1](https://github.com/nginx/kubernetes-ingress/tree/v4.0.1) or earlier, and you plan to enable the `zone-sync` ConfigMap key, please remove `zone_sync` from the old [stream-snippets](https://github.com/nginx/kubernetes-ingress/blob/v4.0.1/examples/custom-resources/oidc/nginx-config.yaml#L7).  Otherwise, NGINX Plus will encounter duplicate directive error `[emerg] 13#13: "zone_sync" directive is duplicate in /etc/nginx/nginx.conf:164`.
-Once upgraded, remove the [old headless service](https://github.com/nginx/kubernetes-ingress/blob/v4.0.1/examples/custom-resources/oidc/nginx-ingress-headless.yaml) deployed for OIDC.
-
-If you want to enable TLS for zone synchronization for NGINX Ingress Controller, please refer to the [advanced configuration with snippets]({{< ref "/configuration/ingress-resources/advanced-configuration-with-snippets.md" >}}) and example snippets available in the [NGINX documentation](https://nginx.org/en/docs/stream/ngx_stream_zone_sync_module.html#zone_sync_ssl) for zone_sync_ssl.
-{{< /note >}}
 
 ---
 
@@ -226,9 +230,9 @@ If you want to enable TLS for zone synchronization for NGINX Ingress Controller,
 {{<bootstrap-table "table table-striped table-bordered table-responsive">}}
 |ConfigMap Key | Description | Default | Example |
 | ---| ---| ---| --- |
-|*opentracing* | Enables [OpenTracing](https://opentracing.io) globally (for all Ingress, VirtualServer and VirtualServerRoute resources). Note: requires the Ingress Controller image with OpenTracing module and a tracer. See the [docs]({{< relref "/installation/integrations/opentracing.md" >}}) for more information. | *False* |  |
-|*opentracing-tracer* | Sets the path to the vendor tracer binary plugin. | N/A |  |
-|*opentracing-tracer-config* | Sets the tracer configuration in JSON format. | N/A |  |
+|*opentracing* | Removed in v5.0.0.  Enables [OpenTracing](https://opentracing.io) globally (for all Ingress, VirtualServer and VirtualServerRoute resources). Note: requires the Ingress Controller image with OpenTracing module and a tracer. See the [docs]({{< relref "/installation/integrations/opentracing.md" >}}) for more information. | *False* |  |
+|*opentracing-tracer* | Removed in v5.0.0.  Sets the path to the vendor tracer binary plugin. | N/A |  |
+|*opentracing-tracer-config* | Removed in v5.0.0.  Sets the tracer configuration in JSON format. | N/A |  |
 |*app-protect-compressed-requests-action* | Sets the *app_protect_compressed_requests_action* [global directive](/nginx-app-protect/configuration/#global-directives). | *drop* |  |
 |*app-protect-cookie-seed* | Sets the *app_protect_cookie_seed* [global directive](/nginx-app-protect/configuration/#global-directives). | Random automatically generated string |  |
 |*app-protect-failure-mode-action* | Sets the *app_protect_failure_mode_action* [global directive](/nginx-app-protect/configuration/#global-directives). | *pass* |  |
