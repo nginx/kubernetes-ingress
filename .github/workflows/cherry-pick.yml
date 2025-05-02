@@ -28,10 +28,10 @@ jobs:
           github-organization: ${{ github.repository_owner}}
           github-team-slugs: |
             [
-              "nic",
+              "kic",
               "nginx-docs"
             ]
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.NGINX_PAT }}
 
       - name: Set release branch variable
         id: branch
