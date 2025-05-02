@@ -1,0 +1,33 @@
+name: "Test if actor is a member of one of the teams"
+on:
+  push:
+    branches:
+      - is-team-member
+
+permissions:
+  contents: read
+
+jobs:
+  check_if_actor_is_team_member:
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-22.04
+    name: Check team membership
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Check if Actor is a Member of one of the teams
+        uses: im-open/is-actor-team-member@6633b6e4d9bd2a6917f976b14c64626902e13805 # v1.2.0
+        with:
+          github-actor: ${{ github.actor }}
+          github-organization: ${{ github.repository_owner}}
+          github-team-slugs: |
+            [
+              "nic",
+              "nginx-docs"
+            ]
+          github-token: ${{ secrets.GITHUB_TOKEN }}
