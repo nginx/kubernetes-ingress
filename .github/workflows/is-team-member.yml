@@ -27,7 +27,7 @@ jobs:
           github-organization: ${{ github.repository_owner}}
           github-team-slugs: |
             [
-              "nic",
+              "kic",
               "nginx-docs"
             ]
           github-token: ${{ secrets.GITHUB_TOKEN }}
