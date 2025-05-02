@@ -30,4 +30,4 @@ jobs:
               "kic",
               "nginx-docs"
             ]
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.NGINX_PAT }}
