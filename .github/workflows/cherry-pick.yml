@@ -1,8 +1,9 @@
 name: "Cherry-pick dependencies to release branch"
 on:
-  issue_comment:
-    types:
-      - created
+  pull_request:
+    branches:
+      - main
+    types: ["closed"]
 
 permissions:
   contents: read
@@ -14,42 +15,23 @@ jobs:
       pull-requests: write
     runs-on: ubuntu-22.04
     name: Cherry pick into release branch
-    if: ${{ github.event.issue.pull_request.merged_at != null }}
+    if: ${{ (contains(github.event.pull_request.labels.*.name, 'dependencies') || contains(github.event.pull_request.labels.*.name, 'needs cherry pick')) && github.event.pull_request.merged == true }}
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
-
-      - name: Check if Actor is a Member of one of the teams
-        uses: im-open/is-actor-team-member@6633b6e4d9bd2a6917f976b14c64626902e13805 # v1.2.0
-        with:
-          github-actor: ${{ github.actor }}
-          github-organization: ${{ github.repository_owner}}
-          github-team-slugs: |
-            [
-              "kic",
-              "nginx-docs"
-            ]
-          github-token: ${{ secrets.NGINX_PAT }}
+          token: ${{ secrets.NGINX_PAT }}
 
       - name: Set release branch variable
         id: branch
-        env:
-          comment_body: ${{ github.event.comment.body }}
         run: |
-          regex="/cherry-pick to (release-[2-9]+\.[0-9]+)"
-          if [[ "${comment_body}" =~ $regex ]]; then
-            branch=${BASH_REMATCH[1]}
-            if git branch -a | egrep '^\s+remotes/origin/release' | grep -q "${branch}"; then
-              echo "branch=${branch}" >> $GITHUB_OUTPUT
-            else
-              echo "branch=" >> $GITHUB_OUTPUT
-            fi
-          fi
+          branch=$(git branch -a | egrep '^\s+remotes/origin/release' | awk '{print $1}' | sort -u | tail -n 1)
+          release_branch=$(basename ${branch})
+          echo "branch=${release_branch}" >> $GITHUB_OUTPUT
+          cat $GITHUB_OUTPUT
 
       - name: Cherry pick into ${{ steps.branch.outputs.branch }}
-        if: ${{ steps.branch.outputs.branch }}
         uses: carloscastrojumo/github-cherry-pick-action@503773289f4a459069c832dc628826685b75b4b3 # v1.0.10
         with:
           branch: ${{ steps.branch.outputs.branch }}
