@@ -55,7 +55,7 @@ const (
 var (
 	ossre   = regexp.MustCompile(`(?P<name>\S+)/(?P<version>\S+)`)
 	plusre  = regexp.MustCompile(`(?P<name>\S+)/(?P<version>\S+).\((?P<plus>\S+plus\S+)\)`)
-	agentre = regexp.MustCompile(`v(?P<major>\d).?(?P<minor>\d)?.?(?P<patch>\d)?`)
+	agentre = regexp.MustCompile(`v(?P<major>\d+).?(?P<minor>\d+)?.?(?P<patch>\d+)?`)
 )
 
 // ServerConfig holds the config data for an upstream server in NGINX Plus.
@@ -630,7 +630,15 @@ func (lm *LocalManager) AgentStart(agentDone chan error, instanceGroup string) {
 		if err != nil {
 			nl.Fatalf(lm.logger, "Failed to start NGINX Agent: %v", err)
 		}
-		metadataLabels := fmt.Sprintf(`--labels=product_name=%s,product_version=%s,product_namespace=%s,cluster_id=%s,deployment_name=%s,deployment_id=%s`, metadataInfo.ProductName, metadataInfo.ProductVersion, metadataInfo.ProductNamespace, metadataInfo.ClusterID, metadataInfo.DeploymentName, metadataInfo.DeploymentID)
+		labels := []string{
+			fmt.Sprintf("product_name=%s", metadataInfo.ProductName),
+			fmt.Sprintf("product_version=%s", metadataInfo.ProductVersion),
+			fmt.Sprintf("product_namespace=%s", metadataInfo.ProductNamespace),
+			fmt.Sprintf("cluster_id=%s", metadataInfo.ClusterID),
+			fmt.Sprintf("deployment_name=%s", metadataInfo.DeploymentName),
+			fmt.Sprintf("deployment_id=%s", metadataInfo.DeploymentID),
+		}
+		metadataLabels := "--labels=" + strings.Join(labels, ",")
 		args = append(args, metadataLabels)
 	}
 	cmd := exec.Command(agentPath, args...) // #nosec G204

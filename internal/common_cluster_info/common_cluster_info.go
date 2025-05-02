@@ -89,7 +89,7 @@ func GetDeploymentName(ctx context.Context, client kubernetes.Interface, podNSNa
 			}
 		}
 		return "", fmt.Errorf("replicaset %s has no owner", replicaSet.Name)
-	case "DaemonSet":
+	case "DaemonSet", "StatefulSets":
 		return owner.Name, nil
 	default:
 		return "", fmt.Errorf("expected pod owner reference to be ReplicaSet or DaemonSet, got %s", owner.Kind)
