@@ -20,23 +20,23 @@ considering contributing!
 
 ## Ask a Question
 
-To ask a question please use [Github Discussions](https://github.com/nginxinc/kubernetes-ingress/discussions).
+To ask a question please use [Github Discussions](https://github.com/nginx/kubernetes-ingress/discussions).
 
-You can also join our [Community Slack](https://community.nginx.org/joinslack) which has a wider NGINX audience.
+You can also get help through the [NGINX Community Forum](https://community.nginx.org/).
 
 Please reserve GitHub issues for feature requests and bugs rather than general questions.
 
 ## Getting Started
 
-Follow our [Installation Guide](https://github.com/nginxinc/kubernetes-ingress/blob/main/docs/content/installation) to
+Follow our [Installation Guide](https://docs.nginx.com/nginx-ingress-controller/installation/) to
 get NGINX Ingress Controller up and running.
 
-Read the [documentation](https://github.com/nginxinc/kubernetes-ingress/tree/main/docs) and
-[configuration](https://github.com/nginxinc/kubernetes-ingress/tree/main/examples) examples
+Read the [documentation](https://github.com/nginx/kubernetes-ingress/tree/main/site) and
+[configuration](https://github.com/nginx/kubernetes-ingress/tree/main/examples) examples
 
 ### Project Structure
 
-- This Ingress Controller is written in Go and supports both the open source NGINX software and NGINX Plus.
+- NGINX Ingress Controller is written in Go and supports both the open source NGINX software and NGINX Plus.
 - The project follows a standard Go project layout
   - The main code is found at `cmd/nginx-ingress/`
   - The internal code is found at `internal/`
@@ -73,6 +73,15 @@ fill in the template as provided.
 - When an issue or PR is created, it will be triaged by the core development team and assigned a label to indicate the
   type of issue it is (bug, feature request, etc) and to determine the milestone. Please see the [Issue
   Lifecycle](ISSUE_LIFECYCLE.md) document for more information.
+
+### F5 Contributor License Agreement (CLA)
+
+F5 requires all external contributors to agree to the terms of the F5 CLA (available [here](https://github.com/f5/.github/blob/main/CLA/cla-markdown.md))
+before any of their changes can be incorporated into an F5 Open Source repository.
+
+If you have not yet agreed to the F5 CLA terms and submit a PR to this repository, a bot will prompt you to view and
+agree to the F5 CLA. You will have to agree to the F5 CLA terms through a comment in the PR before any of your changes
+can be merged. Your agreement signature will be safely stored by F5 and no longer be required in future PRs.
 
 ## Style Guides
 

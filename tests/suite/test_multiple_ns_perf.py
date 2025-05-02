@@ -51,7 +51,7 @@ def ingress_ns_setup(
         watched_namespace = create_namespace_with_name_from_yaml(kube_apis.v1, f"ns-{i}", f"{TEST_DATA}/common/ns.yaml")
         multi_ns = multi_ns + f"{watched_namespace},"
         create_example_app(kube_apis, "simple", watched_namespace)
-        secret_name = create_secret_from_yaml(kube_apis.v1, watched_namespace, f"{TEST_DATA}/smoke/smoke-secret.yaml")
+        create_secret_from_yaml(kube_apis.v1, watched_namespace, f"{TEST_DATA}/smoke/smoke-secret.yaml")
         with open(manifest) as f:
             doc = yaml.safe_load(f)
             doc["metadata"]["name"] = f"smoke-ingress-{i}"

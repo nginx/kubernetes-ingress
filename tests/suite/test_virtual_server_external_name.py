@@ -91,7 +91,7 @@ def vs_externalname_setup(
     "crd_ingress_controller, virtual_server_setup",
     [
         (
-            {"type": "complete", "extra_args": [f"-enable-custom-resources", "-v=3"]},
+            {"type": "complete", "extra_args": [f"-enable-custom-resources", "-log-level=debug"]},
             {"example": "virtual-server-externalname", "app_type": "simple"},
         )
     ],

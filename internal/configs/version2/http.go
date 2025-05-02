@@ -1,6 +1,9 @@
 package version2
 
-import "fmt"
+import (
+	"bytes"
+	"fmt"
+)
 
 // UpstreamLabels describes the Prometheus labels for an NGINX upstream.
 type UpstreamLabels struct {
@@ -18,6 +21,7 @@ type VirtualServerConfig struct {
 	KeyVals                 []KeyVal
 	LimitReqZones           []LimitReqZone
 	Maps                    []Map
+	AuthJWTClaimSets        []AuthJWTClaimSet
 	Server                  Server
 	SpiffeCerts             bool
 	SpiffeClientCerts       bool
@@ -26,6 +30,12 @@ type VirtualServerConfig struct {
 	Upstreams               []Upstream
 	DynamicSSLReloadEnabled bool
 	StaticSSLPath           string
+}
+
+// AuthJWTClaimSet defines the values for the `auth_jwt_claim_set` directive
+type AuthJWTClaimSet struct {
+	Variable string
+	Claim    string
 }
 
 // Upstream defines an upstream.
@@ -57,6 +67,10 @@ type Server struct {
 	ServerName                string
 	StatusZone                string
 	CustomListeners           bool
+	HTTPIPv4                  string
+	HTTPIPv6                  string
+	HTTPSIPv4                 string
+	HTTPSIPv6                 string
 	HTTPPort                  int
 	HTTPSPort                 int
 	ProxyProtocol             bool
@@ -84,6 +98,8 @@ type Server struct {
 	IngressMTLS               *IngressMTLS
 	EgressMTLS                *EgressMTLS
 	OIDC                      *OIDC
+	APIKey                    *APIKey
+	APIKeyEnabled             bool
 	WAF                       *WAF
 	Dos                       *Dos
 	PoliciesErrorReturn       *Return
@@ -125,16 +141,25 @@ type EgressMTLS struct {
 
 // OIDC holds OIDC configuration data.
 type OIDC struct {
-	AuthEndpoint      string
-	ClientID          string
-	ClientSecret      string
-	JwksURI           string
-	Scope             string
-	TokenEndpoint     string
-	RedirectURI       string
-	ZoneSyncLeeway    int
-	AuthExtraArgs     string
-	AccessTokenEnable bool
+	AuthEndpoint          string
+	ClientID              string
+	ClientSecret          string
+	JwksURI               string
+	Scope                 string
+	TokenEndpoint         string
+	EndSessionEndpoint    string
+	RedirectURI           string
+	PostLogoutRedirectURI string
+	ZoneSyncLeeway        int
+	AuthExtraArgs         string
+	AccessTokenEnable     bool
+}
+
+// APIKey holds API key configuration.
+type APIKey struct {
+	Header  []string
+	Query   []string
+	MapName string
 }
 
 // WAF defines WAF configuration.
@@ -150,6 +175,7 @@ type WAF struct {
 type Dos struct {
 	Enable                 string
 	Name                   string
+	AllowListPath          string
 	ApDosPolicy            string
 	ApDosSecurityLogEnable bool
 	ApDosLogConf           string
@@ -197,6 +223,7 @@ type Location struct {
 	BasicAuth                *BasicAuth
 	EgressMTLS               *EgressMTLS
 	OIDC                     bool
+	APIKey                   *APIKey
 	WAF                      *WAF
 	Dos                      *Dos
 	PoliciesErrorReturn      *Return
@@ -276,6 +303,7 @@ type HealthCheck struct {
 	Mandatory           bool
 	Persistent          bool
 	KeepaliveTime       string
+	IsGRPC              bool
 }
 
 // TLSRedirect defines a redirect in a Server.
@@ -315,6 +343,16 @@ type Map struct {
 	Parameters []Parameter
 }
 
+func (m *Map) String() string {
+	buf := &bytes.Buffer{}
+	fmt.Fprintf(buf, "Source: %s\n", m.Source)
+	fmt.Fprintf(buf, "Variable: %s\n", m.Variable)
+	for _, v := range m.Parameters {
+		fmt.Fprintf(buf, "\t%s: %s\n", v.Value, v.Result)
+	}
+	return buf.String()
+}
+
 // Parameter defines a Parameter in a Map.
 type Parameter struct {
 	Value  string
@@ -335,14 +373,33 @@ type Queue struct {
 
 // LimitReqZone defines a rate limit shared memory zone.
 type LimitReqZone struct {
-	Key      string
-	ZoneName string
-	ZoneSize string
-	Rate     string
+	Key           string
+	ZoneName      string
+	ZoneSize      string
+	Rate          string
+	GroupValue    string
+	GroupVariable string
+	PolicyValue   string
+	PolicyResult  string
+	GroupDefault  bool
+	GroupSource   string
+	Sync          bool
 }
 
 func (rlz LimitReqZone) String() string {
-	return fmt.Sprintf("{Key %q, ZoneName %q, ZoneSize %v, Rate %q}", rlz.Key, rlz.ZoneName, rlz.ZoneSize, rlz.Rate)
+	return fmt.Sprintf("{Key %q, ZoneName %q, ZoneSize %v, Rate %q, GroupValue %q, PolicyValue %q, GroupVariable %q, PolicyResult %q, GroupDefault %t, GroupSource %q, Sync %t}",
+		rlz.Key,
+		rlz.ZoneName,
+		rlz.ZoneSize,
+		rlz.Rate,
+		rlz.GroupValue,
+		rlz.PolicyValue,
+		rlz.GroupVariable,
+		rlz.PolicyResult,
+		rlz.GroupDefault,
+		rlz.GroupSource,
+		rlz.Sync,
+	)
 }
 
 // LimitReq defines a rate limit.

@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: accesslog
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: accesslog
+  template:
+    metadata:
+      labels:
+        app: accesslog
+    spec:
+      containers:
+        - name: accesslog
+          image: balabit/syslog-ng:4.3.0
+          ports:
+            - containerPort: 514
+            - containerPort: 601
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: accesslog-svc
+spec:
+  ports:
+    - port: 514
+      targetPort: 514
+      protocol: UDP
+  selector:
+    app: accesslog

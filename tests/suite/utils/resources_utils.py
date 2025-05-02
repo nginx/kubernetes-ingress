@@ -1,5 +1,6 @@
 """Describe methods to utilize the kubernetes-client."""
 
+import base64
 import json
 import os
 import re
@@ -9,11 +10,20 @@ from unittest import mock
 import pytest
 import requests
 import yaml
-from kubernetes.client import AppsV1Api, CoreV1Api, NetworkingV1Api, RbacAuthorizationV1Api, V1Service
+from kubernetes.client import (
+    AppsV1Api,
+    CoreV1Api,
+    NetworkingV1Api,
+    RbacAuthorizationV1Api,
+    V1Ingress,
+    V1ObjectMeta,
+    V1Secret,
+    V1Service,
+)
 from kubernetes.client.rest import ApiException
 from kubernetes.stream import stream
 from more_itertools import first
-from settings import DEPLOYMENTS, PROJECT_ROOT, RECONFIGURATION_DELAY, TEST_DATA
+from settings import DEPLOYMENTS, NGX_REG, PROJECT_ROOT, RECONFIGURATION_DELAY, TEST_DATA, WAF_V5_VERSION
 from suite.utils.ssl_utils import create_sni_session
 
 
@@ -292,11 +302,30 @@ def wait_until_all_pods_are_ready(v1: CoreV1Api, namespace) -> None:
     while not are_all_pods_in_ready_state(v1, namespace) and counter < 200:
         # remove counter based condition from line #264 and #269 if --batch-start="True"
         print("There are pods that are not Ready. Wait for 1 sec...")
-        time.sleep(1)
+        wait_before_test()
         counter = counter + 1
     if counter >= 300:
+        print("\n===================== IC Logs Start =====================")
+        try:
+            pod_name = get_pod_name_that_contains(kube_apis.v1, "nginx-ingress", "nginx-ingress")
+            logs = kube_apis.v1.read_namespaced_pod_log(pod_name, "nginx-ingress")
+            print(logs)
+        except:
+            print("Failed to load logs for nginx-ingress pod")
+        print("\n===================== IC Logs End =====================")
         raise PodNotReadyException()
     print("All pods are Ready")
+
+
+def get_pod_list(v1: CoreV1Api, namespace) -> []:
+    """
+    Get a list of pods in a namespace.
+
+    :param v1: CoreV1Api
+    :param namespace: namespace
+    :return: []
+    """
+    return v1.list_namespaced_pod(namespace).items
 
 
 def get_first_pod_name(v1: CoreV1Api, namespace) -> str:
@@ -534,6 +563,15 @@ def create_secret(v1: CoreV1Api, namespace, body) -> str:
     v1.create_namespaced_secret(namespace, body)
     print(f"Secret created: {body['metadata']['name']}")
     return body["metadata"]["name"]
+
+
+def create_license(v1: CoreV1Api, namespace, jwt, license_token_name="license-token") -> str:
+    sec = V1Secret()
+    sec.type = "nginx.com/license"
+    sec.metadata = V1ObjectMeta(name=license_token_name)
+    sec.data = {"license.jwt": base64.b64encode(jwt.encode("ascii")).decode()}
+    v1.create_namespaced_secret(namespace=namespace, body=sec)
+    return license_token_name
 
 
 def replace_secret(v1: CoreV1Api, name, namespace, yaml_manifest) -> str:
@@ -900,45 +938,29 @@ def get_file_contents(v1: CoreV1Api, file_path, pod_name, pod_namespace, print_l
     :return: str
     """
     command = ["cat", file_path]
-    resp = stream(
-        v1.connect_get_namespaced_pod_exec,
-        pod_name,
-        pod_namespace,
-        command=command,
-        stderr=True,
-        stdin=False,
-        stdout=True,
-        tty=False,
-    )
+    retries = 0
+    while retries <= 3:
+        wait_before_test()
+        try:
+            resp = stream(
+                v1.connect_get_namespaced_pod_exec,
+                pod_name,
+                pod_namespace,
+                command=command,
+                stderr=True,
+                stdin=False,
+                stdout=True,
+                tty=False,
+            )
+            break
+        except Exception as e:
+            print(f"Error: {e}")
+            retries += 1
+            if retries == 3:
+                raise e
     result_conf = str(resp)
     if print_log:
         print("\nFile contents:\n" + result_conf)
-    return result_conf
-
-
-def clear_file_contents(v1: CoreV1Api, file_path, pod_name, pod_namespace) -> str:
-    """
-    Execute 'truncate -s 0 file_path' command in a pod.
-
-    :param v1: CoreV1Api
-    :param pod_name: pod name
-    :param pod_namespace: pod namespace
-    :param file_path: an absolute path to a file in the pod
-    :return: str
-    """
-    command = ["truncate", "-s", "0", file_path]
-    resp = stream(
-        v1.connect_get_namespaced_pod_exec,
-        pod_name,
-        pod_namespace,
-        command=command,
-        stderr=True,
-        stdin=False,
-        stdout=True,
-        tty=False,
-    )
-    result_conf = str(resp)
-
     return result_conf
 
 
@@ -1187,6 +1209,211 @@ def create_ingress_controller(v1: CoreV1Api, apps_v1_api: AppsV1Api, cli_argumen
             f"-enable-telemetry-reporting=false",
         ]
     )
+    if args is not None:
+        dep["spec"]["template"]["spec"]["containers"][0]["args"].extend(args)
+    if cli_arguments["deployment-type"] == "deployment":
+        name = create_deployment(apps_v1_api, namespace, dep)
+    else:
+        name = create_daemon_set(apps_v1_api, namespace, dep)
+    before = time.time()
+    wait_until_all_pods_are_ready(v1, namespace)
+    after = time.time()
+    print(f"All pods came up in {int(after - before)} seconds")
+    print(f"Ingress Controller was created with name '{name}'")
+    return name
+
+
+def create_ingress_controller_wafv5(
+    v1: CoreV1Api, apps_v1_api: AppsV1Api, cli_arguments, namespace, reg_secret, args=None, rorfs=False
+) -> str:
+    """
+    Create an Ingress Controller according to the params.
+
+    :param v1: CoreV1Api
+    :param apps_v1_api: AppsV1Api
+    :param cli_arguments: context name as in kubeconfig
+    :param namespace: namespace name
+    :param args: a list of any extra cli arguments to start IC with
+    :return: str
+    """
+    print(f"Create an Ingress Controller as {cli_arguments['ic-type']}")
+    yaml_manifest = f"{DEPLOYMENTS}/{cli_arguments['deployment-type']}/{cli_arguments['ic-type']}.yaml"
+    with open(yaml_manifest) as f:
+        dep = yaml.safe_load(f)
+    dep["spec"]["replicas"] = int(cli_arguments["replicas"])
+    dep["spec"]["template"]["spec"]["containers"][0]["image"] = cli_arguments["image"]
+    dep["spec"]["template"]["spec"]["containers"][0]["imagePullPolicy"] = cli_arguments["image-pull-policy"]
+    if "readOnlyRootFilesystem" not in dep["spec"]["template"]["spec"]["containers"][0]["securityContext"]:
+        dep["spec"]["template"]["spec"]["containers"][0]["securityContext"]["readOnlyRootFilesystem"] = rorfs
+
+    template_spec = dep["spec"]["template"]["spec"]
+    if "imagePullSecrets" not in template_spec:
+        template_spec["imagePullSecrets"] = []
+
+    template_spec["imagePullSecrets"].append({"name": f"{reg_secret}"})
+    if "volumes" not in template_spec:
+        template_spec["volumes"] = []
+
+    if rorfs and "initContainers" not in template_spec:
+        template_spec["initContainers"] = []
+        template_spec["initContainers"].extend(
+            [
+                {
+                    "name": "init-nginx-ingress",
+                    "image": cli_arguments["image"],
+                    "imagePullPolicy": "IfNotPresent",
+                    "command": ["cp", "-vdR", "/etc/nginx/.", "/mnt/etc"],
+                    "securityContext": {
+                        "allowPrivilegeEscalation": False,
+                        "readOnlyRootFilesystem": True,
+                        "runAsUser": 101,  # nginx
+                        "runAsNonRoot": True,
+                        "capabilities": {"drop": ["ALL"]},
+                    },
+                    "volumeMounts": [{"mountPath": "/mnt/etc", "name": "nginx-etc"}],
+                }
+            ]
+        )
+
+    if rorfs:
+        template_spec["volumes"].extend(
+            [
+                {
+                    "name": "app-protect-bd-config",
+                    "emptyDir": {},
+                },
+                {
+                    "name": "app-protect-config",
+                    "emptyDir": {},
+                },
+                {
+                    "name": "app-protect-bundles",
+                    "emptyDir": {},
+                },
+                {"name": "nginx-etc", "emptyDir": {}},
+                {"name": "nginx-log", "emptyDir": {}},
+                {"name": "nginx-cache", "emptyDir": {}},
+                {"name": "nginx-lib", "emptyDir": {}},
+                {"name": "nginx-lib-state", "emptyDir": {}},
+            ]
+        )
+    else:
+        template_spec["volumes"].extend(
+            [
+                {
+                    "name": "app-protect-bd-config",
+                    "emptyDir": {},
+                },
+                {
+                    "name": "app-protect-config",
+                    "emptyDir": {},
+                },
+                {
+                    "name": "app-protect-bundles",
+                    "emptyDir": {},
+                },
+            ]
+        )
+
+    container = dep["spec"]["template"]["spec"]["containers"][0]
+    if "volumeMounts" not in container:
+        container["volumeMounts"] = []
+
+    if rorfs:
+        container["volumeMounts"].extend(
+            [
+                {
+                    "name": "app-protect-bd-config",
+                    "mountPath": "/opt/app_protect/bd_config",
+                },
+                {
+                    "name": "app-protect-config",
+                    "mountPath": "/opt/app_protect/config",
+                },
+                {
+                    "name": "app-protect-bundles",
+                    "mountPath": "/etc/app_protect/bundles",
+                },
+                {"name": "nginx-etc", "mountPath": "/etc/nginx"},
+                {"name": "nginx-log", "mountPath": "/var/log/nginx"},
+                {"name": "nginx-cache", "mountPath": "/var/cache/nginx"},
+                {"name": "nginx-lib", "mountPath": "/var/lib/nginx"},
+                {"name": "nginx-lib-state", "mountPath": "/var/lib/nginx/state"},
+            ]
+        )
+    else:
+        container["volumeMounts"].extend(
+            [
+                {
+                    "name": "app-protect-bd-config",
+                    "mountPath": "/opt/app_protect/bd_config",
+                },
+                {
+                    "name": "app-protect-config",
+                    "mountPath": "/opt/app_protect/config",
+                },
+                {
+                    "name": "app-protect-bundles",
+                    "mountPath": "/etc/app_protect/bundles",
+                },
+            ]
+        )
+
+    dep["spec"]["template"]["spec"]["containers"][0]["args"].extend(
+        [
+            f"-default-server-tls-secret=$(POD_NAMESPACE)/default-server-secret",
+            f"-enable-telemetry-reporting=false",
+        ]
+    )
+
+    waf_cfg_mgr = {
+        "name": "waf-config-mgr",
+        "image": f"{NGX_REG}/nap/waf-config-mgr:{WAF_V5_VERSION}",
+        "imagePullPolicy": "IfNotPresent",
+        "securityContext": {
+            "allowPrivilegeEscalation": False,
+            "capabilities": {"drop": ["all"]},
+            "readOnlyRootFilesystem": rorfs,
+        },
+        "volumeMounts": [
+            {
+                "name": "app-protect-bd-config",
+                "mountPath": "/opt/app_protect/bd_config",
+            },
+            {
+                "name": "app-protect-config",
+                "mountPath": "/opt/app_protect/config",
+            },
+            {
+                "name": "app-protect-bundles",
+                "mountPath": "/etc/app_protect/bundles",
+            },
+        ],
+    }
+    waf_enforcer = {
+        "name": "waf-enforcer",
+        "image": f"{NGX_REG}/nap/waf-enforcer:{WAF_V5_VERSION}",
+        "imagePullPolicy": "IfNotPresent",
+        "securityContext": {
+            "allowPrivilegeEscalation": False,
+            "capabilities": {"drop": ["all"]},
+            "readOnlyRootFilesystem": rorfs,
+        },
+        "env": [
+            {"name": "ENFORCER_PORT", "value": "50000"},
+            {"name": "ENFORCER_CONFIG_TIMEOUT", "value": "0"},
+        ],
+        "volumeMounts": [
+            {
+                "name": "app-protect-bd-config",
+                "mountPath": "/opt/app_protect/bd_config",
+            }
+        ],
+    }
+
+    dep["spec"]["template"]["spec"]["containers"].append(waf_cfg_mgr)
+    dep["spec"]["template"]["spec"]["containers"].append(waf_enforcer)
+
     if args is not None:
         dep["spec"]["template"]["spec"]["containers"][0]["args"].extend(args)
     if cli_arguments["deployment-type"] == "deployment":
@@ -1520,6 +1747,28 @@ def get_events(v1: CoreV1Api, namespace) -> []:
     return res.items
 
 
+def wait_for_event(v1: CoreV1Api, text, namespace, retry=30, interval=1) -> None:
+    """
+    Wait for an event on an object in a namespace.
+
+    :param v1: CoreV1Api
+    :param text: event text
+    :param namespace: object namespace
+    :param retry:
+    :param interval:
+    :return:
+    """
+    c = 0
+    while c < retry:
+        events = get_events(v1, namespace)
+        for i in range(len(events) - 1, -1, -1):
+            if text in events[i].message:
+                return True
+        wait_before_test(interval)
+        c += 1
+    return False
+
+
 def ensure_response_from_backend(req_url, host, additional_headers=None, check404=False, sni=False) -> None:
     """
     Wait for 502|504|404 to disappear.
@@ -1573,7 +1822,7 @@ def ensure_response_from_backend(req_url, host, additional_headers=None, check40
             if resp.status_code != 502 and resp.status_code != 504:
                 print(f"After {_} retries at 1 second interval, got non 502|504 response. Continue with tests...")
                 return
-            time.sleep(1)
+            wait_before_test()
         pytest.fail(f"Keep getting 502|504 from {req_url} after 60 seconds. Exiting...")
 
 
@@ -1748,3 +1997,55 @@ def get_resource_metrics(kube_apis, plural, namespace="nginx-ingress") -> str:
     else:
         return "Invalid plural specified. Please use 'pods' or 'nodes' as the plural"
     return metrics["items"]
+
+
+def get_apikey_auth_secrets_from_yaml(yaml_manifest) -> list:
+    """
+    Get apikey auth keys from yaml file.
+
+    :param yaml_manifest: an absolute path to file
+    :return: []apikeys
+    """
+    api_keys = []
+
+    with open(yaml_manifest) as file:
+        data = yaml.safe_load(file)
+        if "data" in data:
+            for key, encoded_value in data["data"].items():
+                decoded_value = base64.b64decode(encoded_value).decode("utf-8")
+                api_keys.append(decoded_value)
+    return api_keys
+
+
+def get_apikey_policy_details_from_yaml(yaml_manifest) -> dict:
+    """
+    Extract headers and queries from an API key policy yaml file.
+
+    :param yaml_manifest: an absolute path to file
+    :return: dictionary with 'headers' and 'queries'
+    """
+    details = {"headers": [], "queries": []}
+
+    with open(yaml_manifest) as file:
+        data = yaml.safe_load(file)
+
+        if "spec" in data and "apiKey" in data["spec"] and "suppliedIn" in data["spec"]["apiKey"]:
+            if "header" in data["spec"]["apiKey"]["suppliedIn"]:
+                details["headers"] = data["spec"]["apiKey"]["suppliedIn"]["header"]
+            if "query" in data["spec"]["apiKey"]["suppliedIn"]:
+                details["queries"] = data["spec"]["apiKey"]["suppliedIn"]["query"]
+
+    return details
+
+
+def read_ingress(v1: NetworkingV1Api, name, namespace) -> V1Ingress:
+    """
+    Get details of an Ingress.
+
+    :param v1: NetworkingV1Api
+    :param name: ingress name
+    :param namespace: namespace name
+    :return: V1Ingress
+    """
+    print(f"Read an ingress named '{name}'")
+    return v1.read_namespaced_ingress(name, namespace)

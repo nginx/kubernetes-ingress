@@ -57,12 +57,14 @@ class DosSetup:
     Encapsulate the example details.
     Attributes:
         req_url (str):
+        protected_name (str)
         pol_name (str):
         log_name (str):
     """
 
-    def __init__(self, req_url, pol_name, log_name):
+    def __init__(self, req_url, protected_name, pol_name, log_name):
         self.req_url = req_url
+        self.protected_name = protected_name
         self.pol_name = pol_name
         self.log_name = log_name
 
@@ -104,7 +106,7 @@ def dos_setup(
     )
 
     print("------------------------- Deploy Secret -----------------------------")
-    src_sec_yaml = f"{TEST_DATA}/dos/dos-secret.yaml"
+    src_sec_yaml = f"{TEST_DATA}/dos/tls-secret.yaml"
     create_items_from_yaml(kube_apis, src_sec_yaml, test_namespace)
 
     print("------------------------- Deploy logconf -----------------------------")
@@ -138,10 +140,11 @@ def dos_setup(
 
     request.addfinalizer(fin)
 
-    return DosSetup(req_url, pol_name, log_name)
+    return DosSetup(req_url, protected_name, pol_name, log_name)
 
 
 @pytest.mark.dos
+@pytest.mark.dos_ingress
 @pytest.mark.parametrize(
     "crd_ingress_controller_with_dos",
     [
@@ -149,7 +152,7 @@ def dos_setup(
             "extra_args": [
                 f"-enable-custom-resources",
                 f"-enable-app-protect-dos",
-                f"-v=3",
+                f"-log-level=debug",
                 f"-app-protect-dos-debug",
             ]
         }
@@ -178,7 +181,8 @@ class TestDos:
             f"app_protect_dos_security_log_enable on;",
             f"app_protect_dos_security_log /etc/nginx/dos/logconfs/{test_namespace}_{dos_setup.log_name}.json syslog:server=syslog-svc.{ingress_controller_prerequisites.namespace}.svc.cluster.local:514;",
             f"set $loggable '0';",
-            f"access_log syslog:server=127.0.0.1:5561 log_dos if=$loggable;",
+            f"access_log syslog:server=accesslog-svc.{ingress_controller_prerequisites.namespace}.svc.cluster.local:514 log_dos if=$loggable;",
+            f'app_protect_dos_access_file "/etc/nginx/dos/allowlist/{test_namespace}_{dos_setup.protected_name}.json";',
         ]
 
         conf_nginx_directive = ["app_protect_dos_api on;", "location = /dashboard-dos.html"]
@@ -238,20 +242,66 @@ class TestDos:
         get_ingress_nginx_template_conf(kube_apis.v1, test_namespace, "dos-ingress", pod_name, "nginx-ingress")
 
         print("----------------------- Send request ----------------------")
+        wait_before_test(5)
         response = requests.get(dos_setup.req_url, headers={"host": "dos.example.com"}, verify=False)
         print(response.text)
-        wait_before_test(10)
 
         print(f"log_loc {log_loc} syslog_pod {syslog_pod} namespace {ingress_controller_prerequisites.namespace}")
-        log_contents = get_file_contents(kube_apis.v1, log_loc, syslog_pod, ingress_controller_prerequisites.namespace)
+
+        log_contents = ""
+        retry = 0
+        while 'product="app-protect-dos"' not in log_contents and retry < 20:
+            wait_before_test(1)
+            log_contents = get_file_contents(
+                kube_apis.v1, log_loc, syslog_pod, ingress_controller_prerequisites.namespace, print_log=False
+            )
+            retry += 1
+
+        print(log_contents)
+
+        delete_items_from_yaml(kube_apis, src_ing_yaml, test_namespace)
+
+        assert f'vs_name="{test_namespace}/dos-protected/name"' in log_contents
+        assert "bad_actor" in log_contents
+
+    def test_dos_allowlist(
+        self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller_with_dos, dos_setup, test_namespace
+    ):
+        """
+        Test App Protect Dos: Block bad clients attack with learning
+        """
+        log_loc = f"/var/log/messages"
+        print("----------------------- Get accesslog pod name ----------------------")
+        accesslog_pod = self.getPodNameThatContains(kube_apis, ingress_controller_prerequisites.namespace, "accesslog")
+        assert "accesslog" in accesslog_pod
+        clear_file_contents(kube_apis.v1, log_loc, accesslog_pod, ingress_controller_prerequisites.namespace)
+        print(f"log_loc {log_loc} syslog_pod {accesslog_pod} namespace {ingress_controller_prerequisites.namespace}")
+
+        print("------------------------- Deploy ingress -----------------------------")
+        create_ingress_with_dos_annotations(kube_apis, src_ing_yaml, test_namespace, test_namespace + "/dos-protected")
+        get_first_ingress_host_from_yaml(src_ing_yaml)
+
+        print("----------------------- Send request to check allowlist ----------------------")
+        wait_before_test(5)
+        response = requests.get(
+            dos_setup.req_url, headers={"host": "dos.example.com", "X-Forwarded-For": "10.10.10.10"}, verify=False
+        )
+        print(response.text)
+
+        retry = 0
+        log_contents = ""
+        while 'reason=AllowList"' not in log_contents and retry < 20:
+            wait_before_test(1)
+            log_contents = get_file_contents(
+                kube_apis.v1, log_loc, accesslog_pod, ingress_controller_prerequisites.namespace, print_log=False
+            )
+            retry += 1
 
         delete_items_from_yaml(kube_apis, src_ing_yaml, test_namespace)
 
         print(log_contents)
 
-        assert 'product="app-protect-dos"' in log_contents
-        assert f'vs_name="{test_namespace}/dos-protected/name"' in log_contents
-        assert "bad_actor" in log_contents
+        assert "reason=Allowlist" in log_contents
 
     @pytest.mark.dos_learning
     def test_dos_under_attack_with_learning(

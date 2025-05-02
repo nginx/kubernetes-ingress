@@ -67,7 +67,6 @@ curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP http://cafe.example.com:$IC
 <head><title>401 Authorization Required</title></head>
 <body>
 <center><h1>401 Authorization Required</h1></center>
-<hr><center>nginx/1.21.5</center>
 </body>
 </html>
 ```

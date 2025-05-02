@@ -107,6 +107,7 @@ def vsr_adv_routing_setup(
 
 
 @pytest.mark.vsr
+@pytest.mark.vsr_routing
 @pytest.mark.parametrize(
     "crd_ingress_controller, vsr_adv_routing_setup",
     [

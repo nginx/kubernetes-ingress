@@ -7,9 +7,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/nginxinc/kubernetes-ingress/internal/configs"
-	conf_v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
-	"github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/validation"
+	"github.com/nginx/kubernetes-ingress/internal/configs"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	"github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
 	networking "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -99,6 +100,16 @@ type IngressConfiguration struct {
 	Warnings []string
 	// ChildWarnings includes the warnings of the minions. The key is the namespace/name.
 	ChildWarnings map[string][]string
+}
+
+type listenerHostKey struct {
+	ListenerName string
+	Host         string
+}
+
+// used for sorting
+func (lhk listenerHostKey) String() string {
+	return fmt.Sprintf("%s|%s", lhk.ListenerName, lhk.Host)
 }
 
 // NewRegularIngressConfiguration creates an IngressConfiguration from an Ingress resource.
@@ -200,6 +211,10 @@ type VirtualServerConfiguration struct {
 	Warnings            []string
 	HTTPPort            int
 	HTTPSPort           int
+	HTTPIPv4            string
+	HTTPIPv6            string
+	HTTPSIPv4           string
+	HTTPSIPv6           string
 }
 
 // NewVirtualServerConfiguration creates a VirtualServerConfiguration.
@@ -260,6 +275,8 @@ func (vsc *VirtualServerConfiguration) IsEqual(resource Resource) bool {
 // TransportServerConfiguration holds a TransportServer resource.
 type TransportServerConfiguration struct {
 	ListenerPort    int
+	IPv4            string
+	IPv6            string
 	TransportServer *conf_v1.TransportServer
 	Warnings        []string
 }
@@ -326,9 +343,9 @@ type TransportServerMetrics struct {
 // The IC needs to ensure that at any point in time the NGINX config on the filesystem reflects the state
 // of the objects in the Configuration.
 type Configuration struct {
-	hosts       map[string]Resource
-	listeners   map[string]*TransportServerConfiguration
-	listenerMap map[string]conf_v1.Listener
+	hosts         map[string]Resource
+	listenerHosts map[listenerHostKey]*TransportServerConfiguration
+	listenerMap   map[string]conf_v1.Listener
 
 	// only valid resources with the matching IngressClass are stored
 	ingresses           map[string]*networking.Ingress
@@ -383,7 +400,7 @@ func NewConfiguration(
 ) *Configuration {
 	return &Configuration{
 		hosts:                        make(map[string]Resource),
-		listeners:                    make(map[string]*TransportServerConfiguration),
+		listenerHosts:                make(map[listenerHostKey]*TransportServerConfiguration),
 		ingresses:                    make(map[string]*networking.Ingress),
 		virtualServers:               make(map[string]*conf_v1.VirtualServer),
 		virtualServerRoutes:          make(map[string]*conf_v1.VirtualServerRoute),
@@ -453,7 +470,7 @@ func (c *Configuration) AddOrUpdateIngress(ing *networking.Ingress) ([]ResourceC
 		p := ConfigurationProblem{
 			Object:  ing,
 			IsError: true,
-			Reason:  "Rejected",
+			Reason:  nl.EventReasonRejected,
 			Message: validationError.Error(),
 		}
 		problems = append(problems, p)
@@ -519,7 +536,7 @@ func (c *Configuration) AddOrUpdateVirtualServer(vs *conf_v1.VirtualServer) ([]R
 		p := ConfigurationProblem{
 			Object:  vs,
 			IsError: true,
-			Reason:  "Rejected",
+			Reason:  nl.EventReasonRejected,
 			Message: fmt.Sprintf("VirtualServer %s was rejected with error: %s", getResourceKey(&vs.ObjectMeta), validationError.Error()),
 		}
 		problems = append(problems, p)
@@ -568,7 +585,7 @@ func (c *Configuration) AddOrUpdateVirtualServerRoute(vsr *conf_v1.VirtualServer
 		p := ConfigurationProblem{
 			Object:  vsr,
 			IsError: true,
-			Reason:  "Rejected",
+			Reason:  nl.EventReasonRejected,
 			Message: fmt.Sprintf("VirtualServerRoute %s was rejected with error: %s", getResourceKey(&vsr.ObjectMeta), validationError.Error()),
 		}
 		problems = append(problems, p)
@@ -605,7 +622,7 @@ func (c *Configuration) AddOrUpdateGlobalConfiguration(gc *conf_v1.GlobalConfigu
 	c.globalConfiguration = gc
 	c.setGlobalConfigListenerMap()
 
-	listenerChanges, listenerProblems := c.rebuildListeners()
+	listenerChanges, listenerProblems := c.rebuildListenerHosts()
 
 	changes = append(changes, listenerChanges...)
 	problems = append(problems, listenerProblems...)
@@ -627,7 +644,7 @@ func (c *Configuration) DeleteGlobalConfiguration() ([]ResourceChange, []Configu
 
 	c.globalConfiguration = nil
 	c.setGlobalConfigListenerMap()
-	listenerChanges, listenerProblems := c.rebuildListeners()
+	listenerChanges, listenerProblems := c.rebuildListenerHosts()
 	changes = append(changes, listenerChanges...)
 	problems = append(problems, listenerProblems...)
 
@@ -665,7 +682,7 @@ func (c *Configuration) AddOrUpdateTransportServer(ts *conf_v1.TransportServer) 
 		}
 	}
 
-	changes, problems := c.rebuildListeners()
+	changes, problems := c.rebuildListenerHosts()
 
 	if c.isTLSPassthroughEnabled {
 		hostChanges, hostProblems := c.rebuildHosts()
@@ -675,7 +692,7 @@ func (c *Configuration) AddOrUpdateTransportServer(ts *conf_v1.TransportServer) 
 	}
 
 	if validationErr != nil {
-		// If the invalid resource has an active host/listener, rebuildHosts/rebuildListeners will create a change
+		// If the invalid resource has an active host/listener, rebuildHosts/rebuildListenerHosts will create a change
 		// to remove the resource.
 		// Here we add the validationErr to that change.
 		kind := getResourceKeyWithKind(transportServerKind, &ts.ObjectMeta)
@@ -690,12 +707,12 @@ func (c *Configuration) AddOrUpdateTransportServer(ts *conf_v1.TransportServer) 
 
 		// On the other hand, the invalid resource might not have any active host/listener.
 		// Or the resource was invalid before and is still invalid (in some different way).
-		// In those cases,  rebuildHosts/rebuildListeners will create no change for that resource.
+		// In those cases,  rebuildHosts/rebuildListenerHosts will create no change for that resource.
 		// To make sure the validationErr is reported to the user, we create a problem.
 		p := ConfigurationProblem{
 			Object:  ts,
 			IsError: true,
-			Reason:  "Rejected",
+			Reason:  nl.EventReasonRejected,
 			Message: fmt.Sprintf("TransportServer %s was rejected with error: %s", getResourceKey(&ts.ObjectMeta), validationErr.Error()),
 		}
 		problems = append(problems, p)
@@ -716,7 +733,7 @@ func (c *Configuration) DeleteTransportServer(key string) ([]ResourceChange, []C
 
 	delete(c.transportServers, key)
 
-	changes, problems := c.rebuildListeners()
+	changes, problems := c.rebuildListenerHosts()
 
 	if c.isTLSPassthroughEnabled {
 		hostChanges, hostProblems := c.rebuildHosts()
@@ -728,13 +745,13 @@ func (c *Configuration) DeleteTransportServer(key string) ([]ResourceChange, []C
 	return changes, problems
 }
 
-func (c *Configuration) rebuildListeners() ([]ResourceChange, []ConfigurationProblem) {
-	newListeners, newTSConfigs := c.buildListenersAndTSConfigurations()
+func (c *Configuration) rebuildListenerHosts() ([]ResourceChange, []ConfigurationProblem) {
+	newListenerHosts, newTSConfigs := c.buildListenerHostsAndTSConfigurations()
 
-	removedListeners, updatedListeners, addedListeners := detectChangesInListeners(c.listeners, newListeners)
-	changes := createResourceChangesForListeners(removedListeners, updatedListeners, addedListeners, c.listeners, newListeners)
+	removedListenerHosts, updatedListenerHosts, addedListenerHosts := detectChangesInListenerHosts(c.listenerHosts, newListenerHosts)
+	changes := createResourceChangesForListeners(removedListenerHosts, updatedListenerHosts, addedListenerHosts, c.listenerHosts, newListenerHosts)
 
-	c.listeners = newListeners
+	c.listenerHosts = newListenerHosts
 
 	changes = squashResourceChanges(changes)
 
@@ -760,15 +777,14 @@ func (c *Configuration) rebuildListeners() ([]ResourceChange, []ConfigurationPro
 	return changes, newOrUpdatedProblems
 }
 
-func (c *Configuration) buildListenersAndTSConfigurations() (newListeners map[string]*TransportServerConfiguration, newTSConfigs map[string]*TransportServerConfiguration) {
-	newListeners = make(map[string]*TransportServerConfiguration)
-	newTSConfigs = make(map[string]*TransportServerConfiguration)
+func (c *Configuration) buildListenerHostsAndTSConfigurations() (map[listenerHostKey]*TransportServerConfiguration, map[string]*TransportServerConfiguration) {
+	newListenerHosts := make(map[listenerHostKey]*TransportServerConfiguration)
+	newTSConfigs := make(map[string]*TransportServerConfiguration)
 
 	for key, ts := range c.transportServers {
 		if ts.Spec.Listener.Protocol == conf_v1.TLSPassthroughListenerProtocol {
 			continue
 		}
-
 		tsc := NewTransportServerConfiguration(ts)
 		newTSConfigs[key] = tsc
 
@@ -791,41 +807,48 @@ func (c *Configuration) buildListenersAndTSConfigurations() (newListeners map[st
 		}
 
 		tsc.ListenerPort = listener.Port
+		tsc.IPv4 = listener.IPv4
+		tsc.IPv6 = listener.IPv6
 
-		holder, exists := newListeners[listener.Name]
+		host := ts.Spec.Host
+		listenerKey := listenerHostKey{ListenerName: listener.Name, Host: host}
+
+		holder, exists := newListenerHosts[listenerKey]
 		if !exists {
-			newListeners[listener.Name] = tsc
+			newListenerHosts[listenerKey] = tsc
 			continue
 		}
 
-		warning := fmt.Sprintf("listener %s is taken by another resource", listener.Name)
+		// another TransportServer exists with the same listener and host
+		warning := fmt.Sprintf("listener %s and host %s are taken by another resource", listener.Name, host)
 
 		if !holder.Wins(tsc) {
 			holder.AddWarning(warning)
-			newListeners[listener.Name] = tsc
+			newListenerHosts[listenerKey] = tsc
 		} else {
 			tsc.AddWarning(warning)
 		}
 	}
 
-	return newListeners, newTSConfigs
+	return newListenerHosts, newTSConfigs
 }
 
 func (c *Configuration) buildListenersForVSConfiguration(vsc *VirtualServerConfiguration) {
 	vs := vsc.VirtualServer
-	if vs.Spec.Listener != nil && c.globalConfiguration != nil {
-		if gcListener, ok := c.listenerMap[vs.Spec.Listener.HTTP]; ok {
-			if gcListener.Protocol == conf_v1.HTTPProtocol && !gcListener.Ssl {
-				vsc.HTTPPort = gcListener.Port
-			}
-		}
+	if vs.Spec.Listener == nil || c.globalConfiguration == nil {
+		return
+	}
 
-		if gcListener, ok := c.listenerMap[vs.Spec.Listener.HTTPS]; ok {
-			if gcListener.Protocol == conf_v1.HTTPProtocol && gcListener.Ssl {
-				vsc.HTTPSPort = gcListener.Port
-			}
+	assignListener := func(listenerName string, isSSL bool, port *int, ipv4 *string, ipv6 *string) {
+		if gcListener, ok := c.listenerMap[listenerName]; ok && gcListener.Protocol == conf_v1.HTTPProtocol && gcListener.Ssl == isSSL {
+			*port = gcListener.Port
+			*ipv4 = gcListener.IPv4
+			*ipv6 = gcListener.IPv6
 		}
 	}
+
+	assignListener(vs.Spec.Listener.HTTP, false, &vsc.HTTPPort, &vsc.HTTPIPv4, &vsc.HTTPIPv6)
+	assignListener(vs.Spec.Listener.HTTPS, true, &vsc.HTTPSPort, &vsc.HTTPSIPv4, &vsc.HTTPSIPv6)
 }
 
 // GetResources returns all configuration resources.
@@ -868,7 +891,7 @@ func (c *Configuration) GetResourcesWithFilter(filter resourceFilter) []Resource
 	}
 
 	if filter.TransportServers {
-		for _, r := range c.listeners {
+		for _, r := range c.listenerHosts {
 			resources[r.GetKeyWithKind()] = r
 		}
 	}
@@ -964,8 +987,8 @@ func (c *Configuration) findResourcesForResourceReference(namespace string, name
 		}
 	}
 
-	for _, l := range getSortedTransportServerConfigurationKeys(c.listeners) {
-		tsConfig := c.listeners[l]
+	for _, lh := range getSortedListenerHostKeys(c.listenerHosts) {
+		tsConfig := c.listenerHosts[lh]
 
 		if checker.IsReferencedByTransportServer(namespace, name, tsConfig.TransportServer) {
 			result = append(result, tsConfig)
@@ -1052,15 +1075,25 @@ func detectChangesInProblems(newProblems map[string]ConfigurationProblem, oldPro
 	return result
 }
 
-func (c *Configuration) addProblemsForTSConfigsWithoutActiveListener(tsConfigs map[string]*TransportServerConfiguration, problems map[string]ConfigurationProblem) {
+func (c *Configuration) addProblemsForTSConfigsWithoutActiveListener(
+	tsConfigs map[string]*TransportServerConfiguration,
+	problems map[string]ConfigurationProblem,
+) {
 	for _, tsc := range tsConfigs {
-		holder, exists := c.listeners[tsc.TransportServer.Spec.Listener.Name]
+		listenerName := tsc.TransportServer.Spec.Listener.Name
+		host := tsc.TransportServer.Spec.Host
+		hostDescription := "empty host"
+		if host != "" {
+			hostDescription = host
+		}
+		key := listenerHostKey{ListenerName: listenerName, Host: host}
+		holder, exists := c.listenerHosts[key]
 		if !exists {
 			p := ConfigurationProblem{
 				Object:  tsc.TransportServer,
 				IsError: false,
-				Reason:  "Rejected",
-				Message: fmt.Sprintf("Listener %s doesn't exist", tsc.TransportServer.Spec.Listener.Name),
+				Reason:  nl.EventReasonRejected,
+				Message: fmt.Sprintf("Listener %s doesn't exist", listenerName),
 			}
 			problems[tsc.GetKeyWithKind()] = p
 			continue
@@ -1070,8 +1103,8 @@ func (c *Configuration) addProblemsForTSConfigsWithoutActiveListener(tsConfigs m
 			p := ConfigurationProblem{
 				Object:  tsc.TransportServer,
 				IsError: false,
-				Reason:  "Rejected",
-				Message: fmt.Sprintf("Listener %s is taken by another resource", tsc.TransportServer.Spec.Listener.Name),
+				Reason:  nl.EventReasonRejected,
+				Message: fmt.Sprintf("Listener %s with host %s is taken by another resource", listenerName, hostDescription),
 			}
 			problems[tsc.GetKeyWithKind()] = p
 		}
@@ -1093,7 +1126,7 @@ func (c *Configuration) addProblemsForResourcesWithoutActiveHost(resources map[s
 				p := ConfigurationProblem{
 					Object:  impl.Ingress,
 					IsError: false,
-					Reason:  "Rejected",
+					Reason:  nl.EventReasonRejected,
 					Message: "All hosts are taken by other resources",
 				}
 				problems[r.GetKeyWithKind()] = p
@@ -1105,7 +1138,7 @@ func (c *Configuration) addProblemsForResourcesWithoutActiveHost(resources map[s
 				p := ConfigurationProblem{
 					Object:  impl.VirtualServer,
 					IsError: false,
-					Reason:  "Rejected",
+					Reason:  nl.EventReasonRejected,
 					Message: "Host is taken by another resource",
 				}
 				problems[r.GetKeyWithKind()] = p
@@ -1117,7 +1150,7 @@ func (c *Configuration) addProblemsForResourcesWithoutActiveHost(resources map[s
 				p := ConfigurationProblem{
 					Object:  impl.TransportServer,
 					IsError: false,
-					Reason:  "Rejected",
+					Reason:  nl.EventReasonRejected,
 					Message: "Host is taken by another resource",
 				}
 				problems[r.GetKeyWithKind()] = p
@@ -1196,7 +1229,7 @@ func (c *Configuration) addProblemsForOrphanMinions(problems map[string]Configur
 			p := ConfigurationProblem{
 				Object:  ing,
 				IsError: false,
-				Reason:  "NoIngressMasterFound",
+				Reason:  nl.EventReasonNoIngressMasterFound,
 				Message: "Ingress master is invalid or doesn't exist",
 			}
 			k := getResourceKeyWithKind(ingressKind, &ing.ObjectMeta)
@@ -1216,7 +1249,7 @@ func (c *Configuration) addProblemsForOrphanOrIgnoredVsrs(problems map[string]Co
 			p := ConfigurationProblem{
 				Object:  vsr,
 				IsError: false,
-				Reason:  "NoVirtualServerFound",
+				Reason:  nl.EventReasonNoVirtualServerFound,
 				Message: "VirtualServer is invalid or doesn't exist",
 			}
 			k := getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta)
@@ -1236,7 +1269,7 @@ func (c *Configuration) addProblemsForOrphanOrIgnoredVsrs(problems map[string]Co
 			p := ConfigurationProblem{
 				Object:  vsr,
 				IsError: false,
-				Reason:  "Ignored",
+				Reason:  nl.EventReasonIgnored,
 				Message: fmt.Sprintf("VirtualServer %s ignores VirtualServerRoute", getResourceKey(&vsConfig.VirtualServer.ObjectMeta)),
 			}
 			k := getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta)
@@ -1292,8 +1325,12 @@ func createResourceChangesForHosts(removedHosts []string, updatedHosts []string,
 	return append(deleteChanges, changes...)
 }
 
-func createResourceChangesForListeners(removedListeners []string, updatedListeners []string, addedListeners []string, oldListeners map[string]*TransportServerConfiguration,
-	newListeners map[string]*TransportServerConfiguration,
+func createResourceChangesForListeners(
+	removedListeners []listenerHostKey,
+	updatedListeners []listenerHostKey,
+	addedListeners []listenerHostKey,
+	oldListeners map[listenerHostKey]*TransportServerConfiguration,
+	newListeners map[listenerHostKey]*TransportServerConfiguration,
 ) []ResourceChange {
 	var changes []ResourceChange
 	var deleteChanges []ResourceChange
@@ -1644,7 +1681,7 @@ func (c *Configuration) GetTransportServerMetrics() *TransportServerMetrics {
 		}
 	}
 
-	for _, tsConfig := range c.listeners {
+	for _, tsConfig := range c.listenerHosts {
 		if tsConfig.TransportServer.Spec.Listener.Protocol == "TCP" {
 			metrics.TotalTCP++
 		} else {
@@ -1737,14 +1774,16 @@ func getSortedTransportServerKeys(m map[string]*conf_v1.TransportServer) []strin
 	return keys
 }
 
-func getSortedTransportServerConfigurationKeys(m map[string]*TransportServerConfiguration) []string {
-	var keys []string
+func getSortedListenerHostKeys(m map[listenerHostKey]*TransportServerConfiguration) []listenerHostKey {
+	var keys []listenerHostKey
 
 	for k := range m {
 		keys = append(keys, k)
 	}
 
-	sort.Strings(keys)
+	sort.Slice(keys, func(i, j int) bool {
+		return keys[i].String() < keys[j].String()
+	})
 
 	return keys
 }
@@ -1783,38 +1822,45 @@ func detectChangesInHosts(oldHosts map[string]Resource, newHosts map[string]Reso
 		if newVsc.HTTPPort != oldVsc.HTTPPort || newVsc.HTTPSPort != oldVsc.HTTPSPort {
 			updatedHosts = append(updatedHosts, h)
 		}
+
+		if newVsc.HTTPIPv4 != oldVsc.HTTPIPv4 {
+			updatedHosts = append(updatedHosts, h)
+		}
+
+		if newVsc.HTTPIPv6 != oldVsc.HTTPIPv6 {
+			updatedHosts = append(updatedHosts, h)
+		}
+
 	}
 
 	return removedHosts, updatedHosts, addedHosts
 }
 
-func detectChangesInListeners(oldListeners map[string]*TransportServerConfiguration, newListeners map[string]*TransportServerConfiguration) (removedListeners []string,
-	updatedListeners []string, addedListeners []string,
-) {
-	for _, l := range getSortedTransportServerConfigurationKeys(oldListeners) {
-		_, exists := newListeners[l]
-		if !exists {
-			removedListeners = append(removedListeners, l)
+func detectChangesInListenerHosts(
+	oldListenerHosts map[listenerHostKey]*TransportServerConfiguration,
+	newListenerHosts map[listenerHostKey]*TransportServerConfiguration,
+) (removedListenerHosts []listenerHostKey, updatedListenerHosts []listenerHostKey, addedListenerHosts []listenerHostKey) {
+	oldKeys := getSortedListenerHostKeys(oldListenerHosts)
+	newKeys := getSortedListenerHostKeys(newListenerHosts)
+
+	oldKeysSet := make(map[listenerHostKey]struct{})
+	for _, key := range oldKeys {
+		oldKeysSet[key] = struct{}{}
+		if _, exists := newListenerHosts[key]; !exists {
+			removedListenerHosts = append(removedListenerHosts, key)
 		}
 	}
 
-	for _, l := range getSortedTransportServerConfigurationKeys(newListeners) {
-		_, exists := oldListeners[l]
-		if !exists {
-			addedListeners = append(addedListeners, l)
+	for _, key := range newKeys {
+		if _, exists := oldListenerHosts[key]; !exists {
+			addedListenerHosts = append(addedListenerHosts, key)
+		} else {
+			oldConfig := oldListenerHosts[key]
+			if !oldConfig.IsEqual(newListenerHosts[key]) {
+				updatedListenerHosts = append(updatedListenerHosts, key)
+			}
 		}
 	}
 
-	for _, l := range getSortedTransportServerConfigurationKeys(newListeners) {
-		oldR, exists := oldListeners[l]
-		if !exists {
-			continue
-		}
-
-		if !oldR.IsEqual(newListeners[l]) {
-			updatedListeners = append(updatedListeners, l)
-		}
-	}
-
-	return removedListeners, updatedListeners, addedListeners
+	return removedListenerHosts, updatedListenerHosts, addedListenerHosts
 }

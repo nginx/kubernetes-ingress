@@ -113,6 +113,28 @@ Expand the name of the configmap used for NGINX Agent.
 {{- end -}}
 
 {{/*
+Expand the name of the mgmt configmap.
+*/}}
+{{- define "nginx-ingress.mgmtConfigName" -}}
+{{- if .Values.controller.mgmt.configMapName -}}
+{{ .Values.controller.mgmt.configMapName }}
+{{- else -}}
+{{- default (printf "%s-mgmt" (include "nginx-ingress.fullname" .)) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Expand license token secret name.
+*/}}
+{{- define "nginx-ingress.licenseTokenSecretName" -}}
+{{- if hasKey .Values.controller.mgmt "licenseTokenSecretName" -}}
+{{- .Values.controller.mgmt.licenseTokenSecretName -}}
+{{- else }}
+{{- fail "Error: When using Nginx Plus, 'controller.mgmt.licenseTokenSecretName' must be set." }}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Expand leader election lock name.
 */}}
 {{- define "nginx-ingress.leaderElectionName" -}}
@@ -152,10 +174,27 @@ Expand wildcard TLS name.
 Expand image name.
 */}}
 {{- define "nginx-ingress.image" -}}
-{{- if .Values.controller.image.digest -}}
-{{- printf "%s@%s" .Values.controller.image.repository .Values.controller.image.digest -}}
+{{ include "nginx-ingress.image-digest-or-tag" (dict "image" .Values.controller.image "default" .Chart.AppVersion ) }}
+{{- end -}}
+
+{{- define "nap-enforcer.image" -}}
+{{ include "nginx-ingress.image-digest-or-tag" (dict "image" .Values.controller.appprotect.enforcer.image "default" .Chart.AppVersion ) }}
+{{- end -}}
+
+{{- define "nap-config-manager.image" -}}
+{{ include "nginx-ingress.image-digest-or-tag" (dict "image" .Values.controller.appprotect.configManager.image "default" .Chart.AppVersion ) }}
+{{- end -}}
+
+{{/*
+Accepts an image struct like .Values.controller.image along with a default value to use
+if the digest or tag is not set. Can be called like:
+include "nginx-ingress.image-digest-or-tag" (dict "image" .Values.controller.image "default" .Chart.AppVersion
+*/}}
+{{- define "nginx-ingress.image-digest-or-tag" -}}
+{{- if .image.digest -}}
+{{- printf "%s@%s" .image.repository .image.digest -}}
 {{- else -}}
-{{- printf "%s:%s" .Values.controller.image.repository (include "nginx-ingress.tag" .) -}}
+{{- printf "%s:%s" .image.repository (default .default .image.tag) -}}
 {{- end -}}
 {{- end -}}
 
@@ -191,13 +230,16 @@ Build the args for the service binary.
 - --continue
 {{- end }}
 - --
-{{- end -}}
+{{- end }}
 - -nginx-plus={{ .Values.controller.nginxplus }}
 - -nginx-reload-timeout={{ .Values.controller.nginxReloadTimeout }}
 - -enable-app-protect={{ .Values.controller.appprotect.enable }}
 {{- if and .Values.controller.appprotect.enable .Values.controller.appprotect.logLevel }}
 - -app-protect-log-level={{ .Values.controller.appprotect.logLevel }}
 {{ end }}
+{{- if and .Values.controller.appprotect.enable .Values.controller.appprotect.v5 }}
+- -app-protect-enforcer-address="{{ .Values.controller.appprotect.enforcer.host | default "127.0.0.1" }}:{{ .Values.controller.appprotect.enforcer.port | default 50000 }}"
+{{- end }}
 - -enable-app-protect-dos={{ .Values.controller.appprotectdos.enable }}
 {{- if .Values.controller.appprotectdos.enable }}
 - -app-protect-dos-debug={{ .Values.controller.appprotectdos.debug }}
@@ -206,6 +248,9 @@ Build the args for the service binary.
 - -app-protect-dos-memory={{ .Values.controller.appprotectdos.memory }}
 {{ end }}
 - -nginx-configmaps=$(POD_NAMESPACE)/{{ include "nginx-ingress.configName" . }}
+{{- if .Values.controller.nginxplus }}
+- -mgmt-configmap=$(POD_NAMESPACE)/{{ include "nginx-ingress.mgmtConfigName" . }}
+{{- end }}
 {{- if .Values.controller.defaultTLS.secret }}
 - -default-server-tls-secret={{ .Values.controller.defaultTLS.secret }}
 {{ else if and (.Values.controller.defaultTLS.cert) (.Values.controller.defaultTLS.key) }}
@@ -224,7 +269,8 @@ Build the args for the service binary.
 - -health-status={{ .Values.controller.healthStatus }}
 - -health-status-uri={{ .Values.controller.healthStatusURI }}
 - -nginx-debug={{ .Values.controller.nginxDebug }}
-- -v={{ .Values.controller.logLevel }}
+- -log-level={{ .Values.controller.logLevel }}
+- -log-format={{ .Values.controller.logFormat }}
 - -nginx-status={{ .Values.controller.nginxStatus.enable }}
 {{- if .Values.controller.nginxStatus.enable }}
 - -nginx-status-port={{ .Values.controller.nginxStatus.port }}
@@ -257,7 +303,6 @@ Build the args for the service binary.
 - -service-insight-tls-secret={{ .Values.serviceInsight.secret }}
 - -enable-custom-resources={{ .Values.controller.enableCustomResources }}
 - -enable-snippets={{ .Values.controller.enableSnippets }}
-- -include-year={{ .Values.controller.includeYear }}
 - -disable-ipv6={{ .Values.controller.disableIPV6 }}
 {{- if .Values.controller.enableCustomResources }}
 - -enable-tls-passthrough={{ .Values.controller.enableTLSPassthrough }}
@@ -309,8 +354,13 @@ List of volumes for controller.
   emptyDir: {}
 - name: nginx-lib
   emptyDir: {}
+- name: nginx-state
+  emptyDir: {}
 - name: nginx-log
   emptyDir: {}
+{{- end }}
+{{- if .Values.controller.appprotect.v5 }}
+{{ toYaml .Values.controller.appprotect.volumes }}
 {{- end }}
 {{- if .Values.controller.volumes }}
 {{ toYaml .Values.controller.volumes }}
@@ -349,7 +399,6 @@ volumeMounts:
 {{ include "nginx-ingress.volumeMountEntries" . }}
 {{- end -}}
 {{- end -}}
-
 {{- define "nginx-ingress.volumeMountEntries" -}}
 {{- if eq (include "nginx-ingress.readOnlyRootFilesystem" .) "true" }}
 - mountPath: /etc/nginx
@@ -358,8 +407,20 @@ volumeMounts:
   name: nginx-cache
 - mountPath: /var/lib/nginx
   name: nginx-lib
+- mountPath: /var/lib/nginx/state
+  name: nginx-state
 - mountPath: /var/log/nginx
   name: nginx-log
+{{- end }}
+{{- if .Values.controller.appprotect.v5 }}
+- name: app-protect-bd-config
+  mountPath: /opt/app_protect/bd_config
+- name: app-protect-config
+  mountPath: /opt/app_protect/config
+  # app-protect-bundles is mounted so that Ingress Controller
+  # can verify that referenced bundles are present
+- name: app-protect-bundles
+  mountPath: /etc/app_protect/bundles
 {{- end }}
 {{- if .Values.controller.volumeMounts }}
 {{ toYaml .Values.controller.volumeMounts }}
@@ -376,6 +437,40 @@ volumeMounts:
   readOnly: true
 {{- end }}
 {{- end -}}
+{{- end -}}
+
+{{- define "nginx-ingress.appprotect.v5" -}}
+{{- if .Values.controller.appprotect.v5}}
+- name: waf-enforcer
+  image: {{ include "nap-enforcer.image" . }}
+  imagePullPolicy: "{{ .Values.controller.appprotect.enforcer.image.pullPolicy }}"
+{{- if .Values.controller.appprotect.enforcer.securityContext }}
+  securityContext:
+{{ toYaml .Values.controller.appprotect.enforcer.securityContext | nindent 6 }}
+{{- end }}
+  env:
+    - name: ENFORCER_PORT
+      value: "{{ .Values.controller.appprotect.enforcer.port | default 50000 }}"
+    - name: ENFORCER_CONFIG_TIMEOUT
+      value: "0"
+  volumeMounts:
+    - name: app-protect-bd-config
+      mountPath: /opt/app_protect/bd_config
+- name: waf-config-mgr
+  image: {{ include "nap-config-manager.image" . }}
+  imagePullPolicy: "{{ .Values.controller.appprotect.configManager.image.pullPolicy }}"
+{{- if .Values.controller.appprotect.configManager.securityContext }}
+  securityContext:
+{{ toYaml .Values.controller.appprotect.configManager.securityContext | nindent 6 }}
+{{- end }}
+  volumeMounts:
+    - name: app-protect-bd-config
+      mountPath: /opt/app_protect/bd_config
+    - name: app-protect-config
+      mountPath: /opt/app_protect/config
+    - name: app-protect-bundles
+      mountPath: /etc/app_protect/bundles
+{{- end}}
 {{- end -}}
 
 {{- define "nginx-ingress.agentConfiguration" -}}

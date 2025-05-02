@@ -1,0 +1,16 @@
+apiVersion: k8s.nginx.org/v1
+kind: GlobalConfiguration
+metadata:
+  name: my-release-nginx-ingress-controller
+spec:
+  listeners:
+  - name: tcp-ip-dns-listener
+    port: 5353
+    protocol: TCP
+    ipv4: 127.0.0.1
+    ipv6: ::1
+  - name: udp-ip-dns-listener
+    port: 5252
+    protocol: UDP
+    ipv4: 127.0.0.2
+    ipv6: ::1

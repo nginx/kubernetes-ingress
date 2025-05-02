@@ -3,13 +3,13 @@
 package v1beta1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	dosv1beta1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/dos/v1beta1"
-	versioned "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned"
-	internalinterfaces "github.com/nginxinc/kubernetes-ingress/pkg/client/informers/externalversions/internalinterfaces"
-	v1beta1 "github.com/nginxinc/kubernetes-ingress/pkg/client/listers/dos/v1beta1"
+	apisdosv1beta1 "github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
+	versioned "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned"
+	internalinterfaces "github.com/nginx/kubernetes-ingress/pkg/client/informers/externalversions/internalinterfaces"
+	dosv1beta1 "github.com/nginx/kubernetes-ingress/pkg/client/listers/dos/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -20,7 +20,7 @@ import (
 // DosProtectedResources.
 type DosProtectedResourceInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1beta1.DosProtectedResourceLister
+	Lister() dosv1beta1.DosProtectedResourceLister
 }
 
 type dosProtectedResourceInformer struct {
@@ -46,16 +46,28 @@ func NewFilteredDosProtectedResourceInformer(client versioned.Interface, namespa
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AppprotectdosV1beta1().DosProtectedResources(namespace).List(context.TODO(), options)
+				return client.AppprotectdosV1beta1().DosProtectedResources(namespace).List(context.Background(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AppprotectdosV1beta1().DosProtectedResources(namespace).Watch(context.TODO(), options)
+				return client.AppprotectdosV1beta1().DosProtectedResources(namespace).Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options v1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.AppprotectdosV1beta1().DosProtectedResources(namespace).List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options v1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.AppprotectdosV1beta1().DosProtectedResources(namespace).Watch(ctx, options)
 			},
 		},
-		&dosv1beta1.DosProtectedResource{},
+		&apisdosv1beta1.DosProtectedResource{},
 		resyncPeriod,
 		indexers,
 	)
@@ -66,9 +78,9 @@ func (f *dosProtectedResourceInformer) defaultInformer(client versioned.Interfac
 }
 
 func (f *dosProtectedResourceInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&dosv1beta1.DosProtectedResource{}, f.defaultInformer)
+	return f.factory.InformerFor(&apisdosv1beta1.DosProtectedResource{}, f.defaultInformer)
 }
 
-func (f *dosProtectedResourceInformer) Lister() v1beta1.DosProtectedResourceLister {
-	return v1beta1.NewDosProtectedResourceLister(f.Informer().GetIndexer())
+func (f *dosProtectedResourceInformer) Lister() dosv1beta1.DosProtectedResourceLister {
+	return dosv1beta1.NewDosProtectedResourceLister(f.Informer().GetIndexer())
 }

@@ -7,11 +7,11 @@ import (
 	sync "sync"
 	time "time"
 
-	versioned "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned"
-	configuration "github.com/nginxinc/kubernetes-ingress/pkg/client/informers/externalversions/configuration"
-	dos "github.com/nginxinc/kubernetes-ingress/pkg/client/informers/externalversions/dos"
-	externaldns "github.com/nginxinc/kubernetes-ingress/pkg/client/informers/externalversions/externaldns"
-	internalinterfaces "github.com/nginxinc/kubernetes-ingress/pkg/client/informers/externalversions/internalinterfaces"
+	versioned "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned"
+	configuration "github.com/nginx/kubernetes-ingress/pkg/client/informers/externalversions/configuration"
+	dos "github.com/nginx/kubernetes-ingress/pkg/client/informers/externalversions/dos"
+	externaldns "github.com/nginx/kubernetes-ingress/pkg/client/informers/externalversions/externaldns"
+	internalinterfaces "github.com/nginx/kubernetes-ingress/pkg/client/informers/externalversions/internalinterfaces"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -214,6 +214,7 @@ type SharedInformerFactory interface {
 
 	// Start initializes all requested informers. They are handled in goroutines
 	// which run until the stop channel gets closed.
+	// Warning: Start does not block. When run in a go-routine, it will race with a later WaitForCacheSync.
 	Start(stopCh <-chan struct{})
 
 	// Shutdown marks a factory as shutting down. At that point no new

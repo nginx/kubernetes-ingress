@@ -14,65 +14,76 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: nginx-cluster-connector
 rules:
-  - apiGroups:
-      - ""
-    resources:
-      - pods
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - ""
-    resources:
-      - secrets
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - ""
-    resources:
-      - nodes
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - ""
-    resources:
-      - namespaces
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - ""
-    resources:
-      - events
-    verbs:
-      - create
-      - patch
-      - list
-  - apiGroups:
-      - coordination.k8s.io
-    resources:
-      - leases
-    verbs:
-      - get
-      - list
-      - watch
-      - update
-      - create
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+  - create
+- apiGroups:
+  - security.openshift.io
+  verbs:
+  - create
+  - delete
+  - get
+  - use
+  resources:
+  - securitycontextconstraints
+  resourceNames:
+  - nginx-cluster-connector
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: nginx-cluster-connector
 subjects:
-  - kind: ServiceAccount
-    name: nginx-cluster-connector
-    namespace: nginx-cluster-connector
+- kind: ServiceAccount
+  name: nginx-cluster-connector
+  namespace: nginx-cluster-connector
 roleRef:
   kind: ClusterRole
   name: nginx-cluster-connector
@@ -95,8 +106,11 @@ spec:
     spec:
       serviceAccountName: nginx-cluster-connector
       automountServiceAccountToken: true
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
-        - image: docker-registry.nginx.com/cluster-connector/cluster-connector:0.1.0
+        - image: docker-registry.nginx.com/cluster-connector/cluster-connector:0.2.0
           imagePullPolicy: IfNotPresent
           name: nginx-cluster-connector
           resources:
@@ -107,6 +121,7 @@ spec:
             #  cpu: "1"
             #  memory: "1Gi"
           securityContext:
+            allowPrivilegeEscalation: false
             runAsUser: 101 #nginx
             runAsNonRoot: true
             capabilities:
@@ -125,6 +140,7 @@ spec:
             - -nms-server-address=https://apigw.nms.svc.cluster.local:443/api/platform/v1
             - -nms-basic-auth-secret=nginx-cluster-connector/nms-basic-auth
 #          - -cluster-display-name=my-cluster
-#          - -v=3
+#          - -log-level=debug
+#          - -log-format=glog
 #          - -skip-tls-verify
 #          - -min-update-interval=24h

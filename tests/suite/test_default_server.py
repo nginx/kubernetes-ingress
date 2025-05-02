@@ -3,7 +3,7 @@ from ssl import SSLError
 import pytest
 import requests
 from requests.exceptions import ConnectionError
-from settings import BASEDIR, DEPLOYMENTS, TEST_DATA
+from settings import TEST_DATA
 from suite.utils.resources_utils import (
     create_secret_from_yaml,
     delete_secret,

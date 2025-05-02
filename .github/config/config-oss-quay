@@ -1,6 +1,5 @@
 export TARGET_REGISTRY=quay.io
 export TARGET_OSS_IMAGE_PREFIX="nginx/nginx-ingress"
-declare -a ADDITIONAL_TAGS=("latest" "${ADDITIONAL_TAG}")
 export PUBLISH_PLUS=false
 export PUBLISH_WAF=false
 export PUBLISH_DOS=false

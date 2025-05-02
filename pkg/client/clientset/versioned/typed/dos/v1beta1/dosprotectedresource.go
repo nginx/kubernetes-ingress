@@ -3,15 +3,14 @@
 package v1beta1
 
 import (
-	"context"
-	"time"
+	context "context"
 
-	v1beta1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/dos/v1beta1"
-	scheme "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned/scheme"
+	dosv1beta1 "github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
+	scheme "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // DosProtectedResourcesGetter has a method to return a DosProtectedResourceInterface.
@@ -22,141 +21,32 @@ type DosProtectedResourcesGetter interface {
 
 // DosProtectedResourceInterface has methods to work with DosProtectedResource resources.
 type DosProtectedResourceInterface interface {
-	Create(ctx context.Context, dosProtectedResource *v1beta1.DosProtectedResource, opts v1.CreateOptions) (*v1beta1.DosProtectedResource, error)
-	Update(ctx context.Context, dosProtectedResource *v1beta1.DosProtectedResource, opts v1.UpdateOptions) (*v1beta1.DosProtectedResource, error)
+	Create(ctx context.Context, dosProtectedResource *dosv1beta1.DosProtectedResource, opts v1.CreateOptions) (*dosv1beta1.DosProtectedResource, error)
+	Update(ctx context.Context, dosProtectedResource *dosv1beta1.DosProtectedResource, opts v1.UpdateOptions) (*dosv1beta1.DosProtectedResource, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta1.DosProtectedResource, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta1.DosProtectedResourceList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*dosv1beta1.DosProtectedResource, error)
+	List(ctx context.Context, opts v1.ListOptions) (*dosv1beta1.DosProtectedResourceList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.DosProtectedResource, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *dosv1beta1.DosProtectedResource, err error)
 	DosProtectedResourceExpansion
 }
 
 // dosProtectedResources implements DosProtectedResourceInterface
 type dosProtectedResources struct {
-	client rest.Interface
-	ns     string
+	*gentype.ClientWithList[*dosv1beta1.DosProtectedResource, *dosv1beta1.DosProtectedResourceList]
 }
 
 // newDosProtectedResources returns a DosProtectedResources
 func newDosProtectedResources(c *AppprotectdosV1beta1Client, namespace string) *dosProtectedResources {
 	return &dosProtectedResources{
-		client: c.RESTClient(),
-		ns:     namespace,
+		gentype.NewClientWithList[*dosv1beta1.DosProtectedResource, *dosv1beta1.DosProtectedResourceList](
+			"dosprotectedresources",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			namespace,
+			func() *dosv1beta1.DosProtectedResource { return &dosv1beta1.DosProtectedResource{} },
+			func() *dosv1beta1.DosProtectedResourceList { return &dosv1beta1.DosProtectedResourceList{} },
+		),
 	}
-}
-
-// Get takes name of the dosProtectedResource, and returns the corresponding dosProtectedResource object, and an error if there is any.
-func (c *dosProtectedResources) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.DosProtectedResource, err error) {
-	result = &v1beta1.DosProtectedResource{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("dosprotectedresources").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of DosProtectedResources that match those selectors.
-func (c *dosProtectedResources) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.DosProtectedResourceList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v1beta1.DosProtectedResourceList{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("dosprotectedresources").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested dosProtectedResources.
-func (c *dosProtectedResources) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Namespace(c.ns).
-		Resource("dosprotectedresources").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a dosProtectedResource and creates it.  Returns the server's representation of the dosProtectedResource, and an error, if there is any.
-func (c *dosProtectedResources) Create(ctx context.Context, dosProtectedResource *v1beta1.DosProtectedResource, opts v1.CreateOptions) (result *v1beta1.DosProtectedResource, err error) {
-	result = &v1beta1.DosProtectedResource{}
-	err = c.client.Post().
-		Namespace(c.ns).
-		Resource("dosprotectedresources").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(dosProtectedResource).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a dosProtectedResource and updates it. Returns the server's representation of the dosProtectedResource, and an error, if there is any.
-func (c *dosProtectedResources) Update(ctx context.Context, dosProtectedResource *v1beta1.DosProtectedResource, opts v1.UpdateOptions) (result *v1beta1.DosProtectedResource, err error) {
-	result = &v1beta1.DosProtectedResource{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("dosprotectedresources").
-		Name(dosProtectedResource.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(dosProtectedResource).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the dosProtectedResource and deletes it. Returns an error if one occurs.
-func (c *dosProtectedResources) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("dosprotectedresources").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *dosProtectedResources) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("dosprotectedresources").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched dosProtectedResource.
-func (c *dosProtectedResources) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.DosProtectedResource, err error) {
-	result = &v1beta1.DosProtectedResource{}
-	err = c.client.Patch(pt).
-		Namespace(c.ns).
-		Resource("dosprotectedresources").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

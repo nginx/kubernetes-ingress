@@ -1,0 +1,17 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: cafe
+spec:
+  host: greeter.example.com
+  tls:
+    secret: greeter-secret
+  upstreams:
+  - name: grpc
+    service: grpc-svc
+    port: 50051
+    type: grpc
+  routes:
+  - path: "/helloworld.Greeter"
+    action:
+      pass: grpc

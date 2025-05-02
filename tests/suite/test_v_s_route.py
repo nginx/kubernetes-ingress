@@ -49,6 +49,7 @@ def assert_locations_not_in_config(config, paths):
 
 @pytest.mark.smoke
 @pytest.mark.vsr
+@pytest.mark.vsr_basic
 @pytest.mark.parametrize(
     "crd_ingress_controller, v_s_route_setup",
     [({"type": "complete", "extra_args": [f"-enable-custom-resources"]}, {"example": "virtual-server-route"})],
@@ -267,6 +268,7 @@ class TestVirtualServerRoute:
 
 
 @pytest.mark.vsr
+@pytest.mark.vsr_basic
 @pytest.mark.parametrize(
     "crd_ingress_controller, v_s_route_setup",
     [({"type": "complete", "extra_args": [f"-enable-custom-resources"]}, {"example": "virtual-server-route"})],
@@ -369,6 +371,7 @@ class TestVirtualServerRouteValidation:
 
 
 @pytest.mark.vsr
+@pytest.mark.vsr_basic
 @pytest.mark.flaky(max_runs=3)
 @pytest.mark.parametrize(
     "crd_ingress_controller, v_s_route_setup",

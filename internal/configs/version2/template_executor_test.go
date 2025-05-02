@@ -1,0 +1,910 @@
+package version2
+
+import (
+	"strings"
+	"testing"
+)
+
+func TestTemplateExecutorUsesOriginalVStemplate(t *testing.T) {
+	t.Parallel()
+
+	te := newTestTemplateExecutor(t)
+
+	// Create default vsConfig
+	vsConfig, err := te.ExecuteVirtualServerTemplate(&virtualServerCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	prefix := "# TEST CUSTOM VIRTUALSERVER TEMPLATE"
+	if strings.HasPrefix(string(vsConfig), prefix) {
+		t.Fatalf("Virtual Server config starts with unwanted prefix: %s", prefix)
+	}
+
+	err = te.UpdateVirtualServerTemplate(&customTestVStemplate)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Execute updated template and verify the prefix is included in the template.
+	vsConfig, err = te.ExecuteVirtualServerTemplate(&virtualServerCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.HasPrefix(string(vsConfig), prefix) {
+		t.Fatalf("Virtual Server config does not start with prefix: %s", prefix)
+	}
+
+	// Revert to the original VS template
+	te.UseOriginalVStemplate()
+
+	vsConfig, err = te.ExecuteVirtualServerTemplate(&virtualServerCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if strings.HasPrefix(string(vsConfig), prefix) {
+		t.Errorf("Virtual Serwer config starts with invalid prefix: %s", prefix)
+	}
+	t.Logf("\n%s\n", string(vsConfig))
+}
+
+func TestTemplateExecutorUsesOriginalTStemplate(t *testing.T) {
+	t.Parallel()
+
+	te := newTestTemplateExecutor(t)
+	tsConfig, err := te.ExecuteTransportServerTemplate(&transportServerCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	prefix := "# TEST CUSTOM TRANSPORTSERVER TEMPLATE"
+
+	if strings.HasPrefix(string(tsConfig), prefix) {
+		t.Fatalf("Transport Server config starts with unwanted prefix: %s", prefix)
+	}
+
+	err = te.UpdateTransportServerTemplate(&customTestTStemplate)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tsConfig, err = te.ExecuteTransportServerTemplate(&transportServerCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.HasPrefix(string(tsConfig), prefix) {
+		t.Fatalf("Transport Server config does not start with prefix: %s", prefix)
+	}
+
+	// Revert to the original TransportServer template
+	te.UseOriginalTStemplate()
+
+	tsConfig, err = te.ExecuteTransportServerTemplate(&transportServerCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if strings.HasPrefix(string(tsConfig), prefix) {
+		t.Errorf("Ingress config starts with unwanted the prefix: %s\n", prefix)
+	}
+	t.Logf("\n%s\n", string(tsConfig))
+}
+
+func newTestTemplateExecutor(t *testing.T) *TemplateExecutor {
+	t.Helper()
+	te, err := NewTemplateExecutor("nginx-plus.virtualserver.tmpl", "nginx-plus.transportserver.tmpl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return te
+}
+
+// custom VStemplate represents the virtualserver template passed via ConfigMap
+var customTestVStemplate = `# TEST CUSTOM VIRTUALSERVER TEMPLATE
+{{- /*gotype: github.com/nginx/kubernetes-ingress/internal/configs/version2.VirtualServerConfig*/ -}}
+{{ range $u := .Upstreams }}
+upstream {{ $u.Name }} {
+    zone {{ $u.Name }} {{ if ne $u.UpstreamZoneSize "0" }}{{ $u.UpstreamZoneSize }}{{ else }}512k{{ end }};
+    {{- if $u.LBMethod }}
+    {{ $u.LBMethod }};
+    {{- end }}
+
+    {{- range $s := $u.Servers }}
+    server {{ $s.Address }} max_fails={{ $u.MaxFails }} fail_timeout={{ $u.FailTimeout }}{{ if $u.SlowStart }} slow_start={{ $u.SlowStart }}{{ end }} max_conns={{ $u.MaxConns }}{{ if $u.Resolve }} resolve{{ end }};
+    {{- end }}
+
+    {{- range $b := $u.BackupServers }}
+    server {{ $b.Address }} backup resolve;
+    {{- end }}
+
+    {{- if $u.Keepalive }}
+    keepalive {{ $u.Keepalive }};
+    {{- end }}
+
+    {{- if $u.Queue }}
+    queue {{ $u.Queue.Size }} timeout={{ $u.Queue.Timeout }};
+    {{- end }}
+
+    {{- with $u.SessionCookie }}
+        {{- if .Enable }}
+    sticky cookie {{ .Name }}{{ if .Expires }} expires={{ .Expires }}{{ end }}{{ if .Domain }} domain={{ .Domain }}{{ end }}{{ if .HTTPOnly }} httponly{{ end }}{{ if .SameSite}} samesite={{.SameSite | toLower }}{{ end }}{{ if .Secure }} secure{{ end }}{{ if .Path }} path={{ .Path }}{{ end }};
+        {{- end }}
+    {{- end }}
+
+    {{- if $u.NTLM }}
+    ntlm;
+    {{- end }}
+}
+{{ end }}
+
+{{- range $kvz := .KeyValZones }}
+keyval_zone zone={{ $kvz.Name }}:{{ $kvz.Size}} state={{ $kvz.State }};
+{{- end }}
+
+{{- range $kv := .KeyVals }}
+keyval {{ $kv.Key}} {{ $kv.Variable}} zone={{ $kv.ZoneName }};
+{{- end }}
+
+{{- range $sc := .SplitClients }}
+split_clients {{ $sc.Source }} {{ $sc.Variable }} {
+    {{- range $d := $sc.Distributions }}
+    {{ $d.Weight }} {{ $d.Value }};
+    {{- end }}
+}
+{{- end }}
+
+{{- range $m := .Maps }}
+map {{ $m.Source }} {{ $m.Variable }} {
+    {{- range $p := $m.Parameters }}
+    {{ $p.Value }} {{ $p.Result }};
+    {{- end }}
+}
+{{- end }}
+
+{{- range $snippet := .HTTPSnippets }}
+{{ $snippet }}
+{{- end }}
+
+{{- range $z := .LimitReqZones }}
+limit_req_zone {{ $z.Key }} zone={{ $z.ZoneName }}:{{ $z.ZoneSize }} rate={{ $z.Rate }};
+{{- end }}
+
+{{- range $m := .StatusMatches }}
+match {{ $m.Name }} {
+    status {{ $m.Code }};
+}
+{{- end }}
+
+{{- $s := .Server }}
+
+{{- with $s.JWKSAuthEnabled }}
+proxy_cache_path /var/cache/nginx/jwks_uri_{{$s.VSName}} levels=1 keys_zone=jwks_uri_{{$s.VSName}}:1m max_size=10m;
+{{- end }}
+
+server {
+    {{- if $s.Gunzip }}
+    gunzip on;
+    {{- end }}
+    {{ makeHTTPListener $s | printf }}
+
+    server_name {{ $s.ServerName }};
+    status_zone {{ $s.StatusZone }};
+    set $resource_type "virtualserver";
+    set $resource_name "{{$s.VSName}}";
+    set $resource_namespace "{{$s.VSNamespace}}";
+
+    {{- with $oidc := $s.OIDC }}
+    include oidc/oidc.conf;
+
+    set $oidc_pkce_enable 0;
+    set $oidc_logout_redirect "{{ $oidc.PostLogoutRedirectURI }}";
+    set $oidc_hmac_key "{{ $s.VSName }}";
+    set $zone_sync_leeway {{ $oidc.ZoneSyncLeeway }};
+
+    set $oidc_authz_endpoint "{{ $oidc.AuthEndpoint }}";
+    set $oidc_authz_extra_args "{{ $oidc.AuthExtraArgs }}";
+    set $oidc_token_endpoint "{{ $oidc.TokenEndpoint }}";
+    set $oidc_end_session_endpoint "{{ $oidc.EndSessionEndpoint }}";
+    set $oidc_jwt_keyfile "{{ $oidc.JwksURI }}";
+    set $oidc_scopes "{{ $oidc.Scope }}";
+    set $oidc_client "{{ $oidc.ClientID }}";
+    set $oidc_client_secret "{{ $oidc.ClientSecret }}";
+    set $redir_location "{{ $oidc.RedirectURI }}";
+    {{- end }}
+
+    {{- with $ssl := $s.SSL }}
+        {{- if $s.TLSPassthrough }}
+    listen unix:/var/lib/nginx/passthrough-https.sock proxy_protocol;
+    set_real_ip_from unix:;
+    real_ip_header proxy_protocol;
+        {{- else }}
+    {{ makeHTTPSListener $s | printf }}
+        {{- end }}
+        {{- if $ssl.HTTP2 }}
+    http2 on;
+        {{- end }}
+
+        {{- if $ssl.RejectHandshake }}
+    ssl_reject_handshake on;
+        {{- else if $.SpiffeCerts }}
+    ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+    ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+       {{- else }}
+    ssl_certificate {{ makeSecretPath $ssl.Certificate $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+    ssl_certificate_key {{ makeSecretPath $ssl.CertificateKey $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+        {{- end }}
+    {{- else }}
+      {{- if $.SpiffeCerts }}
+    listen 443 ssl;
+    {{if not $s.DisableIPV6}}listen [::]:443 ssl;{{end}}
+    ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+    ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+      {{- end }}
+    {{- end }}
+
+    {{- with $s.IngressMTLS }}
+    ssl_client_certificate {{ .ClientCert }};
+    {{- if .ClientCrl }}
+    ssl_crl {{ .ClientCrl }};
+    {{- end }}
+    ssl_verify_client {{ .VerifyClient }};
+    ssl_verify_depth {{ .VerifyDepth }};
+    {{- end }}
+
+    {{- with $s.TLSRedirect }}
+    if ({{ .BasedOn }} = 'http') {
+        return {{ .Code }} https://$host$request_uri;
+    }
+    {{- end }}
+
+    server_tokens "{{ $s.ServerTokens }}";
+
+    {{- range $setRealIPFrom := $s.SetRealIPFrom }}
+    set_real_ip_from {{ $setRealIPFrom }};
+    {{- end }}
+    {{- if $s.RealIPHeader }}
+    real_ip_header {{ $s.RealIPHeader }};
+    {{- end }}
+    {{- if $s.RealIPRecursive }}
+    real_ip_recursive on;
+    {{- end }}
+
+    {{- with $s.PoliciesErrorReturn }}
+    return {{ .Code }};
+    {{- end }}
+
+    {{- range $allow := $s.Allow }}
+    allow {{ $allow }};
+    {{- end }}
+    {{- if gt (len $s.Allow) 0 }}
+    deny all;
+    {{- end }}
+
+    {{- range $deny := $s.Deny }}
+    deny {{ $deny }};
+    {{- end }}
+    {{- if gt (len $s.Deny) 0 }}
+    allow all;
+    {{- end }}
+
+    {{- if $s.LimitReqOptions.DryRun }}
+    limit_req_dry_run on;
+    {{- end }}
+
+    {{- with $level := $s.LimitReqOptions.LogLevel }}
+    limit_req_log_level {{ $level }};
+    {{- end }}
+
+    {{- with $code := $s.LimitReqOptions.RejectCode }}
+    limit_req_status {{ $code }};
+    {{- end }}
+
+    {{- range $rl := $s.LimitReqs }}
+    limit_req zone={{ $rl.ZoneName }}{{ if $rl.Burst }} burst={{ $rl.Burst }}{{ end }}
+        {{ if $rl.Delay }} delay={{ $rl.Delay }}{{ end }}{{ if $rl.NoDelay }} nodelay{{ end }};
+    {{- end }}
+
+    {{- with $s.JWTAuth }}
+    auth_jwt "{{ .Realm }}"{{ if .Token }} token={{ .Token }}{{ end }};
+    {{ if .Secret}}auth_jwt_key_file {{ .Secret }};{{ end }}
+    {{- if .JwksURI.JwksHost }}
+    {{ if .KeyCache }}auth_jwt_key_cache {{ .KeyCache }};{{ end }}
+    auth_jwt_key_request /_jwks_uri_server_{{ .Key }};
+    {{- end }}
+    {{- end }}
+
+    {{- range $index, $element := $s.JWTAuthList }}
+    location = /_jwks_uri_server_{{ .Key }} {
+        internal;
+        proxy_method GET;
+        proxy_set_header Content-Length "";
+        {{- if .KeyCache }}
+        proxy_cache jwks_uri_{{ $s.VSName }};
+        proxy_cache_valid 200 12h;
+        {{- end }}
+        {{- with .JwksURI }}
+        proxy_set_header Host {{ .JwksHost }};
+        set $idp_backend {{ .JwksHost }};
+        proxy_pass {{ .JwksScheme}}://$idp_backend{{ if .JwksPort }}:{{ .JwksPort }}{{ end }}{{ .JwksPath }};
+        {{- end }}
+    }
+    {{- end }}
+
+    {{- if $s.APIKeyEnabled}}
+    location = /_validate_apikey_njs {
+            internal;
+            js_content apikey_auth.validate;
+    }
+    {{- end }}
+
+    {{- with $s.BasicAuth }}
+    auth_basic {{ printf "%q" .Realm }};
+    auth_basic_user_file {{ .Secret }};
+    {{- end }}
+
+    {{- with $s.EgressMTLS }}
+        {{- if .Certificate }}
+    proxy_ssl_certificate {{ makeSecretPath .Certificate $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+    proxy_ssl_certificate_key {{ makeSecretPath .CertificateKey $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+        {{- end }}
+        {{- if .TrustedCert }}
+    proxy_ssl_trusted_certificate {{ .TrustedCert }};
+        {{- end }}
+
+    proxy_ssl_verify {{ if .VerifyServer }}on{{else}}off{{end}};
+    proxy_ssl_verify_depth {{ .VerifyDepth }};
+    proxy_ssl_protocols {{ .Protocols }};
+    proxy_ssl_ciphers {{ .Ciphers }};
+    proxy_ssl_session_reuse {{ if .SessionReuse }}on{{else}}off{{end}};
+    proxy_ssl_server_name {{ if .ServerName }}on{{else}}off{{end}};
+    proxy_ssl_name {{ .SSLName }};
+    {{- end }}
+
+    {{- with $s.APIKey}}
+    js_var $header_query_value {{ makeHeaderQueryValue $s.APIKey | printf }};
+    js_var $apikey_auth_local_map "{{ .MapName}}";
+    js_var $apikey_auth_token $apikey_auth_hash;
+    auth_request /_validate_apikey_njs;
+    {{- end }}
+
+    {{- with $s.WAF }}
+    app_protect_enable {{ .Enable }};
+        {{ if .ApPolicy }}
+    app_protect_policy_file {{ .ApPolicy }};
+        {{ end }}
+
+        {{ if .ApBundle }}
+    app_protect_policy_file {{ .ApBundle }};
+        {{ end }}
+
+        {{ if .ApSecurityLogEnable }}
+    app_protect_security_log_enable on;
+        {{ range $logconf := .ApLogConf }}
+    app_protect_security_log {{ $logconf }};
+        {{ end }}
+        {{ end }}
+    {{ end }}
+
+    {{- with $s.Dos }}
+    app_protect_dos_enable {{ .Enable }};
+        {{- if .Name }}
+    app_protect_dos_name "{{ .Name }}";
+        {{- end }}
+
+        {{- if .AllowListPath }}
+    app_protect_dos_access_file "{{ .AllowListPath }}";
+        {{- end }}
+
+        {{- if .ApDosPolicy }}
+    app_protect_dos_policy_file {{ .ApDosPolicy }};
+        {{- end }}
+
+        {{- if .ApDosSecurityLogEnable }}
+    app_protect_dos_security_log_enable on;
+    app_protect_dos_security_log {{ .ApDosLogConf }};
+        {{- end }}
+
+        {{- if .ApDosAccessLogDest }}
+    set $loggable '0';
+    # app-protect-dos module will set it to '1'  if a request doesn't pass the rate limit
+    access_log {{ .ApDosAccessLogDest }} log_dos if=$loggable;
+        {{- end }}
+
+        {{- if .ApDosMonitorURI }}
+            {{- if or .ApDosMonitorProtocol .ApDosMonitorTimeout}}
+    app_protect_dos_monitor uri={{ .ApDosMonitorURI }}{{if .ApDosMonitorProtocol}} protocol={{.ApDosMonitorProtocol}}{{end}}{{if .ApDosMonitorTimeout}} timeout={{.ApDosMonitorTimeout}}{{end}};
+            {{- else}}
+    app_protect_dos_monitor "{{ .ApDosMonitorURI }}";
+            {{- end}}
+        {{- end}}
+
+    {{- end }}
+
+    {{- range $snippet := $s.Snippets }}
+    {{ $snippet }}
+    {{- end }}
+
+    {{- range $l := $s.InternalRedirectLocations }}
+    location {{ $l.Path }} {
+        rewrite ^ {{ $l.Destination }} last;
+    }
+    {{- end }}
+
+    {{- range $hc := $s.HealthChecks }}
+    location @hc-{{ $hc.Name }} {
+        {{ $proxyOrGRPC := "proxy" }}{{ if $hc.GRPCPass }}{{ $proxyOrGRPC = "grpc" }}{{ end }}
+        {{- range $n, $v := $hc.Headers }}
+        {{ $proxyOrGRPC }}_set_header {{ $n }} "{{ $v }}";
+        {{- end }}
+        {{ $proxyOrGRPC }}_connect_timeout {{ $hc.ProxyConnectTimeout }};
+        {{ $proxyOrGRPC }}_read_timeout {{ $hc.ProxyReadTimeout }};
+        {{ $proxyOrGRPC }}_send_timeout {{ $hc.ProxySendTimeout }};
+            {{- if $hc.GRPCPass }}
+        grpc_pass {{ $hc.GRPCPass }};
+            {{- else }}
+        proxy_pass {{ $hc.ProxyPass }};
+            {{- end }}
+        health_check{{- if $hc.URI }} uri={{ $hc.URI }} {{ end -}}
+        {{- if $hc.Port }} port={{ $hc.Port }} {{ end -}}
+        interval={{ $hc.Interval }} jitter={{ $hc.Jitter }} fails={{ $hc.Fails }} passes={{ $hc.Passes }}
+        {{- if $hc.Match }} match={{ $hc.Match }}{{- end -}}
+        {{- if $hc.Mandatory }} mandatory {{ end -}}
+        {{- if $hc.Persistent }} persistent {{ end -}}
+        {{- if not $hc.IsGRPC }} keepalive_time={{ $hc.KeepaliveTime }}{{ end -}}
+        {{- if $hc.GRPCPass }} type=grpc{{- if $hc.GRPCStatus }} grpc_status={{ $hc.GRPCStatus }}{{- end -}}
+        {{- if $hc.GRPCService }} grpc_service={{ $hc.GRPCService }}{{- end -}}{{ end -}};
+
+   }
+    {{- end }}
+
+    {{- range $e := $s.ErrorPageLocations }}
+    location {{ $e.Name }} {
+        {{ if $e.DefaultType }}
+        default_type "{{ $e.DefaultType }}";
+        {{ end }}
+        {{ range $h := $e.Headers }}
+        add_header {{ $h.Name }} "{{ $h.Value }}" always;
+        {{ end }}
+        # status code is ignored here, using 0
+        return 0 "{{ $e.Return.Text }}";
+    }
+    {{ end }}
+
+    {{ range $l := $s.ReturnLocations }}
+    location {{ $l.Name }} {
+        default_type "{{ $l.DefaultType }}";
+        {{ range $h := $l.Headers }}
+        add_header {{ $h.Name }} "{{ $h.Value }}" always;
+        {{ end }}
+        # status code is ignored here, using 0
+        return 0 "{{ $l.Return.Text }}";
+    }
+    {{ end }}
+
+    {{ range $l := $s.Locations }}
+    location {{ $l.Path }} {
+        set $service "{{ $l.ServiceName }}";
+        status_zone "{{ $l.ServiceName }}";
+        {{- if $l.IsVSR }}
+        set $resource_type "virtualserverroute";
+        set $resource_name "{{ $l.VSRName }}";
+        set $resource_namespace "{{ $l.VSRNamespace }}";
+        {{- end }}
+        {{- if $l.Internal }}
+        internal;
+        {{- end }}
+        {{- range $snippet := $l.Snippets }}
+        {{ $snippet }}
+        {{- end }}
+
+        {{- with $l.PoliciesErrorReturn }}
+        return {{ .Code }};
+        {{- end }}
+
+        {{- range $allow := $l.Allow }}
+        allow {{ $allow }};
+        {{- end }}
+        {{- if gt (len $l.Allow) 0 }}
+        deny all;
+        {{- end }}
+
+        {{- range $deny := $l.Deny }}
+        deny {{ $deny }};
+        {{- end }}
+        {{- if gt (len $l.Deny) 0 }}
+        allow all;
+        {{- end }}
+
+        {{- if $l.LimitReqOptions.DryRun }}
+        limit_req_dry_run on;
+        {{- end }}
+
+        {{- with $level := $l.LimitReqOptions.LogLevel }}
+        limit_req_log_level {{ $level }};
+        {{- end }}
+
+        {{- with $code := $l.LimitReqOptions.RejectCode }}
+        limit_req_status {{ $code }};
+        {{- end }}
+
+        {{- range $rl := $l.LimitReqs }}
+        limit_req zone={{ $rl.ZoneName }}{{ if $rl.Burst }} burst={{ $rl.Burst }}{{ end }}
+            {{ if $rl.Delay }} delay={{ $rl.Delay }}{{ end }}{{ if $rl.NoDelay }} nodelay{{ end }};
+        {{- end }}
+
+        {{- with $l.JWTAuth }}
+        auth_jwt "{{ .Realm }}"{{ if .Token }} token={{ .Token }}{{ end }};
+        {{ if .Secret}}auth_jwt_key_file {{ .Secret }};{{ end }}
+        {{- if .JwksURI.JwksHost }}
+        {{ if .KeyCache }}auth_jwt_key_cache {{ .KeyCache }};{{ end }}
+        auth_jwt_key_request /_jwks_uri_server_{{ .Key }};
+        {{- end }}
+        {{- end }}
+
+        {{- with $l.BasicAuth }}
+        auth_basic {{ printf "%q" .Realm }};
+        auth_basic_user_file {{ .Secret }};
+        {{- end }}
+
+        {{ $proxyOrGRPC := "proxy" }}{{ if $l.GRPCPass }}{{ $proxyOrGRPC = "grpc" }}{{ end }}
+
+        {{- with $l.EgressMTLS }}
+            {{- if .Certificate }}
+        {{ $proxyOrGRPC }}_ssl_certificate {{ makeSecretPath .Certificate $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+        {{ $proxyOrGRPC }}_ssl_certificate_key {{ makeSecretPath .CertificateKey $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+            {{- end }}
+            {{ if .TrustedCert }}
+        {{ $proxyOrGRPC }}_ssl_trusted_certificate {{ .TrustedCert }};
+            {{- end }}
+        {{ $proxyOrGRPC }}_ssl_verify {{ if .VerifyServer }}on{{else}}off{{end}};
+        {{ $proxyOrGRPC }}_ssl_verify_depth {{ .VerifyDepth }};
+        {{ $proxyOrGRPC }}_ssl_protocols {{ .Protocols }};
+        {{ $proxyOrGRPC }}_ssl_ciphers {{ .Ciphers }};
+        {{ $proxyOrGRPC }}_ssl_session_reuse {{ if .SessionReuse }}on{{else}}off{{end}};
+        {{ $proxyOrGRPC }}_ssl_server_name {{ if .ServerName }}on{{else}}off{{end}};
+        {{ $proxyOrGRPC }}_ssl_name {{ .SSLName }};
+        {{- end }}
+
+        {{- if $l.OIDC }}
+        auth_jwt "" token=$session_jwt;
+        error_page 401 = @do_oidc_flow;
+        auth_jwt_key_request /_jwks_uri;
+        {{- $proxyOrGRPC }}_set_header username $jwt_claim_sub;
+            {{- if $s.OIDC.AccessTokenEnable }}
+        {{ $proxyOrGRPC }}_set_header Authorization "Bearer $access_token";
+            {{- end }}
+        {{- end }}
+
+
+        {{- with $l.APIKey}}
+        set $apikey_auth_local_map  "{{ .MapName }}";
+        set $header_query_value {{ makeHeaderQueryValue $l.APIKey | printf }};
+        set $apikey_auth_token $apikey_auth_hash;
+        auth_request /_validate_apikey_njs;
+        {{- else }}
+        {{- with $s.APIKey }}
+        set $header_query_value {{ makeHeaderQueryValue $s.APIKey | printf }};
+        {{- end }}
+
+        {{- end }}
+
+        {{- with $l.WAF }}
+        app_protect_enable {{ .Enable }};
+            {{- if .ApPolicy }}
+        app_protect_policy_file {{ .ApPolicy }};
+            {{- end }}
+
+            {{- if .ApBundle }}
+        app_protect_policy_file {{ .ApBundle }};
+            {{- end }}
+
+            {{- if .ApSecurityLogEnable }}
+        app_protect_security_log_enable on;
+            {{- range $logconf := .ApLogConf }}
+        app_protect_security_log {{ $logconf }};
+            {{- end }}
+            {{- end }}
+        {{- end }}
+
+            {{- if $l.GRPCPass }}
+        error_page 400 = @grpc_internal;
+        error_page 401 = @grpc_unauthenticated;
+        error_page 403 = @grpc_permission_denied;
+        error_page 404 = @grpc_unimplemented;
+        error_page 429 = @grpc_unavailable;
+        error_page 502 = @grpc_unavailable;
+        error_page 503 = @grpc_unavailable;
+        error_page 504 = @grpc_unavailable;
+        error_page 405 = @grpc_internal;
+        error_page 408 = @grpc_deadline_exceeded;
+        error_page 413 = @grpc_resource_exhausted;
+        error_page 414 = @grpc_resource_exhausted;
+        error_page 415 = @grpc_internal;
+        error_page 426 = @grpc_internal;
+        error_page 495 = @grpc_unauthenticated;
+        error_page 496 = @grpc_unauthenticated;
+        error_page 497 = @grpc_internal;
+        error_page 500 = @grpc_internal;
+        error_page 501 = @grpc_internal;
+            {{- end }}
+
+        {{- with $l.Dos }}
+        app_protect_dos_enable {{ .Enable }};
+
+            {{- if .Name }}
+        app_protect_dos_name "{{ .Name }}";
+            {{- end }}
+
+            {{- if .AllowListPath }}
+        app_protect_dos_access_file "{{ .AllowListPath }}";
+            {{- end }}
+
+            {{- if .ApDosPolicy }}
+        app_protect_dos_policy_file {{ .ApDosPolicy }};
+            {{- end }}
+
+            {{ if .ApDosSecurityLogEnable }}
+        app_protect_dos_security_log_enable on;
+        app_protect_dos_security_log {{ .ApDosLogConf }};
+            {{ end }}
+            {{- if .ApDosAccessLogDest }}
+        set $loggable '0';
+        # app-protect-dos module will set it to '1'  if a request doesn't pass the rate limit
+        access_log {{ .ApDosAccessLogDest }} log_dos if=$loggable;
+            {{- end }}
+
+            {{- if .ApDosMonitorURI }}
+                {{- if or .ApDosMonitorProtocol .ApDosMonitorTimeout}}
+        app_protect_dos_monitor uri={{ .ApDosMonitorURI }}{{if .ApDosMonitorProtocol}} protocol={{.ApDosMonitorProtocol}}{{end}}{{if .ApDosMonitorTimeout}} timeout={{.ApDosMonitorTimeout}}{{end}};
+                {{- else}}
+        app_protect_dos_monitor "{{ .ApDosMonitorURI }}";
+                {{- end}}
+            {{- end}}
+        {{- end }}
+
+        {{- range $e := $l.ErrorPages }}
+        error_page {{ $e.Codes }} {{ if ne 0 $e.ResponseCode }}={{ $e.ResponseCode }}{{ end }} "{{ $e.Name }}";
+        {{- end }}
+
+        {{- if $l.ProxyInterceptErrors }}
+        {{ $proxyOrGRPC }}_intercept_errors on;
+        {{- end }}
+
+        {{- if $l.InternalProxyPass }}
+        proxy_pass {{ $l.InternalProxyPass }};
+        {{- end }}
+        set $default_connection_header {{ if $l.HasKeepalive }}""{{ else }}close{{ end }};
+        {{- if or $l.ProxyPass $l.GRPCPass }}
+            {{- range $r := $l.Rewrites }}
+        rewrite {{ $r }};
+            {{- end }}
+        {{ $proxyOrGRPC }}_connect_timeout {{ $l.ProxyConnectTimeout }};
+        {{ $proxyOrGRPC }}_read_timeout {{ $l.ProxyReadTimeout }};
+        {{ $proxyOrGRPC }}_send_timeout {{ $l.ProxySendTimeout }};
+        client_max_body_size {{ $l.ClientMaxBodySize }};
+
+            {{- if $l.ProxyMaxTempFileSize }}
+        proxy_max_temp_file_size {{ $l.ProxyMaxTempFileSize }};
+            {{- end }}
+
+        proxy_buffering {{ if $l.ProxyBuffering }}on{{ else }}off{{ end }};
+            {{- if $l.ProxyBuffers }}
+        proxy_buffers {{ $l.ProxyBuffers }};
+            {{- end }}
+            {{- if $l.ProxyBufferSize }}
+        {{ $proxyOrGRPC }}_buffer_size {{ $l.ProxyBufferSize }};
+            {{- end }}
+            {{- if not $l.GRPCPass }}
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers {{ if $l.ProxyPassRequestHeaders }}on{{ else }}off{{ end }};
+            {{- end }}
+
+        {{- $custom_headers := $l.ProxySetHeaders | headerListToCIMap }}
+
+        {{- if not ($custom_headers | hasCIKey "X-Real-IP") }}
+        {{ $proxyOrGRPC }}_set_header X-Real-IP $remote_addr;
+        {{- end }}
+
+        {{- if not ($custom_headers | hasCIKey "X-Forwarded-For") }}
+        {{ $proxyOrGRPC }}_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        {{- end }}
+
+        {{- if not ($custom_headers | hasCIKey "X-Forwarded-Host") }}
+        {{ $proxyOrGRPC }}_set_header X-Forwarded-Host $host;
+        {{- end }}
+
+        {{- if not ($custom_headers | hasCIKey "X-Forwarded-Port") }}
+        {{ $proxyOrGRPC }}_set_header X-Forwarded-Port $server_port;
+        {{- end }}
+
+        {{- if not ($custom_headers | hasCIKey "X-Forwarded-Proto") }}
+        {{ $proxyOrGRPC }}_set_header X-Forwarded-Proto {{ with $s.TLSRedirect }}{{ .BasedOn }}{{ else }}$scheme{{ end }};
+        {{- end }}
+
+        {{- range $h := $l.ProxySetHeaders }}
+        {{ $proxyOrGRPC }}_set_header {{ $h.Name }} "{{ $h.Value }}";
+        {{- end }}
+
+            {{- range $h := $l.ProxyHideHeaders }}
+        {{ $proxyOrGRPC }}_hide_header {{ $h }};
+            {{- end }}
+            {{- range $h := $l.ProxyPassHeaders }}
+        {{ $proxyOrGRPC }}_pass_header {{ $h }};
+            {{- end }}
+            {{- with $l.ProxyIgnoreHeaders }}
+        {{ $proxyOrGRPC }}_ignore_headers {{ $l.ProxyIgnoreHeaders }};
+            {{- end }}
+            {{- range $h := $l.AddHeaders }}
+        add_header {{ $h.Name }} "{{ $h.Value }}" {{ if $h.Always }}always{{ end }};
+            {{- end }}
+            {{- if $.SpiffeClientCerts }}
+        {{ $proxyOrGRPC }}_ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+        {{ $proxyOrGRPC }}_ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+        {{ $proxyOrGRPC }}_ssl_trusted_certificate /etc/nginx/secrets/spiffe_rootca.pem;
+        {{ $proxyOrGRPC }}_ssl_server_name on;
+        {{ $proxyOrGRPC }}_ssl_verify on;
+        {{ $proxyOrGRPC }}_ssl_verify_depth 25;
+        {{ $proxyOrGRPC }}_ssl_name {{ $l.ProxySSLName }};
+            {{- end }}
+            {{-  if $l.GRPCPass }}
+        grpc_pass {{ $l.GRPCPass }};
+            {{- else }}
+        proxy_pass {{ $l.ProxyPass }}{{ $l.ProxyPassRewrite }};
+            {{- end }}
+        {{ $proxyOrGRPC }}_next_upstream {{ $l.ProxyNextUpstream }};
+        {{ $proxyOrGRPC }}_next_upstream_timeout {{ $l.ProxyNextUpstreamTimeout }};
+        {{ $proxyOrGRPC }}_next_upstream_tries {{ $l.ProxyNextUpstreamTries }};
+        {{- end }}
+    }
+    {{- end }}
+
+    {{- with $ssl := $s.SSL }}
+        {{ if $ssl.HTTP2 }}
+	location @grpc_deadline_exceeded {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 4;
+        add_header grpc-message 'deadline exceeded';
+        return 204;
+    }
+
+    location @grpc_permission_denied {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 7;
+        add_header grpc-message 'permission denied';
+        return 204;
+    }
+
+    location @grpc_resource_exhausted {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 8;
+        add_header grpc-message 'resource exhausted';
+        return 204;
+    }
+
+    location @grpc_unimplemented {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 12;
+        add_header grpc-message unimplemented;
+        return 204;
+    }
+
+    location @grpc_internal {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 13;
+        add_header grpc-message 'internal error';
+        return 204;
+    }
+
+    location @grpc_unavailable {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 14;
+        add_header grpc-message unavailable;
+        return 204;
+    }
+
+    location @grpc_unauthenticated {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 16;
+        add_header grpc-message unauthenticated;
+        return 204;
+    }
+
+	    {{ end }}
+    {{ end }}
+}`
+
+// custom TStemplate represents the transportserver template passed via ConfigMap
+var customTestTStemplate = `# TEST CUSTOM TRANSPORTSERVER TEMPLATE
+{{- /*gotype: github.com/nginx/kubernetes-ingress/internal/configs/version2.TransportServerConfig*/ -}}
+{{- range $u := .Upstreams }}
+upstream {{ $u.Name }} {
+    zone {{ $u.Name }} 512k;
+    {{- if $u.LoadBalancingMethod }}
+    {{ $u.LoadBalancingMethod }};
+    {{- end }}
+
+    {{- range $s := $u.Servers }}
+    server {{ $s.Address }} max_fails={{ $s.MaxFails }} fail_timeout={{ $s.FailTimeout }} max_conns={{ $s.MaxConnections }}{{ if $u.Resolve }} resolve{{ end }};
+    {{- end }}
+
+    {{- range $b := $u.BackupServers }}
+    server {{ $b.Address }} resolve backup;
+    {{- end }}
+}
+{{- end }}
+
+{{- range $snippet := .StreamSnippets }}
+{{ $snippet }}
+{{- end }}
+
+{{ with $m := .Match }}
+match {{ $m.Name }} {
+    {{ if $m.Send }}
+    send "{{ $m.Send }}";
+    {{ end }}
+
+    {{ if $m.Expect }}
+    expect {{ $m.ExpectRegexModifier }} "{{ $m.Expect }}";
+    {{ end }}
+}
+{{- end }}
+
+{{- $s := .Server }}
+server {
+    {{- with $ssl := $s.SSL }}
+        {{- if $s.TLSPassthrough }}
+    listen {{ $s.UnixSocket }} proxy_protocol;
+    set_real_ip_from unix:;
+        {{- else }}
+    {{ makeTransportListener $s | printf }}
+    {{- with makeServerName $s }}{{ printf "\t%s" . }}{{- end }}
+        {{- end }}
+
+        {{- if $ssl.Enabled }}
+    ssl_certificate {{ makeSecretPath $ssl.Certificate $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+	ssl_certificate_key {{ makeSecretPath $ssl.CertificateKey $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+	    {{- end }}
+    {{- end }}
+
+    status_zone {{ $s.StatusZone }};
+
+    {{- if $s.ProxyRequests }}
+    proxy_requests {{ $s.ProxyRequests }};
+    {{- end }}
+    {{- if $s.ProxyResponses }}
+    proxy_responses {{ $s.ProxyResponses }};
+    {{- end }}
+
+    {{- range $snippet := $s.ServerSnippets }}
+    {{ $snippet }}
+    {{- end }}
+
+    proxy_pass {{ $s.ProxyPass }};
+
+    {{ if $s.HealthCheck }}
+    health_check interval={{ $s.HealthCheck.Interval }} {{ if $s.HealthCheck.Port }} port={{ $s.HealthCheck.Port }}{{ end }}
+        passes={{ $s.HealthCheck.Passes }} jitter={{ $s.HealthCheck.Jitter }} fails={{ $s.HealthCheck.Fails }}{{ if $s.UDP }} udp{{ end }}{{ if $s.HealthCheck.Match }} match={{ $s.HealthCheck.Match }}{{ end }};
+    health_check_timeout {{ $s.HealthCheck.Timeout }};
+    {{ end }}
+
+    proxy_timeout {{ $s.ProxyTimeout }};
+    proxy_connect_timeout {{ $s.ProxyConnectTimeout }};
+
+    {{- if $s.ProxyNextUpstream }}
+    proxy_next_upstream on;
+    proxy_next_upstream_timeout {{ $s.ProxyNextUpstreamTimeout }};
+    proxy_next_upstream_tries {{ $s.ProxyNextUpstreamTries }};
+    {{- end }}
+}`

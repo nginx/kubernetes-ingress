@@ -120,7 +120,7 @@ def create_resource_from_manifest(custom_objects: CustomObjectsApi, body, namesp
         raise ex
 
 
-def read_custom_resource_v1alpha1(custom_objects: CustomObjectsApi, namespace, plural, name) -> object:
+def read_custom_resource_v1(custom_objects: CustomObjectsApi, namespace, plural, name) -> object:
     """
     Get CRD information (kubectl describe output)
 
@@ -316,6 +316,7 @@ def create_dos_protected_from_yaml(custom_objects: CustomObjectsApi, yaml_manife
             "<NAMESPACE>", ing_namespace
         )
         dep["spec"]["apDosPolicy"] = dep["spec"]["apDosPolicy"].replace("<NAMESPACE>", namespace)
+        dep["spec"]["dosAccessLogDest"] = dep["spec"]["dosAccessLogDest"].replace("<NAMESPACE>", ing_namespace)
     custom_objects.create_namespaced_custom_object(
         "appprotectdos.f5.com", "v1beta1", namespace, "dosprotectedresources", dep
     )

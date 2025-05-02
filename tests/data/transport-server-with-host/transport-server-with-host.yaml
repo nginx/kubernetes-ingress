@@ -1,0 +1,17 @@
+apiVersion: k8s.nginx.org/v1
+kind: TransportServer
+metadata:
+  name: transport-server
+spec:
+  host: cafe.example.com
+  listener:
+    name: dns-tcp
+    protocol: TCP
+  tls:
+    secret: cafe-secret
+  upstreams:
+    - name: dns-app
+      service: coredns
+      port: 5353
+  action:
+    pass: dns-app

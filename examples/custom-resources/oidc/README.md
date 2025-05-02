@@ -1,7 +1,7 @@
 # OIDC
 
 In this example, we deploy a web application, configure load balancing for it via a VirtualServer, and protect the
-application using an OpenID Connect policy and [Keycloak](https://www.keycloak.org/).
+application using an OpenID Connect policy and [Keycloak](https://www.keycloak.org/), and ensure behaviour is consistent across multiple replicas by enabling [Zone Synchronization](https://docs.nginx.com/nginx/admin-guide/high-availability/zone_sync/).
 
 **Note**: The KeyCloak container does not support IPv6 environments.
 
@@ -84,49 +84,30 @@ To set up Keycloak:
     kubectl apply -f client-secret.yaml
     ```
 
-## Step 6 - Deploy the OIDC Policy
+## Step 6 - Configure Zone Synchronization and Resolver
+
+In this step we configure:
+
+- [Zone Synchronization](https://docs.nginx.com/nginx/admin-guide/high-availability/zone_sync/). For the OIDC feature to
+  work when you have two or more replicas of the Ingress Controller, it is necessary to enable zone synchronization
+  among the replicas. This is to ensure that each replica has access to the required session information when authenticating via IDP such as Keycloak.
+- The resolver can resolve the host names.
+
+Steps:
+
+1. Apply the ConfigMap `nginx-config.yaml`, which contains `zone-sync` configuration parameter that enable zone synchronization and the resolver using the kube-dns service.
+
+    ```console
+    kubectl apply -f nginx-config.yaml
+    ```
+
+## Step 7 - Deploy the OIDC Policy
 
 Create a policy with the name `oidc-policy` that references the secret from the previous step:
 
 ```console
 kubectl apply -f oidc.yaml
 ```
-
-## Step 7 - Configure NGINX Plus Zone Synchronization and Resolver
-
-In this step we configure:
-
-- [Zone Synchronization](https://docs.nginx.com/nginx/admin-guide/high-availability/zone_sync/). For the OIDC feature to
-  work when you have two or more replicas of the Ingress Controller, it is necessary to enable zone synchronization
-  among the replicas.
-- The resolver, so that an NGINX Plus can discover the other Ingress Controller replicas and resolve the Keycloak
-  endpoint.
-
-Steps:
-
-1. Deploy a headless service for the Ingress Controller.
-
-    ```console
-    kubectl apply -f nginx-ingress-headless.yaml
-    ```
-
-1. Get the cluster IP of the KubeDNS service:
-
-    ```console
-    kubectl -n kube-system get svc kube-dns
-    ```
-
-    ```text
-    NAME       TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)         AGE
-    kube-dns   ClusterIP   10.4.0.10    <none>        53/UDP,53/TCP   9d
-    ```
-
-1. Edit the ConfigMap `nginx-config.yaml`, replacing the `<kube-dns-ip>` with the IP obtained in the previous step.
-1. Apply the ConfigMap:
-
-   ```console
-   kubectl apply -f nginx-config.yaml
-   ```
 
 ## Step 8 - Configure Load Balancing
 
@@ -146,3 +127,11 @@ Note that the VirtualServer references the policy `oidc-policy` created in Step 
 ![keycloak](./keycloak.png)
 1. Once logged in, you will be redirected to the web application and get a response from it. Notice the field `User ID`
 in the response, this will match the ID for your user in Keycloak. ![webapp](./webapp.png)
+
+## Step 10 - Log Out
+
+1. To log out, navigate to `https://webapp.example.com/logout`. Your session will be terminated, and you will be
+   redirected to the default post logout URI `https://webapp.example.com/_logout`.
+![logout](./logout.png)
+1. To confirm that you have been logged out, navigate to `https://webapp.example.com`. You will be redirected to
+   Keycloak to log in again.

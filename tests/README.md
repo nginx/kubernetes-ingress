@@ -142,4 +142,4 @@ python3 -m pytest --markers
 
 The source code for the tests containers used in some tests, for example the
 [transport-server-tcp-load-balance](./data/transport-server-tcp-load-balance/standard/service_deployment.yaml) is
-located at [kic-test-containers](https://github.com/nginxinc/kic-test-containers).
+located at [kic-test-containers](https://github.com/nginx/kic-test-containers).

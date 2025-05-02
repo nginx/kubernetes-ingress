@@ -11,3 +11,6 @@ coverage:
         target: auto
         threshold: 0%
     changes: false
+ignore:
+  - "pkg/client"
+  - "**/*generated*.go"

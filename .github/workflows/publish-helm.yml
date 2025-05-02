@@ -6,6 +6,37 @@ on:
       branch:
         description: "Release Helm chart from branch"
         required: true
+        type: string
+      ic_version:
+        description: "Ingress Controller version"
+        required: true
+        type: string
+      chart_version:
+        description: "Helm Chart version"
+        required: true
+        type: string
+      nginx_helm_repo:
+        description: "Publish to the NGINX Helm repo"
+        required: true
+        type: boolean
+  workflow_call:
+    inputs:
+      branch:
+        description: "Release Helm chart from branch"
+        required: true
+        type: string
+      ic_version:
+        description: "Ingress Controller version"
+        required: true
+        type: string
+      chart_version:
+        description: "Helm Chart version"
+        required: true
+        type: string
+      nginx_helm_repo:
+        description: "Publish to the NGINX Helm repo"
+        required: true
+        type: boolean
 
 defaults:
   run:
@@ -19,49 +50,28 @@ permissions:
   contents: read
 
 jobs:
-  checks:
-    name: Checks and variables
-    runs-on: ubuntu-22.04
-    outputs:
-      chart_version: ${{ steps.vars.outputs.chart_version }}
-      ic_version: ${{ steps.vars.outputs.ic_version }}
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
-        with:
-          ref: refs/heads/${{ inputs.branch }}
-
-      - name: Output Variables
-        id: vars
-        run: |
-          source .github/data/version.txt
-          echo "ic_version=${IC_VERSION}" >> $GITHUB_OUTPUT
-          echo "chart_version=${HELM_CHART_VERSION}" >> $GITHUB_OUTPUT
-          cat $GITHUB_OUTPUT
-
   publish-helm:
     name: Package and Publish Helm Chart
     runs-on: ubuntu-22.04
-    needs: [checks]
     permissions:
       contents: write # for pushing to Helm Charts repository
       packages: write # for helm to push to GHCR
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: refs/heads/${{ inputs.branch }}
           path: kic
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@e92390c5fb421da1463c202d546fed0ec5c39f20 # v3.1.0
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: DockerHub Login
-        uses: docker/login-action@e92390c5fb421da1463c202d546fed0ec5c39f20 # v3.1.0
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
@@ -69,22 +79,23 @@ jobs:
       - name: Package
         id: package
         run: |
-          helm_versions="--app-version ${{ needs.checks.outputs.ic_version }} --version ${{ needs.checks.outputs.chart_version }}"
+          helm_versions="--app-version ${{ inputs.ic_version }} --version ${{ inputs.chart_version }}"
           output=$(helm package ${helm_versions} kic/charts/nginx-ingress)
           echo "path=$(basename -- $(echo $output | cut -d: -f2))" >> $GITHUB_OUTPUT
 
       - name: Push to OCI registries
         run: |
-          helm push ${{ steps.package.outputs.path }} oci://ghcr.io/nginxinc/charts
+          helm push ${{ steps.package.outputs.path }} oci://ghcr.io/nginx/charts
           helm push ${{ steps.package.outputs.path }} oci://registry-1.docker.io/nginxcharts
 
       - name: Checkout Repository
-        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: nginxinc/helm-charts
           fetch-depth: 1
           token: ${{ secrets.NGINX_PAT }}
           path: helm-charts
+        if: ${{ inputs.nginx_helm_repo }}
 
       - name: Push Helm Chart to Helm Charts Repository
         run: |
@@ -93,5 +104,6 @@ jobs:
           helm repo index stable --url https://helm.nginx.com/stable
           git add -A
           git -c user.name='NGINX Kubernetes Team' -c user.email='kubernetes@nginx.com' \
-          commit -m "NGINX Ingress Controller - Release ${{ needs.checks.outputs.chart_version }}"
+          commit -m "NGINX Ingress Controller - Release ${{ inputs.chart_version }}"
           git push -u origin master
+        if: ${{ inputs.nginx_helm_repo }}

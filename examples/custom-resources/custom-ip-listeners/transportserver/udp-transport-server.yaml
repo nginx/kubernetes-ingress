@@ -1,0 +1,17 @@
+apiVersion: k8s.nginx.org/v1
+kind: TransportServer
+metadata:
+  name: dns-udp
+spec:
+  listener:
+    name: udp-ip-dns-listener
+    protocol: UDP
+  upstreams:
+  - name: dns-app
+    service: coredns
+    port: 5353
+  upstreamParameters:
+    udpRequests: 1
+    udpResponses: 1
+  action:
+    pass: dns-app

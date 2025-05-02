@@ -1,0 +1,126 @@
+name: Run python tests on single image
+run-name: Testing ${{ inputs.image }}:${{ inputs.tag }} on ${{ inputs.k8s-version }} by @${{ github.actor }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        type: string
+        description: "Image to test"
+        required: true
+      tag:
+        type: string
+        description: "Image tag to test"
+        required: true
+      k8s-version:
+        type: string
+        description: "k8s version to test with, e.g. 1.30.0"
+        required: true
+      type:
+        type: string
+        description: "oss or plus"
+        required: false
+        default: oss
+      marker:
+        type: string
+        description: "pytest markers to apply"
+        required: false
+        default: "'not upgrade'"
+  workflow_call:
+    inputs:
+      image:
+        type: string
+        description: "Image to test"
+        required: true
+      tag:
+        type: string
+        description: "Image tag to test"
+        required: true
+      k8s-version:
+        type: string
+        description: "e.g. 1.30.0"
+        required: true
+      type:
+        type: string
+        description: "oss or plus"
+        required: false
+        default: oss
+      marker:
+        type: string
+        description: "pytest markers to apply"
+        required: false
+        default: "'not upgrade'"
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: ${{ github.ref_name }}-single-run
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Run regression
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        with:
+          token_format: access_token
+          workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
+          service_account: ${{ secrets.GCR_SERVICE_ACCOUNT }}
+
+      - name: Login to GCR
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: gcr.io
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+
+      - name: Pull image to local docker engine
+        run: |
+          docker pull ${{ inputs.image }}:${{ inputs.tag }}
+
+      - name: Check if test image exists
+        id: check-image
+        run: |
+          docker manifest inspect "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') }}"
+        shell: bash
+        continue-on-error: true
+
+      - name: Build Test-Runner Container
+        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
+        with:
+          file: tests/Dockerfile
+          context: "."
+          cache-from: type=gha,scope=test-runner
+          tags: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') }}"
+          pull: true
+          push: false
+          load: true
+        if: ${{ steps.check-image.outcome == 'failure' }}
+
+      - name: Run Tests
+        uses: ./.github/actions/smoke-tests
+        with:
+          image-type: ${{ inputs.type }}
+          image-name: ${{ inputs.image }}
+          tag: ${{ inputs.tag }}
+          marker: ${{ inputs.marker }}
+          label: "${{ inputs.image }} regression"
+          k8s-version: ${{ inputs.k8s-version }}
+          azure-ad-secret: ${{ secrets.AZURE_AD_AUTOMATION }}
+          registry-token: ${{ steps.auth.outputs.access_token }}
+          test-image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') }}"
+          plus-jwt: ${{ secrets.PLUS_JWT }}

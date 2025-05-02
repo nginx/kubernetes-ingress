@@ -55,19 +55,25 @@ The application in the `external-ns` namespace will respond to our requests when
    kubectl create -f backup-svc.yaml
    ```
 
-### 3. Deploy the tls-passthrough application
+### 3. Deploy the tls-passthrough secret
+
+   ```shell
+   kubectl create -f app-tls-secret.yaml
+   ```
+
+### 4. Deploy the tls-passthrough application
 
    ```shell
    kubectl create -f secure-app.yaml
    ```
 
-### 4. Deploy TransportServer
+### 5. Deploy TransportServer
 
    ```shell
    kubectl create -f transport-server-passthrough.yaml
    ```
 
-### 5. Test the Configuration
+### 6. Test the Configuration
 
    Run the below curl command to get a response from your application:
 
@@ -79,13 +85,25 @@ The application in the `external-ns` namespace will respond to our requests when
    hello from pod secure-app-694bc784b-qh8ng
    ```
 
-### 6. Deploy the second tls-passthrough application to the external namespace
+### 7. Create the external namespace
+
+   ```shell
+   kubectl create namespace external-ns
+   ```
+
+### 8. Deploy the second tls-passthrough secret to the external namespace
+
+   ```shell
+   kubectl apply -n external-ns -f app-tls-secret.yaml
+   ```
+
+### 9. Deploy the second tls-passthrough application to the external namespace
 
    ```shell
    kubectl apply -f external-secure-app.yaml
    ```
 
-### 7. Test the configuration using the backup service
+### 10. Test the configuration using the backup service
 
 1. Scale down `secure-app` deployment to 0.
    This is done to ensure that the external `backup` service will respond to our requests.

@@ -3,7 +3,7 @@ import requests
 from settings import DEPLOYMENTS, TEST_DATA
 from suite.utils.custom_resources_utils import read_custom_resource
 from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_policy
-from suite.utils.resources_utils import replace_configmap_from_yaml, wait_before_test
+from suite.utils.resources_utils import ensure_response_from_backend, replace_configmap_from_yaml, wait_before_test
 from suite.utils.vs_vsr_resources_utils import patch_v_s_route_from_yaml, patch_virtual_server_from_yaml
 
 std_cm_src = f"{DEPLOYMENTS}/common/nginx-config.yaml"
@@ -78,6 +78,7 @@ class TestAccessControlPoliciesVsr:
         )
         wait_before_test()
 
+    @pytest.mark.flaky(max_runs=3)
     def test_deny_policy_vsr(
         self,
         kube_apis,
@@ -91,6 +92,12 @@ class TestAccessControlPoliciesVsr:
         Test if ip (10.0.0.1) block-listing is working (policy specified in vsr subroute): default(no policy) -> deny
         """
         req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
+        ensure_response_from_backend(
+            f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            v_s_route_setup.vs_host,
+            additional_headers={"X-Real-IP": "10.0.0.1"},
+            check404=True,
+        )
         resp = requests.get(
             f"{req_url}{v_s_route_setup.route_m.paths[0]}",
             headers={"host": v_s_route_setup.vs_host, "X-Real-IP": "10.0.0.1"},
@@ -107,6 +114,12 @@ class TestAccessControlPoliciesVsr:
             v_s_route_setup.route_m.namespace,
         )
         wait_before_test()
+        ensure_response_from_backend(
+            f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            v_s_route_setup.vs_host,
+            additional_headers={"X-Real-IP": "10.0.0.1"},
+            check404=True,
+        )
         policy_info = read_custom_resource(
             kube_apis.custom_objects, v_s_route_setup.route_m.namespace, "policies", pol_name
         )

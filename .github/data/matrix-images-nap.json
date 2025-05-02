@@ -1,0 +1,73 @@
+{
+  "image": [
+    "debian-plus-nap"
+  ],
+  "platforms": [
+    "linux/amd64"
+  ],
+  "target": [
+    "goreleaser",
+    "aws"
+  ],
+  "nap_modules": [
+    "dos",
+    "waf",
+    "waf,dos"
+  ],
+  "include": [
+    {
+      "image": "ubi-8-plus-nap",
+      "target": "goreleaser",
+      "platforms": "linux/amd64",
+      "nap_modules": "waf"
+    },
+    {
+      "image": "ubi-8-plus-nap-v5",
+      "target": "goreleaser",
+      "platforms": "linux/amd64",
+      "nap_modules": "waf"
+    },
+    {
+      "image": "ubi-9-plus-nap",
+      "target": "goreleaser",
+      "platforms": "linux/amd64",
+      "nap_modules": "waf"
+    },
+    {
+      "image": "ubi-9-plus-nap",
+      "target": "goreleaser",
+      "platforms": "linux/amd64",
+      "nap_modules": "dos"
+    },
+    {
+      "image": "ubi-9-plus-nap",
+      "target": "goreleaser",
+      "platforms": "linux/amd64",
+      "nap_modules": "waf,dos"
+    },
+    {
+      "image": "alpine-plus-nap-fips",
+      "target": "goreleaser",
+      "platforms": "linux/amd64",
+      "nap_modules": "waf"
+    },
+    {
+      "image": "alpine-plus-nap-v5-fips",
+      "target": "goreleaser",
+      "platforms": "linux/amd64",
+      "nap_modules": "waf"
+    },
+    {
+      "image": "debian-plus-nap-v5",
+      "target": "goreleaser",
+      "platforms": "linux/amd64",
+      "nap_modules": "waf"
+    },
+    {
+      "image": "ubi-9-plus-nap-v5",
+      "target": "goreleaser",
+      "platforms": "linux/amd64",
+      "nap_modules": "waf"
+    }
+  ]
+}

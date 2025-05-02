@@ -1,10 +1,13 @@
 """Describe project shared pytest fixtures related to setup of ingress controller."""
 
+import os
+import subprocess
 import time
 
 import pytest
 from kubernetes.client.rest import ApiException
-from settings import CRDS, DEPLOYMENTS, TEST_DATA
+from kubernetes.stream import stream
+from settings import CRDS, DEPLOYMENTS, NGX_REG, TEST_DATA
 from suite.utils.custom_resources_utils import create_crd_from_yaml, delete_crd
 from suite.utils.resources_utils import (
     cleanup_rbac,
@@ -12,11 +15,13 @@ from suite.utils.resources_utils import (
     configure_rbac_with_dos,
     create_dos_arbitrator,
     create_ingress_controller,
+    create_ingress_controller_wafv5,
     create_items_from_yaml,
     delete_dos_arbitrator,
     delete_ingress_controller,
     delete_items_from_yaml,
     ensure_connection_to_public_endpoint,
+    get_first_pod_name,
     patch_rbac,
     replace_configmap_from_yaml,
     wait_until_all_pods_are_ready,
@@ -102,7 +107,7 @@ def crd_ingress_controller(
             ingress_controller_endpoint.port,
             ingress_controller_endpoint.port_ssl,
         )
-    except ApiException as ex:
+    except ApiException:
         # Finalizer method doesn't start if fixture creation was incomplete, ensure clean up here
         print("Restore the ClusterRole:")
         patch_rbac(kube_apis.rbac_v1, f"{DEPLOYMENTS}/rbac/rbac.yaml")
@@ -223,6 +228,159 @@ def crd_ingress_controller_with_ap(
 
 
 @pytest.fixture(scope="class")
+def crd_ingress_controller_with_waf_v5(
+    cli_arguments, kube_apis, ingress_controller_prerequisites, ingress_controller_endpoint, request, crds
+) -> None:
+    """
+    Create an Ingress Controller with WAF v5.
+    :param crds: the common IC crds.
+    :param cli_arguments: pytest context
+    :param kube_apis: client apis
+    :param ingress_controller_prerequisites
+    :param ingress_controller_endpoint:
+    :param request: pytest fixture to parametrize this method
+        {extra_args: }
+        'extra_args' list of IC arguments
+    :return:
+    """
+    dir = f"{TEST_DATA}/ap-waf-v5"  # directory with WAFv5 bundle generated in setup-smoke workflow
+    assert os.path.isfile(f"{dir}/wafv5.tgz")
+
+    namespace = ingress_controller_prerequisites.namespace
+    name = "nginx-ingress"
+    user = request.config.getoption("--docker-registry-user")
+    token = request.config.getoption("--docker-registry-token")
+    subprocess.run(
+        [
+            "kubectl",
+            "create",
+            "secret",
+            "-n",
+            f"{namespace}",
+            "docker-registry",
+            "regcred",
+            f"--docker-server={NGX_REG}",
+            f"--docker-username={user}",
+            f"--docker-password={token}",
+        ]
+    )
+
+    rbac = None
+    try:
+        print("--------------------Create roles and bindings for AppProtect------------------------")
+        rbac = configure_rbac_with_ap(kube_apis.rbac_v1)
+
+        print("------------------------- Register AP CRD -----------------------------------")
+        ap_pol_crd_name = get_name_from_yaml(f"{CRDS}/appprotect.f5.com_appolicies.yaml")
+        ap_log_crd_name = get_name_from_yaml(f"{CRDS}/appprotect.f5.com_aplogconfs.yaml")
+        ap_uds_crd_name = get_name_from_yaml(f"{CRDS}/appprotect.f5.com_apusersigs.yaml")
+        create_crd_from_yaml(
+            kube_apis.api_extensions_v1,
+            ap_pol_crd_name,
+            f"{CRDS}/appprotect.f5.com_appolicies.yaml",
+        )
+        create_crd_from_yaml(
+            kube_apis.api_extensions_v1,
+            ap_log_crd_name,
+            f"{CRDS}/appprotect.f5.com_aplogconfs.yaml",
+        )
+        create_crd_from_yaml(
+            kube_apis.api_extensions_v1,
+            ap_uds_crd_name,
+            f"{CRDS}/appprotect.f5.com_apusersigs.yaml",
+        )
+        if request.param["type"] == "rorfs":  # WAFv5 with readOnlyRootFileSystem
+            name = create_ingress_controller_wafv5(
+                kube_apis.v1,
+                kube_apis.apps_v1_api,
+                cli_arguments,
+                namespace,
+                "regcred",
+                request.param.get("extra_args", None),
+                True,
+            )
+        else:
+            name = create_ingress_controller_wafv5(
+                kube_apis.v1,
+                kube_apis.apps_v1_api,
+                cli_arguments,
+                namespace,
+                "regcred",
+                request.param.get("extra_args", None),
+            )
+        try:
+            with open(f"{dir}/wafv5.tgz", "rb") as f:
+                file_content = f.read()
+            exec_command = ["sh", "-c", f"cat > /etc/app_protect/bundles/wafv5.tgz"]
+            pod_name = get_first_pod_name(kube_apis.v1, namespace)
+            container_name = f"nginx-plus-ingress"
+            resp = stream(
+                kube_apis.v1.connect_get_namespaced_pod_exec,
+                pod_name,
+                namespace,
+                container=container_name,
+                command=exec_command,
+                stderr=True,
+                stdin=True,
+                stdout=True,
+                tty=False,
+                _preload_content=False,
+            )
+            resp.write_stdin(file_content)
+            resp.close()
+
+        except Exception as ex:
+            pytest.fail(f"Failed to copy WAFv5 bundle into the pod: {ex}")
+
+        ensure_connection_to_public_endpoint(
+            ingress_controller_endpoint.public_ip,
+            ingress_controller_endpoint.port,
+            ingress_controller_endpoint.port_ssl,
+        )
+    except Exception as ex:
+        print(f"Failed to complete CRD IC fixture: {ex}\nClean up the cluster as much as possible.")
+        delete_crd(
+            kube_apis.api_extensions_v1,
+            ap_pol_crd_name,
+        )
+        delete_crd(
+            kube_apis.api_extensions_v1,
+            ap_log_crd_name,
+        )
+        delete_crd(
+            kube_apis.api_extensions_v1,
+            ap_uds_crd_name,
+        )
+        print("Remove ap-rbac")
+        cleanup_rbac(kube_apis.rbac_v1, rbac)
+
+        print("Remove the IC:")
+        delete_ingress_controller(kube_apis.apps_v1_api, name, cli_arguments["deployment-type"], namespace)
+        pytest.fail("IC setup failed")
+
+    def fin():
+        if request.config.getoption("--skip-fixture-teardown") == "no":
+            delete_crd(
+                kube_apis.api_extensions_v1,
+                ap_pol_crd_name,
+            )
+            delete_crd(
+                kube_apis.api_extensions_v1,
+                ap_log_crd_name,
+            )
+            delete_crd(
+                kube_apis.api_extensions_v1,
+                ap_uds_crd_name,
+            )
+            print("Remove ap-rbac")
+            cleanup_rbac(kube_apis.rbac_v1, rbac)
+            print("Delete IC:")
+            delete_ingress_controller(kube_apis.apps_v1_api, name, cli_arguments["deployment-type"], namespace)
+
+    request.addfinalizer(fin)
+
+
+@pytest.fixture(scope="class")
 def crd_ingress_controller_with_dos(
     cli_arguments, kube_apis, ingress_controller_prerequisites, ingress_controller_endpoint, request, crds
 ) -> None:
@@ -267,13 +425,17 @@ def crd_ingress_controller_with_dos(
 
         print("------------------------- Create syslog svc -----------------------")
         src_syslog_yaml = f"{TEST_DATA}/dos/dos-syslog.yaml"
-        log_loc = f"/var/log/messages"
         create_items_from_yaml(kube_apis, src_syslog_yaml, namespace)
+
+        print("------------------------- Create accesslog svc -----------------------")
+        src_accesslog_yaml = f"{TEST_DATA}/dos/dos-accesslog.yaml"
+        create_items_from_yaml(kube_apis, src_accesslog_yaml, namespace)
+
         before = time.time()
         wait_until_all_pods_are_ready(kube_apis.v1, namespace)
         after = time.time()
         print(f"All pods came up in {int(after-before)} seconds")
-        print(f"syslog svc was created")
+        print(f"syslog and accesslog svc was created")
 
         print("------------------------- Create dos arbitrator -----------------------")
         dos_arbitrator_name = create_dos_arbitrator(
@@ -342,6 +504,8 @@ def crd_ingress_controller_with_dos(
             delete_ingress_controller(kube_apis.apps_v1_api, name, cli_arguments["deployment-type"], namespace)
             print("Remove the syslog svc:")
             delete_items_from_yaml(kube_apis, src_syslog_yaml, namespace)
+            print("Remove the accesslog svc:")
+            delete_items_from_yaml(kube_apis, src_accesslog_yaml, namespace)
 
     request.addfinalizer(fin)
 
@@ -397,7 +561,7 @@ def crd_ingress_controller_with_ed(
             ingress_controller_prerequisites.namespace,
             cm_source,
         )
-    except ApiException as ex:
+    except ApiException:
         # Finalizer method doesn't start if fixture creation was incomplete, ensure clean up here
         print("Restore the ClusterRole:")
         patch_rbac(kube_apis.rbac_v1, f"{DEPLOYMENTS}/rbac/rbac.yaml")

@@ -38,9 +38,9 @@ import (
 	cmfake "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned/fake"
 	informers "github.com/cert-manager/cert-manager/pkg/client/informers/externalversions"
 	"github.com/cert-manager/cert-manager/pkg/util"
-	k8s_nginx "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned"
-	vsfake "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned/fake"
-	vsinformers "github.com/nginxinc/kubernetes-ingress/pkg/client/informers/externalversions"
+	k8s_nginx "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned"
+	vsfake "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/fake"
+	vsinformers "github.com/nginx/kubernetes-ingress/pkg/client/informers/externalversions"
 )
 
 // Builder is a structure used to construct new Contexts for use during tests.
@@ -174,10 +174,10 @@ func (b *Builder) CheckAndFinish(args ...interface{}) {
 		b.T.Errorf("Not all expected reactors were called: %v", err)
 	}
 	if err := b.AllActionsExecuted(); err != nil {
-		b.T.Errorf(err.Error())
+		b.T.Error(err.Error())
 	}
 	if err := b.AllEventsCalled(); err != nil {
-		b.T.Errorf(err.Error())
+		b.T.Error(err.Error())
 	}
 
 	// resync listers before running checks

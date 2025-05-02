@@ -204,7 +204,7 @@ class TestTransportServerUdpLoadBalance:
             response["status"]
             and response["status"]["reason"] == "Rejected"
             and response["status"]["state"] == "Warning"
-            and response["status"]["message"] == "Listener udp-server is taken by another resource"
+            and response["status"]["message"] == "Listener udp-server with host empty host is taken by another resource"
         )
 
         # Step 3, remove the default TransportServer with the same port

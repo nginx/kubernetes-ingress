@@ -1,6 +1,7 @@
 package secrets
 
 import (
+	"encoding/base64"
 	"testing"
 
 	v1 "k8s.io/api/core/v1"
@@ -61,6 +62,85 @@ func TestValidateJWKSecretFails(t *testing.T) {
 		err := ValidateJWKSecret(test.secret)
 		if err == nil {
 			t.Errorf("ValidateJWKSecret() returned no error for the case of %s", test.msg)
+		}
+	}
+}
+
+func TestValidateValidateAPIKeySecret(t *testing.T) {
+	t.Parallel()
+	secret := &v1.Secret{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "api-key-secret",
+			Namespace: "default",
+		},
+		Type: SecretTypeAPIKey,
+		Data: map[string][]byte{
+			"client1": []byte("cGFzc3dvcmQ="),
+			"client2": []byte("N2ViNDMwOGItY2Q1Yi00NDEzLWI0NTUtYjMyZmQ4OTg2MmZk"),
+		},
+	}
+
+	err := ValidateAPIKeySecret(secret)
+	if err != nil {
+		t.Errorf("ValidateAPIKeySecret() returned error %v", err)
+	}
+}
+
+func TestValidateValidateAPIKeyFails(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		secret *v1.Secret
+		msg    string
+	}{
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "api-key-secret",
+					Namespace: "default",
+				},
+				Type: "some-type",
+				Data: map[string][]byte{
+					"client": nil,
+				},
+			},
+			msg: "Incorrect type for API Key secret",
+		},
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "api-key-secret",
+					Namespace: "default",
+				},
+				Type: SecretTypeAPIKey,
+				Data: map[string][]byte{
+					"client1": []byte("cGFzc3dvcmQ="),
+					"client2": []byte("N2ViNDMwOGItY2Q1Yi00NDEzLWI0NTUtYjMyZmQ4OTg2MmZk"),
+					"client3": []byte("N2ViNDMwOGItY2Q1Yi00NDEzLWI0NTUtYjMyZmQ4OTg2MmZk"),
+				},
+			},
+			msg: "repeated API Keys for API Key secret",
+		},
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "api-key-secret",
+					Namespace: "default",
+				},
+				Type: SecretTypeAPIKey,
+				Data: map[string][]byte{
+					"client1": []byte(""),
+					"client2": []byte(""),
+				},
+			},
+			msg: "repeated empty API Keys for API Key secret",
+		},
+	}
+
+	for _, test := range tests {
+		err := ValidateAPIKeySecret(test.secret)
+		t.Logf("ValidateAPIKeySecret() returned error %v", err)
+		if err == nil {
+			t.Errorf("ValidateAPIKeySecret() returned no error for the case of %s", test.msg)
 		}
 	}
 }
@@ -378,6 +458,64 @@ func TestValidateOIDCSecretFails(t *testing.T) {
 	}
 }
 
+func TestValidateLicenseSecret(t *testing.T) {
+	t.Parallel()
+	secret := &v1.Secret{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "license-token",
+			Namespace: "default",
+		},
+		Type: SecretTypeLicense,
+		Data: map[string][]byte{
+			"license.jwt": []byte(base64.StdEncoding.EncodeToString([]byte("license-token"))),
+		},
+	}
+
+	err := ValidateLicenseSecret(secret)
+	if err != nil {
+		t.Errorf("ValidateLicenseSecret() returned error %v", err)
+	}
+}
+
+func TestValidateLicenseSecretFails(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		secret *v1.Secret
+		msg    string
+	}{
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "license-token",
+					Namespace: "default",
+				},
+				Type: "some-type",
+				Data: map[string][]byte{
+					"license.jwt": []byte(base64.StdEncoding.EncodeToString([]byte("license-token"))),
+				},
+			},
+			msg: "Incorrect type for license secret",
+		},
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "license-token",
+					Namespace: "default",
+				},
+				Type: SecretTypeLicense,
+			},
+			msg: "Missing license.jwt for license secret",
+		},
+	}
+
+	for _, test := range tests {
+		err := ValidateLicenseSecret(test.secret)
+		if err == nil {
+			t.Errorf("ValidateLicenseSecret() returned no error for the case of %s", test.msg)
+		}
+	}
+}
+
 func TestValidateSecret(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -450,6 +588,19 @@ func TestValidateSecret(t *testing.T) {
 			},
 			msg: "Valid OIDC secret",
 		},
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "api-key",
+					Namespace: "default",
+				},
+				Type: SecretTypeAPIKey,
+				Data: map[string][]byte{
+					"client1": []byte("cGFzc3dvcmQ="),
+				},
+			},
+			msg: "Valid API Key secret",
+		},
 	}
 
 	for _, test := range tests {
@@ -509,6 +660,20 @@ func TestValidateSecretFails(t *testing.T) {
 			},
 			msg: "Missing htpasswd for Htpasswd secret",
 		},
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "api-key",
+					Namespace: "default",
+				},
+				Type: SecretTypeAPIKey,
+				Data: map[string][]byte{
+					"client1": []byte("cGFzc3dvcmQ="),
+					"client2": []byte("cGFzc3dvcmQ="),
+				},
+			},
+			msg: "duplicated API Keys in API Key secret",
+		},
 	}
 
 	for _, test := range tests {
@@ -543,6 +708,10 @@ func TestHasCorrectSecretType(t *testing.T) {
 		},
 		{
 			secretType: SecretTypeHtpasswd,
+			expected:   true,
+		},
+		{
+			secretType: SecretTypeAPIKey,
 			expected:   true,
 		},
 		{

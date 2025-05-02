@@ -1,12 +1,15 @@
 package nginx
 
 import (
+	"log/slog"
 	"net/http"
 	"os"
 	"path"
 
-	"github.com/golang/glog"
-	"github.com/nginxinc/nginx-plus-go-client/client"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	nic_glog "github.com/nginx/kubernetes-ingress/internal/logger/glog"
+	"github.com/nginx/kubernetes-ingress/internal/logger/levels"
+	"github.com/nginx/nginx-plus-go-client/v2/client"
 )
 
 // FakeManager provides a fake implementation of the Manager interface.
@@ -14,6 +17,7 @@ type FakeManager struct {
 	confdPath       string
 	secretsPath     string
 	dhparamFilename string
+	logger          *slog.Logger
 }
 
 // NewFakeManager creates a FakeManager.
@@ -22,71 +26,72 @@ func NewFakeManager(confPath string) *FakeManager {
 		confdPath:       path.Join(confPath, "conf.d"),
 		secretsPath:     path.Join(confPath, "secrets"),
 		dhparamFilename: path.Join(confPath, "secrets", "dhparam.pem"),
+		logger:          slog.New(nic_glog.New(os.Stdout, &nic_glog.Options{Level: levels.LevelInfo})),
 	}
 }
 
 // CreateMainConfig provides a fake implementation of CreateMainConfig.
-func (*FakeManager) CreateMainConfig(content []byte) bool {
-	glog.V(3).Info("Writing main config")
-	glog.V(3).Info(string(content))
+func (fm *FakeManager) CreateMainConfig(content []byte) bool {
+	nl.Debug(fm.logger, "Writing main config")
+	nl.Debug(fm.logger, string(content))
 	return true
 }
 
 // CreateConfig provides a fake implementation of CreateConfig.
-func (*FakeManager) CreateConfig(name string, content []byte) bool {
-	glog.V(3).Infof("Writing config %v", name)
-	glog.V(3).Info(string(content))
+func (fm *FakeManager) CreateConfig(name string, content []byte) bool {
+	nl.Debugf(fm.logger, "Writing config %v", name)
+	nl.Debug(fm.logger, string(content))
 	return true
 }
 
 // CreateAppProtectResourceFile provides a fake implementation of CreateAppProtectResourceFile
-func (*FakeManager) CreateAppProtectResourceFile(name string, content []byte) {
-	glog.V(3).Infof("Writing Ap Resource File %v", name)
-	glog.V(3).Info(string(content))
+func (fm *FakeManager) CreateAppProtectResourceFile(name string, content []byte) {
+	nl.Debugf(fm.logger, "Writing Ap Resource File %v", name)
+	nl.Debug(fm.logger, string(content))
 }
 
 // DeleteAppProtectResourceFile provides a fake implementation of DeleteAppProtectResourceFile
-func (*FakeManager) DeleteAppProtectResourceFile(name string) {
-	glog.V(3).Infof("Deleting Ap Resource File %v", name)
+func (fm *FakeManager) DeleteAppProtectResourceFile(name string) {
+	nl.Debugf(fm.logger, "Deleting Ap Resource File %v", name)
 }
 
 // ClearAppProtectFolder provides a fake implementation of ClearAppProtectFolder
-func (*FakeManager) ClearAppProtectFolder(name string) {
-	glog.V(3).Infof("Deleting Ap Resource folder %v", name)
+func (fm *FakeManager) ClearAppProtectFolder(name string) {
+	nl.Debugf(fm.logger, "Deleting Ap Resource folder %v", name)
 }
 
 // DeleteConfig provides a fake implementation of DeleteConfig.
-func (*FakeManager) DeleteConfig(name string) {
-	glog.V(3).Infof("Deleting config %v", name)
+func (fm *FakeManager) DeleteConfig(name string) {
+	nl.Debugf(fm.logger, "Deleting config %v", name)
 }
 
 // CreateStreamConfig provides a fake implementation of CreateStreamConfig.
-func (*FakeManager) CreateStreamConfig(name string, content []byte) bool {
-	glog.V(3).Infof("Writing stream config %v", name)
-	glog.V(3).Info(string(content))
+func (fm *FakeManager) CreateStreamConfig(name string, content []byte) bool {
+	nl.Debugf(fm.logger, "Writing stream config %v", name)
+	nl.Debug(fm.logger, string(content))
 	return true
 }
 
 // DeleteStreamConfig provides a fake implementation of DeleteStreamConfig.
-func (*FakeManager) DeleteStreamConfig(name string) {
-	glog.V(3).Infof("Deleting stream config %v", name)
+func (fm *FakeManager) DeleteStreamConfig(name string) {
+	nl.Debugf(fm.logger, "Deleting stream config %v", name)
 }
 
 // CreateTLSPassthroughHostsConfig provides a fake implementation of CreateTLSPassthroughHostsConfig.
-func (*FakeManager) CreateTLSPassthroughHostsConfig(_ []byte) bool {
-	glog.V(3).Infof("Writing TLS Passthrough Hosts config file")
+func (fm *FakeManager) CreateTLSPassthroughHostsConfig(_ []byte) bool {
+	nl.Debugf(fm.logger, "Writing TLS Passthrough Hosts config file")
 	return false
 }
 
 // CreateSecret provides a fake implementation of CreateSecret.
 func (fm *FakeManager) CreateSecret(name string, _ []byte, _ os.FileMode) string {
-	glog.V(3).Infof("Writing secret %v", name)
+	nl.Debugf(fm.logger, "Writing secret %v", name)
 	return fm.GetFilenameForSecret(name)
 }
 
 // DeleteSecret provides a fake implementation of DeleteSecret.
-func (*FakeManager) DeleteSecret(name string) {
-	glog.V(3).Infof("Deleting secret %v", name)
+func (fm *FakeManager) DeleteSecret(name string) {
+	nl.Debugf(fm.logger, "Deleting secret %v", name)
 }
 
 // GetFilenameForSecret provides a fake implementation of GetFilenameForSecret.
@@ -96,35 +101,35 @@ func (fm *FakeManager) GetFilenameForSecret(name string) string {
 
 // CreateDHParam provides a fake implementation of CreateDHParam.
 func (fm *FakeManager) CreateDHParam(_ string) (string, error) {
-	glog.V(3).Infof("Writing dhparam file")
+	nl.Debugf(fm.logger, "Writing dhparam file")
 	return fm.dhparamFilename, nil
 }
 
 // Version provides a fake implementation of Version.
-func (*FakeManager) Version() Version {
-	glog.V(3).Info("Printing nginx version")
+func (fm *FakeManager) Version() Version {
+	nl.Debug(fm.logger, "Printing nginx version")
 	return NewVersion("nginx version: nginx/1.25.3 (nginx-plus-r31)")
 }
 
 // Start provides a fake implementation of Start.
-func (*FakeManager) Start(_ chan error) {
-	glog.V(3).Info("Starting nginx")
+func (fm *FakeManager) Start(_ chan error) {
+	nl.Debug(fm.logger, "Starting nginx")
 }
 
 // Reload provides a fake implementation of Reload.
-func (*FakeManager) Reload(_ bool) error {
-	glog.V(3).Infof("Reloading nginx")
+func (fm *FakeManager) Reload(_ bool) error {
+	nl.Debugf(fm.logger, "Reloading nginx")
 	return nil
 }
 
 // Quit provides a fake implementation of Quit.
-func (*FakeManager) Quit() {
-	glog.V(3).Info("Quitting nginx")
+func (fm *FakeManager) Quit() {
+	nl.Debug(fm.logger, "Quitting nginx")
 }
 
 // UpdateConfigVersionFile provides a fake implementation of UpdateConfigVersionFile.
-func (*FakeManager) UpdateConfigVersionFile(_ bool) {
-	glog.V(3).Infof("Writing config version")
+func (fm *FakeManager) UpdateConfigVersionFile() {
+	nl.Debugf(fm.logger, "Writing config version")
 }
 
 // SetPlusClients provides a fake implementation of SetPlusClients.
@@ -132,60 +137,49 @@ func (*FakeManager) SetPlusClients(_ *client.NginxClient, _ *http.Client) {
 }
 
 // UpdateServersInPlus provides a fake implementation of UpdateServersInPlus.
-func (*FakeManager) UpdateServersInPlus(upstream string, servers []string, _ ServerConfig) error {
-	glog.V(3).Infof("Updating servers of %v: %v", upstream, servers)
+func (fm *FakeManager) UpdateServersInPlus(upstream string, servers []string, _ ServerConfig) error {
+	nl.Debugf(fm.logger, "Updating servers of %v: %v", upstream, servers)
 	return nil
 }
 
 // UpdateStreamServersInPlus provides a fake implementation of UpdateStreamServersInPlus.
-func (*FakeManager) UpdateStreamServersInPlus(upstream string, servers []string) error {
-	glog.V(3).Infof("Updating stream servers of %v: %v", upstream, servers)
+func (fm *FakeManager) UpdateStreamServersInPlus(upstream string, servers []string) error {
+	nl.Debugf(fm.logger, "Updating stream servers of %v: %v", upstream, servers)
 	return nil
-}
-
-// CreateOpenTracingTracerConfig creates a fake implementation of CreateOpenTracingTracerConfig.
-func (*FakeManager) CreateOpenTracingTracerConfig(_ string) error {
-	glog.V(3).Infof("Writing OpenTracing tracer config file")
-
-	return nil
-}
-
-// SetOpenTracing creates a fake implementation of SetOpenTracing.
-func (*FakeManager) SetOpenTracing(_ bool) {
 }
 
 // AppProtectPluginStart is a fake implementation AppProtectPluginStart
-func (*FakeManager) AppProtectPluginStart(_ chan error, _ string) {
-	glog.V(3).Infof("Starting FakeAppProtectPlugin")
+func (fm *FakeManager) AppProtectPluginStart(_ chan error, _ string) {
+	nl.Debugf(fm.logger, "Starting FakeAppProtectPlugin")
 }
 
 // AppProtectPluginQuit is a fake implementation AppProtectPluginQuit
-func (*FakeManager) AppProtectPluginQuit() {
-	glog.V(3).Infof("Quitting FakeAppProtectPlugin")
+func (fm *FakeManager) AppProtectPluginQuit() {
+	nl.Debugf(fm.logger, "Quitting FakeAppProtectPlugin")
 }
 
 // AppProtectDosAgentQuit is a fake implementation AppProtectAgentQuit
-func (*FakeManager) AppProtectDosAgentQuit() {
-	glog.V(3).Infof("Quitting FakeAppProtectDosAgent")
+func (fm *FakeManager) AppProtectDosAgentQuit() {
+	nl.Debugf(fm.logger, "Quitting FakeAppProtectDosAgent")
 }
 
 // AppProtectDosAgentStart is a fake implementation of AppProtectAgentStart
-func (*FakeManager) AppProtectDosAgentStart(_ chan error, _ bool, _ int, _ int, _ int) {
-	glog.V(3).Infof("Starting FakeAppProtectDosAgent")
+func (fm *FakeManager) AppProtectDosAgentStart(_ chan error, _ bool, _ int, _ int, _ int) {
+	nl.Debugf(fm.logger, "Starting FakeAppProtectDosAgent")
 }
 
 // AgentQuit is a fake implementation AppProtectAgentQuit
-func (*FakeManager) AgentQuit() {
-	glog.V(3).Infof("Quitting FakeAgent")
+func (fm *FakeManager) AgentQuit() {
+	nl.Debugf(fm.logger, "Quitting FakeAgent")
 }
 
 // AgentStart is a fake implementation of AppProtectAgentStart
-func (*FakeManager) AgentStart(_ chan error, _ string) {
-	glog.V(3).Infof("Starting FakeAgent")
+func (fm *FakeManager) AgentStart(_ chan error, _ string) {
+	nl.Debugf(fm.logger, "Starting FakeAgent")
 }
 
 // AgentVersion is a fake implementation of AppProtectAgentStart
-func (*FakeManager) AgentVersion() string {
+func (fm *FakeManager) AgentVersion() string {
 	return "v0.00.0-00000000"
 }
 
@@ -196,10 +190,10 @@ func (fm *FakeManager) GetSecretsDir() string {
 
 // UpsertSplitClientsKeyVal is a fake implementation of UpsertSplitClientsKeyVal
 func (fm *FakeManager) UpsertSplitClientsKeyVal(_ string, _ string, _ string) {
-	glog.V(3).Infof("Creating split clients key")
+	nl.Debugf(fm.logger, "Creating split clients key")
 }
 
 // DeleteKeyValStateFiles is a fake implementation of DeleteKeyValStateFiles
 func (fm *FakeManager) DeleteKeyValStateFiles(_ string) {
-	glog.V(3).Infof("Deleting keyval state files")
+	nl.Debugf(fm.logger, "Deleting keyval state files")
 }

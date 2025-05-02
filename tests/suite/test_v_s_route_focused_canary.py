@@ -116,6 +116,7 @@ def vsr_canary_setup(
 
 @pytest.mark.flaky(max_runs=3)
 @pytest.mark.vsr
+@pytest.mark.vsr_canary
 @pytest.mark.parametrize(
     "crd_ingress_controller, vsr_canary_setup",
     [

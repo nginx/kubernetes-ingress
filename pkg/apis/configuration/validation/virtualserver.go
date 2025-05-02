@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/dlclark/regexp2"
-	"github.com/nginxinc/kubernetes-ingress/internal/configs"
-	v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
+	"github.com/nginx/kubernetes-ingress/internal/configs"
+	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"

@@ -1,7 +1,4 @@
 import json
-import re
-import subprocess
-from datetime import datetime
 
 import pytest
 import requests

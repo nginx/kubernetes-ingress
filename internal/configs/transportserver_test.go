@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/nginxinc/kubernetes-ingress/internal/configs/version2"
-	"github.com/nginxinc/kubernetes-ingress/internal/k8s/secrets"
-	conf_v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
+	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	api_v1 "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -524,6 +524,7 @@ func TestGenerateTransportServerConfigForTLSPassthrough(t *testing.T) {
 			Port:                     2020,
 			UDP:                      false,
 			StatusZone:               "example.com",
+			ServerName:               "",
 			ProxyPass:                "ts_default_tcp-server_tcp-app",
 			Name:                     "tcp-server",
 			Namespace:                "default",
@@ -642,6 +643,7 @@ func TestGenerateTransportServerConfigForBackupServiceNGINXPlus(t *testing.T) {
 			Port:                     2020,
 			UDP:                      false,
 			StatusZone:               "example.com",
+			ServerName:               "",
 			ProxyPass:                "ts_default_tcp-server_tcp-app",
 			Name:                     "tcp-server",
 			Namespace:                "default",
@@ -715,6 +717,7 @@ func TestGenerateTransportServerConfig_DoesNotGenerateBackupOnMissingBackupName(
 			Port:                     2020,
 			UDP:                      false,
 			StatusZone:               "example.com",
+			ServerName:               "",
 			ProxyPass:                "ts_default_tcp-server_tcp-app",
 			Name:                     "tcp-server",
 			Namespace:                "default",
@@ -789,6 +792,7 @@ func TestGenerateTransportServerConfig_DoesNotGenerateBackupOnMissingBackupPort(
 			Port:                     2020,
 			UDP:                      false,
 			StatusZone:               "example.com",
+			ServerName:               "",
 			ProxyPass:                "ts_default_tcp-server_tcp-app",
 			Name:                     "tcp-server",
 			Namespace:                "default",
@@ -863,6 +867,7 @@ func TestGenerateTransportServerConfig_DoesNotGenerateBackupOnMissingBackupPortA
 			Port:                     2020,
 			UDP:                      false,
 			StatusZone:               "example.com",
+			ServerName:               "",
 			ProxyPass:                "ts_default_tcp-server_tcp-app",
 			Name:                     "tcp-server",
 			Namespace:                "default",
@@ -1282,6 +1287,123 @@ func TestGenerateTransportServerConfig_UsesNotExistignSocketOnNotPlusAndNoEndpoi
 	}
 	if !cmp.Equal(expected, result) {
 		t.Error(cmp.Diff(expected, result))
+	}
+}
+
+func TestGenerateTransportServerConfigForTCPWithTLSWithHost(t *testing.T) {
+	t.Parallel()
+	transportServerEx := TransportServerEx{
+		TransportServer: &conf_v1.TransportServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "tcp-server",
+				Namespace: "default",
+			},
+			Spec: conf_v1.TransportServerSpec{
+				Host: "cafe.example.com",
+				Listener: conf_v1.TransportServerListener{
+					Name:     "tcp-listener",
+					Protocol: "TCP",
+				},
+				TLS: &conf_v1.TransportServerTLS{
+					Secret: "my-secret",
+				},
+				Upstreams: []conf_v1.TransportServerUpstream{
+					{
+						Name:        "tcp-app",
+						Service:     "tcp-app-svc",
+						Port:        5001,
+						MaxFails:    intPointer(3),
+						FailTimeout: "40s",
+					},
+				},
+				UpstreamParameters: &conf_v1.UpstreamParameters{
+					ConnectTimeout: "30s",
+					NextUpstream:   false,
+				},
+				SessionParameters: &conf_v1.SessionParameters{
+					Timeout: "50s",
+				},
+				Action: &conf_v1.TransportServerAction{
+					Pass: "tcp-app",
+				},
+			},
+		},
+		Endpoints: map[string][]string{
+			"default/tcp-app-svc:5001": {
+				"10.0.0.20:5001",
+			},
+		},
+		DisableIPV6: false,
+		SecretRefs: map[string]*secrets.SecretReference{
+			"default/my-secret": {
+				Secret: &api_v1.Secret{
+					Type: api_v1.SecretTypeTLS,
+				},
+				Path: "/etc/nginx/secrets/default-my-secret",
+			},
+		},
+	}
+
+	listenerPort := 2020
+
+	expected := &version2.TransportServerConfig{
+		Upstreams: []version2.StreamUpstream{
+			{
+				Name: "ts_default_tcp-server_tcp-app",
+				Servers: []version2.StreamUpstreamServer{
+					{
+						Address:     "10.0.0.20:5001",
+						MaxFails:    3,
+						FailTimeout: "40s",
+					},
+				},
+				UpstreamLabels: version2.UpstreamLabels{
+					ResourceName:      "tcp-server",
+					ResourceType:      "transportserver",
+					ResourceNamespace: "default",
+					Service:           "tcp-app-svc",
+				},
+				LoadBalancingMethod: "random two least_conn",
+			},
+		},
+		Server: version2.StreamServer{
+			Port:                     2020,
+			UDP:                      false,
+			StatusZone:               "tcp-listener",
+			ServerName:               "cafe.example.com",
+			ProxyPass:                "ts_default_tcp-server_tcp-app",
+			Name:                     "tcp-server",
+			Namespace:                "default",
+			ProxyConnectTimeout:      "30s",
+			ProxyNextUpstream:        false,
+			ProxyNextUpstreamTries:   0,
+			ProxyNextUpstreamTimeout: "0s",
+			ProxyTimeout:             "50s",
+			HealthCheck:              nil,
+			ServerSnippets:           []string{},
+			SSL: &version2.StreamSSL{
+				Enabled:        true,
+				Certificate:    "/etc/nginx/secrets/default-my-secret",
+				CertificateKey: "/etc/nginx/secrets/default-my-secret",
+			},
+		},
+		StreamSnippets: []string{},
+		StaticSSLPath:  "/etc/nginx/secret",
+	}
+
+	result, warnings := generateTransportServerConfig(transportServerConfigParams{
+		transportServerEx:      &transportServerEx,
+		listenerPort:           listenerPort,
+		isPlus:                 true,
+		isResolverConfigured:   false,
+		isDynamicReloadEnabled: false,
+		staticSSLPath:          "/etc/nginx/secret",
+	})
+	if len(warnings) != 0 {
+		t.Errorf("want no warnings, got %v", warnings)
+	}
+	if !cmp.Equal(expected, result) {
+		t.Errorf("generateTransportServerConfig() mismatch (-want +got):\n%s", cmp.Diff(expected, result))
 	}
 }
 

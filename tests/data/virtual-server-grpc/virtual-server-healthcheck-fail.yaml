@@ -1,0 +1,31 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: virtual-server
+spec:
+  host: virtual-server.example.com
+  tls:
+    secret: tls-secret
+  upstreams:
+  - name: grpc1
+    service: grpc1-svc
+    port: 50051
+    type: grpc
+    healthCheck:
+      enable: true
+      interval: "1s"
+      jitter: "2s"
+      port: 50051
+      grpcStatus: 0 # This should faill the health check, as an implemented service will not return 0, which means OK
+      grpcService: "none.None"
+  - name: grpc2
+    service: grpc2-svc
+    port: 50051
+    type: grpc
+  routes:
+  - path: "/helloworld.Greeter"
+    action:
+      pass: grpc1
+  - path: "/notimplemented"
+    action:
+      pass: grpc2

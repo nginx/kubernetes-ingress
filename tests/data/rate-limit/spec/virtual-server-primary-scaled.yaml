@@ -1,0 +1,22 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: virtual-server
+spec:
+  host: virtual-server.example.com
+  policies:
+  - name: rate-limit-primary-scaled
+  upstreams:
+  - name: backend2
+    service: backend2-svc
+    port: 80
+  - name: backend1
+    service: backend1-svc
+    port: 80
+  routes:
+  - path: "/backend1"
+    action:
+      pass: backend1
+  - path: "/backend2"
+    action:
+      pass: backend2

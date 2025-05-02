@@ -70,7 +70,6 @@ balancing for that application using the Ingress resource with rate-limiting con
     <head><title>429 Too Many Requests</title></head>
     <body>
     <center><h1>429 Too Many Requests</h1></center>
-    <hr><center>nginx/1.25.4</center>
     </body>
     </html>
     ```

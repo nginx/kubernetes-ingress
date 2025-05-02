@@ -1,0 +1,17 @@
+apiVersion: k8s.nginx.org/v1
+kind: TransportServer
+metadata:
+  name: cafe-ts
+spec:
+  host: cafe.example.com
+  listener:
+    name: tcp-listener
+    protocol: TCP
+  tls:
+    secret: cafe-secret
+  upstreams:
+    - name: tcp-echo
+      service: tcp-echo-service
+      port: 7000
+  action:
+    pass: tcp-echo

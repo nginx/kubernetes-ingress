@@ -6,7 +6,7 @@ ROOTDIR=$(git rev-parse --show-toplevel || echo ".")
 TMPDIR=/tmp
 DEBUG=${DEBUG:-"false"}
 
-DOCS_TO_UPDATE_FOLDER=${ROOTDIR}/docs/content
+DOCS_TO_UPDATE_FOLDER=${ROOTDIR}/site/content
 
  usage() {
     echo "Usage: $0 <ic_version> <helm_chart_version> <k8s_versions> <release_date>"

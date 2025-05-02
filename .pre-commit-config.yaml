@@ -1,13 +1,14 @@
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
-exclude: (^docs/_vendor/|.*pb2.*)
+exclude: (^site/_vendor/|.*pb2.*)
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
+    rev: v5.0.0
     hooks:
       - id: trailing-whitespace
-        exclude: '(\.md$)'
+        exclude: '(\.md|\.jwt|\.snap|\.avdl)$'
       - id: end-of-file-fixer
+        exclude: (site/layouts/shortcodes/nic-.*.html|\.jwt)
       - id: check-yaml
         args: [--allow-multiple-documents]
         exclude: ^(charts/nginx-ingress/templates)
@@ -16,6 +17,7 @@ repos:
       - id: check-merge-conflict
       - id: check-shebang-scripts-are-executable
       - id: check-executables-have-shebangs
+        exclude: '(\.snap)$'
       - id: check-symlinks
       - id: check-case-conflict
       - id: check-vcs-permalinks
@@ -43,39 +45,63 @@ repos:
         pass_filenames: false
 
   - repo: https://github.com/golangci/golangci-lint
-    rev: v1.58.2
+    rev: v2.1.5
     hooks:
       - id: golangci-lint
         args: [--new-from-patch=/tmp/diff.patch]
 
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.15.2
+    rev: v3.19.1
     hooks:
       - id: pyupgrade
 
   - repo: https://github.com/PyCQA/isort
-    rev: 5.13.2
+    rev: 6.0.1
     hooks:
       - id: isort
 
   - repo: https://github.com/psf/black
-    rev: 24.4.2
+    rev: 25.1.0
     hooks:
       - id: black
 
+  - repo: https://github.com/PyCQA/autoflake
+    rev: v2.3.1
+    hooks:
+      - id: autoflake
+        files: tests/.*\.py$
+        args:
+          [
+            "--in-place",
+            "--remove-all-unused-imports",
+            "--remove-unused-variable",
+          ]
+
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0.28.4
+    rev: 0.33.0
     hooks:
       - id: check-jsonschema
         name: "Check Helm Chart JSON Schema"
         files: charts/nginx-ingress/values.yaml
         types: [yaml]
-        args: ['--schemafile', 'charts/nginx-ingress/values.schema.json']
+        args: ["--schemafile", "charts/nginx-ingress/values.schema.json"]
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.13.0
+    rev: v0.17.2
     hooks:
-    - id: markdownlint-cli2
+      - id: markdownlint-cli2
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.7
+    hooks:
+      - id: actionlint
+        name: Lint GitHub Actions workflow files
+        description: Runs actionlint to lint GitHub Actions workflow files
+        language: golang
+        types: ["yaml"]
+        files: ^\.github/workflows/
+        entry: actionlint
+        args: ["-shellcheck", ""]
 
 ci:
   skip: [golang-diff, golangci-lint, check-jsonschema, markdownlint-cli2]

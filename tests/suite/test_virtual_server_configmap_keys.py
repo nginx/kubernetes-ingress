@@ -2,6 +2,7 @@ import pytest
 from settings import DEPLOYMENTS, TEST_DATA
 from suite.utils.resources_utils import (
     get_events,
+    get_events_for_object,
     get_file_contents,
     get_first_pod_name,
     get_pods_amount,
@@ -124,6 +125,23 @@ def assert_defaults_of_ssl_keys(config):
     assert "http2 on;" not in config
 
 
+def assert_event(event_list, event_type, reason, message_substring):
+    """
+    Assert that an event with specific type, reason, and message substring exists.
+
+    :param event_list: List of events
+    :param event_type: 'Normal' or 'Warning'
+    :param reason: Event reason
+    :param message_substring: Substring expected in the event message
+    """
+    for event in event_list:
+        if event.type == event_type and event.reason == reason and message_substring in event.message:
+            return
+    assert (
+        False
+    ), f"Expected event with type '{event_type}', reason '{reason}', and message containing '{message_substring}' not found."
+
+
 @pytest.fixture(scope="function")
 def clean_up(request, kube_apis, ingress_controller_prerequisites, test_namespace) -> None:
     """
@@ -149,6 +167,7 @@ def clean_up(request, kube_apis, ingress_controller_prerequisites, test_namespac
 
 
 @pytest.mark.vs
+@pytest.mark.vs_config_map
 @pytest.mark.parametrize(
     "crd_ingress_controller, virtual_server_setup",
     [
@@ -342,6 +361,7 @@ class TestVirtualServerConfigMapNoTls:
 
 
 @pytest.mark.vs
+@pytest.mark.vs_config_map
 @pytest.mark.parametrize(
     "crd_ingress_controller, virtual_server_setup",
     [
@@ -362,7 +382,6 @@ class TestVirtualServerConfigMapWithTls:
         virtual_server_setup,
         clean_up,
     ):
-        ic_pods_amount = get_pods_amount(kube_apis.v1, ingress_controller_prerequisites.namespace)
         ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
         initial_list = get_events(kube_apis.v1, virtual_server_setup.namespace)
 
@@ -403,3 +422,69 @@ class TestVirtualServerConfigMapWithTls:
         )
         assert_update_event_count_increased(virtual_server_setup, step_2_events, step_1_events)
         assert_defaults_of_ssl_keys(step_2_config)
+
+    def test_configmap_events(
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        crd_ingress_controller,
+        virtual_server_setup,
+        clean_up,
+    ):
+        ingress_controller_prerequisites.namespace
+        configmap_name = ingress_controller_prerequisites.config_map["metadata"]["name"]
+        configmap_namespace = ingress_controller_prerequisites.config_map["metadata"]["namespace"]
+
+        # Step 1: Update ConfigMap with valid parameters
+        print("Updating ConfigMap with valid parameters")
+        replace_configmap_from_yaml(
+            kube_apis.v1,
+            configmap_name,
+            configmap_namespace,
+            f"{TEST_DATA}/virtual-server-configmap-keys/configmap-valid.yaml",
+        )
+        wait_before_test(1)
+
+        # Get events for the ConfigMap
+        events = get_events_for_object(
+            kube_apis.v1,
+            configmap_namespace,
+            configmap_name,
+        )
+
+        assert len(events) >= 1
+
+        # Assert that the 'updated without error' event is present
+        assert_event(
+            events,
+            "Normal",
+            "Updated",
+            f"ConfigMap {configmap_namespace}/{configmap_name} updated without error",
+        )
+
+        # Step 2: Update ConfigMap with invalid parameters
+        print("Updating ConfigMap with invalid parameters")
+        replace_configmap_from_yaml(
+            kube_apis.v1,
+            configmap_name,
+            configmap_namespace,
+            f"{TEST_DATA}/virtual-server-configmap-keys/configmap-invalid.yaml",
+        )
+        wait_before_test(1)
+
+        # Get events for the ConfigMap
+        events = get_events_for_object(
+            kube_apis.v1,
+            configmap_namespace,
+            configmap_name,
+        )
+
+        assert len(events) >= 1
+
+        # Assert that the 'updated with errors' event is present
+        assert_event(
+            events,
+            "Warning",
+            "UpdatedWithError",
+            f"ConfigMap {configmap_namespace}/{configmap_name} updated with errors. Ignoring invalid values",
+        )

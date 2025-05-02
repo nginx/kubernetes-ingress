@@ -16,7 +16,7 @@ from settings import (
     NS_COUNT,
     NUM_REPLICAS,
 )
-from suite.utils.resources_utils import get_first_pod_name
+from suite.utils.resources_utils import are_all_pods_in_ready_state, get_first_pod_name, wait_before_test
 
 
 def pytest_addoption(parser) -> None:
@@ -54,6 +54,12 @@ def pytest_addoption(parser) -> None:
         action="store",
         default=DEFAULT_IC_TYPE,
         help="The type of the Ingress Controller: nginx-ingress or nginx-plus-ingress.",
+    )
+    parser.addoption(
+        "--plus-jwt",
+        action="store",
+        help="The plus jwt for the Ingress Controller image.",
+        default=os.environ.get("PLUS_JWT"),
     )
     parser.addoption(
         "--service",
@@ -126,10 +132,29 @@ def pytest_addoption(parser) -> None:
         default="1",
         help="Number of resources to deploy for upgrade tests",
     )
+    parser.addoption(
+        "--docker-registry-user",
+        action="store",
+        default="",
+        help="Docker registry username",
+    )
+    parser.addoption(
+        "--docker-registry-token",
+        action="store",
+        default="",
+        help="Docker registry token",
+    )
 
 
 # import fixtures into pytest global namespace
 pytest_plugins = ["suite.fixtures.fixtures", "suite.fixtures.ic_fixtures", "suite.fixtures.custom_resource_fixtures"]
+
+
+def pytest_configure(config):
+    if config.getoption("--ic-type") == "nginx-plus-ingress" and (
+        config.getoption("--plus-jwt") == "" or config.getoption("--plus-jwt") is None
+    ):
+        pytest.exit("Please provide the plus jwt for the Nginx Ingress Controller")
 
 
 def pytest_collection_modifyitems(config, items) -> None:
@@ -158,10 +183,15 @@ def pytest_collection_modifyitems(config, items) -> None:
             if "skip_for_loadbalancer" in item.keywords:
                 item.add_marker(skip_for_loadbalancer)
     if "-nap" not in config.getoption("--image"):
-        appprotect = pytest.mark.skip(reason="Skip AppProtect test in non-AP image")
+        appprotect = pytest.mark.skip(reason="Skip AppProtect WAF v4 test in non-AP WAF v4 image")
         for item in items:
             if "appprotect" in item.keywords:
                 item.add_marker(appprotect)
+    if "-nap-v5" not in config.getoption("--image"):
+        appprotect_v5 = pytest.mark.skip(reason="Skip AppProtect WAF v5 test in non-AP WAF v5 image")
+        for item in items:
+            if "appprotect_waf_v5" in item.keywords:
+                item.add_marker(appprotect_v5)
     if "-dos" not in config.getoption("--image"):
         dos = pytest.mark.skip(reason="Skip DOS test in non-DOS image")
         for item in items:
@@ -200,6 +230,10 @@ def pytest_runtest_makereport(item) -> None:
         pod_namespace = item.funcargs["ingress_controller_prerequisites"].namespace
         pod_name = get_first_pod_name(item.funcargs["kube_apis"].v1, pod_namespace)
         print("\n===================== IC Logs Start =====================")
+        count = 0
+        while (not are_all_pods_in_ready_state(item.funcargs["kube_apis"].v1, pod_namespace)) and count < 10:
+            count += 1
+            wait_before_test()
         print(item.funcargs["kube_apis"].v1.read_namespaced_pod_log(pod_name, pod_namespace))
         print("\n===================== IC Logs End =====================")
 

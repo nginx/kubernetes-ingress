@@ -1,13 +1,15 @@
 package appprotect
 
 import (
+	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
 	"time"
 
-	"github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/validation"
-
-	"github.com/nginxinc/kubernetes-ingress/internal/k8s/appprotectcommon"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotectcommon"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	"github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -17,10 +19,10 @@ const timeLayout = time.RFC3339
 
 // reasons for invalidity
 const (
-	failedValidationErrorMsg = "Validation Failed"
-	missingUserSigErrorMsg   = "Policy has unsatisfied signature requirements"
-	duplicatedTagsErrorMsg   = "Duplicate tag set"
-	invalidTimestampErrorMsg = "Invalid timestamp"
+	failedValidationErrorMsg = "validation failed"
+	missingUserSigErrorMsg   = "policy has unsatisfied signature requirements"
+	duplicatedTagsErrorMsg   = "duplicate tag set"
+	invalidTimestampErrorMsg = "invalid timestamp"
 )
 
 var (
@@ -115,19 +117,21 @@ type ConfigurationImpl struct {
 	Policies map[string]*PolicyEx
 	LogConfs map[string]*LogConfEx
 	UserSigs map[string]*UserSigEx
+	Logger   *slog.Logger
 }
 
 // NewConfiguration creates a new App Protect Configuration
-func NewConfiguration() Configuration {
-	return newConfigurationImpl()
+func NewConfiguration(l *slog.Logger) Configuration {
+	return newConfigurationImpl(l)
 }
 
 // NewConfiguration creates a new App Protect Configuration
-func newConfigurationImpl() *ConfigurationImpl {
+func newConfigurationImpl(l *slog.Logger) *ConfigurationImpl {
 	return &ConfigurationImpl{
 		Policies: make(map[string]*PolicyEx),
 		LogConfs: make(map[string]*LogConfEx),
 		UserSigs: make(map[string]*UserSigEx),
+		Logger:   l,
 	}
 }
 
@@ -204,18 +208,18 @@ func (s appProtectUserSigSlice) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
-func createAppProtectPolicyEx(policyObj *unstructured.Unstructured) (*PolicyEx, error) {
-	err := validation.ValidateAppProtectPolicy(policyObj)
+func createAppProtectPolicyEx(policyObj *unstructured.Unstructured, l *slog.Logger) (*PolicyEx, error) {
+	err := validation.ValidateAppProtectPolicy(policyObj, l)
 	if err != nil {
 		errMsg := fmt.Sprintf("Error validating policy %s: %v", policyObj.GetName(), err)
-		return &PolicyEx{Obj: policyObj, IsValid: false, ErrorMsg: failedValidationErrorMsg}, fmt.Errorf(errMsg)
+		return &PolicyEx{Obj: policyObj, IsValid: false, ErrorMsg: failedValidationErrorMsg}, errors.New(errMsg)
 	}
 	sigReqs := []SignatureReq{}
 	// Check if policy has signature requirement (revision timestamp) and map them to tags
 	list, found, err := unstructured.NestedSlice(policyObj.Object, "spec", "policy", "signature-requirements")
 	if err != nil {
 		errMsg := fmt.Sprintf("Error retrieving Signature requirements from %s: %v", policyObj.GetName(), err)
-		return &PolicyEx{Obj: policyObj, IsValid: false, ErrorMsg: failedValidationErrorMsg}, fmt.Errorf(errMsg)
+		return &PolicyEx{Obj: policyObj, IsValid: false, ErrorMsg: failedValidationErrorMsg}, errors.New(errMsg)
 	}
 	if found {
 		for _, req := range list {
@@ -224,7 +228,7 @@ func createAppProtectPolicyEx(policyObj *unstructured.Unstructured) (*PolicyEx, 
 				timeReq, err := buildRevTimes(requirement)
 				if err != nil {
 					errMsg := fmt.Sprintf("Error creating time requirements from %s: %v", policyObj.GetName(), err)
-					return &PolicyEx{Obj: policyObj, IsValid: false, ErrorMsg: invalidTimestampErrorMsg}, fmt.Errorf(errMsg)
+					return &PolicyEx{Obj: policyObj, IsValid: false, ErrorMsg: invalidTimestampErrorMsg}, errors.New(errMsg)
 				}
 				sigReqs = append(sigReqs, SignatureReq{Tag: reqTag.(string), RevTimes: &timeReq})
 			}
@@ -243,7 +247,7 @@ func buildRevTimes(requirement map[string]interface{}) (RevTimes, error) {
 		minRevTime, err := time.Parse(timeLayout, minRev.(string))
 		if err != nil {
 			errMsg := fmt.Sprintf("Error Parsing time from minRevisionDatetime %v", err)
-			return timeReq, fmt.Errorf(errMsg)
+			return timeReq, errors.New(errMsg)
 		}
 		timeReq.MinRevTime = &minRevTime
 	}
@@ -251,7 +255,7 @@ func buildRevTimes(requirement map[string]interface{}) (RevTimes, error) {
 		maxRevTime, err := time.Parse(timeLayout, maxRev.(string))
 		if err != nil {
 			errMsg := fmt.Sprintf("Error Parsing time from maxRevisionDatetime  %v", err)
-			return timeReq, fmt.Errorf(errMsg)
+			return timeReq, errors.New(errMsg)
 		}
 		timeReq.MaxRevTime = &maxRevTime
 	}
@@ -278,7 +282,7 @@ func createAppProtectUserSigEx(userSigObj *unstructured.Unstructured) (*UserSigE
 	err := validation.ValidateAppProtectUserSig(userSigObj)
 	if err != nil {
 		errMsg := failedValidationErrorMsg
-		return &UserSigEx{Obj: userSigObj, IsValid: false, Tag: sTag, ErrorMsg: errMsg}, fmt.Errorf(errMsg)
+		return &UserSigEx{Obj: userSigObj, IsValid: false, Tag: sTag, ErrorMsg: errMsg}, errors.New(errMsg)
 	}
 	// Previous validation ensures there will be no errors
 	tag, found, _ := unstructured.NestedString(userSigObj.Object, "spec", "tag")
@@ -290,7 +294,7 @@ func createAppProtectUserSigEx(userSigObj *unstructured.Unstructured) (*UserSigE
 		revTime, err := time.Parse(timeLayout, revTimeString)
 		if err != nil {
 			errMsg := invalidTimestampErrorMsg
-			return &UserSigEx{Obj: userSigObj, IsValid: false, ErrorMsg: errMsg}, fmt.Errorf(errMsg)
+			return &UserSigEx{Obj: userSigObj, IsValid: false, ErrorMsg: errMsg}, errors.New(errMsg)
 		}
 		return &UserSigEx{
 			Obj:     userSigObj,
@@ -346,11 +350,11 @@ func (ci *ConfigurationImpl) verifyPolicyAgainstUserSigs(policy *PolicyEx) bool 
 // AddOrUpdatePolicy adds or updates an App Protect Policy to App Protect Configuration
 func (ci *ConfigurationImpl) AddOrUpdatePolicy(policyObj *unstructured.Unstructured) (changes []Change, problems []Problem) {
 	resNsName := appprotectcommon.GetNsName(policyObj)
-	policy, err := createAppProtectPolicyEx(policyObj)
+	policy, err := createAppProtectPolicyEx(policyObj, ci.Logger)
 	if err != nil {
 		ci.Policies[resNsName] = policy
 		return append(changes, Change{Op: Delete, Resource: policy}),
-			append(problems, Problem{Object: policyObj, Reason: "Rejected", Message: err.Error()})
+			append(problems, Problem{Object: policyObj, Reason: nl.EventReasonRejected, Message: err.Error()})
 	}
 	if ci.verifyPolicyAgainstUserSigs(policy) {
 		ci.Policies[resNsName] = policy
@@ -360,7 +364,7 @@ func (ci *ConfigurationImpl) AddOrUpdatePolicy(policyObj *unstructured.Unstructu
 	policy.ErrorMsg = missingUserSigErrorMsg
 	ci.Policies[resNsName] = policy
 	return append(changes, Change{Op: Delete, Resource: policy}),
-		append(problems, Problem{Object: policyObj, Reason: "Rejected", Message: missingUserSigErrorMsg})
+		append(problems, Problem{Object: policyObj, Reason: nl.EventReasonRejected, Message: missingUserSigErrorMsg})
 }
 
 // AddOrUpdateLogConf adds or updates App Protect Log Configuration to App Protect Configuration
@@ -370,7 +374,7 @@ func (ci *ConfigurationImpl) AddOrUpdateLogConf(logconfObj *unstructured.Unstruc
 	ci.LogConfs[resNsName] = logConf
 	if err != nil {
 		return append(changes, Change{Op: Delete, Resource: logConf}),
-			append(problems, Problem{Object: logconfObj, Reason: "Rejected", Message: err.Error()})
+			append(problems, Problem{Object: logconfObj, Reason: nl.EventReasonRejected, Message: err.Error()})
 	}
 	return append(changes, Change{Op: AddOrUpdate, Resource: logConf}), problems
 }
@@ -381,7 +385,7 @@ func (ci *ConfigurationImpl) AddOrUpdateUserSig(userSigObj *unstructured.Unstruc
 	userSig, err := createAppProtectUserSigEx(userSigObj)
 	ci.UserSigs[resNsName] = userSig
 	if err != nil {
-		problems = append(problems, Problem{Object: userSigObj, Reason: "Rejected", Message: err.Error()})
+		problems = append(problems, Problem{Object: userSigObj, Reason: nl.EventReasonRejected, Message: err.Error()})
 	}
 	change.UserSigs = append(change.UserSigs, userSigObj)
 	ci.buildUserSigChangeAndProblems(&problems, &change)
@@ -397,27 +401,27 @@ func (ci *ConfigurationImpl) GetAppResource(kind, key string) (*unstructured.Uns
 			if obj.IsValid {
 				return obj.Obj, nil
 			}
-			return nil, fmt.Errorf(obj.ErrorMsg)
+			return nil, errors.New(obj.ErrorMsg)
 		}
-		return nil, fmt.Errorf("App Protect Policy %s not found", key)
+		return nil, fmt.Errorf("app protect Policy %s not found", key)
 	case LogConfGVK.Kind:
 		if obj, ok := ci.LogConfs[key]; ok {
 			if obj.IsValid {
 				return obj.Obj, nil
 			}
-			return nil, fmt.Errorf(obj.ErrorMsg)
+			return nil, errors.New(obj.ErrorMsg)
 		}
-		return nil, fmt.Errorf("App Protect LogConf %s not found", key)
+		return nil, fmt.Errorf("app protect LogConf %s not found", key)
 	case UserSigGVK.Kind:
 		if obj, ok := ci.UserSigs[key]; ok {
 			if obj.IsValid {
 				return obj.Obj, nil
 			}
-			return nil, fmt.Errorf(obj.ErrorMsg)
+			return nil, errors.New(obj.ErrorMsg)
 		}
-		return nil, fmt.Errorf("App Protect UserSig %s not found", key)
+		return nil, fmt.Errorf("app protect UserSig %s not found", key)
 	}
-	return nil, fmt.Errorf("Unknown App Protect resource kind %s", kind)
+	return nil, fmt.Errorf("unknown app protect resource kind %s", kind)
 }
 
 // DeletePolicy deletes an App Protect Policy from App Protect Configuration
@@ -485,7 +489,7 @@ func (ci *ConfigurationImpl) reconcileUserSigs() (changes []Change, problems []P
 		for _, sig := range sigs[1:] {
 			if sig.IsValid {
 				sig.setInvalid(duplicatedTagsErrorMsg)
-				looserProblem := Problem{Object: sig.Obj, Reason: "Rejected", Message: duplicatedTagsErrorMsg}
+				looserProblem := Problem{Object: sig.Obj, Reason: nl.EventReasonRejected, Message: duplicatedTagsErrorMsg}
 				looserChange := Change{Op: Delete, Resource: sig}
 				changes = append(changes, looserChange)
 				problems = append(problems, looserProblem)
@@ -507,7 +511,7 @@ func (ci *ConfigurationImpl) verifyPolicies() (changes []Change, problems []Prob
 		if pol.IsValid {
 			if !ci.verifyPolicyAgainstUserSigs(pol) {
 				pol.setInvalid(missingUserSigErrorMsg)
-				polProb := Problem{Object: pol.Obj, Reason: "Rejected", Message: missingUserSigErrorMsg}
+				polProb := Problem{Object: pol.Obj, Reason: nl.EventReasonRejected, Message: missingUserSigErrorMsg}
 				polCh := Change{Op: Delete, Resource: pol}
 				changes = append(changes, polCh)
 				problems = append(problems, polProb)
@@ -599,14 +603,14 @@ func (fc *FakeConfiguration) GetAppResource(kind, key string) (*unstructured.Uns
 		if obj, ok := fc.Policies[key]; ok {
 			return obj.Obj, nil
 		}
-		return nil, fmt.Errorf("App Protect Policy %s not found", key)
+		return nil, fmt.Errorf("app protect Policy %s not found", key)
 	case LogConfGVK.Kind:
 		if obj, ok := fc.LogConfs[key]; ok {
 			return obj.Obj, nil
 		}
-		return nil, fmt.Errorf("App Protect LogConf %s not found", key)
+		return nil, fmt.Errorf("app protect LogConf %s not found", key)
 	}
-	return nil, fmt.Errorf("Unknown App Protect resource kind %s", kind)
+	return nil, fmt.Errorf("unknown app protect resource kind %s", kind)
 }
 
 // DeletePolicy deletes an App Protect Policy from App Protect Configuration

@@ -2,13 +2,15 @@ package validation
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
 
-	validation2 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/validation"
-	"github.com/nginxinc/kubernetes-ingress/pkg/apis/dos/v1beta1"
+	internalValidation "github.com/nginx/kubernetes-ingress/internal/validation"
+	validation2 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
+	"github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -40,6 +42,13 @@ func ValidateDosProtectedResource(protected *v1beta1.DosProtectedResource) error
 		err = validateAppProtectDosMonitor(*protected.Spec.ApDosMonitor)
 		if err != nil {
 			return fmt.Errorf("error validating DosProtectedResource: %v invalid field: %v err: %w", protected.Name, "apDosMonitor", err)
+		}
+	}
+
+	if protected.Spec.AllowList != nil {
+		err = ValidateAppProtectDosAllowList(protected.Spec.AllowList)
+		if err != nil {
+			return fmt.Errorf("error validating DosProtectedResource: %v invalid field: %v err: %w", protected.Name, "allowList", err)
 		}
 	}
 
@@ -120,24 +129,17 @@ func validateAppProtectDosLogDest(dstAntn string) error {
 	}
 	if validIPRegex.MatchString(dstAntn) || validDNSRegex.MatchString(dstAntn) || validLocalhostRegex.MatchString(dstAntn) {
 		chunks := strings.Split(dstAntn, ":")
-		err := validatePort(chunks[1])
+		port, err := strconv.Atoi(chunks[1])
+		if err != nil {
+			return err
+		}
+		err = internalValidation.ValidatePort(port)
 		if err != nil {
 			return fmt.Errorf("invalid log destination: %w", err)
 		}
 		return nil
 	}
 	return fmt.Errorf("invalid log destination: %s, must follow format: <ip-address | localhost | dns name>:<port> or stderr", dstAntn)
-}
-
-func validatePort(value string) error {
-	port, err := strconv.Atoi(value)
-	if err != nil {
-		return fmt.Errorf("error parsing port number: %w", err)
-	}
-	if port > 65535 || port < 1 {
-		return fmt.Errorf("error parsing port: %v not a valid port number", port)
-	}
-	return nil
 }
 
 func validateAppProtectDosName(name string) error {
@@ -188,4 +190,20 @@ func ValidateAppProtectDosPolicy(policy *unstructured.Unstructured) error {
 	}
 
 	return nil
+}
+
+// ValidateAppProtectDosAllowList validates AllowList if all IP and Mask are correct
+func ValidateAppProtectDosAllowList(allowList []v1beta1.AllowListEntry) error {
+	for _, entry := range allowList {
+		ipValid := isValidIPWithMask(entry.IPWithMask)
+		if !ipValid {
+			return fmt.Errorf("invalid IP with subnet mask: %s", entry.IPWithMask)
+		}
+	}
+	return nil
+}
+
+func isValidIPWithMask(ipWithMask string) bool {
+	_, _, err := net.ParseCIDR(ipWithMask)
+	return err == nil
 }

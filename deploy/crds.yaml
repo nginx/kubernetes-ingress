@@ -2,7 +2,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.15.0
+    controller-gen.kubebuilder.io/version: v0.17.3
   name: dnsendpoints.externaldns.nginx.org
 spec:
   group: externaldns.nginx.org
@@ -99,7 +99,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.15.0
+    controller-gen.kubebuilder.io/version: v0.17.3
   name: globalconfigurations.k8s.nginx.org
 spec:
   group: k8s.nginx.org
@@ -142,6 +142,10 @@ spec:
                 items:
                   description: Listener defines a listener.
                   properties:
+                    ipv4:
+                      type: string
+                    ipv6:
+                      type: string
                     name:
                       type: string
                     port:
@@ -156,56 +160,12 @@ spec:
         type: object
     served: true
     storage: true
-  - name: v1alpha1
-    schema:
-      openAPIV3Schema:
-        description: GlobalConfiguration defines the GlobalConfiguration resource.
-        properties:
-          apiVersion:
-            description: |-
-              APIVersion defines the versioned schema of this representation of an object.
-              Servers should convert recognized schemas to the latest internal value, and
-              may reject unrecognized values.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
-            type: string
-          kind:
-            description: |-
-              Kind is a string value representing the REST resource this object represents.
-              Servers may infer this from the endpoint the client submits requests to.
-              Cannot be updated.
-              In CamelCase.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
-            type: string
-          metadata:
-            type: object
-          spec:
-            description: GlobalConfigurationSpec is the spec of the GlobalConfiguration
-              resource.
-            properties:
-              listeners:
-                items:
-                  description: Listener defines a listener.
-                  properties:
-                    name:
-                      type: string
-                    port:
-                      type: integer
-                    protocol:
-                      type: string
-                    ssl:
-                      type: boolean
-                  type: object
-                type: array
-            type: object
-        type: object
-    served: true
-    storage: false
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.15.0
+    controller-gen.kubebuilder.io/version: v0.17.3
   name: policies.k8s.nginx.org
 spec:
   group: k8s.nginx.org
@@ -269,10 +229,27 @@ spec:
                       type: string
                     type: array
                 type: object
+              apiKey:
+                description: APIKey defines an API Key policy.
+                properties:
+                  clientSecret:
+                    type: string
+                  suppliedIn:
+                    description: SuppliedIn defines the locations API Key should be
+                      supplied in.
+                    properties:
+                      header:
+                        items:
+                          type: string
+                        type: array
+                      query:
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                type: object
               basicAuth:
-                description: |-
-                  BasicAuth holds HTTP Basic authentication configuration
-                  policy status: preview
+                description: BasicAuth holds HTTP Basic authentication configuration
                 properties:
                   realm:
                     type: string
@@ -344,7 +321,11 @@ spec:
                     type: string
                   clientSecret:
                     type: string
+                  endSessionEndpoint:
+                    type: string
                   jwksURI:
+                    type: string
+                  postLogoutRedirectURI:
                     type: string
                   redirectURI:
                     type: string
@@ -360,6 +341,33 @@ spec:
                 properties:
                   burst:
                     type: integer
+                  condition:
+                    description: RateLimitCondition defines a condition for a rate
+                      limit policy.
+                    properties:
+                      default:
+                        description: sets the rate limit in this policy to be the
+                          default if no conditions are met. In a group of policies
+                          with the same JWT condition, only one policy can be the
+                          default.
+                        type: boolean
+                      jwt:
+                        description: defines a JWT condition to rate limit against.
+                        properties:
+                          claim:
+                            description: the JWT claim to be rate limit by. Nested
+                              claims should be separated by "."
+                            pattern: ^([^$\s"'])*$
+                            type: string
+                          match:
+                            description: the value of the claim to match against.
+                            pattern: ^([^$\s."'])*$
+                            type: string
+                        required:
+                        - claim
+                        - match
+                        type: object
+                    type: object
                   delay:
                     type: integer
                   dryRun:
@@ -431,122 +439,12 @@ spec:
     storage: true
     subresources:
       status: {}
-  - name: v1alpha1
-    schema:
-      openAPIV3Schema:
-        description: Policy defines a Policy for VirtualServer and VirtualServerRoute
-          resources.
-        properties:
-          apiVersion:
-            description: |-
-              APIVersion defines the versioned schema of this representation of an object.
-              Servers should convert recognized schemas to the latest internal value, and
-              may reject unrecognized values.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
-            type: string
-          kind:
-            description: |-
-              Kind is a string value representing the REST resource this object represents.
-              Servers may infer this from the endpoint the client submits requests to.
-              Cannot be updated.
-              In CamelCase.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
-            type: string
-          metadata:
-            type: object
-          spec:
-            description: |-
-              PolicySpec is the spec of the Policy resource.
-              The spec includes multiple fields, where each field represents a different policy.
-              Only one policy (field) is allowed.
-            properties:
-              accessControl:
-                description: AccessControl defines an access policy based on the source
-                  IP of a request.
-                properties:
-                  allow:
-                    items:
-                      type: string
-                    type: array
-                  deny:
-                    items:
-                      type: string
-                    type: array
-                type: object
-              egressMTLS:
-                description: EgressMTLS defines an Egress MTLS policy.
-                properties:
-                  ciphers:
-                    type: string
-                  protocols:
-                    type: string
-                  serverName:
-                    type: boolean
-                  sessionReuse:
-                    type: boolean
-                  sslName:
-                    type: string
-                  tlsSecret:
-                    type: string
-                  trustedCertSecret:
-                    type: string
-                  verifyDepth:
-                    type: integer
-                  verifyServer:
-                    type: boolean
-                type: object
-              ingressMTLS:
-                description: IngressMTLS defines an Ingress MTLS policy.
-                properties:
-                  clientCertSecret:
-                    type: string
-                  verifyClient:
-                    type: string
-                  verifyDepth:
-                    type: integer
-                type: object
-              jwt:
-                description: JWTAuth holds JWT authentication configuration.
-                properties:
-                  realm:
-                    type: string
-                  secret:
-                    type: string
-                  token:
-                    type: string
-                type: object
-              rateLimit:
-                description: RateLimit defines a rate limit policy.
-                properties:
-                  burst:
-                    type: integer
-                  delay:
-                    type: integer
-                  dryRun:
-                    type: boolean
-                  key:
-                    type: string
-                  logLevel:
-                    type: string
-                  noDelay:
-                    type: boolean
-                  rate:
-                    type: string
-                  rejectCode:
-                    type: integer
-                  zoneSize:
-                    type: string
-                type: object
-            type: object
-        type: object
-    served: true
-    storage: false
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.15.0
+    controller-gen.kubebuilder.io/version: v0.17.3
   name: transportservers.k8s.nginx.org
 spec:
   group: k8s.nginx.org
@@ -716,169 +614,12 @@ spec:
     storage: true
     subresources:
       status: {}
-  - additionalPrinterColumns:
-    - description: Current state of the TransportServer. If the resource has a valid
-        status, it means it has been validated and accepted by the Ingress Controller.
-      jsonPath: .status.state
-      name: State
-      type: string
-    - jsonPath: .status.reason
-      name: Reason
-      type: string
-    - jsonPath: .metadata.creationTimestamp
-      name: Age
-      type: date
-    name: v1alpha1
-    schema:
-      openAPIV3Schema:
-        description: TransportServer defines the TransportServer resource.
-        properties:
-          apiVersion:
-            description: |-
-              APIVersion defines the versioned schema of this representation of an object.
-              Servers should convert recognized schemas to the latest internal value, and
-              may reject unrecognized values.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
-            type: string
-          kind:
-            description: |-
-              Kind is a string value representing the REST resource this object represents.
-              Servers may infer this from the endpoint the client submits requests to.
-              Cannot be updated.
-              In CamelCase.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
-            type: string
-          metadata:
-            type: object
-          spec:
-            description: TransportServerSpec is the spec of the TransportServer resource.
-            properties:
-              action:
-                description: TransportServerAction defines an action.
-                properties:
-                  pass:
-                    type: string
-                type: object
-              host:
-                type: string
-              ingressClassName:
-                type: string
-              listener:
-                description: TransportServerListener defines a listener for a TransportServer.
-                properties:
-                  name:
-                    type: string
-                  protocol:
-                    type: string
-                type: object
-              serverSnippets:
-                type: string
-              sessionParameters:
-                description: SessionParameters defines session parameters.
-                properties:
-                  timeout:
-                    type: string
-                type: object
-              streamSnippets:
-                type: string
-              tls:
-                description: TransportServerTLS defines TransportServerTLS configuration
-                  for a TransportServer.
-                properties:
-                  secret:
-                    type: string
-                type: object
-              upstreamParameters:
-                description: UpstreamParameters defines parameters for an upstream.
-                properties:
-                  connectTimeout:
-                    type: string
-                  nextUpstream:
-                    type: boolean
-                  nextUpstreamTimeout:
-                    type: string
-                  nextUpstreamTries:
-                    type: integer
-                  udpRequests:
-                    type: integer
-                  udpResponses:
-                    type: integer
-                type: object
-              upstreams:
-                items:
-                  description: TransportServerUpstream defines an upstream.
-                  properties:
-                    backup:
-                      type: string
-                    backupPort:
-                      type: integer
-                    failTimeout:
-                      type: string
-                    healthCheck:
-                      description: TransportServerHealthCheck defines the parameters
-                        for active Upstream HealthChecks.
-                      properties:
-                        enable:
-                          type: boolean
-                        fails:
-                          type: integer
-                        interval:
-                          type: string
-                        jitter:
-                          type: string
-                        match:
-                          description: TransportServerMatch defines the parameters
-                            of a custom health check.
-                          properties:
-                            expect:
-                              type: string
-                            send:
-                              type: string
-                          type: object
-                        passes:
-                          type: integer
-                        port:
-                          type: integer
-                        timeout:
-                          type: string
-                      type: object
-                    loadBalancingMethod:
-                      type: string
-                    maxConns:
-                      type: integer
-                    maxFails:
-                      type: integer
-                    name:
-                      type: string
-                    port:
-                      type: integer
-                    service:
-                      type: string
-                  type: object
-                type: array
-            type: object
-          status:
-            description: TransportServerStatus defines the status for the TransportServer
-              resource.
-            properties:
-              message:
-                type: string
-              reason:
-                type: string
-              state:
-                type: string
-            type: object
-        type: object
-    served: true
-    storage: false
-    subresources:
-      status: {}
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.15.0
+    controller-gen.kubebuilder.io/version: v0.17.3
   name: virtualserverroutes.k8s.nginx.org
 spec:
   group: k8s.nginx.org
@@ -1607,7 +1348,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.15.0
+    controller-gen.kubebuilder.io/version: v0.17.3
   name: virtualservers.k8s.nginx.org
 spec:
   group: k8s.nginx.org

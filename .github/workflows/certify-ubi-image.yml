@@ -1,0 +1,49 @@
+name: Certify UBI image
+run-name: Certify UBI image ${{ inputs.image }} by @${{ github.actor }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: "Image to certify"
+        required: true
+        type: string
+      submit:
+        description: "Submit results to Redhat"
+        required: false
+        type: boolean
+        default: false
+      preflight_version:
+        description: "Preflight version to use"
+        required: false
+        type: string
+        default: "1.11.1"
+      platforms:
+        description: A comma separated list of architectures in the image manifest to certify
+        required: false
+        default: "amd64,arm64,ppc64le,s390x"
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+jobs:
+  certify-ubi-images:
+    name: Certify OpenShift UBI images
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Certify UBI OSS images in quay
+        uses: ./.github/actions/certify-openshift-image
+        with:
+          image: ${{ inputs.image }}
+          project_id: ${{ secrets.CERTIFICATION_PROJECT_ID }}
+          pyxis_token: ${{ secrets.PYXIS_API_TOKEN }}
+          preflight_version: ${{ inputs.preflight_version }}
+          submit: ${{ inputs.submit || true }}
+          platforms: ${{ inputs.platforms }}

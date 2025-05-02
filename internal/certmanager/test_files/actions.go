@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/kr/pretty"
+	"github.com/google/go-cmp/cmp"
 	coretesting "k8s.io/client-go/testing"
 )
 
@@ -94,5 +94,5 @@ func (a *action) Matches(act coretesting.Action) error {
 		return nil
 	}
 
-	return fmt.Errorf("unexpected difference between actions: %s", pretty.Diff(objExp.GetObject(), objAct.GetObject()))
+	return fmt.Errorf("unexpected difference between actions: %s", cmp.Diff(objExp.GetObject(), objAct.GetObject()))
 }

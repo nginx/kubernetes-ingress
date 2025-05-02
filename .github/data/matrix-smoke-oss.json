@@ -1,0 +1,82 @@
+{
+  "images": [
+    {
+      "label": "ingresses 1/2",
+      "image": "debian",
+      "type": "oss",
+      "marker": "'ingresses and not annotations and not basic_auth and not hsts and not watch_namespace and not wildcard_tls'",
+      "platforms": "linux/arm, linux/arm64, linux/amd64, linux/ppc64le, linux/s390x"
+    },
+    {
+      "label": "ingresses 2/2",
+      "image": "debian",
+      "type": "oss",
+      "marker": "'annotations or basic_auth or hsts or watch_namespace or wildcard_tls'",
+      "platforms": "linux/arm, linux/arm64, linux/amd64, linux/ppc64le, linux/s390x"
+    },
+    {
+      "label": "VSR 1/3",
+      "image": "alpine",
+      "type": "oss",
+      "marker": "'vsr and not vsr_upstream and not vsr_grpc and not vsr_status and not vsr_canary and not vsr_routing and not vsr_api and not vsr_redirects and not vsr_rewrite and not vsr_canned and not vsr_basic'",
+      "platforms": "linux/arm, linux/arm64, linux/amd64, linux/ppc64le, linux/s390x"
+    },
+    {
+      "label": "VSR 2/3",
+      "image": "alpine",
+      "type": "oss",
+      "marker": "'vsr_basic or vsr_canned or vsr_rewrite or vsr_redirects or vsr_upstream'",
+      "platforms": "linux/arm, linux/arm64, linux/amd64, linux/ppc64le, linux/s390x"
+    },
+    {
+      "label": "VSR 3/3",
+      "image": "alpine",
+      "type": "oss",
+      "marker": "'vsr_api or vsr_routing or vsr_canary or vsr_status or vsr_grpc'",
+      "platforms": "linux/arm, linux/arm64, linux/amd64, linux/ppc64le, linux/s390x"
+    },
+    {
+      "label": "policies 1/2",
+      "image": "alpine",
+      "type": "oss",
+      "marker": "'policies and not policies_rl and not policies_ac and not policies_jwt and not policies_mtls'",
+      "platforms": "linux/arm, linux/arm64, linux/amd64, linux/ppc64le, linux/s390x"
+    },
+    {
+      "label": "policies 2/2",
+      "image": "alpine",
+      "type": "oss",
+      "marker": "'policies_rl or policies_ac or policies_jwt or policies_mtls'",
+      "platforms": "linux/arm, linux/arm64, linux/amd64, linux/ppc64le, linux/s390x"
+    },
+    {
+      "label": "VS 1/3",
+      "image": "debian",
+      "type": "oss",
+      "marker": "'vs and not vs_ipv6 and not vs_rewrite and not vs_responses and not vs_grpc and not vs_redirects and not vs_externalname and not vs_externaldns and not vs_certmanager and not vs_api and not vs_backup and not vs_use_cluster_ip and not vs_canary and not vs_upstream and not vs_config_map'",
+      "platforms": "linux/arm, linux/arm64, linux/amd64, linux/ppc64le, linux/s390x"
+    },
+    {
+      "label": "VS 2/3",
+      "image": "debian",
+      "type": "oss",
+      "marker": "'vs_grpc or vs_redirects or vs_externalname or vs_externaldns or vs_api or vs_backup or vs_use_cluster_ip or vs_canary or vs_upstream or vs_config_map'",
+      "platforms": "linux/arm, linux/arm64, linux/amd64, linux/ppc64le, linux/s390x"
+    },
+    {
+      "label": "VS 3/3",
+      "image": "debian",
+      "type": "oss",
+      "marker": "'vs_responses or vs_ipv6 or vs_rewrite or vs_certmanager'",
+      "platforms": "linux/arm, linux/arm64, linux/amd64, linux/ppc64le, linux/s390x"
+    },
+    {
+      "label": "TS",
+      "image": "ubi",
+      "type": "oss",
+      "marker": "ts",
+      "platforms": "linux/arm64, linux/amd64, linux/ppc64le, linux/s390x"
+    }
+  ],
+  "k8s": []
+}

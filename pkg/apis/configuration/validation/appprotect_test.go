@@ -1,7 +1,12 @@
 package validation
 
 import (
+	"io"
+	"log/slog"
 	"testing"
+
+	nic_glog "github.com/nginx/kubernetes-ingress/internal/logger/glog"
+	"github.com/nginx/kubernetes-ingress/internal/logger/levels"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -49,7 +54,8 @@ func TestValidateAppProtectPolicy(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		err := ValidateAppProtectPolicy(test.policy)
+		l := slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo}))
+		err := ValidateAppProtectPolicy(test.policy, l)
 		if test.expectErr && err == nil {
 			t.Errorf("validateAppProtectPolicy() returned no error for the case of %s", test.msg)
 		}

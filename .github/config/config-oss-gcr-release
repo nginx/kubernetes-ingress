@@ -1,5 +1,4 @@
 export TARGET_REGISTRY=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release
-declare -a ADDITIONAL_TAGS=("latest" "${ADDITIONAL_TAG}")
 export PUBLISH_PLUS=false
 export PUBLISH_WAF=false
 export PUBLISH_DOS=false

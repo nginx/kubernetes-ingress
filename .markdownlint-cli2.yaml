@@ -7,10 +7,16 @@ config:
     siblings_only: true
   line-length: false
 
+# Hide the Finding: <list of globs> when markdownlint fixes files
+noProgress: true
+
+# Hide the markdownlint-cli and markdownlint versions on each block
+noBanner: true
+
 # Define glob expressions to ignore
 ignores:
   - ".github/**"
-  - "docs/**" # Ignore docs folder for now
+  - "site/**" # Ignore docs folder for now
 
 # Fix any fixable errors
 fix: true

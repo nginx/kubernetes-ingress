@@ -1,23 +1,28 @@
 package healthcheck_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/go-chi/chi/v5"
+	nic_glog "github.com/nginx/kubernetes-ingress/internal/logger/glog"
+	"github.com/nginx/kubernetes-ingress/internal/logger/levels"
+
 	"github.com/google/go-cmp/cmp"
-	"github.com/nginxinc/kubernetes-ingress/internal/healthcheck"
-	"github.com/nginxinc/nginx-plus-go-client/client"
+	"github.com/nginx/kubernetes-ingress/internal/healthcheck"
+	"github.com/nginx/nginx-plus-go-client/v2/client"
 )
 
 // testHandler creates http handler for testing HealthServer.
 func testHandler(hs *healthcheck.HealthServer) http.Handler {
-	mux := chi.NewRouter()
-	mux.Get("/probe/{hostname}", hs.UpstreamStats)
-	mux.Get("/probe/ts/{name}", hs.StreamStats)
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /probe/{hostname}", hs.UpstreamStats)
+	mux.HandleFunc("GET /probe/ts/{name}", hs.StreamStats)
 	return mux
 }
 
@@ -25,6 +30,7 @@ func TestHealthCheckServer_Returns404OnMissingHostname(t *testing.T) {
 	hs := healthcheck.HealthServer{
 		UpstreamsForHost: getUpstreamsForHost,
 		NginxUpstreams:   getUpstreamsFromNGINXAllUp,
+		Logger:           slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo})),
 	}
 
 	ts := httptest.NewServer(testHandler(&hs))
@@ -45,6 +51,7 @@ func TestHealthCheckServer_ReturnsCorrectStatsForHostnameOnAllPeersUp(t *testing
 	hs := healthcheck.HealthServer{
 		UpstreamsForHost: getUpstreamsForHost,
 		NginxUpstreams:   getUpstreamsFromNGINXAllUp,
+		Logger:           slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo})),
 	}
 
 	ts := httptest.NewServer(testHandler(&hs))
@@ -78,6 +85,7 @@ func TestHealthCheckServer_ReturnsCorrectStatsForHostnameOnAllPeersDown(t *testi
 	hs := healthcheck.HealthServer{
 		UpstreamsForHost: getUpstreamsForHost,
 		NginxUpstreams:   getUpstreamsFromNGINXAllUnhealthy,
+		Logger:           slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo})),
 	}
 
 	ts := httptest.NewServer(testHandler(&hs))
@@ -112,6 +120,7 @@ func TestHealthCheckServer_ReturnsCorrectStatsForValidHostnameOnPartOfPeersDown(
 	hs := healthcheck.HealthServer{
 		UpstreamsForHost: getUpstreamsForHost,
 		NginxUpstreams:   getUpstreamsFromNGINXPartiallyUp,
+		Logger:           slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo})),
 	}
 
 	ts := httptest.NewServer(testHandler(&hs))
@@ -146,6 +155,7 @@ func TestHealthCheckServer_RespondsWith404OnNotExistingHostname(t *testing.T) {
 	hs := healthcheck.HealthServer{
 		UpstreamsForHost: getUpstreamsForHost,
 		NginxUpstreams:   getUpstreamsFromNGINXNotExistingHost,
+		Logger:           slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo})),
 	}
 
 	ts := httptest.NewServer(testHandler(&hs))
@@ -166,6 +176,7 @@ func TestHealthCheckServer_RespondsWith500OnErrorFromNGINXAPI(t *testing.T) {
 	hs := healthcheck.HealthServer{
 		UpstreamsForHost: getUpstreamsForHost,
 		NginxUpstreams:   getUpstreamsFromNGINXErrorFromAPI,
+		Logger:           slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo})),
 	}
 
 	ts := httptest.NewServer(testHandler(&hs))
@@ -186,6 +197,7 @@ func TestHealthCheckServer_Returns404OnMissingTransportServerActionName(t *testi
 	hs := healthcheck.HealthServer{
 		StreamUpstreamsForName: streamUpstreamsForName,
 		NginxStreamUpstreams:   streamUpstreamsFromNGINXAllUp,
+		Logger:                 slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo})),
 	}
 
 	ts := httptest.NewServer(testHandler(&hs))
@@ -206,6 +218,7 @@ func TestHealthCheckServer_Returns404OnBogusTransportServerActionName(t *testing
 	hs := healthcheck.HealthServer{
 		StreamUpstreamsForName: streamUpstreamsForName,
 		NginxStreamUpstreams:   streamUpstreamsFromNGINXAllUp,
+		Logger:                 slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo})),
 	}
 
 	ts := httptest.NewServer(testHandler(&hs))
@@ -226,6 +239,7 @@ func TestHealthCheckServer_ReturnsCorrectTransportServerStatsForNameOnAllPeersUp
 	hs := healthcheck.HealthServer{
 		StreamUpstreamsForName: streamUpstreamsForName,
 		NginxStreamUpstreams:   streamUpstreamsFromNGINXAllUp,
+		Logger:                 slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo})),
 	}
 
 	ts := httptest.NewServer(testHandler(&hs))
@@ -259,6 +273,7 @@ func TestHealthCheckServer_ReturnsCorrectTransportServerStatsForNameOnSomePeersU
 	hs := healthcheck.HealthServer{
 		StreamUpstreamsForName: streamUpstreamsForName,
 		NginxStreamUpstreams:   streamUpstreamsFromNGINXPartiallyUp,
+		Logger:                 slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo})),
 	}
 
 	ts := httptest.NewServer(testHandler(&hs))
@@ -292,6 +307,7 @@ func TestHealthCheckServer_ReturnsCorrectTransportServerStatsForNameOnAllPeersDo
 	hs := healthcheck.HealthServer{
 		StreamUpstreamsForName: streamUpstreamsForName,
 		NginxStreamUpstreams:   streamUpstreamsFromNGINXAllPeersDown,
+		Logger:                 slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo})),
 	}
 
 	ts := httptest.NewServer(testHandler(&hs))
@@ -341,7 +357,7 @@ func getUpstreamsForHost(host string) []string {
 // Upstreams retrieved using NGINX API client:
 // foo.tea.com -> upstream1, upstream2
 // bar.tea.com -> upstream2
-func getUpstreamsFromNGINXAllUp() (*client.Upstreams, error) {
+func getUpstreamsFromNGINXAllUp(_ context.Context) (*client.Upstreams, error) {
 	ups := client.Upstreams{
 		"upstream1": client.Upstream{
 			Peers: []client.Peer{
@@ -375,7 +391,7 @@ func getUpstreamsFromNGINXAllUp() (*client.Upstreams, error) {
 // Upstreams retrieved using NGINX API client:
 // foo.tea.com -> upstream1, upstream2
 // bar.tea.com -> upstream2
-func getUpstreamsFromNGINXAllUnhealthy() (*client.Upstreams, error) {
+func getUpstreamsFromNGINXAllUnhealthy(_ context.Context) (*client.Upstreams, error) {
 	ups := client.Upstreams{
 		"upstream1": client.Upstream{
 			Peers: []client.Peer{
@@ -410,7 +426,7 @@ func getUpstreamsFromNGINXAllUnhealthy() (*client.Upstreams, error) {
 // Upstreams retrieved using NGINX API client
 // foo.tea.com -> upstream1, upstream2
 // bar.tea.com -> upstream2
-func getUpstreamsFromNGINXPartiallyUp() (*client.Upstreams, error) {
+func getUpstreamsFromNGINXPartiallyUp(_ context.Context) (*client.Upstreams, error) {
 	ups := client.Upstreams{
 		"upstream1": client.Upstream{
 			Peers: []client.Peer{
@@ -440,14 +456,14 @@ func getUpstreamsFromNGINXPartiallyUp() (*client.Upstreams, error) {
 // getUpstreamsFromNGINXNotExistingHost is a helper func used
 // for faking response data from NGINX API. It responds
 // with empty upstreams on a request for not existing host.
-func getUpstreamsFromNGINXNotExistingHost() (*client.Upstreams, error) {
+func getUpstreamsFromNGINXNotExistingHost(_ context.Context) (*client.Upstreams, error) {
 	ups := client.Upstreams{}
 	return &ups, nil
 }
 
 // getUpstreamsFromNGINXErrorFromAPI is a helper func used
 // for faking err response from NGINX API client.
-func getUpstreamsFromNGINXErrorFromAPI() (*client.Upstreams, error) {
+func getUpstreamsFromNGINXErrorFromAPI(_ context.Context) (*client.Upstreams, error) {
 	return nil, errors.New("nginx api error")
 }
 
@@ -468,7 +484,7 @@ func streamUpstreamsForName(name string) []string {
 // for faking response from NGINX Plus client.
 //
 //nolint:unparam
-func streamUpstreamsFromNGINXAllUp() (*client.StreamUpstreams, error) {
+func streamUpstreamsFromNGINXAllUp(_ context.Context) (*client.StreamUpstreams, error) {
 	streamUpstreams := client.StreamUpstreams{
 		"streamUpstream1": client.StreamUpstream{
 			Peers: []client.StreamPeer{
@@ -492,7 +508,7 @@ func streamUpstreamsFromNGINXAllUp() (*client.StreamUpstreams, error) {
 // for faking response from NGINX Plus client.
 //
 //nolint:unparam
-func streamUpstreamsFromNGINXPartiallyUp() (*client.StreamUpstreams, error) {
+func streamUpstreamsFromNGINXPartiallyUp(_ context.Context) (*client.StreamUpstreams, error) {
 	streamUpstreams := client.StreamUpstreams{
 		"streamUpstream1": client.StreamUpstream{
 			Peers: []client.StreamPeer{
@@ -516,7 +532,7 @@ func streamUpstreamsFromNGINXPartiallyUp() (*client.StreamUpstreams, error) {
 // for faking response from NGINX Plus client.
 //
 //nolint:unparam
-func streamUpstreamsFromNGINXAllPeersDown() (*client.StreamUpstreams, error) {
+func streamUpstreamsFromNGINXAllPeersDown(_ context.Context) (*client.StreamUpstreams, error) {
 	streamUpstreams := client.StreamUpstreams{
 		"streamUpstream1": client.StreamUpstream{
 			Peers: []client.StreamPeer{

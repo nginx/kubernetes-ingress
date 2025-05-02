@@ -20,7 +20,7 @@ jobs:
         id: controller
         if: contains(github.event.issue.body, 'nginx.ingress.kubernetes.io')
         run: |
-          text="\n\n I\'ve parsed the text of your issue and it looks like you might be mixing up the two Ingress Controllers, please take a look at this [page](https://docs.nginx.com/nginx-ingress-controller/intro/nginx-ingress-controllers) to see the differences between \`nginxinc/kubernetes-ingress\` (this repo) and \`kubernetes/ingress-nginx\`."
+          text="\n\n I\'ve parsed the text of your issue and it looks like you might be mixing up the two Ingress Controllers, please take a look at this [page](https://docs.nginx.com/nginx-ingress-controller/intro/nginx-ingress-controllers) to see the differences between \`nginx/kubernetes-ingress\` (this repo) and \`kubernetes/ingress-nginx\`."
           echo "text=$text" >> $GITHUB_OUTPUT
 
       - name: Check if Issue author is Org member
@@ -53,5 +53,5 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Hi @${{github.event.issue.user.login}} thanks for reporting! \n\n Be sure to check out the [docs](https://docs.nginx.com/nginx-ingress-controller) and the [Contributing Guidelines](https://github.com/nginxinc/kubernetes-ingress/blob/main/CONTRIBUTING.md) while you wait for a human to take a look at this :slightly_smiling_face:${{ steps.controller.outputs.text }}\n\n Cheers!'
+              body: 'Hi @${{github.event.issue.user.login}} thanks for reporting! \n\n Be sure to check out the [docs](https://docs.nginx.com/nginx-ingress-controller) and the [Contributing Guidelines](https://github.com/nginx/kubernetes-ingress/blob/main/CONTRIBUTING.md) while you wait for a human to take a look at this :slightly_smiling_face:${{ steps.controller.outputs.text }}\n\n Cheers!'
             })

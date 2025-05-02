@@ -47,7 +47,7 @@ def backend_setup(request, kube_apis, ingress_controller_prerequisites, test_nam
         app_name = request.param.get("app_type")
         create_example_app(kube_apis, app_name, test_namespace)
         wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
-    except Exception as ex:
+    except Exception:
         print("Failed to complete setup, cleaning up..")
         delete_items_from_yaml(kube_apis, src_sec_yaml, test_namespace)
         replace_configmap_from_yaml(

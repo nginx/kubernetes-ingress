@@ -1,0 +1,4 @@
+baseURL = "https://docs-staging.nginx.com/nginx-ingress-controller"
+title = "STAGING -- NGINX Ingress Controller Docs"
+publishDir = "public/nginx-ingress-controller"
+canonifyURLs = false

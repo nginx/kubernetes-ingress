@@ -129,6 +129,7 @@ def vsr_externalname_setup(
 
 
 @pytest.mark.vsr
+@pytest.mark.vsr_external_name
 @pytest.mark.skip_for_nginx_oss
 @pytest.mark.parametrize(
     "crd_ingress_controller, vsr_externalname_setup",

@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 import re
 import subprocess
@@ -9,7 +8,7 @@ import pytest
 import requests
 import yaml
 from kubernetes.client import V1ContainerPort
-from settings import DEPLOYMENTS, TEST_DATA
+from settings import TEST_DATA
 from suite.utils.ap_resources_utils import (
     create_ap_logconf_from_yaml,
     create_ap_policy_from_yaml,
@@ -25,14 +24,9 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     ensure_connection_to_public_endpoint,
     ensure_response_from_backend,
-    get_events,
-    get_file_contents,
-    get_first_pod_name,
-    get_ingress_nginx_template_conf,
     get_resource_metrics,
     replace_ingress_with_ap_annotations,
     wait_before_test,
-    wait_for_event_increment,
     wait_until_all_pods_are_ready,
 )
 from suite.utils.yaml_utils import get_first_ingress_host_from_yaml

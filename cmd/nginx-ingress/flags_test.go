@@ -7,24 +7,6 @@ import (
 	"testing"
 )
 
-func TestValidatePort(t *testing.T) {
-	badPorts := []int{80, 443, 1, 1023, 65536}
-	for _, badPort := range badPorts {
-		err := validatePort(badPort)
-		if err == nil {
-			t.Errorf("Expected error for port %v\n", badPort)
-		}
-	}
-
-	goodPorts := []int{8080, 8081, 8082, 1024, 65535}
-	for _, goodPort := range goodPorts {
-		err := validatePort(goodPort)
-		if err != nil {
-			t.Errorf("Error for valid port:  %v err: %v\n", goodPort, err)
-		}
-	}
-}
-
 func TestParseNginxStatusAllowCIDRs(t *testing.T) {
 	badCIDRs := []struct {
 		input         string
@@ -125,7 +107,7 @@ func TestValidateLocation(t *testing.T) {
 	}
 }
 
-func TestValidateAppProtectLogLevel(t *testing.T) {
+func TestValidateLogLevel(t *testing.T) {
 	badLogLevels := []string{
 		"",
 		"critical",
@@ -133,9 +115,9 @@ func TestValidateAppProtectLogLevel(t *testing.T) {
 		"info;",
 	}
 	for _, badLogLevel := range badLogLevels {
-		err := validateAppProtectLogLevel(badLogLevel)
+		err := validateLogLevel(badLogLevel)
 		if err == nil {
-			t.Errorf("validateAppProtectLogLevel(%v) returned no error when it should have returned an error", badLogLevel)
+			t.Errorf("validateLogLevel(%v) returned no error when it should have returned an error", badLogLevel)
 		}
 	}
 
@@ -148,9 +130,9 @@ func TestValidateAppProtectLogLevel(t *testing.T) {
 		"trace",
 	}
 	for _, goodLogLevel := range goodLogLevels {
-		err := validateAppProtectLogLevel(goodLogLevel)
+		err := validateLogLevel(goodLogLevel)
 		if err != nil {
-			t.Errorf("validateAppProtectLogLevel(%v) returned an error when it should have returned no error: %v", goodLogLevel, err)
+			t.Errorf("validateLogLevel(%v) returned an error when it should have returned no error: %v", goodLogLevel, err)
 		}
 	}
 }
@@ -169,6 +151,33 @@ func TestValidateNamespaces(t *testing.T) {
 		err := validateNamespaceNames(strings.Split(goodNs, ","))
 		if err != nil {
 			t.Errorf("Error for valid namespace:  %v err: %v\n", goodNs, err)
+		}
+	}
+}
+
+func TestValidateLogFormat(t *testing.T) {
+	badLogFormats := []string{
+		"",
+		"jason",
+		"txt",
+		"gloog",
+	}
+	for _, badLogFormat := range badLogFormats {
+		err := validateLogFormat(badLogFormat)
+		if err == nil {
+			t.Errorf("validateLogFormat(%v) returned no error when it should have returned an error", badLogFormat)
+		}
+	}
+
+	goodLogFormats := []string{
+		"json",
+		"text",
+		"glog",
+	}
+	for _, goodLogFormat := range goodLogFormats {
+		err := validateLogFormat(goodLogFormat)
+		if err != nil {
+			t.Errorf("validateLogFormat(%v) returned an error when it should have returned no error: %v", goodLogFormat, err)
 		}
 	}
 }

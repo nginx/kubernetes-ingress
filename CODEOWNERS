@@ -1,2 +1,2 @@
-* @nginxinc/kic
-/docs/ @nginxinc/kic @nginxinc/nginx-docs
+* @nginx/kic
+/site/ @nginx/kic @nginx/nginx-docs

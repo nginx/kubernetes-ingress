@@ -2,14 +2,15 @@ package k8s
 
 import (
 	"fmt"
+	"log/slog"
 	"time"
 
-	"github.com/nginxinc/kubernetes-ingress/pkg/apis/dos/v1beta1"
+	"github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
 
-	"github.com/golang/glog"
-	"github.com/nginxinc/kubernetes-ingress/internal/k8s/appprotect"
-	"github.com/nginxinc/kubernetes-ingress/internal/k8s/appprotectdos"
-	conf_v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotect"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotectdos"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	v1 "k8s.io/api/core/v1"
 	discovery_v1 "k8s.io/api/discovery/v1"
 	networking "k8s.io/api/networking/v1"
@@ -27,15 +28,18 @@ type taskQueue struct {
 	sync func(task)
 	// workerDone is closed when the worker exits
 	workerDone chan struct{}
+	// logger
+	logger *slog.Logger
 }
 
 // newTaskQueue creates a new task queue with the given sync function.
 // The sync function is called for every element inserted into the queue.
-func newTaskQueue(syncFn func(task)) *taskQueue {
+func newTaskQueue(logger *slog.Logger, syncFn func(task)) *taskQueue {
 	return &taskQueue{
 		queue:      workqueue.NewNamed("taskQueue"),
 		sync:       syncFn,
 		workerDone: make(chan struct{}),
+		logger:     logger,
 	}
 }
 
@@ -48,35 +52,35 @@ func (tq *taskQueue) Run(period time.Duration, stopCh <-chan struct{}) {
 func (tq *taskQueue) Enqueue(obj interface{}) {
 	key, err := keyFunc(obj)
 	if err != nil {
-		glog.V(3).Infof("Couldn't get key for object %v: %v", obj, err)
+		nl.Debugf(tq.logger, "Couldn't get key for object %v: %v", obj, err)
 		return
 	}
 
 	task, err := newTask(key, obj)
 	if err != nil {
-		glog.V(3).Infof("Couldn't create a task for object %v: %v", obj, err)
+		nl.Debugf(tq.logger, "Couldn't create a task for object %v: %v", obj, err)
 		return
 	}
 
-	glog.V(3).Infof("Adding an element with a key: %v", task.Key)
+	nl.Debugf(tq.logger, "Adding an element with a key: %v", task.Key)
 	tq.queue.Add(task)
 }
 
 // Requeue adds the task to the queue again and logs the given error
 func (tq *taskQueue) Requeue(task task, err error) {
-	glog.Errorf("Requeuing %v, err %v", task.Key, err)
+	nl.Errorf(tq.logger, "Requeuing %v, err %v", task.Key, err)
 	tq.queue.Add(task)
 }
 
 // Len returns the length of the queue
 func (tq *taskQueue) Len() int {
-	glog.V(3).Infof("The queue has %v element(s)", tq.queue.Len())
+	nl.Debugf(tq.logger, "The queue has %v element(s)", tq.queue.Len())
 	return tq.queue.Len()
 }
 
 // RequeueAfter adds the task to the queue after the given duration
 func (tq *taskQueue) RequeueAfter(t task, err error, after time.Duration) {
-	glog.Errorf("Requeuing %v after %s, err %v", t.Key, after.String(), err)
+	nl.Errorf(tq.logger, "Requeuing %v after %s, err %v", t.Key, after.String(), err)
 	go func(t task, after time.Duration) {
 		time.Sleep(after)
 		tq.queue.Add(t)
@@ -91,7 +95,7 @@ func (tq *taskQueue) worker() {
 			close(tq.workerDone)
 			return
 		}
-		glog.V(3).Infof("Syncing %v", t.(task).Key)
+		nl.Debugf(tq.logger, "Syncing %v", t.(task).Key)
 		tq.sync(t.(task))
 		tq.queue.Done(t)
 	}

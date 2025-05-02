@@ -2,12 +2,17 @@ package k8s
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
-	conf_v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
-	fake_v1alpha1 "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned/fake"
+	nic_glog "github.com/nginx/kubernetes-ingress/internal/logger/glog"
+	"github.com/nginx/kubernetes-ingress/internal/logger/levels"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	fake_v1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/fake"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,7 +36,7 @@ func TestUpdateTransportServerStatus(t *testing.T) {
 		},
 	}
 
-	fakeClient := fake_v1alpha1.NewSimpleClientset(
+	fakeClient := fake_v1.NewSimpleClientset(
 		&conf_v1.TransportServerList{
 			Items: []conf_v1.TransportServer{
 				*ts,
@@ -83,23 +88,25 @@ func TestUpdateTransportServerStatusIgnoreNoChange(t *testing.T) {
 		},
 	}
 
-	fakeClient := fake_v1alpha1.NewSimpleClientset(
+	fakeClient := fake_v1.NewSimpleClientset(
 		&conf_v1.TransportServerList{
 			Items: []conf_v1.TransportServer{
 				*ts,
 			},
 		})
 
-	tsLister, _ := cache.NewInformer(
-		cache.NewListWatchFromClient(
-			fakeClient.K8sV1().RESTClient(),
-			"transportservers",
-			"nginx-ingress",
-			fields.Everything(),
-		),
-		&conf_v1.TransportServer{},
-		2,
-		nil,
+	tsLister, _ := cache.NewInformerWithOptions(
+		cache.InformerOptions{
+			ListerWatcher: cache.NewListWatchFromClient(
+				fakeClient.K8sV1().RESTClient(),
+				"transportservers",
+				"nginx-ingress",
+				fields.Everything(),
+			),
+			ObjectType:   &conf_v1.TransportServer{},
+			ResyncPeriod: 2 * time.Second,
+			Handler:      nil,
+		},
 	)
 
 	err := tsLister.Add(ts)
@@ -108,10 +115,12 @@ func TestUpdateTransportServerStatusIgnoreNoChange(t *testing.T) {
 	}
 	nsi := make(map[string]*namespacedInformer)
 	nsi["default"] = &namespacedInformer{transportServerLister: tsLister}
+	l := slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo}))
 	su := statusUpdater{
 		namespacedInformers: nsi,
 		confClient:          fakeClient,
 		keyFunc:             cache.DeletionHandlingMetaNamespaceKeyFunc,
+		logger:              l,
 	}
 
 	err = su.UpdateTransportServerStatus(ts, "same status", "same reason", "same message")
@@ -145,26 +154,29 @@ func TestUpdateTransportServerStatusMissingTransportServer(t *testing.T) {
 		},
 	}
 
-	fakeClient := fake_v1alpha1.NewSimpleClientset(
+	fakeClient := fake_v1.NewSimpleClientset(
 		&conf_v1.TransportServerList{
 			Items: []conf_v1.TransportServer{},
 		})
 
-	tsLister, _ := cache.NewInformer(
-		cache.NewListWatchFromClient(
-			fakeClient.K8sV1().RESTClient(),
-			"transportservers",
-			"nginx-ingress",
-			fields.Everything(),
-		),
-		&conf_v1.TransportServer{},
-		2,
-		nil,
+	tsLister, _ := cache.NewInformerWithOptions(
+		cache.InformerOptions{
+			ListerWatcher: cache.NewListWatchFromClient(
+				fakeClient.K8sV1().RESTClient(),
+				"transportservers",
+				"nginx-ingress",
+				fields.Everything(),
+			),
+			ObjectType:   &conf_v1.TransportServer{},
+			ResyncPeriod: 2 * time.Second,
+			Handler:      nil,
+		},
 	)
 
 	nsi := make(map[string]*namespacedInformer)
 	nsi[""] = &namespacedInformer{transportServerLister: tsLister}
 
+	l := slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo}))
 	su := statusUpdater{
 		namespacedInformers: nsi,
 		confClient:          fakeClient,
@@ -175,16 +187,17 @@ func TestUpdateTransportServerStatusMissingTransportServer(t *testing.T) {
 				Ports: "1234",
 			},
 		},
+		logger: l,
 	}
 
 	err := su.UpdateTransportServerStatus(ts, "after status", "after reason", "after message")
 	if err != nil {
-		t.Errorf("unexpected error: %v, result should be empty as no matching TransportServer is present", err)
+		t.Fatalf("unexpected error: %v, result should be empty as no matching TransportServer is present", err)
 	}
 
-	updatedTs, _ := fakeClient.K8sV1().TransportServers(ts.Namespace).Get(context.TODO(), ts.Name, meta_v1.GetOptions{})
-	if updatedTs != nil {
-		t.Errorf("expected TransportServer Store would be empty as provided TransportServer was not found. Unexpected updated TransportServer: %v", updatedTs)
+	_, err = fakeClient.K8sV1().TransportServers(ts.Namespace).Get(context.TODO(), ts.Name, meta_v1.GetOptions{})
+	if err == nil {
+		t.Fatalf("expected TransportServer Store would be empty as provided TransportServer was not found.")
 	}
 }
 
@@ -211,9 +224,19 @@ func TestStatusUpdateWithExternalStatusAndExternalService(t *testing.T) {
 		}},
 	)
 	ingLister := storeToIngressLister{}
-	ingLister.Store, _ = cache.NewInformer(
-		cache.NewListWatchFromClient(fakeClient.NetworkingV1().RESTClient(), "ingresses", "nginx-ingress", fields.Everything()),
-		&networking.Ingress{}, 2, nil)
+	ingLister.Store, _ = cache.NewInformerWithOptions(
+		cache.InformerOptions{
+			ListerWatcher: cache.NewListWatchFromClient(
+				fakeClient.NetworkingV1().RESTClient(),
+				"ingresses",
+				"nginx-ingress",
+				fields.Everything(),
+			),
+			ObjectType:   &networking.Ingress{},
+			ResyncPeriod: 2 * time.Second,
+			Handler:      nil,
+		},
+	)
 
 	err := ingLister.Store.Add(&ing)
 	if err != nil {
@@ -223,6 +246,7 @@ func TestStatusUpdateWithExternalStatusAndExternalService(t *testing.T) {
 	nsi := make(map[string]*namespacedInformer)
 	nsi[""] = &namespacedInformer{ingressLister: ingLister}
 
+	l := slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo}))
 	su := statusUpdater{
 		client:                fakeClient,
 		namespace:             "namespace",
@@ -230,6 +254,7 @@ func TestStatusUpdateWithExternalStatusAndExternalService(t *testing.T) {
 		externalStatusAddress: "123.123.123.123",
 		namespacedInformers:   nsi,
 		keyFunc:               cache.DeletionHandlingMetaNamespaceKeyFunc,
+		logger:                l,
 	}
 	err = su.ClearIngressStatus(ing)
 	if err != nil {
@@ -318,9 +343,19 @@ func TestStatusUpdateWithExternalStatusAndIngressLink(t *testing.T) {
 		}},
 	)
 	ingLister := storeToIngressLister{}
-	ingLister.Store, _ = cache.NewInformer(
-		cache.NewListWatchFromClient(fakeClient.NetworkingV1().RESTClient(), "ingresses", "nginx-ingress", fields.Everything()),
-		&networking.Ingress{}, 2, nil)
+	ingLister.Store, _ = cache.NewInformerWithOptions(
+		cache.InformerOptions{
+			ListerWatcher: cache.NewListWatchFromClient(
+				fakeClient.NetworkingV1().RESTClient(),
+				"ingresses",
+				"nginx-ingress",
+				fields.Everything(),
+			),
+			ObjectType:   &networking.Ingress{},
+			ResyncPeriod: 2 * time.Second,
+			Handler:      nil,
+		},
+	)
 
 	err := ingLister.Store.Add(&ing)
 	if err != nil {
@@ -330,12 +365,14 @@ func TestStatusUpdateWithExternalStatusAndIngressLink(t *testing.T) {
 	nsi := make(map[string]*namespacedInformer)
 	nsi[""] = &namespacedInformer{ingressLister: ingLister}
 
+	l := slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo}))
 	su := statusUpdater{
 		client:                fakeClient,
 		namespace:             "namespace",
 		externalStatusAddress: "",
 		namespacedInformers:   nsi,
 		keyFunc:               cache.DeletionHandlingMetaNamespaceKeyFunc,
+		logger:                l,
 	}
 
 	su.SaveStatusFromIngressLink("3.3.3.3")

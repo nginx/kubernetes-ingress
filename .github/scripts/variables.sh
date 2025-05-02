@@ -18,7 +18,7 @@ get_docker_md5() {
 }
 
 get_go_code_md5() {
-  find . -type f \( -name "*.go" -o -name go.mod -o -name go.sum -o -name "*.tmpl" -o -name "version.txt" \) -not -path "./docs*"  -exec md5sum {} + | LC_ALL=C sort  | md5sum | awk '{ print $1 }'
+  find . -type f \( -name "*.go" -o -name go.mod -o -name go.sum -o -name "*.tmpl" -o -name "version.txt" -o -name "*.js" \) -not -path "./site*"  -exec md5sum {} + | LC_ALL=C sort  | md5sum | awk '{ print $1 }'
 }
 
 get_tests_md5() {
@@ -30,7 +30,15 @@ get_chart_md5() {
 }
 
 get_actions_md5() {
-  find .github .github/data/version.txt -type f -exec md5sum {} + | LC_ALL=C sort  | md5sum | awk '{ print $1 }'
+  exclude_list="$(dirname $0)/exclude_ci_files.txt"
+  find_command="find .github -type f -not -path '${exclude_list}'"
+  while IFS= read -r file
+  do
+    find_command+=" -not -path '$file'"
+  done < "$exclude_list"
+
+  find_command+=" -exec md5sum {} +"
+  eval "$find_command" | LC_ALL=C sort  | md5sum | awk '{ print $1 }'
 }
 
 get_build_tag() {
@@ -51,11 +59,11 @@ case $INPUT in
     ;;
 
   build_tag)
-    echo "build_tag=$(get_build_tag)"
+    echo "build_tag=t-$(get_build_tag)"
     ;;
 
   stable_tag)
-    echo "stable_tag=$(get_stable_tag)"
+    echo "stable_tag=s-$(get_stable_tag)"
     ;;
 
   *)

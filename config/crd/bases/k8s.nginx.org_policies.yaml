@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.15.0
+    controller-gen.kubebuilder.io/version: v0.17.3
   name: policies.k8s.nginx.org
 spec:
   group: k8s.nginx.org
@@ -67,10 +67,27 @@ spec:
                       type: string
                     type: array
                 type: object
+              apiKey:
+                description: APIKey defines an API Key policy.
+                properties:
+                  clientSecret:
+                    type: string
+                  suppliedIn:
+                    description: SuppliedIn defines the locations API Key should be
+                      supplied in.
+                    properties:
+                      header:
+                        items:
+                          type: string
+                        type: array
+                      query:
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                type: object
               basicAuth:
-                description: |-
-                  BasicAuth holds HTTP Basic authentication configuration
-                  policy status: preview
+                description: BasicAuth holds HTTP Basic authentication configuration
                 properties:
                   realm:
                     type: string
@@ -142,7 +159,11 @@ spec:
                     type: string
                   clientSecret:
                     type: string
+                  endSessionEndpoint:
+                    type: string
                   jwksURI:
+                    type: string
+                  postLogoutRedirectURI:
                     type: string
                   redirectURI:
                     type: string
@@ -158,6 +179,33 @@ spec:
                 properties:
                   burst:
                     type: integer
+                  condition:
+                    description: RateLimitCondition defines a condition for a rate
+                      limit policy.
+                    properties:
+                      default:
+                        description: sets the rate limit in this policy to be the
+                          default if no conditions are met. In a group of policies
+                          with the same JWT condition, only one policy can be the
+                          default.
+                        type: boolean
+                      jwt:
+                        description: defines a JWT condition to rate limit against.
+                        properties:
+                          claim:
+                            description: the JWT claim to be rate limit by. Nested
+                              claims should be separated by "."
+                            pattern: ^([^$\s"'])*$
+                            type: string
+                          match:
+                            description: the value of the claim to match against.
+                            pattern: ^([^$\s."'])*$
+                            type: string
+                        required:
+                        - claim
+                        - match
+                        type: object
+                    type: object
                   delay:
                     type: integer
                   dryRun:
@@ -229,113 +277,3 @@ spec:
     storage: true
     subresources:
       status: {}
-  - name: v1alpha1
-    schema:
-      openAPIV3Schema:
-        description: Policy defines a Policy for VirtualServer and VirtualServerRoute
-          resources.
-        properties:
-          apiVersion:
-            description: |-
-              APIVersion defines the versioned schema of this representation of an object.
-              Servers should convert recognized schemas to the latest internal value, and
-              may reject unrecognized values.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
-            type: string
-          kind:
-            description: |-
-              Kind is a string value representing the REST resource this object represents.
-              Servers may infer this from the endpoint the client submits requests to.
-              Cannot be updated.
-              In CamelCase.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
-            type: string
-          metadata:
-            type: object
-          spec:
-            description: |-
-              PolicySpec is the spec of the Policy resource.
-              The spec includes multiple fields, where each field represents a different policy.
-              Only one policy (field) is allowed.
-            properties:
-              accessControl:
-                description: AccessControl defines an access policy based on the source
-                  IP of a request.
-                properties:
-                  allow:
-                    items:
-                      type: string
-                    type: array
-                  deny:
-                    items:
-                      type: string
-                    type: array
-                type: object
-              egressMTLS:
-                description: EgressMTLS defines an Egress MTLS policy.
-                properties:
-                  ciphers:
-                    type: string
-                  protocols:
-                    type: string
-                  serverName:
-                    type: boolean
-                  sessionReuse:
-                    type: boolean
-                  sslName:
-                    type: string
-                  tlsSecret:
-                    type: string
-                  trustedCertSecret:
-                    type: string
-                  verifyDepth:
-                    type: integer
-                  verifyServer:
-                    type: boolean
-                type: object
-              ingressMTLS:
-                description: IngressMTLS defines an Ingress MTLS policy.
-                properties:
-                  clientCertSecret:
-                    type: string
-                  verifyClient:
-                    type: string
-                  verifyDepth:
-                    type: integer
-                type: object
-              jwt:
-                description: JWTAuth holds JWT authentication configuration.
-                properties:
-                  realm:
-                    type: string
-                  secret:
-                    type: string
-                  token:
-                    type: string
-                type: object
-              rateLimit:
-                description: RateLimit defines a rate limit policy.
-                properties:
-                  burst:
-                    type: integer
-                  delay:
-                    type: integer
-                  dryRun:
-                    type: boolean
-                  key:
-                    type: string
-                  logLevel:
-                    type: string
-                  noDelay:
-                    type: boolean
-                  rate:
-                    type: string
-                  rejectCode:
-                    type: integer
-                  zoneSize:
-                    type: string
-                type: object
-            type: object
-        type: object
-    served: true
-    storage: false

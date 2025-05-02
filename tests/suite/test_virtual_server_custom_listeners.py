@@ -158,7 +158,7 @@ class TestVirtualServerCustomListeners:
                 "https_listener_in_config": True,
                 "expected_response_codes": [404, 404, 0, 200],
                 "expected_vs_error_msg": "Listener http-8085 is not defined in GlobalConfiguration",
-                "expected_gc_error_msg": "Listener http-8085: Duplicated port/protocol combination 8085/HTTP",
+                "expected_gc_error_msg": "Listener http-8085: Duplicated ip:port protocol combination 0.0.0.0:8085 HTTP",
             },
             {
                 "gc_yaml": "global-configuration-forbidden-port-http",
@@ -339,7 +339,7 @@ class TestVirtualServerCustomListeners:
                 "https_listener_in_config": True,
                 "expected_response_codes": [404, 404, 0, 200],
                 "expected_vs_error_msg": "Listener http-8085 is not defined in GlobalConfiguration",
-                "expected_gc_error_msg": "Listener http-8085: Duplicated port/protocol combination 8085/HTTP",
+                "expected_gc_error_msg": "Listener http-8085: Duplicated ip:port protocol combination 0.0.0.0:8085 HTTP",
             },
             {
                 "gc_yaml": "global-configuration-forbidden-port-http",

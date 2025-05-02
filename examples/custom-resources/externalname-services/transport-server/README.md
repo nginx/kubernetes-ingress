@@ -27,7 +27,19 @@ responding to requests.
 
 ### 2. Deploy external service to external namespace
 
-1. Deploy backend application to external namespace (```external-ns```). Note that the namespace is not being watched by
+1. Create the external namespace
+
+   ```shell
+   kubectl create namespace external-ns
+   ```
+
+2. Deploy the tls secret to the external namespace
+
+   ```shell
+   kubectl apply -n external-ns -f app-tls-secret.yaml
+   ```
+
+3. Deploy backend application to external namespace (```external-ns```). Note that the namespace is not being watched by
    ```NIC```.
 
     ```console
@@ -56,7 +68,7 @@ responding to requests.
 2. Replace the service name ```secure-app``` with ```externalname-service``` and apply the change.
 
     ```yaml
-    apiVersion: k8s.nginx.org/v1alpha1
+    apiVersion: k8s.nginx.org/v1
     kind: TransportServer
     metadata:
       name: secure-app

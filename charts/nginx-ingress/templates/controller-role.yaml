@@ -43,7 +43,7 @@ rules:
   resources:
   - leases
   resourceNames:
-  - {{ .Values.controller.reportIngressStatus.leaderElectionLockName }}
+  - {{ include "nginx-ingress.leaderElectionName" . }}
   verbs:
   - get
   - update

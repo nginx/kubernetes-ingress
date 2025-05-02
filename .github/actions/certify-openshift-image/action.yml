@@ -18,7 +18,11 @@ inputs:
   platforms:
     description: A comma separated list of architectures in the image manifest to certify
     required: false
-    default: ""
+    default: "amd64,arm64,ppc64le,s390x"
+  submit:
+    description: Submit results to Redhat PYAXIS
+    required: false
+    default: true
 
 outputs:
   result:
@@ -43,14 +47,14 @@ runs:
           IFS=',' read -ra arch_list <<< "${{ inputs.platforms }}"
           for arch in "${arch_list[@]}"; do
               architecture=("${arch#*/}")
-              ./preflight check container ${{ inputs.image }} --pyxis-api-token ${{ inputs.pyxis_token }} --certification-project-id ${{ inputs.project_id }} --platform $architecture --submit
+              ./preflight check container ${{ inputs.image }} --pyxis-api-token ${{ inputs.pyxis_token }} --certification-project-id ${{ inputs.project_id }} --platform $architecture ${{ inputs.submit && '--submit' || '' }}
               if [ $? -ne 0 ]; then
                 result=1
               fi
           done
         else
           # no platforms passed, this is either a manifest or a single platform image
-          ./preflight check container ${{ inputs.image }} --pyxis-api-token ${{ inputs.pyxis_token }} --certification-project-id ${{ inputs.project_id }} --submit
+          ./preflight check container ${{ inputs.image }} --pyxis-api-token ${{ inputs.pyxis_token }} --certification-project-id ${{ inputs.project_id }} ${{ inputs.submit && '--submit' || '' }}
           result=$?
         fi
         echo "result=$result" >> $GITHUB_OUTPUT

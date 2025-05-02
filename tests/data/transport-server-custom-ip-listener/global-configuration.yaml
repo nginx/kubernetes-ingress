@@ -1,0 +1,12 @@
+apiVersion: k8s.nginx.org/v1
+kind: GlobalConfiguration
+metadata:
+  name: nginx-configuration
+  namespace: nginx-ingress
+spec:
+  listeners:
+  - name: dns-tcp-ip
+    port: 5353
+    protocol: TCP
+    ipv4: 127.0.0.1
+    ipv6: ::1

@@ -1,3 +1,5 @@
+version: 2
+
 env:
   - CGO_ENABLED=0
 
@@ -94,7 +96,7 @@ builds:
       - aws
 
 changelog:
-  skip: true
+  disable: true
 
 archives:
   - id: archives
@@ -137,4 +139,4 @@ milestones:
   - close: true
 
 snapshot:
-  name_template: '{{.Version}}'
+  version_template: '{{.Version}}'

@@ -7,9 +7,9 @@ import (
 
 	api_v1 "k8s.io/api/core/v1"
 
-	"github.com/nginxinc/kubernetes-ingress/internal/configs/version2"
-	"github.com/nginxinc/kubernetes-ingress/internal/k8s/secrets"
-	conf_v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
+	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 )
 
 const nginxNonExistingUnixSocket = "unix:/var/lib/nginx/non-existing-unix-socket.sock"
@@ -23,6 +23,8 @@ type TransportServerEx struct {
 	ExternalNameSvcs map[string]bool
 	DisableIPV6      bool
 	SecretRefs       map[string]*secrets.SecretReference
+	IPv4             string
+	IPv6             string
 }
 
 func (tsEx *TransportServerEx) String() string {
@@ -96,13 +98,18 @@ func generateTransportServerConfig(p transportServerConfigParams) (*version2.Tra
 	if p.transportServerEx.TransportServer.Spec.Listener.Name == conf_v1.TLSPassthroughListenerName {
 		statusZone = p.transportServerEx.TransportServer.Spec.Host
 	}
+	host := p.transportServerEx.TransportServer.Spec.Host
+	isTLSPassthrough := p.transportServerEx.TransportServer.Spec.Listener.Name == conf_v1.TLSPassthroughListenerName
+	serverName := generateServerName(host, isTLSPassthrough)
+	isUDP := p.transportServerEx.TransportServer.Spec.Listener.Protocol == "UDP"
 
 	tsConfig := &version2.TransportServerConfig{
 		Server: version2.StreamServer{
-			TLSPassthrough:           p.transportServerEx.TransportServer.Spec.Listener.Name == conf_v1.TLSPassthroughListenerName,
+			ServerName:               serverName,
+			TLSPassthrough:           isTLSPassthrough,
 			UnixSocket:               generateUnixSocket(p.transportServerEx),
 			Port:                     p.listenerPort,
-			UDP:                      p.transportServerEx.TransportServer.Spec.Listener.Protocol == "UDP",
+			UDP:                      isUDP,
 			StatusZone:               statusZone,
 			ProxyRequests:            proxyRequests,
 			ProxyResponses:           proxyResponses,
@@ -118,6 +125,8 @@ func generateTransportServerConfig(p transportServerConfigParams) (*version2.Tra
 			ServerSnippets:           serverSnippets,
 			DisableIPV6:              p.transportServerEx.DisableIPV6,
 			SSL:                      sslConfig,
+			IPv4:                     p.transportServerEx.IPv4,
+			IPv6:                     p.transportServerEx.IPv6,
 		},
 		Match:                   match,
 		Upstreams:               upstreams,
@@ -346,4 +355,11 @@ func generateLoadBalancingMethod(method string) string {
 		return ""
 	}
 	return method
+}
+
+func generateServerName(host string, isTLSPassthrough bool) string {
+	if isTLSPassthrough {
+		return ""
+	}
+	return host
 }

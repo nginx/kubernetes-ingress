@@ -25,14 +25,26 @@ inputs:
   marker:
     description: Marker to use
     required: false
+  label:
+    description: Label for test
+    required: false
   azure-ad-secret:
     description: Azure Active Directory secret for JWKs
+    required: false
+  registry-token:
+    description: JWT token for accessing container registry
+    required: false
+  plus-jwt:
+    description: JWT for NGINX Plus
     required: false
 
 outputs:
   test-results-name:
     description: Test results name
-    value: tests-${{ steps.k8s.outputs.cluster }}
+    value: ${{ steps.k8s.outputs.test_name }}
+  test-results-path:
+    description: Test results full path
+    value: ${{ steps.k8s.outputs.test_output_path }}
 
 runs:
   using: composite
@@ -42,12 +54,20 @@ runs:
       run: |
         make -f tests/Makefile create-kind-cluster K8S_CLUSTER_NAME=${{ github.run_id }} K8S_CLUSTER_VERSION=${{ inputs.k8s-version }} K8S_TIMEOUT=${{ inputs.k8s-timeout }}
         make -f tests/Makefile image-load REGISTRY="" PREFIX=${{ inputs.image-name }} TAG=${{ inputs.tag }} K8S_CLUSTER_NAME=${{ github.run_id }}
-        marker="${{ inputs.marker }}"
-        nospaces="${marker// /_}"
-        sanitized_marker="${nospaces//\'/}"
-        name="${sanitized_marker:-${{ inputs.k8s-version }}}"
-        echo "cluster_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${{ github.run_id }}-control-plane)" >> $GITHUB_OUTPUT
-        echo "cluster=$(echo nginx-${{ inputs.image-type }}-$name)" >> $GITHUB_OUTPUT
+        label="${{ inputs.label }}"
+        nospaces="${label// /_}"
+        noslash="${nospaces//\//_}"
+        sanitized_marker="${noslash//\'/}"
+        name="${sanitized_marker}-${{ inputs.k8s-version }}"
+        cluster_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${{ github.run_id }}-control-plane)
+        test_name=tests-nginx-${{ inputs.image-type }}-${name}.html
+        test_output_path=${{ github.workspace }}/tests/${test_name}
+        echo "cluster_ip=${cluster_ip}" >> $GITHUB_OUTPUT
+        echo "test_name=${test_name}" >> $GITHUB_OUTPUT
+        echo "test_output_path=${test_output_path}" >> $GITHUB_OUTPUT
+        echo "Output:"
+        echo "  cluster_ip=${cluster_ip}"
+        echo "  test_output_path=${test_output_path}"
       shell: bash
 
     - name: Setup Kubeconfig
@@ -56,23 +76,35 @@ runs:
       shell: bash
 
     - name: Run Smoke Tests
+      id: smoke-tests
       run: |
-        touch tests-${{ steps.k8s.outputs.cluster }}.html
+        touch ${{ steps.k8s.outputs.test_output_path }}
         docker run --rm \
         --name test-runner-${{ github.run_id }} \
         --network=kind \
+        -v "/var/run/docker.sock:/var/run/docker.sock" \
+        -v ~/.docker:/root/.docker \
         -v ${{ github.workspace }}/tests:/workspace/tests \
+        -v ${{ github.workspace }}/examples/common-secrets:/workspace/examples/common-secrets \
+        -v ${{ github.workspace }}/deployments:/workspace/deployments \
+        -v ${{ github.workspace }}/charts:/workspace/charts \
+        -v ${{ github.workspace }}/config:/workspace/config \
+        -v ${{ github.workspace }}/pyproject.toml:/workspace/pyproject.toml \
+        -v ${{ steps.k8s.outputs.test_output_path }}:${{ steps.k8s.outputs.test_output_path }} \
         -v ~/.kube/kind/config:/root/.kube/config ${{ inputs.test-image }} \
+        --docker-registry-user=oauth2accesstoken \
+        --docker-registry-token=${{ inputs.registry-token }} \
         --context=kind-${{ github.run_id }} \
         --image=${{ inputs.image-name }}:${{ inputs.tag }} \
         --image-pull-policy=Never \
         --ic-type=nginx${{ contains(inputs.image-type, 'plus') && '-plus' || '' }}-ingress \
         --service=nodeport --node-ip=${{ steps.k8s.outputs.cluster_ip }} \
-        --html=tests-${{ steps.k8s.outputs.cluster }}.html \
+        --html=${{ steps.k8s.outputs.test_output_path }} \
         --self-contained-html \
         --durations=10 \
         --show-ic-logs=yes \
         --ad-secret=${{ inputs.azure-ad-secret }} \
+        --plus-jwt=${{ inputs.plus-jwt }} \
         -m ${{ inputs.marker != '' && inputs.marker || '""' }}
       working-directory: ./tests
       shell: bash

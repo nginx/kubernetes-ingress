@@ -1,4 +1,4 @@
-{{- /*gotype: github.com/nginxinc/kubernetes-ingress/internal/configs/version2.VirtualServerConfig*/ -}}
+{{- /*gotype: github.com/nginx/kubernetes-ingress/internal/configs/version2.VirtualServerConfig*/ -}}
 {{ range $u := .Upstreams }}
 upstream {{ $u.Name }} {
     zone {{ $u.Name }} {{ if ne $u.UpstreamZoneSize "0" }}{{ $u.UpstreamZoneSize }}{{ else }}512k{{ end }};
@@ -28,7 +28,9 @@ upstream {{ $u.Name }} {
         {{- end }}
     {{- end }}
 
-    {{ if $u.NTLM }}ntlm;{{ end }}
+    {{- if $u.NTLM }}
+    ntlm;
+    {{- end }}
 }
 {{ end }}
 
@@ -48,6 +50,10 @@ split_clients {{ $sc.Source }} {{ $sc.Variable }} {
 }
 {{- end }}
 
+{{- range $claim := .AuthJWTClaimSets }}
+auth_jwt_claim_set {{ $claim.Variable }} {{ $claim.Claim}};
+{{- end }}
+
 {{- range $m := .Maps }}
 map {{ $m.Source }} {{ $m.Variable }} {
     {{- range $p := $m.Parameters }}
@@ -61,7 +67,7 @@ map {{ $m.Source }} {{ $m.Variable }} {
 {{- end }}
 
 {{- range $z := .LimitReqZones }}
-limit_req_zone {{ $z.Key }} zone={{ $z.ZoneName }}:{{ $z.ZoneSize }} rate={{ $z.Rate }};
+limit_req_zone {{ $z.Key }} zone={{ $z.ZoneName }}:{{ $z.ZoneSize }} rate={{ $z.Rate }}{{- if $z.Sync }} sync{{- end }};
 {{- end }}
 
 {{- range $m := .StatusMatches }}
@@ -77,7 +83,9 @@ proxy_cache_path /var/cache/nginx/jwks_uri_{{$s.VSName}} levels=1 keys_zone=jwks
 {{- end }}
 
 server {
-    {{- if $s.Gunzip }}gunzip on;{{end}}
+    {{- if $s.Gunzip }}
+    gunzip on;
+    {{- end }}
     {{ makeHTTPListener $s | printf }}
 
     server_name {{ $s.ServerName }};
@@ -90,13 +98,15 @@ server {
     include oidc/oidc.conf;
 
     set $oidc_pkce_enable 0;
-    set $oidc_logout_redirect "/_logout";
+    set $oidc_client_auth_method "client_secret_post";
+    set $oidc_logout_redirect "{{ $oidc.PostLogoutRedirectURI }}";
     set $oidc_hmac_key "{{ $s.VSName }}";
     set $zone_sync_leeway {{ $oidc.ZoneSyncLeeway }};
 
     set $oidc_authz_endpoint "{{ $oidc.AuthEndpoint }}";
     set $oidc_authz_extra_args "{{ $oidc.AuthExtraArgs }}";
     set $oidc_token_endpoint "{{ $oidc.TokenEndpoint }}";
+    set $oidc_end_session_endpoint "{{ $oidc.EndSessionEndpoint }}";
     set $oidc_jwt_keyfile "{{ $oidc.JwksURI }}";
     set $oidc_scopes "{{ $oidc.Scope }}";
     set $oidc_client "{{ $oidc.ClientID }}";
@@ -193,7 +203,7 @@ server {
 
     {{- range $rl := $s.LimitReqs }}
     limit_req zone={{ $rl.ZoneName }}{{ if $rl.Burst }} burst={{ $rl.Burst }}{{ end }}
-        {{ if $rl.Delay }} delay={{ $rl.Delay }}{{ end }}{{ if $rl.NoDelay }} nodelay{{ end }};
+        {{- if $rl.Delay }} delay={{ $rl.Delay }}{{ end }}{{ if $rl.NoDelay }} nodelay{{ end }};
     {{- end }}
 
     {{- with $s.JWTAuth }}
@@ -224,6 +234,13 @@ server {
     }
     {{- end }}
 
+    {{- if $s.APIKeyEnabled}}
+    location = /_validate_apikey_njs {
+            internal;
+            js_content apikey_auth.validate;
+    }
+    {{- end }}
+
     {{- with $s.BasicAuth }}
     auth_basic {{ printf "%q" .Realm }};
     auth_basic_user_file {{ .Secret }};
@@ -247,28 +264,39 @@ server {
     proxy_ssl_name {{ .SSLName }};
     {{- end }}
 
+    {{- with $s.APIKey}}
+    js_var $header_query_value {{ makeHeaderQueryValue $s.APIKey | printf }};
+    js_var $apikey_auth_local_map "{{ .MapName}}";
+    js_var $apikey_auth_token $apikey_auth_hash;
+    auth_request /_validate_apikey_njs;
+    {{- end }}
+
     {{- with $s.WAF }}
     app_protect_enable {{ .Enable }};
-        {{ if .ApPolicy }}
+        {{- if .ApPolicy }}
     app_protect_policy_file {{ .ApPolicy }};
-        {{ end }}
+        {{- end }}
 
-        {{ if .ApBundle }}
+        {{- if .ApBundle }}
     app_protect_policy_file {{ .ApBundle }};
-        {{ end }}
+        {{- end }}
 
-        {{ if .ApSecurityLogEnable }}
+        {{- if .ApSecurityLogEnable }}
     app_protect_security_log_enable on;
-        {{ range $logconf := .ApLogConf }}
+        {{- range $logconf := .ApLogConf }}
     app_protect_security_log {{ $logconf }};
-        {{ end }}
-        {{ end }}
+        {{- end }}
+        {{- end }}
     {{ end }}
 
     {{- with $s.Dos }}
     app_protect_dos_enable {{ .Enable }};
         {{- if .Name }}
     app_protect_dos_name "{{ .Name }}";
+        {{- end }}
+
+        {{- if .AllowListPath }}
+    app_protect_dos_access_file "{{ .AllowListPath }}";
         {{- end }}
 
         {{- if .ApDosPolicy }}
@@ -320,12 +348,17 @@ server {
             {{- else }}
         proxy_pass {{ $hc.ProxyPass }};
             {{- end }}
-        health_check {{ if $hc.URI }}uri={{ $hc.URI }} {{ end }}{{ if $hc.Port }}port={{ $hc.Port }} {{ end }}interval={{ $hc.Interval }} jitter={{ $hc.Jitter }}
-            fails={{ $hc.Fails }} passes={{ $hc.Passes }}{{ if $hc.Match }} match={{ $hc.Match }}{{ end }}
-            {{ if $hc.Mandatory }} mandatory{{ if $hc.Persistent }} persistent{{ end }}{{ end }}
-            {{ if $hc.GRPCPass }} type=grpc{{ if $hc.GRPCStatus }} grpc_status={{ $hc.GRPCStatus }}{{ end }}
-            {{ if $hc.GRPCService }} grpc_service={{ $hc.GRPCService }}{{ end }}{{ end }} keepalive_time={{ $hc.KeepaliveTime }};
-    }
+        health_check{{- if $hc.URI }} uri={{ $hc.URI }} {{ end -}}
+        {{- if $hc.Port }} port={{ $hc.Port }} {{ end -}}
+        interval={{ $hc.Interval }} jitter={{ $hc.Jitter }} fails={{ $hc.Fails }} passes={{ $hc.Passes }}
+        {{- if $hc.Match }} match={{ $hc.Match }}{{- end -}}
+        {{- if $hc.Mandatory }} mandatory {{ end -}}
+        {{- if $hc.Persistent }} persistent {{ end -}}
+        {{- if not $hc.IsGRPC }} keepalive_time={{ $hc.KeepaliveTime }}{{ end -}}
+        {{- if $hc.GRPCPass }} type=grpc{{- if $hc.GRPCStatus }} grpc_status={{ $hc.GRPCStatus }}{{- end -}}
+        {{- if $hc.GRPCService }} grpc_service={{ $hc.GRPCService }}{{- end -}}{{ end -}};
+
+   }
     {{- end }}
 
     {{- range $e := $s.ErrorPageLocations }}
@@ -400,7 +433,7 @@ server {
 
         {{- range $rl := $l.LimitReqs }}
         limit_req zone={{ $rl.ZoneName }}{{ if $rl.Burst }} burst={{ $rl.Burst }}{{ end }}
-            {{ if $rl.Delay }} delay={{ $rl.Delay }}{{ end }}{{ if $rl.NoDelay }} nodelay{{ end }};
+            {{- if $rl.Delay }} delay={{ $rl.Delay }}{{ end }}{{ if $rl.NoDelay }} nodelay{{ end }};
         {{- end }}
 
         {{- with $l.JWTAuth }}
@@ -444,6 +477,19 @@ server {
             {{- if $s.OIDC.AccessTokenEnable }}
         {{ $proxyOrGRPC }}_set_header Authorization "Bearer $access_token";
             {{- end }}
+        {{- end }}
+
+
+        {{- with $l.APIKey}}
+        set $apikey_auth_local_map  "{{ .MapName }}";
+        set $header_query_value {{ makeHeaderQueryValue $l.APIKey | printf }};
+        set $apikey_auth_token $apikey_auth_hash;
+        auth_request /_validate_apikey_njs;
+        {{- else }}
+        {{- with $s.APIKey }}
+        set $header_query_value {{ makeHeaderQueryValue $s.APIKey | printf }};
+        {{- end }}
+
         {{- end }}
 
         {{- with $l.WAF }}
@@ -491,6 +537,10 @@ server {
 
             {{- if .Name }}
         app_protect_dos_name "{{ .Name }}";
+            {{- end }}
+
+            {{- if .AllowListPath }}
+        app_protect_dos_access_file "{{ .AllowListPath }}";
             {{- end }}
 
             {{- if .ApDosPolicy }}

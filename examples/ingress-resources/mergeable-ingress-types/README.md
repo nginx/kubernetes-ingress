@@ -17,6 +17,7 @@ Masters cannot contain the following annotations:
 - nginx.org/ssl-services
 - nginx.org/grpc-services
 - nginx.org/websocket-services
+- nginx.org/use-cluster-ip
 - nginx.com/sticky-cookie-services
 - nginx.com/health-checks
 - nginx.com/health-checks-mandatory
@@ -40,11 +41,17 @@ Minions cannot contain the following annotations:
 - nginx.org/listen-ports
 - nginx.org/listen-ports-ssl
 - nginx.org/server-snippets
+- appprotect.f5.com/app_protect_enable
+- appprotect.f5.com/app_protect_policy
+- appprotect.f5.com/app_protect_security_log_enable
+- appprotect.f5.com/app_protect_security_log
+- appprotectdos.f5.com/app-protect-dos-resource
 
 Minions inherent the following annotations from the master, unless they override them:
 
 - nginx.org/proxy-connect-timeout
 - nginx.org/proxy-read-timeout
+- nginx.org/proxy-send-timeout
 - nginx.org/client-max-body-size
 - nginx.org/proxy-buffering
 - nginx.org/proxy-buffers
@@ -54,7 +61,18 @@ Minions inherent the following annotations from the master, unless they override
 - nginx.org/lb-method
 - nginx.org/keepalive
 - nginx.org/max-fails
+- nginx.org/max-conns
 - nginx.org/fail-timeout
+- nginx.org/limit-req-rate
+- nginx.org/limit-req-key
+- nginx.org/limit-req-zone-size
+- nginx.org/limit-req-delay
+- nginx.org/limit-req-no-delay
+- nginx.org/limit-req-burst
+- nginx.org/limit-req-dry-run
+- nginx.org/limit-req-log-level
+- nginx.org/limit-req-reject-code
+- nginx.org/limit-req-scale
 
 Note: Ingress Resources with more than one host cannot be used.
 

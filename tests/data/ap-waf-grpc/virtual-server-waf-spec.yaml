@@ -7,7 +7,7 @@ spec:
   policies:
   - name: waf-policy
   tls:
-    secret: virtual-server-tls-grpc-secret
+    secret: tls-secret
   upstreams:
   - name: grpc1
     service: grpc1-svc

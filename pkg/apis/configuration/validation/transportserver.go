@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	conf_v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -38,7 +38,7 @@ func (tsv *TransportServerValidator) validateTransportServerSpec(spec *conf_v1.T
 	allErrs := tsv.validateTransportListener(&spec.Listener, fieldPath.Child("listener"))
 
 	isTLSPassthroughListener := isPotentialTLSPassthroughListener(&spec.Listener)
-	allErrs = append(allErrs, validateTransportServerHost(spec.Host, fieldPath.Child("host"), isTLSPassthroughListener)...)
+	allErrs = append(allErrs, validateTransportServerHost(spec.Host, fieldPath.Child("host"), isTLSPassthroughListener, spec.Listener.Protocol, spec.TLS)...)
 
 	upstreamErrs, upstreamNames := validateTransportServerUpstreams(spec.Upstreams, fieldPath.Child("upstreams"), tsv.isPlus)
 	allErrs = append(allErrs, upstreamErrs...)
@@ -57,22 +57,37 @@ func (tsv *TransportServerValidator) validateTransportServerSpec(spec *conf_v1.T
 
 	allErrs = append(allErrs, validateSnippets(spec.StreamSnippets, fieldPath.Child("streamSnippets"), tsv.snippetsEnabled)...)
 
-	allErrs = append(allErrs, validateTLS(spec.TLS, isTLSPassthroughListener, fieldPath.Child("tls"))...)
+	hostSpecified := spec.Host != ""
+	allErrs = append(allErrs, validateTLS(spec.TLS, isTLSPassthroughListener, fieldPath.Child("tls"), hostSpecified)...)
 
 	return allErrs
 }
 
-func validateTLS(tls *conf_v1.TransportServerTLS, isTLSPassthrough bool, fieldPath *field.Path) field.ErrorList {
-	if tls == nil {
+func validateTLS(
+	tls *conf_v1.TransportServerTLS,
+	isTLSPassthroughListener bool,
+	fieldPath *field.Path,
+	hostSpecified bool,
+) field.ErrorList {
+	if isTLSPassthroughListener {
+		if tls != nil {
+			return field.ErrorList{field.Forbidden(fieldPath, "cannot specify tls for TLS Passthrough TransportServers")}
+		}
 		return nil
 	}
-	if isTLSPassthrough {
-		return field.ErrorList{field.Forbidden(fieldPath, "cannot specify secret for tls passthrough")}
+
+	if hostSpecified {
+		if tls == nil || tls.Secret == "" {
+			return field.ErrorList{field.Required(fieldPath, "must specify spec.tls.secret when host is specified, and the TransportServer is not using the TLS Passthrough listener")}
+		}
+		return validateSecretName(tls.Secret, fieldPath.Child("secret"))
 	}
-	if tls.Secret == "" {
-		return field.ErrorList{field.Required(fieldPath, "must specify secret for tls")}
+
+	if tls != nil && tls.Secret != "" {
+		return validateSecretName(tls.Secret, fieldPath.Child("secret"))
 	}
-	return validateSecretName(tls.Secret, fieldPath.Child("secret"))
+
+	return nil
 }
 
 func validateSnippets(serverSnippet string, fieldPath *field.Path, snippetsEnabled bool) field.ErrorList {
@@ -82,14 +97,32 @@ func validateSnippets(serverSnippet string, fieldPath *field.Path, snippetsEnabl
 	return nil
 }
 
-func validateTransportServerHost(host string, fieldPath *field.Path, isTLSPassthroughListener bool) field.ErrorList {
-	if !isTLSPassthroughListener {
+func validateTransportServerHost(host string, fieldPath *field.Path, isTLSPassthroughListener bool, protocol string, tls *conf_v1.TransportServerTLS) field.ErrorList {
+	if protocol == "UDP" {
 		if host != "" {
-			return field.ErrorList{field.Forbidden(fieldPath, "host field is allowed only for TLS Passthrough TransportServers")}
+			return field.ErrorList{field.Forbidden(fieldPath, "host field is not allowed for UDP TransportServers")}
 		}
 		return nil
 	}
-	return validateHost(host, fieldPath)
+
+	if host != "" {
+		if !isTLSPassthroughListener {
+			if tls == nil || tls.Secret == "" {
+				return field.ErrorList{field.Required(fieldPath, "must specify spec.tls.secret when host is specified for non-TLS Passthrough TransportServers")}
+			}
+			return validateHost(host, fieldPath)
+		}
+		if tls != nil && tls.Secret != "" {
+			return field.ErrorList{field.Required(fieldPath, "must not specify spec.tls.secret when host using TLS Passthrough")}
+		}
+		return validateHost(host, fieldPath)
+	}
+
+	if isTLSPassthroughListener {
+		return field.ErrorList{field.Required(fieldPath, "must specify host for TLS Passthrough TransportServers")}
+	}
+
+	return nil
 }
 
 func (tsv *TransportServerValidator) validateTransportListener(listener *conf_v1.TransportServerListener, fieldPath *field.Path) field.ErrorList {

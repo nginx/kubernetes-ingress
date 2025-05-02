@@ -2,23 +2,26 @@ package collectors
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
-	"github.com/golang/glog"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 // NginxProcessesMetricsCollector implements prometheus.Collector interface
 type NginxProcessesMetricsCollector struct {
 	workerProcessTotal *prometheus.GaugeVec
+	logger             *slog.Logger
 }
 
 // NewNginxProcessesMetricsCollector creates a new NginxProcessMetricsCollector
-func NewNginxProcessesMetricsCollector(constLabels map[string]string) *NginxProcessesMetricsCollector {
+func NewNginxProcessesMetricsCollector(ctx context.Context, constLabels map[string]string) *NginxProcessesMetricsCollector {
 	return &NginxProcessesMetricsCollector{
 		workerProcessTotal: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -29,6 +32,7 @@ func NewNginxProcessesMetricsCollector(constLabels map[string]string) *NginxProc
 			},
 			[]string{"generation"},
 		),
+		logger: nl.LoggerFromContext(ctx),
 	}
 }
 
@@ -36,7 +40,7 @@ func NewNginxProcessesMetricsCollector(constLabels map[string]string) *NginxProc
 func (pc *NginxProcessesMetricsCollector) updateWorkerProcessCount() {
 	currWorkerProcesses, prevWorkerProcesses, err := getWorkerProcesses()
 	if err != nil {
-		glog.Errorf("unable to collect process metrics : %v", err)
+		nl.Errorf(pc.logger, "unable to collect process metrics : %v", err)
 		return
 	}
 	pc.workerProcessTotal.WithLabelValues("current").Set(float64(currWorkerProcesses))

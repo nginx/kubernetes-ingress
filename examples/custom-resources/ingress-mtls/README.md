@@ -79,7 +79,6 @@ curl --insecure --resolve webapp.example.com:$IC_HTTPS_PORT:$IC_IP https://webap
 <body>
 <center><h1>400 Bad Request</h1></center>
 <center>No required SSL certificate was sent</center>
-<hr><center>nginx/1.19.1</center>
 </body>
 </html>
 ```

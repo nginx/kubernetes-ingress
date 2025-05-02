@@ -2,9 +2,11 @@ package validation
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 
-	"github.com/golang/glog"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -50,7 +52,7 @@ var appProtectPolicyExtRefs = [][]string{
 }
 
 // ValidateAppProtectPolicy validates Policy resource
-func ValidateAppProtectPolicy(policy *unstructured.Unstructured) error {
+func ValidateAppProtectPolicy(policy *unstructured.Unstructured, l *slog.Logger) error {
 	polName := policy.GetName()
 
 	err := ValidateRequiredFields(policy, appProtectPolicyRequiredFields)
@@ -65,7 +67,7 @@ func ValidateAppProtectPolicy(policy *unstructured.Unstructured) error {
 
 	if len(extRefs) > 0 {
 		for _, ref := range extRefs {
-			glog.V(2).Infof("Warning: Field %s (External reference) is Deprecated.", ref)
+			nl.Debugf(l, "Warning: Field %s (External reference) is Deprecated.", ref)
 		}
 	}
 

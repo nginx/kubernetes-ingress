@@ -50,7 +50,7 @@ Similar to how listeners are configured in our [basic-tcp-udp](../../examples/cu
 here we deploy a GlobalConfiguration resource with the listeners we want to use in our VirtualServer.
 
    ```yaml
-   apiVersion: k8s.nginx.org/v1alpha1
+   apiVersion: k8s.nginx.org/v1
    kind: GlobalConfiguration
    metadata:
      name: nginx-configuration
@@ -70,16 +70,7 @@ here we deploy a GlobalConfiguration resource with the listeners we want to use 
    kubectl create -f global-configuration.yaml
    ```
 
-## Step 2 - Save the custom port numbers
-
-Save the custom HTTP and/or HTTPS ports into a shell variables for later:
-
-   ```console
-   IC_HTTP_PORT=8083
-   IC_HTTPS_PORT=8443
-   ```
-
-## Step 3 - Deploy the Cafe Application
+## Step 2 - Deploy the Cafe Application
 
 Create the coffee and the tea deployments and services:
 
@@ -87,7 +78,7 @@ Create the coffee and the tea deployments and services:
    kubectl create -f cafe.yaml
    ```
 
-## Step 4 - Deploy the VirtualServer with custom listeners
+## Step 3 - Deploy the VirtualServer with custom listeners
 
 The VirtualServer in this example is set to use the listeners defined in the GlobalConfiguration resource
 that was deployed in Step 1. Below is the yaml of this example VirtualServer:
@@ -132,7 +123,7 @@ that was deployed in Step 1. Below is the yaml of this example VirtualServer:
     kubectl create -f cafe-virtual-server.yaml
     ```
 
-## Step 5 - Test the Configuration
+## Step 4 - Test the Configuration
 
 1. Check that the configuration has been successfully applied by inspecting the events of the VirtualServer:
 
@@ -158,13 +149,13 @@ that was deployed in Step 1. Below is the yaml of this example VirtualServer:
       Normal  AddedOrUpdated  7s    nginx-ingress-controller  Configuration for default/cafe was added or updated
     ```
 
-2. Since the deployed VirtualServer is using ports `8083` and 8443` in this example. you must explicitly specify these ports
+2. Since the deployed VirtualServer is using ports `8083` and `8443` in this example. you must explicitly specify these ports
 when sending requests to the endpoints of this VirtualServer:
 
-    For `/coffee` on `8443`:
+    For `/coffee` on `8083`:
 
     ```console
-    curl -k https://cafe.example.com:8443/coffee
+    curl -k http://cafe.example.com:8083/coffee
     ```
 
     ```text
@@ -175,10 +166,10 @@ when sending requests to the endpoints of this VirtualServer:
     ...
     ```
 
-    For `/coffee` on `8083`:
+   For `/coffee` on `8443`:
 
     ```console
-    curl -k https://cafe.example.com:8083/coffee
+    curl -k https://cafe.example.com:8443/coffee
     ```
 
     ```text

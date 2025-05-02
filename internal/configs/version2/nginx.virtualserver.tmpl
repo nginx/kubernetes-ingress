@@ -1,4 +1,4 @@
-{{- /*gotype: github.com/nginxinc/kubernetes-ingress/internal/configs/version2.VirtualServerConfig*/ -}}
+{{- /*gotype: github.com/nginx/kubernetes-ingress/internal/configs/version2.VirtualServerConfig*/ -}}
 {{ range $u := .Upstreams }}
 upstream {{ $u.Name }} {
     {{- if ne $u.UpstreamZoneSize "0" }}zone {{ $u.Name }} {{ $u.UpstreamZoneSize }};{{ end }}
@@ -42,7 +42,9 @@ limit_req_zone {{ $z.Key }} zone={{ $z.ZoneName }}:{{ $z.ZoneSize }} rate={{ $z.
 
 {{- $s := .Server }}
 server {
-    {{- if $s.Gunzip }}gunzip on;{{end}}
+    {{- if $s.Gunzip }}
+    gunzip on;
+    {{- end }}
     {{ makeHTTPListener $s | printf }}
 
     server_name {{ $s.ServerName }};
@@ -140,12 +142,26 @@ server {
 
     {{- range $rl := $s.LimitReqs }}
     limit_req zone={{ $rl.ZoneName }}{{ if $rl.Burst }} burst={{ $rl.Burst }}{{ end }}
-        {{ if $rl.Delay }} delay={{ $rl.Delay }}{{ end }}{{ if $rl.NoDelay }} nodelay{{ end }};
+        {{- if $rl.Delay }} delay={{ $rl.Delay }}{{ end }}{{ if $rl.NoDelay }} nodelay{{ end }};
+    {{- end }}
+
+    {{- if $s.APIKeyEnabled}}
+    location = /_validate_apikey_njs {
+        internal;
+        js_content apikey_auth.validate;
+    }
     {{- end }}
 
     {{- with $s.BasicAuth }}
     auth_basic {{ printf "%q" .Realm }};
     auth_basic_user_file {{ .Secret }};
+    {{- end }}
+
+    {{- with $s.APIKey}}
+    js_var $header_query_value {{ makeHeaderQueryValue $s.APIKey | printf }};
+    js_var $apikey_auth_local_map "{{ .MapName}}";
+    js_var $apikey_auth_token $apikey_auth_hash;
+    auth_request /_validate_apikey_njs;
     {{- end }}
 
     {{- with $s.EgressMTLS }}
@@ -247,12 +263,24 @@ server {
 
         {{- range $rl := $l.LimitReqs }}
         limit_req zone={{ $rl.ZoneName }}{{ if $rl.Burst }} burst={{ $rl.Burst }}{{ end }}
-            {{ if $rl.Delay }} delay={{ $rl.Delay }}{{ end }}{{ if $rl.NoDelay }} nodelay{{ end }};
+            {{- if $rl.Delay }} delay={{ $rl.Delay }}{{ end }}{{ if $rl.NoDelay }} nodelay{{ end }};
         {{- end }}
 
         {{- with $l.BasicAuth }}
         auth_basic {{ printf "%q" .Realm }};
         auth_basic_user_file {{ .Secret }};
+        {{- end }}
+
+        {{- with $l.APIKey}}
+        set $apikey_auth_local_map  "{{ .MapName }}";
+        set $header_query_value {{ makeHeaderQueryValue $l.APIKey | printf }};
+        set $apikey_auth_token $apikey_auth_hash;
+        auth_request /_validate_apikey_njs;
+
+        {{- else }}
+        {{- with $s.APIKey }}
+        set $header_query_value {{ makeHeaderQueryValue $s.APIKey | printf }};
+        {{- end }}
         {{- end }}
 
         {{ $proxyOrGRPC := "proxy" }}{{ if $l.GRPCPass }}{{ $proxyOrGRPC = "grpc" }}{{ end }}

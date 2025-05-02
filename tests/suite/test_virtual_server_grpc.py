@@ -52,7 +52,7 @@ def backend_setup(request, kube_apis, ingress_controller_prerequisites, test_nam
         app_name = request.param.get("app_type")
         create_example_app(kube_apis, app_name, test_namespace)
         wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
-    except Exception as ex:
+    except Exception:
         print("Failed to complete setup, cleaning up..")
         delete_items_from_yaml(kube_apis, src_sec_yaml, test_namespace)
         replace_configmap_from_yaml(
@@ -266,7 +266,7 @@ class TestVirtualServerGrpc:
 
 
 @pytest.mark.vs
-@pytest.mark.vs_gprc
+@pytest.mark.vs_grpc
 @pytest.mark.smoke
 @pytest.mark.skip_for_nginx_oss
 @pytest.mark.parametrize(
@@ -297,7 +297,7 @@ class TestVirtualServerGrpcHealthCheck:
         param_list = [
             "health_check port=50051 interval=1s jitter=2s",
             "type=grpc grpc_status=12",
-            "grpc_service=helloworld.Greeter keepalive_time=60s;",
+            "grpc_service=none.None;",
         ]
         for p in param_list:
             assert p in config
@@ -327,3 +327,70 @@ class TestVirtualServerGrpcHealthCheck:
         assert_vs_conf_not_exists(
             kube_apis, ic_pod_name, ingress_controller_prerequisites.namespace, virtual_server_setup
         )
+
+    @pytest.mark.parametrize("backend_setup", [{"app_type": "grpc-vs"}], indirect=True)
+    def test_grpc_healthcheck_send_hello(
+        self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, backend_setup, virtual_server_setup
+    ):
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        patch_virtual_server_from_yaml(
+            kube_apis.custom_objects,
+            virtual_server_setup.vs_name,
+            f"{TEST_DATA}/virtual-server-grpc/virtual-server-healthcheck.yaml",
+            virtual_server_setup.namespace,
+        )
+
+        # Ensure the initial health check configuration
+        config = get_vs_nginx_template_conf(
+            kube_apis.v1,
+            virtual_server_setup.namespace,
+            virtual_server_setup.vs_name,
+            ic_pod_name,
+            ingress_controller_prerequisites.namespace,
+        )
+        assert "grpc_service=none.None" in config
+
+        # Attempt to send a Hello message
+        cert = get_certificate(
+            virtual_server_setup.public_endpoint.public_ip,
+            virtual_server_setup.vs_host,
+            virtual_server_setup.public_endpoint.port_ssl,
+        )
+        target = f"{virtual_server_setup.public_endpoint.public_ip}:{virtual_server_setup.public_endpoint.port_ssl}"
+        credentials = grpc.ssl_channel_credentials(root_certificates=cert.encode())
+        options = (("grpc.ssl_target_name_override", virtual_server_setup.vs_host),)
+
+        try:
+            with grpc.secure_channel(target, credentials, options) as channel:
+                stub = GreeterStub(channel)
+                response = stub.SayHello(HelloRequest(name=""))
+                valid_message = "Hello "
+                assert response.message == valid_message, f"Expected '{valid_message}', but got '{response.message}'"
+        except grpc.RpcError as e:
+            print(e.details())
+            pytest.fail("RPC error was not expected during call, exiting...")
+
+        # Update health check to expect gRPC status code 0
+        patch_virtual_server_from_yaml(
+            kube_apis.custom_objects,
+            virtual_server_setup.vs_name,
+            f"{TEST_DATA}/virtual-server-grpc/virtual-server-healthcheck-fail.yaml",
+            virtual_server_setup.namespace,
+        )
+        wait_before_test()
+
+        # Re-fetch the config to confirm the update
+        config = get_vs_nginx_template_conf(
+            kube_apis.v1,
+            virtual_server_setup.namespace,
+            virtual_server_setup.vs_name,
+            ic_pod_name,
+            ingress_controller_prerequisites.namespace,
+        )
+        assert "grpc_status=0" in config
+
+        # Verify that the health check fails
+        log_contents = kube_apis.v1.read_namespaced_pod_log(ic_pod_name, ingress_controller_prerequisites.namespace)
+        assert (
+            "peer is unhealthy while checking grpc response" in log_contents
+        ), "Expected 'peer is unhealthy while checking grpc response' in logs but it was not found"

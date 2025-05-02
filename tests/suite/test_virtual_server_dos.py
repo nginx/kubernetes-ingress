@@ -83,12 +83,14 @@ class DosSetup:
     Encapsulate the example details.
     Attributes:
         req_url (str):
+        protected_name (str)
         pol_name (str):
         log_name (str):
     """
 
-    def __init__(self, req_url, pol_name, log_name):
+    def __init__(self, req_url, protected_name, pol_name, log_name):
         self.req_url = req_url
+        self.protected_name = protected_name
         self.pol_name = pol_name
         self.log_name = log_name
 
@@ -148,7 +150,7 @@ def dos_setup(
 
     request.addfinalizer(fin)
 
-    return DosSetup(req_url, pol_name, log_name)
+    return DosSetup(req_url, protected_name, pol_name, log_name)
 
 
 @pytest.mark.dos
@@ -161,7 +163,7 @@ def dos_setup(
                 "extra_args": [
                     f"-enable-custom-resources",
                     f"-enable-app-protect-dos",
-                    f"-v=3",
+                    f"-log-level=debug",
                 ],
             },
             {"example": "virtual-server-dos", "app_type": "dos"},
@@ -238,6 +240,8 @@ class TestDos:
             f"app_protect_dos_policy_file /etc/nginx/dos/policies/{test_namespace}_{dos_setup.pol_name}.json;",
             f"app_protect_dos_security_log_enable on;",
             f"app_protect_dos_security_log /etc/nginx/dos/logconfs/{test_namespace}_{dos_setup.log_name}.json syslog:server=syslog-svc.{ingress_controller_prerequisites.namespace}.svc.cluster.local:514;",
+            f"access_log syslog:server=accesslog-svc.{ingress_controller_prerequisites.namespace}.svc.cluster.local:514 log_dos if=$loggable;",
+            f'app_protect_dos_access_file "/etc/nginx/dos/allowlist/{test_namespace}_{dos_setup.protected_name}.json";',
         ]
 
         print("\n confirm response for standard request")

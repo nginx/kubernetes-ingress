@@ -4,9 +4,11 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/nginxinc/kubernetes-ingress/internal/telemetry"
+	"github.com/nginx/kubernetes-ingress/internal/telemetry"
 	appsV1 "k8s.io/api/apps/v1"
 	apiCoreV1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -459,6 +461,284 @@ func TestGetInstallationFlags(t *testing.T) {
 	}
 }
 
+func TestGetServices(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name   string
+		config telemetry.CollectorConfig
+		want   map[string]int
+	}{
+		{
+			name: "OneClusterIP",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(defaultNS, kubeNS, clusterIPService),
+			},
+			want: map[string]int{
+				"ClusterIP": 1,
+			},
+		},
+		{
+			name: "MultipleClusterIPs",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(defaultNS, kubeNS, clusterIPService, clusterIPService2),
+			},
+			want: map[string]int{
+				"ClusterIP": 2,
+			},
+		},
+		{
+			name: "MultipleExternalNamesAndNodePort",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(defaultNS, kubeNS, externalNameService, externalNameService2, nodePortService),
+			},
+			want: map[string]int{
+				"ExternalName": 2,
+				"NodePort":     1,
+			},
+		},
+		{
+			name: "MultipleServices",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(defaultNS, kubeNS, externalNameService, externalNameService2, nodePortService, nodePortService2, clusterIPService2, clusterIPService, loadBalancerService),
+			},
+			want: map[string]int{
+				"ClusterIP":    2,
+				"ExternalName": 2,
+				"NodePort":     2,
+				"LoadBalancer": 1,
+			},
+		},
+		{
+			name: "noServices",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(defaultNS, kubeNS),
+			},
+			want: map[string]int{},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			c, err := telemetry.NewCollector(tc.config)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			got, err := c.ServiceCounts()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if !cmp.Equal(tc.want, got) {
+				t.Error(cmp.Diff(tc.want, got))
+			}
+		})
+	}
+}
+
+func TestConfigMapKeys(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name   string
+		config telemetry.CollectorConfig
+		want   []string
+	}{
+		{
+			name: "ConfigMap With some keys",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(
+					&apiCoreV1.ConfigMap{
+						ObjectMeta: metaV1.ObjectMeta{
+							Name:      "nginx-ingress",
+							Namespace: "nginx-ingress",
+						},
+						Data: map[string]string{
+							"proxy-buffering": "false",
+							"zone-sync":       "true",
+						},
+					},
+				),
+				MainConfigMapName: "nginx-ingress/nginx-ingress",
+			},
+			want: []string{"proxy-buffering", "zone-sync"},
+		},
+		{
+			name: "ConfigMap With no keys",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(
+					&apiCoreV1.ConfigMap{
+						ObjectMeta: metaV1.ObjectMeta{
+							Name:      "nginx-ingress",
+							Namespace: "nginx-ingress",
+						},
+						Data: map[string]string{},
+					},
+				),
+				MainConfigMapName: "nginx-ingress/nginx-ingress",
+			},
+			want: nil,
+		},
+		{
+			name: "ConfigMap With ignored keys",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(
+					&apiCoreV1.ConfigMap{
+						ObjectMeta: metaV1.ObjectMeta{
+							Name:      "nginx-ingress",
+							Namespace: "nginx-ingress",
+						},
+						Data: map[string]string{
+							"enforce-initial-report": "false",
+							"sync":                   "hello",
+							"hello":                  "world",
+						},
+					},
+				),
+				MainConfigMapName: "nginx-ingress/nginx-ingress",
+			},
+			want: nil,
+		},
+		{
+			name: "ConfigMap With ignored keys and valid keys",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(
+					&apiCoreV1.ConfigMap{
+						ObjectMeta: metaV1.ObjectMeta{
+							Name:      "nginx-ingress",
+							Namespace: "nginx-ingress",
+						},
+						Data: map[string]string{
+							"proxy-buffering":        "false",
+							"enforce-initial-report": "false",
+							"sync":                   "hello",
+							"hello":                  "world",
+							"zone-sync":              "true",
+						},
+					},
+				),
+				MainConfigMapName: "nginx-ingress/nginx-ingress",
+			},
+			want: []string{"proxy-buffering", "zone-sync"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			c, err := telemetry.NewCollector(tc.config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := c.ConfigMapKeys(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !assert.ElementsMatch(t, tc.want, got, "MGMTConfigMap keys do not match") {
+				t.Error(cmp.Diff(tc.want, got))
+			}
+		})
+	}
+}
+
+func TestMGMTConfigMapKeys(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name   string
+		config telemetry.CollectorConfig
+		want   []string
+	}{
+		{
+			name: "MGMTConfigMap With some keys",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(
+					&apiCoreV1.ConfigMap{
+						ObjectMeta: metaV1.ObjectMeta{
+							Name:      "nginx-ingress-mgmt",
+							Namespace: "nginx-ingress",
+						},
+						Data: map[string]string{
+							"enforce-initial-report":    "false",
+							"license-token-secret-name": "license-token",
+						},
+					},
+				),
+				MGMTConfigMapName: "nginx-ingress/nginx-ingress-mgmt",
+			},
+			want: []string{"enforce-initial-report", "license-token-secret-name"},
+		},
+		{
+			name: "MGMTConfigMap With no keys",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(
+					&apiCoreV1.ConfigMap{
+						ObjectMeta: metaV1.ObjectMeta{
+							Name:      "nginx-ingress-mgmt",
+							Namespace: "nginx-ingress",
+						},
+						Data: map[string]string{},
+					},
+				),
+				MGMTConfigMapName: "nginx-ingress/nginx-ingress-mgmt",
+			},
+			want: nil,
+		},
+		{
+			name: "MGMTConfigMap With ignored keys",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(
+					&apiCoreV1.ConfigMap{
+						ObjectMeta: metaV1.ObjectMeta{
+							Name:      "nginx-ingress-mgmt",
+							Namespace: "nginx-ingress",
+						},
+						Data: map[string]string{
+							"zone-sync": "false",
+							"license":   "test",
+						},
+					},
+				),
+				MGMTConfigMapName: "nginx-ingress/nginx-ingress-mgmt",
+			},
+			want: nil,
+		},
+		{
+			name: "MGMTConfigMap With ignored keys and valid keys",
+			config: telemetry.CollectorConfig{
+				K8sClientReader: newTestClientset(
+					&apiCoreV1.ConfigMap{
+						ObjectMeta: metaV1.ObjectMeta{
+							Name:      "nginx-ingress-mgmt",
+							Namespace: "nginx-ingress",
+						},
+						Data: map[string]string{
+							"zone-sync":                 "false",
+							"license":                   "test",
+							"enforce-initial-report":    "false",
+							"license-token-secret-name": "license-token",
+						},
+					},
+				),
+				MGMTConfigMapName: "nginx-ingress/nginx-ingress-mgmt",
+			},
+			want: []string{"enforce-initial-report", "license-token-secret-name"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			c, err := telemetry.NewCollector(tc.config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := c.MGMTConfigMapKeys(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !assert.ElementsMatch(t, tc.want, got, "MGMTConfigMap keys do not match") {
+				t.Error(cmp.Diff(tc.want, got))
+			}
+		})
+	}
+}
+
 // newTestCollectorForClusterWithNodes returns a telemetry collector configured
 // to simulate collecting data on a cluser with provided nodes.
 func newTestCollectorForClusterWithNodes(t *testing.T, nodes ...runtime.Object) *telemetry.Collector {
@@ -668,6 +948,18 @@ var (
 		ObjectMeta: metaV1.ObjectMeta{
 			Name: "kube-system",
 			UID:  "329766ff-5d78-4c9e-8736-7faad1f2e937",
+		},
+		Spec: apiCoreV1.NamespaceSpec{},
+	}
+
+	defaultNS = &apiCoreV1.Namespace{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Namespace",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name: "default",
+			UID:  "329766ff-5d78-4c9e-8736-7fesd1f2e937",
 		},
 		Spec: apiCoreV1.NamespaceSpec{},
 	}
@@ -935,5 +1227,107 @@ var (
 		},
 		Type: apiCoreV1.SecretTypeTLS,
 		Data: map[string][]byte{},
+	}
+)
+
+// Services for testing
+var (
+	clusterIPService = &apiCoreV1.Service{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      "coffee-svc",
+			Namespace: "default",
+		},
+		Spec: apiCoreV1.ServiceSpec{
+			Type: "ClusterIP",
+		},
+		Status: apiCoreV1.ServiceStatus{},
+	}
+	clusterIPService2 = &apiCoreV1.Service{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      "coffee-svc2",
+			Namespace: "default",
+		},
+		Spec: apiCoreV1.ServiceSpec{
+			Type: "ClusterIP",
+		},
+		Status: apiCoreV1.ServiceStatus{},
+	}
+	nodePortService = &apiCoreV1.Service{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      "tea-svc",
+			Namespace: "default",
+		},
+		Spec: apiCoreV1.ServiceSpec{
+			Type: "NodePort",
+		},
+		Status: apiCoreV1.ServiceStatus{},
+	}
+	nodePortService2 = &apiCoreV1.Service{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      "tea-svc2",
+			Namespace: "default",
+		},
+		Spec: apiCoreV1.ServiceSpec{
+			Type: "NodePort",
+		},
+		Status: apiCoreV1.ServiceStatus{},
+	}
+	externalNameService = &apiCoreV1.Service{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      "external-svc",
+			Namespace: "default",
+		},
+		Spec: apiCoreV1.ServiceSpec{
+			Type: "ExternalName",
+		},
+		Status: apiCoreV1.ServiceStatus{},
+	}
+	externalNameService2 = &apiCoreV1.Service{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      "external-svc2",
+			Namespace: "default",
+		},
+		Spec: apiCoreV1.ServiceSpec{
+			Type: "ExternalName",
+		},
+		Status: apiCoreV1.ServiceStatus{},
+	}
+	loadBalancerService = &apiCoreV1.Service{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      "default-svc",
+			Namespace: "default",
+		},
+		Spec: apiCoreV1.ServiceSpec{
+			Type: "LoadBalancer",
+		},
+		Status: apiCoreV1.ServiceStatus{},
 	}
 )

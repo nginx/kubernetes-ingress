@@ -105,6 +105,7 @@ def vs_externalname_setup(
 
 
 @pytest.mark.vs
+@pytest.mark.vs_backup
 @pytest.mark.skip_for_nginx_oss
 @pytest.mark.skip(reason="issue with VS config")
 @pytest.mark.parametrize(
@@ -115,7 +116,7 @@ def vs_externalname_setup(
                 "type": "complete",
                 "extra_args": [
                     f"-enable-custom-resources",
-                    f"-v=3",
+                    f"-log-level=debug",
                 ],
             },
             {

@@ -31,14 +31,15 @@ spec:
     spec:
       containers:
       - name: keycloak
-        image: quay.io/keycloak/keycloak:15.0.2
+        image: quay.io/keycloak/keycloak:25.0.2
+        args: ["start-dev"]
         env:
-        - name: KEYCLOAK_USER
+        - name: KEYCLOAK_ADMIN
           value: "admin"
-        - name: KEYCLOAK_PASSWORD
+        - name: KEYCLOAK_ADMIN_PASSWORD
           value: "admin"
-        - name: PROXY_ADDRESS_FORWARDING
-          value: "true"
+        - name: KC_PROXY
+          value: "edge"
         ports:
         - name: http
           containerPort: 8080
@@ -46,5 +47,5 @@ spec:
           containerPort: 8443
         readinessProbe:
           httpGet:
-            path: /auth/realms/master
+            path: /realms/master
             port: 8080

@@ -1,0 +1,15 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: api-key-policy-server
+spec:
+  apiKey:
+    suppliedIn:
+      header:
+      - "header-server-1"
+      - "header-server-2"
+      - "header-server-3"
+      query:
+      - "queryServer1"
+      - "queryServer2"
+    clientSecret: api-key-client-secret-server

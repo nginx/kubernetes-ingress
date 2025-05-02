@@ -5,32 +5,64 @@ grpc** field to an upstream. The protocol defaults to http if left unset.
 
 ## Prerequisites
 
-- HTTP/2 must be enabled. See `http2` ConfigMap key in the
-  [ConfigMap](https://docs.nginx.com/nginx-ingress-controller/configuration/global-configuration/configmap-resource/#listeners)
+1. HTTP/2 must be enabled using the `http2` [ConfigMap key](https://docs.nginx.com/nginx-ingress-controller/configuration/global-configuration/configmap-resource/#listeners).
 
-- VirtualServer and VirtualServerRoute resources for gRPC applications must include TLS termination.
+2. Configure TLS termination for VirtualServer and VirtualServerRoute resources.
 
-## Example
+3. A working [`grpcurl`](https://github.com/fullstorydev/grpcurl) installation.
 
-```yaml
-apiVersion: k8s.nginx.org/v1
-kind: VirtualServer
-metadata:
-  name: grpc-vs
-spec:
-  host: grpc.example.com
-  tls:
-    secret: grpc-secret
-  upstreams:
-  - name: grpc1
-    service: grpc-svc
-    port: 50051
-    type: grpc
-  routes:
-  - path: /helloworld.Greeter
-    action:
-      pass: grpc1
+4. [Install NGINX Ingress Controller using Manifests](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
+
+5. Save the public IP address of NGINX Ingress Controller into a shell variable:
+
+    ```shell
+    IC_IP=XXX.YYY.ZZZ.III
+    ```
+
+6. Save the HTTPS port of NGINX Ingress Controller into a shell variable:
+
+    ```shell
+    IC_HTTPS_PORT=<port number>
+    ```
+
+## Step 1 - Update ConfigMap with `http2: "true"`
+
+```shell
+kubectl apply -f nginx-config
 ```
 
-*grpc-svc* is a service for the gRPC application. The service becomes available at the `/helloworld.Greeter` path. Note
-how we used the **type: grpc** field in the Upstream configuration.
+## Step 2 - Deploy the Cafe Application
+
+Create the coffee and the tea deployments and services:
+
+```shell
+kubectl apply -f greeter-app.yaml
+```
+
+## Step 3 - Configure TLS termination and Load balancing
+
+1. Create the secret with the TLS certificate and key:
+
+    ```shell
+    kubectl create -f greeter-secret.yaml
+    ```
+
+2. Create the VirtualServer resource:
+
+    ```shell
+    kubectl create -f greeter-virtual-server.yaml
+    ```
+
+## Step 4 - Test the Configuration
+
+Access the application using `grpcurl`. Use the `-insecure` flag to turn off certificate verification for the self-signed certificate.
+
+```shell
+grpcurl -insecure -proto helloworld.proto -authority greeter.example.com $IC_IP:$IC_HTTPS_PORT helloworld.Greeter/SayHello
+```
+
+```shell
+{
+  "message": "Hello"
+}
+```

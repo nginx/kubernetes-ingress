@@ -15,3 +15,8 @@ spec:
     enable: true
     apDosLogConf: "doslogconf"
     dosLogDest: "syslog-svc.default.svc.cluster.local:514"
+  allowList:
+    - ipWithMask: "192.168.1.1/24"
+    - ipWithMask: "10.244.0.1/32"
+    - ipWithMask: "2023::4ef3/128"
+    - ipWithMask: "2034::2300/120"

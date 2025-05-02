@@ -411,6 +411,8 @@ type GlobalConfigurationSpec struct {
 type Listener struct {
 	Name     string `json:"name"`
 	Port     int    `json:"port"`
+	IPv4     string `json:"ipv4"`
+	IPv6     string `json:"ipv6"`
 	Protocol string `json:"protocol"`
 	Ssl      bool   `json:"ssl"`
 }
@@ -577,6 +579,7 @@ type PolicySpec struct {
 	EgressMTLS    *EgressMTLS    `json:"egressMTLS"`
 	OIDC          *OIDC          `json:"oidc"`
 	WAF           *WAF           `json:"waf"`
+	APIKey        *APIKey        `json:"apiKey"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -607,6 +610,29 @@ type RateLimit struct {
 	LogLevel   string `json:"logLevel"`
 	RejectCode *int   `json:"rejectCode"`
 	Scale      bool   `json:"scale"`
+	// +kubebuilder:validation:Optional
+	Condition *RateLimitCondition `json:"condition"`
+}
+
+// RateLimitCondition defines a condition for a rate limit policy.
+type RateLimitCondition struct {
+	// defines a JWT condition to rate limit against.
+	JWT *JWTCondition `json:"jwt"`
+	// +kubebuilder:validation:Optional
+	// sets the rate limit in this policy to be the default if no conditions are met. In a group of policies with the same JWT condition, only one policy can be the default.
+	Default bool `json:"default"`
+}
+
+// JWTCondition defines a condition for a rate limit by JWT claim.
+type JWTCondition struct {
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^([^$\s"'])*$`
+	// the JWT claim to be rate limit by. Nested claims should be separated by "."
+	Claim string `json:"claim"`
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^([^$\s."'])*$`
+	// the value of the claim to match against.
+	Match string `json:"match"`
 }
 
 // JWTAuth holds JWT authentication configuration.
@@ -619,7 +645,6 @@ type JWTAuth struct {
 }
 
 // BasicAuth holds HTTP Basic authentication configuration
-// policy status: preview
 type BasicAuth struct {
 	Realm  string `json:"realm"`
 	Secret string `json:"secret"`
@@ -648,16 +673,18 @@ type EgressMTLS struct {
 
 // OIDC defines an Open ID Connect policy.
 type OIDC struct {
-	AuthEndpoint      string   `json:"authEndpoint"`
-	TokenEndpoint     string   `json:"tokenEndpoint"`
-	JWKSURI           string   `json:"jwksURI"`
-	ClientID          string   `json:"clientID"`
-	ClientSecret      string   `json:"clientSecret"`
-	Scope             string   `json:"scope"`
-	RedirectURI       string   `json:"redirectURI"`
-	ZoneSyncLeeway    *int     `json:"zoneSyncLeeway"`
-	AuthExtraArgs     []string `json:"authExtraArgs"`
-	AccessTokenEnable bool     `json:"accessTokenEnable"`
+	AuthEndpoint          string   `json:"authEndpoint"`
+	TokenEndpoint         string   `json:"tokenEndpoint"`
+	JWKSURI               string   `json:"jwksURI"`
+	ClientID              string   `json:"clientID"`
+	ClientSecret          string   `json:"clientSecret"`
+	Scope                 string   `json:"scope"`
+	RedirectURI           string   `json:"redirectURI"`
+	EndSessionEndpoint    string   `json:"endSessionEndpoint"`
+	PostLogoutRedirectURI string   `json:"postLogoutRedirectURI"`
+	ZoneSyncLeeway        *int     `json:"zoneSyncLeeway"`
+	AuthExtraArgs         []string `json:"authExtraArgs"`
+	AccessTokenEnable     bool     `json:"accessTokenEnable"`
 }
 
 // WAF defines an WAF policy.
@@ -675,4 +702,16 @@ type SecurityLog struct {
 	ApLogConf   string `json:"apLogConf"`
 	ApLogBundle string `json:"apLogBundle"`
 	LogDest     string `json:"logDest"`
+}
+
+// APIKey defines an API Key policy.
+type APIKey struct {
+	SuppliedIn   *SuppliedIn `json:"suppliedIn"`
+	ClientSecret string      `json:"clientSecret"`
+}
+
+// SuppliedIn defines the locations API Key should be supplied in.
+type SuppliedIn struct {
+	Header []string `json:"header"`
+	Query  []string `json:"query"`
 }

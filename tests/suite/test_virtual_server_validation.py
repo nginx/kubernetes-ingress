@@ -1,7 +1,7 @@
 import pytest
 from settings import TEST_DATA
 from suite.utils.custom_assertions import assert_vs_conf_exists, assert_vs_conf_not_exists, wait_and_assert_status_code
-from suite.utils.resources_utils import get_events, get_first_pod_name, get_pods_amount, wait_before_test
+from suite.utils.resources_utils import get_events, get_first_pod_name, wait_before_test
 from suite.utils.vs_vsr_resources_utils import (
     create_virtual_server_from_yaml,
     delete_virtual_server,
@@ -50,11 +50,9 @@ class TestVirtualServerValidation:
     def test_virtual_server_behavior(
         self, kube_apis, cli_arguments, ingress_controller_prerequisites, crd_ingress_controller, virtual_server_setup
     ):
-        ic_pods_amount = get_pods_amount(kube_apis.v1, ingress_controller_prerequisites.namespace)
         ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
 
         print("Step 1: initial check")
-        step_1_list = get_events(kube_apis.v1, virtual_server_setup.namespace)
         assert_vs_conf_exists(kube_apis, ic_pod_name, ingress_controller_prerequisites.namespace, virtual_server_setup)
         assert_response_200(virtual_server_setup)
 
@@ -66,7 +64,6 @@ class TestVirtualServerValidation:
             virtual_server_setup.namespace,
         )
         wait_before_test(1)
-        step_2_list = get_events(kube_apis.v1, virtual_server_setup.namespace)
         assert_vs_conf_not_exists(
             kube_apis, ic_pod_name, ingress_controller_prerequisites.namespace, virtual_server_setup
         )
@@ -107,7 +104,6 @@ class TestVirtualServerValidation:
             virtual_server_setup.namespace,
         )
         wait_before_test(1)
-        step_5_list = get_events(kube_apis.v1, virtual_server_setup.namespace)
         assert_vs_conf_not_exists(
             kube_apis, ic_pod_name, ingress_controller_prerequisites.namespace, virtual_server_setup
         )

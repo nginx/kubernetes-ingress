@@ -3,11 +3,10 @@ package validation
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
-	"golang.org/x/exp/slices"
-
-	v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/externaldns/v1"
+	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/externaldns/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
@@ -53,7 +52,7 @@ func validateTargets(targets v1.Targets) error {
 	for _, target := range targets {
 		switch {
 		case strings.Contains(target, ":"):
-			if errMsg := validation.IsValidIP(field.NewPath(""), target); len(errMsg) > 0 {
+			if errMsg := validation.IsValidIPForLegacyField(field.NewPath(""), target, false, nil); len(errMsg) > 0 {
 				return fmt.Errorf("%w: target %q is invalid: %s", ErrTypeInvalid, target, errMsg[0])
 			}
 		default:

@@ -1,0 +1,15 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: api-key-policy-vs-route
+spec:
+  apiKey:
+    suppliedIn:
+      header:
+      - "header-route-1"
+      - "header-route-2"
+      - "header-route-3"
+      query:
+      - "queryRoute1"
+      - "queryRoute2"
+    clientSecret: api-key-client-secret-route

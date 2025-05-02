@@ -31,9 +31,10 @@ jobs:
       tag: ${{ steps.kic.outputs.tag }}
       short_tag: ${{ steps.kic.outputs.short }}
       date: ${{ steps.kic.outputs.date }}
+      matrix: ${{ steps.kic.outputs.matrix }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
@@ -42,187 +43,33 @@ jobs:
         run: |
           tag="$(git tag --sort=-version:refname | head -n1)"
           if [ -n "${{ inputs.tag }}" ]; then
-            echo "tag=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+            tag=${{ inputs.tag }}
           else
             tag=${tag//v}
-            echo "tag=${tag//v}" >> $GITHUB_OUTPUT
           fi
+          echo "tag=${tag}" >> $GITHUB_OUTPUT
           date=$(date "+%Y%m%d")
           echo "date=${date}" >> $GITHUB_OUTPUT
           short="${tag%.*}"
           echo "short=$short" >> $GITHUB_OUTPUT
+          echo "matrix=$(cat .github/data/patch-images.json | jq -c)" >> $GITHUB_OUTPUT
           cat $GITHUB_OUTPUT
 
-  patch-oss-images:
-    name: Build OSS Images
+  patch-images:
+    name: Patch Images
     needs: [variables]
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - tag: ${{ needs.variables.outputs.tag }}
-            target_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}"
-            image: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic/nginx-ingress
-            target_image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress"
-            platforms: "linux/arm, linux/arm64, linux/amd64, linux/ppc64le, linux/s390x"
-          - tag: ${{ needs.variables.outputs.tag }}-alpine
-            target_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}-alpine"
-            image: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic/nginx-ingress
-            target_image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress"
-            platforms: "linux/arm, linux/arm64, linux/amd64, linux/ppc64le, linux/s390x"
-          - tag: ${{ needs.variables.outputs.tag }}-ubi
-            target_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}-ubi"
-            image: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic/nginx-ingress
-            target_image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress"
-            platforms: "linux/arm64, linux/amd64, linux/ppc64le, linux/s390x"
+        include: ${{ fromJSON( needs.variables.outputs.matrix ) }}
     uses: ./.github/workflows/patch-image.yml
     with:
       platforms: ${{ matrix.platforms }}
-      image: ${{ matrix.image }}
-      tag: ${{ matrix.tag }}
+      image: ${{ matrix.source_image }}
+      tag: ${{ matrix.source_os == 'debian' && needs.variables.outputs.tag || format('{0}-{1}', needs.variables.outputs.tag, matrix.source_os) }}
       ic_version: ${{ needs.variables.outputs.tag }}
       target_image: ${{ matrix.target_image }}
-      target_tag: ${{ matrix.target_tag }}
-    permissions:
-      contents: read
-      id-token: write
-    secrets: inherit
-
-  patch-plus-images:
-    name: Build Plus Images
-    needs: [variables]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - tag: ${{ needs.variables.outputs.tag }}
-            target_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}"
-            image: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic/nginx-plus-ingress
-            target_image: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress
-            platforms: "linux/arm64, linux/amd64"
-          - tag: ${{ needs.variables.outputs.tag }}-alpine
-            target_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}-alpine"
-            image: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic/nginx-plus-ingress
-            target_image: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress
-            platforms: "linux/arm64, linux/amd64"
-          - tag: ${{ needs.variables.outputs.tag }}-alpine-fips
-            target_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}-alpine-fips"
-            image: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic/nginx-plus-ingress
-            target_image: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress
-            platforms: "linux/arm64, linux/amd64"
-          - tag: ${{ needs.variables.outputs.tag }}-mktpl
-            target_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}-mktpl"
-            image: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic/nginx-plus-ingress
-            target_image: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress
-            platforms: "linux/arm64, linux/amd64"
-          - tag: ${{ needs.variables.outputs.tag }}-alpine-mktpl
-            target_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}-alpine-mktpl"
-            image: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic/nginx-plus-ingress
-            target_image: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress
-            platforms: "linux/arm64, linux/amd64"
-          - tag: ${{ needs.variables.outputs.tag }}-alpine-mktpl-fips
-            target_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}-alpine-mktpl-fips"
-            image: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic/nginx-plus-ingress
-            target_image: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress
-            platforms: "linux/arm64, linux/amd64"
-          - tag: ${{ needs.variables.outputs.tag }}-ubi
-            target_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}-ubi"
-            image: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic/nginx-plus-ingress
-            target_image: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress
-            platforms: "linux/arm64, linux/amd64, linux/s390x"
-    uses: ./.github/workflows/patch-image.yml
-    with:
-      platforms: ${{ matrix.platforms }}
-      image: ${{ matrix.image }}
-      tag: ${{ matrix.tag }}
-      ic_version: ${{ needs.variables.outputs.tag }}
-      target_image: ${{ matrix.target_image }}
-      target_tag: ${{ matrix.target_tag }}
-    permissions:
-      contents: read
-      id-token: write
-    secrets: inherit
-
-  patch-plus-nap-images:
-    name: Build Plus NAP Images
-    needs: [variables]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - tag: "${{ needs.variables.outputs.tag }}"
-            target_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}"
-            image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-nap/nginx-plus-ingress"
-            target_image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap/nginx-plus-ingress"
-            platforms: "linux/amd64"
-          - tag: "${{ needs.variables.outputs.tag }}-ubi"
-            target_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}-ubi"
-            image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-nap/nginx-plus-ingress"
-            target_image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap/nginx-plus-ingress"
-            platforms: "linux/amd64"
-          - tag: "${{ needs.variables.outputs.tag }}-mktpl"
-            target_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}-mktpl"
-            image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-nap/nginx-plus-ingress"
-            target_image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap/nginx-plus-ingress"
-            platforms: "linux/amd64"
-          - tag: "${{ needs.variables.outputs.tag }}-ubi-mktpl"
-            target_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}-ubi-mktpl"
-            image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-nap/nginx-plus-ingress"
-            target_image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap/nginx-plus-ingress"
-            platforms: "linux/amd64"
-          - tag: "${{ needs.variables.outputs.tag }}-alpine-fips"
-            target_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}-alpine-fips"
-            image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-nap/nginx-plus-ingress"
-            target_image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap/nginx-plus-ingress"
-            platforms: "linux/amd64"
-          - tag: "${{ needs.variables.outputs.tag }}"
-            target_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}"
-            image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-dos/nginx-plus-ingress"
-            target_image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos/nginx-plus-ingress"
-            platforms: "linux/amd64"
-          - tag: "${{ needs.variables.outputs.tag }}-ubi"
-            target_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}-ubi"
-            image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-dos/nginx-plus-ingress"
-            target_image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos/nginx-plus-ingress"
-            platforms: "linux/amd64"
-          - tag: "${{ needs.variables.outputs.tag }}-ubi-mktpl"
-            target_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}-ubi-mktpl"
-            image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-dos/nginx-plus-ingress"
-            target_image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos/nginx-plus-ingress"
-            platforms: "linux/amd64"
-          - tag: "${{ needs.variables.outputs.tag }}-mktpl"
-            target_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}-mktpl"
-            image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-dos/nginx-plus-ingress"
-            target_image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos/nginx-plus-ingress"
-            platforms: "linux/amd64"
-          - tag: "${{ needs.variables.outputs.tag }}"
-            target_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}"
-            image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-dos-nap/nginx-plus-ingress"
-            target_image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos-nap/nginx-plus-ingress"
-            platforms: "linux/amd64"
-          - tag: "${{ needs.variables.outputs.tag }}-ubi"
-            target_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}-ubi"
-            image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-dos-nap/nginx-plus-ingress"
-            target_image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos-nap/nginx-plus-ingress"
-            platforms: "linux/amd64"
-          - tag: "${{ needs.variables.outputs.tag }}-ubi-mktpl"
-            target_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}-ubi-mktpl"
-            image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-dos-nap/nginx-plus-ingress"
-            target_image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos-nap/nginx-plus-ingress"
-            platforms: "linux/amd64"
-          - tag: "${{ needs.variables.outputs.tag }}-mktpl"
-            target_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}-mktpl"
-            image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-dos-nap/nginx-plus-ingress"
-            target_image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos-nap/nginx-plus-ingress"
-            platforms: "linux/amd64"
-    uses: ./.github/workflows/patch-image.yml
-    with:
-      platforms: ${{ matrix.platforms }}
-      image: ${{ matrix.image }}
-      tag: ${{ matrix.tag }}
-      ic_version: ${{ needs.variables.outputs.tag }}
-      target_image: ${{ matrix.target_image }}
-      target_tag: ${{ matrix.target_tag }}
+      target_tag: ${{ matrix.source_os == 'debian' && format('{0}-{1}', needs.variables.outputs.tag, needs.variables.outputs.date) || format('{0}-{1}-{2}', needs.variables.outputs.tag, needs.variables.outputs.date, matrix.source_os) }}
     permissions:
       contents: read
       id-token: write
@@ -230,7 +77,7 @@ jobs:
 
   release-oss-internal:
     name: "Publish Docker OSS ${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }} to internal release Registries"
-    needs: [variables, patch-oss-images]
+    needs: [variables, patch-images]
     uses: ./.github/workflows/oss-release.yml
     with:
       gcr_release_registry: true
@@ -240,15 +87,17 @@ jobs:
       github_public_registry: false
       source_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}"
       target_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}"
+      branch: "release-${{ needs.variables.outputs.short_tag }}"
       dry_run: ${{ inputs.dry_run || false }}
     permissions:
       contents: read
       id-token: write
+      packages: write
     secrets: inherit
 
   release-oss-public:
-    name: Publish Docker OSS ${{ needs.variables.outputs.tag }} to Public Registries
-    needs: [variables, patch-oss-images]
+    name: Publish Docker OSS ${{ matrix.tag }} to Public Registries
+    needs: [variables, patch-images]
     strategy:
       fail-fast: false
       matrix:
@@ -266,15 +115,17 @@ jobs:
       github_public_registry: true
       source_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}"
       target_tag: ${{ matrix.tag }}
+      branch: "release-${{ needs.variables.outputs.short_tag }}"
       dry_run: ${{ inputs.dry_run || false }}
     permissions:
       contents: read
       id-token: write
+      packages: write
     secrets: inherit
 
-  release-plus-nginx-gcr:
-    name: Publish Docker Plus ${{ needs.variables.outputs.tag }} to NGINX & GCR Marketplace registries
-    needs: [variables, patch-plus-images, patch-plus-nap-images]
+  release-plus-nginx:
+    name: Publish Docker Plus ${{ matrix.tag }} to NGINX registry
+    needs: [variables, patch-images]
     strategy:
       fail-fast: false
       matrix:
@@ -287,29 +138,12 @@ jobs:
     with:
       nginx_registry: true
       gcr_release_registry: false
-      gcr_mktpl_registry: true
+      gcr_mktpl_registry: false
       ecr_mktpl_registry: false
       az_mktpl_registry: false
       source_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}"
       target_tag: ${{ matrix.tag }}
-      dry_run: ${{ inputs.dry_run || false }}
-    permissions:
-      contents: read
-      id-token: write
-    secrets: inherit
-
-  release-plus-azure-ecr-marketplace:
-    name: Publish Docker Plus ${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }} to Azure & ECR Marketplace registries
-    needs: [variables, patch-plus-images, patch-plus-nap-images]
-    uses: ./.github/workflows/plus-release.yml
-    with:
-      nginx_registry: false
-      gcr_release_registry: false
-      gcr_mktpl_registry: false
-      ecr_mktpl_registry: true
-      az_mktpl_registry: true
-      source_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}"
-      target_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}"
+      branch: "release-${{ needs.variables.outputs.short_tag }}"
       dry_run: ${{ inputs.dry_run || false }}
     permissions:
       contents: read
@@ -318,7 +152,7 @@ jobs:
 
   release-plus-internal:
     name: Publish Docker Plus ${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }} to internal release Registries
-    needs: [variables, patch-plus-images, patch-plus-nap-images]
+    needs: [variables, patch-images]
     uses: ./.github/workflows/plus-release.yml
     with:
       nginx_registry: false
@@ -328,6 +162,7 @@ jobs:
       az_mktpl_registry: false
       source_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}"
       target_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}"
+      branch: "release-${{ needs.variables.outputs.short_tag }}"
       dry_run: ${{ inputs.dry_run || false }}
     permissions:
       contents: read
@@ -340,7 +175,7 @@ jobs:
     needs: [variables, release-oss-public]
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Certify UBI OSS images in quay
         uses: ./.github/actions/certify-openshift-image
@@ -349,4 +184,5 @@ jobs:
           project_id: ${{ secrets.CERTIFICATION_PROJECT_ID }}
           pyxis_token: ${{ secrets.PYXIS_API_TOKEN }}
           platforms: ""
-        if: ${{ ! inputs.dry_run || false }}
+          preflight_version: 1.11.1
+          submit: ${{ ! inputs.dry_run || true }}

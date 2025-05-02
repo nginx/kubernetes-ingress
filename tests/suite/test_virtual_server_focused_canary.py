@@ -38,6 +38,7 @@ def get_upstreams_of_splitting(file) -> []:
 
 
 @pytest.mark.vs
+@pytest.mark.vs_canary
 @pytest.mark.parametrize(
     "crd_ingress_controller, virtual_server_setup",
     [

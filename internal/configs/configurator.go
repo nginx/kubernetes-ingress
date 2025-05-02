@@ -7,37 +7,38 @@ import (
 	"os"
 	"strings"
 
-	"github.com/nginxinc/kubernetes-ingress/pkg/apis/dos/v1beta1"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 
-	"github.com/nginxinc/kubernetes-ingress/internal/k8s/secrets"
-	"github.com/nginxinc/nginx-prometheus-exporter/collector"
+	"github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
+
+	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
+	"github.com/nginx/nginx-prometheus-exporter/collector"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 
-	"github.com/nginxinc/kubernetes-ingress/internal/configs/version2"
+	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 
-	"github.com/golang/glog"
 	api_v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/nginxinc/kubernetes-ingress/internal/configs/version1"
-	"github.com/nginxinc/kubernetes-ingress/internal/nginx"
-	conf_v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
+	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
+	"github.com/nginx/kubernetes-ingress/internal/nginx"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	latCollector "github.com/nginxinc/kubernetes-ingress/internal/metrics/collectors"
+	latCollector "github.com/nginx/kubernetes-ingress/internal/metrics/collectors"
 )
 
 const (
 	pemFileNameForWildcardTLSSecret = "/etc/nginx/secrets/wildcard" // #nosec G101
-	appProtectBundleFolder          = "/etc/nginx/waf/bundles/"
 	appProtectPolicyFolder          = "/etc/nginx/waf/nac-policies/"
 	appProtectLogConfFolder         = "/etc/nginx/waf/nac-logconfs/"
 	appProtectUserSigFolder         = "/etc/nginx/waf/nac-usersigs/"
 	appProtectUserSigIndex          = "/etc/nginx/waf/nac-usersigs/index.conf"
 	appProtectDosPolicyFolder       = "/etc/nginx/dos/policies/"
 	appProtectDosLogConfFolder      = "/etc/nginx/dos/logconfs/"
+	appProtectDosAllowListFolder    = "/etc/nginx/dos/allowlist/"
 )
 
 // DefaultServerSecretPath is the full path to the Secret with a TLS cert and a key for the default server. #nosec G101
@@ -46,11 +47,17 @@ const DefaultServerSecretPath = "/etc/nginx/secrets/default" //nolint:gosec // G
 // DefaultSecretPath is the full default path to where secrets are stored and accessed.
 const DefaultSecretPath = "/etc/nginx/secrets" // #nosec G101
 
-// DefaultServerSecretName is the filename of the Secret with a TLS cert and a key for the default server.
-const DefaultServerSecretName = "default"
+// DefaultServerSecretFileName is the filename of the Secret with a TLS cert and a key for the default server.
+const DefaultServerSecretFileName = "default"
 
-// WildcardSecretName is the filename of the Secret with a TLS cert and a key for the ingress resources with TLS termination enabled but not secret defined.
-const WildcardSecretName = "wildcard"
+// WildcardSecretFileName is the filename of the Secret with a TLS cert and a key for the ingress resources with TLS termination enabled but not secret defined.
+const WildcardSecretFileName = "wildcard"
+
+// LicenseSecretFileName is the filename of the Secret for the NGINX PLUS License
+const LicenseSecretFileName = "license.jwt"
+
+// ClientAuthCertSecretFileName is the filename of the Secret with a TLS cert and a key for the MGMT block for client authentication certificates.
+const ClientAuthCertSecretFileName = "client"
 
 // JWTKeyKey is the key of the data field of a Secret where the JWK must be stored.
 const JWTKeyKey = "jwk"
@@ -118,7 +125,8 @@ type metricLabelsIndex struct {
 type Configurator struct {
 	nginxManager              nginx.Manager
 	staticCfgParams           *StaticConfigParams
-	cfgParams                 *ConfigParams
+	CfgParams                 *ConfigParams
+	MgmtCfgParams             *MGMTConfigParams
 	templateExecutor          *version1.TemplateExecutor
 	templateExecutorV2        *version2.TemplateExecutor
 	ingresses                 map[string]*IngressEx
@@ -145,6 +153,7 @@ type ConfiguratorParams struct {
 	NginxManager                        nginx.Manager
 	StaticCfgParams                     *StaticConfigParams
 	Config                              *ConfigParams
+	MGMTCfgParams                       *MGMTConfigParams
 	TemplateExecutor                    *version1.TemplateExecutor
 	TemplateExecutorV2                  *version2.TemplateExecutor
 	LabelUpdater                        collector.LabelUpdater
@@ -175,7 +184,8 @@ func NewConfigurator(p ConfiguratorParams) *Configurator {
 	cnf := Configurator{
 		nginxManager:              p.NginxManager,
 		staticCfgParams:           p.StaticCfgParams,
-		cfgParams:                 p.Config,
+		CfgParams:                 p.Config,
+		MgmtCfgParams:             p.MGMTCfgParams,
 		ingresses:                 make(map[string]*IngressEx),
 		virtualServers:            make(map[string]*VirtualServerEx),
 		transportServers:          make(map[string]*TransportServerEx),
@@ -294,7 +304,7 @@ func (cnf *Configurator) AddOrUpdateIngress(ingEx *IngressEx) (Warnings, error) 
 		return warnings, fmt.Errorf("error adding or updating ingress %v/%v: %w", ingEx.Ingress.Namespace, ingEx.Ingress.Name, err)
 	}
 
-	if err := cnf.reload(nginx.ReloadForOtherUpdate); err != nil {
+	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
 		return warnings, fmt.Errorf("error reloading NGINX for %v/%v: %w", ingEx.Ingress.Namespace, ingEx.Ingress.Name, err)
 	}
 
@@ -313,14 +323,15 @@ func (cnf *Configurator) virtualServerForHost(hostname string) *conf_v1.VirtualS
 
 // upstreamsForVirtualServer takes VirtualServer and returns a list of associated upstreams.
 func (cnf *Configurator) upstreamsForVirtualServer(vs *conf_v1.VirtualServer) []string {
-	glog.V(3).Infof("Get upstreamName for vs: %s", vs.Spec.Host)
+	l := nl.LoggerFromContext(cnf.CfgParams.Context)
+	nl.Debugf(l, "Get upstreamName for vs: %s", vs.Spec.Host)
 	upstreamNames := make([]string, 0, len(vs.Spec.Upstreams))
 
 	virtualServerUpstreamNamer := NewUpstreamNamerForVirtualServer(vs)
 
 	for _, u := range vs.Spec.Upstreams {
 		upstreamName := virtualServerUpstreamNamer.GetNameForUpstream(u.Name)
-		glog.V(3).Infof("upstream: %s, upstreamName: %s", u.Name, upstreamName)
+		nl.Debugf(l, "upstream: %s, upstreamName: %s", u.Name, upstreamName)
 		upstreamNames = append(upstreamNames, upstreamName)
 	}
 	return upstreamNames
@@ -328,7 +339,8 @@ func (cnf *Configurator) upstreamsForVirtualServer(vs *conf_v1.VirtualServer) []
 
 // UpstreamsForHost takes a hostname and returns upstreams for the given hostname.
 func (cnf *Configurator) UpstreamsForHost(hostname string) []string {
-	glog.V(3).Infof("Get upstream for host: %s", hostname)
+	l := nl.LoggerFromContext(cnf.CfgParams.Context)
+	nl.Debugf(l, "Get upstream for host: %s", hostname)
 	vs := cnf.virtualServerForHost(hostname)
 	if vs != nil {
 		return cnf.upstreamsForVirtualServer(vs)
@@ -340,7 +352,8 @@ func (cnf *Configurator) UpstreamsForHost(hostname string) []string {
 // associated with this name. The name represents TS's
 // (TransportServer) action name.
 func (cnf *Configurator) StreamUpstreamsForName(name string) []string {
-	glog.V(3).Infof("Get stream upstreams for name: '%s'", name)
+	l := nl.LoggerFromContext(cnf.CfgParams.Context)
+	nl.Debugf(l, "Get stream upstreams for name: '%s'", name)
 	ts := cnf.transportServerForActionName(name)
 	if ts != nil {
 		return cnf.streamUpstreamsForTransportServer(ts)
@@ -351,8 +364,9 @@ func (cnf *Configurator) StreamUpstreamsForName(name string) []string {
 // transportServerForActionName takes an action name and returns
 // Transport Server obj associated with that name.
 func (cnf *Configurator) transportServerForActionName(name string) *conf_v1.TransportServer {
+	l := nl.LoggerFromContext(cnf.CfgParams.Context)
 	for _, tsEx := range cnf.transportServers {
-		glog.V(3).Infof("Check ts action '%s' for requested name: '%s'", tsEx.TransportServer.Spec.Action.Pass, name)
+		nl.Debugf(l, "Check ts action '%s' for requested name: '%s'", tsEx.TransportServer.Spec.Action.Pass, name)
 		if tsEx.TransportServer.Spec.Action.Pass == name {
 			return tsEx.TransportServer
 		}
@@ -398,7 +412,7 @@ func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) (bool, Warnings, e
 		dosResource:               dosResource,
 		isMinion:                  isMinion,
 		isPlus:                    cnf.isPlus,
-		baseCfgParams:             cnf.cfgParams,
+		BaseCfgParams:             cnf.CfgParams,
 		isResolverConfigured:      cnf.IsResolverConfigured(),
 		isWildcardEnabled:         cnf.isWildcardEnabled,
 		ingressControllerReplicas: cnf.ingressControllerReplicas,
@@ -425,7 +439,7 @@ func (cnf *Configurator) AddOrUpdateMergeableIngress(mergeableIngs *MergeableIng
 		return warnings, fmt.Errorf("error when adding or updating ingress %v/%v: %w", mergeableIngs.Master.Ingress.Namespace, mergeableIngs.Master.Ingress.Name, err)
 	}
 
-	if err := cnf.reload(nginx.ReloadForOtherUpdate); err != nil {
+	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
 		return warnings, fmt.Errorf("error reloading NGINX for %v/%v: %w", mergeableIngs.Master.Ingress.Namespace, mergeableIngs.Master.Ingress.Name, err)
 	}
 
@@ -459,7 +473,7 @@ func (cnf *Configurator) addOrUpdateMergeableIngress(mergeableIngs *MergeableIng
 		mergeableIngs:             mergeableIngs,
 		apResources:               apResources,
 		dosResource:               dosResource,
-		baseCfgParams:             cnf.cfgParams,
+		BaseCfgParams:             cnf.CfgParams,
 		isPlus:                    cnf.isPlus,
 		isResolverConfigured:      cnf.IsResolverConfigured(),
 		staticParams:              cnf.staticCfgParams,
@@ -580,7 +594,7 @@ func (cnf *Configurator) AddOrUpdateVirtualServer(virtualServerEx *VirtualServer
 		cnf.EnableReloads()
 	}
 
-	if err := cnf.reload(nginx.ReloadForOtherUpdate); err != nil {
+	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
 		return warnings, fmt.Errorf("error reloading NGINX for VirtualServer %v/%v: %w", virtualServerEx.VirtualServer.Namespace, virtualServerEx.VirtualServer.Name, err)
 	}
 
@@ -589,10 +603,6 @@ func (cnf *Configurator) AddOrUpdateVirtualServer(virtualServerEx *VirtualServer
 	}
 
 	return warnings, nil
-}
-
-func (cnf *Configurator) addOrUpdateOpenTracingTracerConfig(content string) error {
-	return cnf.nginxManager.CreateOpenTracingTracerConfig(content)
 }
 
 func (cnf *Configurator) addOrUpdateVirtualServer(virtualServerEx *VirtualServerEx) (bool, Warnings, []WeightUpdate, error) {
@@ -609,7 +619,7 @@ func (cnf *Configurator) addOrUpdateVirtualServer(virtualServerEx *VirtualServer
 
 	name := getFileNameForVirtualServer(virtualServerEx.VirtualServer)
 
-	vsc := newVirtualServerConfigurator(cnf.cfgParams, cnf.isPlus, cnf.IsResolverConfigured(), cnf.staticCfgParams, cnf.isWildcardEnabled, nil)
+	vsc := newVirtualServerConfigurator(cnf.CfgParams, cnf.isPlus, cnf.IsResolverConfigured(), cnf.staticCfgParams, cnf.isWildcardEnabled, nil)
 	vsc.IngressControllerReplicas = cnf.ingressControllerReplicas
 	vsCfg, warnings := vsc.GenerateVirtualServerConfig(virtualServerEx, apResources, dosResources)
 	content, err := cnf.templateExecutorV2.ExecuteVirtualServerTemplate(&vsCfg)
@@ -651,7 +661,7 @@ func (cnf *Configurator) AddOrUpdateVirtualServers(virtualServerExes []*VirtualS
 		allWeightUpdates = append(allWeightUpdates, weightUpdates...)
 	}
 
-	if err := cnf.reload(nginx.ReloadForOtherUpdate); err != nil {
+	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
 		return allWarnings, fmt.Errorf("error when reloading NGINX when updating Policy: %w", err)
 	}
 
@@ -736,7 +746,7 @@ func (cnf *Configurator) AddOrUpdateTransportServer(transportServerEx *Transport
 	if err != nil {
 		return nil, fmt.Errorf("error adding or updating TransportServer %v/%v: %w", transportServerEx.TransportServer.Namespace, transportServerEx.TransportServer.Name, err)
 	}
-	if err := cnf.reload(nginx.ReloadForOtherUpdate); err != nil {
+	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
 		return nil, fmt.Errorf("error reloading NGINX for TransportServer %v/%v: %w", transportServerEx.TransportServer.Namespace, transportServerEx.TransportServer.Name, err)
 	}
 	return warnings, nil
@@ -765,8 +775,9 @@ func (cnf *Configurator) addOrUpdateTransportServer(transportServerEx *Transport
 	cnf.transportServers[name] = transportServerEx
 
 	// update TLS Passthrough Hosts config in case we have a TLS Passthrough TransportServer
-	// only TLS Passthrough TransportServers have non-empty hosts
-	if transportServerEx.TransportServer.Spec.Host != "" {
+	// A non empty Host, may be a TLS Passthrough TransportServer but we have to check for the existence of the TLS Passthrough listener also, as TransportServers that terminate at the NGINX level can have non empty Hosts now too
+	isTLSPassthrough := transportServerEx.TransportServer.Spec.Listener.Name == conf_v1.TLSPassthroughListenerName
+	if transportServerEx.TransportServer.Spec.Host != "" && isTLSPassthrough {
 		key := generateNamespaceNameKey(&transportServerEx.TransportServer.ObjectMeta)
 		cnf.tlsPassthroughPairs[key] = tlsPassthroughPair{
 			Host:       transportServerEx.TransportServer.Spec.Host,
@@ -812,14 +823,12 @@ func generateTLSPassthroughHostsConfig(tlsPassthroughPairs map[string]tlsPassthr
 	return &cfg
 }
 
-func (cnf *Configurator) addOrUpdateCASecret(secret *api_v1.Secret) string {
-	name := objectMetaToFileName(&secret.ObjectMeta)
+// AddOrUpdateCASecret writes the secret content to disk returning the files added/updated
+func (cnf *Configurator) AddOrUpdateCASecret(secret *api_v1.Secret, crtFileName, crlFileName string) string {
 	crtData, crlData := GenerateCAFileContent(secret)
-	crtSecretName := fmt.Sprintf("%s-%s", name, CACrtKey)
-	crlSecretName := fmt.Sprintf("%s-%s", name, CACrlKey)
-	crtFileName := cnf.nginxManager.CreateSecret(crtSecretName, crtData, nginx.TLSSecretFileMode)
-	crlFileName := cnf.nginxManager.CreateSecret(crlSecretName, crlData, nginx.TLSSecretFileMode)
-	return fmt.Sprintf("%s %s", crtFileName, crlFileName)
+	crtFilePath := cnf.nginxManager.CreateSecret(crtFileName, crtData, nginx.ReadWriteOnlyFileMode)
+	crlFilePath := cnf.nginxManager.CreateSecret(crlFileName, crlData, nginx.ReadWriteOnlyFileMode)
+	return fmt.Sprintf("%s %s", crtFilePath, crlFilePath)
 }
 
 func (cnf *Configurator) addOrUpdateJWKSecret(secret *api_v1.Secret) string {
@@ -903,36 +912,47 @@ func (cnf *Configurator) AddOrUpdateResources(resources ExtendedResources, reloa
 	}
 
 	if configsChanged || reloadIfUnchanged {
-		if err := cnf.reload(nginx.ReloadForOtherUpdate); err != nil {
+		if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
 			return nil, fmt.Errorf("error when reloading NGINX when updating resources: %w", err)
 		}
 	}
 	return allWarnings, nil
 }
 
+// AddOrUpdateLicenseSecret adds or updates NGINX Plus license secret.
+func (cnf *Configurator) AddOrUpdateLicenseSecret(secret *api_v1.Secret) error {
+	l := nl.LoggerFromContext(cnf.CfgParams.Context)
+	nl.Debugf(l, "AddOrUpdateLicenseSecret: [%v]", secret.Name)
+	data, err := GenerateLicenseSecret(secret)
+	if err != nil {
+		return err
+	}
+	cnf.nginxManager.CreateSecret(LicenseSecretFileName, data, nginx.ReadWriteOnlyFileMode)
+
+	return nil
+}
+
 func (cnf *Configurator) addOrUpdateTLSSecret(secret *api_v1.Secret) string {
 	name := objectMetaToFileName(&secret.ObjectMeta)
 	data := GenerateCertAndKeyFileContent(secret)
-	return cnf.nginxManager.CreateSecret(name, data, nginx.TLSSecretFileMode)
+	return cnf.nginxManager.CreateSecret(name, data, nginx.ReadWriteOnlyFileMode)
 }
 
 // AddOrUpdateSpecialTLSSecrets adds or updates a file with a TLS cert and a key from a Special TLS Secret (eg. DefaultServerSecret, WildcardTLSSecret).
-func (cnf *Configurator) AddOrUpdateSpecialTLSSecrets(secret *api_v1.Secret, secretNames []string) error {
+func (cnf *Configurator) AddOrUpdateSpecialTLSSecrets(secret *api_v1.Secret, secretNames []string) {
+	l := nl.LoggerFromContext(cnf.CfgParams.Context)
+	nl.Debugf(l, "AddOrUpdateSpecialTLSSecrets: secrets [%v]", secretNames)
 	data := GenerateCertAndKeyFileContent(secret)
 
 	for _, secretName := range secretNames {
-		cnf.nginxManager.CreateSecret(secretName, data, nginx.TLSSecretFileMode)
+		cnf.nginxManager.CreateSecret(secretName, data, nginx.ReadWriteOnlyFileMode)
 	}
+}
 
-	if !cnf.DynamicSSLReloadEnabled() {
-		if err := cnf.reload(nginx.ReloadForOtherUpdate); err != nil {
-			return fmt.Errorf("error when reloading NGINX when updating the special Secrets: %w", err)
-		}
-	} else {
-		glog.V(3).Infof("Skipping reload for %d special Secrets", len(secretNames))
-	}
-
-	return nil
+// AddOrUpdateMGMTClientAuthSecret adds or updates the MGMT Client Auth Secret file with a TLS cert and key.
+func (cnf *Configurator) AddOrUpdateMGMTClientAuthSecret(secret *api_v1.Secret) {
+	data := GenerateCertAndKeyFileContent(secret)
+	cnf.nginxManager.CreateSecret("mgmt/client", data, nginx.ReadWriteOnlyFileMode)
 }
 
 // GenerateCertAndKeyFileContent generates a pem file content from the TLS secret.
@@ -957,6 +977,19 @@ func GenerateCAFileContent(secret *api_v1.Secret) ([]byte, []byte) {
 	return caKey.Bytes(), caCrl.Bytes()
 }
 
+// GenerateLicenseSecret generates jwt content from the License secret which is required for NGINX Plus.
+func GenerateLicenseSecret(secret *api_v1.Secret) ([]byte, error) {
+	var licenseKey bytes.Buffer
+
+	data, exists := secret.Data[LicenseSecretFileName]
+	if !exists {
+		return nil, fmt.Errorf("license secret %s/%s must contain the key %s", secret.Namespace, secret.Name, LicenseSecretFileName)
+	}
+	licenseKey.Write(data)
+
+	return licenseKey.Bytes(), nil
+}
+
 // DeleteIngress deletes NGINX configuration for the Ingress resource.
 func (cnf *Configurator) DeleteIngress(key string, skipReload bool) error {
 	name := keyToFileName(key)
@@ -971,7 +1004,7 @@ func (cnf *Configurator) DeleteIngress(key string, skipReload bool) error {
 	}
 
 	if !skipReload {
-		if err := cnf.reload(nginx.ReloadForOtherUpdate); err != nil {
+		if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
 			return fmt.Errorf("error when removing ingress %v: %w", key, err)
 		}
 	}
@@ -994,7 +1027,7 @@ func (cnf *Configurator) DeleteVirtualServer(key string, skipReload bool) error 
 	}
 
 	if !skipReload {
-		if err := cnf.reload(nginx.ReloadForOtherUpdate); err != nil {
+		if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
 			return fmt.Errorf("error when removing VirtualServer %v: %w", key, err)
 		}
 	}
@@ -1013,7 +1046,7 @@ func (cnf *Configurator) DeleteTransportServer(key string) error {
 		return fmt.Errorf("error when removing TransportServer %v: %w", key, err)
 	}
 
-	err = cnf.reload(nginx.ReloadForOtherUpdate)
+	err = cnf.Reload(nginx.ReloadForOtherUpdate)
 	if err != nil {
 		return fmt.Errorf("error when removing TransportServer %v: %w", key, err)
 	}
@@ -1038,6 +1071,7 @@ func (cnf *Configurator) deleteTransportServer(key string) error {
 
 // UpdateEndpoints updates endpoints in NGINX configuration for the Ingress resources.
 func (cnf *Configurator) UpdateEndpoints(ingExes []*IngressEx) error {
+	l := nl.LoggerFromContext(cnf.CfgParams.Context)
 	reloadPlus := false
 
 	for _, ingEx := range ingExes {
@@ -1050,18 +1084,18 @@ func (cnf *Configurator) UpdateEndpoints(ingExes []*IngressEx) error {
 		if cnf.isPlus {
 			err := cnf.updatePlusEndpoints(ingEx)
 			if err != nil {
-				glog.Warningf("Couldn't update the endpoints via the API: %v; reloading configuration instead", err)
+				nl.Warnf(l, "Couldn't update the endpoints via the API: %v; reloading configuration instead", err)
 				reloadPlus = true
 			}
 		}
 	}
 
 	if cnf.isPlus && !reloadPlus {
-		glog.V(3).Info("No need to reload nginx")
+		nl.Debug(l, "No need to reload nginx")
 		return nil
 	}
 
-	if err := cnf.reload(nginx.ReloadForEndpointsUpdate); err != nil {
+	if err := cnf.Reload(nginx.ReloadForEndpointsUpdate); err != nil {
 		return fmt.Errorf("error reloading NGINX when updating endpoints: %w", err)
 	}
 
@@ -1070,6 +1104,7 @@ func (cnf *Configurator) UpdateEndpoints(ingExes []*IngressEx) error {
 
 // UpdateEndpointsMergeableIngress updates endpoints in NGINX configuration for a mergeable Ingress resource.
 func (cnf *Configurator) UpdateEndpointsMergeableIngress(mergeableIngresses []*MergeableIngresses) error {
+	l := nl.LoggerFromContext(cnf.CfgParams.Context)
 	reloadPlus := false
 
 	for i := range mergeableIngresses {
@@ -1083,7 +1118,7 @@ func (cnf *Configurator) UpdateEndpointsMergeableIngress(mergeableIngresses []*M
 			for _, ing := range mergeableIngresses[i].Minions {
 				err = cnf.updatePlusEndpoints(ing)
 				if err != nil {
-					glog.Warningf("Couldn't update the endpoints via the API: %v; reloading configuration instead", err)
+					nl.Warnf(l, "Couldn't update the endpoints via the API: %v; reloading configuration instead", err)
 					reloadPlus = true
 				}
 			}
@@ -1091,11 +1126,11 @@ func (cnf *Configurator) UpdateEndpointsMergeableIngress(mergeableIngresses []*M
 	}
 
 	if cnf.isPlus && !reloadPlus {
-		glog.V(3).Info("No need to reload nginx")
+		nl.Debug(l, "No need to reload nginx")
 		return nil
 	}
 
-	if err := cnf.reload(nginx.ReloadForEndpointsUpdate); err != nil {
+	if err := cnf.Reload(nginx.ReloadForEndpointsUpdate); err != nil {
 		return fmt.Errorf("error reloading NGINX when updating endpoints for %v: %w", mergeableIngresses, err)
 	}
 
@@ -1104,6 +1139,7 @@ func (cnf *Configurator) UpdateEndpointsMergeableIngress(mergeableIngresses []*M
 
 // UpdateEndpointsForVirtualServers updates endpoints in NGINX configuration for the VirtualServer resources.
 func (cnf *Configurator) UpdateEndpointsForVirtualServers(virtualServerExes []*VirtualServerEx) error {
+	l := nl.LoggerFromContext(cnf.CfgParams.Context)
 	reloadPlus := false
 
 	for _, vs := range virtualServerExes {
@@ -1116,18 +1152,18 @@ func (cnf *Configurator) UpdateEndpointsForVirtualServers(virtualServerExes []*V
 		if cnf.isPlus {
 			err := cnf.updatePlusEndpointsForVirtualServer(vs)
 			if err != nil {
-				glog.Warningf("Couldn't update the endpoints via the API: %v; reloading configuration instead", err)
+				nl.Warnf(l, "Couldn't update the endpoints via the API: %v; reloading configuration instead", err)
 				reloadPlus = true
 			}
 		}
 	}
 
 	if cnf.isPlus && !reloadPlus {
-		glog.V(3).Info("No need to reload nginx")
+		nl.Debug(l, "No need to reload nginx")
 		return nil
 	}
 
-	if err := cnf.reload(nginx.ReloadForEndpointsUpdate); err != nil {
+	if err := cnf.Reload(nginx.ReloadForEndpointsUpdate); err != nil {
 		return fmt.Errorf("error reloading NGINX when updating endpoints: %w", err)
 	}
 
@@ -1135,7 +1171,7 @@ func (cnf *Configurator) UpdateEndpointsForVirtualServers(virtualServerExes []*V
 }
 
 func (cnf *Configurator) updatePlusEndpointsForVirtualServer(virtualServerEx *VirtualServerEx) error {
-	upstreams := createUpstreamsForPlus(virtualServerEx, cnf.cfgParams, cnf.staticCfgParams)
+	upstreams := createUpstreamsForPlus(virtualServerEx, cnf.CfgParams, cnf.staticCfgParams)
 	for _, upstream := range upstreams {
 		serverCfg := createUpstreamServersConfigForPlus(upstream)
 
@@ -1152,6 +1188,7 @@ func (cnf *Configurator) updatePlusEndpointsForVirtualServer(virtualServerEx *Vi
 
 // UpdateEndpointsForTransportServers updates endpoints in NGINX configuration for the TransportServer resources.
 func (cnf *Configurator) UpdateEndpointsForTransportServers(transportServerExes []*TransportServerEx) error {
+	l := nl.LoggerFromContext(cnf.CfgParams.Context)
 	reloadPlus := false
 
 	for _, tsEx := range transportServerExes {
@@ -1163,17 +1200,17 @@ func (cnf *Configurator) UpdateEndpointsForTransportServers(transportServerExes 
 		if cnf.isPlus {
 			err := cnf.updatePlusEndpointsForTransportServer(tsEx)
 			if err != nil {
-				glog.Warningf("Couldn't update the endpoints via the API: %v; reloading configuration instead", err)
+				nl.Warnf(l, "Couldn't update the endpoints via the API: %v; reloading configuration instead", err)
 				reloadPlus = true
 			}
 		}
 	}
 
 	if cnf.isPlus && !reloadPlus {
-		glog.V(3).Info("No need to reload nginx")
+		nl.Debug(l, "No need to reload nginx")
 		return nil
 	}
-	if err := cnf.reload(nginx.ReloadForEndpointsUpdate); err != nil {
+	if err := cnf.Reload(nginx.ReloadForEndpointsUpdate); err != nil {
 		return fmt.Errorf("error reloading NGINX when updating endpoints: %w", err)
 	}
 	return nil
@@ -1199,7 +1236,8 @@ func (cnf *Configurator) updatePlusEndpointsForTransportServer(transportServerEx
 }
 
 func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx) error {
-	ingCfg := parseAnnotations(ingEx, cnf.cfgParams, cnf.isPlus, cnf.staticCfgParams.MainAppProtectLoadModule, cnf.staticCfgParams.MainAppProtectDosLoadModule, cnf.staticCfgParams.EnableInternalRoutes)
+	l := nl.LoggerFromContext(cnf.CfgParams.Context)
+	ingCfg := parseAnnotations(ingEx, cnf.CfgParams, cnf.isPlus, cnf.staticCfgParams.MainAppProtectLoadModule, cnf.staticCfgParams.MainAppProtectDosLoadModule, cnf.staticCfgParams.EnableInternalRoutes)
 
 	cfg := nginx.ServerConfig{
 		MaxFails:    ingCfg.MaxFails,
@@ -1212,7 +1250,7 @@ func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx) error {
 		endps, exists := ingEx.Endpoints[ingEx.Ingress.Spec.DefaultBackend.Service.Name+GetBackendPortAsString(ingEx.Ingress.Spec.DefaultBackend.Service.Port)]
 		if exists {
 			if _, isExternalName := ingEx.ExternalNameSvcs[ingEx.Ingress.Spec.DefaultBackend.Service.Name]; isExternalName {
-				glog.V(3).Infof("Service %s is Type ExternalName, skipping NGINX Plus endpoints update via API", ingEx.Ingress.Spec.DefaultBackend.Service.Name)
+				nl.Debugf(l, "Service %s is Type ExternalName, skipping NGINX Plus endpoints update via API", ingEx.Ingress.Spec.DefaultBackend.Service.Name)
 			} else {
 				name := getNameForUpstream(ingEx.Ingress, emptyHost, ingEx.Ingress.Spec.DefaultBackend)
 				err := cnf.updateServersInPlus(name, endps, cfg)
@@ -1233,7 +1271,7 @@ func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx) error {
 			endps, exists := ingEx.Endpoints[path.Backend.Service.Name+GetBackendPortAsString(path.Backend.Service.Port)]
 			if exists {
 				if _, isExternalName := ingEx.ExternalNameSvcs[path.Backend.Service.Name]; isExternalName {
-					glog.V(3).Infof("Service %s is Type ExternalName, skipping NGINX Plus endpoints update via API", path.Backend.Service.Name)
+					nl.Debugf(l, "Service %s is Type ExternalName, skipping NGINX Plus endpoints update via API", path.Backend.Service.Name)
 					continue
 				}
 
@@ -1259,7 +1297,8 @@ func (cnf *Configurator) DisableReloads() {
 	cnf.isReloadsEnabled = false
 }
 
-func (cnf *Configurator) reload(isEndpointsUpdate bool) error {
+// Reload reloads nginx if reloads is enabled
+func (cnf *Configurator) Reload(isEndpointsUpdate bool) error {
 	if !cnf.isReloadsEnabled {
 		return nil
 	}
@@ -1286,41 +1325,60 @@ func (cnf *Configurator) updateStreamServersInPlus(upstream string, servers []st
 // UpdateConfig updates NGINX configuration parameters.
 //
 //gocyclo:ignore
-func (cnf *Configurator) UpdateConfig(cfgParams *ConfigParams, resources ExtendedResources) (Warnings, error) {
-	cnf.cfgParams = cfgParams
+func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, error) {
 	allWarnings := newWarnings()
 	allWeightUpdates := []WeightUpdate{}
 
-	if cnf.cfgParams.MainServerSSLDHParamFileContent != nil {
-		fileName, err := cnf.nginxManager.CreateDHParam(*cnf.cfgParams.MainServerSSLDHParamFileContent)
+	if cnf.CfgParams.MainServerSSLDHParamFileContent != nil {
+		fileName, err := cnf.nginxManager.CreateDHParam(*cnf.CfgParams.MainServerSSLDHParamFileContent)
 		if err != nil {
 			return allWarnings, fmt.Errorf("error when updating dhparams: %w", err)
 		}
-		cfgParams.MainServerSSLDHParam = fileName
+		cnf.CfgParams.MainServerSSLDHParam = fileName
 	}
 
-	if cfgParams.MainTemplate != nil {
-		err := cnf.templateExecutor.UpdateMainTemplate(cfgParams.MainTemplate)
+	// Apply custom main-template defined in ConfigMap obj
+	if cnf.CfgParams.MainTemplate != nil {
+		err := cnf.templateExecutor.UpdateMainTemplate(cnf.CfgParams.MainTemplate)
 		if err != nil {
 			return allWarnings, fmt.Errorf("error when parsing the main template: %w", err)
 		}
+	} else {
+		// Reverse to default Main template parsed at NIC startup.
+		cnf.templateExecutor.UseOriginalMainTemplate()
 	}
 
-	if cfgParams.IngressTemplate != nil {
-		err := cnf.templateExecutor.UpdateIngressTemplate(cfgParams.IngressTemplate)
+	if cnf.CfgParams.IngressTemplate != nil {
+		err := cnf.templateExecutor.UpdateIngressTemplate(cnf.CfgParams.IngressTemplate)
 		if err != nil {
 			return allWarnings, fmt.Errorf("error when parsing the ingress template: %w", err)
 		}
+	} else {
+		// Reverse to default Ingress template parsed at NIC startup.
+		cnf.templateExecutor.UseOriginalIngressTemplate()
 	}
 
-	if cfgParams.VirtualServerTemplate != nil {
-		err := cnf.templateExecutorV2.UpdateVirtualServerTemplate(cfgParams.VirtualServerTemplate)
+	if cnf.CfgParams.VirtualServerTemplate != nil {
+		err := cnf.templateExecutorV2.UpdateVirtualServerTemplate(cnf.CfgParams.VirtualServerTemplate)
 		if err != nil {
 			return allWarnings, fmt.Errorf("error when parsing the VirtualServer template: %w", err)
 		}
+	} else {
+		// Reverse to default TransportServer template parsed at NIC startup.
+		cnf.templateExecutorV2.UseOriginalVStemplate()
 	}
 
-	mainCfg := GenerateNginxMainConfig(cnf.staticCfgParams, cfgParams)
+	if cnf.CfgParams.TransportServerTemplate != nil {
+		err := cnf.templateExecutorV2.UpdateTransportServerTemplate(cnf.CfgParams.TransportServerTemplate)
+		if err != nil {
+			return allWarnings, fmt.Errorf("error when parsing the TransportServer template: %w", err)
+		}
+	} else {
+		// Reverse to default TransportServer template parsed at NIC startup.
+		cnf.templateExecutorV2.UseOriginalTStemplate()
+	}
+
+	mainCfg := GenerateNginxMainConfig(cnf.staticCfgParams, cnf.CfgParams, cnf.MgmtCfgParams)
 	mainCfgContent, err := cnf.templateExecutor.ExecuteMainConfigTemplate(mainCfg)
 	if err != nil {
 		return allWarnings, fmt.Errorf("error when writing main Config")
@@ -1358,14 +1416,7 @@ func (cnf *Configurator) UpdateConfig(cfgParams *ConfigParams, resources Extende
 		allWarnings.Add(warnings)
 	}
 
-	if mainCfg.OpenTracingLoadModule {
-		if err := cnf.addOrUpdateOpenTracingTracerConfig(mainCfg.OpenTracingTracerConfig); err != nil {
-			return allWarnings, fmt.Errorf("error when updating OpenTracing tracer config: %w", err)
-		}
-	}
-
-	cnf.nginxManager.SetOpenTracing(mainCfg.OpenTracingLoadModule)
-	if err := cnf.reload(nginx.ReloadForOtherUpdate); err != nil {
+	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
 		return allWarnings, fmt.Errorf("error when updating config from ConfigMap: %w", err)
 	}
 
@@ -1381,7 +1432,7 @@ func (cnf *Configurator) ReloadForBatchUpdates(batchReloadsEnabled bool) error {
 	if !batchReloadsEnabled {
 		return nil
 	}
-	if err := cnf.reload(nginx.ReloadForOtherUpdate); err != nil {
+	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
 		return fmt.Errorf("error when reloading NGINX after a batch event: %w", err)
 	}
 	return nil
@@ -1406,7 +1457,7 @@ func (cnf *Configurator) UpdateVirtualServers(updatedVSExes []*VirtualServerEx, 
 		}
 	}
 
-	if err := cnf.reload(nginx.ReloadForOtherUpdate); err != nil {
+	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
 		errList = append(errList, fmt.Errorf("error when updating VirtualServer: %w", err))
 	}
 
@@ -1434,7 +1485,7 @@ func (cnf *Configurator) UpdateTransportServers(updatedTSExes []*TransportServer
 		}
 	}
 
-	if err := cnf.reload(nginx.ReloadForOtherUpdate); err != nil {
+	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
 		errList = append(errList, fmt.Errorf("error when updating TransportServers: %w", err))
 	}
 
@@ -1451,7 +1502,7 @@ func (cnf *Configurator) BatchDeleteVirtualServers(deletedKeys []string) []error
 		}
 	}
 
-	if err := cnf.reload(nginx.ReloadForOtherUpdate); err != nil {
+	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
 		errList = append(errList, fmt.Errorf("error when reloading NGINX for deleted VirtualServers: %w", err))
 	}
 
@@ -1468,7 +1519,7 @@ func (cnf *Configurator) BatchDeleteIngresses(deletedKeys []string) []error {
 		}
 	}
 
-	if err := cnf.reload(nginx.ReloadForOtherUpdate); err != nil {
+	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
 		errList = append(errList, fmt.Errorf("error when reloading NGINX for deleted Ingresses: %w", err))
 	}
 
@@ -1525,7 +1576,7 @@ func (cnf *Configurator) HasMinion(master *networking.Ingress, minion *networkin
 
 // IsResolverConfigured checks if a DNS resolver is present in NGINX configuration.
 func (cnf *Configurator) IsResolverConfigured() bool {
-	return len(cnf.cfgParams.ResolverAddresses) != 0
+	return len(cnf.CfgParams.ResolverAddresses) != 0
 }
 
 // GetIngressCounts returns the total count of Ingress resources that are handled by the Ingress Controller grouped by their type
@@ -1604,106 +1655,6 @@ func (cnf *Configurator) getMinionIngressAnnotations(annotationSet map[string]bo
 	return annotationSet
 }
 
-// GetServiceCount returns the total number of unique services referenced by Ingresses, VS's, VSR's, and TS's
-func (cnf *Configurator) GetServiceCount() int {
-	setOfUniqueServices := make(map[string]bool)
-	cnf.addVSAndVSRServicesToSet(setOfUniqueServices)
-	cnf.addTSServicesToSet(setOfUniqueServices)
-	cnf.addIngressesServicesToSet(setOfUniqueServices)
-	return len(setOfUniqueServices)
-}
-
-// addVSAndVSRServicesToSet adds services from VirtualServers and VirtualServerRoutes to the set
-func (cnf *Configurator) addVSAndVSRServicesToSet(set map[string]bool) {
-	for _, vs := range cnf.virtualServers {
-		ns := vs.VirtualServer.Namespace
-		for _, upstream := range vs.VirtualServer.Spec.Upstreams {
-			svc := upstream.Service
-			addServiceToSet(set, ns, svc)
-
-			if upstream.Backup != "" {
-				addServiceToSet(set, ns, upstream.Backup)
-			}
-
-			if upstream.HealthCheck != nil && upstream.HealthCheck.GRPCService != "" {
-				addServiceToSet(set, ns, upstream.HealthCheck.GRPCService)
-			}
-		}
-
-		for _, vsr := range vs.VirtualServerRoutes {
-			ns := vsr.Namespace
-			for _, upstream := range vsr.Spec.Upstreams {
-				svc := upstream.Service
-				addServiceToSet(set, ns, svc)
-
-				if upstream.Backup != "" {
-					addServiceToSet(set, ns, upstream.Backup)
-				}
-
-				if upstream.HealthCheck != nil && upstream.HealthCheck.GRPCService != "" {
-					addServiceToSet(set, ns, upstream.HealthCheck.GRPCService)
-				}
-			}
-		}
-	}
-}
-
-// addTSServicesToSet adds services from TransportServers to the set
-func (cnf *Configurator) addTSServicesToSet(set map[string]bool) {
-	for _, ts := range cnf.transportServers {
-		ns := ts.TransportServer.Namespace
-		for _, upstream := range ts.TransportServer.Spec.Upstreams {
-			svc := upstream.Service
-			addServiceToSet(set, ns, svc)
-
-			if upstream.Backup != "" {
-				addServiceToSet(set, ns, upstream.Backup)
-			}
-
-		}
-	}
-}
-
-// addIngressesServicesToSet adds services from Ingresses to the set
-func (cnf *Configurator) addIngressesServicesToSet(set map[string]bool) {
-	for _, ing := range cnf.ingresses {
-		cnf.addIngressServicesToSet(ing, set)
-	}
-	for _, mergeIngs := range cnf.mergeableIngresses {
-		cnf.addIngressServicesToSet(mergeIngs.Master, set)
-		for _, minion := range mergeIngs.Minions {
-			cnf.addIngressServicesToSet(minion, set)
-		}
-	}
-}
-
-// addIngressServicesToSet processes a single ingress and adds its services to the set
-func (cnf *Configurator) addIngressServicesToSet(ing *IngressEx, set map[string]bool) {
-	if ing == nil || ing.Ingress == nil {
-		return
-	}
-	ns := ing.Ingress.Namespace
-	if ing.Ingress.Spec.DefaultBackend != nil && ing.Ingress.Spec.DefaultBackend.Service != nil {
-		svc := ing.Ingress.Spec.DefaultBackend.Service.Name
-		addServiceToSet(set, ns, svc)
-	}
-	for _, rule := range ing.Ingress.Spec.Rules {
-		if rule.HTTP != nil {
-			for _, path := range rule.HTTP.Paths {
-				if path.Backend.Service != nil {
-					svc := path.Backend.Service.Name
-					addServiceToSet(set, ns, svc)
-				}
-			}
-		}
-	}
-}
-
-// Helper function to add services to the set
-func addServiceToSet(set map[string]bool, ns string, svc string) {
-	set[fmt.Sprintf("%s/%s", ns, svc)] = true
-}
-
 // GetVirtualServerCounts returns the total count of
 // VirtualServer and VirtualServerRoute resources that are handled by the Ingress Controller
 func (cnf *Configurator) GetVirtualServerCounts() (int, int) {
@@ -1744,7 +1695,7 @@ func (cnf *Configurator) AddOrUpdateSpiffeCerts(svidResponse *workloadapi.X509Co
 	cnf.nginxManager.CreateSecret(spiffeCertFileName, pemCerts, spiffeCertsFileMode)
 	cnf.nginxManager.CreateSecret(spiffeBundleFileName, pemBundle, spiffeCertsFileMode)
 
-	err = cnf.reload(nginx.ReloadForOtherUpdate)
+	err = cnf.Reload(nginx.ReloadForOtherUpdate)
 	if err != nil {
 		return fmt.Errorf("error when reloading NGINX when updating the SPIFFE Certs: %w", err)
 	}
@@ -1773,6 +1724,11 @@ func (cnf *Configurator) updateApResources(ingEx *IngressEx) *AppProtectResource
 
 func (cnf *Configurator) updateDosResource(dosEx *DosEx) {
 	if dosEx != nil {
+		if dosEx.DosProtected != nil {
+			allowListFileName := appProtectDosAllowListFileName(dosEx.DosProtected.GetNamespace(), dosEx.DosProtected.GetName())
+			allowListContent := generateApDosAllowListFileContent(dosEx.DosProtected.Spec.AllowList)
+			cnf.nginxManager.CreateAppProtectResourceFile(allowListFileName, allowListContent)
+		}
 		if dosEx.DosPolicy != nil {
 			policyFileName := appProtectDosPolicyFileName(dosEx.DosPolicy.GetNamespace(), dosEx.DosPolicy.GetName())
 			policyContent := generateApResourceFileContent(dosEx.DosPolicy)
@@ -1832,6 +1788,48 @@ func generateApResourceFileContent(apResource *unstructured.Unstructured) []byte
 	return data
 }
 
+func generateApDosAllowListFileContent(allowList []v1beta1.AllowListEntry) []byte {
+	type IPAddress struct {
+		IPAddress string `json:"ipAddress"`
+	}
+
+	type IPAddressList struct {
+		IPAddresses   []IPAddress `json:"ipAddresses"`
+		BlockRequests string      `json:"blockRequests"`
+	}
+
+	type Policy struct {
+		IPAddressLists []IPAddressList `json:"ip-address-lists"`
+	}
+
+	type AllowListPolicy struct {
+		Policy Policy `json:"policy"`
+	}
+
+	ipAddresses := make([]IPAddress, len(allowList))
+	for i, entry := range allowList {
+		ipAddresses[i] = IPAddress{IPAddress: entry.IPWithMask}
+	}
+
+	allowListPolicy := AllowListPolicy{
+		Policy: Policy{
+			IPAddressLists: []IPAddressList{
+				{
+					IPAddresses:   ipAddresses,
+					BlockRequests: "transparent",
+				},
+			},
+		},
+	}
+
+	data, err := json.Marshal(allowListPolicy)
+	if err != nil {
+		return nil
+	}
+
+	return data
+}
+
 // ResourceOperation represents a function that changes configuration in relation to an unstructured resource.
 type ResourceOperation func(resource *v1beta1.DosProtectedResource, ingExes []*IngressEx, mergeableIngresses []*MergeableIngresses, vsExes []*VirtualServerEx) (Warnings, error)
 
@@ -1842,7 +1840,7 @@ func (cnf *Configurator) AddOrUpdateAppProtectResource(resource *unstructured.Un
 		return warnings, fmt.Errorf("error when updating %v %v/%v: %w", resource.GetKind(), resource.GetNamespace(), resource.GetName(), err)
 	}
 
-	err = cnf.reload(nginx.ReloadForOtherUpdate)
+	err = cnf.Reload(nginx.ReloadForOtherUpdate)
 	if err != nil {
 		return warnings, fmt.Errorf("error when reloading NGINX when updating %v %v/%v: %w", resource.GetKind(), resource.GetNamespace(), resource.GetName(), err)
 	}
@@ -1857,7 +1855,7 @@ func (cnf *Configurator) AddOrUpdateResourcesThatUseDosProtected(ingExes []*Ingr
 		return warnings, fmt.Errorf("error when updating resources that use Dos: %w", err)
 	}
 
-	err = cnf.reload(nginx.ReloadForOtherUpdate)
+	err = cnf.Reload(nginx.ReloadForOtherUpdate)
 	if err != nil {
 		return warnings, fmt.Errorf("error when updating resources that use Dos: %w", err)
 	}
@@ -1945,7 +1943,7 @@ func (cnf *Configurator) RefreshAppProtectUserSigs(
 		fmt.Fprintf(&builder, "app_protect_user_defined_signatures %s;\n", fName)
 	}
 	cnf.nginxManager.CreateAppProtectResourceFile(appProtectUserSigIndex, []byte(builder.String()))
-	return allWarnings, cnf.reload(nginx.ReloadForOtherUpdate)
+	return allWarnings, cnf.Reload(nginx.ReloadForOtherUpdate)
 }
 
 func appProtectDosPolicyFileName(namespace string, name string) string {
@@ -1954,6 +1952,10 @@ func appProtectDosPolicyFileName(namespace string, name string) string {
 
 func appProtectDosLogConfFileName(namespace string, name string) string {
 	return fmt.Sprintf("%s%s_%s.json", appProtectDosLogConfFolder, namespace, name)
+}
+
+func appProtectDosAllowListFileName(namespace string, name string) string {
+	return fmt.Sprintf("%s%s_%s.json", appProtectDosAllowListFolder, namespace, name)
 }
 
 // DeleteAppProtectDosPolicy updates Ingresses and VirtualServers that use AP Dos Policy after that policy is deleted
@@ -1966,17 +1968,22 @@ func (cnf *Configurator) DeleteAppProtectDosLogConf(resource *unstructured.Unstr
 	cnf.nginxManager.DeleteAppProtectResourceFile(appProtectDosLogConfFileName(resource.GetNamespace(), resource.GetName()))
 }
 
+// DeleteAppProtectDosAllowList updates Ingresses and VirtualServers that use AP Allow List Configuration after that policy is deleted
+func (cnf *Configurator) DeleteAppProtectDosAllowList(obj *v1beta1.DosProtectedResource) {
+	cnf.nginxManager.DeleteAppProtectResourceFile(appProtectDosAllowListFileName(obj.Namespace, obj.Name))
+}
+
 // AddInternalRouteConfig adds internal route server to NGINX Configuration and reloads NGINX
 func (cnf *Configurator) AddInternalRouteConfig() error {
 	cnf.staticCfgParams.EnableInternalRoutes = true
 	cnf.staticCfgParams.InternalRouteServerName = fmt.Sprintf("%s.%s.svc", os.Getenv("POD_SERVICEACCOUNT"), os.Getenv("POD_NAMESPACE"))
-	mainCfg := GenerateNginxMainConfig(cnf.staticCfgParams, cnf.cfgParams)
+	mainCfg := GenerateNginxMainConfig(cnf.staticCfgParams, cnf.CfgParams, cnf.MgmtCfgParams)
 	mainCfgContent, err := cnf.templateExecutor.ExecuteMainConfigTemplate(mainCfg)
 	if err != nil {
 		return fmt.Errorf("error when writing main Config: %w", err)
 	}
 	cnf.nginxManager.CreateMainConfig(mainCfgContent)
-	if err := cnf.reload(nginx.ReloadForOtherUpdate); err != nil {
+	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
 		return fmt.Errorf("error when reloading nginx: %w", err)
 	}
 	return nil
@@ -1986,13 +1993,21 @@ func (cnf *Configurator) AddInternalRouteConfig() error {
 func (cnf *Configurator) AddOrUpdateSecret(secret *api_v1.Secret) string {
 	switch secret.Type {
 	case secrets.SecretTypeCA:
-		return cnf.addOrUpdateCASecret(secret)
+		name := objectMetaToFileName(&secret.ObjectMeta)
+		crtSecretName := fmt.Sprintf("%s-%s", name, CACrtKey)
+		crlSecretName := fmt.Sprintf("%s-%s", name, CACrlKey)
+		return cnf.AddOrUpdateCASecret(secret, crtSecretName, crlSecretName)
 	case secrets.SecretTypeJWK:
 		return cnf.addOrUpdateJWKSecret(secret)
 	case secrets.SecretTypeHtpasswd:
 		return cnf.addOrUpdateHtpasswdSecret(secret)
 	case secrets.SecretTypeOIDC:
 		// OIDC ClientSecret is not required on the filesystem, it is written directly to the config file.
+		return ""
+	case secrets.SecretTypeAPIKey:
+		// APIKey ClientSecret is not required on the filesystem, it is written directly to the config file.
+		return ""
+	case secrets.SecretTypeLicense:
 		return ""
 	default:
 		return cnf.addOrUpdateTLSSecret(secret)

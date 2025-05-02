@@ -1,24 +1,20 @@
-from pprint import pprint
 from unittest import mock
 
 import pytest
 import requests
-from settings import DEPLOYMENTS, TEST_DATA
+from settings import TEST_DATA
 from suite.fixtures.fixtures import PublicEndpoint
-from suite.utils.custom_resources_utils import create_ts_from_yaml, delete_ts, read_ts
+from suite.utils.custom_resources_utils import create_ts_from_yaml, delete_ts
 from suite.utils.resources_utils import (
     create_items_from_yaml,
     create_secret_from_yaml,
     delete_items_from_yaml,
     delete_secret,
     get_first_pod_name,
-    get_nginx_template_conf,
-    replace_configmap_from_yaml,
     wait_before_test,
     wait_until_all_pods_are_ready,
 )
 from suite.utils.ssl_utils import create_sni_session
-from suite.utils.vs_vsr_resources_utils import create_virtual_server_from_yaml, delete_virtual_server, read_vs
 from suite.utils.yaml_utils import get_first_host_from_yaml
 
 

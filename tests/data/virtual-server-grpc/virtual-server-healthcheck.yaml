@@ -5,7 +5,7 @@ metadata:
 spec:
   host: virtual-server.example.com
   tls:
-    secret: virtual-server-tls-grpc-secret
+    secret: tls-secret
   upstreams:
   - name: grpc1
     service: grpc1-svc
@@ -17,7 +17,7 @@ spec:
       jitter: "2s"
       port: 50051
       grpcStatus: 12
-      grpcService: "helloworld.Greeter"
+      grpcService: "none.None" # This does not need to exist to be a valid health check, as grpc status 12 means "Unimplemented"
   - name: grpc2
     service: grpc2-svc
     port: 50051

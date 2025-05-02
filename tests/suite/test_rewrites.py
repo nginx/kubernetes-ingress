@@ -97,7 +97,7 @@ test_data = [
 ]
 
 
-@pytest.mark.parametrize("crd_ingress_controller", [({"type": "complete"})], indirect=True)
+@pytest.mark.parametrize("crd_ingress_controller", [{"type": "complete"}], indirect=True)
 class TestRewrites:
     @pytest.mark.vs
     @pytest.mark.vs_rewrite
@@ -112,6 +112,7 @@ class TestRewrites:
         assert f"URI: {expected}\nRequest" in resp.text
 
     @pytest.mark.vsr
+    @pytest.mark.vsr_rewrite
     @pytest.mark.parametrize("path,args,cookies,expected", test_data)
     def test_vsr_rewrite(self, vsr_rewrites_setup, path, args, cookies, expected):
         """

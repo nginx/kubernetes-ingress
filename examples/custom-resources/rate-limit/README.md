@@ -72,7 +72,6 @@ curl --resolve webapp.example.com:$IC_HTTP_PORT:$IC_IP http://webapp.example.com
 <head><title>503 Service Temporarily Unavailable</title></head>
 <body>
 <center><h1>503 Service Temporarily Unavailable</h1></center>
-<hr><center>nginx/1.19.1</center>
 </body>
 </html>
 ```

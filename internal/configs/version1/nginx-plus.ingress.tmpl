@@ -1,4 +1,4 @@
-{{- /*gotype: github.com/nginxinc/kubernetes-ingress/internal/configs/version1.IngressNginxConfig*/ -}}
+{{- /*gotype: github.com/nginx/kubernetes-ingress/internal/configs/version1.IngressNginxConfig*/ -}}
 # configuration for {{.Ingress.Namespace}}/{{.Ingress.Name}}
 {{- range $upstream := .Upstreams}}
 upstream {{$upstream.Name}} {
@@ -22,7 +22,7 @@ upstream {{$upstream.Name}} {
 {{- end}}
 
 {{range $limitReqZone := .LimitReqZones}}
-limit_req_zone {{ $limitReqZone.Key }} zone={{ $limitReqZone.Name }}:{{$limitReqZone.Size}} rate={{$limitReqZone.Rate}};
+limit_req_zone {{ $limitReqZone.Key }} zone={{ $limitReqZone.Name }}:{{$limitReqZone.Size}} rate={{$limitReqZone.Rate}}{{- if $limitReqZone.Sync }} sync{{- end }};
 {{end}}
 
 {{range $server := .Servers}}
@@ -107,6 +107,7 @@ server {
 		{{- end}}
 	{{- end}}
 	{{if $server.AppProtectDosName}}app_protect_dos_name "{{$server.AppProtectDosName}}";{{end}}
+	{{if $server.AppProtectDosAllowListPath}}app_protect_dos_access_file "{{$server.AppProtectDosAllowListPath}}";{{end}}
 	{{- end}}
 
 	{{if not $server.GRPCOnly}}
@@ -320,7 +321,7 @@ server {
 		{{- end}}
 
 		{{with $location.LimitReq}}
-		limit_req zone={{ $location.LimitReq.Zone }} {{if $location.LimitReq.Burst}}burst={{$location.LimitReq.Burst}}{{end}} {{if $location.LimitReq.NoDelay}}nodelay{{else if $location.LimitReq.Delay}}delay={{$location.LimitReq.Delay}}{{end}};
+		limit_req zone={{ $location.LimitReq.Zone }}{{- if $location.LimitReq.Burst }} burst={{$location.LimitReq.Burst}}{{- end }}{{- if $location.LimitReq.NoDelay }} nodelay{{- else if $location.LimitReq.Delay }} delay={{$location.LimitReq.Delay}}{{- end }};
 		{{if $location.LimitReq.DryRun}}limit_req_dry_run on;{{end}}
 		{{if $location.LimitReq.LogLevel}}limit_req_log_level {{$location.LimitReq.LogLevel}};{{end}}
 		{{if $location.LimitReq.RejectCode}}limit_req_status {{$location.LimitReq.RejectCode}};{{end}}

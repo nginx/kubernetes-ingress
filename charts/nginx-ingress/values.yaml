@@ -14,6 +14,41 @@ controller:
   ## Deploys the Ingress Controller for NGINX Plus.
   nginxplus: false
 
+  ## Configures NGINX mgmt block for NGINX Plus
+  mgmt:
+    ## Secret name of license token for NGINX Plus
+    licenseTokenSecretName: "license-token" # required for NGINX Plus
+
+    ## Enables the 180-day grace period for sending the initial usage report
+    # enforceInitialReport: false
+
+    # usageReport:
+    #   endpoint: "product.connect.nginx.com" # Endpoint for usage report
+    #   interval: 1h
+    #   proxyHost: "proxy.example.com:3138" # Proxy server for usage report, with optional port
+    #   proxyCredentialsSecretName: "proxy-credentials" # Secret containing proxy credentials, must contain a `username` and `password` field
+
+    ## Configures the ssl_verify directive in the mgmt block
+    # sslVerify: true
+
+    ## Configures the resolver directive in the mgmt block
+    # resolver:
+    #   ipv6: true
+    #   valid: 1s
+    #   addresses:
+    #     - kube-dns.kube-system.svc.cluster.local
+
+    ## Secret containing TLS client certificate
+    # sslCertificateSecretName: ssl-certificate # kubernetes.io/tls secret type
+
+    ## Secret containing trusted CA certificate
+    # sslTrustedCertificateSecretName: ssl-trusted-cert
+
+    # configMapName allows changing the name of the MGMT config map
+    # the name should not include a namespace
+    # configMapName: ""
+
+
   ## Timeout in milliseconds which the Ingress Controller will wait for a successful NGINX reload after a change or at the initial start.
   nginxReloadTimeout: 60000
 
@@ -21,8 +56,64 @@ controller:
   appprotect:
     ## Enable the App Protect WAF module in the Ingress Controller.
     enable: false
+    ## Enables App Protect WAF v5.
+    v5: false
     ## Sets log level for App Protect WAF. Allowed values: fatal, error, warn, info, debug, trace
     # logLevel: fatal
+
+    # Volumes for App Protect WAF v5
+    # Required volumes are: app-protect-bd-config, app-protect-config, and app-protect-bundles
+    volumes:
+      - name: app-protect-bd-config
+        emptyDir: {}
+      - name: app-protect-config
+        emptyDir: {}
+      - name: app-protect-bundles
+        emptyDir: {}
+
+    ## Configuration for App Protect WAF v5 Enforcer
+    enforcer:
+      # Host that the App Protect WAF v5 Enforcer runs on.
+      # This will normally be "127.0.0.1" as the Enforcer container
+      # will run in the same pod as the Ingress Controller container.
+      host: "127.0.0.1"
+      # Port that the App Protect WAF v5 Enforcer runs on.
+      port: 50000
+      image:
+        ## The image repository of the App Protect WAF v5 Enforcer.
+        repository: private-registry.nginx.com/nap/waf-enforcer
+
+        ## The tag of the App Protect WAF v5 Enforcer image.
+        tag: "5.6.0"
+        ## The digest of the App Protect WAF v5 Enforcer image.
+        ## If digest is specified it has precedence over tag and will be used instead
+        # digest: "sha256:CHANGEME"
+
+        ## The pull policy for the App Protect WAF v5 Enforcer image.
+        pullPolicy: IfNotPresent
+      securityContext: {}
+
+    ## Configuration for App Protect WAF v5 Configuration Manager
+    configManager:
+      image:
+        ## The image repository of the App Protect WAF v5 Configuration Manager.
+        repository: private-registry.nginx.com/nap/waf-config-mgr
+
+        ## The tag of the App Protect WAF v5 Configuration Manager image.
+        tag: "5.6.0"
+        ## The digest of the App Protect WAF v5 Configuration Manager image.
+        ## If digest is specified it has precedence over tag and will be used instead
+        # digest: "sha256:CHANGEME"
+
+        ## The pull policy for the App Protect WAF v5 Configuration Manager image.
+        pullPolicy: IfNotPresent
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsUser: 101 #nginx
+        runAsNonRoot: true
+        capabilities:
+          drop:
+            - all
 
   ## Support for App Protect DoS
   appprotectdos:
@@ -67,8 +158,11 @@ controller:
   ## Share process namespace between containers in the Ingress Controller pod.
   shareProcessNamespace: false
 
-  ## The log level of the Ingress Controller.
-  logLevel: 1
+  ## The log level of the Ingress Controller. Options include: trace, debug, info, warning, error, fatal
+  logLevel: info
+
+  ## Sets the log format of Ingress Controller. Options include: glog, json, text
+  logFormat: glog
 
   ## A list of custom ports to expose on the NGINX Ingress Controller pod. Follows the conventional Kubernetes yaml syntax for container ports.
   customPorts: []
@@ -78,7 +172,7 @@ controller:
     repository: nginx/nginx-ingress
 
     ## The tag of the Ingress Controller image. If not specified the appVersion from Chart.yaml is used as a tag.
-    # tag: "3.5.1"
+    # tag: "5.0.0"
     ## The digest of the Ingress Controller image.
     ## If digest is specified it has precedence over tag and will be used instead
     # digest: "sha256:CHANGEME"
@@ -173,7 +267,8 @@ controller:
       type: RuntimeDefault
 
   ## The security context for the Ingress Controller containers.
-  securityContext: {} # Remove curly brackets before adding values
+  securityContext:
+    {} # Remove curly brackets before adding values
     # allowPrivilegeEscalation: true
     # readOnlyRootFilesystem: true
     # runAsUser: 101 #nginx
@@ -286,9 +381,6 @@ controller:
   ## Enable OIDC policies.
   enableOIDC: false
 
-  ## Include year in log header. This parameter will be removed in release 2.7 and the year will be included by default.
-  includeYear: false
-
   ## Enable TLS Passthrough on port 443. Requires controller.enableCustomResources.
   enableTLSPassthrough: false
 
@@ -382,11 +474,14 @@ controller:
       ## The HTTP port of the Ingress Controller service.
       port: 80
 
-      ## The custom NodePort for the HTTP port. Requires controller.service.type set to NodePort.
+      ## The custom NodePort for the HTTP port. Requires controller.service.type set to NodePort or LoadBalancer.
       # nodePort: 80
 
       ## The HTTP port on the POD where the Ingress Controller service is running.
       targetPort: 80
+
+      ## The name of the HTTP port.
+      name: "http"
 
     httpsPort:
       ## Enables the HTTPS port for the Ingress Controller service.
@@ -395,11 +490,14 @@ controller:
       ## The HTTPS port of the Ingress Controller service.
       port: 443
 
-      ## The custom NodePort for the HTTPS port. Requires controller.service.type set to NodePort.
+      ## The custom NodePort for the HTTPS port. Requires controller.service.type set to NodePort or LoadBalancer.
       # nodePort: 443
 
       ## The HTTPS port on the POD where the Ingress Controller service is running.
       targetPort: 443
+
+      ## The name of the HTTPS port.
+      name: "https"
 
     ## A list of custom ports to expose through the Ingress Controller service. Follows the conventional Kubernetes yaml syntax for service ports.
     customPorts: []
@@ -442,9 +540,10 @@ controller:
     enableLeaderElection: true
 
     ## Specifies the name to be used as the lock for leader election. controller.reportIngressStatus.enableLeaderElection must be set to true.
-    leaderElectionLockName: "nginx-ingress-leader"
+    ## The default is autogenerated.
+    leaderElectionLockName: ""
 
-    ## The annotations of the leader election configmap.
+    ## The annotations of the leader election Lease.
     annotations: {}
 
   pod:
@@ -500,6 +599,10 @@ controller:
 rbac:
   ## Configures RBAC.
   create: true
+
+  clusterrole:
+    ## Create ClusterRole
+    create: true
 
 prometheus:
   ## Expose NGINX or NGINX Plus metrics in the Prometheus format.

@@ -1,0 +1,345 @@
+name: Run Regression tests
+run-name: Run NIC Regression workflow, triggered from ${{ github.event_name }} by @${{ github.actor }}
+
+on:
+  schedule:
+    - cron: 00 03 * * *
+  workflow_dispatch:
+    inputs:
+      branch:
+        type: string
+        description: "Branch to run regression workflow on"
+        default: main
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: ${{ github.ref_name }}-regression
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Checks and variables
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      k8s_latest: ${{ steps.vars.outputs.k8s_latest }}
+      latest_kindest_node_versions: ${{ steps.vars.outputs.latest_kindest_node_versions }}
+      stable_tag: ${{ steps.vars.outputs.stable_tag }}
+      branch: ${{ steps.vars.outputs.branch }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.branch && inputs.branch || github.event.repository.default_branch }}
+
+      - name: Output Variables
+        id: vars
+        run: |
+          kindest_latest=$(curl -s "https://hub.docker.com/v2/repositories/kindest/node/tags" \
+            | jq -r '.results[].name' \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+            | sort -rV \
+            | grep -v v1.32.1 \
+            | head -n 1 \
+            | sed 's/^.\{1\}//' \
+            | tr -d '\n')
+          echo "k8s_latest=$kindest_latest" >> $GITHUB_OUTPUT
+          kindest_versions=$(curl -s "https://hub.docker.com/v2/repositories/kindest/node/tags/?page_size=50" \
+            | jq -r '.results[].name' \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+            | sort -rV \
+            | grep -v v1.32.1 \
+            | awk -F. '!seen[$1"."$2]++' \
+            | head -n 8 \
+            | sort -V \
+            | sed 's/v//g' \
+            | sed 's/$//' \
+            | sed 's/, $//' \
+            | jq -R -s -c 'split("\n")[:-1]')
+          echo "latest_kindest_node_versions=$kindest_versions" >> $GITHUB_OUTPUT
+          source .github/data/version.txt
+          ./.github/scripts/variables.sh stable_tag >> $GITHUB_OUTPUT
+          branch=${{ github.event.repository.default_branch }}
+          if [ -n "${{ inputs.branch }}" ]; then
+            branch=${{ inputs.branch }}
+          fi
+          echo "branch=${branch}" >> $GITHUB_OUTPUT
+
+      - name: Output variables
+        run: |
+          echo k8s_latest: ${{ steps.vars.outputs.k8s_latest }}
+          echo latest_kindest_node_versions: ${{ steps.vars.outputs.latest_kindest_node_versions }}
+          echo stable_tag: ${{ steps.vars.outputs.stable_tag }}
+          echo branch: ${{ steps.vars.outputs.branch }}
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-22.04
+    needs: [checks]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.checks.outputs.branch }}
+
+      - name: Setup Golang Environment
+        uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b # v5.4.0
+        with:
+          go-version-file: go.mod
+
+      - name: Run Tests
+        run: make cover
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@ad3126e916f78f00edff4ed0317cf185271ccc2d # v5.4.2
+        with:
+          files: ./coverage.txt
+          token: ${{ secrets.CODECOV_TOKEN }} # required
+
+  helm-tests:
+    name: Helm Tests ${{ matrix.base-os }}
+    runs-on: ubuntu-22.04
+    needs: [checks]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - base-os: debian
+            image: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress
+            tag: ${{ needs.checks.outputs.stable_tag }}
+            type: oss
+          - base-os: debian-plus
+            image: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress
+            tag: ${{ needs.checks.outputs.stable_tag }}
+            type: plus
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.checks.outputs.branch }}
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        with:
+          token_format: access_token
+          workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
+          service_account: ${{ secrets.GCR_SERVICE_ACCOUNT }}
+
+      - name: Login to GCR
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: gcr.io
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+
+      - name: Pull build image
+        run: |
+          docker pull ${{ matrix.image }}:${{ matrix.tag }}
+
+      - name: Deploy Kubernetes
+        id: k8s
+        run: |
+          kind create cluster --name ${{ github.run_id }} --image=kindest/node:v${{ needs.checks.outputs.k8s_latest }} --wait 75s
+          kind load docker-image "${{ matrix.image }}:${{ matrix.tag }}" --name ${{ github.run_id }}
+
+      - name: Create Plus Secret
+        run: kubectl create secret generic license-token --from-literal=license.jwt="${{ secrets.PLUS_JWT }}" --type="nginx.com/license"
+
+      - name: Install Chart
+        run: >
+          helm install
+          ${{ matrix.type }}
+          .
+          --set controller.image.repository=${{ matrix.image }}
+          --set controller.image.tag=${{ matrix.tag }}
+          --set controller.service.type=NodePort
+          --set controller.nginxplus=${{ contains(matrix.type, 'plus') && 'true' || 'false' }}
+          --set controller.telemetryReporting.enable=false
+          --wait
+        working-directory: ${{ github.workspace }}/charts/nginx-ingress
+
+      - name: Expose Test Ingresses
+        run: |
+          kubectl port-forward service/${{ matrix.type }}-nginx-ingress-controller 8080:80 8443:443 &
+
+      - name: Test HTTP
+        run: |
+          counter=0
+          max_attempts=5
+          until [ $(curl --write-out %{http_code} -s --output /dev/null http://localhost:8080) -eq 404 ]; do
+            if [ ${counter} -eq ${max_attempts} ]; then
+              exit 1
+            fi
+            printf '.'; counter=$(($counter+1)); sleep 5;
+          done
+
+      - name: Test HTTPS
+        run: |
+          counter=0
+          max_attempts=5
+          until [ $(curl --write-out %{http_code} -ks --output /dev/null https://localhost:8443) -eq 000 ]; do
+            if [ ${counter} -eq ${max_attempts} ]; then
+              exit 1
+            fi
+            printf '.'; counter=$(($counter+1)); sleep 5;
+          done
+
+  setup-regression-matrix:
+    name: Setup Matrix for Smoke Tests
+    runs-on: ubuntu-22.04
+    needs: [checks]
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.checks.outputs.branch }}
+
+      - id: set-matrix
+        run: |
+          echo "matrix=$(cat .github/data/matrix-regression.json | jq -c --argjson latest '${{ needs.checks.outputs.latest_kindest_node_versions }}' '.k8s += $latest'))" >> $GITHUB_OUTPUT
+
+  regression-tests:
+    name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} regression tests
+    runs-on: ubuntu-22.04
+    needs: [checks, setup-regression-matrix]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.setup-regression-matrix.outputs.matrix) }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.checks.outputs.branch }}
+
+      - name: Set image variables
+        id: image_details
+        run: |
+          echo "name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic${{ contains(matrix.images.nap_modules, 'dos') && '-dos' || '' }}${{ contains(matrix.images.nap_modules, 'waf') && '-nap' || '' }}${{ contains(matrix.images.image, 'v5') && '-v5' || '' }}/nginx${{ contains(matrix.images.image, 'plus') && '-plus' || '' }}-ingress" >> $GITHUB_OUTPUT
+          echo "tag=${{ needs.checks.outputs.stable_tag }}${{ contains(matrix.images.image, 'ubi') && '-ubi' || '' }}${{ contains(matrix.images.image, 'alpine') && '-alpine' || '' }}${{ contains(matrix.images.target, 'aws') && '-mktpl' || '' }}${{ contains(matrix.images.image, 'fips') && '-fips' || ''}}" >> $GITHUB_OUTPUT
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        with:
+          token_format: access_token
+          workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
+          service_account: ${{ secrets.GCR_SERVICE_ACCOUNT }}
+
+      - name: Login to GCR
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: gcr.io
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+
+      - name: NAP modules
+        id: nap_modules
+        run: |
+          [[ "${{ matrix.images.nap_modules }}" == "waf,dos" ]] && modules="waf-dos" || modules="${{ matrix.images.nap_modules }}"
+          echo "modules=${modules}" >> $GITHUB_OUTPUT
+        if: ${{ matrix.images.nap_modules }}
+
+      - name: Pull build image
+        run: |
+          docker pull ${{ steps.image_details.outputs.name }}:${{ steps.image_details.outputs.tag }}
+
+      - name: Generate WAF v5 tgz from JSON
+        run: |
+          docker run --rm --user root -v /var/run/docker.sock:/var/run/docker.sock -v ${{ github.workspace }}/tests/data/ap-waf-v5:/data gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/nap/waf-compiler:5.6.0 -p /data/wafv5.json -o /data/wafv5.tgz
+        if: ${{ contains(matrix.images.image, 'nap-v5')}}
+
+      - name: Run Regression Tests
+        id: regression-tests
+        uses: ./.github/actions/smoke-tests
+        with:
+          image-type: ${{ matrix.images.image }}
+          image-name: ${{ steps.image_details.outputs.name }}
+          tag: ${{ steps.image_details.outputs.tag }}
+          marker: ${{ matrix.images.marker != '' && matrix.images.marker || '' }}
+          k8s-version: ${{ matrix.k8s }}
+          label: ${{ matrix.images.label }}
+          azure-ad-secret: ${{ secrets.AZURE_AD_AUTOMATION }}
+          registry-token: ${{ steps.auth.outputs.access_token }}
+          test-image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') || 'latest' }}"
+          plus-jwt: ${{ secrets.PLUS_JWT }}
+
+      - name: Upload Test Results
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ steps.regression-tests.outputs.test-results-name }}
+          path: ${{ steps.regression-tests.outputs.test-results-path }}
+        if: ${{ !cancelled() }}
+
+  tag-stable:
+    name: Tag tested image as nightly
+    needs: [checks, regression-tests]
+    permissions:
+      contents: read # To checkout repository
+      id-token: write # To sign into Google Container Registry
+    uses: ./.github/workflows/retag-images.yml
+    with:
+      source_tag: ${{ needs.checks.outputs.stable_tag }}
+      target_tag: nightly
+      dry_run: false
+    secrets: inherit
+
+  release-oss:
+    # pushes nightly images to docker hub
+    name: Release Docker OSS
+    needs: [checks, regression-tests]
+    uses: ./.github/workflows/oss-release.yml
+    with:
+      gcr_release_registry: false
+      ecr_public_registry: true
+      dockerhub_public_registry: true
+      quay_public_registry: true
+      github_public_registry: true
+      source_tag: ${{ needs.checks.outputs.stable_tag }}
+      branch: ${{ needs.checks.outputs.branch }}
+      target_tag: "nightly"
+      dry_run: false
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    secrets: inherit
+
+  release-plus:
+    # pushes plus nightly images to nginx registry
+    name: Release Docker Plus
+    needs: [checks, regression-tests]
+    uses: ./.github/workflows/plus-release.yml
+    with:
+      nginx_registry: true
+      gcr_release_registry: false
+      gcr_mktpl_registry: false
+      ecr_mktpl_registry: false
+      az_mktpl_registry: false
+      source_tag: ${{ needs.checks.outputs.stable_tag }}
+      target_tag: "nightly"
+      branch: ${{ needs.checks.outputs.branch }}
+      dry_run: false
+    permissions:
+      contents: read
+      id-token: write
+    secrets: inherit

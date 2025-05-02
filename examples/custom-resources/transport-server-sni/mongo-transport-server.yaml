@@ -1,0 +1,17 @@
+apiVersion: k8s.nginx.org/v1
+kind: TransportServer
+metadata:
+  name: mongo-ts
+spec:
+  host: mongo.example.com
+  tls:
+    secret: mongo-secret
+  listener:
+    name: tcp-listener
+    protocol: TCP
+  upstreams:
+    - name: mongo
+      service: mongodb
+      port: 27017
+  action:
+    pass: mongo

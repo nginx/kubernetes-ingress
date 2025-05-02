@@ -1,0 +1,30 @@
+kind: SecurityContextConstraints
+apiVersion: security.openshift.io/v1
+metadata:
+  name: nginx-cluster-connector
+allowPrivilegedContainer: false
+runAsUser:
+  type: MustRunAs
+  uid: 101
+seLinuxContext:
+  type: MustRunAs
+fsGroup:
+  type: MustRunAs
+supplementalGroups:
+  type: MustRunAs
+allowHostNetwork: false
+allowHostPID: false
+allowHostPorts: false
+allowHostDirVolumePlugin: false
+allowHostIPC: false
+readOnlyRootFilesystem: false
+seccompProfiles:
+- runtime/default
+volumes:
+ - secret
+requiredDropCapabilities:
+ - ALL
+users:
+ - 'system:serviceaccount:*:nginx-cluster-connector'
+allowedCapabilities:
+  - NET_BIND_SERVICE

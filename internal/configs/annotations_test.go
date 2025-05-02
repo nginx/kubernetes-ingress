@@ -1,6 +1,7 @@
 package configs
 
 import (
+	"context"
 	"reflect"
 	"sort"
 	"testing"
@@ -164,7 +165,7 @@ func TestMergeMasterAnnotationsIntoMinion(t *testing.T) {
 }
 
 func TestParseRateLimitAnnotations(t *testing.T) {
-	context := &networking.Ingress{
+	ctx := &networking.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "default",
 			Name:      "context",
@@ -181,37 +182,132 @@ func TestParseRateLimitAnnotations(t *testing.T) {
 		"nginx.org/limit-req-zone-size":   "11m",
 		"nginx.org/limit-req-dry-run":     "true",
 		"nginx.org/limit-req-log-level":   "info",
-	}, NewDefaultConfigParams(false), context); len(errors) > 0 {
+	}, NewDefaultConfigParams(context.Background(), false), ctx); len(errors) > 0 {
 		t.Error("Errors when parsing valid limit-req annotations")
 	}
 
 	if errors := parseRateLimitAnnotations(map[string]string{
 		"nginx.org/limit-req-rate": "200",
-	}, NewDefaultConfigParams(false), context); len(errors) == 0 {
+	}, NewDefaultConfigParams(context.Background(), false), ctx); len(errors) == 0 {
 		t.Error("No Errors when parsing invalid request rate")
 	}
 
 	if errors := parseRateLimitAnnotations(map[string]string{
 		"nginx.org/limit-req-rate": "200r/h",
-	}, NewDefaultConfigParams(false), context); len(errors) == 0 {
+	}, NewDefaultConfigParams(context.Background(), false), ctx); len(errors) == 0 {
 		t.Error("No Errors when parsing invalid request rate")
 	}
 
 	if errors := parseRateLimitAnnotations(map[string]string{
 		"nginx.org/limit-req-rate": "0r/s",
-	}, NewDefaultConfigParams(false), context); len(errors) == 0 {
+	}, NewDefaultConfigParams(context.Background(), false), ctx); len(errors) == 0 {
 		t.Error("No Errors when parsing invalid request rate")
 	}
 
 	if errors := parseRateLimitAnnotations(map[string]string{
 		"nginx.org/limit-req-zone-size": "10abc",
-	}, NewDefaultConfigParams(false), context); len(errors) == 0 {
+	}, NewDefaultConfigParams(context.Background(), false), ctx); len(errors) == 0 {
 		t.Error("No Errors when parsing invalid zone size")
 	}
 
 	if errors := parseRateLimitAnnotations(map[string]string{
 		"nginx.org/limit-req-log-level": "foobar",
-	}, NewDefaultConfigParams(false), context); len(errors) == 0 {
+	}, NewDefaultConfigParams(context.Background(), false), ctx); len(errors) == 0 {
 		t.Error("No Errors when parsing invalid log level")
+	}
+}
+
+func BenchmarkParseRewrites(b *testing.B) {
+	serviceName := "coffee-svc"
+	serviceNamePart := "serviceName=" + serviceName
+	rewritePath := "/beans/"
+	rewritePathPart := "rewrite=" + rewritePath
+	rewriteService := serviceNamePart + " " + rewritePathPart
+
+	b.ResetTimer()
+	for range b.N {
+		_, _, err := parseRewrites(rewriteService)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkParseRewritesWithLeadingAndTrailingWhitespace(b *testing.B) {
+	serviceName := "coffee-svc"
+	serviceNamePart := "serviceName=" + serviceName
+	rewritePath := "/beans/"
+	rewritePathPart := "rewrite=" + rewritePath
+	rewriteService := "\t\n " + serviceNamePart + " " + rewritePathPart + " \t\n"
+
+	b.ResetTimer()
+	for range b.N {
+		_, _, err := parseRewrites(rewriteService)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkParseStickyService(b *testing.B) {
+	serviceName := "coffee-svc"
+	serviceNamePart := "serviceName=" + serviceName
+	stickyCookie := "srv_id expires=1h domain=.example.com path=/"
+	stickyService := serviceNamePart + " " + stickyCookie
+
+	b.ResetTimer()
+	for range b.N {
+		_, _, err := parseStickyService(stickyService)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkFilterMasterAnnotations(b *testing.B) {
+	masterAnnotations := map[string]string{
+		"nginx.org/rewrites":                "serviceName=service1 rewrite=rewrite1",
+		"nginx.org/ssl-services":            "service1",
+		"nginx.org/hsts":                    "True",
+		"nginx.org/hsts-max-age":            "2700000",
+		"nginx.org/hsts-include-subdomains": "True",
+	}
+	b.ResetTimer()
+	for range b.N {
+		filterMasterAnnotations(masterAnnotations)
+	}
+}
+
+func BenchmarkFilterMinionAnnotations(b *testing.B) {
+	minionAnnotations := map[string]string{
+		"nginx.org/rewrites":                "serviceName=service1 rewrite=rewrite1",
+		"nginx.org/ssl-services":            "service1",
+		"nginx.org/hsts":                    "True",
+		"nginx.org/hsts-max-age":            "2700000",
+		"nginx.org/hsts-include-subdomains": "True",
+	}
+	b.ResetTimer()
+	for range b.N {
+		filterMinionAnnotations(minionAnnotations)
+	}
+}
+
+func BenchmarkMergeMasterAnnotationsIntoMinion(b *testing.B) {
+	masterAnnotations := map[string]string{
+		"nginx.org/proxy-buffering":       "True",
+		"nginx.org/proxy-buffers":         "2",
+		"nginx.org/proxy-buffer-size":     "8k",
+		"nginx.org/hsts":                  "True",
+		"nginx.org/hsts-max-age":          "2700000",
+		"nginx.org/proxy-connect-timeout": "50s",
+		"nginx.com/jwt-token":             "$cookie_auth_token",
+	}
+	minionAnnotations := map[string]string{
+		"nginx.org/client-max-body-size":  "2m",
+		"nginx.org/proxy-connect-timeout": "20s",
+	}
+	b.ResetTimer()
+	for range b.N {
+		mergeMasterAnnotationsIntoMinion(minionAnnotations, masterAnnotations)
 	}
 }

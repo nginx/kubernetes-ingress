@@ -60,6 +60,7 @@ def v_s_route_secure_app_setup(request, kube_apis, v_s_route_setup) -> None:
 
 
 @pytest.mark.vsr
+@pytest.mark.vsr_upstream
 @pytest.mark.parametrize(
     "crd_ingress_controller, v_s_route_setup",
     [

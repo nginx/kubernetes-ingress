@@ -1,23 +1,29 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"net"
 	"os"
 	"regexp"
-	"strconv"
 	"strings"
 
-	"github.com/golang/glog"
+	internalValidation "github.com/nginx/kubernetes-ingress/internal/validation"
 	api_v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/validation"
+
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 )
 
 const (
-	dynamicSSLReloadParam     = "ssl-dynamic-reload"
-	dynamicWeightChangesParam = "weight-changes-dynamic-reload"
+	dynamicSSLReloadParam         = "ssl-dynamic-reload"
+	dynamicWeightChangesParam     = "weight-changes-dynamic-reload"
+	appProtectLogLevelDefault     = "fatal"
+	appProtectEnforcerAddrDefault = "127.0.0.1:50000"
+	logLevelDefault               = "info"
+	logFormatDefault              = "glog"
 )
 
 var (
@@ -50,6 +56,11 @@ var (
 	but the Ingress Controller is not able to fetch it from Kubernetes API, the Ingress Controller will fail to start.
 	Format: <namespace>/<name>`)
 
+	mgmtConfigMap = flag.String("mgmt-configmap", "",
+		`A ConfigMap resource for customizing NGINX configuration. If a ConfigMap is set,
+	but the Ingress Controller is not able to fetch it from Kubernetes API, the Ingress Controller will fail to start.
+	Format: <namespace>/<name>`)
+
 	nginxPlus = flag.Bool("nginx-plus", false, "Enable support for NGINX Plus")
 
 	appProtect = flag.Bool("enable-app-protect", false, "Enable support for NGINX App Protect. Requires -nginx-plus.")
@@ -64,6 +75,9 @@ var (
 	appProtectDosMaxDaemons = flag.Int("app-protect-dos-max-daemons", 0, "Max number of ADMD instances. Requires -nginx-plus and -enable-app-protect-dos.")
 	appProtectDosMaxWorkers = flag.Int("app-protect-dos-max-workers", 0, "Max number of nginx processes to support. Requires -nginx-plus and -enable-app-protect-dos.")
 	appProtectDosMemory     = flag.Int("app-protect-dos-memory", 0, "RAM memory size to consume in MB. Requires -nginx-plus and -enable-app-protect-dos.")
+
+	appProtectEnforcerAddress = flag.String("app-protect-enforcer-address", appProtectEnforcerAddrDefault,
+		`Sets address for App Protect v5 Enforcer. Requires -nginx-plus and -enable-app-protect.`)
 
 	agent              = flag.Bool("agent", false, "Enable NGINX Agent")
 	agentInstanceGroup = flag.String("agent-instance-group", "nginx-ingress-controller", "Grouping used to associate NGINX Ingress Controller instances")
@@ -193,9 +207,6 @@ var (
 	enableExternalDNS = flag.Bool("enable-external-dns", false,
 		"Enable external-dns controller for VirtualServer resources. Requires -enable-custom-resources")
 
-	includeYearInLogs = flag.Bool("include-year", false,
-		"Option to include the year in the log header")
-
 	disableIPV6 = flag.Bool("disable-ipv6", false,
 		`Disable IPV6 listeners explicitly for nodes that do not support the IPV6 stack`)
 
@@ -207,6 +218,11 @@ var (
 
 	enableTelemetryReporting = flag.Bool("enable-telemetry-reporting", true, "Enable gathering and reporting of product related telemetry.")
 
+	logFormat = flag.String("log-format", logFormatDefault, "Set log format to either glog, text, or json.")
+
+	logLevel = flag.String("log-level", logLevelDefault,
+		`Sets log level for Ingress Controller. Allowed values: fatal, error, warning, info, debug, trace.`)
+
 	enableDynamicWeightChangesReload = flag.Bool(dynamicWeightChangesParam, false, "Enable changing weights of split clients without reloading NGINX. Requires -nginx-plus")
 
 	startupCheckFn func() error
@@ -216,132 +232,90 @@ var (
 func parseFlags() {
 	flag.Parse()
 
-	if *versionFlag {
+	if *versionFlag { // printed in main
 		os.Exit(0)
 	}
+}
 
-	initialChecks()
-
-	validateWatchedNamespaces()
-
-	validationChecks()
-
-	if *enableTLSPassthrough && !*enableCustomResources {
-		glog.Fatal("enable-tls-passthrough flag requires -enable-custom-resources")
+func initValidate(ctx context.Context) {
+	l := nl.LoggerFromContext(ctx)
+	logFormatValidationError := validateLogFormat(*logFormat)
+	if logFormatValidationError != nil {
+		nl.Warnf(l, "Invalid log format: %s. Valid options are: glog, text, json. Falling back to default: %s", *logFormat, logFormatDefault)
 	}
 
-	if *appProtect && !*nginxPlus {
-		glog.Fatal("NGINX App Protect support is for NGINX Plus only")
-	}
-
-	if *appProtectLogLevel != appProtectLogLevelDefault && !*appProtect && !*nginxPlus {
-		glog.Fatal("app-protect-log-level support is for NGINX Plus only and App Protect is enable")
-	}
-
-	if *appProtectDos && !*nginxPlus {
-		glog.Fatal("NGINX App Protect Dos support is for NGINX Plus only")
-	}
-
-	if *appProtectDosDebug && !*appProtectDos && !*nginxPlus {
-		glog.Fatal("NGINX App Protect Dos debug support is for NGINX Plus only and App Protect Dos is enable")
-	}
-
-	if *appProtectDosMaxDaemons != 0 && !*appProtectDos && !*nginxPlus {
-		glog.Fatal("NGINX App Protect Dos max daemons support is for NGINX Plus only and App Protect Dos is enable")
-	}
-
-	if *appProtectDosMaxWorkers != 0 && !*appProtectDos && !*nginxPlus {
-		glog.Fatal("NGINX App Protect Dos max workers support is for NGINX Plus and App Protect Dos is enable")
-	}
-
-	if *appProtectDosMemory != 0 && !*appProtectDos && !*nginxPlus {
-		glog.Fatal("NGINX App Protect Dos memory support is for NGINX Plus and App Protect Dos is enable")
-	}
-
-	if *enableInternalRoutes && *spireAgentAddress == "" {
-		glog.Fatal("enable-internal-routes flag requires spire-agent-address")
+	logLevelValidationError := validateLogLevel(*logLevel)
+	if logLevelValidationError != nil {
+		nl.Warnf(l, "Invalid log level: %s. Valid options are: trace, debug, info, warning, error, fatal. Falling back to default: %s", *logLevel, logLevelDefault)
 	}
 
 	if *enableLatencyMetrics && !*enablePrometheusMetrics {
-		glog.Warning("enable-latency-metrics flag requires enable-prometheus-metrics, latency metrics will not be collected")
+		nl.Warn(l, "enable-latency-metrics flag requires enable-prometheus-metrics, latency metrics will not be collected")
 		*enableLatencyMetrics = false
 	}
 
 	if *enableServiceInsight && !*nginxPlus {
-		glog.Warning("enable-service-insight flag support is for NGINX Plus, service insight endpoint will not be exposed")
+		nl.Warn(l, "enable-service-insight flag support is for NGINX Plus, service insight endpoint will not be exposed")
 		*enableServiceInsight = false
 	}
 
-	if *enableCertManager && !*enableCustomResources {
-		glog.Fatal("enable-cert-manager flag requires -enable-custom-resources")
-	}
-
-	if *enableExternalDNS && !*enableCustomResources {
-		glog.Fatal("enable-external-dns flag requires -enable-custom-resources")
-	}
-
-	if *ingressLink != "" && *externalService != "" {
-		glog.Fatal("ingresslink and external-service cannot both be set")
-	}
-
 	if *enableDynamicWeightChangesReload && !*nginxPlus {
-		glog.Warning("weight-changes-dynamic-reload flag support is for NGINX Plus, Dynamic Weight Changes will not be enabled")
+		nl.Warn(l, "weight-changes-dynamic-reload flag support is for NGINX Plus, Dynamic Weight Changes will not be enabled")
 		*enableDynamicWeightChangesReload = false
 	}
 
-	if *agent && !*appProtect {
-		glog.Fatal("NGINX Agent is used to enable the Security Monitoring dashboard and requires NGINX App Protect to be enabled")
+	if *mgmtConfigMap != "" && !*nginxPlus {
+		nl.Warn(l, "mgmt-configmap flag requires -nginx-plus, mgmt configmap will not be used")
+		*mgmtConfigMap = ""
 	}
+
+	mustValidateInitialChecks(ctx)
+	mustValidateWatchedNamespaces(ctx)
+	mustValidateFlags(ctx)
 }
 
-func initialChecks() {
-	err := flag.Lookup("logtostderr").Value.Set("true")
-	if err != nil {
-		glog.Fatalf("Error setting logtostderr to true: %v", err)
-	}
-
-	err = flag.Lookup("include_year").Value.Set(strconv.FormatBool(*includeYearInLogs))
-	if err != nil {
-		glog.Fatalf("Error setting include_year flag: %v", err)
-	}
+func mustValidateInitialChecks(ctx context.Context) {
+	l := nl.LoggerFromContext(ctx)
 
 	if startupCheckFn != nil {
 		err := startupCheckFn()
 		if err != nil {
-			glog.Fatalf("Failed startup check: %v", err)
+			nl.Fatalf(l, "Failed startup check: %v", err)
 		}
-		glog.Info("AWS startup check passed")
+		l.Info("AWS startup check passed")
 	}
 
-	glog.Infof("Starting with flags: %+q", os.Args[1:])
+	l.Info(fmt.Sprintf("Starting with flags: %+q", os.Args[1:]))
 
 	unparsed := flag.Args()
 	if len(unparsed) > 0 {
-		glog.Warningf("Ignoring unhandled arguments: %+q", unparsed)
+		nl.Warnf(l, "Ignoring unhandled arguments: %+q", unparsed)
 	}
 }
 
-func validateWatchedNamespaces() {
+// mustValidateWatchedNamespaces calls internally os.Exit if it can't validate namespaces.
+func mustValidateWatchedNamespaces(ctx context.Context) {
+	l := nl.LoggerFromContext(ctx)
 	if *watchNamespace != "" && *watchNamespaceLabel != "" {
-		glog.Fatal("watch-namespace and -watch-namespace-label are mutually exclusive")
+		nl.Fatal(l, "watch-namespace and -watch-namespace-label are mutually exclusive")
 	}
 
 	watchNamespaces = strings.Split(*watchNamespace, ",")
 
 	if *watchNamespace != "" {
-		glog.Infof("Namespaces watched: %v", watchNamespaces)
+		l.Info(fmt.Sprintf("Namespaces watched: %v", watchNamespaces))
 		namespacesNameValidationError := validateNamespaceNames(watchNamespaces)
 		if namespacesNameValidationError != nil {
-			glog.Fatalf("Invalid values for namespaces: %v", namespacesNameValidationError)
+			nl.Fatalf(l, "Invalid values for namespaces: %v", namespacesNameValidationError)
 		}
 	}
 
 	if len(*watchSecretNamespace) > 0 {
 		watchSecretNamespaces = strings.Split(*watchSecretNamespace, ",")
-		glog.Infof("Namespaces watched for secrets: %v", watchSecretNamespaces)
+		l.Debug(fmt.Sprintf("Namespaces watched for secrets: %v", watchSecretNamespaces))
 		namespacesNameValidationError := validateNamespaceNames(watchSecretNamespaces)
 		if namespacesNameValidationError != nil {
-			glog.Fatalf("Invalid values for secret namespaces: %v", namespacesNameValidationError)
+			nl.Fatalf(l, "Invalid values for secret namespaces: %v", namespacesNameValidationError)
 		}
 	} else {
 		// empty => default to watched namespaces
@@ -352,54 +326,113 @@ func validateWatchedNamespaces() {
 		var err error
 		_, err = labels.Parse(*watchNamespaceLabel)
 		if err != nil {
-			glog.Fatalf("Unable to parse label %v for watch namespace label: %v", *watchNamespaceLabel, err)
+			nl.Fatalf(l, "Unable to parse label %v for watch namespace label: %v", *watchNamespaceLabel, err)
 		}
 	}
 }
 
-// validationChecks checks the values for various flags
-func validationChecks() {
+// mustValidateFlags checks the values for various flags
+// and calls os.Exit if any of the flags is invalid.
+// nolint:gocyclo
+func mustValidateFlags(ctx context.Context) {
+	l := nl.LoggerFromContext(ctx)
 	healthStatusURIValidationError := validateLocation(*healthStatusURI)
 	if healthStatusURIValidationError != nil {
-		glog.Fatalf("Invalid value for health-status-uri: %v", healthStatusURIValidationError)
+		nl.Fatalf(l, "Invalid value for health-status-uri: %v", healthStatusURIValidationError)
 	}
 
 	statusLockNameValidationError := validateResourceName(*leaderElectionLockName)
 	if statusLockNameValidationError != nil {
-		glog.Fatalf("Invalid value for leader-election-lock-name: %v", statusLockNameValidationError)
+		nl.Fatalf(l, "Invalid value for leader-election-lock-name: %v", statusLockNameValidationError)
 	}
 
-	statusPortValidationError := validatePort(*nginxStatusPort)
+	statusPortValidationError := internalValidation.ValidateUnprivilegedPort(*nginxStatusPort)
 	if statusPortValidationError != nil {
-		glog.Fatalf("Invalid value for nginx-status-port: %v", statusPortValidationError)
+		nl.Fatalf(l, "Invalid value for nginx-status-port: %v", statusPortValidationError)
 	}
 
-	metricsPortValidationError := validatePort(*prometheusMetricsListenPort)
+	metricsPortValidationError := internalValidation.ValidateUnprivilegedPort(*prometheusMetricsListenPort)
 	if metricsPortValidationError != nil {
-		glog.Fatalf("Invalid value for prometheus-metrics-listen-port: %v", metricsPortValidationError)
+		nl.Fatalf(l, "Invalid value for prometheus-metrics-listen-port: %v", metricsPortValidationError)
 	}
 
-	readyStatusPortValidationError := validatePort(*readyStatusPort)
+	readyStatusPortValidationError := internalValidation.ValidateUnprivilegedPort(*readyStatusPort)
 	if readyStatusPortValidationError != nil {
-		glog.Fatalf("Invalid value for ready-status-port: %v", readyStatusPortValidationError)
+		nl.Fatalf(l, "Invalid value for ready-status-port: %v", readyStatusPortValidationError)
 	}
 
-	healthProbePortValidationError := validatePort(*serviceInsightListenPort)
+	healthProbePortValidationError := internalValidation.ValidateUnprivilegedPort(*serviceInsightListenPort)
 	if healthProbePortValidationError != nil {
-		glog.Fatalf("Invalid value for service-insight-listen-port: %v", metricsPortValidationError)
+		nl.Fatalf(l, "Invalid value for service-insight-listen-port: %v", metricsPortValidationError)
 	}
 
 	var err error
 	allowedCIDRs, err = parseNginxStatusAllowCIDRs(*nginxStatusAllowCIDRs)
 	if err != nil {
-		glog.Fatalf(`Invalid value for nginx-status-allow-cidrs: %v`, err)
+		nl.Fatalf(l, "Invalid value for nginx-status-allow-cidrs: %v", err)
 	}
 
 	if *appProtectLogLevel != appProtectLogLevelDefault && *appProtect && *nginxPlus {
-		logLevelValidationError := validateAppProtectLogLevel(*appProtectLogLevel)
-		if logLevelValidationError != nil {
-			glog.Fatalf("Invalid value for app-protect-log-level: %v", *appProtectLogLevel)
+		appProtectlogLevelValidationError := validateLogLevel(*appProtectLogLevel)
+		if appProtectlogLevelValidationError != nil {
+			nl.Fatalf(l, "Invalid value for app-protect-log-level: %v", *appProtectLogLevel)
 		}
+	}
+
+	if *enableTLSPassthrough && !*enableCustomResources {
+		nl.Fatal(l, "enable-tls-passthrough flag requires -enable-custom-resources")
+	}
+
+	if *appProtect && !*nginxPlus {
+		nl.Fatal(l, "NGINX App Protect support is for NGINX Plus only")
+	}
+
+	if *appProtectLogLevel != appProtectLogLevelDefault && !*appProtect && !*nginxPlus {
+		nl.Fatal(l, "app-protect-log-level support is for NGINX Plus only and App Protect is enable")
+	}
+
+	if *appProtectDos && !*nginxPlus {
+		nl.Fatal(l, "NGINX App Protect Dos support is for NGINX Plus only")
+	}
+
+	if *appProtectDosDebug && !*appProtectDos && !*nginxPlus {
+		nl.Fatal(l, "NGINX App Protect Dos debug support is for NGINX Plus only and App Protect Dos is enable")
+	}
+
+	if *appProtectDosMaxDaemons != 0 && !*appProtectDos && !*nginxPlus {
+		nl.Fatal(l, "NGINX App Protect Dos max daemons support is for NGINX Plus only and App Protect Dos is enable")
+	}
+
+	if *appProtectDosMaxWorkers != 0 && !*appProtectDos && !*nginxPlus {
+		nl.Fatal(l, "NGINX App Protect Dos max workers support is for NGINX Plus and App Protect Dos is enable")
+	}
+
+	if *appProtectDosMemory != 0 && !*appProtectDos && !*nginxPlus {
+		nl.Fatal(l, "NGINX App Protect Dos memory support is for NGINX Plus and App Protect Dos is enable")
+	}
+
+	if *enableInternalRoutes && *spireAgentAddress == "" {
+		nl.Fatal(l, "enable-internal-routes flag requires spire-agent-address")
+	}
+
+	if *enableCertManager && !*enableCustomResources {
+		nl.Fatal(l, "enable-cert-manager flag requires -enable-custom-resources")
+	}
+
+	if *enableExternalDNS && !*enableCustomResources {
+		nl.Fatal(l, "enable-external-dns flag requires -enable-custom-resources")
+	}
+
+	if *ingressLink != "" && *externalService != "" {
+		nl.Fatal(l, "ingresslink and external-service cannot both be set")
+	}
+
+	if *agent && !*appProtect {
+		nl.Fatal(l, "NGINX Agent is used to enable the Security Monitoring dashboard and requires NGINX App Protect to be enabled")
+	}
+
+	if *nginxPlus && *mgmtConfigMap == "" {
+		nl.Fatal(l, "NGINX Plus requires a mgmt ConfigMap to be set")
 	}
 }
 
@@ -432,18 +465,8 @@ func validateResourceName(name string) error {
 	return nil
 }
 
-// validatePort makes sure a given port is inside the valid port range for its usage
-func validatePort(port int) error {
-	if port < 1024 || port > 65535 {
-		return fmt.Errorf("port outside of valid port range [1024 - 65535]: %v", port)
-	}
-	return nil
-}
-
-const appProtectLogLevelDefault = "fatal"
-
-// validateAppProtectLogLevel makes sure a given logLevel is one of the allowed values
-func validateAppProtectLogLevel(logLevel string) error {
+// validateLogLevel makes sure a given logLevel is one of the allowed values
+func validateLogLevel(logLevel string) error {
 	switch strings.ToLower(logLevel) {
 	case
 		"fatal",
@@ -454,7 +477,16 @@ func validateAppProtectLogLevel(logLevel string) error {
 		"trace":
 		return nil
 	}
-	return fmt.Errorf("invalid App Protect log level: %v", logLevel)
+	return fmt.Errorf("invalid log level: %v", logLevel)
+}
+
+// validateLogFormat makes sure a given logFormat is one of the allowed values
+func validateLogFormat(logFormat string) error {
+	switch strings.ToLower(logFormat) {
+	case "glog", "json", "text":
+		return nil
+	}
+	return fmt.Errorf("invalid log format: %v", logFormat)
 }
 
 // parseNginxStatusAllowCIDRs converts a comma separated CIDR/IP address string into an array of CIDR/IP addresses.

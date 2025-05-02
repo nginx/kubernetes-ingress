@@ -12,7 +12,23 @@
       "label": "regression",
       "image": "debian-plus",
       "type": "plus",
-      "marker": "'not upgrade'",
+      "marker": "'not upgrade and not agent'",
+      "platforms": "linux/arm64, linux/amd64"
+    },
+    {
+      "label": "regression",
+      "image": "debian-plus-nap",
+      "type": "plus",
+      "nap_modules": "waf",
+      "marker": "'appprotect or agent'",
+      "platforms": "linux/arm64, linux/amd64"
+    },
+    {
+      "label": "regression",
+      "image": "debian-plus-nap-v5",
+      "type": "plus",
+      "nap_modules": "waf",
+      "marker": "appprotect_waf_v5",
       "platforms": "linux/arm64, linux/amd64"
     }
   ]

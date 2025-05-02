@@ -127,6 +127,23 @@ spec:
             fieldRef:
               fieldPath: spec.serviceAccountName
 {{- end }}
+{{- if hasKey .Values.controller.mgmt "usageReport" -}}
+{{- if hasKey .Values.controller.mgmt.usageReport "proxyCredentialsSecretName" }}
+{{- if not (hasKey .Values.controller.mgmt.usageReport "proxyHost") -}}
+{{- fail "Error: 'controller.mgmt.usageReport.proxyHost' must be set when using 'controller.mgmt.usageReport.proxyCredentialsSecretName'." }}
+{{- end }}
+        - name: PROXY_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.controller.mgmt.usageReport.proxyCredentialsSecretName }}
+              key: username
+        - name: PROXY_PASS
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.controller.mgmt.usageReport.proxyCredentialsSecretName }}
+              key: password
+{{- end }}
+{{- end }}
         resources:
 {{ toYaml .Values.controller.resources | indent 10 }}
         args:
@@ -134,6 +151,9 @@ spec:
 {{- if .Values.controller.extraContainers }}
       {{ toYaml .Values.controller.extraContainers | nindent 6 }}
 {{- end }}
+
+{{- include "nginx-ingress.appprotect.v5" . | nindent 6 }}
+
 {{- if or (eq (include "nginx-ingress.readOnlyRootFilesystem" .) "true" ) .Values.controller.initContainers }}
       initContainers:
 {{- end }}

@@ -26,6 +26,7 @@ from suite.utils.vs_vsr_resources_utils import get_vs_nginx_template_conf, patch
     indirect=True,
 )
 @pytest.mark.vsr
+@pytest.mark.vsr_upstream
 class TestVSRouteUpstreamOptions:
     def test_nginx_config_upstreams_defaults(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, v_s_route_setup, v_s_route_app_setup
@@ -393,6 +394,7 @@ class TestVSRouteUpstreamOptions:
 
 
 @pytest.mark.vsr
+@pytest.mark.vsr_upstream
 @pytest.mark.parametrize(
     "crd_ingress_controller, v_s_route_setup",
     [
@@ -544,6 +546,7 @@ class TestVSRouteUpstreamOptionsValidation:
 
 
 @pytest.mark.vsr
+@pytest.mark.vsr_upstream
 @pytest.mark.skip_for_nginx_oss
 @pytest.mark.parametrize(
     "crd_ingress_controller, v_s_route_setup",
@@ -576,8 +579,7 @@ class TestOptionsSpecificForPlus:
                     },
                 },
                 [
-                    "health_check uri=/ port=8080 interval=5s jitter=0s",
-                    "fails=1 passes=1",
+                    "health_check uri=/  port=8080 interval=5s jitter=0s fails=1 passes=1 keepalive_time=60s;",
                     "slow_start=3h",
                     "queue 100 timeout=60s;",
                     "sticky cookie TestCookie expires=max domain=virtual-server-route.example.com httponly secure path=/some-valid/path;",
@@ -590,6 +592,7 @@ class TestOptionsSpecificForPlus:
                         "enable": True,
                         "path": "/health",
                         "interval": "15s",
+                        "keepalive-time": "120s",
                         "jitter": "3",
                         "fails": 2,
                         "passes": 2,
@@ -605,16 +608,14 @@ class TestOptionsSpecificForPlus:
                     "queue": {"size": 1000, "timeout": "66s"},
                 },
                 [
-                    "health_check uri=/health port=8080 interval=15s jitter=3",
-                    "fails=2 passes=2 match=",
-                    "proxy_pass https://vs",
+                    "slow_start=0s",
                     "status 200;",
                     "proxy_connect_timeout 35s;",
                     "proxy_read_timeout 45s;",
                     "proxy_send_timeout 55s;",
                     'proxy_set_header Host "virtual-server.example.com";',
-                    "slow_start=0s",
-                    "queue 1000 timeout=66s;",
+                    "proxy_pass https://vs",
+                    "health_check uri=/health  port=8080 interval=15s jitter=3s fails=2 passes=2 match=vs_backends-namespace_virtual-server-route_vsr_backend2-namespace_backend2_backend2_match keepalive_time=120s;",
                 ],
             ),
         ],

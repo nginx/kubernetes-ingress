@@ -1,4 +1,5 @@
 name: "Update pinned container SHAs"
+run-name: Update pinned container SHAs, triggered from ${{ github.event_name }} by @${{ github.actor }}
 
 on:
   workflow_dispatch:
@@ -6,15 +7,17 @@ on:
       source_branch:
         required: true
         type: string
-        default: 'main'
+        default: "main"
       excludes:
         description: Comma separated list of strings to exclude images from the update
         required: false
         type: string
-        default: ''
+        default: ""
       dry_run:
         type: boolean
         default: false
+  schedule:
+    - cron: "0 1 * * 1-5" # 01:00 UTC Mon-Fri
 
 defaults:
   run:
@@ -24,26 +27,42 @@ permissions:
   contents: read
 
 jobs:
+  vars:
+    permissions:
+      contents: read
+    runs-on: ubuntu-22.04
+    outputs:
+      source_branch: ${{ steps.vars.outputs.source_branch }}
+    steps:
+      - name: Set vars
+        id: vars
+        run: |
+          source_branch=main
+          if [ -n "${{ inputs.source_branch }}" ]; then
+            source_branch=${{ inputs.source_branch }}
+          fi
+          echo "source_branch=${source_branch}" >> $GITHUB_OUTPUT
+
   update-docker-sha:
     permissions:
       contents: write
     runs-on: ubuntu-22.04
+    needs: [vars]
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ inputs.source_branch }}
+          ref: ${{ needs.vars.outputs.source_branch }}
 
       - name: Update images
         id: update_images
         run: |
-          docker_md5=$(find . -type f \( -wholename "build/Dockerfile" -o -wholename "tests/Dockerfile" \) -exec md5sum {} + | LC_ALL=C sort  | md5sum | awk '{ print $1 }')
-          echo "docker_md5=${docker_md5:0:8}" >> $GITHUB_OUTPUT
           ARGS=""
           if [ -n ${{ github.event.inputs.excludes }} ]; then
             ARGS="--exclude ${{ github.event.inputs.excludes }}"
           fi
           .github/scripts/docker-updater.sh ./build/Dockerfile $ARGS
+          .github/scripts/docker-updater.sh ./build/dependencies/Dockerfile.ubi $ARGS
           .github/scripts/docker-updater.sh ./tests/Dockerfile $ARGS
           files=$(git diff --name-only)
           if [[ $files == *"Dockerfile"* ]]; then
@@ -51,19 +70,30 @@ jobs:
           else
             echo "change_detected=false" >> $GITHUB_OUTPUT
           fi
+          docker_md5=$(find . -type f -name "Dockerfile*" -exec md5sum {} + | LC_ALL=C sort  | md5sum | awk '{ print $1 }')
+          echo "docker_md5=${docker_md5:0:8}" >> $GITHUB_OUTPUT
           echo $GITHUB_OUTPUT
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@6d6857d36972b65feb161a90e484f2984215f83e # v6.0.5
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+        id: pr
         with:
           token: ${{ secrets.NGINX_PAT }}
           commit-message: Update docker images ${{ steps.update_images.outputs.docker_md5 }}
           title: Docker image update ${{ steps.update_images.outputs.docker_md5 }}
-          branch: chore/image-update-${{ inputs.source_branch }}-${{ steps.update_images.outputs.docker_md5 }}
+          branch: deps/image-update-${{ needs.vars.outputs.source_branch }}-${{ steps.update_images.outputs.docker_md5 }}
           author: nginx-bot <integrations@nginx.com>
           labels: |
             dependencies
             docker
+            needs cherry pick
           body: |
             This automated PR updates pinned container image SHAs to latest.
+        if: ${{ !inputs.dry_run && steps.update_images.outputs.change_detected == 'true' }}
+
+      - name: Enable auto-merge for Docker update PRs
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ steps.pr.outputs.pull-request-url }}
+          GITHUB_TOKEN: ${{ secrets.NGINX_PAT }}
         if: ${{ !inputs.dry_run && steps.update_images.outputs.change_detected == 'true' }}

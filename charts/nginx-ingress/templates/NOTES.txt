@@ -7,7 +7,7 @@ Installation and upgrade instructions: https://docs.nginx.com/nginx-ingress-cont
 {{ if .Release.IsUpgrade -}}
 If you are upgrading from a version of the chart that uses older Custom Resource Definitions (CRD) it is necessary to manually upgrade the CRDs as this is not managed by Helm.
 To update to the latest version of the CRDs:
-  $ kubectl apply -f https://raw.githubusercontent.com/nginxinc/kubernetes-ingress/v{{ .Chart.AppVersion }}/deploy/crds.yaml
+  $ kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v{{ .Chart.AppVersion }}/deploy/crds.yaml
 
 More details on upgrading the CRDs: https://docs.nginx.com/nginx-ingress-controller/installation/installing-nic/installation-with-helm/#upgrading-the-crds
 {{- end -}}

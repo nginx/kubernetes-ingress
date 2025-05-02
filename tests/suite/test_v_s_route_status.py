@@ -11,6 +11,7 @@ from suite.utils.vs_vsr_resources_utils import (
 
 
 @pytest.mark.vsr
+@pytest.mark.vsr_status
 @pytest.mark.parametrize(
     "crd_ingress_controller, v_s_route_setup",
     [

@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.org/limit-req-rate: 40r/s
+    nginx.org/limit-req-key: ${binary_remote_addr}
+    nginx.org/limit-req-zone-size: 10M
+    nginx.org/limit-req-scale: "true"
+  name: annotations-rl-ingress
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: ingress-rl.example.com
+    http:
+      paths:
+      - path: /backend2
+        pathType: Prefix
+        backend:
+          service:
+            name: backend2-svc
+            port:
+              number: 80
+      - path: /backend1
+        pathType: Prefix
+        backend:
+          service:
+            name: backend1-svc
+            port:
+              number: 80

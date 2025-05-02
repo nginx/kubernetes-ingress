@@ -1,0 +1,13 @@
+controller:
+  nginxplus: true
+  appprotectdos:
+    ## Enable the App Protect DoS module in the Ingress Controller.
+    enable: true
+    ## Enable debugging for App Protect DoS.
+    debug: true
+    ## Max number of nginx processes to support.
+    maxWorkers: 5
+    ## Max number of ADMD instances.
+    maxDaemons: 10
+    ## RAM memory size to consume in MB.
+    memory: 1024

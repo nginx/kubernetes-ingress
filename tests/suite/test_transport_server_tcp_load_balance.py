@@ -186,7 +186,7 @@ class TestTransportServerTcpLoadBalance:
             response["status"]
             and response["status"]["reason"] == "Rejected"
             and response["status"]["state"] == "Warning"
-            and response["status"]["message"] == "Listener tcp-server is taken by another resource"
+            and response["status"]["message"] == "Listener tcp-server with host empty host is taken by another resource"
         )
 
         # Step 3, remove the default TransportServer with the same port
@@ -651,7 +651,7 @@ class TestTransportServerTcpLoadBalance:
                     "-global-configuration=nginx-ingress/nginx-configuration",
                     "-enable-leader-election=false",
                     "-enable-prometheus-metrics",
-                    "-v=3",
+                    "-log-level=debug",
                 ],
             },
             {"example": "transport-server-tcp-load-balance"},

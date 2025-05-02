@@ -1,12 +1,13 @@
 package metrics
 
 import (
+	"context"
 	"errors"
+	"log/slog"
 	"net"
 
-	"github.com/golang/glog"
-
-	"github.com/nginxinc/kubernetes-ingress/internal/metrics/collectors"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	"github.com/nginx/kubernetes-ingress/internal/metrics/collectors"
 )
 
 // SyslogListener is an interface for syslog metrics listener
@@ -21,21 +22,23 @@ type LatencyMetricsListener struct {
 	conn      *net.UnixConn
 	addr      string
 	collector collectors.LatencyCollector
+	logger    *slog.Logger
 }
 
 // NewLatencyMetricsListener returns a LatencyMetricsListener that listens over a unix socket
 // for syslog messages from nginx.
-func NewLatencyMetricsListener(sockPath string, c collectors.LatencyCollector) SyslogListener {
-	glog.Infof("Starting latency metrics server listening on: %s", sockPath)
+func NewLatencyMetricsListener(ctx context.Context, sockPath string, c collectors.LatencyCollector) SyslogListener {
+	l := nl.LoggerFromContext(ctx)
+	nl.Infof(l, "Starting latency metrics server listening on: %s", sockPath)
 	conn, err := net.ListenUnixgram("unixgram", &net.UnixAddr{
 		Name: sockPath,
 		Net:  "unixgram",
 	})
 	if err != nil {
-		glog.Errorf("Failed to create latency metrics listener: %v. Latency metrics will not be collected.", err)
+		nl.Errorf(l, "Failed to create latency metrics listener: %v. Latency metrics will not be collected.", err)
 		return NewSyslogFakeServer()
 	}
-	return &LatencyMetricsListener{conn: conn, addr: sockPath, collector: c}
+	return &LatencyMetricsListener{conn: conn, addr: sockPath, collector: c, logger: l}
 }
 
 // Run reads from the unix connection until an unrecoverable error occurs or the connection is closed.
@@ -45,7 +48,7 @@ func (l LatencyMetricsListener) Run() {
 		n, err := l.conn.Read(buffer)
 		if err != nil {
 			if !isErrorRecoverable(err) {
-				glog.Info("Stopping latency metrics listener")
+				nl.Info(l.logger, "Stopping latency metrics listener")
 				return
 			}
 		}
@@ -57,7 +60,7 @@ func (l LatencyMetricsListener) Run() {
 func (l LatencyMetricsListener) Stop() {
 	err := l.conn.Close()
 	if err != nil {
-		glog.Errorf("error closing latency metrics unix connection: %v", err)
+		nl.Errorf(l.logger, "error closing latency metrics unix connection: %v", err)
 	}
 }
 

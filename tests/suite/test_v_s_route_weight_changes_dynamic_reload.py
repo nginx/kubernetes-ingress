@@ -1,6 +1,5 @@
 import pytest
 import requests
-import yaml
 from settings import TEST_DATA
 from suite.fixtures.custom_resource_fixtures import VirtualServerRoute
 from suite.utils.resources_utils import (
@@ -13,7 +12,6 @@ from suite.utils.resources_utils import (
     wait_until_all_pods_are_ready,
 )
 from suite.utils.yaml_utils import get_first_host_from_yaml, get_paths_from_vsr_yaml, get_route_namespace_from_vs_yaml
-from yaml.loader import Loader
 
 from tests.suite.utils.custom_assertions import wait_and_assert_status_code
 from tests.suite.utils.vs_vsr_resources_utils import (
@@ -94,7 +92,8 @@ def vsr_weight_changes_dynamic_reload_setup(
 
 
 @pytest.mark.vsr
-@pytest.mark.smok
+@pytest.mark.vsr_splits
+@pytest.mark.smoke
 @pytest.mark.skip_for_nginx_oss
 @pytest.mark.parametrize(
     "crd_ingress_controller,vsr_weight_changes_dynamic_reload_setup, expect_reload",

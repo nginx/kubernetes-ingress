@@ -4,4 +4,4 @@ targets:
     - type: setuptools
 paths:
   exclude:
-    - docs
+    - site

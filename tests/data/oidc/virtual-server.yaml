@@ -1,0 +1,18 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: virtual-server-tls
+spec:
+  host: virtual-server-tls.example.com
+  tls:
+    secret: tls-secret
+  upstreams:
+  - name: backend1
+    service: backend1-svc
+    port: 80
+  routes:
+  - path: /
+    policies:
+    - name: oidc-policy
+    action:
+      pass: backend1

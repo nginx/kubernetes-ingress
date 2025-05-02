@@ -4,6 +4,8 @@ import (
 	"reflect"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -16,22 +18,26 @@ var KeyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
 
 // DefaultItemBasedRateLimiter returns a new rate limiter with base delay of 5
 // seconds, max delay of 5 minutes.
-func DefaultItemBasedRateLimiter() workqueue.RateLimiter {
-	return workqueue.NewItemExponentialFailureRateLimiter(time.Second*5, time.Minute*5)
+func DefaultItemBasedRateLimiter() workqueue.TypedRateLimiter[types.NamespacedName] {
+	return workqueue.NewTypedItemExponentialFailureRateLimiter[types.NamespacedName](5*time.Second, 5*time.Minute)
 }
 
 // QueuingEventHandler is an implementation of cache.ResourceEventHandler that
 // simply queues objects that are added/updated/deleted.
 type QueuingEventHandler struct {
-	Queue workqueue.RateLimitingInterface
+	Queue workqueue.TypedRateLimitingInterface[types.NamespacedName]
 }
 
 // Enqueue adds a key for an object to the workqueue.
 func (q *QueuingEventHandler) Enqueue(obj interface{}) {
-	key, err := KeyFunc(obj)
+	accessor, err := meta.Accessor(obj)
 	if err != nil {
 		runtime.HandleError(err)
 		return
+	}
+	key := types.NamespacedName{
+		Namespace: accessor.GetNamespace(),
+		Name:      accessor.GetName(),
 	}
 	q.Queue.Add(key)
 }

@@ -15,6 +15,7 @@ from suite.utils.vs_vsr_resources_utils import get_vs_nginx_template_conf, patch
 
 
 @pytest.mark.vsr
+@pytest.mark.vsr_canned
 @pytest.mark.parametrize(
     "crd_ingress_controller, v_s_route_setup",
     [

@@ -37,6 +37,7 @@ type StreamUpstreamBackupServer struct {
 
 // StreamServer defines a server in the stream module.
 type StreamServer struct {
+	ServerName               string
 	TLSPassthrough           bool
 	UnixSocket               string
 	Port                     int
@@ -56,6 +57,8 @@ type StreamServer struct {
 	ServerSnippets           []string
 	DisableIPV6              bool
 	SSL                      *StreamSSL
+	IPv4                     string
+	IPv6                     string
 }
 
 // StreamSSL defines SSL configuration for a server.

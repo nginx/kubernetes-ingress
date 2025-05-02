@@ -1,0 +1,77 @@
+{
+  "images": [
+    {
+      "label": "AP_WAF 1/4",
+      "image": "ubi-8-plus-nap",
+      "type": "plus",
+      "nap_modules": "waf",
+      "marker": "appprotect_waf_policies_allow",
+      "platforms": "linux/amd64"
+    },
+    {
+      "label": "AP_WAF 2/4",
+      "image": "ubi-9-plus-nap",
+      "type": "plus",
+      "nap_modules": "waf",
+      "marker": "'appprotect_waf_policies and not appprotect_waf_policies_allow and not appprotect_waf_policies_vsr'",
+      "platforms": "linux/amd64"
+    },
+    {
+      "label": "AP_WAF 3/4",
+      "image": "alpine-plus-nap-fips",
+      "type": "plus",
+      "nap_modules": "waf",
+      "marker": "appprotect_waf_policies_grpc",
+      "platforms": "linux/amd64"
+    },
+    {
+      "label": "AP_WAF 4/4",
+      "image": "debian-plus-nap",
+      "type": "plus",
+      "nap_modules": "waf",
+      "marker": "'appprotect_watch or appprotect_batch or appprotect_integration or appprotect_waf_policies_vsr'",
+      "platforms": "linux/amd64"
+    },
+    {
+      "label": "AP_WAF_V5 1/1",
+      "image": "debian-plus-nap-v5",
+      "type": "plus",
+      "nap_modules": "waf",
+      "marker": "appprotect_waf_v5",
+      "platforms": "linux/amd64"
+    },
+    {
+      "label": "AP_DOS 1/3",
+      "image": "debian-plus-nap",
+      "type": "plus",
+      "nap_modules": "dos",
+      "marker": "'dos and not dos_learning and not dos_ingress'",
+      "platforms": "linux/amd64"
+    },
+    {
+      "label": "AP_DOS 2/3",
+      "image": "debian-plus-nap",
+      "type": "plus",
+      "nap_modules": "dos",
+      "marker": "'dos_ingress and not dos_learning'",
+      "platforms": "linux/amd64"
+    },
+    {
+      "label": "AP_DOS 3/3",
+      "image": "ubi-9-plus-nap",
+      "type": "plus",
+      "nap_modules": "dos",
+      "marker": "dos_learning",
+      "platforms": "linux/amd64"
+    },
+    {
+      "label": "AGENT 1/1",
+      "image": "debian-plus-nap",
+      "type": "plus",
+      "nap_modules": "waf",
+      "marker": "agent",
+      "platforms": "linux/amd64"
+    }
+  ],
+  "k8s": []
+}

@@ -1,0 +1,144 @@
+name: Build single image
+run-name: Building gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/${{ github.actor }}-dev/${{ inputs.prefix }}:${{ inputs.tag }} by @${{ github.actor }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Image build make target to call'
+        required: true
+        type: string
+      prefix:
+        description: 'Image prefix to use in GCR, e.g. nginx-ic/nginx-ingress'
+        required: true
+        type: string
+      tag:
+        description: 'Image tag to use in GCR, e.g. 3.7.0-SNAPSHOT'
+        required: true
+        type: string
+      branch:
+        description: 'Branch to checkout for build'
+        required: false
+        type: string
+        default: main
+      plus_repo:
+        description: 'Plus repo to install from'
+        required: true
+        default: 'pkgs.nginx.com'
+        type: choice
+        options:
+          - pkgs.nginx.com
+          - pkgs-test.nginx.com
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    permissions:
+      contents: read # for docker/build-push-action to read repo content
+      id-token: write # for login to GCP
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.branch }}
+          fetch-depth: 0
+
+      - name: Setup Golang Environment
+        uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b # v5.4.0
+        with:
+          go-version-file: go.mod
+
+      - name: Output Variables
+        id: vars
+        run: |
+          ./.github/scripts/variables.sh go_code_md5 >> $GITHUB_OUTPUT
+          echo "go_path=$(go env GOPATH)" >> $GITHUB_OUTPUT
+          source .github/data/version.txt
+          echo "ic_version=${IC_VERSION}" >> $GITHUB_OUTPUT
+          cat $GITHUB_OUTPUT
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        with:
+          token_format: access_token
+          workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
+          service_account: ${{ secrets.GCR_SERVICE_ACCOUNT }}
+
+      - name: Login to GCR
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: gcr.io
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+
+      - name: Setup plus credentials
+        run: |
+          printf '%s\n' "${CERT}" > nginx-repo.crt
+          printf '%s\n' "${KEY}" > nginx-repo.key
+          if [[ "${{ inputs.target }}" =~ ubi ]]; then
+            printf '%s\n' "${RHEL}" > rhel_license
+          fi
+        env:
+          CERT: ${{ secrets.NGINX_CRT }}
+          KEY: ${{ secrets.NGINX_KEY }}
+          RHEL: ${{ secrets.RHEL_LICENSE }}
+        if: ${{ contains(inputs.target, 'plus') }}
+
+      - name: Fetch Cached Binary Artifacts
+        id: binary-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ github.workspace }}/dist
+          key: nginx-ingress-${{ steps.vars.outputs.go_code_md5 }}
+
+      - name: Build binaries
+        uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552 # v6.3.0
+        with:
+          version: latest
+          args: build --snapshot --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOPATH: ${{ steps.vars.outputs.go_path }}
+          AWS_PRODUCT_CODE: ${{ secrets.AWS_PRODUCT_CODE }}
+          AWS_PUB_KEY: ${{ secrets.AWS_PUB_KEY }}
+          AWS_NAP_DOS_PRODUCT_CODE: ${{ secrets.AWS_NAP_DOS_PRODUCT_CODE }}
+          AWS_NAP_DOS_PUB_KEY: ${{ secrets.AWS_NAP_DOS_PUB_KEY }}
+          AWS_NAP_WAF_PRODUCT_CODE: ${{ secrets.AWS_NAP_WAF_PRODUCT_CODE }}
+          AWS_NAP_WAF_PUB_KEY: ${{ secrets.AWS_NAP_WAF_PUB_KEY }}
+          AWS_NAP_WAF_DOS_PRODUCT_CODE: ${{ secrets.AWS_NAP_WAF_DOS_PRODUCT_CODE }}
+          AWS_NAP_WAF_DOS_PUB_KEY: ${{ secrets.AWS_NAP_WAF_DOS_PUB_KEY }}
+          GORELEASER_CURRENT_TAG: "v${{ steps.vars.outputs.ic_version }}"
+        if: ${{ steps.binary-cache.outputs.binary_cache_hit != 'true' }}
+
+      - name: Store Artifacts in Cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ github.workspace }}/dist
+          key: nginx-ingress-${{ steps.vars.outputs.go_code_md5 }}
+        if: ${{ steps.binary-cache.outputs.binary_cache_hit != 'true' }}
+
+      - name: Build Image
+        run: |
+          make ${{ inputs.target }}
+        env:
+          REGISTRY: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev
+          PREFIX: ${{ inputs.prefix }}
+          TAG: ${{ inputs.tag }}
+          PLUS_REPO: ${{ inputs.plus_repo }}
+          TARGET: goreleaser
+
+      - name: Push image
+        run:
+          docker push ${REGISTRY}/${PREFIX}:${TAG}
+        env:
+          REGISTRY: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev
+          PREFIX: ${{ inputs.prefix }}
+          TAG: ${{ inputs.tag }}

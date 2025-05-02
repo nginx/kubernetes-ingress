@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/nginxinc/kubernetes-ingress/pkg/apis/dos/v1beta1"
+	"github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -68,6 +68,25 @@ func TestUpdateApDosResource(t *testing.T) {
 			},
 		},
 	}
+	appProtectDosProtectedWithAllowList := &v1beta1.DosProtectedResource{
+		TypeMeta: v1.TypeMeta{},
+		ObjectMeta: v1.ObjectMeta{
+			Name:      "dosWithAllowList",
+			Namespace: "test-ns",
+		},
+		Spec: v1beta1.DosProtectedResourceSpec{
+			Enable: true,
+			Name:   "dos-protected",
+			ApDosMonitor: &v1beta1.ApDosMonitor{
+				URI: "example.com",
+			},
+			DosAccessLogDest: "127.0.0.1:5561",
+			AllowList: []v1beta1.AllowListEntry{
+				{IPWithMask: "192.168.1.0/24"},
+				{IPWithMask: "10.0.0.0/8"},
+			},
+		},
+	}
 
 	tests := []struct {
 		dosProtectedEx *DosEx
@@ -126,6 +145,21 @@ func TestUpdateApDosResource(t *testing.T) {
 				AppProtectDosLogConfFile:  "/etc/nginx/dos/logconfs/test-ns_test-name.json syslog:server=syslog-svc.default.svc.cluster.local:514",
 			},
 			msg: "app protect dos policy and log conf",
+		},
+		{
+			dosProtectedEx: &DosEx{
+				DosProtected: appProtectDosProtectedWithAllowList,
+				DosPolicy:    appProtectDosPolicy,
+			},
+			expected: &appProtectDosResource{
+				AppProtectDosEnable:        "on",
+				AppProtectDosName:          "test-ns/dosWithAllowList/dos-protected",
+				AppProtectDosMonitorURI:    "example.com",
+				AppProtectDosAccessLogDst:  "syslog:server=127.0.0.1:5561",
+				AppProtectDosPolicyFile:    "/etc/nginx/dos/policies/test-ns_test-name.json",
+				AppProtectDosAllowListPath: "/etc/nginx/dos/allowlist/test-ns_dosWithAllowList.json",
+			},
+			msg: "app protect dos with allow list",
 		},
 	}
 

@@ -3,7 +3,7 @@
 package v1
 
 import (
-	internalinterfaces "github.com/nginxinc/kubernetes-ingress/pkg/client/informers/externalversions/internalinterfaces"
+	internalinterfaces "github.com/nginx/kubernetes-ingress/pkg/client/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to all the informers in this group version.

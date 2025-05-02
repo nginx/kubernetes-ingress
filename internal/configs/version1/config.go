@@ -1,8 +1,8 @@
 package version1
 
 import (
-	"github.com/nginxinc/kubernetes-ingress/internal/configs/version2"
-	"github.com/nginxinc/kubernetes-ingress/internal/nginx"
+	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
+	"github.com/nginx/kubernetes-ingress/internal/nginx"
 )
 
 // UpstreamLabels describes the Prometheus labels for an NGINX upstream.
@@ -73,6 +73,7 @@ type LimitReqZone struct {
 	Key  string
 	Size string
 	Rate string
+	Sync bool
 }
 
 // Server describes an NGINX server.
@@ -123,6 +124,7 @@ type Server struct {
 	AppProtectDosMonitorProtocol string
 	AppProtectDosMonitorTimeout  uint64
 	AppProtectDosName            string
+	AppProtectDosAllowListPath   string
 	AppProtectDosAccessLogDst    string
 
 	SpiffeCerts bool
@@ -188,9 +190,37 @@ type Location struct {
 	MinionIngress *Ingress
 }
 
+// ZoneSyncConfig is tbe configuration for the zone_sync directives for state sharing.
+type ZoneSyncConfig struct {
+	Enable            bool
+	Port              int
+	Domain            string
+	ResolverAddresses []string
+	// Time the resolver is valid. Go time string format: "5s", "10s".
+	ResolverValid string
+	ResolverIPV6  *bool
+}
+
+// MGMTConfig is tbe configuration for the MGMT block.
+type MGMTConfig struct {
+	SSLVerify            *bool
+	EnforceInitialReport *bool
+	Endpoint             string
+	Interval             string
+	TrustedCert          bool
+	TrustedCRL           bool
+	ClientAuth           bool
+	ResolverAddresses    []string
+	ResolverIPV6         *bool
+	ResolverValid        string
+	ProxyHost            string
+	ProxyUser            string
+	ProxyPass            string
+}
+
 // MainConfig describe the main NGINX configuration file.
 type MainConfig struct {
-	AccessLogOff                       bool
+	AccessLog                          string
 	DefaultServerAccessLogOff          bool
 	DefaultServerReturn                string
 	DisableIPV6                        bool
@@ -206,13 +236,10 @@ type MainConfig struct {
 	LogFormat                          []string
 	LogFormatEscaping                  string
 	MainSnippets                       []string
+	MGMTConfig                         MGMTConfig
 	NginxStatus                        bool
 	NginxStatusAllowCIDRs              []string
 	NginxStatusPort                    int
-	OpenTracingEnabled                 bool
-	OpenTracingLoadModule              bool
-	OpenTracingTracer                  string
-	OpenTracingTracerConfig            string
 	ProxyProtocol                      bool
 	ResolverAddresses                  []string
 	ResolverIPV6                       bool
@@ -245,6 +272,8 @@ type MainConfig struct {
 	WorkerRlimitNofile                 string
 	WorkerShutdownTimeout              string
 	AppProtectLoadModule               bool
+	AppProtectV5LoadModule             bool
+	AppProtectV5EnforcerAddr           string
 	AppProtectFailureModeAction        string
 	AppProtectCompressedRequestsAction string
 	AppProtectCookieSeed               string
@@ -258,6 +287,7 @@ type MainConfig struct {
 	InternalRouteServer                bool
 	InternalRouteServerName            string
 	LatencyMetrics                     bool
+	ZoneSyncConfig                     ZoneSyncConfig
 	OIDC                               bool
 	DynamicSSLReloadEnabled            bool
 	StaticSSLPath                      string

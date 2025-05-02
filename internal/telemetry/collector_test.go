@@ -3,22 +3,24 @@ package telemetry_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"runtime"
+	"sort"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/nginxinc/kubernetes-ingress/internal/configs"
-	"github.com/nginxinc/kubernetes-ingress/internal/configs/version1"
-	"github.com/nginxinc/kubernetes-ingress/internal/configs/version2"
-	"github.com/nginxinc/kubernetes-ingress/internal/k8s/secrets"
-	"github.com/nginxinc/kubernetes-ingress/internal/nginx"
-
 	"github.com/google/go-cmp/cmp"
-	"github.com/nginxinc/kubernetes-ingress/internal/telemetry"
-	conf_v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
-	tel "github.com/nginxinc/telemetry-exporter/pkg/telemetry"
+	"github.com/nginx/kubernetes-ingress/internal/configs"
+	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
+	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
+	"github.com/nginx/kubernetes-ingress/internal/nginx"
+	"github.com/nginx/kubernetes-ingress/internal/telemetry"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	tel "github.com/nginx/telemetry-exporter/pkg/telemetry"
+	"github.com/stretchr/testify/assert"
 	coreV1 "k8s.io/api/core/v1"
 	networkingV1 "k8s.io/api/networking/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -251,7 +253,7 @@ func TestCollectClusterVersion(t *testing.T) {
 	}
 }
 
-func TestCollectPolicyCount(t *testing.T) {
+func TestCollectPolicyCountOnCustomResourcesEnabled(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -315,7 +317,8 @@ func TestCollectPolicyCount(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var got int
 			cfg := telemetry.CollectorConfig{
-				Policies: tc.policies,
+				Policies:               tc.policies,
+				CustomResourcesEnabled: true,
 			}
 			collector, err := telemetry.NewCollector(cfg)
 			if err != nil {
@@ -333,7 +336,59 @@ func TestCollectPolicyCount(t *testing.T) {
 	}
 }
 
-func TestCollectPoliciesReport(t *testing.T) {
+func TestCollectPolicyCountOnCustomResourcesDisabled(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		policies func() []*conf_v1.Policy
+		want     int
+	}{
+		{
+			name:     "Nil func",
+			policies: nil,
+			want:     0,
+		},
+		{
+			name: "No policies",
+			policies: func() []*conf_v1.Policy {
+				return []*conf_v1.Policy{}
+			},
+			want: 0,
+		},
+		{
+			name: "Nil policies",
+			policies: func() []*conf_v1.Policy {
+				return nil
+			},
+			want: 0,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var got int
+			cfg := telemetry.CollectorConfig{
+				Policies:               tc.policies,
+				CustomResourcesEnabled: false,
+			}
+			collector, err := telemetry.NewCollector(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			for _, polCount := range collector.PolicyCount() {
+				got += polCount
+			}
+
+			if tc.want != got {
+				t.Errorf("want %d policies, got %d", tc.want, got)
+			}
+		})
+	}
+}
+
+func TestCollectPoliciesReportOnEnabledCustomResources(t *testing.T) {
 	t.Parallel()
 
 	buf := &bytes.Buffer{}
@@ -352,6 +407,7 @@ func TestCollectPoliciesReport(t *testing.T) {
 				oidcPolicy,
 			}
 		},
+		CustomResourcesEnabled: true,
 	}
 
 	c, err := telemetry.NewCollector(cfg, telemetry.WithExporter(exp))
@@ -375,6 +431,63 @@ func TestCollectPoliciesReport(t *testing.T) {
 		WAFPolicies:        2,
 		OIDCPolicies:       1,
 		EgressMTLSPolicies: 2,
+	}
+
+	td := telemetry.Data{
+		Data:              telData,
+		NICResourceCounts: nicResourceCounts,
+	}
+
+	want := fmt.Sprintf("%+v", &td)
+	got := buf.String()
+	if !cmp.Equal(want, got) {
+		t.Error(cmp.Diff(want, got))
+	}
+}
+
+func TestCollectPoliciesReportOnDisabledCustomResources(t *testing.T) {
+	t.Parallel()
+
+	buf := &bytes.Buffer{}
+	exp := &telemetry.StdoutExporter{Endpoint: buf}
+	cfg := telemetry.CollectorConfig{
+		Configurator:    newConfigurator(t),
+		K8sClientReader: newTestClientset(node1, kubeNS),
+		Version:         telemetryNICData.ProjectVersion,
+		Policies: func() []*conf_v1.Policy {
+			return []*conf_v1.Policy{
+				egressMTLSPolicy,
+				egressMTLSPolicy,
+				rateLimitPolicyInvalid,
+				wafPolicy,
+				wafPolicy,
+				oidcPolicy,
+			}
+		},
+		CustomResourcesEnabled: false,
+	}
+
+	c, err := telemetry.NewCollector(cfg, telemetry.WithExporter(exp))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Collect(context.Background())
+
+	telData := tel.Data{
+		ProjectName:         telemetryNICData.ProjectName,
+		ProjectVersion:      telemetryNICData.ProjectVersion,
+		ProjectArchitecture: telemetryNICData.ProjectArchitecture,
+		ClusterNodeCount:    1,
+		ClusterID:           telemetryNICData.ClusterID,
+		ClusterVersion:      telemetryNICData.ClusterVersion,
+		ClusterPlatform:     "other",
+	}
+
+	nicResourceCounts := telemetry.NICResourceCounts{
+		RateLimitPolicies:  0,
+		WAFPolicies:        0,
+		OIDCPolicies:       0,
+		EgressMTLSPolicies: 0,
 	}
 
 	td := telemetry.Data{
@@ -518,7 +631,7 @@ func TestIngressCountReportsNoDeployedIngresses(t *testing.T) {
 		VirtualServers:      0,
 		VirtualServerRoutes: 0,
 		TransportServers:    0,
-		Ingresses:           0,
+		RegularIngressCount: 0,
 	}
 
 	td := telemetry.Data{
@@ -747,8 +860,57 @@ func TestIngressCountReportsNumberOfDeployedIngresses(t *testing.T) {
 		VirtualServers:      0,
 		VirtualServerRoutes: 0,
 		TransportServers:    0,
-		Ingresses:           1,
-		Services:            2,
+		RegularIngressCount: 1,
+	}
+
+	td := telemetry.Data{
+		Data:              telData,
+		NICResourceCounts: nicResourceCounts,
+	}
+
+	want := fmt.Sprintf("%+v", &td)
+	got := buf.String()
+	if !cmp.Equal(want, got) {
+		t.Error(cmp.Diff(want, got))
+	}
+}
+
+func TestMasterMinionIngressCountReportsNumberOfDeployedIngresses(t *testing.T) {
+	t.Parallel()
+	buf := &bytes.Buffer{}
+	exp := &telemetry.StdoutExporter{Endpoint: buf}
+
+	configurator := newConfiguratorWithMergeableIngress(t)
+
+	cfg := telemetry.CollectorConfig{
+		Configurator:    configurator,
+		K8sClientReader: newTestClientset(node1, kubeNS),
+		Version:         telemetryNICData.ProjectVersion,
+	}
+
+	c, err := telemetry.NewCollector(cfg, telemetry.WithExporter(exp))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Collect(context.Background())
+
+	telData := tel.Data{
+		ProjectName:         telemetryNICData.ProjectName,
+		ProjectVersion:      telemetryNICData.ProjectVersion,
+		ProjectArchitecture: telemetryNICData.ProjectArchitecture,
+		ClusterNodeCount:    1,
+		ClusterID:           telemetryNICData.ClusterID,
+		ClusterVersion:      telemetryNICData.ClusterVersion,
+		ClusterPlatform:     "other",
+	}
+
+	nicResourceCounts := telemetry.NICResourceCounts{
+		VirtualServers:      0,
+		VirtualServerRoutes: 0,
+		TransportServers:    0,
+		MasterIngressCount:  1,
+		MinionIngressCount:  2,
+		IngressAnnotations:  []string{"nginx.org/mergeable-ingress-type"},
 	}
 
 	td := telemetry.Data{
@@ -896,21 +1058,21 @@ func TestCollectInstallationFlags(t *testing.T) {
 		{
 			name: "second flag",
 			setFlags: []string{
-				"-v=3",
+				"-log-level=debug",
 			},
 			wantFlags: []string{
-				"-v=3",
+				"-log-level=debug",
 			},
 		},
 		{
 			name: "multiple flags",
 			setFlags: []string{
 				"nginx-plus=true",
-				"-v=3",
+				"-log-level=debug",
 			},
 			wantFlags: []string{
 				"nginx-plus=true",
-				"-v=3",
+				"-log-level=debug",
 			},
 		},
 		{
@@ -951,11 +1113,7 @@ func TestCollectInstallationFlags(t *testing.T) {
 			}
 
 			nicResourceCounts := telemetry.NICResourceCounts{
-				VirtualServers:      0,
-				VirtualServerRoutes: 0,
-				TransportServers:    0,
-				Ingresses:           0,
-				InstallationFlags:   tc.wantFlags,
+				InstallationFlags: tc.wantFlags,
 			}
 
 			td := telemetry.Data{
@@ -973,107 +1131,337 @@ func TestCollectInstallationFlags(t *testing.T) {
 	}
 }
 
-func TestCountVirtualServers(t *testing.T) {
+func TestCollectConfigMapKeys(t *testing.T) {
 	t.Parallel()
-
 	testCases := []struct {
-		testName                  string
-		expectedTraceDataOnAdd    telemetry.Report
-		expectedTraceDataOnDelete telemetry.Report
-		virtualServers            []*configs.VirtualServerEx
-		deleteCount               int
+		name      string
+		configMap map[string]string
+		want      []string
 	}{
 		{
-			testName: "Create and delete 1 VirtualServer",
-			expectedTraceDataOnAdd: telemetry.Report{
-				VirtualServers: 1,
+			name: "one key",
+			configMap: map[string]string{
+				"error-log-level": "debug",
 			},
-			expectedTraceDataOnDelete: telemetry.Report{
-				VirtualServers: 0,
-			},
-			virtualServers: []*configs.VirtualServerEx{
-				{
-					VirtualServer: &conf_v1.VirtualServer{
-						ObjectMeta: metaV1.ObjectMeta{
-							Namespace: "ns-1",
-							Name:      "coffee",
-						},
-						Spec: conf_v1.VirtualServerSpec{},
-					},
-				},
-			},
-			deleteCount: 1,
+			want: []string{"error-log-level"},
 		},
 		{
-			testName: "Create 2 VirtualServers and delete 2",
-			expectedTraceDataOnAdd: telemetry.Report{
-				VirtualServers: 2,
+			name: "two keys",
+			configMap: map[string]string{
+				"error-log-level": "debug",
+				"zone-sync":       "true",
 			},
-			expectedTraceDataOnDelete: telemetry.Report{
-				VirtualServers: 0,
-			},
-			virtualServers: []*configs.VirtualServerEx{
-				{
-					VirtualServer: &conf_v1.VirtualServer{
-						ObjectMeta: metaV1.ObjectMeta{
-							Namespace: "ns-1",
-							Name:      "coffee",
-						},
-						Spec: conf_v1.VirtualServerSpec{},
-					},
-				},
-				{
-					VirtualServer: &conf_v1.VirtualServer{
-						ObjectMeta: metaV1.ObjectMeta{
-							Namespace: "ns-1",
-							Name:      "tea",
-						},
-						Spec: conf_v1.VirtualServerSpec{},
-					},
-				},
-			},
-			deleteCount: 2,
+			want: []string{"error-log-level", "zone-sync"},
 		},
 		{
-			testName: "Create 2 VirtualServers and delete 1",
-			expectedTraceDataOnAdd: telemetry.Report{
-				VirtualServers: 2,
+			name: "two keys and one key that will be ignored",
+			configMap: map[string]string{
+				"error-log-level": "debug",
+				"zone-sync":       "true",
+				"hello":           "world",
 			},
-			expectedTraceDataOnDelete: telemetry.Report{
-				VirtualServers: 1,
-			},
-			virtualServers: []*configs.VirtualServerEx{
-				{
-					VirtualServer: &conf_v1.VirtualServer{
-						ObjectMeta: metaV1.ObjectMeta{
-							Namespace: "ns-1",
-							Name:      "coffee",
-						},
-						Spec: conf_v1.VirtualServerSpec{},
-					},
-				},
-				{
-					VirtualServer: &conf_v1.VirtualServer{
-						ObjectMeta: metaV1.ObjectMeta{
-							Namespace: "ns-1",
-							Name:      "tea",
-						},
-						Spec: conf_v1.VirtualServerSpec{},
-					},
-				},
-			},
-			deleteCount: 1,
+			want: []string{"error-log-level", "zone-sync"},
+		},
+		{
+			name:      "no keys",
+			configMap: map[string]string{},
+			want:      []string{},
 		},
 	}
 
-	for _, test := range testCases {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			buf := &bytes.Buffer{}
+			exp := &telemetry.JSONExporter{Endpoint: buf}
+
+			configurator := newConfigurator(t)
+			namespace := "default"
+			name := "nginx-config"
+
+			cfg := telemetry.CollectorConfig{
+				Version:      telemetryNICData.ProjectVersion,
+				Configurator: configurator,
+				K8sClientReader: newTestClientset(
+					&coreV1.ConfigMap{
+						ObjectMeta: metaV1.ObjectMeta{
+							Name:      name,
+							Namespace: namespace,
+						},
+						Data: tc.configMap,
+					},
+				),
+				MainConfigMapName: fmt.Sprintf("%s/%s", namespace, name),
+			}
+
+			c, err := telemetry.NewCollector(cfg, telemetry.WithExporter(exp))
+			if err != nil {
+				t.Fatal(err)
+			}
+			c.Collect(context.Background())
+
+			sort.Strings(tc.want)
+
+			telData := tel.Data{
+				ProjectName:         telemetryNICData.ProjectName,
+				ProjectVersion:      telemetryNICData.ProjectVersion,
+				ProjectArchitecture: telemetryNICData.ProjectArchitecture,
+				ClusterVersion:      telemetryNICData.ClusterVersion,
+			}
+
+			nicResourceCounts := telemetry.NICResourceCounts{
+				ConfigMapKeys: tc.want,
+			}
+
+			td := telemetry.Data{
+				Data:              telData,
+				NICResourceCounts: nicResourceCounts,
+			}
+
+			got := buf.String()
+
+			tdGot := new(telemetry.Data)
+			err = json.Unmarshal([]byte(got), &tdGot)
+			if err != nil {
+				t.Fatalf("failed to unmarshal telemetry data: %v\n%s", err, got)
+			}
+
+			assert.ElementsMatchf(t, td.ConfigMapKeys, tdGot.ConfigMapKeys, "want: %s\ngot: %s", td.ConfigMapKeys, tdGot.ConfigMapKeys)
+		})
+	}
+}
+
+func TestCollectMGMTConfigMapKeys(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name      string
+		configMap map[string]string
+		want      []string
+	}{
+		{
+			name: "one key",
+			configMap: map[string]string{
+				"license-token-secret-name": "license-token",
+			},
+			want: []string{"license-token-secret-name"},
+		},
+		{
+			name: "two keys",
+			configMap: map[string]string{
+				"license-token-secret-name": "license-token",
+				"enforce-initial-report":    "true",
+			},
+			want: []string{"enforce-initial-report", "license-token-secret-name"},
+		},
+		{
+			name: "ignored keys",
+			configMap: map[string]string{
+				"license":   "license",
+				"report":    "true",
+				"zone-sync": "true",
+			},
+			want: nil,
+		},
+		{
+			name:      "no keys",
+			configMap: map[string]string{},
+			want:      []string{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			buf := &bytes.Buffer{}
+			exp := &telemetry.JSONExporter{Endpoint: buf}
+
+			configurator := newConfigurator(t)
+			namespace := "default"
+			name := "nginx-config-mgmt"
+
+			cfg := telemetry.CollectorConfig{
+				Version:      telemetryNICData.ProjectVersion,
+				Configurator: configurator,
+				IsPlus:       true,
+				K8sClientReader: newTestClientset(
+					&coreV1.ConfigMap{
+						ObjectMeta: metaV1.ObjectMeta{
+							Name:      name,
+							Namespace: namespace,
+						},
+						Data: tc.configMap,
+					},
+				),
+				MGMTConfigMapName: fmt.Sprintf("%s/%s", namespace, name),
+			}
+
+			c, err := telemetry.NewCollector(cfg, telemetry.WithExporter(exp))
+			if err != nil {
+				t.Fatal(err)
+			}
+			c.Collect(context.Background())
+
+			sort.Strings(tc.want)
+
+			telData := tel.Data{
+				ProjectName:         telemetryNICData.ProjectName,
+				ProjectVersion:      telemetryNICData.ProjectVersion,
+				ProjectArchitecture: telemetryNICData.ProjectArchitecture,
+				ClusterVersion:      telemetryNICData.ClusterVersion,
+			}
+
+			nicResourceCounts := telemetry.NICResourceCounts{
+				MGMTConfigMapKeys: tc.want,
+				IsPlus:            true,
+			}
+
+			td := telemetry.Data{
+				Data:              telData,
+				NICResourceCounts: nicResourceCounts,
+			}
+
+			got := buf.String()
+
+			tdGot := new(telemetry.Data)
+			err = json.Unmarshal([]byte(got), &tdGot)
+			if err != nil {
+				t.Fatalf("failed to unmarshal telemetry data: %v\n%s", err, got)
+			}
+
+			assert.ElementsMatchf(t, td.MGMTConfigMapKeys, tdGot.MGMTConfigMapKeys, "want: %s\ngot: %s", td.MGMTConfigMapKeys, tdGot.MGMTConfigMapKeys)
+		})
+	}
+}
+
+func TestCollectBuildOS(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		buildOS string
+		wantOS  string
+	}{
+		{
+			name:    "debian plus image",
+			buildOS: "debian-plus",
+			wantOS:  "debian-plus",
+		},
+		{
+			name:    "ubi-9 plus app protect image",
+			buildOS: "ubi-9-plus-nap",
+			wantOS:  "ubi-9-plus-nap",
+		},
+		{
+			name:    "alpine oss image",
+			buildOS: "alpine",
+			wantOS:  "alpine",
+		},
+		{
+			name:    "self built image",
+			buildOS: "",
+			wantOS:  "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			buf := &bytes.Buffer{}
+			exp := &telemetry.StdoutExporter{Endpoint: buf}
+
+			configurator := newConfiguratorWithIngress(t)
+
+			cfg := telemetry.CollectorConfig{
+				Configurator:    configurator,
+				K8sClientReader: newTestClientset(node1, kubeNS),
+				Version:         telemetryNICData.ProjectVersion,
+				BuildOS:         tc.buildOS,
+			}
+
+			c, err := telemetry.NewCollector(cfg, telemetry.WithExporter(exp))
+			if err != nil {
+				t.Fatal(err)
+			}
+			c.Collect(context.Background())
+
+			buildOS := c.BuildOS()
+
+			if tc.wantOS != buildOS {
+				t.Errorf("want: %s, got: %s", tc.wantOS, buildOS)
+			}
+		})
+	}
+}
+
+func TestCountVirtualServersOnCustomResourceEnabled(t *testing.T) {
+	t.Parallel()
+
+	tt := []struct {
+		name string
+		vs   []*configs.VirtualServerEx
+		want int
+	}{
+		{
+			name: "Single VirtualServer",
+			vs: []*configs.VirtualServerEx{
+				{
+					VirtualServer: &conf_v1.VirtualServer{
+						ObjectMeta: metaV1.ObjectMeta{
+							Namespace: "ns-1",
+							Name:      "coffee",
+						},
+						Spec: conf_v1.VirtualServerSpec{},
+					},
+				},
+			},
+			want: 1,
+		},
+		{
+			name: "Multiple VirtualServers",
+			vs: []*configs.VirtualServerEx{
+				{
+					VirtualServer: &conf_v1.VirtualServer{
+						ObjectMeta: metaV1.ObjectMeta{
+							Namespace: "ns-1",
+							Name:      "coffee",
+						},
+						Spec: conf_v1.VirtualServerSpec{},
+					},
+				},
+				{
+					VirtualServer: &conf_v1.VirtualServer{
+						ObjectMeta: metaV1.ObjectMeta{
+							Namespace: "ns-1",
+							Name:      "tea",
+						},
+						Spec: conf_v1.VirtualServerSpec{},
+					},
+				},
+			},
+			want: 2,
+		},
+	}
+
+	for _, tc := range tt {
 		configurator := newConfigurator(t)
+		for _, v := range tc.vs {
+			_, err := configurator.AddOrUpdateVirtualServer(v)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		mainConfigMap := &coreV1.ConfigMap{
+			ObjectMeta: metaV1.ObjectMeta{
+				Name:      "nginx-config",
+				Namespace: "nginx-ingress",
+			},
+		}
 
 		c, err := telemetry.NewCollector(telemetry.CollectorConfig{
-			K8sClientReader: newTestClientset(kubeNS, node1, pod1, replica),
-			SecretStore:     newSecretStore(t),
-			Configurator:    configurator,
-			Version:         telemetryNICData.ProjectVersion,
+			K8sClientReader:        newTestClientset(kubeNS, node1, pod1, replica, mainConfigMap),
+			SecretStore:            newSecretStore(t),
+			Configurator:           configurator,
+			Version:                telemetryNICData.ProjectVersion,
+			CustomResourcesEnabled: true, // This field value indicates we count custom resources.
+			MainConfigMapName:      "nginx-ingress/nginx-config",
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -1083,163 +1471,75 @@ func TestCountVirtualServers(t *testing.T) {
 			Name:      "nginx-ingress",
 		}
 
-		for _, vs := range test.virtualServers {
-			_, err := configurator.AddOrUpdateVirtualServer(vs)
-			if err != nil {
-				t.Fatal(err)
-			}
-		}
-
-		gotTraceDataOnAdd, err := c.BuildReport(context.Background())
+		got, err := c.BuildReport(context.Background())
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		if !cmp.Equal(test.expectedTraceDataOnAdd.VirtualServers, gotTraceDataOnAdd.VirtualServers) {
-			t.Error(cmp.Diff(test.expectedTraceDataOnAdd.VirtualServers, gotTraceDataOnAdd.VirtualServers))
-		}
-
-		for i := 0; i < test.deleteCount; i++ {
-			vs := test.virtualServers[i]
-			key := getResourceKey(vs.VirtualServer.Namespace, vs.VirtualServer.Name)
-			err := configurator.DeleteVirtualServer(key, false)
-			if err != nil {
-				t.Fatal(err)
-			}
-		}
-
-		gotTraceDataOnDelete, err := c.BuildReport(context.Background())
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if !cmp.Equal(test.expectedTraceDataOnDelete.VirtualServers, gotTraceDataOnDelete.VirtualServers) {
-			t.Error(cmp.Diff(test.expectedTraceDataOnDelete.VirtualServers, gotTraceDataOnDelete.VirtualServers))
+		if got.VirtualServers != tc.want {
+			t.Errorf("Got %d VS in TelemetryReport, want %d", got.VirtualServers, tc.want)
 		}
 	}
 }
 
-func TestCountTransportServers(t *testing.T) {
+func TestCountVirtualServersOnCustomResourceDisabled(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
-		testName                  string
-		expectedTraceDataOnAdd    telemetry.Report
-		expectedTraceDataOnDelete telemetry.Report
-		transportServers          []*configs.TransportServerEx
-		deleteCount               int
+	tt := []struct {
+		name string
+		vs   []*configs.VirtualServerEx
+		want int
 	}{
 		{
-			testName: "Create and delete 1 TransportServer",
-			expectedTraceDataOnAdd: telemetry.Report{
-				TransportServers: 1,
-			},
-			expectedTraceDataOnDelete: telemetry.Report{
-				TransportServers: 0,
-			},
-			transportServers: []*configs.TransportServerEx{
+			name: "Multiple VS reported as 0",
+			vs: []*configs.VirtualServerEx{
 				{
-					TransportServer: &conf_v1.TransportServer{
+					VirtualServer: &conf_v1.VirtualServer{
 						ObjectMeta: metaV1.ObjectMeta{
 							Namespace: "ns-1",
 							Name:      "coffee",
 						},
-						Spec: conf_v1.TransportServerSpec{
-							Action: &conf_v1.TransportServerAction{
-								Pass: "coffee",
-							},
-						},
-					},
-				},
-			},
-			deleteCount: 1,
-		},
-		{
-			testName: "Create 2 and delete 2 TransportServer",
-			expectedTraceDataOnAdd: telemetry.Report{
-				TransportServers: 2,
-			},
-			expectedTraceDataOnDelete: telemetry.Report{
-				TransportServers: 0,
-			},
-			transportServers: []*configs.TransportServerEx{
-				{
-					TransportServer: &conf_v1.TransportServer{
-						ObjectMeta: metaV1.ObjectMeta{
-							Namespace: "ns-1",
-							Name:      "coffee",
-						},
-						Spec: conf_v1.TransportServerSpec{
-							Action: &conf_v1.TransportServerAction{
-								Pass: "coffee",
-							},
-						},
+						Spec: conf_v1.VirtualServerSpec{},
 					},
 				},
 				{
-					TransportServer: &conf_v1.TransportServer{
+					VirtualServer: &conf_v1.VirtualServer{
 						ObjectMeta: metaV1.ObjectMeta{
 							Namespace: "ns-1",
 							Name:      "tea",
 						},
-						Spec: conf_v1.TransportServerSpec{
-							Action: &conf_v1.TransportServerAction{
-								Pass: "tea",
-							},
-						},
+						Spec: conf_v1.VirtualServerSpec{},
 					},
 				},
 			},
-			deleteCount: 2,
-		},
-		{
-			testName: "Create 2 and delete 1 TransportServer",
-			expectedTraceDataOnAdd: telemetry.Report{
-				TransportServers: 2,
-			},
-			expectedTraceDataOnDelete: telemetry.Report{
-				TransportServers: 1,
-			},
-			transportServers: []*configs.TransportServerEx{
-				{
-					TransportServer: &conf_v1.TransportServer{
-						ObjectMeta: metaV1.ObjectMeta{
-							Namespace: "ns-1",
-							Name:      "coffee",
-						},
-						Spec: conf_v1.TransportServerSpec{
-							Action: &conf_v1.TransportServerAction{
-								Pass: "coffee",
-							},
-						},
-					},
-				},
-				{
-					TransportServer: &conf_v1.TransportServer{
-						ObjectMeta: metaV1.ObjectMeta{
-							Namespace: "ns-1",
-							Name:      "tea",
-						},
-						Spec: conf_v1.TransportServerSpec{
-							Action: &conf_v1.TransportServerAction{
-								Pass: "tea",
-							},
-						},
-					},
-				},
-			},
-			deleteCount: 1,
+			want: 0,
 		},
 	}
 
-	for _, test := range testCases {
+	for _, tc := range tt {
 		configurator := newConfigurator(t)
 
+		for _, v := range tc.vs {
+			_, err := configurator.AddOrUpdateVirtualServer(v)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		configmap := &coreV1.ConfigMap{
+			ObjectMeta: metaV1.ObjectMeta{
+				Name:      "nginx-config",
+				Namespace: "nginx-ingress",
+			},
+		}
+
 		c, err := telemetry.NewCollector(telemetry.CollectorConfig{
-			K8sClientReader: newTestClientset(kubeNS, node1, pod1, replica),
-			SecretStore:     newSecretStore(t),
-			Configurator:    configurator,
-			Version:         telemetryNICData.ProjectVersion,
+			K8sClientReader:        newTestClientset(kubeNS, node1, pod1, replica, configmap),
+			SecretStore:            newSecretStore(t),
+			Configurator:           configurator,
+			Version:                telemetryNICData.ProjectVersion,
+			CustomResourcesEnabled: false, // This field value indicates we don't count custom resources.
+			MainConfigMapName:      "nginx-ingress/nginx-config",
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -1249,38 +1549,223 @@ func TestCountTransportServers(t *testing.T) {
 			Name:      "nginx-ingress",
 		}
 
-		for _, ts := range test.transportServers {
-			_, err = configurator.AddOrUpdateTransportServer(ts)
+		got, err := c.BuildReport(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if got.VirtualServers != tc.want {
+			t.Errorf("Got %d VS in TelemetryReport, want %d", got.VirtualServers, tc.want)
+		}
+	}
+}
+
+func TestCountTransportServersOnCustomResourcesEnabled(t *testing.T) {
+	t.Parallel()
+
+	tt := []struct {
+		name string
+		ts   []*configs.TransportServerEx
+		want int
+	}{
+		{
+			name: "Single TransportServer",
+			ts: []*configs.TransportServerEx{
+				{
+					TransportServer: &conf_v1.TransportServer{
+						ObjectMeta: metaV1.ObjectMeta{
+							Namespace: "ns-1",
+							Name:      "coffee",
+						},
+						Spec: conf_v1.TransportServerSpec{
+							Action: &conf_v1.TransportServerAction{
+								Pass: "coffee",
+							},
+						},
+					},
+				},
+			},
+			want: 1,
+		},
+		{
+			name: "Multiple TransportServers",
+			ts: []*configs.TransportServerEx{
+				{
+					TransportServer: &conf_v1.TransportServer{
+						ObjectMeta: metaV1.ObjectMeta{
+							Namespace: "ns-1",
+							Name:      "coffee",
+						},
+						Spec: conf_v1.TransportServerSpec{
+							Action: &conf_v1.TransportServerAction{
+								Pass: "coffee",
+							},
+						},
+					},
+				},
+				{
+					TransportServer: &conf_v1.TransportServer{
+						ObjectMeta: metaV1.ObjectMeta{
+							Namespace: "ns-1",
+							Name:      "tea",
+						},
+						Spec: conf_v1.TransportServerSpec{
+							Action: &conf_v1.TransportServerAction{
+								Pass: "tea",
+							},
+						},
+					},
+				},
+			},
+			want: 2,
+		},
+	}
+
+	for _, tc := range tt {
+		cfg := newConfigurator(t)
+
+		for _, ts := range tc.ts {
+			_, err := cfg.AddOrUpdateTransportServer(ts)
 			if err != nil {
 				t.Fatal(err)
 			}
 		}
 
-		gotTraceDataOnAdd, err := c.BuildReport(context.Background())
+		configmap := &coreV1.ConfigMap{
+			ObjectMeta: metaV1.ObjectMeta{
+				Name:      "nginx-config",
+				Namespace: "nginx-ingress",
+			},
+		}
+
+		c, err := telemetry.NewCollector(telemetry.CollectorConfig{
+			K8sClientReader:        newTestClientset(kubeNS, node1, pod1, replica, configmap),
+			SecretStore:            newSecretStore(t),
+			Configurator:           cfg,
+			Version:                telemetryNICData.ProjectVersion,
+			CustomResourcesEnabled: true, // This field value indicates we count custom resources.
+			MainConfigMapName:      "nginx-ingress/nginx-config",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		c.Config.PodNSName = types.NamespacedName{
+			Namespace: "nginx-ingress",
+			Name:      "nginx-ingress",
+		}
+
+		got, err := c.BuildReport(context.Background())
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		if !cmp.Equal(test.expectedTraceDataOnAdd.TransportServers, gotTraceDataOnAdd.TransportServers) {
-			t.Error(cmp.Diff(test.expectedTraceDataOnAdd.TransportServers, gotTraceDataOnAdd.TransportServers))
+		if got.TransportServers != tc.want {
+			t.Errorf("Got %d TR in TelemetryReport, want %d", got.TransportServers, tc.want)
 		}
+	}
+}
 
-		for i := 0; i < test.deleteCount; i++ {
-			ts := test.transportServers[i]
-			key := getResourceKey(ts.TransportServer.Namespace, ts.TransportServer.Name)
-			err = configurator.DeleteTransportServer(key)
+func TestCountTransportServersOnCustomResourcesDisabled(t *testing.T) {
+	t.Parallel()
+
+	tt := []struct {
+		name string
+		ts   []*configs.TransportServerEx
+		want int
+	}{
+		{
+			name: "Single TransportServer",
+			ts: []*configs.TransportServerEx{
+				{
+					TransportServer: &conf_v1.TransportServer{
+						ObjectMeta: metaV1.ObjectMeta{
+							Namespace: "ns-1",
+							Name:      "coffee",
+						},
+						Spec: conf_v1.TransportServerSpec{
+							Action: &conf_v1.TransportServerAction{
+								Pass: "coffee",
+							},
+						},
+					},
+				},
+			},
+			want: 0,
+		},
+		{
+			name: "Multiple TransportServers",
+			ts: []*configs.TransportServerEx{
+				{
+					TransportServer: &conf_v1.TransportServer{
+						ObjectMeta: metaV1.ObjectMeta{
+							Namespace: "ns-1",
+							Name:      "coffee",
+						},
+						Spec: conf_v1.TransportServerSpec{
+							Action: &conf_v1.TransportServerAction{
+								Pass: "coffee",
+							},
+						},
+					},
+				},
+				{
+					TransportServer: &conf_v1.TransportServer{
+						ObjectMeta: metaV1.ObjectMeta{
+							Namespace: "ns-1",
+							Name:      "tea",
+						},
+						Spec: conf_v1.TransportServerSpec{
+							Action: &conf_v1.TransportServerAction{
+								Pass: "tea",
+							},
+						},
+					},
+				},
+			},
+			want: 0,
+		},
+	}
+
+	for _, tc := range tt {
+		cfg := newConfigurator(t)
+
+		for _, ts := range tc.ts {
+			_, err := cfg.AddOrUpdateTransportServer(ts)
 			if err != nil {
 				t.Fatal(err)
 			}
 		}
 
-		gotTraceDataOnDelete, err := c.BuildReport(context.Background())
+		configmap := &coreV1.ConfigMap{
+			ObjectMeta: metaV1.ObjectMeta{
+				Name:      "nginx-config",
+				Namespace: "nginx-ingress",
+			},
+		}
+
+		c, err := telemetry.NewCollector(telemetry.CollectorConfig{
+			K8sClientReader:        newTestClientset(kubeNS, node1, pod1, replica, configmap),
+			SecretStore:            newSecretStore(t),
+			Configurator:           cfg,
+			Version:                telemetryNICData.ProjectVersion,
+			CustomResourcesEnabled: false, // This field value indicates we do not count custom resources.
+			MainConfigMapName:      "nginx-ingress/nginx-config",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		c.Config.PodNSName = types.NamespacedName{
+			Namespace: "nginx-ingress",
+			Name:      "nginx-ingress",
+		}
+
+		got, err := c.BuildReport(context.Background())
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		if !cmp.Equal(test.expectedTraceDataOnDelete.TransportServers, gotTraceDataOnDelete.TransportServers) {
-			t.Error(cmp.Diff(test.expectedTraceDataOnDelete.TransportServers, gotTraceDataOnDelete.TransportServers))
+		if got.TransportServers != tc.want {
+			t.Errorf("Got %d TR in TelemetryReport, want %d", got.TransportServers, tc.want)
 		}
 	}
 }
@@ -1390,489 +1875,201 @@ func TestCountSecretsAddTwoSecretsAndDeleteOne(t *testing.T) {
 	}
 }
 
-func TestCountVirtualServersServices(t *testing.T) {
+func TestCollectGetServices(t *testing.T) {
 	t.Parallel()
-
 	testCases := []struct {
-		testName                  string
-		expectedTraceDataOnAdd    telemetry.Report
-		expectedTraceDataOnDelete telemetry.Report
-		virtualServers            []*configs.VirtualServerEx
-		deleteCount               int
+		name   string
+		config telemetry.CollectorConfig
+		want   map[string]int
 	}{
 		{
-			testName: "Create and delete 1 VirtualServer with 2 upstreams",
-			expectedTraceDataOnAdd: telemetry.Report{
-				ServiceCount: 2,
+			name: "OneClusterIP",
+			config: telemetry.CollectorConfig{
+				Configurator:    newConfigurator(t),
+				K8sClientReader: newTestClientset(defaultNS, kubeNS, clusterIPService),
+				Version:         telemetryNICData.ProjectVersion,
 			},
-			expectedTraceDataOnDelete: telemetry.Report{
-				ServiceCount: 0,
+			want: map[string]int{
+				"ClusterIP": 1,
 			},
-			virtualServers: []*configs.VirtualServerEx{
-				{
-					VirtualServer: &conf_v1.VirtualServer{
-						ObjectMeta: metaV1.ObjectMeta{
-							Namespace: "ns-1",
-							Name:      "coffee",
-						},
-						Spec: conf_v1.VirtualServerSpec{
-							Upstreams: []conf_v1.Upstream{
-								{
-									Name:    "coffee",
-									Service: "coffee-svc",
-								},
-								{
-									Name:    "coffee2",
-									Service: "coffee-svc2",
-								},
-							},
-						},
-					},
-				},
-			},
-			deleteCount: 1,
 		},
 		{
-			testName: "Same service in 2 upstreams is only counted once",
-			expectedTraceDataOnAdd: telemetry.Report{
-				ServiceCount: 1,
+			name: "MultipleClusterIPs",
+			config: telemetry.CollectorConfig{
+				Configurator:    newConfigurator(t),
+				K8sClientReader: newTestClientset(defaultNS, kubeNS, clusterIPService, clusterIPService2),
+				Version:         telemetryNICData.ProjectVersion,
 			},
-			expectedTraceDataOnDelete: telemetry.Report{
-				ServiceCount: 0,
+			want: map[string]int{
+				"ClusterIP": 2,
 			},
-			virtualServers: []*configs.VirtualServerEx{
-				{
-					VirtualServer: &conf_v1.VirtualServer{
-						ObjectMeta: metaV1.ObjectMeta{
-							Namespace: "ns-1",
-							Name:      "coffee",
-						},
-						Spec: conf_v1.VirtualServerSpec{
-							Upstreams: []conf_v1.Upstream{
-								{
-									Name:    "coffee",
-									Service: "same-svc",
-								},
-								{
-									Name:    "coffee2",
-									Service: "same-svc",
-								},
-							},
-						},
-					},
-				},
-			},
-			deleteCount: 1,
 		},
 		{
-			testName: "A backup service is counted in addition to the primary service",
-			expectedTraceDataOnAdd: telemetry.Report{
-				ServiceCount: 2,
+			name: "MultipleExternalNamesAndNodePort",
+			config: telemetry.CollectorConfig{
+				Configurator:    newConfigurator(t),
+				K8sClientReader: newTestClientset(defaultNS, kubeNS, externalNameService, externalNameService2, nodePortService),
+				Version:         telemetryNICData.ProjectVersion,
 			},
-			expectedTraceDataOnDelete: telemetry.Report{
-				ServiceCount: 0,
+			want: map[string]int{
+				"ExternalName": 2,
+				"NodePort":     1,
 			},
-			virtualServers: []*configs.VirtualServerEx{
-				{
-					VirtualServer: &conf_v1.VirtualServer{
-						ObjectMeta: metaV1.ObjectMeta{
-							Namespace: "ns-1",
-							Name:      "coffee",
-						},
-						Spec: conf_v1.VirtualServerSpec{
-							Upstreams: []conf_v1.Upstream{
-								{
-									Name:    "coffee",
-									Service: "same-svc",
-									Backup:  "backup-service",
-								},
-							},
-						},
-					},
-				},
-			},
-			deleteCount: 1,
 		},
 		{
-			testName: "A grpc service is counted in addition to the primary service and backup service",
-			expectedTraceDataOnAdd: telemetry.Report{
-				ServiceCount: 3,
+			name: "MultipleServices",
+			config: telemetry.CollectorConfig{
+				Configurator:    newConfigurator(t),
+				K8sClientReader: newTestClientset(defaultNS, kubeNS, externalNameService, externalNameService2, nodePortService, nodePortService2, clusterIPService2, clusterIPService, loadBalancerService),
+				Version:         telemetryNICData.ProjectVersion,
 			},
-			expectedTraceDataOnDelete: telemetry.Report{
-				ServiceCount: 0,
+			want: map[string]int{
+				"ClusterIP":    2,
+				"ExternalName": 2,
+				"NodePort":     2,
+				"LoadBalancer": 1,
 			},
-			virtualServers: []*configs.VirtualServerEx{
-				{
-					VirtualServer: &conf_v1.VirtualServer{
-						ObjectMeta: metaV1.ObjectMeta{
-							Namespace: "ns-1",
-							Name:      "coffee",
-						},
-						Spec: conf_v1.VirtualServerSpec{
-							Upstreams: []conf_v1.Upstream{
-								{
-									Name:    "coffee",
-									Service: "same-svc",
-									Backup:  "backup-service",
-									HealthCheck: &conf_v1.HealthCheck{
-										GRPCService: "grpc-service",
-									},
-								},
-							},
-						},
-					},
-				},
+		},
+		{
+			name: "noServices",
+			config: telemetry.CollectorConfig{
+				Configurator:    newConfigurator(t),
+				K8sClientReader: newTestClientset(defaultNS, kubeNS),
+				Version:         telemetryNICData.ProjectVersion,
 			},
-			deleteCount: 1,
+			want: map[string]int{},
 		},
 	}
-
-	for _, test := range testCases {
-		configurator := newConfigurator(t)
-
-		c, err := telemetry.NewCollector(telemetry.CollectorConfig{
-			K8sClientReader: newTestClientset(kubeNS, node1, pod1, replica),
-			Configurator:    configurator,
-			Version:         telemetryNICData.ProjectVersion,
-			SecretStore:     newSecretStore(t),
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		c.Config.PodNSName = types.NamespacedName{
-			Namespace: "nginx-ingress",
-			Name:      "nginx-ingress",
-		}
-
-		for _, vs := range test.virtualServers {
-			_, err := configurator.AddOrUpdateVirtualServer(vs)
-			if err != nil {
-				t.Fatal(err)
-			}
-		}
-
-		gotTraceDataOnAdd, err := c.BuildReport(context.Background())
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if !cmp.Equal(test.expectedTraceDataOnAdd.ServiceCount, gotTraceDataOnAdd.ServiceCount) {
-			t.Error(cmp.Diff(test.expectedTraceDataOnAdd.ServiceCount, gotTraceDataOnAdd.ServiceCount))
-		}
-
-		for i := 0; i < test.deleteCount; i++ {
-			vs := test.virtualServers[i]
-			key := getResourceKey(vs.VirtualServer.Namespace, vs.VirtualServer.Name)
-			err := configurator.DeleteVirtualServer(key, false)
-			if err != nil {
-				t.Fatal(err)
-			}
-		}
-
-		gotTraceDataOnDelete, err := c.BuildReport(context.Background())
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if !cmp.Equal(test.expectedTraceDataOnDelete.ServiceCount, gotTraceDataOnDelete.ServiceCount) {
-			t.Error(cmp.Diff(test.expectedTraceDataOnDelete.ServiceCount, gotTraceDataOnDelete.ServiceCount))
-		}
-	}
-}
-
-func TestCountTransportServersServices(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		testName                  string
-		expectedTraceDataOnAdd    telemetry.Report
-		expectedTraceDataOnDelete telemetry.Report
-		transportServers          []*configs.TransportServerEx
-		deleteCount               int
-	}{
-		{
-			testName: "Create and delete 1 TransportServer with 2 upstreams",
-			expectedTraceDataOnAdd: telemetry.Report{
-				ServiceCount: 2,
-			},
-			expectedTraceDataOnDelete: telemetry.Report{
-				ServiceCount: 0,
-			},
-			transportServers: []*configs.TransportServerEx{
-				{
-					TransportServer: &conf_v1.TransportServer{
-						ObjectMeta: metaV1.ObjectMeta{
-							Namespace: "ns-1",
-							Name:      "coffee",
-						},
-						Spec: conf_v1.TransportServerSpec{
-							Action: &conf_v1.TransportServerAction{
-								Pass: "coffee",
-							},
-							Upstreams: []conf_v1.TransportServerUpstream{
-								{
-									Name:    "coffee",
-									Service: "coffee-svc",
-								},
-								{
-									Name:    "coffee2",
-									Service: "coffee-svc2",
-								},
-							},
-						},
-					},
-				},
-			},
-			deleteCount: 1,
-		},
-		{
-			testName: "Same service in 2 upstreams is only counted once",
-			expectedTraceDataOnAdd: telemetry.Report{
-				ServiceCount: 1,
-			},
-			expectedTraceDataOnDelete: telemetry.Report{
-				ServiceCount: 0,
-			},
-			transportServers: []*configs.TransportServerEx{
-				{
-					TransportServer: &conf_v1.TransportServer{
-						ObjectMeta: metaV1.ObjectMeta{
-							Namespace: "ns-1",
-							Name:      "coffee",
-						},
-						Spec: conf_v1.TransportServerSpec{
-							Action: &conf_v1.TransportServerAction{
-								Pass: "coffee",
-							},
-							Upstreams: []conf_v1.TransportServerUpstream{
-								{
-									Name:    "coffee",
-									Service: "same-svc",
-								},
-								{
-									Name:    "coffee2",
-									Service: "same-svc",
-								},
-							},
-						},
-					},
-				},
-			},
-			deleteCount: 1,
-		},
-	}
-
-	for _, test := range testCases {
-		configurator := newConfigurator(t)
-
-		c, err := telemetry.NewCollector(telemetry.CollectorConfig{
-			K8sClientReader: newTestClientset(kubeNS, node1, pod1, replica),
-			Configurator:    configurator,
-			Version:         telemetryNICData.ProjectVersion,
-			SecretStore:     newSecretStore(t),
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		c.Config.PodNSName = types.NamespacedName{
-			Namespace: "nginx-ingress",
-			Name:      "nginx-ingress",
-		}
-
-		for _, ts := range test.transportServers {
-			_, err := configurator.AddOrUpdateTransportServer(ts)
-			if err != nil {
-				t.Fatal(err)
-			}
-		}
-
-		gotTraceDataOnAdd, err := c.BuildReport(context.Background())
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if !cmp.Equal(test.expectedTraceDataOnAdd.ServiceCount, gotTraceDataOnAdd.ServiceCount) {
-			t.Error(cmp.Diff(test.expectedTraceDataOnAdd.ServiceCount, gotTraceDataOnAdd.ServiceCount))
-		}
-
-		for i := 0; i < test.deleteCount; i++ {
-			ts := test.transportServers[i]
-			key := getResourceKey(ts.TransportServer.Namespace, ts.TransportServer.Name)
-			err := configurator.DeleteTransportServer(key)
-			if err != nil {
-				t.Fatal(err)
-			}
-		}
-
-		gotTraceDataOnDelete, err := c.BuildReport(context.Background())
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if !cmp.Equal(test.expectedTraceDataOnDelete.ServiceCount, gotTraceDataOnDelete.ServiceCount) {
-			t.Error(cmp.Diff(test.expectedTraceDataOnDelete.ServiceCount, gotTraceDataOnDelete.ServiceCount))
-		}
-	}
-}
-
-func TestCountIngressesServices(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		testName                  string
-		expectedTraceDataOnAdd    telemetry.Report
-		expectedTraceDataOnDelete telemetry.Report
-		ingress                   configs.IngressEx
-		deleteCount               int
-	}{
-		{
-			testName: "Create and delete 1 Ingress with 2 services",
-			expectedTraceDataOnAdd: telemetry.Report{
-				ServiceCount: 2,
-			},
-			expectedTraceDataOnDelete: telemetry.Report{
-				ServiceCount: 0,
-			},
-			ingress:     createCafeIngressEx(),
-			deleteCount: 1,
-		},
-	}
-
 	for _, tc := range testCases {
-		test := tc
-		configurator := newConfigurator(t)
+		t.Run(tc.name, func(t *testing.T) {
+			buf := &bytes.Buffer{}
+			exp := &telemetry.StdoutExporter{Endpoint: buf}
+			cfg := tc.config
 
-		c, err := telemetry.NewCollector(telemetry.CollectorConfig{
-			K8sClientReader: newTestClientset(kubeNS, node1, pod1, replica),
-			Configurator:    configurator,
-			Version:         telemetryNICData.ProjectVersion,
-			SecretStore:     newSecretStore(t),
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		c.Config.PodNSName = types.NamespacedName{
-			Namespace: "nginx-ingress",
-			Name:      "nginx-ingress",
-		}
-
-		_, err = configurator.AddOrUpdateIngress(&test.ingress)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		gotTraceDataOnAdd, err := c.BuildReport(context.Background())
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if !cmp.Equal(test.expectedTraceDataOnAdd.ServiceCount, gotTraceDataOnAdd.ServiceCount) {
-			t.Error(cmp.Diff(test.expectedTraceDataOnAdd.ServiceCount, gotTraceDataOnAdd.ServiceCount))
-		}
-
-		for i := 0; i < test.deleteCount; i++ {
-			ing := test.ingress
-
-			key := fmt.Sprintf("%s/%s", ing.Ingress.Namespace, ing.Ingress.Name)
-			err := configurator.DeleteIngress(key, false)
+			c, err := telemetry.NewCollector(cfg, telemetry.WithExporter(exp))
 			if err != nil {
 				t.Fatal(err)
 			}
-		}
+			c.Collect(context.Background())
 
-		if err != nil {
-			t.Fatal(err)
-		}
+			telData := tel.Data{
+				ProjectName:         telemetryNICData.ProjectName,
+				ProjectVersion:      telemetryNICData.ProjectVersion,
+				ProjectArchitecture: telemetryNICData.ProjectArchitecture,
+				ClusterID:           telemetryNICData.ClusterID,
+				ClusterVersion:      telemetryNICData.ClusterVersion,
+			}
+			clusterIPServices := tc.want["ClusterIP"]
+			nodePortServices := tc.want["NodePort"]
+			loadBalancerServices := tc.want["LoadBalancer"]
+			externalNameServices := tc.want["ExternalName"]
 
-		gotTraceDataOnDelete, err := c.BuildReport(context.Background())
-		if err != nil {
-			t.Fatal(err)
-		}
+			nicResourceCounts := telemetry.NICResourceCounts{
+				ClusterIPServices:    int64(clusterIPServices),
+				NodePortServices:     int64(nodePortServices),
+				LoadBalancerServices: int64(loadBalancerServices),
+				ExternalNameServices: int64(externalNameServices),
+			}
 
-		if !cmp.Equal(test.expectedTraceDataOnDelete.ServiceCount, gotTraceDataOnDelete.ServiceCount) {
-			t.Error(cmp.Diff(test.expectedTraceDataOnDelete.ServiceCount, gotTraceDataOnDelete.ServiceCount))
-		}
+			td := telemetry.Data{
+				Data:              telData,
+				NICResourceCounts: nicResourceCounts,
+			}
+
+			want := fmt.Sprintf("%+v", &td)
+			got := buf.String()
+			if !cmp.Equal(want, got) {
+				t.Error(cmp.Diff(want, got))
+			}
+		})
 	}
 }
 
-func TestCountMergeableIngressesServices(t *testing.T) {
+func TestCollectGetInvalidServices(t *testing.T) {
 	t.Parallel()
-
 	testCases := []struct {
-		testName                  string
-		expectedTraceDataOnAdd    telemetry.Report
-		expectedTraceDataOnDelete telemetry.Report
-		ingress                   *configs.MergeableIngresses
-		deleteCount               int
+		name   string
+		config telemetry.CollectorConfig
+		want   map[string]int
 	}{
 		{
-			testName: "Create and delete 1 MergeableIngress with 2 services",
-			expectedTraceDataOnAdd: telemetry.Report{
-				ServiceCount: 2,
+			name: "WantNoClusterIPServices",
+			config: telemetry.CollectorConfig{
+				Configurator:    newConfigurator(t),
+				K8sClientReader: newTestClientset(defaultNS, kubeNS, clusterIPService),
+				Version:         telemetryNICData.ProjectVersion,
 			},
-			expectedTraceDataOnDelete: telemetry.Report{
-				ServiceCount: 0,
+			want: map[string]int{
+				"ClusterIP": 0,
 			},
-			ingress:     createMergeableCafeIngress(),
-			deleteCount: 1,
+		},
+		{
+			name: "WantMultipleExternalNamesAndNodePort",
+			config: telemetry.CollectorConfig{
+				Configurator:    newConfigurator(t),
+				K8sClientReader: newTestClientset(defaultNS, kubeNS, externalNameService2),
+				Version:         telemetryNICData.ProjectVersion,
+			},
+			want: map[string]int{
+				"ExternalName": 2,
+				"NodePort":     1,
+			},
+		},
+		{
+			name: "WantManyServices",
+			config: telemetry.CollectorConfig{
+				Configurator:    newConfigurator(t),
+				K8sClientReader: newTestClientset(defaultNS, kubeNS, nodePortService2, clusterIPService2, clusterIPService, loadBalancerService),
+				Version:         telemetryNICData.ProjectVersion,
+			},
+			want: map[string]int{
+				"ClusterIP":    2,
+				"ExternalName": 2,
+				"NodePort":     2,
+				"LoadBalancer": 2,
+			},
 		},
 	}
-
 	for _, tc := range testCases {
-		test := tc
+		t.Run(tc.name, func(t *testing.T) {
+			buf := &bytes.Buffer{}
+			exp := &telemetry.StdoutExporter{Endpoint: buf}
+			cfg := tc.config
 
-		configurator := newConfigurator(t)
-
-		c, err := telemetry.NewCollector(telemetry.CollectorConfig{
-			K8sClientReader: newTestClientset(kubeNS, node1, pod1, replica),
-			Configurator:    configurator,
-			Version:         telemetryNICData.ProjectVersion,
-			SecretStore:     newSecretStore(t),
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		c.Config.PodNSName = types.NamespacedName{
-			Namespace: "nginx-ingress",
-			Name:      "nginx-ingress",
-		}
-
-		_, err = configurator.AddOrUpdateMergeableIngress(test.ingress)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		gotTraceDataOnAdd, err := c.BuildReport(context.Background())
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if !cmp.Equal(test.expectedTraceDataOnAdd.ServiceCount, gotTraceDataOnAdd.ServiceCount) {
-			t.Error(cmp.Diff(test.expectedTraceDataOnAdd.ServiceCount, gotTraceDataOnAdd.ServiceCount))
-		}
-
-		for i := 0; i < test.deleteCount; i++ {
-			ing := test.ingress
-
-			key := fmt.Sprintf("%s/%s", ing.Master.Ingress.Namespace, ing.Master.Ingress.Name)
-			err := configurator.DeleteIngress(key, false)
+			c, err := telemetry.NewCollector(cfg, telemetry.WithExporter(exp))
 			if err != nil {
 				t.Fatal(err)
 			}
-		}
+			c.Collect(context.Background())
 
-		if err != nil {
-			t.Fatal(err)
-		}
+			telData := tel.Data{
+				ProjectName:         telemetryNICData.ProjectName,
+				ProjectVersion:      telemetryNICData.ProjectVersion,
+				ProjectArchitecture: telemetryNICData.ProjectArchitecture,
+				ClusterID:           telemetryNICData.ClusterID,
+				ClusterVersion:      telemetryNICData.ClusterVersion,
+			}
+			clusterIPServices := tc.want["ClusterIP"]
+			nodePortServices := tc.want["NodePort"]
+			externalNameServices := tc.want["ExternalName"]
 
-		gotTraceDataOnDelete, err := c.BuildReport(context.Background())
-		if err != nil {
-			t.Fatal(err)
-		}
+			nicResourceCounts := telemetry.NICResourceCounts{
+				ClusterIPServices:    int64(clusterIPServices),
+				NodePortServices:     int64(nodePortServices),
+				ExternalNameServices: int64(externalNameServices),
+			}
 
-		if !cmp.Equal(test.expectedTraceDataOnDelete.ServiceCount, gotTraceDataOnDelete.ServiceCount) {
-			t.Error(cmp.Diff(test.expectedTraceDataOnDelete.ServiceCount, gotTraceDataOnDelete.ServiceCount))
-		}
+			td := telemetry.Data{
+				Data:              telData,
+				NICResourceCounts: nicResourceCounts,
+			}
+
+			want := fmt.Sprintf("%+v", &td)
+			got := buf.String()
+			if cmp.Equal(want, got) {
+				t.Error(cmp.Diff(want, got))
+			}
+		})
 	}
 }
 
@@ -2314,10 +2511,6 @@ func createCafeIngressExWithCustomAnnotations(annotations map[string]string) con
 	return cafeIngressEx
 }
 
-func getResourceKey(namespace, name string) string {
-	return fmt.Sprintf("%s_%s", namespace, name)
-}
-
 func newConfiguratorWithIngress(t *testing.T) *configs.Configurator {
 	t.Helper()
 
@@ -2336,6 +2529,18 @@ func newConfiguratorWithIngressWithCustomAnnotations(t *testing.T, annotations m
 	ingressEx := createCafeIngressExWithCustomAnnotations(annotations)
 	c := newConfigurator(t)
 	_, err := c.AddOrUpdateIngress(&ingressEx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+func newConfiguratorWithMergeableIngress(t *testing.T) *configs.Configurator {
+	t.Helper()
+
+	ingressEx := createMergeableCafeIngress()
+	c := newConfigurator(t)
+	_, err := c.AddOrUpdateMergeableIngress(ingressEx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2379,7 +2584,7 @@ func newConfigurator(t *testing.T) *configs.Configurator {
 			StubStatusOverUnixSocketForOSS: false,
 			NginxVersion:                   nginx.NewVersion("nginx version: nginx/1.25.3 (nginx-plus-r31)"),
 		},
-		Config:                  configs.NewDefaultConfigParams(false),
+		Config:                  configs.NewDefaultConfigParams(context.Background(), false),
 		TemplateExecutor:        templateExecutor,
 		TemplateExecutorV2:      templateExecutorV2,
 		LatencyCollector:        nil,
@@ -2389,7 +2594,6 @@ func newConfigurator(t *testing.T) *configs.Configurator {
 		IsPrometheusEnabled:     false,
 		IsLatencyMetricsEnabled: false,
 	})
-
 	return cnf
 }
 
@@ -2400,7 +2604,7 @@ func newSecretStore(t *testing.T) *secrets.LocalSecretStore {
 }
 
 // newTestClientset takes k8s runtime objects and returns a k8s fake clientset.
-// The clientset is configured to return kubernetes version v1.29.2.
+// The clientset is configured to return kubernetes version v1.30.0.
 // (call to Discovery().ServerVersion())
 //
 // version.Info struct can hold more information about K8s platform, for example:
@@ -2419,7 +2623,7 @@ func newSecretStore(t *testing.T) *secrets.LocalSecretStore {
 func newTestClientset(objects ...k8sruntime.Object) *testClient.Clientset {
 	client := testClient.NewSimpleClientset(objects...)
 	client.Discovery().(*fakediscovery.FakeDiscovery).FakedServerVersion = &version.Info{
-		GitVersion: "v1.29.2",
+		GitVersion: "v1.30.0",
 	}
 	return client
 }
@@ -2435,7 +2639,7 @@ const (
 var telemetryNICData = tel.Data{
 	ProjectName:         "NIC",
 	ProjectVersion:      "3.5.0",
-	ClusterVersion:      "v1.29.2",
+	ClusterVersion:      "v1.30.0",
 	ProjectArchitecture: runtime.GOARCH,
 	ClusterID:           "329766ff-5d78-4c9e-8736-7faad1f2e937",
 	ClusterNodeCount:    1,

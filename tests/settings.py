@@ -4,6 +4,7 @@ import os
 
 BASEDIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEPLOYMENTS = f"{BASEDIR}/deployments"
+HELM_CHARTS = f"{BASEDIR}/charts/nginx-ingress"
 CRDS = f"{BASEDIR}/config/crd/bases"
 PROJECT_ROOT = os.path.abspath(os.path.dirname(__file__))
 TEST_DATA = f"{PROJECT_ROOT}/data"
@@ -29,3 +30,7 @@ BATCH_RESOURCES = 1
 BATCH_RELOAD_NUMBER = 2
 # Number of namespaces to deploy to measure Pod performance, used in test_multiple_ns_perf.py
 NS_COUNT = 0
+# Nginx registry address to pull waf components from
+NGX_REG = "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr"
+# WAF component version to pull from above registry
+WAF_V5_VERSION = "5.6.0"

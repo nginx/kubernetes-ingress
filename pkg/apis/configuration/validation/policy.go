@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unicode"
 
-	v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
+	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
@@ -72,6 +72,11 @@ func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, isPlus, enab
 		fieldCount++
 	}
 
+	if spec.APIKey != nil {
+		allErrs = append(allErrs, validateAPIKey(spec.APIKey, fieldPath.Child("apiKey"))...)
+		fieldCount++
+	}
+
 	if spec.WAF != nil {
 		if !isPlus {
 			allErrs = append(allErrs, field.Forbidden(fieldPath.Child("waf"), "WAF is only supported in NGINX Plus"))
@@ -86,7 +91,7 @@ func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, isPlus, enab
 	}
 
 	if fieldCount != 1 {
-		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`"
+		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`"
 		if isPlus {
 			msg = fmt.Sprint(msg, ", `jwt`, `oidc`, `waf`")
 		}
@@ -144,6 +149,14 @@ func validateRateLimit(rateLimit *v1.RateLimit, fieldPath *field.Path, isPlus bo
 			allErrs = append(allErrs, field.Invalid(fieldPath.Child("rejectCode"), rateLimit.RejectCode,
 				"must be within the range [400-599]"))
 		}
+	}
+
+	if rateLimit.Condition != nil && rateLimit.Condition.JWT == nil {
+		allErrs = append(allErrs, field.Required(fieldPath.Child("jwt"), "jwt cannot be nil"))
+	}
+
+	if rateLimit.Condition != nil && rateLimit.Condition.JWT != nil && !isPlus {
+		allErrs = append(allErrs, field.Forbidden(fieldPath.Child("condition.jwt"), "is only supported in NGINX Plus"))
 	}
 
 	return allErrs
@@ -255,6 +268,10 @@ func validateOIDC(oidc *v1.OIDC, fieldPath *field.Path) field.ErrorList {
 	if oidc.ClientSecret == "" {
 		return field.ErrorList{field.Required(fieldPath.Child("clientSecret"), "")}
 	}
+	if oidc.EndSessionEndpoint == "" && oidc.PostLogoutRedirectURI != "" {
+		msg := "postLogoutRedirectURI can only be set when endSessionEndpoint is set"
+		return field.ErrorList{field.Forbidden(fieldPath.Child("postLogoutRedirectURI"), msg)}
+	}
 
 	allErrs := field.ErrorList{}
 	if oidc.Scope != "" {
@@ -262,6 +279,12 @@ func validateOIDC(oidc *v1.OIDC, fieldPath *field.Path) field.ErrorList {
 	}
 	if oidc.RedirectURI != "" {
 		allErrs = append(allErrs, validatePath(oidc.RedirectURI, fieldPath.Child("redirectURI"))...)
+	}
+	if oidc.EndSessionEndpoint != "" {
+		allErrs = append(allErrs, validateURL(oidc.EndSessionEndpoint, fieldPath.Child("endSessionEndpoint"))...)
+	}
+	if oidc.PostLogoutRedirectURI != "" {
+		allErrs = append(allErrs, validatePath(oidc.PostLogoutRedirectURI, fieldPath.Child("postLogoutRedirectURI"))...)
 	}
 	if oidc.ZoneSyncLeeway != nil {
 		allErrs = append(allErrs, validatePositiveIntOrZero(*oidc.ZoneSyncLeeway, fieldPath.Child("zoneSyncLeeway"))...)
@@ -275,6 +298,49 @@ func validateOIDC(oidc *v1.OIDC, fieldPath *field.Path) field.ErrorList {
 	allErrs = append(allErrs, validateURL(oidc.JWKSURI, fieldPath.Child("jwksURI"))...)
 	allErrs = append(allErrs, validateSecretName(oidc.ClientSecret, fieldPath.Child("clientSecret"))...)
 	return append(allErrs, validateClientID(oidc.ClientID, fieldPath.Child("clientID"))...)
+}
+
+func validateAPIKey(apiKey *v1.APIKey, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if apiKey == nil {
+		allErrs = append(allErrs, field.Required(fieldPath, "apiKey cannot be nil"))
+		return allErrs
+	}
+
+	if apiKey.SuppliedIn == nil {
+		allErrs = append(allErrs, field.Required(fieldPath.Child("suppliedIn"), "suppliedIn cannot be nil"))
+		return allErrs
+	}
+
+	if apiKey.SuppliedIn.Query == nil && apiKey.SuppliedIn.Header == nil {
+		msg := "at least one query or header name must be provided"
+		allErrs = append(allErrs, field.Required(fieldPath.Child("suppliedIn"), msg))
+	}
+
+	if apiKey.SuppliedIn.Header != nil {
+		for _, header := range apiKey.SuppliedIn.Header {
+			for _, msg := range validation.IsHTTPHeaderName(header) {
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("suppliedIn.header"), header, msg))
+			}
+		}
+	}
+
+	if apiKey.SuppliedIn.Query != nil {
+		for _, query := range apiKey.SuppliedIn.Query {
+			if err := ValidateEscapedString(query); err != nil {
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("suppliedIn.query"), query, err.Error()))
+			}
+		}
+	}
+
+	if apiKey.ClientSecret == "" {
+		allErrs = append(allErrs, field.Required(fieldPath.Child("clientSecret"), "clientSecret cannot be empty"))
+	} else {
+		allErrs = append(allErrs, validateSecretName(apiKey.ClientSecret, fieldPath.Child("clientSecret"))...)
+	}
+
+	return allErrs
 }
 
 func validateWAF(waf *v1.WAF, fieldPath *field.Path) field.ErrorList {
@@ -511,7 +577,7 @@ func validateRateLimitZoneSize(zoneSize string, fieldPath *field.Path) field.Err
 	return allErrs
 }
 
-var rateLimitKeySpecialVariables = []string{"arg_", "http_", "cookie_"}
+var rateLimitKeySpecialVariables = []string{"arg_", "http_", "cookie_", "jwt_claim_"}
 
 // rateLimitKeyVariables includes NGINX variables allowed to be used in a rateLimit policy key.
 var rateLimitKeyVariables = map[string]bool{

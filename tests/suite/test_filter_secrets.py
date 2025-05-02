@@ -32,7 +32,7 @@ def setup_single_secret_and_ns(request, kube_apis):
 @pytest.mark.ingresses
 @pytest.mark.parametrize(
     "ingress_controller",
-    [pytest.param({"extra_args": ["-v=3"]})],
+    [pytest.param({"extra_args": ["-log-level=debug"]})],
     indirect=["ingress_controller"],
 )
 class TestFilterSecret:
@@ -45,7 +45,7 @@ class TestFilterSecret:
 @pytest.mark.ingresses
 @pytest.mark.parametrize(
     "ingress_controller",
-    [pytest.param({"extra_args": ["-v=3"]})],
+    [pytest.param({"extra_args": ["-log-level=debug"]})],
     indirect=["ingress_controller"],
 )
 class TestFilterAfterIcCreated:
@@ -99,7 +99,7 @@ def setup_multiple_ns_and_multiple_secrets(request, kube_apis):
 @pytest.mark.ingresses
 @pytest.mark.parametrize(
     "ingress_controller",
-    [pytest.param({"extra_args": ["-v=3", "-watch-namespace=filtered-ns-1,filtered-ns-2"]})],
+    [pytest.param({"extra_args": ["-log-level=debug", "-watch-namespace=filtered-ns-1,filtered-ns-2"]})],
     indirect=["ingress_controller"],
 )
 class TestFilterSecretMultipuleNamespace:
@@ -114,7 +114,7 @@ class TestFilterSecretMultipuleNamespace:
 @pytest.mark.ingresses
 @pytest.mark.parametrize(
     "ingress_controller",
-    [pytest.param({"extra_args": ["-v=3", "-watch-namespace=filtered-ns-1,filtered-ns-2"]})],
+    [pytest.param({"extra_args": ["-log-level=debug", "-watch-namespace=filtered-ns-1,filtered-ns-2"]})],
     indirect=["ingress_controller"],
 )
 class TestFilterSecretMultipleNamespaceAfterIcCreated:

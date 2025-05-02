@@ -1,6 +1,5 @@
 import pytest
 import requests
-import yaml
 from settings import TEST_DATA
 from suite.utils.custom_assertions import wait_and_assert_status_code
 from suite.utils.resources_utils import ensure_response_from_backend, get_reload_count, wait_before_test
@@ -8,7 +7,7 @@ from suite.utils.vs_vsr_resources_utils import patch_virtual_server_from_yaml
 
 
 @pytest.mark.vs
-@pytest.mark.smok
+@pytest.mark.smoke
 @pytest.mark.skip_for_nginx_oss
 @pytest.mark.parametrize(
     "crd_ingress_controller, virtual_server_setup, expect_reload",

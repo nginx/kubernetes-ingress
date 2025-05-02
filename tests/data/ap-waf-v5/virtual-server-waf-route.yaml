@@ -1,0 +1,22 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: virtual-server
+spec:
+  host: virtual-server.example.com
+  upstreams:
+  - name: backend2
+    service: backend2-svc
+    port: 80
+  - name: backend1
+    service: backend1-svc
+    port: 80
+  routes:
+  - path: "/backend1"
+    policies:
+    - name: waf-policy
+    action:
+      pass: backend1
+  - path: "/backend2"
+    action:
+      pass: backend2

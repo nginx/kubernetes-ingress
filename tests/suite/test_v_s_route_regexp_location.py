@@ -21,6 +21,7 @@ from suite.utils.yaml_utils import get_first_host_from_yaml
 
 
 @pytest.mark.vsr
+@pytest.mark.vsr_regexes
 @pytest.mark.parametrize(
     "crd_ingress_controller, v_s_route_setup",
     [
@@ -214,6 +215,7 @@ def vsr_regexp_setup(
 
 
 @pytest.mark.vsr
+@pytest.mark.vsr_regexes
 @pytest.mark.parametrize(
     "crd_ingress_controller, vsr_regexp_setup",
     [

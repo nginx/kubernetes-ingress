@@ -2,7 +2,7 @@
 
 In this example we deploy a web application, configure load balancing with a VirtualServer, and apply a JWT policy.
 Instead of using a local secret to verify the client request such as in the
-[jwt](https://github.com/nginxinc/kubernetes-ingress/tree/main/examples/custom-resources/jwt) example, we will define an
+[jwt](https://github.com/nginx/kubernetes-ingress/tree/main/examples/custom-resources/jwt) example, we will define an
 external Identity Provider (IdP) using the `JwksURI` field.
 
 We will be using a deployment of [KeyCloak](https://www.keycloak.org/) to work as our IdP in this example. In this
@@ -206,7 +206,6 @@ curl -H 'Accept: application/json' webapp.example.com
 <head><title>401 Authorization Required</title></head>
 <body>
 <center><h1>401 Authorization Required</h1></center>
-<hr><center>nginx/1.23.2</center>
 </body>
 </html>
 ```

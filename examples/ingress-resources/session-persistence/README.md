@@ -71,7 +71,7 @@ Controller running.
 ## Advanced Session Persistence
 
 The NGINX Plus Ingress Controller supports only one of the three session persistence methods available in NGINX Plus.
-Visit [this page](https://www.nginx.com/products/session-persistence/) to learn about all of the methods. If your
+Visit [this page](https://docs.nginx.com/nginx/admin-guide/load-balancer/http-load-balancer/#enabling-session-persistence) to learn about all of the methods. If your
 session persistence requirements are more complex than the ones in the example above, you will have to use a different
 approach to deploying and configuring NGINX Plus without the Ingress Controller. You can read the [Load Balancing
 Kubernetes Services with NGINX Plus](https://www.nginx.com/blog/load-balancing-kubernetes-services-nginx-plus/) blog

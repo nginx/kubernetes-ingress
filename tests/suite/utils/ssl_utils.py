@@ -2,7 +2,6 @@
 
 import socket
 import ssl
-from urllib.parse import urlparse
 
 import OpenSSL
 import requests

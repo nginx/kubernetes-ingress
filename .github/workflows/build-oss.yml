@@ -9,21 +9,28 @@ on:
       image:
         required: true
         type: string
+      tag:
+        required: false
+        type: string
       go-md5:
         required: true
         type: string
       base-image-md5:
+        required: true
+        type: string
+      branch:
+        required: true
+        type: string
+      authenticated:
+        required: true
+        type: boolean
+      full-build:
+        description: Always build base image
+        type: boolean
+        default: false
+      ic-version:
         required: false
         type: string
-      tag:
-        required: false
-        type: string
-      publish-image:
-        required: false
-        type: boolean
-      forked-workflow:
-        required: false
-        type: boolean
 
 defaults:
   run:
@@ -37,147 +44,50 @@ jobs:
     runs-on: ubuntu-22.04
     permissions:
       contents: read # for docker/build-push-action to read repo content
-      security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
-      id-token: write # for OIDC login to AWS ECR
+      id-token: write # for OIDC login to GCR
       packages: write # for docker/build-push-action to push to GHCR
+      pull-requests: write # for scout report
     outputs:
       version: ${{ steps.meta.outputs.version }}
       image_digest: ${{ steps.build-push.outputs.digest }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ inputs.tag != '' && format('refs/tags/v{0}', inputs.tag) || github.ref }}
+          ref: ${{ inputs.branch }}
           fetch-depth: 0
-
-      - name: Fetch Cached Artifacts
-        uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
-        with:
-          path: ${{ github.workspace }}/dist
-          key: nginx-ingress-${{ inputs.go-md5 }}
-
-      - name: Setup QEMU
-        uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
-        with:
-          platforms: arm,arm64,ppc64le,s390x
-        if: ${{ inputs.publish-image }}
-
-      - name: Docker Buildx
-        uses: docker/setup-buildx-action@d70bba72b1f3fd22344832f00baa16ece964efeb # v3.3.0
-
-      - name: DockerHub Login
-        uses: docker/login-action@e92390c5fb421da1463c202d546fed0ec5c39f20 # v3.1.0
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-        if: ${{ inputs.publish-image }}
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@e92390c5fb421da1463c202d546fed0ec5c39f20 # v3.1.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-        if: ${{ inputs.publish-image }}
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
-        with:
-          aws-region: us-east-1
-          role-to-assume: ${{ secrets.AWS_ROLE_PUBLIC_ECR }}
-        if: ${{ inputs.publish-image }}
-
-      - name: Login to Public ECR
-        uses: docker/login-action@e92390c5fb421da1463c202d546fed0ec5c39f20 # v3.1.0
-        with:
-          registry: public.ecr.aws
-        if: ${{ inputs.publish-image }}
-
-      - name: Login to Quay.io
-        uses: docker/login-action@e92390c5fb421da1463c202d546fed0ec5c39f20 # v3.1.0
-        with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_ROBOT_TOKEN }}
-        if: ${{ inputs.publish-image }}
 
       - name: Authenticate to Google Cloud
         id: auth
-        uses: google-github-actions/auth@71fee32a0bb7e97b4d33d548e7d957010649d8fa # v2.1.3
+        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
         with:
           token_format: access_token
           workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
           service_account: ${{ secrets.GCR_SERVICE_ACCOUNT }}
-        if: ${{ ! inputs.forked-workflow }}
+        if: ${{ inputs.authenticated }}
 
       - name: Login to GCR
-        uses: docker/login-action@e92390c5fb421da1463c202d546fed0ec5c39f20 # v3.1.0
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
-        if: ${{ ! inputs.forked-workflow }}
-
-      - name: Check if base images exist
-        id: base_exists
-        run: |
-          if docker manifest inspect gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-base/oss:${{ inputs.base-image-md5 }}-${{ inputs.image }}; then
-            echo "exists=0" >> $GITHUB_OUTPUT
-          else
-            echo "exists=1" >> $GITHUB_OUTPUT
-          fi
-        if: ${{ ! inputs.forked-workflow }}
-
-      - name: Build Base Container
-        uses: docker/build-push-action@2cdde995de11925a030ce8070c3d77a52ffcf1c0 # v5.3.0
-        with:
-          file: build/Dockerfile
-          context: "."
-          cache-from: type=gha,scope=${{ inputs.image }}
-          cache-to: type=gha,scope=${{ inputs.image }},mode=max
-          target: common
-          tags: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-base/oss:${{ inputs.base-image-md5 }}-${{ inputs.image }}
-          platforms: ${{ inputs.platforms }}
-          pull: true
-          push: true
-          build-args: |
-            BUILD_OS=${{ inputs.image }}
-            IC_VERSION=${{ inputs.tag }}
-        if: ${{ ! inputs.forked-workflow && steps.base_exists.outputs.exists != 0 }}
-
-      - name: Get short tag
-        id: tag
-        run: |
-          version="${{ inputs.tag }}"
-          short="${version%.*}"
-          echo "short=$short" >> $GITHUB_OUTPUT
-        if: ${{ inputs.tag != '' }}
+        if: ${{ inputs.authenticated }}
 
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # v5.5.1
+        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5.7.0
         with:
-          context: ${{ inputs.tag != '' && 'git' || 'workflow' }}
+          context: workflow
           images: |
-            name=nginx/nginx-ingress
-            name=ghcr.io/nginxinc/kubernetes-ingress
-            name=public.ecr.aws/nginx/nginx-ingress
-            name=quay.io/nginx/nginx-ingress
+            name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress
           flavor: |
-            latest=${{ (inputs.tag != '' && 'true') || 'auto' }}
-            suffix=${{ contains(inputs.image, 'ubi') && '-ubi' || '' }}${{ contains(inputs.image, 'alpine') && '-alpine' || '' }},onlatest=true
+            suffix=${{ contains(inputs.image, 'ubi') && '-ubi' || '' }}${{ contains(inputs.image, 'alpine') && '-alpine' || '' }}
           tags: |
-            type=edge
-            type=ref,event=pr
-            type=ref,event=branch,enable=${{ startsWith(github.ref, 'refs/heads/release-') }}
-            type=schedule,enable=${{ inputs.tag == '' }}
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=${{ inputs.tag }},enable=${{ inputs.tag != '' }}
-            type=raw,value=${{ steps.tag.outputs.short }},enable=${{ inputs.tag != '' }}
+            type=raw,value=${{ inputs.tag }}
           labels: |
             org.opencontainers.image.description=NGINX Ingress Controller for Kubernetes
-            io.artifacthub.package.readme-url=https://raw.githubusercontent.com/nginxinc/kubernetes-ingress/main/README.md
+            io.artifacthub.package.readme-url=https://raw.githubusercontent.com/nginx/kubernetes-ingress/main/README.md
             io.artifacthub.package.logo-url=https://docs.nginx.com/nginx-ingress-controller/images/icons/NGINX-Ingress-Controller-product-icon.svg
             io.artifacthub.package.maintainers=[{"name":"NGINX Inc","email":"kubernetes@nginx.com"}]
             io.artifacthub.package.license=Apache-2.0
@@ -185,77 +95,119 @@ jobs:
         env:
           DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
 
+      - name: Set base name variable
+        id: base_name
+        run: |
+          base_image="gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-base/oss:${{ inputs.base-image-md5 }}-${{ inputs.image }}"
+          echo "image=${base_image}" >> $GITHUB_OUTPUT
+
+      - name: Check if images exist
+        id: images_exist
+        run: |
+          if docker manifest inspect ${{ steps.base_name.outputs.image }}; then
+            echo "base_exists=true" >> $GITHUB_OUTPUT
+          fi
+          if docker manifest inspect ${{ steps.meta.outputs.tags }}; then
+            echo "target_exists=true" >> $GITHUB_OUTPUT
+          fi
+        if: ${{ inputs.authenticated && ! inputs.full-build }}
+
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+        with:
+          platforms: arm,arm64,ppc64le,s390x
+        if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
+
+      - name: Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+        if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
+
+      - name: Build Base Container
+        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
+        with:
+          file: build/Dockerfile
+          context: "."
+          cache-to: type=gha,scope=${{ inputs.image }},mode=max
+          target: common
+          tags: ${{ steps.base_name.outputs.image }}
+          platforms: ${{ inputs.platforms }}
+          pull: true
+          push: true
+          no-cache: true
+          build-args: |
+            BUILD_OS=${{ inputs.image }}
+            IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
+        if: ${{ inputs.authenticated && steps.images_exist.outputs.base_exists != 'true' }}
+
+      - name: Debug values
+        run: |
+          echo "authenticated: ${{ inputs.authenticated }}"
+          echo "base_exists: ${{ steps.images_exist.outputs.base_exists }}"
+          echo "target_exists: ${{ steps.images_exist.outputs.target_exists }}"
+          echo "full-build: ${{ inputs.full-build }}"
+
+      - name: Fetch Cached Artifacts
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ github.workspace }}/dist
+          key: nginx-ingress-${{ inputs.go-md5 }}
+          fail-on-cache-miss: true
+        if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
+
       - name: Build Docker image
-        uses: docker/build-push-action@2cdde995de11925a030ce8070c3d77a52ffcf1c0 # v5.3.0
+        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
         id: build-push
         with:
           file: build/Dockerfile
           context: "."
           cache-from: type=gha,scope=${{ inputs.image }}
           cache-to: type=gha,scope=${{ inputs.image }},mode=max
-          target: goreleaser${{ ! inputs.forked-workflow && '-prebuilt' || '' }}
+          target: goreleaser${{ inputs.authenticated && '-prebuilt' || '' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          annotations: ${{ github.event_name != 'pull_request' && steps.meta.outputs.annotations || '' }}
-          platforms: ${{ github.event_name != 'pull_request' && ! startsWith(github.ref, 'refs/heads/release-') && inputs.platforms || '' }}
-          load: ${{ github.event_name == 'pull_request' || startsWith(github.ref, 'refs/heads/release-') }}
-          push: ${{ inputs.publish-image }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          platforms: ${{ inputs.platforms }}
+          load: false
+          push: ${{ inputs.authenticated }}
           pull: true
-          no-cache: ${{ inputs.publish-image }}
-          sbom: ${{ inputs.publish-image }}
+          sbom: ${{ inputs.authenticated }}
           provenance: false
           build-args: |
             BUILD_OS=${{ inputs.image }}
-            ${{ ! inputs.forked-workflow && format('PREBUILT_BASE_IMG=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-base/oss:{0}-{1}', inputs.base-image-md5, inputs.image) || '' }}
-            IC_VERSION=${{ (github.event_name == 'pull_request' || startsWith(github.ref, 'refs/heads/release-')) && 'CI' || steps.meta.outputs.version }}
+            ${{ inputs.authenticated && format('PREBUILT_BASE_IMG={0}', steps.base_name.outputs.image) }}
+            IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
+        if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
 
-      - name: Certify Images
-        continue-on-error: true
+      - name: Make directory for security scan results
         run: |
-          curl -fsSL https://github.com/redhat-openshift-ecosystem/openshift-preflight/releases/download/1.6.11/preflight-linux-amd64 --output preflight
-          chmod +x preflight
+          mkdir -p "${{ inputs.image }}-results/"
+        if: ${{ inputs.authenticated && steps.build-push.conclusion == 'success' }}
 
-          IFS=',' read -ra arch_list <<< "${{ inputs.platforms }}"
+      # - name: Run Trivy vulnerability scanner
+      #   uses: aquasecurity/trivy-action@6e7b7d1fd3e4fef0c5fa8cce1229c54b2c9bd0d8 # 0.24.0
+      #   with:
+      #     image-ref: ${{ steps.meta.outputs.tags }}
+      #     format: "sarif"
+      #     output: "${{ inputs.image }}-results/trivy.sarif"
+      #     ignore-unfixed: "true"
+      #   if: ${{ inputs.authenticated && steps.build-push.conclusion == 'success' }}
 
-          for arch in "${arch_list[@]}"; do
-              architecture=("${arch#*/}")
-              ./preflight check container quay.io/nginx/nginx-ingress:${{ steps.meta.outputs.version }} --pyxis-api-token ${{ secrets.PYXIS_API_TOKEN }} --certification-project-id ${{ secrets.CERTIFICATION_PROJECT_ID }} --platform $architecture --submit
-          done
-        if: ${{ github.ref_type == 'tag' && contains(inputs.image, 'ubi') }}
-
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@b2933f565dbc598b29947660e66259e3c7bc8561 # 0.20.0
-        continue-on-error: true
+      - name: DockerHub Login for Docker Scout
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
-          image-ref: nginx/nginx-ingress:${{ steps.meta.outputs.version }}
-          format: "sarif"
-          output: "trivy-results-${{ inputs.image }}.sarif"
-          ignore-unfixed: "true"
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+        if: ${{ inputs.authenticated && steps.build-push.conclusion == 'success' }}
 
-      - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@9fdb3e49720b44c48891d036bb502feb25684276 # v3.25.6
-        continue-on-error: true
+      - name: Run Docker Scout vulnerability scanner
+        id: docker-scout
+        uses: docker/scout-action@381b657c498a4d287752e7f2cfb2b41823f566d9 # v1.17.1
         with:
-          sarif_file: "trivy-results-${{ inputs.image }}.sarif"
-
-      - name: Upload Scan Results
-        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
-        continue-on-error: true
-        with:
-          name: "trivy-results-${{ inputs.image }}.sarif"
-          path: "trivy-results-${{ inputs.image }}.sarif"
-        if: always()
-
-  send-notification:
-    name: Send Notification
-    needs: build
-    uses: ./.github/workflows/updates-notification.yml
-    with:
-      tag: ${{ inputs.tag }}
-      version: ${{ needs.build.outputs.version }}
-      image_digest: ${{ needs.build.outputs.image_digest }}
-    permissions:
-      contents: read
-      actions: read
-    secrets: inherit
-    if: ${{ inputs.tag != '' }}
+          command: cves
+          image: ${{ steps.meta.outputs.tags }}
+          ignore-base: true
+          sarif-file: "${{ inputs.image }}-results/scout.sarif"
+          write-comment: false
+          github-token: ${{ secrets.GITHUB_TOKEN }} # to be able to write the comment
+          summary: true
+        if: ${{ inputs.authenticated && steps.build-push.conclusion == 'success' }}

@@ -2014,7 +2014,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 
 		{
 			annotations: map[string]string{
-				"nginx.org/listen-ports": "80,8080,9090",
+				"nginx.org/listen-ports": "80,8080,9090,44313",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -2041,7 +2041,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 
 		{
 			annotations: map[string]string{
-				"nginx.org/listen-ports-ssl": "443,8443",
+				"nginx.org/listen-ports-ssl": "443,8443,44315",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,

@@ -6,5 +6,5 @@ export TARGET_NAP_WAF_IMAGE_PREFIX=nginxinc/nginx-plus-ingress-nap
 export TARGET_NAP_DOS_IMAGE_PREFIX=nginxinc/nginx-plus-ingress-dos
 declare -a PLUS_TAG_POSTFIX_LIST=("")
 declare -a NAP_WAF_TAG_POSTFIX_LIST=("")
-declare -a NAP_DOS_TAG_POSTFIX_LIST=("")
-declare -a ADDITIONAL_TAGS=(${ADDITIONAL_TAG})
+declare -a NAP_WAFV5_TAG_POSTFIX_LIST=()
+declare -a NAP_DOS_TAG_POSTFIX_LIST=()

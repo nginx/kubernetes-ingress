@@ -1,0 +1,112 @@
+{
+  "policy": {
+    "name": "app_protect_api_security_policy",
+    "description": "NGINX App Protect API Security Policy. The policy is intended to be used with an OpenAPI file",
+    "template": {
+      "name": "POLICY_TEMPLATE_NGINX_BASE"
+    },
+    "open-api-files": [],
+    "blocking-settings": {
+      "violations": [
+        {
+          "block": true,
+          "description": "Mandatory request body is missing",
+          "name": "VIOL_MANDATORY_REQUEST_BODY"
+        },
+        {
+          "block": true,
+          "description": "Illegal parameter location",
+          "name": "VIOL_PARAMETER_LOCATION"
+        },
+        {
+          "block": true,
+          "description": "Mandatory parameter is missing",
+          "name": "VIOL_MANDATORY_PARAMETER"
+        },
+        {
+          "block": true,
+          "description": "JSON data does not comply with JSON schema",
+          "name": "VIOL_JSON_SCHEMA"
+        },
+        {
+          "block": true,
+          "description": "Illegal parameter array value",
+          "name": "VIOL_PARAMETER_ARRAY_VALUE"
+        },
+        {
+          "block": true,
+          "description": "Illegal Base64 value",
+          "name": "VIOL_PARAMETER_VALUE_BASE64"
+        },
+        {
+          "block": true,
+          "description": "Illegal request content type",
+          "name": "VIOL_URL_CONTENT_TYPE"
+        },
+        {
+          "block": true,
+          "description": "Illegal static parameter value",
+          "name": "VIOL_PARAMETER_STATIC_VALUE"
+        },
+        {
+          "block": true,
+          "description": "Illegal parameter value length",
+          "name": "VIOL_PARAMETER_VALUE_LENGTH"
+        },
+        {
+          "block": true,
+          "description": "Illegal parameter data type",
+          "name": "VIOL_PARAMETER_DATA_TYPE"
+        },
+        {
+          "block": true,
+          "description": "Illegal parameter numeric value",
+          "name": "VIOL_PARAMETER_NUMERIC_VALUE"
+        },
+        {
+          "block": true,
+          "description": "Parameter value does not comply with regular expression",
+          "name": "VIOL_PARAMETER_VALUE_REGEXP"
+        },
+        {
+          "block": true,
+          "description": "Illegal URL",
+          "name": "VIOL_URL"
+        },
+        {
+          "block": true,
+          "description": "Illegal parameter",
+          "name": "VIOL_PARAMETER"
+        },
+        {
+          "block": true,
+          "description": "Illegal empty parameter value",
+          "name": "VIOL_PARAMETER_EMPTY_VALUE"
+        },
+        {
+          "block": true,
+          "description": "Illegal repeated parameter name",
+          "name": "VIOL_PARAMETER_REPEATED"
+        },
+        {
+          "block": true,
+          "description": "Illegal method",
+          "name": "VIOL_METHOD"
+        },
+        {
+          "block": true,
+          "description": "Illegal gRPC method",
+          "name": "VIOL_GRPC_METHOD"
+        }
+      ]
+    },
+    "xml-profiles": [
+      {
+        "name": "Default",
+        "defenseAttributes": {
+          "maximumNameLength": 1024
+        }
+      }
+    ]
+  }
+}

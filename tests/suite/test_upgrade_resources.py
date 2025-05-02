@@ -3,15 +3,9 @@ import tempfile
 
 import pytest
 import yaml
-from settings import DEPLOYMENTS, TEST_DATA
-from suite.utils.custom_resources_utils import create_resource_from_manifest, read_custom_resource
-from suite.utils.resources_utils import (
-    create_ingress,
-    create_items_from_yaml,
-    create_namespace,
-    delete_namespace,
-    wait_before_test,
-)
+from settings import TEST_DATA
+from suite.utils.custom_resources_utils import create_resource_from_manifest
+from suite.utils.resources_utils import create_ingress, create_items_from_yaml, create_namespace, delete_namespace
 from suite.utils.vs_vsr_resources_utils import create_virtual_server
 
 tcp_deployment = f"{TEST_DATA}/upgrade-test-resources/tcp-deployment.yaml"

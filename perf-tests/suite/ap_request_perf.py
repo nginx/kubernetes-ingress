@@ -1,7 +1,7 @@
 import os
 
 import yaml
-from locust import HttpUser, TaskSet, task
+from locust import HttpUser, task
 
 host = ""
 

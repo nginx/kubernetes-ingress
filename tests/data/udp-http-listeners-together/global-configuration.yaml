@@ -1,0 +1,13 @@
+apiVersion: k8s.nginx.org/v1
+kind: GlobalConfiguration
+metadata:
+  name: nginx-configuration
+  namespace: nginx-ingress
+spec:
+  listeners:
+  - name: udp-listener
+    port: 5454
+    protocol: UDP
+  - name: http-listener
+    port: 5454
+    protocol: HTTP

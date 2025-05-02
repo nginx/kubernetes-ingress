@@ -40,6 +40,7 @@ def get_upstreams_of_splitting(file) -> []:
 
 
 @pytest.mark.vsr
+@pytest.mark.vsr_splits
 @pytest.mark.parametrize(
     "crd_ingress_controller, v_s_route_setup",
     [

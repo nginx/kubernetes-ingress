@@ -10,8 +10,10 @@ spec:
     uri: "dos.example.com"
     protocol: "http1"
     timeout: 5
-  dosAccessLogDest: "127.0.0.1:5561"
+  dosAccessLogDest: "accesslog-svc.<NAMESPACE>.svc.cluster.local:514"
   dosSecurityLog:
     enable: true
     apDosLogConf: "<NAMESPACE>/doslogconf"
     dosLogDest: "syslog-svc.<NAMESPACE>.svc.cluster.local:514"
+  allowList:
+    - ipWithMask: "10.10.10.10/32"

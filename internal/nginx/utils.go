@@ -3,18 +3,19 @@ package nginx
 import (
 	"bytes"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path"
 
-	"github.com/golang/glog"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 )
 
-func shellOut(cmd string) (err error) {
+func shellOut(l *slog.Logger, cmd string) (err error) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	glog.V(3).Infof("executing %s", cmd)
+	nl.Debugf(l, "executing %s", cmd)
 
 	command := exec.Command("sh", "-c", cmd)
 	command.Stdout = &stdout
@@ -53,29 +54,29 @@ func createFileAndWrite(name string, b []byte) error {
 	return err
 }
 
-func createFileAndWriteAtomically(filename string, tempPath string, mode os.FileMode, content []byte) {
+func createFileAndWriteAtomically(l *slog.Logger, filename string, tempPath string, mode os.FileMode, content []byte) {
 	file, err := os.CreateTemp(tempPath, path.Base(filename))
 	if err != nil {
-		glog.Fatalf("Couldn't create a temp file for the file %v: %v", filename, err)
+		nl.Fatalf(l, "Couldn't create a temp file for the file %v: %v", filename, err)
 	}
 
 	err = file.Chmod(mode)
 	if err != nil {
-		glog.Fatalf("Couldn't change the mode of the temp file %v: %v", file.Name(), err)
+		nl.Fatalf(l, "Couldn't change the mode of the temp file %v: %v", file.Name(), err)
 	}
 
 	_, err = file.Write(content)
 	if err != nil {
-		glog.Fatalf("Couldn't write to the temp file %v: %v", file.Name(), err)
+		nl.Fatalf(l, "Couldn't write to the temp file %v: %v", file.Name(), err)
 	}
 
 	err = file.Close()
 	if err != nil {
-		glog.Fatalf("Couldn't close the temp file %v: %v", file.Name(), err)
+		nl.Fatalf(l, "Couldn't close the temp file %v: %v", file.Name(), err)
 	}
 
 	err = os.Rename(file.Name(), filename)
 	if err != nil {
-		glog.Fatalf("Couldn't rename the temp file %v to %v: %v", file.Name(), filename, err)
+		nl.Fatalf(l, "Couldn't rename the temp file %v to %v: %v", file.Name(), filename, err)
 	}
 }

@@ -26,9 +26,10 @@ import (
 	cm_informers "github.com/cert-manager/cert-manager/pkg/client/informers/externalversions"
 	cmlisters "github.com/cert-manager/cert-manager/pkg/client/listers/certmanager/v1"
 	controllerpkg "github.com/cert-manager/cert-manager/pkg/controller"
-	"github.com/golang/glog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/runtime"
+
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -36,10 +37,11 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 
-	conf_v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
-	k8s_nginx "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned"
-	vsinformers "github.com/nginxinc/kubernetes-ingress/pkg/client/informers/externalversions"
-	listers_v1 "github.com/nginxinc/kubernetes-ingress/pkg/client/listers/configuration/v1"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	k8s_nginx "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned"
+	vsinformers "github.com/nginx/kubernetes-ingress/pkg/client/informers/externalversions"
+	listers_v1 "github.com/nginx/kubernetes-ingress/pkg/client/listers/configuration/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
@@ -60,7 +62,7 @@ const (
 type CmController struct {
 	sync          SyncFn
 	ctx           context.Context
-	queue         workqueue.RateLimitingInterface
+	queue         workqueue.TypedRateLimitingInterface[types.NamespacedName]
 	informerGroup map[string]*namespacedInformer
 	recorder      record.EventRecorder
 	cmClient      *cm_clientset.Clientset
@@ -90,7 +92,7 @@ type namespacedInformer struct {
 	lock                      sync.RWMutex
 }
 
-func (c *CmController) register() workqueue.RateLimitingInterface {
+func (c *CmController) register() workqueue.TypedRateLimitingInterface[types.NamespacedName] {
 	c.sync = SyncFnFor(c.recorder, c.cmClient, c.informerGroup)
 	return c.queue
 }
@@ -135,17 +137,16 @@ func (c *CmController) addHandlers(nsi *namespacedInformer) {
 	nsi.mustSync = append(nsi.mustSync, nsi.cmSharedInformerFactory.Certmanager().V1().Certificates().Informer().HasSynced)
 }
 
-func (c *CmController) processItem(ctx context.Context, key string) error {
-	glog.V(3).Infof("processing virtual server resource ")
-	namespace, name, err := cache.SplitMetaNamespaceKey(key)
-	if err != nil {
-		runtime.HandleError(fmt.Errorf("invalid resource key: %s", key))
-		return err
-	}
+func (c *CmController) processItem(ctx context.Context, key types.NamespacedName) error {
+	l := nl.LoggerFromContext(ctx)
+	nl.Debugf(l, "processing virtual server resource ")
+	namespace := key.Namespace
+	name := key.Name
+
 	nsi := getNamespacedInformer(namespace, c.informerGroup)
 
 	var vs *conf_v1.VirtualServer
-	vs, err = nsi.vsLister.VirtualServers(namespace).Get(name)
+	vs, err := nsi.vsLister.VirtualServers(namespace).Get(name)
 
 	// VS has been deleted
 	if apierrors.IsNotFound(err) {
@@ -173,7 +174,7 @@ func (c *CmController) processItem(ctx context.Context, key string) error {
 //	    name: vs-1
 //	    blockOwnerDeletion: true
 //	    uid: 7d3897c2-ce27-4144-883a-e1b5f89bd65a
-func certificateHandler(queue workqueue.RateLimitingInterface) func(obj interface{}) {
+func certificateHandler(queue workqueue.TypedRateLimitingInterface[types.NamespacedName]) func(obj interface{}) {
 	return func(obj interface{}) {
 		crt, ok := obj.(*cmapi.Certificate)
 		if !ok {
@@ -195,7 +196,10 @@ func certificateHandler(queue workqueue.RateLimitingInterface) func(obj interfac
 			return
 		}
 
-		queue.Add(crt.Namespace + "/" + ref.Name)
+		queue.Add(types.NamespacedName{
+			Namespace: crt.Namespace,
+			Name:      ref.Name,
+		})
 	}
 }
 
@@ -208,7 +212,7 @@ func NewCmController(opts *CmOpts) *CmController {
 
 	cm := &CmController{
 		ctx:           opts.context,
-		queue:         workqueue.NewNamedRateLimitingQueue(controllerpkg.DefaultItemBasedRateLimiter(), ControllerName),
+		queue:         workqueue.NewTypedRateLimitingQueueWithConfig(controllerpkg.DefaultItemBasedRateLimiter(), workqueue.TypedRateLimitingQueueConfig[types.NamespacedName]{Name: ControllerName}),
 		informerGroup: ig,
 		recorder:      opts.eventRecorder,
 		cmClient:      intcl,
@@ -236,7 +240,9 @@ func (c *CmController) Run(stopCh <-chan struct{}) {
 	ctx, cancel := context.WithCancel(c.ctx)
 	defer cancel()
 
-	glog.Infof("Starting cert-manager control loop")
+	l := nl.LoggerFromContext(ctx)
+
+	nl.Info(l, "Starting cert-manager control loop")
 
 	var mustSync []cache.InformerSynced
 	for _, ig := range c.informerGroup {
@@ -245,17 +251,17 @@ func (c *CmController) Run(stopCh <-chan struct{}) {
 	}
 	// wait for all the informer caches we depend on are synced
 
-	glog.V(3).Infof("Waiting for %d caches to sync", len(mustSync))
+	nl.Debugf(l, "Waiting for %d caches to sync", len(mustSync))
 	if !cache.WaitForNamedCacheSync(ControllerName, stopCh, mustSync...) {
-		glog.Fatal("error syncing cm queue")
+		nl.Fatal(l, "error syncing cm queue")
 	}
 
-	glog.V(3).Infof("Queue is %v", c.queue.Len())
+	nl.Debugf(l, "Queue is %v", c.queue.Len())
 
 	go c.runWorker(ctx)
 
 	<-stopCh
-	glog.V(3).Infof("shutting down queue as workqueue signaled shutdown")
+	nl.Debugf(l, "shutting down queue as workqueue signaled shutdown")
 	for _, ig := range c.informerGroup {
 		ig.stop()
 	}
@@ -276,29 +282,25 @@ func (nsi *namespacedInformer) stop() {
 // processItem function in order to read and process a message on the
 // workqueue.
 func (c *CmController) runWorker(ctx context.Context) {
-	glog.V(3).Infof("processing items on the workqueue")
+	l := nl.LoggerFromContext(ctx)
+	nl.Debugf(l, "processing items on the workqueue")
 	for {
 		obj, shutdown := c.queue.Get()
 		if shutdown {
 			break
 		}
 
-		var key string
 		// use an inlined function so we can use defer
 		func() {
 			defer c.queue.Done(obj)
-			var ok bool
-			if key, ok = obj.(string); !ok {
-				return
-			}
 
-			err := c.processItem(ctx, key)
+			err := c.processItem(ctx, obj)
 			if err != nil {
-				glog.V(3).Infof("Re-queuing item due to error processing: %v", err)
+				nl.Debugf(l, "Re-queuing item due to error processing: %v", err)
 				c.queue.AddRateLimited(obj)
 				return
 			}
-			glog.V(3).Infof("finished processing work item")
+			nl.Debugf(l, "finished processing work item")
 			c.queue.Forget(obj)
 		}()
 	}
@@ -306,7 +308,8 @@ func (c *CmController) runWorker(ctx context.Context) {
 
 // AddNewNamespacedInformer adds watchers for a new namespace
 func (c *CmController) AddNewNamespacedInformer(ns string) {
-	glog.V(3).Infof("Adding or Updating cert-manager Watchers for Namespace: %v", ns)
+	l := nl.LoggerFromContext(c.ctx)
+	nl.Debugf(l, "Adding or Updating cert-manager Watchers for Namespace: %v", ns)
 	nsi := getNamespacedInformer(ns, c.informerGroup)
 	if nsi == nil {
 		nsi = c.newNamespacedInformer(ns)
@@ -319,7 +322,8 @@ func (c *CmController) AddNewNamespacedInformer(ns string) {
 
 // RemoveNamespacedInformer removes watchers for a namespace we are no longer watching
 func (c *CmController) RemoveNamespacedInformer(ns string) {
-	glog.V(3).Infof("Deleting cert-manager Watchers for Deleted Namespace: %v", ns)
+	l := nl.LoggerFromContext(c.ctx)
+	nl.Debugf(l, "Deleting cert-manager Watchers for Deleted Namespace: %v", ns)
 	nsi := getNamespacedInformer(ns, c.informerGroup)
 	if nsi != nil {
 		nsi.lock.Lock()

@@ -1,6 +1,9 @@
 package configs
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
 func TestNewDefaultConfigParamsUpstreamZoneSize(t *testing.T) {
 	t.Parallel()
@@ -19,13 +22,13 @@ func TestNewDefaultConfigParamsUpstreamZoneSize(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		cfgParams := NewDefaultConfigParams(test.isPlus)
+		cfgParams := NewDefaultConfigParams(context.Background(), test.isPlus)
 		if cfgParams == nil {
-			t.Fatalf("NewDefaultConfigParams(%v) returned nil", test.isPlus)
+			t.Fatalf("NewDefaultConfigParams(context.Background(), %v) returned nil", test.isPlus)
 		}
 
 		if cfgParams.UpstreamZoneSize != test.expected {
-			t.Errorf("NewDefaultConfigParams(%v) returned %s but expected %s", test.isPlus, cfgParams.UpstreamZoneSize, test.expected)
+			t.Errorf("NewDefaultConfigParams(context.Background(), %v) returned %s but expected %s", test.isPlus, cfgParams.UpstreamZoneSize, test.expected)
 		}
 	}
 }

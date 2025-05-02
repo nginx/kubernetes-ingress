@@ -50,12 +50,9 @@ default.pem
 hack/controller-gen-*
 
 # Ignore local docs dependencies
-site/
 venv/
-docs/public
-docs/themes/f5-hugo
-.netlify/
-docs/.netlify
+site/public
+site/themes/f5-hugo
 
 # trivy container scanning cache
 .trivycache/

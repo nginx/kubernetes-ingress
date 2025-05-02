@@ -1,4 +1,4 @@
-{{- /*gotype: github.com/nginxinc/kubernetes-ingress/internal/configs/version1.MainConfig*/ -}}
+{{- /*gotype: github.com/nginx/kubernetes-ingress/internal/configs/version1.MainConfig*/ -}}
 worker_processes  {{.WorkerProcesses}};
 {{- if .WorkerRlimitNofile}}
 worker_rlimit_nofile {{.WorkerRlimitNofile}};{{end}}
@@ -11,14 +11,12 @@ daemon off;
 error_log  stderr {{.ErrorLogLevel}};
 pid        /var/lib/nginx/nginx.pid;
 
-{{- if .OpenTracingLoadModule}}
-load_module modules/ngx_http_opentracing_module.so;
-{{- end}}
-
 {{- if .MainSnippets}}
 {{range $value := .MainSnippets}}
 {{$value}}{{end}}
 {{- end}}
+
+load_module modules/ngx_http_js_module.so;
 
 events {
     worker_connections  {{.WorkerConnections}};
@@ -29,6 +27,10 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size {{.MapHashMaxSize}};
     map_hash_bucket_size {{.MapHashBucketSize}};
+
+
+    js_import /etc/nginx/njs/apikey_auth.js;
+    js_set $apikey_auth_hash apikey_auth.hash;
 
     {{- if .HTTPSnippets}}
     {{range $value := .HTTPSnippets}}
@@ -56,11 +58,7 @@ http {
         default "{{ .StaticSSLPath }}";
     }
     {{- end }}
-    {{- if .AccessLogOff}}
-    access_log off;
-    {{- else}}
-    access_log  /dev/stdout  main;
-    {{- end}}
+    access_log {{.AccessLog}};
 
     {{- if .LatencyMetrics}}
     log_format response_time '{"upstreamAddress":"$upstream_addr", "upstreamResponseTime":"$upstream_response_time", "proxyHost":"$proxy_host", "upstreamStatus": "$upstream_status"}';
@@ -106,13 +104,6 @@ http {
     ssl_dhparam {{.SSLDHParam}};
     {{- end}}
 
-    {{- if .OpenTracingEnabled}}
-    opentracing on;
-    {{- end}}
-    {{- if .OpenTracingLoadModule}}
-    opentracing_load_tracer {{ .OpenTracingTracer }} /var/lib/nginx/tracer-config.json;
-    {{- end}}
-
     server {
         # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
         set $default_connection_header "";
@@ -155,10 +146,6 @@ http {
         access_log off;
         {{end -}}
 
-        {{- if .OpenTracingEnabled}}
-        opentracing off;
-        {{- end}}
-
         {{- if .HealthStatus}}
         location {{.HealthStatusURI}} {
             default_type text/plain;
@@ -181,9 +168,6 @@ http {
         allow {{$value}};{{end}}
 
         deny all;
-        {{if .OpenTracingEnabled}}
-        opentracing off;
-        {{end}}
         location /stub_status {
             stub_status;
         }
@@ -194,10 +178,6 @@ http {
     server {
         listen unix:/var/lib/nginx/nginx-status.sock;
         access_log off;
-
-        {{- if .OpenTracingEnabled}}
-        opentracing off;
-        {{- end}}
 
         location /stub_status {
             stub_status;
@@ -212,20 +192,12 @@ http {
         listen unix:/var/lib/nginx/nginx-502-server.sock;
         access_log off;
 
-        {{if .OpenTracingEnabled}}
-        opentracing off;
-        {{end}}
-
         return 502;
     }
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
         access_log off;
-
-        {{- if .OpenTracingEnabled}}
-        opentracing off;
-        {{- end -}}
 
         return 418;
     }

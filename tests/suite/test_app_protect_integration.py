@@ -1,7 +1,7 @@
 import pytest
 import requests
 import yaml
-from settings import CRDS, DEPLOYMENTS, TEST_DATA
+from settings import CRDS, TEST_DATA
 from suite.utils.ap_resources_utils import (
     create_ap_logconf_from_yaml,
     create_ap_policy_from_yaml,

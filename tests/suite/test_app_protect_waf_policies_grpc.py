@@ -78,7 +78,7 @@ def appprotect_setup(
         elif vs_or_vsr == "vsr":
             (src_pol_name, vsr_ns, vs_host, vs_name, vsr) = ap_vsr_setup(kube_apis, test_namespace, policy_method)
         wait_before_test(120)
-    except Exception as ex:
+    except Exception:
         cleanup(kube_apis, ingress_controller_prerequisites, src_pol_name, test_namespace, vs_or_vsr, vs_name, vsr)
 
     def fin():

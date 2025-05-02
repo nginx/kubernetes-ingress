@@ -1,5 +1,5 @@
 {{ if .Values.controller.globalConfiguration.create }}
-apiVersion: k8s.nginx.org/v1alpha1
+apiVersion: k8s.nginx.org/v1
 kind: GlobalConfiguration
 metadata:
   name: {{ include "nginx-ingress.controller.fullname" . }}

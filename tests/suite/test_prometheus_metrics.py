@@ -166,7 +166,7 @@ class TestPrometheusExporter:
                     "extra_args": [
                         "-enable-prometheus-metrics",
                         "-enable-latency-metrics",
-                        "-prometheus-tls-secret=nginx-ingress/prometheus-test-secret",
+                        "-prometheus-tls-secret=nginx-ingress/tls-secret",
                     ]
                 },
                 [

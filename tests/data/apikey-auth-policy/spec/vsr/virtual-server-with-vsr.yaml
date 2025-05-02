@@ -1,0 +1,22 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: virtual-server
+spec:
+  host: virtual-server.example.com
+  policies:
+  - name: api-key-policy-server
+  upstreams:
+  - name: backend1
+    service: backend1-svc
+    port: 80
+  routes:
+  - path: /backend1
+    route: backend1
+  - path: /backend2
+    route: backend2
+  - path: /no-auth
+    location-snippets:
+      auth_request off;
+    action:
+      pass: backend1

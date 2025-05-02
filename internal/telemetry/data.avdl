@@ -1,4 +1,5 @@
 @namespace("ingress.nginx.com") protocol NICProductTelemetry {
+	/** Data is the telemetry data for the product. */
 	@df_datatype("nic-product-telemetry") record Data {
 		/** The field that identifies what type of data this is. */
 		string dataType;
@@ -7,94 +8,121 @@
 		/** The time our edge ingested the event */
 		long ingestTime;
 
-
+		
 		/** ProjectName is the name of the project. */
 		string? ProjectName = null;
-
+		
 		/** ProjectVersion is the version of the project. */
 		string? ProjectVersion = null;
-
+		
 		/** ProjectArchitecture is the architecture of the project. For example, "amd64". */
 		string? ProjectArchitecture = null;
-
+		
 		/** ClusterID is the unique id of the Kubernetes cluster where the project is installed.
 It is the UID of the `kube-system` Namespace. */
 		string? ClusterID = null;
-
+		
 		/** ClusterVersion is the Kubernetes version of the cluster. */
 		string? ClusterVersion = null;
-
+		
 		/** ClusterPlatform is the Kubernetes platform of the cluster. */
 		string? ClusterPlatform = null;
-
+		
 		/** InstallationID is the unique id of the project installation in the cluster. */
 		string? InstallationID = null;
-
+		
 		/** ClusterNodeCount is the number of nodes in the cluster. */
 		long? ClusterNodeCount = null;
-
+		
 		/** VirtualServers is the number of VirtualServer resources managed by the Ingress Controller. */
 		long? VirtualServers = null;
-
+		
 		/** VirtualServerRoutes is the number of VirtualServerRoute resources managed by the Ingress Controller. */
 		long? VirtualServerRoutes = null;
-
+		
 		/** TransportServers is the number of TransportServer resources managed by the Ingress Controller. */
 		long? TransportServers = null;
-
+		
 		/** Replicas is the number of NIC replicas. */
 		long? Replicas = null;
-
+		
 		/** Secrets is the number of Secret resources managed by the Ingress Controller. */
 		long? Secrets = null;
-
-		/** Services is the number of services referenced by NGINX Ingress Controller in the cluster */
-		long? Services = null;
-
-		/** Ingresses is the number of Ingress resources managed by the NGINX Ingress Controller. */
-		long? Ingresses = null;
-
+		
+		/** ClusterIPServices is the number of ClusterIP services managed by NGINX Ingress Controller. */
+		long? ClusterIPServices = null;
+		
+		/** NodePortServices is the number of NodePort services managed by NGINX Ingress Controller. */
+		long? NodePortServices = null;
+		
+		/** LoadBalancerServices is the number of LoadBalancer services managed by NGINX Ingress Controller. */
+		long? LoadBalancerServices = null;
+		
+		/** ExternalNameServices is the number of ExternalName services managed by NGINX Ingress Controller. */
+		long? ExternalNameServices = null;
+		
+		/** RegularIngressCount is the number of Regular Ingress resources managed by NGINX Ingress Controller. */
+		long? RegularIngressCount = null;
+		
+		/** MasterIngressCount is the number of Regular Ingress resources managed by NGINX Ingress Controller. */
+		long? MasterIngressCount = null;
+		
+		/** MinionIngressCount is the number of Regular Ingress resources managed by NGINX Ingress Controller. */
+		long? MinionIngressCount = null;
+		
 		/** IngressClasses is the number of Ingress Classes. */
 		long? IngressClasses = null;
-
+		
 		/** AccessControlPolicies is the number of AccessControl policies managed by NGINX Ingress Controller */
 		long? AccessControlPolicies = null;
-
+		
 		/** RateLimitPolicies is the number of RateLimit policies managed by NGINX Ingress Controller */
 		long? RateLimitPolicies = null;
-
+		
+		/** APIKeyPolicies is the number of APIKey policies managed by NGINX Ingress Controller */
+		long? APIKeyPolicies = null;
+		
 		/** JWTAuthPolicies is the number of JWTAuth policies managed by NGINX Ingress Controller */
 		long? JWTAuthPolicies = null;
-
+		
 		/** BasicAuthPolicies is the number of BasicAuth policies managed by NGINX Ingress Controller */
 		long? BasicAuthPolicies = null;
-
+		
 		/** IngressMTLSPolicies is the number of IngressMTLS policies managed by NGINX Ingress Controller */
 		long? IngressMTLSPolicies = null;
-
+		
 		/** EgressMTLSPolicies is the number of EgressMTLS policies managed by NGINX Ingress Controller */
 		long? EgressMTLSPolicies = null;
-
+		
 		/** OIDCPolicies is the number of OIDC policies managed by NGINX Ingress Controller */
 		long? OIDCPolicies = null;
-
+		
 		/** WAFPolicies is the number of WAF policies managed by NGINX Ingress Controller */
 		long? WAFPolicies = null;
-
+		
 		/** GlobalConfiguration indicates if a GlobalConfiguration resource is used. */
 		boolean? GlobalConfiguration = null;
-
+		
 		/** IngressAnnotations is the list of annotations resources managed by NGINX Ingress Controller */
 		union {null, array<string>} IngressAnnotations = null;
-
+		
 		/** AppProtectVersion represents the version of AppProtect. */
 		string? AppProtectVersion = null;
-
+		
 		/** IsPlus represents whether NGINX is Plus or OSS */
 		boolean? IsPlus = null;
-
+		
 		/** InstallationFlags is the list of command line arguments configured for NGINX Ingress Controller */
 		union {null, array<string>} InstallationFlags = null;
-
+		
+		/** BuildOS represents the base operating system image */
+		string? BuildOS = null;
+		
+		/** ConfigMapKeys is the list of keys for the main ConfigMaps */
+		union {null, array<string>} ConfigMapKeys = null;
+		
+		/** MGMTConfigMapKeys is the list of keys for the MGMT ConfigMap */
+		union {null, array<string>} MGMTConfigMapKeys = null;
+		
 	}
 }

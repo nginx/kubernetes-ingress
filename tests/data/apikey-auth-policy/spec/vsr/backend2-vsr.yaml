@@ -1,0 +1,16 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
+  name: backend2
+spec:
+  host: virtual-server.example.com
+  upstreams:
+  - name: backend2
+    service: backend2-svc
+    port: 80
+  subroutes:
+  - path: /backend2
+    action:
+      pass: backend2
+    policies:
+      - name: api-key-policy-vs-route

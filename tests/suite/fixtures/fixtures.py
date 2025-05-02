@@ -23,6 +23,7 @@ from suite.utils.resources_utils import (
     cleanup_rbac,
     configure_rbac,
     create_configmap_from_yaml,
+    create_license,
     create_namespace_with_name_from_yaml,
     create_ns_and_sa_from_yaml,
     create_secret_from_yaml,
@@ -240,10 +241,19 @@ def ingress_controller_prerequisites(cli_arguments, kube_apis, request) -> Ingre
         ]
     )
     config_map_yaml = f"{DEPLOYMENTS}/common/nginx-config.yaml"
+    mgmt_config_map_yaml = f"{DEPLOYMENTS}/common/plus-mgmt-configmap.yaml"
     create_configmap_from_yaml(kube_apis.v1, namespace, config_map_yaml)
+    mgmt_config_map_yaml = f"{DEPLOYMENTS}/common/plus-mgmt-configmap.yaml"
     with open(config_map_yaml) as f:
         config_map = yaml.safe_load(f)
+
     create_secret_from_yaml(kube_apis.v1, namespace, f"{TEST_DATA}/common/default-server-secret.yaml")
+    # setup Plus JWT configuration
+    if cli_arguments["ic-type"] == "nginx-plus-ingress":
+        print("Create Plus JWT License:")
+        license_name = create_license(kube_apis.v1, namespace, cli_arguments["plus-jwt"])
+        print(f"License created: {license_name}")
+        create_configmap_from_yaml(kube_apis.v1, namespace, mgmt_config_map_yaml)
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
@@ -323,6 +333,9 @@ def cli_arguments(request) -> {}:
     result["ic-type"] = request.config.getoption("--ic-type")
     assert result["ic-type"] in ALLOWED_IC_TYPES, f"IC type {result['ic-type']} is not allowed"
     print(f"Tests will run against the IC of type: {result['ic-type']}")
+    if result["ic-type"] == "nginx-plus-ingress":
+        print(f"Tests will use the Plus JWT")
+        result["plus-jwt"] = request.config.getoption("--plus-jwt")
 
     result["replicas"] = request.config.getoption("--replicas")
     print(f"Number of pods spun up will be : {result['replicas']}")

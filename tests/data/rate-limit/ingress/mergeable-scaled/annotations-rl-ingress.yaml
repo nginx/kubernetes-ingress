@@ -1,0 +1,34 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.org/mergeable-ingress-type: "master"
+  name: annotations-rl-ingress-master
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: ingress-rl.example.com
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: annotations-rl-ingress-minion
+  annotations:
+    nginx.org/limit-req-rate: 40r/s
+    nginx.org/limit-req-key: ${binary_remote_addr}
+    nginx.org/limit-req-zone-size: 10M
+    nginx.org/mergeable-ingress-type: "minion"
+    nginx.org/limit-req-scale: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: ingress-rl.example.com
+    http:
+      paths:
+      - path: /backend1
+        pathType: Prefix
+        backend:
+          service:
+            name: backend1-svc
+            port:
+              number: 80

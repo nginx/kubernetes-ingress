@@ -8,6 +8,7 @@ from suite.utils.resources_utils import scale_deployment
 
 
 @pytest.mark.vs
+@pytest.mark.vs_api
 @pytest.mark.skip_for_nginx_oss
 @pytest.mark.parametrize(
     "crd_ingress_controller, virtual_server_setup",

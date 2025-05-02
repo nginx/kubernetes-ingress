@@ -5186,7 +5186,7 @@ spec:
           image: "quay.io/jetstack/cert-manager-cainjector:v1.9.1"
           imagePullPolicy: IfNotPresent
           args:
-          - --v=2
+          - --log-level=debug
           - --leader-election-namespace=kube-system
           env:
           - name: POD_NAMESPACE
@@ -5238,7 +5238,7 @@ spec:
           image: "quay.io/jetstack/cert-manager-controller:v1.9.1"
           imagePullPolicy: IfNotPresent
           args:
-          - --v=2
+          - --log-level=debug
           - --cluster-resource-namespace=$(POD_NAMESPACE)
           - --leader-election-namespace=kube-system
           ports:
@@ -5291,7 +5291,7 @@ spec:
           image: "quay.io/jetstack/cert-manager-webhook:v1.9.1"
           imagePullPolicy: IfNotPresent
           args:
-          - --v=2
+          - --log-level=debug
           - --secure-port=10250
           - --dynamic-serving-ca-secret-namespace=$(POD_NAMESPACE)
           - --dynamic-serving-ca-secret-name=cert-manager-webhook-ca
