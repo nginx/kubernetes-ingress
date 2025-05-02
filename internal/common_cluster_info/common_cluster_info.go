@@ -3,13 +3,12 @@ package commonclusterinfo
 import (
 	"context"
 	"fmt"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 )
 
-// This file contains functions for data used in both product telemetry and license reporting
+// This file contains functions for data used in product telemetry, metadata and license reporting
 
 // GetNodeCount returns the number of nodes in the cluster
 func GetNodeCount(ctx context.Context, client kubernetes.Interface) (int, error) {
@@ -62,5 +61,36 @@ func GetInstallationID(ctx context.Context, client kubernetes.Interface, podNSNa
 		return string(podOwner[0].UID), nil
 	default:
 		return "", fmt.Errorf("expected pod owner reference to be ReplicaSet or DeamonSet, got %s", podOwner[0].Kind)
+	}
+}
+
+// GetDeploymentName returns the name of the Deployment Or DaemonSet
+func GetDeploymentName(ctx context.Context, client kubernetes.Interface, podNSName types.NamespacedName) (string, error) {
+	pod, err := client.CoreV1().Pods(podNSName.Namespace).Get(ctx, podNSName.Name, metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+	owners := pod.GetOwnerReferences()
+	if len(owners) != 1 {
+		return "", fmt.Errorf("expected pod owner reference to be 1, got %d", len(owners))
+	}
+
+	owner := owners[0]
+	switch owner.Kind {
+	case "ReplicaSet":
+		replicaSet, err := client.AppsV1().ReplicaSets(podNSName.Namespace).Get(ctx, owner.Name, metav1.GetOptions{})
+		if err != nil {
+			return "", err
+		}
+		for _, replicaSetOwner := range replicaSet.GetOwnerReferences() {
+			if replicaSetOwner.Kind == "Deployment" {
+				return replicaSetOwner.Name, nil
+			}
+		}
+		return "", fmt.Errorf("replicaset %s has no owner", replicaSet.Name)
+	case "DaemonSet":
+		return owner.Name, nil
+	default:
+		return "", fmt.Errorf("expected pod owner reference to be ReplicaSet or DaemonSet, got %s", owner.Kind)
 	}
 }

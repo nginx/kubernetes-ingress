@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nginx/kubernetes-ingress/internal/metadata"
+
 	license_reporting "github.com/nginx/kubernetes-ingress/internal/license_reporting"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	"github.com/nginx/kubernetes-ingress/internal/metrics/collectors"
@@ -51,8 +53,9 @@ const (
 )
 
 var (
-	ossre  = regexp.MustCompile(`(?P<name>\S+)/(?P<version>\S+)`)
-	plusre = regexp.MustCompile(`(?P<name>\S+)/(?P<version>\S+).\((?P<plus>\S+plus\S+)\)`)
+	ossre   = regexp.MustCompile(`(?P<name>\S+)/(?P<version>\S+)`)
+	plusre  = regexp.MustCompile(`(?P<name>\S+)/(?P<version>\S+).\((?P<plus>\S+plus\S+)\)`)
+	agentre = regexp.MustCompile(`v(?P<major>\d).?(?P<minor>\d)?.?(?P<patch>\d)?`)
 )
 
 // ServerConfig holds the config data for an upstream server in NGINX Plus.
@@ -99,7 +102,7 @@ type Manager interface {
 	DeleteKeyValStateFiles(virtualServerName string)
 }
 
-// LocalManager updates NGINX configuration, starts, reloads and quits NGINX, updates License Reporting file
+// LocalManager updates NGINX configuration, starts, reloads and quits NGINX, updates License Reporting and the Deployment Metadata file
 // updates NGINX Plus upstream servers. It assumes that NGINX is running in the same container.
 type LocalManager struct {
 	confdPath                    string
@@ -119,6 +122,7 @@ type LocalManager struct {
 	metricsCollector             collectors.ManagerCollector
 	licenseReporter              *license_reporting.LicenseReporter
 	licenseReporterCancel        context.CancelFunc
+	deploymentMetadata           *metadata.Metadata
 	appProtectPluginPid          int
 	appProtectDosAgentPid        int
 	agentPid                     int
@@ -127,7 +131,7 @@ type LocalManager struct {
 }
 
 // NewLocalManager creates a LocalManager.
-func NewLocalManager(ctx context.Context, confPath string, debug bool, mc collectors.ManagerCollector, lr *license_reporting.LicenseReporter, timeout time.Duration, nginxPlus bool) *LocalManager {
+func NewLocalManager(ctx context.Context, confPath string, debug bool, mc collectors.ManagerCollector, lr *license_reporting.LicenseReporter, metadata *metadata.Metadata, timeout time.Duration, nginxPlus bool) *LocalManager {
 	l := nl.LoggerFromContext(ctx)
 	verifyConfigGenerator, err := newVerifyConfigGenerator()
 	if err != nil {
@@ -149,6 +153,7 @@ func NewLocalManager(ctx context.Context, confPath string, debug bool, mc collec
 		verifyClient:                newVerifyClient(timeout),
 		metricsCollector:            mc,
 		licenseReporter:             lr,
+		deploymentMetadata:          metadata,
 		nginxPlus:                   nginxPlus,
 		logger:                      l,
 	}
@@ -607,10 +612,26 @@ func (lm *LocalManager) AppProtectDosAgentStart(apdaDone chan error, debug bool,
 
 // AgentStart starts the AppProtect plugin and sets AppProtect log level.
 func (lm *LocalManager) AgentStart(agentDone chan error, instanceGroup string) {
+	ctx := nl.ContextWithLogger(context.Background(), lm.logger)
 	nl.Debugf(lm.logger, "Starting Agent")
 	args := []string{}
-	if len(instanceGroup) > 0 {
-		args = append(args, "--instance-group", instanceGroup)
+	nl.Debug(lm.logger, lm.AgentVersion())
+	major, _, _, err := extractAgentVersionValues(lm.AgentVersion())
+	if err != nil {
+		nl.Fatalf(lm.logger, "Failed to extract Agent version: %v", err)
+	}
+	if major <= 2 {
+		if len(instanceGroup) > 0 {
+			args = append(args, "--instance-group", instanceGroup)
+		}
+	}
+	if major >= 3 {
+		metadataInfo, err := lm.deploymentMetadata.CollectAndWrite(ctx)
+		if err != nil {
+			nl.Fatalf(lm.logger, "Failed to start NGINX Agent: %v", err)
+		}
+		metadataLabels := fmt.Sprintf(`--labels=product_name=%s,product_version=%s,product_namespace=%s,cluster_id=%s,deployment_name=%s,deployment_id=%s`, metadataInfo.ProductName, metadataInfo.ProductVersion, metadataInfo.ProductNamespace, metadataInfo.ClusterID, metadataInfo.DeploymentName, metadataInfo.DeploymentID)
+		args = append(args, metadataLabels)
 	}
 	cmd := exec.Command(agentPath, args...) // #nosec G204
 
