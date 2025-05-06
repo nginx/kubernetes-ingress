@@ -388,7 +388,7 @@ func (lm *LocalManager) UpdateConfigVersionFile() {
 		nl.Fatalf(lm.logger, "Error generating config version content: %v", err)
 	}
 
-	nl.Debugf(lm.logger, "Writing config version to %v", lm.configVersionFilename)
+	nl.Debugf(lm.logger, "Writing xconfig version to %v", lm.configVersionFilename)
 	nl.Debug(lm.logger, string(cfg))
 
 	createFileAndWriteAtomically(lm.logger, lm.configVersionFilename, path.Dir(lm.configVersionFilename), configFileMode, cfg)
