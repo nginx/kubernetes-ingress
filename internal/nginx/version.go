@@ -27,7 +27,7 @@ func NewVersion(line string) Version {
 		nv.IsPlus = true
 		for i, v := range plusmatches {
 			switch subNames[i] {
-			case "plus ":
+			case "plus":
 				nv.Plus = v
 			case "version":
 				nv.OSS = v
