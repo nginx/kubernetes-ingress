@@ -45,7 +45,7 @@ docker pull private-registry.nginx.com/nap/waf-compiler:5.6.0
 Download the [provided WAF Policy JSON](https://raw.githubusercontent.com/nginx/kubernetes-ingress/main/tests/data/ap-waf-v5/wafv5.json):
 
 ```shell
-curl -L https://raw.githubusercontent.com/nginx/kubernetes-ingress/main/tests/data/ap-waf-v5/wafv5.json -o /tmp/waf5.json
+curl -L https://raw.githubusercontent.com/nginx/kubernetes-ingress/main/tests/data/ap-waf-v5/wafv5.json -o /tmp/wafv5.json
 ```
 
 Use your pulled NAP Docker image (`private-registry.nginx.com/nap/waf-compiler:5.6.0`) to compile the policy bundle:
