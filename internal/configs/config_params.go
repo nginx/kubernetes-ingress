@@ -34,6 +34,14 @@ type ConfigParams struct {
 	MainLogFormat                          []string
 	MainLogFormatEscaping                  string
 	MainMainSnippets                       []string
+	MainOtelEnabled                        bool
+	MainOtelLoadModule                     bool
+	MainOtelGlobalTraceEnabled             bool
+	MainOtelExporterEndpoint               string
+	MainOtelExporterTrustedCA              string
+	MainOtelExporterHeaderName             string
+	MainOtelExporterHeaderValue            string
+	MainOtelServiceName                    string
 	MainServerNamesHashBucketSize          string
 	MainServerNamesHashMaxSize             string
 	MainStreamLogFormat                    []string
