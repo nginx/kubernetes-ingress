@@ -100,8 +100,8 @@ func extractPlusVersionValues(input string) (int, int, error) {
 	return rValue, pValue, nil
 }
 
-// extractAgentVersionValues splits the agent version string into major, minor, and patch values.
-func extractAgentVersionValues(input string) (int, int, int, error) {
+// ExtractAgentVersionValues splits the agent version string into major, minor, and patch values.
+func ExtractAgentVersionValues(input string) (int, int, int, error) {
 	var major, minor, patch int
 	matches := agentre.FindStringSubmatch(input)
 

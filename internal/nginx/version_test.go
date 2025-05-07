@@ -260,7 +260,7 @@ func TestExtractAgentVersionValues(t *testing.T) {
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
-			major, minor, patch, err := extractAgentVersionValues(tc.input)
+			major, minor, patch, err := nginx.ExtractAgentVersionValues(tc.input)
 			if err != nil && !tc.err {
 				t.Errorf("unexpected error: %v", err)
 			}
