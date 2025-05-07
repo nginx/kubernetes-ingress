@@ -62,8 +62,8 @@ docker run --rm \
 Move the downloaded JSON and compiled policy to your workspace:
 
 ```shell
-mv /tmp/wafv5.json ./wafv5.json
-mv /tmp/compiled_policy.tgz ./compiled_policy.tgz
+mv /tmp/wafv5.json $(pwd)/wafv5.json
+mv /tmp/compiled_policy.tgz $(pwd)/compiled_policy.tgz
 ```
 
 After this command, your workspace should contain:
