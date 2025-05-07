@@ -359,7 +359,7 @@ function getAuthZArgs(r) {
             .update(pkce_code_verifier).digest('base64url');
         r.variables.pkce_code_verifier = pkce_code_verifier;
 
-        authZArgs += "&code_challenge_method=S256&code_challenge=" + 
+        authZArgs += "&code_challenge_method=S256&code_challenge=" +
                     pkce_code_challenge + "&state=" + r.variables.pkce_id;
     } else {
         authZArgs += "&state=0";
