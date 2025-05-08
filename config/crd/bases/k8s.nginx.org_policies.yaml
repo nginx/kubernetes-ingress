@@ -163,6 +163,8 @@ spec:
                     type: string
                   jwksURI:
                     type: string
+                  pkceEnabled:
+                    type: boolean
                   postLogoutRedirectURI:
                     type: string
                   redirectURI:
