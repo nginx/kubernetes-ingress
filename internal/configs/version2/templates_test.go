@@ -780,6 +780,30 @@ func TestExecuteVirtualServerTemplateWithAPIKeyPolicyNGINXPlus(t *testing.T) {
 	t.Log(string(got))
 }
 
+func TestExecuteVirtualServerTemplateWithOIDCAndPKCEPolicyNGINXPlus(t *testing.T) {
+	t.Parallel()
+
+	e := newTmplExecutorNGINXPlus(t)
+	got, err := e.ExecuteVirtualServerTemplate(&virtualServerCfgWithOIDCAndPKCETurnedOn)
+	if err != nil {
+		t.Error(err)
+	}
+
+	want := "include oidc/oidc_pkce_supplements.conf"
+	want2 := "include oidc/oidc.conf;"
+
+	if !bytes.Contains(got, []byte(want)) {
+		t.Errorf("want %q in generated template", want)
+	}
+
+	if !bytes.Contains(got, []byte(want2)) {
+		t.Errorf("want %q in generated template", want2)
+	}
+
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
+}
+
 func vsConfig() VirtualServerConfig {
 	return VirtualServerConfig{
 		LimitReqZones: []LimitReqZone{
@@ -2362,6 +2386,22 @@ var (
 			CustomListeners: true,
 			HTTPPort:        0,
 			HTTPSPort:       8443,
+			Locations: []Location{
+				{
+					Path: "/",
+				},
+			},
+		},
+	}
+
+	virtualServerCfgWithOIDCAndPKCETurnedOn = VirtualServerConfig{
+		Server: Server{
+			ServerName:    "example.com",
+			StatusZone:    "example.com",
+			ProxyProtocol: true,
+			OIDC: &OIDC{
+				PKCEEnabled: true,
+			},
 			Locations: []Location{
 				{
 					Path: "/",
