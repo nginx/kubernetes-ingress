@@ -105,6 +105,16 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "appprotect-dos",
 			namespace:   "appprotect-dos",
 		},
+		"appProtectWAFV5AgentV2": {
+			valuesFile:  "testdata/app-protect-wafv5-agentv2.yaml",
+			releaseName: "app-protect-wafv5-agentv2",
+			namespace:   "default",
+		},
+		"appProtectWAFV4AgentV2": {
+			valuesFile:  "testdata/app-protect-waf-agentv2.yaml",
+			releaseName: "app-protect-waf-agentv2",
+			namespace:   "default",
+		},
 	}
 
 	// Path to the helm chart we will test

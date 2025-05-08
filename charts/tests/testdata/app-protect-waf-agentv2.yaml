@@ -1,0 +1,24 @@
+controller:
+  nginxplus: true
+  appprotect:
+    enable: true
+nginxAgent:
+  enable: true
+  instanceManager:
+    # FQDN or IP for connecting to NGINX Instance Manager, e.g. nim.example.com
+    host: "nim.example.com"
+    grpcPort: 443
+    tls:
+      skipVerify: false
+      enabled: true
+      ## kubernetes.io/tls secret with a TLS certificate and key for using mTLS between NGINX Agent and Instance Manager
+      secret: "tls-secret"
+      ## nginx.org/ca secret for verification of Instance Manager TLS
+      caSecret: "ca-secret"
+    sni: "nim.example.com"
+  syslog:
+    host: "127.0.0.2"
+    port: 514
+  napMonitoring:
+    collectorBufferSize: 50001
+    processorBufferSize: 50002
