@@ -10652,6 +10652,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 							EndSessionEndpoint:    "http://foo.com/bar",
 							PostLogoutRedirectURI: "/_logout",
 							AccessTokenEnable:     true,
+							PKCEEnabled:           true,
 						},
 					},
 				},
