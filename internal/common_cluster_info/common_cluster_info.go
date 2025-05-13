@@ -61,7 +61,7 @@ func GetInstallationID(ctx context.Context, client kubernetes.Interface, podNSNa
 	case "DaemonSet":
 		return string(podOwner[0].UID), nil
 	default:
-		return "", fmt.Errorf("expected pod owner reference to be ReplicaSet or DeamonSet, got %s", podOwner[0].Kind)
+		return podOwner[0].Kind, nil
 	}
 }
 
@@ -89,9 +89,9 @@ func GetDeploymentName(ctx context.Context, client kubernetes.Interface, podNSNa
 			}
 		}
 		return "", fmt.Errorf("replicaset %s has no owner", replicaSet.Name)
-	case "DaemonSet", "StatefulSets":
+	case "DaemonSet":
 		return owner.Name, nil
 	default:
-		return "", fmt.Errorf("expected pod owner reference to be ReplicaSet or DaemonSet, got %s", owner.Kind)
+		return owner.Kind, nil
 	}
 }
