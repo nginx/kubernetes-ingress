@@ -83,7 +83,7 @@ proxy_cache_path /var/cache/nginx/jwks_uri_{{$s.VSName}} levels=1 keys_zone=jwks
 {{- end }}
 
 {{- if and $s.OIDC $s.OIDC.PKCEEnabled }}
-include oidc/oidc_pkce_supplements.conf
+include oidc/oidc_pkce_supplements.conf;
 {{- end }}
 
 server {
