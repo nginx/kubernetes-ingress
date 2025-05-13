@@ -33,7 +33,11 @@ Clone the NGINX Ingress Controller repository using the command shown below, and
 git clone https://github.com/nginx/kubernetes-ingress.git --branch <version_number>
 ```
 
-For example, if you want to use version {{< nic-version >}}, the command would be `git clone https://github.com/nginx/kubernetes-ingress.git --branch v{{< nic-version >}}`.
+For example, if you want to use version {{< nic-version >}}, the command would be:
+
+```shell
+git clone https://github.com/nginx/kubernetes-ingress.git --branch v{{< nic-version >}}
+```
 
 This guide assumes you are using the latest release.
 

@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	netutils "k8s.io/utils/net"
 )
 
 type ipType int
@@ -185,17 +186,27 @@ func validateListenerProtocol(protocol string, fieldPath *field.Path) field.Erro
 }
 
 func validateListenerIPv4(ipv4 string, fieldPath *field.Path) field.ErrorList {
-	if ipv4 != "" {
-		return validation.IsValidIPv4Address(fieldPath, ipv4)
+	var allErrors field.ErrorList
+	if ipv4 == "" {
+		return allErrors
 	}
-	return field.ErrorList{}
+	ip := netutils.ParseIPSloppy(ipv4)
+	if ip == nil || ip.To4() == nil {
+		allErrors = append(allErrors, field.Invalid(fieldPath, ipv4, "must be a valid IPv4 address"))
+	}
+	return allErrors
 }
 
 func validateListenerIPv6(ipv6 string, fieldPath *field.Path) field.ErrorList {
-	if ipv6 != "" {
-		return validation.IsValidIPv6Address(fieldPath, ipv6)
+	var allErrors field.ErrorList
+	if ipv6 == "" {
+		return allErrors
 	}
-	return field.ErrorList{}
+	ip := netutils.ParseIPSloppy(ipv6)
+	if ip == nil || ip.To4() != nil {
+		allErrors = append(allErrors, field.Invalid(fieldPath, ipv6, "must be a valid IPv6 address"))
+	}
+	return allErrors
 }
 
 func getProtocolsFromMap(p map[string]bool) []string {
