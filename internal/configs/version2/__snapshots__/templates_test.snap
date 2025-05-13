@@ -1318,7 +1318,7 @@ server {
 
 [TestExecuteVirtualServerTemplateWithOIDCAndPKCEPolicyNGINXPlus - 1]
 
-include oidc/oidc_pkce_supplements.conf
+include oidc/oidc_pkce_supplements.conf;
 
 server {
     listen 80 proxy_protocol;
