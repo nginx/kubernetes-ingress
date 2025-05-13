@@ -5296,41 +5296,6 @@ data:
         token: "base64hash="
       tls:
         skip_verify: false
-    
-    ## collector metrics settings
-    collector:
-      log:
-        level: error
-        path: ""
-    
-        processors:
-        batch:
-    
-      receivers:
-        host_metrics:
-          collection_interval: 1m0s
-          initial_delay: 1s
-          scrapers:
-            cpu: {}
-            memory: {}
-            disk: {}
-            network: {}
-    
-      exporters:
-        otlp_exporters:
-          - server:
-              host: "product.connect.nginx.com"
-              port: 443
-            authenticator: headers_setter
-            tls:
-              skip_verify: false
-    
-      extensions:
-        headers_setter:
-          headers:
-            - action: insert
-              key: "authorization"
-              value: "base64hash="
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -5613,7 +5578,7 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: oss-agent
-        agent-configuration-revision-hash: "b19281a7"
+        agent-configuration-revision-hash: "f99a1b6d"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
@@ -8611,41 +8576,6 @@ data:
         token: "base64hash="
       tls:
         skip_verify: false
-    
-    ## collector metrics settings
-    collector:
-      log:
-        level: error
-        path: ""
-    
-        processors:
-        batch:
-    
-      receivers:
-        host_metrics:
-          collection_interval: 1m0s
-          initial_delay: 1s
-          scrapers:
-            cpu: {}
-            memory: {}
-            disk: {}
-            network: {}
-    
-      exporters:
-        otlp_exporters:
-          - server:
-              host: "product.connect.nginx.com"
-              port: 443
-            authenticator: headers_setter
-            tls:
-              skip_verify: false
-    
-      extensions:
-        headers_setter:
-          headers:
-            - action: insert
-              key: "authorization"
-              value: "base64hash="
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -8943,7 +8873,7 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: plus-agent
-        agent-configuration-revision-hash: "b19281a7"
+        agent-configuration-revision-hash: "f99a1b6d"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
@@ -9157,41 +9087,6 @@ data:
         token: "base64hash="
       tls:
         skip_verify: true
-    
-    ## collector metrics settings
-    collector:
-      log:
-        level: debug
-        path: ""
-    
-        processors:
-        batch:
-    
-      receivers:
-        host_metrics:
-          collection_interval: 1m0s
-          initial_delay: 1s
-          scrapers:
-            cpu: {}
-            memory: {}
-            disk: {}
-            network: {}
-    
-      exporters:
-        otlp_exporters:
-          - server:
-              host: "my-host.example.com"
-              port: 8443
-            authenticator: headers_setter
-            tls:
-              skip_verify: true
-    
-      extensions:
-        headers_setter:
-          headers:
-            - action: insert
-              key: "authorization"
-              value: "base64hash="
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -9489,7 +9384,7 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: plus-agent-all
-        agent-configuration-revision-hash: "88ef0bc9"
+        agent-configuration-revision-hash: "61ffd4e9"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
