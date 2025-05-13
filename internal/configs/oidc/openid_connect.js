@@ -8,8 +8,7 @@ export default {
     auth,
     codeExchange,
     extractTokenClaims,
-    logout,
-    handleFrontChannelLogout
+    logout
 };
 
 // The main authentication flow, called before serving a protected resource.
@@ -43,7 +42,7 @@ async function auth(r, afterSyncCheck) {
 
     // Determine session ID and store session data
     const sessionId = getSessionId(r, false);
-    storeSessionData(r, sessionId, claims, tokenset, true);
+    storeSessionData(r, tokenset, false);
 
     r.log("OIDC success, refreshing session " + sessionId);
 
@@ -80,7 +79,7 @@ async function codeExchange(r) {
 
     // Determine session ID and store session data for a new session
     const sessionId = getSessionId(r, true);
-    storeSessionData(r, sessionId, claims, tokenset, true);
+    storeSessionData(r, tokenset, true);
 
     r.log("OIDC success, creating session " + sessionId);
 
@@ -174,12 +173,7 @@ function validateIdTokenClaims(r, claims) {
 }
 
 // Store session data in the key-val store
-function storeSessionData(r, sessionId, claims, tokenset, isNewSession) {
-    if (claims.sid) {
-        r.variables.idp_sid = claims.sid;
-        r.variables.client_sid = sessionId;
-    }
-
+function storeSessionData(r, tokenset, isNewSession) {
     if (isNewSession) {
         r.variables.new_session = tokenset.id_token;
         r.variables.new_access_token = tokenset.access_token || "";
@@ -196,7 +190,7 @@ function storeSessionData(r, sessionId, claims, tokenset, isNewSession) {
 // Extracts claims from the validated ID Token (used by /_token_validation)
 function extractTokenClaims(r) {
     const claims = {};
-    const claimNames = ["sub", "iss", "iat", "nonce", "sid"];
+    const claimNames = ["sub", "iss", "iat", "nonce"];
 
     claimNames.forEach((name) => {
         const value = r.variables["jwt_claim_" + name];
@@ -283,7 +277,7 @@ async function refreshTokens(r) {
 
 // Logout handler
 function logout(r) {
-    r.log("OIDC-Initiated Logout for " + (r.variables.cookie_auth_token || "unknown"));
+    r.log("RP-Initiated Logout for " + (r.variables.cookie_auth_token || "unknown"));
 
     function getLogoutRedirectUrl(base, redirect) {
         return redirect.match(/^(http|https):\/\//) ? redirect : base + redirect;
@@ -292,16 +286,7 @@ function logout(r) {
     var logoutRedirectUrl = getLogoutRedirectUrl(r.variables.redirect_base,
                             r.variables.oidc_logout_redirect);
 
-    async function performLogout(redirectUrl, idToken) {
-        // Clean up $idp_sid -> $client_sid mapping
-        if (idToken && idToken !== '-') {
-            const claims = await getTokenClaims(r, idToken);
-            if (claims.sid) {
-                r.variables.idp_sid = claims.sid;
-                r.variables.client_sid = '-';
-            }
-        }
-
+    function performLogout(redirectUrl) {
         r.variables.session_jwt = '-';
         r.variables.access_token = '-';
         r.variables.refresh_token = '-';
@@ -314,83 +299,16 @@ function logout(r) {
             && r.variables.refresh_token && r.variables.refresh_token !== '-') {
             auth(r, 0);
         } else if (!r.variables.session_jwt || r.variables.session_jwt === '-') {
-            performLogout(logoutRedirectUrl, r.variables.session_jwt);
+            performLogout(logoutRedirectUrl);
             return;
         }
 
         var logoutArgs = "?post_logout_redirect_uri=" + encodeURIComponent(logoutRedirectUrl) +
                          "&id_token_hint=" + encodeURIComponent(r.variables.session_jwt);
-        performLogout(r.variables.oidc_end_session_endpoint + logoutArgs, r.variables.session_jwt);
+        performLogout(r.variables.oidc_end_session_endpoint + logoutArgs);
     } else {
         performLogout(logoutRedirectUrl);
     }
-}
-
-/**
- * Handles Front-Channel Logout as per OpenID Connect Front-Channel Logout 1.0 spec.
- * @see https://openid.net/specs/openid-connect-frontchannel-1_0.html
- */
-async function handleFrontChannelLogout(r) {
-    const sid = r.args.sid;
-    const requestIss = r.args.iss;
-
-    // Validate input parameters
-    if (!sid) {
-        r.error("Missing sid parameter in front-channel logout request");
-        r.return(400, "Missing sid");
-        return;
-    }
-
-    if (!requestIss) {
-        r.error("Missing iss parameter in front-channel logout request");
-        r.return(400, "Missing iss");
-        return;
-    }
-
-    r.log("OIDC Front-Channel Logout initiated for sid: " + sid);
-
-    // Define idp_sid as a key to get the client_sid from the key-value store
-    r.variables.idp_sid = sid;
-
-    const clientSid = r.variables.client_sid;
-    if (!clientSid || clientSid === '-') {
-        r.log("No client session found for sid: " + sid);
-        r.return(200, "Logout successful");
-        return;
-    }
-
-    /* TODO: Since we cannot use the cookie_auth_token var as a key (it does not exist if cookies
-       are absent), we use the request_id as a workaround. */
-    r.variables.request_id = clientSid;
-    var sessionJwt = r.variables.new_session;
-
-    if (!sessionJwt || sessionJwt === '-') {
-        r.log("No associated ID token found for client session: " + clientSid);
-        cleanSessionData(r);
-        r.return(200, "Logout successful");
-        return;
-    }
-
-    const claims = await getTokenClaims(r, sessionJwt);
-    if (claims.iss !== requestIss) {
-        r.error("Issuer mismatch during logout. Received iss: " +
-                requestIss + ", expected: " + claims.iss);
-        r.return(400, "Issuer mismatch");
-        return;
-    }
-
-    // idp_sid needs to be updated after subrequest
-    r.variables.idp_sid = sid;
-    cleanSessionData(r);
-
-    r.return(200, "Logout successful");
-}
-
-function cleanSessionData(r) {
-    r.variables.new_session = '-';
-    r.variables.new_access_token = '-';
-    r.variables.new_refresh = '-';
-    r.variables.client_sid = '-';
 }
 
 // Initiate a new authentication flow by redirecting to the IdP's authorization endpoint
