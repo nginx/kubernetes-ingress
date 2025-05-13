@@ -1011,19 +1011,18 @@ func (lbc *LoadBalancerController) preSyncSecrets() {
 
 func (lbc *LoadBalancerController) sync(task task) {
 	if lbc.isNginxReady && lbc.syncQueue.Len() > 1 && !lbc.batchSyncEnabled {
-		lbc.configurator.DisableReloads()
-		lbc.batchSyncEnabled = true
-
 		nl.Debugf(lbc.Logger, "Batch processing %v items", lbc.syncQueue.Len())
+		if task.Kind != endpointslice {
+			nl.Debug(lbc.Logger, "Task is not endpointslice - enabling batch reload")
+			lbc.configurator.DisableReloads()
+			lbc.batchSyncEnabled = true
+			lbc.enableBatchReload = true
+		}
 	}
 	nl.Debugf(lbc.Logger, "Syncing %v", task.Key)
 	if lbc.spiffeCertFetcher != nil {
 		lbc.syncLock.Lock()
 		defer lbc.syncLock.Unlock()
-	}
-	if lbc.batchSyncEnabled && task.Kind != endpointslice {
-		nl.Debug(lbc.Logger, "Task is not endpointslice - enabling batch reload")
-		lbc.enableBatchReload = true
 	}
 	switch task.Kind {
 	case ingress:
