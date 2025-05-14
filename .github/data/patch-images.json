@@ -3,19 +3,19 @@
     "source_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic/nginx-ingress",
     "source_os": "debian",
     "target_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress",
-    "platforms": "linux/arm, linux/arm64, linux/amd64, linux/ppc64le, linux/s390x"
+    "platforms": "linux/arm64, linux/amd64"
   },
   {
     "source_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic/nginx-ingress",
     "source_os": "alpine",
     "target_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress",
-    "platforms": "linux/arm, linux/arm64, linux/amd64, linux/ppc64le, linux/s390x"
+    "platforms": "linux/arm64, linux/amd64"
   },
   {
     "source_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic/nginx-ingress",
     "source_os": "ubi",
     "target_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress",
-    "platforms": "linux/arm64, linux/amd64, linux/ppc64le, linux/s390x"
+    "platforms": "linux/arm64, linux/amd64"
   },
   {
     "source_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic/nginx-plus-ingress",
