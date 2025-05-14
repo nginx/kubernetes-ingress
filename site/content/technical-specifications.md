@@ -39,7 +39,7 @@ We provide the following Docker images, which include NGINX or NGINX Plus bundle
 ### Images with NGINX
 
 {{< important >}}
-In our upcoming release, `v5.1.0`, the Open Source NGINX Ingress Controller architectures `armv7`, `s390x` & `ppc64le` will no longer be provided.
+From release `v5.1.0` onwards, NGINX Ingress Controller will no longer provide binaries for the `armv7`, `s390x` & `ppc64le` architectures.
 {{< /important >}}
 
 _All images include NGINX 1.27.4._
