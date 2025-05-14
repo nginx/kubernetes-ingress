@@ -43,10 +43,6 @@ func GetInstallationID(ctx context.Context, client kubernetes.Interface, podNSNa
 		return "", err
 	}
 	podOwner := pod.GetOwnerReferences()
-	if len(podOwner) != 1 {
-		return "", fmt.Errorf("expected pod owner reference to be 1, got %d", len(podOwner))
-	}
-
 	switch podOwner[0].Kind {
 	case "ReplicaSet":
 		rs, err := client.AppsV1().ReplicaSets(podNSName.Namespace).Get(ctx, podOwner[0].Name, metav1.GetOptions{})
@@ -65,17 +61,13 @@ func GetInstallationID(ctx context.Context, client kubernetes.Interface, podNSNa
 	}
 }
 
-// GetDeploymentName returns the name of the Deployment Or DaemonSet
+// GetDeploymentName returns the name of the Deployment
 func GetDeploymentName(ctx context.Context, client kubernetes.Interface, podNSName types.NamespacedName) (string, error) {
 	pod, err := client.CoreV1().Pods(podNSName.Namespace).Get(ctx, podNSName.Name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
 	owners := pod.GetOwnerReferences()
-	if len(owners) != 1 {
-		return "", fmt.Errorf("expected pod owner reference to be 1, got %d", len(owners))
-	}
-
 	owner := owners[0]
 	switch owner.Kind {
 	case "ReplicaSet":
