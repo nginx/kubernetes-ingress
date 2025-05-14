@@ -10,8 +10,6 @@ builds:
     goarch:
       - amd64
       - arm64
-    goarm:
-      - 7
     flags:
       - -trimpath
     gcflags:
