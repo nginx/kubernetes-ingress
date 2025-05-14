@@ -10,10 +10,6 @@ docs: DOCS-616
 
 16 Apr 2025
 
-{{< important >}}
-In our upcoming release, `v5.1.0`, the Open Source NGINX Ingress Controller architectures `armv7`, `s390x` & `ppc64le` will no longer be provided.
-{{< /important >}}
-
 Added support for [NGINX Plus R34](https://docs.nginx.com/nginx/releases/#nginxplusrelease-34-r34), users needing to use a forward proxy for license verification are now able to make use of the [`proxy`](https://nginx.org/en/docs/ngx_mgmt_module.html#proxy) directives available in F5 NGINX Plus.
 
 {{< important >}}
