@@ -1,21 +1,22 @@
-package nginx
+package nginx_test
 
 import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/nginx/kubernetes-ingress/internal/nginx"
 )
 
 func TestNginxVersionParsing(t *testing.T) {
 	t.Parallel()
 	type testCase struct {
 		input    string
-		expected Version
+		expected nginx.Version
 	}
 	testCases := []testCase{
 		{
 			input: "nginx version: nginx/1.25.1 (nginx-plus-r30-p1)",
-			expected: Version{
+			expected: nginx.Version{
 				Raw:    "nginx version: nginx/1.25.1 (nginx-plus-r30-p1)",
 				OSS:    "1.25.1",
 				IsPlus: true,
@@ -24,7 +25,7 @@ func TestNginxVersionParsing(t *testing.T) {
 		},
 		{
 			input: "nginx version: nginx/1.25.3 (nginx-plus-r31)",
-			expected: Version{
+			expected: nginx.Version{
 				Raw:    "nginx version: nginx/1.25.3 (nginx-plus-r31)",
 				OSS:    "1.25.3",
 				IsPlus: true,
@@ -33,7 +34,7 @@ func TestNginxVersionParsing(t *testing.T) {
 		},
 		{
 			input: "nginx version: nginx/1.25.0",
-			expected: Version{
+			expected: nginx.Version{
 				Raw:    "nginx version: nginx/1.25.0",
 				OSS:    "1.25.0",
 				IsPlus: false,
@@ -43,7 +44,7 @@ func TestNginxVersionParsing(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.input, func(t *testing.T) {
-			actual := NewVersion(tc.input)
+			actual := nginx.NewVersion(tc.input)
 			if actual != tc.expected {
 				t.Errorf("expected %v but got %v", tc.expected, actual)
 			}
@@ -73,7 +74,7 @@ func TestNginxVersionFormat(t *testing.T) {
 	}
 	for _, tc := range tt {
 		t.Run(tc.input, func(t *testing.T) {
-			v := NewVersion(tc.input)
+			v := nginx.NewVersion(tc.input)
 			got := v.Format()
 			if got != tc.want {
 				t.Errorf("want %q but got %q", tc.want, got)
@@ -85,33 +86,33 @@ func TestNginxVersionFormat(t *testing.T) {
 func TestNginxVersionPlusGreaterThanOrEqualTo(t *testing.T) {
 	t.Parallel()
 	type testCase struct {
-		version  Version
+		version  nginx.Version
 		input    string
 		expected bool
 	}
 	testCases := []testCase{
 		{
-			version:  NewVersion("nginx version: nginx/1.25.1 (nginx-plus-r30-p1)"),
+			version:  nginx.NewVersion("nginx version: nginx/1.25.1 (nginx-plus-r30-p1)"),
 			input:    "nginx-plus-r30-p1",
 			expected: true,
 		},
 		{
-			version:  NewVersion("nginx version: nginx/1.25.1 (nginx-plus-r30)"),
+			version:  nginx.NewVersion("nginx version: nginx/1.25.1 (nginx-plus-r30)"),
 			input:    "nginx-plus-r30",
 			expected: true,
 		},
 		{
-			version:  NewVersion("nginx version: nginx/1.25.1 (nginx-plus-r30-p1)"),
+			version:  nginx.NewVersion("nginx version: nginx/1.25.1 (nginx-plus-r30-p1)"),
 			input:    "nginx-plus-r30",
 			expected: true,
 		},
 		{
-			version:  NewVersion("nginx version: nginx/1.25.1 (nginx-plus-r30)"),
+			version:  nginx.NewVersion("nginx version: nginx/1.25.1 (nginx-plus-r30)"),
 			input:    "nginx-plus-r30-p1",
 			expected: false,
 		},
 		{
-			version:  NewVersion("nginx version: nginx/1.25.1"),
+			version:  nginx.NewVersion("nginx version: nginx/1.25.1"),
 			input:    "nginx-plus-r30-p1",
 			expected: false,
 		},
@@ -130,31 +131,31 @@ func TestNginxVersionPlusGreaterThanOrEqualToFailsOnInalidInput(t *testing.T) {
 	t.Parallel()
 
 	tt := []struct {
-		version Version
+		version nginx.Version
 		input   string
 	}{
 		{
-			version: NewVersion("nginx version: nginx/1.25.1 (nginx-plus-r30-p1)"),
+			version: nginx.NewVersion("nginx version: nginx/1.25.1 (nginx-plus-r30-p1)"),
 			input:   "nginx-plus",
 		},
 		{
-			version: NewVersion("nginx version: nginx/1.25.1 (nginx-plus-r30)"),
+			version: nginx.NewVersion("nginx version: nginx/1.25.1 (nginx-plus-r30)"),
 			input:   "nginxr30",
 		},
 		{
-			version: NewVersion("nginx version: nginx/1.25.1 (nginx-plus-r30-p1)"),
+			version: nginx.NewVersion("nginx version: nginx/1.25.1 (nginx-plus-r30-p1)"),
 			input:   "",
 		},
 		{
-			version: NewVersion("nginx version: nginx/1.25.1 (nginx-plus-r30)"),
+			version: nginx.NewVersion("nginx version: nginx/1.25.1 (nginx-plus-r30)"),
 			input:   "30",
 		},
 		{
-			version: NewVersion("nginx version: nginx/1.25.1"),
+			version: nginx.NewVersion("nginx version: nginx/1.25.1"),
 			input:   "-3",
 		},
 		{
-			version: NewVersion("nginx version: nginx/1.25.1 (nginx-plus-r30-p1)"),
+			version: nginx.NewVersion("nginx version: nginx/1.25.1 (nginx-plus-r30-p1)"),
 			input:   "nginx-plus-rA",
 		},
 	}
@@ -173,23 +174,23 @@ func TestNginxNewVersionHandlesRawString(t *testing.T) {
 	tt := []struct {
 		name  string
 		input string
-		want  Version
+		want  nginx.Version
 	}{
 		{
 			name:  "empty string",
 			input: "",
-			want:  Version{Raw: ""},
+			want:  nginx.Version{Raw: ""},
 		},
 		{
 			name:  "invalid nginx string",
 			input: "nginx",
-			want:  Version{Raw: "nginx"},
+			want:  nginx.Version{Raw: "nginx"},
 		},
 	}
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
-			got := NewVersion(tc.input)
+			got := nginx.NewVersion(tc.input)
 			if !cmp.Equal(tc.want, got) {
 				t.Error(cmp.Diff(tc.want, got))
 			}
@@ -259,7 +260,7 @@ func TestExtractAgentVersionValues(t *testing.T) {
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
-			major, minor, patch, err := extractAgentVersionValues(tc.input)
+			major, minor, patch, err := nginx.ExtractAgentVersionValues(tc.input)
 			if err != nil && !tc.err {
 				t.Errorf("unexpected error: %v", err)
 			}

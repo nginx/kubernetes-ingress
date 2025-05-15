@@ -611,7 +611,7 @@ func (lm *LocalManager) AgentStart(agentDone chan error, instanceGroup string) {
 	nl.Debugf(lm.logger, "Starting Agent")
 	args := []string{}
 	nl.Debug(lm.logger, lm.AgentVersion())
-	major, _, _, err := extractAgentVersionValues(lm.AgentVersion())
+	major, _, _, err := ExtractAgentVersionValues(lm.AgentVersion())
 	if err != nil {
 		nl.Fatalf(lm.logger, "Failed to extract Agent version: %v", err)
 	}
