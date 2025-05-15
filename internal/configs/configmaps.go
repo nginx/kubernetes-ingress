@@ -799,8 +799,7 @@ func parseConfigMapOpenTelemetry(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *
 	}
 
 	if cfgParams.MainOtelExporterEndpoint == "" &&
-		(cfgParams.MainOtelExporterTrustedCA != "" ||
-			cfgParams.MainOtelExporterHeaderName != "" ||
+		(cfgParams.MainOtelExporterHeaderName != "" ||
 			cfgParams.MainOtelExporterHeaderValue != "" ||
 			cfgParams.MainOtelServiceName != "" ||
 			cfgParams.MainOtelTraceInHTTP) {

@@ -37,7 +37,6 @@ type ConfigParams struct {
 	MainOtelLoadModule                     bool
 	MainOtelTraceInHTTP                    bool
 	MainOtelExporterEndpoint               string
-	MainOtelExporterTrustedCA              string
 	MainOtelExporterHeaderName             string
 	MainOtelExporterHeaderValue            string
 	MainOtelServiceName                    string

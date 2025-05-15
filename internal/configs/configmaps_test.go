@@ -1379,10 +1379,9 @@ func TestParseZoneSyncResolverIPV6MapResolverIPV6(t *testing.T) {
 func TestOpenTelemetryConfigurationSuccess(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		configMap                *v1.ConfigMap
-		expectedLoadModule       bool
-		expectedExporterEndpoint string
-		//expectedExporterTrustedCA   string
+		configMap                   *v1.ConfigMap
+		expectedLoadModule          bool
+		expectedExporterEndpoint    string
 		expectedExporterHeaderName  string
 		expectedExporterHeaderValue string
 		expectedServiceName         string
