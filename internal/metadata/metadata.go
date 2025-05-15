@@ -13,22 +13,22 @@ import (
 
 // Labels contains the metadata information needed for reporting to Agent
 type Labels struct {
-	ProductName      string `json:"product_name"`
-	ProductVersion   string `json:"product_version"`
-	ProductNamespace string `json:"product_namespace"`
-	ClusterID        string `json:"cluster_id"`
-	DeploymentName   string `json:"deployment_name"`
-	DeploymentID     string `json:"deployment_id"`
+	ProductName         string `json:"product_name"`
+	ProductVersion      string `json:"product_version"`
+	ClusterID           string `json:"cluster_id"`
+	DeploymentName      string `json:"deployment_name"`
+	DeploymentID        string `json:"deployment_id"`
+	DeploymentNamespace string `json:"deployment_namespace"`
 }
 
-func newMetadataInfo(productNamespace, clusterID, deploymentID, productVersion, deploymentName string) *Labels {
+func newMetadataInfo(deploymentNamespace, clusterID, deploymentID, productVersion, deploymentName string) *Labels {
 	return &Labels{
-		ProductName:      "nic",
-		ProductVersion:   productVersion,
-		ProductNamespace: productNamespace,
-		ClusterID:        clusterID,
-		DeploymentID:     deploymentID,
-		DeploymentName:   deploymentName,
+		ProductName:         "nic",
+		ProductVersion:      productVersion,
+		ClusterID:           clusterID,
+		DeploymentID:        deploymentID,
+		DeploymentName:      deploymentName,
+		DeploymentNamespace: deploymentNamespace,
 	}
 }
 
@@ -52,7 +52,7 @@ func NewMetadataReporter(client kubernetes.Interface, pod *api_v1.Pod, version s
 
 // CollectAndWrite collects the metadata information and returns a Labels struct
 func (md *Metadata) CollectAndWrite(ctx context.Context) (*Labels, error) {
-	productNamespace := md.PodNSName.Namespace
+	deploymentNamespace := md.PodNSName.Namespace
 	clusterID, err := clusterInfo.GetClusterID(ctx, md.K8sClientReader)
 	if err != nil {
 		return nil, fmt.Errorf("error collecting ClusterID: %w", err)
@@ -65,6 +65,6 @@ func (md *Metadata) CollectAndWrite(ctx context.Context) (*Labels, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error collecting DeploymentName: %w", err)
 	}
-	info := newMetadataInfo(productNamespace, clusterID, deploymentID, md.NICVersion, deploymentName)
+	info := newMetadataInfo(deploymentNamespace, clusterID, deploymentID, md.NICVersion, deploymentName)
 	return info, nil
 }

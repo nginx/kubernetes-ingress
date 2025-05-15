@@ -633,10 +633,10 @@ func (lm *LocalManager) AgentStart(agentDone chan error, instanceGroup string) {
 		labels := []string{
 			fmt.Sprintf("product_name=%s", metadataInfo.ProductName),
 			fmt.Sprintf("product_version=%s", metadataInfo.ProductVersion),
-			fmt.Sprintf("product_namespace=%s", metadataInfo.ProductNamespace),
 			fmt.Sprintf("cluster_id=%s", metadataInfo.ClusterID),
 			fmt.Sprintf("deployment_name=%s", metadataInfo.DeploymentName),
 			fmt.Sprintf("deployment_id=%s", metadataInfo.DeploymentID),
+			fmt.Sprintf("deployment_namespace=%s", metadataInfo.DeploymentNamespace),
 		}
 		metadataLabels := "--labels=" + strings.Join(labels, ",")
 		args = append(args, metadataLabels)

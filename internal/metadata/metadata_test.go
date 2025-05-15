@@ -16,8 +16,8 @@ func TestNewMetadataInfo(t *testing.T) {
 	if info.ProductName != "nic" {
 		t.Errorf("ProductName = %q, want %q", info.ProductName, "nic")
 	}
-	if info.ProductNamespace != "nginx-ingress" {
-		t.Errorf("ProductNamespace = %q, want %q", info.ProductNamespace, "nginx-ingress")
+	if info.DeploymentNamespace != "nginx-ingress" {
+		t.Errorf("DeploymentNamespace = %q, want %q", info.DeploymentNamespace, "nginx-ingress")
 	}
 	if info.ClusterID != "e3a5e702-65a7-a55f-753d78cd7ff7" {
 		t.Errorf("ClusterID = %q, want %q", info.ClusterID, "e3a5e702-65a7-a55f-753d78cd7ff7")

@@ -57,7 +57,7 @@ func GetInstallationID(ctx context.Context, client kubernetes.Interface, podNSNa
 	case "DaemonSet":
 		return string(podOwner[0].UID), nil
 	default:
-		return podOwner[0].Kind, nil
+		return string(podOwner[0].UID), nil
 	}
 }
 
@@ -84,6 +84,6 @@ func GetDeploymentName(ctx context.Context, client kubernetes.Interface, podNSNa
 	case "DaemonSet":
 		return owner.Name, nil
 	default:
-		return owner.Kind, nil
+		return owner.Name, nil
 	}
 }
