@@ -676,7 +676,6 @@ nginxAgent:
   # Agent V2 configuration
   ## If nginxAgent.instanceGroup is not set the value of nginx-ingress.controller.fullname will be used
   instanceGroup: ""
-  # Dataplane key is used to authenticate the agent with NGINX One SaaS Console
   instanceManager:
     # FQDN or IP for connecting to NGINX Instance Manager, e.g. nim.example.com
     host: ""

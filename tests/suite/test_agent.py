@@ -4,7 +4,7 @@ from suite.utils.resources_utils import get_first_pod_name, wait_before_test
 
 
 @pytest.mark.skip_for_nginx_oss
-@pytest.mark.appprotect
+@pytest.mark.agentv2
 @pytest.mark.parametrize(
     "crd_ingress_controller_with_ap",
     [
