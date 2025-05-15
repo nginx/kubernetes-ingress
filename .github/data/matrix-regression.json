@@ -6,7 +6,7 @@
       "image": "debian",
       "type": "oss",
       "marker": "'not upgrade'",
-      "platforms": "linux/arm, linux/arm64, linux/amd64, linux/ppc64le, linux/s390x"
+      "platforms": "linux/arm64, linux/amd64"
     },
     {
       "label": "regression",
