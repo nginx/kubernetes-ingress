@@ -24,6 +24,7 @@ addopts = "--tb=native -ra --disable-warnings -x -l -v --strict-markers"
 log_cli = true
 markers = [
     "agentv2",
+    "agentv3",
     "annotations",
     "appprotect",
     "appprotect_integration",
