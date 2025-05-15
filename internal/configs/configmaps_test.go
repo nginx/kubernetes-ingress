@@ -1376,6 +1376,7 @@ func TestParseZoneSyncResolverIPV6MapResolverIPV6(t *testing.T) {
 		})
 	}
 }
+
 func TestOpenTelemetryConfigurationSuccess(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
