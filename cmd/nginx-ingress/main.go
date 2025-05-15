@@ -26,6 +26,7 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/k8s"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	license_reporting "github.com/nginx/kubernetes-ingress/internal/license_reporting"
+	"github.com/nginx/kubernetes-ingress/internal/metadata"
 	"github.com/nginx/kubernetes-ingress/internal/metrics"
 	"github.com/nginx/kubernetes-ingress/internal/metrics/collectors"
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
@@ -128,7 +129,13 @@ func main() {
 		licenseReporter = license_reporting.NewLicenseReporter(kubeClient, eventRecorder, pod)
 	}
 
-	nginxManager, useFakeNginxManager := createNginxManager(ctx, managerCollector, licenseReporter)
+	var deploymentMetadata *metadata.Metadata
+
+	if *agent {
+		deploymentMetadata = metadata.NewMetadataReporter(kubeClient, pod, version)
+	}
+
+	nginxManager, useFakeNginxManager := createNginxManager(ctx, managerCollector, licenseReporter, deploymentMetadata)
 
 	nginxVersion := getNginxVersionInfo(ctx, nginxManager)
 
@@ -562,14 +569,14 @@ func createTemplateExecutors(ctx context.Context) (*version1.TemplateExecutor, *
 	return templateExecutor, templateExecutorV2
 }
 
-func createNginxManager(ctx context.Context, managerCollector collectors.ManagerCollector, licenseReporter *license_reporting.LicenseReporter) (nginx.Manager, bool) {
+func createNginxManager(ctx context.Context, managerCollector collectors.ManagerCollector, licenseReporter *license_reporting.LicenseReporter, deploymentMetadata *metadata.Metadata) (nginx.Manager, bool) {
 	useFakeNginxManager := *proxyURL != ""
 	var nginxManager nginx.Manager
 	if useFakeNginxManager {
 		nginxManager = nginx.NewFakeManager("/etc/nginx")
 	} else {
 		timeout := time.Duration(*nginxReloadTimeout) * time.Millisecond
-		nginxManager = nginx.NewLocalManager(ctx, "/etc/nginx/", *nginxDebug, managerCollector, licenseReporter, timeout, *nginxPlus)
+		nginxManager = nginx.NewLocalManager(ctx, "/etc/nginx/", *nginxDebug, managerCollector, licenseReporter, deploymentMetadata, timeout, *nginxPlus)
 	}
 	return nginxManager, useFakeNginxManager
 }
