@@ -217,7 +217,7 @@ func TestExtractAgentVersionValues(t *testing.T) {
 			err:   true,
 		},
 		{
-			name:  "v2 semver",
+			name:  "v2 semver 1",
 			input: "v2.3.0",
 			major: 2,
 			minor: 3,
@@ -225,7 +225,7 @@ func TestExtractAgentVersionValues(t *testing.T) {
 			err:   false,
 		},
 		{
-			name:  "v2 semver",
+			name:  "v2 semver 2",
 			input: "v2.40.15",
 			major: 2,
 			minor: 40,
