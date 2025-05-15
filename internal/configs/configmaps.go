@@ -530,52 +530,9 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		}
 	}
 
-	if otelExporterEndpoint, exists := cfgm.Data["otel-exporter-endpoint"]; exists {
-		otelExporterEndpoint = strings.TrimSpace(otelExporterEndpoint)
-		if otelExporterEndpoint != "" {
-			cfgParams.MainOtelExporterEndpoint = otelExporterEndpoint
-		}
-	}
-
-	if otelExporterTrustedCA, exists := cfgm.Data["otel-exporter-trusted-ca"]; exists {
-		otelExporterTrustedCA = strings.TrimSpace(otelExporterTrustedCA)
-		if otelExporterTrustedCA != "" {
-			cfgParams.MainOtelExporterTrustedCA = otelExporterTrustedCA
-		}
-	}
-
-	if otelExporterHeaderName, exists := cfgm.Data["otel-exporter-header-name"]; exists {
-		otelExporterHeaderName = strings.TrimSpace(otelExporterHeaderName)
-		if otelExporterHeaderName != "" {
-			cfgParams.MainOtelExporterHeaderName = otelExporterHeaderName
-		}
-	}
-
-	if otelExporterHeaderValue, exists := cfgm.Data["otel-exporter-header-value"]; exists {
-		otelExporterHeaderValue = strings.TrimSpace(otelExporterHeaderValue)
-		if otelExporterHeaderValue != "" {
-			cfgParams.MainOtelExporterHeaderValue = otelExporterHeaderValue
-		}
-	}
-
-	if otelServiceName, exists := cfgm.Data["otel-service-name"]; exists {
-		otelServiceName = strings.TrimSpace(otelServiceName)
-		if otelServiceName != "" {
-			cfgParams.MainOtelServiceName = otelServiceName
-		}
-	}
-
-	if otelGlobalTraceEnabled, exists, err := GetMapKeyAsBool(cfgm.Data, "otel-global-trace-enabled", cfgm); exists {
-		if err != nil {
-			nl.Error(l, err)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
-			configOk = false
-		}
-		cfgParams.MainOtelGlobalTraceEnabled = otelGlobalTraceEnabled
-	}
-
-	if cfgParams.MainOtelExporterEndpoint != "" {
-		cfgParams.MainOtelLoadModule = true
+	_, otelErr := parseConfigMapOpenTelemetry(l, cfgm, cfgParams, eventLog)
+	if otelErr != nil {
+		configOk = false
 	}
 
 	if hasAppProtect {
@@ -788,6 +745,79 @@ func parseConfigMapZoneSync(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *Confi
 	return &cfgParams.ZoneSync, nil
 }
 
+//nolint:gocyclo
+func parseConfigMapOpenTelemetry(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *ConfigParams, eventLog record.EventRecorder) (*ConfigParams, error) {
+	if otelExporterEndpoint, exists := cfgm.Data["otel-exporter-endpoint"]; exists {
+		otelExporterEndpoint = strings.TrimSpace(otelExporterEndpoint)
+		if otelExporterEndpoint != "" {
+			cfgParams.MainOtelExporterEndpoint = otelExporterEndpoint
+		}
+	}
+
+	if otelExporterHeaderName, exists := cfgm.Data["otel-exporter-header-name"]; exists {
+		otelExporterHeaderName = strings.TrimSpace(otelExporterHeaderName)
+		if otelExporterHeaderName != "" {
+			cfgParams.MainOtelExporterHeaderName = otelExporterHeaderName
+		}
+	}
+
+	if otelExporterHeaderValue, exists := cfgm.Data["otel-exporter-header-value"]; exists {
+		otelExporterHeaderValue = strings.TrimSpace(otelExporterHeaderValue)
+		if otelExporterHeaderValue != "" {
+			cfgParams.MainOtelExporterHeaderValue = otelExporterHeaderValue
+		}
+	}
+
+	if otelServiceName, exists := cfgm.Data["otel-service-name"]; exists {
+		otelServiceName = strings.TrimSpace(otelServiceName)
+		if otelServiceName != "" {
+			cfgParams.MainOtelServiceName = otelServiceName
+		}
+	}
+
+	otelValid := true
+
+	if otelTraceInHTTP, exists, err := GetMapKeyAsBool(cfgm.Data, "otel-trace-in-http", cfgm); exists {
+		if err != nil {
+			nl.Error(l, err)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
+			otelValid = false
+		}
+		cfgParams.MainOtelTraceInHTTP = otelTraceInHTTP
+	}
+
+	if (cfgParams.MainOtelExporterHeaderName != "" && cfgParams.MainOtelExporterHeaderValue == "") ||
+		(cfgParams.MainOtelExporterHeaderName == "" && cfgParams.MainOtelExporterHeaderValue != "") {
+		errorText := "Both 'otel-exporter-header-name' and 'otel-exporter-header-value' must be set or neither"
+		nl.Error(l, errorText)
+		eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+		otelValid = false
+	}
+
+	if cfgParams.MainOtelExporterEndpoint != "" {
+		cfgParams.MainOtelLoadModule = true
+	}
+
+	if cfgParams.MainOtelExporterEndpoint == "" &&
+		(cfgParams.MainOtelExporterTrustedCA != "" ||
+			cfgParams.MainOtelExporterHeaderName != "" ||
+			cfgParams.MainOtelExporterHeaderValue != "" ||
+			cfgParams.MainOtelServiceName != "" ||
+			cfgParams.MainOtelTraceInHTTP) {
+		errorText := "ConfigMap key 'otel-exporter-endpoint' is required when other otel fields are set"
+		nl.Error(l, errorText)
+		eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+		otelValid = false
+		cfgParams.MainOtelTraceInHTTP = false
+	}
+
+	if !otelValid {
+		return nil, errors.New("invalid OpenTelemetry configuration")
+	}
+
+	return cfgParams, nil
+}
+
 // ParseMGMTConfigMap parses the mgmt block ConfigMap into MGMTConfigParams.
 //
 //nolint:gocyclo
@@ -940,11 +970,6 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		ResolverValid:     config.ZoneSync.ResolverValid,
 	}
 
-	mainOtelExporterTrustedCA := ""
-	if config.MainOtelExporterTrustedCA != "" {
-		mainOtelExporterTrustedCA = fmt.Sprintf("%s-%s-%s", os.Getenv("POD_NAMESPACE"), config.MainOtelExporterTrustedCA, CACrtKey)
-	}
-
 	nginxCfg := &version1.MainConfig{
 		AccessLog:                          config.MainAccessLog,
 		DefaultServerAccessLogOff:          config.DefaultServerAccessLogOff,
@@ -967,9 +992,8 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		NginxStatusAllowCIDRs:              staticCfgParams.NginxStatusAllowCIDRs,
 		NginxStatusPort:                    staticCfgParams.NginxStatusPort,
 		MainOtelLoadModule:                 config.MainOtelLoadModule,
-		MainOtelGlobalTraceEnabled:         config.MainOtelGlobalTraceEnabled,
+		MainOtelGlobalTraceEnabled:         config.MainOtelTraceInHTTP,
 		MainOtelExporterEndpoint:           config.MainOtelExporterEndpoint,
-		MainOtelExporterTrustedCA:          mainOtelExporterTrustedCA,
 		MainOtelExporterHeaderName:         config.MainOtelExporterHeaderName,
 		MainOtelExporterHeaderValue:        config.MainOtelExporterHeaderValue,
 		MainOtelServiceName:                config.MainOtelServiceName,

@@ -114,9 +114,6 @@ http {
         {{- if and .MainOtelExporterHeaderName .MainOtelExporterHeaderValue }}
         header {{ .MainOtelExporterHeaderName }} "{{ .MainOtelExporterHeaderValue }}";
         {{- end }}
-        {{- if .MainOtelExporterTrustedCA }}
-        trusted_certificate /etc/nginx/secrets/{{ .MainOtelExporterTrustedCA }};
-        {{- end }}
     }
 
     {{- if .MainOtelServiceName}}
