@@ -102,12 +102,11 @@ type podEndpoint struct {
 }
 
 type specialSecrets struct {
-	defaultServerSecret   string
-	wildcardTLSSecret     string
-	licenseSecret         string
-	clientAuthSecret      string
-	mgmtTrustedCertSecret string
-	otelTrustedCertSecret string
+	defaultServerSecret string
+	wildcardTLSSecret   string
+	licenseSecret       string
+	clientAuthSecret    string
+	trustedCertSecret   string
 }
 
 type controllerMetadata struct {
@@ -255,7 +254,7 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 	if input.IsNginxPlus {
 		specialSecrets.licenseSecret = fmt.Sprintf("%s/%s", input.ControllerNamespace, input.NginxConfigurator.MgmtCfgParams.Secrets.License)
 		specialSecrets.clientAuthSecret = fmt.Sprintf("%s/%s", input.ControllerNamespace, input.NginxConfigurator.MgmtCfgParams.Secrets.ClientAuth)
-		specialSecrets.mgmtTrustedCertSecret = fmt.Sprintf("%s/%s", input.ControllerNamespace, input.NginxConfigurator.MgmtCfgParams.Secrets.TrustedCert)
+		specialSecrets.trustedCertSecret = fmt.Sprintf("%s/%s", input.ControllerNamespace, input.NginxConfigurator.MgmtCfgParams.Secrets.TrustedCert)
 	}
 	lbc := &LoadBalancerController{
 		client:                       input.KubeClient,
@@ -925,7 +924,7 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 			if _, hasCRL := secret.Data[configs.CACrlKey]; hasCRL {
 				lbc.configurator.MgmtCfgParams.Secrets.TrustedCRL = secret.Name
 			}
-			lbc.specialSecrets.mgmtTrustedCertSecret = fmt.Sprintf("%s/%s", secret.Namespace, secret.Name)
+			lbc.specialSecrets.trustedCertSecret = fmt.Sprintf("%s/%s", secret.Namespace, secret.Name)
 			lbc.handleSpecialSecretUpdate(secret, reloadNginx)
 		}
 		// update special ClientAuth secret in mgmtConfigParams
@@ -1844,9 +1843,7 @@ func (lbc *LoadBalancerController) isSpecialSecret(secretName string) bool {
 		return true
 	case lbc.specialSecrets.clientAuthSecret:
 		return true
-	case lbc.specialSecrets.mgmtTrustedCertSecret:
-		return true
-	case lbc.specialSecrets.otelTrustedCertSecret:
+	case lbc.specialSecrets.trustedCertSecret:
 		return true
 	default:
 		return false
@@ -1921,12 +1918,7 @@ func (lbc *LoadBalancerController) handleSpecialSecretUpdate(secret *api_v1.Secr
 		if ok := lbc.performNGINXReload(secret); !ok {
 			return
 		}
-	case lbc.specialSecrets.mgmtTrustedCertSecret:
-		lbc.updateAllConfigs()
-		if ok := lbc.performNGINXReload(secret); !ok {
-			return
-		}
-	case lbc.specialSecrets.otelTrustedCertSecret:
+	case lbc.specialSecrets.trustedCertSecret:
 		lbc.updateAllConfigs()
 		if ok := lbc.performNGINXReload(secret); !ok {
 			return
@@ -1952,9 +1944,7 @@ func (lbc *LoadBalancerController) writeSpecialSecrets(secret *api_v1.Secret, sp
 			return false
 		}
 	case secrets.SecretTypeCA:
-		if lbc.specialSecrets.mgmtTrustedCertSecret != "" {
-			lbc.configurator.AddOrUpdateCASecret(secret, fmt.Sprintf("mgmt/%s", configs.CACrtKey), fmt.Sprintf("mgmt/%s", configs.CACrlKey))
-		}
+		lbc.configurator.AddOrUpdateCASecret(secret, fmt.Sprintf("mgmt/%s", configs.CACrtKey), fmt.Sprintf("mgmt/%s", configs.CACrlKey))
 	case api_v1.SecretTypeTLS:
 		// if the secret name matches the specified
 		if secretNsName == mgmtClientAuthNamespaceName {
@@ -1991,7 +1981,7 @@ func (lbc *LoadBalancerController) specialSecretValidation(secretNsName string, 
 			return false
 		}
 	}
-	if secretNsName == lbc.specialSecrets.mgmtTrustedCertSecret {
+	if secretNsName == lbc.specialSecrets.trustedCertSecret {
 		err := secrets.ValidateCASecret(secret)
 		if err != nil {
 			nl.Errorf(lbc.Logger, "Couldn't validate the special Secret %v: %v", secretNsName, err)
@@ -2001,14 +1991,6 @@ func (lbc *LoadBalancerController) specialSecretValidation(secretNsName string, 
 	}
 	if secretNsName == lbc.specialSecrets.clientAuthSecret {
 		err := secrets.ValidateTLSSecret(secret)
-		if err != nil {
-			nl.Errorf(lbc.Logger, "Couldn't validate the special Secret %v: %v", secretNsName, err)
-			lbc.recorder.Eventf(lbc.metadata.pod, api_v1.EventTypeWarning, nl.EventReasonRejected, "the special Secret %v was rejected, using the previous version: %v", secretNsName, err)
-			return false
-		}
-	}
-	if secretNsName == lbc.specialSecrets.otelTrustedCertSecret {
-		err := secrets.ValidateCASecret(secret)
 		if err != nil {
 			nl.Errorf(lbc.Logger, "Couldn't validate the special Secret %v: %v", secretNsName, err)
 			lbc.recorder.Eventf(lbc.metadata.pod, api_v1.EventTypeWarning, nl.EventReasonRejected, "the special Secret %v was rejected, using the previous version: %v", secretNsName, err)
