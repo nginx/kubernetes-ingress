@@ -199,6 +199,11 @@ def run_oidc(browser_type, ip_address, port):
         page = context.new_page()
 
         page.goto("https://virtual-server-tls.example.com")
+
+        print("\n\n\n")
+        print(page.content())
+        print("\n\n\n")
+
         page.wait_for_selector('input[name="username"]')
         page.fill('input[name="username"]', username)
         page.wait_for_selector('input[name="password"]', timeout=5000)
