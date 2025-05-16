@@ -12,4 +12,3 @@ spec:
     endSessionEndpoint: https://keycloak.example.com/realms/master/protocol/openid-connect/logout
     scope: openid+profile+email
     accessTokenEnable: true
-    pkceEnabled: true
