@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - feat/add-otel-support
     paths:
       - build/dependencies/Dockerfile.ubi8
       - build/dependencies/Dockerfile.ubi9
