@@ -1332,7 +1332,7 @@ server {
     set $resource_namespace "";
     include oidc/oidc.conf;
 
-    set $oidc_pkce_enable "1";
+    set $oidc_pkce_enable 1;
     set $oidc_client_auth_method "client_secret_post";
     set $oidc_logout_redirect "";
     set $oidc_hmac_key "";
