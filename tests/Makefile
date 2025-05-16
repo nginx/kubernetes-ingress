@@ -1,7 +1,7 @@
 SHELL                       = /bin/bash
 ROOT_DIR                    = $(shell git rev-parse --show-toplevel)
 CONTEXT                     =
-PULL_POLICY                 = IfNotPresent
+PULL_POLICY                 ?= IfNotPresent
 DEPLOYMENT_TYPE             = deployment
 SERVICE                     = nodeport
 NODE_IP                     =
