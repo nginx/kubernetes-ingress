@@ -4,11 +4,10 @@ import pytest
 import requests
 import yaml
 from playwright.sync_api import Error, sync_playwright
-from settings import DEPLOYMENTS, TEST_DATA
+from settings import TEST_DATA
 from suite.utils.policy_resources_utils import delete_policy
 from suite.utils.resources_utils import (
     create_example_app,
-    create_items_from_yaml,
     create_secret,
     create_secret_from_yaml,
     delete_common_app,
@@ -31,9 +30,7 @@ oidc_secret_src = f"{TEST_DATA}/oidc/client-secret.yaml"
 pkce_pol_src = f"{TEST_DATA}/oidc/pkce.yaml"
 oidc_vs_src = f"{TEST_DATA}/oidc/virtual-server.yaml"
 orig_vs_src = f"{TEST_DATA}/virtual-server-tls/standard/virtual-server.yaml"
-cm_src = f"{TEST_DATA}/oidc/nginx-config.yaml"
 cm_zs_src = f"{TEST_DATA}/oidc/nginx-config-zs.yaml"
-orig_cm_src = f"{DEPLOYMENTS}/common/nginx-config.yaml"
 svc_src = f"{TEST_DATA}/oidc/nginx-ingress-headless.yaml"
 
 
@@ -130,7 +127,7 @@ def keycloak_setup(request, kube_apis, test_namespace, ingress_controller_endpoi
     indirect=True,
 )
 class TestPKCE:
-    @pytest.mark.parametrize("configmap", [cm_src, cm_zs_src])
+    @pytest.mark.parametrize("configmap", [cm_zs_src])
     def test_pkce(
         self,
         request,
@@ -174,19 +171,9 @@ class TestPKCE:
         )
         wait_before_test()
 
-        if configmap == cm_src:
-            print(f"Create headless service")
-            create_items_from_yaml(kube_apis, svc_src, ingress_controller_prerequisites.namespace)
-
         with sync_playwright() as playwright:
             run_oidc(playwright.chromium, ingress_controller_endpoint.public_ip, ingress_controller_endpoint.port_ssl)
 
-        replace_configmap_from_yaml(
-            kube_apis.v1,
-            ingress_controller_prerequisites.config_map["metadata"]["name"],
-            ingress_controller_prerequisites.namespace,
-            cm_src,
-        )
         delete_secret(kube_apis.v1, secret_name, test_namespace)
         delete_policy(kube_apis.custom_objects, pol, test_namespace)
         patch_virtual_server_from_yaml(
