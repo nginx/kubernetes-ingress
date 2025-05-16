@@ -1,0 +1,10 @@
+# syntax=docker/dockerfile:1.8
+FROM redhat/ubi9:9.5@sha256:d07a5e080b8a9b3624d3c9cfbfada9a6baacd8e6d4065118f0e80c71ad518044 AS rpm-build
+RUN mkdir -p /rpms/ \
+    && dnf install rpm-build gcc make cmake -y \
+    && rpmbuild --rebuild --nodebuginfo https://mirror.stream.centos.org/9-stream/BaseOS/source/tree/Packages/c-ares-1.19.1-1.el9.src.rpm \
+    && cp /root/rpmbuild/RPMS/$(arch)/* /rpms/ \
+    && rm -rf /rpms/*devel*
+
+FROM scratch AS final
+COPY --link --from=rpm-build /rpms /
