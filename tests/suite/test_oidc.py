@@ -48,7 +48,7 @@ class KeycloakSetup:
         self.secret = secret
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="function")
 def keycloak_setup(request, kube_apis, test_namespace, ingress_controller_endpoint, virtual_server_setup):
 
     # Create Keycloak resources and setup Keycloak idp
