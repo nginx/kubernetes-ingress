@@ -1,15 +1,13 @@
-import base64
 import secrets
 
 import pytest
 import requests
 import yaml
 from playwright.sync_api import Error, sync_playwright
-from settings import DEPLOYMENTS, TEST_DATA
+from settings import TEST_DATA
 from suite.utils.policy_resources_utils import delete_policy
 from suite.utils.resources_utils import (
     create_example_app,
-    create_items_from_yaml,
     create_secret,
     create_secret_from_yaml,
     delete_common_app,
@@ -29,16 +27,14 @@ password = secrets.token_hex(8)
 keycloak_src = f"{TEST_DATA}/oidc/keycloak.yaml"
 keycloak_vs_src = f"{TEST_DATA}/oidc/virtual-server-idp.yaml"
 oidc_secret_src = f"{TEST_DATA}/oidc/client-secret.yaml"
-oidc_pol_src = f"{TEST_DATA}/oidc/oidc.yaml"
+pkce_pol_src = f"{TEST_DATA}/oidc/pkce.yaml"
 oidc_vs_src = f"{TEST_DATA}/oidc/virtual-server.yaml"
 orig_vs_src = f"{TEST_DATA}/virtual-server-tls/standard/virtual-server.yaml"
-cm_src = f"{TEST_DATA}/oidc/nginx-config.yaml"
 cm_zs_src = f"{TEST_DATA}/oidc/nginx-config-zs.yaml"
-orig_cm_src = f"{DEPLOYMENTS}/common/nginx-config.yaml"
 svc_src = f"{TEST_DATA}/oidc/nginx-ingress-headless.yaml"
 
 
-class KeycloakSetup:
+class KeycloakSetupPKCE:
     """
     Attributes:
         secret (str):
@@ -51,8 +47,7 @@ class KeycloakSetup:
 @pytest.fixture(scope="class")
 def keycloak_setup(request, kube_apis, test_namespace, ingress_controller_endpoint, virtual_server_setup):
 
-    # Create Keycloak resources and setup Keycloak idp
-
+    # Create Keycloak resources and setup Keycloak idp with PKCE enabled
     secret_name = create_secret_from_yaml(
         kube_apis.v1, virtual_server_setup.namespace, f"{TEST_DATA}/virtual-server-tls/tls-secret.yaml"
     )
@@ -81,21 +76,25 @@ def keycloak_setup(request, kube_apis, test_namespace, ingress_controller_endpoi
     }
     response = requests.post(create_user_url, headers=headers, json=user_payload, verify=False)
 
-    # Create client "nginx-plus" and get secret
-    create_client_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}/realms/master/clients-registrations/default"
+    # Create client "nginx-plus"
+    create_client_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}/admin/realms/master/clients"
     client_payload = {
-        "clientId": "nginx-plus",
+        "clientId": "nginx-plus-pkce",
         "redirectUris": ["https://virtual-server-tls.example.com:443/_codexch"],
-        "attributes": {"post.logout.redirect.uris": "https://virtual-server-tls.example.com:443/*"},
+        "standardFlowEnabled": True,
+        "directAccessGrantsEnabled": False,
+        "publicClient": True,
+        "attributes": {
+            "post.logout.redirect.uris": "https://virtual-server-tls.example.com:443/*",
+            "pkce.code.challenge.method": "S256",
+        },
+        "protocol": "openid-connect",
     }
     client_resp = requests.post(create_client_url, headers=headers, json=client_payload, verify=False)
     client_resp.raise_for_status()
-    secret = client_resp.json().get("secret")
+    # let's check that it's a 201 somehow
 
-    # Base64 encode the secret
-    encoded_secret = base64.b64encode(secret.encode()).decode()
-
-    print(f"Keycloak setup complete. Base64 encoded client secret")
+    print(f"Keycloak setup complete.")
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
@@ -106,7 +105,8 @@ def keycloak_setup(request, kube_apis, test_namespace, ingress_controller_endpoi
 
     request.addfinalizer(fin)
 
-    return KeycloakSetup(encoded_secret)
+    # base64 encoded "pkce-doesnt-support-client-secrets"
+    return KeycloakSetupPKCE("cGtjZS1kb2VzbnQtc3VwcG9ydC1jbGllbnQtc2VjcmV0cw==")
 
 
 @pytest.mark.oidc
@@ -126,9 +126,9 @@ def keycloak_setup(request, kube_apis, test_namespace, ingress_controller_endpoi
     ],
     indirect=True,
 )
-class TestOIDC:
-    @pytest.mark.parametrize("configmap", [cm_src, cm_zs_src])
-    def test_oidc(
+class TestPKCE:
+    @pytest.mark.parametrize("configmap", [cm_zs_src])
+    def test_pkce(
         self,
         request,
         kube_apis,
@@ -140,6 +140,7 @@ class TestOIDC:
         keycloak_setup,
         configmap,
     ):
+
         print(f"Create oidc secret")
         with open(oidc_secret_src) as f:
             secret_data = yaml.safe_load(f)
@@ -147,7 +148,7 @@ class TestOIDC:
         secret_name = create_secret(kube_apis.v1, test_namespace, secret_data)
 
         print(f"Create oidc policy")
-        with open(oidc_pol_src) as f:
+        with open(pkce_pol_src) as f:
             doc = yaml.safe_load(f)
         pol = doc["metadata"]["name"]
         doc["spec"]["oidc"]["tokenEndpoint"] = doc["spec"]["oidc"]["tokenEndpoint"].replace("default", test_namespace)
@@ -170,19 +171,9 @@ class TestOIDC:
         )
         wait_before_test()
 
-        if configmap == cm_src:
-            print(f"Create headless service")
-            create_items_from_yaml(kube_apis, svc_src, ingress_controller_prerequisites.namespace)
-
         with sync_playwright() as playwright:
             run_oidc(playwright.chromium, ingress_controller_endpoint.public_ip, ingress_controller_endpoint.port_ssl)
 
-        replace_configmap_from_yaml(
-            kube_apis.v1,
-            ingress_controller_prerequisites.config_map["metadata"]["name"],
-            ingress_controller_prerequisites.namespace,
-            cm_src,
-        )
         delete_secret(kube_apis.v1, secret_name, test_namespace)
         delete_policy(kube_apis.custom_objects, pol, test_namespace)
         patch_virtual_server_from_yaml(
