@@ -1393,14 +1393,14 @@ func TestOpenTelemetryConfigurationSuccess(t *testing.T) {
 			configMap: &v1.ConfigMap{
 				Data: map[string]string{
 					"otel-exporter-endpoint": "https://otel-collector:4317",
-					"otel-service-name":      "nginx-ingress-controller",
+					"otel-service-name":      "nginx-ingress-controller:nginx",
 				},
 			},
 			expectedLoadModule:          true,
 			expectedExporterEndpoint:    "https://otel-collector:4317",
 			expectedExporterHeaderName:  "",
 			expectedExporterHeaderValue: "",
-			expectedServiceName:         "nginx-ingress-controller",
+			expectedServiceName:         "nginx-ingress-controller:nginx",
 			msg:                         "endpoint set, minimal config",
 		},
 		{
@@ -1410,7 +1410,7 @@ func TestOpenTelemetryConfigurationSuccess(t *testing.T) {
 					"otel-exporter-trusted-ca":   "otel-ca-secret",
 					"otel-exporter-header-name":  "X-Custom-Header",
 					"otel-exporter-header-value": "custom-value",
-					"otel-service-name":          "nginx-ingress-controller",
+					"otel-service-name":          "nginx-ingress-controller:nginx",
 					"otel-trace-in-http":         "true",
 				},
 			},
@@ -1418,7 +1418,7 @@ func TestOpenTelemetryConfigurationSuccess(t *testing.T) {
 			expectedExporterEndpoint:    "https://otel-collector:4317",
 			expectedExporterHeaderName:  "X-Custom-Header",
 			expectedExporterHeaderValue: "custom-value",
-			expectedServiceName:         "nginx-ingress-controller",
+			expectedServiceName:         "nginx-ingress-controller:nginx",
 			expectedTraceInHTTP:         true,
 			msg:                         "endpoint set, full config",
 		},
@@ -1482,7 +1482,7 @@ func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
 			configMap: &v1.ConfigMap{
 				Data: map[string]string{
 					"otel-exporter-endpoint": "  ",
-					"otel-service-name":      "nginx-ingress-controller",
+					"otel-service-name":      "nginx-ingress-controller:nginx",
 				},
 			},
 			expectedLoadModule: false,
@@ -1493,7 +1493,7 @@ func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
 				Data: map[string]string{
 					"otel-exporter-endpoint":    "https://otel-collector:4317",
 					"otel-exporter-header-name": "X-Custom-Header",
-					"otel-service-name":         "nginx-ingress-controller",
+					"otel-service-name":         "nginx-ingress-controller:nginx",
 				},
 			},
 			expectedLoadModule: true,
@@ -1504,7 +1504,7 @@ func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
 				Data: map[string]string{
 					"otel-exporter-endpoint":     "https://otel-collector:4317",
 					"otel-exporter-header-value": "custom-value",
-					"otel-service-name":          "nginx-ingress-controller",
+					"otel-service-name":          "nginx-ingress-controller:nginx",
 				},
 			},
 			expectedLoadModule: true,
@@ -1524,7 +1524,7 @@ func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
 			configMap: &v1.ConfigMap{
 				Data: map[string]string{
 					"otel-exporter-endpoint": "https://otel-collector:4317",
-					"otel-service-name":      "nginx-ingress-controller",
+					"otel-service-name":      "nginx-ingress-controller:nginx",
 					"otel-trace-in-http":     "invalid",
 				},
 			},
