@@ -23,7 +23,7 @@ otel_service_name = "nginx-ingress-controller:nginx"
 configmap_name = "nginx-config"
 
 
-@pytest.mark.smoke
+@pytest.mark.otel
 class TestOtel:
     def extract_block(self, nginx_config, block_name):
         """
