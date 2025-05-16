@@ -1,0 +1,34 @@
+controller:
+  nginxplus: true
+  appprotect:
+    enable: true
+    v5: true
+    volumes:
+      - name: app-protect-bd-config
+        emptyDir: {}
+      - name: app-protect-config
+        emptyDir: {}
+      - name: app-protect-bundles
+        emptyDir: {}
+    enforcer:
+      host: "localhost"
+      port: 50001
+      image:
+        repository: my.private.reg/nap/waf-enforcer
+    configManager:
+      image:
+        repository: my.private.reg/nap/waf-config-mgr
+nginxAgent:
+  enable: true
+  instanceManager:
+    # FQDN or IP for connecting to NGINX Instance Manager, e.g. nim.example.com
+    host: "nim.example.com"
+    grpcPort: 443
+    tls:
+      skipVerify: false
+      enabled: true
+      ## kubernetes.io/tls secret with a TLS certificate and key for using mTLS between NGINX Agent and Instance Manager
+      secret: "tls-secret"
+      ## nginx.org/ca secret for verification of Instance Manager TLS
+      caSecret: "ca-secret"
+    sni: "nim.example.com"

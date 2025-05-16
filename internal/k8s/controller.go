@@ -248,14 +248,9 @@ type NewLoadBalancerControllerInput struct {
 
 // NewLoadBalancerController creates a controller
 func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalancerController {
-	otelTrustedCertSecret := ""
-	if input.NginxConfigurator != nil && input.NginxConfigurator.CfgParams.MainOtelExporterTrustedCA != "" {
-		otelTrustedCertSecret = fmt.Sprintf("%s/%s", input.ControllerNamespace, input.NginxConfigurator.CfgParams.MainOtelExporterTrustedCA)
-	}
 	specialSecrets := specialSecrets{
-		defaultServerSecret:   input.DefaultServerSecret,
-		wildcardTLSSecret:     input.WildcardTLSSecret,
-		otelTrustedCertSecret: otelTrustedCertSecret,
+		defaultServerSecret: input.DefaultServerSecret,
+		wildcardTLSSecret:   input.WildcardTLSSecret,
 	}
 	if input.IsNginxPlus {
 		specialSecrets.licenseSecret = fmt.Sprintf("%s/%s", input.ControllerNamespace, input.NginxConfigurator.MgmtCfgParams.Secrets.License)
@@ -942,15 +937,6 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 			lbc.specialSecrets.clientAuthSecret = fmt.Sprintf("%s/%s", secret.Namespace, secret.Name)
 			lbc.handleSpecialSecretUpdate(secret, reloadNginx)
 		}
-	}
-	// update special Otel CA secret in configParams
-	if cfgParams.MainOtelExporterTrustedCA != "" {
-		secret, err := lbc.client.CoreV1().Secrets(lbc.configMap.GetNamespace()).Get(context.TODO(), cfgParams.MainOtelExporterTrustedCA, meta_v1.GetOptions{})
-		if err != nil {
-			nl.Errorf(lbc.Logger, "secret %s/%s: %v", lbc.configMap.GetNamespace(), cfgParams.MainOtelExporterTrustedCA, err)
-		}
-		lbc.specialSecrets.otelTrustedCertSecret = fmt.Sprintf("%s/%s", secret.Namespace, secret.Name)
-		lbc.handleSpecialSecretUpdate(secret, reloadNginx)
 	}
 	resources := lbc.configuration.GetResources()
 	nl.Debugf(lbc.Logger, "Updating %v resources", len(resources))
@@ -1968,9 +1954,6 @@ func (lbc *LoadBalancerController) writeSpecialSecrets(secret *api_v1.Secret, sp
 	case secrets.SecretTypeCA:
 		if lbc.specialSecrets.mgmtTrustedCertSecret != "" {
 			lbc.configurator.AddOrUpdateCASecret(secret, fmt.Sprintf("mgmt/%s", configs.CACrtKey), fmt.Sprintf("mgmt/%s", configs.CACrlKey))
-		}
-		if lbc.specialSecrets.otelTrustedCertSecret != "" {
-			lbc.configurator.AddOrUpdateCASecret(secret, fmt.Sprintf("%s-%s-%s", lbc.metadata.namespace, lbc.configurator.CfgParams.MainOtelExporterTrustedCA, configs.CACrtKey), "")
 		}
 	case api_v1.SecretTypeTLS:
 		// if the secret name matches the specified

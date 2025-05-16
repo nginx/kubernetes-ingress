@@ -182,7 +182,7 @@ The _Makefile_ includes several key variables. You have the option to either mod
 {{<bootstrap-table "table table-striped table-bordered">}}
 | <div style="width:200px">Variable</div> | Description   |
 |-----------------------------------------|---------------|
-| _ARCH_                                | Defines the architecture for the image and binary. The default is `amd64`, but you can also choose from `arm64`, `arm`, `ppc64le`, and `s390x`.   |
+| _ARCH_                                | Defines the architecture for the image and binary. The default is `amd64`, but you can also use `arm64`. |
 | _PREFIX_                              | Gives the image its name. The default is `nginx/nginx-ingress`.  |
 | _TAG_                                 | Adds a tag to the image. This is often the version of NGINX Ingress Controller.   |
 | _DOCKER\_BUILD\_OPTIONS_                | Allows for additional [options](https://docs.docker.com/engine/reference/commandline/build/#options) during the `docker build` process, like `--pull`.  |

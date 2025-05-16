@@ -99,3 +99,30 @@ func extractPlusVersionValues(input string) (int, int, error) {
 
 	return rValue, pValue, nil
 }
+
+// ExtractAgentVersionValues splits the agent version string into major, minor, and patch values.
+func ExtractAgentVersionValues(input string) (int, int, int, error) {
+	var major, minor, patch int
+	matches := agentre.FindStringSubmatch(input)
+
+	if len(matches) == 0 {
+		return 0, 0, 0, fmt.Errorf("no matches found in the input string")
+	}
+
+	major, err := strconv.Atoi(matches[1])
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("failed to convert major version to integer: %w", err)
+	}
+
+	minor, err = strconv.Atoi(matches[2])
+	if err != nil {
+		return major, 0, 0, fmt.Errorf("failed to convert minor version to integer: %w", err)
+	}
+
+	patch, err = strconv.Atoi(matches[3])
+	if err != nil {
+		return major, minor, 0, fmt.Errorf("failed to convert patch version to integer: %w", err)
+	}
+
+	return major, minor, patch, nil
+}

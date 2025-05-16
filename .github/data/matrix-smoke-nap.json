@@ -69,7 +69,7 @@
       "image": "debian-plus-nap",
       "type": "plus",
       "nap_modules": "waf",
-      "marker": "agent",
+      "marker": "agentv2",
       "platforms": "linux/amd64"
     }
   ],

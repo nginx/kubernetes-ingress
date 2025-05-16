@@ -243,7 +243,6 @@ type MainConfig struct {
 	MainOtelLoadModule                 bool
 	MainOtelGlobalTraceEnabled         bool
 	MainOtelExporterEndpoint           string
-	MainOtelExporterTrustedCA          string
 	MainOtelExporterHeaderName         string
 	MainOtelExporterHeaderValue        string
 	MainOtelServiceName                string

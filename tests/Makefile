@@ -151,7 +151,7 @@ run-tests-in-minikube: ## Run tests in Minikube
 		-v $(ROOT_DIR)/pyproject.toml:/workspace/pyproject.toml \
 		$(TEST_PREFIX):$(TEST_TAG) \
  		--context=minikube \
- 		--image=$(BUILD_IMAGE) --image-pull-policy=Never \
+ 		--image=$(BUILD_IMAGE) --image-pull-policy=$(PULL_POLICY) \
  		--deployment-type=$(DEPLOYMENT_TYPE) \
  		--ic-type=$(IC_TYPE) \
  		--service=nodeport \
