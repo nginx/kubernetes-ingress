@@ -189,7 +189,6 @@ func main() {
 	if err != nil {
 		logEventAndExit(ctx, eventRecorder, pod, secretErrorReason, err)
 	}
-
 	globalConfigurationValidator := createGlobalConfigurationValidator()
 
 	mustProcessGlobalConfiguration(ctx)
