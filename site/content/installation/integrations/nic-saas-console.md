@@ -1,6 +1,6 @@
 ---
 doctypes:
-- concept
+   - concept
 title: Connect NGINX Ingress Controller to NGINX One Console
 toc: true
 weight: 1800
@@ -18,10 +18,6 @@ Key benefits of connecting NGINX Ingress Controller to NGINX One SaaS Console in
 
 ## Deploying NGINX Ingress Controller with NGINX Agent configuration
 
-{{< important >}}
-The NGINX Agent configuration must be done before deploying NGINX Ingress Controller.
-{{< /important >}}
-
 {{<tabs name="deploy-config-resource">}}
 
 {{%tab name="Using Helm"%}}
@@ -29,8 +25,8 @@ The NGINX Agent configuration must be done before deploying NGINX Ingress Contro
 1. Edit your `values.yaml` file to enable NGINX Agent and configure it to connect to NGINX One SaaS Console:
    ```yaml
    nginxAgent:
-   enable: true
-   dataplaneKey: "<Your Dataplane Key>"
+      enable: true
+      dataplaneKey: "<Your Dataplane Key>"
    ```
 
    The `dataplaneKey` is used to authenticate the agent with NGINX One SaaS Console. See the NGINX One Console Docs [here](https://docs.nginx.com/nginx-one/getting-started/#generate-data-plane-key) to generate your dataplane key from the NGINX One SaaS Console.
@@ -108,20 +104,28 @@ The NGINX Agent configuration must be done before deploying NGINX Ingress Contro
 
 After deploying NGINX Ingress Controller with NGINX Agent configuration, you can verify the connection to NGINX One SaaS Console.
 
-Log in to your NGINX One SaaS Console account and navigate to the Instances dashboard. Your NGINX Ingress Controller instances should appear in the list.
+Log in to your NGINX One SaaS Console account and navigate to the Instances dashboard. Your NGINX Ingress Controller instances should appear in the list, where the instance name will be the pod name.
 
 ## Troubleshooting
 
-If you encounter issues connecting NGINX Ingress Controller to NGINX One SaaS Console, try the following:
+If you encounter issues connecting NGINX Ingress Controller to NGINX One SaaS Console, try the following steps based on your image type:
 
-1. Verify that the NGINX Agent is running:
+1. Check the NGINX Agent version:
    ```bash
-   kubectl exec -it -n <namespace> <nginx-ingress-pod-name> -- ps aux | grep nginx-agent
+   kubectl exec -it -n <namespace> <nginx-ingress-pod-name> -- nginx-agent -v
    ```
+   
+   if nginx-agent version is v3, continue with the following steps.
+   Otherwise, make sure you are using an image that does not include App Protect. 
 
 2. Check the NGINX Agent configuration:
    ```bash
    kubectl exec -it -n <namespace> <nginx-ingress-pod-name> -- cat /etc/nginx-agent/nginx-agent.conf
+   ```
+
+3. Check NGINX Agent logs:
+   ```bash
+   kubectl exec -it -n <namespace> <nginx-ingress-pod-name> -- nginx-agent
    ```
 
 
