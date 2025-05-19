@@ -25,7 +25,7 @@
       "label": "TS",
       "image": "debian-plus",
       "type": "plus",
-      "marker": "ts or otel",
+      "marker": "'ts or otel'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
