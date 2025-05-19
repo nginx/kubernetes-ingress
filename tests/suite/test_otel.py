@@ -16,6 +16,7 @@ cm_header_only_value = f"{TEST_DATA}/otel/configmap-with-only-header-value.yaml"
 cm_service_name = f"{TEST_DATA}/otel/configmap-with-service-name.yaml"
 cm_otel_trace = f"{TEST_DATA}/otel/configmap-with-otel-trace.yaml"
 cm_all = f"{TEST_DATA}/otel/configmap-with-all.yaml"
+cm_all_except_endpoint = f"{TEST_DATA}/otel/configmap-with-all-except-endpoint.yaml"
 otel_module = "modules/ngx_otel_module.so"
 exporter = "otel.example.com:4317"
 otel_exporter_header_name = "x-otel-header"
@@ -413,6 +414,56 @@ class TestOtel:
         assert "otel_trace on;" in (nginx_config)
 
         print("Step 8: reset the configmap to default")
+        replace_configmap_from_yaml(
+            kube_apis.v1,
+            configmap_name,
+            ingress_controller_prerequisites.namespace,
+            cm_default,
+        )
+        wait_before_test(WAIT_TIME)
+
+    def test_otel_all_except_endpoint(
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        ingress_controller,
+    ):
+        """
+        Test:
+        1. NIC starts with all otel configuration except endpoint configured in the `nginx-config`
+        2. Ensure that the `ngx_otel_module.so` is not in the nginx.conf
+        3. Ensure that the `otel_exporter` is not in the nginx.conf
+        4. Ensure that the `service-name` is not in the nginx.conf
+        5. Ensure that `otel_trace` is not in the nginx.conf
+        """
+        configmap_name = "nginx-config"
+
+        print("Step 1: apply nginx-config map")
+        replace_configmap_from_yaml(
+            kube_apis.v1,
+            configmap_name,
+            ingress_controller_prerequisites.namespace,
+            cm_all_except_endpoint,
+        )
+
+        wait_before_test(WAIT_TIME)
+        nginx_config = get_nginx_template_conf(
+            kube_apis.v1, ingress_controller_prerequisites.namespace, print_log=False
+        )
+
+        print("Step 2: Ensure that the otel module is not loaded")
+        assert otel_module not in (nginx_config)
+
+        print("Step 3: Ensure that the otel_exporter is not enabled")
+        assert "otel_exporter" not in (nginx_config)
+
+        print("Step 4: Ensure that the service-name is not correctly configured")
+        assert f"otel_service_name {otel_service_name}" not in (nginx_config)
+
+        print("Step 5: Ensure that otel_trace is not configured")
+        assert "otel_trace on;" not in (nginx_config)
+
+        print("Step 6: reset the configmap to default")
         replace_configmap_from_yaml(
             kube_apis.v1,
             configmap_name,
