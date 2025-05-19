@@ -1,6 +1,7 @@
 import pytest
 from settings import TEST_DATA
 from suite.utils.resources_utils import (
+    extract_block,
     get_nginx_template_conf,
     replace_configmap_from_yaml,
     wait_before_test,
@@ -25,17 +26,6 @@ configmap_name = "nginx-config"
 
 @pytest.mark.otel
 class TestOtel:
-    def extract_block(self, nginx_config, block_name):
-        """
-        Extract a block of configuration from the nginx config file.
-
-        :param nginx_config: The nginx config file content as a string.
-        :param block_name: The name of the block to extract.
-        :return: The extracted block as a string.
-        """
-        start = nginx_config.find(block_name)
-        end = nginx_config.find("}", start) + 1
-        return nginx_config[start:end]
 
     def test_otel_not_enabled(
         self,
@@ -96,7 +86,7 @@ class TestOtel:
         print("Step 2: Ensure that the otel module is loaded")
         assert otel_module in (nginx_config)
 
-        exporter_block = self.extract_block(nginx_config, "otel_exporter")
+        exporter_block = extract_block(nginx_config, "otel_exporter")
 
         print("Step 3: Ensure that the otel_exporter is enabled")
         assert "otel_exporter" in (exporter_block)
@@ -147,7 +137,7 @@ class TestOtel:
         print("Step 2: Ensure that the otel module is loaded")
         assert otel_module in (nginx_config)
 
-        exporter_block = self.extract_block(nginx_config, "otel_exporter")
+        exporter_block = extract_block(nginx_config, "otel_exporter")
 
         print("Step 3: Ensure that the otel_exporter is enabled")
         assert "otel_exporter" in (exporter_block)
@@ -199,7 +189,7 @@ class TestOtel:
         print("Step 2: Ensure that the otel module is loaded")
         assert otel_module in (nginx_config)
 
-        exporter_block = self.extract_block(nginx_config, "otel_exporter")
+        exporter_block = extract_block(nginx_config, "otel_exporter")
 
         print("Step 3: Ensure that the otel_exporter is enabled")
         assert "otel_exporter" in (exporter_block)
@@ -251,7 +241,7 @@ class TestOtel:
         print("Step 2: Ensure that the otel module is loaded")
         assert otel_module in (nginx_config)
 
-        exporter_block = self.extract_block(nginx_config, "otel_exporter")
+        exporter_block = extract_block(nginx_config, "otel_exporter")
 
         print("Step 3: Ensure that the otel_exporter is enabled")
         assert "otel_exporter" in (exporter_block)
@@ -303,7 +293,7 @@ class TestOtel:
         print("Step 2: Ensure that the otel module is loaded")
         assert otel_module in (nginx_config)
 
-        exporter_block = self.extract_block(nginx_config, "otel_exporter")
+        exporter_block = extract_block(nginx_config, "otel_exporter")
 
         print("Step 3: Ensure that the otel_exporter is enabled")
         assert "otel_exporter" in (exporter_block)
@@ -354,7 +344,7 @@ class TestOtel:
         print("Step 2: Ensure that the otel module is loaded")
         assert otel_module in (nginx_config)
 
-        exporter_block = self.extract_block(nginx_config, "otel_exporter")
+        exporter_block = extract_block(nginx_config, "otel_exporter")
 
         print("Step 3: Ensure that the otel_exporter is enabled")
         assert "otel_exporter" in (exporter_block)
@@ -405,7 +395,7 @@ class TestOtel:
         print("Step 2: Ensure that the otel module is loaded")
         assert otel_module in (nginx_config)
 
-        exporter_block = self.extract_block(nginx_config, "otel_exporter")
+        exporter_block = extract_block(nginx_config, "otel_exporter")
 
         print("Step 3: Ensure that the otel_exporter is enabled")
         assert "otel_exporter" in (exporter_block)

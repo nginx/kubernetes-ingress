@@ -1070,6 +1070,19 @@ def get_ts_nginx_template_conf(v1: CoreV1Api, resource_namespace, resource_name,
     return get_file_contents(v1, file_path, pod_name, pod_namespace)
 
 
+def extract_block(nginx_config, block_name):
+    """
+    Extract a block of configuration from the nginx config file.
+
+    :param nginx_config: The nginx config file content as a string.
+    :param block_name: The name of the block to extract.
+    :return: The extracted block as a string.
+    """
+    start = nginx_config.find(block_name)
+    end = nginx_config.find("}", start) + 1
+    return nginx_config[start:end]
+
+
 def create_example_app(kube_apis, app_type, namespace) -> None:
     """
     Create a backend application.
