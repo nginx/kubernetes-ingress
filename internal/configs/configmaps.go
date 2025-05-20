@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nginx/kubernetes-ingress/internal/validation"
+
 	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
 
 	v1 "k8s.io/api/core/v1"
@@ -16,7 +18,7 @@ import (
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
-	"github.com/nginx/kubernetes-ingress/internal/validation"
+	k8s_validation "k8s.io/apimachinery/pkg/util/validation"
 )
 
 const (
@@ -747,6 +749,8 @@ func parseConfigMapZoneSync(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *Confi
 
 //nolint:gocyclo
 func parseConfigMapOpenTelemetry(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *ConfigParams, eventLog record.EventRecorder) (*ConfigParams, error) {
+	otelValid := true
+
 	if otelExporterEndpoint, exists := cfgm.Data["otel-exporter-endpoint"]; exists {
 		otelExporterEndpoint = strings.TrimSpace(otelExporterEndpoint)
 		if otelExporterEndpoint != "" {
@@ -757,7 +761,15 @@ func parseConfigMapOpenTelemetry(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *
 	if otelExporterHeaderName, exists := cfgm.Data["otel-exporter-header-name"]; exists {
 		otelExporterHeaderName = strings.TrimSpace(otelExporterHeaderName)
 		if otelExporterHeaderName != "" {
-			cfgParams.MainOtelExporterHeaderName = otelExporterHeaderName
+			errorMessages := k8s_validation.IsHTTPHeaderName(otelExporterHeaderName)
+			if len(errorMessages) > 0 {
+				errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'otel-exporter-header-name': %q, %v", cfgm.GetNamespace(), cfgm.GetName(), otelExporterHeaderName, errorMessages)
+				nl.Error(l, errorText)
+				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+				otelValid = false
+			} else {
+				cfgParams.MainOtelExporterHeaderName = otelExporterHeaderName
+			}
 		}
 	}
 
@@ -775,8 +787,6 @@ func parseConfigMapOpenTelemetry(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *
 		}
 	}
 
-	otelValid := true
-
 	if otelTraceInHTTP, exists, err := GetMapKeyAsBool(cfgm.Data, "otel-trace-in-http", cfgm); exists {
 		if err != nil {
 			nl.Error(l, err)
@@ -788,6 +798,8 @@ func parseConfigMapOpenTelemetry(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *
 
 	if (cfgParams.MainOtelExporterHeaderName != "" && cfgParams.MainOtelExporterHeaderValue == "") ||
 		(cfgParams.MainOtelExporterHeaderName == "" && cfgParams.MainOtelExporterHeaderValue != "") {
+		cfgParams.MainOtelExporterHeaderName = ""
+		cfgParams.MainOtelExporterHeaderValue = ""
 		errorText := "Both 'otel-exporter-header-name' and 'otel-exporter-header-value' must be set or neither"
 		nl.Error(l, errorText)
 		eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
@@ -807,6 +819,10 @@ func parseConfigMapOpenTelemetry(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *
 		nl.Error(l, errorText)
 		eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
 		otelValid = false
+		cfgParams.MainOtelTraceInHTTP = false
+		cfgParams.MainOtelExporterHeaderName = ""
+		cfgParams.MainOtelExporterHeaderValue = ""
+		cfgParams.MainOtelServiceName = ""
 		cfgParams.MainOtelTraceInHTTP = false
 	}
 

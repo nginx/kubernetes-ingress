@@ -1440,7 +1440,7 @@ func TestOpenTelemetryConfigurationSuccess(t *testing.T) {
 	hasAppProtect := false
 	hasAppProtectDos := false
 	hasTLSPassthrough := false
-	const expectedConfigOk = true
+	expectedConfigOk := true
 
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
@@ -1474,19 +1474,44 @@ func TestOpenTelemetryConfigurationSuccess(t *testing.T) {
 func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		configMap          *v1.ConfigMap
-		expectedLoadModule bool
-		msg                string
+		configMap                   *v1.ConfigMap
+		expectedLoadModule          bool
+		expectedExporterEndpoint    string
+		expectedExporterHeaderName  string
+		expectedExporterHeaderValue string
+		expectedServiceName         string
+		expectedTraceInHTTP         bool
+		msg                         string
 	}{
 		{
 			configMap: &v1.ConfigMap{
 				Data: map[string]string{
-					"otel-exporter-endpoint": "  ",
+					"otel-exporter-endpoint": "",
 					"otel-service-name":      "nginx-ingress-controller:nginx",
 				},
 			},
-			expectedLoadModule: false,
-			msg:                "empty endpoint, service name set",
+			expectedLoadModule:          false,
+			expectedExporterEndpoint:    "",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "invalid, endpoint missing, service name set",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-header-name":  "X-Custom-Header",
+					"otel-exporter-header-value": "custom-value",
+				},
+			},
+			expectedLoadModule:          false,
+			expectedExporterEndpoint:    "",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "invalid, endpoint missing, header name and value set",
 		},
 		{
 			configMap: &v1.ConfigMap{
@@ -1496,8 +1521,13 @@ func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
 					"otel-service-name":         "nginx-ingress-controller:nginx",
 				},
 			},
-			expectedLoadModule: true,
-			msg:                "endpoint set, header name only",
+			expectedLoadModule:          true,
+			expectedExporterEndpoint:    "https://otel-collector:4317",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "nginx-ingress-controller:nginx",
+			expectedTraceInHTTP:         false,
+			msg:                         "partially invalid, header value missing",
 		},
 		{
 			configMap: &v1.ConfigMap{
@@ -1507,18 +1537,30 @@ func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
 					"otel-service-name":          "nginx-ingress-controller:nginx",
 				},
 			},
-			expectedLoadModule: true,
-			msg:                "endpoint set, header value only",
+			expectedLoadModule:          true,
+			expectedExporterEndpoint:    "https://otel-collector:4317",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "nginx-ingress-controller:nginx",
+			expectedTraceInHTTP:         false,
+			msg:                         "partially invalid, header name missing",
 		},
 		{
 			configMap: &v1.ConfigMap{
 				Data: map[string]string{
-					"otel-exporter-header-name":  "X-Custom-Header",
+					"otel-exporter-endpoint":     "https://otel-collector:4317",
+					"otel-exporter-header-name":  "X-Custom-H$eader",
 					"otel-exporter-header-value": "custom-value",
+					"otel-service-name":          "nginx-ingress-controller:nginx",
 				},
 			},
-			expectedLoadModule: false,
-			msg:                "no endpoint, headers set",
+			expectedLoadModule:          true,
+			expectedExporterEndpoint:    "https://otel-collector:4317",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "nginx-ingress-controller:nginx",
+			expectedTraceInHTTP:         false,
+			msg:                         "partially invalid, header value invalid",
 		},
 		{
 			configMap: &v1.ConfigMap{
@@ -1528,12 +1570,34 @@ func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
 					"otel-trace-in-http":     "invalid",
 				},
 			},
-			expectedLoadModule: true,
-			msg:                "endpoint set, invalid trace flag",
+			expectedLoadModule:          true,
+			expectedExporterEndpoint:    "https://otel-collector:4317",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "nginx-ingress-controller:nginx",
+			expectedTraceInHTTP:         false,
+			msg:                         "partially invalid, trace flag invalid",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint":     "https://otel-collector:4317",
+					"otel-exporter-header-value": "custom-value",
+					"otel-service-name":          "nginx-ingress-controller:nginx",
+					"otel-trace-in-http":         "true",
+				},
+			},
+			expectedLoadModule:          true,
+			expectedExporterEndpoint:    "https://otel-collector:4317",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "nginx-ingress-controller:nginx",
+			expectedTraceInHTTP:         true,
+			msg:                         "partially invalid, header name missing, trace in http set",
 		},
 	}
 
-	isPlus := true
+	isPlus := false
 	hasAppProtect := false
 	hasAppProtectDos := false
 	hasTLSPassthrough := false
@@ -1548,6 +1612,21 @@ func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
 			}
 			if result.MainOtelLoadModule != test.expectedLoadModule {
 				t.Errorf("MainOtelLoadModule: want %v, got %v", test.expectedLoadModule, result.MainOtelLoadModule)
+			}
+			if result.MainOtelExporterEndpoint != test.expectedExporterEndpoint {
+				t.Errorf("MainOtelExporterEndpoint: want %q, got %q", test.expectedExporterEndpoint, result.MainOtelExporterEndpoint)
+			}
+			if result.MainOtelExporterHeaderName != test.expectedExporterHeaderName {
+				t.Errorf("MainOtelExporterHeaderName: want %q, got %q", test.expectedExporterHeaderName, result.MainOtelExporterHeaderName)
+			}
+			if result.MainOtelExporterHeaderValue != test.expectedExporterHeaderValue {
+				t.Errorf("MainOtelExporterHeaderValue: want %q, got %q", test.expectedExporterHeaderValue, result.MainOtelExporterHeaderValue)
+			}
+			if result.MainOtelServiceName != test.expectedServiceName {
+				t.Errorf("MainOtelServiceName: want %q, got %q", test.expectedServiceName, result.MainOtelServiceName)
+			}
+			if result.MainOtelTraceInHTTP != test.expectedTraceInHTTP {
+				t.Errorf("MainOtelTraceInHTTP: want %v, got %v", test.expectedTraceInHTTP, result.MainOtelTraceInHTTP)
 			}
 		})
 	}
