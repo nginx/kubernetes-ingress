@@ -4,12 +4,12 @@
     "alpine"
   ],
   "platforms": [
-    "linux/arm, linux/arm64, linux/amd64, linux/ppc64le, linux/s390x"
+    "linux/arm64, linux/amd64"
   ],
   "include": [
     {
       "image": "ubi",
-      "platforms": "linux/arm64, linux/amd64, linux/ppc64le, linux/s390x"
+      "platforms": "linux/arm64, linux/amd64"
     }
   ]
 }

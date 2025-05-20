@@ -112,7 +112,7 @@ func getValidTargets(ctx context.Context, endpoints []vsapi.ExternalEndpoint) (e
 	for _, e := range endpoints {
 		if e.IP != "" {
 			nl.Debugf(l, "IP is defined: %v", e.IP)
-			if errMsg := validators.IsValidIP(field.NewPath(""), e.IP); len(errMsg) > 0 {
+			if errMsg := validators.IsValidIPForLegacyField(field.NewPath(""), e.IP, false, nil); len(errMsg) > 0 {
 				continue
 			}
 			ip := netutils.ParseIPSloppy(e.IP)
