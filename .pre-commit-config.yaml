@@ -87,7 +87,7 @@ repos:
         args: ["--schemafile", "charts/nginx-ingress/values.schema.json"]
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.18.0
+    rev: v0.18.1
     hooks:
       - id: markdownlint-cli2
 
