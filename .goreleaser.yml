@@ -95,7 +95,7 @@ changelog:
 
 archives:
   - id: archives
-    builds: [kubernetes-ingress]
+    ids: [kubernetes-ingress]
 
 sboms:
   - id: sboms
