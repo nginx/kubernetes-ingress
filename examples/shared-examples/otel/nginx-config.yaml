@@ -8,4 +8,4 @@ data:
   otel-service-name: "nginx-ingress-controller:nginx"
   otel-exporter-header-name: "x-otel-header"
   otel-exporter-header-value: "otel-header-value"
-  # otel-trace-in-http: "true"
+  # otel-trace-in-http: "true" # Uncomment to enable tracing at the HTTP level
