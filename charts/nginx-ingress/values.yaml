@@ -665,7 +665,7 @@ nginxServiceMesh:
 nginxAgent:
   ## Enables NGINX Agent.
   enable: false
-  logLevel: "error"
+  logLevel: "info"
 
   # Agent V3 configuration
   # Dataplane key is used to authenticate the agent with NGINX One SaaS Console
