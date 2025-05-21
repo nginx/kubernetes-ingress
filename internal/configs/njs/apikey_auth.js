@@ -9,6 +9,7 @@ function hash(r) {
 function validate(r) {
     const client_name_map = r.variables['apikey_auth_local_map'];
     const client_name = r.variables[client_name_map];
+    r.variables['apikey_client_name'] = client_name;
     const header_query_value = r.variables.header_query_value;
 
     if (!header_query_value) {
