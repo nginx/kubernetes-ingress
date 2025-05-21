@@ -187,7 +187,7 @@ For more information about the _LoadBalancer_ service, refer to the [Kubernetes 
         kubectl apply -f deployments/service/loadbalancer-aws-elb.yaml
         ```
 
-        For more details see service guide [here](https://kubernetes-sigs.github.io/aws-load-balancer-controller/latest/)
+        For more details see service guide [here](https://kubernetes-sigs.github.io/aws-load-balancer-controller/latest/guide/service/annotations/#annotations)
 
 2. AWS users: Follow these additional steps to work with ELB in TCP mode.
 
