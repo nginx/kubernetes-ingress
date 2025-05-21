@@ -583,6 +583,7 @@ var rateLimitKeySpecialVariables = []string{"arg_", "http_", "cookie_", "jwt_cla
 var rateLimitKeyVariables = map[string]bool{
 	"binary_remote_addr": true,
 	"request_uri":        true,
+	"request_method":     true,
 	"uri":                true,
 	"args":               true,
 }
