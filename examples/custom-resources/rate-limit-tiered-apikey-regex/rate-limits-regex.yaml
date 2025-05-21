@@ -1,0 +1,27 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: rate-limit-apikey-premium
+spec:
+  rateLimit:
+    rate: 100r/s
+    key: ${apikey_client_name}
+    zoneSize: 10M
+    condition:
+      apiKey:
+        regex: "^.*-premium$"
+---
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: rate-limit-apikey-basic
+spec:
+  rateLimit:
+    rate: 10r/s
+    key: ${apikey_client_name}
+    zoneSize: 10M
+    condition:
+      apiKey:
+        regex: "^.*-basic$"
+      default: true
+---
