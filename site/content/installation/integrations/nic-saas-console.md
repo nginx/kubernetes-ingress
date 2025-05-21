@@ -8,11 +8,11 @@ weight: 1800
 
 This document explains how to connect F5 NGINX Ingress Controller to NGINX One Console using NGINX Agent.
 
-## Overview of NGINX One SaaS Console and Agent
+## Overview of NGINX One Console and Agent
 
-NGINX One SaaS Console is a cloud-based management platform that provides visibility and control over your NGINX deployments. NGINX Agent enables communication between NGINX Ingress Controller and the NGINX One SaaS Console.
+NGINX One Console is a cloud-based management platform that provides visibility and control over your NGINX deployments. NGINX Agent enables communication between NGINX Ingress Controller and the NGINX One Console.
 
-Key benefits of connecting NGINX Ingress Controller to NGINX One SaaS Console include:
+Key benefits of connecting NGINX Ingress Controller to NGINX One Console include:
 
 - Centralized monitoring of NGINX Ingress Controller instances
 
@@ -22,14 +22,14 @@ Key benefits of connecting NGINX Ingress Controller to NGINX One SaaS Console in
 
 {{%tab name="Using Helm"%}}
 
-1. Edit your `values.yaml` file to enable NGINX Agent and configure it to connect to NGINX One SaaS Console:
+1. Edit your `values.yaml` file to enable NGINX Agent and configure it to connect to NGINX One Console:
    ```yaml
    nginxAgent:
       enable: true
       dataplaneKey: "<Your Dataplane Key>"
    ```
 
-   The `dataplaneKey` is used to authenticate the agent with NGINX One SaaS Console. See the NGINX One Console Docs [here](https://docs.nginx.com/nginx-one/getting-started/#generate-data-plane-key) to generate your dataplane key from the NGINX One SaaS Console.
+   The `dataplaneKey` is used to authenticate the agent with NGINX One Console. See the NGINX One Console Docs [here](https://docs.nginx.com/nginx-one/getting-started/#generate-data-plane-key) to generate your dataplane key from the NGINX One Console.
 
 
 1. Follow the [Installation with Helm]({{< relref "/installation/installing-nic/installation-with-helm.md" >}}) instructions to deploy NGINX Ingress Controller.
@@ -102,13 +102,13 @@ Key benefits of connecting NGINX Ingress Controller to NGINX One SaaS Console in
 
 ## Verifying the Connection
 
-After deploying NGINX Ingress Controller with NGINX Agent configuration, you can verify the connection to NGINX One SaaS Console.
+After deploying NGINX Ingress Controller with NGINX Agent configuration, you can verify the connection to NGINX One Console.
 
-Log in to your NGINX One SaaS Console account and navigate to the Instances dashboard. Your NGINX Ingress Controller instances should appear in the list, where the instance name will be the pod name.
+Log in to your NGINX One Console account and navigate to the Instances dashboard. Your NGINX Ingress Controller instances should appear in the list, where the instance name will be the pod name.
 
 ## Troubleshooting
 
-If you encounter issues connecting NGINX Ingress Controller to NGINX One SaaS Console, try the following steps based on your image type:
+If you encounter issues connecting NGINX Ingress Controller to NGINX One Console, try the following steps based on your image type:
 
 1. Check the NGINX Agent version:
    ```bash
@@ -132,4 +132,4 @@ If you encounter issues connecting NGINX Ingress Controller to NGINX One SaaS Co
 ## Additional Resources
 
 - [NGINX Agent Documentation](https://docs.nginx.com/nginx-agent/)
-- [NGINX One SaaS Console Documentation](https://docs.nginx.com/nginx-one/)
+- [NGINX One Console Documentation](https://docs.nginx.com/nginx-one/)
