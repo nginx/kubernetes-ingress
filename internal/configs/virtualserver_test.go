@@ -6754,7 +6754,7 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 		expected        version2.VirtualServerConfig
 	}{
 		{
-			msg: "rate limits at vs spec level, no default with zonesync enabled",
+			msg: "jwt claim rate limits at vs spec level, no default with zonesync enabled",
 			virtualServerEx: VirtualServerEx{
 				VirtualServer: &conf_v1.VirtualServer{
 					ObjectMeta: meta_v1.ObjectMeta{
@@ -6995,7 +6995,7 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 			},
 		},
 		{
-			msg: "rate limits at vs spec level, no default",
+			msg: "jwt claim rate limits at vs spec level, no default",
 			virtualServerEx: VirtualServerEx{
 				VirtualServer: &conf_v1.VirtualServer{
 					ObjectMeta: meta_v1.ObjectMeta{
@@ -7233,7 +7233,7 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 			},
 		},
 		{
-			msg: "rate limits at vs spec level, with default",
+			msg: "jwt claim rate limits at vs spec level, with default",
 			virtualServerEx: VirtualServerEx{
 				VirtualServer: &conf_v1.VirtualServer{
 					ObjectMeta: meta_v1.ObjectMeta{
@@ -7477,7 +7477,7 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 			},
 		},
 		{
-			msg: "rate limits at vs route level, with default",
+			msg: "jwt claim rate limits at vs route level, with default",
 			virtualServerEx: VirtualServerEx{
 				VirtualServer: &conf_v1.VirtualServer{
 					ObjectMeta: meta_v1.ObjectMeta{
@@ -7721,7 +7721,7 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 			},
 		},
 		{
-			msg: "rate limits at vsr /tea level, with default",
+			msg: "jwt claim rate limits at vsr /tea level, with default",
 			virtualServerEx: VirtualServerEx{
 				VirtualServer: &conf_v1.VirtualServer{
 					ObjectMeta: meta_v1.ObjectMeta{
@@ -7987,7 +7987,7 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 			},
 		},
 		{
-			msg: "rate limits at vsr /tea level & at vs spec level, with default",
+			msg: "jwt claim rate limits at vsr /tea level & at vs spec level, with default",
 			virtualServerEx: VirtualServerEx{
 				VirtualServer: &conf_v1.VirtualServer{
 					ObjectMeta: meta_v1.ObjectMeta{
