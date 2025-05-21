@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chocolate
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chocolate
+  template:
+    metadata:
+      labels:
+        app: chocolate
+    spec:
+      containers:
+      - name: chocolate
+        image: nginxdemos/nginx-hello:plain-text
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chocolate-svc
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: chocolate

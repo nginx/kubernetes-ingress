@@ -1,0 +1,18 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
+  name: chocolate
+spec:
+  host: cafe.example.com
+  upstreams:
+  - name: chocolate
+    service: chocolate-svc
+    port: 80
+  subroutes:
+  - path: /chocolate
+    action:
+      pass: chocolate
+    policies:
+      - name: rate-limit-apikey-gold
+      - name: rate-limit-apikey-silver
+      - name: rate-limit-apikey-bronze

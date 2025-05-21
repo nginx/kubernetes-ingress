@@ -1,0 +1,43 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: rate-limit-apikey-gold
+spec:
+  rateLimit:
+    rate: 100r/s
+    key: ${apikey_client_name}
+    zoneSize: 10M
+    condition:
+      variable:
+        match: "~^.*-gold$"
+        name: $apikey_client_name
+---
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: rate-limit-apikey-silver
+spec:
+  rateLimit:
+    rate: 10r/s
+    key: ${apikey_client_name}
+    zoneSize: 10M
+    condition:
+      variable:
+        match: "~^.*-silver$"
+        name: $apikey_client_name
+---
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: rate-limit-apikey-bronze
+spec:
+  rateLimit:
+    rate: 1r/s
+    key: ${apikey_client_name}
+    zoneSize: 10M
+    condition:
+      variable:
+        match: "~^.*-bronze$"
+        name: $apikey_client_name
+      default: true
+---
