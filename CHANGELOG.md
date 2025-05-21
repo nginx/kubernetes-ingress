@@ -691,8 +691,7 @@ CHANGES:
   `redirect-to-https` and `ssl-redirect` ConfigMap keys no longer have any effect on generated configs for VirtualServer
   resources.
 - [745](https://github.com/nginx/kubernetes-ingress/pull/745): Improve routing rules. Update the spec of
-  VirtualServer and VirtualServerRoute accordingly. See YAML examples of the changes
-  [here](https://github.com/nginx/kubernetes-ingress/pull/745).
+  VirtualServer and VirtualServerRoute accordingly. See [YAML examples of the changes](https://github.com/nginx/kubernetes-ingress/pull/745).
 - [710](https://github.com/nginx/kubernetes-ingress/pull/710): Run IC as non-root. Make sure to use the updated
   manifests to install/upgrade the Ingress Controller.
 - [603](https://github.com/nginx/kubernetes-ingress/pull/603): Update apiVersion in Deployments and DaemonSets to
@@ -1095,7 +1094,7 @@ CHANGES:
 - [399](https://github.com/nginx/kubernetes-ingress/pull/399): Improve secret handling. **Note**: the PR changed how
   the Ingress Controller processes Ingress resources with TLS termination enabled but without any referenced (or with
   invalid) secrets and Ingress resources with JWT validation enabled but without any referenced (or with invalid) JWK.
-  Please read [here](https://github.com/nginx/kubernetes-ingress/pull/399) for more details.
+  Please [read here](https://github.com/nginx/kubernetes-ingress/pull/399) for more details.
 - [357](https://github.com/nginx/kubernetes-ingress/pull/357): Improve Project Layout and Refactor Controller
   Package. **Note**: the PR significantly changed the layout of the project to follow best practices.
 - [347](https://github.com/nginx/kubernetes-ingress/pull/347): Use edge version in manifests and Helm chart.
@@ -1262,8 +1261,8 @@ UPGRADE:
 - [166](https://github.com/nginx/kubernetes-ingress/pull/166): Watch Secret resources for updates. **Note**: If a
   Secret referenced by one or more Ingress resources becomes invalid or gets removed, the configuration for those
   Ingress resources will be disabled until there is a valid Secret.
-- [160](https://github.com/nginx/kubernetes-ingress/pull/160): Add support for events. See the details
-  [here](https://github.com/nginx/kubernetes-ingress/pull/160).
+- [160](https://github.com/nginx/kubernetes-ingress/pull/160): Add support for events.
+  See [the details here](https://github.com/nginx/kubernetes-ingress/pull/160).
 - [157](https://github.com/nginx/kubernetes-ingress/pull/157): Add graceful termination - when the Ingress Controller
   receives `SIGTERM`, it shutdowns itself as well as NGINX, using `nginx -s quit`.
 
