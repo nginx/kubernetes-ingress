@@ -123,9 +123,9 @@ If you encounter issues connecting NGINX Ingress Controller to NGINX One Console
    kubectl exec -it -n <namespace> <nginx-ingress-pod-name> -- cat /etc/nginx-agent/nginx-agent.conf
    ```
 
-3. Check NGINX Agent logs:
+3. Check NGINX Ingress Controller logs:
    ```bash
-   kubectl exec -it -n <namespace> <nginx-ingress-pod-name> -- nginx-agent
+   kubectl logs -n <namespace> <nginx-ingress-pod-name>
    ```
 
 
