@@ -162,44 +162,6 @@ http {
     {{- end}}
     {{- end}}
 
-    {{- if .MainOtelLoadModule }}
-    otel_exporter {
-        endpoint {{ .MainOtelExporterEndpoint }};
-        {{- if and .MainOtelExporterHeaderName .MainOtelExporterHeaderValue }}
-        header {{ .MainOtelExporterHeaderName }} "{{ .MainOtelExporterHeaderValue }}";
-        {{- end }}
-        {{- if .MainOtelExporterTrustedCA }}
-        trusted_certificate /etc/nginx/secrets/{{ .MainOtelExporterTrustedCA }};
-        {{- end }}
-    }
-
-    {{ if .MainOtelServiceName}}
-    otel_service_name {{ .MainOtelServiceName }};
-    {{- end }}
-    {{ if .MainOtelGlobalTraceEnabled }}
-    otel_trace on;
-    {{- end}}
-    {{- end}}
-
-    {{- if .MainOtelLoadModule}}
-    otel_exporter {
-        endpoint {{ .MainOtelExporterEndpoint}};
-        {{- if and .MainOtelExporterHeaderName .MainOtelExporterHeaderValue }}
-        header {{ .MainOtelExporterHeaderName }} "{{ .MainOtelExporterHeaderValue }}";
-        {{- end }}
-        {{- if .MainOtelExporterTrustedCA}}
-    #   trusted_certificate <path>;
-        {{- end }}
-    }
-
-    {{- if .MainOtelServiceName}}
-    otel_service_name {{ .MainOtelServiceName }};
-    {{- end }}
-    {{- if .MainOtelGlobalTraceEnabled }}
-    otel_trace on;
-    {{- end}}
-    {{- end}}
-
     {{ $resolverIPV6HTTPBool := boolToPointerBool .ResolverIPV6 -}}
     {{ makeResolver .ResolverAddresses .ResolverValid $resolverIPV6HTTPBool }}
     {{if .ResolverTimeout}}resolver_timeout {{.ResolverTimeout}};{{end}}
