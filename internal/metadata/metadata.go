@@ -11,7 +11,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-// Labels contains the metadata information needed for reporting to Agent
+// Labels contains the metadata information needed for reporting to Agent v3
 type Labels struct {
 	ProductType           string `json:"product-type"`
 	ProductVersion        string `json:"product-version"`
