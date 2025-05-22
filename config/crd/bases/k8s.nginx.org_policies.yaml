@@ -183,6 +183,21 @@ spec:
                     description: RateLimitCondition defines a condition for a rate
                       limit policy.
                     properties:
+                      apiKey:
+                        description: defines a JWT condition to rate limit against.
+                        properties:
+                          clients:
+                            description: a list of API Key client names to be rate
+                              limit by
+                            type: string
+                          name:
+                            description: the name of the to match against.
+                            pattern: ^([^$\s."'])*$
+                            type: string
+                        required:
+                        - clients
+                        - name
+                        type: object
                       default:
                         description: sets the rate limit in this policy to be the
                           default if no conditions are met. In a group of policies
