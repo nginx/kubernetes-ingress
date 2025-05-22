@@ -13,23 +13,23 @@ import (
 
 func TestNewMetadataInfo(t *testing.T) {
 	info := newMetadataInfo("nginx-ingress", "e3a5e702-65a7-a55f-753d78cd7ff7", "555-1222-4414test-11223355", "5.0.0", "my-release")
-	if info.ProductName != "nic" {
-		t.Errorf("ProductName = %q, want %q", info.ProductName, "nic")
+	if info.ProductType != "nic" {
+		t.Errorf("ProductName = %q, want %q", info.ProductType, "nic")
 	}
-	if info.DeploymentNamespace != "nginx-ingress" {
-		t.Errorf("DeploymentNamespace = %q, want %q", info.DeploymentNamespace, "nginx-ingress")
+	if info.InstallationNamespace != "nginx-ingress" {
+		t.Errorf("DeploymentNamespace = %q, want %q", info.InstallationNamespace, "nginx-ingress")
 	}
 	if info.ClusterID != "e3a5e702-65a7-a55f-753d78cd7ff7" {
 		t.Errorf("ClusterID = %q, want %q", info.ClusterID, "e3a5e702-65a7-a55f-753d78cd7ff7")
 	}
-	if info.DeploymentID != "555-1222-4414test-11223355" {
-		t.Errorf("DeploymentID = %q, want %q", info.DeploymentID, "555-1222-4414test-11223355")
+	if info.InstallationID != "555-1222-4414test-11223355" {
+		t.Errorf("DeploymentID = %q, want %q", info.InstallationID, "555-1222-4414test-11223355")
 	}
 	if info.ProductVersion != "5.0.0" {
 		t.Errorf("ProductVersion = %q, want %q", info.ProductVersion, "5.0.0")
 	}
-	if info.DeploymentName != "my-release" {
-		t.Errorf("DeploymentName = %q, want %q", info.DeploymentName, "my-release")
+	if info.InstallationName != "my-release" {
+		t.Errorf("DeploymentName = %q, want %q", info.InstallationName, "my-release")
 	}
 }
 
@@ -75,8 +75,8 @@ func TestCollectAndWrite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CollectAndWrite() error = %v", err)
 	}
-	if got, want := info.ProductName, "nic"; got != want {
-		t.Errorf("ProductName = %q, want %q", got, want)
+	if got, want := info.ProductType, "nic"; got != want {
+		t.Errorf("ProductType = %q, want %q", got, want)
 	}
 }
 

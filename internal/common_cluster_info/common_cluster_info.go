@@ -61,8 +61,8 @@ func GetInstallationID(ctx context.Context, client kubernetes.Interface, podNSNa
 	}
 }
 
-// GetDeploymentName returns the name of the Deployment
-func GetDeploymentName(ctx context.Context, client kubernetes.Interface, podNSName types.NamespacedName) (string, error) {
+// GetInstallationName returns the name of the Deployment
+func GetInstallationName(ctx context.Context, client kubernetes.Interface, podNSName types.NamespacedName) (string, error) {
 	pod, err := client.CoreV1().Pods(podNSName.Namespace).Get(ctx, podNSName.Name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
