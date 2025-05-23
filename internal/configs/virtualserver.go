@@ -1419,6 +1419,7 @@ func (p *policiesCfg) addOIDCConfig(
 			PostLogoutRedirectURI: postLogoutRedirectURI,
 			ZoneSyncLeeway:        generateIntFromPointer(oidc.ZoneSyncLeeway, 200),
 			AccessTokenEnable:     oidc.AccessTokenEnable,
+			PKCEEnabled:           oidc.PKCEEnabled,
 		}
 		oidcPolCfg.key = polKey
 	}
