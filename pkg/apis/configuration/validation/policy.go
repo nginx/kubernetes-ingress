@@ -585,6 +585,7 @@ var rateLimitKeyVariables = map[string]bool{
 	"request_uri":        true,
 	"uri":                true,
 	"args":               true,
+	"request_method":     true,
 }
 
 func validateRateLimitKey(key string, fieldPath *field.Path, isPlus bool) field.ErrorList {
