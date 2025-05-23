@@ -177,7 +177,7 @@ type LoadBalancerController struct {
 	externalDNSController         *ed_controller.ExtDNSController
 	batchSyncEnabled              bool
 	updateAllConfigsOnBatch       bool
-	enableBatchReload             bool
+	nginxReloadForBatchUpdate     bool
 	isIPV6Disabled                bool
 	namespaceWatcherController    cache.Controller
 	telemetryCollector            *telemetry.Collector
@@ -1012,11 +1012,13 @@ func (lbc *LoadBalancerController) preSyncSecrets() {
 }
 
 func (lbc *LoadBalancerController) sync(task task) {
-	if lbc.isNginxReady && lbc.syncQueue.Len() > 1 && !lbc.batchSyncEnabled {
+	syncQueueLength := lbc.syncQueue.Len()
+	nl.Debugf(lbc.Logger, "Sync Queue length: %v items", syncQueueLength)
+	if lbc.isNginxReady && syncQueueLength > 1 && !lbc.batchSyncEnabled {
 		lbc.configurator.DisableReloads()
 		lbc.batchSyncEnabled = true
 
-		nl.Debugf(lbc.Logger, "Batch processing %v items", lbc.syncQueue.Len())
+		nl.Debugf(lbc.Logger, "Batch processing %v items", syncQueueLength)
 	}
 	nl.Debugf(lbc.Logger, "Syncing %v", task.Key)
 	if lbc.spiffeCertFetcher != nil {
@@ -1025,7 +1027,7 @@ func (lbc *LoadBalancerController) sync(task task) {
 	}
 	if lbc.batchSyncEnabled && task.Kind != endpointslice {
 		nl.Debug(lbc.Logger, "Task is not endpointslice - enabling batch reload")
-		lbc.enableBatchReload = true
+		lbc.nginxReloadForBatchUpdate = true
 	}
 	switch task.Kind {
 	case ingress:
@@ -1041,7 +1043,7 @@ func (lbc *LoadBalancerController) sync(task task) {
 		resourcesFound := lbc.syncEndpointSlices(task)
 		if lbc.batchSyncEnabled && resourcesFound {
 			nl.Debugf(lbc.Logger, "Endpointslice %v is referenced - enabling batch reload", task.Key)
-			lbc.enableBatchReload = true
+			lbc.nginxReloadForBatchUpdate = true
 		}
 	case secret:
 		lbc.syncSecret(task)
@@ -1090,7 +1092,7 @@ func (lbc *LoadBalancerController) sync(task task) {
 		}
 	}
 
-	if !lbc.isNginxReady && lbc.syncQueue.Len() == 0 {
+	if !lbc.isNginxReady && syncQueueLength == 0 {
 		lbc.configurator.EnableReloads()
 		lbc.updateAllConfigs()
 
@@ -1098,18 +1100,18 @@ func (lbc *LoadBalancerController) sync(task task) {
 		nl.Debug(lbc.Logger, "NGINX is ready")
 	}
 
-	if lbc.batchSyncEnabled && lbc.syncQueue.Len() == 0 {
+	if lbc.batchSyncEnabled && syncQueueLength == 0 {
 		lbc.batchSyncEnabled = false
 		lbc.configurator.EnableReloads()
 		if lbc.updateAllConfigsOnBatch {
 			lbc.updateAllConfigs()
 		} else {
-			if err := lbc.configurator.ReloadForBatchUpdates(lbc.enableBatchReload); err != nil {
+			if err := lbc.configurator.ReloadForBatchUpdates(lbc.nginxReloadForBatchUpdate); err != nil {
 				nl.Errorf(lbc.Logger, "error reloading for batch updates: %v", err)
 			}
 		}
 
-		lbc.enableBatchReload = false
+		lbc.nginxReloadForBatchUpdate = false
 		nl.Debug(lbc.Logger, "Batch sync completed - disabling batch reload")
 	}
 }
