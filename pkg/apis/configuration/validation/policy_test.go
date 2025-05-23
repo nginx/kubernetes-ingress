@@ -723,38 +723,38 @@ func TestValidateRateLimit_FailsOnInvalidInput(t *testing.T) {
 }
 
 func TestValidateRateLimitKey(t *testing.T) {
-    t.Parallel()
+	t.Parallel()
 
-    for varName := range rateLimitKeyVariables {
-        keyToTest := "${" + varName + "}"
-        testMsg := "validating key: " + keyToTest
+	for varName := range rateLimitKeyVariables {
+		keyToTest := "${" + varName + "}"
+		testMsg := "validating key: " + keyToTest
 
-        t.Run(testMsg, func(t *testing.T) {
-            t.Parallel()
-            allErrs := validateRateLimitKey(keyToTest, field.NewPath("key"), false)
-            if len(allErrs) > 0 {
-                t.Errorf("validateRateLimitKey returned error for valid key %q, error %v", keyToTest, allErrs)
-            }
-        })
-    }
+		t.Run(testMsg, func(t *testing.T) {
+			t.Parallel()
+			allErrs := validateRateLimitKey(keyToTest, field.NewPath("key"), false)
+			if len(allErrs) > 0 {
+				t.Errorf("validateRateLimitKey returned error for valid key %q, error %v", keyToTest, allErrs)
+			}
+		})
+	}
 
-    t.Run("invalid unknown key", func(t *testing.T) {
-        t.Parallel()
-        invalidKey := "${not_a_valid_key}"
-        allErrs := validateRateLimitKey(invalidKey, field.NewPath("key"), false)
-        if len(allErrs) == 0 {
-            t.Errorf("validateRateLimitKey returned no errors for an unknown key %q", invalidKey)
-        }
-    })
+	t.Run("invalid unknown key", func(t *testing.T) {
+		t.Parallel()
+		invalidKey := "${not_a_valid_key}"
+		allErrs := validateRateLimitKey(invalidKey, field.NewPath("key"), false)
+		if len(allErrs) == 0 {
+			t.Errorf("validateRateLimitKey returned no errors for an unknown key %q", invalidKey)
+		}
+	})
 
-    t.Run("empty key", func(t *testing.T) {
-        t.Parallel()
-        emptyKey := ""
-        allErrs := validateRateLimitKey(emptyKey, field.NewPath("key"), false)
-        if len(allErrs) == 0 {
-            t.Errorf("validateRateLimitKey(%q) returned no errors for an empty key", emptyKey)
-        }
-    })
+	t.Run("empty key", func(t *testing.T) {
+		t.Parallel()
+		emptyKey := ""
+		allErrs := validateRateLimitKey(emptyKey, field.NewPath("key"), false)
+		if len(allErrs) == 0 {
+			t.Errorf("validateRateLimitKey %q returned no errors for an empty key", emptyKey)
+		}
+	})
 }
 
 func TestValidateJWT_PassesOnValidInput(t *testing.T) {
