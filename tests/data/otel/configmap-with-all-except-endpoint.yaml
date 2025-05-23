@@ -1,0 +1,10 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: nginx-config
+  namespace: nginx-ingress
+data:
+  otel-exporter-header-name: "x-otel-header"
+  otel-exporter-header-value: "otel-header-value"
+  otel-service-name: "nginx-ingress-controller:nginx"
+  otel-trace-in-http: "true"
