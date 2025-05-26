@@ -631,12 +631,12 @@ func (lm *LocalManager) AgentStart(agentDone chan error, instanceGroup string) {
 			nl.Fatalf(lm.logger, "Failed to start NGINX Agent: %v", err)
 		}
 		labels := []string{
-			fmt.Sprintf("product_name=%s", metadataInfo.ProductName),
-			fmt.Sprintf("product_version=%s", metadataInfo.ProductVersion),
-			fmt.Sprintf("cluster_id=%s", metadataInfo.ClusterID),
-			fmt.Sprintf("deployment_name=%s", metadataInfo.DeploymentName),
-			fmt.Sprintf("deployment_id=%s", metadataInfo.DeploymentID),
-			fmt.Sprintf("deployment_namespace=%s", metadataInfo.DeploymentNamespace),
+			fmt.Sprintf("product-type=%s", metadataInfo.ProductType),
+			fmt.Sprintf("product-version=%s", metadataInfo.ProductVersion),
+			fmt.Sprintf("cluster-id=%s", metadataInfo.ClusterID),
+			fmt.Sprintf("installation-name=%s", metadataInfo.InstallationName),
+			fmt.Sprintf("installation-id=%s", metadataInfo.InstallationID),
+			fmt.Sprintf("installation-namespace=%s", metadataInfo.InstallationNamespace),
 		}
 		metadataLabels := "--labels=" + strings.Join(labels, ",")
 		args = append(args, metadataLabels)

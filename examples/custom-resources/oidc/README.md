@@ -57,8 +57,7 @@ kubectl apply -f webapp.yaml
 
 To set up Keycloak:
 
-1. Follow the steps in the "Configuring Keycloak" section of the documentation
-   [here](https://docs.nginx.com/nginx/deployment-guides/single-sign-on/keycloak/#configuring-keycloak):
+1. Follow the steps in the "Configuring Keycloak" [section of the documentation](https://docs.nginx.com/nginx/deployment-guides/single-sign-on/keycloak/#configuring-keycloak):
     1. To connect to Keycloak, use `https://keycloak.example.com`.
     1. Make sure to save the client secret for NGINX-Plus client to the `SECRET` shell variable:
 
@@ -66,7 +65,7 @@ To set up Keycloak:
         SECRET=value
         ```
 
-1. Alternatively, execute the commands [here](./keycloak_setup.md).
+1. Alternatively, [execute the commands](./keycloak_setup.md).
 
 ## Step 5 - Deploy the Client Secret
 
