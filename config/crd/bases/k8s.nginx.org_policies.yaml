@@ -184,19 +184,17 @@ spec:
                       limit policy.
                     properties:
                       apiKey:
-                        description: defines a JWT condition to rate limit against.
+                        description: defines an API Key condition to rate limit against.
+                        minProperties: 1
                         properties:
                           clients:
                             description: a list of API Key client names to be rate
                               limit by
                             type: string
-                          name:
+                          match:
                             description: the name of the to match against.
-                            pattern: ^([^$\s."'])*$
+                            pattern: ^([^\s"'])*$
                             type: string
-                        required:
-                        - clients
-                        - name
                         type: object
                       default:
                         description: sets the rate limit in this policy to be the

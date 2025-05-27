@@ -151,8 +151,8 @@ func validateRateLimit(rateLimit *v1.RateLimit, fieldPath *field.Path, isPlus bo
 		}
 	}
 
-	if rateLimit.Condition != nil && rateLimit.Condition.JWT == nil {
-		allErrs = append(allErrs, field.Required(fieldPath.Child("jwt"), "jwt cannot be nil"))
+	if rateLimit.Condition != nil && (rateLimit.Condition.JWT == nil && rateLimit.Condition.APIKey == nil) {
+		allErrs = append(allErrs, field.Required(fieldPath.Child("condition"), "must specify either jwt or apiKey conditions"))
 	}
 
 	if rateLimit.Condition != nil && rateLimit.Condition.JWT != nil && !isPlus {

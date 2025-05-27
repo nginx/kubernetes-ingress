@@ -9,7 +9,7 @@ spec:
     zoneSize: 10M
     condition:
       apiKey:
-        regex: "^.*-premium$"
+        match: "~^.*-premium$"
 ---
 apiVersion: k8s.nginx.org/v1
 kind: Policy
@@ -22,6 +22,6 @@ spec:
     zoneSize: 10M
     condition:
       apiKey:
-        regex: "^.*-basic$"
+        match: "~^.*-basic$"
       default: true
 ---
