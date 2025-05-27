@@ -618,7 +618,7 @@ type RateLimit struct {
 type RateLimitCondition struct {
 	// defines a JWT condition to rate limit against.
 	JWT *JWTCondition `json:"jwt"`
-	// defines a JWT condition to rate limit against.
+	// defines an API Key condition to rate limit against.
 	APIKey *APIKeyCondition `json:"apiKey"`
 	// +kubebuilder:validation:Optional
 	// sets the rate limit in this policy to be the default if no conditions are met. In a group of policies with the same JWT condition, only one policy can be the default.
@@ -626,6 +626,7 @@ type RateLimitCondition struct {
 }
 
 // JWTCondition defines a condition for a rate limit by JWT claim.
+
 type JWTCondition struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^([^$\s"'])*$`
@@ -638,14 +639,13 @@ type JWTCondition struct {
 }
 
 // APIKeyCondition defines a condition for a rate limit by API Key.
+// +kubebuilder:validation:MinProperties=1
 type APIKeyCondition struct {
-	// +kubebuilder:validation:Required
 	// a list of API Key client names to be rate limit by
 	Clients string `json:"clients"`
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Pattern=`^([^$\s."'])*$`
+	// +kubebuilder:validation:Pattern=`^([^\s"'])*$`
 	// the name of the to match against.
-	Name string `json:"name"`
+	Match string `json:"match"`
 }
 
 // JWTAuth holds JWT authentication configuration.

@@ -1057,13 +1057,15 @@ func (p *policiesCfg) addRateLimitConfig(
 	if zoneSync {
 		rlZoneName = fmt.Sprintf("%v_sync", rlZoneName)
 	}
-	if rateLimit.Condition != nil && rateLimit.Condition.JWT.Claim != "" && rateLimit.Condition.JWT.Match != "" {
+	if rateLimit.Condition != nil {
 		lrz, warningText := generateGroupedLimitReqZone(rlZoneName, policy, podReplicas, ownerDetails, zoneSync)
 		if warningText != "" {
 			nl.Warn(l, warningText)
 		}
 		p.RateLimit.PolicyGroupMaps = append(p.RateLimit.PolicyGroupMaps, *generateLRZPolicyGroupMap(lrz))
-		p.RateLimit.AuthJWTClaimSets = append(p.RateLimit.AuthJWTClaimSets, generateAuthJwtClaimSet(*rateLimit.Condition.JWT, ownerDetails))
+		if rateLimit.Condition.JWT != nil && rateLimit.Condition.JWT.Claim != "" && rateLimit.Condition.JWT.Match != "" {
+			p.RateLimit.AuthJWTClaimSets = append(p.RateLimit.AuthJWTClaimSets, generateAuthJwtClaimSet(*rateLimit.Condition.JWT, ownerDetails))
+		}
 		p.RateLimit.Zones = append(p.RateLimit.Zones, lrz)
 	} else {
 		lrz, warningText := generateLimitReqZone(rlZoneName, policy, podReplicas, zoneSync)
@@ -1822,6 +1824,23 @@ func generateGroupedLimitReqZone(zoneName string,
 		lrz.PolicyResult = rateLimitPol.Key
 		lrz.GroupDefault = rateLimitPol.Condition.Default
 		lrz.GroupSource = generateAuthJwtClaimSetVariable(rateLimitPol.Condition.JWT.Claim, ownerDetails.vsNamespace, ownerDetails.vsName)
+	}
+	if rateLimitPol.Condition != nil && rateLimitPol.Condition.APIKey != nil {
+		lrz.GroupValue = fmt.Sprintf("\"%s\"", rateLimitPol.Condition.APIKey.Match)
+		lrz.PolicyValue = rfc1123ToSnake(fmt.Sprintf("rl_%s_%s_match_%s",
+			ownerDetails.vsNamespace,
+			ownerDetails.vsName,
+			strings.ToLower(policy.Name),
+		))
+
+		lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf("$apikey_%s_%s_tier",
+			ownerDetails.vsNamespace,
+			ownerDetails.vsName,
+		))
+		lrz.Key = rfc1123ToSnake(fmt.Sprintf("$%s", zoneName))
+		lrz.PolicyResult = rateLimitPol.Key
+		lrz.GroupDefault = rateLimitPol.Condition.Default
+		lrz.GroupSource = rateLimitPol.Key
 	}
 
 	return lrz, warningText
