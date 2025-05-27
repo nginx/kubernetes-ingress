@@ -51,7 +51,7 @@ repos:
         args: [--new-from-patch=/tmp/diff.patch]
 
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.19.1
+    rev: v3.20.0
     hooks:
       - id: pyupgrade
 
