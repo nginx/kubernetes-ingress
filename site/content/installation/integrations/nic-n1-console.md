@@ -18,11 +18,11 @@ Connecting NGINX Ingress Controller to NGINX One Console enables centralized mon
 {{%tab name="Helm"%}}
 
 Edit your `values.yaml` file to enable NGINX Agent and configure it to connect to NGINX One Console:
-  ```yaml
-  nginxAgent:
-    enable: true
-    dataplaneKey: "<Your Dataplane Key>"
-  ```
+```yaml
+nginxAgent:
+  enable: true
+  dataplaneKey: "<Your Dataplane Key>"
+```
 
  The `dataplaneKey` is used to authenticate the agent with NGINX One Console. See the NGINX One Console Docs [here](https://docs.nginx.com/nginx-one/getting-started/#generate-data-plane-key) to generate your dataplane key from the NGINX One Console.
 
