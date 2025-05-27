@@ -9,7 +9,7 @@ nd-product: NIC
 
 This document explains how to connect F5 NGINX Ingress Controller to NGINX One Console using NGINX Agent.
 
-A benefit to connecting NGINX Ingress Controller to NGINX One Console is that it enables centralized monitoring of all controller instances.
+Connecting NGINX Ingress Controller to NGINX One Console enables centralized monitoring of all controller instances.
 
 ## Deploy NGINX Ingress Controller with NGINX Agent
 
@@ -24,10 +24,10 @@ Edit your `values.yaml` file to enable NGINX Agent and configure it to connect t
     dataplaneKey: "<Your Dataplane Key>"
   ```
 
-  The `dataplaneKey` is used to authenticate the agent with NGINX One Console. See the NGINX One Console Docs [here](https://docs.nginx.com/nginx-one/getting-started/#generate-data-plane-key) to generate your dataplane key from the NGINX One Console.
+ The `dataplaneKey` is used to authenticate the agent with NGINX One Console. See the NGINX One Console Docs [here](https://docs.nginx.com/nginx-one/getting-started/#generate-data-plane-key) to generate your dataplane key from the NGINX One Console.
 
 
-Follow the [Installation with Helm]({{< relref "/installation/installing-nic/installation-with-helm.md" >}}) instructions to deploy NGINX Ingress Controller.
+Follow the [Installation with Helm]({{< ref "/installation/installing-nic/installation-with-helm.md" >}}) instructions to deploy NGINX Ingress Controller.
 
 {{%/tab%}}
 
@@ -75,28 +75,30 @@ data:
       token: "<Your Dataplane Key>"
     tls:
       skip_verify: false
+```      
   
 Make sure you set the namespace in the nginx-agent-config to the same namespace as NGINX Ingress Controller.
 
 Mount the ConfigMap to the deployment/daemonset file of NGINX Ingress Controller:
-  ```yaml
-  volumeMounts:
-  - name: nginx-agent-config
-    mountPath: /etc/nginx-agent/nginx-agent.conf
-    subPath: nginx-agent.conf
-  volumes:
-  - name: nginx-agent-config
-    configMap:
-      name: nginx-agent-config
-  ```
 
-Follow the [Installation with Manifests]({{< relref "/installation/installing-nic/installation-with-manifests.md" >}}) instructions to deploy NGINX Ingress Controller.
+```yaml
+volumeMounts:
+- name: nginx-agent-config
+  mountPath: /etc/nginx-agent/nginx-agent.conf
+  subPath: nginx-agent.conf
+volumes:
+- name: nginx-agent-config
+  configMap:
+    name: nginx-agent-config
+```
+
+Follow the [Installation with Manifests]({{< ref "/installation/installing-nic/installation-with-manifests.md" >}}) instructions to deploy NGINX Ingress Controller.
 
 {{%/tab%}}
 
 {{</tabs>}}
 
-## Verify the Connection
+## Verify that NGINX Ingress Controller is connected to NGINX One
 
 After deploying NGINX Ingress Controller with NGINX Agent, you can verify the connection to NGINX One Console.
 
@@ -107,19 +109,22 @@ Log in to your NGINX One Console account and navigate to the Instances dashboard
 If you encounter issues connecting NGINX Ingress Controller to NGINX One Console, try the following steps based on your image type:
 
 Check the NGINX Agent version:
-  ```bash
-  kubectl exec -it -n <namespace> <nginx-ingress-pod-name> -- nginx-agent -v
-  ```
+
+```shell
+kubectl exec -it -n <namespace> <nginx-ingress-pod-name> -- nginx-agent -v
+```
   
-  If nginx-agent version is v3, continue with the following steps.
-  Otherwise, make sure you are using an image that does not include App Protect. 
+If nginx-agent version is v3, continue with the following steps.
+Otherwise, make sure you are using an image that does not include App Protect. 
 
 Check the NGINX Agent configuration:
-  ```bash
-  kubectl exec -it -n <namespace> <nginx-ingress-pod-name> -- cat /etc/nginx-agent/nginx-agent.conf
-  ```
+
+```shell
+kubectl exec -it -n <namespace> <nginx-ingress-pod-name> -- cat /etc/nginx-agent/nginx-agent.conf
+```
 
 Check NGINX Agent logs:
-  ```bash
-  kubectl exec -it -n <namespace> <nginx-ingress-pod-name> -- nginx-agent
-  ```
+
+```shell
+kubectl exec -it -n <namespace> <nginx-ingress-pod-name> -- nginx-agent
+```
