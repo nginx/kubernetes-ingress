@@ -42,14 +42,50 @@ Steps:
     curl -sS -k -X POST -d '{ "username": "nginx-user", "enabled": true, "credentials":[{"type": "password", "value": "test", "temporary": false}]}' -H "Content-Type:application/json" -H "Authorization: bearer ${TOKEN}" https://${KEYCLOAK_ADDRESS}/admin/realms/master/users
     ```
 
-1. Create the client `nginx-plus` and retrieve the secret:
+1. Create the client `nginx-plus`:
 
-    ```console
-    SECRET=`curl -sS -k -X POST -d '{ "clientId": "nginx-plus", "redirectUris": ["https://webapp.example.com:443/_codexch"], "attributes": {"post.logout.redirect.uris": "https://webapp.example.com:443/*"}}' -H "Content-Type:application/json" -H "Authorization: bearer ${TOKEN}" https://${KEYCLOAK_ADDRESS}/realms/master/clients-registrations/default | jq -r .secret`
-    ```
+{{< tabs name="create-keycloak-client" >}}
 
-   If everything went well you should have the secret stored in $SECRET. To double check run:
+{{%tab name="Standard OIDC client `nginx-ingress`"%}}
 
-    ```console
-    echo $SECRET
-    ```
+Use the following command to create an OIDC client that does not use PKCE:
+
+```console
+SECRET=`curl -sS -k -X POST -d '{ "clientId": "nginx-plus", "redirectUris": ["https://webapp.example.com:443/_codexch"], "attributes": {"post.logout.redirect.uris": "https://webapp.example.com:443/*"}}' -H "Content-Type:application/json" -H "Authorization: bearer ${TOKEN}" https://${KEYCLOAK_ADDRESS}/realms/master/clients-registrations/default | jq -r .secret`
+```
+
+If everything went well, you should have the secret stored in $SECRET. To double-check, run:
+
+```console
+echo $SECRET
+```
+
+{{%/tab%}}
+
+{{%tab name="PKCE Client `nginx-ingress-pkce`"%}}
+
+Use the following command to create an OIDC client that uses PKCE:
+
+```console
+curl -sS -k -H "Content-Type: application/json" -H "Authorization: Bearer ${TOKEN}" \
+--data '{
+    "clientId": "nginx-plus",
+    "enabled": true,
+    "standardFlowEnabled": true,
+    "directAccessGrantsEnabled": false,
+    "publicClient": true,
+    "redirectUris": [
+        "https://webapp.example.com:443/_codexch"
+    ],
+    "attributes": {
+        "pkce.code.challenge.method":"S256",
+        "post.logout.redirect.uris": "https://webapp.example.com:443/*"
+    },
+    "protocol": "openid-connect"
+}' \
+https://${KEYCLOAK_ADDRESS}/admin/realms/master/clients
+```
+
+{{%/tab%}}
+
+{{< /tabs >}}
