@@ -9,12 +9,7 @@ builds:
       - linux
     goarch:
       - amd64
-      - arm
       - arm64
-      - ppc64le
-      - s390x
-    goarm:
-      - 7
     flags:
       - -trimpath
     gcflags:
@@ -100,7 +95,7 @@ changelog:
 
 archives:
   - id: archives
-    builds: [kubernetes-ingress]
+    ids: [kubernetes-ingress]
 
 sboms:
   - id: sboms
