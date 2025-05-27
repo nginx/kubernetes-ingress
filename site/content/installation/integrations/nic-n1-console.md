@@ -1,10 +1,10 @@
 ---
-doctypes:
-   - concept
 title: Connect NGINX Ingress Controller to NGINX One Console
+toc: true
 draft: true
-toc: false
 weight: 1800
+nd-type: how-to
+nd-product: NIC
 ---
 
 This document explains how to connect F5 NGINX Ingress Controller to NGINX One Console using NGINX Agent.
@@ -35,47 +35,48 @@ Follow the [Installation with Helm]({{< relref "/installation/installing-nic/ins
 
 Add the following flag to the deployment/daemonset file of NGINX Ingress Controller:
 
-  ```yaml
-  args:
-    - -agent=true
-  ```
+```yaml
+args:
+- -agent=true
+```
 
 Create a ConfigMap with an `nginx-agent.conf` file:
-  ```yaml
-  kind: ConfigMap
-  apiVersion: v1
-  metadata:
-    name: nginx-agent-config
-    namespace: <namespace>
-  data:
-    nginx-agent.conf: |-
-    log:
-      # set log level (error, info, debug; default "info")
-      level: info
-      # set log path. if empty, don't log to file.
-      path: ""
 
-    allowed_directories:
-      - /etc/nginx
-      - /usr/lib/nginx/modules
+```yaml
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: nginx-agent-config
+  namespace: <namespace>
+data:
+  nginx-agent.conf: |-
+  log:
+    # set log level (error, info, debug; default "info")
+    level: info
+    # set log path. if empty, don't log to file.
+    path: ""
 
-    features:
-      - certificates
-      - connection
-      - metrics
-      - file-watcher
+  allowed_directories:
+    - /etc/nginx
+    - /usr/lib/nginx/modules
 
-    ## command server settings
-    command:
-      server:
-        host: product.connect.nginx.com
-        port: 443
-      auth:
-        token: "<Your Dataplane Key>"
-      tls:
-        skip_verify: false
-  ```
-  Make sure you set the namespace in the nginx-agent-config to the same namespace as the Ingress Controller.
+  features:
+    - certificates
+    - connection
+    - metrics
+    - file-watcher
+
+  ## command server settings
+  command:
+    server:
+      host: product.connect.nginx.com
+      port: 443
+    auth:
+      token: "<Your Dataplane Key>"
+    tls:
+      skip_verify: false
+  
+Make sure you set the namespace in the nginx-agent-config to the same namespace as NGINX Ingress Controller.
 
 Mount the ConfigMap to the deployment/daemonset file of NGINX Ingress Controller:
   ```yaml
