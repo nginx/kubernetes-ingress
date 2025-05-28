@@ -13,6 +13,7 @@ spec:
           - "client-1"
           - "client-2"
           - "client-3"
+          - "~^.*-premium$"
 ---
 apiVersion: k8s.nginx.org/v1
 kind: Policy
@@ -29,5 +30,6 @@ spec:
           - "client-4"
           - "client-5"
           - "client-6"
+          - "~^.*-basic$"
       default: true
 ---

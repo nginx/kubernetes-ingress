@@ -61,6 +61,11 @@ map {{ $m.Source }} {{ $m.Variable }} {
     {{- end }}
 }
 {{- end }}
+{{- if .Server.APIKeyEnabled }}
+map $host $apikey_client_name {
+        default -;
+}
+{{- end }}
 
 {{- range $snippet := .HTTPSnippets }}
 {{ $snippet }}
@@ -268,6 +273,7 @@ server {
     js_var $apikey_auth_token $apikey_auth_hash;
     js_var $apikey_client_name;
     auth_request /_validate_apikey_njs;
+    set $apikey_client_name ${{ .MapName }};
     {{- end }}
 
     {{- with $s.WAF }}
@@ -484,6 +490,7 @@ server {
         set $header_query_value {{ makeHeaderQueryValue $l.APIKey | printf }};
         set $apikey_auth_token $apikey_auth_hash;
         auth_request /_validate_apikey_njs;
+        set $apikey_client_name ${{ .MapName }};
         {{- else }}
         {{- with $s.APIKey }}
         set $header_query_value {{ makeHeaderQueryValue $s.APIKey | printf }};

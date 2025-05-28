@@ -1840,7 +1840,7 @@ func generateGroupedLimitReqZone(zoneName string,
 		lrz.Key = rfc1123ToSnake(fmt.Sprintf("$%s", zoneName))
 		lrz.PolicyResult = rateLimitPol.Key
 		lrz.GroupDefault = rateLimitPol.Condition.Default
-		lrz.GroupSource = rateLimitPol.Key
+		lrz.GroupSource = "$apikey_client_name"
 	}
 
 	return lrz, warningText
