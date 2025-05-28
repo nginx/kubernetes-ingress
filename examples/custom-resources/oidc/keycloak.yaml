@@ -16,7 +16,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: keycloak
-  namespace: nginx-ingress
+  namespace: default
   labels:
     app: keycloak
 spec:
