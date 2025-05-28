@@ -5,6 +5,18 @@ application using an OpenID Connect policy and [Keycloak](https://www.keycloak.o
 
 **Note**: The KeyCloak container does not support IPv6 environments.
 
+**Note**: This example assumes that your default namespace is set to `default`. You can check this with
+
+```shell
+kubectl config view --minify | grep namespace
+```
+
+If it's not empty, and anything other than `default`, you can set to `default` with the following command:
+
+```shell
+kubectl config set-context --namespace default --current
+```
+
 ## Prerequisites
 
 1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)

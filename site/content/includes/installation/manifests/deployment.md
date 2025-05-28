@@ -15,6 +15,7 @@ When you deploy NGINX Ingress Controller as a Deployment, Kubernetes automatical
 - For NGINX Plus, run:
 
     ```shell
+    kubectl apply -f deployments/common/plus-mgmt-configmap.yaml
     kubectl apply -f deployments/deployment/nginx-plus-ingress.yaml
     ```
 
