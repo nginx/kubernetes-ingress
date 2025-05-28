@@ -81,6 +81,9 @@ To set up Keycloak:
 
 ## Step 5 - Deploy the Client Secret
 
+**Note**: If you're using PKCE, skip this step. PKCE clients do not have client secrets. Applying this will result
+in a broken deployment.
+
 1. Encode the secret, obtained in the previous step:
 
     ```console

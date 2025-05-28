@@ -34,6 +34,7 @@ const (
 	splitClientsKeyValZoneSize                      = "100k"
 	splitClientAmountWhenWeightChangesDynamicReload = 101
 	defaultLogOutput                                = "syslog:server=localhost:514"
+	pkceClientValue                                 = "cGtjZS1oYXMtbm8tc2VjcmV0" // "pkce-has-no-secret" base64 encoded
 )
 
 var grpcConflictingErrors = map[int]bool{
@@ -1372,6 +1373,7 @@ func (p *policiesCfg) addOIDCConfig(
 	} else {
 		secretKey := fmt.Sprintf("%v/%v", polNamespace, oidc.ClientSecret)
 		secretRef := secretRefs[secretKey]
+		clientSecret := []byte(pkceClientValue)
 
 		var secretType api_v1.SecretType
 		if secretRef.Secret != nil {
@@ -1381,13 +1383,15 @@ func (p *policiesCfg) addOIDCConfig(
 			res.addWarningf("OIDC policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, secretKey, secretType, secrets.SecretTypeOIDC)
 			res.isError = true
 			return res
-		} else if secretRef.Error != nil {
+		} else if secretRef.Error != nil && !oidc.PKCEEnabled {
 			res.addWarningf("OIDC policy %s references an invalid secret %s: %v", polKey, secretKey, secretRef.Error)
 			res.isError = true
 			return res
 		}
 
-		clientSecret := secretRef.Secret.Data[ClientSecretKey]
+		if !oidc.PKCEEnabled {
+			clientSecret = secretRef.Secret.Data[ClientSecretKey]
+		}
 
 		redirectURI := oidc.RedirectURI
 		if redirectURI == "" {
