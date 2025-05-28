@@ -1383,13 +1383,13 @@ func (p *policiesCfg) addOIDCConfig(
 			res.addWarningf("OIDC policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, secretKey, secretType, secrets.SecretTypeOIDC)
 			res.isError = true
 			return res
-		} else if secretRef.Error != nil && !oidc.PKCEEnabled {
+		} else if secretRef.Error != nil && !oidc.PKCEEnable {
 			res.addWarningf("OIDC policy %s references an invalid secret %s: %v", polKey, secretKey, secretRef.Error)
 			res.isError = true
 			return res
 		}
 
-		if !oidc.PKCEEnabled {
+		if !oidc.PKCEEnable {
 			clientSecret = secretRef.Secret.Data[ClientSecretKey]
 		}
 
@@ -1423,7 +1423,7 @@ func (p *policiesCfg) addOIDCConfig(
 			PostLogoutRedirectURI: postLogoutRedirectURI,
 			ZoneSyncLeeway:        generateIntFromPointer(oidc.ZoneSyncLeeway, 200),
 			AccessTokenEnable:     oidc.AccessTokenEnable,
-			PKCEEnabled:           oidc.PKCEEnabled,
+			PKCEEnable:            oidc.PKCEEnable,
 		}
 		oidcPolCfg.key = polKey
 	}

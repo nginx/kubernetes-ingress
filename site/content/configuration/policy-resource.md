@@ -649,7 +649,7 @@ spec:
     endSessionEndpoint: https://idp.example.com/openid-connect/logout
     postLogoutRedirectURI: /
     accessTokenEnable: true
-    pkceEnabled: false
+    pkceEnable: false
 ```
 
 NGINX Plus will pass the ID of an authenticated user to the backend in the HTTP header `username`.
@@ -690,7 +690,7 @@ The OIDC policy defines a few internal locations that can't be customized: `/_jw
 |``postLogoutRedirectURI`` | URI to redirect to after the logout has been performed. Requires ``endSessionEndpoint``. The default is ``/_logout``. | ``string`` | No |
 |``zoneSyncLeeway`` | Specifies the maximum timeout in milliseconds for synchronizing ID/access tokens and shared values between Ingress Controller pods. The default is ``200``. | ``int`` | No |
 |``accessTokenEnable`` | Option of whether Bearer token is used to authorize NGINX to access protected backend. | ``boolean`` | No |
-|``pkceEnabled`` | Switches Proof Key for Code Exchange on. The OpenID client needs to be in public mode. `clientSecret` is not used in this mode. | ``boolean`` | No |
+|``pkceEnable`` | Switches Proof Key for Code Exchange on. The OpenID client needs to be in public mode. `clientSecret` is not used in this mode. | ``boolean`` | No |
 {{% /table %}}
 
 {{< note >}}
