@@ -2443,7 +2443,7 @@ var (
 			StatusZone:    "example.com",
 			ProxyProtocol: true,
 			OIDC: &OIDC{
-				PKCEEnabled: true,
+				PKCEEnable: true,
 			},
 			Locations: []Location{
 				{
