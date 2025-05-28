@@ -22,7 +22,7 @@ kubectl config set-context --namespace default --current
 1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
    instructions to deploy the Ingress Controller. This example requires that the HTTPS port of the Ingress Controller is
    `443`.
-1. Save the public IP address of the Ingress Controller into `/etc/hosts` of your machine:
+2. Save the public IP address of the Ingress Controller into `/etc/hosts` of your machine:
 
     ```text
     ...
@@ -59,7 +59,7 @@ kubectl apply -f webapp.yaml
     kubectl apply -f keycloak.yaml
     ```
 
-1. Create a VirtualServer resource for Keycloak:
+2. Create a VirtualServer resource for Keycloak:
 
     ```console
     kubectl apply -f virtual-server-idp.yaml
@@ -71,13 +71,13 @@ To set up Keycloak:
 
 1. Follow the steps in the "Configuring Keycloak" [section of the documentation](https://docs.nginx.com/nginx/deployment-guides/single-sign-on/keycloak/#configuring-keycloak):
     1. To connect to Keycloak, use `https://keycloak.example.com`.
-    1. Make sure to save the client secret for NGINX-Plus client to the `SECRET` shell variable:
+    2. Make sure to save the client secret for NGINX-Plus client to the `SECRET` shell variable:
 
         ```console
         SECRET=value
         ```
 
-1. Alternatively, [execute the commands](./keycloak_setup.md).
+2. Alternatively, [execute the commands](./keycloak_setup.md).
 
 ## Step 5 - Deploy the Client Secret
 
@@ -87,9 +87,9 @@ To set up Keycloak:
     echo -n $SECRET | base64
     ```
 
-1. Edit `client-secret.yaml`, replacing `<insert-secret-here>` with the encoded secret.
+2. Edit `client-secret.yaml`, replacing `<insert-secret-here>` with the encoded secret.
 
-1. Create a secret with the name `oidc-secret` that will be used by the OIDC policy:
+3. Create a secret with the name `oidc-secret` that will be used by the OIDC policy:
 
     ```console
     kubectl apply -f client-secret.yaml
@@ -134,9 +134,9 @@ Note that the VirtualServer references the policy `oidc-policy` created in Step 
 
 1. Open a web browser and navigate to the URL of the web application: `https://webapp.example.com`. You will be
    redirected to Keycloak.
-1. Log in with the username and password for the user you created in Keycloak, `nginx-user` and `test`.
+2. Log in with the username and password for the user you created in Keycloak, `nginx-user` and `test`.
 ![keycloak](./keycloak.png)
-1. Once logged in, you will be redirected to the web application and get a response from it. Notice the field `User ID`
+3. Once logged in, you will be redirected to the web application and get a response from it. Notice the field `User ID`
 in the response, this will match the ID for your user in Keycloak. ![webapp](./webapp.png)
 
 ## Step 10 - Log Out
@@ -144,5 +144,5 @@ in the response, this will match the ID for your user in Keycloak. ![webapp](./w
 1. To log out, navigate to `https://webapp.example.com/logout`. Your session will be terminated, and you will be
    redirected to the default post logout URI `https://webapp.example.com/_logout`.
 ![logout](./logout.png)
-1. To confirm that you have been logged out, navigate to `https://webapp.example.com`. You will be redirected to
+2. To confirm that you have been logged out, navigate to `https://webapp.example.com`. You will be redirected to
    Keycloak to log in again.
