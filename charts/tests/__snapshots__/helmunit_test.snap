@@ -442,6 +442,8 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -909,6 +911,8 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -984,7 +988,7 @@ data:
   nginx-agent.conf: |-
     
     log:
-      level: error
+      level: info
       path: ""
     server:
       host: nim.example.com
@@ -1320,7 +1324,7 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: app-protect-waf-agentv2
-        agent-configuration-revision-hash: "83cb4598"
+        agent-configuration-revision-hash: "58428611"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
@@ -1446,6 +1450,8 @@ spec:
           - -weight-changes-dynamic-reload=false
           - -agent=true
           - -agent-instance-group=app-protect-waf-agentv2-nginx-ingress-controller
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -1960,6 +1966,7 @@ spec:
             mountPath: /opt/app_protect/config
           - name: app-protect-bundles
             mountPath: /etc/app_protect/bundles
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -2035,7 +2042,7 @@ data:
   nginx-agent.conf: |-
     
     log:
-      level: error
+      level: info
       path: ""
     server:
       host: nim.example.com
@@ -2371,7 +2378,7 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: app-protect-wafv5-agentv2
-        agent-configuration-revision-hash: "2199944f"
+        agent-configuration-revision-hash: "a8989f3a"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
@@ -2542,6 +2549,7 @@ spec:
             mountPath: /opt/app_protect/config
           - name: app-protect-bundles
             mountPath: /etc/app_protect/bundles
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -2955,6 +2963,8 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -3398,6 +3408,8 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -3841,6 +3853,8 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -4285,6 +4299,8 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -4749,6 +4765,8 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -5194,6 +5212,8 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -5273,7 +5293,7 @@ data:
     
     log:
       # set log level (error, info, debug; default "info")
-      level: error
+      level: info
       # set log path. if empty, don't log to file.
       path: ""
     
@@ -5578,7 +5598,7 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: oss-agent
-        agent-configuration-revision-hash: "f99a1b6d"
+        agent-configuration-revision-hash: "d6017708"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
@@ -5692,6 +5712,8 @@ spec:
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
           - -agent=true
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -6149,6 +6171,8 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -6616,6 +6640,8 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -7093,6 +7119,8 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -7551,6 +7579,8 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -8009,6 +8039,8 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -8477,6 +8509,8 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -8553,7 +8587,7 @@ data:
     
     log:
       # set log level (error, info, debug; default "info")
-      level: error
+      level: info
       # set log path. if empty, don't log to file.
       path: ""
     
@@ -8873,7 +8907,7 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: plus-agent
-        agent-configuration-revision-hash: "f99a1b6d"
+        agent-configuration-revision-hash: "d6017708"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
@@ -8988,6 +9022,8 @@ spec:
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
           - -agent=true
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -9499,6 +9535,8 @@ spec:
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
           - -agent=true
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
