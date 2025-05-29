@@ -17,19 +17,19 @@ Steps:
 
 1. Save the address of Keycloak into a shell variable:
 
-    ```console
+    ```shell
     KEYCLOAK_ADDRESS=keycloak.example.com
     ```
 
 2. Retrieve the access token and store it into a shell variable:
 
-    ```console
+    ```shell
     TOKEN=`curl -sS -k --data "username=admin&password=admin&grant_type=password&client_id=admin-cli" "https://${KEYCLOAK_ADDRESS}/realms/master/protocol/openid-connect/token" | jq -r .access_token`
     ```
 
    Ensure the request was successful and the token is stored in the shell variable by running:
 
-   ```console
+   ```shell
    echo $TOKEN
    ```
 
@@ -38,7 +38,7 @@ Steps:
 
 3. Create the user `nginx-user`:
 
-    ```console
+    ```shell
     curl -sS -k -X POST -d '{ "username": "nginx-user", "enabled": true, "credentials":[{"type": "password", "value": "test", "temporary": false}]}' -H "Content-Type:application/json" -H "Authorization: bearer ${TOKEN}" https://${KEYCLOAK_ADDRESS}/admin/realms/master/users
     ```
 
@@ -46,19 +46,19 @@ Steps:
 
     1. If you are not using PKCE, use the following command to create an OIDC client that does not use PKCE:
 
-        ```console
+        ```shell
         SECRET=`curl -sS -k -X POST -d '{ "clientId": "nginx-plus", "redirectUris": ["https://webapp.example.com:443/_codexch"], "attributes": {"post.logout.redirect.uris": "https://webapp.example.com:443/*"}}' -H "Content-Type:application/json" -H "Authorization: bearer ${TOKEN}" https://${KEYCLOAK_ADDRESS}/realms/master/clients-registrations/default | jq -r .secret`
         ```
 
         If everything went well, you should have the secret stored in $SECRET. To double-check, run:
 
-        ```console
+        ```shell
         echo $SECRET
         ```
 
     2. Use the following command to create an OIDC client that uses PKCE:
 
-        ```console
+        ```shell
         curl -sS -k -H "Content-Type: application/json" -H "Authorization: Bearer ${TOKEN}" \
         --data '{
             "clientId": "nginx-plus",
