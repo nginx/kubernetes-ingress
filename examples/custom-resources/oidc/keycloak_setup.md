@@ -44,7 +44,7 @@ Steps:
 
 4. Create the client `nginx-plus`:
 
-    1. If you are not using PKCE, use the following command to create an OIDC client that does not use PKCE:
+    - If you are not using PKCE, use the following command to create an OIDC client that does not use PKCE:
 
         ```shell
         SECRET=`curl -sS -k -X POST -d '{ "clientId": "nginx-plus", "redirectUris": ["https://webapp.example.com:443/_codexch"], "attributes": {"post.logout.redirect.uris": "https://webapp.example.com:443/*"}}' -H "Content-Type:application/json" -H "Authorization: bearer ${TOKEN}" https://${KEYCLOAK_ADDRESS}/realms/master/clients-registrations/default | jq -r .secret`
@@ -56,7 +56,7 @@ Steps:
         echo $SECRET
         ```
 
-    2. Use the following command to create an OIDC client that uses PKCE:
+    - Or if you are using PKCE with OIDC, use the following command to create the client:
 
         ```shell
         curl -sS -k -H "Content-Type: application/json" -H "Authorization: Bearer ${TOKEN}" \
