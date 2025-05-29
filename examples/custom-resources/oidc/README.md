@@ -39,7 +39,7 @@ kubectl config set-context --namespace default --current
 Create a secret with the TLS certificate and key that will be used for TLS termination of the web application and
 Keycloak:
 
-```console
+```shell
 kubectl apply -f tls-secret.yaml
 ```
 
@@ -47,7 +47,7 @@ kubectl apply -f tls-secret.yaml
 
 Create the application deployment and service:
 
-```console
+```shell
 kubectl apply -f webapp.yaml
 ```
 
@@ -55,13 +55,13 @@ kubectl apply -f webapp.yaml
 
 1. Create the Keycloak deployment and service:
 
-    ```console
+    ```shell
     kubectl apply -f keycloak.yaml
     ```
 
 2. Create a VirtualServer resource for Keycloak:
 
-    ```console
+    ```shell
     kubectl apply -f virtual-server-idp.yaml
     ```
 
@@ -73,7 +73,7 @@ To set up Keycloak:
     1. To connect to Keycloak, use `https://keycloak.example.com`.
     2. Make sure to save the client secret for NGINX-Plus client to the `SECRET` shell variable:
 
-        ```console
+        ```shell
         SECRET=value
         ```
 
@@ -86,7 +86,7 @@ in a broken deployment.
 
 1. Encode the secret, obtained in the previous step:
 
-    ```console
+    ```shell
     echo -n $SECRET | base64
     ```
 
@@ -94,7 +94,7 @@ in a broken deployment.
 
 3. Create a secret with the name `oidc-secret` that will be used by the OIDC policy:
 
-    ```console
+    ```shell
     kubectl apply -f client-secret.yaml
     ```
 
@@ -111,7 +111,7 @@ Steps:
 
 1. Apply the ConfigMap `nginx-config.yaml`, which contains `zone-sync` configuration parameter that enable zone synchronization and the resolver using the kube-dns service.
 
-    ```console
+    ```shell
     kubectl apply -f nginx-config.yaml
     ```
 
@@ -119,7 +119,7 @@ Steps:
 
 Create a policy with the name `oidc-policy` that references the secret from the previous step:
 
-```console
+```shell
 kubectl apply -f oidc.yaml
 ```
 
@@ -127,7 +127,7 @@ kubectl apply -f oidc.yaml
 
 Create a VirtualServer resource for the web application:
 
-```console
+```shell
 kubectl apply -f virtual-server.yaml
 ```
 
