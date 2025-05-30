@@ -4,7 +4,7 @@ metadata:
   name: rate-limit-apikey-premium
 spec:
   rateLimit:
-    rate: 100r/s
+    rate: 15r/s
     key: ${apikey_client_name}
     zoneSize: 10M
     condition:
@@ -17,7 +17,7 @@ metadata:
   name: rate-limit-apikey-basic
 spec:
   rateLimit:
-    rate: 10r/s
+    rate: 1r/m
     key: ${apikey_client_name}
     zoneSize: 10M
     condition:
