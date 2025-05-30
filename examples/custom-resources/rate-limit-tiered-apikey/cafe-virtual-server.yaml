@@ -10,6 +10,9 @@ spec:
   - name: coffee
     service: coffee-svc
     port: 80
+  - name: tea
+    service: tea-svc
+    port: 80
   policies:
   - name: api-key-policy
   - name: rate-limit-apikey-premium
@@ -18,3 +21,10 @@ spec:
   - path: /coffee
     action:
       pass: coffee
+  - path: /tea
+    action:
+      pass: tea
+    # policies:
+    #   - name: rate-limit-apikey-gold
+    #   - name: rate-limit-apikey-silver
+    #   - name: rate-limit-apikey-bronze
