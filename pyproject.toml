@@ -47,6 +47,7 @@ markers = [
     "ingresses",
     "multi_ns",
     "oidc",
+    "otel",
     "policies",
     "policies_rl",
     "policies_jwt",

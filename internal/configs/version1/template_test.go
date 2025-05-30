@@ -1080,6 +1080,36 @@ func TestExecuteTemplate_ForMainForNGINXWithZoneSyncEnabledCustomResolverAddress
 	snaps.MatchSnapshot(t, buf.String())
 }
 
+func TestExecuteTemplate_ForMainForNGINXWithOtel(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusMainTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, mainCfgWithOTel)
+	t.Log(buf.String())
+
+	if err != nil {
+		t.Fatalf("Failed to write template %v", err)
+	}
+
+	wantDirectives := []string{
+		"otel_exporter {",
+		"endpoint https://otel-collector:4317;",
+		"header X-Custom-Header \"custom-value\";",
+		"otel_service_name nginx-ingress-controller:nginx;",
+		"otel_trace on;",
+	}
+
+	mainConf := buf.String()
+	for _, want := range wantDirectives {
+		if !strings.Contains(mainConf, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
 func TestExecuteTemplate_ForIngressForNGINXWithProxySetHeadersAnnotationWithDefaultValue(t *testing.T) {
 	t.Parallel()
 
@@ -2587,6 +2617,15 @@ var (
 			ResolverValid:     "20s",
 			ResolverIPV6:      commonhelpers.BoolToPointerBool(false),
 		},
+	}
+
+	mainCfgWithOTel = MainConfig{
+		MainOtelLoadModule:          true,
+		MainOtelGlobalTraceEnabled:  true,
+		MainOtelExporterEndpoint:    "https://otel-collector:4317",
+		MainOtelExporterHeaderName:  "X-Custom-Header",
+		MainOtelExporterHeaderValue: "custom-value",
+		MainOtelServiceName:         "nginx-ingress-controller:nginx",
 	}
 
 	// Vars for Mergable Ingress Master - Minion tests

@@ -230,6 +230,11 @@ If you encounter the error `error [emerg] 13#13: "zone_sync" directive is duplic
 {{<bootstrap-table "table table-striped table-bordered table-responsive">}}
 |ConfigMap Key | Description | Default | Example |
 | ---| ---| ---| --- |
+|*otel-exporter-endpoint* | OTLP/gRPC endpoint that will accept [OpenTelemetry](https://opentelemetry.io) data. Set `otel-trace-in-http` to *"true"* to enable OpenTelemetry at the global level. | N/A | *"https://otel-collector:4317"* |
+|*otel-exporter-header-name* | The name of a custom HTTP header to add to telemetry export request. `otel-exporter-endpoint` and `otel-exporter-header-value` required. | N/A | *"X-custom-header"* |
+|*otel-exporter-header-value* | The value of a custom HTTP header to add to telemetry export request. `otel-exporter-endpoint` and `otel-exporter-header-name` required. | N/A | *"custom-value"* |
+|*otel-service-name* | Sets the `service.name` attribute of the OTel resource. `otel-exporter-endpoint` required. | N/A | *"nginx-ingress-controller:nginx"* |
+| *otel-trace-in-http* | Enables [OpenTelemetry](https://opentelemetry.io) globally (for all Ingress, VirtualServer and VirtualServerRoute resources). Set this to *"false"* to enable OpenTelemetry for individual routes with snippets. `otel-exporter-endpoint` required. | *"false"* | *"true"* |
 |*opentracing* | Removed in v5.0.0.  Enables [OpenTracing](https://opentracing.io) globally (for all Ingress, VirtualServer and VirtualServerRoute resources). Note: requires the Ingress Controller image with OpenTracing module and a tracer. See the [docs]({{< relref "/installation/integrations/opentracing.md" >}}) for more information. | *False* |  |
 |*opentracing-tracer* | Removed in v5.0.0.  Sets the path to the vendor tracer binary plugin. | N/A |  |
 |*opentracing-tracer-config* | Removed in v5.0.0.  Sets the tracer configuration in JSON format. | N/A |  |
