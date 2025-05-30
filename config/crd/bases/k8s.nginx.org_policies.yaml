@@ -187,10 +187,6 @@ spec:
                         description: defines an API Key condition to rate limit against.
                         minProperties: 1
                         properties:
-                          clients:
-                            description: a list of API Key client names to be rate
-                              limit by
-                            type: string
                           match:
                             description: the name of the to match against.
                             pattern: ^([^\s"'])*$

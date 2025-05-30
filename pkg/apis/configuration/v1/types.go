@@ -626,7 +626,6 @@ type RateLimitCondition struct {
 }
 
 // JWTCondition defines a condition for a rate limit by JWT claim.
-
 type JWTCondition struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^([^$\s"'])*$`
@@ -641,8 +640,6 @@ type JWTCondition struct {
 // APIKeyCondition defines a condition for a rate limit by API Key.
 // +kubebuilder:validation:MinProperties=1
 type APIKeyCondition struct {
-	// a list of API Key client names to be rate limit by
-	Clients string `json:"clients"`
 	// +kubebuilder:validation:Pattern=`^([^\s"'])*$`
 	// the name of the to match against.
 	Match string `json:"match"`
