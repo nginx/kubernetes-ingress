@@ -12,6 +12,9 @@ daemon off;
 error_log  stderr {{.ErrorLogLevel}};
 pid        /var/lib/nginx/nginx.pid;
 
+{{- if .MainOtelLoadModule}}
+load_module modules/ngx_otel_module.so;
+{{- end}}
 {{- if .AppProtectLoadModule}}
 load_module modules/ngx_http_app_protect_module.so;
 {{- end}}
@@ -141,6 +144,22 @@ http {
     {{- end}}
     {{- if .SSLDHParam}}
     ssl_dhparam {{.SSLDHParam}};
+    {{- end}}
+
+    {{- if .MainOtelLoadModule }}
+    otel_exporter {
+        endpoint {{ .MainOtelExporterEndpoint }};
+        {{- if and .MainOtelExporterHeaderName .MainOtelExporterHeaderValue }}
+        header {{ .MainOtelExporterHeaderName }} "{{ .MainOtelExporterHeaderValue }}";
+        {{- end }}
+    }
+
+    {{ if .MainOtelServiceName}}
+    otel_service_name {{ .MainOtelServiceName }};
+    {{- end }}
+    {{ if .MainOtelGlobalTraceEnabled }}
+    otel_trace on;
+    {{- end}}
     {{- end}}
 
     {{ $resolverIPV6HTTPBool := boolToPointerBool .ResolverIPV6 -}}
