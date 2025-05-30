@@ -62,7 +62,8 @@ jobs:
             ARGS="--exclude ${{ github.event.inputs.excludes }}"
           fi
           .github/scripts/docker-updater.sh ./build/Dockerfile $ARGS
-          .github/scripts/docker-updater.sh ./build/dependencies/Dockerfile.ubi $ARGS
+          .github/scripts/docker-updater.sh ./build/dependencies/Dockerfile.ubi8 $ARGS
+          .github/scripts/docker-updater.sh ./build/dependencies/Dockerfile.ubi9 $ARGS
           .github/scripts/docker-updater.sh ./tests/Dockerfile $ARGS
           files=$(git diff --name-only)
           if [[ $files == *"Dockerfile"* ]]; then
