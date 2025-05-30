@@ -7,7 +7,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/marketplacemetering v1.29.0
 	github.com/cert-manager/cert-manager v1.17.2
 	github.com/dlclark/regexp2 v1.11.5
-	github.com/gkampitakis/go-snaps v0.5.11
+	github.com/gkampitakis/go-snaps v0.5.12
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/google/go-cmp v0.7.0
 	github.com/gruntwork-io/terratest v0.49.0
@@ -82,7 +82,7 @@ require (
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
-	github.com/gkampitakis/ciinfo v0.3.1 // indirect
+	github.com/gkampitakis/ciinfo v0.3.2 // indirect
 	github.com/gkampitakis/go-diff v1.3.2 // indirect
 	github.com/go-asn1-ber/asn1-ber v1.5.6 // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
@@ -96,7 +96,7 @@ require (
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/go-sql-driver/mysql v1.8.1 // indirect
 	github.com/gobuffalo/flect v1.0.3 // indirect
-	github.com/goccy/go-yaml v1.15.13 // indirect
+	github.com/goccy/go-yaml v1.17.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/gonvenience/bunt v1.3.5 // indirect
