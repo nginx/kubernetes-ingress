@@ -214,6 +214,20 @@ false
 {{- end -}}
 
 {{/*
+Create the global configuration custom name from the globalConfiguration.customName value.
+*/}}
+{{- define "nginx-ingress.globalConfiguration.customName" -}}
+{{ splitList "/" .Values.controller.globalConfiguration.customName | last }}
+{{- end -}}
+
+{{/*
+Create the global configuration custom namespace from the globalConfiguration.customName value.
+*/}}
+{{- define "nginx-ingress.globalConfiguration.customNamespace" -}}
+{{ splitList "/" .Values.controller.globalConfiguration.customName | first }}
+{{- end -}}
+
+{{/*
 Build the args for the service binary.
 */}}
 {{- define "nginx-ingress.args" -}}
@@ -314,8 +328,12 @@ Build the args for the service binary.
 - -enable-external-dns={{ .Values.controller.enableExternalDNS }}
 - -default-http-listener-port={{ .Values.controller.defaultHTTPListenerPort}}
 - -default-https-listener-port={{ .Values.controller.defaultHTTPSListenerPort}}
-{{- if .Values.controller.globalConfiguration.create }}
+{{- if and .Values.controller.globalConfiguration.create (not .Values.controller.globalConfiguration.customName) }}
 - -global-configuration=$(POD_NAMESPACE)/{{ include "nginx-ingress.controller.fullname" . }}
+{{- else }}
+{{- if .Values.controller.globalConfiguration.customName }}
+- -global-configuration={{ .Values.controller.globalConfiguration.customName }}
+{{- end }}
 {{- end }}
 {{- end }}
 - -ready-status={{ .Values.controller.readyStatus.enable }}
