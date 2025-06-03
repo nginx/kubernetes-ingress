@@ -302,10 +302,10 @@ server {
     auth_jwt "My Api";
     auth_jwt_key_file jwk-secret;
     js_var $header_query_value "${http_x_header_name}${http_other_header}${arg_myQuery}${arg_myOtherQuery}";
-    js_var $apikey_auth_local_map "vs-default-cafe-apikey-policy";
+    js_var $apikey_auth_local_map "vs_default_cafe_apikey_policy";
     js_var $apikey_auth_token $apikey_auth_hash;
     auth_request /_validate_apikey_njs;
-    set $apikey_client_name $vs-default-cafe-apikey-policy;
+    set $apikey_client_name $vs_default_cafe_apikey_policy;
     app_protect_enable on;
     app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
     app_protect_security_log_enable on;

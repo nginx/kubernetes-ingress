@@ -762,7 +762,7 @@ func TestExecuteVirtualServerTemplateWithAPIKeyPolicyNGINXPlus(t *testing.T) {
 	vscfg.Server.APIKey = &APIKey{
 		Header:  []string{"X-header-name", "other-header"},
 		Query:   []string{"myQuery", "myOtherQuery"},
-		MapName: "vs-default-cafe-apikey-policy",
+		MapName: "vs_default_cafe_apikey_policy",
 	}
 
 	e := newTmplExecutorNGINXPlus(t)
