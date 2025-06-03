@@ -8,8 +8,9 @@ spec:
     key: ${apikey_client_name}
     zoneSize: 10M
     condition:
-      apiKey:
+      variable:
         match: "~^.*-gold$"
+        name: $apikey_client_name
 ---
 apiVersion: k8s.nginx.org/v1
 kind: Policy
@@ -21,8 +22,9 @@ spec:
     key: ${apikey_client_name}
     zoneSize: 10M
     condition:
-      apiKey:
+      variable:
         match: "~^.*-silver$"
+        name: $apikey_client_name
 ---
 apiVersion: k8s.nginx.org/v1
 kind: Policy
@@ -34,7 +36,8 @@ spec:
     key: ${apikey_client_name}
     zoneSize: 10M
     condition:
-      apiKey:
+      variable:
         match: "~^.*-bronze$"
+        name: $apikey_client_name
       default: true
 ---

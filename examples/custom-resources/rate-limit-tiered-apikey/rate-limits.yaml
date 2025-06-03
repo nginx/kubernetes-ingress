@@ -8,8 +8,9 @@ spec:
     key: ${apikey_client_name}
     zoneSize: 10M
     condition:
-      apiKey:
+      variable:
         match: "~^.*-premium$"
+        name: $apikey_client_name
 ---
 apiVersion: k8s.nginx.org/v1
 kind: Policy
@@ -21,7 +22,8 @@ spec:
     key: ${apikey_client_name}
     zoneSize: 10M
     condition:
-      apiKey:
+      variable:
         match: "~^.*-basic$"
+        name: $apikey_client_name
       default: true
 ---

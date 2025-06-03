@@ -8,8 +8,9 @@ spec:
     key: ${apikey_client_name}
     zoneSize: 10M
     condition:
-      apiKey:
+      variable:
         match: "~^.*-premium$"
+        name: $apikey_client_name
     rejectCode: 429
 ---
 apiVersion: k8s.nginx.org/v1
@@ -22,8 +23,9 @@ spec:
     key: ${apikey_client_name}
     zoneSize: 10M
     condition:
-      apiKey:
+      variable:
         match: "~^.*-basic$"
+        name: $apikey_client_name
       default: true
     rejectCode: 429
 ---
