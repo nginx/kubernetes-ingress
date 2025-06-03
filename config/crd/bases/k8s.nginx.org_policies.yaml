@@ -183,20 +183,10 @@ spec:
                     description: RateLimitCondition defines a condition for a rate
                       limit policy.
                     properties:
-                      apiKey:
-                        description: defines an API Key condition to rate limit against.
-                        minProperties: 1
-                        properties:
-                          match:
-                            description: the name of the to match against.
-                            pattern: ^([^\s"'])*$
-                            type: string
-                        type: object
                       default:
                         description: sets the rate limit in this policy to be the
                           default if no conditions are met. In a group of policies
-                          with the same JWT condition, only one policy can be the
-                          default.
+                          with the same condition, only one policy can be the default.
                         type: boolean
                       jwt:
                         description: defines a JWT condition to rate limit against.
@@ -213,6 +203,21 @@ spec:
                         required:
                         - claim
                         - match
+                        type: object
+                      variable:
+                        description: defines a Variable condition to rate limit against.
+                        properties:
+                          match:
+                            description: the value of the variable to match against.
+                            pattern: ^([^\s"'])*$
+                            type: string
+                          name:
+                            description: the name of the variable to match against.
+                            pattern: ^([^\s"'])*$
+                            type: string
+                        required:
+                        - match
+                        - name
                         type: object
                     type: object
                   delay:

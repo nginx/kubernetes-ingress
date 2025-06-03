@@ -1825,8 +1825,8 @@ func generateGroupedLimitReqZone(zoneName string,
 		lrz.GroupDefault = rateLimitPol.Condition.Default
 		lrz.GroupSource = generateAuthJwtClaimSetVariable(rateLimitPol.Condition.JWT.Claim, ownerDetails.vsNamespace, ownerDetails.vsName)
 	}
-	if rateLimitPol.Condition != nil && rateLimitPol.Condition.APIKey != nil {
-		lrz.GroupValue = fmt.Sprintf("\"%s\"", rateLimitPol.Condition.APIKey.Match)
+	if rateLimitPol.Condition != nil && rateLimitPol.Condition.Variable != nil {
+		lrz.GroupValue = fmt.Sprintf("\"%s\"", rateLimitPol.Condition.Variable.Match)
 		lrz.PolicyValue = rfc1123ToSnake(fmt.Sprintf("rl_%s_%s_match_%s",
 			ownerDetails.vsNamespace,
 			ownerDetails.vsName,
@@ -1840,7 +1840,7 @@ func generateGroupedLimitReqZone(zoneName string,
 		lrz.Key = rfc1123ToSnake(fmt.Sprintf("$%s", zoneName))
 		lrz.PolicyResult = rateLimitPol.Key
 		lrz.GroupDefault = rateLimitPol.Condition.Default
-		lrz.GroupSource = "$apikey_client_name"
+		lrz.GroupSource = rateLimitPol.Condition.Variable.Name
 	}
 
 	return lrz, warningText

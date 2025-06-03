@@ -305,6 +305,7 @@ server {
     js_var $apikey_auth_local_map "vs-default-cafe-apikey-policy";
     js_var $apikey_auth_token $apikey_auth_hash;
     auth_request /_validate_apikey_njs;
+    set $apikey_client_name $vs-default-cafe-apikey-policy;
     app_protect_enable on;
     app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
     app_protect_security_log_enable on;
