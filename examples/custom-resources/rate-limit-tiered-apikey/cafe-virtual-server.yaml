@@ -14,7 +14,7 @@ spec:
     service: tea-svc
     port: 80
   policies:
-  - name: api-key-policy
+  - name: api-key-policy2
   - name: rate-limit-apikey-premium
   - name: rate-limit-apikey-basic
   routes:
@@ -24,7 +24,5 @@ spec:
   - path: /tea
     action:
       pass: tea
-    # policies:
-    #   - name: rate-limit-apikey-gold
-    #   - name: rate-limit-apikey-silver
-    #   - name: rate-limit-apikey-bronze
+  - path: /chocolate
+    route: default/chocolate

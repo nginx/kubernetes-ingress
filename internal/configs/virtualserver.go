@@ -1820,6 +1820,9 @@ func generateGroupedLimitReqZone(zoneName string,
 				),
 			),
 		))
+		if rateLimitPol.Condition.Group != "" {
+			lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf("%s_%s", lrz.GroupVariable, strings.ToLower(rateLimitPol.Condition.Group)))
+		}
 		lrz.Key = rfc1123ToSnake(fmt.Sprintf("$%s", zoneName))
 		lrz.PolicyResult = rateLimitPol.Key
 		lrz.GroupDefault = rateLimitPol.Condition.Default
@@ -1833,10 +1836,14 @@ func generateGroupedLimitReqZone(zoneName string,
 			strings.ToLower(policy.Name),
 		))
 
-		lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf("$apikey_%s_%s_tier",
+		lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf("$rl_%s_%s_variable_%s",
 			ownerDetails.vsNamespace,
 			ownerDetails.vsName,
+			strings.ReplaceAll(rateLimitPol.Condition.Group, "$", ""),
 		))
+		if rateLimitPol.Condition.Group != "" {
+			lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf("%s_%s", lrz.GroupVariable, strings.ToLower(rateLimitPol.Condition.Group)))
+		}
 		lrz.Key = rfc1123ToSnake(fmt.Sprintf("$%s", zoneName))
 		lrz.PolicyResult = rateLimitPol.Key
 		lrz.GroupDefault = rateLimitPol.Condition.Default

@@ -623,6 +623,10 @@ type RateLimitCondition struct {
 	// +kubebuilder:validation:Optional
 	// sets the rate limit in this policy to be the default if no conditions are met. In a group of policies with the same condition, only one policy can be the default.
 	Default bool `json:"default"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^([^$\s"'])*$`
+	// Allows setting a group name for all rate limits in this tier.
+	Group string `json:"group"`
 }
 
 // JWTCondition defines a condition for a rate limit by JWT claim.

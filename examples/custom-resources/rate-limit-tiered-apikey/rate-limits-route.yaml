@@ -4,13 +4,14 @@ metadata:
   name: rate-limit-apikey-gold
 spec:
   rateLimit:
-    rate: 15r/s
+    rate: 100r/s
     key: ${apikey_client_name}
     zoneSize: 10M
     condition:
       variable:
         match: "~^.*-gold$"
         name: $apikey_client_name
+      group: gsb
 ---
 apiVersion: k8s.nginx.org/v1
 kind: Policy
@@ -25,6 +26,7 @@ spec:
       variable:
         match: "~^.*-silver$"
         name: $apikey_client_name
+      group: gsb
 ---
 apiVersion: k8s.nginx.org/v1
 kind: Policy
@@ -32,12 +34,13 @@ metadata:
   name: rate-limit-apikey-bronze
 spec:
   rateLimit:
-    rate: 1r/m
+    rate: 1r/s
     key: ${apikey_client_name}
     zoneSize: 10M
     condition:
       variable:
         match: "~^.*-bronze$"
         name: $apikey_client_name
+      group: gsb
       default: true
 ---

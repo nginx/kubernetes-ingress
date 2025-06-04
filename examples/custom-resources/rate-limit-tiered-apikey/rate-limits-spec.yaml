@@ -11,6 +11,7 @@ spec:
       variable:
         match: "~^.*-premium$"
         name: $apikey_client_name
+      group: pb
     rejectCode: 429
 ---
 apiVersion: k8s.nginx.org/v1
@@ -26,6 +27,7 @@ spec:
       variable:
         match: "~^.*-basic$"
         name: $apikey_client_name
+      group: pb
       default: true
     rejectCode: 429
 ---
