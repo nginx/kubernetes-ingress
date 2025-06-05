@@ -1563,6 +1563,24 @@ func TestUpstreamsForHost_ReturnsNilForNoVirtualServers(t *testing.T) {
 	}
 }
 
+func TestUpstreamsForHost_VirtualServerRoutes(t *testing.T) {
+	t.Parallel()
+
+	tcnf := createTestConfigurator(t)
+	tcnf.virtualServers = map[string]*VirtualServerEx{
+		"vs": validVirtualServerExWithRouteUpstreams,
+	}
+
+	want := []string{
+		"vs_default_cafe-vs_vsr_tea_tea-app_tea",
+		"vs_default_cafe-vs_vsr_coffee_coffee-app_coffee",
+	}
+	got := tcnf.UpstreamsForHost("cafe.example.com")
+	if !cmp.Equal(want, got) {
+		t.Error(cmp.Diff(want, got))
+	}
+}
+
 func TestUpstreamsForHost_DoesNotReturnUpstreamsOnBogusHostname(t *testing.T) {
 	t.Parallel()
 
@@ -1834,6 +1852,55 @@ var (
 		},
 	}
 
+	validVirtualServerExWithRouteUpstreams = &VirtualServerEx{
+		VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
+			{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "tea-app",
+					Namespace: "tea",
+				},
+				Spec: conf_v1.VirtualServerRouteSpec{
+					Upstreams: []conf_v1.Upstream{
+						{
+							Name:    "tea",
+							Service: "tea-svc",
+						},
+					},
+				},
+			},
+			{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "coffee-app",
+					Namespace: "coffee",
+				},
+				Spec: conf_v1.VirtualServerRouteSpec{
+					Upstreams: []conf_v1.Upstream{
+						{
+							Name:    "coffee",
+							Service: "coffee-svc",
+						},
+					},
+				},
+			},
+		},
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe-vs",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "cafe.example.com",
+				Routes: []conf_v1.Route{
+					{
+						Route: "tea/tea",
+					},
+					{
+						Route: "coffee/coffee",
+					},
+				},
+			},
+		},
+	}
 	validTransportServerExWithUpstreams = &TransportServerEx{
 		TransportServer: &conf_v1.TransportServer{
 			ObjectMeta: meta_v1.ObjectMeta{
