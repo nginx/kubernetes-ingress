@@ -1138,8 +1138,8 @@ func createHeadlessService(l *slog.Logger, kubeClient *kubernetes.Clientset, con
 			existing.Spec.Selector = requiredSelectors
 			needsUpdate = true
 		}
-		if !reflect.DeepEqual(existing.ObjectMeta.OwnerReferences, requiredOwnerReferences) {
-			existing.ObjectMeta.OwnerReferences = requiredOwnerReferences
+		if !reflect.DeepEqual(existing.OwnerReferences, requiredOwnerReferences) {
+			existing.OwnerReferences = requiredOwnerReferences
 			needsUpdate = true
 		}
 		if needsUpdate {
