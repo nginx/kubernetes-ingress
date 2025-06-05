@@ -10240,9 +10240,23 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 	for _, test := range tests {
 		result, warnings := vsc.GenerateVirtualServerConfig(&test.virtualServerEx, nil, nil)
 
+		for i, m := range result.Maps {
+			sort.Slice(m.Parameters, func(i, j int) bool {
+				return m.Parameters[i].Value < m.Parameters[j].Value
+			})
+			result.Maps[i] = m
+		}
+
 		sort.Slice(result.Maps, func(i, j int) bool {
 			return result.Maps[i].Variable < result.Maps[j].Variable && result.Maps[i].Source < result.Maps[j].Source
 		})
+
+		for i, m := range test.expected.Maps {
+			sort.Slice(m.Parameters, func(i, j int) bool {
+				return m.Parameters[i].Value < m.Parameters[j].Value
+			})
+			test.expected.Maps[i] = m
+		}
 
 		sort.Slice(test.expected.Maps, func(i, j int) bool {
 			return test.expected.Maps[i].Variable < test.expected.Maps[j].Variable && test.expected.Maps[i].Source < test.expected.Maps[j].Source
