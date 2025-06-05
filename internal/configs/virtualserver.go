@@ -1812,8 +1812,7 @@ func generateGroupedLimitReqZone(zoneName string,
 		Sync:     zoneSync,
 	}
 
-	PathEncoding := base64.NewEncoding("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-")
-	encoder := PathEncoding.WithPadding(base64.NoPadding)
+	encoder := base64.URLEncoding.WithPadding(base64.NoPadding)
 	encPath := encoder.EncodeToString([]byte(path))
 	if rateLimitPol.Condition != nil && rateLimitPol.Condition.JWT != nil {
 		lrz.GroupValue = rateLimitPol.Condition.JWT.Match
