@@ -3,6 +3,7 @@ package configs
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"net/url"
@@ -425,7 +426,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		vsNamespace:    vsEx.VirtualServer.Namespace,
 		vsName:         vsEx.VirtualServer.Name,
 	}
-	policiesCfg := vsc.generatePolicies(ownerDetails, vsEx.VirtualServer.Spec.Policies, vsEx.Policies, specContext, policyOpts)
+	policiesCfg := vsc.generatePolicies(ownerDetails, vsEx.VirtualServer.Spec.Policies, vsEx.Policies, specContext, "/", policyOpts)
 
 	if policiesCfg.JWTAuth.JWKSEnabled {
 		jwtAuthKey := policiesCfg.JWTAuth.Auth.Key
@@ -592,7 +593,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			vsNamespace:    vsEx.VirtualServer.Namespace,
 			vsName:         vsEx.VirtualServer.Name,
 		}
-		routePoliciesCfg := vsc.generatePolicies(ownerDetails, r.Policies, vsEx.Policies, routeContext, policyOpts)
+		routePoliciesCfg := vsc.generatePolicies(ownerDetails, r.Policies, vsEx.Policies, routeContext, r.Path, policyOpts)
 		if policiesCfg.OIDC {
 			routePoliciesCfg.OIDC = policiesCfg.OIDC
 		}
@@ -745,7 +746,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				policyRefs = r.Policies
 				context = subRouteContext
 			}
-			routePoliciesCfg := vsc.generatePolicies(ownerDetails, policyRefs, vsEx.Policies, context, policyOpts)
+			routePoliciesCfg := vsc.generatePolicies(ownerDetails, policyRefs, vsEx.Policies, context, r.Path, policyOpts)
 			if policiesCfg.OIDC {
 				routePoliciesCfg.OIDC = policiesCfg.OIDC
 			}
@@ -1047,6 +1048,8 @@ func (p *policiesCfg) addRateLimitConfig(
 	ownerDetails policyOwnerDetails,
 	podReplicas int,
 	zoneSync bool,
+	context string,
+	path string,
 ) *validationResults {
 	res := newValidationResults()
 	rateLimit := policy.Spec.RateLimit
@@ -1058,7 +1061,7 @@ func (p *policiesCfg) addRateLimitConfig(
 		rlZoneName = fmt.Sprintf("%v_sync", rlZoneName)
 	}
 	if rateLimit.Condition != nil {
-		lrz, warningText := generateGroupedLimitReqZone(rlZoneName, policy, podReplicas, ownerDetails, zoneSync)
+		lrz, warningText := generateGroupedLimitReqZone(rlZoneName, policy, podReplicas, ownerDetails, zoneSync, context, path)
 		if warningText != "" {
 			nl.Warn(l, warningText)
 		}
@@ -1659,6 +1662,7 @@ func (vsc *virtualServerConfigurator) generatePolicies(
 	policyRefs []conf_v1.PolicyReference,
 	policies map[string]*conf_v1.Policy,
 	context string,
+	path string,
 	policyOpts policyOptions,
 ) policiesCfg {
 	config := newPoliciesConfig(vsc.bundleValidator)
@@ -1683,6 +1687,8 @@ func (vsc *virtualServerConfigurator) generatePolicies(
 					ownerDetails,
 					vsc.IngressControllerReplicas,
 					policyOpts.zoneSync,
+					context,
+					path,
 				)
 			case pol.Spec.JWTAuth != nil:
 				res = config.addJWTAuthConfig(pol.Spec.JWTAuth, key, polNamespace, policyOpts.secretRefs)
@@ -1784,6 +1790,8 @@ func generateGroupedLimitReqZone(zoneName string,
 	podReplicas int,
 	ownerDetails policyOwnerDetails,
 	zoneSync bool,
+	context string,
+	path string,
 ) (version2.LimitReqZone, string) {
 	rateLimitPol := policy.Spec.RateLimit
 	rate := rateLimitPol.Rate
@@ -1803,6 +1811,10 @@ func generateGroupedLimitReqZone(zoneName string,
 		Rate:     rate,
 		Sync:     zoneSync,
 	}
+
+	PathEncoding := base64.NewEncoding("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-")
+	encoder := PathEncoding.WithPadding(base64.NoPadding)
+	encPath := encoder.EncodeToString([]byte(path))
 	if rateLimitPol.Condition != nil && rateLimitPol.Condition.JWT != nil {
 		lrz.GroupValue = rateLimitPol.Condition.JWT.Match
 		lrz.PolicyValue = fmt.Sprintf("rl_%s_%s_match_%s",
@@ -1811,7 +1823,7 @@ func generateGroupedLimitReqZone(zoneName string,
 			strings.ToLower(rateLimitPol.Condition.JWT.Match),
 		)
 
-		lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf("$rl_%s_%s_group_%s",
+		lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf("$rl_%s_%s_group_%s_%s_%s",
 			ownerDetails.vsNamespace,
 			ownerDetails.vsName,
 			strings.ToLower(
@@ -1819,10 +1831,9 @@ func generateGroupedLimitReqZone(zoneName string,
 					strings.Split(rateLimitPol.Condition.JWT.Claim, "."), "_",
 				),
 			),
+			context,
+			encPath,
 		))
-		if rateLimitPol.Condition.Group != "" {
-			lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf("%s_%s", lrz.GroupVariable, strings.ToLower(rateLimitPol.Condition.Group)))
-		}
 		lrz.Key = rfc1123ToSnake(fmt.Sprintf("$%s", zoneName))
 		lrz.PolicyResult = rateLimitPol.Key
 		lrz.GroupDefault = rateLimitPol.Condition.Default
@@ -1836,14 +1847,13 @@ func generateGroupedLimitReqZone(zoneName string,
 			strings.ToLower(policy.Name),
 		))
 
-		lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf("$rl_%s_%s_variable_%s",
+		lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf("$rl_%s_%s_variable_%s_%s_%s",
 			ownerDetails.vsNamespace,
 			ownerDetails.vsName,
-			strings.ReplaceAll(rateLimitPol.Condition.Group, "$", ""),
+			strings.ReplaceAll(rateLimitPol.Condition.Variable.Name, "$", ""),
+			context,
+			encPath,
 		))
-		if rateLimitPol.Condition.Group != "" {
-			lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf("%s_%s", lrz.GroupVariable, strings.ToLower(rateLimitPol.Condition.Group)))
-		}
 		lrz.Key = rfc1123ToSnake(fmt.Sprintf("$%s", zoneName))
 		lrz.PolicyResult = rateLimitPol.Key
 		lrz.GroupDefault = rateLimitPol.Condition.Default

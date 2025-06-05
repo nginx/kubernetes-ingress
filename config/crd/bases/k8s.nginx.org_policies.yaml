@@ -188,11 +188,6 @@ spec:
                           default if no conditions are met. In a group of policies
                           with the same condition, only one policy can be the default.
                         type: boolean
-                      group:
-                        description: Allows setting a group name for all rate limits
-                          in this tier.
-                        pattern: ^[A-z0-9_]+$
-                        type: string
                       jwt:
                         description: defines a JWT condition to rate limit against.
                         properties:
