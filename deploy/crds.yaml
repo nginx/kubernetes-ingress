@@ -353,7 +353,7 @@ spec:
                       group:
                         description: Allows setting a group name for all rate limits
                           in this tier.
-                        pattern: ^([^$\s"'])*$
+                        pattern: ^[A-z0-9_]+$
                         type: string
                       jwt:
                         description: defines a JWT condition to rate limit against.
