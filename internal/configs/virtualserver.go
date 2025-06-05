@@ -1394,25 +1394,25 @@ func (p *policiesCfg) addOIDCConfig(
 		}
 	} else {
 		secretKey := fmt.Sprintf("%v/%v", polNamespace, oidc.ClientSecret)
-		secretRef := secretRefs[secretKey]
-		clientSecret := pkceDefaultValue
+		secretRef, ok := secretRefs[secretKey]
+		clientSecret := []byte("")
 
-		var secretType api_v1.SecretType
-		if secretRef.Secret != nil {
-			secretType = secretRef.Secret.Type
-		}
-		if secretType != "" && secretType != secrets.SecretTypeOIDC {
-			res.addWarningf("OIDC policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, secretKey, secretType, secrets.SecretTypeOIDC)
-			res.isError = true
-			return res
-		} else if secretRef.Error != nil && !oidc.PKCEEnable {
-			res.addWarningf("OIDC policy %s references an invalid secret %s: %v", polKey, secretKey, secretRef.Error)
-			res.isError = true
-			return res
-		}
+		if ok {
+			clientSecret = pkceDefaultValue
 
-		if !oidc.PKCEEnable {
-			clientSecret = secretRef.Secret.Data[ClientSecretKey]
+			var secretType api_v1.SecretType
+			if secretRef.Secret != nil {
+				secretType = secretRef.Secret.Type
+			}
+			if secretType != "" && secretType != secrets.SecretTypeOIDC {
+				res.addWarningf("OIDC policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, secretKey, secretType, secrets.SecretTypeOIDC)
+				res.isError = true
+				return res
+			} else if secretRef.Error != nil && !oidc.PKCEEnable {
+				res.addWarningf("OIDC policy %s references an invalid secret %s: %v", polKey, secretKey, secretRef.Error)
+				res.isError = true
+				return res
+			}
 		}
 
 		redirectURI := oidc.RedirectURI
