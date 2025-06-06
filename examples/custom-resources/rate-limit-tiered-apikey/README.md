@@ -1,7 +1,9 @@
 # Tiered Rate Limits with API Keys
 
 In this example, we deploy a web application, configure load balancing for it via a VirtualServer, and apply two rate
-limit Policies, grouped in a tier, using the API Key Client ID as the key to the rate limit and using a regex of the Client ID to determine which rate limit Policy is applied.  One rate limit policy will be the default ratelimit for the group.
+limit Policies, grouped in a tier, using the API Key client name as the key to the rate limit and using a regex of the client name to determine which rate limit Policy is applied.  One rate limit policy will be the default ratelimit for the group.
+
+> Note: This example makes use of the NGINX variables `$apikey_auth_token` & `apikey_client_name` which are made available by applying an API Key authentication Policy to your VirtualServer resource.
 
 ## Prerequisites
 
@@ -32,23 +34,23 @@ kubectl apply -f coffee.yaml
 In this step, we create three Policies:
 
 - one with the name `api-key-policy` which defines the API Key Policy
-- one with the name `rate-limit-apikey-premium`, that allows 100 requests per second coming from a request containing an API Key with a client id that ends with `premium`
-- one with the name `rate-limit-apikey-basic` that allows 10 request per second coming from a request containing an API Key with a client id that ends with `basic`
+- one with the name `rate-limit-apikey-premium`, that allows 15 requests per second coming from a request containing an API Key with a client name that ends with `premium`
+- one with the name `rate-limit-apikey-basic` that allows 1 request per second coming from a request containing an API Key with a client name that ends with `basic`
 
-The `rate-limit-apikey-basic` Policy is also the default policy if the API Key Client ID does not match a tier.
+The `rate-limit-apikey-basic` Policy is also the default policy if the API Key client name does not match a tier.
 
 Create the policies:
 
 ```console
 kubectl apply -f api-key-policy.yaml
-kubectl apply -f rate-limit.yaml
+kubectl apply -f rate-limits.yaml
 ```
 
 ## Step 3 - Deploy the API Key Auth Secret
 
 Create a secret of type `nginx.org/apikey` with the name `api-key-client-secret` that will be used for authorization on the server level.
 
-This secret will contain a mapping of client IDs to base64 encoded API Keys.
+This secret will contain a mapping of client names to base64 encoded API Keys.
 
 ```console
 kubectl apply -f api-key-secret.yaml
@@ -59,37 +61,34 @@ kubectl apply -f api-key-secret.yaml
 Create a VirtualServer resource for the web application:
 
 ```console
-kubectl apply -f virtual-server.yaml
+kubectl apply -f cafe-virtual-server.yaml
 ```
 
 Note that the VirtualServer references the policies `api-key-policy`, `rate-limit-apikey-premium` & `rate-limit-apikey-basic` created in Step 2.
 
 ## Step 5 - Test the Premium Configuration
 
-In this test we are relying on the NGINX Plus `ngx_http_auth_jwt_module` to extract the `sub` claim from the JWT payload into the `$jwt_claim_sub` variable and use this as the rate limiting `key`.  The NGINX Plus `ngx_http_auth_jwt_module` will also extract the `user_details.level` to select the correct rate limit policy to be applied.
-
-Let's test the configuration.  If you access the application at a rate that exceeds 10 requests per second, NGINX will
+Let's test the configuration.  If you access the application with an API Key in an expected header at a rate that exceeds 15 requests per second, NGINX will
 start rejecting your requests:
 
 ```console
-curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP http://cafe.example.com:$IC_HTTP_PORT/coffee -H "Authorization: Bearer: `cat premium-token.jwt`"
+while true; do
+  curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP -H "X-header-name: client1premium" http://cafe.example.com:$IC_HTTP_PORT/coffee;
+  sleep 0.005;
+done
 ```
 
 ```text
 Server address: 10.8.1.19:8080
 Server name: coffee-dc88fc766-zr7f8
+
 . . .
-```
 
-```console
-curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP http://cafe.example.com:$IC_HTTP_PORT/coffee -H "Authorization: Bearer: `cat premium-token.jwt`"
-```
-
-```text
 <html>
-<head><title>503 Service Temporarily Unavailable</title></head>
+<head><title>429 Too Many Requests</title></head>
 <body>
-<center><h1>503 Service Temporarily Unavailable</h1></center>
+<center><h1>429 Too Many Requests</h1></center>
+<hr><center>nginx/1.27.5</center>
 </body>
 </html>
 ```
@@ -98,42 +97,29 @@ curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP http://cafe.example.com:$IC
 
 ## Step 6 - Test the Basic Configuration
 
-The Basic JWT payload used in this testing looks like:
-
-```json
-{
-  "user_details": {
-    "level": "Basic"
-  },
-  "sub": "client2",
-  "name": "Jane Doe"
-}
-```
-
-This test is similar to Step 4, however, this time we will be setting the `user_details.level` JWT claim to `Basic`.
+This test is similar to Step 5, however, this time we will be setting the API Key in the header to a value that maps to the `client1-basic` client name.
 
 Let's test the configuration.  If you access the application at a rate that exceeds 1 request per second, NGINX will
 start rejecting your requests:
 
 ```console
-curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP http://cafe.example.com:$IC_HTTP_PORT/coffee -H "Authorization: Bearer: `cat basic-token.jwt`"
+while true; do
+  curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP -H "X-header-name: client1basic" http://cafe.example.com:$IC_HTTP_PORT/coffee;
+  sleep 0.5;
+done
 ```
 
 ```text
 Server address: 10.8.1.19:8080
 Server name: coffee-dc88fc766-zr7f8
+
 . . .
-```
 
-```console
-curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP http://cafe.example.com:$IC_HTTP_PORT/coffee -H "Authorization: Bearer: `cat basic-token.jwt`"
-```
-
-```text
 <html>
-<head><title>503 Service Temporarily Unavailable</title></head>
+<head><title>429 Too Many Requests</title></head>
 <body>
-<center><h1>503 Service Temporarily Unavailable</h1></center>
+<center><h1>429 Too Many Requests</h1></center>
+<hr><center>nginx/1.27.5</center>
 </body>
 </html>
 ```
@@ -142,44 +128,31 @@ curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP http://cafe.example.com:$IC
 
 ## Step 7 - Test the default Configuration
 
-The default JWT payload used in this testing looks like:
-
-```json
-{
-  "sub": "client3",
-  "name": "Billy Bloggs"
-}
-```
-
-This test is similar to Step 4 & 5, however, this time we will not be setting the `user_details.level` JWT claim but
-will still be seeing the default `rate-limit-jwt-basic` Policy applied.
+This test is similar to Step 5 & 6, however, this time we will setting the API Key in the header to a value that maps to the `random` client name, which matches neither of the regex patterns configured in the Policies.  However, we will still be seeing the default `rate-limit-apikey-basic` Policy applied.
 
 Let's test the configuration.  If you access the application at a rate that exceeds 1 request per second, NGINX will
 start rejecting your requests:
 
 ```console
-curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP http://cafe.example.com:$IC_HTTP_PORT/coffee -H "Authorization: Bearer: `cat default-token.jwt`"
+while true; do
+  curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP -H "X-header-name: random" http://cafe.example.com:$IC_HTTP_PORT/coffee;
+  sleep 0.5;
+done
 ```
 
 ```text
 Server address: 10.8.1.19:8080
 Server name: coffee-dc88fc766-zr7f8
+
 . . .
-```
 
-```console
-curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP http://cafe.example.com:$IC_HTTP_PORT/coffee -H "Authorization: Bearer: `cat default-token.jwt`"
-```
-
-```text
 <html>
-<head><title>503 Service Temporarily Unavailable</title></head>
+<head><title>429 Too Many Requests</title></head>
 <body>
-<center><h1>503 Service Temporarily Unavailable</h1></center>
+<center><h1>429 Too Many Requests</h1></center>
+<hr><center>nginx/1.27.5</center>
 </body>
 </html>
 ```
 
 > Note: The command result is truncated for the clarity of the example.
----
-> Note: This example does not validate the JWT token sent in the request, you should use either of the [`JWT Using Local Kubernetes Secret`](https://docs.nginx.com/nginx-ingress-controller/configuration/policy-resource/#jwt-using-local-kubernetes-secret) or [`JWT Using JWKS From Remote Location`](https://docs.nginx.com/nginx-ingress-controller/configuration/policy-resource/#jwt-using-jwks-from-remote-location) for that purpose.
