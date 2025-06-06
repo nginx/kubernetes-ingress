@@ -368,21 +368,26 @@ spec:
                         - claim
                         - match
                         type: object
-                      variable:
-                        description: defines a Variable condition to rate limit against.
-                        properties:
-                          match:
-                            description: the value of the variable to match against.
-                            pattern: ^([^\s"'])*$
-                            type: string
-                          name:
-                            description: the name of the variable to match against.
-                            pattern: ^([^\s"'])*$
-                            type: string
-                        required:
-                        - match
-                        - name
-                        type: object
+                      variables:
+                        description: defines a Variables condition to rate limit against.
+                        items:
+                          description: VariableCondition defines a condition to rate
+                            limit by a variable.
+                          properties:
+                            match:
+                              description: the value of the variable to match against.
+                              pattern: ^([^\s"'])*$
+                              type: string
+                            name:
+                              description: the name of the variable to match against.
+                              pattern: ^([^\s"'])*$
+                              type: string
+                          required:
+                          - match
+                          - name
+                          type: object
+                        maxItems: 1
+                        type: array
                     type: object
                   delay:
                     type: integer

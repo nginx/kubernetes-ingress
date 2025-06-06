@@ -8808,9 +8808,11 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 								ZoneSize: "10M",
 								Rate:     "10r/s",
 								Condition: &conf_v1.RateLimitCondition{
-									Variable: &conf_v1.VariableCondition{
-										Match: "premium",
-										Name:  "$apikey_client_name",
+									Variables: &[]conf_v1.VariableCondition{
+										{
+											Match: "premium",
+											Name:  "$apikey_client_name",
+										},
 									},
 								},
 							},
@@ -8827,9 +8829,11 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 								ZoneSize: "20M",
 								Rate:     "20r/s",
 								Condition: &conf_v1.RateLimitCondition{
-									Variable: &conf_v1.VariableCondition{
-										Match: "basic",
-										Name:  "$apikey_client_name",
+									Variables: &[]conf_v1.VariableCondition{
+										{
+											Match: "basic",
+											Name:  "$apikey_client_name",
+										},
 									},
 								},
 							},
@@ -9101,9 +9105,11 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 								ZoneSize: "10M",
 								Rate:     "10r/s",
 								Condition: &conf_v1.RateLimitCondition{
-									Variable: &conf_v1.VariableCondition{
-										Match: "premium",
-										Name:  "$apikey_client_name",
+									Variables: &[]conf_v1.VariableCondition{
+										{
+											Match: "premium",
+											Name:  "$apikey_client_name",
+										},
 									},
 								},
 							},
@@ -9120,9 +9126,11 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 								ZoneSize: "20M",
 								Rate:     "20r/s",
 								Condition: &conf_v1.RateLimitCondition{
-									Variable: &conf_v1.VariableCondition{
-										Match: "basic",
-										Name:  "$apikey_client_name",
+									Variables: &[]conf_v1.VariableCondition{
+										{
+											Match: "basic",
+											Name:  "$apikey_client_name",
+										},
 									},
 								},
 							},
@@ -9391,9 +9399,11 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 								ZoneSize: "10M",
 								Rate:     "10r/s",
 								Condition: &conf_v1.RateLimitCondition{
-									Variable: &conf_v1.VariableCondition{
-										Match: "premium",
-										Name:  "$apikey_client_name",
+									Variables: &[]conf_v1.VariableCondition{
+										{
+											Match: "premium",
+											Name:  "$apikey_client_name",
+										},
 									},
 								},
 							},
@@ -9410,9 +9420,11 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 								ZoneSize: "20M",
 								Rate:     "20r/s",
 								Condition: &conf_v1.RateLimitCondition{
-									Variable: &conf_v1.VariableCondition{
-										Match: "basic",
-										Name:  "$apikey_client_name",
+									Variables: &[]conf_v1.VariableCondition{
+										{
+											Match: "basic",
+											Name:  "$apikey_client_name",
+										},
 									},
 									Default: true,
 								},
@@ -9689,9 +9701,11 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 								ZoneSize: "10M",
 								Rate:     "10r/s",
 								Condition: &conf_v1.RateLimitCondition{
-									Variable: &conf_v1.VariableCondition{
-										Match: "premium",
-										Name:  "$apikey_client_name",
+									Variables: &[]conf_v1.VariableCondition{
+										{
+											Match: "premium",
+											Name:  "$apikey_client_name",
+										},
 									},
 								},
 							},
@@ -9708,9 +9722,11 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 								ZoneSize: "20M",
 								Rate:     "20r/s",
 								Condition: &conf_v1.RateLimitCondition{
-									Variable: &conf_v1.VariableCondition{
-										Match: "basic",
-										Name:  "$apikey_client_name",
+									Variables: &[]conf_v1.VariableCondition{
+										{
+											Match: "basic",
+											Name:  "$apikey_client_name",
+										},
 									},
 									Default: true,
 								},
@@ -9996,9 +10012,11 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 								ZoneSize: "10M",
 								Rate:     "10r/s",
 								Condition: &conf_v1.RateLimitCondition{
-									Variable: &conf_v1.VariableCondition{
-										Match: "premium",
-										Name:  "$apikey_client_name",
+									Variables: &[]conf_v1.VariableCondition{
+										{
+											Match: "premium",
+											Name:  "$apikey_client_name",
+										},
 									},
 								},
 							},
@@ -10015,9 +10033,11 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 								ZoneSize: "20M",
 								Rate:     "20r/s",
 								Condition: &conf_v1.RateLimitCondition{
-									Variable: &conf_v1.VariableCondition{
-										Match: "basic",
-										Name:  "$apikey_client_name",
+									Variables: &[]conf_v1.VariableCondition{
+										{
+											Match: "basic",
+											Name:  "$apikey_client_name",
+										},
 									},
 									Default: true,
 								},
@@ -10335,9 +10355,11 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 								ZoneSize: "10M",
 								Rate:     "10r/s",
 								Condition: &conf_v1.RateLimitCondition{
-									Variable: &conf_v1.VariableCondition{
-										Match: "premium",
-										Name:  "$apikey_client_name",
+									Variables: &[]conf_v1.VariableCondition{
+										{
+											Match: "premium",
+											Name:  "$apikey_client_name",
+										},
 									},
 								},
 							},
@@ -10354,9 +10376,11 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 								ZoneSize: "20M",
 								Rate:     "20r/s",
 								Condition: &conf_v1.RateLimitCondition{
-									Variable: &conf_v1.VariableCondition{
-										Match: "basic",
-										Name:  "$apikey_client_name",
+									Variables: &[]conf_v1.VariableCondition{
+										{
+											Match: "basic",
+											Name:  "$apikey_client_name",
+										},
 									},
 									Default: true,
 								},
@@ -10664,9 +10688,11 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 								ZoneSize: "10M",
 								Rate:     "10r/s",
 								Condition: &conf_v1.RateLimitCondition{
-									Variable: &conf_v1.VariableCondition{
-										Match: "premium",
-										Name:  "$apikey_client_name",
+									Variables: &[]conf_v1.VariableCondition{
+										{
+											Match: "premium",
+											Name:  "$apikey_client_name",
+										},
 									},
 								},
 							},
@@ -10683,9 +10709,11 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 								ZoneSize: "20M",
 								Rate:     "20r/s",
 								Condition: &conf_v1.RateLimitCondition{
-									Variable: &conf_v1.VariableCondition{
-										Match: "basic",
-										Name:  "$apikey_client_name",
+									Variables: &[]conf_v1.VariableCondition{
+										{
+											Match: "basic",
+											Name:  "$apikey_client_name",
+										},
 									},
 									Default: true,
 								},
@@ -11661,9 +11689,11 @@ func TestGeneratePolicies(t *testing.T) {
 							Rate:     "10r/s",
 							LogLevel: "notice",
 							Condition: &conf_v1.RateLimitCondition{
-								Variable: &conf_v1.VariableCondition{
-									Name:  "$apikey_client_name",
-									Match: "basic",
+								Variables: &[]conf_v1.VariableCondition{
+									{
+										Name:  "$apikey_client_name",
+										Match: "basic",
+									},
 								},
 								Default: true,
 							},
@@ -11682,9 +11712,11 @@ func TestGeneratePolicies(t *testing.T) {
 							Rate:     "100r/s",
 							LogLevel: "notice",
 							Condition: &conf_v1.RateLimitCondition{
-								Variable: &conf_v1.VariableCondition{
-									Name:  "$apikey_client_name",
-									Match: "premium",
+								Variables: &[]conf_v1.VariableCondition{
+									{
+										Name:  "$apikey_client_name",
+										Match: "premium",
+									},
 								},
 							},
 						},
