@@ -11,6 +11,7 @@ spec:
       variables:
       - match: "~^.*-premium$"
         name: $apikey_client_name
+    rejectCode: 429
 ---
 apiVersion: k8s.nginx.org/v1
 kind: Policy
@@ -26,34 +27,48 @@ spec:
       - match: "~^.*-basic$"
         name: $apikey_client_name
       default: true
+    rejectCode: 429
 ---
 apiVersion: k8s.nginx.org/v1
 kind: Policy
 metadata:
-  name: rate-limit-request-method-get
+  name: rate-limit-apikey-gold
 spec:
   rateLimit:
-    rate: 15r/s
-    key: ${binary_remote_addr}
+    rate: 100r/s
+    key: ${apikey_client_name}
     zoneSize: 10M
     condition:
-      variables:
-      - match: "GET"
-        name: $request_method
-      default: true
+      variable:
+        match: "~^.*-gold$"
+        name: $apikey_client_name
 ---
 apiVersion: k8s.nginx.org/v1
 kind: Policy
 metadata:
-  name: rate-limit-request-method-put-post-patch-delete
+  name: rate-limit-apikey-silver
+spec:
+  rateLimit:
+    rate: 10r/s
+    key: ${apikey_client_name}
+    zoneSize: 10M
+    condition:
+      variable:
+        match: "~^.*-silver$"
+        name: $apikey_client_name
+---
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: rate-limit-apikey-bronze
 spec:
   rateLimit:
     rate: 1r/s
-    key: ${binary_remote_addr}
+    key: ${apikey_client_name}
     zoneSize: 10M
     condition:
-      variables:
-      - match: "~PUT|POST|PATCH|DELETE"
-        name: $request_method
-
-
+      variable:
+        match: "~^.*-bronze$"
+        name: $apikey_client_name
+      default: true
+---
