@@ -8,8 +8,8 @@ spec:
     key: ${apikey_client_name}
     zoneSize: 10M
     condition:
-      variable:
-        match: "~^.*-premium$"
+      variables:
+      - match: "~^.*-premium$"
         name: $apikey_client_name
 ---
 apiVersion: k8s.nginx.org/v1
@@ -22,8 +22,38 @@ spec:
     key: ${apikey_client_name}
     zoneSize: 10M
     condition:
-      variable:
-        match: "~^.*-basic$"
+      variables:
+      - match: "~^.*-basic$"
         name: $apikey_client_name
       default: true
 ---
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: rate-limit-request-method-get
+spec:
+  rateLimit:
+    rate: 15r/s
+    key: ${binary_remote_addr}
+    zoneSize: 10M
+    condition:
+      variables:
+      - match: "GET"
+        name: $request_method
+      default: true
+---
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: rate-limit-request-method-put-post-patch-delete
+spec:
+  rateLimit:
+    rate: 1r/s
+    key: ${binary_remote_addr}
+    zoneSize: 10M
+    condition:
+      variables:
+      - match: "~PUT|POST|PATCH|DELETE"
+        name: $request_method
+
+

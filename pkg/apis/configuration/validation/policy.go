@@ -151,11 +151,11 @@ func validateRateLimit(rateLimit *v1.RateLimit, fieldPath *field.Path, isPlus bo
 		}
 	}
 
-	if rateLimit.Condition != nil && (rateLimit.Condition.JWT == nil && rateLimit.Condition.Variable == nil) {
+	if rateLimit.Condition != nil && (rateLimit.Condition.JWT == nil && rateLimit.Condition.Variables == nil) {
 		allErrs = append(allErrs, field.Required(fieldPath.Child("condition"), "must specify either jwt or variable conditions"))
 	}
 
-	if rateLimit.Condition != nil && rateLimit.Condition.JWT != nil && rateLimit.Condition.Variable != nil {
+	if rateLimit.Condition != nil && rateLimit.Condition.JWT != nil && rateLimit.Condition.Variables != nil {
 		allErrs = append(allErrs, field.Required(fieldPath.Child("condition"), "only one condition, jwt or variable is allowed"))
 	}
 
