@@ -4,25 +4,15 @@ metadata:
   name: cafe
 spec:
   host: cafe.example.com
-  tls:
-    secret: cafe-secret
   upstreams:
   - name: coffee
     service: coffee-svc
     port: 80
-  - name: tea
-    service: tea-svc
-    port: 80
   policies:
-  - name: api-key-policy2
+  - name: api-key-policy
   - name: rate-limit-apikey-premium
   - name: rate-limit-apikey-basic
   routes:
   - path: /coffee
     action:
       pass: coffee
-  - path: /tea
-    action:
-      pass: tea
-  - path: /chocolate
-    route: default/chocolate
