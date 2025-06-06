@@ -156,7 +156,7 @@ func validateRateLimit(rateLimit *v1.RateLimit, fieldPath *field.Path, isPlus bo
 	}
 
 	if rateLimit.Condition != nil && rateLimit.Condition.JWT != nil && rateLimit.Condition.Variables != nil {
-		allErrs = append(allErrs, field.Required(fieldPath.Child("condition"), "only one condition, jwt or variable is allowed"))
+		allErrs = append(allErrs, field.Required(fieldPath.Child("condition"), "only one condition, jwt or variables is allowed"))
 	}
 
 	if rateLimit.Condition != nil && rateLimit.Condition.JWT != nil && !isPlus {
