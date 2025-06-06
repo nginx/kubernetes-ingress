@@ -11640,6 +11640,135 @@ func TestGeneratePolicies(t *testing.T) {
 		{
 			policyRefs: []conf_v1.PolicyReference{
 				{
+					Name:      "rateLimit-basic-policy",
+					Namespace: "default",
+				},
+				{
+					Name:      "rateLimit-premium-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/rateLimit-basic-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-basic-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						RateLimit: &conf_v1.RateLimit{
+							Key:      "$apikey_client_name",
+							ZoneSize: "10M",
+							Rate:     "10r/s",
+							LogLevel: "notice",
+							Condition: &conf_v1.RateLimitCondition{
+								Variable: &conf_v1.VariableCondition{
+									Name:  "$apikey_client_name",
+									Match: "basic",
+								},
+								Default: true,
+							},
+						},
+					},
+				},
+				"default/rateLimit-premium-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-premium-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						RateLimit: &conf_v1.RateLimit{
+							Key:      "$apikey_client_name",
+							ZoneSize: "10M",
+							Rate:     "100r/s",
+							LogLevel: "notice",
+							Condition: &conf_v1.RateLimitCondition{
+								Variable: &conf_v1.VariableCondition{
+									Name:  "$apikey_client_name",
+									Match: "premium",
+								},
+							},
+						},
+					},
+				},
+			},
+			context: "route",
+			path:    "/coffee",
+			expected: policiesCfg{
+				Context: ctx,
+				RateLimit: rateLimit{
+					Zones: []version2.LimitReqZone{
+						{
+							Key:           "$pol_rl_default_rateLimit_basic_policy_default_test",
+							ZoneSize:      "10M",
+							Rate:          "10r/s",
+							ZoneName:      "pol_rl_default_rateLimit_basic_policy_default_test",
+							GroupValue:    `"basic"`,
+							GroupVariable: "$rl_default_test_variable_apikey_client_name_route_L2NvZmZlZQ",
+							PolicyValue:   "rl_default_test_match_ratelimit_basic_policy",
+							PolicyResult:  "$apikey_client_name",
+							GroupSource:   "$apikey_client_name",
+							GroupDefault:  true,
+						},
+						{
+							Key:           "$pol_rl_default_rateLimit_premium_policy_default_test",
+							ZoneSize:      "10M",
+							Rate:          "100r/s",
+							ZoneName:      "pol_rl_default_rateLimit_premium_policy_default_test",
+							GroupValue:    `"premium"`,
+							GroupVariable: "$rl_default_test_variable_apikey_client_name_route_L2NvZmZlZQ",
+							PolicyValue:   "rl_default_test_match_ratelimit_premium_policy",
+							PolicyResult:  "$apikey_client_name",
+							GroupSource:   "$apikey_client_name",
+						},
+					},
+					Options: version2.LimitReqOptions{
+						LogLevel:   "notice",
+						RejectCode: 503,
+					},
+					Reqs: []version2.LimitReq{
+						{
+							ZoneName: "pol_rl_default_rateLimit_basic_policy_default_test",
+						},
+						{
+							ZoneName: "pol_rl_default_rateLimit_premium_policy_default_test",
+						},
+					},
+					GroupMaps: []version2.Map{
+						{
+							Source:   "$apikey_client_name",
+							Variable: "$rl_default_test_variable_apikey_client_name_route_L2NvZmZlZQ",
+							Parameters: []version2.Parameter{
+								{Value: `"premium"`, Result: "rl_default_test_match_ratelimit_premium_policy"},
+								{Value: `"basic"`, Result: "rl_default_test_match_ratelimit_basic_policy"},
+								{Value: "default", Result: "rl_default_test_match_ratelimit_basic_policy"},
+							},
+						},
+					},
+					PolicyGroupMaps: []version2.Map{
+						{
+							Source:   "$rl_default_test_variable_apikey_client_name_route_L2NvZmZlZQ",
+							Variable: "$pol_rl_default_rateLimit_basic_policy_default_test",
+							Parameters: []version2.Parameter{
+								{Value: "default", Result: "''"},
+								{Value: "rl_default_test_match_ratelimit_basic_policy", Result: "Val$apikey_client_name"},
+							},
+						},
+						{
+							Source:   "$rl_default_test_variable_apikey_client_name_route_L2NvZmZlZQ",
+							Variable: "$pol_rl_default_rateLimit_premium_policy_default_test",
+							Parameters: []version2.Parameter{
+								{Value: "default", Result: "''"},
+								{Value: "rl_default_test_match_ratelimit_premium_policy", Result: "Val$apikey_client_name"},
+							},
+						},
+					},
+				},
+			},
+			msg: "tiered rate limits",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
 					Name:      "jwt-policy",
 					Namespace: "default",
 				},
