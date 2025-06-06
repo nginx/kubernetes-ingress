@@ -129,7 +129,7 @@ When the [Zone Sync feature]({{< ref "/configuration/global-configuration/config
 |Field | Description | Type | Required |
 | ---| ---| ---| --- |
 |``rate`` | The rate of requests permitted. The rate is specified in requests per second (r/s) or requests per minute (r/m). | ``string`` | Yes |
-|``key`` | The key to which the rate limit is applied. Can contain text, variables, or a combination of them. Variables must be surrounded by ``${}``. For example: ``${binary_remote_addr}``. Accepted variables are ``$binary_remote_addr``, ``$request_uri``,``$request_method``, ``$url``, ``$http_``, ``$args``, ``$arg_``, ``$cookie_``, ``$jwt_claim_``. | ``string`` | Yes |
+|``key`` | The key to which the rate limit is applied. Can contain text, variables, or a combination of them. Variables must be surrounded by ``${}``. For example: ``${binary_remote_addr}``. Accepted variables are ``$binary_remote_addr``, ``$request_uri``,``$request_method``, ``$url``, ``$http_``, ``$args``, ``$arg_``, ``$cookie_``, ``$jwt_claim_``, ``$apikey_``. | ``string`` | Yes |
 |``zoneSize`` | Size of the shared memory zone. Only positive values are allowed. Allowed suffixes are ``k`` or ``m``, if none are present ``k`` is assumed. | ``string`` | Yes |
 |``delay`` | The delay parameter specifies a limit at which excessive requests become delayed. If not set all excessive requests are delayed. | ``int`` | No |
 |``noDelay`` | Disables the delaying of excessive requests while requests are being limited. Overrides ``delay`` if both are set. | ``bool`` | No |
@@ -175,8 +175,15 @@ condition:
 |Field | Description | Type | Required |
 | ---| ---| ---| --- |
 |``jwt`` | defines a JWT condition to rate limit against. | [ratelimit.condition.jwt](#ratelimitconditionjwt) | No |
-|``default`` | sets the rate limit in this policy to be the default if no conditions are met. In a group of policies with the same JWT condition, only one policy can be the default. | ``bool`` | No |
+|``variables`` | defines a Variable condition to rate limit against. | [ratelimit.condition.variables](#ratelimitconditionvariables) | No |
+|``default`` | sets the rate limit in this policy to be the default if no conditions are met. In a group of policies with the same condition, only one policy can be the default. | ``bool`` | No |
 {{% /table %}}
+{{< note >}}
+
+One condition of type `jwt` or `variables` is required.  Only ony condition per Policy is supported.
+
+{{< /note >}}
+
 
 The rate limit policy with condition is designed to be used in combination with one or more rate limit policies. For example, multiple rate limit policies with [RateLimit.Condition.JWT](#ratelimitconditionjwt) can be used to apply different tiers of rate limit based on the value of a JWT claim. For a practical example of tiered rate limiting by the value of a JWT claim, see the example in our [GitHub repository](https://github.com/nginx/kubernetes-ingress/tree/v{{< nic-version >}}/examples/custom-resources/rate-limit-tiered-jwt-claim/README.md).
 
@@ -211,6 +218,27 @@ The rate limit policy will only apply to requests that contain a JWT with the sp
 | ---| ---| ---| --- |
 |``claim`` | Claim is the JWT claim to be rate limit by. Nested claims should be separated by ".". | ``string`` | Yes |
 |``match`` | the value of the claim to match against. | ``string`` | Yes |
+{{% /table %}}
+
+### RateLimit.Condition.Variables
+
+RateLimit.Condition.Variables defines a condition for a rate limit by NGINX variable. For example, here we define a condition for a rate limit policy that only applies to requests with the request method with a value `GET`:
+
+```yaml
+variables:
+  - name: $request_method
+    match: GET
+```
+
+{{< note >}}
+Only one variable at a time is supported at present.
+{{< /note >}}
+
+{{% table %}}
+|Field | Description | Type | Required |
+| ---| ---| ---| --- |
+|``name`` | the name of the NGINX variable to be rate limit by. | ``string`` | Yes |
+|``match`` | the value of the NGINX variable to match against.  Values prefixed with the `~` character denote the following is a [regular expression](https://nginx.org/en/docs/http/ngx_http_map_module.html#map).  | ``string`` | Yes |
 {{% /table %}}
 
 ### APIKey
