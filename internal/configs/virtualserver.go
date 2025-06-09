@@ -1387,7 +1387,17 @@ func (p *policiesCfg) addOIDCConfig(
 				res.addWarningf("OIDC policy %s references an invalid secret %s: %v", polKey, secretKey, secretRef.Error)
 				res.isError = true
 				return res
+			} else if oidc.PKCEEnable {
+				res.addWarningf("OIDC policy %s has a secret and PKCE enabled. Secrets can't be used with PKCE", polKey)
+				res.isError = true
+				return res
 			}
+
+			clientSecret = secretRef.Secret.Data[ClientSecretKey]
+		} else if !oidc.PKCEEnable {
+			res.addWarningf("Client secret is required for OIDC policy %s when not using PKCE", polKey)
+			res.isError = true
+			return res
 		}
 
 		redirectURI := oidc.RedirectURI
