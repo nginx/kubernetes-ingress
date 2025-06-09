@@ -82,6 +82,10 @@ match {{ $m.Name }} {
 proxy_cache_path /var/cache/nginx/jwks_uri_{{$s.VSName}} levels=1 keys_zone=jwks_uri_{{$s.VSName}}:1m max_size=10m;
 {{- end }}
 
+{{- if and $s.OIDC $s.OIDC.PKCEEnable }}
+include oidc/oidc_pkce_supplements.conf;
+{{- end }}
+
 server {
     {{- if $s.Gunzip }}
     gunzip on;
@@ -97,7 +101,7 @@ server {
     {{- with $oidc := $s.OIDC }}
     include oidc/oidc.conf;
 
-    set $oidc_pkce_enable 0;
+    set $oidc_pkce_enable {{ boolToInteger $oidc.PKCEEnable }};
     set $oidc_client_auth_method "client_secret_post";
     set $oidc_logout_redirect "{{ $oidc.PostLogoutRedirectURI }}";
     set $oidc_hmac_key "{{ $s.VSName }}";
@@ -364,7 +368,7 @@ server {
         {{- if $hc.GRPCPass }} type=grpc{{- if $hc.GRPCStatus }} grpc_status={{ $hc.GRPCStatus }}{{- end -}}
         {{- if $hc.GRPCService }} grpc_service={{ $hc.GRPCService }}{{- end -}}{{ end -}};
 
-   }
+    }
     {{- end }}
 
     {{- range $e := $s.ErrorPageLocations }}
@@ -672,7 +676,7 @@ server {
 
     {{- with $ssl := $s.SSL }}
         {{ if $ssl.HTTP2 }}
-	location @grpc_deadline_exceeded {
+    location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
         add_header grpc-status 4;
@@ -728,6 +732,6 @@ server {
         return 204;
     }
 
-	    {{ end }}
+        {{ end }}
     {{ end }}
 }

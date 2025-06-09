@@ -265,15 +265,15 @@ func validateOIDC(oidc *v1.OIDC, fieldPath *field.Path) field.ErrorList {
 	if oidc.ClientID == "" {
 		return field.ErrorList{field.Required(fieldPath.Child("clientID"), "")}
 	}
-	if oidc.ClientSecret == "" {
-		return field.ErrorList{field.Required(fieldPath.Child("clientSecret"), "")}
-	}
 	if oidc.EndSessionEndpoint == "" && oidc.PostLogoutRedirectURI != "" {
 		msg := "postLogoutRedirectURI can only be set when endSessionEndpoint is set"
 		return field.ErrorList{field.Forbidden(fieldPath.Child("postLogoutRedirectURI"), msg)}
 	}
 
 	allErrs := field.ErrorList{}
+
+	allErrs = append(allErrs, validatePKCE(oidc.PKCEEnable, oidc.ClientSecret, fieldPath.Child("clientSecret"))...)
+
 	if oidc.Scope != "" {
 		allErrs = append(allErrs, validateOIDCScope(oidc.Scope, fieldPath.Child("scope"))...)
 	}
@@ -467,6 +467,26 @@ func validateOIDCScope(scope string, fieldPath *field.Path) field.ErrorList {
 			}
 		}
 	}
+	return nil
+}
+
+// validatePKCE checks for the duo of PKCEEnable and clientSecret settings.
+//
+//   - yes PKCE and not empty client secret is bad, because PKCE does not use
+//     client secret
+//   - no PKCE and empty client secret is bad because standard OIDC uses client
+//     secrets
+func validatePKCE(PKCEEnable bool, clientSecret string,
+	clientSecretPath *field.Path,
+) field.ErrorList {
+	if !PKCEEnable && clientSecret == "" {
+		return field.ErrorList{field.Required(clientSecretPath, "clientSecret is required when PKCE is not used")}
+	}
+
+	if PKCEEnable && clientSecret != "" {
+		return field.ErrorList{field.Forbidden(clientSecretPath, "clientSecret cannot be used when PKCE is used")}
+	}
+
 	return nil
 }
 
