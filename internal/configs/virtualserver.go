@@ -2,9 +2,7 @@ package configs
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"net/url"
@@ -69,16 +67,6 @@ var incompatibleLBMethodsForSlowStart = map[string]bool{
 	"random two least_time=last_byte": true,
 }
 
-// pkceDefaultValue is a placeholder base64 encoded random string of
-// bytes that will be used as a secret for OIDC when PKCE is used. If
-// PKCE is not used, this will be overridden.
-//
-// Technically, we could use a constant here, but code scanning tools
-// flag that up as an issue.
-//
-// The initial value of this var is declared in the init() function.
-var pkceDefaultValue []byte
-
 // MeshPodOwner contains the type and name of the K8s resource that owns the pod.
 // This owner information is needed for NGINX Service Mesh metrics.
 type MeshPodOwner struct {
@@ -115,17 +103,6 @@ type VirtualServerEx struct {
 	DosProtectedRefs    map[string]*unstructured.Unstructured
 	DosProtectedEx      map[string]*DosEx
 	ZoneSync            bool
-}
-
-// init function with the sole purpose of generating a random set of
-// bytes and base64 encoding that and saving it to the default var.
-func init() {
-	randomBytes := make([]byte, 32) // Generate 32 random bytes
-	_, err := rand.Read(randomBytes)
-	if err != nil {
-		os.Exit(1)
-	}
-	pkceDefaultValue = []byte(base64.StdEncoding.EncodeToString(randomBytes))
 }
 
 func (vsx *VirtualServerEx) String() string {
@@ -1398,8 +1375,6 @@ func (p *policiesCfg) addOIDCConfig(
 		clientSecret := []byte("")
 
 		if ok {
-			clientSecret = pkceDefaultValue
-
 			var secretType api_v1.SecretType
 			if secretRef.Secret != nil {
 				secretType = secretRef.Secret.Type
