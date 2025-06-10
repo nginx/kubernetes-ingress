@@ -649,6 +649,7 @@ spec:
     endSessionEndpoint: https://idp.example.com/openid-connect/logout
     postLogoutRedirectURI: /
     accessTokenEnable: true
+    pkceEnable: false
 ```
 
 NGINX Plus will pass the ID of an authenticated user to the backend in the HTTP header `username`.
@@ -678,7 +679,7 @@ The OIDC policy defines a few internal locations that can't be customized: `/_jw
 |Field | Description | Type | Required |
 | ---| ---| ---| --- |
 |``clientID`` | The client ID provided by your OpenID Connect provider. | ``string`` | Yes |
-|``clientSecret`` | The name of the Kubernetes secret that stores the client secret provided by your OpenID Connect provider. It must be in the same namespace as the Policy resource. The secret must be of the type ``nginx.org/oidc``, and the secret under the key ``client-secret``, otherwise the secret will be rejected as invalid. | ``string`` | Yes |
+|``clientSecret`` | The name of the Kubernetes secret that stores the client secret provided by your OpenID Connect provider. It must be in the same namespace as the Policy resource. The secret must be of the type ``nginx.org/oidc``, and the secret under the key ``client-secret``, otherwise the secret will be rejected as invalid. If PKCE is enabled, this should be not configured. | ``string`` | Yes |
 |``authEndpoint`` | URL for the authorization endpoint provided by your OpenID Connect provider. | ``string`` | Yes |
 |``authExtraArgs`` | A list of extra URL arguments to pass to the authorization endpoint provided by your OpenID Connect provider. Arguments must be URL encoded, multiple arguments may be included in the list, for example ``[ arg1=value1, arg2=value2 ]`` | ``string[]`` | No |
 |``tokenEndpoint`` | URL for the token endpoint provided by your OpenID Connect provider. | ``string`` | Yes |
@@ -689,6 +690,7 @@ The OIDC policy defines a few internal locations that can't be customized: `/_jw
 |``postLogoutRedirectURI`` | URI to redirect to after the logout has been performed. Requires ``endSessionEndpoint``. The default is ``/_logout``. | ``string`` | No |
 |``zoneSyncLeeway`` | Specifies the maximum timeout in milliseconds for synchronizing ID/access tokens and shared values between Ingress Controller pods. The default is ``200``. | ``int`` | No |
 |``accessTokenEnable`` | Option of whether Bearer token is used to authorize NGINX to access protected backend. | ``boolean`` | No |
+|``pkceEnable`` | Switches Proof Key for Code Exchange on. The OpenID client needs to be in public mode. `clientSecret` is not used in this mode. | ``boolean`` | No |
 {{% /table %}}
 
 {{< note >}}

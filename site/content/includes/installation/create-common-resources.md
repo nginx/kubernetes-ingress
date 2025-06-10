@@ -18,6 +18,12 @@ In this section, you'll create resources that most NGINX Ingress Controller inst
     kubectl apply -f deployments/common/nginx-config.yaml
     ```
 
+    If you're using NGINX Plus, you will also need to apply the management config map as well
+
+    ```shell
+    kubectl apply -f deployments/common/plus-mgmt-configmap.yaml
+    ```
+
 3. Create an `IngressClass` resource. NGINX Ingress Controller won't start without an `IngressClass` resource.
 
     ```shell
