@@ -108,7 +108,7 @@ type NICResourceCounts struct {
 	IngressClasses int64
 	// AccessControlPolicies is the number of AccessControl policies managed by NGINX Ingress Controller
 	AccessControlPolicies int64
-	// RateLimitPolicies is the number of RateLimit policies managed by NGINX Ingress Controller
+	// RateLimitPolicies is the number of unconditional RateLimit policies managed by NGINX Ingress Controller
 	RateLimitPolicies int64
 	// APIKeyPolicies is the number of APIKey policies managed by NGINX Ingress Controller
 	APIKeyPolicies int64
@@ -140,4 +140,8 @@ type NICResourceCounts struct {
 	ConfigMapKeys []string
 	// MGMTConfigMapKeys is the list of keys for the MGMT ConfigMap
 	MGMTConfigMapKeys []string
+	// JWTRateLimitPolicies is the number of JWT Condition RateLimit policies managed by NGINX Ingress Controller
+	JWTRateLimitPolicies int64
+	// VariablesRateLimitPolicies is the number of Variables Condition RateLimit policies managed by NGINX Ingress Controller
+	VariablesRateLimitPolicies int64
 }
