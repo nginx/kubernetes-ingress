@@ -42,6 +42,8 @@ func (d *NICResourceCounts) Attributes() []attribute.KeyValue {
 	attrs = append(attrs, attribute.String("BuildOS", d.BuildOS))
 	attrs = append(attrs, attribute.StringSlice("ConfigMapKeys", d.ConfigMapKeys))
 	attrs = append(attrs, attribute.StringSlice("MGMTConfigMapKeys", d.MGMTConfigMapKeys))
+	attrs = append(attrs, attribute.Int64("JWTRateLimitPolicies", d.JWTRateLimitPolicies))
+	attrs = append(attrs, attribute.Int64("VariablesRateLimitPolicies", d.VariablesRateLimitPolicies))
 
 	return attrs
 }
