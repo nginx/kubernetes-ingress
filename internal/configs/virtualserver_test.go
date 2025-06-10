@@ -10652,6 +10652,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 							EndSessionEndpoint:    "http://foo.com/bar",
 							PostLogoutRedirectURI: "/_logout",
 							AccessTokenEnable:     true,
+							PKCEEnable:            true,
 						},
 					},
 				},
@@ -11137,6 +11138,101 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			expectedOidc: &oidcPolicyCfg{},
 			msg:          "multi waf",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "oidc-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/oidc-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "oidc-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						OIDC: &conf_v1.OIDC{
+							ClientSecret:          "oidc-secret",
+							AuthEndpoint:          "https://foo.com/auth",
+							TokenEndpoint:         "https://foo.com/token",
+							JWKSURI:               "https://foo.com/certs",
+							EndSessionEndpoint:    "https://foo.com/logout",
+							PostLogoutRedirectURI: "/_logout",
+							ClientID:              "foo",
+							AccessTokenEnable:     true,
+							PKCEEnable:            true,
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{
+				secretRefs: map[string]*secrets.SecretReference{
+					"default/oidc-secret": {
+						Secret: &api_v1.Secret{
+							Type: secrets.SecretTypeOIDC,
+							Data: map[string][]byte{
+								"client-secret": []byte("super_secret_123"),
+							},
+						},
+					},
+				},
+			},
+			context: "route",
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`OIDC policy default/oidc-policy has a secret and PKCE enabled. Secrets can't be used with PKCE`,
+				},
+			},
+			expectedOidc: &oidcPolicyCfg{},
+			msg:          "oidc pkce yes secret yes",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "oidc-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/oidc-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "oidc-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						OIDC: &conf_v1.OIDC{
+							AuthEndpoint:          "https://foo.com/auth",
+							TokenEndpoint:         "https://foo.com/token",
+							JWKSURI:               "https://foo.com/certs",
+							EndSessionEndpoint:    "https://foo.com/logout",
+							PostLogoutRedirectURI: "/_logout",
+							ClientID:              "foo",
+							AccessTokenEnable:     true,
+							PKCEEnable:            false,
+						},
+					},
+				},
+			},
+			context: "route",
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`Client secret is required for OIDC policy default/oidc-policy when not using PKCE`,
+				},
+			},
+			expectedOidc: &oidcPolicyCfg{},
+			msg:          "oidc pkce no secret no",
 		},
 	}
 

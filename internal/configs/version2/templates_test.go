@@ -780,6 +780,61 @@ func TestExecuteVirtualServerTemplateWithAPIKeyPolicyNGINXPlus(t *testing.T) {
 	t.Log(string(got))
 }
 
+func TestExecuteVirtualServerTemplate_WithCustomOIDCRedirectLocation(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfg)
+	if err != nil {
+		t.Error(err)
+	}
+
+	expectedCustomLocation := "location = /custom-location {"
+	if !bytes.Contains(got, []byte(expectedCustomLocation)) {
+		t.Errorf("Custom redirectURI should generate location block: %s", expectedCustomLocation)
+	}
+
+	expectedDirectives := []string{
+		"status_zone \"OIDC code exchange\";",
+		"js_content oidc.codeExchange;",
+		"error_page 500 502 504 @oidc_error;",
+	}
+
+	for _, directive := range expectedDirectives {
+		if !bytes.Contains(got, []byte(directive)) {
+			t.Errorf("Custom location should contain directive: %s", directive)
+		}
+	}
+
+	expectedRedirVar := `set $redir_location "/custom-location";`
+	if !bytes.Contains(got, []byte(expectedRedirVar)) {
+		t.Errorf("Should set $redir_location to custom value: %s", expectedRedirVar)
+	}
+}
+
+func TestExecuteVirtualServerTemplateWithOIDCAndPKCEPolicyNGINXPlus(t *testing.T) {
+	t.Parallel()
+
+	e := newTmplExecutorNGINXPlus(t)
+	got, err := e.ExecuteVirtualServerTemplate(&virtualServerCfgWithOIDCAndPKCETurnedOn)
+	if err != nil {
+		t.Error(err)
+	}
+
+	want := "include oidc/oidc_pkce_supplements.conf"
+	want2 := "include oidc/oidc.conf;"
+
+	if !bytes.Contains(got, []byte(want)) {
+		t.Errorf("want %q in generated template", want)
+	}
+
+	if !bytes.Contains(got, []byte(want2)) {
+		t.Errorf("want %q in generated template", want2)
+	}
+
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
+}
+
 func vsConfig() VirtualServerConfig {
 	return VirtualServerConfig{
 		LimitReqZones: []LimitReqZone{
@@ -1274,6 +1329,18 @@ var (
 			JWTAuth: &JWTAuth{
 				Realm:  "My Api",
 				Secret: "jwk-secret",
+			},
+			OIDC: &OIDC{
+				AuthEndpoint:          "https://idp.example.com/auth",
+				ClientID:              "test-client",
+				ClientSecret:          "test-secret",
+				JwksURI:               "https://idp.example.com/jwks",
+				TokenEndpoint:         "https://idp.example.com/token",
+				EndSessionEndpoint:    "https://idp.example.com/logout",
+				RedirectURI:           "/custom-location",
+				PostLogoutRedirectURI: "https://example.com/logout",
+				ZoneSyncLeeway:        0,
+				Scope:                 "openid+profile+email",
 			},
 			IngressMTLS: &IngressMTLS{
 				ClientCert:   "ingress-mtls-secret",
@@ -2362,6 +2429,22 @@ var (
 			CustomListeners: true,
 			HTTPPort:        0,
 			HTTPSPort:       8443,
+			Locations: []Location{
+				{
+					Path: "/",
+				},
+			},
+		},
+	}
+
+	virtualServerCfgWithOIDCAndPKCETurnedOn = VirtualServerConfig{
+		Server: Server{
+			ServerName:    "example.com",
+			StatusZone:    "example.com",
+			ProxyProtocol: true,
+			OIDC: &OIDC{
+				PKCEEnable: true,
+			},
 			Locations: []Location{
 				{
 					Path: "/",

@@ -1371,23 +1371,34 @@ func (p *policiesCfg) addOIDCConfig(
 		}
 	} else {
 		secretKey := fmt.Sprintf("%v/%v", polNamespace, oidc.ClientSecret)
-		secretRef := secretRefs[secretKey]
+		secretRef, ok := secretRefs[secretKey]
+		clientSecret := []byte("")
 
-		var secretType api_v1.SecretType
-		if secretRef.Secret != nil {
-			secretType = secretRef.Secret.Type
-		}
-		if secretType != "" && secretType != secrets.SecretTypeOIDC {
-			res.addWarningf("OIDC policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, secretKey, secretType, secrets.SecretTypeOIDC)
+		if ok {
+			var secretType api_v1.SecretType
+			if secretRef.Secret != nil {
+				secretType = secretRef.Secret.Type
+			}
+			if secretType != "" && secretType != secrets.SecretTypeOIDC {
+				res.addWarningf("OIDC policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, secretKey, secretType, secrets.SecretTypeOIDC)
+				res.isError = true
+				return res
+			} else if secretRef.Error != nil && !oidc.PKCEEnable {
+				res.addWarningf("OIDC policy %s references an invalid secret %s: %v", polKey, secretKey, secretRef.Error)
+				res.isError = true
+				return res
+			} else if oidc.PKCEEnable {
+				res.addWarningf("OIDC policy %s has a secret and PKCE enabled. Secrets can't be used with PKCE", polKey)
+				res.isError = true
+				return res
+			}
+
+			clientSecret = secretRef.Secret.Data[ClientSecretKey]
+		} else if !oidc.PKCEEnable {
+			res.addWarningf("Client secret is required for OIDC policy %s when not using PKCE", polKey)
 			res.isError = true
 			return res
-		} else if secretRef.Error != nil {
-			res.addWarningf("OIDC policy %s references an invalid secret %s: %v", polKey, secretKey, secretRef.Error)
-			res.isError = true
-			return res
 		}
-
-		clientSecret := secretRef.Secret.Data[ClientSecretKey]
 
 		redirectURI := oidc.RedirectURI
 		if redirectURI == "" {
@@ -1419,6 +1430,7 @@ func (p *policiesCfg) addOIDCConfig(
 			PostLogoutRedirectURI: postLogoutRedirectURI,
 			ZoneSyncLeeway:        generateIntFromPointer(oidc.ZoneSyncLeeway, 200),
 			AccessTokenEnable:     oidc.AccessTokenEnable,
+			PKCEEnable:            oidc.PKCEEnable,
 		}
 		oidcPolCfg.key = polKey
 	}
