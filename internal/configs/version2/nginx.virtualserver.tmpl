@@ -424,7 +424,7 @@ server {
 
     {{- with $ssl := $s.SSL }}
         {{ if $ssl.HTTP2 }}
-	location @grpc_deadline_exceeded {
+    location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
         add_header grpc-status 4;
@@ -480,6 +480,6 @@ server {
         return 204;
     }
 
-	    {{ end }}
+    {{ end }}
     {{ end }}
 }

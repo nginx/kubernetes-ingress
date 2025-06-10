@@ -335,7 +335,7 @@ server {
         proxy_pass http://coffee-v2;
         health_check uri=/  port=50 interval=5s jitter=0s fails=1 passes=1 mandatory  persistent  keepalive_time=60s;
 
-   }
+    }
     location @hc-tea {
         
         grpc_connect_timeout ;
@@ -344,7 +344,7 @@ server {
         grpc_pass grpc://tea-v3;
         health_check port=50 interval=5s jitter=0s fails=1 passes=1 type=grpc grpc_status=12 grpc_service=tea-servicev2;
 
-   }
+    }
     location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_0 {
         
         default_type "application/json";
@@ -761,7 +761,7 @@ server {
         proxy_pass http://coffee-v2;
         health_check uri=/  port=50 interval=5s jitter=0s fails=1 passes=1 mandatory  persistent  keepalive_time=60s;
 
-   }
+    }
     location @hc-tea {
         
         grpc_connect_timeout ;
@@ -770,7 +770,7 @@ server {
         grpc_pass grpc://tea-v3;
         health_check port=50 interval=5s jitter=0s fails=1 passes=1 type=grpc grpc_status=12 grpc_service=tea-servicev2;
 
-   }
+    }
     location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_0 {
         
         default_type "application/json";
@@ -1316,6 +1316,54 @@ server {
 
 ---
 
+[TestExecuteVirtualServerTemplateWithOIDCAndPKCEPolicyNGINXPlus - 1]
+
+include oidc/oidc_pkce_supplements.conf;
+
+server {
+    listen 80 proxy_protocol;
+    listen [::]:80 proxy_protocol;
+
+
+    server_name example.com;
+    status_zone example.com;
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    include oidc/oidc.conf;
+
+    set $oidc_pkce_enable 1;
+    set $oidc_client_auth_method "client_secret_post";
+    set $oidc_logout_redirect "";
+    set $oidc_hmac_key "";
+    set $zone_sync_leeway 0;
+
+    set $oidc_authz_endpoint "";
+    set $oidc_authz_extra_args "";
+    set $oidc_token_endpoint "";
+    set $oidc_end_session_endpoint "";
+    set $oidc_jwt_keyfile "";
+    set $oidc_scopes "";
+    set $oidc_client "";
+    set $oidc_client_secret "";
+    set $redir_location "";
+
+    server_tokens "";
+
+    
+
+    
+    location / {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header close;
+    }
+}
+
+---
+
 [TestExecuteVirtualServerTemplate_RendersOSSTemplateWithHTTP2Off - 1]
 
 server {
@@ -1438,7 +1486,7 @@ server {
         return 204;
     }
 
-        
+    
     
 }
 
@@ -3303,7 +3351,7 @@ server {
         return 204;
     }
 
-        
+    
     
 }
 
@@ -3402,7 +3450,7 @@ server {
         proxy_pass http://coffee-v2;
         health_check uri=/  port=50 interval=5s jitter=0s fails=1 passes=1 mandatory  persistent  keepalive_time=60s;
 
-   }
+    }
     location @hc-tea {
         
         grpc_connect_timeout ;
@@ -3411,7 +3459,7 @@ server {
         grpc_pass grpc://tea-v3;
         health_check port=50 interval=5s jitter=0s fails=1 passes=1 type=grpc grpc_status=12 grpc_service=tea-servicev2;
 
-   }
+    }
     location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_0 {
         
         default_type "application/json";
