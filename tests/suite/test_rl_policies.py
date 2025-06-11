@@ -17,6 +17,8 @@ from suite.utils.policy_resources_utils import (
     read_policy,
 )
 from suite.utils.resources_utils import (
+    apply_and_assert_valid_secret,
+    delete_secret,
     get_first_pod_name,
     get_pod_list,
     get_vs_nginx_template_conf,
@@ -67,6 +69,18 @@ rl_pol_basic_with_default_jwt_claim_sub = (
 )
 rl_pol_premium_with_default_jwt_claim_sub = (
     f"{TEST_DATA}/rate-limit/policies/rate-limit-tiered-premium-with-default-jwt-claim-sub.yaml"
+)
+rl_vs_basic_premium_variables_apikey = (
+    f"{TEST_DATA}/rate-limit/spec/virtual-server-tiered-basic-premium-variables-apikey.yaml"
+)
+rl_basic_apikey = ""
+rl_sec_apikey = f"{TEST_DATA}/rate-limit/policies/api-key-secret.yaml"
+rl_pol_apikey = f"{TEST_DATA}/rate-limit/policies/api-key-policy.yaml"
+rl_pol_basic_with_default_variables_apikey = (
+    f"{TEST_DATA}/rate-limit/policies/rate-limit-tiered-basic-with-default-variables-apikey.yaml"
+)
+rl_pol_premium_no_default_variables_apikey = (
+    f"{TEST_DATA}/rate-limit/policies/rate-limit-tiered-premium-no-default-variables-apikey.yaml"
 )
 
 
@@ -999,3 +1013,65 @@ class TestTieredRateLimitingPolicies:
         delete_policy(kube_apis.custom_objects, basic_pol_name, test_namespace)
         delete_policy(kube_apis.custom_objects, premium_pol_name, test_namespace)
         self.restore_default_vs(kube_apis, virtual_server_setup)
+
+    @pytest.mark.parametrize("src", [rl_vs_basic_premium_variables_apikey])
+    def test_speclevel_rl_policy_tiered_basic_premium_with_default_variables_apikey(
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        crd_ingress_controller,
+        virtual_server_setup,
+        test_namespace,
+        src,
+    ):
+        """
+        Test if basic rate-limiting policy is working with 1 rps using $apikey_client_name as the rate limit key,
+        if premium rate-limiting policy is working with 5 rps using $apikey_client_name as the rate limit key &
+        if the default basic rate limit of 1r/s is applied.
+        Policies are applied at the VirtualServer Spec level
+        """
+        apikey_sec_name = apply_and_assert_valid_secret(kube_apis.v1, test_namespace, rl_sec_apikey)
+        apikey_pol_name = apply_and_assert_valid_policy(kube_apis, test_namespace, rl_pol_apikey)
+        basic_pol_name = apply_and_assert_valid_policy(
+            kube_apis, test_namespace, rl_pol_basic_with_default_variables_apikey
+        )
+        premium_pol_name = apply_and_assert_valid_policy(
+            kube_apis, test_namespace, rl_pol_premium_no_default_variables_apikey
+        )
+
+        # Patch VirtualServer
+        apply_and_assert_valid_vs(
+            kube_apis,
+            virtual_server_setup.namespace,
+            virtual_server_setup.vs_name,
+            src,
+        )
+
+        ##  Test Basic Rate Limit 1r/s
+        self.check_rate_limit_nearly_eq(
+            virtual_server_setup.backend_1_url,
+            200,
+            1,
+            headers={"host": virtual_server_setup.vs_host, "X-header-name": f"Bearer {basic_jwt_token}"},
+        )
+        wait_before_test(1)
+
+        ##  Test Premium Rate Limit 5r/s
+        self.check_rate_limit_nearly_eq(
+            virtual_server_setup.backend_1_url,
+            200,
+            5,
+            headers={"host": virtual_server_setup.vs_host, "Authorization": f"Bearer {premium_jwt_token}"},
+        )
+        wait_before_test(1)
+
+        ##  Test Default Rate Limit 1r/s
+        self.check_rate_limit_nearly_eq(
+            virtual_server_setup.backend_1_url, 200, 1, headers={"host": virtual_server_setup.vs_host}
+        )
+
+        self.restore_default_vs(kube_apis, virtual_server_setup)
+        delete_policy(kube_apis.custom_objects, basic_pol_name, test_namespace)
+        delete_policy(kube_apis.custom_objects, premium_pol_name, test_namespace)
+        delete_policy(kube_apis.custom_objects, apikey_pol_name, test_namespace)
+        delete_secret(kube_apis.v1, test_namespace, apikey_sec_name)

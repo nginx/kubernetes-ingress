@@ -535,6 +535,18 @@ def wait_for_public_ip(v1: CoreV1Api, namespace: str) -> str:
     return str(svc_item.status.load_balancer.ingress[0].ip)
 
 
+def apply_and_assert_valid_secret(v1: CoreV1Api, namespace, secret_yaml):
+    sec_name = create_secret_from_yaml(v1, secret_yaml, namespace)
+    wait_before_test(1)
+    secret_info = v1.read_namespaced_secret(sec_name, namespace)
+    assert (
+        "status" in secret_info
+        and secret_info["status"]["reason"] == "AddedOrUpdated"
+        and secret_info["status"]["state"] == "Valid"
+    )
+    return sec_name
+
+
 def create_secret_from_yaml(v1: CoreV1Api, namespace, yaml_manifest) -> str:
     """
     Create a secret based on yaml file.
