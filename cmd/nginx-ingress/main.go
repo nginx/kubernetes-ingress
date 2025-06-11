@@ -1090,7 +1090,7 @@ func updateSelfWithVersionInfo(ctx context.Context, eventLog record.EventRecorde
 	}
 }
 
-func createAndValidateHeadlessService(ctx context.Context, kubeClient *kubernetes.Clientset, cfgParams *configs.ConfigParams, controllerNamespace string, pod *api_v1.Pod) error {
+func createAndValidateHeadlessService(ctx context.Context, kubeClient kubernetes.Interface, cfgParams *configs.ConfigParams, controllerNamespace string, pod *api_v1.Pod) error {
 	l := nl.LoggerFromContext(ctx)
 	owner := pod.ObjectMeta.OwnerReferences[0]
 	name := owner.Name
@@ -1108,7 +1108,7 @@ func createAndValidateHeadlessService(ctx context.Context, kubeClient *kubernete
 	return nil
 }
 
-func createHeadlessService(l *slog.Logger, kubeClient *kubernetes.Clientset, controllerNamespace string, svcName string, configMapNamespacedName string, pod *api_v1.Pod) error {
+func createHeadlessService(l *slog.Logger, kubeClient kubernetes.Interface, controllerNamespace string, svcName string, configMapNamespacedName string, pod *api_v1.Pod) error {
 	configMapName := strings.SplitN(configMapNamespacedName, "/", 2)
 	if len(configMapName) != 2 {
 		return fmt.Errorf("wrong syntax for ConfigMap: %q", configMapNamespacedName)
