@@ -138,9 +138,9 @@ func TestK8sVersionValidationBad(t *testing.T) {
 		})
 	}
 }
-func TestCreateHeadlessService(t *testing.T) {
 
-	logger := slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelDebug}))
+func TestCreateHeadlessService(t *testing.T) {
+	logger := nl.LoggerFromContext(context.Background())
 	controllerNamespace := "default"
 	configMapName := "test-configmap"
 	configMapNamespace := "default"
