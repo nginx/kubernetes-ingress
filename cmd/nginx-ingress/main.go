@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"runtime"
 	"strings"
@@ -1089,7 +1090,7 @@ func updateSelfWithVersionInfo(ctx context.Context, eventLog record.EventRecorde
 	}
 }
 
-func createAndValidateHeadlessService(ctx context.Context, kubeClient *kubernetes.Clientset, cfgParams *configs.ConfigParams, controllerNamespace string, pod *api_v1.Pod) error {
+func createAndValidateHeadlessService(ctx context.Context, kubeClient kubernetes.Interface, cfgParams *configs.ConfigParams, controllerNamespace string, pod *api_v1.Pod) error {
 	l := nl.LoggerFromContext(ctx)
 	owner := pod.ObjectMeta.OwnerReferences[0]
 	name := owner.Name
@@ -1107,13 +1108,7 @@ func createAndValidateHeadlessService(ctx context.Context, kubeClient *kubernete
 	return nil
 }
 
-func createHeadlessService(l *slog.Logger, kubeClient *kubernetes.Clientset, controllerNamespace string, svcName string, configMapNamespacedName string, pod *api_v1.Pod) error {
-	existing, err := kubeClient.CoreV1().Services(controllerNamespace).Get(context.Background(), svcName, meta_v1.GetOptions{})
-	if err == nil && existing != nil {
-		nl.Infof(l, "headless service %s/%s already exists, skipping creating.", controllerNamespace, svcName)
-		return nil
-	}
-
+func createHeadlessService(l *slog.Logger, kubeClient kubernetes.Interface, controllerNamespace string, svcName string, configMapNamespacedName string, pod *api_v1.Pod) error {
 	configMapName := strings.SplitN(configMapNamespacedName, "/", 2)
 	if len(configMapName) != 2 {
 		return fmt.Errorf("wrong syntax for ConfigMap: %q", configMapNamespacedName)
@@ -1125,24 +1120,49 @@ func createHeadlessService(l *slog.Logger, kubeClient *kubernetes.Clientset, con
 		return err
 	}
 
+	requiredSelectors := pod.Labels
+	requiredOwnerReferences := []meta_v1.OwnerReference{
+		{
+			APIVersion:         "v1",
+			Kind:               "ConfigMap",
+			Name:               configMapObj.Name,
+			UID:                configMapObj.UID,
+			Controller:         commonhelpers.BoolToPointerBool(true),
+			BlockOwnerDeletion: commonhelpers.BoolToPointerBool(true),
+		},
+	}
+	existing, err := kubeClient.CoreV1().Services(controllerNamespace).Get(context.Background(), svcName, meta_v1.GetOptions{})
+	if err == nil && existing != nil {
+		needsUpdate := false
+		if !reflect.DeepEqual(existing.Spec.Selector, requiredSelectors) {
+			existing.Spec.Selector = requiredSelectors
+			needsUpdate = true
+		}
+		if !reflect.DeepEqual(existing.OwnerReferences, requiredOwnerReferences) {
+			existing.OwnerReferences = requiredOwnerReferences
+			needsUpdate = true
+		}
+		if needsUpdate {
+			nl.Infof(l, "Headless service %s/%s exists and needs update. Updating...", controllerNamespace, svcName)
+			_, updateErr := kubeClient.CoreV1().Services(controllerNamespace).Update(context.Background(), existing, meta_v1.UpdateOptions{})
+			if updateErr != nil {
+				return fmt.Errorf("failed to update headless service %s/%s: %w", controllerNamespace, svcName, updateErr)
+			}
+			nl.Infof(l, "Successfully updated headless service %s/%s.", controllerNamespace, svcName)
+		}
+		return nil
+	}
+
+	nl.Infof(l, "Headless service %s/%s not found. Creating...", controllerNamespace, svcName)
 	svc := &api_v1.Service{
 		ObjectMeta: meta_v1.ObjectMeta{
-			Name:      svcName,
-			Namespace: controllerNamespace,
-			OwnerReferences: []meta_v1.OwnerReference{
-				{
-					APIVersion:         "v1",
-					Kind:               "ConfigMap",
-					Name:               configMapObj.Name,
-					UID:                configMapObj.UID,
-					Controller:         commonhelpers.BoolToPointerBool(true),
-					BlockOwnerDeletion: commonhelpers.BoolToPointerBool(true),
-				},
-			},
+			Name:            svcName,
+			Namespace:       controllerNamespace,
+			OwnerReferences: requiredOwnerReferences,
 		},
 		Spec: api_v1.ServiceSpec{
 			ClusterIP: api_v1.ClusterIPNone,
-			Selector:  pod.Labels,
+			Selector:  requiredSelectors,
 		},
 	}
 
