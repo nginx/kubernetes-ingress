@@ -815,3 +815,31 @@ func newReplaceAll(t *testing.T) *template.Template {
 	}
 	return tmpl
 }
+
+func TestBoolToInt(t *testing.T) {
+	cases := []struct {
+		name string
+		in   bool
+		want int
+	}{
+		{
+			name: "converts true to 1",
+			in:   true,
+			want: 1,
+		},
+		{
+			name: "converts false to 0",
+			in:   false,
+			want: 0,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := boolToInteger(tc.in)
+			if got != tc.want {
+				t.Errorf("boolToInteger(%v) returned %v but expected %v.", tc.in, got, tc.want)
+			}
+		})
+	}
+}

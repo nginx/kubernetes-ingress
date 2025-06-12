@@ -17,39 +17,63 @@ Steps:
 
 1. Save the address of Keycloak into a shell variable:
 
-    ```console
+    ```shell
     KEYCLOAK_ADDRESS=keycloak.example.com
     ```
 
-1. Retrieve the access token and store it into a shell variable:
+2. Retrieve the access token and store it into a shell variable:
 
-    ```console
+    ```shell
     TOKEN=`curl -sS -k --data "username=admin&password=admin&grant_type=password&client_id=admin-cli" "https://${KEYCLOAK_ADDRESS}/realms/master/protocol/openid-connect/token" | jq -r .access_token`
     ```
 
    Ensure the request was successful and the token is stored in the shell variable by running:
 
-   ```console
+   ```shell
    echo $TOKEN
    ```
 
    ***Note***: The access token lifespan is very short. If it expires between commands, retrieve it again with the
    command above.
 
-1. Create the user `nginx-user`:
+3. Create the user `nginx-user`:
 
-    ```console
+    ```shell
     curl -sS -k -X POST -d '{ "username": "nginx-user", "enabled": true, "credentials":[{"type": "password", "value": "test", "temporary": false}]}' -H "Content-Type:application/json" -H "Authorization: bearer ${TOKEN}" https://${KEYCLOAK_ADDRESS}/admin/realms/master/users
     ```
 
-1. Create the client `nginx-plus` and retrieve the secret:
+4. Create the client `nginx-plus`:
 
-    ```console
-    SECRET=`curl -sS -k -X POST -d '{ "clientId": "nginx-plus", "redirectUris": ["https://webapp.example.com:443/_codexch"], "attributes": {"post.logout.redirect.uris": "https://webapp.example.com:443/*"}}' -H "Content-Type:application/json" -H "Authorization: bearer ${TOKEN}" https://${KEYCLOAK_ADDRESS}/realms/master/clients-registrations/default | jq -r .secret`
-    ```
+    - If you are not using PKCE, use the following command to create an OIDC client that does not use PKCE:
 
-   If everything went well you should have the secret stored in $SECRET. To double check run:
+        ```shell
+        SECRET=`curl -sS -k -X POST -d '{ "clientId": "nginx-plus", "redirectUris": ["https://webapp.example.com:443/_codexch"], "attributes": {"post.logout.redirect.uris": "https://webapp.example.com:443/*"}}' -H "Content-Type:application/json" -H "Authorization: bearer ${TOKEN}" https://${KEYCLOAK_ADDRESS}/realms/master/clients-registrations/default | jq -r .secret`
+        ```
 
-    ```console
-    echo $SECRET
-    ```
+        If everything went well, you should have the secret stored in $SECRET. To double-check, run:
+
+        ```shell
+        echo $SECRET
+        ```
+
+    - Or if you are using PKCE with OIDC, use the following command to create the client:
+
+        ```shell
+        curl -sS -k -H "Content-Type: application/json" -H "Authorization: Bearer ${TOKEN}" \
+        --data '{
+            "clientId": "nginx-plus",
+            "enabled": true,
+            "standardFlowEnabled": true,
+            "directAccessGrantsEnabled": false,
+            "publicClient": true,
+            "redirectUris": [
+                "https://webapp.example.com:443/_codexch"
+            ],
+            "attributes": {
+                "pkce.code.challenge.method":"S256",
+                "post.logout.redirect.uris": "https://webapp.example.com:443/*"
+            },
+            "protocol": "openid-connect"
+        }' \
+        https://${KEYCLOAK_ADDRESS}/admin/realms/master/clients
+        ```
