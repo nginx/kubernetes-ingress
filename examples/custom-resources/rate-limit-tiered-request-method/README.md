@@ -31,7 +31,7 @@ kubectl apply -f coffee.yaml
 
 In this step, we create two Policies:
 
-- one with the name `rate-limit-request-method-get-head`, that allows 15 requests per second coming from a request containing the `GET` or `HEAD` request methods.
+- one with the name `rate-limit-request-method-get-head`, that allows 5 requests per second coming from a request containing the `GET` or `HEAD` request methods.
 - one with the name `rate-limit-request-method-put-post-patch-delete` that allows 1 request per second coming from a request containing the `POST`, `PUT`, `PATCH` or `DELETE` request methods.
 
 The `rate-limit-request-method-put-post-patch-delete` Policy is also the default policy if the request method does not match a tier.
@@ -54,13 +54,13 @@ Note that the VirtualServer references the policies `rate-limit-request-method-g
 
 ## Step 4 - Test the Configuration
 
-Let's test the configuration.  If you access the application at a rate that exceeds 15 requests per second with a `GET` request method, NGINX will
+Let's test the configuration.  If you access the application at a rate that exceeds 5 requests per second with a `GET` request method, NGINX will
 start rejecting your requests:
 
 ```console
 while true; do
   curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP http://cafe.example.com:$IC_HTTP_PORT/coffee";
-  sleep 0.005
+  sleep 0.1
 done
 ```
 

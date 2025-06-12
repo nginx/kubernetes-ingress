@@ -4,8 +4,8 @@ metadata:
   name: rate-limit-request-method-get-head
 spec:
   rateLimit:
-    rate: 15r/s
-    key: ${binary_remote_addr}
+    rate: 5r/s
+    key: ${request_method}
     zoneSize: 10M
     condition:
       variables:
@@ -20,7 +20,7 @@ metadata:
 spec:
   rateLimit:
     rate: 1r/s
-    key: ${binary_remote_addr}
+    key: ${request_method}
     zoneSize: 10M
     condition:
       variables:
