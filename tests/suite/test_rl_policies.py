@@ -1098,7 +1098,7 @@ class TestTieredRateLimitingPolicies:
         delete_secret(kube_apis.v1, apikey_sec_name, test_namespace)
 
     @pytest.mark.parametrize("src", [rl_vs_read_write_variables_request_method])
-    def test_speclevel_rl_policy_tiered_read_update_with_default_variables_request_method(
+    def test_speclevel_rl_policy_tiered_read_write_with_default_variables_request_method(
         self,
         kube_apis,
         ingress_controller_prerequisites,
@@ -1109,8 +1109,8 @@ class TestTieredRateLimitingPolicies:
     ):
         """
         Test if read rate-limiting policy is working with 5 rps using $request_method as the rate limit key,
-        if update rate-limiting policy is working with 1 rps using $request_method as the rate limit key &
-        if the default update rate limit of 1r/s is applied.
+        if write rate-limiting policy is working with 1 rps using $request_method as the rate limit key &
+        if the default write rate limit of 1r/s is applied.
         Policies are applied at the VirtualServer Spec level
         """
         read_pol_name = apply_and_assert_valid_policy(
