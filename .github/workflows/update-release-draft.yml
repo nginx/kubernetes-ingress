@@ -61,7 +61,7 @@ jobs:
           ref: ${{ inputs.branch }}
 
       - name: Create/Update Draft
-        uses: lucacome/draft-release@f15262dc3ac8c3efbf09a8ce5406cd0fc47aabb1 # v1.2.2
+        uses: lucacome/draft-release@38def8b74645796e9743b53e0f187d4a8915ea3e # v1.2.3
         id: release-notes
         with:
           minor-label: "enhancement"
