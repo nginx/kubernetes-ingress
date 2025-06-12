@@ -27,6 +27,7 @@ jobs:
   version-bump:
     permissions:
       contents: write
+      pull-requests: write
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout Repository
