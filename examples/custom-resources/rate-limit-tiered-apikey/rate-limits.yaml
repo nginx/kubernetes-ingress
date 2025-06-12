@@ -4,7 +4,7 @@ metadata:
   name: rate-limit-apikey-premium
 spec:
   rateLimit:
-    rate: 15r/s
+    rate: 5r/s
     key: ${apikey_auth_token}
     zoneSize: 10M
     condition:

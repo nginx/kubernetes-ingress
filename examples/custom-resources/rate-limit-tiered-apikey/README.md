@@ -34,7 +34,7 @@ kubectl apply -f coffee.yaml
 In this step, we create three Policies:
 
 - one with the name `api-key-policy` which defines the API Key Policy
-- one with the name `rate-limit-apikey-premium`, that allows 15 requests per second coming from a request containing an API Key with a client name that ends with `premium`
+- one with the name `rate-limit-apikey-premium`, that allows 5 requests per second coming from a request containing an API Key with a client name that ends with `premium`
 - one with the name `rate-limit-apikey-basic` that allows 1 request per second coming from a request containing an API Key with a client name that ends with `basic`
 
 The `rate-limit-apikey-basic` Policy is also the default policy if the API Key client name does not match a tier.
@@ -68,13 +68,13 @@ Note that the VirtualServer references the policies `api-key-policy`, `rate-limi
 
 ## Step 5 - Test the Premium Configuration
 
-Let's test the configuration.  If you access the application with an API Key in an expected header at a rate that exceeds 15 requests per second, NGINX will
+Let's test the configuration.  If you access the application with an API Key in an expected header at a rate that exceeds 5 requests per second, NGINX will
 start rejecting your requests:
 
 ```console
 while true; do
   curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP -H "X-header-name: client1premium" http://cafe.example.com:$IC_HTTP_PORT/coffee;
-  sleep 0.005;
+  sleep 0.1;
 done
 ```
 
