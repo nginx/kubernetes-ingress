@@ -1,0 +1,14 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: virtual-server-route
+spec:
+  host: virtual-server-route.example.com
+  routes:
+  - path: "/backends"
+    policies:
+      - name: rate-limit-jwt-claim-sub-basic
+      - name: rate-limit-jwt-claim-sub-premium
+    route: backends
+  - path: "/backend2"
+    route: backend2-namespace/backend2
