@@ -1,14 +1,14 @@
 apiVersion: k8s.nginx.org/v1
 kind: Policy
 metadata:
-  name: rate-limit-variables-apikey-basic
+  name: rate-limit-variables-request-method-write
 spec:
   rateLimit:
     rate: 1r/s
-    key: ${apikey_client_name}
+    key: ${request_method}
     zoneSize: 10M
     condition:
       variables:
-        - name: $apikey_client_name
-          match: "~^.*-basic$"
+        - name: $request_method
+          match: "~^POST|PATCH|PUT|DELETE$"
       default: true
