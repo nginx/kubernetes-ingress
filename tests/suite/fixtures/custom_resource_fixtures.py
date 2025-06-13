@@ -229,6 +229,9 @@ class VirtualServerRoute:
         self.name = name
         self.paths = paths
 
+    def __str__(self):
+        return f"VirtualServerRoute: namespace={self.namespace}, name={self.name}, paths={self.paths}"
+
 
 class VirtualServerRouteSetup:
     """
@@ -258,6 +261,9 @@ class VirtualServerRouteSetup:
         self.vs_name = vs_name
         self.route_m = route_m
         self.route_s = route_s
+
+    def __str__(self):
+        return f"VirtualServerRouteSetup: namespace={self.namespace}, vs_host={self.vs_host}, vs_name={self.vs_name}, route_m={self.route_m}, route_s={self.route_s}"
 
 
 @pytest.fixture(scope="class")

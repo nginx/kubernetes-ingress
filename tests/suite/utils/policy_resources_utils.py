@@ -60,10 +60,12 @@ def delete_policy(custom_objects: CustomObjectsApi, name, namespace) -> None:
     print(f"Policy was removed with name '{name}'")
 
 
-def apply_and_assert_valid_policy(kube_apis, namespace, policy_yaml):
+def apply_and_assert_valid_policy(kube_apis, namespace, policy_yaml, debug=False) -> str:
     pol_name = create_policy_from_yaml(kube_apis.custom_objects, policy_yaml, namespace)
     wait_before_test(1)
     policy_info = read_custom_resource(kube_apis.custom_objects, namespace, "policies", pol_name)
+    if debug:
+        print(f"Policy '{pol_name}' info: {policy_info}")
     assert (
         "status" in policy_info
         and policy_info["status"]["reason"] == "AddedOrUpdated"

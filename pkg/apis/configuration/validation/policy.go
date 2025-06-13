@@ -151,8 +151,12 @@ func validateRateLimit(rateLimit *v1.RateLimit, fieldPath *field.Path, isPlus bo
 		}
 	}
 
-	if rateLimit.Condition != nil && rateLimit.Condition.JWT == nil {
-		allErrs = append(allErrs, field.Required(fieldPath.Child("jwt"), "jwt cannot be nil"))
+	if rateLimit.Condition != nil && (rateLimit.Condition.JWT == nil && rateLimit.Condition.Variables == nil) {
+		allErrs = append(allErrs, field.Required(fieldPath.Child("condition"), "must specify either jwt or variable conditions"))
+	}
+
+	if rateLimit.Condition != nil && rateLimit.Condition.JWT != nil && rateLimit.Condition.Variables != nil {
+		allErrs = append(allErrs, field.Required(fieldPath.Child("condition"), "only one condition, jwt or variables is allowed"))
 	}
 
 	if rateLimit.Condition != nil && rateLimit.Condition.JWT != nil && !isPlus {
@@ -597,7 +601,7 @@ func validateRateLimitZoneSize(zoneSize string, fieldPath *field.Path) field.Err
 	return allErrs
 }
 
-var rateLimitKeySpecialVariables = []string{"arg_", "http_", "cookie_", "jwt_claim_"}
+var rateLimitKeySpecialVariables = []string{"arg_", "http_", "cookie_", "jwt_claim_", "apikey_"}
 
 // rateLimitKeyVariables includes NGINX variables allowed to be used in a rateLimit policy key.
 var rateLimitKeyVariables = map[string]bool{

@@ -140,4 +140,8 @@ type NICResourceCounts struct {
 	ConfigMapKeys []string
 	// MGMTConfigMapKeys is the list of keys for the MGMT ConfigMap
 	MGMTConfigMapKeys []string
+	// JWTRateLimitPolicies is the number of JWT Condition RateLimit policies managed by NGINX Ingress Controller
+	JWTRateLimitPolicies int64
+	// VariablesRateLimitPolicies is the number of Variables Condition RateLimit policies managed by NGINX Ingress Controller
+	VariablesRateLimitPolicies int64
 }

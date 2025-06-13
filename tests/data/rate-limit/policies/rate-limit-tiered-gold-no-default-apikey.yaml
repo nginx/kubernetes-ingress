@@ -1,0 +1,13 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: rate-limit-apikey-gold
+spec:
+  rateLimit:
+    rate: 15r/s
+    key: ${apikey_client_name}
+    zoneSize: 10M
+    condition:
+      variables:
+        - match: "~^.*-gold$"
+          name: $apikey_client_name
