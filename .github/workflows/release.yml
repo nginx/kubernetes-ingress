@@ -122,7 +122,7 @@ jobs:
             echo "Warning: Tag ${tag} already exists.  Not making any changes"
           fi
         env:
-          GITHUB_TOKEN: ${{ secrets.NGINX_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   mend:
     if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'mend') }}
