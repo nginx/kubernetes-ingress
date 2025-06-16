@@ -20,7 +20,7 @@ FROM golang:1.24-alpine@sha256:ef18ee7117463ac1055f5a370ed18b8750f01589f13ea0b48
 
 
 ############################################# Base image for Alpine #############################################
-FROM nginx:1.27.4-alpine@sha256:4ff102c5d78d254a6f0da062b3cf39eaf07f01eec0927fd21e219d0af8bc0591 AS alpine
+FROM nginx:1.27.5-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10 AS alpine
 
 RUN printf "%s%s%s\n" "http://nginx.org/packages/mainline/alpine/v" `egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release` "/main" >> /etc/apk/repositories \
 	&& apk add --no-cache libcap libstdc++ nginx-module-otel \
@@ -28,7 +28,7 @@ RUN printf "%s%s%s\n" "http://nginx.org/packages/mainline/alpine/v" `egrep -o '^
 
 
 ############################################# Base image for Debian #############################################
-FROM nginx:1.27.4@sha256:09369da6b10306312cd908661320086bf87fbae1b6b0c49a1f50ba531fef2eab AS debian
+FROM nginx:1.27.5@sha256:6784fb0834aa7dbbe12e3d7471e69c290df3e6ba810dc38b34ae33d3c1c05f7d AS debian
 
 RUN apt-get update \
 	&& apt-get install --no-install-recommends --no-install-suggests -y \
@@ -380,6 +380,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 FROM ubi-9-plus AS ubi-9-plus-nap
 ARG NAP_MODULES
 ARG NGINX_AGENT
+ARG BUILD_OS
 
 RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
 	--mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
@@ -399,7 +400,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm \
 	&& microdnf --nodocs install -y ca-certificates shadow-utils subscription-manager \
 	&& if [ "${NGINX_AGENT}" = "true" ]; then microdnf --nodocs install -y nginx-agent-2.*; fi \
-	&& subscription-manager register --org=${RHEL_ORGANIZATION} --activationkey=${RHEL_ACTIVATION_KEY} || true \
+	&& subscription-manager register --org=${RHEL_ORGANIZATION} --activationkey=${RHEL_ACTIVATION_KEY} --name ${BUILD_OS}-${NAP_MODULES}-$(uname -m)  || true \
 	&& subscription-manager attach \
 	&& rpm --import /tmp/app-protect-security-updates.key \
 	&& if [ -z "${NAP_MODULES##*waf*}" ]; then \
@@ -455,6 +456,7 @@ FROM redhat/ubi8@sha256:244e9858f9d8a2792a3dceb850b4fa8fdbd67babebfde42587bfa919
 ARG NAP_MODULES
 ARG NGINX_AGENT
 ARG NGINX_PLUS_VERSION
+ARG BUILD_OS
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
 
@@ -482,7 +484,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& dnf --nodocs install -y nginx-plus nginx-plus-module-njs nginx-plus-module-otel nginx-plus-module-fips-check \
 	&& if [ "${NGINX_AGENT}" = "true" ]; then dnf --nodocs install -y nginx-agent-2.*; fi \
 	&& sed -i 's/\(def in_container():\)/\1\n    return False/g' /usr/lib64/python*/*-packages/rhsm/config.py \
-	&& subscription-manager register --org=${RHEL_ORGANIZATION} --activationkey=${RHEL_ACTIVATION_KEY} || true \
+	&& subscription-manager register --org=${RHEL_ORGANIZATION} --activationkey=${RHEL_ACTIVATION_KEY} --name ${BUILD_OS}-$(uname -m) || true \
 	&& subscription-manager attach \
 	&& dnf config-manager --set-enabled codeready-builder-for-rhel-8-x86_64-rpms \
 	&& dnf --nodocs install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm \
@@ -504,6 +506,7 @@ FROM redhat/ubi8@sha256:244e9858f9d8a2792a3dceb850b4fa8fdbd67babebfde42587bfa919
 ARG NAP_MODULES
 ARG NGINX_AGENT
 ARG NGINX_PLUS_VERSION
+ARG BUILD_OS
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
 
@@ -532,7 +535,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& if [ "${NGINX_AGENT}" = "true" ]; then dnf --nodocs install -y nginx-agent-2.*; fi \
 	## end of duplicated code
 	&& sed -i 's/\(def in_container():\)/\1\n    return False/g' /usr/lib64/python*/*-packages/rhsm/config.py \
-	&& subscription-manager register --org=${RHEL_ORGANIZATION} --activationkey=${RHEL_ACTIVATION_KEY} || true \
+	&& subscription-manager register --org=${RHEL_ORGANIZATION} --activationkey=${RHEL_ACTIVATION_KEY} --name ${BUILD_OS}-$(uname -m) || true \
 	&& subscription-manager attach \
 	&& dnf config-manager --set-enabled codeready-builder-for-rhel-8-x86_64-rpms \
 	&& dnf --nodocs install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm \
