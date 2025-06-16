@@ -371,8 +371,14 @@ List of volumes for controller.
 - name: agent-conf
   configMap:
     name: {{ include "nginx-ingress.agentConfigName" . }}
+{{- if ne .Values.nginxAgent.dataplaneKey "" }}
+- name: dataplane-key
+  secret:
+    secretName: {{ .Values.nginxAgent.dataplaneKey }}
+{{- else }}
 - name: agent-dynamic
   emptyDir: {}
+{{- end }}
 {{- if and .Values.nginxAgent.instanceManager.tls (or (ne (.Values.nginxAgent.instanceManager.tls.secret | default "") "") (ne (.Values.nginxAgent.instanceManager.tls.caSecret | default "") "")) }}
 - name: nginx-agent-tls
   projected:
@@ -431,8 +437,13 @@ volumeMounts:
 - name: agent-conf
   mountPath: /etc/nginx-agent/nginx-agent.conf
   subPath: nginx-agent.conf
+{{- if ne .Values.nginxAgent.dataplaneKey "" }}
+- name: dataplane-key
+  mountPath: /etc/nginx-agent/secrets
+{{- else }}
 - name: agent-dynamic
   mountPath: /var/lib/nginx-agent
+{{- end }}
 {{- if and .Values.nginxAgent.instanceManager.tls (or (ne (.Values.nginxAgent.instanceManager.tls.secret | default "") "") (ne (.Values.nginxAgent.instanceManager.tls.caSecret | default "") "")) }}
 - name: nginx-agent-tls
   mountPath: /etc/ssl/nms
@@ -499,7 +510,7 @@ command:
     host: {{ .Values.nginxAgent.endpointHost }}
     port: {{ .Values.nginxAgent.endpointPort }}
   auth:
-    token: "{{ .Values.nginxAgent.dataplaneKey }}"
+    tokenpath: "/etc/nginx-agent/secrets/dataplane.key"
   tls:
     skip_verify: {{ .Values.nginxAgent.tlsSkipVerify | default false }}
 
