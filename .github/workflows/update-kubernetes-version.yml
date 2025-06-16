@@ -45,7 +45,7 @@ jobs:
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
         with:
-          token: ${{ secrets.NGINX_PAT }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: update kubernetes version to ${{ steps.k8s-version.outputs.version }} in helm schema
           title: update kubernetes version to ${{ steps.k8s-version.outputs.version }} in helm schema
           branch: chore/k8s-${{ steps.k8s-version.outputs.version }}

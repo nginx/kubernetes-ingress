@@ -27,7 +27,6 @@ We test NGINX Ingress Controller on a range of Kubernetes platforms for each rel
 | 3.4.3 | 1.23 - 1.29 | 1.1.3 | 2.1.2 | 1.25.4 / R31 P1 |
 | 3.3.2 | 1.22 - 1.28 | 1.0.2 | 2.0.2 | 1.25.3 / R30 |
 | 3.2.1 | 1.22 - 1.27 | 0.18.1 | 1.5.1 | 1.25.2 / R30 |
-| 3.1.1 | 1.22 - 1.26 | 0.17.1 | 1.4.2 | 1.23.4 / R29 |
 {{% /bootstrap-table %}}
 
 ---
