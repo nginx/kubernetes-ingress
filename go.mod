@@ -1,6 +1,6 @@
 module github.com/nginx/kubernetes-ingress
 
-go 1.24.2
+go 1.24.4
 
 require (
 	github.com/aws/aws-sdk-go-v2/config v1.29.14
