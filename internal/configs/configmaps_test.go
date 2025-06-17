@@ -1626,7 +1626,7 @@ func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
 		{
 			configMap: &v1.ConfigMap{
 				Data: map[string]string{
-					"otel-exporter-endpoint": "something?invalid*30here",
+					"otel-exporter-endpoint": "something%invalid*30here",
 				},
 			},
 			expectedLoadModule:          false,
@@ -1644,7 +1644,7 @@ func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
 				},
 			},
 			expectedLoadModule:          false,
-			expectedExporterEndpoint:    "localhost:0",
+			expectedExporterEndpoint:    "",
 			expectedExporterHeaderName:  "",
 			expectedExporterHeaderValue: "",
 			expectedServiceName:         "",

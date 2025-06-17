@@ -3,6 +3,7 @@ package validation
 import (
 	"errors"
 	"fmt"
+	"net/netip"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -138,6 +139,17 @@ func ValidateURI(uri string, options ...URIValidationOption) error {
 		return errors.New("user is not allowed")
 	}
 
+	// Check whether we're dealing with an IPV6 address.
+	checkIPv6 := parsed.Host
+	if strings.Contains(checkIPv6, "[") {
+		checkIPv6 = parsed.Hostname()
+	}
+
+	if ip, err := netip.ParseAddr(checkIPv6); err == nil && !ip.Is4() {
+		return fmt.Errorf("ipv6 addresses are not allowed")
+	}
+
+	// Check whether the ports posted are valid.
 	if parsed.Port() != "" {
 		// Turn the string port into an integer and check if it's in the correct
 		// range. The net.url.Parse does not check whether the port is the allowed
@@ -151,6 +163,16 @@ func ValidateURI(uri string, options ...URIValidationOption) error {
 
 		if err = ValidatePort(numericPort); err != nil {
 			return fmt.Errorf("invalid port %s: %w", parsed.Port(), err)
+		}
+	}
+
+	// Check whether each part of the domain is not too long.
+	// This should really be octets
+	for _, part := range strings.Split(parsed.Hostname(), ".") {
+		// turn each part into a byte array to get a length of octets.
+		// max length of a subdomain is 63 octets per RFC 1035.
+		if len([]byte(part)) > 63 {
+			return fmt.Errorf("invalid hostname part %s, value must be between 1 and 63 octets", part)
 		}
 	}
 
