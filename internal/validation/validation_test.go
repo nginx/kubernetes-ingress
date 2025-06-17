@@ -95,3 +95,89 @@ func TestValidateHost(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateURI(t *testing.T) {
+	tests := []struct {
+		name    string
+		uri     string
+		options []URIValidationOption
+		wantErr bool
+	}{
+		{
+			name:    "simple uri with scheme",
+			uri:     "https://localhost:8080",
+			options: []URIValidationOption{},
+			wantErr: false,
+		},
+		{
+			name:    "simple uri without scheme",
+			uri:     "localhost:8080",
+			options: []URIValidationOption{},
+			wantErr: false,
+		},
+		{
+			name:    "uri with out of bounds port down",
+			uri:     "http://localhost:0",
+			options: []URIValidationOption{},
+			wantErr: true,
+		},
+		{
+			name:    "uri with out of bounds port up",
+			uri:     "http://localhost:65536",
+			options: []URIValidationOption{},
+			wantErr: true,
+		},
+		{
+			name:    "uri with bad port",
+			uri:     "http://localhost:abc",
+			options: []URIValidationOption{},
+			wantErr: true,
+		},
+		{
+			name: "uri with username and password and allowed",
+			uri:  "http://user:password@localhost",
+			options: []URIValidationOption{
+				WithUserAllowed(true),
+			},
+			wantErr: false,
+		},
+		{
+			name:    "uri with username and password and not allowed",
+			uri:     "http://user:password@localhost",
+			options: []URIValidationOption{},
+			wantErr: true,
+		},
+		{
+			name: "uri with http scheme but that's not allowed",
+			uri:  "http://localhost",
+			options: []URIValidationOption{
+				WithAllowedSchemes("https"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "uri with https scheme but that's not allowed",
+			uri:  "https://localhost",
+			options: []URIValidationOption{
+				WithAllowedSchemes("http"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "uri with no scheme, default set to https, not allowed",
+			uri:  "localhost",
+			options: []URIValidationOption{
+				WithDefaultScheme("https"),
+				WithAllowedSchemes("http"),
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := ValidateURI(tt.uri, tt.options...); (err != nil) != tt.wantErr {
+				t.Errorf("ValidateURI() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
