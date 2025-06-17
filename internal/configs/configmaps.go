@@ -754,6 +754,11 @@ func parseConfigMapOpenTelemetry(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *
 	if otelExporterEndpoint, exists := cfgm.Data["otel-exporter-endpoint"]; exists {
 		otelExporterEndpoint = strings.TrimSpace(otelExporterEndpoint)
 		if otelExporterEndpoint != "" {
+			if err := validation.ValidateHost(otelExporterEndpoint); err != nil {
+				nl.Warn(l, err)
+				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
+				return nil, err
+			}
 			cfgParams.MainOtelExporterEndpoint = otelExporterEndpoint
 		}
 	}
