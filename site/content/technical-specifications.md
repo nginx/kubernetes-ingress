@@ -27,7 +27,6 @@ We test NGINX Ingress Controller on a range of Kubernetes platforms for each rel
 | 3.4.3 | 1.23 - 1.29 | 1.1.3 | 2.1.2 | 1.25.4 / R31 P1 |
 | 3.3.2 | 1.22 - 1.28 | 1.0.2 | 2.0.2 | 1.25.3 / R30 |
 | 3.2.1 | 1.22 - 1.27 | 0.18.1 | 1.5.1 | 1.25.2 / R30 |
-| 3.1.1 | 1.22 - 1.26 | 0.17.1 | 1.4.2 | 1.23.4 / R29 |
 {{% /bootstrap-table %}}
 
 ---
@@ -42,13 +41,13 @@ We provide the following Docker images, which include NGINX or NGINX Plus bundle
 From release `v5.1.0` onwards, NGINX Ingress Controller will no longer provide binaries for the `armv7`, `s390x` & `ppc64le` architectures.
 {{< /important >}}
 
-_All images include NGINX 1.27.4._
+_All images include NGINX 1.27.5._
 
 {{< bootstrap-table "table table-bordered table-responsive" >}}
 |<div style="width:200px">Name</div> | <div style="width:100px">Base image</div> | DockerHub image | Architectures |
 | ---| --- | --- | --- |
-|Alpine-based image | ``nginx:1.27.4-alpine``,<br>based on on ``alpine:3.21`` | ``nginx/nginx-ingress:{{< nic-version >}}-alpine`` | arm64<br>amd64 |
-|Debian-based image | ``nginx:1.27.4``,<br>based on on ``debian:12-slim`` | ``nginx/nginx-ingress:{{< nic-version >}}`` | arm64<br>amd64 |
+|Alpine-based image | ``nginx:1.27.5-alpine``,<br>based on on ``alpine:3.21`` | ``nginx/nginx-ingress:{{< nic-version >}}-alpine`` | arm64<br>amd64 |
+|Debian-based image | ``nginx:1.27.5``,<br>based on on ``debian:12-slim`` | ``nginx/nginx-ingress:{{< nic-version >}}`` | arm64<br>amd64 |
 |Ubi-based image | ``redhat/ubi9-minimal`` | ``nginx/nginx-ingress:{{< nic-version >}}-ubi`` | arm64<br>amd64 |
 {{% /bootstrap-table %}}
 
