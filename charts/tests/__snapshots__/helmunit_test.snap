@@ -442,6 +442,8 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -909,6 +911,8 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -1446,6 +1450,8 @@ spec:
           - -weight-changes-dynamic-reload=false
           - -agent=true
           - -agent-instance-group=app-protect-waf-agentv2-nginx-ingress-controller
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -1960,6 +1966,7 @@ spec:
             mountPath: /opt/app_protect/config
           - name: app-protect-bundles
             mountPath: /etc/app_protect/bundles
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -2542,6 +2549,7 @@ spec:
             mountPath: /opt/app_protect/config
           - name: app-protect-bundles
             mountPath: /etc/app_protect/bundles
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -2955,6 +2963,8 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -3398,6 +3408,8 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -3841,6 +3853,8 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -4285,6 +4299,8 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -4749,6 +4765,8 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -5194,6 +5212,8 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -5293,7 +5313,7 @@ data:
         host: product.connect.nginx.com
         port: 443
       auth:
-        token: "base64hash="
+        tokenpath: "/etc/nginx-agent/secrets/dataplane.key"
       tls:
         skip_verify: false
 /-/-/-/
@@ -5578,7 +5598,7 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: oss-agent
-        agent-configuration-revision-hash: "d6017708"
+        agent-configuration-revision-hash: "eb3f867e"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
@@ -5589,8 +5609,9 @@ spec:
       - name: agent-conf
         configMap:
           name: oss-agent-nginx-ingress-agent-config
-      - name: agent-dynamic
-        emptyDir: {}
+      - name: dataplane-key
+        secret:
+          secretName: base64hash=
       serviceAccountName: oss-agent-nginx-ingress
       automountServiceAccountToken: true
       securityContext:
@@ -5639,8 +5660,8 @@ spec:
         - name: agent-conf
           mountPath: /etc/nginx-agent/nginx-agent.conf
           subPath: nginx-agent.conf
-        - name: agent-dynamic
-          mountPath: /var/lib/nginx-agent
+        - name: dataplane-key
+          mountPath: /etc/nginx-agent/secrets
         env:
         - name: POD_NAMESPACE
           valueFrom:
@@ -6151,6 +6172,8 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -6618,6 +6641,8 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -7095,6 +7120,8 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -7553,6 +7580,8 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -8011,6 +8040,8 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -8479,6 +8510,8 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
+      
+  minReadySeconds: 0
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -8575,7 +8608,7 @@ data:
         host: product.connect.nginx.com
         port: 443
       auth:
-        token: "base64hash="
+        tokenpath: "/etc/nginx-agent/secrets/dataplane.key"
       tls:
         skip_verify: false
 /-/-/-/
@@ -8875,7 +8908,7 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: plus-agent
-        agent-configuration-revision-hash: "d6017708"
+        agent-configuration-revision-hash: "eb3f867e"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
@@ -8886,8 +8919,9 @@ spec:
       - name: agent-conf
         configMap:
           name: plus-agent-nginx-ingress-agent-config
-      - name: agent-dynamic
-        emptyDir: {}
+      - name: dataplane-key
+        secret:
+          secretName: base64hash=
       serviceAccountName: plus-agent-nginx-ingress
       automountServiceAccountToken: true
       securityContext:
@@ -8936,8 +8970,8 @@ spec:
         - name: agent-conf
           mountPath: /etc/nginx-agent/nginx-agent.conf
           subPath: nginx-agent.conf
-        - name: agent-dynamic
-          mountPath: /var/lib/nginx-agent
+        - name: dataplane-key
+          mountPath: /etc/nginx-agent/secrets
         env:
         - name: POD_NAMESPACE
           valueFrom:
@@ -9088,7 +9122,7 @@ data:
         host: my-host.example.com
         port: 8443
       auth:
-        token: "base64hash="
+        tokenpath: "/etc/nginx-agent/secrets/dataplane.key"
       tls:
         skip_verify: true
 /-/-/-/
@@ -9388,7 +9422,7 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: plus-agent-all
-        agent-configuration-revision-hash: "61ffd4e9"
+        agent-configuration-revision-hash: "8c900020"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
@@ -9399,8 +9433,9 @@ spec:
       - name: agent-conf
         configMap:
           name: plus-agent-all-nginx-ingress-agent-config
-      - name: agent-dynamic
-        emptyDir: {}
+      - name: dataplane-key
+        secret:
+          secretName: base64hash=
       serviceAccountName: plus-agent-all-nginx-ingress
       automountServiceAccountToken: true
       securityContext:
@@ -9449,8 +9484,8 @@ spec:
         - name: agent-conf
           mountPath: /etc/nginx-agent/nginx-agent.conf
           subPath: nginx-agent.conf
-        - name: agent-dynamic
-          mountPath: /var/lib/nginx-agent
+        - name: dataplane-key
+          mountPath: /etc/nginx-agent/secrets
         env:
         - name: POD_NAMESPACE
           valueFrom:
