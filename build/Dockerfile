@@ -93,7 +93,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 	&& export $(cat /tmp/user_agent) \
 	&& printf "%s%s%s\n" "http://nginx.org/packages/mainline/alpine/v" `egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release` "/main" >> /etc/apk/repositories \
 	&& printf "%s\n" "https://${PACKAGE_REPO}/nginx-agent/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
-	&& apk add --no-cache nginx-module-otel nginx-agent\
+	&& apk add --no-cache nginx-module-otel nginx-agent~=3.0.2 \
 	&& ldconfig /usr/local/lib/ \
 	&& agent.sh \
 	&& sed -i -e '/nginx.com/d' /etc/apk/repositories
@@ -117,7 +117,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	http://nginx.org/packages/mainline/debian `lsb_release -cs` nginx" > /etc/apt/sources.list.d/nginx.list \
 	&& printf "%s" "Package: *\nPin: origin nginx.org\nPin: release o=nginx\nPin-Priority: 900\n" > /etc/apt/preferences.d/99nginx \
 	&& apt-get update \
-	&& apt-get install --no-install-recommends --no-install-suggests -y nginx-agent nginx-module-otel \
+	&& apt-get install --no-install-recommends --no-install-suggests -y nginx-agent=3.0.2* nginx-module-otel \
 	&& apt-get purge --auto-remove -y gpg \
 	&& rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/nginx-agent.sources /etc/apt/preferences.d/99nginx /etc/apt/sources.list.d/nginx.list \
 	&& agent.sh \
@@ -151,7 +151,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_s
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
 	ubi-setup.sh \
 	&& rpm -qa --queryformat "%{NAME}\n" | sort > pkgs-installed \
-	&& microdnf --nodocs --setopt=install_weak_deps=0 install -y diffutils dnf nginx-agent \
+	&& microdnf --nodocs --setopt=install_weak_deps=0 install -y diffutils dnf \
 	&& rpm -qa --queryformat "%{NAME}\n" | sort > pkgs-new \
 	&& dnf install -y /ubi-bin/*.rpm \
 	&& dnf -q repoquery --resolve --requires --recursive --whatrequires nginx --queryformat "%{NAME}" > pkgs-nginx \
@@ -160,7 +160,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_s
 	&& printf "%s\n" "[nginx]" "name=nginx repo" \
 	"baseurl=https://nginx.org/packages/mainline/centos/9/\$basearch/" \
 	"gpgcheck=1" "enabled=1" "module_hotfixes=true" > /etc/yum.repos.d/nginx.repo \
-	&& microdnf --nodocs install -y nginx nginx-module-njs nginx-module-otel nginx-module-image-filter nginx-module-xslt nginx-agent \
+	&& microdnf --nodocs install -y nginx nginx-module-njs nginx-module-otel nginx-module-image-filter nginx-module-xslt nginx-agent-3.0.2* \
 	&& rm /etc/yum.repos.d/nginx.repo \
 	&& ubi-clean.sh
 
@@ -180,7 +180,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 	export $(cat /tmp/user_agent) \
 	&& printf "%s\n" "https://${PACKAGE_REPO}/plus/${NGINX_PLUS_VERSION}/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
 	&& printf "%s\n" "https://${PACKAGE_REPO}/nginx-agent/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
-	&& apk add --no-cache nginx-plus nginx-plus-module-njs nginx-plus-module-otel nginx-plus-module-fips-check nginx-agent libcap libcurl \
+	&& apk add --no-cache nginx-plus nginx-plus-module-njs nginx-plus-module-otel nginx-plus-module-fips-check nginx-agent~=3.0.2 libcap libcurl \
 	&& mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
 	&& agent.sh \
 	&& sed -i -e '/nginx.com/d' /etc/apk/repositories
@@ -309,7 +309,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	apt-get update \
 	&& cp /tmp/nginx-agent.sources /etc/apt/sources.list.d/nginx-agent.sources \
 	&& apt-get update \
-	&& apt-get install --no-install-recommends --no-install-suggests -y nginx-agent \
+	&& apt-get install --no-install-recommends --no-install-suggests -y nginx-agent=3.0.2* \
 	&& agent.sh \
 	&& rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/nginx-agent.sources
 
@@ -386,7 +386,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
 	&& ubi-setup.sh \
 	&& rpm -Uvh /ubi-bin/c-ares-*.rpm \
-	&& microdnf --nodocs install -y nginx-plus nginx-plus-module-njs nginx-plus-module-otel nginx-plus-module-fips-check nginx-agent \
+	&& microdnf --nodocs install -y nginx-plus nginx-plus-module-njs nginx-plus-module-otel nginx-plus-module-fips-check nginx-agent-3.0.2* \
 	&& agent.sh	\
 	&& ubi-clean.sh
 
