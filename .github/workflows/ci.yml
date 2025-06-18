@@ -59,8 +59,8 @@ jobs:
       - name: Filter only docs changes
         id: docs
         run: |
-          files=$(git diff --name-only HEAD^ | egrep -v "^site/" | egrep -v "^examples/" | egrep -v "^README.md")
-          docs_files=$(git diff --name-only HEAD^ | grep "^site/")
+          files=$(git diff --name-only HEAD^ | egrep -v "^examples/" | egrep -v "^README.md")
+          docs_files=$(git diff --name-only HEAD^)
           if [ -z "$files" ]; then
             echo "docs_only=true" >> $GITHUB_OUTPUT
           else
