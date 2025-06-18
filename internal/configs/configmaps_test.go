@@ -1406,6 +1406,34 @@ func TestOpenTelemetryConfigurationSuccess(t *testing.T) {
 		{
 			configMap: &v1.ConfigMap{
 				Data: map[string]string{
+					"otel-exporter-endpoint": "subdomain.goes.on.and.on.and.on.and.on.example.com",
+				},
+			},
+			expectedLoadModule:          true,
+			expectedExporterEndpoint:    "subdomain.goes.on.and.on.and.on.and.on.example.com",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "endpoint set, complicated long subdomain",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "localhost:9933",
+				},
+			},
+			expectedLoadModule:          true,
+			expectedExporterEndpoint:    "localhost:9933",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "endpoint set, hostname and port no scheme",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
 					"otel-exporter-endpoint":     "https://otel-collector:4317",
 					"otel-exporter-trusted-ca":   "otel-ca-secret",
 					"otel-exporter-header-name":  "X-Custom-Header",
@@ -1594,6 +1622,76 @@ func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
 			expectedServiceName:         "nginx-ingress-controller:nginx",
 			expectedTraceInHTTP:         true,
 			msg:                         "partially invalid, header name missing, trace in http set",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "something%invalid*30here",
+				},
+			},
+			expectedLoadModule:          false,
+			expectedExporterEndpoint:    "",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "invalid, endpoint does not look like a host",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "localhost:0",
+				},
+			},
+			expectedLoadModule:          false,
+			expectedExporterEndpoint:    "",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "invalid, port is outside of range down",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "localhost:99999",
+				},
+			},
+			expectedLoadModule:          false,
+			expectedExporterEndpoint:    "",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "invalid, port is outside of range up",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "fe80::1",
+				},
+			},
+			expectedLoadModule:          false,
+			expectedExporterEndpoint:    "",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "invalid, endpoint is an ipv6 address",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "thisisaverylongsubdomainthatexceedsatotalofsixtythreecharactersz.example.com",
+				},
+			},
+			expectedLoadModule:          false,
+			expectedExporterEndpoint:    "",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "invalid, subdomain is more than 63 characters long",
 		},
 	}
 
