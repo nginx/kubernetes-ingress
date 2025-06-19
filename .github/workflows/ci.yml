@@ -35,7 +35,6 @@ jobs:
       id-token: write
     outputs:
       docs_only: ${{ github.event.pull_request && steps.docs.outputs.docs_only == 'true' }}
-      some_docs: ${{ github.event.pull_request && steps.docs.outputs.some_docs == 'true' }}
       k8s_latest: "1.32.0"
       go_path: ${{ steps.vars.outputs.go_path }}
       go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}
@@ -60,18 +59,12 @@ jobs:
       - name: Filter only docs changes
         id: docs
         run: |
-          files=$(git diff --name-only HEAD^ | egrep -v "^site/" | egrep -v "^examples/" | egrep -v "^README.md")
-          docs_files=$(git diff --name-only HEAD^ | grep "^site/")
+          files=$(git diff --name-only HEAD^ | egrep -v "^examples/" | egrep -v "^README.md")
+          docs_files=$(git diff --name-only HEAD^)
           if [ -z "$files" ]; then
             echo "docs_only=true" >> $GITHUB_OUTPUT
           else
             echo "docs_only=false" >> $GITHUB_OUTPUT
-          fi
-
-          if [ -n "$docs_files" ]; then
-            echo "some_docs=true" >> $GITHUB_OUTPUT
-          else
-            echo "some_docs=false" >> $GITHUB_OUTPUT
           fi
 
           echo $files
@@ -209,10 +202,6 @@ jobs:
           export PATH=$PATH:$(go env GOPATH)/bin
           make telemetry-schema && git diff --name-only --exit-code internal/telemetry
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
-
-      - name: Check if make docs builds
-        if: ${{ needs.checks.outputs.some_docs == 'true' }}
-        run: cd site && make docs-ci
 
   unit-tests:
     name: Unit Tests
