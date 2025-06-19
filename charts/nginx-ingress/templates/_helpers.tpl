@@ -326,7 +326,7 @@ Build the args for the service binary.
 - -weight-changes-dynamic-reload={{ .Values.controller.enableWeightChangesDynamicReload}}
 {{- if .Values.nginxAgent.enable }}
 - -agent=true
-{{- if eq .Values.nginxAgent.dataplaneKey "" }}
+{{- if eq .Values.nginxAgent.dataplaneKeySecretName "" }}
 - -agent-instance-group={{ default (include "nginx-ingress.controller.fullname" .) .Values.nginxAgent.instanceGroup }}
 {{- end }}
 {{- end }}
@@ -371,10 +371,10 @@ List of volumes for controller.
 - name: agent-conf
   configMap:
     name: {{ include "nginx-ingress.agentConfigName" . }}
-{{- if ne .Values.nginxAgent.dataplaneKey "" }}
+{{- if ne .Values.nginxAgent.dataplaneKeySecretName "" }}
 - name: dataplane-key
   secret:
-    secretName: {{ .Values.nginxAgent.dataplaneKey }}
+    secretName: {{ .Values.nginxAgent.dataplaneKeySecretName }}
 {{- else }}
 - name: agent-dynamic
   emptyDir: {}
@@ -437,7 +437,7 @@ volumeMounts:
 - name: agent-conf
   mountPath: /etc/nginx-agent/nginx-agent.conf
   subPath: nginx-agent.conf
-{{- if ne .Values.nginxAgent.dataplaneKey "" }}
+{{- if ne .Values.nginxAgent.dataplaneKeySecretName "" }}
 - name: dataplane-key
   mountPath: /etc/nginx-agent/secrets
 {{- else }}
@@ -487,7 +487,7 @@ volumeMounts:
 {{- end -}}
 
 {{- define "nginx-ingress.agentConfiguration" -}}
-{{- if ne .Values.nginxAgent.dataplaneKey "" }}
+{{- if ne .Values.nginxAgent.dataplaneKeySecretName "" }}
 log:
   # set log level (error, info, debug; default "info")
   level: {{ .Values.nginxAgent.logLevel }}

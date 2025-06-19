@@ -2,4 +2,4 @@ controller:
   nginxplus: true
 nginxAgent:
   enable: true
-  dataplaneKey: "dataplane-key" # secret ref
+  dataplaneKeySecretName: "dataplane-key" # secret ref

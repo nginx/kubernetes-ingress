@@ -668,8 +668,8 @@ nginxAgent:
   logLevel: "info"
 
   # Agent V3 configuration
-  # The name of a Kubernetes Secret containing the Dataplane key is required to authenticate the agent with NGINX One Console
-  dataplaneKey: ""
+  # Dataplane key is required to authenticate NGINX Agent with NGINX One Console
+  dataplaneKeySecretName: ""
   endpointHost: "product.connect.nginx.com"
   endpointPort: 443
   tlsSkipVerify: false

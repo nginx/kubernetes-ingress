@@ -2323,12 +2323,12 @@
             "error"
           ]
         },
-        "dataplaneKey": {
+        "dataplaneKeySecretName": {
           "type": "string",
           "default": "",
-          "title": "The name of a Kubernetes Secret containing the Dataplane key is required to authenticate the agent with NGINX One Console\n",
+          "title": "The Dataplane key is required to authenticate NGINX Agent with NGINX One Console",
           "examples": [
-            "my_token"
+            "dataplane-key"
           ]
         },
         "endpointHost": {
