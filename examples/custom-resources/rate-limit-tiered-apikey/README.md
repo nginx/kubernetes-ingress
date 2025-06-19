@@ -15,7 +15,7 @@ limit Policies, grouped in a tier, using the API Key client name as the key to t
 IC_IP=XXX.YYY.ZZZ.III
 ```
 <!-- markdownlint-disable MD029 -->
-3. Save the HTTP port of the Ingress Controller into a shell variable:
+3. Save the HTTP port of NGINX Ingress Controller into a shell variable:
 <!-- markdownlint-enable MD029 -->
 ```shell
 IC_HTTP_PORT=<port number>
@@ -29,34 +29,34 @@ Create the application deployments and services:
 kubectl apply -f coffee.yaml
 ```
 
-## Deploy the Rate Limit Policies
+## Deploy the rate limit Policies
 
 In this step, we create three Policies:
 
-- one with the name `api-key-policy` which defines the API Key Policy
-- one with the name `rate-limit-apikey-premium`, that allows 5 requests per second coming from a request containing an API Key with a client name that ends with `premium`
-- one with the name `rate-limit-apikey-basic` that allows 1 request per second coming from a request containing an API Key with a client name that ends with `basic`
+- `api-key-policy` which defines the API Key Policy
+- `rate-limit-apikey-premium`, that allows 5 requests per second coming from a request containing an API Key with a client name that ends with `premium`
+- `rate-limit-apikey-basic` that allows 1 request per second coming from a request containing an API Key with a client name that ends with `basic`
 
 The `rate-limit-apikey-basic` Policy is also the default policy if the API Key client name does not match a tier.
 
-Create the policies:
+Create the Policies:
 
 ```shell
 kubectl apply -f api-key-policy.yaml
 kubectl apply -f rate-limits.yaml
 ```
 
-## Deploy the API Key Secret
+## Deploy the API key authentication Secret
 
-Create a secret of type `nginx.org/apikey` with the name `api-key-client-secret` that will be used for authorization on the server level.
+Create a Secret of type `nginx.org/apikey` with the name `api-key-client-secret` that will be used for authorization on the server level.
 
-This secret will contain a mapping of client names to base64 encoded API Keys.
+This Secret will contain a mapping of client names to base64 encoded API Keys.
 
 ```shell
 kubectl apply -f api-key-secret.yaml
 ```
 
-## Configure Load Balancing
+## Configure load balancing
 
 Create a VirtualServer resource for the web application:
 

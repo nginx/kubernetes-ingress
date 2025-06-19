@@ -13,7 +13,7 @@ limit Policies, grouped in a tier, using the client IP address as the key to the
 IC_IP=XXX.YYY.ZZZ.III
 ```
 <!-- markdownlint-disable MD029 -->
-3. Save the HTTP port of the Ingress Controller into a shell variable:
+3. Save the HTTP port of NGINX Ingress Controller into a shell variable:
 <!-- markdownlint-enable MD029 -->
 ```shell
 IC_HTTP_PORT=<port number>
@@ -27,22 +27,22 @@ Create the application deployments and services:
 kubectl apply -f coffee.yaml
 ```
 
-## Deploy the Rate Limit Policies
+## Deploy the rate limit Policies
 
 In this step, we create two Policies:
 
-- one with the name `rate-limit-request-method-get-head`, that allows 5 requests per second coming from a request containing the `GET` or `HEAD` request methods.
-- one with the name `rate-limit-request-method-put-post-patch-delete` that allows 1 request per second coming from a request containing the `POST`, `PUT`, `PATCH` or `DELETE` request methods.
+- `rate-limit-request-method-get-head`, that allows 5 requests per second coming from a request containing the `GET` or `HEAD` request methods.
+- `rate-limit-request-method-put-post-patch-delete` that allows 1 request per second coming from a request containing the `POST`, `PUT`, `PATCH` or `DELETE` request methods.
 
-The `rate-limit-request-method-put-post-patch-delete` Policy is also the default policy if the request method does not match a tier.
+The `rate-limit-request-method-put-post-patch-delete` Policy is also the default Policy if the request method does not match a tier.
 
-Create the policies:
+Create the Policies:
 
 ```shell
 kubectl apply -f rate-limits.yaml
 ```
 
-## Configure Load Balancing
+## Configure load balancing
 
 Create a VirtualServer resource for the web application:
 
