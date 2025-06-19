@@ -303,29 +303,30 @@ jobs:
           pyxis_token: ${{ secrets.PYXIS_API_TOKEN }}
           preflight_version: 1.11.1
 
-  operator:
-    if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'operator') && !contains(inputs.skip_step, 'publish-helm-chart') }}
-    name: Trigger PR for Operator
-    runs-on: ubuntu-22.04
-    needs: [variables,publish-helm-chart]
-    steps:
-      - name:
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
-        with:
-          github-token: ${{ secrets.NGINX_PAT }}
-          script: |
-            await github.rest.actions.createWorkflowDispatch({
-              owner: 'nginxinc',
-              repo: 'nginx-ingress-helm-operator',
-              workflow_id: 'sync-chart.yml',
-              ref: 'main',
-              inputs: {
-                chart_version: '${{ inputs.chart_version }}',
-                operator_version: '${{ inputs.operator_version }}',
-                k8s_version: '${{ needs.variables.outputs.k8s_version }}',
-                dry_run: '${{ inputs.dry_run }}'
-              },
-            })
+  ## Disable operator release step for now until nginx-bot issue is resolved, manually trigger workflow in nginx-ingress-helm-operator
+  # operator:
+  #   if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'operator') && !contains(inputs.skip_step, 'publish-helm-chart') }}
+  #   name: Trigger PR for Operator
+  #   runs-on: ubuntu-22.04
+  #   needs: [variables,publish-helm-chart]
+  #   steps:
+  #     - name:
+  #       uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+  #       with:
+  #         github-token: ${{ secrets.NGINX_PAT }}
+  #         script: |
+  #           await github.rest.actions.createWorkflowDispatch({
+  #             owner: 'nginxinc',
+  #             repo: 'nginx-ingress-helm-operator',
+  #             workflow_id: 'sync-chart.yml',
+  #             ref: 'main',
+  #             inputs: {
+  #               chart_version: '${{ inputs.chart_version }}',
+  #               operator_version: '${{ inputs.operator_version }}',
+  #               k8s_version: '${{ needs.variables.outputs.k8s_version }}',
+  #               dry_run: '${{ inputs.dry_run }}'
+  #             },
+  #           })
 
   gcp-marketplace:
     if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'gcp-marketplace') }}
