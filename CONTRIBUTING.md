@@ -31,7 +31,7 @@ Please reserve GitHub issues for feature requests and bugs rather than general q
 Follow our [Installation Guide](https://docs.nginx.com/nginx-ingress-controller/installation/) to
 get NGINX Ingress Controller up and running.
 
-Read the [documentation](https://github.com/nginx/kubernetes-ingress/tree/main/site) and
+Read the [documentation](https://docs.nginx.com/nginx-ingress-controller) and
 [configuration](https://github.com/nginx/kubernetes-ingress/tree/main/examples) examples
 
 ### Project Structure

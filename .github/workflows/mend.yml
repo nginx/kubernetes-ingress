@@ -6,7 +6,6 @@ on:
       - main
       - release-*
     paths-ignore:
-      - site/**
       - examples/**
   workflow_dispatch:
     inputs:
