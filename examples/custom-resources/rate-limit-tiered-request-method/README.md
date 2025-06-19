@@ -6,28 +6,28 @@ limit Policies, grouped in a tier, using the client IP address as the key to the
 ## Prerequisites
 
 1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
-   instructions to deploy the Ingress Controller.
-1. Save the public IP address of the Ingress Controller into a shell variable:
+   instructions to deploy NGINX Ingress Controller.
+2. Save the public IP address of NGINX Ingress Controller into a shell variable:
 
-    ```console
-    IC_IP=XXX.YYY.ZZZ.III
-    ```
+```shell
+IC_IP=XXX.YYY.ZZZ.III
+```
+<!-- markdownlint-disable MD029 -->
+3. Save the HTTP port of the Ingress Controller into a shell variable:
+<!-- markdownlint-enable MD029 -->
+```shell
+IC_HTTP_PORT=<port number>
+```
 
-1. Save the HTTP port of the Ingress Controller into a shell variable:
-
-    ```console
-    IC_HTTP_PORT=<port number>
-    ```
-
-## Step 1 - Deploy a Web Application
+## Deploy a web application
 
 Create the application deployments and services:
 
-```console
+```shell
 kubectl apply -f coffee.yaml
 ```
 
-## Step 2 - Deploy the Rate Limit Policies
+## Deploy the Rate Limit Policies
 
 In this step, we create two Policies:
 
@@ -38,26 +38,26 @@ The `rate-limit-request-method-put-post-patch-delete` Policy is also the default
 
 Create the policies:
 
-```console
+```shell
 kubectl apply -f rate-limits.yaml
 ```
 
-## Step 3 - Configure Load Balancing
+## Configure Load Balancing
 
 Create a VirtualServer resource for the web application:
 
-```console
+```shell
 kubectl apply -f cafe-virtual-server.yaml
 ```
 
 Note that the VirtualServer references the policies `rate-limit-request-method-get-head` & `rate-limit-request-method-put-post-patch-delete` created in Step 2.
 
-## Step 4 - Test the Configuration
+## Test the configuration
 
 Let's test the configuration.  If you access the application at a rate that exceeds 5 requests per second with a `GET` request method, NGINX will
 start rejecting your requests:
 
-```console
+```shell
 while true; do
   curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP http://cafe.example.com:$IC_HTTP_PORT/coffee";
   sleep 0.1
@@ -81,14 +81,14 @@ Server name: coffee-dc88fc766-zr7f8
 
 > Note: The command result is truncated for the clarity of the example.
 
-## Step 5 - Test the Request types that update a resource
+## Test the request types that update a resource
 
-This test is similar to Step 4, however, this time we will be using the `POST` request method.
+This test is similar to previous step, however, this time we will be using the `POST` request method.
 
 Let's test the configuration.  If you access the application at a rate that exceeds 1 request per second, NGINX will
 start rejecting your requests:
 
-```console
+```shell
 while true; do 
   curl -XPOST --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP http://cafe.example.com:$IC_HTTP_PORT/coffee; 
   sleep 0.5;
@@ -112,15 +112,15 @@ Server name: coffee-dc88fc766-zr7f8
 
 > Note: The command result is truncated for the clarity of the example.
 
-## Step 6 - Test the default Configuration
+## Test the default configuration
 
-This test is similar to Step 4 & 5, however, this time we will not be using a configured request method, however we
+This test is similar to the previous two steps, however, this time we will not be using a configured request method, however we
 will still be seeing the default `rate-limit-request-method-put-post-patch-delete` Policy applied.
 
 Let's test the configuration.  If you access the application at a rate that exceeds 1 request per second, NGINX will
 start rejecting your requests:
 
-```console
+```shell
 while true; do 
   curl -XOPTIONS --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP http://cafe.example.com:$IC_HTTP_PORT/coffee; 
   sleep 0.5;

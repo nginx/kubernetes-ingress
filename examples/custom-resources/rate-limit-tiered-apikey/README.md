@@ -8,28 +8,28 @@ limit Policies, grouped in a tier, using the API Key client name as the key to t
 ## Prerequisites
 
 1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
-   instructions to deploy the Ingress Controller.
-1. Save the public IP address of the Ingress Controller into a shell variable:
+   instructions to deploy NGINX Ingress Controller.
+2. Save the public IP address of NGINX Ingress Controller into a shell variable:
 
-    ```console
-    IC_IP=XXX.YYY.ZZZ.III
-    ```
+```shell
+IC_IP=XXX.YYY.ZZZ.III
+```
+<!-- markdownlint-disable MD029 -->
+3. Save the HTTP port of the Ingress Controller into a shell variable:
+<!-- markdownlint-enable MD029 -->
+```shell
+IC_HTTP_PORT=<port number>
+```
 
-1. Save the HTTP port of the Ingress Controller into a shell variable:
-
-    ```console
-    IC_HTTP_PORT=<port number>
-    ```
-
-## Step 1 - Deploy a Web Application
+## Deploy a web application
 
 Create the application deployments and services:
 
-```console
+```shell
 kubectl apply -f coffee.yaml
 ```
 
-## Step 2 - Deploy the Rate Limit Policies
+## Deploy the Rate Limit Policies
 
 In this step, we create three Policies:
 
@@ -41,37 +41,37 @@ The `rate-limit-apikey-basic` Policy is also the default policy if the API Key c
 
 Create the policies:
 
-```console
+```shell
 kubectl apply -f api-key-policy.yaml
 kubectl apply -f rate-limits.yaml
 ```
 
-## Step 3 - Deploy the API Key Auth Secret
+## Deploy the API Key Secret
 
 Create a secret of type `nginx.org/apikey` with the name `api-key-client-secret` that will be used for authorization on the server level.
 
 This secret will contain a mapping of client names to base64 encoded API Keys.
 
-```console
+```shell
 kubectl apply -f api-key-secret.yaml
 ```
 
-## Step 4 - Configure Load Balancing
+## Configure Load Balancing
 
 Create a VirtualServer resource for the web application:
 
-```console
+```shell
 kubectl apply -f cafe-virtual-server.yaml
 ```
 
 Note that the VirtualServer references the policies `api-key-policy`, `rate-limit-apikey-premium` & `rate-limit-apikey-basic` created in Step 2.
 
-## Step 5 - Test the Premium Configuration
+## Test the premium configuration
 
 Let's test the configuration.  If you access the application with an API Key in an expected header at a rate that exceeds 5 requests per second, NGINX will
 start rejecting your requests:
 
-```console
+```shell
 while true; do
   curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP -H "X-header-name: client1premium" http://cafe.example.com:$IC_HTTP_PORT/coffee;
   sleep 0.1;
@@ -95,14 +95,14 @@ Server name: coffee-dc88fc766-zr7f8
 
 > Note: The command result is truncated for the clarity of the example.
 
-## Step 6 - Test the Basic Configuration
+## Test the basic configuration
 
-This test is similar to Step 5, however, this time we will be setting the API Key in the header to a value that maps to the `client1-basic` client name.
+This test is similar to the previous step, however, this time we will be setting the API Key in the header to a value that maps to the `client1-basic` client name.
 
 Let's test the configuration.  If you access the application at a rate that exceeds 1 request per second, NGINX will
 start rejecting your requests:
 
-```console
+```shell
 while true; do
   curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP -H "X-header-name: client1basic" http://cafe.example.com:$IC_HTTP_PORT/coffee;
   sleep 0.5;
@@ -126,14 +126,14 @@ Server name: coffee-dc88fc766-zr7f8
 
 > Note: The command result is truncated for the clarity of the example.
 
-## Step 7 - Test the default Configuration
+## Test the default configuration
 
-This test is similar to Step 5 & 6, however, this time we will setting the API Key in the header to a value that maps to the `random` client name, which matches neither of the regex patterns configured in the Policies.  However, we will still be seeing the default `rate-limit-apikey-basic` Policy applied.
+This test is similar to the previous two steps, however, this time we will setting the API Key in the header to a value that maps to the `random` client name, which matches neither of the regex patterns configured in the Policies.  However, we will still be seeing the default `rate-limit-apikey-basic` Policy applied.
 
 Let's test the configuration.  If you access the application at a rate that exceeds 1 request per second, NGINX will
 start rejecting your requests:
 
-```console
+```shell
 while true; do
   curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP -H "X-header-name: random" http://cafe.example.com:$IC_HTTP_PORT/coffee;
   sleep 0.5;
