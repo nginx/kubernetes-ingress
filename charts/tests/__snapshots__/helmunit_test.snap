@@ -5611,7 +5611,7 @@ spec:
           name: oss-agent-nginx-ingress-agent-config
       - name: dataplane-key
         secret:
-          secretName: base64hash=
+          secretName: dataplane-key
       serviceAccountName: oss-agent-nginx-ingress
       automountServiceAccountToken: true
       securityContext:
@@ -8921,7 +8921,7 @@ spec:
           name: plus-agent-nginx-ingress-agent-config
       - name: dataplane-key
         secret:
-          secretName: base64hash=
+          secretName: dataplane-key
       serviceAccountName: plus-agent-nginx-ingress
       automountServiceAccountToken: true
       securityContext:
@@ -9435,7 +9435,7 @@ spec:
           name: plus-agent-all-nginx-ingress-agent-config
       - name: dataplane-key
         secret:
-          secretName: base64hash=
+          secretName: dataplane-key
       serviceAccountName: plus-agent-all-nginx-ingress
       automountServiceAccountToken: true
       securityContext:

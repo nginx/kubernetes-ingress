@@ -2,7 +2,7 @@ controller:
   nginxplus: true
 nginxAgent:
   enable: true
-  dataplaneKey: "base64hash="
+  dataplaneKey: "dataplane-key" # secret ref
   tlsSkipVerify: true
   logLevel: debug
   endpointHost: my-host.example.com
