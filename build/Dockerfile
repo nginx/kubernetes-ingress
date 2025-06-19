@@ -93,7 +93,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 	&& export $(cat /tmp/user_agent) \
 	&& printf "%s%s%s\n" "http://nginx.org/packages/mainline/alpine/v" `egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release` "/main" >> /etc/apk/repositories \
 	&& printf "%s\n" "https://${PACKAGE_REPO}/nginx-agent/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
-	&& apk add --no-cache nginx-module-otel nginx-agent~=3.0.2 \
+	&& apk add --no-cache nginx-module-otel "nginx-agent<3.1" \
 	&& ldconfig /usr/local/lib/ \
 	&& agent.sh \
 	&& sed -i -e '/nginx.com/d' /etc/apk/repositories
@@ -102,9 +102,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 ############################################# Base image for Debian #############################################
 FROM nginx:1.27.5@sha256:6784fb0834aa7dbbe12e3d7471e69c290df3e6ba810dc38b34ae33d3c1c05f7d AS debian
 
-RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
-	--mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
-	--mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_signing.key \
+RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_signing.key \
 	--mount=type=bind,from=nginx-files,src=90pkgs-nginx,target=/etc/apt/apt.conf.d/90pkgs-nginx \
 	--mount=type=bind,from=nginx-files,src=debian-agent-12.sources,target=/tmp/nginx-agent.sources \
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
@@ -117,7 +115,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	http://nginx.org/packages/mainline/debian `lsb_release -cs` nginx" > /etc/apt/sources.list.d/nginx.list \
 	&& printf "%s" "Package: *\nPin: origin nginx.org\nPin: release o=nginx\nPin-Priority: 900\n" > /etc/apt/preferences.d/99nginx \
 	&& apt-get update \
-	&& apt-get install --no-install-recommends --no-install-suggests -y nginx-agent=3.0.2* nginx-module-otel \
+	&& apt-get install --no-install-recommends --no-install-suggests -y nginx-agent=3.0.* nginx-module-otel \
 	&& apt-get purge --auto-remove -y gpg \
 	&& rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/nginx-agent.sources /etc/apt/preferences.d/99nginx /etc/apt/sources.list.d/nginx.list \
 	&& agent.sh \
@@ -160,7 +158,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_s
 	&& printf "%s\n" "[nginx]" "name=nginx repo" \
 	"baseurl=https://nginx.org/packages/mainline/centos/9/\$basearch/" \
 	"gpgcheck=1" "enabled=1" "module_hotfixes=true" > /etc/yum.repos.d/nginx.repo \
-	&& microdnf --nodocs install -y nginx nginx-module-njs nginx-module-otel nginx-module-image-filter nginx-module-xslt nginx-agent-3.0.2* \
+	&& microdnf --nodocs install -y nginx nginx-module-njs nginx-module-otel nginx-module-image-filter nginx-module-xslt nginx-agent-3.0.* \
 	&& rm /etc/yum.repos.d/nginx.repo \
 	&& ubi-clean.sh
 
@@ -180,7 +178,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 	export $(cat /tmp/user_agent) \
 	&& printf "%s\n" "https://${PACKAGE_REPO}/plus/${NGINX_PLUS_VERSION}/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
 	&& printf "%s\n" "https://${PACKAGE_REPO}/nginx-agent/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
-	&& apk add --no-cache nginx-plus nginx-plus-module-njs nginx-plus-module-otel nginx-plus-module-fips-check nginx-agent~=3.0.2 libcap libcurl \
+	&& apk add --no-cache nginx-plus nginx-plus-module-njs nginx-plus-module-otel nginx-plus-module-fips-check "nginx-agent<3.1" libcap libcurl \
 	&& mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
 	&& agent.sh \
 	&& sed -i -e '/nginx.com/d' /etc/apk/repositories
@@ -309,7 +307,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	apt-get update \
 	&& cp /tmp/nginx-agent.sources /etc/apt/sources.list.d/nginx-agent.sources \
 	&& apt-get update \
-	&& apt-get install --no-install-recommends --no-install-suggests -y nginx-agent=3.0.2* \
+	&& apt-get install --no-install-recommends --no-install-suggests -y nginx-agent=3.0.* \
 	&& agent.sh \
 	&& rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/nginx-agent.sources
 
@@ -423,7 +421,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	rpm --import /tmp/app-protect-security-updates.key \
 	&& cp /tmp/app-protect-9.repo /etc/yum.repos.d/app-protect-9.repo \
 	&& microdnf --enablerepo=codeready-builder-for-rhel-9-x86_64-rpms --nodocs install -y \
-	app-protect app-protect-attack-signatures app-protect-threat-campaigns nginx-plus-module-otel  nginx-agent-2.* \
+	app-protect app-protect-attack-signatures app-protect-threat-campaigns nginx-plus-module-otel nginx-agent-2.* \
 	&& rm -f /etc/yum.repos.d/app-protect-9.repo \
 	&& nap-waf.sh \
 	&& agent.sh; \
