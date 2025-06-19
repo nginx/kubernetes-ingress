@@ -90,6 +90,7 @@ jobs:
           CERT: ${{ secrets.NGINX_CRT }}
           KEY: ${{ secrets.NGINX_KEY }}
           RHEL: ${{ secrets.RHEL_LICENSE }}
+        if: ${{ contains(inputs.target, 'plus') }}
 
       - name: Fetch Cached Binary Artifacts
         id: binary-cache
