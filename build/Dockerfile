@@ -84,15 +84,13 @@ USER 101
 FROM nginx:1.27.5-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10 AS alpine
 ARG PACKAGE_REPO
 
-RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
-	--mount=type=secret,id=nginx-repo.key,dst=/etc/apk/cert.key,mode=0644 \
-	--mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk/keys/nginx_signing.rsa.pub \
+RUN --mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk/keys/nginx_signing.rsa.pub \
 	--mount=type=bind,from=nginx-files,src=user_agent,target=/tmp/user_agent \
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
 	apk add --no-cache libcap libstdc++ \
 	&& export $(cat /tmp/user_agent) \
-	&& printf "%s%s%s\n" "http://nginx.org/packages/mainline/alpine/v" `egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release` "/main" >> /etc/apk/repositories \
-	&& printf "%s\n" "https://${PACKAGE_REPO}/nginx-agent/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
+	&& printf "%s%s%s\n" "http://packages.nginx.org/nginx/mainline/alpine/v" `egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release` "/main" >> /etc/apk/repositories \
+	&& printf "%s%s%s\n" "http://packages.nginx.org/nginx-agent/alpine/v" `egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release` "/main" >> /etc/apk/repositories \
 	&& apk add --no-cache nginx-module-otel "nginx-agent<3.1" \
 	&& ldconfig /usr/local/lib/ \
 	&& agent.sh \
@@ -104,15 +102,15 @@ FROM nginx:1.27.5@sha256:6784fb0834aa7dbbe12e3d7471e69c290df3e6ba810dc38b34ae33d
 
 RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_signing.key \
 	--mount=type=bind,from=nginx-files,src=90pkgs-nginx,target=/etc/apt/apt.conf.d/90pkgs-nginx \
-	--mount=type=bind,from=nginx-files,src=debian-agent-12.sources,target=/tmp/nginx-agent.sources \
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
 	apt-get update \
 	&& apt-get install --no-install-recommends --no-install-suggests -y \
 	gpg libcap2-bin ca-certificates lsb-release debian-archive-keyring \
 	&& gpg --dearmor -o /usr/share/keyrings/nginx-archive-keyring.gpg /tmp/nginx_signing.key \
-	&& cp /tmp/nginx-agent.sources /etc/apt/sources.list.d/nginx-agent.sources \
 	&& echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] \
-	http://nginx.org/packages/mainline/debian `lsb_release -cs` nginx" > /etc/apt/sources.list.d/nginx.list \
+	http://packages.nginx.org/nginx/mainline/debian `lsb_release -cs` nginx" > /etc/apt/sources.list.d/nginx.list \
+    && echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] \
+    http://packages.nginx.org/nginx-agent/debian `lsb_release -cs` agent" >> /etc/apt/sources.list.d/nginx.list \
 	&& printf "%s" "Package: *\nPin: origin nginx.org\nPin: release o=nginx\nPin-Priority: 900\n" > /etc/apt/preferences.d/99nginx \
 	&& apt-get update \
 	&& apt-get install --no-install-recommends --no-install-suggests -y nginx-agent=3.0.* nginx-module-otel \
@@ -143,9 +141,6 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_s
 	--mount=type=bind,from=nginx-files,src=ubi-setup.sh,target=/usr/local/bin/ubi-setup.sh \
 	--mount=type=bind,from=nginx-files,src=ubi-clean.sh,target=/usr/local/bin/ubi-clean.sh \
 	--mount=type=bind,from=ubi9-packages,src=/,target=/ubi-bin/ \
-	--mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
-	--mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
-	--mount=type=bind,from=nginx-files,src=nginx-agent.repo,target=/etc/yum.repos.d/nginx-agent.repo,rw \
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
 	ubi-setup.sh \
 	&& rpm -qa --queryformat "%{NAME}\n" | sort > pkgs-installed \
@@ -156,8 +151,11 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_s
 	&& dnf --setopt=protected_packages= remove -y $(comm -13 pkgs-installed pkgs-new | comm -13 pkgs-nginx -) \
 	&& rm pkgs-installed pkgs-new pkgs-nginx \
 	&& printf "%s\n" "[nginx]" "name=nginx repo" \
-	"baseurl=https://nginx.org/packages/mainline/centos/9/\$basearch/" \
+	"baseurl=https://packages.nginx.org/nginx/mainline/centos/9/\$basearch/" \
 	"gpgcheck=1" "enabled=1" "module_hotfixes=true" > /etc/yum.repos.d/nginx.repo \
+    && printf "%s\n" "[agent]" "name=agent repo" \
+    "baseurl=https://packages.nginx.org/nginx-agent/centos/9/\$basearch/" \
+    "gpgcheck=1" "enabled=1" "module_hotfixes=true" >> /etc/yum.repos.d/nginx.repo \
 	&& microdnf --nodocs install -y nginx nginx-module-njs nginx-module-otel nginx-module-image-filter nginx-module-xslt nginx-agent-3.0.* \
 	&& rm /etc/yum.repos.d/nginx.repo \
 	&& ubi-clean.sh
@@ -408,10 +406,12 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=nap-waf.sh,target=/usr/local/bin/nap-waf.sh \
 	--mount=type=bind,from=nginx-files,src=nap-dos.sh,target=/usr/local/bin/nap-dos.sh \
 	--mount=type=bind,from=nginx-files,src=ubi-clean.sh,target=/usr/local/bin/ubi-clean.sh \
+    --mount=type=bind,from=ubi9-packages,src=/,target=/ubi-bin/ \
 	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
 	mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
 	&& ubi-setup.sh \
-	&& microdnf --nodocs install -y nginx-plus nginx-plus-module-njs nginx-plus-module-fips-check \
+    && rpm -Uvh /ubi-bin/c-ares-*.rpm \
+	&& microdnf --nodocs install -y nginx-plus nginx-plus-module-njs nginx-plus-module-fips-check nginx-plus-module-otel nginx-agent-2.* \
 	&& source /tmp/rhel_license \
 	&& microdnf --nodocs install -y ca-certificates shadow-utils subscription-manager \
 	&& rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm \
@@ -421,7 +421,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	rpm --import /tmp/app-protect-security-updates.key \
 	&& cp /tmp/app-protect-9.repo /etc/yum.repos.d/app-protect-9.repo \
 	&& microdnf --enablerepo=codeready-builder-for-rhel-9-x86_64-rpms --nodocs install -y \
-	app-protect app-protect-attack-signatures app-protect-threat-campaigns nginx-plus-module-otel nginx-agent-2.* \
+	app-protect app-protect-attack-signatures app-protect-threat-campaigns \
 	&& rm -f /etc/yum.repos.d/app-protect-9.repo \
 	&& nap-waf.sh \
 	&& agent.sh; \
