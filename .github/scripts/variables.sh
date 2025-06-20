@@ -13,12 +13,12 @@ if [ "$PWD" != "$ROOTDIR" ]; then
 fi
 
 get_docker_md5() {
-  docker_md5=$(find build .github/data/version.txt -type f ! -name "*.md" -exec md5sum {} + | LC_ALL=C sort  | md5sum | awk '{ print $1 }')
+  docker_md5=$(find build .github/data/version.txt internal/configs/njs internal/configs/oidc -type f ! -name "*.md" -exec md5sum {} + | LC_ALL=C sort  | md5sum | awk '{ print $1 }')
   echo "${docker_md5:0:8}"
 }
 
 get_go_code_md5() {
-  find . -type f \( -name "*.go" -o -name go.mod -o -name go.sum -o -name "*.tmpl" -o -name "version.txt" -o -name "*.js" \) -not -path "./site*"  -exec md5sum {} + | LC_ALL=C sort  | md5sum | awk '{ print $1 }'
+  find . -type f \( -name "*.go" -o -name go.mod -o -name go.sum -o -name "*.tmpl" -o -name "version.txt" \) -not -path "./site*"  -exec md5sum {} + | LC_ALL=C sort  | md5sum | awk '{ print $1 }'
 }
 
 get_tests_md5() {
