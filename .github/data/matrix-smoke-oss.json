@@ -74,7 +74,7 @@
       "label": "TS",
       "image": "ubi",
       "type": "oss",
-      "marker": "ts",
+      "marker": "'ts or otel'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
