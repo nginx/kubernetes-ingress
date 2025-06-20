@@ -297,6 +297,20 @@ func TestCollectPolicyCountOnCustomResourcesEnabled(t *testing.T) {
 			want: 1,
 		},
 		{
+			name: "RateLimitPolicies",
+			policies: func() []*conf_v1.Policy {
+				return []*conf_v1.Policy{rateLimitPolicy, wafPolicy, oidcPolicy}
+			},
+			want: 3,
+		},
+		{
+			name: "RateLimitConditionPolicies",
+			policies: func() []*conf_v1.Policy {
+				return []*conf_v1.Policy{rateLimitPolicy, rateLimitJWTPolicy, rateLimitVariablesPolicy}
+			},
+			want: 3,
+		},
+		{
 			name:     "NoPolicies",
 			policies: func() []*conf_v1.Policy { return []*conf_v1.Policy{} },
 			want:     0,
@@ -431,6 +445,60 @@ func TestCollectPoliciesReportOnEnabledCustomResources(t *testing.T) {
 		WAFPolicies:        2,
 		OIDCPolicies:       1,
 		EgressMTLSPolicies: 2,
+	}
+
+	td := telemetry.Data{
+		Data:              telData,
+		NICResourceCounts: nicResourceCounts,
+	}
+
+	want := fmt.Sprintf("%+v", &td)
+	got := buf.String()
+	if !cmp.Equal(want, got) {
+		t.Error(cmp.Diff(want, got))
+	}
+}
+
+func TestCollectRateLimitPoliciesReportOnEnabledCustomResources(t *testing.T) {
+	t.Parallel()
+
+	buf := &bytes.Buffer{}
+	exp := &telemetry.StdoutExporter{Endpoint: buf}
+	cfg := telemetry.CollectorConfig{
+		Configurator:    newConfigurator(t),
+		K8sClientReader: newTestClientset(node1, kubeNS),
+		Version:         telemetryNICData.ProjectVersion,
+		Policies: func() []*conf_v1.Policy {
+			return []*conf_v1.Policy{
+				rateLimitPolicy,
+				rateLimitJWTPolicy,
+				rateLimitJWTPolicy,
+				rateLimitVariablesPolicy,
+			}
+		},
+		CustomResourcesEnabled: true,
+	}
+
+	c, err := telemetry.NewCollector(cfg, telemetry.WithExporter(exp))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Collect(context.Background())
+
+	telData := tel.Data{
+		ProjectName:         telemetryNICData.ProjectName,
+		ProjectVersion:      telemetryNICData.ProjectVersion,
+		ProjectArchitecture: telemetryNICData.ProjectArchitecture,
+		ClusterNodeCount:    1,
+		ClusterID:           telemetryNICData.ClusterID,
+		ClusterVersion:      telemetryNICData.ClusterVersion,
+		ClusterPlatform:     "other",
+	}
+
+	nicResourceCounts := telemetry.NICResourceCounts{
+		RateLimitPolicies:          1,
+		JWTRateLimitPolicies:       2,
+		VariablesRateLimitPolicies: 1,
 	}
 
 	td := telemetry.Data{
@@ -2659,6 +2727,52 @@ var (
 		},
 		Spec: conf_v1.PolicySpec{
 			RateLimit: &conf_v1.RateLimit{},
+		},
+		Status: conf_v1.PolicyStatus{},
+	}
+
+	rateLimitJWTPolicy = &conf_v1.Policy{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Policy",
+			APIVersion: "k8s.nginx.org/v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      "rate-limit-policy4",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			RateLimit: &conf_v1.RateLimit{
+				Condition: &conf_v1.RateLimitCondition{
+					JWT: &conf_v1.JWTCondition{
+						Claim: "sub",
+						Match: "abc",
+					},
+				},
+			},
+		},
+		Status: conf_v1.PolicyStatus{},
+	}
+
+	rateLimitVariablesPolicy = &conf_v1.Policy{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Policy",
+			APIVersion: "k8s.nginx.org/v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      "rate-limit-policy5",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			RateLimit: &conf_v1.RateLimit{
+				Condition: &conf_v1.RateLimitCondition{
+					Variables: &[]conf_v1.VariableCondition{
+						{
+							Name:  "var1",
+							Match: "value1",
+						},
+					},
+				},
+			},
 		},
 		Status: conf_v1.PolicyStatus{},
 	}
