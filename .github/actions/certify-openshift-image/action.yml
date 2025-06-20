@@ -18,7 +18,7 @@ inputs:
   platforms:
     description: A comma separated list of architectures in the image manifest to certify
     required: false
-    default: "amd64,arm64,ppc64le,s390x"
+    default: "amd64,arm64"
   submit:
     description: Submit results to Redhat PYAXIS
     required: false
