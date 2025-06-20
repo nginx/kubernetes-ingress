@@ -194,7 +194,7 @@ jobs:
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
       - name: Install gofumpt
-        run: go install mvdan.cc/gofumpt@latest
+        run: go install mvdan.cc/gofumpt@v0.8.0
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
       - name: Check if telemetry schema changed
