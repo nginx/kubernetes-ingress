@@ -213,8 +213,6 @@ jobs:
         run: |
           [[ "${{ matrix.nap_modules }}" == "waf,dos" ]] && modules="waf-dos" || modules="${{ matrix.nap_modules }}"
           echo "modules=${modules}" >> $GITHUB_OUTPUT
-          [[ "${{ matrix.nap_modules }}" =~ waf ]] && agent="true" || agent="false"
-          echo "agent=${agent}" >> $GITHUB_OUTPUT
         if: ${{ matrix.nap_modules != '' }}
 
       - name: Docker meta
@@ -244,7 +242,6 @@ jobs:
             BUILD_OS=${{ matrix.image }}
             IC_VERSION=${{ needs.checks.outputs.ic_version }}
             NAP_MODULES=${{ matrix.nap_modules }}
-            ${{ contains(matrix.nap_modules,'waf') && format('NGINX_AGENT={0}', steps.nap_modules.outputs.agent) || '' }}
           secrets: |
             "nginx-repo.crt=${{ secrets.NGINX_AP_CRT }}"
             "nginx-repo.key=${{ secrets.NGINX_AP_KEY }}"

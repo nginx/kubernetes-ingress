@@ -427,10 +427,6 @@ func mustValidateFlags(ctx context.Context) {
 		nl.Fatal(l, "ingresslink and external-service cannot both be set")
 	}
 
-	if *agent && !*appProtect {
-		nl.Fatal(l, "NGINX Agent is used to enable the Security Monitoring dashboard and requires NGINX App Protect to be enabled")
-	}
-
 	if *nginxPlus && *mgmtConfigMap == "" {
 		nl.Fatal(l, "NGINX Plus requires a mgmt ConfigMap to be set")
 	}

@@ -665,7 +665,14 @@ nginxServiceMesh:
 nginxAgent:
   ## Enables NGINX Agent.
   enable: false
-  logLevel: "error"
+  logLevel: "info"
+
+  # Agent V3 configuration
+  # Dataplane key is required to authenticate NGINX Agent with NGINX One Console
+  dataplaneKeySecretName: ""
+  endpointHost: "product.connect.nginx.com"
+  endpointPort: 443
+  tlsSkipVerify: false
 
   # Agent V2 configuration
   ## If nginxAgent.instanceGroup is not set the value of nginx-ingress.controller.fullname will be used

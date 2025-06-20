@@ -83,8 +83,6 @@ jobs:
           echo "name=${name}" >> $GITHUB_OUTPUT
           [[ "${{ inputs.nap-modules }}" == "waf,dos" ]] && modules="both" || modules="${{ inputs.nap-modules }}"
           echo "modules=${modules}" >> $GITHUB_OUTPUT
-          [[ "${{ inputs.nap-modules }}" =~ waf ]] && agent="true" || agent="false"
-          echo "agent=${agent}" >> $GITHUB_OUTPUT
         if: ${{ inputs.nap-modules != '' }}
 
       - name: Docker meta
@@ -145,7 +143,6 @@ jobs:
             BUILD_OS=${{ inputs.image }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
             ${{ inputs.nap-modules != '' && format('NAP_MODULES={0}', steps.nap_modules.outputs.name) || '' }}
-            ${{ contains(inputs.nap-modules,'waf') && format('NGINX_AGENT={0}', steps.nap_modules.outputs.agent) || '' }}
           secrets: |
             "nginx-repo.crt=${{ inputs.nap-modules != '' && secrets.NGINX_AP_CRT || secrets.NGINX_CRT }}"
             "nginx-repo.key=${{ inputs.nap-modules != '' && secrets.NGINX_AP_KEY || secrets.NGINX_KEY }}"
@@ -190,9 +187,7 @@ jobs:
             ${{ inputs.authenticated && format('PREBUILT_BASE_IMG={0}', steps.base_name.outputs.image ) }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
             ${{ inputs.nap-modules != '' && format('NAP_MODULES={0}', steps.nap_modules.outputs.name) || '' }}
-            ${{ contains(inputs.nap-modules,'waf') && format('NGINX_AGENT={0}', steps.nap_modules.outputs.agent) || '' }}
             ${{ (contains(inputs.target, 'aws') && inputs.nap-modules != '') && format('NAP_MODULES_AWS={0}', steps.nap_modules.outputs.modules) || '' }}
-            ${{ contains(inputs.image, 'v5') && 'WAF_VERSION=v5' || '' }}
           secrets: |
             "nginx-repo.crt=${{ inputs.nap-modules != '' && secrets.NGINX_AP_CRT || secrets.NGINX_CRT }}"
             "nginx-repo.key=${{ inputs.nap-modules != '' && secrets.NGINX_AP_KEY || secrets.NGINX_KEY }}"
