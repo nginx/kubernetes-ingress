@@ -2323,6 +2323,35 @@
             "error"
           ]
         },
+        "dataplaneKeySecretName": {
+          "type": "string",
+          "default": "",
+          "title": "The Dataplane key is required to authenticate NGINX Agent with NGINX One Console",
+          "examples": [
+            "dataplane-key"
+          ]
+        },
+        "endpointHost": {
+          "type": "string",
+          "default": "product.connect.nginx.com",
+          "title": "FQDN or IP for connecting to NGINX One SaaS Console",
+          "examples": [
+            "product.connect.nginx.com"
+          ]
+        },
+        "endpointPort": {
+          "type": "integer",
+          "title": "Port for connecting to NGINX One SaaS Console",
+          "default": 443,
+          "examples": [
+            443
+          ]
+        },
+        "tlsSkipVerify": {
+          "type": "boolean",
+          "default": "false",
+          "title": "skip certificate verification"
+        },
         "instanceManager": {
           "type": "object",
           "default": {},
