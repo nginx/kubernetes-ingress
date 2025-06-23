@@ -1,0 +1,20 @@
+changelog:
+  exclude:
+    labels:
+      - skip changelog
+  categories:
+    - title: 💣 Breaking Changes
+      labels:
+        - change
+    - title: 🚀 Features
+      labels:
+        - enhancement
+    - title: 🐛 Bug Fixes
+      labels:
+        - bug
+    - title: 📦 Helm Chart
+      labels:
+        - helm_chart
+    - title: ⬆️ Dependencies
+      labels:
+        - dependencies

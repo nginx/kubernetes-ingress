@@ -10,7 +10,10 @@
 .github/ISSUE_TEMPLATE/*
 .github/scripts/create-release-tarballs.sh
 .github/scripts/docker-updater.sh
-.github/scripts/release-notes-update.sh
+.github/scripts/release-docs.sh
+.github/scripts/pull-release-notes.py
+.github/scripts/release-notes.j2
+.github/scripts/docs-shortcode-update.sh
 .github/scripts/release-version-update.sh
 .github/workflows/build-base-images.yml
 .github/workflows/build-ot-dependency.yml

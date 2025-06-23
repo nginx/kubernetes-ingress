@@ -68,9 +68,13 @@ jobs:
           .github/scripts/release-version-update.sh \
             ${{ github.event.inputs.current_version }} ${{ github.event.inputs.current_helm_version }} ${{ github.event.inputs.current_operator_version }} \
             ${{ github.event.inputs.new_version }} ${{ github.event.inputs.new_helm_version }} ${{ github.event.inputs.new_operator_version }}
-          # .github/scripts/release-notes-update.sh \
-          #   ${{ github.event.inputs.new_version }} ${{ github.event.inputs.new_helm_version }} "${{ github.event.inputs.k8s_versions }}" \
-          #   "${{ github.event.inputs.release_date }}"
+          .github/scripts/release-docs.sh \
+            ${{ github.event.inputs.new_version }} ${{ github.event.inputs.new_helm_version }} ${{ github.event.inputs.new_operator_version }} \
+            "${{ github.event.inputs.k8s_versions }}" "${{ github.event.inputs.release_date }}"
+        env:
+          GITHUB_USERNAME: ${{ github.actor }}
+          GITHUB_EMAIL: ${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
