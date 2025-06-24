@@ -29,15 +29,7 @@ Run the tests using one of the following methods:
 
     ```bash
     cd tests
-    python3 -m venv ~/venv
-    source ~/venv/bin/activate
-    ```
-
-    Install dependencies and run tests:
-
-    ```bash
-    pip install --require-hashes -r requirements.txt --no-deps
-    playwright install --with-deps chromium
+    make setup-venv
     pytest --node-ip=$(minikube ip)
     ```
 
