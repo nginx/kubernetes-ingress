@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
-          token: ${{ secrets.NGINX_PAT }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set release branch variable
         id: branch
@@ -35,6 +35,5 @@ jobs:
         uses: carloscastrojumo/github-cherry-pick-action@503773289f4a459069c832dc628826685b75b4b3 # v1.0.10
         with:
           branch: ${{ steps.branch.outputs.branch }}
-          token: ${{ secrets.NGINX_PAT }}
-          author: nginx-bot <integrations@nginx.com>
+          token: ${{ secrets.GITHUB_TOKEN }}
           title: "[cherry-pick] {old_title}"

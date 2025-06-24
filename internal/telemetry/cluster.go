@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	clusterInfo "github.com/nginx/kubernetes-ingress/internal/common_cluster_info"
+	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -246,7 +247,12 @@ func (c *Collector) PolicyCount() map[string]int {
 		case spec.AccessControl != nil:
 			policyCounters["AccessControl"]++
 		case spec.RateLimit != nil:
-			policyCounters["RateLimit"]++
+			// RateLimit is a special case, as it can be defined in multiple ways
+			// depending on the condition used.
+			// If the condition is JWT, we count it as RateLimitJWT,
+			// if the condition is Variables, we count it as RateLimitVariables,
+			// otherwise we count it as RateLimit.
+			procecessRateLimitCounters(spec.RateLimit, policyCounters)
 		case spec.JWTAuth != nil:
 			policyCounters["JWTAuth"]++
 		case spec.BasicAuth != nil:
@@ -264,6 +270,22 @@ func (c *Collector) PolicyCount() map[string]int {
 		}
 	}
 	return policyCounters
+}
+
+func procecessRateLimitCounters(rl *v1.RateLimit, pc map[string]int) {
+	if rl.Condition == nil {
+		pc["RateLimit"]++
+	} else {
+		// Check if the condition is JWT or Variables
+		// and increment the appropriate counter.
+		// If neither, increment the RateLimit counter.
+		if rl.Condition.JWT != nil {
+			pc["RateLimitJWT"]++
+		}
+		if rl.Condition.Variables != nil {
+			pc["RateLimitVariables"]++
+		}
+	}
 }
 
 // AppProtectVersion returns the AppProtect Version

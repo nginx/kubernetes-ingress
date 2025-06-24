@@ -1,0 +1,16 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: virtual-server-route
+spec:
+  host: virtual-server-route.example.com
+  policies:
+    - name: api-key-policy
+  routes:
+  - path: "/backends"
+    policies:
+      - name: rate-limit-variables-apikey-basic
+      - name: rate-limit-variables-apikey-premium
+    route: backends
+  - path: "/backend2"
+    route: backend2-namespace/backend2

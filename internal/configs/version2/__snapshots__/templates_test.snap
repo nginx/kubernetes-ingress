@@ -302,9 +302,10 @@ server {
     auth_jwt "My Api";
     auth_jwt_key_file jwk-secret;
     js_var $header_query_value "${http_x_header_name}${http_other_header}${arg_myQuery}${arg_myOtherQuery}";
-    js_var $apikey_auth_local_map "vs-default-cafe-apikey-policy";
+    js_var $apikey_auth_local_map "vs_default_cafe_apikey_policy";
     js_var $apikey_auth_token $apikey_auth_hash;
     auth_request /_validate_apikey_njs;
+    js_var $apikey_client_name $vs_default_cafe_apikey_policy;
     app_protect_enable on;
     app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
     app_protect_security_log_enable on;
@@ -2364,6 +2365,118 @@ server {
 
 ---
 
+[TestExecuteVirtualServerTemplate_RendersTemplateWithRateLimitVariableAPIKey - 1]
+
+map $apikey_client_name $rl_default_cafe_variable_apikey_client_name_route_L3RlYQ {
+    "basic" rl_default_cafe_match_basic_rate_limit_policy;
+    default rl_default_cafe_match_basic_rate_limit_policy;
+    "premium" rl_default_cafe_match_premium_rate_limit_policy;
+}
+map $rl_default_cafe_variable_apikey_client_name_route_L3RlYQ $pol_rl_default_premium_rate_limit_policy_default_cafe {
+    default '';
+    rl_default_cafe_match_premium_rate_limit_policy Val$apikey_client_name;
+}
+map $rl_default_cafe_variable_apikey_client_name_route_L3RlYQ $pol_rl_default_basic_rate_limit_policy_default_cafe {
+    default '';
+    rl_default_cafe_match_basic_rate_limit_policy Val$apikey_client_name;
+}
+map $apikey_auth_token $apikey_auth_client_name_default_cafe_api_key_policy {
+    default "";
+    "e96ac3dd8ef94a6c4bb88f216231c1968e1700add139d722fe406cd0cae73074" "premium";
+    "e1e1a4f93c814d938254e6fd7da12f096c9948eae7bc4137656202a413a0f3f4" "basic";
+}
+limit_req_zone $pol_rl_default_premium_rate_limit_policy_default_cafe zone=pol_rl_default_premium_rate_limit_policy_default_cafe:10M rate=10r/s;
+limit_req_zone $pol_rl_default_basic_rate_limit_policy_default_cafe zone=pol_rl_default_basic_rate_limit_policy_default_cafe:20M rate=20r/s;
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+    status_zone cafe.example.com;
+    set $resource_type "virtualserver";
+    set $resource_name "cafe";
+    set $resource_namespace "default";
+
+    server_tokens "off";
+    location = /_validate_apikey_njs {
+            internal;
+            js_content apikey_auth.validate;
+    }
+    js_var $header_query_value "${http_x_api_key}${arg_api-key}";
+    js_var $apikey_auth_local_map "apikey_auth_client_name_default_cafe_api_key_policy";
+    js_var $apikey_auth_token $apikey_auth_hash;
+    auth_request /_validate_apikey_njs;
+    js_var $apikey_client_name $apikey_auth_client_name_default_cafe_api_key_policy;
+
+    
+
+    
+    location /tea {
+        set $service "tea-svc";
+        status_zone "tea-svc";
+        limit_req_log_level error;
+        limit_req_status 503;
+        limit_req zone=pol_rl_default_premium_rate_limit_policy_default_cafe;
+        limit_req zone=pol_rl_default_basic_rate_limit_policy_default_cafe;
+
+        
+        set $header_query_value "${http_x_api_key}${arg_api-key}";
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers on;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host "$host";
+        proxy_pass http://vs_default_cafe_tea;
+        proxy_next_upstream error timeout;
+        proxy_next_upstream_timeout 0s;
+        proxy_next_upstream_tries 0;
+    }
+    location /coffee {
+        set $service "coffee-svc";
+        status_zone "coffee-svc";
+
+        
+        set $header_query_value "${http_x_api_key}${arg_api-key}";
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers on;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host "$host";
+        proxy_pass http://vs_default_cafe_coffee;
+        proxy_next_upstream error timeout;
+        proxy_next_upstream_timeout 0s;
+        proxy_next_upstream_tries 0;
+    }
+}
+
+---
+
 [TestExecuteVirtualServerTemplate_RendersTemplateWithServerGunzipNotSet - 1]
 
 
@@ -2487,437 +2600,6 @@ server {
         
         set $default_connection_header close;
     }
-}
-
----
-
-[TestExecuteVirtualServerTemplate_WithCustomOIDCRedirectLocation - 1]
-
-upstream test-upstream {
-    zone test-upstream 256k;
-    random;
-    server 10.0.0.20:8001 max_fails=4 fail_timeout=10s slow_start=10s max_conns=31;
-    keepalive 32;
-    queue 10 timeout=60s;
-    sticky cookie test expires=25s path=/tea;
-    ntlm;
-}
-
-upstream coffee-v1 {
-    zone coffee-v1 256k;
-    server 10.0.0.31:8001 max_fails=8 fail_timeout=15s max_conns=2;
-}
-
-upstream coffee-v2 {
-    zone coffee-v2 256k;
-    server 10.0.0.32:8001 max_fails=12 fail_timeout=20s max_conns=4;
-}
-
-split_clients $request_id $split_0 {
-    50% @loc0;
-    50% @loc1;
-}
-map $match_0_0 $match {
-    ~^1 @match_loc_0;
-    default @match_loc_default;
-}
-map $http_x_version $match_0_0 {
-    v2 1;
-    default 0;
-}
-# HTTP snippet
-limit_req_zone $url zone=pol_rl_test_test_test:10m rate=10r/s;
-
-server {
-    listen 80 proxy_protocol;
-    listen [::]:80 proxy_protocol;
-
-
-    server_name example.com;
-    status_zone example.com;
-    set $resource_type "virtualserver";
-    set $resource_name "";
-    set $resource_namespace "";
-    include oidc/oidc.conf;
-
-    set $oidc_pkce_enable 0;
-    set $oidc_client_auth_method "client_secret_post";
-    set $oidc_logout_redirect "https://example.com/logout";
-    set $oidc_hmac_key "";
-    set $zone_sync_leeway 0;
-
-    set $oidc_authz_endpoint "https://idp.example.com/auth";
-    set $oidc_authz_extra_args "";
-    set $oidc_token_endpoint "https://idp.example.com/token";
-    set $oidc_end_session_endpoint "https://idp.example.com/logout";
-    set $oidc_jwt_keyfile "https://idp.example.com/jwks";
-    set $oidc_scopes "openid+profile+email";
-    set $oidc_client "test-client";
-    set $oidc_client_secret "test-secret";
-    set $redir_location "/custom-location";
-    # Custom OIDC redirect location based on policy redirectURI
-    location = /custom-location {
-        status_zone "OIDC code exchange";
-        js_content oidc.codeExchange;
-        error_page 500 502 504 @oidc_error;
-    }
-    listen 443 ssl proxy_protocol;
-    listen [::]:443 ssl proxy_protocol;
-
-    http2 on;
-    ssl_certificate cafe-secret.pem;
-    ssl_certificate_key cafe-secret.pem;
-    ssl_client_certificate ingress-mtls-secret;
-    ssl_verify_client on;
-    ssl_verify_depth 2;
-    if ($scheme = 'http') {
-        return 301 https://$host$request_uri;
-    }
-
-    server_tokens "off";
-    set_real_ip_from 0.0.0.0/0;
-    real_ip_header X-Real-IP;
-    real_ip_recursive on;
-    allow 127.0.0.1;
-    deny all;
-    deny 127.0.0.1;
-    allow all;
-    limit_req_log_level error;
-    limit_req_status 503;
-    limit_req zone=pol_rl_test_test_test burst=5 delay=10;
-    auth_jwt "My Api";
-    auth_jwt_key_file jwk-secret;
-    app_protect_enable on;
-    app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
-    app_protect_security_log_enable on;
-    app_protect_security_log /etc/nginx/waf/nac-logconfs/default-logconf;
-    
-    # server snippet
-    location /split {
-        rewrite ^ @split_0 last;
-    }
-    location /coffee {
-        rewrite ^ @match last;
-    }
-    location @hc-coffee {
-        
-        proxy_connect_timeout ;
-        proxy_read_timeout ;
-        proxy_send_timeout ;
-        proxy_pass http://coffee-v2;
-        health_check uri=/  port=50 interval=5s jitter=0s fails=1 passes=1 mandatory  persistent  keepalive_time=60s;
-
-   }
-    location @hc-tea {
-        
-        grpc_connect_timeout ;
-        grpc_read_timeout ;
-        grpc_send_timeout ;
-        grpc_pass grpc://tea-v3;
-        health_check port=50 interval=5s jitter=0s fails=1 passes=1 type=grpc grpc_status=12 grpc_service=tea-servicev2;
-
-   }
-    location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_0 {
-        
-        default_type "application/json";
-        
-        
-        # status code is ignored here, using 0
-        return 0 "Hello World";
-    }
-    
-    location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_1 {
-        
-        
-        add_header Set-Cookie "cookie1=test" always;
-        
-        add_header Set-Cookie "cookie2=test; Secure" always;
-        
-        # status code is ignored here, using 0
-        return 0 "Hello World";
-    }
-    
-
-    
-    location @return_0 {
-        default_type "text/html";
-        
-        # status code is ignored here, using 0
-        return 0 "Hello!";
-    }
-    
-
-    
-    location / {
-        set $service "";
-        status_zone "";
-        internal;
-        # location snippet
-        allow 127.0.0.1;
-        deny all;
-        deny 127.0.0.1;
-        allow all;
-        limit_req zone=loc_pol_rl_test_test_test;
-
-        
-        proxy_ssl_certificate egress-mtls-secret.pem;
-        proxy_ssl_certificate_key egress-mtls-secret.pem;
-            
-        proxy_ssl_trusted_certificate trusted-cert.pem;
-        proxy_ssl_verify on;
-        proxy_ssl_verify_depth 1;
-        proxy_ssl_protocols TLSv1.3;
-        proxy_ssl_ciphers DEFAULT;
-        proxy_ssl_session_reuse on;
-        proxy_ssl_server_name on;
-        proxy_ssl_name ;
-        set $default_connection_header close;
-        rewrite $request_uri $request_uri;
-        rewrite $request_uri $request_uri;
-        proxy_connect_timeout 30s;
-        proxy_read_timeout 31s;
-        proxy_send_timeout 32s;
-        client_max_body_size 1m;
-        proxy_max_temp_file_size 1024m;
-
-        proxy_buffering on;
-        proxy_buffers 8 4k;
-        proxy_buffer_size 4k;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection $vs_connection_header;
-        proxy_pass_request_headers off;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Port $server_port;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_hide_header Header;
-        proxy_pass_header Host;
-        proxy_ignore_headers Cache;
-        add_header Header-Name "Header Value" always;
-        proxy_pass http://test-upstream$request_uri;
-        proxy_next_upstream error timeout;
-        proxy_next_upstream_timeout 5s;
-        proxy_next_upstream_tries 0;
-    }
-    location @loc0 {
-        set $service "";
-        status_zone "";
-
-        
-        error_page 400 500 =200 "@error_page_1";
-        error_page 500  "@error_page_2";
-        proxy_intercept_errors on;
-        set $default_connection_header close;
-        proxy_connect_timeout 30s;
-        proxy_read_timeout 31s;
-        proxy_send_timeout 32s;
-        client_max_body_size 1m;
-
-        proxy_buffering off;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection $vs_connection_header;
-        proxy_pass_request_headers off;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Port $server_port;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_pass http://coffee-v1;
-        proxy_next_upstream error timeout;
-        proxy_next_upstream_timeout 5s;
-        proxy_next_upstream_tries 0;
-    }
-    location @loc1 {
-        set $service "";
-        status_zone "";
-
-        
-        set $default_connection_header close;
-        proxy_connect_timeout 30s;
-        proxy_read_timeout 31s;
-        proxy_send_timeout 32s;
-        client_max_body_size 1m;
-
-        proxy_buffering off;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection $vs_connection_header;
-        proxy_pass_request_headers off;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Port $server_port;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_pass http://coffee-v2;
-        proxy_next_upstream error timeout;
-        proxy_next_upstream_timeout 5s;
-        proxy_next_upstream_tries 0;
-    }
-    location @loc2 {
-        set $service "";
-        status_zone "";
-
-        
-        error_page 400 = @grpc_internal;
-        error_page 401 = @grpc_unauthenticated;
-        error_page 403 = @grpc_permission_denied;
-        error_page 404 = @grpc_unimplemented;
-        error_page 429 = @grpc_unavailable;
-        error_page 502 = @grpc_unavailable;
-        error_page 503 = @grpc_unavailable;
-        error_page 504 = @grpc_unavailable;
-        error_page 405 = @grpc_internal;
-        error_page 408 = @grpc_deadline_exceeded;
-        error_page 413 = @grpc_resource_exhausted;
-        error_page 414 = @grpc_resource_exhausted;
-        error_page 415 = @grpc_internal;
-        error_page 426 = @grpc_internal;
-        error_page 495 = @grpc_unauthenticated;
-        error_page 496 = @grpc_unauthenticated;
-        error_page 497 = @grpc_internal;
-        error_page 500 = @grpc_internal;
-        error_page 501 = @grpc_internal;
-        set $default_connection_header close;
-        grpc_connect_timeout 30s;
-        grpc_read_timeout 31s;
-        grpc_send_timeout 32s;
-        client_max_body_size 1m;
-
-        proxy_buffering off;
-        grpc_set_header X-Real-IP $remote_addr;
-        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        grpc_set_header X-Forwarded-Host $host;
-        grpc_set_header X-Forwarded-Port $server_port;
-        grpc_set_header X-Forwarded-Proto $scheme;
-        grpc_pass grpc://coffee-v3;
-        grpc_next_upstream ;
-        grpc_next_upstream_timeout ;
-        grpc_next_upstream_tries 0;
-    }
-    location @match_loc_0 {
-        set $service "";
-        status_zone "";
-
-        
-        set $default_connection_header close;
-        proxy_connect_timeout 30s;
-        proxy_read_timeout 31s;
-        proxy_send_timeout 32s;
-        client_max_body_size 1m;
-
-        proxy_buffering off;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection $vs_connection_header;
-        proxy_pass_request_headers off;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Port $server_port;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_pass http://coffee-v2;
-        proxy_next_upstream error timeout;
-        proxy_next_upstream_timeout 5s;
-        proxy_next_upstream_tries 0;
-    }
-    location @match_loc_default {
-        set $service "";
-        status_zone "";
-
-        
-        set $default_connection_header close;
-        proxy_connect_timeout 30s;
-        proxy_read_timeout 31s;
-        proxy_send_timeout 32s;
-        client_max_body_size 1m;
-
-        proxy_buffering off;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection $vs_connection_header;
-        proxy_pass_request_headers off;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Port $server_port;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_pass http://coffee-v1;
-        proxy_next_upstream error timeout;
-        proxy_next_upstream_timeout 5s;
-        proxy_next_upstream_tries 0;
-    }
-    location /return {
-        set $service "";
-        status_zone "";
-
-        
-        error_page 418 =200 "@return_0";
-        proxy_intercept_errors on;
-        proxy_pass http://unix:/var/lib/nginx/nginx-418-server.sock;
-        set $default_connection_header close;
-    }
-        
-    location @grpc_deadline_exceeded {
-        default_type application/grpc;
-        add_header content-type application/grpc;
-        add_header grpc-status 4;
-        add_header grpc-message 'deadline exceeded';
-        return 204;
-    }
-
-    location @grpc_permission_denied {
-        default_type application/grpc;
-        add_header content-type application/grpc;
-        add_header grpc-status 7;
-        add_header grpc-message 'permission denied';
-        return 204;
-    }
-
-    location @grpc_resource_exhausted {
-        default_type application/grpc;
-        add_header content-type application/grpc;
-        add_header grpc-status 8;
-        add_header grpc-message 'resource exhausted';
-        return 204;
-    }
-
-    location @grpc_unimplemented {
-        default_type application/grpc;
-        add_header content-type application/grpc;
-        add_header grpc-status 12;
-        add_header grpc-message unimplemented;
-        return 204;
-    }
-
-    location @grpc_internal {
-        default_type application/grpc;
-        add_header content-type application/grpc;
-        add_header grpc-status 13;
-        add_header grpc-message 'internal error';
-        return 204;
-    }
-
-    location @grpc_unavailable {
-        default_type application/grpc;
-        add_header content-type application/grpc;
-        add_header grpc-status 14;
-        add_header grpc-message unavailable;
-        return 204;
-    }
-
-    location @grpc_unauthenticated {
-        default_type application/grpc;
-        add_header content-type application/grpc;
-        add_header grpc-status 16;
-        add_header grpc-message unauthenticated;
-        return 204;
-    }
-
-        
-    
 }
 
 ---

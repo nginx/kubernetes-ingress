@@ -16,7 +16,7 @@ noBanner: true
 # Define glob expressions to ignore
 ignores:
   - ".github/**"
-  - "site/**" # Ignore docs folder for now
+  - "docs/**" # Ignore developer docs folder
 
 # Fix any fixable errors
 fix: true

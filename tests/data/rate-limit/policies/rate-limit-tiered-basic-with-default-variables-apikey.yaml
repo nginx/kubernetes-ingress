@@ -1,0 +1,14 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: rate-limit-variables-apikey-basic
+spec:
+  rateLimit:
+    rate: 1r/s
+    key: ${apikey_client_name}
+    zoneSize: 10M
+    condition:
+      variables:
+        - name: $apikey_client_name
+          match: "~^.*-basic$"
+      default: true
