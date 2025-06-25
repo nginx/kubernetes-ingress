@@ -5,7 +5,7 @@ enhancement:
   - head-branch: ['^feature/', '^feat/', '^enhancement/', '^enh/']
 
 bug:
-  - head-branch: ['^fix/', '^bug/']
+  - head-branch: ['^fix/', '^bug/', '^bugfix/']
 
 chore:
   - head-branch: ['^chore/']
@@ -29,7 +29,7 @@ documentation:
   - head-branch: ['^docs?/']
 
 dependencies:
-  - head-branch: ['^deps?/', '^dependabot/', 'pre-commit-ci-update-config']
+  - head-branch: ['^deps?/', '^dependabot/', '^renovate/', 'pre-commit-ci-update-config']
 
 helm_chart:
   - head-branch: ['^helm/', '^chart/']
