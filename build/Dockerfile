@@ -357,7 +357,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=nap-waf.sh,target=/usr/local/bin/nap-waf.sh \
 	--mount=type=bind,from=nginx-files,src=debian-agent-12.sources,target=/etc/apt/sources.list.d/nginx-agent.sources \
 	apt-get update \
-	&& apt-get install --no-install-recommends --no-install-suggests -y nginx-agent=2.* app-protect-module-plus=34+5.442* nginx-plus-module-appprotect=34+5.442* app-protect-plugin=6.12.0* \
+	&& apt-get install --no-install-recommends --no-install-suggests -y nginx-agent=2.* app-protect-module-plus=34+5.442* nginx-plus-module-appprotect=34+5.442* app-protect-plugin=6.16.0* \
 	&& nap-waf.sh \
 	&& agent.sh
 
