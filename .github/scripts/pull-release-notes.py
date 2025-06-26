@@ -6,7 +6,7 @@ import re
 import sys
 
 from github import Auth, Github
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 # parse args
 parser = argparse.ArgumentParser()
@@ -22,7 +22,7 @@ RELEASE_DATE = args.release_date
 
 # Set up Jinja2 environment
 template_dir = os.path.dirname(os.path.abspath(__file__))
-env = Environment(loader=FileSystemLoader(template_dir))
+env = Environment(loader=FileSystemLoader(template_dir), autoescape=select_autoescape(["j2"]))
 template = env.get_template("release-notes.j2")
 
 # Setup required variables
