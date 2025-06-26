@@ -135,4 +135,4 @@ for i in ${example_files}; do
     fi
 done
 
-make test-update-snaps
+#make test-update-snaps
