@@ -65,7 +65,7 @@ jobs:
       - name: Branch
         id: branch
         run: |
-          version=${{ github.event.inputs.new_version }}
+          version=${{ inputs.new_version && inputs.new_version || '5.1' }}
           version=${version%.*}
           echo "branch=release-$version" >> $GITHUB_OUTPUT
 
@@ -78,12 +78,19 @@ jobs:
       - name: Replace
         run: |
           .github/scripts/release-version-update.sh \
-            ${{ github.event.inputs.current_version }} ${{ github.event.inputs.current_helm_version }} ${{ github.event.inputs.current_operator_version }} \
-            ${{ github.event.inputs.new_version }} ${{ github.event.inputs.new_helm_version }} ${{ github.event.inputs.new_operator_version }}
+            ${{ inputs.current_version && inputs.current_version || '5.0.0' }} \
+            ${{ inputs.current_helm_version && inputs.current_helm_version || '2.1.0' }} \
+            ${{ inputs.current_operator_version && inputs.current_operator_version || '3.1.0' }} \
+            ${{ inputs.new_version && inputs.new_version || '5.1.0' }} \
+            ${{ inputs.new_helm_version && inputs.new_helm_version || '2.2.0' }} \
+            ${{ inputs.new_operator_version && inputs.new_operator_version || '3.2.0' }}
           pip install --require-hashes -r .github/scripts/requirements.txt --no-deps
           .github/scripts/release-docs.sh \
-            ${{ github.event.inputs.new_version }} ${{ github.event.inputs.new_helm_version }} ${{ github.event.inputs.new_operator_version }} \
-            "${{ github.event.inputs.k8s_versions }}" "${{ github.event.inputs.release_date }}"
+            ${{ inputs.new_version && inputs.new_version || '5.1.0' }} \
+            ${{ inputs.new_helm_version && inputs.new_helm_version || '2.2.0' }} \
+            ${{ inputs.new_operator_version && inputs.new_operator_version || '3.2.0' }} \
+            "${{ inputs.k8s_versions && inputs.k8s_versions || '1.25-1.33' }}" \
+            "${{ inputs.release_date && inputs.release_date || '30 Jun 2025' }}"
         env:
           GITHUB_USERNAME: ${{ github.actor }}
           GITHUB_EMAIL: ${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com
