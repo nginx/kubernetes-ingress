@@ -65,7 +65,7 @@ jobs:
       - name: Branch
         id: branch
         run: |
-          version=${{ inputs.new_version && inputs.new_version || '5.1' }}
+          version=${{ inputs.new_version && inputs.new_version || '5.1.0' }}
           version=${version%.*}
           echo "branch=release-$version" >> $GITHUB_OUTPUT
 
