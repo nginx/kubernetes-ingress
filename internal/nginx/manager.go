@@ -634,10 +634,10 @@ func (lm *LocalManager) AgentStart(agentDone chan error, instanceGroup string) {
 			fmt.Sprintf("product-type=%s", metadataInfo.ProductType),
 			fmt.Sprintf("product-version=%s", metadataInfo.ProductVersion),
 			fmt.Sprintf("cluster-id=%s", metadataInfo.ClusterID),
-			fmt.Sprintf("installation-name=%s", metadataInfo.InstallationName),
 			fmt.Sprintf("installation-id=%s", metadataInfo.InstallationID),
+			fmt.Sprintf("control-name=%s", metadataInfo.InstallationName),
 			fmt.Sprintf("control-id=%s", metadataInfo.InstallationID), // control-id is required but is the same as installation-id
-			fmt.Sprintf("installation-namespace=%s", metadataInfo.InstallationNamespace),
+			fmt.Sprintf("control-namespace=%s", metadataInfo.InstallationNamespace),
 		}
 		metadataLabels := "--labels=" + strings.Join(labels, ",")
 		args = append(args, metadataLabels)
