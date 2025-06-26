@@ -25,12 +25,22 @@ template_dir = os.path.dirname(os.path.abspath(__file__))
 env = Environment(loader=FileSystemLoader(template_dir))
 template = env.get_template("release-notes.j2")
 
-# Set github environment
+# Setup required variables
 github_org = os.getenv("GITHUB_ORG", "nginx")
 github_repo = os.getenv("GITHUB_REPO", "kubernetes-ingress")
 token = os.environ.get("GITHUB_TOKEN")
 docker_pr_strings = ["Docker image update", "docker group", "docker-images group", "in /build"]
 golang_pr_strings = ["go group", "go_modules group"]
+
+# Setup regex's
+# Matches:
+# My new change by @gihubhandle in https://github.com/<org>/<repo>/pull/<number>
+# Captures change title and PR URL
+change_regex = r"^(.*) by @.* in (.*)$"
+# Matches:
+# https://github.com/<org>/<repo>/pull/<number>
+# Captures PR number
+pull_request_regex = r"^.*pull/(\d+)$"
 
 
 def parse_sections(markdown: str):
@@ -116,10 +126,10 @@ for title, changes in sections.items():
     go_dependencies = []
     docker_dependencies = []
     for line in changes:
-        change = re.search("^(.*) by @.* in (.*)$", line)
+        change = re.search(change_regex, line)
         change_title = change.group(1)
         pr_link = change.group(2)
-        pr_number = re.search(r"^.*pull/(\d+)$", pr_link).group(1)
+        pr_number = re.search(pull_request_regex, pr_link).group(1)
         pr = {"details": f"[{pr_number}]({pr_link})", "title": change_title.capitalize()}
         if "Dependencies" in title:
             # save section title for later use as lookup key to categories dict
