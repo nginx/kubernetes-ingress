@@ -384,7 +384,7 @@ jobs:
           preflight_version: 1.11.1
 
   scan-docker-oss:
-    name: Scan ${{ matrix.image }}-${{ matrix.target }}
+    name: Scan ${{ matrix.image }}
     runs-on: ubuntu-22.04
     needs: [checks, tag-candidate]
     permissions:
@@ -402,7 +402,7 @@ jobs:
       - name: Make directory for security scan results
         id: directory
         run: |
-          directory=${{ matrix.image }}-${{ matrix.target }}-results
+          directory=${{ matrix.image }}-results
           echo "directory=${directory}" >> $GITHUB_OUTPUT
           mkdir -p "${directory}"
 
