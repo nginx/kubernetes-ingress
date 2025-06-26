@@ -1,6 +1,9 @@
 name: Release PR
 
 on:
+  push:
+    branches:
+      chore/update-release-notes
   workflow_dispatch:
     inputs:
       current_version:
@@ -35,6 +38,15 @@ on:
         description: "Date for this release"
         required: true
         default: "%d %b %Y"
+      dry_run:
+        description: "Don't create any PR's"
+        type: boolean
+        default: false
+      debug:
+        description: "Enable debug logging"
+        type: boolean
+        default: false
+
 
 defaults:
   run:
@@ -68,6 +80,7 @@ jobs:
           .github/scripts/release-version-update.sh \
             ${{ github.event.inputs.current_version }} ${{ github.event.inputs.current_helm_version }} ${{ github.event.inputs.current_operator_version }} \
             ${{ github.event.inputs.new_version }} ${{ github.event.inputs.new_helm_version }} ${{ github.event.inputs.new_operator_version }}
+          pip install --require-hashes -r .github/scripts/requirements.txt --no-deps
           .github/scripts/release-docs.sh \
             ${{ github.event.inputs.new_version }} ${{ github.event.inputs.new_helm_version }} ${{ github.event.inputs.new_operator_version }} \
             "${{ github.event.inputs.k8s_versions }}" "${{ github.event.inputs.release_date }}"
@@ -75,13 +88,16 @@ jobs:
           GITHUB_USERNAME: ${{ github.actor }}
           GITHUB_EMAIL: ${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run && 'true' || 'true' }}
+          DEBUG: ${{ inputs.debug && 'true' || 'true' }}
 
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: Release ${{ github.event.inputs.new_version }}
-          title: Release ${{ github.event.inputs.new_version }}
-          branch: docs/release-${{ github.event.inputs.new_version }}
-          body: |
-            This automated PR updates the docs for ${{ github.event.inputs.new_version }} release.
+      # - name: Create Pull Request
+      #   uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+      #   with:
+      #     token: ${{ secrets.GITHUB_TOKEN }}
+      #     commit-message: Release ${{ github.event.inputs.new_version }}
+      #     title: Release ${{ github.event.inputs.new_version }}
+      #     branch: docs/release-${{ github.event.inputs.new_version }}
+      #     body: |
+      #       This automated PR updates the docs for ${{ github.event.inputs.new_version }} release.
+      #   if: ${{ ! inputs.dry_run }}
