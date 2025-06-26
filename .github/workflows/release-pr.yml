@@ -1,9 +1,6 @@
 name: Release PR
 
 on:
-  push:
-    branches:
-      chore/update-release-notes
   workflow_dispatch:
     inputs:
       current_version:
@@ -65,32 +62,32 @@ jobs:
       - name: Branch
         id: branch
         run: |
-          version=${{ inputs.new_version && inputs.new_version || '5.1.0' }}
+          version=${{ inputs.new_version }}
           version=${version%.*}
           echo "branch=release-$version" >> $GITHUB_OUTPUT
 
       - name: Checkout Repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: chore/update-release-notes
+          ref: ${{ steps.branch.outputs.branch }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Replace
         run: |
           .github/scripts/release-version-update.sh \
-            ${{ inputs.current_version && inputs.current_version || '5.0.0' }} \
-            ${{ inputs.current_helm_version && inputs.current_helm_version || '2.1.0' }} \
-            ${{ inputs.current_operator_version && inputs.current_operator_version || '3.1.0' }} \
-            ${{ inputs.new_version && inputs.new_version || '5.1.0' }} \
-            ${{ inputs.new_helm_version && inputs.new_helm_version || '2.2.0' }} \
-            ${{ inputs.new_operator_version && inputs.new_operator_version || '3.2.0' }}
+            ${{ inputs.current_version }} \
+            ${{ inputs.current_helm_version }} \
+            ${{ inputs.current_operator_version }} \
+            ${{ inputs.new_version }} \
+            ${{ inputs.new_helm_version }} \
+            ${{ inputs.new_operator_version }}
           pip install --require-hashes -r .github/scripts/requirements.txt --no-deps
           .github/scripts/release-docs.sh \
-            ${{ inputs.new_version && inputs.new_version || '5.1.0' }} \
-            ${{ inputs.new_helm_version && inputs.new_helm_version || '2.2.0' }} \
-            ${{ inputs.new_operator_version && inputs.new_operator_version || '3.2.0' }} \
-            "${{ inputs.k8s_versions && inputs.k8s_versions || '1.25-1.33' }}" \
-            "${{ inputs.release_date && inputs.release_date || '30 Jun 2025' }}"
+            ${{ inputs.new_version }} \
+            ${{ inputs.new_helm_version }} \
+            ${{ inputs.new_operator_version }} \
+            "${{ inputs.k8s_versions }}" \
+            "${{ inputs.release_date }}"
         env:
           GITHUB_USERNAME: ${{ github.actor }}
           GITHUB_EMAIL: ${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com
@@ -98,13 +95,13 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run && 'true' || 'true' }}
           DEBUG: ${{ inputs.debug && 'true' || 'true' }}
 
-      # - name: Create Pull Request
-      #   uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
-      #   with:
-      #     token: ${{ secrets.GITHUB_TOKEN }}
-      #     commit-message: Release ${{ github.event.inputs.new_version }}
-      #     title: Release ${{ github.event.inputs.new_version }}
-      #     branch: docs/release-${{ github.event.inputs.new_version }}
-      #     body: |
-      #       This automated PR updates the docs for ${{ github.event.inputs.new_version }} release.
-      #   if: ${{ ! inputs.dry_run }}
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: Release ${{ github.event.inputs.new_version }}
+          title: Release ${{ github.event.inputs.new_version }}
+          branch: docs/release-${{ github.event.inputs.new_version }}
+          body: |
+            This automated PR updates the docs for ${{ github.event.inputs.new_version }} release.
+        if: ${{ ! inputs.dry_run }}
