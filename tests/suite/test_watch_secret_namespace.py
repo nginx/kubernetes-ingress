@@ -17,7 +17,7 @@ from suite.utils.ssl_utils import create_sni_session
                 "type": "complete",
                 "extra_args": [
                     f"-enable-custom-resources",
-                    f"-watch-namespace=nginx-ingress,backends,backend2-namespace",
+                    # f"-watch-namespace=nginx-ingress,backends,backend2-namespace",
                     f"-watch-secret-namespace=backends",
                 ],
             },
