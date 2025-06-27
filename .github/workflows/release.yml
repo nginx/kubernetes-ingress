@@ -48,7 +48,6 @@ permissions:
 jobs:
   # Disable operator release step for now until nginx-bot issue is resolved, manually trigger workflow in nginx-ingress-helm-operator
   operator:
-    if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'operator') && !contains(inputs.skip_step, 'publish-helm-chart') }}
     name: Trigger PR for Operator
     permissions:
       contents: write
