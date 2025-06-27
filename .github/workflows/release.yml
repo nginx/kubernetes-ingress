@@ -56,5 +56,5 @@ jobs:
     with:
       chart_version: ${{ inputs.chart_version }}
       operator_version: ${{ inputs.operator_version }}
-      k8s_version: "1.33.1"
+      k8s_version: "v1.33.1"
       dry_run: ${{ inputs.dry_run }}
