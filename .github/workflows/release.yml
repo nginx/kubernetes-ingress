@@ -50,6 +50,9 @@ jobs:
   operator:
     if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'operator') && !contains(inputs.skip_step, 'publish-helm-chart') }}
     name: Trigger PR for Operator
+    permissions:
+      contents: write
+      pull-requests: write
     uses: nginx/nginx-ingress-helm-operator/.github/workflows/sync-chart.yml@feat/update-version
     with:
       chart_version: ${{ inputs.chart_version }}
