@@ -1116,6 +1116,8 @@ server {
         proxy_cache jwks_uri_cafe;
         proxy_cache_valid 200 12h;
         proxy_set_header Host idp.spec.example.com;
+        proxy_ssl_name idp.spec.example.com;
+        proxy_ssl_server_name on;
         set $idp_backend idp.spec.example.com;
         proxy_pass https://$idp_backend:443/spec-keys;
     }
@@ -1126,6 +1128,8 @@ server {
         proxy_cache jwks_uri_cafe;
         proxy_cache_valid 200 12h;
         proxy_set_header Host idp.route.example.com;
+        proxy_ssl_name idp.route.example.com;
+        proxy_ssl_server_name on;
         set $idp_backend idp.route.example.com;
         proxy_pass http://$idp_backend:80/route-keys;
     }
@@ -1236,6 +1240,8 @@ server {
         proxy_cache jwks_uri_cafe;
         proxy_cache_valid 200 12h;
         proxy_set_header Host idp.spec.example.com;
+        proxy_ssl_name idp.spec.example.com;
+        proxy_ssl_server_name on;
         set $idp_backend idp.spec.example.com;
         proxy_pass https://$idp_backend:443/spec-keys;
     }
@@ -1246,6 +1252,8 @@ server {
         proxy_cache jwks_uri_cafe;
         proxy_cache_valid 200 12h;
         proxy_set_header Host idp.route.example.com;
+        proxy_ssl_name idp.route.example.com;
+        proxy_ssl_server_name on;
         set $idp_backend idp.route.example.com;
         proxy_pass http://$idp_backend:80/route-keys;
     }
