@@ -1,0 +1,12 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: cache-policy
+spec:
+  cache:
+    cacheZoneName: "mycache" #Required
+    cacheZoneSize: "14m" #Required
+    allowedCodes: ["any"] #Optional ["any"] or ["200", "301", ...]
+    allowedMethods: ["GET", "HEAD", "POST"] #Optional
+    time: "15m" #Optional # e.g. "15m", "1h", "2d". Default is "10m"
+    # cachePurgeAllow: ["<IP_ADDRESS>", "<CIDR>", ...]  # Optional, e.g. ["192.168.1.1", "192.168.1.0/24"]. This functionality is only available in NGINX Plus.
