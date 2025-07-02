@@ -1454,6 +1454,50 @@
                 "type": "object",
                 "ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServicePort"
               }
+            },
+            "sessionAffinity": {
+              "type": "object",
+              "default": {},
+              "title": "The sessionAffinity Schema",
+              "required": [],
+              "properties": {
+                "enable": {
+                  "type": "boolean",
+                  "default": false,
+                  "title": "Enable session affinity",
+                  "examples": [
+                    false
+                  ]
+                },
+                "type": {
+                  "type": "string",
+                  "default": "ClientIP",
+                  "title": "Session affinity type",
+                  "enum": [
+                    "ClientIP"
+                  ],
+                  "examples": [
+                    "ClientIP"
+                  ]
+                },
+                "timeoutSeconds": {
+                  "type": "integer",
+                  "default": 3600,
+                  "title": "Session affinity timeout in seconds",
+                  "minimum": 1,
+                  "maximum": 86400,
+                  "examples": [
+                    3600
+                  ]
+                }
+              },
+              "examples": [
+                {
+                  "enable": false,
+                  "type": "ClientIP",
+                  "timeoutSeconds": 3600
+                }
+              ]
             }
           },
           "examples": [
@@ -1482,7 +1526,12 @@
                 "targetPort": 443,
                 "name": "https"
               },
-              "customPorts": []
+              "customPorts": [],
+              "sessionAffinity": {
+                "enable": false,
+                "type": "ClientIP",
+                "timeoutSeconds": 3600
+              }
             }
           ]
         },

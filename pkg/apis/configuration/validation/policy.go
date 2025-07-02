@@ -402,23 +402,6 @@ func validateLogConfs(logs []*v1.SecurityLog, fieldPath *field.Path, bundleMode 
 func validateCache(cache *v1.Cache, fieldPath *field.Path, isPlus bool) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	// Validate required fields
-	if cache.CacheZoneName == "" {
-		allErrs = append(allErrs, field.Required(fieldPath.Child("cacheZoneName"), "cacheZoneName is required"))
-	} else {
-		// Validate zone name format (should be a valid identifier)
-		if len(cache.CacheZoneName) > 255 {
-			allErrs = append(allErrs, field.TooLong(fieldPath.Child("cacheZoneName"), cache.CacheZoneName, 255))
-		}
-		// Basic validation for zone name (no special characters except underscore)
-		for _, char := range cache.CacheZoneName {
-			if !((char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') || char == '_') {
-				allErrs = append(allErrs, field.Invalid(fieldPath.Child("cacheZoneName"), cache.CacheZoneName, "zone name can only contain alphanumeric characters and underscores"))
-				break
-			}
-		}
-	}
-
 	// Validate allowed codes if provided
 	for i, code := range cache.AllowedCodes {
 		if code.Type == intstr.String {

@@ -307,6 +307,8 @@ spec:
                   cacheZoneName:
                     description: CacheZoneName defines the name of the cache zone
                     type: string
+                    pattern: '^[a-z][a-zA-Z0-9_]*[a-zA-Z0-9]$|^[a-z]$'
+                    maxLength: 64
                   cacheZoneSize:
                     description: CacheZoneSize defines the size of the cache zone
                     type: string
