@@ -502,6 +502,15 @@ controller:
     ## A list of custom ports to expose through the Ingress Controller service. Follows the conventional Kubernetes yaml syntax for service ports.
     customPorts: []
 
+    ## Session affinity configuration for the Ingress Controller service, ensures requests from the same client IP go to the same pod
+    sessionAffinity:
+      ## Enable session affinity. Valid values: None, ClientIP
+      enable: false
+      ## Session affinity type. Currently only ClientIP is supported.
+      type: ClientIP
+      ## Session affinity timeout in seconds (default: 3600 = 1 hour)
+      timeoutSeconds: 3600
+
   serviceAccount:
     ## The annotations of the service account of the Ingress Controller pods.
     annotations: {}
