@@ -8,13 +8,11 @@ metadata:
   name: appprotect-dos-nginx-ingress
   namespace: appprotect-dos
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-dos
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -23,13 +21,11 @@ metadata:
   name: appprotect-dos-nginx-ingress
   namespace: appprotect-dos
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-dos
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 data:
   {}
 /-/-/-/
@@ -41,13 +37,11 @@ metadata:
   name: appprotect-dos-nginx-ingress-mgmt
   namespace: appprotect-dos
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-dos
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 data:
   license-token-secret-name: license-token
 /-/-/-/
@@ -58,13 +52,11 @@ metadata:
   name: appprotect-dos-nginx-ingress-leader-election
   namespace: appprotect-dos
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-dos
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -72,13 +64,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: appprotect-dos-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-dos
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 rules:
 - apiGroups:
   - ""
@@ -198,13 +188,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: appprotect-dos-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-dos
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 subjects:
 - kind: ServiceAccount
   name: appprotect-dos-nginx-ingress
@@ -220,13 +208,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: appprotect-dos-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-dos
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: appprotect-dos
 rules:
 - apiGroups:
@@ -282,13 +268,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: appprotect-dos-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-dos
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: appprotect-dos
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -306,13 +290,11 @@ metadata:
   name: appprotect-dos-nginx-ingress-controller
   namespace: appprotect-dos
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-dos
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   externalTrafficPolicy: Local
   type: LoadBalancer
@@ -329,7 +311,6 @@ spec:
     nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-dos
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
@@ -339,25 +320,21 @@ metadata:
   name: appprotect-dos-nginx-ingress-controller
   namespace: appprotect-dos
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-dos
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: nginx-ingress
-      zone-sync.nginx.com/name: nginx-ingress
       app.kubernetes.io/instance: appprotect-dos
   template:
     metadata:
       labels:
         app.kubernetes.io/name: nginx-ingress
-        zone-sync.nginx.com/name: nginx-ingress
         app.kubernetes.io/instance: appprotect-dos
       annotations:
         prometheus.io/scrape: "true"
@@ -374,7 +351,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:4.1.0
+      - image: nginx/nginx-ingress:5.1.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -472,13 +449,11 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-dos
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   controller: nginx.org/ingress-controller
 /-/-/-/
@@ -489,13 +464,11 @@ metadata:
   name: appprotect-dos-nginx-ingress-leader-election
   namespace: appprotect-dos
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-dos
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 ---
 
 [TestHelmNICTemplate/appProtectWAF - 1]
@@ -507,13 +480,11 @@ metadata:
   name: appprotect-waf-nginx-ingress
   namespace: appprotect-waf
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-waf
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -522,13 +493,11 @@ metadata:
   name: appprotect-waf-nginx-ingress
   namespace: appprotect-waf
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-waf
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 data:
   {}
 /-/-/-/
@@ -540,13 +509,11 @@ metadata:
   name: appprotect-waf-nginx-ingress-mgmt
   namespace: appprotect-waf
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-waf
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 data:
   license-token-secret-name: license-token
 /-/-/-/
@@ -557,13 +524,11 @@ metadata:
   name: appprotect-waf-nginx-ingress-leader-election
   namespace: appprotect-waf
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-waf
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -571,13 +536,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: appprotect-waf-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-waf
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 rules:
 - apiGroups:
   - ""
@@ -697,13 +660,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: appprotect-waf-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-waf
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 subjects:
 - kind: ServiceAccount
   name: appprotect-waf-nginx-ingress
@@ -719,13 +680,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: appprotect-waf-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-waf
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: appprotect-waf
 rules:
 - apiGroups:
@@ -781,13 +740,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: appprotect-waf-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-waf
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: appprotect-waf
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -805,13 +762,11 @@ metadata:
   name: appprotect-waf-nginx-ingress-controller
   namespace: appprotect-waf
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-waf
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   externalTrafficPolicy: Local
   type: LoadBalancer
@@ -828,7 +783,6 @@ spec:
     nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-waf
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
@@ -838,25 +792,21 @@ metadata:
   name: appprotect-waf-nginx-ingress-controller
   namespace: appprotect-waf
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-waf
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: nginx-ingress
-      zone-sync.nginx.com/name: nginx-ingress
       app.kubernetes.io/instance: appprotect-waf
   template:
     metadata:
       labels:
         app.kubernetes.io/name: nginx-ingress
-        zone-sync.nginx.com/name: nginx-ingress
         app.kubernetes.io/instance: appprotect-waf
       annotations:
         prometheus.io/scrape: "true"
@@ -873,7 +823,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:4.1.0
+      - image: nginx/nginx-ingress:5.1.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -966,13 +916,11 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-waf
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   controller: nginx.org/ingress-controller
 /-/-/-/
@@ -983,13 +931,548 @@ metadata:
   name: appprotect-waf-nginx-ingress-leader-election
   namespace: appprotect-waf
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-waf
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
+---
+
+[TestHelmNICTemplate/appProtectWAFV4AgentV2 - 1]
+/-/-/-/
+# Source: nginx-ingress/templates/controller-serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: app-protect-waf-agentv2-nginx-ingress
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: app-protect-waf-agentv2
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-protect-waf-agentv2-nginx-ingress
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: app-protect-waf-agentv2
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  {}
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-protect-waf-agentv2-nginx-ingress-agent-config
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: app-protect-waf-agentv2
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  nginx-agent.conf: |-
+    
+    log:
+      level: info
+      path: ""
+    server:
+      host: nim.example.com
+      grpcPort: 443
+      metrics: nim.example.com
+      command: nim.example.com
+    tls:
+      enable: true
+      skip_verify: false
+      ca: "/etc/ssl/nms/ca.crt"
+      cert: "/etc/ssl/nms/tls.crt"
+      key: "/etc/ssl/nms/tls.key"
+    features:
+      - registration
+      - nginx-counting
+      - metrics-sender
+      - dataplane-status
+    extensions:
+      - nginx-app-protect
+      - nap-monitoring
+    nginx_app_protect:
+      report_interval: 15s
+      precompiled_publication: true
+    nap_monitoring:
+      collector_buffer_size: 50001
+      processor_buffer_size: 50002
+      syslog_ip: 127.0.0.2
+      syslog_port: 514
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-protect-waf-agentv2-nginx-ingress-mgmt
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: app-protect-waf-agentv2
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  license-token-secret-name: license-token
+/-/-/-/
+# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-protect-waf-agentv2-nginx-ingress-leader-election
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: app-protect-waf-agentv2
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrole.yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: app-protect-waf-agentv2-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: app-protect-waf-agentv2
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - namespaces
+  - pods
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - list
+- apiGroups:
+  - "apps"
+  resources:
+  - replicasets
+  - daemonsets
+  verbs:
+  - get
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingressclasses
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/status
+  verbs:
+  - update
+- apiGroups:
+  - appprotect.f5.com
+  resources:
+  - appolicies
+  - aplogconfs
+  - apusersigs
+  verbs:
+  - get
+  - watch
+  - list
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers
+  - virtualserverroutes
+  - globalconfigurations
+  - transportservers
+  - policies
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers/status
+  - virtualserverroutes/status
+  - policies/status
+  - transportservers/status
+  verbs:
+  - update
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrolebinding.yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: app-protect-waf-agentv2-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: app-protect-waf-agentv2
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+subjects:
+- kind: ServiceAccount
+  name: app-protect-waf-agentv2-nginx-ingress
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: app-protect-waf-agentv2-nginx-ingress
+  apiGroup: rbac.authorization.k8s.io
+/-/-/-/
+# Source: nginx-ingress/templates/controller-role.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: app-protect-waf-agentv2-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: app-protect-waf-agentv2
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: default
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - pods
+  - secrets
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+    - ""
+  resources:
+    - namespaces
+  verbs:
+    - get
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  resourceNames:
+  - app-protect-waf-agentv2-nginx-ingress-leader-election
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+/-/-/-/
+# Source: nginx-ingress/templates/controller-rolebinding.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: app-protect-waf-agentv2-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: app-protect-waf-agentv2
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: app-protect-waf-agentv2-nginx-ingress
+subjects:
+- kind: ServiceAccount
+  name: app-protect-waf-agentv2-nginx-ingress
+  namespace: default
+/-/-/-/
+# Source: nginx-ingress/templates/controller-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-protect-waf-agentv2-nginx-ingress-controller
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: app-protect-waf-agentv2
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  externalTrafficPolicy: Local
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+    nodePort: 
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: https
+    nodePort: 
+  selector:
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: app-protect-waf-agentv2
+/-/-/-/
+# Source: nginx-ingress/templates/controller-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-protect-waf-agentv2-nginx-ingress-controller
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: app-protect-waf-agentv2
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx-ingress
+      app.kubernetes.io/instance: app-protect-waf-agentv2
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx-ingress
+        app.kubernetes.io/instance: app-protect-waf-agentv2
+        agent-configuration-revision-hash: "58428611"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9113"
+        prometheus.io/scheme: "http"
+    spec:      
+      volumes:
+      
+      - name: agent-conf
+        configMap:
+          name: app-protect-waf-agentv2-nginx-ingress-agent-config
+      - name: agent-dynamic
+        emptyDir: {}
+      - name: nginx-agent-tls
+        projected:
+          sources:
+            - secret:
+                name: tls-secret
+            - secret:
+                name: ca-secret
+      serviceAccountName: app-protect-waf-agentv2-nginx-ingress
+      automountServiceAccountToken: true
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      hostNetwork: false
+      dnsPolicy: ClusterFirst
+      containers:
+      - image: nginx/nginx-ingress:5.1.0
+        name: nginx-ingress
+        imagePullPolicy: "IfNotPresent"
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        - name: https
+          containerPort: 443
+          protocol: TCP
+        - name: prometheus
+          containerPort: 9113
+        - name: readiness-port
+          containerPort: 8081
+        readinessProbe:
+          httpGet:
+            path: /nginx-ready
+            port: readiness-port
+          periodSeconds: 1
+          initialDelaySeconds: 0
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsUser: 101 #nginx
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - NET_BIND_SERVICE        
+        volumeMounts:
+        
+        - name: agent-conf
+          mountPath: /etc/nginx-agent/nginx-agent.conf
+          subPath: nginx-agent.conf
+        - name: agent-dynamic
+          mountPath: /var/lib/nginx-agent
+        - name: nginx-agent-tls
+          mountPath: /etc/ssl/nms
+          readOnly: true
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        args:
+          
+          - -nginx-plus=true
+          - -nginx-reload-timeout=60000
+          - -enable-app-protect=true
+          - -enable-app-protect-dos=false
+          - -nginx-configmaps=$(POD_NAMESPACE)/app-protect-waf-agentv2-nginx-ingress
+          - -mgmt-configmap=$(POD_NAMESPACE)/app-protect-waf-agentv2-nginx-ingress-mgmt
+          - -ingress-class=nginx
+          - -health-status=false
+          - -health-status-uri=/nginx-health
+          - -nginx-debug=false
+          - -log-level=info
+          - -log-format=glog
+          - -nginx-status=true
+          - -nginx-status-port=8080
+          - -nginx-status-allow-cidrs=127.0.0.1
+          - -report-ingress-status
+          - -external-service=app-protect-waf-agentv2-nginx-ingress-controller
+          - -enable-leader-election=true
+          - -leader-election-lock-name=app-protect-waf-agentv2-nginx-ingress-leader-election
+          - -enable-prometheus-metrics=true
+          - -prometheus-metrics-listen-port=9113
+          - -prometheus-tls-secret=
+          - -enable-service-insight=false
+          - -service-insight-listen-port=9114
+          - -service-insight-tls-secret=
+          - -enable-custom-resources=true
+          - -enable-snippets=false
+          - -disable-ipv6=false
+          - -enable-tls-passthrough=false
+          - -enable-cert-manager=false
+          - -enable-oidc=false
+          - -enable-external-dns=false
+          - -default-http-listener-port=80
+          - -default-https-listener-port=443
+          - -ready-status=true
+          - -ready-status-port=8081
+          - -enable-latency-metrics=false
+          - -ssl-dynamic-reload=true
+          - -enable-telemetry-reporting=true
+          - -weight-changes-dynamic-reload=false
+          - -agent=true
+          - -agent-instance-group=app-protect-waf-agentv2-nginx-ingress-controller
+/-/-/-/
+# Source: nginx-ingress/templates/controller-ingress-class.yaml
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: nginx
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: app-protect-waf-agentv2
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  controller: nginx.org/ingress-controller
+/-/-/-/
+# Source: nginx-ingress/templates/controller-lease.yaml
+apiVersion: coordination.k8s.io/v1
+kind: Lease
+metadata:
+  name: app-protect-waf-agentv2-nginx-ingress-leader-election
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: app-protect-waf-agentv2
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/appProtectWAFV5 - 1]
@@ -1001,13 +1484,11 @@ metadata:
   name: appprotect-wafv5-nginx-ingress
   namespace: appprotect-wafv5
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-wafv5
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -1016,13 +1497,11 @@ metadata:
   name: appprotect-wafv5-nginx-ingress
   namespace: appprotect-wafv5
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-wafv5
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 data:
   {}
 /-/-/-/
@@ -1034,13 +1513,11 @@ metadata:
   name: appprotect-wafv5-nginx-ingress-mgmt
   namespace: appprotect-wafv5
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-wafv5
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 data:
   license-token-secret-name: license-token
 /-/-/-/
@@ -1051,13 +1528,11 @@ metadata:
   name: appprotect-wafv5-nginx-ingress-leader-election
   namespace: appprotect-wafv5
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-wafv5
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -1065,13 +1540,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: appprotect-wafv5-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-wafv5
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 rules:
 - apiGroups:
   - ""
@@ -1191,13 +1664,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: appprotect-wafv5-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-wafv5
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 subjects:
 - kind: ServiceAccount
   name: appprotect-wafv5-nginx-ingress
@@ -1213,13 +1684,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: appprotect-wafv5-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-wafv5
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: appprotect-wafv5
 rules:
 - apiGroups:
@@ -1275,13 +1744,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: appprotect-wafv5-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-wafv5
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: appprotect-wafv5
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -1299,13 +1766,11 @@ metadata:
   name: appprotect-wafv5-nginx-ingress-controller
   namespace: appprotect-wafv5
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-wafv5
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   externalTrafficPolicy: Local
   type: LoadBalancer
@@ -1322,7 +1787,6 @@ spec:
     nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-wafv5
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
@@ -1332,25 +1796,21 @@ metadata:
   name: appprotect-wafv5-nginx-ingress-controller
   namespace: appprotect-wafv5
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-wafv5
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: nginx-ingress
-      zone-sync.nginx.com/name: nginx-ingress
       app.kubernetes.io/instance: appprotect-wafv5
   template:
     metadata:
       labels:
         app.kubernetes.io/name: nginx-ingress
-        zone-sync.nginx.com/name: nginx-ingress
         app.kubernetes.io/instance: appprotect-wafv5
       annotations:
         prometheus.io/scrape: "true"
@@ -1374,7 +1834,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:4.1.0
+      - image: nginx/nginx-ingress:5.1.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -1507,13 +1967,11 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-wafv5
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   controller: nginx.org/ingress-controller
 /-/-/-/
@@ -1524,13 +1982,593 @@ metadata:
   name: appprotect-wafv5-nginx-ingress-leader-election
   namespace: appprotect-wafv5
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-wafv5
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
+---
+
+[TestHelmNICTemplate/appProtectWAFV5AgentV2 - 1]
+/-/-/-/
+# Source: nginx-ingress/templates/controller-serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: app-protect-wafv5-agentv2-nginx-ingress
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: app-protect-wafv5-agentv2
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-protect-wafv5-agentv2-nginx-ingress
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: app-protect-wafv5-agentv2
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  {}
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-protect-wafv5-agentv2-nginx-ingress-agent-config
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: app-protect-wafv5-agentv2
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  nginx-agent.conf: |-
+    
+    log:
+      level: info
+      path: ""
+    server:
+      host: nim.example.com
+      grpcPort: 443
+      metrics: nim.example.com
+      command: nim.example.com
+    tls:
+      enable: true
+      skip_verify: false
+      ca: "/etc/ssl/nms/ca.crt"
+      cert: "/etc/ssl/nms/tls.crt"
+      key: "/etc/ssl/nms/tls.key"
+    features:
+      - registration
+      - nginx-counting
+      - metrics-sender
+      - dataplane-status
+    extensions:
+      - nginx-app-protect
+      - nap-monitoring
+    nginx_app_protect:
+      report_interval: 15s
+      precompiled_publication: true
+    nap_monitoring:
+      collector_buffer_size: 50000
+      processor_buffer_size: 50000
+      syslog_ip: 127.0.0.1
+      syslog_port: 1514
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-protect-wafv5-agentv2-nginx-ingress-mgmt
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: app-protect-wafv5-agentv2
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  license-token-secret-name: license-token
+/-/-/-/
+# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-protect-wafv5-agentv2-nginx-ingress-leader-election
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: app-protect-wafv5-agentv2
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrole.yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: app-protect-wafv5-agentv2-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: app-protect-wafv5-agentv2
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - namespaces
+  - pods
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - list
+- apiGroups:
+  - "apps"
+  resources:
+  - replicasets
+  - daemonsets
+  verbs:
+  - get
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingressclasses
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/status
+  verbs:
+  - update
+- apiGroups:
+  - appprotect.f5.com
+  resources:
+  - appolicies
+  - aplogconfs
+  - apusersigs
+  verbs:
+  - get
+  - watch
+  - list
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers
+  - virtualserverroutes
+  - globalconfigurations
+  - transportservers
+  - policies
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers/status
+  - virtualserverroutes/status
+  - policies/status
+  - transportservers/status
+  verbs:
+  - update
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrolebinding.yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: app-protect-wafv5-agentv2-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: app-protect-wafv5-agentv2
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+subjects:
+- kind: ServiceAccount
+  name: app-protect-wafv5-agentv2-nginx-ingress
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: app-protect-wafv5-agentv2-nginx-ingress
+  apiGroup: rbac.authorization.k8s.io
+/-/-/-/
+# Source: nginx-ingress/templates/controller-role.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: app-protect-wafv5-agentv2-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: app-protect-wafv5-agentv2
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: default
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - pods
+  - secrets
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+    - ""
+  resources:
+    - namespaces
+  verbs:
+    - get
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  resourceNames:
+  - app-protect-wafv5-agentv2-nginx-ingress-leader-election
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+/-/-/-/
+# Source: nginx-ingress/templates/controller-rolebinding.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: app-protect-wafv5-agentv2-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: app-protect-wafv5-agentv2
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: app-protect-wafv5-agentv2-nginx-ingress
+subjects:
+- kind: ServiceAccount
+  name: app-protect-wafv5-agentv2-nginx-ingress
+  namespace: default
+/-/-/-/
+# Source: nginx-ingress/templates/controller-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-protect-wafv5-agentv2-nginx-ingress-controller
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: app-protect-wafv5-agentv2
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  externalTrafficPolicy: Local
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+    nodePort: 
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: https
+    nodePort: 
+  selector:
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: app-protect-wafv5-agentv2
+/-/-/-/
+# Source: nginx-ingress/templates/controller-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-protect-wafv5-agentv2-nginx-ingress-controller
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: app-protect-wafv5-agentv2
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx-ingress
+      app.kubernetes.io/instance: app-protect-wafv5-agentv2
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx-ingress
+        app.kubernetes.io/instance: app-protect-wafv5-agentv2
+        agent-configuration-revision-hash: "a8989f3a"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9113"
+        prometheus.io/scheme: "http"
+    spec:      
+      volumes:
+      
+      - emptyDir: {}
+        name: app-protect-bd-config
+      - emptyDir: {}
+        name: app-protect-config
+      - emptyDir: {}
+        name: app-protect-bundles
+      - name: agent-conf
+        configMap:
+          name: app-protect-wafv5-agentv2-nginx-ingress-agent-config
+      - name: agent-dynamic
+        emptyDir: {}
+      - name: nginx-agent-tls
+        projected:
+          sources:
+            - secret:
+                name: tls-secret
+            - secret:
+                name: ca-secret
+      serviceAccountName: app-protect-wafv5-agentv2-nginx-ingress
+      automountServiceAccountToken: true
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      hostNetwork: false
+      dnsPolicy: ClusterFirst
+      containers:
+      - image: nginx/nginx-ingress:5.1.0
+        name: nginx-ingress
+        imagePullPolicy: "IfNotPresent"
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        - name: https
+          containerPort: 443
+          protocol: TCP
+        - name: prometheus
+          containerPort: 9113
+        - name: readiness-port
+          containerPort: 8081
+        readinessProbe:
+          httpGet:
+            path: /nginx-ready
+            port: readiness-port
+          periodSeconds: 1
+          initialDelaySeconds: 0
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsUser: 101 #nginx
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - NET_BIND_SERVICE        
+        volumeMounts:
+        
+        - name: app-protect-bd-config
+          mountPath: /opt/app_protect/bd_config
+        - name: app-protect-config
+          mountPath: /opt/app_protect/config
+          # app-protect-bundles is mounted so that Ingress Controller
+          # can verify that referenced bundles are present
+        - name: app-protect-bundles
+          mountPath: /etc/app_protect/bundles
+        - name: agent-conf
+          mountPath: /etc/nginx-agent/nginx-agent.conf
+          subPath: nginx-agent.conf
+        - name: agent-dynamic
+          mountPath: /var/lib/nginx-agent
+        - name: nginx-agent-tls
+          mountPath: /etc/ssl/nms
+          readOnly: true
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        args:
+          
+          - -nginx-plus=true
+          - -nginx-reload-timeout=60000
+          - -enable-app-protect=true
+          - -app-protect-enforcer-address="localhost:50001"
+          - -enable-app-protect-dos=false
+          - -nginx-configmaps=$(POD_NAMESPACE)/app-protect-wafv5-agentv2-nginx-ingress
+          - -mgmt-configmap=$(POD_NAMESPACE)/app-protect-wafv5-agentv2-nginx-ingress-mgmt
+          - -ingress-class=nginx
+          - -health-status=false
+          - -health-status-uri=/nginx-health
+          - -nginx-debug=false
+          - -log-level=info
+          - -log-format=glog
+          - -nginx-status=true
+          - -nginx-status-port=8080
+          - -nginx-status-allow-cidrs=127.0.0.1
+          - -report-ingress-status
+          - -external-service=app-protect-wafv5-agentv2-nginx-ingress-controller
+          - -enable-leader-election=true
+          - -leader-election-lock-name=app-protect-wafv5-agentv2-nginx-ingress-leader-election
+          - -enable-prometheus-metrics=true
+          - -prometheus-metrics-listen-port=9113
+          - -prometheus-tls-secret=
+          - -enable-service-insight=false
+          - -service-insight-listen-port=9114
+          - -service-insight-tls-secret=
+          - -enable-custom-resources=true
+          - -enable-snippets=false
+          - -disable-ipv6=false
+          - -enable-tls-passthrough=false
+          - -enable-cert-manager=false
+          - -enable-oidc=false
+          - -enable-external-dns=false
+          - -default-http-listener-port=80
+          - -default-https-listener-port=443
+          - -ready-status=true
+          - -ready-status-port=8081
+          - -enable-latency-metrics=false
+          - -ssl-dynamic-reload=true
+          - -enable-telemetry-reporting=true
+          - -weight-changes-dynamic-reload=false
+          - -agent=true
+          - -agent-instance-group=app-protect-wafv5-agentv2-nginx-ingress-controller
+      
+      - name: waf-enforcer
+        image: my.private.reg/nap/waf-enforcer:5.6.0
+        imagePullPolicy: "IfNotPresent"
+        env:
+          - name: ENFORCER_PORT
+            value: "50001"
+          - name: ENFORCER_CONFIG_TIMEOUT
+            value: "0"
+        volumeMounts:
+          - name: app-protect-bd-config
+            mountPath: /opt/app_protect/bd_config
+      - name: waf-config-mgr
+        image: my.private.reg/nap/waf-config-mgr:5.6.0
+        imagePullPolicy: "IfNotPresent"
+        securityContext:
+      
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - all
+            runAsNonRoot: true
+            runAsUser: 101
+        volumeMounts:
+          - name: app-protect-bd-config
+            mountPath: /opt/app_protect/bd_config
+          - name: app-protect-config
+            mountPath: /opt/app_protect/config
+          - name: app-protect-bundles
+            mountPath: /etc/app_protect/bundles
+/-/-/-/
+# Source: nginx-ingress/templates/controller-ingress-class.yaml
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: nginx
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: app-protect-wafv5-agentv2
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  controller: nginx.org/ingress-controller
+/-/-/-/
+# Source: nginx-ingress/templates/controller-lease.yaml
+apiVersion: coordination.k8s.io/v1
+kind: Lease
+metadata:
+  name: app-protect-wafv5-agentv2-nginx-ingress-leader-election
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: app-protect-wafv5-agentv2
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/customResources - 1]
@@ -1542,13 +2580,11 @@ metadata:
   name: custom-resources-nginx-ingress
   namespace: custom-resources
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: custom-resources
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -1557,13 +2593,11 @@ metadata:
   name: custom-resources-nginx-ingress
   namespace: custom-resources
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: custom-resources
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 data:
   {}
 /-/-/-/
@@ -1574,13 +2608,11 @@ metadata:
   name: custom-resources-nginx-ingress-leader-election
   namespace: custom-resources
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: custom-resources
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -1588,13 +2620,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: custom-resources-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: custom-resources
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 rules:
 - apiGroups:
   - ""
@@ -1683,13 +2713,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: custom-resources-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: custom-resources
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 subjects:
 - kind: ServiceAccount
   name: custom-resources-nginx-ingress
@@ -1705,13 +2733,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: custom-resources-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: custom-resources
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: custom-resources
 rules:
 - apiGroups:
@@ -1767,13 +2793,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: custom-resources-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: custom-resources
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: custom-resources
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -1791,13 +2815,11 @@ metadata:
   name: custom-resources-nginx-ingress-controller
   namespace: custom-resources
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: custom-resources
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   externalTrafficPolicy: Local
   type: LoadBalancer
@@ -1814,7 +2836,6 @@ spec:
     nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: custom-resources
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
@@ -1824,25 +2845,21 @@ metadata:
   name: custom-resources-nginx-ingress-controller
   namespace: custom-resources
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: custom-resources
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: nginx-ingress
-      zone-sync.nginx.com/name: nginx-ingress
       app.kubernetes.io/instance: custom-resources
   template:
     metadata:
       labels:
         app.kubernetes.io/name: nginx-ingress
-        zone-sync.nginx.com/name: nginx-ingress
         app.kubernetes.io/instance: custom-resources
       annotations:
         prometheus.io/scrape: "true"
@@ -1859,7 +2876,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:4.1.0
+      - image: nginx/nginx-ingress:5.1.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -1945,13 +2962,11 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: custom-resources
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   controller: nginx.org/ingress-controller
 /-/-/-/
@@ -1965,13 +2980,11 @@ metadata:
   name: custom-resources-nginx-ingress-leader-election
   namespace: custom-resources
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: custom-resources
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 ---
 
 [TestHelmNICTemplate/daemonset - 1]
@@ -1983,13 +2996,11 @@ metadata:
   name: daemonset-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: daemonset
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -1998,13 +3009,11 @@ metadata:
   name: daemonset-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: daemonset
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 data:
   {}
 /-/-/-/
@@ -2015,13 +3024,11 @@ metadata:
   name: daemonset-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: daemonset
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -2029,13 +3036,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: daemonset-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: daemonset
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 rules:
 - apiGroups:
   - ""
@@ -2145,13 +3150,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: daemonset-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: daemonset
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 subjects:
 - kind: ServiceAccount
   name: daemonset-nginx-ingress
@@ -2167,13 +3170,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: daemonset-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: daemonset
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: default
 rules:
 - apiGroups:
@@ -2229,13 +3230,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: daemonset-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: daemonset
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: default
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -2253,13 +3252,11 @@ metadata:
   name: daemonset-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: daemonset
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   externalTrafficPolicy: Local
   type: LoadBalancer
@@ -2276,7 +3273,6 @@ spec:
     nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: daemonset
 /-/-/-/
 # Source: nginx-ingress/templates/controller-daemonset.yaml
@@ -2286,24 +3282,20 @@ metadata:
   name: daemonset-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: daemonset
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: nginx-ingress
-      zone-sync.nginx.com/name: nginx-ingress
       app.kubernetes.io/instance: daemonset
   template:
     metadata:
       labels:
         app.kubernetes.io/name: nginx-ingress
-        zone-sync.nginx.com/name: nginx-ingress
         app.kubernetes.io/instance: daemonset
       annotations:
         prometheus.io/scrape: "true"
@@ -2321,7 +3313,7 @@ spec:
       dnsPolicy: ClusterFirst
       containers:
       - name: nginx-ingress
-        image: nginx/nginx-ingress:4.1.0
+        image: nginx/nginx-ingress:5.1.0
         imagePullPolicy: "IfNotPresent"
         ports:
         - name: http
@@ -2413,13 +3405,11 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: daemonset
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   controller: nginx.org/ingress-controller
 /-/-/-/
@@ -2433,13 +3423,11 @@ metadata:
   name: daemonset-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: daemonset
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 ---
 
 [TestHelmNICTemplate/default_values_file - 1]
@@ -2451,13 +3439,11 @@ metadata:
   name: default-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: default
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -2466,13 +3452,11 @@ metadata:
   name: default-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: default
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 data:
   {}
 /-/-/-/
@@ -2483,13 +3467,11 @@ metadata:
   name: default-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: default
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -2497,13 +3479,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: default-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: default
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 rules:
 - apiGroups:
   - ""
@@ -2613,13 +3593,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: default-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: default
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 subjects:
 - kind: ServiceAccount
   name: default-nginx-ingress
@@ -2635,13 +3613,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: default-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: default
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: default
 rules:
 - apiGroups:
@@ -2697,13 +3673,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: default-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: default
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: default
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -2721,13 +3695,11 @@ metadata:
   name: default-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: default
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   externalTrafficPolicy: Local
   type: LoadBalancer
@@ -2744,7 +3716,6 @@ spec:
     nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: default
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
@@ -2754,25 +3725,21 @@ metadata:
   name: default-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: default
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: nginx-ingress
-      zone-sync.nginx.com/name: nginx-ingress
       app.kubernetes.io/instance: default
   template:
     metadata:
       labels:
         app.kubernetes.io/name: nginx-ingress
-        zone-sync.nginx.com/name: nginx-ingress
         app.kubernetes.io/instance: default
       annotations:
         prometheus.io/scrape: "true"
@@ -2789,7 +3756,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:4.1.0
+      - image: nginx/nginx-ingress:5.1.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -2881,13 +3848,11 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: default
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   controller: nginx.org/ingress-controller
 /-/-/-/
@@ -2901,13 +3866,11 @@ metadata:
   name: default-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: default
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 ---
 
 [TestHelmNICTemplate/globalConfig - 1]
@@ -2919,13 +3882,11 @@ metadata:
   name: global-configuration-nginx-ingress
   namespace: gc
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: global-configuration
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -2934,13 +3895,11 @@ metadata:
   name: global-configuration-nginx-ingress
   namespace: gc
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: global-configuration
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 data:
   {}
 /-/-/-/
@@ -2951,13 +3910,11 @@ metadata:
   name: global-configuration-nginx-ingress-leader-election
   namespace: gc
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: global-configuration
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -2965,13 +3922,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: global-configuration-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: global-configuration
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 rules:
 - apiGroups:
   - ""
@@ -3081,13 +4036,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: global-configuration-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: global-configuration
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 subjects:
 - kind: ServiceAccount
   name: global-configuration-nginx-ingress
@@ -3103,13 +4056,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: global-configuration-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: global-configuration
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: gc
 rules:
 - apiGroups:
@@ -3165,13 +4116,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: global-configuration-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: global-configuration
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: gc
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -3189,13 +4138,11 @@ metadata:
   name: global-configuration-nginx-ingress-controller
   namespace: gc
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: global-configuration
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   externalTrafficPolicy: Local
   type: LoadBalancer
@@ -3212,7 +4159,6 @@ spec:
     nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: global-configuration
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
@@ -3222,25 +4168,21 @@ metadata:
   name: global-configuration-nginx-ingress-controller
   namespace: gc
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: global-configuration
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: nginx-ingress
-      zone-sync.nginx.com/name: nginx-ingress
       app.kubernetes.io/instance: global-configuration
   template:
     metadata:
       labels:
         app.kubernetes.io/name: nginx-ingress
-        zone-sync.nginx.com/name: nginx-ingress
         app.kubernetes.io/instance: global-configuration
       annotations:
         prometheus.io/scrape: "true"
@@ -3257,7 +4199,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:4.1.0
+      - image: nginx/nginx-ingress:5.1.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -3350,13 +4292,11 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: global-configuration
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   controller: nginx.org/ingress-controller
 /-/-/-/
@@ -3370,13 +4310,11 @@ metadata:
   name: global-configuration-nginx-ingress-controller
   namespace: gc
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: global-configuration
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   listeners:
   - name: dns-udp
@@ -3393,13 +4331,11 @@ metadata:
   name: global-configuration-nginx-ingress-leader-election
   namespace: gc
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: global-configuration
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 ---
 
 [TestHelmNICTemplate/ingressClass - 1]
@@ -3411,13 +4347,11 @@ metadata:
   name: ingress-class-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -3426,13 +4360,11 @@ metadata:
   name: ingress-class-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 data:
   {}
 /-/-/-/
@@ -3443,13 +4375,11 @@ metadata:
   name: ingress-class-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -3457,13 +4387,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: ingress-class-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 rules:
 - apiGroups:
   - ""
@@ -3573,13 +4501,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: ingress-class-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 subjects:
 - kind: ServiceAccount
   name: ingress-class-nginx-ingress
@@ -3595,13 +4521,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: ingress-class-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: default
 rules:
 - apiGroups:
@@ -3657,13 +4581,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: ingress-class-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: default
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -3681,13 +4603,11 @@ metadata:
   name: ingress-class-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   externalTrafficPolicy: Local
   type: LoadBalancer
@@ -3704,7 +4624,6 @@ spec:
     nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
@@ -3714,25 +4633,21 @@ metadata:
   name: ingress-class-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: nginx-ingress
-      zone-sync.nginx.com/name: nginx-ingress
       app.kubernetes.io/instance: ingress-class
   template:
     metadata:
       labels:
         app.kubernetes.io/name: nginx-ingress
-        zone-sync.nginx.com/name: nginx-ingress
         app.kubernetes.io/instance: ingress-class
       annotations:
         prometheus.io/scrape: "true"
@@ -3749,7 +4664,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:4.1.0
+      - image: nginx/nginx-ingress:5.1.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -3841,13 +4756,11 @@ kind: IngressClass
 metadata:
   name: changed
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   annotations:
     ingressclass.kubernetes.io/is-default-class: "true"
 spec:
@@ -3863,13 +4776,11 @@ metadata:
   name: ingress-class-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 ---
 
 [TestHelmNICTemplate/namespace - 1]
@@ -3881,13 +4792,11 @@ metadata:
   name: namespace-nginx-ingress
   namespace: nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: namespace
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -3896,13 +4805,11 @@ metadata:
   name: namespace-nginx-ingress
   namespace: nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: namespace
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 data:
   {}
 /-/-/-/
@@ -3913,13 +4820,11 @@ metadata:
   name: namespace-nginx-ingress-leader-election
   namespace: nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: namespace
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -3927,13 +4832,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: namespace-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: namespace
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 rules:
 - apiGroups:
   - ""
@@ -4043,13 +4946,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: namespace-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: namespace
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 subjects:
 - kind: ServiceAccount
   name: namespace-nginx-ingress
@@ -4065,13 +4966,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: namespace-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: namespace
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: nginx-ingress
 rules:
 - apiGroups:
@@ -4127,13 +5026,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: namespace-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: namespace
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: nginx-ingress
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -4151,13 +5048,11 @@ metadata:
   name: namespace-nginx-ingress-controller
   namespace: nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: namespace
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   externalTrafficPolicy: Local
   type: LoadBalancer
@@ -4174,7 +5069,6 @@ spec:
     nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: namespace
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
@@ -4184,25 +5078,21 @@ metadata:
   name: namespace-nginx-ingress-controller
   namespace: nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: namespace
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: nginx-ingress
-      zone-sync.nginx.com/name: nginx-ingress
       app.kubernetes.io/instance: namespace
   template:
     metadata:
       labels:
         app.kubernetes.io/name: nginx-ingress
-        zone-sync.nginx.com/name: nginx-ingress
         app.kubernetes.io/instance: namespace
       annotations:
         prometheus.io/scrape: "true"
@@ -4219,7 +5109,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:4.1.0
+      - image: nginx/nginx-ingress:5.1.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -4311,13 +5201,11 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: namespace
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   controller: nginx.org/ingress-controller
 /-/-/-/
@@ -4331,13 +5219,507 @@ metadata:
   name: namespace-nginx-ingress-leader-election
   namespace: nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: namespace
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
+---
+
+[TestHelmNICTemplate/ossAgentV3 - 1]
+/-/-/-/
+# Source: nginx-ingress/templates/controller-serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: oss-agent-nginx-ingress
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: oss-agent
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oss-agent-nginx-ingress
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: oss-agent
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  {}
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oss-agent-nginx-ingress-agent-config
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: oss-agent
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  nginx-agent.conf: |-
+    
+    log:
+      # set log level (error, info, debug; default "info")
+      level: info
+      # set log path. if empty, don't log to file.
+      path: ""
+    
+    allowed_directories:
+      - /etc/nginx
+      - /usr/lib/nginx/modules
+    
+    features:
+      - certificates
+      - connection
+      - metrics
+      - file-watcher
+    
+    ## command server settings
+    command:
+      server:
+        host: product.connect.nginx.com
+        port: 443
+      auth:
+        tokenpath: "/etc/nginx-agent/secrets/dataplane.key"
+      tls:
+        skip_verify: false
+/-/-/-/
+# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oss-agent-nginx-ingress-leader-election
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: oss-agent
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrole.yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: oss-agent-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: oss-agent
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - namespaces
+  - pods
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - list
+- apiGroups:
+  - "apps"
+  resources:
+  - replicasets
+  - daemonsets
+  verbs:
+  - get
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingressclasses
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/status
+  verbs:
+  - update
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers
+  - virtualserverroutes
+  - globalconfigurations
+  - transportservers
+  - policies
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers/status
+  - virtualserverroutes/status
+  - policies/status
+  - transportservers/status
+  verbs:
+  - update
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrolebinding.yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: oss-agent-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: oss-agent
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+subjects:
+- kind: ServiceAccount
+  name: oss-agent-nginx-ingress
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: oss-agent-nginx-ingress
+  apiGroup: rbac.authorization.k8s.io
+/-/-/-/
+# Source: nginx-ingress/templates/controller-role.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: oss-agent-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: oss-agent
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: default
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - pods
+  - secrets
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+    - ""
+  resources:
+    - namespaces
+  verbs:
+    - get
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  resourceNames:
+  - oss-agent-nginx-ingress-leader-election
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+/-/-/-/
+# Source: nginx-ingress/templates/controller-rolebinding.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: oss-agent-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: oss-agent
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: oss-agent-nginx-ingress
+subjects:
+- kind: ServiceAccount
+  name: oss-agent-nginx-ingress
+  namespace: default
+/-/-/-/
+# Source: nginx-ingress/templates/controller-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: oss-agent-nginx-ingress-controller
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: oss-agent
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  externalTrafficPolicy: Local
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+    nodePort: 
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: https
+    nodePort: 
+  selector:
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: oss-agent
+/-/-/-/
+# Source: nginx-ingress/templates/controller-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oss-agent-nginx-ingress-controller
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: oss-agent
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx-ingress
+      app.kubernetes.io/instance: oss-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx-ingress
+        app.kubernetes.io/instance: oss-agent
+        agent-configuration-revision-hash: "eb3f867e"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9113"
+        prometheus.io/scheme: "http"
+    spec:      
+      volumes:
+      
+      - name: agent-conf
+        configMap:
+          name: oss-agent-nginx-ingress-agent-config
+      - name: dataplane-key
+        secret:
+          secretName: dataplane-key
+      serviceAccountName: oss-agent-nginx-ingress
+      automountServiceAccountToken: true
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      hostNetwork: false
+      dnsPolicy: ClusterFirst
+      containers:
+      - image: nginx/nginx-ingress:5.1.0
+        name: nginx-ingress
+        imagePullPolicy: "IfNotPresent"
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        - name: https
+          containerPort: 443
+          protocol: TCP
+        - name: prometheus
+          containerPort: 9113
+        - name: readiness-port
+          containerPort: 8081
+        readinessProbe:
+          httpGet:
+            path: /nginx-ready
+            port: readiness-port
+          periodSeconds: 1
+          initialDelaySeconds: 0
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsUser: 101 #nginx
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - NET_BIND_SERVICE        
+        volumeMounts:
+        
+        - name: agent-conf
+          mountPath: /etc/nginx-agent/nginx-agent.conf
+          subPath: nginx-agent.conf
+        - name: dataplane-key
+          mountPath: /etc/nginx-agent/secrets
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        args:
+          
+          - -nginx-plus=false
+          - -nginx-reload-timeout=60000
+          - -enable-app-protect=false
+          - -enable-app-protect-dos=false
+          - -nginx-configmaps=$(POD_NAMESPACE)/oss-agent-nginx-ingress
+          - -ingress-class=nginx
+          - -health-status=false
+          - -health-status-uri=/nginx-health
+          - -nginx-debug=false
+          - -log-level=info
+          - -log-format=glog
+          - -nginx-status=true
+          - -nginx-status-port=8080
+          - -nginx-status-allow-cidrs=127.0.0.1
+          - -report-ingress-status
+          - -external-service=oss-agent-nginx-ingress-controller
+          - -enable-leader-election=true
+          - -leader-election-lock-name=oss-agent-nginx-ingress-leader-election
+          - -enable-prometheus-metrics=true
+          - -prometheus-metrics-listen-port=9113
+          - -prometheus-tls-secret=
+          - -enable-service-insight=false
+          - -service-insight-listen-port=9114
+          - -service-insight-tls-secret=
+          - -enable-custom-resources=true
+          - -enable-snippets=false
+          - -disable-ipv6=false
+          - -enable-tls-passthrough=false
+          - -enable-cert-manager=false
+          - -enable-oidc=false
+          - -enable-external-dns=false
+          - -default-http-listener-port=80
+          - -default-https-listener-port=443
+          - -ready-status=true
+          - -ready-status-port=8081
+          - -enable-latency-metrics=false
+          - -ssl-dynamic-reload=true
+          - -enable-telemetry-reporting=true
+          - -weight-changes-dynamic-reload=false
+          - -agent=true
+/-/-/-/
+# Source: nginx-ingress/templates/controller-ingress-class.yaml
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: nginx
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: oss-agent
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  controller: nginx.org/ingress-controller
+/-/-/-/
+# Source: nginx-ingress/templates/controller-lease.yaml
+apiVersion: coordination.k8s.io/v1
+kind: Lease
+metadata:
+  name: oss-agent-nginx-ingress-leader-election
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: oss-agent
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/plus - 1]
@@ -4349,13 +5731,11 @@ metadata:
   name: plus-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -4364,13 +5744,11 @@ metadata:
   name: plus-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 data:
   {}
 /-/-/-/
@@ -4382,13 +5760,11 @@ metadata:
   name: plus-nginx-ingress-mgmt
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 data:
   license-token-secret-name: license-token
 /-/-/-/
@@ -4399,13 +5775,11 @@ metadata:
   name: plus-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -4413,13 +5787,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 rules:
 - apiGroups:
   - ""
@@ -4529,13 +5901,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 subjects:
 - kind: ServiceAccount
   name: plus-nginx-ingress
@@ -4551,13 +5921,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: default
 rules:
 - apiGroups:
@@ -4613,13 +5981,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: default
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -4637,13 +6003,11 @@ metadata:
   name: plus-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   externalTrafficPolicy: Local
   type: LoadBalancer
@@ -4660,7 +6024,6 @@ spec:
     nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
@@ -4670,25 +6033,21 @@ metadata:
   name: plus-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: nginx-ingress
-      zone-sync.nginx.com/name: nginx-ingress
       app.kubernetes.io/instance: plus
   template:
     metadata:
       labels:
         app.kubernetes.io/name: nginx-ingress
-        zone-sync.nginx.com/name: nginx-ingress
         app.kubernetes.io/instance: plus
       annotations:
         prometheus.io/scrape: "true"
@@ -4705,7 +6064,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:4.1.0
+      - image: nginx/nginx-ingress:5.1.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -4798,13 +6157,11 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   controller: nginx.org/ingress-controller
 /-/-/-/
@@ -4815,13 +6172,11 @@ metadata:
   name: plus-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 ---
 
 [TestHelmNICTemplate/plus-debug - 1]
@@ -4833,13 +6188,11 @@ metadata:
   name: plus-debug-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-debug
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -4848,13 +6201,11 @@ metadata:
   name: plus-debug-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-debug
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 data:
   {}
 /-/-/-/
@@ -4866,13 +6217,11 @@ metadata:
   name: plus-debug-nginx-ingress-mgmt
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-debug
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 data:
   license-token-secret-name: license-token
 /-/-/-/
@@ -4883,13 +6232,11 @@ metadata:
   name: plus-debug-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-debug
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -4897,13 +6244,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-debug-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-debug
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 rules:
 - apiGroups:
   - ""
@@ -5013,13 +6358,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-debug-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-debug
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 subjects:
 - kind: ServiceAccount
   name: plus-debug-nginx-ingress
@@ -5035,13 +6378,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-debug-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-debug
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: default
 rules:
 - apiGroups:
@@ -5097,13 +6438,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-debug-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-debug
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: default
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -5121,13 +6460,11 @@ metadata:
   name: plus-debug-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-debug
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   externalTrafficPolicy: Local
   type: LoadBalancer
@@ -5144,7 +6481,6 @@ spec:
     nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-debug
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
@@ -5154,25 +6490,21 @@ metadata:
   name: plus-debug-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-debug
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: nginx-ingress
-      zone-sync.nginx.com/name: nginx-ingress
       app.kubernetes.io/instance: plus-debug
   template:
     metadata:
       labels:
         app.kubernetes.io/name: nginx-ingress
-        zone-sync.nginx.com/name: nginx-ingress
         app.kubernetes.io/instance: plus-debug
       annotations:
         prometheus.io/scrape: "true"
@@ -5189,7 +6521,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:4.1.0
+      - image: nginx/nginx-ingress:5.1.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -5292,13 +6624,11 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-debug
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   controller: nginx.org/ingress-controller
 /-/-/-/
@@ -5309,13 +6639,11 @@ metadata:
   name: plus-debug-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-debug
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 ---
 
 [TestHelmNICTemplate/plus-mgmt - 1]
@@ -5327,13 +6655,11 @@ metadata:
   name: plus-mgmt-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -5342,13 +6668,11 @@ metadata:
   name: plus-mgmt-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 data:
   {}
 /-/-/-/
@@ -5360,13 +6684,11 @@ metadata:
   name: plus-mgmt-nginx-ingress-mgmt
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 data:
   license-token-secret-name: license
   ssl-verify: "false"
@@ -5387,13 +6709,11 @@ metadata:
   name: plus-mgmt-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -5401,13 +6721,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 rules:
 - apiGroups:
   - ""
@@ -5517,13 +6835,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 subjects:
 - kind: ServiceAccount
   name: plus-mgmt-nginx-ingress
@@ -5539,13 +6855,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: default
 rules:
 - apiGroups:
@@ -5601,13 +6915,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: default
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -5625,13 +6937,11 @@ metadata:
   name: plus-mgmt-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   externalTrafficPolicy: Local
   type: LoadBalancer
@@ -5648,7 +6958,6 @@ spec:
     nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
@@ -5658,25 +6967,21 @@ metadata:
   name: plus-mgmt-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: nginx-ingress
-      zone-sync.nginx.com/name: nginx-ingress
       app.kubernetes.io/instance: plus-mgmt
   template:
     metadata:
       labels:
         app.kubernetes.io/name: nginx-ingress
-        zone-sync.nginx.com/name: nginx-ingress
         app.kubernetes.io/instance: plus-mgmt
       annotations:
         prometheus.io/scrape: "true"
@@ -5693,7 +6998,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:4.1.0
+      - image: nginx/nginx-ingress:5.1.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -5796,13 +7101,11 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   controller: nginx.org/ingress-controller
 /-/-/-/
@@ -5813,13 +7116,11 @@ metadata:
   name: plus-mgmt-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 ---
 
 [TestHelmNICTemplate/plus-mgmt-custom-endpoint - 1]
@@ -5831,13 +7132,11 @@ metadata:
   name: plus-mgmt-custom-endpoint-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -5846,13 +7145,11 @@ metadata:
   name: plus-mgmt-custom-endpoint-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 data:
   {}
 /-/-/-/
@@ -5864,13 +7161,11 @@ metadata:
   name: plus-mgmt-custom-endpoint-nginx-ingress-mgmt
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 data:
   license-token-secret-name: license-token
   usage-report-endpoint: "11.22.33.44"
@@ -5882,13 +7177,11 @@ metadata:
   name: plus-mgmt-custom-endpoint-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -5896,13 +7189,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-custom-endpoint-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 rules:
 - apiGroups:
   - ""
@@ -6012,13 +7303,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-custom-endpoint-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 subjects:
 - kind: ServiceAccount
   name: plus-mgmt-custom-endpoint-nginx-ingress
@@ -6034,13 +7323,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-custom-endpoint-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: default
 rules:
 - apiGroups:
@@ -6096,13 +7383,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-custom-endpoint-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: default
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -6120,13 +7405,11 @@ metadata:
   name: plus-mgmt-custom-endpoint-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   externalTrafficPolicy: Local
   type: LoadBalancer
@@ -6143,7 +7426,6 @@ spec:
     nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
@@ -6153,25 +7435,21 @@ metadata:
   name: plus-mgmt-custom-endpoint-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: nginx-ingress
-      zone-sync.nginx.com/name: nginx-ingress
       app.kubernetes.io/instance: plus-mgmt-custom-endpoint
   template:
     metadata:
       labels:
         app.kubernetes.io/name: nginx-ingress
-        zone-sync.nginx.com/name: nginx-ingress
         app.kubernetes.io/instance: plus-mgmt-custom-endpoint
       annotations:
         prometheus.io/scrape: "true"
@@ -6188,7 +7466,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:4.1.0
+      - image: nginx/nginx-ingress:5.1.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -6281,13 +7559,11 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   controller: nginx.org/ingress-controller
 /-/-/-/
@@ -6298,13 +7574,11 @@ metadata:
   name: plus-mgmt-custom-endpoint-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 ---
 
 [TestHelmNICTemplate/plus-mgmt-proxy-host - 1]
@@ -6316,13 +7590,11 @@ metadata:
   name: plus-mgmt-proxy-host-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -6331,13 +7603,11 @@ metadata:
   name: plus-mgmt-proxy-host-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 data:
   {}
 /-/-/-/
@@ -6349,13 +7619,11 @@ metadata:
   name: plus-mgmt-proxy-host-nginx-ingress-mgmt
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 data:
   license-token-secret-name: license-token
   usage-report-proxy-host: "44.55.66.77:88"
@@ -6367,13 +7635,11 @@ metadata:
   name: plus-mgmt-proxy-host-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -6381,13 +7647,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-proxy-host-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 rules:
 - apiGroups:
   - ""
@@ -6497,13 +7761,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-proxy-host-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 subjects:
 - kind: ServiceAccount
   name: plus-mgmt-proxy-host-nginx-ingress
@@ -6519,13 +7781,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-proxy-host-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: default
 rules:
 - apiGroups:
@@ -6581,13 +7841,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-proxy-host-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: default
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -6605,13 +7863,11 @@ metadata:
   name: plus-mgmt-proxy-host-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   externalTrafficPolicy: Local
   type: LoadBalancer
@@ -6628,7 +7884,6 @@ spec:
     nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
@@ -6638,25 +7893,21 @@ metadata:
   name: plus-mgmt-proxy-host-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: nginx-ingress
-      zone-sync.nginx.com/name: nginx-ingress
       app.kubernetes.io/instance: plus-mgmt-proxy-host
   template:
     metadata:
       labels:
         app.kubernetes.io/name: nginx-ingress
-        zone-sync.nginx.com/name: nginx-ingress
         app.kubernetes.io/instance: plus-mgmt-proxy-host
       annotations:
         prometheus.io/scrape: "true"
@@ -6673,7 +7924,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:4.1.0
+      - image: nginx/nginx-ingress:5.1.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -6766,13 +8017,11 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   controller: nginx.org/ingress-controller
 /-/-/-/
@@ -6783,13 +8032,11 @@ metadata:
   name: plus-mgmt-proxy-host-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 ---
 
 [TestHelmNICTemplate/plus-mgmt-proxy-host-auth - 1]
@@ -6801,13 +8048,11 @@ metadata:
   name: plus-mgmt-proxy-host-auth-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -6816,13 +8061,11 @@ metadata:
   name: plus-mgmt-proxy-host-auth-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 data:
   {}
 /-/-/-/
@@ -6834,13 +8077,11 @@ metadata:
   name: plus-mgmt-proxy-host-auth-nginx-ingress-mgmt
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 data:
   license-token-secret-name: license-token
   usage-report-proxy-host: "44.55.66.77:88"
@@ -6852,13 +8093,11 @@ metadata:
   name: plus-mgmt-proxy-host-auth-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -6866,13 +8105,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-proxy-host-auth-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 rules:
 - apiGroups:
   - ""
@@ -6982,13 +8219,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-proxy-host-auth-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 subjects:
 - kind: ServiceAccount
   name: plus-mgmt-proxy-host-auth-nginx-ingress
@@ -7004,13 +8239,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-proxy-host-auth-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: default
 rules:
 - apiGroups:
@@ -7066,13 +8299,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-proxy-host-auth-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
   namespace: default
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -7090,13 +8321,11 @@ metadata:
   name: plus-mgmt-proxy-host-auth-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   externalTrafficPolicy: Local
   type: LoadBalancer
@@ -7113,7 +8342,6 @@ spec:
     nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
@@ -7123,25 +8351,21 @@ metadata:
   name: plus-mgmt-proxy-host-auth-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: nginx-ingress
-      zone-sync.nginx.com/name: nginx-ingress
       app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
   template:
     metadata:
       labels:
         app.kubernetes.io/name: nginx-ingress
-        zone-sync.nginx.com/name: nginx-ingress
         app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
       annotations:
         prometheus.io/scrape: "true"
@@ -7158,7 +8382,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:4.1.0
+      - image: nginx/nginx-ingress:5.1.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -7261,13 +8485,11 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
 spec:
   controller: nginx.org/ingress-controller
 /-/-/-/
@@ -7278,11 +8500,1033 @@ metadata:
   name: plus-mgmt-proxy-host-auth-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.1.0
+    helm.sh/chart: nginx-ingress-2.2.0
     app.kubernetes.io/name: nginx-ingress
-    zone-sync.nginx.com/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
-    app.kubernetes.io/version: "4.1.0"
+    app.kubernetes.io/version: "5.1.0"
     app.kubernetes.io/managed-by: Helm
-    zone-sync.nginx.com/name: nginx-ingress
+---
+
+[TestHelmNICTemplate/plusAgentV3 - 1]
+/-/-/-/
+# Source: nginx-ingress/templates/controller-serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: plus-agent-nginx-ingress
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-agent
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: plus-agent-nginx-ingress
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-agent
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  {}
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: plus-agent-nginx-ingress-agent-config
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-agent
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  nginx-agent.conf: |-
+    
+    log:
+      # set log level (error, info, debug; default "info")
+      level: info
+      # set log path. if empty, don't log to file.
+      path: ""
+    
+    allowed_directories:
+      - /etc/nginx
+      - /usr/lib/nginx/modules
+    
+    features:
+      - certificates
+      - connection
+      - metrics
+      - file-watcher
+    
+    ## command server settings
+    command:
+      server:
+        host: product.connect.nginx.com
+        port: 443
+      auth:
+        tokenpath: "/etc/nginx-agent/secrets/dataplane.key"
+      tls:
+        skip_verify: false
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: plus-agent-nginx-ingress-mgmt
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-agent
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  license-token-secret-name: license-token
+/-/-/-/
+# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: plus-agent-nginx-ingress-leader-election
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-agent
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrole.yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: plus-agent-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-agent
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - namespaces
+  - pods
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - list
+- apiGroups:
+  - "apps"
+  resources:
+  - replicasets
+  - daemonsets
+  verbs:
+  - get
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingressclasses
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/status
+  verbs:
+  - update
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers
+  - virtualserverroutes
+  - globalconfigurations
+  - transportservers
+  - policies
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers/status
+  - virtualserverroutes/status
+  - policies/status
+  - transportservers/status
+  verbs:
+  - update
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrolebinding.yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: plus-agent-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-agent
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+subjects:
+- kind: ServiceAccount
+  name: plus-agent-nginx-ingress
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: plus-agent-nginx-ingress
+  apiGroup: rbac.authorization.k8s.io
+/-/-/-/
+# Source: nginx-ingress/templates/controller-role.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: plus-agent-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-agent
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: default
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - pods
+  - secrets
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+    - ""
+  resources:
+    - namespaces
+  verbs:
+    - get
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  resourceNames:
+  - plus-agent-nginx-ingress-leader-election
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+/-/-/-/
+# Source: nginx-ingress/templates/controller-rolebinding.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: plus-agent-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-agent
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: plus-agent-nginx-ingress
+subjects:
+- kind: ServiceAccount
+  name: plus-agent-nginx-ingress
+  namespace: default
+/-/-/-/
+# Source: nginx-ingress/templates/controller-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: plus-agent-nginx-ingress-controller
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-agent
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  externalTrafficPolicy: Local
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+    nodePort: 
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: https
+    nodePort: 
+  selector:
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-agent
+/-/-/-/
+# Source: nginx-ingress/templates/controller-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plus-agent-nginx-ingress-controller
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-agent
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx-ingress
+      app.kubernetes.io/instance: plus-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx-ingress
+        app.kubernetes.io/instance: plus-agent
+        agent-configuration-revision-hash: "eb3f867e"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9113"
+        prometheus.io/scheme: "http"
+    spec:      
+      volumes:
+      
+      - name: agent-conf
+        configMap:
+          name: plus-agent-nginx-ingress-agent-config
+      - name: dataplane-key
+        secret:
+          secretName: dataplane-key
+      serviceAccountName: plus-agent-nginx-ingress
+      automountServiceAccountToken: true
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      hostNetwork: false
+      dnsPolicy: ClusterFirst
+      containers:
+      - image: nginx/nginx-ingress:5.1.0
+        name: nginx-ingress
+        imagePullPolicy: "IfNotPresent"
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        - name: https
+          containerPort: 443
+          protocol: TCP
+        - name: prometheus
+          containerPort: 9113
+        - name: readiness-port
+          containerPort: 8081
+        readinessProbe:
+          httpGet:
+            path: /nginx-ready
+            port: readiness-port
+          periodSeconds: 1
+          initialDelaySeconds: 0
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsUser: 101 #nginx
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - NET_BIND_SERVICE        
+        volumeMounts:
+        
+        - name: agent-conf
+          mountPath: /etc/nginx-agent/nginx-agent.conf
+          subPath: nginx-agent.conf
+        - name: dataplane-key
+          mountPath: /etc/nginx-agent/secrets
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        args:
+          
+          - -nginx-plus=true
+          - -nginx-reload-timeout=60000
+          - -enable-app-protect=false
+          - -enable-app-protect-dos=false
+          - -nginx-configmaps=$(POD_NAMESPACE)/plus-agent-nginx-ingress
+          - -mgmt-configmap=$(POD_NAMESPACE)/plus-agent-nginx-ingress-mgmt
+          - -ingress-class=nginx
+          - -health-status=false
+          - -health-status-uri=/nginx-health
+          - -nginx-debug=false
+          - -log-level=info
+          - -log-format=glog
+          - -nginx-status=true
+          - -nginx-status-port=8080
+          - -nginx-status-allow-cidrs=127.0.0.1
+          - -report-ingress-status
+          - -external-service=plus-agent-nginx-ingress-controller
+          - -enable-leader-election=true
+          - -leader-election-lock-name=plus-agent-nginx-ingress-leader-election
+          - -enable-prometheus-metrics=true
+          - -prometheus-metrics-listen-port=9113
+          - -prometheus-tls-secret=
+          - -enable-service-insight=false
+          - -service-insight-listen-port=9114
+          - -service-insight-tls-secret=
+          - -enable-custom-resources=true
+          - -enable-snippets=false
+          - -disable-ipv6=false
+          - -enable-tls-passthrough=false
+          - -enable-cert-manager=false
+          - -enable-oidc=false
+          - -enable-external-dns=false
+          - -default-http-listener-port=80
+          - -default-https-listener-port=443
+          - -ready-status=true
+          - -ready-status-port=8081
+          - -enable-latency-metrics=false
+          - -ssl-dynamic-reload=true
+          - -enable-telemetry-reporting=true
+          - -weight-changes-dynamic-reload=false
+          - -agent=true
+/-/-/-/
+# Source: nginx-ingress/templates/controller-ingress-class.yaml
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: nginx
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-agent
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  controller: nginx.org/ingress-controller
+/-/-/-/
+# Source: nginx-ingress/templates/controller-lease.yaml
+apiVersion: coordination.k8s.io/v1
+kind: Lease
+metadata:
+  name: plus-agent-nginx-ingress-leader-election
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-agent
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+---
+
+[TestHelmNICTemplate/plusAgentV3All - 1]
+/-/-/-/
+# Source: nginx-ingress/templates/controller-serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: plus-agent-all-nginx-ingress
+  namespace: custom
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-agent-all
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: plus-agent-all-nginx-ingress
+  namespace: custom
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-agent-all
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  {}
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: plus-agent-all-nginx-ingress-agent-config
+  namespace: custom
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-agent-all
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  nginx-agent.conf: |-
+    
+    log:
+      # set log level (error, info, debug; default "info")
+      level: debug
+      # set log path. if empty, don't log to file.
+      path: ""
+    
+    allowed_directories:
+      - /etc/nginx
+      - /usr/lib/nginx/modules
+    
+    features:
+      - certificates
+      - connection
+      - metrics
+      - file-watcher
+    
+    ## command server settings
+    command:
+      server:
+        host: my-host.example.com
+        port: 8443
+      auth:
+        tokenpath: "/etc/nginx-agent/secrets/dataplane.key"
+      tls:
+        skip_verify: true
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: plus-agent-all-nginx-ingress-mgmt
+  namespace: custom
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-agent-all
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  license-token-secret-name: license-token
+/-/-/-/
+# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: plus-agent-all-nginx-ingress-leader-election
+  namespace: custom
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-agent-all
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrole.yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: plus-agent-all-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-agent-all
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - namespaces
+  - pods
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - list
+- apiGroups:
+  - "apps"
+  resources:
+  - replicasets
+  - daemonsets
+  verbs:
+  - get
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingressclasses
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/status
+  verbs:
+  - update
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers
+  - virtualserverroutes
+  - globalconfigurations
+  - transportservers
+  - policies
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers/status
+  - virtualserverroutes/status
+  - policies/status
+  - transportservers/status
+  verbs:
+  - update
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrolebinding.yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: plus-agent-all-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-agent-all
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+subjects:
+- kind: ServiceAccount
+  name: plus-agent-all-nginx-ingress
+  namespace: custom
+roleRef:
+  kind: ClusterRole
+  name: plus-agent-all-nginx-ingress
+  apiGroup: rbac.authorization.k8s.io
+/-/-/-/
+# Source: nginx-ingress/templates/controller-role.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: plus-agent-all-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-agent-all
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: custom
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - pods
+  - secrets
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+    - ""
+  resources:
+    - namespaces
+  verbs:
+    - get
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  resourceNames:
+  - plus-agent-all-nginx-ingress-leader-election
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+/-/-/-/
+# Source: nginx-ingress/templates/controller-rolebinding.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: plus-agent-all-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-agent-all
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: custom
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: plus-agent-all-nginx-ingress
+subjects:
+- kind: ServiceAccount
+  name: plus-agent-all-nginx-ingress
+  namespace: custom
+/-/-/-/
+# Source: nginx-ingress/templates/controller-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: plus-agent-all-nginx-ingress-controller
+  namespace: custom
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-agent-all
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  externalTrafficPolicy: Local
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+    nodePort: 
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: https
+    nodePort: 
+  selector:
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-agent-all
+/-/-/-/
+# Source: nginx-ingress/templates/controller-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plus-agent-all-nginx-ingress-controller
+  namespace: custom
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-agent-all
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx-ingress
+      app.kubernetes.io/instance: plus-agent-all
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx-ingress
+        app.kubernetes.io/instance: plus-agent-all
+        agent-configuration-revision-hash: "8c900020"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9113"
+        prometheus.io/scheme: "http"
+    spec:      
+      volumes:
+      
+      - name: agent-conf
+        configMap:
+          name: plus-agent-all-nginx-ingress-agent-config
+      - name: dataplane-key
+        secret:
+          secretName: dataplane-key
+      serviceAccountName: plus-agent-all-nginx-ingress
+      automountServiceAccountToken: true
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      hostNetwork: false
+      dnsPolicy: ClusterFirst
+      containers:
+      - image: nginx/nginx-ingress:5.1.0
+        name: nginx-ingress
+        imagePullPolicy: "IfNotPresent"
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        - name: https
+          containerPort: 443
+          protocol: TCP
+        - name: prometheus
+          containerPort: 9113
+        - name: readiness-port
+          containerPort: 8081
+        readinessProbe:
+          httpGet:
+            path: /nginx-ready
+            port: readiness-port
+          periodSeconds: 1
+          initialDelaySeconds: 0
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsUser: 101 #nginx
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - NET_BIND_SERVICE        
+        volumeMounts:
+        
+        - name: agent-conf
+          mountPath: /etc/nginx-agent/nginx-agent.conf
+          subPath: nginx-agent.conf
+        - name: dataplane-key
+          mountPath: /etc/nginx-agent/secrets
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        args:
+          
+          - -nginx-plus=true
+          - -nginx-reload-timeout=60000
+          - -enable-app-protect=false
+          - -enable-app-protect-dos=false
+          - -nginx-configmaps=$(POD_NAMESPACE)/plus-agent-all-nginx-ingress
+          - -mgmt-configmap=$(POD_NAMESPACE)/plus-agent-all-nginx-ingress-mgmt
+          - -ingress-class=nginx
+          - -health-status=false
+          - -health-status-uri=/nginx-health
+          - -nginx-debug=false
+          - -log-level=info
+          - -log-format=glog
+          - -nginx-status=true
+          - -nginx-status-port=8080
+          - -nginx-status-allow-cidrs=127.0.0.1
+          - -report-ingress-status
+          - -external-service=plus-agent-all-nginx-ingress-controller
+          - -enable-leader-election=true
+          - -leader-election-lock-name=plus-agent-all-nginx-ingress-leader-election
+          - -enable-prometheus-metrics=true
+          - -prometheus-metrics-listen-port=9113
+          - -prometheus-tls-secret=
+          - -enable-service-insight=false
+          - -service-insight-listen-port=9114
+          - -service-insight-tls-secret=
+          - -enable-custom-resources=true
+          - -enable-snippets=false
+          - -disable-ipv6=false
+          - -enable-tls-passthrough=false
+          - -enable-cert-manager=false
+          - -enable-oidc=false
+          - -enable-external-dns=false
+          - -default-http-listener-port=80
+          - -default-https-listener-port=443
+          - -ready-status=true
+          - -ready-status-port=8081
+          - -enable-latency-metrics=false
+          - -ssl-dynamic-reload=true
+          - -enable-telemetry-reporting=true
+          - -weight-changes-dynamic-reload=false
+          - -agent=true
+/-/-/-/
+# Source: nginx-ingress/templates/controller-ingress-class.yaml
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: nginx
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-agent-all
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  controller: nginx.org/ingress-controller
+/-/-/-/
+# Source: nginx-ingress/templates/controller-lease.yaml
+apiVersion: coordination.k8s.io/v1
+kind: Lease
+metadata:
+  name: plus-agent-all-nginx-ingress-leader-election
+  namespace: custom
+  labels:
+    helm.sh/chart: nginx-ingress-2.2.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: plus-agent-all
+    app.kubernetes.io/version: "5.1.0"
+    app.kubernetes.io/managed-by: Helm
 ---

@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nginx/kubernetes-ingress/internal/metadata"
+
 	license_reporting "github.com/nginx/kubernetes-ingress/internal/license_reporting"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	"github.com/nginx/kubernetes-ingress/internal/metrics/collectors"
@@ -33,10 +35,9 @@ const (
 	// HtpasswdSecretFileMode defines the default filemode for HTTP basic auth user files.
 	HtpasswdSecretFileMode = 0o644
 
-	configFileMode               = 0o644
-	jsonFileForOpenTracingTracer = "/var/lib/nginx/tracer-config.json"
-	nginxBinaryPath              = "/usr/sbin/nginx"
-	nginxBinaryPathDebug         = "/usr/sbin/nginx-debug"
+	configFileMode       = 0o644
+	nginxBinaryPath      = "/usr/sbin/nginx"
+	nginxBinaryPathDebug = "/usr/sbin/nginx-debug"
 
 	appProtectPluginStartCmd = "/usr/share/ts/bin/bd-socket-plugin"
 	appProtectLogLevelCmd    = "/opt/app_protect/bin/set_log_level"
@@ -52,8 +53,9 @@ const (
 )
 
 var (
-	ossre  = regexp.MustCompile(`(?P<name>\S+)/(?P<version>\S+)`)
-	plusre = regexp.MustCompile(`(?P<name>\S+)/(?P<version>\S+).\((?P<plus>\S+plus\S+)\)`)
+	ossre   = regexp.MustCompile(`(?P<name>\S+)/(?P<version>\S+)`)
+	plusre  = regexp.MustCompile(`(?P<name>\S+)/(?P<version>\S+).\((?P<plus>\S+plus\S+)\)`)
+	agentre = regexp.MustCompile(`^v(?P<major>\d+)\.?(?P<minor>\d+)?\.?(?P<patch>\d+)?(-.+)?$`)
 )
 
 // ServerConfig holds the config data for an upstream server in NGINX Plus.
@@ -80,16 +82,14 @@ type Manager interface {
 	ClearAppProtectFolder(name string)
 	GetFilenameForSecret(name string) string
 	CreateDHParam(content string) (string, error)
-	CreateOpenTracingTracerConfig(content string) error
 	Start(done chan error)
 	Version() Version
 	Reload(isEndpointsUpdate bool) error
 	Quit()
-	UpdateConfigVersionFile(openTracing bool)
+	UpdateConfigVersionFile()
 	SetPlusClients(plusClient *client.NginxClient, plusConfigVersionCheckClient *http.Client)
 	UpdateServersInPlus(upstream string, servers []string, config ServerConfig) error
 	UpdateStreamServersInPlus(upstream string, servers []string) error
-	SetOpenTracing(openTracing bool)
 	AppProtectPluginStart(appDone chan error, logLevel string)
 	AppProtectPluginQuit()
 	AppProtectDosAgentStart(apdaDone chan error, debug bool, maxDaemon int, maxWorkers int, memory int)
@@ -102,7 +102,7 @@ type Manager interface {
 	DeleteKeyValStateFiles(virtualServerName string)
 }
 
-// LocalManager updates NGINX configuration, starts, reloads and quits NGINX, updates License Reporting file
+// LocalManager updates NGINX configuration, starts, reloads and quits NGINX, updates License Reporting and the Deployment Metadata file
 // updates NGINX Plus upstream servers. It assumes that NGINX is running in the same container.
 type LocalManager struct {
 	confdPath                    string
@@ -122,7 +122,7 @@ type LocalManager struct {
 	metricsCollector             collectors.ManagerCollector
 	licenseReporter              *license_reporting.LicenseReporter
 	licenseReporterCancel        context.CancelFunc
-	OpenTracing                  bool
+	deploymentMetadata           *metadata.Metadata
 	appProtectPluginPid          int
 	appProtectDosAgentPid        int
 	agentPid                     int
@@ -131,7 +131,7 @@ type LocalManager struct {
 }
 
 // NewLocalManager creates a LocalManager.
-func NewLocalManager(ctx context.Context, confPath string, debug bool, mc collectors.ManagerCollector, lr *license_reporting.LicenseReporter, timeout time.Duration, nginxPlus bool) *LocalManager {
+func NewLocalManager(ctx context.Context, confPath string, debug bool, mc collectors.ManagerCollector, lr *license_reporting.LicenseReporter, metadata *metadata.Metadata, timeout time.Duration, nginxPlus bool) *LocalManager {
 	l := nl.LoggerFromContext(ctx)
 	verifyConfigGenerator, err := newVerifyConfigGenerator()
 	if err != nil {
@@ -153,6 +153,7 @@ func NewLocalManager(ctx context.Context, confPath string, debug bool, mc collec
 		verifyClient:                newVerifyClient(timeout),
 		metricsCollector:            mc,
 		licenseReporter:             lr,
+		deploymentMetadata:          metadata,
 		nginxPlus:                   nginxPlus,
 		logger:                      l,
 	}
@@ -331,7 +332,7 @@ func (lm *LocalManager) Start(done chan error) {
 func (lm *LocalManager) Reload(isEndpointsUpdate bool) error {
 	// write a new config version
 	lm.configVersion++
-	lm.UpdateConfigVersionFile(lm.OpenTracing)
+	lm.UpdateConfigVersionFile()
 
 	nl.Debugf(lm.logger, "Reloading nginx with configVersion: %v", lm.configVersion)
 
@@ -386,8 +387,8 @@ func (lm *LocalManager) Version() Version {
 }
 
 // UpdateConfigVersionFile writes the config version file.
-func (lm *LocalManager) UpdateConfigVersionFile(openTracing bool) {
-	cfg, err := lm.verifyConfigGenerator.GenerateVersionConfig(lm.configVersion, openTracing)
+func (lm *LocalManager) UpdateConfigVersionFile() {
+	cfg, err := lm.verifyConfigGenerator.GenerateVersionConfig(lm.configVersion)
 	if err != nil {
 		nl.Fatalf(lm.logger, "Error generating config version content: %v", err)
 	}
@@ -491,17 +492,6 @@ func (lm *LocalManager) UpdateStreamServersInPlus(upstream string, servers []str
 	return nil
 }
 
-// CreateOpenTracingTracerConfig creates a json configuration file for the OpenTracing tracer with the content of the string.
-func (lm *LocalManager) CreateOpenTracingTracerConfig(content string) error {
-	nl.Debugf(lm.logger, "Writing OpenTracing tracer config file to %v", jsonFileForOpenTracingTracer)
-	err := createFileAndWrite(jsonFileForOpenTracingTracer, []byte(content))
-	if err != nil {
-		return fmt.Errorf("failed to write config file: %w", err)
-	}
-
-	return nil
-}
-
 // verifyConfigVersion is used to check if the worker process that the API client is connected
 // to is using the latest version of nginx config. This way we avoid making changes on
 // a worker processes that is being shut down.
@@ -530,11 +520,6 @@ func verifyConfigVersion(httpClient *http.Client, configVersion int, timeout tim
 	}
 
 	return err
-}
-
-// SetOpenTracing sets the value of OpenTracing for the Manager
-func (lm *LocalManager) SetOpenTracing(openTracing bool) {
-	lm.OpenTracing = openTracing
 }
 
 // AppProtectPluginStart starts the AppProtect plugin and sets AppProtect log level.
@@ -625,12 +610,37 @@ func (lm *LocalManager) AppProtectDosAgentStart(apdaDone chan error, debug bool,
 	}()
 }
 
-// AgentStart starts the AppProtect plugin and sets AppProtect log level.
+// AgentStart starts the NGINX Agent and sets the log level.
 func (lm *LocalManager) AgentStart(agentDone chan error, instanceGroup string) {
+	ctx := nl.ContextWithLogger(context.Background(), lm.logger)
 	nl.Debugf(lm.logger, "Starting Agent")
 	args := []string{}
-	if len(instanceGroup) > 0 {
-		args = append(args, "--instance-group", instanceGroup)
+	nl.Debug(lm.logger, lm.AgentVersion())
+	major, _, _, err := ExtractAgentVersionValues(lm.AgentVersion())
+	if err != nil {
+		nl.Fatalf(lm.logger, "Failed to extract Agent version: %v", err)
+	}
+	if major <= 2 {
+		if len(instanceGroup) > 0 {
+			args = append(args, "--instance-group", instanceGroup)
+		}
+	}
+	if major >= 3 {
+		metadataInfo, err := lm.deploymentMetadata.CollectAndWrite(ctx)
+		if err != nil {
+			nl.Fatalf(lm.logger, "Failed to start NGINX Agent: %v", err)
+		}
+		labels := []string{
+			fmt.Sprintf("product-type=%s", metadataInfo.ProductType),
+			fmt.Sprintf("product-version=%s", metadataInfo.ProductVersion),
+			fmt.Sprintf("cluster-id=%s", metadataInfo.ClusterID),
+			fmt.Sprintf("installation-name=%s", metadataInfo.InstallationName),
+			fmt.Sprintf("installation-id=%s", metadataInfo.InstallationID),
+			fmt.Sprintf("control-id=%s", metadataInfo.InstallationID), // control-id is required but is the same as installation-id
+			fmt.Sprintf("installation-namespace=%s", metadataInfo.InstallationNamespace),
+		}
+		metadataLabels := "--labels=" + strings.Join(labels, ",")
+		args = append(args, metadataLabels)
 	}
 	cmd := exec.Command(agentPath, args...) // #nosec G204
 

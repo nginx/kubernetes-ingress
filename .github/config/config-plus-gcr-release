@@ -1,8 +1,13 @@
 export TARGET_REGISTRY=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release
-declare -a PLUS_TAG_POSTFIX_LIST=("" "-ubi" "-alpine" "-alpine-fips" "-mktpl")
-declare -a NAP_WAF_TAG_POSTFIX_LIST=("" "-ubi" "-ubi8" "-alpine-fips" "-mktpl")
+## Disable AWS Marketplace tags
+# declare -a PLUS_TAG_POSTFIX_LIST=("" "-ubi" "-alpine" "-alpine-fips" "-mktpl")
+# declare -a NAP_WAF_TAG_POSTFIX_LIST=("" "-ubi" "-ubi8" "-alpine-fips" "-mktpl")
+# declare -a NAP_DOS_TAG_POSTFIX_LIST=("" "-ubi" "-mktpl")
+# declare -a NAP_WAF_DOS_TAG_POSTFIX_LIST=("" "-ubi" "-mktpl")
+declare -a PLUS_TAG_POSTFIX_LIST=("" "-ubi" "-alpine" "-alpine-fips")
+declare -a NAP_WAF_TAG_POSTFIX_LIST=("" "-ubi" "-ubi8" "-alpine-fips")
 declare -a NAP_WAFV5_TAG_POSTFIX_LIST=("" "-ubi" "-alpine-fips" "-ubi8")
-declare -a NAP_DOS_TAG_POSTFIX_LIST=("" "-ubi" "-mktpl")
-declare -a NAP_WAF_DOS_TAG_POSTFIX_LIST=("" "-ubi" "-mktpl")
+declare -a NAP_DOS_TAG_POSTFIX_LIST=("" "-ubi")
+declare -a NAP_WAF_DOS_TAG_POSTFIX_LIST=("" "-ubi")
 declare -a ADDITIONAL_TAGS=("latest" "${ADDITIONAL_TAG}")
 export PUBLISH_OSS=false

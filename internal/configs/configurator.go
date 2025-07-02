@@ -605,10 +605,6 @@ func (cnf *Configurator) AddOrUpdateVirtualServer(virtualServerEx *VirtualServer
 	return warnings, nil
 }
 
-func (cnf *Configurator) addOrUpdateOpenTracingTracerConfig(content string) error {
-	return cnf.nginxManager.CreateOpenTracingTracerConfig(content)
-}
-
 func (cnf *Configurator) addOrUpdateVirtualServer(virtualServerEx *VirtualServerEx) (bool, Warnings, []WeightUpdate, error) {
 	var weightUpdates []WeightUpdate
 	apResources := cnf.updateApResourcesForVs(virtualServerEx)
@@ -1420,13 +1416,6 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, er
 		allWarnings.Add(warnings)
 	}
 
-	if mainCfg.OpenTracingLoadModule {
-		if err := cnf.addOrUpdateOpenTracingTracerConfig(mainCfg.OpenTracingTracerConfig); err != nil {
-			return allWarnings, fmt.Errorf("error when updating OpenTracing tracer config: %w", err)
-		}
-	}
-
-	cnf.nginxManager.SetOpenTracing(mainCfg.OpenTracingLoadModule)
 	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
 		return allWarnings, fmt.Errorf("error when updating config from ConfigMap: %w", err)
 	}

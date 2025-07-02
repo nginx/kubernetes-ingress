@@ -4,8 +4,8 @@ on:
   push:
     branches:
       - main
+      - release-*
     paths-ignore:
-      - site/**
       - examples/**
   workflow_dispatch:
     inputs:
@@ -29,21 +29,9 @@ permissions:
 jobs:
   scan:
     name: Mend
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: ${{ inputs.branch && inputs.branch || github.ref }}
-
-      - name: Download agent
-        run: curl -fsSLJO https://github.com/whitesource/unified-agent-distribution/releases/latest/download/wss-unified-agent.jar
-
-      - name: Verify JAR
-        run: jarsigner -verify wss-unified-agent.jar
-
-      - name: Scan and upload
-        env:
-          PRODUCT_NAME: kubernetes-ingress-controller_${{ inputs.branch && inputs.branch || github.ref_name }}
-          PROJECT_NAME: nic
-        run: java -jar wss-unified-agent.jar -noConfig true -wss.url ${{ secrets.WSS_URL }} -apiKey ${{ secrets.WSS_NGINX_TOKEN }} -product $PRODUCT_NAME -project $PROJECT_NAME -d .
+    if: ${{ github.event.repository.fork == false }}
+    uses: nginxinc/compliance-rules/.github/workflows/mend.yml@a27656f8f9a8748085b434ebe007f5b572709aad # v0.2
+    secrets: inherit
+    with:
+      product_name: kubernetes-ingress-controller_${{ inputs.branch && inputs.branch || github.ref_name }}
+      project_name: nic

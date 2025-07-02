@@ -11,8 +11,8 @@ daemon off;
 error_log  stderr {{.ErrorLogLevel}};
 pid        /var/lib/nginx/nginx.pid;
 
-{{- if .OpenTracingLoadModule}}
-load_module modules/ngx_http_opentracing_module.so;
+{{- if .MainOtelLoadModule}}
+load_module modules/ngx_otel_module.so;
 {{- end}}
 
 {{- if .MainSnippets}}
@@ -108,11 +108,20 @@ http {
     ssl_dhparam {{.SSLDHParam}};
     {{- end}}
 
-    {{- if .OpenTracingEnabled}}
-    opentracing on;
+    {{- if .MainOtelLoadModule }}
+    otel_exporter {
+        endpoint {{ .MainOtelExporterEndpoint }};
+        {{- if and .MainOtelExporterHeaderName .MainOtelExporterHeaderValue }}
+        header {{ .MainOtelExporterHeaderName }} "{{ .MainOtelExporterHeaderValue }}";
+        {{- end }}
+    }
+
+    {{- if .MainOtelServiceName}}
+    otel_service_name {{ .MainOtelServiceName }};
+    {{- end }}
+    {{- if .MainOtelGlobalTraceEnabled }}
+    otel_trace on;
     {{- end}}
-    {{- if .OpenTracingLoadModule}}
-    opentracing_load_tracer {{ .OpenTracingTracer }} /var/lib/nginx/tracer-config.json;
     {{- end}}
 
     server {
@@ -157,10 +166,6 @@ http {
         access_log off;
         {{end -}}
 
-        {{- if .OpenTracingEnabled}}
-        opentracing off;
-        {{- end}}
-
         {{- if .HealthStatus}}
         location {{.HealthStatusURI}} {
             default_type text/plain;
@@ -183,9 +188,6 @@ http {
         allow {{$value}};{{end}}
 
         deny all;
-        {{if .OpenTracingEnabled}}
-        opentracing off;
-        {{end}}
         location /stub_status {
             stub_status;
         }
@@ -196,10 +198,6 @@ http {
     server {
         listen unix:/var/lib/nginx/nginx-status.sock;
         access_log off;
-
-        {{- if .OpenTracingEnabled}}
-        opentracing off;
-        {{- end}}
 
         location /stub_status {
             stub_status;
@@ -214,20 +212,12 @@ http {
         listen unix:/var/lib/nginx/nginx-502-server.sock;
         access_log off;
 
-        {{if .OpenTracingEnabled}}
-        opentracing off;
-        {{end}}
-
         return 502;
     }
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
         access_log off;
-
-        {{- if .OpenTracingEnabled}}
-        opentracing off;
-        {{- end -}}
 
         return 418;
     }

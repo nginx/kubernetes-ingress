@@ -46,6 +46,7 @@ jobs:
   update-docker-sha:
     permissions:
       contents: write
+      pull-requests: write
     runs-on: ubuntu-22.04
     needs: [vars]
     steps:
@@ -62,7 +63,8 @@ jobs:
             ARGS="--exclude ${{ github.event.inputs.excludes }}"
           fi
           .github/scripts/docker-updater.sh ./build/Dockerfile $ARGS
-          .github/scripts/docker-updater.sh ./build/dependencies/Dockerfile.ubi $ARGS
+          .github/scripts/docker-updater.sh ./build/dependencies/Dockerfile.ubi8 $ARGS
+          .github/scripts/docker-updater.sh ./build/dependencies/Dockerfile.ubi9 $ARGS
           .github/scripts/docker-updater.sh ./tests/Dockerfile $ARGS
           files=$(git diff --name-only)
           if [[ $files == *"Dockerfile"* ]]; then
@@ -78,7 +80,7 @@ jobs:
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
         id: pr
         with:
-          token: ${{ secrets.NGINX_PAT }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: Update docker images ${{ steps.update_images.outputs.docker_md5 }}
           title: Docker image update ${{ steps.update_images.outputs.docker_md5 }}
           branch: deps/image-update-${{ needs.vars.outputs.source_branch }}-${{ steps.update_images.outputs.docker_md5 }}
@@ -95,5 +97,5 @@ jobs:
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ steps.pr.outputs.pull-request-url }}
-          GITHUB_TOKEN: ${{ secrets.NGINX_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         if: ${{ !inputs.dry_run && steps.update_images.outputs.change_detected == 'true' }}

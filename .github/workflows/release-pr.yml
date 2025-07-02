@@ -35,6 +35,15 @@ on:
         description: "Date for this release"
         required: true
         default: "%d %b %Y"
+      dry_run:
+        description: "Don't create any PR's"
+        type: boolean
+        default: false
+      debug:
+        description: "Enable debug logging"
+        type: boolean
+        default: false
+
 
 defaults:
   run:
@@ -47,12 +56,13 @@ jobs:
   release:
     permissions:
       contents: write
+      pull-requests: write
     runs-on: ubuntu-22.04
     steps:
       - name: Branch
         id: branch
         run: |
-          version=${{ github.event.inputs.new_version }}
+          version=${{ inputs.new_version }}
           version=${version%.*}
           echo "branch=release-$version" >> $GITHUB_OUTPUT
 
@@ -60,22 +70,38 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ steps.branch.outputs.branch }}
-          token: ${{ secrets.NGINX_PAT }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Replace
         run: |
           .github/scripts/release-version-update.sh \
-            ${{ github.event.inputs.current_version }} ${{ github.event.inputs.current_helm_version }} ${{ github.event.inputs.current_operator_version }} \
-            ${{ github.event.inputs.new_version }} ${{ github.event.inputs.new_helm_version }} ${{ github.event.inputs.new_operator_version }}
-          .github/scripts/release-notes-update.sh ${{ github.event.inputs.new_version }} ${{ github.event.inputs.new_helm_version }} "${{ github.event.inputs.k8s_versions }}" "${{ github.event.inputs.release_date }}"
+            ${{ inputs.current_version }} \
+            ${{ inputs.current_helm_version }} \
+            ${{ inputs.current_operator_version }} \
+            ${{ inputs.new_version }} \
+            ${{ inputs.new_helm_version }} \
+            ${{ inputs.new_operator_version }}
+          pip install --require-hashes -r .github/scripts/requirements.txt --no-deps
+          .github/scripts/release-docs.sh \
+            ${{ inputs.new_version }} \
+            ${{ inputs.new_helm_version }} \
+            ${{ inputs.new_operator_version }} \
+            "${{ inputs.k8s_versions }}" \
+            "${{ inputs.release_date }}"
+        env:
+          GITHUB_USERNAME: ${{ github.actor }}
+          GITHUB_EMAIL: ${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run && 'true' || 'true' }}
+          DEBUG: ${{ inputs.debug && 'true' || 'true' }}
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
         with:
-          token: ${{ secrets.NGINX_PAT }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: Release ${{ github.event.inputs.new_version }}
           title: Release ${{ github.event.inputs.new_version }}
           branch: docs/release-${{ github.event.inputs.new_version }}
-          author: nginx-bot <integrations@nginx.com>
           body: |
             This automated PR updates the docs for ${{ github.event.inputs.new_version }} release.
+        if: ${{ ! inputs.dry_run }}

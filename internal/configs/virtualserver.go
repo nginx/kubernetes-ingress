@@ -3,6 +3,7 @@ package configs
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"net/url"
@@ -425,7 +426,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		vsNamespace:    vsEx.VirtualServer.Namespace,
 		vsName:         vsEx.VirtualServer.Name,
 	}
-	policiesCfg := vsc.generatePolicies(ownerDetails, vsEx.VirtualServer.Spec.Policies, vsEx.Policies, specContext, policyOpts)
+	policiesCfg := vsc.generatePolicies(ownerDetails, vsEx.VirtualServer.Spec.Policies, vsEx.Policies, specContext, "/", policyOpts)
 
 	if policiesCfg.JWTAuth.JWKSEnabled {
 		jwtAuthKey := policiesCfg.JWTAuth.Auth.Key
@@ -592,7 +593,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			vsNamespace:    vsEx.VirtualServer.Namespace,
 			vsName:         vsEx.VirtualServer.Name,
 		}
-		routePoliciesCfg := vsc.generatePolicies(ownerDetails, r.Policies, vsEx.Policies, routeContext, policyOpts)
+		routePoliciesCfg := vsc.generatePolicies(ownerDetails, r.Policies, vsEx.Policies, routeContext, r.Path, policyOpts)
 		if policiesCfg.OIDC {
 			routePoliciesCfg.OIDC = policiesCfg.OIDC
 		}
@@ -745,7 +746,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				policyRefs = r.Policies
 				context = subRouteContext
 			}
-			routePoliciesCfg := vsc.generatePolicies(ownerDetails, policyRefs, vsEx.Policies, context, policyOpts)
+			routePoliciesCfg := vsc.generatePolicies(ownerDetails, policyRefs, vsEx.Policies, context, r.Path, policyOpts)
 			if policiesCfg.OIDC {
 				routePoliciesCfg.OIDC = policiesCfg.OIDC
 			}
@@ -1047,6 +1048,8 @@ func (p *policiesCfg) addRateLimitConfig(
 	ownerDetails policyOwnerDetails,
 	podReplicas int,
 	zoneSync bool,
+	context string,
+	path string,
 ) *validationResults {
 	res := newValidationResults()
 	rateLimit := policy.Spec.RateLimit
@@ -1057,13 +1060,15 @@ func (p *policiesCfg) addRateLimitConfig(
 	if zoneSync {
 		rlZoneName = fmt.Sprintf("%v_sync", rlZoneName)
 	}
-	if rateLimit.Condition != nil && rateLimit.Condition.JWT.Claim != "" && rateLimit.Condition.JWT.Match != "" {
-		lrz, warningText := generateGroupedLimitReqZone(rlZoneName, policy, podReplicas, ownerDetails, zoneSync)
+	if rateLimit.Condition != nil {
+		lrz, warningText := generateGroupedLimitReqZone(rlZoneName, policy, podReplicas, ownerDetails, zoneSync, context, path)
 		if warningText != "" {
 			nl.Warn(l, warningText)
 		}
 		p.RateLimit.PolicyGroupMaps = append(p.RateLimit.PolicyGroupMaps, *generateLRZPolicyGroupMap(lrz))
-		p.RateLimit.AuthJWTClaimSets = append(p.RateLimit.AuthJWTClaimSets, generateAuthJwtClaimSet(*rateLimit.Condition.JWT, ownerDetails))
+		if rateLimit.Condition.JWT != nil && rateLimit.Condition.JWT.Claim != "" && rateLimit.Condition.JWT.Match != "" {
+			p.RateLimit.AuthJWTClaimSets = append(p.RateLimit.AuthJWTClaimSets, generateAuthJwtClaimSet(*rateLimit.Condition.JWT, ownerDetails))
+		}
 		p.RateLimit.Zones = append(p.RateLimit.Zones, lrz)
 	} else {
 		lrz, warningText := generateLimitReqZone(rlZoneName, policy, podReplicas, zoneSync)
@@ -1371,23 +1376,34 @@ func (p *policiesCfg) addOIDCConfig(
 		}
 	} else {
 		secretKey := fmt.Sprintf("%v/%v", polNamespace, oidc.ClientSecret)
-		secretRef := secretRefs[secretKey]
+		secretRef, ok := secretRefs[secretKey]
+		clientSecret := []byte("")
 
-		var secretType api_v1.SecretType
-		if secretRef.Secret != nil {
-			secretType = secretRef.Secret.Type
-		}
-		if secretType != "" && secretType != secrets.SecretTypeOIDC {
-			res.addWarningf("OIDC policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, secretKey, secretType, secrets.SecretTypeOIDC)
+		if ok {
+			var secretType api_v1.SecretType
+			if secretRef.Secret != nil {
+				secretType = secretRef.Secret.Type
+			}
+			if secretType != "" && secretType != secrets.SecretTypeOIDC {
+				res.addWarningf("OIDC policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, secretKey, secretType, secrets.SecretTypeOIDC)
+				res.isError = true
+				return res
+			} else if secretRef.Error != nil && !oidc.PKCEEnable {
+				res.addWarningf("OIDC policy %s references an invalid secret %s: %v", polKey, secretKey, secretRef.Error)
+				res.isError = true
+				return res
+			} else if oidc.PKCEEnable {
+				res.addWarningf("OIDC policy %s has a secret and PKCE enabled. Secrets can't be used with PKCE", polKey)
+				res.isError = true
+				return res
+			}
+
+			clientSecret = secretRef.Secret.Data[ClientSecretKey]
+		} else if !oidc.PKCEEnable {
+			res.addWarningf("Client secret is required for OIDC policy %s when not using PKCE", polKey)
 			res.isError = true
 			return res
-		} else if secretRef.Error != nil {
-			res.addWarningf("OIDC policy %s references an invalid secret %s: %v", polKey, secretKey, secretRef.Error)
-			res.isError = true
-			return res
 		}
-
-		clientSecret := secretRef.Secret.Data[ClientSecretKey]
 
 		redirectURI := oidc.RedirectURI
 		if redirectURI == "" {
@@ -1419,6 +1435,7 @@ func (p *policiesCfg) addOIDCConfig(
 			PostLogoutRedirectURI: postLogoutRedirectURI,
 			ZoneSyncLeeway:        generateIntFromPointer(oidc.ZoneSyncLeeway, 200),
 			AccessTokenEnable:     oidc.AccessTokenEnable,
+			PKCEEnable:            oidc.PKCEEnable,
 		}
 		oidcPolCfg.key = polKey
 	}
@@ -1657,6 +1674,7 @@ func (vsc *virtualServerConfigurator) generatePolicies(
 	policyRefs []conf_v1.PolicyReference,
 	policies map[string]*conf_v1.Policy,
 	context string,
+	path string,
 	policyOpts policyOptions,
 ) policiesCfg {
 	config := newPoliciesConfig(vsc.bundleValidator)
@@ -1681,6 +1699,8 @@ func (vsc *virtualServerConfigurator) generatePolicies(
 					ownerDetails,
 					vsc.IngressControllerReplicas,
 					policyOpts.zoneSync,
+					context,
+					path,
 				)
 			case pol.Spec.JWTAuth != nil:
 				res = config.addJWTAuthConfig(pol.Spec.JWTAuth, key, polNamespace, policyOpts.secretRefs)
@@ -1782,6 +1802,8 @@ func generateGroupedLimitReqZone(zoneName string,
 	podReplicas int,
 	ownerDetails policyOwnerDetails,
 	zoneSync bool,
+	context string,
+	path string,
 ) (version2.LimitReqZone, string) {
 	rateLimitPol := policy.Spec.RateLimit
 	rate := rateLimitPol.Rate
@@ -1801,6 +1823,9 @@ func generateGroupedLimitReqZone(zoneName string,
 		Rate:     rate,
 		Sync:     zoneSync,
 	}
+
+	encoder := base64.URLEncoding.WithPadding(base64.NoPadding)
+	encPath := encoder.EncodeToString([]byte(path))
 	if rateLimitPol.Condition != nil && rateLimitPol.Condition.JWT != nil {
 		lrz.GroupValue = rateLimitPol.Condition.JWT.Match
 		lrz.PolicyValue = fmt.Sprintf("rl_%s_%s_match_%s",
@@ -1809,7 +1834,7 @@ func generateGroupedLimitReqZone(zoneName string,
 			strings.ToLower(rateLimitPol.Condition.JWT.Match),
 		)
 
-		lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf("$rl_%s_%s_group_%s",
+		lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf("$rl_%s_%s_group_%s_%s_%s",
 			ownerDetails.vsNamespace,
 			ownerDetails.vsName,
 			strings.ToLower(
@@ -1817,11 +1842,34 @@ func generateGroupedLimitReqZone(zoneName string,
 					strings.Split(rateLimitPol.Condition.JWT.Claim, "."), "_",
 				),
 			),
+			context,
+			encPath,
 		))
 		lrz.Key = rfc1123ToSnake(fmt.Sprintf("$%s", zoneName))
 		lrz.PolicyResult = rateLimitPol.Key
 		lrz.GroupDefault = rateLimitPol.Condition.Default
 		lrz.GroupSource = generateAuthJwtClaimSetVariable(rateLimitPol.Condition.JWT.Claim, ownerDetails.vsNamespace, ownerDetails.vsName)
+	}
+	if rateLimitPol.Condition != nil && rateLimitPol.Condition.Variables != nil && len(*rateLimitPol.Condition.Variables) > 0 {
+		variable := (*rateLimitPol.Condition.Variables)[0]
+		lrz.GroupValue = fmt.Sprintf("\"%s\"", variable.Match)
+		lrz.PolicyValue = rfc1123ToSnake(fmt.Sprintf("rl_%s_%s_match_%s",
+			ownerDetails.vsNamespace,
+			ownerDetails.vsName,
+			strings.ToLower(policy.Name),
+		))
+
+		lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf("$rl_%s_%s_variable_%s_%s_%s",
+			ownerDetails.vsNamespace,
+			ownerDetails.vsName,
+			strings.ReplaceAll(variable.Name, "$", ""),
+			context,
+			encPath,
+		))
+		lrz.Key = rfc1123ToSnake(fmt.Sprintf("$%s", zoneName))
+		lrz.PolicyResult = rateLimitPol.Key
+		lrz.GroupDefault = rateLimitPol.Condition.Default
+		lrz.GroupSource = variable.Name
 	}
 
 	return lrz, warningText

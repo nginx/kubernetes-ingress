@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"runtime"
 	"strings"
@@ -26,6 +27,7 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/k8s"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	license_reporting "github.com/nginx/kubernetes-ingress/internal/license_reporting"
+	"github.com/nginx/kubernetes-ingress/internal/metadata"
 	"github.com/nginx/kubernetes-ingress/internal/metrics"
 	"github.com/nginx/kubernetes-ingress/internal/metrics/collectors"
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
@@ -128,7 +130,13 @@ func main() {
 		licenseReporter = license_reporting.NewLicenseReporter(kubeClient, eventRecorder, pod)
 	}
 
-	nginxManager, useFakeNginxManager := createNginxManager(ctx, managerCollector, licenseReporter)
+	var deploymentMetadata *metadata.Metadata
+
+	if *agent {
+		deploymentMetadata = metadata.NewMetadataReporter(kubeClient, pod, version)
+	}
+
+	nginxManager, useFakeNginxManager := createNginxManager(ctx, managerCollector, licenseReporter, deploymentMetadata)
 
 	nginxVersion := getNginxVersionInfo(ctx, nginxManager)
 
@@ -323,6 +331,7 @@ func main() {
 		NICVersion:                   version,
 		DynamicWeightChangesReload:   *enableDynamicWeightChangesReload,
 		InstallationFlags:            parsedFlags,
+		ShuttingDown:                 false,
 	}
 
 	lbc := k8s.NewLoadBalancerController(lbcInput)
@@ -561,14 +570,14 @@ func createTemplateExecutors(ctx context.Context) (*version1.TemplateExecutor, *
 	return templateExecutor, templateExecutorV2
 }
 
-func createNginxManager(ctx context.Context, managerCollector collectors.ManagerCollector, licenseReporter *license_reporting.LicenseReporter) (nginx.Manager, bool) {
+func createNginxManager(ctx context.Context, managerCollector collectors.ManagerCollector, licenseReporter *license_reporting.LicenseReporter, deploymentMetadata *metadata.Metadata) (nginx.Manager, bool) {
 	useFakeNginxManager := *proxyURL != ""
 	var nginxManager nginx.Manager
 	if useFakeNginxManager {
 		nginxManager = nginx.NewFakeManager("/etc/nginx")
 	} else {
 		timeout := time.Duration(*nginxReloadTimeout) * time.Millisecond
-		nginxManager = nginx.NewLocalManager(ctx, "/etc/nginx/", *nginxDebug, managerCollector, licenseReporter, timeout, *nginxPlus)
+		nginxManager = nginx.NewLocalManager(ctx, "/etc/nginx/", *nginxDebug, managerCollector, licenseReporter, deploymentMetadata, timeout, *nginxPlus)
 	}
 	return nginxManager, useFakeNginxManager
 }
@@ -739,16 +748,7 @@ func mustWriteNginxMainConfig(staticCfgParams *configs.StaticConfigParams, cfgPa
 	}
 	nginxManager.CreateMainConfig(content)
 
-	nginxManager.UpdateConfigVersionFile(ngxConfig.OpenTracingLoadModule)
-
-	nginxManager.SetOpenTracing(ngxConfig.OpenTracingLoadModule)
-
-	if ngxConfig.OpenTracingLoadModule {
-		err := nginxManager.CreateOpenTracingTracerConfig(cfgParams.MainOpenTracingTracerConfig)
-		if err != nil {
-			nl.Fatalf(l, "Error creating OpenTracing tracer config file: %v", err)
-		}
-	}
+	nginxManager.UpdateConfigVersionFile()
 }
 
 // getSocketClient gets a http.Client with a unix socket transport.
@@ -825,6 +825,7 @@ func handleTermination(lbc *k8s.LoadBalancerController, nginxManager nginx.Manag
 		nl.Fatalf(lbc.Logger, "AppProtectDosAgent command exited unexpectedly with status: %v", err)
 	case <-signalChan:
 		nl.Info(lbc.Logger, "Received SIGTERM, shutting down")
+		lbc.ShuttingDown = true
 		lbc.Stop()
 		nginxManager.Quit()
 		<-cpcfg.nginxDone
@@ -1089,7 +1090,7 @@ func updateSelfWithVersionInfo(ctx context.Context, eventLog record.EventRecorde
 	}
 }
 
-func createAndValidateHeadlessService(ctx context.Context, kubeClient *kubernetes.Clientset, cfgParams *configs.ConfigParams, controllerNamespace string, pod *api_v1.Pod) error {
+func createAndValidateHeadlessService(ctx context.Context, kubeClient kubernetes.Interface, cfgParams *configs.ConfigParams, controllerNamespace string, pod *api_v1.Pod) error {
 	l := nl.LoggerFromContext(ctx)
 	owner := pod.ObjectMeta.OwnerReferences[0]
 	name := owner.Name
@@ -1100,20 +1101,14 @@ func createAndValidateHeadlessService(ctx context.Context, kubeClient *kubernete
 	}
 	combinedDeployment := fmt.Sprintf("%s-%s", name, strings.ToLower(owner.Kind))
 	cfgParams.ZoneSync.Domain = combinedDeployment
-	err := createHeadlessService(l, kubeClient, controllerNamespace, fmt.Sprintf("%s-hl", combinedDeployment), *nginxConfigMaps)
+	err := createHeadlessService(l, kubeClient, controllerNamespace, fmt.Sprintf("%s-hl", combinedDeployment), *nginxConfigMaps, pod)
 	if err != nil {
 		return fmt.Errorf("failed to create headless Service: %w", err)
 	}
 	return nil
 }
 
-func createHeadlessService(l *slog.Logger, kubeClient *kubernetes.Clientset, controllerNamespace string, svcName string, configMapNamespacedName string) error {
-	existing, err := kubeClient.CoreV1().Services(controllerNamespace).Get(context.Background(), svcName, meta_v1.GetOptions{})
-	if err == nil && existing != nil {
-		nl.Infof(l, "headless service %s/%s already exists, skipping creating.", controllerNamespace, svcName)
-		return nil
-	}
-
+func createHeadlessService(l *slog.Logger, kubeClient kubernetes.Interface, controllerNamespace string, svcName string, configMapNamespacedName string, pod *api_v1.Pod) error {
 	configMapName := strings.SplitN(configMapNamespacedName, "/", 2)
 	if len(configMapName) != 2 {
 		return fmt.Errorf("wrong syntax for ConfigMap: %q", configMapNamespacedName)
@@ -1125,26 +1120,49 @@ func createHeadlessService(l *slog.Logger, kubeClient *kubernetes.Clientset, con
 		return err
 	}
 
+	requiredSelectors := pod.Labels
+	requiredOwnerReferences := []meta_v1.OwnerReference{
+		{
+			APIVersion:         "v1",
+			Kind:               "ConfigMap",
+			Name:               configMapObj.Name,
+			UID:                configMapObj.UID,
+			Controller:         commonhelpers.BoolToPointerBool(true),
+			BlockOwnerDeletion: commonhelpers.BoolToPointerBool(true),
+		},
+	}
+	existing, err := kubeClient.CoreV1().Services(controllerNamespace).Get(context.Background(), svcName, meta_v1.GetOptions{})
+	if err == nil && existing != nil {
+		needsUpdate := false
+		if !reflect.DeepEqual(existing.Spec.Selector, requiredSelectors) {
+			existing.Spec.Selector = requiredSelectors
+			needsUpdate = true
+		}
+		if !reflect.DeepEqual(existing.OwnerReferences, requiredOwnerReferences) {
+			existing.OwnerReferences = requiredOwnerReferences
+			needsUpdate = true
+		}
+		if needsUpdate {
+			nl.Infof(l, "Headless service %s/%s exists and needs update. Updating...", controllerNamespace, svcName)
+			_, updateErr := kubeClient.CoreV1().Services(controllerNamespace).Update(context.Background(), existing, meta_v1.UpdateOptions{})
+			if updateErr != nil {
+				return fmt.Errorf("failed to update headless service %s/%s: %w", controllerNamespace, svcName, updateErr)
+			}
+			nl.Infof(l, "Successfully updated headless service %s/%s.", controllerNamespace, svcName)
+		}
+		return nil
+	}
+
+	nl.Infof(l, "Headless service %s/%s not found. Creating...", controllerNamespace, svcName)
 	svc := &api_v1.Service{
 		ObjectMeta: meta_v1.ObjectMeta{
-			Name:      svcName,
-			Namespace: controllerNamespace,
-			OwnerReferences: []meta_v1.OwnerReference{
-				{
-					APIVersion:         "v1",
-					Kind:               "ConfigMap",
-					Name:               configMapObj.Name,
-					UID:                configMapObj.UID,
-					Controller:         commonhelpers.BoolToPointerBool(true),
-					BlockOwnerDeletion: commonhelpers.BoolToPointerBool(true),
-				},
-			},
+			Name:            svcName,
+			Namespace:       controllerNamespace,
+			OwnerReferences: requiredOwnerReferences,
 		},
 		Spec: api_v1.ServiceSpec{
 			ClusterIP: api_v1.ClusterIPNone,
-			Selector: map[string]string{
-				"zone-sync.nginx.com/name": "nginx-ingress",
-			},
+			Selector:  requiredSelectors,
 		},
 	}
 
@@ -1167,13 +1185,29 @@ func logEventAndExit(ctx context.Context, eventLog record.EventRecorder, obj pkg
 func initLogger(logFormat string, level slog.Level, out io.Writer) context.Context {
 	programLevel := new(slog.LevelVar) // Info by default
 	var h slog.Handler
+
+	opts := &slog.HandlerOptions{
+		Level:     programLevel,
+		AddSource: true,
+		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.SourceKey {
+				if src, ok := a.Value.Any().(*slog.Source); ok {
+					src.Function = ""
+					src.File = filepath.Base(src.File)
+					a.Value = slog.AnyValue(src)
+				}
+			}
+			return a
+		},
+	}
+
 	switch {
 	case logFormat == "glog":
 		h = nic_glog.New(out, &nic_glog.Options{Level: programLevel})
 	case logFormat == "json":
-		h = slog.NewJSONHandler(out, &slog.HandlerOptions{Level: programLevel})
+		h = slog.NewJSONHandler(out, opts)
 	case logFormat == "text":
-		h = slog.NewTextHandler(out, &slog.HandlerOptions{Level: programLevel})
+		h = slog.NewTextHandler(out, opts)
 	default:
 		h = nic_glog.New(out, &nic_glog.Options{Level: programLevel})
 	}

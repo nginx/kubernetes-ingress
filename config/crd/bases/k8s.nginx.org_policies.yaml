@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.3
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: policies.k8s.nginx.org
 spec:
   group: k8s.nginx.org
@@ -163,6 +163,8 @@ spec:
                     type: string
                   jwksURI:
                     type: string
+                  pkceEnable:
+                    type: boolean
                   postLogoutRedirectURI:
                     type: string
                   redirectURI:
@@ -186,8 +188,7 @@ spec:
                       default:
                         description: sets the rate limit in this policy to be the
                           default if no conditions are met. In a group of policies
-                          with the same JWT condition, only one policy can be the
-                          default.
+                          with the same condition, only one policy can be the default.
                         type: boolean
                       jwt:
                         description: defines a JWT condition to rate limit against.
@@ -205,6 +206,26 @@ spec:
                         - claim
                         - match
                         type: object
+                      variables:
+                        description: defines a Variables condition to rate limit against.
+                        items:
+                          description: VariableCondition defines a condition to rate
+                            limit by a variable.
+                          properties:
+                            match:
+                              description: the value of the variable to match against.
+                              pattern: ^([^\s"'])*$
+                              type: string
+                            name:
+                              description: the name of the variable to match against.
+                              pattern: ^([^\s"'])*$
+                              type: string
+                          required:
+                          - match
+                          - name
+                          type: object
+                        maxItems: 1
+                        type: array
                     type: object
                   delay:
                     type: integer

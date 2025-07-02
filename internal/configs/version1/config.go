@@ -240,10 +240,12 @@ type MainConfig struct {
 	NginxStatus                        bool
 	NginxStatusAllowCIDRs              []string
 	NginxStatusPort                    int
-	OpenTracingEnabled                 bool
-	OpenTracingLoadModule              bool
-	OpenTracingTracer                  string
-	OpenTracingTracerConfig            string
+	MainOtelLoadModule                 bool
+	MainOtelGlobalTraceEnabled         bool
+	MainOtelExporterEndpoint           string
+	MainOtelExporterHeaderName         string
+	MainOtelExporterHeaderValue        string
+	MainOtelServiceName                string
 	ProxyProtocol                      bool
 	ResolverAddresses                  []string
 	ResolverIPV6                       bool

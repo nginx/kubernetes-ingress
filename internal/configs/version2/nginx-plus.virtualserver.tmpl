@@ -82,6 +82,10 @@ match {{ $m.Name }} {
 proxy_cache_path /var/cache/nginx/jwks_uri_{{$s.VSName}} levels=1 keys_zone=jwks_uri_{{$s.VSName}}:1m max_size=10m;
 {{- end }}
 
+{{- if and $s.OIDC $s.OIDC.PKCEEnable }}
+include oidc/oidc_pkce_supplements.conf;
+{{- end }}
+
 server {
     {{- if $s.Gunzip }}
     gunzip on;
@@ -97,7 +101,7 @@ server {
     {{- with $oidc := $s.OIDC }}
     include oidc/oidc.conf;
 
-    set $oidc_pkce_enable 0;
+    set $oidc_pkce_enable {{ boolToInteger $oidc.PKCEEnable }};
     set $oidc_client_auth_method "client_secret_post";
     set $oidc_logout_redirect "{{ $oidc.PostLogoutRedirectURI }}";
     set $oidc_hmac_key "{{ $s.VSName }}";
@@ -112,6 +116,14 @@ server {
     set $oidc_client "{{ $oidc.ClientID }}";
     set $oidc_client_secret "{{ $oidc.ClientSecret }}";
     set $redir_location "{{ $oidc.RedirectURI }}";
+    {{- if and $oidc.RedirectURI (ne $oidc.RedirectURI "/_codexch") }}
+    # Custom OIDC redirect location based on policy redirectURI
+    location = {{ $oidc.RedirectURI }} {
+        status_zone "OIDC code exchange";
+        js_content oidc.codeExchange;
+        error_page 500 502 504 @oidc_error;
+    }
+    {{- end }}
     {{- end }}
 
     {{- with $ssl := $s.SSL }}
@@ -267,6 +279,7 @@ server {
     js_var $apikey_auth_local_map "{{ .MapName}}";
     js_var $apikey_auth_token $apikey_auth_hash;
     auth_request /_validate_apikey_njs;
+    js_var $apikey_client_name ${{ .MapName }};
     {{- end }}
 
     {{- with $s.WAF }}
@@ -356,7 +369,7 @@ server {
         {{- if $hc.GRPCPass }} type=grpc{{- if $hc.GRPCStatus }} grpc_status={{ $hc.GRPCStatus }}{{- end -}}
         {{- if $hc.GRPCService }} grpc_service={{ $hc.GRPCService }}{{- end -}}{{ end -}};
 
-   }
+    }
     {{- end }}
 
     {{- range $e := $s.ErrorPageLocations }}
@@ -483,6 +496,7 @@ server {
         set $header_query_value {{ makeHeaderQueryValue $l.APIKey | printf }};
         set $apikey_auth_token $apikey_auth_hash;
         auth_request /_validate_apikey_njs;
+        set $apikey_client_name ${{ .MapName }};
         {{- else }}
         {{- with $s.APIKey }}
         set $header_query_value {{ makeHeaderQueryValue $s.APIKey | printf }};
@@ -664,7 +678,7 @@ server {
 
     {{- with $ssl := $s.SSL }}
         {{ if $ssl.HTTP2 }}
-	location @grpc_deadline_exceeded {
+    location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
         add_header grpc-status 4;
@@ -720,6 +734,6 @@ server {
         return 204;
     }
 
-	    {{ end }}
+        {{ end }}
     {{ end }}
 }

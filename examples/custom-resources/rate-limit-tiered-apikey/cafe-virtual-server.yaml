@@ -1,0 +1,18 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: cafe
+spec:
+  host: cafe.example.com
+  upstreams:
+  - name: coffee
+    service: coffee-svc
+    port: 80
+  policies:
+  - name: api-key-policy
+  - name: rate-limit-apikey-premium
+  - name: rate-limit-apikey-basic
+  routes:
+  - path: /coffee
+    action:
+      pass: coffee

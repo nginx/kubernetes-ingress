@@ -118,5 +118,17 @@ It is the UID of the `kube-system` Namespace. */
 		/** BuildOS represents the base operating system image */
 		string? BuildOS = null;
 		
+		/** ConfigMapKeys is the list of keys for the main ConfigMaps */
+		union {null, array<string>} ConfigMapKeys = null;
+		
+		/** MGMTConfigMapKeys is the list of keys for the MGMT ConfigMap */
+		union {null, array<string>} MGMTConfigMapKeys = null;
+		
+		/** JWTRateLimitPolicies is the number of JWT Condition RateLimit policies managed by NGINX Ingress Controller */
+		long? JWTRateLimitPolicies = null;
+		
+		/** VariablesRateLimitPolicies is the number of Variables Condition RateLimit policies managed by NGINX Ingress Controller */
+		long? VariablesRateLimitPolicies = null;
+		
 	}
 }

@@ -6,13 +6,13 @@
       "image": "debian",
       "type": "oss",
       "marker": "'not upgrade'",
-      "platforms": "linux/arm, linux/arm64, linux/amd64, linux/ppc64le, linux/s390x"
+      "platforms": "linux/arm64, linux/amd64"
     },
     {
       "label": "regression",
       "image": "debian-plus",
       "type": "plus",
-      "marker": "'not upgrade and not agent'",
+      "marker": "'not upgrade and not agentv2'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
@@ -20,7 +20,7 @@
       "image": "debian-plus-nap",
       "type": "plus",
       "nap_modules": "waf",
-      "marker": "'appprotect or agent'",
+      "marker": "'appprotect or agentv2'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {

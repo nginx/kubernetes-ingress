@@ -58,7 +58,6 @@ helm.sh/chart: {{ include "nginx-ingress.chart" . }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
-zone-sync.nginx.com/name: {{ .Chart.Name }}
 {{- end }}
 
 {{/*
@@ -87,7 +86,6 @@ Selector labels
 {{ toYaml .Values.controller.selectorLabels }}
 {{- else -}}
 app.kubernetes.io/name: {{ include "nginx-ingress.name" . }}
-zone-sync.nginx.com/name: {{ include "nginx-ingress.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
@@ -346,7 +344,9 @@ Build the args for the service binary.
 - -weight-changes-dynamic-reload={{ .Values.controller.enableWeightChangesDynamicReload}}
 {{- if .Values.nginxAgent.enable }}
 - -agent=true
+{{- if eq .Values.nginxAgent.dataplaneKeySecretName "" }}
 - -agent-instance-group={{ default (include "nginx-ingress.controller.fullname" .) .Values.nginxAgent.instanceGroup }}
+{{- end }}
 {{- end }}
 {{- end -}}
 
@@ -389,8 +389,14 @@ List of volumes for controller.
 - name: agent-conf
   configMap:
     name: {{ include "nginx-ingress.agentConfigName" . }}
+{{- if ne .Values.nginxAgent.dataplaneKeySecretName "" }}
+- name: dataplane-key
+  secret:
+    secretName: {{ .Values.nginxAgent.dataplaneKeySecretName }}
+{{- else }}
 - name: agent-dynamic
   emptyDir: {}
+{{- end }}
 {{- if and .Values.nginxAgent.instanceManager.tls (or (ne (.Values.nginxAgent.instanceManager.tls.secret | default "") "") (ne (.Values.nginxAgent.instanceManager.tls.caSecret | default "") "")) }}
 - name: nginx-agent-tls
   projected:
@@ -449,8 +455,13 @@ volumeMounts:
 - name: agent-conf
   mountPath: /etc/nginx-agent/nginx-agent.conf
   subPath: nginx-agent.conf
+{{- if ne .Values.nginxAgent.dataplaneKeySecretName "" }}
+- name: dataplane-key
+  mountPath: /etc/nginx-agent/secrets
+{{- else }}
 - name: agent-dynamic
   mountPath: /var/lib/nginx-agent
+{{- end }}
 {{- if and .Values.nginxAgent.instanceManager.tls (or (ne (.Values.nginxAgent.instanceManager.tls.secret | default "") "") (ne (.Values.nginxAgent.instanceManager.tls.caSecret | default "") "")) }}
 - name: nginx-agent-tls
   mountPath: /etc/ssl/nms
@@ -494,6 +505,34 @@ volumeMounts:
 {{- end -}}
 
 {{- define "nginx-ingress.agentConfiguration" -}}
+{{- if ne .Values.nginxAgent.dataplaneKeySecretName "" }}
+log:
+  # set log level (error, info, debug; default "info")
+  level: {{ .Values.nginxAgent.logLevel }}
+  # set log path. if empty, don't log to file.
+  path: ""
+
+allowed_directories:
+  - /etc/nginx
+  - /usr/lib/nginx/modules
+
+features:
+  - certificates
+  - connection
+  - metrics
+  - file-watcher
+
+## command server settings
+command:
+  server:
+    host: {{ .Values.nginxAgent.endpointHost }}
+    port: {{ .Values.nginxAgent.endpointPort }}
+  auth:
+    tokenpath: "/etc/nginx-agent/secrets/dataplane.key"
+  tls:
+    skip_verify: {{ .Values.nginxAgent.tlsSkipVerify | default false }}
+
+{{- else }}
 log:
   level: {{ .Values.nginxAgent.logLevel }}
   path: ""
@@ -533,4 +572,5 @@ nap_monitoring:
   syslog_ip: {{ .Values.nginxAgent.syslog.host }}
   syslog_port: {{ .Values.nginxAgent.syslog.port }}
 
-{{ end -}}
+{{- end }}
+{{ end }}
