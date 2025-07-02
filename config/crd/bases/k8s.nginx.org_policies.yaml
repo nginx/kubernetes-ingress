@@ -282,6 +282,52 @@ spec:
                       type: object
                     type: array
                 type: object
+              cache:
+                description: Cache defines a cache policy for proxy caching.
+                properties:
+                  allowedCodes:
+                    description: AllowedCodes defines which response codes should be cached. Can be HTTP status codes (100-599) or the string "any" to cache all responses.
+                    items:
+                      x-kubernetes-int-or-string: true
+                    type: array
+                  allowedMethods:
+                    description: "AllowedMethods defines which HTTP methods should be cached. Only GET, HEAD, and POST are supported by NGINX proxy_cache_methods directive. GET and HEAD are always cached by default."
+                    items:
+                      type: string
+                      enum:
+                        - "GET"
+                        - "HEAD"
+                        - "POST"
+                    type: array
+                  cachePurgeAllow:
+                    description: CachePurgeAllow defines IP addresses allowed to purge cache (NGINX Plus only)
+                    items:
+                      type: string
+                    type: array
+                  cacheZoneName:
+                    description: CacheZoneName defines the name of the cache zone
+                    type: string
+                  cacheZoneSize:
+                    description: CacheZoneSize defines the size of the cache zone
+                    type: string
+                    pattern: '^[0-9]+[kmg]$'
+                  time:
+                    description: Time defines the default cache time (required when allowedCodes is specified)
+                    type: string
+                    pattern: '^[0-9]+[smhd]$'
+                required:
+                  - cacheZoneName
+                  - cacheZoneSize
+                anyOf:
+                  - not:
+                      required:
+                        - allowedCodes
+                  - allOf:
+                      - required:
+                          - allowedCodes
+                      - required:
+                          - time
+                type: object
             type: object
           status:
             description: PolicyStatus is the status of the policy resource

@@ -2,6 +2,7 @@ package v1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 const (
@@ -580,6 +581,7 @@ type PolicySpec struct {
 	OIDC          *OIDC          `json:"oidc"`
 	WAF           *WAF           `json:"waf"`
 	APIKey        *APIKey        `json:"apiKey"`
+	Cache         *Cache         `json:"cache"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -730,4 +732,14 @@ type APIKey struct {
 type SuppliedIn struct {
 	Header []string `json:"header"`
 	Query  []string `json:"query"`
+}
+
+// Cache defines a cache policy for proxy caching.
+type Cache struct {
+	CacheZoneName   string               `json:"cacheZoneName"`
+	CacheZoneSize   string               `json:"cacheZoneSize"`
+	AllowedCodes    []intstr.IntOrString `json:"allowedCodes,omitempty"`
+	AllowedMethods  []string             `json:"allowedMethods,omitempty"`
+	Time            string               `json:"time,omitempty"`
+	CachePurgeAllow []string             `json:"cachePurgeAllow,omitempty"`
 }

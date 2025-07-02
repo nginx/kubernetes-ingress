@@ -10,6 +10,7 @@ import (
 	"unicode"
 
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
@@ -90,8 +91,13 @@ func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, isPlus, enab
 		fieldCount++
 	}
 
+	if spec.Cache != nil {
+		allErrs = append(allErrs, validateCache(spec.Cache, fieldPath.Child("cache"), isPlus)...)
+		fieldCount++
+	}
+
 	if fieldCount != 1 {
-		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`"
+		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`"
 		if isPlus {
 			msg = fmt.Sprint(msg, ", `jwt`, `oidc`, `waf`")
 		}
@@ -387,6 +393,64 @@ func validateLogConfs(logs []*v1.SecurityLog, fieldPath *field.Path, bundleMode 
 
 	for i := range logs {
 		allErrs = append(allErrs, validateLogConf(logs[i], fieldPath.Index(i), bundleMode)...)
+	}
+
+	return allErrs
+}
+
+// validateCache validates a cache policy
+func validateCache(cache *v1.Cache, fieldPath *field.Path, isPlus bool) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	// Validate required fields
+	if cache.CacheZoneName == "" {
+		allErrs = append(allErrs, field.Required(fieldPath.Child("cacheZoneName"), "cacheZoneName is required"))
+	} else {
+		// Validate zone name format (should be a valid identifier)
+		if len(cache.CacheZoneName) > 255 {
+			allErrs = append(allErrs, field.TooLong(fieldPath.Child("cacheZoneName"), cache.CacheZoneName, 255))
+		}
+		// Basic validation for zone name (no special characters except underscore)
+		for _, char := range cache.CacheZoneName {
+			if !((char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') || char == '_') {
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("cacheZoneName"), cache.CacheZoneName, "zone name can only contain alphanumeric characters and underscores"))
+				break
+			}
+		}
+	}
+
+	// Validate allowed codes if provided
+	for i, code := range cache.AllowedCodes {
+		if code.Type == intstr.String {
+			// Only allow the string "any"
+			if code.StrVal != "any" {
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("allowedCodes").Index(i), code.StrVal, "only the string 'any' is allowed"))
+			}
+		} else {
+			// Validate integer codes (100-599)
+			intCode := code.IntVal
+			if intCode < 100 || intCode > 599 {
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("allowedCodes").Index(i), intCode, "HTTP status code must be between 100 and 599"))
+			}
+		}
+	}
+
+	// Validate cache purge allow IPs if provided
+	if len(cache.CachePurgeAllow) > 0 {
+		// Check if NGINX Plus is required for cache purge
+		if !isPlus {
+			allErrs = append(allErrs, field.Forbidden(fieldPath.Child("cachePurgeAllow"), "cache purge is only supported in NGINX Plus"))
+		} else {
+			// Validate IP addresses/CIDRs if NGINX Plus is available
+			for i, ip := range cache.CachePurgeAllow {
+				if net.ParseIP(ip) == nil {
+					// Try parsing as CIDR
+					if _, _, err := net.ParseCIDR(ip); err != nil {
+						allErrs = append(allErrs, field.Invalid(fieldPath.Child("cachePurgeAllow").Index(i), ip, "must be a valid IP address or CIDR"))
+					}
+				}
+			}
+		}
 	}
 
 	return allErrs

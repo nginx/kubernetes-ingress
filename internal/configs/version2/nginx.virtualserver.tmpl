@@ -40,6 +40,10 @@ map {{ $m.Source }} {{ $m.Variable }} {
 limit_req_zone {{ $z.Key }} zone={{ $z.ZoneName }}:{{ $z.ZoneSize }} rate={{ $z.Rate }};
 {{- end }}
 
+{{- range $c := .CacheZones }}
+proxy_cache_path {{ $c.Path }} keys_zone={{ $c.Name }}:{{ $c.Size }};
+{{- end }}
+
 {{- $s := .Server }}
 server {
     {{- if $s.Gunzip }}
@@ -112,6 +116,24 @@ server {
 
     {{- with $s.PoliciesErrorReturn }}
     return {{ .Code }};
+    {{- end }}
+
+    {{- with $s.Cache }}
+        {{- if $s.Cache.Enable }}
+    # Server-level cache configuration
+    proxy_cache {{ $s.Cache.ZoneName }};
+    proxy_cache_key $scheme$proxy_host$request_uri;
+    proxy_ignore_headers Cache-Control Expires;
+            {{- if and $s.Cache.Time (eq (len $s.Cache.Valid) 0) }}
+    proxy_cache_valid {{ $s.Cache.Time }};
+            {{- end }}
+            {{- range $code, $time := $s.Cache.Valid }}
+    proxy_cache_valid {{ $code }} {{ $time }};
+            {{- end }}
+            {{- if $s.Cache.AllowedMethods }}
+    proxy_cache_methods{{ range $s.Cache.AllowedMethods }} {{ . }}{{ end }};
+            {{- end }}
+        {{- end }}
     {{- end }}
 
     {{- range $allow := $s.Allow }}
@@ -412,6 +434,24 @@ server {
         {{ $proxyOrGRPC }}_ssl_verify_depth 25;
         {{ $proxyOrGRPC }}_ssl_name {{ $l.ProxySSLName }};
             {{- end }}
+
+        {{- with $l.Cache }}
+            {{- if $l.Cache.Enable }}
+        proxy_cache {{ $l.Cache.ZoneName }};
+        proxy_cache_key $scheme$proxy_host$request_uri;
+        proxy_ignore_headers Cache-Control Expires;
+                {{- if and $l.Cache.Time (eq (len $l.Cache.Valid) 0) }}
+        proxy_cache_valid {{ $l.Cache.Time }};
+                {{- end }}
+                {{- range $code, $time := $l.Cache.Valid }}
+        proxy_cache_valid {{ $code }} {{ $time }};
+                {{- end }}
+                {{- if $l.Cache.AllowedMethods }}
+        proxy_cache_methods{{ range $l.Cache.AllowedMethods }} {{ . }}{{ end }};
+                {{- end }}
+            {{- end }}
+        {{- end }}
+
             {{-  if $l.GRPCPass }}
         grpc_pass {{ $l.GRPCPass }};
             {{- else }}
