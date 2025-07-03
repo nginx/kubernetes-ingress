@@ -141,6 +141,10 @@ spec:
                     type: string
                   secret:
                     type: string
+                  sniEnabled:
+                    type: boolean
+                  sniServerName:
+                    type: string
                   token:
                     type: string
                 type: object
