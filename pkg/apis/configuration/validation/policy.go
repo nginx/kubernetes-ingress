@@ -9,6 +9,7 @@ import (
 	"strings"
 	"unicode"
 
+	validation2 "github.com/nginx/kubernetes-ingress/internal/validation"
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -213,7 +214,22 @@ func validateJWT(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
 		if jwt.KeyCache == "" {
 			allErrs = append(allErrs, field.Required(fieldPath.Child("keyCache"), "key cache must be set, example value: 1h"))
 		}
-		return allErrs
+
+		// if SNI server name is provided, but SNI is not enabled, return an error
+		if jwt.SNIServerName != "" && !jwt.SNIEnabled {
+			allErrs = append(allErrs, field.Forbidden(fieldPath.Child("sniServerName"), "sniServerName can only be set when sniEnabled is true"))
+		}
+
+		// if SNI is enabled and SNI server name is provided, make sure it's a valid URI
+		if jwt.SNIEnabled && jwt.SNIServerName != "" {
+			err := validation2.ValidateURI(jwt.SNIServerName,
+				validation2.WithAllowedSchemes("https"),
+				validation2.WithUserAllowed(false),
+				validation2.WithDefaultScheme("https"))
+			if err != nil {
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("sniServerName"), jwt.SNIServerName, "sniServerName is not a valid URI"))
+			}
+		}
 	}
 	return allErrs
 }

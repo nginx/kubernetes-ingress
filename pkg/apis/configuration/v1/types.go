@@ -652,11 +652,13 @@ type VariableCondition struct {
 
 // JWTAuth holds JWT authentication configuration.
 type JWTAuth struct {
-	Realm    string `json:"realm"`
-	Secret   string `json:"secret"`
-	Token    string `json:"token"`
-	JwksURI  string `json:"jwksURI"`
-	KeyCache string `json:"keyCache"`
+	Realm         string `json:"realm"`
+	Secret        string `json:"secret"`
+	Token         string `json:"token"`
+	JwksURI       string `json:"jwksURI"`
+	KeyCache      string `json:"keyCache"`
+	SNIEnabled    bool   `json:"sniEnabled"`
+	SNIServerName string `json:"sniServerName"`
 }
 
 // BasicAuth holds HTTP Basic authentication configuration
