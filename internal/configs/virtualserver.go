@@ -1906,13 +1906,14 @@ func generateLimitReqOptions(rateLimitPol *conf_v1.RateLimit) version2.LimitReqO
 
 func generateCacheConfig(cache *conf_v1.Cache) *version2.Cache {
 	cacheConfig := &version2.Cache{
-		ZoneName:        cache.CacheZoneName,
-		Enable:          true,
-		Time:            cache.Time,
-		Valid:           make(map[string]string),
-		AllowedMethods:  cache.AllowedMethods,
-		CachePurgeAllow: cache.CachePurgeAllow,
-		ZoneSize:        cache.CacheZoneSize,
+		ZoneName:              cache.CacheZoneName,
+		Enable:                true,
+		Time:                  cache.Time,
+		Valid:                 make(map[string]string),
+		AllowedMethods:        cache.AllowedMethods,
+		CachePurgeAllow:       cache.CachePurgeAllow,
+		ZoneSize:              cache.CacheZoneSize,
+		OverrideUpstreamCache: cache.OverrideUpstreamCache,
 	}
 
 	// Convert allowed codes to proxy_cache_valid entries

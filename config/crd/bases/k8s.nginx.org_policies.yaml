@@ -313,6 +313,10 @@ spec:
                     description: CacheZoneSize defines the size of the cache zone
                     type: string
                     pattern: '^[0-9]+[kmg]$'
+                  overrideUpstreamCache:
+                    description: OverrideUpstreamCache controls whether to override upstream cache headers (using proxy_ignore_headers directive)
+                    type: boolean
+                    default: false
                   time:
                     description: Time defines the default cache time (required when allowedCodes is specified)
                     type: string

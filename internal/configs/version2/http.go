@@ -491,11 +491,12 @@ type CacheZone struct {
 
 // Cache defines cache configuration for locations.
 type Cache struct {
-	ZoneName        string
-	ZoneSize        string
-	Enable          bool
-	Time            string
-	Valid           map[string]string // map for codes to time
-	AllowedMethods  []string          // HTTP methods allowed for caching based on proxy_cache_methods
-	CachePurgeAllow []string          // IPs/CIDRs allowed to purge cache
+	ZoneName              string
+	ZoneSize              string
+	Enable                bool
+	Time                  string
+	Valid                 map[string]string // map for codes to time
+	AllowedMethods        []string          // HTTP methods allowed for caching based on proxy_cache_methods
+	CachePurgeAllow       []string          // IPs/CIDRs allowed to purge cache
+	OverrideUpstreamCache bool             // Controls whether to override upstream cache headers
 }
