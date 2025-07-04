@@ -240,3 +240,9 @@ clean-cache: ## Clean go cache
 rebuild-test-img:
 	cd tests && \
 	make build
+
+.PHONY: update-crd-docs
+update-crd-docs: ## Update CRD markdown documentation from YAML definitions
+	@echo "Generating CRD documentation..."
+	@go run hack/generate-crd-docs.go -crd-dir config/crd/bases -output-dir docs/crd
+	@echo "CRD documentation updated successfully!"
