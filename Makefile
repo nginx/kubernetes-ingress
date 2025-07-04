@@ -99,6 +99,7 @@ update-crds: ## Update CRDs
 	kustomize build config/crd >deploy/crds.yaml
 	kustomize build config/crd/app-protect-dos --load-restrictor='LoadRestrictionsNone' >deploy/crds-nap-dos.yaml
 	kustomize build config/crd/app-protect-waf --load-restrictor='LoadRestrictionsNone' >deploy/crds-nap-waf.yaml
+	make update-crd-docs
 
 .PHONY: telemetry-schema
 telemetry-schema: ## Generate the telemetry Schema
