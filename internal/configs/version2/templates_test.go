@@ -737,6 +737,15 @@ func TestExecuteVirtualServerTemplateWithJWKSWithToken(t *testing.T) {
 	if !bytes.Contains(got, []byte("proxy_cache_valid 200 12h;")) {
 		t.Error("want `proxy_cache_valid 200 12h;` in generated template")
 	}
+
+	if !bytes.Contains(got, []byte("proxy_ssl_server_name on;")) {
+		t.Error("want `proxy_ssl_server_name on;` in generated template")
+	}
+
+	if !bytes.Contains(got, []byte("proxy_ssl_name sni.idp.spec.example.com;")) {
+		t.Error("want `proxy_ssl_name sni.idp.spec.example.com;` in generated template")
+	}
+
 	snaps.MatchSnapshot(t, string(got))
 	t.Log(string(got))
 }
@@ -2340,10 +2349,12 @@ var (
 		Server: Server{
 			JWTAuthList: map[string]*JWTAuth{
 				"default/jwt-policy": {
-					Key:      "default/jwt-policy",
-					Realm:    "Spec Realm API",
-					Token:    "$http_token",
-					KeyCache: "1h",
+					Key:            "default/jwt-policy",
+					Realm:          "Spec Realm API",
+					Token:          "$http_token",
+					KeyCache:       "1h",
+					JwksSNIEnabled: true,
+					JwksSNIName:    "sni.idp.spec.example.com",
 					JwksURI: JwksURI{
 						JwksScheme: "https",
 						JwksHost:   "idp.spec.example.com",

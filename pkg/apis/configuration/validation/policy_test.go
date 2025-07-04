@@ -95,6 +95,33 @@ func TestValidatePolicy_JWTIsNotValidOn(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "SNI server name passed, but SNI not enabled",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:         "My Product API",
+						JwksURI:       "https://myjwksuri.com",
+						KeyCache:      "1h",
+						SNIServerName: "ipd.org",
+					},
+				},
+			},
+		},
+		{
+			name: "SNI server name passed, SNI enabled, bad SNI server name",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:         "My Product API",
+						JwksURI:       "https://myjwksuri.com",
+						KeyCache:      "1h",
+						SNIEnabled:    true,
+						SNIServerName: "msql://ipd.org",
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range tt {
@@ -160,6 +187,33 @@ func TestValidatePolicy_IsValidOnJWTPolicy(t *testing.T) {
 						Realm:    "My Product API",
 						KeyCache: "1h",
 						JwksURI:  "https://login.mydomain.com/keys",
+					},
+				},
+			},
+		},
+		{
+			name: "with SNI and without SNI server name",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:      "My Product API",
+						KeyCache:   "1h",
+						JwksURI:    "https://login.mydomain.com/keys",
+						SNIEnabled: true,
+					},
+				},
+			},
+		},
+		{
+			name: "with SNI and with SNI server name",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:         "My Product API",
+						KeyCache:      "1h",
+						JwksURI:       "https://login.mydomain.com/keys",
+						SNIEnabled:    true,
+						SNIServerName: "https://example.org",
 					},
 				},
 			},
@@ -787,6 +841,27 @@ func TestValidateJWT_PassesOnValidInput(t *testing.T) {
 			},
 			msg: "jwt with jwksURI",
 		},
+		{
+			jwt: &v1.JWTAuth{
+				Realm:         "My Product API",
+				Token:         "$cookie_auth_token",
+				JwksURI:       "https://idp.com/token",
+				KeyCache:      "1h",
+				SNIEnabled:    true,
+				SNIServerName: "https://ipd.com:9999",
+			},
+			msg: "SNI enabled and valid SNI server name",
+		},
+		{
+			jwt: &v1.JWTAuth{
+				Realm:      "My Product API",
+				Token:      "$cookie_auth_token",
+				JwksURI:    "https://idp.com/token",
+				KeyCache:   "1h",
+				SNIEnabled: true,
+			},
+			msg: "SNI enabled and no server name passed",
+		},
 	}
 	for _, test := range tests {
 		allErrs := validateJWT(test.jwt, field.NewPath("jwt"))
@@ -889,6 +964,35 @@ func TestValidateJWT_FailsOnInvalidInput(t *testing.T) {
 				KeyCache: "1h",
 			},
 			msg: "invalid JwksURI",
+		},
+		{
+			jwt: &v1.JWTAuth{
+				Realm:         "My Product api",
+				JwksURI:       "https://idp.com/token",
+				KeyCache:      "1h",
+				SNIEnabled:    true,
+				SNIServerName: "msql://not-\\\\a-valid-sni",
+			},
+			msg: "invalid SNI server name",
+		},
+		{
+			jwt: &v1.JWTAuth{
+				Realm:         "My Product api",
+				JwksURI:       "https://idp.com/token",
+				KeyCache:      "1h",
+				SNIEnabled:    false,
+				SNIServerName: "https://idp.com",
+			},
+			msg: "SNI server name passed, SNI not enabled",
+		},
+		{
+			jwt: &v1.JWTAuth{
+				Realm:         "My Product api",
+				JwksURI:       "https://idp.com/token",
+				KeyCache:      "1h",
+				SNIServerName: "https://idp.com",
+			},
+			msg: "SNI server name passed, SNI not passed",
 		},
 	}
 	for _, test := range tests {
