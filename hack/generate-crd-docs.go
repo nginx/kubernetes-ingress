@@ -248,7 +248,7 @@ func (g *CRDDocGenerator) extractSpecSchema(crd *apiextensionsv1.CustomResourceD
 
 // formats the header section of the markdown documentation
 func (g *CRDDocGenerator) formatMarkdownHeader(kind, group, version, scope, description string) string {
-	return fmt.Sprintf("# %s\n\n**Group:** `%s`  \n**Version:** `%s`  \n**Kind:** `%s`  \n**Scope:** `%s`\n\n## Description\n\n%s\n\n## Spec Fields\n\nThe `.spec` object supports the following fields:\n\n| Field | Type | Description |\n|---|---|---|\n", 
+	return fmt.Sprintf("# %s\n\n**Group:** `%s`  \n**Version:** `%s`  \n**Kind:** `%s`  \n**Scope:** `%s`\n\n## Description\n\n%s\n\n## Spec Fields\n\nThe `.spec` object supports the following fields:\n\n| Field | Type | Description |\n|---|---|---|\n",
 		kind, group, version, kind, scope, description)
 }
 
