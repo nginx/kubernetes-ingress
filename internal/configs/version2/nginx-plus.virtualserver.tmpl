@@ -84,7 +84,7 @@ match {{ $m.Name }} {
 
 {{- /* Generate cache-zone-specific purge configuration with VirtualServer isolation */ -}}
 {{- /* Check server-level cache purge restrictions */ -}}
-{{- if and $s.Cache $s.Cache.Enable (gt (len $s.Cache.CachePurgeAllow) 0) }}
+{{- if and $s.Cache (gt (len $s.Cache.CachePurgeAllow) 0) }}
 geo $purge_allowed_{{ $s.Cache.ZoneName }} {
     default 0;
 {{- range $ip := $s.Cache.CachePurgeAllow }}
@@ -100,7 +100,7 @@ map $request_method $cache_purge_{{ $s.Cache.ZoneName }} {
 
 {{- /* Check location-level cache purge restrictions */ -}}
 {{- range $l := $s.Locations }}
-{{- if and $l.Cache $l.Cache.Enable (gt (len $l.Cache.CachePurgeAllow) 0) }}
+{{- if and $l.Cache (gt (len $l.Cache.CachePurgeAllow) 0) }}
 geo $purge_allowed_{{ $l.Cache.ZoneName }} {
     default 0;
 {{- range $ip := $l.Cache.CachePurgeAllow }}
@@ -225,7 +225,6 @@ server {
     {{- end }}
 
     {{- with $s.Cache }}
-        {{- if $s.Cache.Enable }}
     # Server-level cache configuration
     proxy_cache {{ $s.Cache.ZoneName }};
     proxy_cache_key $scheme$proxy_host$request_uri;
@@ -244,7 +243,6 @@ server {
             {{- if gt (len $s.Cache.CachePurgeAllow) 0 }}
     proxy_cache_purge $cache_purge_{{ $s.Cache.ZoneName }};
             {{- end }}
-        {{- end }}
     {{- end }}
 
     {{- range $allow := $s.Allow }}
@@ -726,7 +724,6 @@ server {
             {{- end }}
 
         {{- with $l.Cache }}
-            {{- if $l.Cache.Enable }}
         proxy_cache {{ $l.Cache.ZoneName }};
         proxy_cache_key $scheme$proxy_host$request_uri;
                 {{- if $l.Cache.OverrideUpstreamCache }}
@@ -744,7 +741,6 @@ server {
                 {{- if gt (len $l.Cache.CachePurgeAllow) 0 }}
         proxy_cache_purge $cache_purge_{{ $l.Cache.ZoneName }};
                 {{- end }}
-            {{- end }}
         {{- end }}
 
             {{-  if $l.GRPCPass }}

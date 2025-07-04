@@ -1918,7 +1918,6 @@ func generateCacheConfig(cache *conf_v1.Cache, vsNamespace, vsName, ownerNamespa
 	
 	cacheConfig := &version2.Cache{
 		ZoneName:              uniqueZoneName,
-		Enable:                true,
 		Time:                  cache.Time,
 		Valid:                 make(map[string]string),
 		AllowedMethods:        cache.AllowedMethods,
