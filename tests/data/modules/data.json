@@ -1,0 +1,260 @@
+{
+  "images": [
+    {
+      "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress:edge",
+      "packages": [
+        "nginx",
+        "nginx-module-njs",
+        "nginx-module-otel",
+        "nginx-agent"
+      ],
+      "cmd": "dpkg -l",
+      "regex": "ii\\s+(.+?)\\s+(.+?)\\s+(\\w+?)\\s",
+      "platform": "linux/arm64"
+    },
+    {
+      "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress:edge",
+      "packages": [
+        "nginx-plus",
+        "nginx-plus-module-njs",
+        "nginx-plus-module-otel",
+        "nginx-plus-module-fips-check",
+        "nginx-agent"
+      ],
+      "cmd": "dpkg -l",
+      "regex": "ii\\s+(.+?)\\s+(.+?)\\s+(\\w+?)\\s",
+      "platform": "linux/arm64"
+    },
+    {
+      "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap/nginx-plus-ingress:edge",
+      "packages": [
+        "nginx-plus",
+        "nginx-plus-module-njs",
+        "nginx-plus-module-otel",
+        "nginx-plus-module-fips-check",
+        "nginx-plus-module-appprotect",
+        "nginx-agent"
+      ],
+      "cmd": "dpkg -l",
+      "regex": "ii\\s+(.+?)\\s+(.+?)\\s+(\\w+?)\\s",
+      "platform": "linux/amd64"
+    },
+    {
+      "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap-v5/nginx-plus-ingress:edge",
+      "packages": [
+        "nginx-plus",
+        "nginx-plus-module-njs",
+        "nginx-plus-module-otel",
+        "nginx-plus-module-fips-check",
+        "nginx-plus-module-appprotect",
+        "nginx-agent"
+      ],
+      "cmd": "dpkg -l",
+      "regex": "ii\\s+(.+?)\\s+(.+?)\\s+(\\w+?)\\s",
+      "platform": "linux/amd64"
+    },
+    {
+      "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos/nginx-plus-ingress:edge",
+      "packages": [
+        "nginx-plus",
+        "nginx-plus-module-njs",
+        "nginx-plus-module-otel",
+        "nginx-plus-module-fips-check",
+        "nginx-plus-module-appprotectdos"
+      ],
+      "cmd": "dpkg -l",
+      "regex": "ii\\s+(.+?)\\s+(.+?)\\s+(\\w+?)\\s",
+      "platform": "linux/amd64"
+    },
+    {
+      "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos-nap/nginx-plus-ingress:edge",
+      "packages": [
+        "nginx-plus",
+        "nginx-plus-module-njs",
+        "nginx-plus-module-otel",
+        "nginx-plus-module-fips-check",
+        "nginx-plus-module-appprotect",
+        "nginx-plus-module-appprotectdos",
+        "nginx-agent"
+      ],
+      "cmd": "dpkg -l",
+      "regex": "ii\\s+(.+?)\\s+(.+?)\\s+(\\w+?)\\s",
+      "platform": "linux/amd64"
+    },
+    {
+      "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress:edge-alpine",
+      "packages": [
+        "nginx",
+        "nginx-module-njs",
+        "nginx-module-otel",
+        "nginx-agent"
+      ],
+      "cmd": "apk list",
+      "regex": "^(.+?)-(\\d+.+?)\\s+(\\w+).*\\[installed\\]",
+      "platform": "linux/arm64"
+    },
+    {
+      "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress:edge-alpine",
+      "packages": [
+        "nginx-plus",
+        "nginx-plus-module-njs",
+        "nginx-plus-module-otel",
+        "nginx-plus-module-fips-check",
+        "nginx-agent"
+      ],
+      "cmd": "apk list",
+      "regex": "^(.+?)-(\\d+.+?)\\s+(\\w+).*\\[installed\\]",
+      "platform": "linux/arm64"
+    },
+    {
+      "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress:edge-alpine-fips",
+      "packages": [
+        "nginx-plus",
+        "nginx-plus-module-njs",
+        "nginx-plus-module-otel",
+        "nginx-plus-module-fips-check",
+        "nginx-agent"
+      ],
+      "cmd": "apk list",
+      "regex": "^(.+?)-(\\d+.+?)\\s+(\\w+).*\\[installed\\]",
+      "platform": "linux/arm64"
+    },
+    {
+      "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap/nginx-plus-ingress:edge-alpine-fips",
+      "packages": [
+        "nginx-plus",
+        "nginx-plus-module-njs",
+        "nginx-plus-module-otel",
+        "nginx-plus-module-fips-check",
+        "nginx-agent",
+        "nginx-plus-module-appprotect"
+      ],
+      "cmd": "apk list",
+      "regex": "^(.+?)-(\\d+.+?)\\s+(\\w+).*\\[installed\\]",
+      "platform": "linux/amd64"
+    },
+    {
+      "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap-v5/nginx-plus-ingress:edge-alpine-fips",
+      "packages": [
+        "nginx-plus",
+        "nginx-plus-module-njs",
+        "nginx-plus-module-otel",
+        "nginx-plus-module-fips-check",
+        "nginx-agent",
+        "nginx-plus-module-appprotect"
+      ],
+      "cmd": "apk list",
+      "regex": "^(.+?)-(\\d+.+?)\\s+(\\w+).*\\[installed\\]",
+      "platform": "linux/amd64"
+    },
+    {
+      "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress:edge-ubi",
+      "packages": [
+        "nginx",
+        "nginx-module-njs",
+        "nginx-module-otel",
+        "nginx-agent"
+      ],
+      "cmd": "rpm -q",
+      "regex": "(.+?)-(\\d+.+)(?:\\.ngx)?\\.(\\w+)",
+      "platform": "linux/arm64"
+    },
+    {
+      "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress:edge-ubi",
+      "packages": [
+        "nginx-plus",
+        "nginx-plus-module-njs",
+        "nginx-plus-module-otel",
+        "nginx-plus-module-fips-check",
+        "nginx-agent"
+      ],
+      "cmd": "rpm -q",
+      "regex": "(.+?)-(\\d+.+)(?:\\.ngx)?\\.(\\w+)",
+      "platform": "linux/arm64"
+    },
+    {
+      "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap/nginx-plus-ingress:edge-ubi",
+      "packages": [
+        "nginx-plus",
+        "nginx-plus-module-njs",
+        "nginx-plus-module-otel",
+        "nginx-plus-module-fips-check",
+        "nginx-agent",
+        "nginx-plus-module-appprotect"
+      ],
+      "cmd": "rpm -q",
+      "regex": "(.+?)-(\\d+.+)(?:\\.ngx)?\\.(\\w+)",
+      "platform": "linux/amd64"
+    },
+    {
+      "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap-v5/nginx-plus-ingress:edge-ubi",
+      "packages": [
+        "nginx-plus",
+        "nginx-plus-module-njs",
+        "nginx-plus-module-otel",
+        "nginx-plus-module-fips-check",
+        "nginx-agent",
+        "nginx-plus-module-appprotect"
+      ],
+      "cmd": "rpm -q",
+      "regex": "(.+?)-(\\d+.+)(?:\\.ngx)?\\.(\\w+)",
+      "platform": "linux/amd64"
+    },
+    {
+      "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap/nginx-plus-ingress:edge-ubi8",
+      "packages": [
+        "nginx-plus",
+        "nginx-plus-module-njs",
+        "nginx-plus-module-otel",
+        "nginx-plus-module-fips-check",
+        "nginx-agent",
+        "nginx-plus-module-appprotect"
+      ],
+      "cmd": "rpm -q",
+      "regex": "(.+?)-(\\d+.+)(?:\\.ngx)?\\.(\\w+)",
+      "platform": "linux/amd64"
+    },
+    {
+      "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap-v5/nginx-plus-ingress:edge-ubi8",
+      "packages": [
+        "nginx-plus",
+        "nginx-plus-module-njs",
+        "nginx-plus-module-otel",
+        "nginx-plus-module-fips-check",
+        "nginx-agent",
+        "nginx-plus-module-appprotect"
+      ],
+      "cmd": "rpm -q",
+      "regex": "(.+?)-(\\d+.+)(?:\\.ngx)?\\.(\\w+)",
+      "platform": "linux/amd64"
+    },
+    {
+      "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos/nginx-plus-ingress:edge-ubi",
+      "packages": [
+        "nginx-plus",
+        "nginx-plus-module-njs",
+        "nginx-plus-module-otel",
+        "nginx-plus-module-fips-check",
+        "nginx-plus-module-appprotectdos"
+      ],
+      "cmd": "rpm -q",
+      "regex": "(.+?)-(\\d+.+)(?:\\.ngx)?\\.(\\w+)",
+      "platform": "linux/amd64"
+    },
+    {
+      "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos-nap/nginx-plus-ingress:edge-ubi",
+      "packages": [
+        "nginx-plus",
+        "nginx-plus-module-njs",
+        "nginx-plus-module-otel",
+        "nginx-plus-module-fips-check",
+        "nginx-plus-module-appprotect",
+        "nginx-plus-module-appprotectdos",
+        "nginx-agent"
+      ],
+      "cmd": "rpm -q",
+      "regex": "(.+?)-(\\d+.+)(?:\\.ngx)?\\.(\\w+)",
+      "platform": "linux/amd64"
+    }
+  ]
+}
