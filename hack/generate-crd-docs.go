@@ -24,16 +24,20 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+// CRDDocGenerator handles CRD documentation generation
 type CRDDocGenerator struct {
 	crdDir    string
 	outputDir string
 }
+
+// FieldInfo represents information about a CRD field
 type FieldInfo struct {
 	Path        string
 	Type        string
 	Description string
 }
 
+// NewCRDDocGenerator creates a new CRD documentation generator
 func NewCRDDocGenerator(crdDir, outputDir string) *CRDDocGenerator {
 	return &CRDDocGenerator{
 		crdDir:    crdDir,
@@ -41,9 +45,9 @@ func NewCRDDocGenerator(crdDir, outputDir string) *CRDDocGenerator {
 	}
 }
 
-// loads and parses a CRD YAML file
+// loadCRDYAML loads and parses a CRD YAML file
 func (g *CRDDocGenerator) loadCRDYAML(filePath string) (*apiextensionsv1.CustomResourceDefinition, error) {
-	data, err := os.ReadFile(filePath)
+	data, err := os.ReadFile(filepath.Clean(filePath))
 	if err != nil {
 		return nil, fmt.Errorf("error reading file %s: %w", filePath, err)
 	}
@@ -56,9 +60,9 @@ func (g *CRDDocGenerator) loadCRDYAML(filePath string) (*apiextensionsv1.CustomR
 	return &crd, nil
 }
 
-// extracts enum values from a field schema
+// extractEnumValues extracts enum values from a field schema
 func (g *CRDDocGenerator) extractEnumValues(schema *apiextensionsv1.JSONSchemaProps) string {
-	if schema.Enum == nil || len(schema.Enum) == 0 {
+	if len(schema.Enum) == 0 {
 		return ""
 	}
 
@@ -69,7 +73,7 @@ func (g *CRDDocGenerator) extractEnumValues(schema *apiextensionsv1.JSONSchemaPr
 	return strings.Join(values, ", ")
 }
 
-// determines the type of a field from its schema
+// getFieldType determines the type of a field from its schema
 func (g *CRDDocGenerator) getFieldType(schema *apiextensionsv1.JSONSchemaProps) string {
 	if schema.Type != "" {
 		switch schema.Type {
@@ -99,7 +103,7 @@ func (g *CRDDocGenerator) getFieldType(schema *apiextensionsv1.JSONSchemaProps) 
 	return "object"
 }
 
-// extracts description from a field schema
+// extractDescription extracts description from a field schema
 func (g *CRDDocGenerator) extractDescription(schema *apiextensionsv1.JSONSchemaProps) string {
 	description := ""
 	if schema.Description != "" {
@@ -139,7 +143,7 @@ func (g *CRDDocGenerator) extractDescription(schema *apiextensionsv1.JSONSchemaP
 	return description
 }
 
-// processes properties from a schema and returns field information
+// processProperties processes properties from a schema and returns field information
 func (g *CRDDocGenerator) processProperties(properties map[string]apiextensionsv1.JSONSchemaProps, parentPath string) []FieldInfo {
 	var fields []FieldInfo
 
@@ -186,7 +190,7 @@ func (g *CRDDocGenerator) processProperties(properties map[string]apiextensionsv
 	return fields
 }
 
-// extracts metadata from CRD
+// getCRDMetadata extracts metadata from CRD
 func (g *CRDDocGenerator) getCRDMetadata(crd *apiextensionsv1.CustomResourceDefinition) (string, string, string, string, string) {
 	group := crd.Spec.Group
 	kind := crd.Spec.Names.Kind
@@ -208,21 +212,21 @@ func (g *CRDDocGenerator) getCRDMetadata(crd *apiextensionsv1.CustomResourceDefi
 	return kind, group, version, scope, description
 }
 
-// returns description for a CRD kind
+// getDescription returns description for a CRD kind
 func (g *CRDDocGenerator) getDescription(kind string) string {
 	descriptions := map[string]string{
-		"APLogConf":             "The `APLogConf` resource defines the logging configuration for NGINX App Protect. It allows you to specify the format and content of security logs, as well as filters to control which requests are logged.",
-		"APPolicy":              "The `APPolicy` resource defines a security policy for NGINX App Protect. It allows you to configure a wide range of security features, including bot defense, blocking settings, and application language support.",
-		"APUserSig":             "The `APUserSig` resource defines a custom user-defined signature for NGINX App Protect. It allows you to create your own signatures to detect specific attack patterns or vulnerabilities.",
-		"APDosLogConf":          "The `APDosLogConf` resource defines the logging configuration for the NGINX App Protect DoS module. It allows you to specify the format and content of security logs, as well as filters to control which events are logged.",
-		"APDosPolicy":           "The `APDosPolicy` resource defines a security policy for the NGINX App Protect Denial of Service (DoS) module. It allows you to configure various mitigation strategies to protect your applications from DoS attacks.",
-		"DosProtectedResource":  "The `DosProtectedResource` resource defines a resource that is protected by the NGINX App Protect DoS module. It allows you to enable and configure DoS protection for a specific service or application.",
-		"DNSEndpoint":           "The `DNSEndpoint` resource is used to manage DNS records for services exposed through NGINX Ingress Controller. It is typically used in conjunction with ExternalDNS to automatically create and update DNS records.",
-		"GlobalConfiguration":   "The `GlobalConfiguration` resource defines global settings for the NGINX Ingress Controller. It allows you to configure listeners for different protocols and ports.",
-		"Policy":                "The `Policy` resource defines a security policy for `VirtualServer` and `VirtualServerRoute` resources. It allows you to apply various policies such as access control, authentication, rate limiting, and WAF protection.",
-		"VirtualServer":         "The `VirtualServer` resource defines a virtual server for the NGINX Ingress Controller. It provides advanced configuration capabilities beyond standard Kubernetes Ingress resources, including traffic splitting, advanced routing, header manipulation, and integration with NGINX App Protect.",
-		"VirtualServerRoute":    "The `VirtualServerRoute` resource defines a route that can be referenced by a `VirtualServer`. It enables modular configuration by allowing routes to be defined separately and referenced by multiple VirtualServers.",
-		"TransportServer":       "The `TransportServer` resource defines a TCP or UDP load balancer. It allows you to expose non-HTTP applications running in your Kubernetes cluster with advanced load balancing and health checking capabilities.",
+		"APLogConf":            "The `APLogConf` resource defines the logging configuration for NGINX App Protect. It allows you to specify the format and content of security logs, as well as filters to control which requests are logged.",
+		"APPolicy":             "The `APPolicy` resource defines a security policy for NGINX App Protect. It allows you to configure a wide range of security features, including bot defense, blocking settings, and application language support.",
+		"APUserSig":            "The `APUserSig` resource defines a custom user-defined signature for NGINX App Protect. It allows you to create your own signatures to detect specific attack patterns or vulnerabilities.",
+		"APDosLogConf":         "The `APDosLogConf` resource defines the logging configuration for the NGINX App Protect DoS module. It allows you to specify the format and content of security logs, as well as filters to control which events are logged.",
+		"APDosPolicy":          "The `APDosPolicy` resource defines a security policy for the NGINX App Protect Denial of Service (DoS) module. It allows you to configure various mitigation strategies to protect your applications from DoS attacks.",
+		"DosProtectedResource": "The `DosProtectedResource` resource defines a resource that is protected by the NGINX App Protect DoS module. It allows you to enable and configure DoS protection for a specific service or application.",
+		"DNSEndpoint":          "The `DNSEndpoint` resource is used to manage DNS records for services exposed through NGINX Ingress Controller. It is typically used in conjunction with ExternalDNS to automatically create and update DNS records.",
+		"GlobalConfiguration":  "The `GlobalConfiguration` resource defines global settings for the NGINX Ingress Controller. It allows you to configure listeners for different protocols and ports.",
+		"Policy":               "The `Policy` resource defines a security policy for `VirtualServer` and `VirtualServerRoute` resources. It allows you to apply various policies such as access control, authentication, rate limiting, and WAF protection.",
+		"VirtualServer":        "The `VirtualServer` resource defines a virtual server for the NGINX Ingress Controller. It provides advanced configuration capabilities beyond standard Kubernetes Ingress resources, including traffic splitting, advanced routing, header manipulation, and integration with NGINX App Protect.",
+		"VirtualServerRoute":   "The `VirtualServerRoute` resource defines a route that can be referenced by a `VirtualServer`. It enables modular configuration by allowing routes to be defined separately and referenced by multiple VirtualServers.",
+		"TransportServer":      "The `TransportServer` resource defines a TCP or UDP load balancer. It allows you to expose non-HTTP applications running in your Kubernetes cluster with advanced load balancing and health checking capabilities.",
 	}
 
 	if desc, exists := descriptions[kind]; exists {
@@ -231,7 +235,7 @@ func (g *CRDDocGenerator) getDescription(kind string) string {
 	return fmt.Sprintf("The `%s` resource defines configuration for the NGINX Ingress Controller.", kind)
 }
 
-// extracts the spec schema from a CRD
+// extractSpecSchema extracts the spec schema from a CRD
 func (g *CRDDocGenerator) extractSpecSchema(crd *apiextensionsv1.CustomResourceDefinition) *apiextensionsv1.JSONSchemaProps {
 	for _, v := range crd.Spec.Versions {
 		if v.Schema != nil && v.Schema.OpenAPIV3Schema != nil {
@@ -246,13 +250,13 @@ func (g *CRDDocGenerator) extractSpecSchema(crd *apiextensionsv1.CustomResourceD
 	return nil
 }
 
-// formats the header section of the markdown documentation
+// formatMarkdownHeader formats the header section of the markdown documentation
 func (g *CRDDocGenerator) formatMarkdownHeader(kind, group, version, scope, description string) string {
 	return fmt.Sprintf("# %s\n\n**Group:** `%s`  \n**Version:** `%s`  \n**Kind:** `%s`  \n**Scope:** `%s`\n\n## Description\n\n%s\n\n## Spec Fields\n\nThe `.spec` object supports the following fields:\n\n| Field | Type | Description |\n|---|---|---|\n",
 		kind, group, version, kind, scope, description)
 }
 
-// formats the table rows for field information
+// formatMarkdownTable formats the table rows for field information
 func (g *CRDDocGenerator) formatMarkdownTable(fields []FieldInfo) string {
 	var tableRows strings.Builder
 	for _, field := range fields {
@@ -262,7 +266,7 @@ func (g *CRDDocGenerator) formatMarkdownTable(fields []FieldInfo) string {
 	return tableRows.String()
 }
 
-// generates markdown documentation for a CRD
+// generateMarkdown generates markdown documentation for a CRD
 func (g *CRDDocGenerator) generateMarkdown(crd *apiextensionsv1.CustomResourceDefinition) string {
 	kind, group, version, scope, description := g.getCRDMetadata(crd)
 	specSchema := g.extractSpecSchema(crd)
@@ -277,7 +281,7 @@ func (g *CRDDocGenerator) generateMarkdown(crd *apiextensionsv1.CustomResourceDe
 	return header + table
 }
 
-// processes a single CRD YAML file and generates its documentation
+// processCRDFile processes a single CRD YAML file and generates its documentation
 func (g *CRDDocGenerator) processCRDFile(filePath string) error {
 	fmt.Printf("Processing %s...\n", filepath.Base(filePath))
 
@@ -292,7 +296,7 @@ func (g *CRDDocGenerator) processCRDFile(filePath string) error {
 	filename := strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath)) + ".md"
 	outputPath := filepath.Join(g.outputDir, filename)
 
-	if err := os.WriteFile(outputPath, []byte(markdown), 0644); err != nil {
+	if err := os.WriteFile(outputPath, []byte(markdown), 0o600); err != nil {
 		return fmt.Errorf("error writing %s: %w", outputPath, err)
 	}
 
@@ -300,7 +304,7 @@ func (g *CRDDocGenerator) processCRDFile(filePath string) error {
 	return nil
 }
 
-// generates documentation for all CRD YAML files
+// generateAllDocs generates documentation for all CRD YAML files
 func (g *CRDDocGenerator) generateAllDocs() error {
 	var crdFiles []string
 
@@ -313,7 +317,6 @@ func (g *CRDDocGenerator) generateAllDocs() error {
 		}
 		return nil
 	})
-
 	if err != nil {
 		return fmt.Errorf("error walking directory %s: %w", g.crdDir, err)
 	}
@@ -354,7 +357,7 @@ func main() {
 	}
 
 	// Create output directory if it doesn't exist
-	if err := os.MkdirAll(*outputDir, 0755); err != nil {
+	if err := os.MkdirAll(*outputDir, 0o750); err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating output directory %s: %v\n", *outputDir, err)
 		os.Exit(1)
 	}
