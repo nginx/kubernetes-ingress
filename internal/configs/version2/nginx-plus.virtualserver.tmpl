@@ -82,42 +82,37 @@ match {{ $m.Name }} {
 
 {{- $s := .Server }}
 
-{{- /* Generate cache purge configuration if any cache has purge restrictions */ -}}
-{{- $hasCachePurge := false }}
+{{- /* Generate cache-zone-specific purge configuration with VirtualServer isolation */ -}}
 {{- /* Check server-level cache purge restrictions */ -}}
 {{- if and $s.Cache $s.Cache.Enable (gt (len $s.Cache.CachePurgeAllow) 0) }}
-{{- $hasCachePurge = true }}
-{{- end }}
-{{- /* Check location-level cache purge restrictions */ -}}
-{{- range $l := $s.Locations }}
-{{- if and $l.Cache $l.Cache.Enable (gt (len $l.Cache.CachePurgeAllow) 0) }}
-{{- $hasCachePurge = true }}
-{{- end }}
-{{- end }}
-
-{{- if $hasCachePurge }}
-geo $purge_allowed {
+geo $purge_allowed_{{ $s.Cache.ZoneName }} {
     default 0;
-{{- /* Add server-level cache purge IPs */ -}}
-{{- if and $s.Cache $s.Cache.Enable (gt (len $s.Cache.CachePurgeAllow) 0) }}
 {{- range $ip := $s.Cache.CachePurgeAllow }}
     {{ $ip }} 1;
 {{- end }}
+}
+
+map $request_method $cache_purge_{{ $s.Cache.ZoneName }} {
+    PURGE   $purge_allowed_{{ $s.Cache.ZoneName }};
+    default 0;
+}
 {{- end }}
-{{- /* Add location-level cache purge IPs */ -}}
+
+{{- /* Check location-level cache purge restrictions */ -}}
 {{- range $l := $s.Locations }}
 {{- if and $l.Cache $l.Cache.Enable (gt (len $l.Cache.CachePurgeAllow) 0) }}
+geo $purge_allowed_{{ $l.Cache.ZoneName }} {
+    default 0;
 {{- range $ip := $l.Cache.CachePurgeAllow }}
     {{ $ip }} 1;
 {{- end }}
-{{- end }}
-{{- end }}
 }
 
-map $request_method $cache_purge {
-    PURGE   $purge_allowed;
+map $request_method $cache_purge_{{ $l.Cache.ZoneName }} {
+    PURGE   $purge_allowed_{{ $l.Cache.ZoneName }};
     default 0;
 }
+{{- end }}
 {{- end }}
 
 {{- with $s.JWKSAuthEnabled }}
@@ -247,7 +242,7 @@ server {
     proxy_cache_methods{{ range $s.Cache.AllowedMethods }} {{ . }}{{ end }};
             {{- end }}
             {{- if gt (len $s.Cache.CachePurgeAllow) 0 }}
-    proxy_cache_purge $cache_purge;
+    proxy_cache_purge $cache_purge_{{ $s.Cache.ZoneName }};
             {{- end }}
         {{- end }}
     {{- end }}
@@ -747,7 +742,7 @@ server {
         proxy_cache_methods{{ range $l.Cache.AllowedMethods }} {{ . }}{{ end }};
                 {{- end }}
                 {{- if gt (len $l.Cache.CachePurgeAllow) 0 }}
-        proxy_cache_purge $cache_purge;
+        proxy_cache_purge $cache_purge_{{ $l.Cache.ZoneName }};
                 {{- end }}
             {{- end }}
         {{- end }}

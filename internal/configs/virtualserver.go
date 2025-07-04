@@ -1743,7 +1743,7 @@ func (vsc *virtualServerConfigurator) generatePolicies(
 				if config.Cache != nil {
 					res.addWarningf("Multiple cache policies in the same context is not valid. Cache policy %s will be ignored", key)
 				} else {
-					config.Cache = generateCacheConfig(pol.Spec.Cache)
+					config.Cache = generateCacheConfig(pol.Spec.Cache, ownerDetails.vsNamespace, ownerDetails.vsName, ownerDetails.ownerNamespace, ownerDetails.ownerName)
 				}
 			default:
 				res = newValidationResults()
@@ -1904,9 +1904,20 @@ func generateLimitReqOptions(rateLimitPol *conf_v1.RateLimit) version2.LimitReqO
 	}
 }
 
-func generateCacheConfig(cache *conf_v1.Cache) *version2.Cache {
+func generateCacheConfig(cache *conf_v1.Cache, vsNamespace, vsName, ownerNamespace, ownerName string) *version2.Cache {
+	// Create unique zone name including VS namespace/name and owner namespace/name for policy reuse
+	// This ensures that the same cache policy can be safely reused across different VS/VSR
+	var uniqueZoneName string
+	if vsNamespace == ownerNamespace && vsName == ownerName {
+		// Policy is applied directly to VirtualServer, use VS namespace/name only
+		uniqueZoneName = fmt.Sprintf("%s_%s_%s", vsNamespace, vsName, cache.CacheZoneName)
+	} else {
+		// Policy is applied to VirtualServerRoute, include both VS and owner info
+		uniqueZoneName = fmt.Sprintf("%s_%s_%s_%s_%s", vsNamespace, vsName, ownerNamespace, ownerName, cache.CacheZoneName)
+	}
+	
 	cacheConfig := &version2.Cache{
-		ZoneName:              cache.CacheZoneName,
+		ZoneName:              uniqueZoneName,
 		Enable:                true,
 		Time:                  cache.Time,
 		Valid:                 make(map[string]string),
