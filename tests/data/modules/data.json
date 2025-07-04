@@ -3,10 +3,26 @@
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress:edge",
       "packages": [
-        "nginx",
-        "nginx-module-njs",
-        "nginx-module-otel",
-        "nginx-agent"
+        {
+          "name": "nginx",
+          "version": "1.27.5",
+          "arch": "arm64"
+        },
+        {
+          "name": "nginx-module-njs",
+          "version": "1.27.5",
+          "arch": "arm64"
+        },
+        {
+          "name": "nginx-module-otel",
+          "version": "1.27.5",
+          "arch": "arm64"
+        },
+        {
+          "name": "nginx-agent",
+          "version": "3.0",
+          "arch": "arm64"
+        }
       ],
       "cmd": "dpkg -l",
       "regex": "ii\\s+(.+?)\\s+(.+?)\\s+(\\w+?)\\s",
@@ -15,11 +31,31 @@
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress:edge",
       "packages": [
-        "nginx-plus",
-        "nginx-plus-module-njs",
-        "nginx-plus-module-otel",
-        "nginx-plus-module-fips-check",
-        "nginx-agent"
+        {
+          "name": "nginx-plus",
+          "version": "34-2",
+          "arch": "arm64"
+        },
+        {
+          "name": "nginx-plus-module-njs",
+          "version": "34",
+          "arch": "arm64"
+        },
+        {
+          "name": "nginx-plus-module-otel",
+          "version": "34",
+          "arch": "arm64"
+        },
+        {
+          "name": "nginx-plus-module-fips-check",
+          "version": "34",
+          "arch": "arm64"
+        },
+        {
+          "name": "nginx-agent",
+          "version": "3.0",
+          "arch": "arm64"
+        }
       ],
       "cmd": "dpkg -l",
       "regex": "ii\\s+(.+?)\\s+(.+?)\\s+(\\w+?)\\s",
@@ -28,12 +64,51 @@
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap/nginx-plus-ingress:edge",
       "packages": [
-        "nginx-plus",
-        "nginx-plus-module-njs",
-        "nginx-plus-module-otel",
-        "nginx-plus-module-fips-check",
-        "nginx-plus-module-appprotect",
-        "nginx-agent"
+        {
+          "name": "nginx-plus",
+          "version": "34-2",
+          "arch": "amd64"
+        },
+        {
+          "name": "nginx-plus-module-njs",
+          "version": "34",
+          "arch": "amd64"
+        },
+        {
+          "name": "nginx-plus-module-otel",
+          "version": "34",
+          "arch": "amd64"
+        },
+        {
+          "name": "nginx-plus-module-fips-check",
+          "version": "34",
+          "arch": "amd64"
+        },
+        {
+          "name": "nginx-plus-module-appprotect",
+          "version": "34+5.442",
+          "arch": "amd64"
+        },
+        {
+          "name": "app-protect",
+          "version": "34+5.442",
+          "arch": "amd64"
+        },
+        {
+          "name": "app-protect-attack-signatures",
+          "version": "2025",
+          "arch": "amd64"
+        },
+        {
+          "name": "app-protect-threat-campaigns",
+          "version": "2025",
+          "arch": "amd64"
+        },
+        {
+          "name": "nginx-agent",
+          "version": "2",
+          "arch": "amd64"
+        }
       ],
       "cmd": "dpkg -l",
       "regex": "ii\\s+(.+?)\\s+(.+?)\\s+(\\w+?)\\s",
@@ -42,12 +117,46 @@
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap-v5/nginx-plus-ingress:edge",
       "packages": [
-        "nginx-plus",
-        "nginx-plus-module-njs",
-        "nginx-plus-module-otel",
-        "nginx-plus-module-fips-check",
-        "nginx-plus-module-appprotect",
-        "nginx-agent"
+        {
+          "name": "nginx-plus",
+          "version": "34-2",
+          "arch": "amd64"
+        },
+        {
+          "name": "nginx-plus-module-njs",
+          "version": "34",
+          "arch": "amd64"
+        },
+        {
+          "name": "nginx-plus-module-otel",
+          "version": "34",
+          "arch": "amd64"
+        },
+        {
+          "name": "nginx-plus-module-fips-check",
+          "version": "34",
+          "arch": "amd64"
+        },
+        {
+          "name": "nginx-plus-module-appprotect",
+          "version": "34+5.442",
+          "arch": "amd64"
+        },
+        {
+          "name": "app-protect-module-plus",
+          "version": "34+5.442",
+          "arch": "amd64"
+        },
+        {
+          "name": "app-protect-plugin",
+          "version": "6.16.0",
+          "arch": "amd64"
+        },
+        {
+          "name": "nginx-agent",
+          "version": "2",
+          "arch": "amd64"
+        }
       ],
       "cmd": "dpkg -l",
       "regex": "ii\\s+(.+?)\\s+(.+?)\\s+(\\w+?)\\s",
@@ -56,11 +165,36 @@
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos/nginx-plus-ingress:edge",
       "packages": [
-        "nginx-plus",
-        "nginx-plus-module-njs",
-        "nginx-plus-module-otel",
-        "nginx-plus-module-fips-check",
-        "nginx-plus-module-appprotectdos"
+        {
+          "name": "nginx-plus",
+          "version": "34-2",
+          "arch": "amd64"
+        },
+        {
+          "name": "nginx-plus-module-njs",
+          "version": "34",
+          "arch": "amd64"
+        },
+        {
+          "name": "nginx-plus-module-otel",
+          "version": "34",
+          "arch": "amd64"
+        },
+        {
+          "name": "nginx-plus-module-fips-check",
+          "version": "34",
+          "arch": "amd64"
+        },
+        {
+          "name": "nginx-plus-module-appprotectdos",
+          "version": "34+4",
+          "arch": "amd64"
+        },
+        {
+          "name": "app-protect-dos",
+          "version": "34+4",
+          "arch": "amd64"
+        }
       ],
       "cmd": "dpkg -l",
       "regex": "ii\\s+(.+?)\\s+(.+?)\\s+(\\w+?)\\s",
@@ -69,13 +203,61 @@
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos-nap/nginx-plus-ingress:edge",
       "packages": [
-        "nginx-plus",
-        "nginx-plus-module-njs",
-        "nginx-plus-module-otel",
-        "nginx-plus-module-fips-check",
-        "nginx-plus-module-appprotect",
-        "nginx-plus-module-appprotectdos",
-        "nginx-agent"
+        {
+          "name": "nginx-plus",
+          "version": "34-2",
+          "arch": "amd64"
+        },
+        {
+          "name": "nginx-plus-module-njs",
+          "version": "34",
+          "arch": "amd64"
+        },
+        {
+          "name": "nginx-plus-module-otel",
+          "version": "34",
+          "arch": "amd64"
+        },
+        {
+          "name": "nginx-plus-module-fips-check",
+          "version": "34",
+          "arch": "amd64"
+        },
+        {
+          "name": "nginx-plus-module-appprotect",
+          "version": "34+5.442",
+          "arch": "amd64"
+        },
+        {
+          "name": "app-protect",
+          "version": "34+5.442",
+          "arch": "amd64"
+        },
+        {
+          "name": "app-protect-attack-signatures",
+          "version": "2025",
+          "arch": "amd64"
+        },
+        {
+          "name": "app-protect-threat-campaigns",
+          "version": "2025",
+          "arch": "amd64"
+        },
+        {
+          "name": "nginx-plus-module-appprotectdos",
+          "version": "34+4",
+          "arch": "amd64"
+        },
+        {
+          "name": "app-protect-dos",
+          "version": "34+4",
+          "arch": "amd64"
+        },
+        {
+          "name": "nginx-agent",
+          "version": "2",
+          "arch": "amd64"
+        }
       ],
       "cmd": "dpkg -l",
       "regex": "ii\\s+(.+?)\\s+(.+?)\\s+(\\w+?)\\s",
@@ -84,10 +266,26 @@
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress:edge-alpine",
       "packages": [
-        "nginx",
-        "nginx-module-njs",
-        "nginx-module-otel",
-        "nginx-agent"
+        {
+          "name": "nginx",
+          "version": "1.27.5",
+          "arch": "aarch64"
+        },
+        {
+          "name": "nginx-module-njs",
+          "version": "1.27.5",
+          "arch": "aarch64"
+        },
+        {
+          "name": "nginx-module-otel",
+          "version": "1.27.5",
+          "arch": "aarch64"
+        },
+        {
+          "name": "nginx-agent",
+          "version": "3.0",
+          "arch": "aarch64"
+        }
       ],
       "cmd": "apk list",
       "regex": "^(.+?)-(\\d+.+?)\\s+(\\w+).*\\[installed\\]",
@@ -96,11 +294,31 @@
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress:edge-alpine",
       "packages": [
-        "nginx-plus",
-        "nginx-plus-module-njs",
-        "nginx-plus-module-otel",
-        "nginx-plus-module-fips-check",
-        "nginx-agent"
+        {
+          "name": "nginx-plus",
+          "version": "34-r2",
+          "arch": "aarch64"
+        },
+        {
+          "name": "nginx-plus-module-njs",
+          "version": "34",
+          "arch": "aarch64"
+        },
+        {
+          "name": "nginx-plus-module-otel",
+          "version": "34",
+          "arch": "aarch64"
+        },
+        {
+          "name": "nginx-plus-module-fips-check",
+          "version": "34",
+          "arch": "aarch64"
+        },
+        {
+          "name": "nginx-agent",
+          "version": "3.0",
+          "arch": "aarch64"
+        }
       ],
       "cmd": "apk list",
       "regex": "^(.+?)-(\\d+.+?)\\s+(\\w+).*\\[installed\\]",
@@ -109,11 +327,31 @@
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress:edge-alpine-fips",
       "packages": [
-        "nginx-plus",
-        "nginx-plus-module-njs",
-        "nginx-plus-module-otel",
-        "nginx-plus-module-fips-check",
-        "nginx-agent"
+        {
+          "name": "nginx-plus",
+          "version": "34-r2",
+          "arch": "aarch64"
+        },
+        {
+          "name": "nginx-plus-module-njs",
+          "version": "34",
+          "arch": "aarch64"
+        },
+        {
+          "name": "nginx-plus-module-otel",
+          "version": "34",
+          "arch": "aarch64"
+        },
+        {
+          "name": "nginx-plus-module-fips-check",
+          "version": "34",
+          "arch": "aarch64"
+        },
+        {
+          "name": "nginx-agent",
+          "version": "3.0",
+          "arch": "aarch64"
+        }
       ],
       "cmd": "apk list",
       "regex": "^(.+?)-(\\d+.+?)\\s+(\\w+).*\\[installed\\]",
@@ -122,12 +360,51 @@
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap/nginx-plus-ingress:edge-alpine-fips",
       "packages": [
-        "nginx-plus",
-        "nginx-plus-module-njs",
-        "nginx-plus-module-otel",
-        "nginx-plus-module-fips-check",
-        "nginx-agent",
-        "nginx-plus-module-appprotect"
+        {
+          "name": "nginx-plus",
+          "version": "34-r2",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-njs",
+          "version": "34",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-otel",
+          "version": "34",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-fips-check",
+          "version": "34",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-agent",
+          "version": "2",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-appprotect",
+          "version": "34.5.442",
+          "arch": "x86_64"
+        },
+        {
+          "name": "app-protect",
+          "version": "34.5.442",
+          "arch": "x86_64"
+        },
+        {
+          "name": "app-protect-attack-signatures",
+          "version": "2025",
+          "arch": "x86_64"
+        },
+        {
+          "name": "app-protect-threat-campaigns",
+          "version": "2025",
+          "arch": "x86_64"
+        }
       ],
       "cmd": "apk list",
       "regex": "^(.+?)-(\\d+.+?)\\s+(\\w+).*\\[installed\\]",
@@ -136,12 +413,46 @@
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap-v5/nginx-plus-ingress:edge-alpine-fips",
       "packages": [
-        "nginx-plus",
-        "nginx-plus-module-njs",
-        "nginx-plus-module-otel",
-        "nginx-plus-module-fips-check",
-        "nginx-agent",
-        "nginx-plus-module-appprotect"
+        {
+          "name": "nginx-plus",
+          "version": "34-r2",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-njs",
+          "version": "34",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-otel",
+          "version": "34",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-fips-check",
+          "version": "34",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-agent",
+          "version": "2",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-appprotect",
+          "version": "34.5.442",
+          "arch": "x86_64"
+        },
+        {
+          "name": "app-protect-module-plus",
+          "version": "34.5.442",
+          "arch": "x86_64"
+        },
+        {
+          "name": "app-protect-plugin",
+          "version": "6.16.0",
+          "arch": "x86_64"
+        }
       ],
       "cmd": "apk list",
       "regex": "^(.+?)-(\\d+.+?)\\s+(\\w+).*\\[installed\\]",
@@ -150,10 +461,26 @@
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress:edge-ubi",
       "packages": [
-        "nginx",
-        "nginx-module-njs",
-        "nginx-module-otel",
-        "nginx-agent"
+        {
+          "name": "nginx",
+          "version": "1.27.5",
+          "arch": "aarch64"
+        },
+        {
+          "name": "nginx-module-njs",
+          "version": "1.27.5",
+          "arch": "aarch64"
+        },
+        {
+          "name": "nginx-module-otel",
+          "version": "1.27.5",
+          "arch": "aarch64"
+        },
+        {
+          "name": "nginx-agent",
+          "version": "3.0",
+          "arch": "aarch64"
+        }
       ],
       "cmd": "rpm -q",
       "regex": "(.+?)-(\\d+.+)(?:\\.ngx)?\\.(\\w+)",
@@ -162,11 +489,31 @@
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress:edge-ubi",
       "packages": [
-        "nginx-plus",
-        "nginx-plus-module-njs",
-        "nginx-plus-module-otel",
-        "nginx-plus-module-fips-check",
-        "nginx-agent"
+        {
+          "name": "nginx-plus",
+          "version": "34-2",
+          "arch": "aarch64"
+        },
+        {
+          "name": "nginx-plus-module-njs",
+          "version": "34",
+          "arch": "aarch64"
+        },
+        {
+          "name": "nginx-plus-module-otel",
+          "version": "34",
+          "arch": "aarch64"
+        },
+        {
+          "name": "nginx-plus-module-fips-check",
+          "version": "34",
+          "arch": "aarch64"
+        },
+        {
+          "name": "nginx-agent",
+          "version": "3.0",
+          "arch": "aarch64"
+        }
       ],
       "cmd": "rpm -q",
       "regex": "(.+?)-(\\d+.+)(?:\\.ngx)?\\.(\\w+)",
@@ -175,12 +522,51 @@
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap/nginx-plus-ingress:edge-ubi",
       "packages": [
-        "nginx-plus",
-        "nginx-plus-module-njs",
-        "nginx-plus-module-otel",
-        "nginx-plus-module-fips-check",
-        "nginx-agent",
-        "nginx-plus-module-appprotect"
+        {
+          "name": "nginx-plus",
+          "version": "34-2",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-njs",
+          "version": "34",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-otel",
+          "version": "34",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-fips-check",
+          "version": "34",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-agent",
+          "version": "2",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-appprotect",
+          "version": "34+5.442",
+          "arch": "x86_64"
+        },
+        {
+          "name": "app-protect",
+          "version": "34+5.442",
+          "arch": "x86_64"
+        },
+        {
+          "name": "app-protect-attack-signatures",
+          "version": "2025",
+          "arch": "x86_64"
+        },
+        {
+          "name": "app-protect-threat-campaigns",
+          "version": "2025",
+          "arch": "x86_64"
+        }
       ],
       "cmd": "rpm -q",
       "regex": "(.+?)-(\\d+.+)(?:\\.ngx)?\\.(\\w+)",
@@ -189,12 +575,46 @@
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap-v5/nginx-plus-ingress:edge-ubi",
       "packages": [
-        "nginx-plus",
-        "nginx-plus-module-njs",
-        "nginx-plus-module-otel",
-        "nginx-plus-module-fips-check",
-        "nginx-agent",
-        "nginx-plus-module-appprotect"
+        {
+          "name": "nginx-plus",
+          "version": "34-2",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-njs",
+          "version": "34",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-otel",
+          "version": "34",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-fips-check",
+          "version": "34",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-agent",
+          "version": "2",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-appprotect",
+          "version": "34+5.442",
+          "arch": "x86_64"
+        },
+        {
+          "name": "app-protect-module-plus",
+          "version": "34+5.442",
+          "arch": "x86_64"
+        },
+        {
+          "name": "app-protect-plugin",
+          "version": "6.16.0",
+          "arch": "x86_64"
+        }
       ],
       "cmd": "rpm -q",
       "regex": "(.+?)-(\\d+.+)(?:\\.ngx)?\\.(\\w+)",
@@ -203,12 +623,51 @@
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap/nginx-plus-ingress:edge-ubi8",
       "packages": [
-        "nginx-plus",
-        "nginx-plus-module-njs",
-        "nginx-plus-module-otel",
-        "nginx-plus-module-fips-check",
-        "nginx-agent",
-        "nginx-plus-module-appprotect"
+        {
+          "name": "nginx-plus",
+          "version": "34-2",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-njs",
+          "version": "34",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-otel",
+          "version": "34",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-fips-check",
+          "version": "34",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-agent",
+          "version": "2",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-appprotect",
+          "version": "34+5.442",
+          "arch": "x86_64"
+        },
+        {
+          "name": "app-protect",
+          "version": "34+5.442",
+          "arch": "x86_64"
+        },
+        {
+          "name": "app-protect-attack-signatures",
+          "version": "2025",
+          "arch": "x86_64"
+        },
+        {
+          "name": "app-protect-threat-campaigns",
+          "version": "2025",
+          "arch": "x86_64"
+        }
       ],
       "cmd": "rpm -q",
       "regex": "(.+?)-(\\d+.+)(?:\\.ngx)?\\.(\\w+)",
@@ -217,12 +676,46 @@
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap-v5/nginx-plus-ingress:edge-ubi8",
       "packages": [
-        "nginx-plus",
-        "nginx-plus-module-njs",
-        "nginx-plus-module-otel",
-        "nginx-plus-module-fips-check",
-        "nginx-agent",
-        "nginx-plus-module-appprotect"
+        {
+          "name": "nginx-plus",
+          "version": "34-2",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-njs",
+          "version": "34",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-otel",
+          "version": "34",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-fips-check",
+          "version": "34",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-agent",
+          "version": "2",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-appprotect",
+          "version": "34+5.442",
+          "arch": "x86_64"
+        },
+        {
+          "name": "app-protect-module-plus",
+          "version": "34+5.442",
+          "arch": "x86_64"
+        },
+        {
+          "name": "app-protect-plugin",
+          "version": "6.16.0",
+          "arch": "x86_64"
+        }
       ],
       "cmd": "rpm -q",
       "regex": "(.+?)-(\\d+.+)(?:\\.ngx)?\\.(\\w+)",
@@ -231,11 +724,36 @@
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos/nginx-plus-ingress:edge-ubi",
       "packages": [
-        "nginx-plus",
-        "nginx-plus-module-njs",
-        "nginx-plus-module-otel",
-        "nginx-plus-module-fips-check",
-        "nginx-plus-module-appprotectdos"
+        {
+          "name": "nginx-plus",
+          "version": "34-2",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-njs",
+          "version": "34",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-otel",
+          "version": "34",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-fips-check",
+          "version": "34",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-appprotectdos",
+          "version": "34+4",
+          "arch": "x86_64"
+        },
+        {
+          "name": "app-protect-dos",
+          "version": "34+4",
+          "arch": "x86_64"
+        }
       ],
       "cmd": "rpm -q",
       "regex": "(.+?)-(\\d+.+)(?:\\.ngx)?\\.(\\w+)",
@@ -244,13 +762,61 @@
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos-nap/nginx-plus-ingress:edge-ubi",
       "packages": [
-        "nginx-plus",
-        "nginx-plus-module-njs",
-        "nginx-plus-module-otel",
-        "nginx-plus-module-fips-check",
-        "nginx-plus-module-appprotect",
-        "nginx-plus-module-appprotectdos",
-        "nginx-agent"
+        {
+          "name": "nginx-plus",
+          "version": "34-2",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-njs",
+          "version": "34",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-otel",
+          "version": "34",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-fips-check",
+          "version": "34",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-appprotect",
+          "version": "34+5.442",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-plus-module-appprotectdos",
+          "version": "34+4",
+          "arch": "x86_64"
+        },
+        {
+          "name": "nginx-agent",
+          "version": "2",
+          "arch": "x86_64"
+        },
+        {
+          "name": "app-protect",
+          "version": "34+5.442",
+          "arch": "x86_64"
+        },
+        {
+          "name": "app-protect-attack-signatures",
+          "version": "2025",
+          "arch": "x86_64"
+        },
+        {
+          "name": "app-protect-threat-campaigns",
+          "version": "2025",
+          "arch": "x86_64"
+        },
+        {
+          "name": "app-protect-dos",
+          "version": "34+4",
+          "arch": "x86_64"
+        }
       ],
       "cmd": "rpm -q",
       "regex": "(.+?)-(\\d+.+)(?:\\.ngx)?\\.(\\w+)",
