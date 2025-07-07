@@ -14,19 +14,17 @@ RELEASE_BRANCH_PREFIX=${RELEASE_BRANCH_PREFIX:-"nic-release-"}
 export GH_TOKEN=${GITHUB_TOKEN:-""}
 
  usage() {
-    echo "Usage: $0 <ic_version> <helm_chart_version> <operator_version> <k8s_versions> <release_date>"
+    echo "Usage: $0 <ic_version> <helm_chart_version> <operator_version> <k8s_versions> [<nginx_version>] <release_date>"
     exit 1
  }
-
- # clone local doc repo
- # if branch for the release doesnt exist, create it, otherwise checkout
 
 DOCS_FOLDER=${TMPDIR}/documentation
 ic_version=$1
 helm_chart_version=$2
 operator_version=$3
 k8s_versions=$4
-release_date=$5
+nginx_version=$5
+release_date=$6
 
 if [ -z "${ic_version}" ]; then
     usage
@@ -37,6 +35,10 @@ if [ -z "${helm_chart_version}" ]; then
 fi
 
 if [ -z "${k8s_versions}" ]; then
+    usage
+fi
+
+if [ -z "${operator_version}" ]; then
     usage
 fi
 
@@ -72,6 +74,7 @@ if [ "${DEBUG}" != "false" ]; then
     echo "DEBUG: operator_version: ${operator_version}"
     echo "DEBUG: k8s_versions: ${k8s_versions}"
     echo "DEBUG: release_date: ${release_date}"
+    echo "DEBUG: nginx_version: ${nginx_version}"
 fi
 
 echo "INFO: Generating release notes from github draft release"
@@ -132,6 +135,35 @@ else
     if [ "${DEBUG}" != "false" ]; then
         echo "DEBUG: Created branch ${branch}"
     fi
+fi
+
+# Update the technical specifications using the current file as input
+if [ -n "${nginx_version}" ]; then
+    echo "INFO: Updating technical specifications"
+    # First, get the current content of the tech specs file
+    tech_specs_file="${DOCS_FOLDER}/content/nic/technical-specifications.md"
+    if [ ! -f "${tech_specs_file}" ]; then
+        echo "ERROR: Technical specifications file not found at ${tech_specs_file}"
+        exit 1
+    fi
+
+    tech_specs_content=$(cat "${tech_specs_file}" | \
+        python3 ${ROOTDIR}/.github/scripts/tech-specs-update.py \
+            "${ic_version}" "${k8s_versions}" "${nginx_version}" "${DOCS_FOLDER}")
+    if [ $? -ne 0 ]; then
+        echo "ERROR: Failed to update technical specifications"
+        exit 1
+    fi
+    # Check if the file was updated
+      echo "INFO: Technical specifications updated"
+      if [ "${DEBUG}" != "false" ]; then
+          echo "DEBUG: Updated technical specifications content:"
+          cat "${tech_specs_file}"
+      fi
+      git add "${tech_specs_file}"
+      git commit -m "Update technical specifications for ${ic_version}"
+else
+    echo "INFO: nginx_version not set, skipping tech specs update"
 fi
 
 echo "INFO: Adding release notes content to release.md in the documentation repository"

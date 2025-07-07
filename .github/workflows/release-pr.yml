@@ -31,6 +31,11 @@ on:
         description: "Kubernetes versions this release has been tested on"
         required: true
         default: "x.xx-x.xx"
+      new_nginx_version:
+        # Over Limit: 10 workflow options allowed, this is 11 -- TODO: Find alternative - ask Paul
+        description: "Nginx version to release"
+        required: true
+        default: "1.27.5 / R34 P1"
       release_date:
         description: "Date for this release"
         required: true
@@ -87,6 +92,7 @@ jobs:
             ${{ inputs.new_helm_version }} \
             ${{ inputs.new_operator_version }} \
             "${{ inputs.k8s_versions }}" \
+            "${{ inputs.new_nginx_version }}" \
             "${{ inputs.release_date }}"
         env:
           GITHUB_USERNAME: ${{ github.actor }}
