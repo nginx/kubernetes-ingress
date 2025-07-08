@@ -202,6 +202,17 @@ func validateJWT(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
 		return allErrs
 	}
 
+	if jwt.JwksURI == "" {
+		// If JwksURI is not set, then none of the SNI fields should be set.
+		if jwt.SNIEnabled {
+			return append(allErrs, field.Forbidden(fieldPath.Child("sniEnabled"), "sniEnabled can only be set when JwksURI is set"))
+		}
+
+		if jwt.SNIName != "" {
+			return append(allErrs, field.Forbidden(fieldPath.Child("sniName"), "sniName can only be set when JwksURI is set"))
+		}
+	}
+
 	// Verify a case when using JWKS
 	if jwt.JwksURI != "" {
 		allErrs = append(allErrs, validateURL(jwt.JwksURI, fieldPath.Child("JwksURI"))...)
