@@ -303,6 +303,10 @@ spec:
                     type: string
                   secret:
                     type: string
+                  sniEnabled:
+                    type: boolean
+                  sniName:
+                    type: string
                   token:
                     type: string
                 type: object
