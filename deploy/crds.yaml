@@ -305,7 +305,7 @@ spec:
                     type: string
                   sniEnabled:
                     type: boolean
-                  sniServerName:
+                  sniName:
                     type: string
                   token:
                     type: string

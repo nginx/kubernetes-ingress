@@ -658,7 +658,7 @@ type JWTAuth struct {
 	JwksURI       string `json:"jwksURI"`
 	KeyCache      string `json:"keyCache"`
 	SNIEnabled    bool   `json:"sniEnabled"`
-	SNIServerName string `json:"sniServerName"`
+	SNIServerName string `json:"sniName"`
 }
 
 // BasicAuth holds HTTP Basic authentication configuration
