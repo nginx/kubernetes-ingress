@@ -2349,17 +2349,17 @@ var (
 		Server: Server{
 			JWTAuthList: map[string]*JWTAuth{
 				"default/jwt-policy": {
-					Key:            "default/jwt-policy",
-					Realm:          "Spec Realm API",
-					Token:          "$http_token",
-					KeyCache:       "1h",
-					JwksSNIEnabled: true,
-					JwksSNIName:    "sni.idp.spec.example.com",
+					Key:      "default/jwt-policy",
+					Realm:    "Spec Realm API",
+					Token:    "$http_token",
+					KeyCache: "1h",
 					JwksURI: JwksURI{
-						JwksScheme: "https",
-						JwksHost:   "idp.spec.example.com",
-						JwksPort:   "443",
-						JwksPath:   "/spec-keys",
+						JwksScheme:     "https",
+						JwksHost:       "idp.spec.example.com",
+						JwksPort:       "443",
+						JwksPath:       "/spec-keys",
+						JwksSNIEnabled: true,
+						JwksSNIName:    "sni.idp.spec.example.com",
 					},
 				},
 				"default/jwt-policy-route": {
