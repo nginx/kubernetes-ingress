@@ -279,6 +279,7 @@ spec:
                               - VIOL_FILE_UPLOAD
                               - VIOL_FILE_UPLOAD_IN_BODY
                               - VIOL_FILETYPE
+                              - VIOL_GEOLOCATION
                               - VIOL_GRAPHQL_ERROR_RESPONSE
                               - VIOL_GRAPHQL_FORMAT
                               - VIOL_GRAPHQL_INTROSPECTION_QUERY
