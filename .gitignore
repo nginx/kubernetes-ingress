@@ -33,7 +33,6 @@ dist/
 # NGINX Plus license files
 *.crt
 *.key
-*.jwt
 
 # RHEL license
 rhel_license
