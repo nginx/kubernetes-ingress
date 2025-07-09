@@ -4,7 +4,7 @@ metadata:
   name: cafe
 spec:
   server-snippets: |
-    add_header X-Cache-Status $upstream_cache_status; 
+    add_header X-Cache-Status $upstream_cache_status;
   # This header will show the cache status for each request, e.g. X-Cache-Status: MISS or X-Cache-Status: HIT.
   # The cache status can be "HIT", "MISS", "EXPIRED", etc.
   # This is useful for debugging and monitoring cache behavior but not required for cache functionality.
@@ -30,6 +30,3 @@ spec:
   - path: /coffee
     action:
       pass: coffee
-
-
-
