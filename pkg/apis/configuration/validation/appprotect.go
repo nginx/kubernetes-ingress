@@ -31,6 +31,7 @@ var appProtectPolicyExtRefs = [][]string{
 	{"spec", "policy", "headerReference"},
 	{"spec", "policy", "cookieReference"},
 	{"spec", "policy", "dataGuardReference"},
+	{"spec", "policy", "disallowedGeolocationReference"},
 	{"spec", "policy", "filetypeReference"},
 	{"spec", "policy", "methodReference"},
 	{"spec", "policy", "generalReference"},
