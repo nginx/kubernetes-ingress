@@ -8,5 +8,21 @@ spec:
     cacheZoneSize: "14m" #Required
     allowedCodes: ["any"] #Optional ["any"] or ["200", "301", ...]
     allowedMethods: ["GET", "HEAD", "POST"] #Optional
-    time: "15m" #Optional # e.g. "15m", "1h", "2d". Default is "10m"
-    # cachePurgeAllow: ["<IP_ADDRESS>", "<CIDR>", ...]  # Optional, e.g. ["192.168.1.1", "192.168.1.0/24"]. This functionality is only available in NGINX Plus.
+    time: "25m" #Optional # e.g. "15m", "1h", "2d". Default is "10m"
+    # cachePurgeAllow: [""]
+    overrideUpstreamCache: false
+---
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: cache-policy2
+spec:
+  cache:
+    cacheZoneName: "mycache2" #Required
+    cacheZoneSize: "18m" #Required
+    allowedCodes: ["any"] #Optional
+    allowedMethods: ["GET"] #Optional
+    time: "15m" #Optional
+    # cachePurgeAllow: [""]
+    overrideUpstreamCache: true
+    levels: "1:2" # Optional, e.g. "1:2" or "2:2". This controls the number of subdirectory levels used for cache storage.

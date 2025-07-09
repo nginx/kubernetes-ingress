@@ -71,7 +71,7 @@ limit_req_zone {{ $z.Key }} zone={{ $z.ZoneName }}:{{ $z.ZoneSize }} rate={{ $z.
 {{- end }}
 
 {{- range $c := .CacheZones }}
-proxy_cache_path {{ $c.Path }} keys_zone={{ $c.Name }}:{{ $c.Size }};
+proxy_cache_path {{ $c.Path }}{{ if $c.Levels }} levels={{ $c.Levels }}{{ end }} keys_zone={{ $c.Name }}:{{ $c.Size }};
 {{- end }}
 
 {{- range $m := .StatusMatches }}

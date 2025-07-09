@@ -1915,7 +1915,7 @@ func generateCacheConfig(cache *conf_v1.Cache, vsNamespace, vsName, ownerNamespa
 		// Policy is applied to VirtualServerRoute, include both VS and owner info
 		uniqueZoneName = fmt.Sprintf("%s_%s_%s_%s_%s", vsNamespace, vsName, ownerNamespace, ownerName, cache.CacheZoneName)
 	}
-	
+
 	cacheConfig := &version2.Cache{
 		ZoneName:              uniqueZoneName,
 		Time:                  cache.Time,
@@ -1924,6 +1924,7 @@ func generateCacheConfig(cache *conf_v1.Cache, vsNamespace, vsName, ownerNamespa
 		CachePurgeAllow:       cache.CachePurgeAllow,
 		ZoneSize:              cache.CacheZoneSize,
 		OverrideUpstreamCache: cache.OverrideUpstreamCache,
+		Levels:                cache.Levels, // Pass Levels from Cache to CacheZone
 	}
 
 	// Convert allowed codes to proxy_cache_valid entries
@@ -1953,9 +1954,10 @@ func addCacheZone(cacheZones *[]version2.CacheZone, cache *version2.Cache) {
 	}
 
 	cacheZone := version2.CacheZone{
-		Name: cache.ZoneName,
-		Size: zoneSize,
-		Path: fmt.Sprintf("/var/cache/nginx/%s", cache.ZoneName),
+		Name:   cache.ZoneName,
+		Size:   zoneSize,
+		Path:   fmt.Sprintf("/var/cache/nginx/%s", cache.ZoneName),
+		Levels: cache.Levels, // Pass Levels from Cache to CacheZone
 	}
 
 	// Check for duplicates

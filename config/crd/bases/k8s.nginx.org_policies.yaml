@@ -321,6 +321,10 @@ spec:
                     description: Time defines the default cache time (required when allowedCodes is specified)
                     type: string
                     pattern: '^[0-9]+[smhd]$'
+                  levels:
+                    description: Directory hierarchy for cache files. Controls the number of subdirectory levels used for cache storage.
+                    type: string
+                    pattern: '^[12](?::[12]){0,2}$'
                 required:
                   - cacheZoneName
                   - cacheZoneSize

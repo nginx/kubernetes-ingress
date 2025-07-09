@@ -484,9 +484,10 @@ type Variable struct {
 
 // CacheZone defines a proxy cache zone configuration.
 type CacheZone struct {
-	Name string
-	Size string
-	Path string
+	Name   string
+	Size   string
+	Path   string
+	Levels string // Optional. Directory hierarchy for cache files (e.g., "1:2", "2:2", "1:2:2")
 }
 
 // Cache defines cache configuration for locations.
@@ -497,5 +498,6 @@ type Cache struct {
 	Valid                 map[string]string // map for codes to time
 	AllowedMethods        []string          // HTTP methods allowed for caching based on proxy_cache_methods
 	CachePurgeAllow       []string          // IPs/CIDRs allowed to purge cache
-	OverrideUpstreamCache bool             // Controls whether to override upstream cache headers
+	OverrideUpstreamCache bool              // Controls whether to override upstream cache headers
+	Levels                string            // Optional. Directory hierarchy for cache files (e.g., "1:2", "2:2", "1:2:2")
 }

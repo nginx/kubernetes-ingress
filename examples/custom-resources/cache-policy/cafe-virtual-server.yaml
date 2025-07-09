@@ -25,6 +25,8 @@ spec:
   - path: /tea
     action:
       pass: tea
+    policies:
+    - name: cache-policy2
   - path: /coffee
     action:
       pass: coffee

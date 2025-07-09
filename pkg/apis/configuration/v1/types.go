@@ -736,11 +736,12 @@ type SuppliedIn struct {
 
 // Cache defines a cache policy for proxy caching.
 type Cache struct {
-	CacheZoneName        string               `json:"cacheZoneName"`
-	CacheZoneSize        string               `json:"cacheZoneSize"`
-	AllowedCodes         []intstr.IntOrString `json:"allowedCodes,omitempty"`
-	AllowedMethods       []string             `json:"allowedMethods,omitempty"`
-	Time                 string               `json:"time,omitempty"`
-	CachePurgeAllow      []string             `json:"cachePurgeAllow,omitempty"`
-	OverrideUpstreamCache bool                `json:"overrideUpstreamCache,omitempty"`
+	CacheZoneName         string               `json:"cacheZoneName"`
+	CacheZoneSize         string               `json:"cacheZoneSize"`
+	AllowedCodes          []intstr.IntOrString `json:"allowedCodes,omitempty"`
+	AllowedMethods        []string             `json:"allowedMethods,omitempty"`
+	Time                  string               `json:"time,omitempty"`
+	CachePurgeAllow       []string             `json:"cachePurgeAllow,omitempty"`
+	OverrideUpstreamCache bool                 `json:"overrideUpstreamCache,omitempty"`
+	Levels                string               `json:"levels,omitempty"` // Optional. Directory hierarchy for cache files (e.g., "1:2", "2:2", "1:2:2")
 }
