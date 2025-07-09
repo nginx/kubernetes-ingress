@@ -45,7 +45,7 @@ updates:
           - "patch"
 
   - package-ecosystem: pip
-    directory: /tests
+    directory: /
     schedule:
       interval: weekly
     groups:
@@ -54,8 +54,3 @@ updates:
           - "major"
           - "minor"
           - "patch"
-
-  - package-ecosystem: gomod
-    directory: /site
-    schedule:
-      interval: weekly
