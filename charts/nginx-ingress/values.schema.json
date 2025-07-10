@@ -1822,7 +1822,11 @@
           "allOf": [
             {
               "if": {
-                "properties": { "enable": { "const": true } }
+                "properties": {
+                  "enable": {
+                    "const": true
+                  }
+                }
               },
               "then": {
                 "required": [

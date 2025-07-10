@@ -588,7 +588,7 @@ controller:
 
     # ## The number of seconds after which the startup probe is considered successful.
     # successThreshold: 1
-    
+
     # ## The number of seconds after which the startup probe is considered failed.
     # failureThreshold: 30
 
