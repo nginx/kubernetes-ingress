@@ -1,7 +1,7 @@
 SHELL                       = /bin/bash
 ROOT_DIR                    = $(shell git rev-parse --show-toplevel)
 CONTEXT                     =
-PULL_POLICY                 = IfNotPresent
+PULL_POLICY                 ?= IfNotPresent
 DEPLOYMENT_TYPE             = deployment
 SERVICE                     = nodeport
 NODE_IP                     =
@@ -151,7 +151,7 @@ run-tests-in-minikube: ## Run tests in Minikube
 		-v $(ROOT_DIR)/pyproject.toml:/workspace/pyproject.toml \
 		$(TEST_PREFIX):$(TEST_TAG) \
  		--context=minikube \
- 		--image=$(BUILD_IMAGE) --image-pull-policy=Never \
+ 		--image=$(BUILD_IMAGE) --image-pull-policy=$(PULL_POLICY) \
  		--deployment-type=$(DEPLOYMENT_TYPE) \
  		--ic-type=$(IC_TYPE) \
  		--service=nodeport \

@@ -9,12 +9,7 @@ builds:
       - linux
     goarch:
       - amd64
-      - arm
       - arm64
-      - ppc64le
-      - s390x
-    goarm:
-      - 7
     flags:
       - -trimpath
     gcflags:
@@ -25,82 +20,83 @@ builds:
       - -s -w -X main.version={{.Version}}
     main: ./cmd/nginx-ingress/
     binary: nginx-ingress
-  - id: aws
-    goos:
-      - linux
-    goarch:
-      - amd64
-      - arm64
-    flags:
-      - -trimpath
-    gcflags:
-      - all=-trimpath={{.Env.GOPATH}}
-    asmflags:
-      - all=-trimpath={{.Env.GOPATH}}
-    ldflags:
-      - -s -w -X main.version={{.Version}} -X main.productCode={{.Env.AWS_PRODUCT_CODE}} -X main.pubKeyString={{.Env.AWS_PUB_KEY}}
-    main: ./cmd/nginx-ingress/
-    binary: nginx-ingress
-    tags:
-      - aws
-  - id: aws-nap-dos
-    goos:
-      - linux
-    goarch:
-      - amd64
-    flags:
-      - -trimpath
-    gcflags:
-      - all=-trimpath={{.Env.GOPATH}}
-    asmflags:
-      - all=-trimpath={{.Env.GOPATH}}
-    ldflags:
-      - -s -w -X main.version={{.Version}} -X main.productCode={{.Env.AWS_NAP_DOS_PRODUCT_CODE}} -X main.pubKeyString={{.Env.AWS_NAP_DOS_PUB_KEY}}
-    main: ./cmd/nginx-ingress/
-    binary: nginx-ingress
-    tags:
-      - aws
-  - id: aws-nap-waf
-    goos:
-      - linux
-    goarch:
-      - amd64
-    flags:
-      - -trimpath
-    gcflags:
-      - all=-trimpath={{.Env.GOPATH}}
-    asmflags:
-      - all=-trimpath={{.Env.GOPATH}}
-    ldflags:
-      - -s -w -X main.version={{.Version}} -X main.productCode={{.Env.AWS_NAP_WAF_PRODUCT_CODE}} -X main.pubKeyString={{.Env.AWS_NAP_WAF_PUB_KEY}}
-    main: ./cmd/nginx-ingress/
-    binary: nginx-ingress
-    tags:
-      - aws
-  - id: aws-nap-both
-    goos:
-      - linux
-    goarch:
-      - amd64
-    flags:
-      - -trimpath
-    gcflags:
-      - all=-trimpath={{.Env.GOPATH}}
-    asmflags:
-      - all=-trimpath={{.Env.GOPATH}}
-    ldflags:
-      - -s -w -X main.version={{.Version}} -X main.productCode={{.Env.AWS_NAP_WAF_DOS_PRODUCT_CODE}} -X main.pubKeyString={{.Env.AWS_NAP_WAF_DOS_PUB_KEY}}
-    main: ./cmd/nginx-ingress/
-    binary: nginx-ingress
-    tags:
-      - aws
+  ## Disable AWS Marketplace builds
+  # - id: aws
+  #   goos:
+  #     - linux
+  #   goarch:
+  #     - amd64
+  #     - arm64
+  #   flags:
+  #     - -trimpath
+  #   gcflags:
+  #     - all=-trimpath={{.Env.GOPATH}}
+  #   asmflags:
+  #     - all=-trimpath={{.Env.GOPATH}}
+  #   ldflags:
+  #     - -s -w -X main.version={{.Version}} -X main.productCode={{.Env.AWS_PRODUCT_CODE}} -X main.pubKeyString={{.Env.AWS_PUB_KEY}}
+  #   main: ./cmd/nginx-ingress/
+  #   binary: nginx-ingress
+  #   tags:
+  #     - aws
+  # - id: aws-nap-dos
+  #   goos:
+  #     - linux
+  #   goarch:
+  #     - amd64
+  #   flags:
+  #     - -trimpath
+  #   gcflags:
+  #     - all=-trimpath={{.Env.GOPATH}}
+  #   asmflags:
+  #     - all=-trimpath={{.Env.GOPATH}}
+  #   ldflags:
+  #     - -s -w -X main.version={{.Version}} -X main.productCode={{.Env.AWS_NAP_DOS_PRODUCT_CODE}} -X main.pubKeyString={{.Env.AWS_NAP_DOS_PUB_KEY}}
+  #   main: ./cmd/nginx-ingress/
+  #   binary: nginx-ingress
+  #   tags:
+  #     - aws
+  # - id: aws-nap-waf
+  #   goos:
+  #     - linux
+  #   goarch:
+  #     - amd64
+  #   flags:
+  #     - -trimpath
+  #   gcflags:
+  #     - all=-trimpath={{.Env.GOPATH}}
+  #   asmflags:
+  #     - all=-trimpath={{.Env.GOPATH}}
+  #   ldflags:
+  #     - -s -w -X main.version={{.Version}} -X main.productCode={{.Env.AWS_NAP_WAF_PRODUCT_CODE}} -X main.pubKeyString={{.Env.AWS_NAP_WAF_PUB_KEY}}
+  #   main: ./cmd/nginx-ingress/
+  #   binary: nginx-ingress
+  #   tags:
+  #     - aws
+  # - id: aws-nap-both
+  #   goos:
+  #     - linux
+  #   goarch:
+  #     - amd64
+  #   flags:
+  #     - -trimpath
+  #   gcflags:
+  #     - all=-trimpath={{.Env.GOPATH}}
+  #   asmflags:
+  #     - all=-trimpath={{.Env.GOPATH}}
+  #   ldflags:
+  #     - -s -w -X main.version={{.Version}} -X main.productCode={{.Env.AWS_NAP_WAF_DOS_PRODUCT_CODE}} -X main.pubKeyString={{.Env.AWS_NAP_WAF_DOS_PUB_KEY}}
+  #   main: ./cmd/nginx-ingress/
+  #   binary: nginx-ingress
+  #   tags:
+  #     - aws
 
 changelog:
   disable: true
 
 archives:
   - id: archives
-    builds: [kubernetes-ingress]
+    ids: [kubernetes-ingress]
 
 sboms:
   - id: sboms

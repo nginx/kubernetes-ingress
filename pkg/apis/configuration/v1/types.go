@@ -618,8 +618,11 @@ type RateLimit struct {
 type RateLimitCondition struct {
 	// defines a JWT condition to rate limit against.
 	JWT *JWTCondition `json:"jwt"`
+	// defines a Variables condition to rate limit against.
+	// +kubebuilder:validation:MaxItems=1
+	Variables *[]VariableCondition `json:"variables"`
 	// +kubebuilder:validation:Optional
-	// sets the rate limit in this policy to be the default if no conditions are met. In a group of policies with the same JWT condition, only one policy can be the default.
+	// sets the rate limit in this policy to be the default if no conditions are met. In a group of policies with the same condition, only one policy can be the default.
 	Default bool `json:"default"`
 }
 
@@ -632,6 +635,18 @@ type JWTCondition struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^([^$\s."'])*$`
 	// the value of the claim to match against.
+	Match string `json:"match"`
+}
+
+// VariableCondition defines a condition to rate limit by a variable.
+type VariableCondition struct {
+	// +kubebuilder:validation:Pattern=`^([^\s"'])*$`
+	// +kubebuilder:validation:Required
+	// the name of the variable to match against.
+	Name string `json:"name"`
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^([^\s"'])*$`
+	// the value of the variable to match against.
 	Match string `json:"match"`
 }
 
@@ -685,6 +700,7 @@ type OIDC struct {
 	ZoneSyncLeeway        *int     `json:"zoneSyncLeeway"`
 	AuthExtraArgs         []string `json:"authExtraArgs"`
 	AccessTokenEnable     bool     `json:"accessTokenEnable"`
+	PKCEEnable            bool     `json:"pkceEnable"`
 }
 
 // WAF defines an WAF policy.

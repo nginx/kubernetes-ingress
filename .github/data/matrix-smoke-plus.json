@@ -25,7 +25,7 @@
       "label": "TS",
       "image": "debian-plus",
       "type": "plus",
-      "marker": "ts",
+      "marker": "'ts or otel'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
@@ -60,7 +60,7 @@
       "label": "VSR 3/3",
       "image": "alpine-plus",
       "type": "plus",
-      "marker": "'vsr_api or vsr_routing or vsr_canary or vsr_status or vsr_grpc'",
+      "marker": "'vsr_api or vsr_routing or vsr_canary or vsr_status or vsr_grpc or otel'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
@@ -68,21 +68,28 @@
       "image": "ubi-9-plus",
       "type": "plus",
       "marker": "'policies and not policies_ac and not policies_jwt and not policies_mtls and not policies_rl'",
-      "platforms": "linux/arm64, linux/amd64, linux/s390x"
+      "platforms": "linux/arm64, linux/amd64"
     },
     {
       "label": "policies 2/3",
       "image": "ubi-9-plus",
       "type": "plus",
-      "marker": "'policies_ac or policies_jwt or policies_mtls'",
-      "platforms": "linux/arm64, linux/amd64, linux/s390x"
+      "marker": "'policies_ac or policies_jwt or policies_mtls or otel'",
+      "platforms": "linux/arm64, linux/amd64"
     },
     {
       "label": "policies 3/3",
       "image": "ubi-9-plus",
       "type": "plus",
       "marker": "policies_rl",
-      "platforms": "linux/arm64, linux/amd64, linux/s390x"
+      "platforms": "linux/arm64, linux/amd64"
+    },
+    {
+      "label": "agent 1/1",
+      "image": "debian-plus",
+      "type": "plus",
+      "marker": "agentv3",
+      "platforms": "linux/arm64, linux/amd64"
     },
     {
       "label": "OIDC-UI 1/1",

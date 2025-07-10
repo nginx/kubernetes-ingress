@@ -908,18 +908,18 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 	// update special license secret in mgmtConfigParams
 	if lbc.mgmtConfigMap != nil && lbc.isNginxPlus {
 		if mgmtCfgParams.Secrets.License != "" {
-			secret, err := lbc.client.CoreV1().Secrets(lbc.mgmtConfigMap.GetNamespace()).Get(context.TODO(), mgmtCfgParams.Secrets.License, meta_v1.GetOptions{})
+			secret, err := lbc.client.CoreV1().Secrets(lbc.metadata.namespace).Get(context.TODO(), mgmtCfgParams.Secrets.License, meta_v1.GetOptions{})
 			if err != nil {
-				nl.Errorf(lbc.Logger, "secret %s/%s: %v", lbc.mgmtConfigMap.GetNamespace(), mgmtCfgParams.Secrets.License, err)
+				nl.Errorf(lbc.Logger, "secret %s/%s: %v", lbc.metadata.namespace, mgmtCfgParams.Secrets.License, err)
 			}
 			lbc.specialSecrets.licenseSecret = fmt.Sprintf("%s/%s", secret.Namespace, secret.Name)
 			lbc.handleSpecialSecretUpdate(secret, reloadNginx)
 		}
 		// update special CA secret in mgmtConfigParams
 		if mgmtCfgParams.Secrets.TrustedCert != "" {
-			secret, err := lbc.client.CoreV1().Secrets(lbc.mgmtConfigMap.GetNamespace()).Get(context.TODO(), mgmtCfgParams.Secrets.TrustedCert, meta_v1.GetOptions{})
+			secret, err := lbc.client.CoreV1().Secrets(lbc.metadata.namespace).Get(context.TODO(), mgmtCfgParams.Secrets.TrustedCert, meta_v1.GetOptions{})
 			if err != nil {
-				nl.Errorf(lbc.Logger, "secret %s/%s: %v", lbc.mgmtConfigMap.GetNamespace(), mgmtCfgParams.Secrets.TrustedCert, err)
+				nl.Errorf(lbc.Logger, "secret %s/%s: %v", lbc.metadata.namespace, mgmtCfgParams.Secrets.TrustedCert, err)
 			}
 			if _, hasCRL := secret.Data[configs.CACrlKey]; hasCRL {
 				lbc.configurator.MgmtCfgParams.Secrets.TrustedCRL = secret.Name
@@ -929,9 +929,9 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 		}
 		// update special ClientAuth secret in mgmtConfigParams
 		if mgmtCfgParams.Secrets.ClientAuth != "" {
-			secret, err := lbc.client.CoreV1().Secrets(lbc.mgmtConfigMap.GetNamespace()).Get(context.TODO(), mgmtCfgParams.Secrets.ClientAuth, meta_v1.GetOptions{})
+			secret, err := lbc.client.CoreV1().Secrets(lbc.metadata.namespace).Get(context.TODO(), mgmtCfgParams.Secrets.ClientAuth, meta_v1.GetOptions{})
 			if err != nil {
-				nl.Errorf(lbc.Logger, "secret %s/%s: %v", lbc.mgmtConfigMap.GetNamespace(), mgmtCfgParams.Secrets.ClientAuth, err)
+				nl.Errorf(lbc.Logger, "secret %s/%s: %v", lbc.metadata.namespace, mgmtCfgParams.Secrets.ClientAuth, err)
 			}
 			lbc.specialSecrets.clientAuthSecret = fmt.Sprintf("%s/%s", secret.Namespace, secret.Name)
 			lbc.handleSpecialSecretUpdate(secret, reloadNginx)
@@ -2829,6 +2829,10 @@ func (lbc *LoadBalancerController) addEgressMTLSSecretRefs(secretRefs map[string
 func (lbc *LoadBalancerController) addOIDCSecretRefs(secretRefs map[string]*secrets.SecretReference, policies []*conf_v1.Policy) error {
 	for _, pol := range policies {
 		if pol.Spec.OIDC == nil {
+			continue
+		}
+
+		if pol.Spec.OIDC.PKCEEnable {
 			continue
 		}
 

@@ -23,7 +23,8 @@ pythonpath = [
 addopts = "--tb=native -ra --disable-warnings -x -l -v --strict-markers"
 log_cli = true
 markers = [
-    "agent",
+    "agentv2",
+    "agentv3",
     "annotations",
     "appprotect",
     "appprotect_integration",
@@ -46,6 +47,7 @@ markers = [
     "ingresses",
     "multi_ns",
     "oidc",
+    "otel",
     "policies",
     "policies_rl",
     "policies_jwt",

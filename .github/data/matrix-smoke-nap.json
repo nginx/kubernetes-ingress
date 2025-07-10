@@ -5,7 +5,7 @@
       "image": "ubi-8-plus-nap",
       "type": "plus",
       "nap_modules": "waf",
-      "marker": "appprotect_waf_policies_allow",
+      "marker": "'appprotect_waf_policies_allow or otel'",
       "platforms": "linux/amd64"
     },
     {
@@ -21,7 +21,7 @@
       "image": "alpine-plus-nap-fips",
       "type": "plus",
       "nap_modules": "waf",
-      "marker": "appprotect_waf_policies_grpc",
+      "marker": "'appprotect_waf_policies_grpc or otel'",
       "platforms": "linux/amd64"
     },
     {
@@ -29,7 +29,7 @@
       "image": "debian-plus-nap",
       "type": "plus",
       "nap_modules": "waf",
-      "marker": "'appprotect_watch or appprotect_batch or appprotect_integration or appprotect_waf_policies_vsr'",
+      "marker": "'appprotect_watch or appprotect_batch or appprotect_integration or appprotect_waf_policies_vsr or otel'",
       "platforms": "linux/amd64"
     },
     {
@@ -37,7 +37,7 @@
       "image": "debian-plus-nap-v5",
       "type": "plus",
       "nap_modules": "waf",
-      "marker": "appprotect_waf_v5",
+      "marker": "'appprotect_waf_v5 or otel'",
       "platforms": "linux/amd64"
     },
     {
@@ -61,7 +61,7 @@
       "image": "ubi-9-plus-nap",
       "type": "plus",
       "nap_modules": "dos",
-      "marker": "dos_learning",
+      "marker": "'dos_learning or otel'",
       "platforms": "linux/amd64"
     },
     {
@@ -69,7 +69,7 @@
       "image": "debian-plus-nap",
       "type": "plus",
       "nap_modules": "waf",
-      "marker": "agent",
+      "marker": "agentv2",
       "platforms": "linux/amd64"
     }
   ],

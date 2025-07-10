@@ -676,21 +676,22 @@ nginxServiceMesh:
 nginxAgent:
   ## Enables NGINX Agent.
   enable: false
+  logLevel: "info"
+
+  # Agent V3 configuration
+  # Dataplane key is required to authenticate NGINX Agent with NGINX One Console
+  dataplaneKeySecretName: ""
+  endpointHost: "product.connect.nginx.com"
+  endpointPort: 443
+  tlsSkipVerify: false
+
+  # Agent V2 configuration
   ## If nginxAgent.instanceGroup is not set the value of nginx-ingress.controller.fullname will be used
   instanceGroup: ""
-  logLevel: "error"
-  ## Syslog listener which NGINX Agent uses to accept messages from App Protect WAF
-  syslog:
-    host: "127.0.0.1"
-    port: 1514
-  napMonitoring:
-    collectorBufferSize: 50000
-    processorBufferSize: 50000
   instanceManager:
     # FQDN or IP for connecting to NGINX Instance Manager, e.g. nim.example.com
     host: ""
     grpcPort: 443
-    sni: ""
     tls:
       enabled: true
       skipVerify: false
@@ -698,5 +699,13 @@ nginxAgent:
       secret: ""
       ## nginx.org/ca secret for verification of Instance Manager TLS
       caSecret: ""
+    sni: ""
+  ## Syslog listener which NGINX Agent uses to accept messages from App Protect WAF
+  syslog:
+    host: "127.0.0.1"
+    port: 1514
+  napMonitoring:
+    collectorBufferSize: 50000
+    processorBufferSize: 50000
   ## The name of a custom ConfigMap to use instead of the one provided by default
   customConfigMap: ""

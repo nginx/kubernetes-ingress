@@ -1,92 +1,36 @@
-name: Build UBI ppc64le Dependency
+name: Build UBI c-ares Dependency
 
 on:
   push:
     branches:
       - main
     paths:
-      - build/dependencies/Dockerfile.ubi
+      - build/dependencies/Dockerfile.ubi8
+      - build/dependencies/Dockerfile.ubi9
+      - .github/workflows/build-ubi-dependency.yml
   workflow_dispatch:
-    inputs:
-      nginx_version:
-        type: string
-        description: "NGINX Version to build for"
-        required: false
-      force:
-        type: boolean
-        description: "Force rebuild"
-        required: false
-        default: false
 
 env:
-  IMAGE_NAME: ghcr.io/nginx/dependencies/nginx-ubi-ppc64le
+  IMAGE_NAME: ghcr.io/nginx/dependencies/nginx-ubi
 
 concurrency:
-  group: ${{ github.ref_name }}-ubi-ppc64le-build
+  group: ${{ github.ref_name }}-ubi-build
   cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  checks:
-    name: Check versions
-    runs-on: ubuntu-22.04
-    permissions:
-      packages: read
-      contents: read
-    strategy:
-      fail-fast: false
-    outputs:
-      nginx_version: ${{ steps.var.outputs.nginx_version }}
-      njs_version: ${{ steps.var.outputs.njs_version }}
-      target_exists: ${{ steps.var.outputs.target_image_exists }}
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Output Variables
-        id: var
-        run: |
-          if [ -n "${{ inputs.nginx_version }}" ]; then
-            nginx_v=${{ inputs.nginx_version }}
-          else
-            nginx_v=$(grep -m1 'FROM nginx:' <build/dependencies/Dockerfile.ubi | cut -d '@' -f1 | awk -F'[: ]' '{print $3}')
-          fi
-          target_image=${{ env.IMAGE_NAME }}:nginx-${nginx_v}
-          if docker manifest inspect ${target_image}; then
-            target_image_exists=true
-          else
-            target_image_exists=false
-          fi
-          docker pull nginx:$nginx_v || exit 1
-          njs=$(docker run nginx:$nginx_v env | grep NJS_VERSION | cut -d= -f2)
-          echo "> Outputs -------------------------------"
-          echo "NJS_VERSION=$njs"
-          echo "nginx_version=${nginx_v}"
-          echo "njs_version=${njs}"
-          echo "target_image_exists=${target_image_exists}"
-          echo "nginx_version=${nginx_v}" >> $GITHUB_OUTPUT
-          echo "njs_version=${njs}" >> $GITHUB_OUTPUT
-          echo "target_image_exists=${target_image_exists}" >> $GITHUB_OUTPUT
-
   build-binaries:
     name: Build Binary Container Image
-    if: ${{ needs.checks.outputs.target_exists != 'true' || inputs.force }}
-    needs: checks
     runs-on: ubuntu-22.04
     permissions:
       packages: write
       contents: read
     strategy:
       fail-fast: false
+      matrix:
+        tag: ["ubi8", "ubi9"]
     steps:
       - name: Checkout Repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -94,10 +38,10 @@ jobs:
       - name: Setup QEMU
         uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
         with:
-          platforms: arm64,ppc64le,s390x
+          platforms: arm64
 
       - name: Docker Buildx
-        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
@@ -113,28 +57,23 @@ jobs:
           images: |
             name=${{ env.IMAGE_NAME }},enable=true
           tags: |
-            type=raw,value=nginx-${{ needs.checks.outputs.nginx_version }},enable=true
+            type=raw,value=${{ matrix.tag }},enable=true
         env:
           DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
 
       - name: Build and push
-        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
-          file: ./build/dependencies/Dockerfile.ubi
+          file: ./build/dependencies/Dockerfile.${{ matrix.tag }}
           context: "."
           pull: true
           push: true
-          # build multi-arch so that it can be mounted from any image
-          # even though only ppc64le will contain binaries
-          platforms: "linux/amd64,linux/arm64,linux/ppc64le,linux/s390x"
+          platforms: "linux/amd64,linux/arm64"
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
-          cache-from: type=gha,scope=nginx-ubi-ppc64le
-          cache-to: type=gha,scope=nginx-ubi-ppc64le,mode=max
+          cache-from: type=gha,scope=nginx-${{ matrix.tag }}
+          cache-to: type=gha,scope=nginx-${{ matrix.tag }},mode=max
           target: final
           sbom: false
           provenance: mode=max
-          build-args: |
-            NGINX=${{ needs.checks.outputs.nginx_version }}
-            NJS=${{ needs.checks.outputs.njs_version }}

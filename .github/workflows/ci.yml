@@ -35,7 +35,6 @@ jobs:
       id-token: write
     outputs:
       docs_only: ${{ github.event.pull_request && steps.docs.outputs.docs_only == 'true' }}
-      some_docs: ${{ github.event.pull_request && steps.docs.outputs.some_docs == 'true' }}
       k8s_latest: "1.32.0"
       go_path: ${{ steps.vars.outputs.go_path }}
       go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}
@@ -60,18 +59,12 @@ jobs:
       - name: Filter only docs changes
         id: docs
         run: |
-          files=$(git diff --name-only HEAD^ | egrep -v "^site/" | egrep -v "^examples/" | egrep -v "^README.md")
-          docs_files=$(git diff --name-only HEAD^ | grep "^site/")
+          files=$(git diff --name-only HEAD^ | egrep -v "^examples/" | egrep -v "^README.md")
+          docs_files=$(git diff --name-only HEAD^)
           if [ -z "$files" ]; then
             echo "docs_only=true" >> $GITHUB_OUTPUT
           else
             echo "docs_only=false" >> $GITHUB_OUTPUT
-          fi
-
-          if [ -n "$docs_files" ]; then
-            echo "some_docs=true" >> $GITHUB_OUTPUT
-          else
-            echo "some_docs=false" >> $GITHUB_OUTPUT
           fi
 
           echo $files
@@ -80,7 +73,7 @@ jobs:
         shell: bash --noprofile --norc -o pipefail {0}
 
       - name: Setup Golang Environment
-        uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b # v5.4.0
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
           go-version-file: go.mod
 
@@ -180,7 +173,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Golang Environment
-        uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b # v5.4.0
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
           go-version-file: go.mod
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
@@ -201,7 +194,7 @@ jobs:
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
       - name: Install gofumpt
-        run: go install mvdan.cc/gofumpt@latest
+        run: go install mvdan.cc/gofumpt@v0.8.0
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
       - name: Check if telemetry schema changed
@@ -209,10 +202,6 @@ jobs:
           export PATH=$PATH:$(go env GOPATH)/bin
           make telemetry-schema && git diff --name-only --exit-code internal/telemetry
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
-
-      - name: Check if make docs builds
-        if: ${{ needs.checks.outputs.some_docs == 'true' }}
-        run: cd site && make docs-ci
 
   unit-tests:
     name: Unit Tests
@@ -223,7 +212,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Golang Environment
-        uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b # v5.4.0
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
           go-version-file: go.mod
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
@@ -233,14 +222,14 @@ jobs:
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@ad3126e916f78f00edff4ed0317cf185271ccc2d # v5.4.2
+        uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24 # v5.4.3
         with:
           files: ./coverage.txt
           token: ${{ secrets.CODECOV_TOKEN }} # required
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
       - name: Run static check
-        uses: dominikh/staticcheck-action@fe1dd0c3658873b46f8c9bb3291096a617310ca6 # v1.3.1
+        uses: dominikh/staticcheck-action@024238d2898c874f26d723e7d0ff4308c35589a2 # v1.4.0
         with:
           version: "v0.6.0"
           install-go: false
@@ -261,7 +250,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Golang Environment
-        uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b # v5.4.0
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
           go-version-file: go.mod
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
@@ -445,11 +434,11 @@ jobs:
         if: ${{ needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false' }}
 
       - name: Docker Buildx
-        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
         if: ${{ needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false' }}
 
       - name: Build Docker Image ${{ matrix.base-os }}
-        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           file: build/Dockerfile
           context: "."
@@ -545,7 +534,7 @@ jobs:
           echo "matrix_nap=$(cat .github/data/matrix-smoke-nap.json | jq -c --arg latest "${{ needs.checks.outputs.k8s_latest }}" '.k8s += [$latest]')" >> $GITHUB_OUTPUT
 
       - name: Docker Buildx
-        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
 
       - name: Authenticate to Google Cloud
         id: auth
@@ -573,7 +562,7 @@ jobs:
         if: ${{ needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.docs_only == 'false' }}
 
       - name: Build Test-Runner Container
-        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           file: tests/Dockerfile
           context: "."

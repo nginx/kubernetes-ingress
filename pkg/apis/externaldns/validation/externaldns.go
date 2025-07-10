@@ -52,7 +52,7 @@ func validateTargets(targets v1.Targets) error {
 	for _, target := range targets {
 		switch {
 		case strings.Contains(target, ":"):
-			if errMsg := validation.IsValidIP(field.NewPath(""), target); len(errMsg) > 0 {
+			if errMsg := validation.IsValidIPForLegacyField(field.NewPath(""), target, false, nil); len(errMsg) > 0 {
 				return fmt.Errorf("%w: target %q is invalid: %s", ErrTypeInvalid, target, errMsg[0])
 			}
 		default:
