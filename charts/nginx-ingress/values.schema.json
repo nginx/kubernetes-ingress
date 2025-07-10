@@ -1758,6 +1758,94 @@
             }
           ]
         },
+        "startupStatus": {
+          "type": "object",
+          "default": {},
+          "title": "The startupStatus",
+          "required": [],
+          "properties": {
+            "enable": {
+              "type": "boolean",
+              "default": false,
+              "title": "Enable the startup probe",
+              "examples": [
+                true
+              ]
+            },
+            "port": {
+              "type": "integer",
+              "default": 0,
+              "title": "The port for the startup probe",
+              "examples": [
+                9999
+              ]
+            },
+            "path": {
+              "type": "string",
+              "default": "",
+              "title": "The path for the startup probe",
+              "examples": [
+                "/"
+              ]
+            },
+            "initialDelaySeconds": {
+              "type": "integer",
+              "default": 0,
+              "title": "Initial delay seconds for the startup probe",
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.Probe/properties/initialDelaySeconds"
+            },
+            "periodSeconds": {
+              "type": "integer",
+              "default": 0,
+              "title": "Period seconds for the startup probe",
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.Probe/properties/periodSeconds"
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "default": 0,
+              "title": "Timeout seconds for the startup probe",
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.Probe/properties/timeoutSeconds"
+            },
+            "successThreshold": {
+              "type": "integer",
+              "default": 0,
+              "title": "Success threshold for the startup probe",
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.Probe/properties/successThreshold"
+            },
+            "failureThreshold": {
+              "type": "integer",
+              "default": 0,
+              "title": "Failure threshold for the startup probe",
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.Probe/properties/failureThreshold"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": { "enable": { "const": true } }
+              },
+              "then": {
+                "required": [
+                  "enable",
+                  "port",
+                  "path"
+                ]
+              }
+            }
+          ],
+          "examples": [
+            {
+              "enable": true,
+              "port": 9999,
+              "path": "/",
+              "initialDelaySeconds": 5,
+              "periodSeconds": 1,
+              "timeoutSeconds": 1,
+              "successThreshold": 1,
+              "failureThreshold": 30
+            }
+          ]
+        },
         "enableLatencyMetrics": {
           "type": "boolean",
           "default": false,
@@ -2015,7 +2103,7 @@
             "httpPort": {
               "enable": true,
               "port": 80,
-              "nodePort": 8443,
+              "nodePort": 8080,
               "targetPort": 80
             },
             "httpsPort": {
@@ -2049,6 +2137,16 @@
             "enable": true,
             "port": 8081,
             "initialDelaySeconds": 0
+          },
+          "startupStatus": {
+            "enable": false,
+            "port": 8082,
+            "path": "/nginx-status",
+            "initialDelaySeconds": 5,
+            "periodSeconds": 10,
+            "timeoutSeconds": 5,
+            "successThreshold": 1,
+            "failureThreshold": 5
           },
           "enableLatencyMetrics": false,
           "disableIPV6": false,
@@ -2692,6 +2790,16 @@
           "enable": true,
           "port": 8081,
           "initialDelaySeconds": 0
+        },
+        "startupStatus": {
+          "enable": false,
+          "port": 8082,
+          "path": "/nginx-status",
+          "initialDelaySeconds": 5,
+          "periodSeconds": 10,
+          "timeoutSeconds": 5,
+          "successThreshold": 1,
+          "failureThreshold": 5
         },
         "enableLatencyMetrics": false,
         "disableIPV6": false,
