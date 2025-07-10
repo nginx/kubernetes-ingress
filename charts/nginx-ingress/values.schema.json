@@ -2103,7 +2103,7 @@
             "httpPort": {
               "enable": true,
               "port": 80,
-              "nodePort": 8080,
+              "nodePort": 8443,
               "targetPort": 80
             },
             "httpsPort": {
@@ -2137,16 +2137,6 @@
             "enable": true,
             "port": 8081,
             "initialDelaySeconds": 0
-          },
-          "startupStatus": {
-            "enable": false,
-            "port": 8082,
-            "path": "/nginx-status",
-            "initialDelaySeconds": 5,
-            "periodSeconds": 10,
-            "timeoutSeconds": 5,
-            "successThreshold": 1,
-            "failureThreshold": 5
           },
           "enableLatencyMetrics": false,
           "disableIPV6": false,
@@ -2790,16 +2780,6 @@
           "enable": true,
           "port": 8081,
           "initialDelaySeconds": 0
-        },
-        "startupStatus": {
-          "enable": false,
-          "port": 8082,
-          "path": "/nginx-status",
-          "initialDelaySeconds": 5,
-          "periodSeconds": 10,
-          "timeoutSeconds": 5,
-          "successThreshold": 1,
-          "failureThreshold": 5
         },
         "enableLatencyMetrics": false,
         "disableIPV6": false,
