@@ -130,6 +130,11 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "app-protect-waf-agentv2",
 			namespace:   "default",
 		},
+		"startupStatus": {
+			valuesFile:  "testdata/startupstatus.yaml",
+			releaseName: "startupstatus",
+			namespace:   "default",
+		},
 	}
 
 	// Path to the helm chart we will test
