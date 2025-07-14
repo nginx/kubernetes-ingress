@@ -652,13 +652,15 @@ type VariableCondition struct {
 
 // JWTAuth holds JWT authentication configuration.
 type JWTAuth struct {
-	Realm      string `json:"realm"`
-	Secret     string `json:"secret"`
-	Token      string `json:"token"`
-	JwksURI    string `json:"jwksURI"`
-	KeyCache   string `json:"keyCache"`
-	SNIEnabled bool   `json:"sniEnabled"`
-	SNIName    string `json:"sniName"`
+	Realm    string `json:"realm"`
+	Secret   string `json:"secret"`
+	Token    string `json:"token"`
+	JwksURI  string `json:"jwksURI"`
+	KeyCache string `json:"keyCache"`
+	// Enables SNI (Server Name Indication) for the JWT policy. This is useful when the remote server requires SNI to serve the correct certificate.
+	SNIEnabled bool `json:"sniEnabled"`
+	// The SNI name to use when connecting to the remote server. If not set, the hostname from the ``jwksURI`` will be used.
+	SNIName string `json:"sniName"`
 }
 
 // BasicAuth holds HTTP Basic authentication configuration
