@@ -469,6 +469,7 @@ jobs:
           key: nginx-ingress-release-${{ needs.variables.outputs.go_code_md5 }}
         if: ${{ needs.variables.outputs.binary_cache_sign_hit != 'true' }}
 
+  # Upload packages, sboms & checksums to release storage
   azure-upload:
     if: ${{ ! cancelled() && ! failure() && ! contains(inputs.skip_step, 'azure-upload') }}
     name: Upload packages to Azure
