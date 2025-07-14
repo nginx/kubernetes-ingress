@@ -669,7 +669,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Create/Update Draft
-        uses: lucacome/draft-release@38def8b74645796e9743b53e0f187d4a8915ea3e # v1.2.3
+        uses: lucacome/draft-release@00f74370c044c322da6cb52acc707d62c7762c71 # v1.2.4
         id: release-notes
         with:
           minor-label: "enhancement"
