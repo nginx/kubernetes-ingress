@@ -8,7 +8,7 @@ import docker
 
 client = docker.from_env()
 script_dir = os.path.dirname(os.path.abspath(__file__))
-with open(f"{script_dir}../data/modules/data.json") as file:
+with open(f"{script_dir}/../data/modules/data.json") as file:
     images = json.load(file)
 
     for image in images["images"]:
