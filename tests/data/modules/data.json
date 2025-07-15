@@ -7,27 +7,27 @@
         {
           "name": "nginx",
           "version": "1.27.5",
-          "arch": "arm64"
+          "arch": "amd64"
         },
         {
           "name": "nginx-module-njs",
           "version": "1.27.5",
-          "arch": "arm64"
+          "arch": "amd64"
         },
         {
           "name": "nginx-module-otel",
           "version": "1.27.5",
-          "arch": "arm64"
+          "arch": "amd64"
         },
         {
           "name": "nginx-agent",
           "version": "3.0",
-          "arch": "arm64"
+          "arch": "amd64"
         }
       ],
       "cmd": "dpkg -l",
       "regex": "ii\\s+(.+?)\\s+(.+?)\\s+(\\w+?)\\s",
-      "platform": "linux/arm64"
+      "platform": "linux/amd64"
     },
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress",
