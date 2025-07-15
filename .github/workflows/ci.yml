@@ -416,7 +416,7 @@ jobs:
         id: packages
         run: |
           source tests/venv/bin/activate
-          python tests/scripts/check_container_packages.py --tag ${{ needs.checks.outputs.build_tag }} | tee package_output.txt
+          python tests/scripts/check_container_packages.py --tag ${{ needs.checks.outputs.build_tag }} --log package_output.txt
         if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
 
       - name: Add comment

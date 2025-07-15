@@ -276,22 +276,22 @@
         {
           "name": "nginx",
           "version": "1.27.5",
-          "arch": "x64_64"
+          "arch": "x86_64"
         },
         {
           "name": "nginx-module-njs",
           "version": "1.27.5",
-          "arch": "x64_64"
+          "arch": "x86_64"
         },
         {
           "name": "nginx-module-otel",
           "version": "1.27.5",
-          "arch": "x64_64"
+          "arch": "x86_64"
         },
         {
           "name": "nginx-agent",
           "version": "3.0",
-          "arch": "x64_64"
+          "arch": "x86_64"
         }
       ],
       "cmd": "apk list",
@@ -305,27 +305,27 @@
         {
           "name": "nginx-plus",
           "version": "34-r2",
-          "arch": "x64_64"
+          "arch": "x86_64"
         },
         {
           "name": "nginx-plus-module-njs",
           "version": "34",
-          "arch": "x64_64"
+          "arch": "x86_64"
         },
         {
           "name": "nginx-plus-module-otel",
           "version": "34",
-          "arch": "x64_64"
+          "arch": "x86_64"
         },
         {
           "name": "nginx-plus-module-fips-check",
           "version": "34",
-          "arch": "x64_64"
+          "arch": "x86_64"
         },
         {
           "name": "nginx-agent",
           "version": "3.0",
-          "arch": "x64_64"
+          "arch": "x86_64"
         }
       ],
       "cmd": "apk list",
@@ -339,27 +339,27 @@
         {
           "name": "nginx-plus",
           "version": "34-r2",
-          "arch": "x64_64"
+          "arch": "x86_64"
         },
         {
           "name": "nginx-plus-module-njs",
           "version": "34",
-          "arch": "x64_64"
+          "arch": "x86_64"
         },
         {
           "name": "nginx-plus-module-otel",
           "version": "34",
-          "arch": "x64_64"
+          "arch": "x86_64"
         },
         {
           "name": "nginx-plus-module-fips-check",
           "version": "34",
-          "arch": "x64_64"
+          "arch": "x86_64"
         },
         {
           "name": "nginx-agent",
           "version": "3.0",
-          "arch": "x64_64"
+          "arch": "x86_64"
         }
       ],
       "cmd": "apk list",
@@ -476,22 +476,22 @@
         {
           "name": "nginx",
           "version": "1.27.5",
-          "arch": "x64_64"
+          "arch": "x86_64"
         },
         {
           "name": "nginx-module-njs",
           "version": "1.27.5",
-          "arch": "x64_64"
+          "arch": "x86_64"
         },
         {
           "name": "nginx-module-otel",
           "version": "1.27.5",
-          "arch": "x64_64"
+          "arch": "x86_64"
         },
         {
           "name": "nginx-agent",
           "version": "3.0",
-          "arch": "x64_64"
+          "arch": "x86_64"
         }
       ],
       "cmd": "rpm -q",
@@ -505,27 +505,27 @@
         {
           "name": "nginx-plus",
           "version": "34-2",
-          "arch": "x64_64"
+          "arch": "x86_64"
         },
         {
           "name": "nginx-plus-module-njs",
           "version": "34",
-          "arch": "x64_64"
+          "arch": "x86_64"
         },
         {
           "name": "nginx-plus-module-otel",
           "version": "34",
-          "arch": "x64_64"
+          "arch": "x86_64"
         },
         {
           "name": "nginx-plus-module-fips-check",
           "version": "34",
-          "arch": "x64_64"
+          "arch": "x86_64"
         },
         {
           "name": "nginx-agent",
           "version": "3.0",
-          "arch": "x64_64"
+          "arch": "x86_64"
         }
       ],
       "cmd": "rpm -q",
