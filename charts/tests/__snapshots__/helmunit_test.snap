@@ -9531,7 +9531,7 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 ---
 
-[TestHelmNICTemplate/startupStatus - 1]
+[TestHelmNICTemplate/startupStatusValid - 1]
 /-/-/-/
 # Source: nginx-ingress/templates/controller-serviceaccount.yaml
 apiVersion: v1

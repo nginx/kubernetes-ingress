@@ -571,10 +571,10 @@ controller:
     ## Enable the startup probe.
     enable: false
 
-    # ## Set the port where the startup endpoint is exposed.
+    # ## Set the port where the startup endpoint is exposed. This is a required value if startupStatus.enable is true.
     # port: 9999
 
-    # # # path to the startup endpoint.
+    # ## path to the startup endpoint. This is a required value if startupStatus.enable is true.
     # path: /
 
     # ## The number of seconds after the Ingress Controller pod has started before startup probes are initiated.
