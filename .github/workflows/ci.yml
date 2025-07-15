@@ -384,6 +384,7 @@ jobs:
     needs: [checks, binaries, build-docker, build-docker-plus, build-docker-nap]
     permissions:
       contents: read
+      pull-requests: write # for package report
       id-token: write
     steps:
       - name: Checkout Repository
@@ -415,7 +416,7 @@ jobs:
         id: packages
         run: |
           source tests/venv/bin/activate
-          python tests/scripts/check_container_packages.py --tag ${{ needs.checks.outputs.build_tag }} | tee package_output.txt 2&>1
+          python tests/scripts/check_container_packages.py --tag ${{ needs.checks.outputs.build_tag }} | tee package_output.txt
         if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
 
       - name: Add comment
