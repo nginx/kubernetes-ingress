@@ -378,7 +378,7 @@ jobs:
     if: ${{ inputs.force || (needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false') || (needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.stable_image_exists != 'true' && needs.checks.outputs.docs_only == 'false') }}
 
   package-tests:
-    if: ${{ needs.checks.outputs.docs_only != 'true' }}
+    if: ${{ needs.checks.outputs.docs_only != 'true' && (inputs.run_tests && inputs.run_tests || true) }}
     name: Package Tests
     runs-on: ubuntu-22.04
     needs: [checks, binaries, build-docker, build-docker-plus, build-docker-nap]
@@ -432,7 +432,7 @@ jobs:
           echo '```' >> output.txt
           cat package_output.txt >> output.txt
           echo '```' >> output.txt
-          gh pr comment ${{ github.event.pull_request.number }} -F output.txt
+          gh pr comment --edit-last --create-if-none ${{ github.event.pull_request.number }} -F output.txt
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         if: ${{ ( needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' ) && github.event.pull_request }}
@@ -737,10 +737,12 @@ jobs:
     if: ${{ !cancelled() }}
     runs-on: ubuntu-22.04
     name: Final CI Results
-    needs: [tag-stable, build-docker, build-docker-plus, build-docker-nap, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap]
+    needs: [tag-stable, build-docker, build-docker-plus, build-docker-nap, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap, package-tests, helm-tests]
     steps:
       - run: |
           tagResult="${{ needs.tag-stable.result }}"
+          packageResult="${{ needs.package-tests.result }}"
+          helmResult="${{ needs.helm-tests.result }}"
           smokeOSSResult="${{ needs.smoke-tests-oss.result }}"
           smokePlusResult="${{ needs.smoke-tests-plus.result }}"
           smokeNAPResult="${{ needs.smoke-tests-nap.result }}"
@@ -766,6 +768,12 @@ jobs:
             exit 1
           fi
           if [[ $buildNAPResult != "success" && $buildNAPResult != "skipped" ]]; then
+            exit 1
+          fi
+          if [[ $helmResult != "success" && $helmResult != "skipped" ]]; then
+            exit 1
+          fi
+          if [[ $packageResult != "success" && $packageResult != "skipped" ]]; then
             exit 1
           fi
 
