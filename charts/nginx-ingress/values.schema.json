@@ -2426,7 +2426,7 @@
         "endpointHost": {
           "type": "string",
           "default": "agent.connect.nginx.com",
-          "title": "FQDN or IP for connecting to NGINX One SaaS Console",
+          "title": "FQDN or IP for connecting to NGINX One Console",
           "examples": [
             "agent.connect.nginx.com"
           ]
