@@ -22,7 +22,10 @@
         }
       ],
       "system": "debian",
-      "platform": "linux/amd64"
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
     },
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress",
@@ -50,7 +53,10 @@
         }
       ],
       "system": "debian",
-      "platform": "linux/amd64"
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
     },
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap/nginx-plus-ingress",
@@ -94,7 +100,9 @@
         }
       ],
       "system": "debian",
-      "platform": "linux/amd64"
+      "platforms": [
+        "linux/amd64"
+      ]
     },
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap-v5/nginx-plus-ingress",
@@ -134,7 +142,9 @@
         }
       ],
       "system": "debian",
-      "platform": "linux/amd64"
+      "platforms": [
+        "linux/amd64"
+      ]
     },
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos/nginx-plus-ingress",
@@ -166,7 +176,9 @@
         }
       ],
       "system": "debian",
-      "platform": "linux/amd64"
+      "platforms": [
+        "linux/amd64"
+      ]
     },
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos-nap/nginx-plus-ingress",
@@ -218,7 +230,9 @@
         }
       ],
       "system": "debian",
-      "platform": "linux/amd64"
+      "platforms": [
+        "linux/amd64"
+      ]
     },
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress",
@@ -242,7 +256,10 @@
         }
       ],
       "system": "alpine",
-      "platform": "linux/amd64"
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
     },
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress",
@@ -270,7 +287,10 @@
         }
       ],
       "system": "alpine",
-      "platform": "linux/amd64"
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
     },
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress",
@@ -298,7 +318,10 @@
         }
       ],
       "system": "alpine",
-      "platform": "linux/amd64"
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
     },
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap/nginx-plus-ingress",
@@ -342,7 +365,9 @@
         }
       ],
       "system": "alpine",
-      "platform": "linux/amd64"
+      "platforms": [
+        "linux/amd64"
+      ]
     },
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap-v5/nginx-plus-ingress",
@@ -382,7 +407,9 @@
         }
       ],
       "system": "alpine",
-      "platform": "linux/amd64"
+      "platforms": [
+        "linux/amd64"
+      ]
     },
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress",
@@ -406,7 +433,10 @@
         }
       ],
       "system": "ubi",
-      "platform": "linux/amd64"
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
     },
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress",
@@ -434,7 +464,10 @@
         }
       ],
       "system": "ubi",
-      "platform": "linux/amd64"
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
     },
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap/nginx-plus-ingress",
@@ -478,7 +511,9 @@
         }
       ],
       "system": "ubi",
-      "platform": "linux/amd64"
+      "platforms": [
+        "linux/amd64"
+      ]
     },
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap-v5/nginx-plus-ingress",
@@ -518,7 +553,9 @@
         }
       ],
       "system": "ubi",
-      "platform": "linux/amd64"
+      "platforms": [
+        "linux/amd64"
+      ]
     },
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap/nginx-plus-ingress",
@@ -562,7 +599,9 @@
         }
       ],
       "system": "ubi",
-      "platform": "linux/amd64"
+      "platforms": [
+        "linux/amd64"
+      ]
     },
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap-v5/nginx-plus-ingress",
@@ -602,7 +641,9 @@
         }
       ],
       "system": "ubi",
-      "platform": "linux/amd64"
+      "platforms": [
+        "linux/amd64"
+      ]
     },
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos/nginx-plus-ingress",
@@ -634,7 +675,9 @@
         }
       ],
       "system": "ubi",
-      "platform": "linux/amd64"
+      "platforms": [
+        "linux/amd64"
+      ]
     },
     {
       "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos-nap/nginx-plus-ingress",
@@ -686,7 +729,9 @@
         }
       ],
       "system": "ubi",
-      "platform": "linux/amd64"
+      "platforms": [
+        "linux/amd64"
+      ]
     }
   ]
 }
