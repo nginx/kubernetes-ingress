@@ -99,4 +99,4 @@ with open(f"{script_dir}/../data/modules/data.json") as file:
                 assert result.group(2).startswith(package["version"]), logger.error(
                     f"{package['name']} version {package['version']} does not match {result.group(2)}"
                 )
-                logger.info(f"{image_name}, {result.group(1)}, {result.group(2)}, {result.group(3)}")
+                logger.info(f"{image_name}:{tag}, {result.group(1)}, {result.group(2)}, {result.group(3)}")

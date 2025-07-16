@@ -427,7 +427,12 @@ jobs:
 
       - name: Add comment
         run: |
-          gh pr comment ${{ github.event.pull_request.number }} -F package_output.txt
+          # make sure the comment is formatted correctly, as a code block
+          echo '### Package Report' > output.txt
+          echo '```' >> output.txt
+          cat package_output.txt >> output.txt
+          echo '```' >> output.txt
+          gh pr comment ${{ github.event.pull_request.number }} -F output.txt
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         if: ${{ ( needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' ) && github.event.pull_request }}
