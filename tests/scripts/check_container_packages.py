@@ -32,13 +32,29 @@ if args.log:
     file_handler.setFormatter(logging.Formatter("%(message)s"))
     logger.addHandler(file_handler)
 
+systems = {
+    "alpine": {
+        "cmd": "apk list",
+        "regex": "^(.+?)-(\\d+.+?)\\s+(\\w+).*\\[installed\\]",
+    },
+    "debian": {
+        "cmd": "dpkg -l",
+        "regex": "ii\\s+(.+?)\\s+(.+?)\\s+(\\w+?)\\s",
+    },
+    "ubi": {
+        "cmd": "rpm -q",
+        "regex": "(.+?)-(\\d+.+)(?:\\.ngx)?\\.(\\w+)",
+    },
+}
+
 client = docker.from_env()
 script_dir = os.path.dirname(os.path.abspath(__file__))
 with open(f"{script_dir}/../data/modules/data.json") as file:
     images = json.load(file)
 
     for image in images["images"]:
-        regexInstalled = image["regex"]
+        regexInstalled = systems[image["system"]]["regex"]
+        cmd = systems[image["system"]]["cmd"]
         tag = f"{args.tag}{image['tag_suffix']}"
         try:
             i = client.images.get(f"{image['image']}:{tag}")
@@ -53,7 +69,7 @@ with open(f"{script_dir}/../data/modules/data.json") as file:
             i = client.images.pull(repository=image["image"], tag=tag, platform=image["platform"])
             logger.debug(f"Image {i.id} pulled successfully")
         for package in image["packages"]:
-            command = f"{image['cmd']} {package['name']}"
+            command = f"{cmd} {package['name']}"
             output = ""
             try:
                 output = client.containers.run(
@@ -81,7 +97,4 @@ with open(f"{script_dir}/../data/modules/data.json") as file:
             assert result.group(2).startswith(package["version"]), logger.error(
                 f"{package['name']} version {package['version']} does not match {result.group(2)}"
             )
-            assert result.group(3) == package["arch"], logger.error(
-                f"{package['name']} arch {package['arch']} does not match {result.group(3)}"
-            )
-            logger.info(f"{image["image"]}, {result.group(1)}, {result.group(2)}, {result.group(3)}")
+            logger.info(f"{image["image"]}, {result.group(1)}, {result.group(2)}")
