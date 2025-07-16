@@ -54,7 +54,8 @@ with open(f"{script_dir}/../data/modules/data.json") as file:
 
     for image in images["images"]:
         for platform in image["platforms"]:
-            regexInstalled = systems[image["system"]]["regex"]
+            image_name = image["image"]
+            regex = systems[image["system"]]["regex"]
             cmd = systems[image["system"]]["cmd"]
             tag = f"{args.tag}{image['tag_suffix']}"
             try:
@@ -67,7 +68,7 @@ with open(f"{script_dir}/../data/modules/data.json") as file:
             except docker.errors.ImageNotFound:
                 ## pull the image
                 logger.debug(f"Pulling image {image['image']}:{tag} for platform {platform}")
-                i = client.images.pull(repository=image["image"], tag=tag, platform=platform)
+                i = client.images.pull(repository=image_name, tag=tag, platform=platform)
                 logger.debug(f"Image {i.id} pulled successfully")
             for package in image["packages"]:
                 command = f"{cmd} {package['name']}"
@@ -91,11 +92,11 @@ with open(f"{script_dir}/../data/modules/data.json") as file:
                         auto_remove=True,
                         detach=False,
                     )
-                result = re.search(regexInstalled, output.decode("utf-8").strip())
+                result = re.search(regex, output.decode("utf-8").strip())
                 assert result, logger.error(
                     f"{package['name']} not found in {image['image']}, output: {output.decode('utf-8').strip()}"
                 )
                 assert result.group(2).startswith(package["version"]), logger.error(
                     f"{package['name']} version {package['version']} does not match {result.group(2)}"
                 )
-                logger.info(f"{image["image"]}, {result.group(1)}, {result.group(2)}, {result.group(3)}")
+                logger.info(f"{image_name}, {result.group(1)}, {result.group(2)}, {result.group(3)}")
