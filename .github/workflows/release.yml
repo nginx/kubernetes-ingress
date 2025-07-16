@@ -469,6 +469,7 @@ jobs:
           key: nginx-ingress-release-${{ needs.variables.outputs.go_code_md5 }}
         if: ${{ needs.variables.outputs.binary_cache_sign_hit != 'true' }}
 
+  # Upload packages, sboms & checksums to release storage
   azure-upload:
     if: ${{ ! cancelled() && ! failure() && ! contains(inputs.skip_step, 'azure-upload') }}
     name: Upload packages to Azure
@@ -477,6 +478,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    environment: release
     steps:
       - name: Checkout Repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -516,7 +518,7 @@ jobs:
     if: ${{ ! cancelled() && ! failure() && ! contains(inputs.skip_step, 'github-release') }}
     name: Publish release to GitHub
     runs-on: ubuntu-22.04
-    needs: [variables, binaries, release-oss, release-plus-gcr-nginx, azure-upload]
+    needs: [variables, binaries, release-oss, release-plus-gcr-nginx]
     permissions:
       contents: write # to modify the release
       issues: write # to close milestone
