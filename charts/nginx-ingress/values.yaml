@@ -670,7 +670,7 @@ nginxAgent:
   # Agent V3 configuration
   # Dataplane key is required to authenticate NGINX Agent with NGINX One Console
   dataplaneKeySecretName: ""
-  endpointHost: "product.connect.nginx.com"
+  endpointHost: "agent.connect.nginx.com"
   endpointPort: 443
   tlsSkipVerify: false
 

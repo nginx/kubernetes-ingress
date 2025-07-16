@@ -2333,10 +2333,10 @@
         },
         "endpointHost": {
           "type": "string",
-          "default": "product.connect.nginx.com",
-          "title": "FQDN or IP for connecting to NGINX One SaaS Console",
+          "default": "agent.connect.nginx.com",
+          "title": "FQDN or IP for connecting to NGINX One Console",
           "examples": [
-            "product.connect.nginx.com"
+            "agent.connect.nginx.com"
           ]
         },
         "endpointPort": {
