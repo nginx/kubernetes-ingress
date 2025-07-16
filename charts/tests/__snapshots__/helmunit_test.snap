@@ -5290,7 +5290,7 @@ data:
     ## command server settings
     command:
       server:
-        host: product.connect.nginx.com
+        host: agent.connect.nginx.com
         port: 443
       auth:
         tokenpath: "/etc/nginx-agent/secrets/dataplane.key"
@@ -5578,7 +5578,7 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: oss-agent
-        agent-configuration-revision-hash: "eb3f867e"
+        agent-configuration-revision-hash: "e150cd8a"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
@@ -8571,7 +8571,7 @@ data:
     ## command server settings
     command:
       server:
-        host: product.connect.nginx.com
+        host: agent.connect.nginx.com
         port: 443
       auth:
         tokenpath: "/etc/nginx-agent/secrets/dataplane.key"
@@ -8874,7 +8874,7 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: plus-agent
-        agent-configuration-revision-hash: "eb3f867e"
+        agent-configuration-revision-hash: "e150cd8a"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
