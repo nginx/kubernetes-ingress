@@ -229,6 +229,10 @@ cryptography==45.0.5 \
     # via
     #   -r requirements.in
     #   pyopenssl
+docker==7.1.0 \
+    --hash=sha256:ad8c70e6e3f8926cb8a92619b832b4ea5299e2831c14284663184e200546fa6c \
+    --hash=sha256:c96b93b7f0a746f9e77d325bcfb87422a3d8bd4f03136ae8a85b37f1898d5fc0
+    # via -r requirements.in
 durationpy==0.10 \
     --hash=sha256:1fa6893409a6e739c9c72334fc65cca1f355dbdd93405d30f726deb5bde42fba \
     --hash=sha256:3b41e1b601234296b4fb368338fdcd3e13e0b4fb5b67345948f4f2bf9868b286
@@ -689,6 +693,7 @@ requests==2.32.4 \
     --hash=sha256:27d0316682c8a29834d3264820024b62a36942083d52caf2f14c0591336d3422
     # via
     #   -r requirements.in
+    #   docker
     #   forcediphttpsadapter
     #   kubernetes
     #   requests-oauthlib
@@ -722,6 +727,7 @@ urllib3==2.5.0 \
     --hash=sha256:e6b01673c0fa6a13e374b50871808eb3bf7046c4b125b216f6bf1cc604cff0dc
     # via
     #   -r requirements.in
+    #   docker
     #   kubernetes
     #   requests
 websocket-client==1.8.0 \
