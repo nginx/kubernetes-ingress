@@ -24,7 +24,7 @@ controller:
 
     # usageReport:
     #   endpoint: "product.connect.nginx.com" # Endpoint for usage report
-    #   interval: 1h # Interval for usage report, must be between 60s and 24h, 
+    #   interval: 1h # Interval for usage report, must be between 60s and 24h,
     #   proxyHost: "proxy.example.com:3138" # Proxy server for usage report, with optional port
     #   proxyCredentialsSecretName: "proxy-credentials" # Secret containing proxy credentials, must contain a `username` and `password` field
 
