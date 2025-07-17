@@ -683,6 +683,188 @@ func TestParseMGMTConfigMapUsageReportInterval(t *testing.T) {
 	}
 }
 
+func TestParseMGMTConfigMapUsageReportIntervalMaximum(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap       *v1.ConfigMap
+		expectWarnings  bool
+		expectInterval  string
+		msg             string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "24h",
+				},
+			},
+			expectWarnings: false,
+			expectInterval: "24h",
+			msg:            "24h should be accepted (maximum allowed)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "25h",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "25h should be rejected (exceeds maximum)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "1440m",
+				},
+			},
+			expectWarnings: false,
+			expectInterval: "1440m",
+			msg:            "1440m (24h) should be accepted",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "1441m",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "1441m (>24h) should be rejected",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, warnings, err := ParseMGMTConfigMap(context.Background(), test.configMap, makeEventLogger())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if warnings != test.expectWarnings {
+				t.Errorf("Expected warnings=%v, got warnings=%v", test.expectWarnings, warnings)
+			}
+
+			if result.Interval != test.expectInterval {
+				t.Errorf("Expected interval=%q, got interval=%q", test.expectInterval, result.Interval)
+			}
+		})
+	}
+}
+
+func TestParseMGMTConfigMapUsageReportIntervalEdgeCases(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap       *v1.ConfigMap
+		expectWarnings  bool
+		expectInterval  string
+		msg             string
+	}{
+		// Test milliseconds (valid in Go but should be rejected due to minimum)
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token", 
+					"usage-report-interval":     "1000ms",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "1000ms should be rejected (below minimum 60s)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "60000ms",
+				},
+			},
+			expectWarnings: false,
+			expectInterval: "60000ms", 
+			msg:            "60000ms (60s) should be accepted",
+		},
+		// Test days (should be rejected by Go's ParseDuration)
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "1d",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "1d should be rejected (Go doesn't support 'd' unit)",
+		},
+		// Test values > 24h (valid in Go but should be rejected by max check)
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "25h",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "25h should be rejected (exceeds 24h maximum)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "48h",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "48h should be rejected (exceeds 24h maximum)",
+		},
+		// exactly 86400 seconds (24h)
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "86400s",
+				},
+			},
+			expectWarnings: false,
+			expectInterval: "86400s",
+			msg:            "86400s (24h) should be accepted",
+		},
+		// 86401 seconds (24h + 1s)
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "86401s",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "86401s (>24h) should be rejected",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, warnings, err := ParseMGMTConfigMap(context.Background(), test.configMap, makeEventLogger())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if warnings != test.expectWarnings {
+				t.Errorf("Expected warnings=%v, got warnings=%v", test.expectWarnings, warnings)
+			}
+
+			if result.Interval != test.expectInterval {
+				t.Errorf("Expected interval=%q, got interval=%q", test.expectInterval, result.Interval)
+			}
+		})
+	}
+}
+
 func TestParseMGMTConfigMapResolverIPV6(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

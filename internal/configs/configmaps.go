@@ -23,6 +23,7 @@ import (
 
 const (
 	minimumInterval     = 60
+	maximumInterval     = 24 * 60 * 60 // interval cannot be greater than 24h
 	zoneSyncDefaultPort = 12345
 	kubeDNSDefault      = "kube-dns.kube-system.svc.cluster.local"
 )
@@ -915,17 +916,19 @@ func ParseMGMTConfigMap(ctx context.Context, cfgm *v1.ConfigMap, eventLog record
 			nl.Error(l, errorText)
 			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
 			configWarnings = true
-		}
-		if t.Seconds() < minimumInterval {
+		} else if t.Seconds() < minimumInterval {
 			errorText := fmt.Sprintf("Configmap %s/%s: Value too low for the interval key, got: %v, need higher than %ds. Ignoring.", cfgm.GetNamespace(), cfgm.GetName(), i, minimumInterval)
 			nl.Error(l, errorText)
 			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
 			configWarnings = true
-			mgmtCfgParams.Interval = ""
+		} else if t.Seconds() > maximumInterval {
+			errorText := fmt.Sprintf("Configmap %s/%s: Value too high for the interval key, got: %v, maximum allowed is %ds (24h). Ignoring.", cfgm.GetNamespace(), cfgm.GetName(), i, maximumInterval)
+			nl.Error(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			configWarnings = true
 		} else {
 			mgmtCfgParams.Interval = i
 		}
-
 	}
 	if trustedCertSecretName, exists := cfgm.Data["ssl-trusted-certificate-secret-name"]; exists {
 		mgmtCfgParams.Secrets.TrustedCert = strings.TrimSpace(trustedCertSecretName)
