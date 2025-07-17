@@ -686,10 +686,10 @@ func TestParseMGMTConfigMapUsageReportInterval(t *testing.T) {
 func TestParseMGMTConfigMapUsageReportIntervalMaximum(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		configMap       *v1.ConfigMap
-		expectWarnings  bool
-		expectInterval  string
-		msg             string
+		configMap      *v1.ConfigMap
+		expectWarnings bool
+		expectInterval string
+		msg            string
 	}{
 		{
 			configMap: &v1.ConfigMap{
@@ -758,22 +758,22 @@ func TestParseMGMTConfigMapUsageReportIntervalMaximum(t *testing.T) {
 func TestParseMGMTConfigMapUsageReportIntervalEdgeCases(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		configMap       *v1.ConfigMap
-		expectWarnings  bool
-		expectInterval  string
-		msg             string
+		configMap      *v1.ConfigMap
+		expectWarnings bool
+		expectInterval string
+		msg            string
 	}{
-		// Test milliseconds (valid in Go but should be rejected due to minimum)
+		// Test milliseconds (should be rejected due to unsupported unit)
 		{
 			configMap: &v1.ConfigMap{
 				Data: map[string]string{
-					"license-token-secret-name": "license-token", 
+					"license-token-secret-name": "license-token",
 					"usage-report-interval":     "1000ms",
 				},
 			},
 			expectWarnings: true,
 			expectInterval: "",
-			msg:            "1000ms should be rejected (below minimum 60s)",
+			msg:            "1000ms should be rejected (ms unit not allowed)",
 		},
 		{
 			configMap: &v1.ConfigMap{
@@ -782,9 +782,21 @@ func TestParseMGMTConfigMapUsageReportIntervalEdgeCases(t *testing.T) {
 					"usage-report-interval":     "60000ms",
 				},
 			},
-			expectWarnings: false,
-			expectInterval: "60000ms", 
-			msg:            "60000ms (60s) should be accepted",
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "60000ms should be rejected (ms unit not allowed)",
+		},
+		// Test that large ms values are also rejected for unit, not value
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "3600000ms",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "3600000ms (1h) should be rejected (ms unit not allowed)",
 		},
 		// Test days (should be rejected by Go's ParseDuration)
 		{
