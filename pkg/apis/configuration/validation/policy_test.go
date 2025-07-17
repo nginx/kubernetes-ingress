@@ -136,6 +136,70 @@ func TestValidatePolicy_JWTIsNotValidOn(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "SNI server name passed, SNI enabled, but no JwksURI",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:      "My Product API",
+						Token:      "$cookie_auth_token",
+						SNIEnabled: true,
+					},
+				},
+			},
+		},
+		{
+			name: "Jwks URI not set, but SNIName is set",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:   "My Product API",
+						Token:   "$cookie_auth_token",
+						SNIName: "https://idp.com",
+					},
+				},
+			},
+		},
+		{
+			name: "Jwks URI not set, SNIName is set and SNI is enabled",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:      "My Product API",
+						Token:      "$cookie_auth_token",
+						SNIName:    "https://idp.com",
+						SNIEnabled: true,
+					},
+				},
+			},
+		},
+		{
+			name: "Jwks URI not set, Secret set, but SNIName is set and SNI is enabled",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:      "My Product API",
+						Token:      "$cookie_auth_token",
+						Secret:     "my-jwk",
+						SNIName:    "https://idp.com",
+						SNIEnabled: true,
+					},
+				},
+			},
+		},
+		{
+			name: "Jwks URI not set, SNIName set, but SNI is not enabled",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:   "My Product API",
+						Token:   "$cookie_auth_token",
+						Secret:  "my-jwk",
+						SNIName: "https://idp.com",
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range tt {
@@ -1007,31 +1071,6 @@ func TestValidateJWT_FailsOnInvalidInput(t *testing.T) {
 				SNIName:  "https://idp.com",
 			},
 			msg: "SNI server name passed, SNI not passed",
-		},
-		{
-			jwt: &v1.JWTAuth{
-				Realm:      "My Product API",
-				Token:      "$cookie_auth_token",
-				SNIEnabled: true,
-			},
-			msg: "Jwks URI not set, but SNI is enabled",
-		},
-		{
-			jwt: &v1.JWTAuth{
-				Realm:   "My Product API",
-				Token:   "$cookie_auth_token",
-				SNIName: "https://idp.com",
-			},
-			msg: "Jwks URI not set, but SNIName is set",
-		},
-		{
-			jwt: &v1.JWTAuth{
-				Realm:      "My Product API",
-				Token:      "$cookie_auth_token",
-				SNIName:    "https://idp.com",
-				SNIEnabled: true,
-			},
-			msg: "Jwks URI not set, but SNIName is set and SNI is enabled",
 		},
 	}
 	for _, test := range tests {
