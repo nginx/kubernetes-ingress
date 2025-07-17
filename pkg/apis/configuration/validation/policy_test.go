@@ -96,6 +96,20 @@ func TestValidatePolicy_JWTIsNotValidOn(t *testing.T) {
 			},
 		},
 		{
+			name: "If JwksURI is not set, then none of the SNI fields should be set.",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:      "My Product API",
+						Secret:     "my-jwk",
+						KeyCache:   "1h",
+						SNIName:    "ipd.org",
+						SNIEnabled: true,
+					},
+				},
+			},
+		},
+		{
 			name: "SNI server name passed, but SNI not enabled",
 			policy: &v1.Policy{
 				Spec: v1.PolicySpec{
