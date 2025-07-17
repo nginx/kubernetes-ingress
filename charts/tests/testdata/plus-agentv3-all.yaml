@@ -1,0 +1,9 @@
+controller:
+  nginxplus: true
+nginxAgent:
+  enable: true
+  dataplaneKeySecretName: "dataplane-key" # secret ref
+  tlsSkipVerify: true
+  logLevel: debug
+  endpointHost: my-host.example.com
+  endpointPort: 8443

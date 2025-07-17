@@ -4,4 +4,3 @@ targets:
     - type: setuptools
 paths:
   exclude:
-    - site

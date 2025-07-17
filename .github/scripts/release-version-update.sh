@@ -9,7 +9,6 @@ DEPLOYMENT_PATH="${ROOTDIR}/deployments"
 EXAMPLES_PATH="${ROOTDIR}/examples"
 DEBUG=${DEBUG:-"false"}
 
-DOCS_TO_UPDATE_FOLDER=${ROOTDIR}/site/content
 FILES_TO_UPDATE_IC_VERSION=(
     "${ROOTDIR}/.github/data/version.txt"
     "${ROOTDIR}/README.md"
@@ -119,11 +118,6 @@ for i in "${FILE_TO_UPDATE_HELM_CHART_VERSION[@]}"; do
         exit 2
     fi
 done
-
-# update docs with new versions
-echo -n "${new_ic_version}" > ./site/layouts/shortcodes/nic-version.html
-echo -n "${new_helm_chart_version}" > ./site/layouts/shortcodes/nic-helm-version.html
-echo -n "${new_operator_version}" > ./site/layouts/shortcodes/nic-operator-version.html
 
 # update examples with new versions
 example_files=$(find "${EXAMPLES_PATH}" -type f -name "*.md")

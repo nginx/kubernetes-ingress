@@ -17,6 +17,8 @@ from suite.utils.policy_resources_utils import (
     read_policy,
 )
 from suite.utils.resources_utils import (
+    create_secret_from_yaml,
+    delete_secret,
     get_first_pod_name,
     get_pod_list,
     get_vs_nginx_template_conf,
@@ -67,6 +69,32 @@ rl_pol_basic_with_default_jwt_claim_sub = (
 )
 rl_pol_premium_with_default_jwt_claim_sub = (
     f"{TEST_DATA}/rate-limit/policies/rate-limit-tiered-premium-with-default-jwt-claim-sub.yaml"
+)
+rl_vs_basic_premium_variables_apikey = (
+    f"{TEST_DATA}/rate-limit/spec/virtual-server-tiered-basic-premium-variables-apikey.yaml"
+)
+rl_basic_apikey_client1 = "client1basic"
+rl_premium_apikey_client1 = "client1premium"
+rl_default_apikey_random = "random"
+rl_sec_apikey = f"{TEST_DATA}/rate-limit/policies/api-key-secret.yaml"
+rl_pol_apikey = f"{TEST_DATA}/rate-limit/policies/api-key-policy.yaml"
+rl_pol_basic_with_default_variables_apikey = (
+    f"{TEST_DATA}/rate-limit/policies/rate-limit-tiered-basic-with-default-variables-apikey.yaml"
+)
+rl_pol_premium_no_default_variables_apikey = (
+    f"{TEST_DATA}/rate-limit/policies/rate-limit-tiered-premium-no-default-variables-apikey.yaml"
+)
+rl_vs_read_write_variables_request_method = (
+    f"{TEST_DATA}/rate-limit/spec/virtual-server-tiered-read-write-variables-request-method.yaml"
+)
+rl_pol_write_no_default_variables_request_method = (
+    f"{TEST_DATA}/rate-limit/policies/rate-limit-tiered-write-no-default-variables-request-method.yaml"
+)
+rl_pol_write_with_default_variables_request_method = (
+    f"{TEST_DATA}/rate-limit/policies/rate-limit-tiered-write-with-default-variables-request-method.yaml"
+)
+rl_pol_read_no_default_variables_request_method = (
+    f"{TEST_DATA}/rate-limit/policies/rate-limit-tiered-read-no-default-variables-request-method.yaml"
 )
 
 
@@ -648,11 +676,12 @@ class TestTieredRateLimitingPolicies:
             wait_before_test(delay)
         assert occur.count(code) in range(counter, counter + 2)
 
-    def check_rate_limit_nearly_eq(self, url, code, counter, plus_minus=1, delay=0.01, headers={}):
+    def check_rate_limit_nearly_eq(self, url, code, counter, plus_minus=1, delay=0.01, headers={}, method="GET"):
         occur = []
         t_end = time.perf_counter() + 1
         while time.perf_counter() < t_end:
-            resp = requests.get(
+            resp = requests.request(
+                method.lower(),
                 url,
                 headers=headers,
             )
@@ -999,3 +1028,137 @@ class TestTieredRateLimitingPolicies:
         delete_policy(kube_apis.custom_objects, basic_pol_name, test_namespace)
         delete_policy(kube_apis.custom_objects, premium_pol_name, test_namespace)
         self.restore_default_vs(kube_apis, virtual_server_setup)
+
+    @pytest.mark.parametrize("src", [rl_vs_basic_premium_variables_apikey])
+    def test_speclevel_rl_policy_tiered_basic_premium_with_default_variables_apikey(
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        crd_ingress_controller,
+        virtual_server_setup,
+        test_namespace,
+        src,
+    ):
+        """
+        Test if basic rate-limiting policy is working with 1 rps using $apikey_client_name as the rate limit key,
+        if premium rate-limiting policy is working with 5 rps using $apikey_client_name as the rate limit key &
+        if the default basic rate limit of 1r/s is applied.
+        Policies are applied at the VirtualServer Spec level
+        """
+        apikey_sec_name = create_secret_from_yaml(kube_apis.v1, test_namespace, rl_sec_apikey)
+        apikey_pol_name = apply_and_assert_valid_policy(kube_apis, test_namespace, rl_pol_apikey)
+        basic_pol_name = apply_and_assert_valid_policy(
+            kube_apis, test_namespace, rl_pol_basic_with_default_variables_apikey
+        )
+        premium_pol_name = apply_and_assert_valid_policy(
+            kube_apis, test_namespace, rl_pol_premium_no_default_variables_apikey
+        )
+
+        # Patch VirtualServer
+        apply_and_assert_valid_vs(
+            kube_apis,
+            virtual_server_setup.namespace,
+            virtual_server_setup.vs_name,
+            src,
+        )
+
+        ##  Test Basic Rate Limit 1r/s
+        print("Test Basic Rate Limit 1r/s")
+        self.check_rate_limit_nearly_eq(
+            virtual_server_setup.backend_2_url,
+            200,
+            1,
+            headers={"host": virtual_server_setup.vs_host, "X-header-name": rl_basic_apikey_client1},
+        )
+        wait_before_test(1)
+
+        ##  Test Premium Rate Limit 5r/s
+        print("Test Premium Rate Limit 5r/s")
+        self.check_rate_limit_nearly_eq(
+            virtual_server_setup.backend_2_url,
+            200,
+            5,
+            headers={"host": virtual_server_setup.vs_host, "X-header-name": rl_premium_apikey_client1},
+        )
+        wait_before_test(1)
+
+        ##  Test Default Rate Limit 1r/s
+        print("Test Default Rate Limit 1r/s")
+        self.check_rate_limit_nearly_eq(
+            virtual_server_setup.backend_2_url,
+            200,
+            1,
+            headers={"host": virtual_server_setup.vs_host, "X-header-name": rl_default_apikey_random},
+        )
+
+        self.restore_default_vs(kube_apis, virtual_server_setup)
+        delete_policy(kube_apis.custom_objects, basic_pol_name, test_namespace)
+        delete_policy(kube_apis.custom_objects, premium_pol_name, test_namespace)
+        delete_policy(kube_apis.custom_objects, apikey_pol_name, test_namespace)
+        delete_secret(kube_apis.v1, apikey_sec_name, test_namespace)
+
+    @pytest.mark.parametrize("src", [rl_vs_read_write_variables_request_method])
+    def test_speclevel_rl_policy_tiered_read_write_with_default_variables_request_method(
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        crd_ingress_controller,
+        virtual_server_setup,
+        test_namespace,
+        src,
+    ):
+        """
+        Test if read rate-limiting policy is working with 5 rps using $request_method as the rate limit key,
+        if write rate-limiting policy is working with 1 rps using $request_method as the rate limit key &
+        if the default write rate limit of 1r/s is applied.
+        Policies are applied at the VirtualServer Spec level
+        """
+        read_pol_name = apply_and_assert_valid_policy(
+            kube_apis, test_namespace, rl_pol_read_no_default_variables_request_method
+        )
+        write_pol_name = apply_and_assert_valid_policy(
+            kube_apis, test_namespace, rl_pol_write_with_default_variables_request_method
+        )
+
+        # Patch VirtualServer
+        apply_and_assert_valid_vs(
+            kube_apis,
+            virtual_server_setup.namespace,
+            virtual_server_setup.vs_name,
+            src,
+        )
+
+        ##  Test Write Rate Limit 1r/s
+        print("Test Write Rate Limit 1r/s")
+        self.check_rate_limit_nearly_eq(
+            virtual_server_setup.backend_2_url,
+            200,
+            1,
+            headers={"host": virtual_server_setup.vs_host},
+            method="DELETE",
+        )
+        wait_before_test(1)
+
+        ##  Test Read Rate Limit 5r/s
+        print("Test Read Rate Limit 5r/s")
+        self.check_rate_limit_nearly_eq(
+            virtual_server_setup.backend_2_url,
+            200,
+            5,
+            headers={"host": virtual_server_setup.vs_host},
+        )
+        wait_before_test(1)
+
+        ##  Test Default Rate Limit 1r/s
+        print("Test Default Rate Limit 1r/s")
+        self.check_rate_limit_nearly_eq(
+            virtual_server_setup.backend_2_url,
+            200,
+            1,
+            headers={"host": virtual_server_setup.vs_host},
+            method="POST",
+        )
+
+        self.restore_default_vs(kube_apis, virtual_server_setup)
+        delete_policy(kube_apis.custom_objects, read_pol_name, test_namespace)
+        delete_policy(kube_apis.custom_objects, write_pol_name, test_namespace)

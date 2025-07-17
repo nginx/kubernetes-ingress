@@ -1,7 +1,0 @@
-baseURL = "https://docs-dev.nginx.com/nginx-ingress-controller"
-title = "DEV -- NGINX Ingress Controller Docs"
-publishDir = "public/nginx-ingress-controller"
-canonifyURLs = false
-
-[Params]
-  buildtype = "webdocs"

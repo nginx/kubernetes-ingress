@@ -11,24 +11,24 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-// Labels contains the metadata information needed for reporting to Agent
+// Labels contains the metadata information needed for reporting to Agent v3
 type Labels struct {
-	ProductName         string `json:"product_name"`
-	ProductVersion      string `json:"product_version"`
-	ClusterID           string `json:"cluster_id"`
-	DeploymentName      string `json:"deployment_name"`
-	DeploymentID        string `json:"deployment_id"`
-	DeploymentNamespace string `json:"deployment_namespace"`
+	ProductType           string `json:"product-type"`
+	ProductVersion        string `json:"product-version"`
+	ClusterID             string `json:"cluster-id"`
+	InstallationName      string `json:"installation-name"`
+	InstallationID        string `json:"installation-id"`
+	InstallationNamespace string `json:"installation-namespace"`
 }
 
-func newMetadataInfo(deploymentNamespace, clusterID, deploymentID, productVersion, deploymentName string) *Labels {
+func newMetadataInfo(installationNamespace, clusterID, installationID, productVersion, installationName string) *Labels {
 	return &Labels{
-		ProductName:         "nic",
-		ProductVersion:      productVersion,
-		ClusterID:           clusterID,
-		DeploymentID:        deploymentID,
-		DeploymentName:      deploymentName,
-		DeploymentNamespace: deploymentNamespace,
+		ProductType:           "nic",
+		ProductVersion:        productVersion,
+		ClusterID:             clusterID,
+		InstallationID:        installationID,
+		InstallationName:      installationName,
+		InstallationNamespace: installationNamespace,
 	}
 }
 
@@ -52,19 +52,19 @@ func NewMetadataReporter(client kubernetes.Interface, pod *api_v1.Pod, version s
 
 // CollectAndWrite collects the metadata information and returns a Labels struct
 func (md *Metadata) CollectAndWrite(ctx context.Context) (*Labels, error) {
-	deploymentNamespace := md.PodNSName.Namespace
+	installationNamespace := md.PodNSName.Namespace
 	clusterID, err := clusterInfo.GetClusterID(ctx, md.K8sClientReader)
 	if err != nil {
 		return nil, fmt.Errorf("error collecting ClusterID: %w", err)
 	}
-	deploymentID, err := clusterInfo.GetInstallationID(ctx, md.K8sClientReader, md.PodNSName)
+	installationID, err := clusterInfo.GetInstallationID(ctx, md.K8sClientReader, md.PodNSName)
 	if err != nil {
 		return nil, fmt.Errorf("error collecting InstallationID: %w", err)
 	}
-	deploymentName, err := clusterInfo.GetDeploymentName(ctx, md.K8sClientReader, md.PodNSName)
+	installationName, err := clusterInfo.GetInstallationName(ctx, md.K8sClientReader, md.PodNSName)
 	if err != nil {
-		return nil, fmt.Errorf("error collecting DeploymentName: %w", err)
+		return nil, fmt.Errorf("error collecting InstallationName: %w", err)
 	}
-	info := newMetadataInfo(deploymentNamespace, clusterID, deploymentID, md.NICVersion, deploymentName)
+	info := newMetadataInfo(installationNamespace, clusterID, installationID, md.NICVersion, installationName)
 	return info, nil
 }

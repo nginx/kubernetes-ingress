@@ -66,4 +66,4 @@ jobs:
               git push --dry-run origin "${branch}"
           fi
         env:
-          GITHUB_TOKEN: ${{ secrets.NGINX_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

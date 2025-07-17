@@ -94,6 +94,8 @@ func validateSpecialVariable(nVar string, fieldPath *field.Path, isPlus bool) fi
 		} else {
 			addErrors(isValidSpecialHeaderLikeVariable(value))
 		}
+	case "apikey":
+		addErrors(isValidSpecialHeaderLikeVariable(value))
 	default:
 		allErrs = append(allErrs, field.Invalid(fieldPath, nVar, "unknown special variable"))
 	}

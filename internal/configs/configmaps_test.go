@@ -1377,6 +1377,359 @@ func TestParseZoneSyncResolverIPV6MapResolverIPV6(t *testing.T) {
 	}
 }
 
+func TestOpenTelemetryConfigurationSuccess(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap                   *v1.ConfigMap
+		expectedLoadModule          bool
+		expectedExporterEndpoint    string
+		expectedExporterHeaderName  string
+		expectedExporterHeaderValue string
+		expectedServiceName         string
+		expectedTraceInHTTP         bool
+		msg                         string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "https://otel-collector:4317",
+					"otel-service-name":      "nginx-ingress-controller:nginx",
+				},
+			},
+			expectedLoadModule:          true,
+			expectedExporterEndpoint:    "https://otel-collector:4317",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "nginx-ingress-controller:nginx",
+			msg:                         "endpoint set, minimal config",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "subdomain.goes.on.and.on.and.on.and.on.example.com",
+				},
+			},
+			expectedLoadModule:          true,
+			expectedExporterEndpoint:    "subdomain.goes.on.and.on.and.on.and.on.example.com",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "endpoint set, complicated long subdomain",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "localhost:9933",
+				},
+			},
+			expectedLoadModule:          true,
+			expectedExporterEndpoint:    "localhost:9933",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "endpoint set, hostname and port no scheme",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint":     "https://otel-collector:4317",
+					"otel-exporter-trusted-ca":   "otel-ca-secret",
+					"otel-exporter-header-name":  "X-Custom-Header",
+					"otel-exporter-header-value": "custom-value",
+					"otel-service-name":          "nginx-ingress-controller:nginx",
+					"otel-trace-in-http":         "true",
+				},
+			},
+			expectedLoadModule:          true,
+			expectedExporterEndpoint:    "https://otel-collector:4317",
+			expectedExporterHeaderName:  "X-Custom-Header",
+			expectedExporterHeaderValue: "custom-value",
+			expectedServiceName:         "nginx-ingress-controller:nginx",
+			expectedTraceInHTTP:         true,
+			msg:                         "endpoint set, full config",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{},
+			},
+			expectedLoadModule:          false,
+			expectedExporterEndpoint:    "",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "no config",
+		},
+	}
+
+	isPlus := true
+	hasAppProtect := false
+	hasAppProtectDos := false
+	hasTLSPassthrough := false
+	expectedConfigOk := true
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, configOk := ParseConfigMap(context.Background(), test.configMap, isPlus,
+				hasAppProtect, hasAppProtectDos, hasTLSPassthrough, makeEventLogger())
+			if configOk != expectedConfigOk {
+				t.Errorf("configOk: want %v, got %v", expectedConfigOk, configOk)
+			}
+			if result.MainOtelLoadModule != test.expectedLoadModule {
+				t.Errorf("MainOtelLoadModule: want %v, got %v", test.expectedLoadModule, result.MainOtelLoadModule)
+			}
+			if result.MainOtelExporterEndpoint != test.expectedExporterEndpoint {
+				t.Errorf("MainOtelExporterEndpoint: want %q, got %q", test.expectedExporterEndpoint, result.MainOtelExporterEndpoint)
+			}
+			if result.MainOtelExporterHeaderName != test.expectedExporterHeaderName {
+				t.Errorf("MainOtelExporterHeaderName: want %q, got %q", test.expectedExporterHeaderName, result.MainOtelExporterHeaderName)
+			}
+			if result.MainOtelExporterHeaderValue != test.expectedExporterHeaderValue {
+				t.Errorf("MainOtelExporterHeaderValue: want %q, got %q", test.expectedExporterHeaderValue, result.MainOtelExporterHeaderValue)
+			}
+			if result.MainOtelServiceName != test.expectedServiceName {
+				t.Errorf("MainOtelServiceName: want %q, got %q", test.expectedServiceName, result.MainOtelServiceName)
+			}
+			if result.MainOtelTraceInHTTP != test.expectedTraceInHTTP {
+				t.Errorf("MainOtelTraceInHTTP: want %v, got %v", test.expectedTraceInHTTP, result.MainOtelTraceInHTTP)
+			}
+		})
+	}
+}
+
+func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap                   *v1.ConfigMap
+		expectedLoadModule          bool
+		expectedExporterEndpoint    string
+		expectedExporterHeaderName  string
+		expectedExporterHeaderValue string
+		expectedServiceName         string
+		expectedTraceInHTTP         bool
+		msg                         string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "",
+					"otel-service-name":      "nginx-ingress-controller:nginx",
+				},
+			},
+			expectedLoadModule:          false,
+			expectedExporterEndpoint:    "",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "invalid, endpoint missing, service name set",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-header-name":  "X-Custom-Header",
+					"otel-exporter-header-value": "custom-value",
+				},
+			},
+			expectedLoadModule:          false,
+			expectedExporterEndpoint:    "",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "invalid, endpoint missing, header name and value set",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint":    "https://otel-collector:4317",
+					"otel-exporter-header-name": "X-Custom-Header",
+					"otel-service-name":         "nginx-ingress-controller:nginx",
+				},
+			},
+			expectedLoadModule:          true,
+			expectedExporterEndpoint:    "https://otel-collector:4317",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "nginx-ingress-controller:nginx",
+			expectedTraceInHTTP:         false,
+			msg:                         "partially invalid, header value missing",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint":     "https://otel-collector:4317",
+					"otel-exporter-header-value": "custom-value",
+					"otel-service-name":          "nginx-ingress-controller:nginx",
+				},
+			},
+			expectedLoadModule:          true,
+			expectedExporterEndpoint:    "https://otel-collector:4317",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "nginx-ingress-controller:nginx",
+			expectedTraceInHTTP:         false,
+			msg:                         "partially invalid, header name missing",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint":     "https://otel-collector:4317",
+					"otel-exporter-header-name":  "X-Custom-H$eader",
+					"otel-exporter-header-value": "custom-value",
+					"otel-service-name":          "nginx-ingress-controller:nginx",
+				},
+			},
+			expectedLoadModule:          true,
+			expectedExporterEndpoint:    "https://otel-collector:4317",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "nginx-ingress-controller:nginx",
+			expectedTraceInHTTP:         false,
+			msg:                         "partially invalid, header value invalid",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "https://otel-collector:4317",
+					"otel-service-name":      "nginx-ingress-controller:nginx",
+					"otel-trace-in-http":     "invalid",
+				},
+			},
+			expectedLoadModule:          true,
+			expectedExporterEndpoint:    "https://otel-collector:4317",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "nginx-ingress-controller:nginx",
+			expectedTraceInHTTP:         false,
+			msg:                         "partially invalid, trace flag invalid",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint":     "https://otel-collector:4317",
+					"otel-exporter-header-value": "custom-value",
+					"otel-service-name":          "nginx-ingress-controller:nginx",
+					"otel-trace-in-http":         "true",
+				},
+			},
+			expectedLoadModule:          true,
+			expectedExporterEndpoint:    "https://otel-collector:4317",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "nginx-ingress-controller:nginx",
+			expectedTraceInHTTP:         true,
+			msg:                         "partially invalid, header name missing, trace in http set",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "something%invalid*30here",
+				},
+			},
+			expectedLoadModule:          false,
+			expectedExporterEndpoint:    "",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "invalid, endpoint does not look like a host",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "localhost:0",
+				},
+			},
+			expectedLoadModule:          false,
+			expectedExporterEndpoint:    "",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "invalid, port is outside of range down",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "localhost:99999",
+				},
+			},
+			expectedLoadModule:          false,
+			expectedExporterEndpoint:    "",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "invalid, port is outside of range up",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "fe80::1",
+				},
+			},
+			expectedLoadModule:          false,
+			expectedExporterEndpoint:    "",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "invalid, endpoint is an ipv6 address",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "thisisaverylongsubdomainthatexceedsatotalofsixtythreecharactersz.example.com",
+				},
+			},
+			expectedLoadModule:          false,
+			expectedExporterEndpoint:    "",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "invalid, subdomain is more than 63 characters long",
+		},
+	}
+
+	isPlus := false
+	hasAppProtect := false
+	hasAppProtectDos := false
+	hasTLSPassthrough := false
+	expectedConfigOk := false
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, configOk := ParseConfigMap(context.Background(), test.configMap, isPlus,
+				hasAppProtect, hasAppProtectDos, hasTLSPassthrough, makeEventLogger())
+			if configOk != expectedConfigOk {
+				t.Errorf("configOk: want %v, got %v", expectedConfigOk, configOk)
+			}
+			if result.MainOtelLoadModule != test.expectedLoadModule {
+				t.Errorf("MainOtelLoadModule: want %v, got %v", test.expectedLoadModule, result.MainOtelLoadModule)
+			}
+			if result.MainOtelExporterEndpoint != test.expectedExporterEndpoint {
+				t.Errorf("MainOtelExporterEndpoint: want %q, got %q", test.expectedExporterEndpoint, result.MainOtelExporterEndpoint)
+			}
+			if result.MainOtelExporterHeaderName != test.expectedExporterHeaderName {
+				t.Errorf("MainOtelExporterHeaderName: want %q, got %q", test.expectedExporterHeaderName, result.MainOtelExporterHeaderName)
+			}
+			if result.MainOtelExporterHeaderValue != test.expectedExporterHeaderValue {
+				t.Errorf("MainOtelExporterHeaderValue: want %q, got %q", test.expectedExporterHeaderValue, result.MainOtelExporterHeaderValue)
+			}
+			if result.MainOtelServiceName != test.expectedServiceName {
+				t.Errorf("MainOtelServiceName: want %q, got %q", test.expectedServiceName, result.MainOtelServiceName)
+			}
+			if result.MainOtelTraceInHTTP != test.expectedTraceInHTTP {
+				t.Errorf("MainOtelTraceInHTTP: want %v, got %v", test.expectedTraceInHTTP, result.MainOtelTraceInHTTP)
+			}
+		})
+	}
+}
+
 func makeEventLogger() record.EventRecorder {
 	return record.NewFakeRecorder(1024)
 }

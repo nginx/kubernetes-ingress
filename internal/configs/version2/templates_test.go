@@ -121,6 +121,37 @@ func TestExecuteVirtualServerTemplate_RendersTemplateWithRateLimitJWTClaim(t *te
 	t.Log(string(got))
 }
 
+func TestExecuteVirtualServerTemplate_RendersTemplateWithRateLimitVariableAPIKey(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithRateLimitVariableAPIKey)
+	if err != nil {
+		t.Error(err)
+	}
+	wantedStrings := []string{
+		"limit_req_zone $pol_rl_default_basic_rate_limit_policy_default_cafe",
+		"limit_req_zone $pol_rl_default_premium_rate_limit_policy_default_cafe",
+		"$pol_rl_default_basic_rate_limit_policy_default_cafe {",
+		"$pol_rl_default_premium_rate_limit_policy_default_cafe {",
+		"$rl_default_cafe_variable_apikey_client_name",
+		"default rl_default_cafe_match_basic_rate_limit_policy",
+		"\"basic\" rl_default_cafe_match_basic_rate_limit_policy",
+		"\"premium\" rl_default_cafe_match_premium_rate_limit_policy",
+		"rl_default_cafe_match_basic_rate_limit_policy Val$apikey_client_name",
+		"rl_default_cafe_match_premium_rate_limit_policy Val$apikey_client_name",
+		"map $apikey_auth_token",
+		"map $apikey_client_name",
+	}
+	for _, value := range wantedStrings {
+		if !bytes.Contains(got, []byte(value)) {
+			t.Errorf("didn't get `%s`", value)
+		}
+	}
+
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
+}
+
 func TestExecuteVirtualServerTemplate_RendersTemplateWithSessionCookieSameSite(t *testing.T) {
 	t.Parallel()
 	executor := newTmplExecutorNGINXPlus(t)
@@ -762,7 +793,7 @@ func TestExecuteVirtualServerTemplateWithAPIKeyPolicyNGINXPlus(t *testing.T) {
 	vscfg.Server.APIKey = &APIKey{
 		Header:  []string{"X-header-name", "other-header"},
 		Query:   []string{"myQuery", "myOtherQuery"},
-		MapName: "vs-default-cafe-apikey-policy",
+		MapName: "vs_default_cafe_apikey_policy",
 	}
 
 	e := newTmplExecutorNGINXPlus(t)
@@ -776,6 +807,61 @@ func TestExecuteVirtualServerTemplateWithAPIKeyPolicyNGINXPlus(t *testing.T) {
 	if !bytes.Contains(got, []byte(want)) {
 		t.Errorf("want %q in generated template", want)
 	}
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
+}
+
+func TestExecuteVirtualServerTemplate_WithCustomOIDCRedirectLocation(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfg)
+	if err != nil {
+		t.Error(err)
+	}
+
+	expectedCustomLocation := "location = /custom-location {"
+	if !bytes.Contains(got, []byte(expectedCustomLocation)) {
+		t.Errorf("Custom redirectURI should generate location block: %s", expectedCustomLocation)
+	}
+
+	expectedDirectives := []string{
+		"status_zone \"OIDC code exchange\";",
+		"js_content oidc.codeExchange;",
+		"error_page 500 502 504 @oidc_error;",
+	}
+
+	for _, directive := range expectedDirectives {
+		if !bytes.Contains(got, []byte(directive)) {
+			t.Errorf("Custom location should contain directive: %s", directive)
+		}
+	}
+
+	expectedRedirVar := `set $redir_location "/custom-location";`
+	if !bytes.Contains(got, []byte(expectedRedirVar)) {
+		t.Errorf("Should set $redir_location to custom value: %s", expectedRedirVar)
+	}
+}
+
+func TestExecuteVirtualServerTemplateWithOIDCAndPKCEPolicyNGINXPlus(t *testing.T) {
+	t.Parallel()
+
+	e := newTmplExecutorNGINXPlus(t)
+	got, err := e.ExecuteVirtualServerTemplate(&virtualServerCfgWithOIDCAndPKCETurnedOn)
+	if err != nil {
+		t.Error(err)
+	}
+
+	want := "include oidc/oidc_pkce_supplements.conf"
+	want2 := "include oidc/oidc.conf;"
+
+	if !bytes.Contains(got, []byte(want)) {
+		t.Errorf("want %q in generated template", want)
+	}
+
+	if !bytes.Contains(got, []byte(want2)) {
+		t.Errorf("want %q in generated template", want2)
+	}
+
 	snaps.MatchSnapshot(t, string(got))
 	t.Log(string(got))
 }
@@ -1274,6 +1360,18 @@ var (
 			JWTAuth: &JWTAuth{
 				Realm:  "My Api",
 				Secret: "jwk-secret",
+			},
+			OIDC: &OIDC{
+				AuthEndpoint:          "https://idp.example.com/auth",
+				ClientID:              "test-client",
+				ClientSecret:          "test-secret",
+				JwksURI:               "https://idp.example.com/jwks",
+				TokenEndpoint:         "https://idp.example.com/token",
+				EndSessionEndpoint:    "https://idp.example.com/logout",
+				RedirectURI:           "/custom-location",
+				PostLogoutRedirectURI: "https://example.com/logout",
+				ZoneSyncLeeway:        0,
+				Scope:                 "openid+profile+email",
 			},
 			IngressMTLS: &IngressMTLS{
 				ClientCert:   "ingress-mtls-secret",
@@ -2014,6 +2112,148 @@ var (
 		},
 	}
 
+	virtualServerCfgWithRateLimitVariableAPIKey = VirtualServerConfig{
+		LimitReqZones: []LimitReqZone{
+			{
+				Key:           "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+				ZoneName:      "pol_rl_default_premium_rate_limit_policy_default_cafe",
+				ZoneSize:      "10M",
+				Rate:          "10r/s",
+				PolicyResult:  "$apikey_client_name",
+				GroupVariable: "$rl_default_cafe_variable_apikey_client_name_route_L3RlYQ",
+				PolicyValue:   "rl_default_cafe_match_premium_rate_limit_policy",
+				GroupValue:    `"premium"`,
+				GroupSource:   "$apikey_client_name",
+			},
+			{
+				Key:           "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+				ZoneName:      "pol_rl_default_basic_rate_limit_policy_default_cafe",
+				ZoneSize:      "20M",
+				Rate:          "20r/s",
+				PolicyResult:  "$apikey_client_name",
+				GroupVariable: "$rl_default_cafe_variable_apikey_client_name_route_L3RlYQ",
+				PolicyValue:   "rl_default_cafe_match_basic_rate_limit_policy",
+				GroupValue:    `"basic"`,
+				GroupSource:   "$apikey_client_name",
+				GroupDefault:  true,
+			},
+		},
+		Upstreams: []Upstream{},
+		Maps: []Map{
+			{
+				Source:   "$apikey_client_name",
+				Variable: "$rl_default_cafe_variable_apikey_client_name_route_L3RlYQ",
+				Parameters: []Parameter{
+					{
+						Value:  `"basic"`,
+						Result: "rl_default_cafe_match_basic_rate_limit_policy",
+					},
+					{
+						Value:  "default",
+						Result: "rl_default_cafe_match_basic_rate_limit_policy",
+					},
+					{
+						Value:  `"premium"`,
+						Result: "rl_default_cafe_match_premium_rate_limit_policy",
+					},
+				},
+			},
+			{
+				Source:   "$rl_default_cafe_variable_apikey_client_name_route_L3RlYQ",
+				Variable: "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+				Parameters: []Parameter{
+					{
+						Value:  "default",
+						Result: "''",
+					},
+					{
+						Value:  "rl_default_cafe_match_premium_rate_limit_policy",
+						Result: "Val$apikey_client_name",
+					},
+				},
+			},
+			{
+				Source:   "$rl_default_cafe_variable_apikey_client_name_route_L3RlYQ",
+				Variable: "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+				Parameters: []Parameter{
+					{
+						Value:  "default",
+						Result: "''",
+					},
+					{
+						Value:  "rl_default_cafe_match_basic_rate_limit_policy",
+						Result: "Val$apikey_client_name",
+					},
+				},
+			},
+			{
+				Source:   "$apikey_auth_token",
+				Variable: "$apikey_auth_client_name_default_cafe_api_key_policy",
+				Parameters: []Parameter{
+					{
+						Value:  "default",
+						Result: `""`,
+					},
+					{
+						Value:  `"e96ac3dd8ef94a6c4bb88f216231c1968e1700add139d722fe406cd0cae73074"`,
+						Result: `"premium"`,
+					},
+					{
+						Value:  `"e1e1a4f93c814d938254e6fd7da12f096c9948eae7bc4137656202a413a0f3f4"`,
+						Result: `"basic"`,
+					},
+				},
+			},
+		},
+		Server: Server{
+			ServerName:   "cafe.example.com",
+			StatusZone:   "cafe.example.com",
+			ServerTokens: "off",
+			VSNamespace:  "default",
+			VSName:       "cafe",
+
+			Locations: []Location{
+				{
+					Path:                     "/tea",
+					ProxyPass:                "http://vs_default_cafe_tea",
+					ProxyNextUpstream:        "error timeout",
+					ProxyNextUpstreamTimeout: "0s",
+					ProxyNextUpstreamTries:   0,
+					ProxySSLName:             "tea-svc.default.svc",
+					ProxyPassRequestHeaders:  true,
+					ProxySetHeaders:          []Header{{Name: "Host", Value: "$host"}},
+					ServiceName:              "tea-svc",
+					LimitReqs: []LimitReq{
+						{ZoneName: "pol_rl_default_premium_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+						{ZoneName: "pol_rl_default_basic_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+					},
+					LimitReqOptions: LimitReqOptions{
+						DryRun:     false,
+						LogLevel:   "error",
+						RejectCode: 503,
+					},
+				},
+				{
+					Path:                     "/coffee",
+					ProxyPass:                "http://vs_default_cafe_coffee",
+					ProxyNextUpstream:        "error timeout",
+					ProxyNextUpstreamTimeout: "0s",
+					ProxyNextUpstreamTries:   0,
+					ProxySSLName:             "coffee-svc.default.svc",
+					ProxyPassRequestHeaders:  true,
+					ProxySetHeaders:          []Header{{Name: "Host", Value: "$host"}},
+					ServiceName:              "coffee-svc",
+				},
+			},
+			APIKeyEnabled: true,
+			APIKey: &APIKey{
+				Header:  []string{"X-API-Key"},
+				Query:   []string{"api-key"},
+				MapName: "apikey_auth_client_name_default_cafe_api_key_policy",
+			},
+		},
+	}
+
 	virtualServerCfgWithWAFApBundle = VirtualServerConfig{
 		Server: Server{
 			ServerName: "example.com",
@@ -2362,6 +2602,22 @@ var (
 			CustomListeners: true,
 			HTTPPort:        0,
 			HTTPSPort:       8443,
+			Locations: []Location{
+				{
+					Path: "/",
+				},
+			},
+		},
+	}
+
+	virtualServerCfgWithOIDCAndPKCETurnedOn = VirtualServerConfig{
+		Server: Server{
+			ServerName:    "example.com",
+			StatusZone:    "example.com",
+			ProxyProtocol: true,
+			OIDC: &OIDC{
+				PKCEEnable: true,
+			},
 			Locations: []Location{
 				{
 					Path: "/",

@@ -153,6 +153,7 @@ type OIDC struct {
 	ZoneSyncLeeway        int
 	AuthExtraArgs         string
 	AccessTokenEnable     bool
+	PKCEEnable            bool
 }
 
 // APIKey holds API key configuration.

@@ -151,8 +151,12 @@ func validateRateLimit(rateLimit *v1.RateLimit, fieldPath *field.Path, isPlus bo
 		}
 	}
 
-	if rateLimit.Condition != nil && rateLimit.Condition.JWT == nil {
-		allErrs = append(allErrs, field.Required(fieldPath.Child("jwt"), "jwt cannot be nil"))
+	if rateLimit.Condition != nil && (rateLimit.Condition.JWT == nil && rateLimit.Condition.Variables == nil) {
+		allErrs = append(allErrs, field.Required(fieldPath.Child("condition"), "must specify either jwt or variable conditions"))
+	}
+
+	if rateLimit.Condition != nil && rateLimit.Condition.JWT != nil && rateLimit.Condition.Variables != nil {
+		allErrs = append(allErrs, field.Required(fieldPath.Child("condition"), "only one condition, jwt or variables is allowed"))
 	}
 
 	if rateLimit.Condition != nil && rateLimit.Condition.JWT != nil && !isPlus {
@@ -265,15 +269,15 @@ func validateOIDC(oidc *v1.OIDC, fieldPath *field.Path) field.ErrorList {
 	if oidc.ClientID == "" {
 		return field.ErrorList{field.Required(fieldPath.Child("clientID"), "")}
 	}
-	if oidc.ClientSecret == "" {
-		return field.ErrorList{field.Required(fieldPath.Child("clientSecret"), "")}
-	}
 	if oidc.EndSessionEndpoint == "" && oidc.PostLogoutRedirectURI != "" {
 		msg := "postLogoutRedirectURI can only be set when endSessionEndpoint is set"
 		return field.ErrorList{field.Forbidden(fieldPath.Child("postLogoutRedirectURI"), msg)}
 	}
 
 	allErrs := field.ErrorList{}
+
+	allErrs = append(allErrs, validatePKCE(oidc.PKCEEnable, oidc.ClientSecret, fieldPath.Child("clientSecret"))...)
+
 	if oidc.Scope != "" {
 		allErrs = append(allErrs, validateOIDCScope(oidc.Scope, fieldPath.Child("scope"))...)
 	}
@@ -470,6 +474,26 @@ func validateOIDCScope(scope string, fieldPath *field.Path) field.ErrorList {
 	return nil
 }
 
+// validatePKCE checks for the duo of PKCEEnable and clientSecret settings.
+//
+//   - yes PKCE and not empty client secret is bad, because PKCE does not use
+//     client secret
+//   - no PKCE and empty client secret is bad because standard OIDC uses client
+//     secrets
+func validatePKCE(PKCEEnable bool, clientSecret string,
+	clientSecretPath *field.Path,
+) field.ErrorList {
+	if !PKCEEnable && clientSecret == "" {
+		return field.ErrorList{field.Required(clientSecretPath, "clientSecret is required when PKCE is not used")}
+	}
+
+	if PKCEEnable && clientSecret != "" {
+		return field.ErrorList{field.Forbidden(clientSecretPath, "clientSecret cannot be used when PKCE is used")}
+	}
+
+	return nil
+}
+
 func validateURL(name string, fieldPath *field.Path) field.ErrorList {
 	u, err := url.Parse(name)
 	if err != nil {
@@ -577,7 +601,7 @@ func validateRateLimitZoneSize(zoneSize string, fieldPath *field.Path) field.Err
 	return allErrs
 }
 
-var rateLimitKeySpecialVariables = []string{"arg_", "http_", "cookie_", "jwt_claim_"}
+var rateLimitKeySpecialVariables = []string{"arg_", "http_", "cookie_", "jwt_claim_", "apikey_"}
 
 // rateLimitKeyVariables includes NGINX variables allowed to be used in a rateLimit policy key.
 var rateLimitKeyVariables = map[string]bool{
@@ -585,6 +609,7 @@ var rateLimitKeyVariables = map[string]bool{
 	"request_uri":        true,
 	"uri":                true,
 	"args":               true,
+	"request_method":     true,
 }
 
 func validateRateLimitKey(key string, fieldPath *field.Path, isPlus bool) field.ErrorList {

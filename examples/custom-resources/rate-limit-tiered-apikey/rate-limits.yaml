@@ -1,0 +1,30 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: rate-limit-apikey-premium
+spec:
+  rateLimit:
+    rate: 5r/s
+    key: ${apikey_auth_token}
+    zoneSize: 10M
+    condition:
+      variables:
+      - match: "~^.*-premium$"
+        name: $apikey_client_name
+    rejectCode: 429
+---
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: rate-limit-apikey-basic
+spec:
+  rateLimit:
+    rate: 1r/s
+    key: ${apikey_auth_token}
+    zoneSize: 10M
+    condition:
+      variables:
+      - match: "~^.*-basic$"
+        name: $apikey_client_name
+      default: true
+    rejectCode: 429

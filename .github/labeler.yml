@@ -5,13 +5,10 @@ enhancement:
   - head-branch: ['^feature/', '^feat/', '^enhancement/', '^enh/']
 
 bug:
-  - head-branch: ['^fix/', '^bug/']
+  - head-branch: ['^fix/', '^bug/', '^bugfix/']
 
 chore:
-  - all:
-    - changed-files:
-      - any-glob-to-any-file: ['.github/**/*', 'hack/**/*', '*']
-      - all-globs-to-all-files: ['!*.md', '!go.mod', '!go.sum', '!*.go']
+  - head-branch: ['^chore/']
 
 github_actions:
   - changed-files:
@@ -26,25 +23,17 @@ python:
     - any-glob-to-any-file: ['tests/**/*.py', 'tests/**/requirements.txt', 'tests/**/*.yaml', 'perf-tests/**/*.py', 'perf-tests/**/*.yaml']
 
 tests:
-  - all:
-    - changed-files:
-      - any-glob-to-any-file: ['tests/**/*', 'perf-tests/**/*']
-      - all-globs-to-all-files: ['!tests/requirements.txt', '!perf-tests/requirements.txt']
+  - head-branch: ['^tests?/']
 
 documentation:
-  - head-branch: ['^docs/', '^doc/']
-  - changed-files:
-    - any-glob-to-any-file: '**/*.md'
+  - head-branch: ['^docs?/']
 
 dependencies:
-  - head-branch: ['^deps/', '^dep/', '^dependabot/', 'pre-commit-ci-update-config']
-  - changed-files:
-    - any-glob-to-any-file: ['go.mod', 'go.sum']
+  - head-branch: ['^deps?/', '^dependabot/', '^renovate/', 'pre-commit-ci-update-config']
 
 helm_chart:
-  - changed-files:
-    - any-glob-to-any-file: 'charts/nginx-ingress/**/*'
+  - head-branch: ['^helm/', '^chart/']
 
 docker:
   - changed-files:
-    - any-glob-to-any-file: '**/Dockerfile'
+    - any-glob-to-any-file: '**/Dockerfile*'

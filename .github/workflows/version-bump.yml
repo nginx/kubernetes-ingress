@@ -27,6 +27,7 @@ jobs:
   version-bump:
     permissions:
       contents: write
+      pull-requests: write
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout Repository
@@ -50,11 +51,10 @@ jobs:
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
         with:
-          token: ${{ secrets.NGINX_PAT }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: Version Bump for ${{ github.event.inputs.ic_version }}
           title: Version Bump for ${{ github.event.inputs.ic_version }}
           branch: chore/version-bump-${{ github.event.inputs.ic_version }}
-          author: nginx-bot <integrations@nginx.com>
           labels: chore
           body: |
             This automated PR updates the NIC & Helm chart versions for the upcoming ${{ github.event.inputs.ic_version }} release.

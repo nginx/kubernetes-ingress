@@ -302,9 +302,10 @@ server {
     auth_jwt "My Api";
     auth_jwt_key_file jwk-secret;
     js_var $header_query_value "${http_x_header_name}${http_other_header}${arg_myQuery}${arg_myOtherQuery}";
-    js_var $apikey_auth_local_map "vs-default-cafe-apikey-policy";
+    js_var $apikey_auth_local_map "vs_default_cafe_apikey_policy";
     js_var $apikey_auth_token $apikey_auth_hash;
     auth_request /_validate_apikey_njs;
+    js_var $apikey_client_name $vs_default_cafe_apikey_policy;
     app_protect_enable on;
     app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
     app_protect_security_log_enable on;
@@ -335,7 +336,7 @@ server {
         proxy_pass http://coffee-v2;
         health_check uri=/  port=50 interval=5s jitter=0s fails=1 passes=1 mandatory  persistent  keepalive_time=60s;
 
-   }
+    }
     location @hc-tea {
         
         grpc_connect_timeout ;
@@ -344,7 +345,7 @@ server {
         grpc_pass grpc://tea-v3;
         health_check port=50 interval=5s jitter=0s fails=1 passes=1 type=grpc grpc_status=12 grpc_service=tea-servicev2;
 
-   }
+    }
     location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_0 {
         
         default_type "application/json";
@@ -761,7 +762,7 @@ server {
         proxy_pass http://coffee-v2;
         health_check uri=/  port=50 interval=5s jitter=0s fails=1 passes=1 mandatory  persistent  keepalive_time=60s;
 
-   }
+    }
     location @hc-tea {
         
         grpc_connect_timeout ;
@@ -770,7 +771,7 @@ server {
         grpc_pass grpc://tea-v3;
         health_check port=50 interval=5s jitter=0s fails=1 passes=1 type=grpc grpc_status=12 grpc_service=tea-servicev2;
 
-   }
+    }
     location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_0 {
         
         default_type "application/json";
@@ -1316,6 +1317,54 @@ server {
 
 ---
 
+[TestExecuteVirtualServerTemplateWithOIDCAndPKCEPolicyNGINXPlus - 1]
+
+include oidc/oidc_pkce_supplements.conf;
+
+server {
+    listen 80 proxy_protocol;
+    listen [::]:80 proxy_protocol;
+
+
+    server_name example.com;
+    status_zone example.com;
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    include oidc/oidc.conf;
+
+    set $oidc_pkce_enable 1;
+    set $oidc_client_auth_method "client_secret_post";
+    set $oidc_logout_redirect "";
+    set $oidc_hmac_key "";
+    set $zone_sync_leeway 0;
+
+    set $oidc_authz_endpoint "";
+    set $oidc_authz_extra_args "";
+    set $oidc_token_endpoint "";
+    set $oidc_end_session_endpoint "";
+    set $oidc_jwt_keyfile "";
+    set $oidc_scopes "";
+    set $oidc_client "";
+    set $oidc_client_secret "";
+    set $redir_location "";
+
+    server_tokens "";
+
+    
+
+    
+    location / {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header close;
+    }
+}
+
+---
+
 [TestExecuteVirtualServerTemplate_RendersOSSTemplateWithHTTP2Off - 1]
 
 server {
@@ -1438,7 +1487,7 @@ server {
         return 204;
     }
 
-        
+    
     
 }
 
@@ -2308,6 +2357,118 @@ server {
 
 ---
 
+[TestExecuteVirtualServerTemplate_RendersTemplateWithRateLimitVariableAPIKey - 1]
+
+map $apikey_client_name $rl_default_cafe_variable_apikey_client_name_route_L3RlYQ {
+    "basic" rl_default_cafe_match_basic_rate_limit_policy;
+    default rl_default_cafe_match_basic_rate_limit_policy;
+    "premium" rl_default_cafe_match_premium_rate_limit_policy;
+}
+map $rl_default_cafe_variable_apikey_client_name_route_L3RlYQ $pol_rl_default_premium_rate_limit_policy_default_cafe {
+    default '';
+    rl_default_cafe_match_premium_rate_limit_policy Val$apikey_client_name;
+}
+map $rl_default_cafe_variable_apikey_client_name_route_L3RlYQ $pol_rl_default_basic_rate_limit_policy_default_cafe {
+    default '';
+    rl_default_cafe_match_basic_rate_limit_policy Val$apikey_client_name;
+}
+map $apikey_auth_token $apikey_auth_client_name_default_cafe_api_key_policy {
+    default "";
+    "e96ac3dd8ef94a6c4bb88f216231c1968e1700add139d722fe406cd0cae73074" "premium";
+    "e1e1a4f93c814d938254e6fd7da12f096c9948eae7bc4137656202a413a0f3f4" "basic";
+}
+limit_req_zone $pol_rl_default_premium_rate_limit_policy_default_cafe zone=pol_rl_default_premium_rate_limit_policy_default_cafe:10M rate=10r/s;
+limit_req_zone $pol_rl_default_basic_rate_limit_policy_default_cafe zone=pol_rl_default_basic_rate_limit_policy_default_cafe:20M rate=20r/s;
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+    status_zone cafe.example.com;
+    set $resource_type "virtualserver";
+    set $resource_name "cafe";
+    set $resource_namespace "default";
+
+    server_tokens "off";
+    location = /_validate_apikey_njs {
+            internal;
+            js_content apikey_auth.validate;
+    }
+    js_var $header_query_value "${http_x_api_key}${arg_api-key}";
+    js_var $apikey_auth_local_map "apikey_auth_client_name_default_cafe_api_key_policy";
+    js_var $apikey_auth_token $apikey_auth_hash;
+    auth_request /_validate_apikey_njs;
+    js_var $apikey_client_name $apikey_auth_client_name_default_cafe_api_key_policy;
+
+    
+
+    
+    location /tea {
+        set $service "tea-svc";
+        status_zone "tea-svc";
+        limit_req_log_level error;
+        limit_req_status 503;
+        limit_req zone=pol_rl_default_premium_rate_limit_policy_default_cafe;
+        limit_req zone=pol_rl_default_basic_rate_limit_policy_default_cafe;
+
+        
+        set $header_query_value "${http_x_api_key}${arg_api-key}";
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers on;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host "$host";
+        proxy_pass http://vs_default_cafe_tea;
+        proxy_next_upstream error timeout;
+        proxy_next_upstream_timeout 0s;
+        proxy_next_upstream_tries 0;
+    }
+    location /coffee {
+        set $service "coffee-svc";
+        status_zone "coffee-svc";
+
+        
+        set $header_query_value "${http_x_api_key}${arg_api-key}";
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers on;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host "$host";
+        proxy_pass http://vs_default_cafe_coffee;
+        proxy_next_upstream error timeout;
+        proxy_next_upstream_timeout 0s;
+        proxy_next_upstream_tries 0;
+    }
+}
+
+---
+
 [TestExecuteVirtualServerTemplate_RendersTemplateWithServerGunzipNotSet - 1]
 
 
@@ -2872,7 +3033,7 @@ server {
         return 204;
     }
 
-        
+    
     
 }
 
@@ -2971,7 +3132,7 @@ server {
         proxy_pass http://coffee-v2;
         health_check uri=/  port=50 interval=5s jitter=0s fails=1 passes=1 mandatory  persistent  keepalive_time=60s;
 
-   }
+    }
     location @hc-tea {
         
         grpc_connect_timeout ;
@@ -2980,7 +3141,7 @@ server {
         grpc_pass grpc://tea-v3;
         health_check port=50 interval=5s jitter=0s fails=1 passes=1 type=grpc grpc_status=12 grpc_service=tea-servicev2;
 
-   }
+    }
     location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_0 {
         
         default_type "application/json";

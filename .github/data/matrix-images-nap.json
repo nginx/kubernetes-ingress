@@ -6,8 +6,7 @@
     "linux/amd64"
   ],
   "target": [
-    "goreleaser",
-    "aws"
+    "goreleaser"
   ],
   "nap_modules": [
     "dos",
