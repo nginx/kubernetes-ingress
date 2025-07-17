@@ -15,7 +15,7 @@ FROM ghcr.io/nginx/dependencies/nginx-ubi:ubi9@sha256:7dc715d51c9664d892376fada4
 FROM ghcr.io/nginx/alpine-fips:0.3.0-alpine3.19@sha256:449f1a149e81e36bb929ebd362433a06a158ff2a7e3ba05b4b8d9ea96d59ae91 AS alpine-fips-3.19
 FROM ghcr.io/nginx/alpine-fips:0.3.0-alpine3.21@sha256:5e5033f34ae7147ce8df928fa58c485bc08ded8ace22428b4c16df30e3b39901 AS alpine-fips-3.21
 FROM redhat/ubi9-minimal:9.6@sha256:6d5a6576c83816edcc0da7ed62ba69df8f6ad3cbe659adde2891bfbec4dbf187 AS ubi-minimal
-FROM golang:1.24-alpine@sha256:9c4b616be9d26e4762219223331bab5db98649e4be1f6badeac3f7c00a340e3f AS golang-builder
+FROM golang:1.24-alpine@sha256:48ee313931980110b5a91bbe04abdf640b9a67ca5dea3a620f01bacf50593396 AS golang-builder
 
 ############################################# NGINX files #############################################
 FROM scratch AS nginx-files
