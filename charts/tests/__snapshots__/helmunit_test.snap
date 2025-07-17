@@ -8,7 +8,7 @@ metadata:
   name: appprotect-dos-nginx-ingress
   namespace: appprotect-dos
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-dos
     app.kubernetes.io/version: "5.1.0"
@@ -21,7 +21,7 @@ metadata:
   name: appprotect-dos-nginx-ingress
   namespace: appprotect-dos
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-dos
     app.kubernetes.io/version: "5.1.0"
@@ -37,7 +37,7 @@ metadata:
   name: appprotect-dos-nginx-ingress-mgmt
   namespace: appprotect-dos
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-dos
     app.kubernetes.io/version: "5.1.0"
@@ -52,7 +52,7 @@ metadata:
   name: appprotect-dos-nginx-ingress-leader-election
   namespace: appprotect-dos
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-dos
     app.kubernetes.io/version: "5.1.0"
@@ -64,7 +64,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: appprotect-dos-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-dos
     app.kubernetes.io/version: "5.1.0"
@@ -188,7 +188,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: appprotect-dos-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-dos
     app.kubernetes.io/version: "5.1.0"
@@ -208,7 +208,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: appprotect-dos-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-dos
     app.kubernetes.io/version: "5.1.0"
@@ -268,7 +268,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: appprotect-dos-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-dos
     app.kubernetes.io/version: "5.1.0"
@@ -290,7 +290,7 @@ metadata:
   name: appprotect-dos-nginx-ingress-controller
   namespace: appprotect-dos
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-dos
     app.kubernetes.io/version: "5.1.0"
@@ -320,7 +320,7 @@ metadata:
   name: appprotect-dos-nginx-ingress-controller
   namespace: appprotect-dos
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-dos
     app.kubernetes.io/version: "5.1.0"
@@ -449,7 +449,7 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-dos
     app.kubernetes.io/version: "5.1.0"
@@ -464,7 +464,7 @@ metadata:
   name: appprotect-dos-nginx-ingress-leader-election
   namespace: appprotect-dos
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-dos
     app.kubernetes.io/version: "5.1.0"
@@ -480,7 +480,7 @@ metadata:
   name: appprotect-waf-nginx-ingress
   namespace: appprotect-waf
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-waf
     app.kubernetes.io/version: "5.1.0"
@@ -493,7 +493,7 @@ metadata:
   name: appprotect-waf-nginx-ingress
   namespace: appprotect-waf
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-waf
     app.kubernetes.io/version: "5.1.0"
@@ -509,7 +509,7 @@ metadata:
   name: appprotect-waf-nginx-ingress-mgmt
   namespace: appprotect-waf
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-waf
     app.kubernetes.io/version: "5.1.0"
@@ -524,7 +524,7 @@ metadata:
   name: appprotect-waf-nginx-ingress-leader-election
   namespace: appprotect-waf
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-waf
     app.kubernetes.io/version: "5.1.0"
@@ -536,7 +536,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: appprotect-waf-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-waf
     app.kubernetes.io/version: "5.1.0"
@@ -660,7 +660,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: appprotect-waf-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-waf
     app.kubernetes.io/version: "5.1.0"
@@ -680,7 +680,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: appprotect-waf-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-waf
     app.kubernetes.io/version: "5.1.0"
@@ -740,7 +740,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: appprotect-waf-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-waf
     app.kubernetes.io/version: "5.1.0"
@@ -762,7 +762,7 @@ metadata:
   name: appprotect-waf-nginx-ingress-controller
   namespace: appprotect-waf
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-waf
     app.kubernetes.io/version: "5.1.0"
@@ -792,7 +792,7 @@ metadata:
   name: appprotect-waf-nginx-ingress-controller
   namespace: appprotect-waf
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-waf
     app.kubernetes.io/version: "5.1.0"
@@ -916,7 +916,7 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-waf
     app.kubernetes.io/version: "5.1.0"
@@ -931,7 +931,7 @@ metadata:
   name: appprotect-waf-nginx-ingress-leader-election
   namespace: appprotect-waf
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-waf
     app.kubernetes.io/version: "5.1.0"
@@ -947,7 +947,7 @@ metadata:
   name: app-protect-waf-agentv2-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-waf-agentv2
     app.kubernetes.io/version: "5.1.0"
@@ -960,7 +960,7 @@ metadata:
   name: app-protect-waf-agentv2-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-waf-agentv2
     app.kubernetes.io/version: "5.1.0"
@@ -975,7 +975,7 @@ metadata:
   name: app-protect-waf-agentv2-nginx-ingress-agent-config
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-waf-agentv2
     app.kubernetes.io/version: "5.1.0"
@@ -1021,7 +1021,7 @@ metadata:
   name: app-protect-waf-agentv2-nginx-ingress-mgmt
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-waf-agentv2
     app.kubernetes.io/version: "5.1.0"
@@ -1036,7 +1036,7 @@ metadata:
   name: app-protect-waf-agentv2-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-waf-agentv2
     app.kubernetes.io/version: "5.1.0"
@@ -1048,7 +1048,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: app-protect-waf-agentv2-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-waf-agentv2
     app.kubernetes.io/version: "5.1.0"
@@ -1172,7 +1172,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: app-protect-waf-agentv2-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-waf-agentv2
     app.kubernetes.io/version: "5.1.0"
@@ -1192,7 +1192,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: app-protect-waf-agentv2-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-waf-agentv2
     app.kubernetes.io/version: "5.1.0"
@@ -1252,7 +1252,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: app-protect-waf-agentv2-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-waf-agentv2
     app.kubernetes.io/version: "5.1.0"
@@ -1274,7 +1274,7 @@ metadata:
   name: app-protect-waf-agentv2-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-waf-agentv2
     app.kubernetes.io/version: "5.1.0"
@@ -1304,7 +1304,7 @@ metadata:
   name: app-protect-waf-agentv2-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-waf-agentv2
     app.kubernetes.io/version: "5.1.0"
@@ -1453,7 +1453,7 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-waf-agentv2
     app.kubernetes.io/version: "5.1.0"
@@ -1468,7 +1468,7 @@ metadata:
   name: app-protect-waf-agentv2-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-waf-agentv2
     app.kubernetes.io/version: "5.1.0"
@@ -1484,7 +1484,7 @@ metadata:
   name: appprotect-wafv5-nginx-ingress
   namespace: appprotect-wafv5
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-wafv5
     app.kubernetes.io/version: "5.1.0"
@@ -1497,7 +1497,7 @@ metadata:
   name: appprotect-wafv5-nginx-ingress
   namespace: appprotect-wafv5
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-wafv5
     app.kubernetes.io/version: "5.1.0"
@@ -1513,7 +1513,7 @@ metadata:
   name: appprotect-wafv5-nginx-ingress-mgmt
   namespace: appprotect-wafv5
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-wafv5
     app.kubernetes.io/version: "5.1.0"
@@ -1528,7 +1528,7 @@ metadata:
   name: appprotect-wafv5-nginx-ingress-leader-election
   namespace: appprotect-wafv5
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-wafv5
     app.kubernetes.io/version: "5.1.0"
@@ -1540,7 +1540,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: appprotect-wafv5-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-wafv5
     app.kubernetes.io/version: "5.1.0"
@@ -1664,7 +1664,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: appprotect-wafv5-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-wafv5
     app.kubernetes.io/version: "5.1.0"
@@ -1684,7 +1684,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: appprotect-wafv5-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-wafv5
     app.kubernetes.io/version: "5.1.0"
@@ -1744,7 +1744,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: appprotect-wafv5-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-wafv5
     app.kubernetes.io/version: "5.1.0"
@@ -1766,7 +1766,7 @@ metadata:
   name: appprotect-wafv5-nginx-ingress-controller
   namespace: appprotect-wafv5
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-wafv5
     app.kubernetes.io/version: "5.1.0"
@@ -1796,7 +1796,7 @@ metadata:
   name: appprotect-wafv5-nginx-ingress-controller
   namespace: appprotect-wafv5
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-wafv5
     app.kubernetes.io/version: "5.1.0"
@@ -1967,7 +1967,7 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-wafv5
     app.kubernetes.io/version: "5.1.0"
@@ -1982,7 +1982,7 @@ metadata:
   name: appprotect-wafv5-nginx-ingress-leader-election
   namespace: appprotect-wafv5
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-wafv5
     app.kubernetes.io/version: "5.1.0"
@@ -1998,7 +1998,7 @@ metadata:
   name: app-protect-wafv5-agentv2-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-wafv5-agentv2
     app.kubernetes.io/version: "5.1.0"
@@ -2011,7 +2011,7 @@ metadata:
   name: app-protect-wafv5-agentv2-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-wafv5-agentv2
     app.kubernetes.io/version: "5.1.0"
@@ -2026,7 +2026,7 @@ metadata:
   name: app-protect-wafv5-agentv2-nginx-ingress-agent-config
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-wafv5-agentv2
     app.kubernetes.io/version: "5.1.0"
@@ -2072,7 +2072,7 @@ metadata:
   name: app-protect-wafv5-agentv2-nginx-ingress-mgmt
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-wafv5-agentv2
     app.kubernetes.io/version: "5.1.0"
@@ -2087,7 +2087,7 @@ metadata:
   name: app-protect-wafv5-agentv2-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-wafv5-agentv2
     app.kubernetes.io/version: "5.1.0"
@@ -2099,7 +2099,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: app-protect-wafv5-agentv2-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-wafv5-agentv2
     app.kubernetes.io/version: "5.1.0"
@@ -2223,7 +2223,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: app-protect-wafv5-agentv2-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-wafv5-agentv2
     app.kubernetes.io/version: "5.1.0"
@@ -2243,7 +2243,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: app-protect-wafv5-agentv2-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-wafv5-agentv2
     app.kubernetes.io/version: "5.1.0"
@@ -2303,7 +2303,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: app-protect-wafv5-agentv2-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-wafv5-agentv2
     app.kubernetes.io/version: "5.1.0"
@@ -2325,7 +2325,7 @@ metadata:
   name: app-protect-wafv5-agentv2-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-wafv5-agentv2
     app.kubernetes.io/version: "5.1.0"
@@ -2355,7 +2355,7 @@ metadata:
   name: app-protect-wafv5-agentv2-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-wafv5-agentv2
     app.kubernetes.io/version: "5.1.0"
@@ -2549,7 +2549,7 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-wafv5-agentv2
     app.kubernetes.io/version: "5.1.0"
@@ -2564,7 +2564,7 @@ metadata:
   name: app-protect-wafv5-agentv2-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-wafv5-agentv2
     app.kubernetes.io/version: "5.1.0"
@@ -2580,7 +2580,7 @@ metadata:
   name: custom-resources-nginx-ingress
   namespace: custom-resources
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: custom-resources
     app.kubernetes.io/version: "5.1.0"
@@ -2593,7 +2593,7 @@ metadata:
   name: custom-resources-nginx-ingress
   namespace: custom-resources
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: custom-resources
     app.kubernetes.io/version: "5.1.0"
@@ -2608,7 +2608,7 @@ metadata:
   name: custom-resources-nginx-ingress-leader-election
   namespace: custom-resources
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: custom-resources
     app.kubernetes.io/version: "5.1.0"
@@ -2620,7 +2620,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: custom-resources-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: custom-resources
     app.kubernetes.io/version: "5.1.0"
@@ -2713,7 +2713,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: custom-resources-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: custom-resources
     app.kubernetes.io/version: "5.1.0"
@@ -2733,7 +2733,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: custom-resources-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: custom-resources
     app.kubernetes.io/version: "5.1.0"
@@ -2793,7 +2793,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: custom-resources-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: custom-resources
     app.kubernetes.io/version: "5.1.0"
@@ -2815,7 +2815,7 @@ metadata:
   name: custom-resources-nginx-ingress-controller
   namespace: custom-resources
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: custom-resources
     app.kubernetes.io/version: "5.1.0"
@@ -2845,7 +2845,7 @@ metadata:
   name: custom-resources-nginx-ingress-controller
   namespace: custom-resources
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: custom-resources
     app.kubernetes.io/version: "5.1.0"
@@ -2962,7 +2962,7 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: custom-resources
     app.kubernetes.io/version: "5.1.0"
@@ -2980,7 +2980,7 @@ metadata:
   name: custom-resources-nginx-ingress-leader-election
   namespace: custom-resources
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: custom-resources
     app.kubernetes.io/version: "5.1.0"
@@ -2996,7 +2996,7 @@ metadata:
   name: daemonset-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: daemonset
     app.kubernetes.io/version: "5.1.0"
@@ -3009,7 +3009,7 @@ metadata:
   name: daemonset-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: daemonset
     app.kubernetes.io/version: "5.1.0"
@@ -3024,7 +3024,7 @@ metadata:
   name: daemonset-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: daemonset
     app.kubernetes.io/version: "5.1.0"
@@ -3036,7 +3036,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: daemonset-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: daemonset
     app.kubernetes.io/version: "5.1.0"
@@ -3150,7 +3150,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: daemonset-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: daemonset
     app.kubernetes.io/version: "5.1.0"
@@ -3170,7 +3170,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: daemonset-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: daemonset
     app.kubernetes.io/version: "5.1.0"
@@ -3230,7 +3230,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: daemonset-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: daemonset
     app.kubernetes.io/version: "5.1.0"
@@ -3252,7 +3252,7 @@ metadata:
   name: daemonset-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: daemonset
     app.kubernetes.io/version: "5.1.0"
@@ -3282,7 +3282,7 @@ metadata:
   name: daemonset-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: daemonset
     app.kubernetes.io/version: "5.1.0"
@@ -3405,7 +3405,7 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: daemonset
     app.kubernetes.io/version: "5.1.0"
@@ -3423,7 +3423,7 @@ metadata:
   name: daemonset-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: daemonset
     app.kubernetes.io/version: "5.1.0"
@@ -3439,7 +3439,7 @@ metadata:
   name: default-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: default
     app.kubernetes.io/version: "5.1.0"
@@ -3452,7 +3452,7 @@ metadata:
   name: default-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: default
     app.kubernetes.io/version: "5.1.0"
@@ -3467,7 +3467,7 @@ metadata:
   name: default-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: default
     app.kubernetes.io/version: "5.1.0"
@@ -3479,7 +3479,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: default-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: default
     app.kubernetes.io/version: "5.1.0"
@@ -3593,7 +3593,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: default-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: default
     app.kubernetes.io/version: "5.1.0"
@@ -3613,7 +3613,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: default-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: default
     app.kubernetes.io/version: "5.1.0"
@@ -3673,7 +3673,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: default-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: default
     app.kubernetes.io/version: "5.1.0"
@@ -3695,7 +3695,7 @@ metadata:
   name: default-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: default
     app.kubernetes.io/version: "5.1.0"
@@ -3725,7 +3725,7 @@ metadata:
   name: default-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: default
     app.kubernetes.io/version: "5.1.0"
@@ -3848,7 +3848,7 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: default
     app.kubernetes.io/version: "5.1.0"
@@ -3866,7 +3866,7 @@ metadata:
   name: default-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: default
     app.kubernetes.io/version: "5.1.0"
@@ -3882,7 +3882,7 @@ metadata:
   name: global-configuration-nginx-ingress
   namespace: gc
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: global-configuration
     app.kubernetes.io/version: "5.1.0"
@@ -3895,7 +3895,7 @@ metadata:
   name: global-configuration-nginx-ingress
   namespace: gc
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: global-configuration
     app.kubernetes.io/version: "5.1.0"
@@ -3910,7 +3910,7 @@ metadata:
   name: global-configuration-nginx-ingress-leader-election
   namespace: gc
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: global-configuration
     app.kubernetes.io/version: "5.1.0"
@@ -3922,7 +3922,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: global-configuration-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: global-configuration
     app.kubernetes.io/version: "5.1.0"
@@ -4036,7 +4036,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: global-configuration-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: global-configuration
     app.kubernetes.io/version: "5.1.0"
@@ -4056,7 +4056,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: global-configuration-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: global-configuration
     app.kubernetes.io/version: "5.1.0"
@@ -4116,7 +4116,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: global-configuration-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: global-configuration
     app.kubernetes.io/version: "5.1.0"
@@ -4138,7 +4138,7 @@ metadata:
   name: global-configuration-nginx-ingress-controller
   namespace: gc
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: global-configuration
     app.kubernetes.io/version: "5.1.0"
@@ -4168,7 +4168,7 @@ metadata:
   name: global-configuration-nginx-ingress-controller
   namespace: gc
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: global-configuration
     app.kubernetes.io/version: "5.1.0"
@@ -4292,7 +4292,7 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: global-configuration
     app.kubernetes.io/version: "5.1.0"
@@ -4310,7 +4310,7 @@ metadata:
   name: global-configuration-nginx-ingress-controller
   namespace: gc
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: global-configuration
     app.kubernetes.io/version: "5.1.0"
@@ -4331,7 +4331,7 @@ metadata:
   name: global-configuration-nginx-ingress-leader-election
   namespace: gc
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: global-configuration
     app.kubernetes.io/version: "5.1.0"
@@ -4347,7 +4347,7 @@ metadata:
   name: ingress-class-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class
     app.kubernetes.io/version: "5.1.0"
@@ -4360,7 +4360,7 @@ metadata:
   name: ingress-class-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class
     app.kubernetes.io/version: "5.1.0"
@@ -4375,7 +4375,7 @@ metadata:
   name: ingress-class-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class
     app.kubernetes.io/version: "5.1.0"
@@ -4387,7 +4387,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: ingress-class-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class
     app.kubernetes.io/version: "5.1.0"
@@ -4501,7 +4501,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: ingress-class-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class
     app.kubernetes.io/version: "5.1.0"
@@ -4521,7 +4521,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: ingress-class-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class
     app.kubernetes.io/version: "5.1.0"
@@ -4581,7 +4581,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: ingress-class-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class
     app.kubernetes.io/version: "5.1.0"
@@ -4603,7 +4603,7 @@ metadata:
   name: ingress-class-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class
     app.kubernetes.io/version: "5.1.0"
@@ -4633,7 +4633,7 @@ metadata:
   name: ingress-class-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class
     app.kubernetes.io/version: "5.1.0"
@@ -4756,7 +4756,7 @@ kind: IngressClass
 metadata:
   name: changed
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class
     app.kubernetes.io/version: "5.1.0"
@@ -4776,7 +4776,7 @@ metadata:
   name: ingress-class-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class
     app.kubernetes.io/version: "5.1.0"
@@ -4792,7 +4792,7 @@ metadata:
   name: namespace-nginx-ingress
   namespace: nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: namespace
     app.kubernetes.io/version: "5.1.0"
@@ -4805,7 +4805,7 @@ metadata:
   name: namespace-nginx-ingress
   namespace: nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: namespace
     app.kubernetes.io/version: "5.1.0"
@@ -4820,7 +4820,7 @@ metadata:
   name: namespace-nginx-ingress-leader-election
   namespace: nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: namespace
     app.kubernetes.io/version: "5.1.0"
@@ -4832,7 +4832,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: namespace-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: namespace
     app.kubernetes.io/version: "5.1.0"
@@ -4946,7 +4946,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: namespace-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: namespace
     app.kubernetes.io/version: "5.1.0"
@@ -4966,7 +4966,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: namespace-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: namespace
     app.kubernetes.io/version: "5.1.0"
@@ -5026,7 +5026,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: namespace-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: namespace
     app.kubernetes.io/version: "5.1.0"
@@ -5048,7 +5048,7 @@ metadata:
   name: namespace-nginx-ingress-controller
   namespace: nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: namespace
     app.kubernetes.io/version: "5.1.0"
@@ -5078,7 +5078,7 @@ metadata:
   name: namespace-nginx-ingress-controller
   namespace: nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: namespace
     app.kubernetes.io/version: "5.1.0"
@@ -5201,7 +5201,7 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: namespace
     app.kubernetes.io/version: "5.1.0"
@@ -5219,7 +5219,7 @@ metadata:
   name: namespace-nginx-ingress-leader-election
   namespace: nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: namespace
     app.kubernetes.io/version: "5.1.0"
@@ -5235,7 +5235,7 @@ metadata:
   name: oss-agent-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: oss-agent
     app.kubernetes.io/version: "5.1.0"
@@ -5248,7 +5248,7 @@ metadata:
   name: oss-agent-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: oss-agent
     app.kubernetes.io/version: "5.1.0"
@@ -5263,7 +5263,7 @@ metadata:
   name: oss-agent-nginx-ingress-agent-config
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: oss-agent
     app.kubernetes.io/version: "5.1.0"
@@ -5304,7 +5304,7 @@ metadata:
   name: oss-agent-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: oss-agent
     app.kubernetes.io/version: "5.1.0"
@@ -5316,7 +5316,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: oss-agent-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: oss-agent
     app.kubernetes.io/version: "5.1.0"
@@ -5430,7 +5430,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: oss-agent-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: oss-agent
     app.kubernetes.io/version: "5.1.0"
@@ -5450,7 +5450,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: oss-agent-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: oss-agent
     app.kubernetes.io/version: "5.1.0"
@@ -5510,7 +5510,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: oss-agent-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: oss-agent
     app.kubernetes.io/version: "5.1.0"
@@ -5532,7 +5532,7 @@ metadata:
   name: oss-agent-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: oss-agent
     app.kubernetes.io/version: "5.1.0"
@@ -5562,7 +5562,7 @@ metadata:
   name: oss-agent-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: oss-agent
     app.kubernetes.io/version: "5.1.0"
@@ -5700,7 +5700,7 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: oss-agent
     app.kubernetes.io/version: "5.1.0"
@@ -5715,7 +5715,7 @@ metadata:
   name: oss-agent-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: oss-agent
     app.kubernetes.io/version: "5.1.0"
@@ -5731,7 +5731,7 @@ metadata:
   name: plus-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus
     app.kubernetes.io/version: "5.1.0"
@@ -5744,7 +5744,7 @@ metadata:
   name: plus-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus
     app.kubernetes.io/version: "5.1.0"
@@ -5760,7 +5760,7 @@ metadata:
   name: plus-nginx-ingress-mgmt
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus
     app.kubernetes.io/version: "5.1.0"
@@ -5775,7 +5775,7 @@ metadata:
   name: plus-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus
     app.kubernetes.io/version: "5.1.0"
@@ -5787,7 +5787,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus
     app.kubernetes.io/version: "5.1.0"
@@ -5901,7 +5901,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus
     app.kubernetes.io/version: "5.1.0"
@@ -5921,7 +5921,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus
     app.kubernetes.io/version: "5.1.0"
@@ -5981,7 +5981,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus
     app.kubernetes.io/version: "5.1.0"
@@ -6003,7 +6003,7 @@ metadata:
   name: plus-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus
     app.kubernetes.io/version: "5.1.0"
@@ -6033,7 +6033,7 @@ metadata:
   name: plus-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus
     app.kubernetes.io/version: "5.1.0"
@@ -6157,7 +6157,7 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus
     app.kubernetes.io/version: "5.1.0"
@@ -6172,7 +6172,7 @@ metadata:
   name: plus-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus
     app.kubernetes.io/version: "5.1.0"
@@ -6188,7 +6188,7 @@ metadata:
   name: plus-debug-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-debug
     app.kubernetes.io/version: "5.1.0"
@@ -6201,7 +6201,7 @@ metadata:
   name: plus-debug-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-debug
     app.kubernetes.io/version: "5.1.0"
@@ -6217,7 +6217,7 @@ metadata:
   name: plus-debug-nginx-ingress-mgmt
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-debug
     app.kubernetes.io/version: "5.1.0"
@@ -6232,7 +6232,7 @@ metadata:
   name: plus-debug-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-debug
     app.kubernetes.io/version: "5.1.0"
@@ -6244,7 +6244,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-debug-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-debug
     app.kubernetes.io/version: "5.1.0"
@@ -6358,7 +6358,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-debug-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-debug
     app.kubernetes.io/version: "5.1.0"
@@ -6378,7 +6378,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-debug-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-debug
     app.kubernetes.io/version: "5.1.0"
@@ -6438,7 +6438,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-debug-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-debug
     app.kubernetes.io/version: "5.1.0"
@@ -6460,7 +6460,7 @@ metadata:
   name: plus-debug-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-debug
     app.kubernetes.io/version: "5.1.0"
@@ -6490,7 +6490,7 @@ metadata:
   name: plus-debug-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-debug
     app.kubernetes.io/version: "5.1.0"
@@ -6624,7 +6624,7 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-debug
     app.kubernetes.io/version: "5.1.0"
@@ -6639,7 +6639,7 @@ metadata:
   name: plus-debug-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-debug
     app.kubernetes.io/version: "5.1.0"
@@ -6655,7 +6655,7 @@ metadata:
   name: plus-mgmt-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt
     app.kubernetes.io/version: "5.1.0"
@@ -6668,7 +6668,7 @@ metadata:
   name: plus-mgmt-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt
     app.kubernetes.io/version: "5.1.0"
@@ -6684,7 +6684,7 @@ metadata:
   name: plus-mgmt-nginx-ingress-mgmt
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt
     app.kubernetes.io/version: "5.1.0"
@@ -6709,7 +6709,7 @@ metadata:
   name: plus-mgmt-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt
     app.kubernetes.io/version: "5.1.0"
@@ -6721,7 +6721,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt
     app.kubernetes.io/version: "5.1.0"
@@ -6835,7 +6835,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt
     app.kubernetes.io/version: "5.1.0"
@@ -6855,7 +6855,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt
     app.kubernetes.io/version: "5.1.0"
@@ -6915,7 +6915,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt
     app.kubernetes.io/version: "5.1.0"
@@ -6937,7 +6937,7 @@ metadata:
   name: plus-mgmt-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt
     app.kubernetes.io/version: "5.1.0"
@@ -6967,7 +6967,7 @@ metadata:
   name: plus-mgmt-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt
     app.kubernetes.io/version: "5.1.0"
@@ -7101,7 +7101,7 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt
     app.kubernetes.io/version: "5.1.0"
@@ -7116,7 +7116,7 @@ metadata:
   name: plus-mgmt-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt
     app.kubernetes.io/version: "5.1.0"
@@ -7132,7 +7132,7 @@ metadata:
   name: plus-mgmt-custom-endpoint-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
     app.kubernetes.io/version: "5.1.0"
@@ -7145,7 +7145,7 @@ metadata:
   name: plus-mgmt-custom-endpoint-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
     app.kubernetes.io/version: "5.1.0"
@@ -7161,7 +7161,7 @@ metadata:
   name: plus-mgmt-custom-endpoint-nginx-ingress-mgmt
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
     app.kubernetes.io/version: "5.1.0"
@@ -7177,7 +7177,7 @@ metadata:
   name: plus-mgmt-custom-endpoint-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
     app.kubernetes.io/version: "5.1.0"
@@ -7189,7 +7189,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-custom-endpoint-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
     app.kubernetes.io/version: "5.1.0"
@@ -7303,7 +7303,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-custom-endpoint-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
     app.kubernetes.io/version: "5.1.0"
@@ -7323,7 +7323,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-custom-endpoint-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
     app.kubernetes.io/version: "5.1.0"
@@ -7383,7 +7383,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-custom-endpoint-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
     app.kubernetes.io/version: "5.1.0"
@@ -7405,7 +7405,7 @@ metadata:
   name: plus-mgmt-custom-endpoint-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
     app.kubernetes.io/version: "5.1.0"
@@ -7435,7 +7435,7 @@ metadata:
   name: plus-mgmt-custom-endpoint-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
     app.kubernetes.io/version: "5.1.0"
@@ -7559,7 +7559,7 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
     app.kubernetes.io/version: "5.1.0"
@@ -7574,7 +7574,7 @@ metadata:
   name: plus-mgmt-custom-endpoint-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
     app.kubernetes.io/version: "5.1.0"
@@ -7590,7 +7590,7 @@ metadata:
   name: plus-mgmt-proxy-host-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host
     app.kubernetes.io/version: "5.1.0"
@@ -7603,7 +7603,7 @@ metadata:
   name: plus-mgmt-proxy-host-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host
     app.kubernetes.io/version: "5.1.0"
@@ -7619,7 +7619,7 @@ metadata:
   name: plus-mgmt-proxy-host-nginx-ingress-mgmt
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host
     app.kubernetes.io/version: "5.1.0"
@@ -7635,7 +7635,7 @@ metadata:
   name: plus-mgmt-proxy-host-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host
     app.kubernetes.io/version: "5.1.0"
@@ -7647,7 +7647,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-proxy-host-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host
     app.kubernetes.io/version: "5.1.0"
@@ -7761,7 +7761,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-proxy-host-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host
     app.kubernetes.io/version: "5.1.0"
@@ -7781,7 +7781,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-proxy-host-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host
     app.kubernetes.io/version: "5.1.0"
@@ -7841,7 +7841,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-proxy-host-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host
     app.kubernetes.io/version: "5.1.0"
@@ -7863,7 +7863,7 @@ metadata:
   name: plus-mgmt-proxy-host-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host
     app.kubernetes.io/version: "5.1.0"
@@ -7893,7 +7893,7 @@ metadata:
   name: plus-mgmt-proxy-host-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host
     app.kubernetes.io/version: "5.1.0"
@@ -8017,7 +8017,7 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host
     app.kubernetes.io/version: "5.1.0"
@@ -8032,7 +8032,7 @@ metadata:
   name: plus-mgmt-proxy-host-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host
     app.kubernetes.io/version: "5.1.0"
@@ -8048,7 +8048,7 @@ metadata:
   name: plus-mgmt-proxy-host-auth-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
     app.kubernetes.io/version: "5.1.0"
@@ -8061,7 +8061,7 @@ metadata:
   name: plus-mgmt-proxy-host-auth-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
     app.kubernetes.io/version: "5.1.0"
@@ -8077,7 +8077,7 @@ metadata:
   name: plus-mgmt-proxy-host-auth-nginx-ingress-mgmt
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
     app.kubernetes.io/version: "5.1.0"
@@ -8093,7 +8093,7 @@ metadata:
   name: plus-mgmt-proxy-host-auth-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
     app.kubernetes.io/version: "5.1.0"
@@ -8105,7 +8105,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-proxy-host-auth-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
     app.kubernetes.io/version: "5.1.0"
@@ -8219,7 +8219,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-proxy-host-auth-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
     app.kubernetes.io/version: "5.1.0"
@@ -8239,7 +8239,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-proxy-host-auth-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
     app.kubernetes.io/version: "5.1.0"
@@ -8299,7 +8299,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-mgmt-proxy-host-auth-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
     app.kubernetes.io/version: "5.1.0"
@@ -8321,7 +8321,7 @@ metadata:
   name: plus-mgmt-proxy-host-auth-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
     app.kubernetes.io/version: "5.1.0"
@@ -8351,7 +8351,7 @@ metadata:
   name: plus-mgmt-proxy-host-auth-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
     app.kubernetes.io/version: "5.1.0"
@@ -8485,7 +8485,7 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
     app.kubernetes.io/version: "5.1.0"
@@ -8500,7 +8500,7 @@ metadata:
   name: plus-mgmt-proxy-host-auth-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
     app.kubernetes.io/version: "5.1.0"
@@ -8516,7 +8516,7 @@ metadata:
   name: plus-agent-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent
     app.kubernetes.io/version: "5.1.0"
@@ -8529,7 +8529,7 @@ metadata:
   name: plus-agent-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent
     app.kubernetes.io/version: "5.1.0"
@@ -8544,7 +8544,7 @@ metadata:
   name: plus-agent-nginx-ingress-agent-config
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent
     app.kubernetes.io/version: "5.1.0"
@@ -8585,7 +8585,7 @@ metadata:
   name: plus-agent-nginx-ingress-mgmt
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent
     app.kubernetes.io/version: "5.1.0"
@@ -8600,7 +8600,7 @@ metadata:
   name: plus-agent-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent
     app.kubernetes.io/version: "5.1.0"
@@ -8612,7 +8612,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-agent-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent
     app.kubernetes.io/version: "5.1.0"
@@ -8726,7 +8726,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-agent-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent
     app.kubernetes.io/version: "5.1.0"
@@ -8746,7 +8746,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-agent-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent
     app.kubernetes.io/version: "5.1.0"
@@ -8806,7 +8806,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-agent-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent
     app.kubernetes.io/version: "5.1.0"
@@ -8828,7 +8828,7 @@ metadata:
   name: plus-agent-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent
     app.kubernetes.io/version: "5.1.0"
@@ -8858,7 +8858,7 @@ metadata:
   name: plus-agent-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent
     app.kubernetes.io/version: "5.1.0"
@@ -8997,7 +8997,7 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent
     app.kubernetes.io/version: "5.1.0"
@@ -9012,7 +9012,7 @@ metadata:
   name: plus-agent-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent
     app.kubernetes.io/version: "5.1.0"
@@ -9028,7 +9028,7 @@ metadata:
   name: plus-agent-all-nginx-ingress
   namespace: custom
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent-all
     app.kubernetes.io/version: "5.1.0"
@@ -9041,7 +9041,7 @@ metadata:
   name: plus-agent-all-nginx-ingress
   namespace: custom
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent-all
     app.kubernetes.io/version: "5.1.0"
@@ -9056,7 +9056,7 @@ metadata:
   name: plus-agent-all-nginx-ingress-agent-config
   namespace: custom
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent-all
     app.kubernetes.io/version: "5.1.0"
@@ -9097,7 +9097,7 @@ metadata:
   name: plus-agent-all-nginx-ingress-mgmt
   namespace: custom
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent-all
     app.kubernetes.io/version: "5.1.0"
@@ -9112,7 +9112,7 @@ metadata:
   name: plus-agent-all-nginx-ingress-leader-election
   namespace: custom
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent-all
     app.kubernetes.io/version: "5.1.0"
@@ -9124,7 +9124,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-agent-all-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent-all
     app.kubernetes.io/version: "5.1.0"
@@ -9238,7 +9238,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-agent-all-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent-all
     app.kubernetes.io/version: "5.1.0"
@@ -9258,7 +9258,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-agent-all-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent-all
     app.kubernetes.io/version: "5.1.0"
@@ -9318,7 +9318,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: plus-agent-all-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent-all
     app.kubernetes.io/version: "5.1.0"
@@ -9340,7 +9340,7 @@ metadata:
   name: plus-agent-all-nginx-ingress-controller
   namespace: custom
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent-all
     app.kubernetes.io/version: "5.1.0"
@@ -9370,7 +9370,7 @@ metadata:
   name: plus-agent-all-nginx-ingress-controller
   namespace: custom
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent-all
     app.kubernetes.io/version: "5.1.0"
@@ -9509,7 +9509,7 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent-all
     app.kubernetes.io/version: "5.1.0"
@@ -9524,7 +9524,7 @@ metadata:
   name: plus-agent-all-nginx-ingress-leader-election
   namespace: custom
   labels:
-    helm.sh/chart: nginx-ingress-2.2.0
+    helm.sh/chart: nginx-ingress-2.2.1
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent-all
     app.kubernetes.io/version: "5.1.0"
