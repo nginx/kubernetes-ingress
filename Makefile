@@ -99,6 +99,7 @@ update-crds: ## Update CRDs
 	kustomize build config/crd >deploy/crds.yaml
 	kustomize build config/crd/app-protect-dos --load-restrictor='LoadRestrictionsNone' >deploy/crds-nap-dos.yaml
 	kustomize build config/crd/app-protect-waf --load-restrictor='LoadRestrictionsNone' >deploy/crds-nap-waf.yaml
+	$(MAKE) update-crd-docs
 
 .PHONY: telemetry-schema
 telemetry-schema: ## Generate the telemetry Schema
@@ -240,3 +241,9 @@ clean-cache: ## Clean go cache
 rebuild-test-img:
 	cd tests && \
 	make build
+
+.PHONY: update-crd-docs
+update-crd-docs: ## Update CRD markdown documentation from YAML definitions
+	@echo "Generating CRD documentation..."
+	@go run hack/generate-crd-docs.go -crd-dir config/crd/bases -output-dir docs/crd
+	@echo "CRD documentation updated successfully!"
