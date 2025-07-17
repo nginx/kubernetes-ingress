@@ -1,0 +1,10 @@
+controller:
+  startupStatus:
+    enable: true
+    port: 9999
+    path: "/"
+    initialDelaySeconds: 7
+    periodSeconds: 2
+    timeoutSeconds: 3
+    successThreshold: 1
+    failureThreshold: 5

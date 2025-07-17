@@ -93,12 +93,29 @@ spec:
 {{- if .Values.controller.readyStatus.enable }}
         - name: readiness-port
           containerPort: {{ .Values.controller.readyStatus.port }}
+{{- end }}
+{{- if .Values.controller.startupStatus.enable }}
+        - name: startup-port
+          containerPort: {{ .Values.controller.startupStatus.port }}
+{{- end }}
+{{- if .Values.controller.readyStatus.enable }}
         readinessProbe:
           httpGet:
             path: /nginx-ready
             port: readiness-port
           periodSeconds: 1
           initialDelaySeconds: {{ .Values.controller.readyStatus.initialDelaySeconds }}
+{{- end }}
+{{- if .Values.controller.startupStatus.enable }}
+        startupProbe:
+          httpGet:
+            path: {{ .Values.controller.startupStatus.path }}
+            port: startup-port
+          initialDelaySeconds: {{ .Values.controller.startupStatus.initialDelaySeconds }}
+          periodSeconds: {{ .Values.controller.startupStatus.periodSeconds }}
+          timeoutSeconds: {{ .Values.controller.startupStatus.timeoutSeconds }}
+          successThreshold: {{ .Values.controller.startupStatus.successThreshold }}
+          failureThreshold: {{ .Values.controller.startupStatus.failureThreshold }}
 {{- end }}
         resources:
 {{ toYaml .Values.controller.resources | indent 10 }}

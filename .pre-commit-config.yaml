@@ -27,7 +27,7 @@ repos:
         args: [--fix=lf]
       - id: name-tests-test
         args: [--pytest-test-first]
-        exclude: ^(tests/suite/utils|tests/suite/fixtures|tests/suite/grpc|tests/settings.py)
+        exclude: ^(tests/suite/utils|tests/suite/fixtures|tests/suite/grpc|tests/settings.py|tests/scripts)
       - id: no-commit-to-branch
       - id: requirements-txt-fixer
       - id: fix-byte-order-marker
@@ -44,7 +44,7 @@ repos:
         pass_filenames: false
 
   - repo: https://github.com/golangci/golangci-lint
-    rev: v2.2.1
+    rev: v2.2.2
     hooks:
       - id: golangci-lint
         args: [--new-from-patch=/tmp/diff.patch]
