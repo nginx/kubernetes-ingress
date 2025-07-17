@@ -199,10 +199,7 @@ func validateJWT(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
 		if jwt.KeyCache != "" {
 			allErrs = append(allErrs, field.Forbidden(fieldPath.Child("keyCache"), "key cache must not be used when using Secret"))
 		}
-		return allErrs
-	}
 
-	if jwt.JwksURI == "" {
 		// If JwksURI is not set, then none of the SNI fields should be set.
 		if jwt.SNIEnabled {
 			return append(allErrs, field.Forbidden(fieldPath.Child("sniEnabled"), "sniEnabled can only be set when JwksURI is set"))
@@ -211,6 +208,8 @@ func validateJWT(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
 		if jwt.SNIName != "" {
 			return append(allErrs, field.Forbidden(fieldPath.Child("sniName"), "sniName can only be set when JwksURI is set"))
 		}
+
+		return allErrs
 	}
 
 	// Verify a case when using JWKS
