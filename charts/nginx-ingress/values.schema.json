@@ -134,10 +134,11 @@
                 },
                 "interval": {
                   "type": "string",
-                  "pattern": "^[0-9]+[mhd]$",
+                  "pattern": "^[0-9]+[smh]$",
                   "default": "1h",
                   "title": "The usage report interval Schema",
                   "examples": [
+                    "60s",
                     "1m",
                     "1h",
                     "24h"
