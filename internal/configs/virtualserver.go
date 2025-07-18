@@ -915,7 +915,7 @@ func generateUpstreams(
 
 	upstreamName := upstreamNamer.GetNameForUpstream(u.Name)
 	endpoints := vsc.generateEndpointsForUpstream(owner, ownerNamespace, u, vsEx)
-	backup := vsc.generateBackupEndpointsForUpstream(owner, ownerNamespace, u, vsEx)
+	backup := vsc.generateBackupEndpointsForUpstream(vsEx.VirtualServer, ownerNamespace, u, vsEx)
 
 	// isExternalNameSvc is always false for OSS
 	_, isExternalNameSvc := vsEx.ExternalNameSvcs[GenerateExternalNameSvcKey(ownerNamespace, u.Service)]
