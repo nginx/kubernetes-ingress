@@ -429,9 +429,9 @@ jobs:
         run: |
           # make sure the comment is formatted correctly, as a code block
           echo '### Package Report' > output.txt
-          echo '```' >> output.txt
-          cat package_output.txt >> output.txt
-          echo '```' >> output.txt
+          echo '<details>' >> output.txt
+          cat package_output.txt | sed -r 's#^(.*)$#\1<br>#' >> output.txt
+          echo '</details>' >> output.txt
           gh pr comment --edit-last --create-if-none ${{ github.event.pull_request.number }} -F output.txt
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -83,7 +83,7 @@ with open(f"{script_dir}/../data/modules/data.json") as file:
                         detach=False,
                     )
                 except (docker.errors.ContainerError, docker.errors.NotFound) as e:
-                    logger.error(f"{e}, retrying")
+                    logger.debug(f"{e}, retrying")
                     output = client.containers.run(
                         f"{image['image']}:{tag}",
                         command,
