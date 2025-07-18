@@ -1055,7 +1055,7 @@ func updateSelfWithVersionInfo(ctx context.Context, eventLog record.EventRecorde
 
 		// Copy pod and update the labels.
 		newPod := pod.DeepCopy()
-		labels := newPod.ObjectMeta.Labels
+		labels := newPod.Labels
 		if labels == nil {
 			labels = make(map[string]string)
 		}
@@ -1068,7 +1068,7 @@ func updateSelfWithVersionInfo(ctx context.Context, eventLog record.EventRecorde
 		if agentVersion != "" {
 			labels[agentVersionLabel] = agentVersion
 		}
-		newPod.ObjectMeta.Labels = labels
+		newPod.Labels = labels
 
 		_, err = kubeClient.CoreV1().Pods(newPod.ObjectMeta.Namespace).Update(context.TODO(), newPod, meta_v1.UpdateOptions{})
 		if err != nil {
@@ -1081,7 +1081,7 @@ func updateSelfWithVersionInfo(ctx context.Context, eventLog record.EventRecorde
 			fmt.Fprintf(labelsString, "%s=\"%s\", ", key, value)
 		}
 		eventLog.Eventf(newPod, api_v1.EventTypeNormal, nl.EventReasonUpdatePodLabel, "Successfully added version labels, %s", strings.TrimRight(labelsString.String(), ", "))
-		nl.Infof(l, "Pod label updated: %s", pod.ObjectMeta.Name)
+		nl.Infof(l, "Pod label updated: %s", pod.Name)
 		podUpdated = true
 	}
 
@@ -1092,7 +1092,7 @@ func updateSelfWithVersionInfo(ctx context.Context, eventLog record.EventRecorde
 
 func createAndValidateHeadlessService(ctx context.Context, kubeClient kubernetes.Interface, cfgParams *configs.ConfigParams, controllerNamespace string, pod *api_v1.Pod) error {
 	l := nl.LoggerFromContext(ctx)
-	owner := pod.ObjectMeta.OwnerReferences[0]
+	owner := pod.OwnerReferences[0]
 	name := owner.Name
 	if strings.ToLower(owner.Kind) == "replicaset" {
 		if dash := strings.LastIndex(name, "-"); dash != -1 {
@@ -1201,12 +1201,12 @@ func initLogger(logFormat string, level slog.Level, out io.Writer) context.Conte
 		},
 	}
 
-	switch {
-	case logFormat == "glog":
+	switch logFormat {
+	case "glog":
 		h = nic_glog.New(out, &nic_glog.Options{Level: programLevel})
-	case logFormat == "json":
+	case "json":
 		h = slog.NewJSONHandler(out, opts)
-	case logFormat == "text":
+	case "text":
 		h = slog.NewTextHandler(out, opts)
 	default:
 		h = nic_glog.New(out, &nic_glog.Options{Level: programLevel})
