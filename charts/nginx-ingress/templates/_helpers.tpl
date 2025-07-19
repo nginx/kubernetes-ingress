@@ -352,14 +352,24 @@ List of volumes for controller.
 {{- if eq (include "nginx-ingress.readOnlyRootFilesystem" .) "true" }}
 - name: nginx-etc
   emptyDir: {}
+{{- if .Values.controller.cache.enableShared }}
+- name: nginx-cache
+  persistentVolumeClaim:
+    claimName: {{ .Values.controller.cache.sharedPVCName }}
+{{- else }}
 - name: nginx-cache
   emptyDir: {}
+{{- end }}
 - name: nginx-lib
   emptyDir: {}
 - name: nginx-state
   emptyDir: {}
 - name: nginx-log
   emptyDir: {}
+{{- else if .Values.controller.cache.enableShared }}
+- name: nginx-cache
+  persistentVolumeClaim:
+    claimName: {{ .Values.controller.cache.sharedPVCName }}
 {{- end }}
 {{- if .Values.controller.appprotect.v5 }}
 {{ toYaml .Values.controller.appprotect.volumes }}
@@ -419,6 +429,9 @@ volumeMounts:
   name: nginx-state
 - mountPath: /var/log/nginx
   name: nginx-log
+{{- else if .Values.controller.cache.enableShared }}
+- mountPath: /var/cache/nginx
+  name: nginx-cache
 {{- end }}
 {{- if .Values.controller.appprotect.v5 }}
 - name: app-protect-bd-config
