@@ -137,7 +137,7 @@ func TestValidatePolicy_JWTIsNotValidOn(t *testing.T) {
 			},
 		},
 		{
-			name: "SNI server name passed, SNI enabled, but no JwksURI",
+			name: "SNI enabled, but no JwksURI",
 			policy: &v1.Policy{
 				Spec: v1.PolicySpec{
 					JWTAuth: &v1.JWTAuth{
@@ -156,19 +156,6 @@ func TestValidatePolicy_JWTIsNotValidOn(t *testing.T) {
 						Realm:   "My Product API",
 						Token:   "$cookie_auth_token",
 						SNIName: "https://idp.com",
-					},
-				},
-			},
-		},
-		{
-			name: "Jwks URI not set, SNIName is set and SNI is enabled",
-			policy: &v1.Policy{
-				Spec: v1.PolicySpec{
-					JWTAuth: &v1.JWTAuth{
-						Realm:      "My Product API",
-						Token:      "$cookie_auth_token",
-						SNIName:    "https://idp.com",
-						SNIEnabled: true,
 					},
 				},
 			},
