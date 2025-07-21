@@ -40,8 +40,6 @@ class TestServiceInsightVsr:
         Test if service insight is working with cross namespace virtual server route
         """
 
-        req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
-
         retry = 0
         resp = mock.Mock()
         resp.json.return_value = {}
