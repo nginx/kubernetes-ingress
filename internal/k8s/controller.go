@@ -2832,6 +2832,10 @@ func (lbc *LoadBalancerController) addOIDCSecretRefs(secretRefs map[string]*secr
 			continue
 		}
 
+		if pol.Spec.OIDC.PKCEEnable {
+			continue
+		}
+
 		secretKey := fmt.Sprintf("%v/%v", pol.Namespace, pol.Spec.OIDC.ClientSecret)
 		secretRef := lbc.secretStore.GetSecret(secretKey)
 

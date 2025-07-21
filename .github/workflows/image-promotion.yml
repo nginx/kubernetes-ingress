@@ -143,7 +143,7 @@ jobs:
           fi
 
       - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@ff0a06e83cb2de871e5a09832bc6a81e7276941f # v3.28.18
+        uses: github/codeql-action/upload-sarif@181d5eefc20863364f96762470ba6f862bdef56b # v3.29.2
         if: steps.check-sarif.outputs.sarif_has_results == 'true'
         with:
           sarif_file: govulncheck.sarif
@@ -384,7 +384,7 @@ jobs:
           preflight_version: 1.11.1
 
   scan-docker-oss:
-    name: Scan ${{ matrix.image }}-${{ matrix.target }}
+    name: Scan ${{ matrix.image }}
     runs-on: ubuntu-22.04
     needs: [checks, tag-candidate]
     permissions:
@@ -402,7 +402,7 @@ jobs:
       - name: Make directory for security scan results
         id: directory
         run: |
-          directory=${{ matrix.image }}-${{ matrix.target }}-results
+          directory=${{ matrix.image }}-results
           echo "directory=${directory}" >> $GITHUB_OUTPUT
           mkdir -p "${directory}"
 
@@ -468,7 +468,7 @@ jobs:
           overwrite: true
 
       - name: Upload Scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@ff0a06e83cb2de871e5a09832bc6a81e7276941f # v3.28.18
+        uses: github/codeql-action/upload-sarif@181d5eefc20863364f96762470ba6f862bdef56b # v3.29.2
         with:
           sarif_file: "${{ steps.directory.outputs.directory }}/"
 
@@ -557,7 +557,7 @@ jobs:
           overwrite: true
 
       - name: Upload Scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@ff0a06e83cb2de871e5a09832bc6a81e7276941f # v3.28.18
+        uses: github/codeql-action/upload-sarif@181d5eefc20863364f96762470ba6f862bdef56b # v3.29.2
         with:
           sarif_file: "${{ steps.directory.outputs.directory }}/"
 
@@ -653,7 +653,7 @@ jobs:
           overwrite: true
 
       - name: Upload Scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@ff0a06e83cb2de871e5a09832bc6a81e7276941f # v3.28.18
+        uses: github/codeql-action/upload-sarif@181d5eefc20863364f96762470ba6f862bdef56b # v3.29.2
         with:
           sarif_file: "${{ steps.directory.outputs.directory }}/"
         continue-on-error: true
@@ -669,7 +669,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Create/Update Draft
-        uses: lucacome/draft-release@f15262dc3ac8c3efbf09a8ce5406cd0fc47aabb1 # v1.2.2
+        uses: lucacome/draft-release@00f74370c044c322da6cb52acc707d62c7762c71 # v1.2.4
         id: release-notes
         with:
           minor-label: "enhancement"
@@ -681,12 +681,12 @@ jobs:
           notes-footer: |
             ## Upgrade
             - For NGINX, use the {{version}} images from our [DockerHub](https://hub.docker.com/r/nginx/nginx-ingress/tags?page=1&ordering=last_updated&name={{version-number}}), [GitHub Container](https://github.com/nginx/kubernetes-ingress/pkgs/container/kubernetes-ingress), [Amazon ECR Public Gallery](https://gallery.ecr.aws/nginx/nginx-ingress) or [Quay.io](https://quay.io/repository/nginx/nginx-ingress).
-            - For NGINX Plus, use the {{version}} images from the F5 Container registry, the [AWS Marketplace](https://aws.amazon.com/marketplace/search/?CREATOR=741df81b-dfdc-4d36-b8da-945ea66b522c&FULFILLMENT_OPTION_TYPE=CONTAINER&filters=CREATOR%2CFULFILLMENT_OPTION_TYPE), the [GCP Marketplace](https://console.cloud.google.com/marketplace/browse?filter=partner:F5,%20Inc.&filter=solution-type:k8s&filter=category:networking), [Azure Marketplace](https://azuremarketplace.microsoft.com/en-gb/marketplace/apps/category/containers?page=1&search=f5&subcategories=container-apps) or build your own image using the {{version}} source code.
+            - For NGINX Plus, use the {{version}} images from the F5 Container registry or build your own image using the {{version}} source code.
             - For Helm, use version {{helm-chart}} of the chart.
 
             ## Resources
             - Documentation -- https://docs.nginx.com/nginx-ingress-controller/
             - Configuration examples -- https://github.com/nginx/kubernetes-ingress/tree/{{version}}/examples
             - Helm Chart -- https://github.com/nginx/kubernetes-ingress/tree/{{version}}/deployments/helm-chart
-            - Operator -- https://github.com/nginxinc/nginx-ingress-helm-operator
+            - Operator -- https://github.com/nginx/nginx-ingress-helm-operator
         if: ${{ github.event_name == 'push' && contains(github.ref_name, 'release-') }}

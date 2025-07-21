@@ -23,6 +23,7 @@ import (
 
 const (
 	minimumInterval     = 60
+	maximumInterval     = 24 * 60 * 60 // interval cannot be greater than 24h
 	zoneSyncDefaultPort = 12345
 	kubeDNSDefault      = "kube-dns.kube-system.svc.cluster.local"
 )
@@ -754,6 +755,11 @@ func parseConfigMapOpenTelemetry(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *
 	if otelExporterEndpoint, exists := cfgm.Data["otel-exporter-endpoint"]; exists {
 		otelExporterEndpoint = strings.TrimSpace(otelExporterEndpoint)
 		if otelExporterEndpoint != "" {
+			if err := validation.ValidateURI(otelExporterEndpoint); err != nil {
+				nl.Warn(l, err)
+				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
+				return nil, err
+			}
 			cfgParams.MainOtelExporterEndpoint = otelExporterEndpoint
 		}
 	}
@@ -904,23 +910,34 @@ func ParseMGMTConfigMap(ctx context.Context, cfgm *v1.ConfigMap, eventLog record
 
 	if interval, exists := cfgm.Data["usage-report-interval"]; exists {
 		i := strings.TrimSpace(interval)
-		t, err := time.ParseDuration(i)
-		if err != nil {
-			errorText := fmt.Sprintf("Configmap %s/%s: Invalid value for the interval key: got %q: %v. Ignoring.", cfgm.GetNamespace(), cfgm.GetName(), i, err)
-			nl.Error(l, errorText)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-			configWarnings = true
-		}
-		if t.Seconds() < minimumInterval {
-			errorText := fmt.Sprintf("Configmap %s/%s: Value too low for the interval key, got: %v, need higher than %ds. Ignoring.", cfgm.GetNamespace(), cfgm.GetName(), i, minimumInterval)
-			nl.Error(l, errorText)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-			configWarnings = true
-			mgmtCfgParams.Interval = ""
-		} else {
-			mgmtCfgParams.Interval = i
-		}
 
+		// Validate interval: check for unsupported units and parse duration in case json schema validation is not used.
+		if strings.Contains(i, "ms") || strings.Contains(i, "d") {
+			errorText := fmt.Sprintf("Configmap %s/%s: Invalid unit for the interval key: got %q. Only seconds (s), minutes (m), and hours (h) are allowed. Ignoring.", cfgm.GetNamespace(), cfgm.GetName(), i)
+			nl.Error(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			configWarnings = true
+		} else {
+			t, err := time.ParseDuration(i)
+			if err != nil {
+				errorText := fmt.Sprintf("Configmap %s/%s: Invalid value for the interval key: got %q: %v. Ignoring.", cfgm.GetNamespace(), cfgm.GetName(), i, err)
+				nl.Error(l, errorText)
+				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+				configWarnings = true
+			} else if t.Seconds() < minimumInterval {
+				errorText := fmt.Sprintf("Configmap %s/%s: Value too low for the interval key, got: %v, need higher than %ds. Ignoring.", cfgm.GetNamespace(), cfgm.GetName(), i, minimumInterval)
+				nl.Error(l, errorText)
+				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+				configWarnings = true
+			} else if t.Seconds() > maximumInterval {
+				errorText := fmt.Sprintf("Configmap %s/%s: Value too high for the interval key, got: %v, maximum allowed is %ds (24h). Ignoring.", cfgm.GetNamespace(), cfgm.GetName(), i, maximumInterval)
+				nl.Error(l, errorText)
+				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+				configWarnings = true
+			} else {
+				mgmtCfgParams.Interval = i
+			}
+		}
 	}
 	if trustedCertSecretName, exists := cfgm.Data["ssl-trusted-certificate-secret-name"]; exists {
 		mgmtCfgParams.Secrets.TrustedCert = strings.TrimSpace(trustedCertSecretName)

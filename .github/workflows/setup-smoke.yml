@@ -88,8 +88,6 @@ jobs:
         run: |
           [[ "${{ inputs.nap-modules }}" == "waf,dos" ]] && modules="waf-dos" || modules="${{ inputs.nap-modules }}"
           echo "modules=${modules}" >> $GITHUB_OUTPUT
-          [[ "${{ inputs.nap-modules }}" =~ waf ]] && agent="true" || agent="false"
-          echo "agent=${agent}" >> $GITHUB_OUTPUT
         if: ${{ inputs.nap-modules }}
 
       - name: Pull build image
@@ -139,7 +137,6 @@ jobs:
             BUILD_OS=${{ inputs.image }}
             IC_VERSION=CI
             ${{ contains(inputs.image, 'nap') && format('NAP_MODULES={0}', steps.nap_modules.outputs.modules) || '' }}
-            ${{ contains(inputs.nap-modules,'waf') && format('NGINX_AGENT={0}', steps.nap_modules.outputs.agent) || '' }}
             ${{ contains(inputs.marker, 'appprotect') && 'DEBIAN_VERSION=buster-slim' || '' }}
           secrets: |
             ${{ contains(inputs.image, 'nap') && format('"nginx-repo.crt={0}"', secrets.NGINX_AP_CRT) || format('"nginx-repo.crt={0}"', secrets.NGINX_CRT) }}

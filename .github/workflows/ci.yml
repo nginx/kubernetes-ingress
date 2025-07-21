@@ -14,6 +14,11 @@ on:
         description: "Force rebuild"
         required: false
         default: false
+      run_tests:
+        type: boolean
+        description: "Run unit & e2e tests"
+        required: false
+        default: true
 
 defaults:
   run:
@@ -35,8 +40,7 @@ jobs:
       id-token: write
     outputs:
       docs_only: ${{ github.event.pull_request && steps.docs.outputs.docs_only == 'true' }}
-      some_docs: ${{ github.event.pull_request && steps.docs.outputs.some_docs == 'true' }}
-      k8s_latest: "1.32.0"
+      k8s_latest: ${{ steps.vars.outputs.k8s_latest }}
       go_path: ${{ steps.vars.outputs.go_path }}
       go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}
       binary_cache_hit: ${{ steps.binary-cache.outputs.cache-hit }}
@@ -60,18 +64,12 @@ jobs:
       - name: Filter only docs changes
         id: docs
         run: |
-          files=$(git diff --name-only HEAD^ | egrep -v "^site/" | egrep -v "^examples/" | egrep -v "^README.md")
-          docs_files=$(git diff --name-only HEAD^ | grep "^site/")
+          files=$(git diff --name-only HEAD^ | egrep -v "^examples/" | egrep -v "^README.md")
+          docs_files=$(git diff --name-only HEAD^)
           if [ -z "$files" ]; then
             echo "docs_only=true" >> $GITHUB_OUTPUT
           else
             echo "docs_only=false" >> $GITHUB_OUTPUT
-          fi
-
-          if [ -n "$docs_files" ]; then
-            echo "some_docs=true" >> $GITHUB_OUTPUT
-          else
-            echo "some_docs=false" >> $GITHUB_OUTPUT
           fi
 
           echo $files
@@ -201,7 +199,7 @@ jobs:
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
       - name: Install gofumpt
-        run: go install mvdan.cc/gofumpt@latest
+        run: go install mvdan.cc/gofumpt@v0.8.0
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
       - name: Check if telemetry schema changed
@@ -209,10 +207,6 @@ jobs:
           export PATH=$PATH:$(go env GOPATH)/bin
           make telemetry-schema && git diff --name-only --exit-code internal/telemetry
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
-
-      - name: Check if make docs builds
-        if: ${{ needs.checks.outputs.some_docs == 'true' }}
-        run: cd site && make docs-ci
 
   unit-tests:
     name: Unit Tests
@@ -226,25 +220,25 @@ jobs:
         uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
           go-version-file: go.mod
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
+        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' && (inputs.run_tests && inputs.run_tests || true) }}
 
       - name: Run Tests
         run: make cover
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
+        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' && (inputs.run_tests && inputs.run_tests || true) }}
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24 # v5.4.3
         with:
           files: ./coverage.txt
           token: ${{ secrets.CODECOV_TOKEN }} # required
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
+        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' && (inputs.run_tests && inputs.run_tests || true) }}
 
       - name: Run static check
-        uses: dominikh/staticcheck-action@fe1dd0c3658873b46f8c9bb3291096a617310ca6 # v1.3.1
+        uses: dominikh/staticcheck-action@024238d2898c874f26d723e7d0ff4308c35589a2 # v1.4.0
         with:
           version: "v0.6.0"
           install-go: false
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
+        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' && (inputs.run_tests && inputs.run_tests || true) }}
 
   binaries:
     name: Build Binaries
@@ -264,7 +258,7 @@ jobs:
         uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
           go-version-file: go.mod
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
+        if: ${{ (inputs.force && inputs.force || false) || needs.checks.outputs.binary_cache_hit != 'true' }}
 
       - name: Build binaries
         uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552 # v6.3.0
@@ -283,14 +277,14 @@ jobs:
           AWS_NAP_WAF_DOS_PRODUCT_CODE: ${{ secrets.AWS_NAP_WAF_DOS_PRODUCT_CODE }}
           AWS_NAP_WAF_DOS_PUB_KEY: ${{ secrets.AWS_NAP_WAF_DOS_PUB_KEY }}
           GORELEASER_CURRENT_TAG: "v${{ needs.checks.outputs.ic_version }}"
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
+        if: ${{ (inputs.force && inputs.force || false) || needs.checks.outputs.binary_cache_hit != 'true' }}
 
       - name: Store Artifacts in Cache
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ needs.checks.outputs.go_code_md5 }}
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
+        if: ${{ (inputs.force && inputs.force || false) || needs.checks.outputs.binary_cache_hit != 'true' }}
 
   build-docker:
     name: Build Docker OSS
@@ -383,8 +377,68 @@ jobs:
     secrets: inherit
     if: ${{ inputs.force || (needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false') || (needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.stable_image_exists != 'true' && needs.checks.outputs.docs_only == 'false') }}
 
+  package-tests:
+    if: ${{ needs.checks.outputs.docs_only != 'true' && (inputs.run_tests && inputs.run_tests || true) }}
+    name: Package Tests
+    runs-on: ubuntu-22.04
+    needs: [checks, binaries, build-docker, build-docker-plus, build-docker-nap]
+    permissions:
+      contents: read
+      pull-requests: write # for package report
+      id-token: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+        with:
+          platforms: arm64
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        with:
+          token_format: access_token
+          workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
+          service_account: ${{ secrets.GCR_SERVICE_ACCOUNT }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+
+      - name: Login to GCR
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: gcr.io
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+
+      - name: Install Python dependencies
+        run: |
+          make -f tests/Makefile setup-venv
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+
+      - name: Run tests
+        id: packages
+        run: |
+          source tests/venv/bin/activate
+          python tests/scripts/check_container_packages.py --tag ${{ needs.checks.outputs.build_tag }} --log package_output.txt
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+
+      - name: Add comment
+        run: |
+          # make sure the comment is formatted correctly, as a code block
+          echo '### Package Report' > output.txt
+          echo '<details>' >> output.txt
+          cat package_output.txt | sed -r 's#^(.*)$#\1<br>#' >> output.txt
+          echo '</details>' >> output.txt
+          gh pr comment --edit-last --create-if-none ${{ github.event.pull_request.number }} -F output.txt
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: ${{ ( needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' ) && github.event.pull_request }}
+
   helm-tests:
-    if: ${{ needs.checks.outputs.docs_only != 'true' }}
+    if: ${{ needs.checks.outputs.docs_only != 'true' && (inputs.run_tests && inputs.run_tests || true) }}
     name: Helm Tests ${{ matrix.base-os }}
     runs-on: ubuntu-22.04
     needs: [checks, binaries, build-docker, build-docker-plus]
@@ -445,7 +499,7 @@ jobs:
         if: ${{ needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false' }}
 
       - name: Docker Buildx
-        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
         if: ${{ needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false' }}
 
       - name: Build Docker Image ${{ matrix.base-os }}
@@ -523,7 +577,7 @@ jobs:
         if: ${{ steps.stable_exists.outputs.exists != 'true' && needs.checks.outputs.docs_only == 'false' }}
 
   setup-matrix:
-    if: ${{ inputs.force || needs.checks.outputs.docs_only != 'true' }}
+    if: ${{ inputs.force || (inputs.run_tests && inputs.run_tests || true) || needs.checks.outputs.docs_only != 'true' }}
     name: Setup Matrix for Smoke Tests
     runs-on: ubuntu-22.04
     needs: [binaries, checks]
@@ -545,7 +599,7 @@ jobs:
           echo "matrix_nap=$(cat .github/data/matrix-smoke-nap.json | jq -c --arg latest "${{ needs.checks.outputs.k8s_latest }}" '.k8s += [$latest]')" >> $GITHUB_OUTPUT
 
       - name: Docker Buildx
-        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
 
       - name: Authenticate to Google Cloud
         id: auth
@@ -585,7 +639,7 @@ jobs:
         if: ${{ steps.check-image.outcome == 'failure' && needs.checks.outputs.docs_only == 'false' }}
 
   smoke-tests-oss:
-    if: ${{ inputs.force || needs.checks.outputs.docs_only != 'true' }}
+    if: ${{ inputs.force || (inputs.run_tests && inputs.run_tests || true) || needs.checks.outputs.docs_only != 'true' }}
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     needs:
       - checks
@@ -612,7 +666,7 @@ jobs:
       k8s-version: ${{ matrix.k8s }}
 
   smoke-tests-plus:
-    if: ${{ inputs.force || needs.checks.outputs.docs_only != 'true' }}
+    if: ${{ inputs.force || (inputs.run_tests && inputs.run_tests || true) || needs.checks.outputs.docs_only != 'true' }}
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     needs:
       - checks
@@ -639,7 +693,7 @@ jobs:
       k8s-version: ${{ matrix.k8s }}
 
   smoke-tests-nap:
-    if: ${{ inputs.force || needs.checks.outputs.docs_only != 'true' }}
+    if: ${{ inputs.force || (inputs.run_tests && inputs.run_tests || true) || needs.checks.outputs.docs_only != 'true' }}
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     needs:
       - checks
@@ -683,10 +737,12 @@ jobs:
     if: ${{ !cancelled() }}
     runs-on: ubuntu-22.04
     name: Final CI Results
-    needs: [tag-stable, build-docker, build-docker-plus, build-docker-nap, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap]
+    needs: [tag-stable, build-docker, build-docker-plus, build-docker-nap, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap, package-tests, helm-tests]
     steps:
       - run: |
           tagResult="${{ needs.tag-stable.result }}"
+          packageResult="${{ needs.package-tests.result }}"
+          helmResult="${{ needs.helm-tests.result }}"
           smokeOSSResult="${{ needs.smoke-tests-oss.result }}"
           smokePlusResult="${{ needs.smoke-tests-plus.result }}"
           smokeNAPResult="${{ needs.smoke-tests-nap.result }}"
@@ -712,6 +768,12 @@ jobs:
             exit 1
           fi
           if [[ $buildNAPResult != "success" && $buildNAPResult != "skipped" ]]; then
+            exit 1
+          fi
+          if [[ $helmResult != "success" && $helmResult != "skipped" ]]; then
+            exit 1
+          fi
+          if [[ $packageResult != "success" && $packageResult != "skipped" ]]; then
             exit 1
           fi
 

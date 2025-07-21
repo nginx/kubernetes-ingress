@@ -5,6 +5,7 @@ package test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gkampitakis/go-snaps/snaps"
@@ -105,6 +106,21 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "appprotect-dos",
 			namespace:   "appprotect-dos",
 		},
+		"ossAgentV3": {
+			valuesFile:  "testdata/oss-agentv3.yaml",
+			releaseName: "oss-agent",
+			namespace:   "default",
+		},
+		"plusAgentV3": {
+			valuesFile:  "testdata/plus-agentv3.yaml",
+			releaseName: "plus-agent",
+			namespace:   "default",
+		},
+		"plusAgentV3All": {
+			valuesFile:  "testdata/plus-agentv3-all.yaml",
+			releaseName: "plus-agent-all",
+			namespace:   "custom",
+		},
 		"appProtectWAFV5AgentV2": {
 			valuesFile:  "testdata/app-protect-wafv5-agentv2.yaml",
 			releaseName: "app-protect-wafv5-agentv2",
@@ -113,6 +129,11 @@ func TestHelmNICTemplate(t *testing.T) {
 		"appProtectWAFV4AgentV2": {
 			valuesFile:  "testdata/app-protect-waf-agentv2.yaml",
 			releaseName: "app-protect-waf-agentv2",
+			namespace:   "default",
+		},
+		"startupStatusValid": {
+			valuesFile:  "testdata/startupstatus-valid.yaml",
+			releaseName: "startupstatus",
 			namespace:   "default",
 		},
 	}
@@ -137,6 +158,54 @@ func TestHelmNICTemplate(t *testing.T) {
 
 			snaps.MatchSnapshot(t, output)
 			t.Log(output)
+		})
+	}
+}
+
+// Test for negative cases where helm template rendering should fail
+func TestHelmNICTemplateNegative(t *testing.T) {
+	t.Parallel()
+
+	negativeTests := map[string]struct {
+		valuesFile       string
+		releaseName      string
+		namespace        string
+		expectedErrorMsg string
+	}{
+		"startupStatusInvalid": {
+			valuesFile:       "testdata/startupstatus-invalid.yaml",
+			releaseName:      "startupstatus-invalid",
+			namespace:        "default",
+			expectedErrorMsg: "port is required",
+		},
+	}
+
+	// Path to the helm chart we will test
+	helmChartPath, err := filepath.Abs("../nginx-ingress")
+	if err != nil {
+		t.Fatal("Failed to open helm chart path ../nginx-ingress")
+	}
+
+	for testName, tc := range negativeTests {
+		t.Run(testName, func(t *testing.T) {
+			options := &helm.Options{
+				KubectlOptions: k8s.NewKubectlOptions("", "", tc.namespace),
+			}
+
+			if tc.valuesFile != "" {
+				options.ValuesFiles = []string{tc.valuesFile}
+			}
+			_, err := helm.RenderTemplateE(t, options, helmChartPath, tc.releaseName, make([]string, 0))
+
+			if err == nil {
+				t.Fatalf("Expected helm template to fail for invalid configuration, but it succeeded")
+			}
+
+			if tc.expectedErrorMsg != "" && !strings.Contains(err.Error(), tc.expectedErrorMsg) {
+				t.Fatalf("Expected error to contain '%s', but got: %s", tc.expectedErrorMsg, err.Error())
+			}
+
+			t.Logf("Expected failure occurred: %s", err.Error())
 		})
 	}
 }

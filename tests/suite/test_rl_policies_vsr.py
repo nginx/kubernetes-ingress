@@ -17,6 +17,8 @@ from suite.utils.policy_resources_utils import (
     read_policy,
 )
 from suite.utils.resources_utils import (
+    create_secret_from_yaml,
+    delete_secret,
     get_first_pod_name,
     get_pod_list,
     replace_configmap_from_yaml,
@@ -46,11 +48,11 @@ rl_vsr_invalid_src = f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-rout
 rl_vsr_override_src = f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-route-override-subroute.yaml"
 rl_vsr_override_vs_spec_src = f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-vsr-spec-override.yaml"
 rl_vsr_override_vs_route_src = f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-vsr-route-override.yaml"
-rl_vsr_override_tiered_basic_premium_vs_spec_src = (
-    f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-vsr-tiered-basic-premium-spec-override.yaml"
+rl_vsr_override_tiered_jwt_basic_premium_vs_spec_src = (
+    f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-vsr-tiered-jwt-basic-premium-spec-override.yaml"
 )
-rl_vsr_override_tiered_basic_premium_vs_route_src = (
-    f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-vsr-tiered-basic-premium-route-override.yaml"
+rl_vsr_override_tiered_jwt_basic_premium_vs_route_src = (
+    f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-vsr-tiered-jwt-basic-premium-route-override.yaml"
 )
 rl_vsr_jwt_claim_sub_src = f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-route-jwt-claim-sub.yaml"
 rl_pol_jwt_claim_sub_src = f"{TEST_DATA}/rate-limit/policies/rate-limit-jwt-claim-sub.yaml"
@@ -83,6 +85,35 @@ rl_pol_silver_no_default_jwt_claim_sub = (
 )
 rl_pol_gold_no_default_jwt_claim_sub = (
     f"{TEST_DATA}/rate-limit/policies/rate-limit-tiered-gold-no-default-jwt-claim-sub.yaml"
+)
+rl_basic_apikey_client1 = "client1basic"
+rl_premium_apikey_client1 = "client1premium"
+rl_bronze_apikey_client1 = "client1bronze"
+rl_silver_apikey_client1 = "client1silver"
+rl_gold_apikey_client1 = "client1gold"
+rl_default_apikey_random = "random"
+rl_sec_apikey = f"{TEST_DATA}/rate-limit/policies/api-key-secret.yaml"
+rl_pol_apikey = f"{TEST_DATA}/rate-limit/policies/api-key-policy.yaml"
+rl_pol_basic_with_default_apikey = (
+    f"{TEST_DATA}/rate-limit/policies/rate-limit-tiered-basic-with-default-variables-apikey.yaml"
+)
+rl_pol_premium_no_default_apikey = (
+    f"{TEST_DATA}/rate-limit/policies/rate-limit-tiered-premium-no-default-variables-apikey.yaml"
+)
+rl_pol_bronze_with_default_apikey = f"{TEST_DATA}/rate-limit/policies/rate-limit-tiered-bronze-with-default-apikey.yaml"
+rl_pol_silver_no_default_apikey = f"{TEST_DATA}/rate-limit/policies/rate-limit-tiered-silver-no-default-apikey.yaml"
+rl_pol_gold_no_default_apikey = f"{TEST_DATA}/rate-limit/policies/rate-limit-tiered-gold-no-default-apikey.yaml"
+rl_vsr_override_tiered_apikey_basic_premium_vs_spec_src = (
+    f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-vsr-tiered-apikey-basic-premium-spec-override.yaml"
+)
+rl_vsr_override_tiered_apikey_basic_premium_vs_route_src = (
+    f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-vsr-tiered-apikey-basic-premium-route-override.yaml"
+)
+rl_vsr_bronze_silver_gold_apikey = (
+    f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-route-tiered-bronze-silver-gold-apikey.yaml"
+)
+rl_vsr_multiple_tiered_variables_apikey = (
+    f"{TEST_DATA}/rate-limit/route-subroute/virtual-server-route-mutliple-tiered-variables-apikey.yaml"
 )
 
 
@@ -1002,7 +1033,8 @@ class TestTieredRateLimitingPoliciesVsr:
 
     @pytest.mark.skip_for_nginx_oss
     @pytest.mark.parametrize(
-        "src", [rl_vsr_override_tiered_basic_premium_vs_spec_src, rl_vsr_override_tiered_basic_premium_vs_route_src]
+        "src",
+        [rl_vsr_override_tiered_jwt_basic_premium_vs_spec_src, rl_vsr_override_tiered_jwt_basic_premium_vs_route_src],
     )
     def test_override_multiple_tiered_jwt_claim_sub_vs_vsr(
         self,
@@ -1197,3 +1229,250 @@ class TestTieredRateLimitingPoliciesVsr:
         delete_policy(kube_apis.custom_objects, basic_pol_name, v_s_route_setup.route_m.namespace)
         delete_policy(kube_apis.custom_objects, premium_pol_name, v_s_route_setup.route_m.namespace)
         self.restore_default_vsr(kube_apis, v_s_route_setup)
+
+    @pytest.mark.parametrize(
+        "src",
+        [
+            rl_vsr_override_tiered_apikey_basic_premium_vs_spec_src,
+            rl_vsr_override_tiered_apikey_basic_premium_vs_route_src,
+        ],
+    )
+    def test_override_multiple_tiered_apikey_vs_vsr(
+        self,
+        kube_apis,
+        crd_ingress_controller,
+        v_s_route_app_setup,
+        test_namespace,
+        v_s_route_setup,
+        src,
+    ):
+        """
+        Test if vsr subroute policy overrides vs spec policy
+        And vsr subroute policy overrides vs route policy
+        """
+
+        # policies for virtualserver/vsr
+        apikey_sec_name = create_secret_from_yaml(kube_apis.v1, v_s_route_setup.route_m.namespace, rl_sec_apikey)
+        apikey_pol_name = apply_and_assert_valid_policy(kube_apis, v_s_route_setup.route_m.namespace, rl_pol_apikey)
+        basic_pol_name = apply_and_assert_valid_policy(
+            kube_apis, v_s_route_setup.route_m.namespace, rl_pol_basic_with_default_apikey
+        )
+        premium_pol_name = apply_and_assert_valid_policy(
+            kube_apis, v_s_route_setup.route_m.namespace, rl_pol_premium_no_default_apikey
+        )
+        bronze_pol_name = apply_and_assert_valid_policy(
+            kube_apis, v_s_route_setup.route_m.namespace, rl_pol_bronze_with_default_apikey
+        )
+        silver_pol_name = apply_and_assert_valid_policy(
+            kube_apis, v_s_route_setup.route_m.namespace, rl_pol_silver_no_default_apikey
+        )
+        gold_pol_name = apply_and_assert_valid_policy(
+            kube_apis, v_s_route_setup.route_m.namespace, rl_pol_gold_no_default_apikey
+        )
+
+        # patch vsr with bronze/silver/gold tier policies
+        apply_and_assert_valid_vsr(
+            kube_apis,
+            v_s_route_setup.route_m.namespace,
+            v_s_route_setup.route_m.name,
+            rl_vsr_bronze_silver_gold_apikey,
+        )
+
+        # patch vs with basic/premium policies
+        apply_and_assert_valid_vs(
+            kube_apis,
+            v_s_route_setup.namespace,
+            v_s_route_setup.vs_name,
+            src,
+        )
+
+        req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
+
+        ##  Test Basic Rate Limit 1r/s
+        print("Testing Basic Rate Limit 1r/s")
+        self.check_rate_limit_nearly_eq(
+            f"{req_url}{v_s_route_setup.route_m.paths[1]}",
+            200,
+            1,
+            headers={"host": v_s_route_setup.vs_host, "X-header-name": rl_basic_apikey_client1},
+        )
+        wait_before_test(1)
+
+        ##  Test Premium Rate Limit 5r/s
+        print("Testing Premium Rate Limit 5r/s")
+        self.check_rate_limit_nearly_eq(
+            f"{req_url}{v_s_route_setup.route_m.paths[1]}",
+            200,
+            5,
+            headers={"host": v_s_route_setup.vs_host, "X-header-name": rl_premium_apikey_client1},
+        )
+        wait_before_test(1)
+
+        ##  Test Basic Default Rate Limit 1r/s
+        print("Testing Basic Default Rate Limit 1r/s")
+        self.check_rate_limit_nearly_eq(
+            f"{req_url}{v_s_route_setup.route_m.paths[1]}",
+            200,
+            1,
+            headers={"host": v_s_route_setup.vs_host, "X-header-name": rl_default_apikey_random},
+        )
+        wait_before_test(1)
+
+        ##  Test Bronze Rate Limit 5r/s
+        print("Testing Bronze Rate Limit 5r/s")
+        self.check_rate_limit_nearly_eq(
+            f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            200,
+            5,
+            headers={"host": v_s_route_setup.vs_host, "X-header-name": rl_bronze_apikey_client1},
+        )
+        wait_before_test(1)
+
+        ##  Test Silver Rate Limit 10r/s
+        print("Testing Silver Rate Limit 10r/s")
+        self.check_rate_limit_nearly_eq(
+            f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            200,
+            10,
+            headers={"host": v_s_route_setup.vs_host, "X-header-name": rl_silver_apikey_client1},
+        )
+        wait_before_test(1)
+
+        ##  Test Gold Rate Limit 15r/s
+        print("Testing Gold Rate Limit 15r/s")
+        self.check_rate_limit_nearly_eq(
+            f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            200,
+            15,
+            headers={"host": v_s_route_setup.vs_host, "X-header-name": rl_gold_apikey_client1},
+        )
+        wait_before_test(1)
+
+        ##  Test Bronze Default Rate Limit 5r/s
+        print("Testing Bronze Default Rate Limit 5r/s")
+        self.check_rate_limit_nearly_eq(
+            f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            200,
+            5,
+            headers={"host": v_s_route_setup.vs_host, "X-header-name": rl_default_apikey_random},
+        )
+
+        self.restore_default_vsr(kube_apis, v_s_route_setup)
+        delete_and_create_vs_from_yaml(
+            kube_apis.custom_objects, v_s_route_setup.vs_name, std_vs_src, v_s_route_setup.namespace
+        )
+        delete_policy(kube_apis.custom_objects, basic_pol_name, v_s_route_setup.route_m.namespace)
+        delete_policy(kube_apis.custom_objects, premium_pol_name, v_s_route_setup.route_m.namespace)
+        delete_policy(kube_apis.custom_objects, bronze_pol_name, v_s_route_setup.route_m.namespace)
+        delete_policy(kube_apis.custom_objects, silver_pol_name, v_s_route_setup.route_m.namespace)
+        delete_policy(kube_apis.custom_objects, gold_pol_name, v_s_route_setup.route_m.namespace)
+        delete_policy(kube_apis.custom_objects, apikey_pol_name, v_s_route_setup.route_m.namespace)
+        delete_secret(kube_apis.v1, apikey_sec_name, v_s_route_setup.route_m.namespace)
+
+    @pytest.mark.parametrize("src", [rl_vsr_multiple_tiered_variables_apikey])
+    def test_rl_policy_multiple_tiered_variables_apikey_vsr(
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        crd_ingress_controller,
+        v_s_route_app_setup,
+        v_s_route_setup,
+        test_namespace,
+        src,
+    ):
+        """
+        Test applying a basic/premium tier to /backend1 &,
+        applying the same basic/premium tier to /backend3.
+        Policies are applied at the VirtualServerRoute level
+        """
+
+        apikey_sec_name = create_secret_from_yaml(kube_apis.v1, v_s_route_setup.route_m.namespace, rl_sec_apikey)
+        apikey_pol_name = apply_and_assert_valid_policy(kube_apis, v_s_route_setup.route_m.namespace, rl_pol_apikey)
+        basic_pol_name = apply_and_assert_valid_policy(
+            kube_apis, v_s_route_setup.route_m.namespace, rl_pol_basic_with_default_apikey
+        )
+        premium_pol_name = apply_and_assert_valid_policy(
+            kube_apis, v_s_route_setup.route_m.namespace, rl_pol_premium_no_default_apikey
+        )
+
+        apply_and_assert_valid_vsr(
+            kube_apis,
+            v_s_route_setup.route_m.namespace,
+            v_s_route_setup.route_m.name,
+            src,
+        )
+
+        req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
+
+        ##  Test Basic Rate Limit 1r/s /backend1
+        print(f"Testing Basic Rate Limit 1r/s {v_s_route_setup.route_m.paths[0]}")
+        self.check_rate_limit_nearly_eq(
+            f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            200,
+            1,
+            headers={"host": v_s_route_setup.vs_host, "X-header-name": rl_basic_apikey_client1},
+        )
+        wait_before_test(1)
+
+        ##  Test Premium Rate Limit 5r/s /backend1
+        print(f"Testing Premium Rate Limit 5r/s {v_s_route_setup.route_m.paths[0]}")
+        self.check_rate_limit_nearly_eq(
+            f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            200,
+            5,
+            headers={"host": v_s_route_setup.vs_host, "X-header-name": rl_premium_apikey_client1},
+        )
+        wait_before_test(1)
+
+        ##  Test Basic Default Rate Limit 1r/s /backend1
+        print(f"Testing Basic Default Rate Limit 1r/s {v_s_route_setup.route_m.paths[0]}")
+        self.check_rate_limit_nearly_eq(
+            f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            200,
+            1,
+            headers={"host": v_s_route_setup.vs_host, "X-header-name": rl_default_apikey_random},
+        )
+        wait_before_test(1)
+
+        ##  Test Basic Rate Limit 1r/s /backend3
+        print(f"Testing Basic Rate Limit 1r/s {v_s_route_setup.route_m.paths[1]}")
+        self.check_rate_limit_nearly_eq(
+            f"{req_url}{v_s_route_setup.route_m.paths[1]}",
+            200,
+            1,
+            headers={"host": v_s_route_setup.vs_host, "X-header-name": rl_basic_apikey_client1},
+        )
+        wait_before_test(1)
+
+        ##  Test Premium Rate Limit 5r/s /backend3
+        print(f"Testing Premium Rate Limit 5r/s {v_s_route_setup.route_m.paths[1]}")
+        self.check_rate_limit_nearly_eq(
+            f"{req_url}{v_s_route_setup.route_m.paths[1]}",
+            200,
+            5,
+            headers={"host": v_s_route_setup.vs_host, "X-header-name": rl_premium_apikey_client1},
+        )
+        wait_before_test(1)
+
+        ##  Test Basic Default Rate Limit 5r/s /backend3
+        print(f"Testing Basic Default Rate Limit 5r/s {v_s_route_setup.route_m.paths[1]}")
+        self.check_rate_limit_nearly_eq(
+            f"{req_url}{v_s_route_setup.route_m.paths[1]}",
+            200,
+            1,
+            headers={"host": v_s_route_setup.vs_host, "X-header-name": rl_default_apikey_random},
+        )
+
+        # ## Test Unlimited access /backend2
+        print(f"Testing Unlimited access {v_s_route_setup.route_s.paths[0]}")
+        self.check_rate_limit_nearly_eq(
+            f"{req_url}{v_s_route_setup.route_s.paths[0]}",
+            503,
+            0,
+        )
+
+        self.restore_default_vsr(kube_apis, v_s_route_setup)
+        delete_policy(kube_apis.custom_objects, basic_pol_name, v_s_route_setup.route_m.namespace)
+        delete_policy(kube_apis.custom_objects, premium_pol_name, v_s_route_setup.route_m.namespace)
+        delete_policy(kube_apis.custom_objects, apikey_pol_name, v_s_route_setup.route_m.namespace)
+        delete_secret(kube_apis.v1, apikey_sec_name, v_s_route_setup.route_m.namespace)

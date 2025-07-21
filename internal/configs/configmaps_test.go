@@ -683,6 +683,200 @@ func TestParseMGMTConfigMapUsageReportInterval(t *testing.T) {
 	}
 }
 
+func TestParseMGMTConfigMapUsageReportIntervalMaximum(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap      *v1.ConfigMap
+		expectWarnings bool
+		expectInterval string
+		msg            string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "24h",
+				},
+			},
+			expectWarnings: false,
+			expectInterval: "24h",
+			msg:            "24h should be accepted (maximum allowed)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "25h",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "25h should be rejected (exceeds maximum)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "1440m",
+				},
+			},
+			expectWarnings: false,
+			expectInterval: "1440m",
+			msg:            "1440m (24h) should be accepted",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "1441m",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "1441m (>24h) should be rejected",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, warnings, err := ParseMGMTConfigMap(context.Background(), test.configMap, makeEventLogger())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if warnings != test.expectWarnings {
+				t.Errorf("Expected warnings=%v, got warnings=%v", test.expectWarnings, warnings)
+			}
+
+			if result.Interval != test.expectInterval {
+				t.Errorf("Expected interval=%q, got interval=%q", test.expectInterval, result.Interval)
+			}
+		})
+	}
+}
+
+func TestParseMGMTConfigMapUsageReportIntervalEdgeCases(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap      *v1.ConfigMap
+		expectWarnings bool
+		expectInterval string
+		msg            string
+	}{
+		// Test milliseconds (should be rejected due to unsupported unit)
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "1000ms",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "1000ms should be rejected (ms unit not allowed)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "60000ms",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "60000ms should be rejected (ms unit not allowed)",
+		},
+		// Test that large ms values are also rejected for unit, not value
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "3600000ms",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "3600000ms (1h) should be rejected (ms unit not allowed)",
+		},
+		// Test days (should be rejected by Go's ParseDuration)
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "1d",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "1d should be rejected (Go doesn't support 'd' unit)",
+		},
+		// Test values > 24h (valid in Go but should be rejected by max check)
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "25h",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "25h should be rejected (exceeds 24h maximum)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "48h",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "48h should be rejected (exceeds 24h maximum)",
+		},
+		// exactly 86400 seconds (24h)
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "86400s",
+				},
+			},
+			expectWarnings: false,
+			expectInterval: "86400s",
+			msg:            "86400s (24h) should be accepted",
+		},
+		// 86401 seconds (24h + 1s)
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "86401s",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "86401s (>24h) should be rejected",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, warnings, err := ParseMGMTConfigMap(context.Background(), test.configMap, makeEventLogger())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if warnings != test.expectWarnings {
+				t.Errorf("Expected warnings=%v, got warnings=%v", test.expectWarnings, warnings)
+			}
+
+			if result.Interval != test.expectInterval {
+				t.Errorf("Expected interval=%q, got interval=%q", test.expectInterval, result.Interval)
+			}
+		})
+	}
+}
+
 func TestParseMGMTConfigMapResolverIPV6(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -1406,6 +1600,34 @@ func TestOpenTelemetryConfigurationSuccess(t *testing.T) {
 		{
 			configMap: &v1.ConfigMap{
 				Data: map[string]string{
+					"otel-exporter-endpoint": "subdomain.goes.on.and.on.and.on.and.on.example.com",
+				},
+			},
+			expectedLoadModule:          true,
+			expectedExporterEndpoint:    "subdomain.goes.on.and.on.and.on.and.on.example.com",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "endpoint set, complicated long subdomain",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "localhost:9933",
+				},
+			},
+			expectedLoadModule:          true,
+			expectedExporterEndpoint:    "localhost:9933",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "endpoint set, hostname and port no scheme",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
 					"otel-exporter-endpoint":     "https://otel-collector:4317",
 					"otel-exporter-trusted-ca":   "otel-ca-secret",
 					"otel-exporter-header-name":  "X-Custom-Header",
@@ -1594,6 +1816,76 @@ func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
 			expectedServiceName:         "nginx-ingress-controller:nginx",
 			expectedTraceInHTTP:         true,
 			msg:                         "partially invalid, header name missing, trace in http set",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "something%invalid*30here",
+				},
+			},
+			expectedLoadModule:          false,
+			expectedExporterEndpoint:    "",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "invalid, endpoint does not look like a host",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "localhost:0",
+				},
+			},
+			expectedLoadModule:          false,
+			expectedExporterEndpoint:    "",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "invalid, port is outside of range down",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "localhost:99999",
+				},
+			},
+			expectedLoadModule:          false,
+			expectedExporterEndpoint:    "",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "invalid, port is outside of range up",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "fe80::1",
+				},
+			},
+			expectedLoadModule:          false,
+			expectedExporterEndpoint:    "",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "invalid, endpoint is an ipv6 address",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "thisisaverylongsubdomainthatexceedsatotalofsixtythreecharactersz.example.com",
+				},
+			},
+			expectedLoadModule:          false,
+			expectedExporterEndpoint:    "",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "invalid, subdomain is more than 63 characters long",
 		},
 	}
 
