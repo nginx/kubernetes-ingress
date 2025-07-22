@@ -303,6 +303,16 @@ spec:
                     type: string
                   secret:
                     type: string
+                  sniEnabled:
+                    description: Enables SNI (Server Name Indication) for the JWT
+                      policy. This is useful when the remote server requires SNI to
+                      serve the correct certificate.
+                    type: boolean
+                  sniName:
+                    description: The SNI name to use when connecting to the remote
+                      server. If not set, the hostname from the ``jwksURI`` will be
+                      used.
+                    type: string
                   token:
                     type: string
                 type: object
