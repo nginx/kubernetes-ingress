@@ -81,7 +81,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: auth
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: google-github-actions/auth@140bb5113ffb6b65a7e9b937a81fa96cf5064462 # v2.1.11
         with:
           token_format: access_token
           workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
@@ -156,7 +156,7 @@ jobs:
           fi
 
       - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@181d5eefc20863364f96762470ba6f862bdef56b # v3.29.2
+        uses: github/codeql-action/upload-sarif@d6bbdef45e766d081b84a2def353b0055f728d3e # v3.29.3
         if: steps.check-sarif.outputs.sarif_has_results == 'true'
         with:
           sarif_file: govulncheck.sarif
@@ -444,7 +444,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: auth
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: google-github-actions/auth@140bb5113ffb6b65a7e9b937a81fa96cf5064462 # v2.1.11
         with:
           token_format: access_token
           workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
@@ -474,7 +474,7 @@ jobs:
 
       - name: Run Docker Scout vulnerability scanner
         id: docker-scout
-        uses: docker/scout-action@aceeb83b88f2ae54376891227858dda7af647183 # v1.18.1
+        uses: docker/scout-action@f8c776824083494ab0d56b8105ba2ca85c86e4de # v1.18.2
         with:
           command: cves
           image: ${{ steps.meta.outputs.tags }}
@@ -492,7 +492,7 @@ jobs:
           overwrite: true
 
       - name: Upload Scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@181d5eefc20863364f96762470ba6f862bdef56b # v3.29.2
+        uses: github/codeql-action/upload-sarif@d6bbdef45e766d081b84a2def353b0055f728d3e # v3.29.3
         with:
           sarif_file: "${{ steps.directory.outputs.directory }}/"
 
@@ -533,7 +533,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: auth
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: google-github-actions/auth@140bb5113ffb6b65a7e9b937a81fa96cf5064462 # v2.1.11
         with:
           token_format: access_token
           workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
@@ -563,7 +563,7 @@ jobs:
 
       - name: Run Docker Scout vulnerability scanner
         id: docker-scout
-        uses: docker/scout-action@aceeb83b88f2ae54376891227858dda7af647183 # v1.18.1
+        uses: docker/scout-action@f8c776824083494ab0d56b8105ba2ca85c86e4de # v1.18.2
         with:
           command: cves
           image: ${{ steps.meta.outputs.tags }}
@@ -581,7 +581,7 @@ jobs:
           overwrite: true
 
       - name: Upload Scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@181d5eefc20863364f96762470ba6f862bdef56b # v3.29.2
+        uses: github/codeql-action/upload-sarif@d6bbdef45e766d081b84a2def353b0055f728d3e # v3.29.3
         with:
           sarif_file: "${{ steps.directory.outputs.directory }}/"
 
@@ -629,7 +629,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: auth
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: google-github-actions/auth@140bb5113ffb6b65a7e9b937a81fa96cf5064462 # v2.1.11
         with:
           token_format: access_token
           workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
@@ -659,7 +659,7 @@ jobs:
 
       - name: Run Docker Scout vulnerability scanner
         id: docker-scout
-        uses: docker/scout-action@aceeb83b88f2ae54376891227858dda7af647183 # v1.18.1
+        uses: docker/scout-action@f8c776824083494ab0d56b8105ba2ca85c86e4de # v1.18.2
         with:
           command: cves
           image: ${{ steps.meta.outputs.tags }}
@@ -677,7 +677,7 @@ jobs:
           overwrite: true
 
       - name: Upload Scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@181d5eefc20863364f96762470ba6f862bdef56b # v3.29.2
+        uses: github/codeql-action/upload-sarif@d6bbdef45e766d081b84a2def353b0055f728d3e # v3.29.3
         with:
           sarif_file: "${{ steps.directory.outputs.directory }}/"
         continue-on-error: true
