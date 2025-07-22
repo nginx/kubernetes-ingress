@@ -1012,13 +1012,12 @@ func (lbc *LoadBalancerController) preSyncSecrets() {
 }
 
 func (lbc *LoadBalancerController) sync(task task) {
-	syncQueueLength := lbc.syncQueue.Len()
-	nl.Debugf(lbc.Logger, "Sync Queue length: %v items", syncQueueLength)
-	if lbc.isNginxReady && syncQueueLength > 1 && !lbc.batchSyncEnabled {
+	nl.Debugf(lbc.Logger, "Sync Queue length: %v items", lbc.syncQueue.Len())
+	if lbc.isNginxReady && lbc.syncQueue.Len() > 1 && !lbc.batchSyncEnabled {
 		lbc.configurator.DisableReloads()
 		lbc.batchSyncEnabled = true
 
-		nl.Debugf(lbc.Logger, "Batch processing %v items", syncQueueLength)
+		nl.Debugf(lbc.Logger, "Batch processing %v items", lbc.syncQueue.Len())
 	}
 	nl.Debugf(lbc.Logger, "Syncing %v", task.Key)
 	if lbc.spiffeCertFetcher != nil {
@@ -1092,7 +1091,7 @@ func (lbc *LoadBalancerController) sync(task task) {
 		}
 	}
 
-	if !lbc.isNginxReady && syncQueueLength == 0 {
+	if !lbc.isNginxReady && lbc.syncQueue.Len() == 0 {
 		lbc.configurator.EnableReloads()
 		lbc.updateAllConfigs()
 
@@ -1100,7 +1099,7 @@ func (lbc *LoadBalancerController) sync(task task) {
 		nl.Debug(lbc.Logger, "NGINX is ready")
 	}
 
-	if lbc.batchSyncEnabled && syncQueueLength == 0 {
+	if lbc.batchSyncEnabled && lbc.syncQueue.Len() == 0 {
 		lbc.batchSyncEnabled = false
 		lbc.configurator.EnableReloads()
 		if lbc.updateAllConfigsOnBatch {
