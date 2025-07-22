@@ -120,7 +120,6 @@ jobs:
           echo "image_matrix_oss=$(cat .github/data/matrix-images-oss.json | jq -c)" >> $GITHUB_OUTPUT
           echo "image_matrix_plus=$(cat .github/data/matrix-images-plus.json | jq -c)" >> $GITHUB_OUTPUT
           echo "image_matrix_nap=$(cat .github/data/matrix-images-nap.json | jq -c)" >> $GITHUB_OUTPUT
-
           cat $GITHUB_OUTPUT
 
       - name: Fetch Cached Binary Artifacts
