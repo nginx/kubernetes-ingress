@@ -737,6 +737,15 @@ func TestExecuteVirtualServerTemplateWithJWKSWithToken(t *testing.T) {
 	if !bytes.Contains(got, []byte("proxy_cache_valid 200 12h;")) {
 		t.Error("want `proxy_cache_valid 200 12h;` in generated template")
 	}
+
+	if !bytes.Contains(got, []byte("proxy_ssl_server_name on;")) {
+		t.Error("want `proxy_ssl_server_name on;` in generated template")
+	}
+
+	if !bytes.Contains(got, []byte("proxy_ssl_name sni.idp.spec.example.com;")) {
+		t.Error("want `proxy_ssl_name sni.idp.spec.example.com;` in generated template")
+	}
+
 	snaps.MatchSnapshot(t, string(got))
 	t.Log(string(got))
 }
@@ -2345,10 +2354,12 @@ var (
 					Token:    "$http_token",
 					KeyCache: "1h",
 					JwksURI: JwksURI{
-						JwksScheme: "https",
-						JwksHost:   "idp.spec.example.com",
-						JwksPort:   "443",
-						JwksPath:   "/spec-keys",
+						JwksScheme:     "https",
+						JwksHost:       "idp.spec.example.com",
+						JwksPort:       "443",
+						JwksPath:       "/spec-keys",
+						JwksSNIEnabled: true,
+						JwksSNIName:    "sni.idp.spec.example.com",
 					},
 				},
 				"default/jwt-policy-route": {
@@ -2357,10 +2368,12 @@ var (
 					Token:    "$http_token",
 					KeyCache: "1h",
 					JwksURI: JwksURI{
-						JwksScheme: "http",
-						JwksHost:   "idp.route.example.com",
-						JwksPort:   "80",
-						JwksPath:   "/route-keys",
+						JwksScheme:     "http",
+						JwksHost:       "idp.route.example.com",
+						JwksPort:       "80",
+						JwksPath:       "/route-keys",
+						JwksSNIEnabled: true,
+						JwksSNIName:    "sni.idp.spec.example.com",
 					},
 				},
 			},
