@@ -101,7 +101,7 @@ jobs:
           echo "chart_version=${HELM_CHART_VERSION}" >> $GITHUB_OUTPUT
           forked_workflow=${{ (github.event.pull_request && github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name) || github.repository != 'nginx/kubernetes-ingress' }}
           echo "forked_workflow=${forked_workflow}" >> $GITHUB_OUTPUT
-          go_proxy=""
+          go_proxy="https://proxy.golang.org,direct"
           if [ "$forked_workflow" = "false" ]; then
             go_proxy="https://azr.artifactory.f5net.com/artifactory/api/go/f5-nginx-go-dev"
           fi
