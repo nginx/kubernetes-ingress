@@ -103,7 +103,7 @@ jobs:
           echo "forked_workflow=${forked_workflow}" >> $GITHUB_OUTPUT
           go_proxy=""
           if [ "$forked_workflow" = "false" ]; then
-            go_proxy="https://${{ secrets.ARTIFACTORY_USER }}:${{ secrets.ARTIFACTORY_TOKEN }}@azr.artifactory.f5net.com/artifactory/api/go/f5-nginx-go-dev"
+            go_proxy="https://azr.artifactory.f5net.com/artifactory/api/go/f5-nginx-go-dev"
           fi
           echo "go_proxy=${go_proxy}" >> $GITHUB_OUTPUT
           ./.github/scripts/variables.sh go_code_md5 >> $GITHUB_OUTPUT
@@ -181,6 +181,8 @@ jobs:
     permissions:
       contents: read
     needs: checks
+    env:
+      GOPROXY: ${{ needs.checks.outputs.go_proxy }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -191,16 +193,22 @@ jobs:
           go-version-file: go.mod
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
+      - name: Setup netrc
+        run: |
+          cat <<EOF > $HOME/.netrc
+          machine azr.artifactory.f5net.com
+              login ${{ secrets.ARTIFACTORY_USER }}
+              password ${{ secrets.ARTIFACTORY_TOKEN }}
+          EOF
+          chmod 600 $HOME/.netrc
+        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' && needs.checks.outputs.forked_workflow != 'true' }}
+
       - name: Check if go.mod and go.sum are up to date
         run: go mod tidy && git diff --exit-code -- go.mod go.sum
-        env:
-          GOPROXY: ${{ needs.checks.outputs.go_proxy }}
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
       - name: Check if CRDs changed
         run: make update-crds && git diff --name-only --exit-code config/crd/bases
-        env:
-          GOPROXY: ${{ needs.checks.outputs.go_proxy }}
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
       - name: Check if Codegen changed
@@ -208,22 +216,16 @@ jobs:
           cd ../.. && mkdir -p github.com/nginx && mv kubernetes-ingress/kubernetes-ingress github.com/nginx/ && cd github.com/nginx/kubernetes-ingress
           make update-codegen && git diff --name-only --exit-code pkg/**
           cd ../../.. && mv github.com/nginx/kubernetes-ingress kubernetes-ingress/kubernetes-ingress
-        env:
-          GOPROXY: ${{ needs.checks.outputs.go_proxy }}
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
       - name: Install gofumpt
         run: go install mvdan.cc/gofumpt@v0.8.0
-        env:
-          GOPROXY: ${{ needs.checks.outputs.go_proxy }}
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
       - name: Check if telemetry schema changed
         run: |
           export PATH=$PATH:$(go env GOPATH)/bin
           make telemetry-schema && git diff --name-only --exit-code internal/telemetry
-        env:
-          GOPROXY: ${{ needs.checks.outputs.go_proxy }}
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
   unit-tests:
@@ -241,6 +243,16 @@ jobs:
         with:
           go-version-file: go.mod
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' && (inputs.run_tests && inputs.run_tests || true) }}
+
+      - name: Setup netrc
+        run: |
+          cat <<EOF > $HOME/.netrc
+          machine azr.artifactory.f5net.com
+              login ${{ secrets.ARTIFACTORY_USER }}
+              password ${{ secrets.ARTIFACTORY_TOKEN }}
+          EOF
+          chmod 600 $HOME/.netrc
+        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' && needs.checks.outputs.forked_workflow != 'true' }}
 
       - name: Run Tests
         run: make cover
@@ -264,8 +276,6 @@ jobs:
     name: Build Binaries
     runs-on: ubuntu-22.04
     needs: [checks, unit-tests, verify-codegen]
-    env:
-      GOPROXY: ${{ needs.checks.outputs.go_proxy }}
     permissions:
       contents: write # for goreleaser/goreleaser-action to manage releases
       id-token: write # for goreleaser/goreleaser-action to sign artifacts
@@ -282,6 +292,16 @@ jobs:
           go-version-file: go.mod
         if: ${{ (inputs.force && inputs.force || false) || needs.checks.outputs.binary_cache_hit != 'true' }}
 
+      - name: Setup netrc
+        run: |
+          cat <<EOF > $HOME/.netrc
+          machine azr.artifactory.f5net.com
+              login ${{ secrets.ARTIFACTORY_USER }}
+              password ${{ secrets.ARTIFACTORY_TOKEN }}
+          EOF
+          chmod 600 $HOME/.netrc
+        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' && needs.checks.outputs.forked_workflow != 'true' }}
+
       - name: Build binaries
         uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552 # v6.3.0
         with:
@@ -290,6 +310,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GOPATH: ${{ needs.checks.outputs.go_path }}
+          GOPROXY: ${{ needs.checks.outputs.go_proxy }}
           AWS_PRODUCT_CODE: ${{ secrets.AWS_PRODUCT_CODE }}
           AWS_PUB_KEY: ${{ secrets.AWS_PUB_KEY }}
           AWS_NAP_DOS_PRODUCT_CODE: ${{ secrets.AWS_NAP_DOS_PRODUCT_CODE }}
