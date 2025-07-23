@@ -36,6 +36,7 @@ jobs:
     outputs:
       go_path: ${{ steps.vars.outputs.go_path }}
       go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}
+      go_proxy: ${{ steps.vars.outputs.go_proxy }}
       binary_cache_hit: ${{ steps.binary-cache.outputs.cache-hit }}
       chart_version: ${{ steps.vars.outputs.chart_version }}
       ic_version: ${{ steps.vars.outputs.ic_version }}
@@ -59,6 +60,7 @@ jobs:
         id: vars
         run: |
           echo "go_path=$(go env GOPATH)" >> $GITHUB_OUTPUT
+          echo "go_proxy=https://azr.artifactory.f5net.com/artifactory/api/go/f5-nginx-go-dev" >> $GITHUB_OUTPUT
           source .github/data/version.txt
           echo "ic_version=${IC_VERSION}" >> $GITHUB_OUTPUT
           echo "chart_version=${HELM_CHART_VERSION}" >> $GITHUB_OUTPUT
@@ -104,6 +106,7 @@ jobs:
         run: |
           echo go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}
           echo go_path: ${{ steps.vars.outputs.go_path }}
+          echo go_proxy: ${{ steps.vars.outputs.go_proxy }}
           echo binary_cache_hit: ${{ steps.binary-cache.outputs.cache-hit }}
           echo chart_version: ${{ steps.vars.outputs.chart_version }}
           echo ic_version: ${{ steps.vars.outputs.ic_version }}
@@ -118,6 +121,9 @@ jobs:
     permissions:
       contents: read
       security-events: write
+    needs: [checks]
+    env:
+      GOPROXY: ${{ needs.checks.outputs.go_proxy }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -126,6 +132,15 @@ jobs:
         uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
           go-version-file: go.mod
+
+      - name: Setup netrc
+        run: |
+          cat <<EOF > $HOME/.netrc
+          machine azr.artifactory.f5net.com
+              login ${{ secrets.ARTIFACTORY_USER }}
+              password ${{ secrets.ARTIFACTORY_TOKEN }}
+          EOF
+          chmod 600 $HOME/.netrc
 
       - name: govulncheck
         uses: golang/govulncheck-action@b625fbe08f3bccbe446d94fbf87fcc875a4f50ee # v1.0.4
@@ -164,6 +179,16 @@ jobs:
           go-version-file: go.mod
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
+      - name: Setup netrc
+        run: |
+          cat <<EOF > $HOME/.netrc
+          machine azr.artifactory.f5net.com
+              login ${{ secrets.ARTIFACTORY_USER }}
+              password ${{ secrets.ARTIFACTORY_TOKEN }}
+          EOF
+          chmod 600 $HOME/.netrc
+        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
+
       - name: Build binaries
         uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552 # v6.3.0
         with:
@@ -172,6 +197,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GOPATH: ${{ needs.checks.outputs.go_path }}
+          GOPROXY: ${{ needs.checks.outputs.go_proxy }}
           AWS_PRODUCT_CODE: ${{ secrets.AWS_PRODUCT_CODE }}
           AWS_PUB_KEY: ${{ secrets.AWS_PUB_KEY }}
           AWS_NAP_DOS_PRODUCT_CODE: ${{ secrets.AWS_NAP_DOS_PRODUCT_CODE }}
