@@ -202,19 +202,40 @@ func makeResolver(resolverAddresses []string, resolverValid string, resolverIPV6
 	return builder.String()
 }
 
+func makeProxyBuffersAndProxyBufferSize(proxyBuffers, proxyBufferSize string) string {
+	if proxyBufferSize != "" && proxyBuffers == "" {
+		// Only proxy-buffer-size is set - use it for both directives
+		return "proxy_buffer_size " + proxyBufferSize + ";\n\t\tproxy_buffers 4 " + proxyBufferSize + ";"
+	} else if proxyBuffers != "" && proxyBufferSize == "" {
+		// Only proxy-buffers is set - extract size for proxy_buffer_size
+		result := "proxy_buffers " + proxyBuffers + ";"
+		if parts := strings.Fields(proxyBuffers); len(parts) >= 2 {
+			bufferSize := parts[len(parts)-1]
+			result += "\n\t\tproxy_buffer_size " + bufferSize + ";"
+		}
+		return result
+	} else if proxyBuffers != "" && proxyBufferSize != "" {
+		// Both are set - use as specified
+		return "proxy_buffers " + proxyBuffers + ";\n\t\tproxy_buffer_size " + proxyBufferSize + ";"
+	}
+	// If neither is set, return empty string
+	return ""
+}
+
 var helperFunctions = template.FuncMap{
-	"split":                   split,
-	"trim":                    trim,
-	"contains":                strings.Contains,
-	"hasPrefix":               strings.HasPrefix,
-	"hasSuffix":               strings.HasSuffix,
-	"toLower":                 strings.ToLower,
-	"toUpper":                 strings.ToUpper,
-	"replaceAll":              strings.ReplaceAll,
-	"makeLocationPath":        makeLocationPath,
-	"makeSecretPath":          commonhelpers.MakeSecretPath,
-	"makeOnOffFromBool":       commonhelpers.MakeOnOffFromBool,
-	"generateProxySetHeaders": generateProxySetHeaders,
-	"boolToPointerBool":       commonhelpers.BoolToPointerBool,
-	"makeResolver":            makeResolver,
+	"split":                              split,
+	"trim":                               trim,
+	"contains":                           strings.Contains,
+	"hasPrefix":                          strings.HasPrefix,
+	"hasSuffix":                          strings.HasSuffix,
+	"toLower":                            strings.ToLower,
+	"toUpper":                            strings.ToUpper,
+	"replaceAll":                         strings.ReplaceAll,
+	"makeLocationPath":                   makeLocationPath,
+	"makeSecretPath":                     commonhelpers.MakeSecretPath,
+	"makeOnOffFromBool":                  commonhelpers.MakeOnOffFromBool,
+	"generateProxySetHeaders":            generateProxySetHeaders,
+	"boolToPointerBool":                  commonhelpers.BoolToPointerBool,
+	"makeResolver":                       makeResolver,
+	"makeProxyBuffersAndProxyBufferSize": makeProxyBuffersAndProxyBufferSize,
 }
