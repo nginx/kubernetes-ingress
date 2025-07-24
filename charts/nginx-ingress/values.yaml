@@ -724,3 +724,23 @@ nginxAgent:
     processorBufferSize: 50000
   ## The name of a custom ConfigMap to use instead of the one provided by default
   customConfigMap: ""
+
+# Default values for nginx-ingress with optional NetworkPolicy
+networkPolicy:
+  enabled: false            # Set to true to enable the NetworkPolicy
+  policyTypes:             # Types of policy to create
+    - Ingress
+    - Egress
+  podSelector: {}           # Label selector for pods (defaults to ingress controller pods)
+  ingress:                  # Ingress rules
+    - from: []              # List of peer selectors (e.g. namespaces, pods)
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+  egress:                   # Egress rules
+    - to: []                # List of peer selectors
+      ports:
+        - protocol: UDP
+          port: 53
