@@ -304,6 +304,10 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		cfgParams.ProxyBufferSize = proxyBufferSize
 	}
 
+	if proxyBusyBuffersSize, exists := ingEx.Ingress.Annotations["nginx.org/proxy-busy-buffers-size"]; exists {
+		cfgParams.ProxyBusyBuffersSize = proxyBusyBuffersSize
+	}
+
 	if upstreamZoneSize, exists := ingEx.Ingress.Annotations["nginx.org/upstream-zone-size"]; exists {
 		cfgParams.UpstreamZoneSize = upstreamZoneSize
 	}
