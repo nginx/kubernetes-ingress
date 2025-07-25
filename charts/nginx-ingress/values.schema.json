@@ -35,11 +35,13 @@
           "title": "The kind of the Ingress Controller",
           "enum": [
             "deployment",
-            "daemonset"
+            "daemonset",
+            "statefulset"
           ],
           "examples": [
             "deployment",
-            "daemonset"
+            "daemonset",
+            "statefulset"
           ]
         },
         "selectorLabels": {
@@ -993,6 +995,54 @@
               }
             }
           ]
+        },
+        "statefulset": {
+          "type": "object",
+          "default": {},
+          "title": "The StatefulSet configuration Schema",
+          "properties": {
+            "podManagementPolicy": {
+              "type": "string",
+              "default": "OrderedReady",
+              "title": "The pod management policy",
+              "enum": [
+                "OrderedReady",
+                "Parallel"
+              ]
+            },
+            "persistentVolumeClaimRetentionPolicy": {
+              "type": "object",
+              "default": {},
+              "title": "The PVC retention policy Schema",
+              "properties": {
+                "whenDeleted": {
+                  "type": "string",
+                  "default": "Retain",
+                  "enum": [
+                    "Retain",
+                    "Delete"
+                  ]
+                },
+                "whenScaled": {
+                  "type": "string",
+                  "default": "Retain",
+                  "enum": [
+                    "Retain",
+                    "Delete"
+                  ]
+                }
+              }
+            },
+            "volumeClaimTemplates": {
+              "type": "array",
+              "default": [],
+              "title": "The volume claim templates Schema",
+              "items": {
+                "type": "object",
+                "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.PersistentVolumeClaim"
+              }
+            }
+          }
         },
         "extraContainers": {
           "type": "array",

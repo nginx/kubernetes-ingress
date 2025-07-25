@@ -1,8 +1,8 @@
 controller:
-  ## The name of the Ingress Controller daemonset or deployment.
+  ## The name of the Ingress Controller daemonset, deployment, or statefulset.
   name: controller
 
-  ## The kind of the Ingress Controller installation - deployment or daemonset.
+  ## The kind of the Ingress Controller installation - deployment, daemonset, or statefulset.
   kind: deployment
 
   ## The selectorLabels used to override the default values.
@@ -343,6 +343,40 @@ controller:
 
     ## Strategy used to replace old Pods by new ones. .spec.strategy.type can be "Recreate" or "RollingUpdate" for Deployments, and "OnDelete" or "RollingUpdate" for Daemonsets. "RollingUpdate" is the default value.
   strategy: {}
+
+  ## StatefulSet-specific configuration (only used when kind is "statefulset")
+  statefulset:
+    ## Pod management policy for StatefulSet. Can be "OrderedReady" or "Parallel".
+    ## OrderedReady will start pods one at a time in order, Parallel will start all pods at once.
+    podManagementPolicy: "OrderedReady"
+    
+    ## PersistentVolumeClaim retention policy for StatefulSet
+    ## Determines when to delete PVCs when the StatefulSet is deleted or scaled down
+    persistentVolumeClaimRetentionPolicy:
+      ## When to delete PVCs when the StatefulSet is deleted. Can be "Retain" or "Delete".
+      whenDeleted: "Retain"
+      ## When to delete PVCs when the StatefulSet is scaled down. Can be "Retain" or "Delete".
+      whenScaled: "Retain"
+    
+    ## Volume claim templates for StatefulSet persistent storage
+    ## Example configuration for NGINX cache and logs persistence:
+    volumeClaimTemplates: []
+    # - metadata:
+    #     name: nginx-cache
+    #   spec:
+    #     accessModes: [ "ReadWriteOnce" ]
+    #     storageClassName: "standard"
+    #     resources:
+    #       requests:
+    #         storage: 5Gi
+    # - metadata:
+    #     name: nginx-logs
+    #   spec:
+    #     accessModes: [ "ReadWriteOnce" ]
+    #     storageClassName: "standard"  
+    #     resources:
+    #       requests:
+    #         storage: 1Gi
 
   ## Extra containers for the Ingress Controller pods.
   extraContainers: []
