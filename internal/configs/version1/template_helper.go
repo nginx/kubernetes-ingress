@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 	"text/template"
 
@@ -203,97 +202,24 @@ func makeResolver(resolverAddresses []string, resolverValid string, resolverIPV6
 	return builder.String()
 }
 
-func makeProxyBuffersAndProxyBufferSize(proxyBuffers, proxyBufferSize string) string {
-	proxyBuffers, proxyBufferSize = correctProxyBuffers(proxyBuffers, proxyBufferSize)
-
-	if proxyBufferSize != "" && proxyBuffers == "" {
-		// Only proxy-buffer-size is set - use it for both directives
-		return "proxy_buffer_size " + proxyBufferSize + ";\n\t\tproxy_buffers 4 " + proxyBufferSize + ";"
-	} else if proxyBuffers != "" && proxyBufferSize == "" {
-		// Only proxy-buffers is set - extract size for proxy_buffer_size
-		result := "proxy_buffers " + proxyBuffers + ";"
-		if parts := strings.Fields(proxyBuffers); len(parts) >= 2 {
-			bufferSize := parts[len(parts)-1]
-			result += "\n\t\tproxy_buffer_size " + bufferSize + ";"
-		}
-		return result
-	} else if proxyBuffers != "" && proxyBufferSize != "" {
-		// Both are set - use as specified
-		return "proxy_buffers " + proxyBuffers + ";\n\t\tproxy_buffer_size " + proxyBufferSize + ";"
-	}
-	// If neither is set, return empty string
-	return ""
-}
-
-// correctProxyBuffers detects and corrects problematic proxy buffer configurations.
-// If proxy_buffer_size is larger than individual buffer size in proxy_buffers,
-// it adjusts the configuration to use proxy_buffer_size for both settings.
-func correctProxyBuffers(proxyBuffers, proxyBufferSize string) (string, string) {
-	if proxyBuffers == "" || proxyBufferSize == "" {
-		return proxyBuffers, proxyBufferSize
-	}
-
-	bufferSizeParts := strings.Split(strings.TrimSpace(proxyBufferSize), " ")
-	buffersParts := strings.Split(strings.TrimSpace(proxyBuffers), " ")
-
-	// Check if proxy_buffer_size > individual buffer size in proxy_buffers
-	if len(bufferSizeParts) == 1 && len(buffersParts) >= 2 {
-		individualBufferSize := buffersParts[1] // Extract buffer size from "count size" format
-
-		// Compare sizes in bytes
-		bufferSizeBytes := parseSize(proxyBufferSize)
-		individualSizeBytes := parseSize(individualBufferSize)
-
-		// If proxy_buffer_size is larger, use it for both
-		if bufferSizeBytes > individualSizeBytes {
-			return "4 " + proxyBufferSize, proxyBufferSize
-		}
-	}
-
-	return proxyBuffers, proxyBufferSize
-}
-
-// parseSize converts size strings like "5m", "8k", "1g" to bytes for comparison
-func parseSize(sizeStr string) int64 {
-	sizeStr = strings.ToLower(strings.TrimSpace(sizeStr))
-	if sizeStr == "" {
-		return 0
-	}
-
-	// Use regex to extract number and units
-	re := regexp.MustCompile(`^(\d+)([kmg])$`)
-	matches := re.FindStringSubmatch(sizeStr)
-	if matches == nil {
-		return 0
-	}
-
-	num, _ := strconv.Atoi(matches[1])
-	switch matches[2] {
-	case "k":
-		return int64(num * 1024)
-	case "m":
-		return int64(num * 1024 * 1024)
-	case "g":
-		return int64(num * 1024 * 1024 * 1024)
-	default:
-		return int64(num)
-	}
+func makeProxyBuffers(proxyBuffers, proxyBufferSize, proxyBusyBufferSize string) string {
+	return commonhelpers.MakeProxyBuffers(proxyBuffers, proxyBufferSize, proxyBusyBufferSize)
 }
 
 var helperFunctions = template.FuncMap{
-	"split":                              split,
-	"trim":                               trim,
-	"contains":                           strings.Contains,
-	"hasPrefix":                          strings.HasPrefix,
-	"hasSuffix":                          strings.HasSuffix,
-	"toLower":                            strings.ToLower,
-	"toUpper":                            strings.ToUpper,
-	"replaceAll":                         strings.ReplaceAll,
-	"makeLocationPath":                   makeLocationPath,
-	"makeSecretPath":                     commonhelpers.MakeSecretPath,
-	"makeOnOffFromBool":                  commonhelpers.MakeOnOffFromBool,
-	"generateProxySetHeaders":            generateProxySetHeaders,
-	"boolToPointerBool":                  commonhelpers.BoolToPointerBool,
-	"makeResolver":                       makeResolver,
-	"makeProxyBuffersAndProxyBufferSize": makeProxyBuffersAndProxyBufferSize,
+	"split":                   split,
+	"trim":                    trim,
+	"contains":                strings.Contains,
+	"hasPrefix":               strings.HasPrefix,
+	"hasSuffix":               strings.HasSuffix,
+	"toLower":                 strings.ToLower,
+	"toUpper":                 strings.ToUpper,
+	"replaceAll":              strings.ReplaceAll,
+	"makeLocationPath":        makeLocationPath,
+	"makeSecretPath":          commonhelpers.MakeSecretPath,
+	"makeOnOffFromBool":       commonhelpers.MakeOnOffFromBool,
+	"generateProxySetHeaders": generateProxySetHeaders,
+	"boolToPointerBool":       commonhelpers.BoolToPointerBool,
+	"makeResolver":            makeResolver,
+	"makeProxyBuffers":        makeProxyBuffers,
 }
