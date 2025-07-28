@@ -18,7 +18,7 @@ permissions:
 jobs:
   scan:
     name: Fossa
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     if: ${{ github.event.repository.fork == false }}
     steps:
       - name: Checkout Repository

@@ -30,7 +30,7 @@ jobs:
   vars:
     permissions:
       contents: read
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     outputs:
       source_branch: ${{ steps.vars.outputs.source_branch }}
     steps:
@@ -47,7 +47,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [vars]
     steps:
       - name: Checkout Repository

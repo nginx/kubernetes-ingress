@@ -25,7 +25,7 @@ permissions:
 jobs:
   checks:
     name: Checks and variables
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       id-token: write
@@ -82,7 +82,7 @@ jobs:
 
   unit-tests:
     name: Unit Tests
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [checks]
     steps:
       - name: Checkout Repository
@@ -106,7 +106,7 @@ jobs:
 
   helm-tests:
     name: Helm Tests ${{ matrix.base-os }}
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [checks]
     strategy:
       fail-fast: false
@@ -198,7 +198,7 @@ jobs:
 
   setup-regression-matrix:
     name: Setup Matrix for Smoke Tests
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [checks]
     permissions:
       contents: read
@@ -217,7 +217,7 @@ jobs:
 
   regression-tests:
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} regression tests
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [checks, setup-regression-matrix]
     strategy:
       fail-fast: false
