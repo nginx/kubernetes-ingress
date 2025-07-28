@@ -178,3 +178,125 @@ func ValidateURI(uri string, options ...URIValidationOption) error {
 
 	return nil
 }
+
+// NormalizeSize converts size strings to valid format
+func NormalizeSize(sizeStr string) string {
+	bytes := ParseSize(sizeStr)
+	if bytes <= 0 {
+		return ""
+	}
+	return FormatSize(bytes)
+}
+
+// ParseSize converts size strings to bytes, autocorrecting invalid units to 'm'
+func ParseSize(sizeStr string) int64 {
+	sizeStr = strings.ToLower(strings.TrimSpace(sizeStr))
+	if sizeStr == "" {
+		return 0
+	}
+
+	// Handle plain numbers
+	if num, err := strconv.ParseInt(sizeStr, 10, 64); err == nil {
+		if num <= 0 {
+			return 0
+		}
+		return num
+	}
+
+	if len(sizeStr) < 2 {
+		return 0
+	}
+
+	numStr := sizeStr[:len(sizeStr)-1]
+	unit := sizeStr[len(sizeStr)-1]
+	num, err := strconv.ParseInt(numStr, 10, 64)
+	if err != nil || num <= 0 {
+		return 0
+	}
+
+	// Autocorrect invalid units to 'm'
+	if unit != 'k' && unit != 'm' {
+		unit = 'm'
+	}
+
+	// Convert based on unit
+	switch unit {
+	case 'k':
+		return num << 10
+	case 'm':
+		return num << 20
+	default:
+		return num << 20 // Treat as MB
+	}
+}
+
+// FormatSize converts bytes to a human-readable size string with appropriate units
+func FormatSize(bytes int64) string {
+	if bytes == 0 {
+		return "0"
+	}
+
+	// If it's >= 1MB, format as MB (round down)
+	if bytes >= (1 << 20) {
+		return fmt.Sprintf("%dm", bytes/(1<<20))
+	}
+
+	// If it's >= 1KB, format as KB (round down)
+	if bytes >= (1 << 10) {
+		return fmt.Sprintf("%dk", bytes/(1<<10))
+	}
+
+	// Otherwise return as plain bytes
+	return fmt.Sprintf("%d", bytes)
+}
+
+// ValidateNginxSize validates and normalizes nginx size format, auto-correcting invalid units to 'm'
+func ValidateNginxSize(sizeStr string) error {
+	sizeStr = strings.ToLower(strings.TrimSpace(sizeStr))
+	if sizeStr == "" {
+		return fmt.Errorf("size cannot be empty")
+	}
+
+	// Allow plain numbers
+	if _, err := strconv.ParseInt(sizeStr, 10, 64); err == nil {
+		return nil
+	}
+
+	if len(sizeStr) < 2 {
+		return fmt.Errorf("invalid size format: %s", sizeStr)
+	}
+
+	numStr, unit := sizeStr[:len(sizeStr)-1], sizeStr[len(sizeStr)-1]
+
+	// Validate the numeric part
+	if _, err := strconv.ParseInt(numStr, 10, 64); err != nil {
+		return fmt.Errorf("invalid size format: %s", sizeStr)
+	}
+
+	// Only allow k, m units - reject g and other invalid units
+	if unit != 'k' && unit != 'm' {
+		return fmt.Errorf("invalid size unit '%c': only 'k' and 'm' are allowed", unit)
+	}
+
+	return nil
+}
+
+// ValidateProxyBuffers validates and normalizes "count size" format, auto-correcting invalid units
+func ValidateProxyBuffers(proxyBuffers string) error {
+	if proxyBuffers == "" {
+		return fmt.Errorf("proxy_buffers cannot be empty")
+	}
+
+	fields := strings.Fields(strings.TrimSpace(proxyBuffers))
+	if len(fields) != 2 {
+		return fmt.Errorf("proxy_buffers must be in format 'count size', got: %s", proxyBuffers)
+	}
+
+	// Validate count
+	if count, err := strconv.Atoi(fields[0]); err != nil || count <= 0 {
+		return fmt.Errorf("invalid buffer count '%s': must be positive integer", fields[0])
+	}
+
+	// Validate size - now allows auto-correction of invalid units
+	return ValidateNginxSize(fields[1])
+}
