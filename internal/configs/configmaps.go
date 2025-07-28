@@ -356,8 +356,8 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 	}
 
 	if proxyBusyBuffersSize, exists := cfgm.Data["proxy-busy-buffers-size"]; exists {
-		normalizedProxyBusyBufferSize := validation.NormalizeSize(proxyBusyBuffersSize)
-		cfgParams.ProxyBusyBuffersSize = normalizedProxyBusyBufferSize
+		normalizedProxyBusyBuffersSize := validation.NormalizeSize(proxyBusyBuffersSize)
+		cfgParams.ProxyBusyBuffersSize = normalizedProxyBusyBuffersSize
 	}
 
 	if mainMainSnippets, exists := GetMapKeyAsStringSlice(cfgm.Data, "main-snippets", cfgm, "\n"); exists {
