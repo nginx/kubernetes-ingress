@@ -33,19 +33,19 @@ func BoolToPointerBool(b bool) *bool {
 }
 
 // MakeProxyBuffers generates nginx proxy buffer configuration with safety validations
-func MakeProxyBuffers(proxyBuffers, proxyBufferSize, proxyBusyBufferSize string) string {
+func MakeProxyBuffers(proxyBuffers, proxyBufferSize, proxyBusyBuffersSize string) string {
 	var parts []string
 
 	// Validate and normalize size inputs to prevent invalid nginx configs
 	proxyBufferSize = validation.NormalizeSize(proxyBufferSize)
-	proxyBusyBufferSize = validation.NormalizeSize(proxyBusyBufferSize)
+	proxyBusyBuffersSize = validation.NormalizeSize(proxyBusyBuffersSize)
 
 	if proxyBufferSize != "" && proxyBuffers == "" {
 		count := 4
-		if proxyBusyBufferSize != "" {
+		if proxyBusyBuffersSize != "" {
 			bufferSizeBytes := validation.ParseSize(proxyBufferSize)
 			if bufferSizeBytes > 0 { // Prevent division by zero
-				if minBuffers := int((validation.ParseSize(proxyBusyBufferSize) + bufferSizeBytes) / bufferSizeBytes); minBuffers > count {
+				if minBuffers := int((validation.ParseSize(proxyBusyBuffersSize) + bufferSizeBytes) / bufferSizeBytes); minBuffers > count {
 					count = minBuffers
 				}
 			}
@@ -62,16 +62,16 @@ func MakeProxyBuffers(proxyBuffers, proxyBufferSize, proxyBusyBufferSize string)
 
 		// If proxy_buffers was corrected and no explicit busy buffer size is set,
 		// we need to set a safe default to prevent nginx conflicts
-		if proxyBusyBufferSize == "" && originalProxyBuffers != proxyBuffers {
-			proxyBusyBufferSize = calculateSafeBusyBufferSize(proxyBuffers)
+		if proxyBusyBuffersSize == "" && originalProxyBuffers != proxyBuffers {
+			proxyBusyBuffersSize = calculateSafeBusyBufferSize(proxyBuffers)
 		}
 	}
 
 	// Add busy buffers with validation
-	if proxyBusyBufferSize != "" {
-		validatedSize := proxyBusyBufferSize
+	if proxyBusyBuffersSize != "" {
+		validatedSize := proxyBusyBuffersSize
 		if len(parts) > 0 && proxyBuffers != "" && proxyBufferSize != "" {
-			validatedSize = validateBusyBufferSize(proxyBuffers, proxyBufferSize, proxyBusyBufferSize)
+			validatedSize = validateBusyBufferSize(proxyBuffers, proxyBufferSize, proxyBusyBuffersSize)
 		}
 		parts = append(parts, fmt.Sprintf("proxy_busy_buffers_size %s", validatedSize))
 	}
@@ -125,18 +125,18 @@ func applySafetyCorrections(proxyBuffers, proxyBufferSize string) (string, strin
 
 // validateBusyBufferSize ensures proxy_busy_buffers_size meets nginx requirements
 // and gives precedence to proxy_buffer_size when determining the minimum
-func validateBusyBufferSize(proxyBuffers, proxyBufferSize, proxyBusyBufferSize string) string {
-	if proxyBusyBufferSize == "" {
+func validateBusyBufferSize(proxyBuffers, proxyBufferSize, proxyBusyBuffersSize string) string {
+	if proxyBusyBuffersSize == "" {
 		return ""
 	}
 
 	fields := strings.Fields(proxyBuffers)
 	if len(fields) < 2 {
-		return proxyBusyBufferSize
+		return proxyBusyBuffersSize
 	}
 
 	count, _ := strconv.Atoi(fields[0])
-	busySize, bufferSize, individualSize := validation.ParseSize(proxyBusyBufferSize), validation.ParseSize(proxyBufferSize), validation.ParseSize(fields[1])
+	busySize, bufferSize, individualSize := validation.ParseSize(proxyBusyBuffersSize), validation.ParseSize(proxyBufferSize), validation.ParseSize(fields[1])
 
 	// Give precedence to proxy_buffer_size - if it's larger, use it as the minimum
 	minSize := max(bufferSize, individualSize)
@@ -152,5 +152,5 @@ func validateBusyBufferSize(proxyBuffers, proxyBufferSize, proxyBusyBufferSize s
 	if maxSize > 0 && busySize >= maxSize {
 		return validation.FormatSize(maxSize)
 	}
-	return proxyBusyBufferSize
+	return proxyBusyBuffersSize
 }

@@ -248,8 +248,8 @@ func boolToInteger(b bool) int {
 	return i
 }
 
-func makeProxyBuffers(proxyBuffers, proxyBufferSize, proxyBusyBufferSize string) string {
-	return commonhelpers.MakeProxyBuffers(proxyBuffers, proxyBufferSize, proxyBusyBufferSize)
+func makeProxyBuffers(proxyBuffers, proxyBufferSize, proxyBusyBuffersSize string) string {
+	return commonhelpers.MakeProxyBuffers(proxyBuffers, proxyBufferSize, proxyBusyBuffersSize)
 }
 
 var helperFunctions = template.FuncMap{
