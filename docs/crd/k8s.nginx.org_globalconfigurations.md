@@ -15,10 +15,10 @@ The `.spec` object supports the following fields:
 
 | Field | Type | Description |
 |---|---|---|
-| `listeners` | `array` | List of configuration values. |
-| `listeners[].ipv4` | `string` | String configuration value. |
-| `listeners[].ipv6` | `string` | String configuration value. |
-| `listeners[].name` | `string` | String configuration value. |
-| `listeners[].port` | `integer` | Numeric configuration value. |
-| `listeners[].protocol` | `string` | String configuration value. |
-| `listeners[].ssl` | `boolean` | Enable or disable this feature. |
+| `listeners` | `array` | Listeners field of the GlobalConfigurationSpec resource |
+| `listeners[].ipv4` | `string` | Specifies the IPv4 address to listen on. |
+| `listeners[].ipv6` | `string` | Ipv6 addresse that NGINX will listen on. |
+| `listeners[].name` | `string` | The name of the listener. The name must be unique across all listeners. |
+| `listeners[].port` | `integer` | The port on which the listener will accept connections. |
+| `listeners[].protocol` | `string` | The protocol of the listener. For example, HTTP. |
+| `listeners[].ssl` | `boolean` | Whether the listener will be listening for SSL connections |
