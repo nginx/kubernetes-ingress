@@ -191,58 +191,67 @@ func TestValidateBusyBufferSize(t *testing.T) {
 		expected             string
 	}{
 		{
+			name:                 "All empty",
 			proxyBuffers:         "",
 			proxyBufferSize:      "",
 			proxyBusyBuffersSize: "",
 			expected:             "",
 		},
 		{
+			name:                 "No busy buffer size set",
 			proxyBuffers:         "4 16k",
 			proxyBufferSize:      "",
 			proxyBusyBuffersSize: "",
-			expected:             "4 16k",
+			expected:             "",
 		},
 		{
+			name:                 "No busy buffer size with buffer size set",
 			proxyBuffers:         "4 16k",
 			proxyBufferSize:      "8k",
 			proxyBusyBuffersSize: "",
-			expected:             "4 16k",
+			expected:             "",
 		},
 		{
+			name:                 "Valid busy buffer size within limits",
 			proxyBuffers:         "4 16k",
 			proxyBufferSize:      "",
-			proxyBusyBuffersSize: "8k",
-			expected:             "4 16k",
+			proxyBusyBuffersSize: "32k", // within (4*16k - 16k = 48k)
+			expected:             "32k",
 		},
 		{
+			name:                 "Valid busy buffer size with buffer size",
 			proxyBuffers:         "4 16k",
 			proxyBufferSize:      "8k",
-			proxyBusyBuffersSize: "12k",
-			expected:             "4 16k",
+			proxyBusyBuffersSize: "32k",
+			expected:             "32k",
 		},
 		{
+			name:                 "Valid configuration",
 			proxyBuffers:         "8 4k",
 			proxyBufferSize:      "4k",
 			proxyBusyBuffersSize: "16k",
-			expected:             "8 4k",
+			expected:             "16k",
 		},
 		{
-			proxyBuffers:         "1 2k",
+			name:                 "Busy buffer too large, gets clamped to max",
+			proxyBuffers:         "4 4k",
 			proxyBufferSize:      "",
 			proxyBusyBuffersSize: "20k", // larger than (4*4k - 4k = 12k)
-			expected:             "4 4k",
+			expected:             "12k",
 		},
 		{
-			proxyBuffers:         "1 2k",
-			proxyBufferSize:      "8k",
-			proxyBusyBuffersSize: "",
-			expected:             "2 8k",
+			name:                 "Busy buffer too small, gets adjusted to minimum",
+			proxyBuffers:         "4 8k",
+			proxyBufferSize:      "16k", // larger than individual buffer
+			proxyBusyBuffersSize: "4k",  // smaller than 16k minimum
+			expected:             "16k",
 		},
 		{
-			proxyBuffers:         "1 2k",
-			proxyBufferSize:      "8k",
-			proxyBusyBuffersSize: "16k",
-			expected:             "2 8k",
+			name:                 "Buffer size larger than individual, busy buffer gets aligned",
+			proxyBuffers:         "4 8k",
+			proxyBufferSize:      "16k",
+			proxyBusyBuffersSize: "12k", // less than buffer size but within range
+			expected:             "16k",
 		},
 	}
 

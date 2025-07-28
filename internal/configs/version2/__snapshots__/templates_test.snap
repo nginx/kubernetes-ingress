@@ -413,6 +413,7 @@ server {
         proxy_buffering on;
         proxy_buffers 8 4k;
         proxy_buffer_size 4k;
+        proxy_busy_buffers_size 8k;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
@@ -838,6 +839,7 @@ server {
         proxy_buffering on;
         proxy_buffers 8 4k;
         proxy_buffer_size 4k;
+        proxy_busy_buffers_size 8k;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
@@ -2818,6 +2820,7 @@ server {
         proxy_buffering on;
         proxy_buffers 8 4k;
         proxy_buffer_size 4k;
+        proxy_busy_buffers_size 8k;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
@@ -3220,6 +3223,7 @@ server {
         proxy_buffering on;
         proxy_buffers 8 4k;
         proxy_buffer_size 4k;
+        proxy_busy_buffers_size 8k;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
