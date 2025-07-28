@@ -473,63 +473,37 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	// generate upstreams for VirtualServer
 	for _, u := range vsEx.VirtualServer.Spec.Upstreams {
-
-		if (sslConfig == nil || !vsc.cfgParams.HTTP2) && isGRPC(u.Type) {
-			vsc.addWarningf(vsEx.VirtualServer, "gRPC cannot be configured for upstream %s. gRPC requires enabled HTTP/2 and TLS termination.", u.Name)
-		}
-
-		upstreamName := virtualServerUpstreamNamer.GetNameForUpstream(u.Name)
-		upstreamNamespace := vsEx.VirtualServer.Namespace
-		endpoints := vsc.generateEndpointsForUpstream(vsEx.VirtualServer, upstreamNamespace, u, vsEx)
-		backupEndpoints := vsc.generateBackupEndpointsForUpstream(vsEx.VirtualServer, upstreamNamespace, u, vsEx)
-
-		// isExternalNameSvc is always false for OSS
-		_, isExternalNameSvc := vsEx.ExternalNameSvcs[GenerateExternalNameSvcKey(upstreamNamespace, u.Service)]
-		ups := vsc.generateUpstream(vsEx.VirtualServer, upstreamName, u, isExternalNameSvc, endpoints, backupEndpoints)
-		upstreams = append(upstreams, ups)
-
-		u.TLS.Enable = isTLSEnabled(u, vsc.spiffeCerts, vsEx.VirtualServer.Spec.InternalRoute)
-		crUpstreams[upstreamName] = u
-
-		if hc := generateHealthCheck(u, upstreamName, vsc.cfgParams); hc != nil {
-			healthChecks = append(healthChecks, *hc)
-			if u.HealthCheck.StatusMatch != "" {
-				statusMatches = append(
-					statusMatches,
-					generateUpstreamStatusMatch(upstreamName, u.HealthCheck.StatusMatch),
-				)
-			}
-		}
+		upstreams, healthChecks, statusMatches = generateUpstreams(
+			sslConfig,
+			vsc,
+			u,
+			vsEx.VirtualServer,
+			vsEx.VirtualServer.Namespace,
+			virtualServerUpstreamNamer,
+			vsEx,
+			upstreams,
+			crUpstreams,
+			healthChecks,
+			statusMatches,
+		)
 	}
 	// generate upstreams for each VirtualServerRoute
 	for _, vsr := range vsEx.VirtualServerRoutes {
 		upstreamNamer := NewUpstreamNamerForVirtualServerRoute(vsEx.VirtualServer, vsr)
 		for _, u := range vsr.Spec.Upstreams {
-			if (sslConfig == nil || !vsc.cfgParams.HTTP2) && isGRPC(u.Type) {
-				vsc.addWarningf(vsr, "gRPC cannot be configured for upstream %s. gRPC requires enabled HTTP/2 and TLS termination", u.Name)
-			}
-
-			upstreamName := upstreamNamer.GetNameForUpstream(u.Name)
-			upstreamNamespace := vsr.Namespace
-			endpoints := vsc.generateEndpointsForUpstream(vsr, upstreamNamespace, u, vsEx)
-			backup := vsc.generateBackupEndpointsForUpstream(vsEx.VirtualServer, upstreamNamespace, u, vsEx)
-
-			// isExternalNameSvc is always false for OSS
-			_, isExternalNameSvc := vsEx.ExternalNameSvcs[GenerateExternalNameSvcKey(upstreamNamespace, u.Service)]
-			ups := vsc.generateUpstream(vsr, upstreamName, u, isExternalNameSvc, endpoints, backup)
-			upstreams = append(upstreams, ups)
-			u.TLS.Enable = isTLSEnabled(u, vsc.spiffeCerts, vsEx.VirtualServer.Spec.InternalRoute)
-			crUpstreams[upstreamName] = u
-
-			if hc := generateHealthCheck(u, upstreamName, vsc.cfgParams); hc != nil {
-				healthChecks = append(healthChecks, *hc)
-				if u.HealthCheck.StatusMatch != "" {
-					statusMatches = append(
-						statusMatches,
-						generateUpstreamStatusMatch(upstreamName, u.HealthCheck.StatusMatch),
-					)
-				}
-			}
+			upstreams, healthChecks, statusMatches = generateUpstreams(
+				sslConfig,
+				vsc,
+				u,
+				vsr,
+				vsr.Namespace,
+				upstreamNamer,
+				vsEx,
+				upstreams,
+				crUpstreams,
+				healthChecks,
+				statusMatches,
+			)
 		}
 	}
 
@@ -552,11 +526,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	// generates config for VirtualServer routes
 	for _, r := range vsEx.VirtualServer.Spec.Routes {
-		errorPages := errorPageDetails{
-			pages: r.ErrorPages,
-			index: len(errorPageLocations),
-			owner: vsEx.VirtualServer,
-		}
+		errorPages := generateErrorPageDetails(r.ErrorPages, errorPageLocations, vsEx.VirtualServer)
 		errorPageLocations = append(errorPageLocations, generateErrorPageLocations(errorPages.index, errorPages.pages)...)
 
 		// ignore routes that reference VirtualServerRoute
@@ -700,11 +670,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		isVSR := true
 		upstreamNamer := NewUpstreamNamerForVirtualServerRoute(vsEx.VirtualServer, vsr)
 		for _, r := range vsr.Spec.Subroutes {
-			errorPages := errorPageDetails{
-				pages: r.ErrorPages,
-				index: len(errorPageLocations),
-				owner: vsr,
-			}
+			errorPages := generateErrorPageDetails(r.ErrorPages, errorPageLocations, vsr)
 			errorPageLocations = append(errorPageLocations, generateErrorPageLocations(errorPages.index, errorPages.pages)...)
 			vsrNamespaceName := fmt.Sprintf("%v/%v", vsr.Namespace, vsr.Name)
 			// use the VirtualServer error pages if the route does not define any
@@ -928,6 +894,46 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	}
 
 	return vsCfg, vsc.warnings
+}
+
+func generateUpstreams(
+	sslConfig *version2.SSL,
+	vsc *virtualServerConfigurator,
+	u conf_v1.Upstream,
+	owner runtime.Object,
+	ownerNamespace string,
+	upstreamNamer *upstreamNamer,
+	vsEx *VirtualServerEx,
+	upstreams []version2.Upstream,
+	crUpstreams map[string]conf_v1.Upstream,
+	healthChecks []version2.HealthCheck,
+	statusMatches []version2.StatusMatch,
+) ([]version2.Upstream, []version2.HealthCheck, []version2.StatusMatch) {
+	if (sslConfig == nil || !vsc.cfgParams.HTTP2) && isGRPC(u.Type) {
+		vsc.addWarningf(owner, "gRPC cannot be configured for upstream %s. gRPC requires enabled HTTP/2 and TLS termination", u.Name)
+	}
+
+	upstreamName := upstreamNamer.GetNameForUpstream(u.Name)
+	endpoints := vsc.generateEndpointsForUpstream(owner, ownerNamespace, u, vsEx)
+	backup := vsc.generateBackupEndpointsForUpstream(vsEx.VirtualServer, ownerNamespace, u, vsEx)
+
+	// isExternalNameSvc is always false for OSS
+	_, isExternalNameSvc := vsEx.ExternalNameSvcs[GenerateExternalNameSvcKey(ownerNamespace, u.Service)]
+	ups := vsc.generateUpstream(owner, upstreamName, u, isExternalNameSvc, endpoints, backup)
+	upstreams = append(upstreams, ups)
+	u.TLS.Enable = isTLSEnabled(u, vsc.spiffeCerts, vsEx.VirtualServer.Spec.InternalRoute)
+	crUpstreams[upstreamName] = u
+
+	if hc := generateHealthCheck(u, upstreamName, vsc.cfgParams); hc != nil {
+		healthChecks = append(healthChecks, *hc)
+		if u.HealthCheck.StatusMatch != "" {
+			statusMatches = append(
+				statusMatches,
+				generateUpstreamStatusMatch(upstreamName, u.HealthCheck.StatusMatch),
+			)
+		}
+	}
+	return upstreams, healthChecks, statusMatches
 }
 
 // rateLimit hold the configuration for the ratelimiting Policy
@@ -1169,10 +1175,12 @@ func (p *policiesCfg) addJWTAuthConfig(
 		uri, _ := url.Parse(jwtAuth.JwksURI)
 
 		JwksURI := &version2.JwksURI{
-			JwksScheme: uri.Scheme,
-			JwksHost:   uri.Hostname(),
-			JwksPort:   uri.Port(),
-			JwksPath:   uri.Path,
+			JwksScheme:     uri.Scheme,
+			JwksHost:       uri.Hostname(),
+			JwksPort:       uri.Port(),
+			JwksPath:       uri.Path,
+			JwksSNIName:    jwtAuth.SNIName,
+			JwksSNIEnabled: jwtAuth.SNIEnabled,
 		}
 
 		p.JWTAuth.Auth = &version2.JWTAuth{
@@ -3263,6 +3271,14 @@ func generateErrorPages(errPageIndex int, errorPages []conf_v1.ErrorPage) []vers
 	}
 
 	return ePages
+}
+
+func generateErrorPageDetails(errorPages []conf_v1.ErrorPage, errorPageLocations []version2.ErrorPageLocation, owner runtime.Object) errorPageDetails {
+	return errorPageDetails{
+		pages: errorPages,
+		index: len(errorPageLocations),
+		owner: owner,
+	}
 }
 
 func generateErrorPageLocations(errPageIndex int, errorPages []conf_v1.ErrorPage) []version2.ErrorPageLocation {
