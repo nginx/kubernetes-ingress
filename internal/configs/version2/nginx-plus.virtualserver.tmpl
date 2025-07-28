@@ -670,11 +670,15 @@ server {
             {{- end }}
 
         proxy_buffering {{ if $l.ProxyBuffering }}on{{ else }}off{{ end }};
-            {{- if $l.ProxyBuffers }}
-        proxy_buffers {{ $l.ProxyBuffers }};
-            {{- end }}
-            {{- if $l.ProxyBufferSize }}
-        {{ $proxyOrGRPC }}_buffer_size {{ $l.ProxyBufferSize }};
+            {{- if not $l.GRPCPass }}
+                {{- $proxyBuffersConfig := makeProxyBuffers $l.ProxyBuffers $l.ProxyBufferSize $l.ProxyBusyBuffersSize }}
+                {{- if $proxyBuffersConfig }}
+        {{ $proxyBuffersConfig }}
+                {{- end }}
+            {{- else }}
+                {{- if $l.ProxyBufferSize }}
+        grpc_buffer_size {{ $l.ProxyBufferSize }};
+                {{- end }}
             {{- end }}
             {{- if not $l.GRPCPass }}
         proxy_http_version 1.1;

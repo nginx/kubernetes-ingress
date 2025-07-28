@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/nginx/kubernetes-ingress/internal/validation"
 )
 
 // MakeSecretPath will return the path to the secret with the base secrets
@@ -34,11 +36,18 @@ func BoolToPointerBool(b bool) *bool {
 func MakeProxyBuffers(proxyBuffers, proxyBufferSize, proxyBusyBufferSize string) string {
 	var parts []string
 
+	// Validate and normalize size inputs to prevent invalid nginx configs
+	proxyBufferSize = validation.NormalizeSize(proxyBufferSize)
+	proxyBusyBufferSize = validation.NormalizeSize(proxyBusyBufferSize)
+
 	if proxyBufferSize != "" && proxyBuffers == "" {
 		count := 4
 		if proxyBusyBufferSize != "" {
-			if minBuffers := int((ParseSize(proxyBusyBufferSize) + ParseSize(proxyBufferSize)) / ParseSize(proxyBufferSize)); minBuffers > count {
-				count = minBuffers
+			bufferSizeBytes := validation.ParseSize(proxyBufferSize)
+			if bufferSizeBytes > 0 { // Prevent division by zero
+				if minBuffers := int((validation.ParseSize(proxyBusyBufferSize) + bufferSizeBytes) / bufferSizeBytes); minBuffers > count {
+					count = minBuffers
+				}
 			}
 		}
 		proxyBuffers = fmt.Sprintf("%d %s", count, proxyBufferSize)
@@ -59,7 +68,6 @@ func MakeProxyBuffers(proxyBuffers, proxyBufferSize, proxyBusyBufferSize string)
 	}
 
 	// Add busy buffers with validation
-	// proxy_busy_buffers_size must be equal to or greater than the maximum of the value of proxy_buffer_size and one of the poxy_buffers
 	if proxyBusyBufferSize != "" {
 		validatedSize := proxyBusyBufferSize
 		if len(parts) > 0 && proxyBuffers != "" && proxyBufferSize != "" {
@@ -79,11 +87,11 @@ func calculateSafeBusyBufferSize(proxyBuffers string) string {
 	fields := strings.Fields(proxyBuffers)
 	if len(fields) >= 2 {
 		count, _ := strconv.Atoi(fields[0])
-		individualSize := ParseSize(fields[1])
+		individualSize := validation.ParseSize(fields[1])
 		// Set busy buffer size to a safe value: max allowed is (count * size - size)
 		safeSize := int64(count-1) * individualSize
 		if safeSize > 0 {
-			return FormatSize(safeSize)
+			return validation.FormatSize(safeSize)
 		}
 	}
 	return ""
@@ -103,7 +111,12 @@ func applySafetyCorrections(proxyBuffers, proxyBufferSize string) (string, strin
 	}
 	if proxyBufferSize == "" {
 		proxyBufferSize = fields[1]
-	} else if ParseSize(proxyBufferSize) > ParseSize(fields[1]) {
+	} else if validation.ParseSize(proxyBufferSize) > validation.ParseSize(fields[1]) {
+		// Don't allow individual buffers larger than 1m to prevent nginx issues
+		bufferSizeBytes := validation.ParseSize(proxyBufferSize)
+		if bufferSizeBytes > (1 << 20) { // 1MB limit
+			return proxyBuffers, proxyBufferSize
+		}
 		proxyBuffers = fmt.Sprintf("%d %s", count, proxyBufferSize)
 	}
 
@@ -111,6 +124,7 @@ func applySafetyCorrections(proxyBuffers, proxyBufferSize string) (string, strin
 }
 
 // validateBusyBufferSize ensures proxy_busy_buffers_size meets nginx requirements
+// and gives precedence to proxy_buffer_size when determining the minimum
 func validateBusyBufferSize(proxyBuffers, proxyBufferSize, proxyBusyBufferSize string) string {
 	if proxyBusyBufferSize == "" {
 		return ""
@@ -122,60 +136,21 @@ func validateBusyBufferSize(proxyBuffers, proxyBufferSize, proxyBusyBufferSize s
 	}
 
 	count, _ := strconv.Atoi(fields[0])
-	busySize, bufferSize, individualSize := ParseSize(proxyBusyBufferSize), ParseSize(proxyBufferSize), ParseSize(fields[1])
+	busySize, bufferSize, individualSize := validation.ParseSize(proxyBusyBufferSize), validation.ParseSize(proxyBufferSize), validation.ParseSize(fields[1])
 
+	// Give precedence to proxy_buffer_size - if it's larger, use it as the minimum
 	minSize := max(bufferSize, individualSize)
 	maxSize := int64(count)*individualSize - individualSize
 
+	// If proxy_buffer_size is significantly larger, prefer to align busy buffer with it
+	if bufferSize > individualSize && busySize < bufferSize && bufferSize <= maxSize {
+		return validation.FormatSize(bufferSize)
+	}
 	if busySize < minSize {
-		return FormatSize(minSize)
+		return validation.FormatSize(minSize)
 	}
 	if maxSize > 0 && busySize >= maxSize {
-		return FormatSize(maxSize)
+		return validation.FormatSize(maxSize)
 	}
 	return proxyBusyBufferSize
-}
-
-// ParseSize converts size strings to bytes
-func ParseSize(sizeStr string) int64 {
-	sizeStr = strings.ToLower(strings.TrimSpace(sizeStr))
-	if sizeStr == "" {
-		return 0
-	}
-
-	// Handle plain numbers
-	if num, err := strconv.ParseInt(sizeStr, 10, 64); err == nil {
-		return num
-	}
-
-	// Parse with units
-	if len(sizeStr) < 2 {
-		return 0
-	}
-
-	unit := sizeStr[len(sizeStr)-1]
-	if num, err := strconv.ParseInt(sizeStr[:len(sizeStr)-1], 10, 64); err == nil {
-		switch unit {
-		case 'k':
-			return num << 10
-		case 'm':
-			return num << 20
-		case 'g':
-			return num << 30
-		}
-	}
-	return 0
-}
-
-// FormatSize converts bytes to appropriate size string
-func FormatSize(bytes int64) string {
-	for _, unit := range []struct {
-		size   int64
-		suffix string
-	}{{1 << 30, "g"}, {1 << 20, "m"}, {1 << 10, "k"}} {
-		if bytes >= unit.size {
-			return fmt.Sprintf("%d%s", bytes/unit.size, unit.suffix)
-		}
-	}
-	return fmt.Sprintf("%d", bytes)
 }

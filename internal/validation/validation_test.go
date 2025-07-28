@@ -205,3 +205,211 @@ func TestValidateURI(t *testing.T) {
 		})
 	}
 }
+
+func TestParseSize(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		input    string
+		expected int64
+	}{
+		{"", 0},
+		{"1024", 1024},
+		{"4k", 4096},
+		{"2m", 2097152},
+		{"1g", 1048576}, // Now returns 1MB fallback instead of 1GB
+		{"4K", 4096},    // case insensitive
+		{"invalid", 0},
+		{"  8k  ", 8192}, // with whitespace
+		{"4kb", 0},
+		{"8x", 8388608}, // Invalid unit returns same value as MB
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.input, func(t *testing.T) {
+			t.Parallel()
+
+			got := ParseSize(tc.input)
+			if got != tc.expected {
+				t.Errorf("ParseSize(%q) = %d, expected %d", tc.input, got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestFormatSize(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		input    int64
+		expected string
+	}{
+		{0, "0"},
+		{1024, "1k"},
+		{4096, "4k"},
+		{2097152, "2m"},
+		{1073741824, "1024m"}, // Now formats as 1024m instead of 1g (no g support)
+		{1536, "1k"},          // rounds down
+		{500, "500"},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.expected, func(t *testing.T) {
+			t.Parallel()
+
+			got := FormatSize(tc.input)
+			if got != tc.expected {
+				t.Errorf("FormatSize(%d) = %q, expected %q", tc.input, got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestValidateNginxSize(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{
+			name:    "valid plain number",
+			input:   "1024",
+			wantErr: false,
+		},
+		{
+			name:    "valid k unit",
+			input:   "4k",
+			wantErr: false,
+		},
+		{
+			name:    "valid m unit",
+			input:   "2m",
+			wantErr: false,
+		},
+		{
+			name:    "invalid g unit",
+			input:   "1g",
+			wantErr: true,
+		},
+		{
+			name:    "invalid multi-letter unit",
+			input:   "4kb",
+			wantErr: true,
+		},
+		{
+			name:    "empty string",
+			input:   "",
+			wantErr: true,
+		},
+		{
+			name:    "invalid format",
+			input:   "invalid",
+			wantErr: true,
+		},
+		{
+			name:    "case insensitive",
+			input:   "4K",
+			wantErr: false,
+		},
+		{
+			name:    "with whitespace",
+			input:   "  8k  ",
+			wantErr: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := ValidateNginxSize(tc.input)
+			if tc.wantErr && err == nil {
+				t.Errorf("ValidateNginxSize(%q) expected error, got nil", tc.input)
+			}
+			if !tc.wantErr && err != nil {
+				t.Errorf("ValidateNginxSize(%q) expected no error, got %v", tc.input, err)
+			}
+		})
+	}
+}
+
+func TestValidateProxyBuffers(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{
+			name:    "valid format",
+			input:   "8 4k",
+			wantErr: false,
+		},
+		{
+			name:    "valid with m unit",
+			input:   "4 2m",
+			wantErr: false,
+		},
+		{
+			name:    "invalid format - missing size",
+			input:   "8",
+			wantErr: true,
+		},
+		{
+			name:    "invalid format - too many parts",
+			input:   "8 4k extra",
+			wantErr: true,
+		},
+		{
+			name:    "invalid count - zero",
+			input:   "0 4k",
+			wantErr: true,
+		},
+		{
+			name:    "invalid count - negative",
+			input:   "-1 4k",
+			wantErr: true,
+		},
+		{
+			name:    "invalid count - non-numeric",
+			input:   "abc 4k",
+			wantErr: true,
+		},
+		{
+			name:    "invalid size - g unit",
+			input:   "8 1g",
+			wantErr: true,
+		},
+		{
+			name:    "empty string",
+			input:   "",
+			wantErr: true,
+		},
+		{
+			name:    "with whitespace",
+			input:   "  8 4k  ",
+			wantErr: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := ValidateProxyBuffers(tc.input)
+			if tc.wantErr && err == nil {
+				t.Errorf("ValidateProxyBuffers(%q) expected error, got nil", tc.input)
+			}
+			if !tc.wantErr && err != nil {
+				t.Errorf("ValidateProxyBuffers(%q) expected no error, got %v", tc.input, err)
+			}
+		})
+	}
+}
