@@ -1,0 +1,175 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.17.3
+  name: transportservers.k8s.nginx.org
+spec:
+  group: k8s.nginx.org
+  names:
+    kind: TransportServer
+    listKind: TransportServerList
+    plural: transportservers
+    shortNames:
+    - ts
+    singular: transportserver
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: Current state of the TransportServer. If the resource has a valid
+        status, it means it has been validated and accepted by the Ingress Controller.
+      jsonPath: .status.state
+      name: State
+      type: string
+    - jsonPath: .status.reason
+      name: Reason
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: TransportServer defines the TransportServer resource.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: TransportServerSpec is the spec of the TransportServer resource.
+            properties:
+              action:
+                description: TransportServerAction defines an action.
+                properties:
+                  pass:
+                    type: string
+                type: object
+              host:
+                type: string
+              ingressClassName:
+                type: string
+              listener:
+                description: TransportServerListener defines a listener for a TransportServer.
+                properties:
+                  name:
+                    type: string
+                  protocol:
+                    type: string
+                type: object
+              serverSnippets:
+                type: string
+              sessionParameters:
+                description: SessionParameters defines session parameters.
+                properties:
+                  timeout:
+                    type: string
+                type: object
+              streamSnippets:
+                type: string
+              tls:
+                description: TransportServerTLS defines TransportServerTLS configuration
+                  for a TransportServer.
+                properties:
+                  secret:
+                    type: string
+                type: object
+              upstreamParameters:
+                description: UpstreamParameters defines parameters for an upstream.
+                properties:
+                  connectTimeout:
+                    type: string
+                  nextUpstream:
+                    type: boolean
+                  nextUpstreamTimeout:
+                    type: string
+                  nextUpstreamTries:
+                    type: integer
+                  udpRequests:
+                    type: integer
+                  udpResponses:
+                    type: integer
+                type: object
+              upstreams:
+                items:
+                  description: TransportServerUpstream defines an upstream.
+                  properties:
+                    backup:
+                      type: string
+                    backupPort:
+                      type: integer
+                    failTimeout:
+                      type: string
+                    healthCheck:
+                      description: TransportServerHealthCheck defines the parameters
+                        for active Upstream HealthChecks.
+                      properties:
+                        enable:
+                          type: boolean
+                        fails:
+                          type: integer
+                        interval:
+                          type: string
+                        jitter:
+                          type: string
+                        match:
+                          description: TransportServerMatch defines the parameters
+                            of a custom health check.
+                          properties:
+                            expect:
+                              type: string
+                            send:
+                              type: string
+                          type: object
+                        passes:
+                          type: integer
+                        port:
+                          type: integer
+                        timeout:
+                          type: string
+                      type: object
+                    loadBalancingMethod:
+                      type: string
+                    maxConns:
+                      type: integer
+                    maxFails:
+                      type: integer
+                    name:
+                      type: string
+                    port:
+                      type: integer
+                    service:
+                      type: string
+                  type: object
+                type: array
+            type: object
+          status:
+            description: TransportServerStatus defines the status for the TransportServer
+              resource.
+            properties:
+              message:
+                type: string
+              reason:
+                type: string
+              state:
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
