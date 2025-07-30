@@ -32,6 +32,54 @@ func BoolToPointerBool(b bool) *bool {
 	return &b
 }
 
+// capBufferLimits applies reasonable limits to buffer configurations to prevent impossible nginx configurations
+func capBufferLimits(bufferSize string, bufferCount int) (string, int) {
+	const maxReasonableBufferSize = 1000 * 1024 * 1024 // 1000MB in bytes
+	const maxReasonableBufferCount = 1024
+	const minReasonableBufferCount = 2
+
+	cappedSize := bufferSize
+	cappedCount := bufferCount
+
+	// Cap buffer size
+	if bufferSize != "" {
+		bufferSizeBytes := validation.ParseSize(bufferSize)
+		if bufferSizeBytes > maxReasonableBufferSize {
+			cappedSize = validation.FormatSize(maxReasonableBufferSize)
+		}
+	}
+
+	// Cap buffer count
+	if bufferCount > maxReasonableBufferCount {
+		cappedCount = maxReasonableBufferCount
+	} else if bufferCount < minReasonableBufferCount {
+		cappedCount = minReasonableBufferCount
+	}
+
+	return cappedSize, cappedCount
+}
+
+// addBusyBufferSizeConfig manages busy buffer size configuration and adds it to the parts slice
+func addBusyBufferSizeConfig(parts []string, proxyBuffers, proxyBufferSize, proxyBusyBuffersSize string) []string {
+	// Always ensure we have a valid busy buffer size when we have any buffer configuration
+	if len(parts) > 0 && proxyBuffers != "" {
+		if proxyBusyBuffersSize == "" {
+			proxyBusyBuffersSize = calculateSafeBusyBufferSize(proxyBuffers, proxyBufferSize)
+		} else {
+			proxyBusyBuffersSize = validateBusyBufferSize(proxyBuffers, proxyBufferSize, proxyBusyBuffersSize)
+		}
+
+		if proxyBusyBuffersSize != "" {
+			parts = append(parts, fmt.Sprintf("proxy_busy_buffers_size %s", proxyBusyBuffersSize))
+		}
+	} else if proxyBusyBuffersSize != "" {
+		// Handle case where only busy buffer size is provided without buffer configuration
+		parts = append(parts, fmt.Sprintf("proxy_busy_buffers_size %s", proxyBusyBuffersSize))
+	}
+
+	return parts
+}
+
 // MakeProxyBuffers generates nginx proxy buffer configuration with validation
 func MakeProxyBuffers(proxyBuffers, proxyBufferSize, proxyBusyBuffersSize string) string {
 	var parts []string
@@ -39,6 +87,7 @@ func MakeProxyBuffers(proxyBuffers, proxyBufferSize, proxyBusyBuffersSize string
 	proxyBufferSize = validation.NormalizeBufferSize(proxyBufferSize)
 	proxyBusyBuffersSize = validation.NormalizeBufferSize(proxyBusyBuffersSize)
 
+	// Apply capping limits to buffer size
 	proxyBufferSize, _ = capBufferLimits(proxyBufferSize, 0)
 
 	if proxyBufferSize != "" && proxyBuffers == "" {
@@ -75,6 +124,7 @@ func MakeProxyBuffers(proxyBuffers, proxyBufferSize, proxyBusyBuffersSize string
 	return strings.Join(parts, ";\n\t\t") + ";"
 }
 
+// defaultBusyBufferSize calculates a default busy buffer size when proxy_buffers is set
 func defaultBusyBufferSize(proxyBuffers string) string {
 	fields := strings.Fields(proxyBuffers)
 	if len(fields) >= 2 {
@@ -93,7 +143,7 @@ func correctBufferConfig(proxyBuffers, proxyBufferSize string) (string, string) 
 
 	count, _ := strconv.Atoi(fields[0])
 
-	// Capping buffer count and individual buffer size
+	// Apply capping limits to buffer count and individual buffer size
 	fields[1], count = capBufferLimits(fields[1], count)
 	proxyBuffers = fmt.Sprintf("%d %s", count, fields[1])
 
@@ -105,6 +155,7 @@ func correctBufferConfig(proxyBuffers, proxyBufferSize string) (string, string) 
 
 		maxPossibleBusySize := int64(count)*individualSizeBytes - individualSizeBytes
 		if bufferSizeBytes >= maxPossibleBusySize {
+			// Cap to half of max possible to ensure valid configuration
 			cappedSize := maxPossibleBusySize / 2
 			if cappedSize < individualSizeBytes {
 				cappedSize = individualSizeBytes
@@ -118,110 +169,93 @@ func correctBufferConfig(proxyBuffers, proxyBufferSize string) (string, string) 
 	return proxyBuffers, proxyBufferSize
 }
 
-// capBufferLimits applies limits to buffer configurations to prevent issues
-func capBufferLimits(bufferSize string, bufferCount int) (string, int) {
-	const maxReasonableBufferSize = 1000 * 1024 * 1024 // 1000MB in bytes
-	const maxReasonableBufferCount = 1024
-	const minReasonableBufferCount = 2
-
-	cappedSize := bufferSize
-	cappedCount := bufferCount
-
-	// Cap buffer size
-	if bufferSize != "" {
-		bufferSizeBytes := validation.ParseSize(bufferSize)
-		if bufferSizeBytes > maxReasonableBufferSize {
-			cappedSize = validation.FormatSize(maxReasonableBufferSize)
-		}
-	}
-
-	// Cap buffer count
-	if bufferCount > maxReasonableBufferCount {
-		cappedCount = maxReasonableBufferCount
-	} else if bufferCount < minReasonableBufferCount {
-		cappedCount = minReasonableBufferCount
-	}
-
-	return cappedSize, cappedCount
-}
-
-// addBusyBufferSizeConfig manages busy buffer size configuration and adds it to the parts slice
-func addBusyBufferSizeConfig(parts []string, proxyBuffers, proxyBufferSize, proxyBusyBuffersSize string) []string {
-	// Always ensure we have a valid busy buffer size when we have any buffer configuration
-	if len(parts) > 0 && proxyBuffers != "" {
-		if proxyBusyBuffersSize == "" {
-			proxyBusyBuffersSize = processBusyBufferSize(proxyBuffers, proxyBufferSize, "")
-		} else {
-			proxyBusyBuffersSize = processBusyBufferSize(proxyBuffers, proxyBufferSize, proxyBusyBuffersSize)
-		}
-
-		if proxyBusyBuffersSize != "" {
-			parts = append(parts, fmt.Sprintf("proxy_busy_buffers_size %s", proxyBusyBuffersSize))
-		}
-	} else if proxyBusyBuffersSize != "" {
-		// Handle case where only busy buffer size is provided without buffer configuration
-		parts = append(parts, fmt.Sprintf("proxy_busy_buffers_size %s", proxyBusyBuffersSize))
-	}
-
-	return parts
-}
-
-// processBusyBufferSize handles both validation of busy buffer size
-// If proxyBusyBuffersSize is empty, it calculates a safe value
-// If proxyBusyBuffersSize is provided, it validates and corrects it if needed
-func processBusyBufferSize(proxyBuffers, proxyBufferSize, proxyBusyBuffersSize string) string {
+// calculateSafeBusyBufferSize calculates a safe busy buffer size based on proxy_buffers and proxy_buffer_size
+func calculateSafeBusyBufferSize(proxyBuffers, proxyBufferSize string) string {
 	fields := strings.Fields(proxyBuffers)
 	if len(fields) < 2 {
-		if proxyBusyBuffersSize == "" {
-			return ""
-		}
-		return proxyBusyBuffersSize
+		return ""
 	}
 
 	count, _ := strconv.Atoi(fields[0])
 	individualSize := validation.ParseSize(fields[1])
-
-	if proxyBusyBuffersSize == "" {
-		proxyBufferSize, _ = capBufferLimits(proxyBufferSize, 0)
-	}
+	proxyBufferSize, _ = capBufferLimits(proxyBufferSize, 0)
 	bufferSize := validation.ParseSize(proxyBufferSize)
 
 	maxSize := int64(count)*individualSize - individualSize
+
 	minSize := individualSize
 	if bufferSize > minSize {
 		minSize = bufferSize
 	}
 
+	// If the configuration is impossible (minSize >= maxSize), we need to fix it
 	if maxSize <= 0 || minSize >= maxSize {
-		safeSize := individualSize
 		if maxSize > individualSize {
-			safeSize = maxSize - 1024 // Leave 1k margin for safety
+			safeSize := maxSize - 1024 // Leave 1k margin for safety
 			if safeSize < individualSize {
 				safeSize = individualSize
 			}
+			return validation.FormatSize(safeSize)
 		}
-		return validation.FormatSize(safeSize)
+		return validation.FormatSize(individualSize)
 	}
 
-	// If no busy buffer size provided, calculate a safe one
+	// proxy_buffer_size + (2 * individual_buffer_size)
+	recommendedSize := minSize + 2*individualSize
+
+	if recommendedSize >= maxSize {
+		return validation.FormatSize(minSize)
+	}
+
+	return validation.FormatSize(recommendedSize)
+}
+
+// validateBusyBufferSize ensures proxy_busy_buffers_size meets nginx requirements
+// and gives precedence to proxy_buffer_size when determining the minimum
+func validateBusyBufferSize(proxyBuffers, proxyBufferSize, proxyBusyBuffersSize string) string {
 	if proxyBusyBuffersSize == "" {
-		// proxy_buffer_size + (2 * individual_buffer_size)
-		recommendedSize := minSize + 2*individualSize
-		if recommendedSize >= maxSize {
-			return validation.FormatSize(minSize)
-		}
-		return validation.FormatSize(recommendedSize)
+		return ""
 	}
 
-	busySize := validation.ParseSize(proxyBusyBuffersSize)
+	fields := strings.Fields(proxyBuffers)
+	if len(fields) < 2 {
+		return proxyBusyBuffersSize
+	}
 
+	count, _ := strconv.Atoi(fields[0])
+	busySize := validation.ParseSize(proxyBusyBuffersSize)
+	bufferSize := validation.ParseSize(proxyBufferSize)
+	individualSize := validation.ParseSize(fields[1])
+
+	maxSize := int64(count)*individualSize - individualSize
+
+	minSize := individualSize
+	if bufferSize > minSize {
+		minSize = bufferSize
+	}
+
+	// If the configuration is impossible (minSize >= maxSize), we need to fix it
+	if maxSize <= 0 || minSize >= maxSize {
+		if maxSize > individualSize {
+			safeSize := maxSize - 1024 // Leave 1k margin for safety
+			if safeSize < individualSize {
+				safeSize = individualSize
+			}
+			return validation.FormatSize(safeSize)
+		}
+		return validation.FormatSize(individualSize)
+	}
+
+	// If busy buffer is too large, cap it at the exact maximum allowed value
 	if busySize >= maxSize {
 		return validation.FormatSize(maxSize)
 	}
 
 	if busySize < minSize {
+		if minSize < maxSize {
+			return validation.FormatSize(minSize)
+		}
 		return validation.FormatSize(minSize)
 	}
-
 	return proxyBusyBuffersSize
 }

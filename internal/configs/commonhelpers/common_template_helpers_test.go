@@ -245,13 +245,13 @@ func TestValidateBusyBufferSize(t *testing.T) {
 		{
 			name:         "No busy buffer size set",
 			proxyBuffers: "4 16k",
-			expected:     "16k",
+			expected:     "",
 		},
 		{
 			name:            "No busy buffer size with buffer size set",
 			proxyBuffers:    "4 16k",
 			proxyBufferSize: "8k",
-			expected:        "16k",
+			expected:        "",
 		},
 		{
 			name:                 "Valid busy buffer size within limits",
@@ -300,7 +300,7 @@ func TestValidateBusyBufferSize(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := processBusyBufferSize(tc.proxyBuffers, tc.proxyBufferSize, tc.proxyBusyBuffersSize)
+			got := validateBusyBufferSize(tc.proxyBuffers, tc.proxyBufferSize, tc.proxyBusyBuffersSize)
 
 			if got != tc.expected {
 				t.Errorf("Input: buffers=%q, bufferSize=%q, busyBufferSize=%q\nGot:      %q\nExpected: %q",
