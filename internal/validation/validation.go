@@ -195,7 +195,6 @@ func ParseSize(sizeStr string) int64 {
 		return 0
 	}
 
-	// Handle plain numbers
 	if num, err := strconv.ParseInt(sizeStr, 10, 64); err == nil {
 		if num <= 0 {
 			return 0
@@ -219,7 +218,6 @@ func ParseSize(sizeStr string) int64 {
 		unit = 'm'
 	}
 
-	// Convert based on unit
 	switch unit {
 	case 'k':
 		return num << 10
@@ -230,73 +228,30 @@ func ParseSize(sizeStr string) int64 {
 	}
 }
 
-// FormatSize converts bytes to a human-readable size string with appropriate units
+// FormatSize converts bytes to human-readable size string
 func FormatSize(bytes int64) string {
 	if bytes == 0 {
 		return "0"
 	}
 
-	// If it's >= 1MB, format as MB (round down)
 	if bytes >= (1 << 20) {
 		return fmt.Sprintf("%dm", bytes/(1<<20))
 	}
 
-	// If it's >= 1KB, format as KB (round down)
 	if bytes >= (1 << 10) {
 		return fmt.Sprintf("%dk", bytes/(1<<10))
 	}
 
-	// Otherwise return as plain bytes
 	return fmt.Sprintf("%d", bytes)
 }
 
-// ValidateNginxSize validates and normalizes nginx size format, auto-correcting invalid units to 'm'
-func ValidateNginxSize(sizeStr string) error {
-	sizeStr = strings.ToLower(strings.TrimSpace(sizeStr))
-	if sizeStr == "" {
-		return fmt.Errorf("size cannot be empty")
+// NormalizeBufferSize handles buffer size values has the wrong format eg input "2 1k", returns "1k"
+func NormalizeBufferSize(sizeStr string) string {
+	fields := strings.Fields(strings.TrimSpace(sizeStr))
+	if len(fields) == 2 {
+		if _, err := strconv.Atoi(fields[0]); err == nil {
+			sizeStr = fields[1]
+		}
 	}
-
-	// Allow plain numbers
-	if _, err := strconv.ParseInt(sizeStr, 10, 64); err == nil {
-		return nil
-	}
-
-	if len(sizeStr) < 2 {
-		return fmt.Errorf("invalid size format: %s", sizeStr)
-	}
-
-	numStr, unit := sizeStr[:len(sizeStr)-1], sizeStr[len(sizeStr)-1]
-
-	// Validate the numeric part
-	if _, err := strconv.ParseInt(numStr, 10, 64); err != nil {
-		return fmt.Errorf("invalid size format: %s", sizeStr)
-	}
-
-	// Only allow k, m units - reject g and other invalid units
-	if unit != 'k' && unit != 'm' {
-		return fmt.Errorf("invalid size unit '%c': only 'k' and 'm' are allowed", unit)
-	}
-
-	return nil
-}
-
-// ValidateProxyBuffers validates and normalizes "count size" format, auto-correcting invalid units
-func ValidateProxyBuffers(proxyBuffers string) error {
-	if proxyBuffers == "" {
-		return fmt.Errorf("proxy_buffers cannot be empty")
-	}
-
-	fields := strings.Fields(strings.TrimSpace(proxyBuffers))
-	if len(fields) != 2 {
-		return fmt.Errorf("proxy_buffers must be in format 'count size', got: %s", proxyBuffers)
-	}
-
-	// Validate count
-	if count, err := strconv.Atoi(fields[0]); err != nil || count <= 0 {
-		return fmt.Errorf("invalid buffer count '%s': must be positive integer", fields[0])
-	}
-
-	// Validate size - now allows auto-correction of invalid units
-	return ValidateNginxSize(fields[1])
+	return NormalizeSize(sizeStr)
 }

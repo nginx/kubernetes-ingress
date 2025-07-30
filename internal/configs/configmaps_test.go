@@ -9,6 +9,7 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
 
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
 )
 
@@ -2042,6 +2043,89 @@ func TestParseProxyBuffers(t *testing.T) {
 			fakeRecorder := eventRecorder.(*record.FakeRecorder)
 			if len(fakeRecorder.Events) > 0 {
 				t.Errorf("%s: unexpected warnings generated: %d events", test.description, len(fakeRecorder.Events))
+			}
+		})
+	}
+}
+
+func TestParseProxyBuffersInvalidFormat(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		proxyBuffers string
+		expectValid  bool
+		description  string
+	}{
+		{
+			name:         "valid format",
+			proxyBuffers: "4 8k",
+			expectValid:  true,
+			description:  "should accept valid 'count size' format",
+		},
+		{
+			name:         "invalid - only size",
+			proxyBuffers: "1k",
+			expectValid:  false,
+			description:  "should reject format with only size",
+		},
+		{
+			name:         "invalid - only count",
+			proxyBuffers: "4",
+			expectValid:  false,
+			description:  "should reject format with only count",
+		},
+		{
+			name:         "invalid - three parts",
+			proxyBuffers: "4 8k extra",
+			expectValid:  false,
+			description:  "should reject format with too many parts",
+		},
+		{
+			name:         "invalid - empty",
+			proxyBuffers: "",
+			expectValid:  false,
+			description:  "should reject empty string",
+		},
+	}
+
+	nginxPlus := true
+	hasAppProtect := false
+	hasAppProtectDos := false
+	hasTLSPassthrough := false
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cm := &v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-configmap",
+					Namespace: "default",
+				},
+				Data: map[string]string{
+					"proxy-buffers": test.proxyBuffers,
+				},
+			}
+
+			eventRecorder := makeEventLogger()
+			result, configOk := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, eventRecorder)
+
+			if configOk != test.expectValid {
+				t.Errorf("%s: expected configOk=%v, got configOk=%v", test.description, test.expectValid, configOk)
+			}
+
+			if test.expectValid {
+				if result.ProxyBuffers != test.proxyBuffers {
+					t.Errorf("%s: expected ProxyBuffers=%q, got %q", test.description, test.proxyBuffers, result.ProxyBuffers)
+				}
+			} else {
+				if result.ProxyBuffers != "" {
+					t.Errorf("%s: expected ProxyBuffers to be empty for invalid config, got %q", test.description, result.ProxyBuffers)
+				}
+
+				fakeRecorder := eventRecorder.(*record.FakeRecorder)
+				if len(fakeRecorder.Events) == 0 {
+					t.Errorf("%s: expected error event to be generated for invalid config", test.description)
+				}
 			}
 		})
 	}

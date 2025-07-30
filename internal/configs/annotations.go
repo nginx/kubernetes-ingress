@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	"github.com/nginx/kubernetes-ingress/internal/validation"
 )
 
 // JWTKeyAnnotation is the annotation where the Secret with a JWK is specified.
@@ -301,11 +302,11 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 	}
 
 	if proxyBufferSize, exists := ingEx.Ingress.Annotations["nginx.org/proxy-buffer-size"]; exists {
-		cfgParams.ProxyBufferSize = proxyBufferSize
+		cfgParams.ProxyBufferSize = validation.NormalizeBufferSize(proxyBufferSize)
 	}
 
 	if proxyBusyBuffersSize, exists := ingEx.Ingress.Annotations["nginx.org/proxy-busy-buffers-size"]; exists {
-		cfgParams.ProxyBusyBuffersSize = proxyBusyBuffersSize
+		cfgParams.ProxyBusyBuffersSize = validation.NormalizeBufferSize(proxyBusyBuffersSize)
 	}
 
 	if upstreamZoneSize, exists := ingEx.Ingress.Annotations["nginx.org/upstream-zone-size"]; exists {
