@@ -17,7 +17,7 @@ permissions:
 jobs:
   checks:
     name: Checks and variables
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     outputs:
       go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}
       docker_md5: ${{ steps.vars.outputs.docker_md5 }}
