@@ -346,17 +346,20 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 				cfgParams.ProxyBuffers = proxyBuffers
 			}
 		} else {
-			cfgParams.ProxyBuffers = proxyBuffers
+			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'proxy-buffers': %q, must be in format 'count size' (e.g. '4 8k'), ignoring", cfgm.GetNamespace(), cfgm.GetName(), proxyBuffers)
+			nl.Error(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			configOk = false
 		}
 	}
 
 	if proxyBufferSize, exists := cfgm.Data["proxy-buffer-size"]; exists {
-		normalizedProxyBufferSize := validation.NormalizeSize(proxyBufferSize)
+		normalizedProxyBufferSize := validation.NormalizeBufferSize(proxyBufferSize)
 		cfgParams.ProxyBufferSize = normalizedProxyBufferSize
 	}
 
 	if proxyBusyBuffersSize, exists := cfgm.Data["proxy-busy-buffers-size"]; exists {
-		normalizedProxyBusyBuffersSize := validation.NormalizeSize(proxyBusyBuffersSize)
+		normalizedProxyBusyBuffersSize := validation.NormalizeBufferSize(proxyBusyBuffersSize)
 		cfgParams.ProxyBusyBuffersSize = normalizedProxyBusyBuffersSize
 	}
 

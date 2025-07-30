@@ -65,7 +65,7 @@ func newMakeSecretPathTemplate(t *testing.T) *template.Template {
 func TestMakeProxyBuffers(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
+	tests := []struct {
 		name                 string
 		proxyBuffers         string
 		proxyBufferSize      string
@@ -73,99 +73,147 @@ func TestMakeProxyBuffers(t *testing.T) {
 		expectedOutput       string
 	}{
 		{
-			name:                 "All empty",
-			proxyBuffers:         "",
-			proxyBufferSize:      "",
-			proxyBusyBuffersSize: "",
-			expectedOutput:       "",
+			name:           "All empty",
+			expectedOutput: "",
 		},
 		{
-			name:                 "Only buffer-size set",
-			proxyBuffers:         "",
-			proxyBufferSize:      "4k",
-			proxyBusyBuffersSize: "",
-			expectedOutput:       "proxy_buffer_size 4k;\n\t\tproxy_buffers 4 4k;",
+			name:            "Case 1: Only buffer-size set (buffer-size only)",
+			proxyBufferSize: "4k",
+			expectedOutput:  "proxy_buffer_size 4k;\n\t\tproxy_buffers 4 4k;\n\t\tproxy_busy_buffers_size 4k;",
 		},
 		{
-			name:                 "Only buffers set",
-			proxyBuffers:         "4 16k",
-			proxyBufferSize:      "",
-			proxyBusyBuffersSize: "",
-			expectedOutput:       "proxy_buffers 4 16k;\n\t\tproxy_buffer_size 16k;",
+			name:           "Case 2: Only buffers set (buffers only)",
+			proxyBuffers:   "4 16k",
+			expectedOutput: "proxy_buffers 4 16k;\n\t\tproxy_buffer_size 16k;\n\t\tproxy_busy_buffers_size 16k;",
 		},
 		{
-			name:                 "Both buffers and buffer-size set correctly",
-			proxyBuffers:         "4 16k",
-			proxyBufferSize:      "8k",
-			proxyBusyBuffersSize: "",
-			expectedOutput:       "proxy_buffers 4 16k;\n\t\tproxy_buffer_size 8k;",
+			name:            "Case 3: Both buffers and buffer-size set (both explicit)",
+			proxyBuffers:    "4 16k",
+			proxyBufferSize: "8k",
+			expectedOutput:  "proxy_buffers 4 16k;\n\t\tproxy_buffer_size 8k;\n\t\tproxy_busy_buffers_size 16k;",
 		},
 		{
-			name:                 "Buffer-size smaller than individual buffer size",
-			proxyBuffers:         "4 1m",
-			proxyBufferSize:      "512k",
-			proxyBusyBuffersSize: "",
-			expectedOutput:       "proxy_buffers 4 1m;\n\t\tproxy_buffer_size 512k;",
+			name:            "Case 4: Invalid combination that should self-heal",
+			proxyBuffers:    "8 1m",
+			proxyBufferSize: "5m",
+			expectedOutput:  "proxy_buffers 8 1m;\n\t\tproxy_buffer_size 5m;\n\t\tproxy_busy_buffers_size 5m;",
 		},
 		{
-			name:                 "Only busy buffer size set",
-			proxyBuffers:         "",
-			proxyBufferSize:      "",
-			proxyBusyBuffersSize: "8k",
-			expectedOutput:       "proxy_busy_buffers_size 8k;",
+			name:            "Case 5: Buffer-size smaller than individual buffer size",
+			proxyBuffers:    "4 1m",
+			proxyBufferSize: "512k",
+			expectedOutput:  "proxy_buffers 4 1m;\n\t\tproxy_buffer_size 512k;\n\t\tproxy_busy_buffers_size 1m;",
 		},
 		{
-			name:                 "All three parameters set",
+			name:            "Case 6: Minimum buffers configuration",
+			proxyBuffers:    "2 4k",
+			proxyBufferSize: "4k",
+			expectedOutput:  "proxy_buffers 2 4k;\n\t\tproxy_buffer_size 4k;\n\t\tproxy_busy_buffers_size 4k;",
+		},
+		{
+			name:                 "Case 7: All three parameters set (all three valid)",
 			proxyBuffers:         "8 4k",
 			proxyBufferSize:      "4k",
 			proxyBusyBuffersSize: "16k",
 			expectedOutput:       "proxy_buffers 8 4k;\n\t\tproxy_buffer_size 4k;\n\t\tproxy_busy_buffers_size 16k;",
 		},
 		{
+			name:                 "Case 8: Busy buffer too large - gets clamped",
+			proxyBuffers:         "4 8k",
+			proxyBufferSize:      "8k",
+			proxyBusyBuffersSize: "40k",
+			expectedOutput:       "proxy_buffers 4 8k;\n\t\tproxy_buffer_size 8k;\n\t\tproxy_busy_buffers_size 24k;",
+		},
+		{
+			name:                 "Case 9: Busy buffer wrong format - should be validated",
+			proxyBuffers:         "4 4k",
+			proxyBusyBuffersSize: "invalid",
+			expectedOutput:       "proxy_buffers 4 4k;\n\t\tproxy_buffer_size 4k;\n\t\tproxy_busy_buffers_size 4k;",
+		},
+		{
+			name:           "Case 10: Empty/zero values - corrected to minimum",
+			proxyBuffers:   "0 4k",
+			expectedOutput: "proxy_buffers 2 4k;\n\t\tproxy_buffer_size 4k;\n\t\tproxy_busy_buffers_size 4k;",
+		},
+		{
+			name:            "Case 11: Invalid units - should be handled gracefully",
+			proxyBuffers:    "4 4invalid",
+			proxyBufferSize: "8invalid",
+			expectedOutput:  "proxy_buffers 4 4invalid;\n\t\tproxy_buffer_size 4invalid;\n\t\tproxy_busy_buffers_size 0;",
+		},
+		{
+			name:            "Case 12: Extreme values - should handle gracefully",
+			proxyBuffers:    "1000000 1k",
+			proxyBufferSize: "999m",
+			expectedOutput:  "proxy_buffers 1024 1k;\n\t\tproxy_buffer_size 511k;\n\t\tproxy_busy_buffers_size 511k;",
+		},
+		{
+			name:            "Case 13: Boundary conditions",
+			proxyBuffers:    "2 1k",
+			proxyBufferSize: "1k",
+			expectedOutput:  "proxy_buffers 2 1k;\n\t\tproxy_buffer_size 1k;\n\t\tproxy_busy_buffers_size 1k;",
+		},
+		{
+			name:            "Case 14: Real-world problematic configuration",
+			proxyBuffers:    "8 4k",
+			proxyBufferSize: "64k",
+			expectedOutput:  "proxy_buffers 8 4k;\n\t\tproxy_buffer_size 14k;\n\t\tproxy_busy_buffers_size 22k;",
+		},
+		{
 			name:                 "Buffer size with busy buffer calculates minimum buffers",
-			proxyBuffers:         "",
 			proxyBufferSize:      "4k",
-			proxyBusyBuffersSize: "20k", // needs (20k + 4k) / 4k = 6 buffers
+			proxyBusyBuffersSize: "20k",
 			expectedOutput:       "proxy_buffer_size 4k;\n\t\tproxy_buffers 6 4k;\n\t\tproxy_busy_buffers_size 20k;",
 		},
 		{
-			name:                 "Single buffer corrected to minimum count",
-			proxyBuffers:         "1 2k",
-			proxyBufferSize:      "",
-			proxyBusyBuffersSize: "",
-			expectedOutput:       "proxy_buffers 2 2k;\n\t\tproxy_buffer_size 2k;\n\t\tproxy_busy_buffers_size 2k;",
+			name:           "Single buffer corrected to minimum count",
+			proxyBuffers:   "1 2k",
+			expectedOutput: "proxy_buffers 2 2k;\n\t\tproxy_buffer_size 2k;\n\t\tproxy_busy_buffers_size 2k;",
 		},
 		{
-			name:                 "Single buffer with larger buffer size gets corrected",
-			proxyBuffers:         "1 2k",
-			proxyBufferSize:      "8k",
-			proxyBusyBuffersSize: "",
-			expectedOutput:       "proxy_buffers 2 8k;\n\t\tproxy_buffer_size 8k;\n\t\tproxy_busy_buffers_size 8k;",
+			name:            "Single buffer with larger buffer size gets corrected",
+			proxyBuffers:    "1 2k",
+			proxyBufferSize: "8k",
+			expectedOutput:  "proxy_buffers 2 2k;\n\t\tproxy_buffer_size 2k;\n\t\tproxy_busy_buffers_size 2k;",
 		},
 		{
-			name:                 "Zero buffers corrected to minimum 2",
-			proxyBuffers:         "0 4k",
-			proxyBufferSize:      "",
-			proxyBusyBuffersSize: "",
-			expectedOutput:       "proxy_buffers 2 4k;\n\t\tproxy_buffer_size 4k;\n\t\tproxy_busy_buffers_size 4k;",
+			name:           "Zero buffers corrected to minimum 2",
+			proxyBuffers:   "0 4k",
+			expectedOutput: "proxy_buffers 2 4k;\n\t\tproxy_buffer_size 4k;\n\t\tproxy_busy_buffers_size 4k;",
 		},
 		{
-			name:                 "Valid configuration with minimum buffers unchanged",
-			proxyBuffers:         "2 4k",
-			proxyBufferSize:      "",
-			proxyBusyBuffersSize: "",
-			expectedOutput:       "proxy_buffers 2 4k;\n\t\tproxy_buffer_size 4k;",
+			name:           "Large buffer count unchanged",
+			proxyBuffers:   "16 1k",
+			expectedOutput: "proxy_buffers 16 1k;\n\t\tproxy_buffer_size 1k;\n\t\tproxy_busy_buffers_size 3k;",
 		},
 		{
-			name:                 "Large buffer count unchanged",
-			proxyBuffers:         "16 1k",
-			proxyBufferSize:      "",
-			proxyBusyBuffersSize: "",
-			expectedOutput:       "proxy_buffers 16 1k;\n\t\tproxy_buffer_size 1k;",
+			name:                 "Only busy buffer size set",
+			proxyBusyBuffersSize: "8k",
+			expectedOutput:       "proxy_busy_buffers_size 8k;",
+		},
+		// Additional edge cases based on nginx validation requirements
+		{
+			name:            "Very small buffers with large buffer size",
+			proxyBuffers:    "2 1k",
+			proxyBufferSize: "2k",
+			expectedOutput:  "proxy_buffers 2 1k;\n\t\tproxy_buffer_size 1k;\n\t\tproxy_busy_buffers_size 1k;",
+		},
+		{
+			name:                 "Busy buffer exactly at limit",
+			proxyBuffers:         "4 4k",
+			proxyBusyBuffersSize: "12k",
+			expectedOutput:       "proxy_buffers 4 4k;\n\t\tproxy_buffer_size 4k;\n\t\tproxy_busy_buffers_size 12k;",
+		},
+		{
+			name:                 "Busy buffer too small - gets adjusted",
+			proxyBuffers:         "4 8k",
+			proxyBufferSize:      "16k",
+			proxyBusyBuffersSize: "4k",
+			expectedOutput:       "proxy_buffers 4 16k;\n\t\tproxy_buffer_size 16k;\n\t\tproxy_busy_buffers_size 16k;",
 		},
 	}
 
-	for _, tc := range testCases {
+	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -183,7 +231,7 @@ func TestMakeProxyBuffers(t *testing.T) {
 func TestValidateBusyBufferSize(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
+	tests := []struct {
 		name                 string
 		proxyBuffers         string
 		proxyBufferSize      string
@@ -191,31 +239,24 @@ func TestValidateBusyBufferSize(t *testing.T) {
 		expected             string
 	}{
 		{
-			name:                 "All empty",
-			proxyBuffers:         "",
-			proxyBufferSize:      "",
-			proxyBusyBuffersSize: "",
-			expected:             "",
+			name:     "All empty",
+			expected: "",
 		},
 		{
-			name:                 "No busy buffer size set",
-			proxyBuffers:         "4 16k",
-			proxyBufferSize:      "",
-			proxyBusyBuffersSize: "",
-			expected:             "",
+			name:         "No busy buffer size set",
+			proxyBuffers: "4 16k",
+			expected:     "",
 		},
 		{
-			name:                 "No busy buffer size with buffer size set",
-			proxyBuffers:         "4 16k",
-			proxyBufferSize:      "8k",
-			proxyBusyBuffersSize: "",
-			expected:             "",
+			name:            "No busy buffer size with buffer size set",
+			proxyBuffers:    "4 16k",
+			proxyBufferSize: "8k",
+			expected:        "",
 		},
 		{
 			name:                 "Valid busy buffer size within limits",
 			proxyBuffers:         "4 16k",
-			proxyBufferSize:      "",
-			proxyBusyBuffersSize: "32k", // within (4*16k - 16k = 48k)
+			proxyBusyBuffersSize: "32k",
 			expected:             "32k",
 		},
 		{
@@ -233,29 +274,28 @@ func TestValidateBusyBufferSize(t *testing.T) {
 			expected:             "16k",
 		},
 		{
-			name:                 "Busy buffer too large, gets clamped to max",
+			name:                 "Busy buffer too large, gets clamped",
 			proxyBuffers:         "4 4k",
-			proxyBufferSize:      "",
-			proxyBusyBuffersSize: "20k", // larger than (4*4k - 4k = 12k)
+			proxyBusyBuffersSize: "20k",
 			expected:             "12k",
 		},
 		{
-			name:                 "Busy buffer too small, gets adjusted to minimum",
+			name:                 "Busy buffer too small, gets adjusted",
 			proxyBuffers:         "4 8k",
-			proxyBufferSize:      "16k", // larger than individual buffer
-			proxyBusyBuffersSize: "4k",  // smaller than 16k minimum
+			proxyBufferSize:      "16k",
+			proxyBusyBuffersSize: "4k",
 			expected:             "16k",
 		},
 		{
-			name:                 "Buffer size larger than individual, busy buffer gets aligned",
+			name:                 "Buffer size larger than individual",
 			proxyBuffers:         "4 8k",
 			proxyBufferSize:      "16k",
-			proxyBusyBuffersSize: "12k", // less than buffer size but within range
+			proxyBusyBuffersSize: "12k",
 			expected:             "16k",
 		},
 	}
 
-	for _, tc := range testCases {
+	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
