@@ -1,6 +1,6 @@
 import pytest
 from kubernetes.stream import stream
-from suite.utils.resources_utils import get_first_pod_name, wait_before_test, get_file_contents
+from suite.utils.resources_utils import get_file_contents, get_first_pod_name, wait_before_test
 
 
 @pytest.mark.agentv3
@@ -47,7 +47,7 @@ class TestAgentV3:
         assert "nginx-agent version v3" in result_conf
 
         # Test for agent.config file - verify the agent config exists inside the NIC pod
-        # The expected config that will be asserted against later  
+        # The expected config that will be asserted against later
         expected_config = """#
 # /etc/nginx-agent/nginx-agent.conf
 #
@@ -60,7 +60,7 @@ log:
   # set log path. if empty, don't log to file.
   path: /var/log/nginx-agent/
 
-allowed_directories: 
+allowed_directories:
     - /etc/nginx
     - /usr/local/etc/nginx
     - /usr/share/nginx/modules
@@ -79,12 +79,9 @@ allowed_directories:
 #    skip_verify: false"""
         expected_config = expected_config.strip()
 
-        # Get the actual config file content from the pod 
+        # Get the actual config file content from the pod
         config_contents = get_file_contents(
-            kube_apis.v1, 
-            "/etc/nginx-agent/nginx-agent.conf", 
-            pod_name, 
-            ingress_controller_prerequisites.namespace
+            kube_apis.v1, "/etc/nginx-agent/nginx-agent.conf", pod_name, ingress_controller_prerequisites.namespace
         )
 
         config_contents = config_contents.strip()
