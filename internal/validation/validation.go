@@ -178,3 +178,80 @@ func ValidateURI(uri string, options ...URIValidationOption) error {
 
 	return nil
 }
+
+// NormalizeSize converts size strings to valid format
+func NormalizeSize(sizeStr string) string {
+	bytes := ParseSize(sizeStr)
+	if bytes <= 0 {
+		return ""
+	}
+	return FormatSize(bytes)
+}
+
+// ParseSize converts size strings to bytes, autocorrecting invalid units to 'm'
+func ParseSize(sizeStr string) int64 {
+	sizeStr = strings.ToLower(strings.TrimSpace(sizeStr))
+	if sizeStr == "" {
+		return 0
+	}
+
+	if num, err := strconv.ParseInt(sizeStr, 10, 64); err == nil {
+		if num <= 0 {
+			return 0
+		}
+		return num
+	}
+
+	if len(sizeStr) < 2 {
+		return 0
+	}
+
+	numStr := sizeStr[:len(sizeStr)-1]
+	unit := sizeStr[len(sizeStr)-1]
+	num, err := strconv.ParseInt(numStr, 10, 64)
+	if err != nil || num <= 0 {
+		return 0
+	}
+
+	// Autocorrect invalid units to 'm'
+	if unit != 'k' && unit != 'm' {
+		unit = 'm'
+	}
+
+	switch unit {
+	case 'k':
+		return num << 10
+	case 'm':
+		return num << 20
+	default:
+		return num << 20 // Treat as MB
+	}
+}
+
+// FormatSize converts bytes to human-readable size string
+func FormatSize(bytes int64) string {
+	if bytes == 0 {
+		return "0"
+	}
+
+	if bytes >= (1 << 20) {
+		return fmt.Sprintf("%dm", bytes/(1<<20))
+	}
+
+	if bytes >= (1 << 10) {
+		return fmt.Sprintf("%dk", bytes/(1<<10))
+	}
+
+	return fmt.Sprintf("%d", bytes)
+}
+
+// NormalizeBufferSize handles buffer size values has the wrong format eg input "2 1k", returns "1k"
+func NormalizeBufferSize(sizeStr string) string {
+	fields := strings.Fields(strings.TrimSpace(sizeStr))
+	if len(fields) == 2 {
+		if _, err := strconv.Atoi(fields[0]); err == nil {
+			sizeStr = fields[1]
+		}
+	}
+	return NormalizeSize(sizeStr)
+}

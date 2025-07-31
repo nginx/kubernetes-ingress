@@ -15223,6 +15223,7 @@ func TestGenerateLocationForProxying(t *testing.T) {
 		ProxyBuffering:       true,
 		ProxyBuffers:         "8 4k",
 		ProxyBufferSize:      "4k",
+		ProxyBusyBuffersSize: "8k",
 		LocationSnippets:     []string{"# location snippet"},
 	}
 	path := "/"
@@ -15240,6 +15241,7 @@ func TestGenerateLocationForProxying(t *testing.T) {
 		ProxyBuffering:           true,
 		ProxyBuffers:             "8 4k",
 		ProxyBufferSize:          "4k",
+		ProxyBusyBuffersSize:     "8k",
 		ProxyPass:                "http://test-upstream",
 		ProxyNextUpstream:        "error timeout",
 		ProxyNextUpstreamTimeout: "0s",
@@ -15270,6 +15272,7 @@ func TestGenerateLocationForGrpcProxying(t *testing.T) {
 		ProxyBuffering:       true,
 		ProxyBuffers:         "8 4k",
 		ProxyBufferSize:      "4k",
+		ProxyBusyBuffersSize: "8k",
 		LocationSnippets:     []string{"# location snippet"},
 		HTTP2:                true,
 	}
@@ -15288,6 +15291,7 @@ func TestGenerateLocationForGrpcProxying(t *testing.T) {
 		ProxyBuffering:           true,
 		ProxyBuffers:             "8 4k",
 		ProxyBufferSize:          "4k",
+		ProxyBusyBuffersSize:     "8k",
 		ProxyPass:                "http://test-upstream",
 		ProxyNextUpstream:        "error timeout",
 		ProxyNextUpstreamTimeout: "0s",
