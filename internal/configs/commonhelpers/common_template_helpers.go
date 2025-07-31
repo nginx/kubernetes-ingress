@@ -99,20 +99,16 @@ func correctBufferConfig(proxyBuffers, proxyBufferSize string) (string, string) 
 
 	if proxyBufferSize == "" {
 		proxyBufferSize = fields[1]
-	} else if validation.ParseSize(proxyBufferSize) > validation.ParseSize(fields[1]) {
+	} else {
+		// When proxyBufferSize is explicitly set, keep it to the individual buffer size from proxy_buffers if it's larger
+		individualBufferSize := validation.ParseSize(fields[1])
 		bufferSizeBytes := validation.ParseSize(proxyBufferSize)
-		individualSizeBytes := validation.ParseSize(fields[1])
 
-		maxPossibleBusySize := int64(count)*individualSizeBytes - individualSizeBytes
-		if bufferSizeBytes >= maxPossibleBusySize {
-			cappedSize := maxPossibleBusySize / 2
-			if cappedSize < individualSizeBytes {
-				cappedSize = individualSizeBytes
-			}
-			proxyBufferSize = validation.FormatSize(cappedSize)
-		} else if bufferSizeBytes <= (1 << 20) { // 1MB limit for changing buffer sizes
-			proxyBuffers = fmt.Sprintf("%d %s", count, proxyBufferSize)
+		if bufferSizeBytes > individualBufferSize {
+			// proxy_buffer_size to not exceed individual buffer size
+			proxyBufferSize = fields[1]
 		}
+		proxyBufferSize, _ = capBufferLimits(proxyBufferSize, 0)
 	}
 
 	return proxyBuffers, proxyBufferSize

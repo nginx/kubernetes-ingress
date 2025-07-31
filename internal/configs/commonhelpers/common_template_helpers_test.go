@@ -96,7 +96,7 @@ func TestMakeProxyBuffers(t *testing.T) {
 			name:            "Invalid combination that should correct itself",
 			proxyBuffers:    "8 1m",
 			proxyBufferSize: "5m",
-			expectedOutput:  "proxy_buffers 8 1m;\n\t\tproxy_buffer_size 5m;\n\t\tproxy_busy_buffers_size 5m;",
+			expectedOutput:  "proxy_buffers 8 1m;\n\t\tproxy_buffer_size 1m;\n\t\tproxy_busy_buffers_size 3m;",
 		},
 		{
 			name:            "Buffer-size smaller than individual buffer size",
@@ -139,13 +139,13 @@ func TestMakeProxyBuffers(t *testing.T) {
 			name:            "Extreme values - autocorrect",
 			proxyBuffers:    "1000000 1k",
 			proxyBufferSize: "999m",
-			expectedOutput:  "proxy_buffers 1024 1k;\n\t\tproxy_buffer_size 511k;\n\t\tproxy_busy_buffers_size 511k;",
+			expectedOutput:  "proxy_buffers 1024 1k;\n\t\tproxy_buffer_size 1k;\n\t\tproxy_busy_buffers_size 1k;",
 		},
 		{
 			name:            "Autocorrect buffer size and buffers",
 			proxyBuffers:    "8 4k",
 			proxyBufferSize: "64k",
-			expectedOutput:  "proxy_buffers 8 4k;\n\t\tproxy_buffer_size 14k;\n\t\tproxy_busy_buffers_size 22k;",
+			expectedOutput:  "proxy_buffers 8 4k;\n\t\tproxy_buffer_size 4k;\n\t\tproxy_busy_buffers_size 12k;",
 		},
 		{
 			name:                 "Buffer size with busy buffer calculates minimum buffers",
@@ -196,7 +196,7 @@ func TestMakeProxyBuffers(t *testing.T) {
 			proxyBuffers:         "4 8k",
 			proxyBufferSize:      "16k",
 			proxyBusyBuffersSize: "4k",
-			expectedOutput:       "proxy_buffers 4 16k;\n\t\tproxy_buffer_size 16k;\n\t\tproxy_busy_buffers_size 16k;",
+			expectedOutput:       "proxy_buffers 4 8k;\n\t\tproxy_buffer_size 8k;\n\t\tproxy_busy_buffers_size 8k;",
 		},
 	}
 
