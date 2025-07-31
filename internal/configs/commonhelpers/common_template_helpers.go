@@ -166,9 +166,8 @@ func addBusyBufferSizeConfig(parts []string, proxyBuffers, proxyBufferSize, prox
 	return parts
 }
 
-// processBusyBufferSize handles both validation of busy buffer size
 // If proxyBusyBuffersSize is empty, it calculates a safe value
-// If proxyBusyBuffersSize is provided, it validates and corrects it if needed
+// If proxyBusyBuffersSize is provided, it validates and corrects it
 func processBusyBufferSize(proxyBuffers, proxyBufferSize, proxyBusyBuffersSize string) string {
 	fields := strings.Fields(proxyBuffers)
 	if len(fields) < 2 {
