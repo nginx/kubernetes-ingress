@@ -29,7 +29,7 @@ permissions:
 jobs:
   checks:
     name: Checks and variables
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       id-token: write
@@ -117,7 +117,7 @@ jobs:
 
   govulncheck:
     name: Run govulncheck
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       security-events: write
@@ -158,14 +158,14 @@ jobs:
           fi
 
       - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@d6bbdef45e766d081b84a2def353b0055f728d3e # v3.29.3
+        uses: github/codeql-action/upload-sarif@4e828ff8d448a8a6e532957b1811f387a63867e8 # v3.29.4
         if: steps.check-sarif.outputs.sarif_has_results == 'true'
         with:
           sarif_file: govulncheck.sarif
 
   binaries:
     name: Build Binaries
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [checks]
     permissions:
       contents: read
@@ -394,7 +394,7 @@ jobs:
   certify-openshift-images:
     if: ${{ !cancelled() && !failure() && github.ref_name == github.event.repository.default_branch }}
     name: Certify OpenShift UBI images
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [release-oss]
     steps:
       - name: Checkout Repository
@@ -411,7 +411,7 @@ jobs:
 
   scan-docker-oss:
     name: Scan ${{ matrix.image }}
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [checks, tag-candidate]
     permissions:
       contents: read
@@ -494,13 +494,13 @@ jobs:
           overwrite: true
 
       - name: Upload Scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@d6bbdef45e766d081b84a2def353b0055f728d3e # v3.29.3
+        uses: github/codeql-action/upload-sarif@4e828ff8d448a8a6e532957b1811f387a63867e8 # v3.29.4
         with:
           sarif_file: "${{ steps.directory.outputs.directory }}/"
 
   scan-docker-plus:
     name: Scan ${{ matrix.image }}-${{ matrix.target }}
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [checks, tag-candidate]
     permissions:
       contents: read
@@ -583,13 +583,13 @@ jobs:
           overwrite: true
 
       - name: Upload Scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@d6bbdef45e766d081b84a2def353b0055f728d3e # v3.29.3
+        uses: github/codeql-action/upload-sarif@4e828ff8d448a8a6e532957b1811f387a63867e8 # v3.29.4
         with:
           sarif_file: "${{ steps.directory.outputs.directory }}/"
 
   scan-docker-nap:
     name: Scan ${{ matrix.image }}-${{ matrix.target }}-${{ matrix.nap_modules }}
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [checks, tag-candidate]
     permissions:
       contents: read
@@ -679,14 +679,14 @@ jobs:
           overwrite: true
 
       - name: Upload Scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@d6bbdef45e766d081b84a2def353b0055f728d3e # v3.29.3
+        uses: github/codeql-action/upload-sarif@4e828ff8d448a8a6e532957b1811f387a63867e8 # v3.29.4
         with:
           sarif_file: "${{ steps.directory.outputs.directory }}/"
         continue-on-error: true
 
   update-release-draft:
     name: Update Release Draft
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [checks]
     permissions:
       contents: write

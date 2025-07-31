@@ -34,7 +34,7 @@ permissions:
 jobs:
   copy-to-gcr-dev-registry:
     name: Re-tag images in GCR Dev Registry
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       id-token: write
