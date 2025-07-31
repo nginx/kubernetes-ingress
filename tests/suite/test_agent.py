@@ -84,5 +84,10 @@ allowed_directories:
             kube_apis.v1, "/etc/nginx-agent/nginx-agent.conf", pod_name, ingress_controller_prerequisites.namespace
         )
 
-        config_contents = config_contents.strip()
-        assert config_contents == expected_config
+        # Normalize whitespace for comparison - remove trailing spaces from each line
+        def normalize_config(config_text):
+            return "\n".join(line.rstrip() for line in config_text.strip().split("\n"))
+
+        config_contents_normalized = normalize_config(config_contents)
+        expected_config_normalized = normalize_config(expected_config)
+        assert config_contents_normalized == expected_config_normalized
