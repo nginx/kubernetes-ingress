@@ -100,15 +100,15 @@ func correctBufferConfig(proxyBuffers, proxyBufferSize string) (string, string) 
 	if proxyBufferSize == "" {
 		proxyBufferSize = fields[1]
 	} else {
-		// When proxyBufferSize is explicitly set, keep it to the individual buffer size from proxy_buffers if it's larger
-		individualBufferSize := validation.ParseSize(fields[1])
+		// Validate user-defined proxy_buffer_size
 		bufferSizeBytes := validation.ParseSize(proxyBufferSize)
-
-		if bufferSizeBytes > individualBufferSize {
-			// proxy_buffer_size to not exceed individual buffer size
+		if bufferSizeBytes <= 0 {
+			// Invalid → fallback to individual buffer size
 			proxyBufferSize = fields[1]
+		} else {
+			// Valid → cap it if needed, but don't downgrade
+			proxyBufferSize, _ = capBufferLimits(proxyBufferSize, 0)
 		}
-		proxyBufferSize, _ = capBufferLimits(proxyBufferSize, 0)
 	}
 
 	return proxyBuffers, proxyBufferSize
