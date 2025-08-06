@@ -10,11 +10,11 @@ ARG PACKAGE_REPO=pkgs.nginx.com
 
 
 ############################################# Base images containing libs for FIPS #############################################
-FROM ghcr.io/nginx/dependencies/nginx-ubi:ubi8@sha256:ea2f5d57c65b1682418708b6f6c234ba4ace4e48ecceeda97e7bb3a560601efb AS ubi8-packages
-FROM ghcr.io/nginx/dependencies/nginx-ubi:ubi9@sha256:7dc715d51c9664d892376fada482f29a95023dc81657f89fa4cf7a62fd98d837 AS ubi9-packages
+FROM ghcr.io/nginx/dependencies/nginx-ubi:ubi8@sha256:12b2f675a94fed04ab5787d78a27b4f8723991bdbe1403257e71de368e7ec852 AS ubi8-packages
+FROM ghcr.io/nginx/dependencies/nginx-ubi:ubi9@sha256:c9c269ae1ae6a4608fe4e6536073cdea9445433de652fd8ac667992a1ed198d6 AS ubi9-packages
 FROM ghcr.io/nginx/alpine-fips:0.3.0-alpine3.19@sha256:449f1a149e81e36bb929ebd362433a06a158ff2a7e3ba05b4b8d9ea96d59ae91 AS alpine-fips-3.19
 FROM ghcr.io/nginx/alpine-fips:0.3.0-alpine3.21@sha256:5e5033f34ae7147ce8df928fa58c485bc08ded8ace22428b4c16df30e3b39901 AS alpine-fips-3.21
-FROM redhat/ubi9-minimal:9.6@sha256:67fee1a132e8e326434214b3c7ce90b2500b2ad02c9790cc61581feb58d281d5 AS ubi-minimal
+FROM redhat/ubi9-minimal:9.6@sha256:295f920819a6d05551a1ed50a6c71cb39416a362df12fa0cd149bc8babafccff AS ubi-minimal
 FROM golang:1.24-alpine@sha256:daae04ebad0c21149979cd8e9db38f565ecefd8547cf4a591240dc1972cf1399 AS golang-builder
 
 ############################################# NGINX files #############################################
@@ -469,7 +469,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 
 
 ############################################# Base image for UBI8 with NGINX Plus and App Protect WAF #############################################
-FROM redhat/ubi8@sha256:a910ffa70b1481121db5051432dea04aab0ba7150ffe4870c5b55e15427ea6c1 AS ubi-8-plus-nap
+FROM redhat/ubi8@sha256:dd9e25cf203ba1df4deb5f1b6fdaa1d4c8156edddcff7e5c1aeda325b83e9477 AS ubi-8-plus-nap
 ARG NGINX_PLUS_VERSION
 ARG BUILD_OS
 
@@ -508,7 +508,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 
 
 ############################################# Base image for UBI8 with NGINX Plus and App Protect WAFv5  #############################################
-FROM redhat/ubi8@sha256:a910ffa70b1481121db5051432dea04aab0ba7150ffe4870c5b55e15427ea6c1 AS ubi-8-plus-nap-v5
+FROM redhat/ubi8@sha256:dd9e25cf203ba1df4deb5f1b6fdaa1d4c8156edddcff7e5c1aeda325b83e9477 AS ubi-8-plus-nap-v5
 ARG NGINX_PLUS_VERSION
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
