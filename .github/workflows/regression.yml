@@ -25,7 +25,7 @@ permissions:
 jobs:
   checks:
     name: Checks and variables
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       id-token: write
@@ -82,7 +82,7 @@ jobs:
 
   unit-tests:
     name: Unit Tests
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [checks]
     steps:
       - name: Checkout Repository
@@ -106,7 +106,7 @@ jobs:
 
   helm-tests:
     name: Helm Tests ${{ matrix.base-os }}
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [checks]
     strategy:
       fail-fast: false
@@ -131,7 +131,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: auth
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: google-github-actions/auth@140bb5113ffb6b65a7e9b937a81fa96cf5064462 # v2.1.11
         with:
           token_format: access_token
           workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
@@ -198,7 +198,7 @@ jobs:
 
   setup-regression-matrix:
     name: Setup Matrix for Smoke Tests
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [checks]
     permissions:
       contents: read
@@ -217,7 +217,7 @@ jobs:
 
   regression-tests:
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} regression tests
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [checks, setup-regression-matrix]
     strategy:
       fail-fast: false
@@ -239,7 +239,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: auth
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: google-github-actions/auth@140bb5113ffb6b65a7e9b937a81fa96cf5064462 # v2.1.11
         with:
           token_format: access_token
           workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}

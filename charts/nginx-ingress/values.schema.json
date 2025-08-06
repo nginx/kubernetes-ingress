@@ -134,10 +134,11 @@
                 },
                 "interval": {
                   "type": "string",
-                  "pattern": "^[0-9]+[mhd]$",
+                  "pattern": "^[0-9]+[smh]$",
                   "default": "1h",
                   "title": "The usage report interval Schema",
                   "examples": [
+                    "60s",
                     "1m",
                     "1h",
                     "24h"
@@ -697,10 +698,10 @@
             },
             "tag": {
               "type": "string",
-              "default": "5.0.0",
+              "default": "5.1.0",
               "title": "The tag of the Ingress Controller image",
               "examples": [
-                "5.0.0"
+                "5.1.0"
               ]
             },
             "digest": {
@@ -737,7 +738,7 @@
           "examples": [
             {
               "repository": "nginx/nginx-ingress",
-              "tag": "5.0.0",
+              "tag": "5.1.0",
               "pullPolicy": "IfNotPresent"
             }
           ]
@@ -1807,6 +1808,98 @@
             }
           ]
         },
+        "startupStatus": {
+          "type": "object",
+          "default": {},
+          "title": "The startupStatus",
+          "required": [],
+          "properties": {
+            "enable": {
+              "type": "boolean",
+              "default": false,
+              "title": "Enable the startup probe",
+              "examples": [
+                true
+              ]
+            },
+            "port": {
+              "type": "integer",
+              "default": 0,
+              "title": "The port for the startup probe",
+              "examples": [
+                9999
+              ]
+            },
+            "path": {
+              "type": "string",
+              "default": "",
+              "title": "The path for the startup probe",
+              "examples": [
+                "/"
+              ]
+            },
+            "initialDelaySeconds": {
+              "type": "integer",
+              "default": 0,
+              "title": "Initial delay seconds for the startup probe",
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.Probe/properties/initialDelaySeconds"
+            },
+            "periodSeconds": {
+              "type": "integer",
+              "default": 0,
+              "title": "Period seconds for the startup probe",
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.Probe/properties/periodSeconds"
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "default": 0,
+              "title": "Timeout seconds for the startup probe",
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.Probe/properties/timeoutSeconds"
+            },
+            "successThreshold": {
+              "type": "integer",
+              "default": 0,
+              "title": "Success threshold for the startup probe",
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.Probe/properties/successThreshold"
+            },
+            "failureThreshold": {
+              "type": "integer",
+              "default": 0,
+              "title": "Failure threshold for the startup probe",
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.Probe/properties/failureThreshold"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "enable": {
+                    "const": true
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "enable",
+                  "port",
+                  "path"
+                ]
+              }
+            }
+          ],
+          "examples": [
+            {
+              "enable": true,
+              "port": 9999,
+              "path": "/",
+              "initialDelaySeconds": 5,
+              "periodSeconds": 1,
+              "timeoutSeconds": 1,
+              "successThreshold": 1,
+              "failureThreshold": 30
+            }
+          ]
+        },
         "enableLatencyMetrics": {
           "type": "boolean",
           "default": false,
@@ -1957,7 +2050,7 @@
           "customPorts": [],
           "image": {
             "repository": "nginx/nginx-ingress",
-            "tag": "5.0.0",
+            "tag": "5.1.0",
             "digest": "",
             "pullPolicy": "IfNotPresent"
           },
@@ -2382,10 +2475,10 @@
         },
         "endpointHost": {
           "type": "string",
-          "default": "product.connect.nginx.com",
-          "title": "FQDN or IP for connecting to NGINX One SaaS Console",
+          "default": "agent.connect.nginx.com",
+          "title": "FQDN or IP for connecting to NGINX One Console",
           "examples": [
-            "product.connect.nginx.com"
+            "agent.connect.nginx.com"
           ]
         },
         "endpointPort": {
@@ -2600,7 +2693,7 @@
         "customPorts": [],
         "image": {
           "repository": "nginx/nginx-ingress",
-          "tag": "5.0.0",
+          "tag": "5.1.0",
           "digest": "",
           "pullPolicy": "IfNotPresent"
         },

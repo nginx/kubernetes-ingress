@@ -9,6 +9,7 @@ import (
 	"strings"
 	"unicode"
 
+	validation2 "github.com/nginx/kubernetes-ingress/internal/validation"
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -204,6 +205,16 @@ func validateJWT(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
 		if jwt.KeyCache != "" {
 			allErrs = append(allErrs, field.Forbidden(fieldPath.Child("keyCache"), "key cache must not be used when using Secret"))
 		}
+
+		// If JwksURI is not set, then none of the SNI fields should be set.
+		if jwt.SNIEnabled {
+			return append(allErrs, field.Forbidden(fieldPath.Child("sniEnabled"), "sniEnabled can only be set when JwksURI is set"))
+		}
+
+		if jwt.SNIName != "" {
+			return append(allErrs, field.Forbidden(fieldPath.Child("sniName"), "sniName can only be set when JwksURI is set"))
+		}
+
 		return allErrs
 	}
 
@@ -219,7 +230,22 @@ func validateJWT(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
 		if jwt.KeyCache == "" {
 			allErrs = append(allErrs, field.Required(fieldPath.Child("keyCache"), "key cache must be set, example value: 1h"))
 		}
-		return allErrs
+
+		// if SNI server name is provided, but SNI is not enabled, return an error
+		if jwt.SNIName != "" && !jwt.SNIEnabled {
+			allErrs = append(allErrs, field.Forbidden(fieldPath.Child("sniServerName"), "sniServerName can only be set when sniEnabled is true"))
+		}
+
+		// if SNI is enabled and SNI server name is provided, make sure it's a valid URI
+		if jwt.SNIEnabled && jwt.SNIName != "" {
+			err := validation2.ValidateURI(jwt.SNIName,
+				validation2.WithAllowedSchemes("https"),
+				validation2.WithUserAllowed(false),
+				validation2.WithDefaultScheme("https"))
+			if err != nil {
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("sniServerName"), jwt.SNIName, "sniServerName is not a valid URI"))
+			}
+		}
 	}
 	return allErrs
 }

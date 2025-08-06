@@ -24,7 +24,7 @@ controller:
 
     # usageReport:
     #   endpoint: "product.connect.nginx.com" # Endpoint for usage report
-    #   interval: 1h
+    #   interval: 1h # Interval for usage report, must be between 60s and 24h,
     #   proxyHost: "proxy.example.com:3138" # Proxy server for usage report, with optional port
     #   proxyCredentialsSecretName: "proxy-credentials" # Secret containing proxy credentials, must contain a `username` and `password` field
 
@@ -182,7 +182,7 @@ controller:
     repository: nginx/nginx-ingress
 
     ## The tag of the Ingress Controller image. If not specified the appVersion from Chart.yaml is used as a tag.
-    # tag: "5.0.0"
+    # tag: "5.1.0"
     ## The digest of the Ingress Controller image.
     ## If digest is specified it has precedence over tag and will be used instead
     # digest: "sha256:CHANGEME"
@@ -585,6 +585,32 @@ controller:
     ## The number of seconds after the Ingress Controller pod has started before readiness probes are initiated.
     initialDelaySeconds: 0
 
+  startupStatus:
+
+    ## Enable the startup probe.
+    enable: false
+
+    # ## Set the port where the startup endpoint is exposed. This is a required value if startupStatus.enable is true.
+    # port: 9999
+
+    # ## path to the startup endpoint. This is a required value if startupStatus.enable is true.
+    # path: /
+
+    # ## The number of seconds after the Ingress Controller pod has started before startup probes are initiated.
+    # initialDelaySeconds: 5
+
+    # ## The number of seconds between each startup probe.
+    # periodSeconds: 1
+
+    # ## The number of seconds after which the startup probe times out.
+    # timeoutSeconds: 1
+
+    # ## The number of seconds after which the startup probe is considered successful.
+    # successThreshold: 1
+
+    # ## The number of seconds after which the startup probe is considered failed.
+    # failureThreshold: 30
+
   ## Enable collection of latency metrics for upstreams. Requires prometheus.create.
   enableLatencyMetrics: false
 
@@ -689,7 +715,7 @@ nginxAgent:
   # Agent V3 configuration
   # Dataplane key is required to authenticate NGINX Agent with NGINX One Console
   dataplaneKeySecretName: ""
-  endpointHost: "product.connect.nginx.com"
+  endpointHost: "agent.connect.nginx.com"
   endpointPort: 443
   tlsSkipVerify: false
 
