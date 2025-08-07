@@ -789,8 +789,8 @@ type PolicySpec struct {
 	WAF *WAF `json:"waf"`
 	// The API Key policy configures NGINX to authorize requests which provide a valid API Key in a specified header or query param.
 	APIKey *APIKey `json:"apiKey"`
-  // The Cache Key defines a cache policy for proxy caching
-	Cache  *Cache  `json:"cache"`
+	// The Cache Key defines a cache policy for proxy caching
+	Cache *Cache `json:"cache"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
