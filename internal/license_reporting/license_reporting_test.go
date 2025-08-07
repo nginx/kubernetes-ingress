@@ -11,7 +11,7 @@ import (
 
 	nic_glog "github.com/nginx/kubernetes-ingress/internal/logger/glog"
 	"github.com/nginx/kubernetes-ingress/internal/logger/levels"
-	"github.com/nginx/nginx-plus-go-client/v2/client"
+	"github.com/nginx/nginx-plus-go-client/v3/client"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes/fake"

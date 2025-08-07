@@ -12,7 +12,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/gruntwork-io/terratest v0.50.0
 	github.com/jinzhu/copier v0.4.0
-	github.com/nginx/nginx-plus-go-client/v2 v2.4.0
+	github.com/nginx/nginx-plus-go-client/v3 v3.0.0
 	github.com/nginx/nginx-prometheus-exporter v1.4.2
 	github.com/nginx/telemetry-exporter v0.1.4
 	github.com/nginxinc/nginx-service-mesh v1.7.0
@@ -143,6 +143,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
+	github.com/nginx/nginx-plus-go-client/v2 v2.4.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/pquerna/otp v1.4.0 // indirect

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
-	"github.com/nginx/nginx-plus-go-client/v2/client"
+	"github.com/nginx/nginx-plus-go-client/v3/client"
 
 	clusterInfo "github.com/nginx/kubernetes-ingress/internal/common_cluster_info"
 	api_v1 "k8s.io/api/core/v1"
