@@ -338,6 +338,9 @@ spec:
                 - cacheZoneName
                 - cacheZoneSize
                 type: object
+                x-kubernetes-validations:
+                - message: time is required when allowedCodes is specified
+                  rule: '!has(self.allowedCodes) || (has(self.allowedCodes) && has(self.time))'
               egressMTLS:
                 description: The EgressMTLS policy configures upstreams authentication
                   and certificate verification.

@@ -1008,6 +1008,7 @@ type SuppliedIn struct {
 }
 
 // Cache defines a cache policy for proxy caching.
+// +kubebuilder:validation:XValidation:rule="!has(self.allowedCodes) || (has(self.allowedCodes) && has(self.time))",message="time is required when allowedCodes is specified"
 type Cache struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^[a-z][a-zA-Z0-9_]*[a-zA-Z0-9]$|^[a-z]$`
