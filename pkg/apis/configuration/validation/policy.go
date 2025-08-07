@@ -428,7 +428,26 @@ func validateLogConfs(logs []*v1.SecurityLog, fieldPath *field.Path, bundleMode 
 func validateCache(cache *v1.Cache, fieldPath *field.Path, isPlus bool) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	// Validate required fields
+	// Validate required fields and basic constraints
+	allErrs = append(allErrs, validateCacheRequiredFields(cache, fieldPath)...)
+
+	// Validate conditional logic (anyOf constraint)
+	allErrs = append(allErrs, validateCacheConditionalFields(cache, fieldPath)...)
+
+	// Validate field formats and patterns
+	allErrs = append(allErrs, validateCacheFieldFormats(cache, fieldPath)...)
+
+	// Validate NGINX Plus specific features
+	allErrs = append(allErrs, validateCachePlusFeatures(cache, fieldPath, isPlus)...)
+
+	return allErrs
+}
+
+// validateCacheRequiredFields validates required fields and their constraints
+func validateCacheRequiredFields(cache *v1.Cache, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	// Validate cacheZoneName
 	if cache.CacheZoneName == "" {
 		allErrs = append(allErrs, field.Required(fieldPath.Child("cacheZoneName"), "cache zone name is required"))
 	} else {
@@ -443,6 +462,7 @@ func validateCache(cache *v1.Cache, fieldPath *field.Path, isPlus bool) field.Er
 		}
 	}
 
+	// Validate cacheZoneSize
 	if cache.CacheZoneSize == "" {
 		allErrs = append(allErrs, field.Required(fieldPath.Child("cacheZoneSize"), "cache zone size is required"))
 	} else {
@@ -453,6 +473,13 @@ func validateCache(cache *v1.Cache, fieldPath *field.Path, isPlus bool) field.Er
 		}
 	}
 
+	return allErrs
+}
+
+// validateCacheConditionalFields validates the anyOf constraint for allowedCodes and time
+func validateCacheConditionalFields(cache *v1.Cache, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
 	// Validate anyOf constraint: either allowedCodes is not specified, or both allowedCodes and time are specified
 	hasAllowedCodes := len(cache.AllowedCodes) > 0
 	hasTime := cache.Time != ""
@@ -460,6 +487,13 @@ func validateCache(cache *v1.Cache, fieldPath *field.Path, isPlus bool) field.Er
 	if hasAllowedCodes && !hasTime {
 		allErrs = append(allErrs, field.Required(fieldPath.Child("time"), "time is required when allowedCodes is specified"))
 	}
+
+	return allErrs
+}
+
+// validateCacheFieldFormats validates field formats and patterns
+func validateCacheFieldFormats(cache *v1.Cache, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
 
 	// Validate allowed codes if provided
 	for i, code := range cache.AllowedCodes {
@@ -500,6 +534,13 @@ func validateCache(cache *v1.Cache, fieldPath *field.Path, isPlus bool) field.Er
 			allErrs = append(allErrs, field.Invalid(fieldPath.Child("levels"), cache.Levels, "levels must be in format like '1:2' or '1:2:2' with values of 1 or 2"))
 		}
 	}
+
+	return allErrs
+}
+
+// validateCachePlusFeatures validates NGINX Plus specific features, such as cache purge allow IPs
+func validateCachePlusFeatures(cache *v1.Cache, fieldPath *field.Path, isPlus bool) field.ErrorList {
+	allErrs := field.ErrorList{}
 
 	// Validate cache purge allow IPs if provided
 	if len(cache.CachePurgeAllow) > 0 {

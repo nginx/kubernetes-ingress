@@ -2430,20 +2430,22 @@ func TestValidateWAF_FailsOnInvalidApLogBundle(t *testing.T) {
 func TestValidateCache(t *testing.T) {
 	t.Parallel()
 
-	validCacheTests := []struct {
-		name     string
-		cache    *v1.Cache
-		isPlus   bool
-		expected bool
+	tests := []struct {
+		name          string
+		cache         *v1.Cache
+		isPlus        bool
+		expectValid   bool
+		expectedError string
 	}{
+		// Valid cache configurations
 		{
 			name: "valid cache with basic configuration",
 			cache: &v1.Cache{
 				CacheZoneName: "mycache",
 				CacheZoneSize: "10m",
 			},
-			isPlus:   false,
-			expected: true,
+			isPlus:      false,
+			expectValid: true,
 		},
 		{
 			name: "valid cache with all options",
@@ -2456,8 +2458,8 @@ func TestValidateCache(t *testing.T) {
 				OverrideUpstreamCache: true,
 				Levels:                "1:2",
 			},
-			isPlus:   false,
-			expected: true,
+			isPlus:      false,
+			expectValid: true,
 		},
 		{
 			name: "valid cache with specific status codes",
@@ -2471,8 +2473,8 @@ func TestValidateCache(t *testing.T) {
 				},
 				Time: "30m",
 			},
-			isPlus:   false,
-			expected: true,
+			isPlus:      false,
+			expectValid: true,
 		},
 		{
 			name: "valid cache with purge (NGINX Plus)",
@@ -2481,8 +2483,8 @@ func TestValidateCache(t *testing.T) {
 				CacheZoneSize:   "20m",
 				CachePurgeAllow: []string{"192.168.1.0/24", "10.0.0.1"},
 			},
-			isPlus:   true,
-			expected: true,
+			isPlus:      true,
+			expectValid: true,
 		},
 		{
 			name: "valid cache with GET method only",
@@ -2491,8 +2493,8 @@ func TestValidateCache(t *testing.T) {
 				CacheZoneSize:  "15m",
 				AllowedMethods: []string{"GET"},
 			},
-			isPlus:   false,
-			expected: true,
+			isPlus:      false,
+			expectValid: true,
 		},
 		{
 			name: "valid cache with complex levels",
@@ -2501,33 +2503,210 @@ func TestValidateCache(t *testing.T) {
 				CacheZoneSize: "25m",
 				Levels:        "2:2",
 			},
-			isPlus:   false,
-			expected: true,
+			isPlus:      false,
+			expectValid: true,
 		},
-	}
+		{
+			name: "valid cache zone name with underscores",
+			cache: &v1.Cache{
+				CacheZoneName: "valid_cache_name",
+				CacheZoneSize: "10m",
+			},
+			isPlus:      false,
+			expectValid: true,
+		},
+		{
+			name: "valid cache zone size with k unit",
+			cache: &v1.Cache{
+				CacheZoneName: "validname",
+				CacheZoneSize: "1024k",
+			},
+			isPlus:      false,
+			expectValid: true,
+		},
+		{
+			name: "valid cache zone size with g unit",
+			cache: &v1.Cache{
+				CacheZoneName: "validname",
+				CacheZoneSize: "2g",
+			},
+			isPlus:      false,
+			expectValid: true,
+		},
+		{
+			name: "valid time in seconds",
+			cache: &v1.Cache{
+				CacheZoneName: "test",
+				CacheZoneSize: "10m",
+				Time:          "30s",
+			},
+			isPlus:      false,
+			expectValid: true,
+		},
+		{
+			name: "valid time in days",
+			cache: &v1.Cache{
+				CacheZoneName: "test",
+				CacheZoneSize: "10m",
+				Time:          "1d",
+			},
+			isPlus:      false,
+			expectValid: true,
+		},
+		{
+			name: "valid allowedCodes 'any' with time",
+			cache: &v1.Cache{
+				CacheZoneName: "test",
+				CacheZoneSize: "10m",
+				AllowedCodes:  []intstr.IntOrString{intstr.FromString("any")},
+				Time:          "30m",
+			},
+			isPlus:      false,
+			expectValid: true,
+		},
+		{
+			name: "valid boundary status codes",
+			cache: &v1.Cache{
+				CacheZoneName: "test",
+				CacheZoneSize: "10m",
+				AllowedCodes: []intstr.IntOrString{
+					intstr.FromInt(100), // minimum
+					intstr.FromInt(599), // maximum
+				},
+				Time: "1h",
+			},
+			isPlus:      false,
+			expectValid: true,
+		},
+		{
+			name: "valid IPv6 address in purge allow",
+			cache: &v1.Cache{
+				CacheZoneName:   "test",
+				CacheZoneSize:   "10m",
+				CachePurgeAllow: []string{"2001:db8::1"},
+			},
+			isPlus:      true,
+			expectValid: true,
+		},
+		{
+			name: "valid IPv6 CIDR in purge allow",
+			cache: &v1.Cache{
+				CacheZoneName:   "test",
+				CacheZoneSize:   "10m",
+				CachePurgeAllow: []string{"2001:db8::/32"},
+			},
+			isPlus:      true,
+			expectValid: true,
+		},
 
-	for _, test := range validCacheTests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
+		// Invalid cache configurations - Required fields
+		{
+			name: "missing cache zone name",
+			cache: &v1.Cache{
+				CacheZoneSize: "10m",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "cache zone name is required",
+		},
+		{
+			name: "missing cache zone size",
+			cache: &v1.Cache{
+				CacheZoneName: "validname",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "cache zone size is required",
+		},
+		{
+			name: "invalid cache zone name - starts with uppercase",
+			cache: &v1.Cache{
+				CacheZoneName: "InvalidName",
+				CacheZoneSize: "10m",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "cache zone name must start with a lowercase letter",
+		},
+		{
+			name: "invalid cache zone name - starts with number",
+			cache: &v1.Cache{
+				CacheZoneName: "1invalidname",
+				CacheZoneSize: "10m",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "cache zone name must start with a lowercase letter",
+		},
+		{
+			name: "invalid cache zone name - special characters",
+			cache: &v1.Cache{
+				CacheZoneName: "invalid-name",
+				CacheZoneSize: "10m",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "cache zone name must start with a lowercase letter",
+		},
+		{
+			name: "cache zone name too long",
+			cache: &v1.Cache{
+				CacheZoneName: "a" + strings.Repeat("x", 64), // 65 characters
+				CacheZoneSize: "10m",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "may not be more than 64 bytes",
+		},
+		{
+			name: "invalid cache zone size - no unit",
+			cache: &v1.Cache{
+				CacheZoneName: "validname",
+				CacheZoneSize: "10",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "cache zone size must be a number followed by k, m, or g",
+		},
+		{
+			name: "invalid cache zone size - invalid unit",
+			cache: &v1.Cache{
+				CacheZoneName: "validname",
+				CacheZoneSize: "10x",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "cache zone size must be a number followed by k, m, or g",
+		},
 
-			allErrs := validateCache(test.cache, field.NewPath("cache"), test.isPlus)
+		// Invalid cache configurations - Conditional fields
+		{
+			name: "allowedCodes without time",
+			cache: &v1.Cache{
+				CacheZoneName: "test",
+				CacheZoneSize: "10m",
+				AllowedCodes:  []intstr.IntOrString{intstr.FromInt(200)},
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "time is required when allowedCodes is specified",
+		},
+		{
+			name: "multiple allowedCodes without time",
+			cache: &v1.Cache{
+				CacheZoneName: "test",
+				CacheZoneSize: "10m",
+				AllowedCodes: []intstr.IntOrString{
+					intstr.FromInt(200),
+					intstr.FromInt(404),
+				},
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "time is required when allowedCodes is specified",
+		},
 
-			if test.expected && len(allErrs) > 0 {
-				t.Errorf("Expected no validation errors for valid cache, got: %v", allErrs)
-			}
-			if !test.expected && len(allErrs) == 0 {
-				t.Errorf("Expected validation errors for invalid cache, got none")
-			}
-		})
-	}
-
-	invalidCacheTests := []struct {
-		name          string
-		cache         *v1.Cache
-		isPlus        bool
-		expectedError string
-	}{
+		// Invalid cache configurations - Field formats
 		{
 			name: "invalid allowed code string",
 			cache: &v1.Cache{
@@ -2537,6 +2716,7 @@ func TestValidateCache(t *testing.T) {
 				Time:          "1h",
 			},
 			isPlus:        false,
+			expectValid:   false,
 			expectedError: "only the string 'any' is allowed",
 		},
 		{
@@ -2548,6 +2728,7 @@ func TestValidateCache(t *testing.T) {
 				Time:          "1h",
 			},
 			isPlus:        false,
+			expectValid:   false,
 			expectedError: "HTTP status code must be between 100 and 599",
 		},
 		{
@@ -2559,8 +2740,99 @@ func TestValidateCache(t *testing.T) {
 				Time:          "1h",
 			},
 			isPlus:        false,
+			expectValid:   false,
 			expectedError: "HTTP status code must be between 100 and 599",
 		},
+		{
+			name: "invalid HTTP method",
+			cache: &v1.Cache{
+				CacheZoneName:  "test",
+				CacheZoneSize:  "10m",
+				AllowedMethods: []string{"PUT"},
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "supported values:",
+		},
+		{
+			name: "mixed valid and invalid methods",
+			cache: &v1.Cache{
+				CacheZoneName:  "test",
+				CacheZoneSize:  "10m",
+				AllowedMethods: []string{"GET", "DELETE"},
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "supported values:",
+		},
+		{
+			name: "invalid time without unit",
+			cache: &v1.Cache{
+				CacheZoneName: "test",
+				CacheZoneSize: "10m",
+				Time:          "30",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "time must be a number followed by s, m, h, or d",
+		},
+		{
+			name: "invalid time with invalid unit",
+			cache: &v1.Cache{
+				CacheZoneName: "test",
+				CacheZoneSize: "10m",
+				Time:          "30x",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "time must be a number followed by s, m, h, or d",
+		},
+		{
+			name: "invalid levels with value 3",
+			cache: &v1.Cache{
+				CacheZoneName: "test",
+				CacheZoneSize: "10m",
+				Levels:        "1:3",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "levels must be in format like '1:2' or '1:2:2' with values of 1 or 2",
+		},
+		{
+			name: "invalid levels with value 0",
+			cache: &v1.Cache{
+				CacheZoneName: "test",
+				CacheZoneSize: "10m",
+				Levels:        "0:1",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "levels must be in format like '1:2' or '1:2:2' with values of 1 or 2",
+		},
+		{
+			name: "invalid levels too many parts",
+			cache: &v1.Cache{
+				CacheZoneName: "test",
+				CacheZoneSize: "10m",
+				Levels:        "1:2:1:2",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "levels must be in format like '1:2' or '1:2:2' with values of 1 or 2",
+		},
+		{
+			name: "invalid levels format",
+			cache: &v1.Cache{
+				CacheZoneName: "test",
+				CacheZoneSize: "10m",
+				Levels:        "1-2",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "levels must be in format like '1:2' or '1:2:2' with values of 1 or 2",
+		},
+
+		// Invalid cache configurations - NGINX Plus features
 		{
 			name: "cache purge not allowed on OSS",
 			cache: &v1.Cache{
@@ -2569,6 +2841,7 @@ func TestValidateCache(t *testing.T) {
 				CachePurgeAllow: []string{"192.168.1.1"},
 			},
 			isPlus:        false,
+			expectValid:   false,
 			expectedError: "cache purge is only supported in NGINX Plus",
 		},
 		{
@@ -2579,6 +2852,7 @@ func TestValidateCache(t *testing.T) {
 				CachePurgeAllow: []string{"invalid-ip"},
 			},
 			isPlus:        true,
+			expectValid:   false,
 			expectedError: "must be a valid IP address or CIDR",
 		},
 		{
@@ -2589,32 +2863,72 @@ func TestValidateCache(t *testing.T) {
 				CachePurgeAllow: []string{"192.168.1.1/99"},
 			},
 			isPlus:        true,
+			expectValid:   false,
+			expectedError: "must be a valid IP address or CIDR",
+		},
+		{
+			name: "mixed valid and invalid IPs in purge allow",
+			cache: &v1.Cache{
+				CacheZoneName:   "test",
+				CacheZoneSize:   "10m",
+				CachePurgeAllow: []string{"192.168.1.1", "not-an-ip"},
+			},
+			isPlus:        true,
+			expectValid:   false,
+			expectedError: "must be a valid IP address or CIDR",
+		},
+		{
+			name: "empty string in IP list",
+			cache: &v1.Cache{
+				CacheZoneName:   "test",
+				CacheZoneSize:   "10m",
+				CachePurgeAllow: []string{"192.168.1.1", ""},
+			},
+			isPlus:        true,
+			expectValid:   false,
+			expectedError: "must be a valid IP address or CIDR",
+		},
+		{
+			name: "hostname instead of IP in purge allow",
+			cache: &v1.Cache{
+				CacheZoneName:   "test",
+				CacheZoneSize:   "10m",
+				CachePurgeAllow: []string{"example.com"},
+			},
+			isPlus:        true,
+			expectValid:   false,
 			expectedError: "must be a valid IP address or CIDR",
 		},
 	}
 
-	for _, test := range invalidCacheTests {
+	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
 			allErrs := validateCache(test.cache, field.NewPath("cache"), test.isPlus)
 
-			if len(allErrs) == 0 {
-				t.Errorf("Expected validation error containing '%s', got no errors", test.expectedError)
-				return
-			}
-
-			found := false
-			for _, err := range allErrs {
-				if strings.Contains(err.Detail, test.expectedError) {
-					found = true
-					break
+			if test.expectValid {
+				if len(allErrs) > 0 {
+					t.Errorf("Expected no validation errors for valid cache, got: %v", allErrs)
 				}
-			}
+			} else {
+				if len(allErrs) == 0 {
+					t.Errorf("Expected validation error containing '%s', got no errors", test.expectedError)
+					return
+				}
 
-			if !found {
-				t.Errorf("Expected validation error containing '%s', got: %v", test.expectedError, allErrs)
+				found := false
+				for _, err := range allErrs {
+					if strings.Contains(err.Detail, test.expectedError) {
+						found = true
+						break
+					}
+				}
+
+				if !found {
+					t.Errorf("Expected validation error containing '%s', got: %v", test.expectedError, allErrs)
+				}
 			}
 		})
 	}
