@@ -428,6 +428,39 @@ func validateLogConfs(logs []*v1.SecurityLog, fieldPath *field.Path, bundleMode 
 func validateCache(cache *v1.Cache, fieldPath *field.Path, isPlus bool) field.ErrorList {
 	allErrs := field.ErrorList{}
 
+	// Validate required fields
+	if cache.CacheZoneName == "" {
+		allErrs = append(allErrs, field.Required(fieldPath.Child("cacheZoneName"), "cache zone name is required"))
+	} else {
+		// Validate cache zone name pattern: ^[a-z][a-zA-Z0-9_]*[a-zA-Z0-9]$|^[a-z]$
+		cacheZoneNamePattern := regexp.MustCompile(`^[a-z][a-zA-Z0-9_]*[a-zA-Z0-9]$|^[a-z]$`)
+		if !cacheZoneNamePattern.MatchString(cache.CacheZoneName) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("cacheZoneName"), cache.CacheZoneName, "cache zone name must start with a lowercase letter and contain only letters, numbers, and underscores"))
+		}
+		// Validate cache zone name max length
+		if len(cache.CacheZoneName) > 64 {
+			allErrs = append(allErrs, field.TooLong(fieldPath.Child("cacheZoneName"), cache.CacheZoneName, 64))
+		}
+	}
+
+	if cache.CacheZoneSize == "" {
+		allErrs = append(allErrs, field.Required(fieldPath.Child("cacheZoneSize"), "cache zone size is required"))
+	} else {
+		// Validate cache zone size pattern: ^[0-9]+[kmg]$
+		cacheZoneSizePattern := regexp.MustCompile(`^[0-9]+[kmg]$`)
+		if !cacheZoneSizePattern.MatchString(cache.CacheZoneSize) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("cacheZoneSize"), cache.CacheZoneSize, "cache zone size must be a number followed by k, m, or g (e.g., '10m', '1g')"))
+		}
+	}
+
+	// Validate anyOf constraint: either allowedCodes is not specified, or both allowedCodes and time are specified
+	hasAllowedCodes := len(cache.AllowedCodes) > 0
+	hasTime := cache.Time != ""
+
+	if hasAllowedCodes && !hasTime {
+		allErrs = append(allErrs, field.Required(fieldPath.Child("time"), "time is required when allowedCodes is specified"))
+	}
+
 	// Validate allowed codes if provided
 	for i, code := range cache.AllowedCodes {
 		if code.Type == intstr.String {
@@ -441,6 +474,30 @@ func validateCache(cache *v1.Cache, fieldPath *field.Path, isPlus bool) field.Er
 			if intCode < 100 || intCode > 599 {
 				allErrs = append(allErrs, field.Invalid(fieldPath.Child("allowedCodes").Index(i), intCode, "HTTP status code must be between 100 and 599"))
 			}
+		}
+	}
+
+	// Validate allowed methods if provided
+	validMethods := map[string]bool{"GET": true, "HEAD": true, "POST": true}
+	for i, method := range cache.AllowedMethods {
+		if !validMethods[method] {
+			allErrs = append(allErrs, field.NotSupported(fieldPath.Child("allowedMethods").Index(i), method, []string{"GET", "HEAD", "POST"}))
+		}
+	}
+
+	// Validate time pattern if provided: ^[0-9]+[smhd]$
+	if cache.Time != "" {
+		timePattern := regexp.MustCompile(`^[0-9]+[smhd]$`)
+		if !timePattern.MatchString(cache.Time) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("time"), cache.Time, "time must be a number followed by s, m, h, or d (e.g., '30s', '5m', '1h', '1d')"))
+		}
+	}
+
+	// Validate levels pattern if provided: ^[12](?::[12]){0,2}$
+	if cache.Levels != "" {
+		levelsPattern := regexp.MustCompile(`^[12](?::[12]){0,2}$`)
+		if !levelsPattern.MatchString(cache.Levels) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("levels"), cache.Levels, "levels must be in format like '1:2' or '1:2:2' with values of 1 or 2"))
 		}
 	}
 

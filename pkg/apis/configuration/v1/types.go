@@ -1009,12 +1009,35 @@ type SuppliedIn struct {
 
 // Cache defines a cache policy for proxy caching.
 type Cache struct {
-	CacheZoneName         string               `json:"cacheZoneName"`
-	CacheZoneSize         string               `json:"cacheZoneSize"`
-	AllowedCodes          []intstr.IntOrString `json:"allowedCodes,omitempty"`
-	AllowedMethods        []string             `json:"allowedMethods,omitempty"`
-	Time                  string               `json:"time,omitempty"`
-	CachePurgeAllow       []string             `json:"cachePurgeAllow,omitempty"`
-	OverrideUpstreamCache bool                 `json:"overrideUpstreamCache,omitempty"`
-	Levels                string               `json:"levels,omitempty"` // Optional. Directory hierarchy for cache files (e.g., "1:2", "2:2", "1:2:2")
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^[a-z][a-zA-Z0-9_]*[a-zA-Z0-9]$|^[a-z]$`
+	// +kubebuilder:validation:MaxLength=64
+	// CacheZoneName defines the name of the cache zone.
+	CacheZoneName string `json:"cacheZoneName"`
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^[0-9]+[kmg]$`
+	// CacheZoneSize defines the size of the cache zone.
+	CacheZoneSize string `json:"cacheZoneSize"`
+	// +kubebuilder:validation:Optional
+	// AllowedCodes defines which response codes should be cached. Can be HTTP status codes (100-599) or the string "any" to cache all responses.
+	AllowedCodes []intstr.IntOrString `json:"allowedCodes,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Enum=GET;HEAD;POST
+	// AllowedMethods defines which HTTP methods should be cached. Only GET, HEAD, and POST are supported by NGINX proxy_cache_methods directive. GET and HEAD are always cached by default.
+	AllowedMethods []string `json:"allowedMethods,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[0-9]+[smhd]$`
+	// Time defines the default cache time (required when allowedCodes is specified).
+	Time string `json:"time,omitempty"`
+	// +kubebuilder:validation:Optional
+	// CachePurgeAllow defines IP addresses allowed to purge cache (NGINX Plus only).
+	CachePurgeAllow []string `json:"cachePurgeAllow,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	// OverrideUpstreamCache controls whether to override upstream cache headers (using proxy_ignore_headers directive).
+	OverrideUpstreamCache bool `json:"overrideUpstreamCache,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[12](?::[12]){0,2}$`
+	// Levels defines the cache directory hierarchy levels for storing cached files (e.g., "1:2", "2:2", "1:2:2").
+	Levels string `json:"levels,omitempty"`
 }

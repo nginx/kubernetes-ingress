@@ -109,6 +109,73 @@ spec:
                       otherwise the secret will be rejected as invalid.
                     type: string
                 type: object
+              cache:
+                description: The Cache Key defines a cache policy for proxy caching
+                properties:
+                  allowedCodes:
+                    description: AllowedCodes defines which response codes should
+                      be cached. Can be HTTP status codes (100-599) or the string
+                      "any" to cache all responses.
+                    items:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      x-kubernetes-int-or-string: true
+                    type: array
+                  allowedMethods:
+                    description: AllowedMethods defines which HTTP methods should
+                      be cached. Only GET, HEAD, and POST are supported by NGINX proxy_cache_methods
+                      directive. GET and HEAD are always cached by default.
+                    enum:
+                    - GET
+                    - HEAD
+                    - POST
+                    items:
+                      type: string
+                    type: array
+                  cachePurgeAllow:
+                    description: CachePurgeAllow defines IP addresses allowed to purge
+                      cache (NGINX Plus only).
+                    items:
+                      type: string
+                    type: array
+                  cacheZoneName:
+                    description: CacheZoneName defines the name of the cache zone.
+                    maxLength: 64
+                    pattern: ^[a-z][a-zA-Z0-9_]*[a-zA-Z0-9]$|^[a-z]$
+                    type: string
+                  cacheZoneSize:
+                    description: CacheZoneSize defines the size of the cache zone.
+                    pattern: ^[0-9]+[kmg]$
+                    type: string
+                  levels:
+                    description: Levels defines the cache directory hierarchy levels
+                      for storing cached files (e.g., "1:2", "2:2", "1:2:2").
+                    pattern: ^[12](?::[12]){0,2}$
+                    type: string
+                  overrideUpstreamCache:
+                    default: false
+                    description: OverrideUpstreamCache controls whether to override
+                      upstream cache headers (using proxy_ignore_headers directive).
+                    type: boolean
+                  time:
+                    description: Time defines the default cache time (required when
+                      allowedCodes is specified).
+                    pattern: ^[0-9]+[smhd]$
+                    type: string
+                required:
+                - cacheZoneName
+                - cacheZoneSize
+                anyOf:
+                - not:
+                    required:
+                    - allowedCodes
+                - allOf:
+                  - required:
+                    - allowedCodes
+                  - required:
+                    - time
+                type: object
               egressMTLS:
                 description: The EgressMTLS policy configures upstreams authentication
                   and certificate verification.
@@ -457,62 +524,6 @@ spec:
                           type: string
                       type: object
                     type: array
-                type: object
-              cache:
-                description: Cache defines a cache policy for proxy caching.
-                properties:
-                  allowedCodes:
-                    description: AllowedCodes defines which response codes should be cached. Can be HTTP status codes (100-599) or the string "any" to cache all responses.
-                    items:
-                      x-kubernetes-int-or-string: true
-                    type: array
-                  allowedMethods:
-                    description: "AllowedMethods defines which HTTP methods should be cached. Only GET, HEAD, and POST are supported by NGINX proxy_cache_methods directive. GET and HEAD are always cached by default."
-                    items:
-                      type: string
-                      enum:
-                        - "GET"
-                        - "HEAD"
-                        - "POST"
-                    type: array
-                  cachePurgeAllow:
-                    description: CachePurgeAllow defines IP addresses allowed to purge cache (NGINX Plus only)
-                    items:
-                      type: string
-                    type: array
-                  cacheZoneName:
-                    description: CacheZoneName defines the name of the cache zone
-                    type: string
-                    pattern: '^[a-z][a-zA-Z0-9_]*[a-zA-Z0-9]$|^[a-z]$'
-                    maxLength: 64
-                  cacheZoneSize:
-                    description: CacheZoneSize defines the size of the cache zone
-                    type: string
-                    pattern: '^[0-9]+[kmg]$'
-                  overrideUpstreamCache:
-                    description: OverrideUpstreamCache controls whether to override upstream cache headers (using proxy_ignore_headers directive)
-                    type: boolean
-                    default: false
-                  time:
-                    description: Time defines the default cache time (required when allowedCodes is specified)
-                    type: string
-                    pattern: '^[0-9]+[smhd]$'
-                  levels:
-                    description: Directory hierarchy for cache files. Controls the number of subdirectory levels used for cache storage.
-                    type: string
-                    pattern: '^[12](?::[12]){0,2}$'
-                required:
-                  - cacheZoneName
-                  - cacheZoneSize
-                anyOf:
-                  - not:
-                      required:
-                        - allowedCodes
-                  - allOf:
-                      - required:
-                          - allowedCodes
-                      - required:
-                          - time
                 type: object
             type: object
           status:
