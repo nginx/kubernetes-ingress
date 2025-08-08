@@ -363,6 +363,10 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		cfgParams.ProxyBusyBuffersSize = normalizedProxyBusyBuffersSize
 	}
 
+	if proxyMaxTempFileSize, exists := cfgm.Data["proxy-max-temp-file-size"]; exists {
+		cfgParams.ProxyMaxTempFileSize = proxyMaxTempFileSize
+	}
+
 	if mainMainSnippets, exists := GetMapKeyAsStringSlice(cfgm.Data, "main-snippets", cfgm, "\n"); exists {
 		cfgParams.MainMainSnippets = mainMainSnippets
 	}
