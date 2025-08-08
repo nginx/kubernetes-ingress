@@ -335,15 +335,32 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 	}
 
 	if proxyBuffers, exists := cfgm.Data["proxy-buffers"]; exists {
-		cfgParams.ProxyBuffers = proxyBuffers
+		fields := strings.Fields(strings.TrimSpace(proxyBuffers))
+		if len(fields) == 2 {
+			normalizedSize := validation.NormalizeSize(fields[1])
+			if normalizedSize != fields[1] {
+				correctedBuffers := fields[0] + " " + normalizedSize
+				nl.Info(l, fmt.Sprintf("Auto-corrected proxy-buffers from '%s' to '%s'", proxyBuffers, correctedBuffers))
+				cfgParams.ProxyBuffers = correctedBuffers
+			} else {
+				cfgParams.ProxyBuffers = proxyBuffers
+			}
+		} else {
+			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'proxy-buffers': %q, must be in format 'count size' (e.g. '4 8k'), ignoring", cfgm.GetNamespace(), cfgm.GetName(), proxyBuffers)
+			nl.Error(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			configOk = false
+		}
 	}
 
 	if proxyBufferSize, exists := cfgm.Data["proxy-buffer-size"]; exists {
-		cfgParams.ProxyBufferSize = proxyBufferSize
+		normalizedProxyBufferSize := validation.NormalizeBufferSize(proxyBufferSize)
+		cfgParams.ProxyBufferSize = normalizedProxyBufferSize
 	}
 
-	if proxyMaxTempFileSize, exists := cfgm.Data["proxy-max-temp-file-size"]; exists {
-		cfgParams.ProxyMaxTempFileSize = proxyMaxTempFileSize
+	if proxyBusyBuffersSize, exists := cfgm.Data["proxy-busy-buffers-size"]; exists {
+		normalizedProxyBusyBuffersSize := validation.NormalizeBufferSize(proxyBusyBuffersSize)
+		cfgParams.ProxyBusyBuffersSize = normalizedProxyBusyBuffersSize
 	}
 
 	if mainMainSnippets, exists := GetMapKeyAsStringSlice(cfgm.Data, "main-snippets", cfgm, "\n"); exists {

@@ -248,6 +248,10 @@ func boolToInteger(b bool) int {
 	return i
 }
 
+func makeProxyBuffers(proxyBuffers, proxyBufferSize, proxyBusyBuffersSize string) string {
+	return commonhelpers.MakeProxyBuffers(proxyBuffers, proxyBufferSize, proxyBusyBuffersSize)
+}
+
 var helperFunctions = template.FuncMap{
 	"headerListToCIMap":     headerListToCIMap,
 	"hasCIKey":              hasCIKey,
@@ -264,4 +268,5 @@ var helperFunctions = template.FuncMap{
 	"makeTransportListener": makeTransportListener,
 	"makeServerName":        makeServerName,
 	"boolToInteger":         boolToInteger,
+	"makeProxyBuffers":      makeProxyBuffers,
 }
