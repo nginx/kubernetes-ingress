@@ -1,9 +1,11 @@
 package validation
 
 import (
+	"strings"
 	"testing"
 
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
@@ -2420,6 +2422,772 @@ func TestValidateWAF_FailsOnInvalidApLogBundle(t *testing.T) {
 				t.Errorf("want error, got %v", allErrs)
 			} else if len(allErrs) > 0 && tc.valid {
 				t.Errorf("got error %v", allErrs)
+			}
+		})
+	}
+}
+
+func TestValidateCache(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		cache         *v1.Cache
+		isPlus        bool
+		expectValid   bool
+		expectedError string
+	}{
+		// Valid cache configurations
+		{
+			name: "valid cache with basic configuration",
+			cache: &v1.Cache{
+				CacheZoneName: "mycache",
+				CacheZoneSize: "10m",
+			},
+			isPlus:      false,
+			expectValid: true,
+		},
+		{
+			name: "valid cache with all options",
+			cache: &v1.Cache{
+				CacheZoneName:         "mycache",
+				CacheZoneSize:         "100m",
+				AllowedCodes:          []intstr.IntOrString{intstr.FromString("any")},
+				AllowedMethods:        []string{"GET", "HEAD", "POST"},
+				Time:                  "1h",
+				OverrideUpstreamCache: true,
+				Levels:                "1:2",
+			},
+			isPlus:      false,
+			expectValid: true,
+		},
+		{
+			name: "valid cache with specific status codes",
+			cache: &v1.Cache{
+				CacheZoneName: "statuscache",
+				CacheZoneSize: "50m",
+				AllowedCodes: []intstr.IntOrString{
+					intstr.FromInt(200),
+					intstr.FromInt(301),
+					intstr.FromInt(404),
+				},
+				Time: "30m",
+			},
+			isPlus:      false,
+			expectValid: true,
+		},
+		{
+			name: "valid cache with purge (NGINX Plus)",
+			cache: &v1.Cache{
+				CacheZoneName:   "purgecache",
+				CacheZoneSize:   "20m",
+				CachePurgeAllow: []string{"192.168.1.0/24", "10.0.0.1"},
+			},
+			isPlus:      true,
+			expectValid: true,
+		},
+		{
+			name: "valid cache with GET method only",
+			cache: &v1.Cache{
+				CacheZoneName:  "getcache",
+				CacheZoneSize:  "15m",
+				AllowedMethods: []string{"GET"},
+			},
+			isPlus:      false,
+			expectValid: true,
+		},
+		{
+			name: "valid cache with complex levels",
+			cache: &v1.Cache{
+				CacheZoneName: "levelcache",
+				CacheZoneSize: "25m",
+				Levels:        "2:2",
+			},
+			isPlus:      false,
+			expectValid: true,
+		},
+		{
+			name: "valid cache zone name with underscores",
+			cache: &v1.Cache{
+				CacheZoneName: "valid_cache_name",
+				CacheZoneSize: "10m",
+			},
+			isPlus:      false,
+			expectValid: true,
+		},
+		{
+			name: "valid cache zone size with k unit",
+			cache: &v1.Cache{
+				CacheZoneName: "validname",
+				CacheZoneSize: "1024k",
+			},
+			isPlus:      false,
+			expectValid: true,
+		},
+		{
+			name: "valid cache zone size with g unit",
+			cache: &v1.Cache{
+				CacheZoneName: "validname",
+				CacheZoneSize: "2g",
+			},
+			isPlus:      false,
+			expectValid: true,
+		},
+		{
+			name: "valid time in seconds",
+			cache: &v1.Cache{
+				CacheZoneName: "test",
+				CacheZoneSize: "10m",
+				Time:          "30s",
+			},
+			isPlus:      false,
+			expectValid: true,
+		},
+		{
+			name: "valid time in days",
+			cache: &v1.Cache{
+				CacheZoneName: "test",
+				CacheZoneSize: "10m",
+				Time:          "1d",
+			},
+			isPlus:      false,
+			expectValid: true,
+		},
+		{
+			name: "valid allowedCodes 'any' with time",
+			cache: &v1.Cache{
+				CacheZoneName: "test",
+				CacheZoneSize: "10m",
+				AllowedCodes:  []intstr.IntOrString{intstr.FromString("any")},
+				Time:          "30m",
+			},
+			isPlus:      false,
+			expectValid: true,
+		},
+		{
+			name: "valid boundary status codes",
+			cache: &v1.Cache{
+				CacheZoneName: "test",
+				CacheZoneSize: "10m",
+				AllowedCodes: []intstr.IntOrString{
+					intstr.FromInt(100), // minimum
+					intstr.FromInt(599), // maximum
+				},
+				Time: "1h",
+			},
+			isPlus:      false,
+			expectValid: true,
+		},
+		{
+			name: "valid IPv6 address in purge allow",
+			cache: &v1.Cache{
+				CacheZoneName:   "test",
+				CacheZoneSize:   "10m",
+				CachePurgeAllow: []string{"2001:db8::1"},
+			},
+			isPlus:      true,
+			expectValid: true,
+		},
+		{
+			name: "valid IPv6 CIDR in purge allow",
+			cache: &v1.Cache{
+				CacheZoneName:   "test",
+				CacheZoneSize:   "10m",
+				CachePurgeAllow: []string{"2001:db8::/32"},
+			},
+			isPlus:      true,
+			expectValid: true,
+		},
+
+		// Invalid cache configurations - Required fields
+		{
+			name: "missing cache zone name",
+			cache: &v1.Cache{
+				CacheZoneSize: "10m",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "cache zone name is required",
+		},
+		{
+			name: "missing cache zone size",
+			cache: &v1.Cache{
+				CacheZoneName: "validname",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "cache zone size is required",
+		},
+		{
+			name: "invalid cache zone name - starts with uppercase",
+			cache: &v1.Cache{
+				CacheZoneName: "InvalidName",
+				CacheZoneSize: "10m",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "cache zone name must start with a lowercase letter",
+		},
+		{
+			name: "invalid cache zone name - starts with number",
+			cache: &v1.Cache{
+				CacheZoneName: "1invalidname",
+				CacheZoneSize: "10m",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "cache zone name must start with a lowercase letter",
+		},
+		{
+			name: "invalid cache zone name - special characters",
+			cache: &v1.Cache{
+				CacheZoneName: "invalid-name",
+				CacheZoneSize: "10m",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "cache zone name must start with a lowercase letter",
+		},
+		{
+			name: "cache zone name too long",
+			cache: &v1.Cache{
+				CacheZoneName: "a" + strings.Repeat("x", 64), // 65 characters
+				CacheZoneSize: "10m",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "may not be more than 64 bytes",
+		},
+		{
+			name: "invalid cache zone size - no unit",
+			cache: &v1.Cache{
+				CacheZoneName: "validname",
+				CacheZoneSize: "10",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "cache zone size must be a number followed by k, m, or g",
+		},
+		{
+			name: "invalid cache zone size - invalid unit",
+			cache: &v1.Cache{
+				CacheZoneName: "validname",
+				CacheZoneSize: "10x",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "cache zone size must be a number followed by k, m, or g",
+		},
+
+		// Invalid cache configurations - Conditional fields
+		{
+			name: "allowedCodes without time",
+			cache: &v1.Cache{
+				CacheZoneName: "test",
+				CacheZoneSize: "10m",
+				AllowedCodes:  []intstr.IntOrString{intstr.FromInt(200)},
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "time is required when allowedCodes is specified",
+		},
+		{
+			name: "multiple allowedCodes without time",
+			cache: &v1.Cache{
+				CacheZoneName: "test",
+				CacheZoneSize: "10m",
+				AllowedCodes: []intstr.IntOrString{
+					intstr.FromInt(200),
+					intstr.FromInt(404),
+				},
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "time is required when allowedCodes is specified",
+		},
+
+		// Invalid cache configurations - Field formats
+		{
+			name: "invalid allowed code string",
+			cache: &v1.Cache{
+				CacheZoneName: "invalidcache",
+				CacheZoneSize: "10m",
+				AllowedCodes:  []intstr.IntOrString{intstr.FromString("invalid")},
+				Time:          "1h",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "only the string 'any' is allowed",
+		},
+		{
+			name: "invalid status code too low",
+			cache: &v1.Cache{
+				CacheZoneName: "invalidcache",
+				CacheZoneSize: "10m",
+				AllowedCodes:  []intstr.IntOrString{intstr.FromInt(99)},
+				Time:          "1h",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "HTTP status code must be between 100 and 599",
+		},
+		{
+			name: "invalid status code too high",
+			cache: &v1.Cache{
+				CacheZoneName: "invalidcache",
+				CacheZoneSize: "10m",
+				AllowedCodes:  []intstr.IntOrString{intstr.FromInt(600)},
+				Time:          "1h",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "HTTP status code must be between 100 and 599",
+		},
+		{
+			name: "invalid HTTP method",
+			cache: &v1.Cache{
+				CacheZoneName:  "test",
+				CacheZoneSize:  "10m",
+				AllowedMethods: []string{"PUT"},
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "supported values:",
+		},
+		{
+			name: "mixed valid and invalid methods",
+			cache: &v1.Cache{
+				CacheZoneName:  "test",
+				CacheZoneSize:  "10m",
+				AllowedMethods: []string{"GET", "DELETE"},
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "supported values:",
+		},
+		{
+			name: "invalid time without unit",
+			cache: &v1.Cache{
+				CacheZoneName: "test",
+				CacheZoneSize: "10m",
+				Time:          "30",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "time must be a number followed by s, m, h, or d",
+		},
+		{
+			name: "invalid time with invalid unit",
+			cache: &v1.Cache{
+				CacheZoneName: "test",
+				CacheZoneSize: "10m",
+				Time:          "30x",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "time must be a number followed by s, m, h, or d",
+		},
+		{
+			name: "invalid levels with value 3",
+			cache: &v1.Cache{
+				CacheZoneName: "test",
+				CacheZoneSize: "10m",
+				Levels:        "1:3",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "levels must be in format like '1:2' or '1:2:2' with values of 1 or 2",
+		},
+		{
+			name: "invalid levels with value 0",
+			cache: &v1.Cache{
+				CacheZoneName: "test",
+				CacheZoneSize: "10m",
+				Levels:        "0:1",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "levels must be in format like '1:2' or '1:2:2' with values of 1 or 2",
+		},
+		{
+			name: "invalid levels too many parts",
+			cache: &v1.Cache{
+				CacheZoneName: "test",
+				CacheZoneSize: "10m",
+				Levels:        "1:2:1:2",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "levels must be in format like '1:2' or '1:2:2' with values of 1 or 2",
+		},
+		{
+			name: "invalid levels format",
+			cache: &v1.Cache{
+				CacheZoneName: "test",
+				CacheZoneSize: "10m",
+				Levels:        "1-2",
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "levels must be in format like '1:2' or '1:2:2' with values of 1 or 2",
+		},
+
+		// Invalid cache configurations - NGINX Plus features
+		{
+			name: "cache purge not allowed on OSS",
+			cache: &v1.Cache{
+				CacheZoneName:   "purgeoss",
+				CacheZoneSize:   "10m",
+				CachePurgeAllow: []string{"192.168.1.1"},
+			},
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "cache purge is only supported in NGINX Plus",
+		},
+		{
+			name: "invalid IP address in purge allow",
+			cache: &v1.Cache{
+				CacheZoneName:   "invalidip",
+				CacheZoneSize:   "10m",
+				CachePurgeAllow: []string{"invalid-ip"},
+			},
+			isPlus:        true,
+			expectValid:   false,
+			expectedError: "must be a valid IP address or CIDR",
+		},
+		{
+			name: "invalid CIDR in purge allow",
+			cache: &v1.Cache{
+				CacheZoneName:   "invalidcidr",
+				CacheZoneSize:   "10m",
+				CachePurgeAllow: []string{"192.168.1.1/99"},
+			},
+			isPlus:        true,
+			expectValid:   false,
+			expectedError: "must be a valid IP address or CIDR",
+		},
+		{
+			name: "mixed valid and invalid IPs in purge allow",
+			cache: &v1.Cache{
+				CacheZoneName:   "test",
+				CacheZoneSize:   "10m",
+				CachePurgeAllow: []string{"192.168.1.1", "not-an-ip"},
+			},
+			isPlus:        true,
+			expectValid:   false,
+			expectedError: "must be a valid IP address or CIDR",
+		},
+		{
+			name: "empty string in IP list",
+			cache: &v1.Cache{
+				CacheZoneName:   "test",
+				CacheZoneSize:   "10m",
+				CachePurgeAllow: []string{"192.168.1.1", ""},
+			},
+			isPlus:        true,
+			expectValid:   false,
+			expectedError: "must be a valid IP address or CIDR",
+		},
+		{
+			name: "hostname instead of IP in purge allow",
+			cache: &v1.Cache{
+				CacheZoneName:   "test",
+				CacheZoneSize:   "10m",
+				CachePurgeAllow: []string{"example.com"},
+			},
+			isPlus:        true,
+			expectValid:   false,
+			expectedError: "must be a valid IP address or CIDR",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			allErrs := validateCache(test.cache, field.NewPath("cache"), test.isPlus)
+
+			if test.expectValid {
+				if len(allErrs) > 0 {
+					t.Errorf("Expected no validation errors for valid cache, got: %v", allErrs)
+				}
+			} else {
+				if len(allErrs) == 0 {
+					t.Errorf("Expected validation error containing '%s', got no errors", test.expectedError)
+					return
+				}
+
+				found := false
+				for _, err := range allErrs {
+					if strings.Contains(err.Detail, test.expectedError) {
+						found = true
+						break
+					}
+				}
+
+				if !found {
+					t.Errorf("Expected validation error containing '%s', got: %v", test.expectedError, allErrs)
+				}
+			}
+		})
+	}
+}
+
+func TestValidatePolicy_CachePolicy(t *testing.T) {
+	t.Parallel()
+
+	validPolicyTests := []struct {
+		name   string
+		policy *v1.Policy
+		isPlus bool
+	}{
+		{
+			name: "valid cache policy basic",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "basiccache",
+						CacheZoneSize: "10m",
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "valid cache policy with all options",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName:         "fullcache",
+						CacheZoneSize:         "100m",
+						AllowedCodes:          []intstr.IntOrString{intstr.FromString("any")},
+						AllowedMethods:        []string{"GET", "HEAD", "POST"},
+						Time:                  "2h",
+						OverrideUpstreamCache: true,
+						Levels:                "1:2",
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "valid cache policy with purge (NGINX Plus)",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName:   "purgecache",
+						CacheZoneSize:   "50m",
+						CachePurgeAllow: []string{"10.0.0.0/8", "192.168.1.100"},
+					},
+				},
+			},
+			isPlus: true,
+		},
+	}
+
+	for _, test := range validPolicyTests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := ValidatePolicy(test.policy, test.isPlus, false, false)
+			if err != nil {
+				t.Errorf("Expected valid cache policy, got error: %v", err)
+			}
+		})
+	}
+
+	invalidPolicyTests := []struct {
+		name   string
+		policy *v1.Policy
+		isPlus bool
+	}{
+		{
+			name: "multiple policies defined (cache + access control)",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "cache1",
+						CacheZoneSize: "10m",
+					},
+					AccessControl: &v1.AccessControl{
+						Allow: []string{"127.0.0.1"},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "multiple policies defined (cache + rate limit)",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "cache2",
+						CacheZoneSize: "10m",
+					},
+					RateLimit: &v1.RateLimit{
+						Rate: "10r/s",
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "invalid cache with bad status code",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "invalidcache",
+						CacheZoneSize: "10m",
+						AllowedCodes:  []intstr.IntOrString{intstr.FromInt(1000)},
+						Time:          "1h",
+					},
+				},
+			},
+			isPlus: false,
+		},
+	}
+
+	for _, test := range invalidPolicyTests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := ValidatePolicy(test.policy, test.isPlus, false, false)
+			if err == nil {
+				t.Errorf("Expected invalid cache policy to return error, got none")
+			}
+		})
+	}
+}
+
+func TestValidatePolicy_CacheRequiredFields(t *testing.T) {
+	t.Parallel()
+
+	// Test the CRD-level validation that requires time when allowedCodes is specified
+	validPolicies := []struct {
+		name   string
+		policy *v1.Policy
+	}{
+		{
+			name: "no allowedCodes, no time required",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "notime",
+						CacheZoneSize: "10m",
+					},
+				},
+			},
+		},
+		{
+			name: "allowedCodes with time",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "withtime",
+						CacheZoneSize: "10m",
+						AllowedCodes:  []intstr.IntOrString{intstr.FromString("any")},
+						Time:          "1h",
+					},
+				},
+			},
+		},
+		{
+			name: "specific status codes with time",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "statuscodes",
+						CacheZoneSize: "10m",
+						AllowedCodes: []intstr.IntOrString{
+							intstr.FromInt(200),
+							intstr.FromInt(404),
+						},
+						Time: "30m",
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range validPolicies {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := ValidatePolicy(test.policy, false, false, false)
+			if err != nil {
+				t.Errorf("Expected valid cache policy, got error: %v", err)
+			}
+		})
+	}
+}
+
+func TestValidatePolicy_CacheMethodsValidation(t *testing.T) {
+	t.Parallel()
+
+	// Test allowed methods validation
+	tests := []struct {
+		name           string
+		allowedMethods []string
+		expectValid    bool
+	}{
+		{
+			name:           "valid GET method",
+			allowedMethods: []string{"GET"},
+			expectValid:    true,
+		},
+		{
+			name:           "valid HEAD method",
+			allowedMethods: []string{"HEAD"},
+			expectValid:    true,
+		},
+		{
+			name:           "valid POST method",
+			allowedMethods: []string{"POST"},
+			expectValid:    true,
+		},
+		{
+			name:           "valid multiple methods",
+			allowedMethods: []string{"GET", "HEAD", "POST"},
+			expectValid:    true,
+		},
+		{
+			name:           "empty methods (should be valid)",
+			allowedMethods: []string{},
+			expectValid:    true,
+		},
+		{
+			name:           "nil methods (should be valid)",
+			allowedMethods: nil,
+			expectValid:    true,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			policy := &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName:  "methodcache",
+						CacheZoneSize:  "10m",
+						AllowedMethods: test.allowedMethods,
+					},
+				},
+			}
+
+			err := ValidatePolicy(policy, false, false, false)
+
+			if test.expectValid && err != nil {
+				t.Errorf("Expected valid policy for methods %v, got error: %v", test.allowedMethods, err)
+			}
+			if !test.expectValid && err == nil {
+				t.Errorf("Expected invalid policy for methods %v, got no error", test.allowedMethods)
 			}
 		})
 	}

@@ -2,6 +2,7 @@ package v1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 const (
@@ -788,6 +789,8 @@ type PolicySpec struct {
 	WAF *WAF `json:"waf"`
 	// The API Key policy configures NGINX to authorize requests which provide a valid API Key in a specified header or query param.
 	APIKey *APIKey `json:"apiKey"`
+	// The Cache Key defines a cache policy for proxy caching
+	Cache *Cache `json:"cache"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -1002,4 +1005,40 @@ type SuppliedIn struct {
 	Header []string `json:"header"`
 	// The location of the API Key as a query param. For example, $arg_apikey. Accepted variables are $arg_.
 	Query []string `json:"query"`
+}
+
+// Cache defines a cache policy for proxy caching.
+// +kubebuilder:validation:XValidation:rule="!has(self.allowedCodes) || (has(self.allowedCodes) && has(self.time))",message="time is required when allowedCodes is specified"
+type Cache struct {
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:XValidation:rule="size(self) <= 64 && self.matches('^[a-z][a-zA-Z0-9_]*[a-zA-Z0-9]$|^[a-z]$')",message="cache zone name must be 1-64 characters, start with lowercase letter, and contain only alphanumeric characters and underscores"
+	// CacheZoneName defines the name of the cache zone.
+	CacheZoneName string `json:"cacheZoneName"`
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:XValidation:rule="self.matches('^[0-9]+[kmg]$')",message="cache zone size must be a number followed by k, m, or g (e.g., '10m', '1g')"
+	// CacheZoneSize defines the size of the cache zone.
+	CacheZoneSize string `json:"cacheZoneSize"`
+	// +kubebuilder:validation:Optional
+	// AllowedCodes defines which response codes should be cached. Can be HTTP status codes (100-599) or the string "any" to cache all responses.
+	AllowedCodes []intstr.IntOrString `json:"allowedCodes,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MaxItems=3
+	// AllowedMethods defines which HTTP methods should be cached. Only GET, HEAD, and POST are supported by NGINX proxy_cache_methods directive. GET and HEAD are always cached by default.
+	// +kubebuilder:validation:XValidation:rule="self.all(method, method in ['GET', 'HEAD', 'POST'])",message="allowed methods must be one of: GET, HEAD, POST"
+	AllowedMethods []string `json:"allowedMethods,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:XValidation:rule="self.matches('^[0-9]+[smhd]$')",message="time must be a number followed by s, m, h, or d (e.g., '30s', '5m', '1h', '2d')"
+	// Time defines the default cache time (required when allowedCodes is specified).
+	Time string `json:"time,omitempty"`
+	// +kubebuilder:validation:Optional
+	// CachePurgeAllow defines IP addresses allowed to purge cache (NGINX Plus only).
+	CachePurgeAllow []string `json:"cachePurgeAllow,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	// OverrideUpstreamCache controls whether to override upstream cache headers (using proxy_ignore_headers directive).
+	OverrideUpstreamCache bool `json:"overrideUpstreamCache,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:XValidation:rule="self.matches('^[12](?::[12]){0,2}$')",message="levels must be in format like '1:2', '2:2', or '1:2:2' with values 1 or 2"
+	// Levels defines the cache directory hierarchy levels for storing cached files (e.g., "1:2", "2:2", "1:2:2").
+	Levels string `json:"levels,omitempty"`
 }

@@ -280,6 +280,79 @@ spec:
                       otherwise the secret will be rejected as invalid.
                     type: string
                 type: object
+              cache:
+                description: The Cache Key defines a cache policy for proxy caching
+                properties:
+                  allowedCodes:
+                    description: AllowedCodes defines which response codes should
+                      be cached. Can be HTTP status codes (100-599) or the string
+                      "any" to cache all responses.
+                    items:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      x-kubernetes-int-or-string: true
+                    type: array
+                  allowedMethods:
+                    description: AllowedMethods defines which HTTP methods should
+                      be cached. Only GET, HEAD, and POST are supported by NGINX proxy_cache_methods
+                      directive. GET and HEAD are always cached by default.
+                    items:
+                      type: string
+                    maxItems: 3
+                    type: array
+                    x-kubernetes-validations:
+                    - message: 'allowed methods must be one of: GET, HEAD, POST'
+                      rule: self.all(method, method in ['GET', 'HEAD', 'POST'])
+                  cachePurgeAllow:
+                    description: CachePurgeAllow defines IP addresses allowed to purge
+                      cache (NGINX Plus only).
+                    items:
+                      type: string
+                    type: array
+                  cacheZoneName:
+                    description: CacheZoneName defines the name of the cache zone.
+                    type: string
+                    x-kubernetes-validations:
+                    - message: cache zone name must be 1-64 characters, start with
+                        lowercase letter, and contain only alphanumeric characters
+                        and underscores
+                      rule: size(self) <= 64 && self.matches('^[a-z][a-zA-Z0-9_]*[a-zA-Z0-9]$|^[a-z]$')
+                  cacheZoneSize:
+                    description: CacheZoneSize defines the size of the cache zone.
+                    type: string
+                    x-kubernetes-validations:
+                    - message: cache zone size must be a number followed by k, m,
+                        or g (e.g., '10m', '1g')
+                      rule: self.matches('^[0-9]+[kmg]$')
+                  levels:
+                    description: Levels defines the cache directory hierarchy levels
+                      for storing cached files (e.g., "1:2", "2:2", "1:2:2").
+                    type: string
+                    x-kubernetes-validations:
+                    - message: levels must be in format like '1:2', '2:2', or '1:2:2'
+                        with values 1 or 2
+                      rule: self.matches('^[12](?::[12]){0,2}$')
+                  overrideUpstreamCache:
+                    default: false
+                    description: OverrideUpstreamCache controls whether to override
+                      upstream cache headers (using proxy_ignore_headers directive).
+                    type: boolean
+                  time:
+                    description: Time defines the default cache time (required when
+                      allowedCodes is specified).
+                    type: string
+                    x-kubernetes-validations:
+                    - message: time must be a number followed by s, m, h, or d (e.g.,
+                        '30s', '5m', '1h', '2d')
+                      rule: self.matches('^[0-9]+[smhd]$')
+                required:
+                - cacheZoneName
+                - cacheZoneSize
+                type: object
+                x-kubernetes-validations:
+                - message: time is required when allowedCodes is specified
+                  rule: '!has(self.allowedCodes) || (has(self.allowedCodes) && has(self.time))'
               egressMTLS:
                 description: The EgressMTLS policy configures upstreams authentication
                   and certificate verification.
