@@ -28,7 +28,7 @@ The `.spec` object supports the following fields:
 | `basicAuth.secret` | `string` | The name of the Kubernetes secret that stores the Htpasswd configuration. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/htpasswd, and the config must be stored in the secret under the key htpasswd, otherwise the secret will be rejected as invalid. |
 | `cache` | `object` | The Cache Key defines a cache policy for proxy caching |
 | `cache.allowedCodes` | `array` | AllowedCodes defines which response codes should be cached. Can be HTTP status codes (100-599) or the string "any" to cache all responses. |
-| `cache.allowedMethods` | `array[string]` | AllowedMethods defines which HTTP methods should be cached. Only GET, HEAD, and POST are supported by NGINX proxy_cache_methods directive. GET and HEAD are always cached by default. Allowed values: `"GET"`, `"HEAD"`, `"POST"`. |
+| `cache.allowedMethods` | `array[string]` | AllowedMethods defines which HTTP methods should be cached. Only GET, HEAD, and POST are supported by NGINX proxy_cache_methods directive. GET and HEAD are always cached by default. |
 | `cache.cachePurgeAllow` | `array[string]` | CachePurgeAllow defines IP addresses allowed to purge cache (NGINX Plus only). |
 | `cache.cacheZoneName` | `string` | CacheZoneName defines the name of the cache zone. |
 | `cache.cacheZoneSize` | `string` | CacheZoneSize defines the size of the cache zone. |

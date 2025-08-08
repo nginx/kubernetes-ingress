@@ -126,13 +126,12 @@ spec:
                     description: AllowedMethods defines which HTTP methods should
                       be cached. Only GET, HEAD, and POST are supported by NGINX proxy_cache_methods
                       directive. GET and HEAD are always cached by default.
-                    enum:
-                    - GET
-                    - HEAD
-                    - POST
                     items:
                       type: string
                     type: array
+                    x-kubernetes-validations:
+                    - message: 'allowed methods must be one of: GET, HEAD, POST'
+                      rule: self.all(method, method in ['GET', 'HEAD', 'POST'])
                   cachePurgeAllow:
                     description: CachePurgeAllow defines IP addresses allowed to purge
                       cache (NGINX Plus only).
@@ -141,18 +140,27 @@ spec:
                     type: array
                   cacheZoneName:
                     description: CacheZoneName defines the name of the cache zone.
-                    maxLength: 64
-                    pattern: ^[a-z][a-zA-Z0-9_]*[a-zA-Z0-9]$|^[a-z]$
                     type: string
+                    x-kubernetes-validations:
+                    - message: cache zone name must be 1-64 characters, start with
+                        lowercase letter, and contain only alphanumeric characters
+                        and underscores
+                      rule: size(self) <= 64 && self.matches('^[a-z][a-zA-Z0-9_]*[a-zA-Z0-9]$|^[a-z]$')
                   cacheZoneSize:
                     description: CacheZoneSize defines the size of the cache zone.
-                    pattern: ^[0-9]+[kmg]$
                     type: string
+                    x-kubernetes-validations:
+                    - message: cache zone size must be a number followed by k, m,
+                        or g (e.g., '10m', '1g')
+                      rule: self.matches('^[0-9]+[kmg]$')
                   levels:
                     description: Levels defines the cache directory hierarchy levels
                       for storing cached files (e.g., "1:2", "2:2", "1:2:2").
-                    pattern: ^[12](?::[12]){0,2}$
                     type: string
+                    x-kubernetes-validations:
+                    - message: levels must be in format like '1:2', '2:2', or '1:2:2'
+                        with values 1 or 2
+                      rule: self.matches('^[12](?::[12]){0,2}$')
                   overrideUpstreamCache:
                     default: false
                     description: OverrideUpstreamCache controls whether to override
@@ -161,8 +169,11 @@ spec:
                   time:
                     description: Time defines the default cache time (required when
                       allowedCodes is specified).
-                    pattern: ^[0-9]+[smhd]$
                     type: string
+                    x-kubernetes-validations:
+                    - message: time must be a number followed by s, m, h, or d (e.g.,
+                        '30s', '5m', '1h', '2d')
+                      rule: self.matches('^[0-9]+[smhd]$')
                 required:
                 - cacheZoneName
                 - cacheZoneSize
