@@ -1,5 +1,6 @@
 import pytest
 from kubernetes.stream import stream
+from settings import TEST_DATA
 from suite.utils.resources_utils import get_file_contents, get_first_pod_name, wait_before_test
 
 
@@ -50,56 +51,9 @@ class TestAppProtectAgentV2:
         assert "nginx-agent version v2" in result_conf
 
         # Integration test for agent config file - verify the agent config exists inside the NIC pod
-        expected_config = """#
-# /etc/nginx-agent/nginx-agent.conf
-#
-# Configuration file for NGINX Agent.
-#
-# This file is to track NGINX Agent configuration values that are meant to be statically set. There
-# are additional NGINX Agent configuration values that are set via the API and NGINX Agent install script
-# which can be found in /var/lib/nginx-agent/agent-dynamic.conf.
-
-log:
-  # set log level (panic, fatal, error, info, debug, trace; default "info")
-  level: info
-  # set log path. if empty, don't log to file.
-  path: /var/log/nginx-agent/
-# data plane status message / 'heartbeat'
-nginx:
-  # path of NGINX logs to exclude
-  exclude_logs: ""
-  socket: "unix:/var/run/nginx-agent/nginx.sock"
-
-dataplane:
-  status:
-    # poll interval for data plane status - the frequency the NGINX Agent will query the dataplane for changes
-    poll_interval: 30s
-    # report interval for data plane status - the maximum duration to wait before syncing dataplane information if no updates have being observed
-    report_interval: 24h
-
-metrics:
-  # specify the size of a buffer to build before sending metrics
-  bulk_size: 20
-  # specify metrics poll interval
-  report_interval: 1m
-  collection_interval: 15s
-  mode: aggregated
-
-# OSS NGINX default config path
-# path to aux file dirs can also be added
-config_dirs: "/etc/nginx:/usr/local/etc/nginx:/usr/share/nginx/modules:/etc/nms"
-
-  # api:
-  # The port at which NGINX Agent accepts remote connections
-  # The API address and port allow for remote management of NGINX and NGINX Agent
-  #
-  # ~~~ WARNING ~~~
-  # Set API address to allow remote management
-  # host: 127.0.0.1
-  #
-  # Set this value to a secure port number to prevent information leaks.
-  # port: 8038"""
-        expected_config = expected_config.strip()
+        # Read expected config from test data file (agentv2 with AppProtect configuration)
+        with open(f"{TEST_DATA}/agent/agent-v2-appprotect.conf") as f:
+            expected_config = f.read().strip()
 
         # Get the actual config file content from the pod
         config_contents = get_file_contents(
