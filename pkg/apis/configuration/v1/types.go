@@ -1022,6 +1022,7 @@ type Cache struct {
 	// AllowedCodes defines which response codes should be cached. Can be HTTP status codes (100-599) or the string "any" to cache all responses.
 	AllowedCodes []intstr.IntOrString `json:"allowedCodes,omitempty"`
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MaxItems=3
 	// AllowedMethods defines which HTTP methods should be cached. Only GET, HEAD, and POST are supported by NGINX proxy_cache_methods directive. GET and HEAD are always cached by default.
 	// +kubebuilder:validation:XValidation:rule="self.all(method, method in ['GET', 'HEAD', 'POST'])",message="allowed methods must be one of: GET, HEAD, POST"
 	AllowedMethods []string `json:"allowedMethods,omitempty"`

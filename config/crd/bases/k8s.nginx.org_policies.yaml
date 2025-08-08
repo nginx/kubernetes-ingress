@@ -128,6 +128,7 @@ spec:
                       directive. GET and HEAD are always cached by default.
                     items:
                       type: string
+                    maxItems: 3
                     type: array
                     x-kubernetes-validations:
                     - message: 'allowed methods must be one of: GET, HEAD, POST'
