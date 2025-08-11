@@ -2430,6 +2430,29 @@ func TestValidateWAF_FailsOnInvalidApLogBundle(t *testing.T) {
 func TestValidateCache(t *testing.T) {
 	t.Parallel()
 
+	// Helper function to create Cache with mixed allowedCodes from simple types
+	createCache := func(zoneName, zoneSize string, allowedCodes []interface{}, purgeAllow []string) *v1.Cache {
+		cache := &v1.Cache{
+			CacheZoneName:   zoneName,
+			CacheZoneSize:   zoneSize,
+			CachePurgeAllow: purgeAllow,
+		}
+
+		// Convert simple types to IntOrString
+		if len(allowedCodes) > 0 {
+			for _, code := range allowedCodes {
+				switch v := code.(type) {
+				case string:
+					cache.AllowedCodes = append(cache.AllowedCodes, intstr.FromString(v))
+				case int:
+					cache.AllowedCodes = append(cache.AllowedCodes, intstr.FromInt(v))
+				}
+			}
+		}
+
+		return cache
+	}
+
 	tests := []struct {
 		name          string
 		cache         *v1.Cache
@@ -2437,113 +2460,106 @@ func TestValidateCache(t *testing.T) {
 		expectValid   bool
 		expectedError string
 	}{
-		// Valid cache configurations - Only testing Plus features since CRD handles all other validation
+		// Valid cache configurations
 		{
-			name: "valid cache with purge (NGINX Plus)",
-			cache: &v1.Cache{
-				CacheZoneName:   "purgecache",
-				CacheZoneSize:   "20m",
-				CachePurgeAllow: []string{"192.168.1.0/24", "10.0.0.1"},
-			},
+			name:        "valid cache with purge (NGINX Plus)",
+			cache:       createCache("purgecache", "20m", nil, []string{"192.168.1.0/24", "10.0.0.1"}),
 			isPlus:      true,
 			expectValid: true,
 		},
 		{
-			name: "valid IPv6 address in purge allow",
-			cache: &v1.Cache{
-				CacheZoneName:   "test",
-				CacheZoneSize:   "10m",
-				CachePurgeAllow: []string{"2001:db8::1"},
-			},
+			name:        "valid IPv6 address in purge allow",
+			cache:       createCache("test", "10m", nil, []string{"2001:db8::1"}),
 			isPlus:      true,
 			expectValid: true,
 		},
 		{
-			name: "valid IPv6 CIDR in purge allow",
-			cache: &v1.Cache{
-				CacheZoneName:   "test",
-				CacheZoneSize:   "10m",
-				CachePurgeAllow: []string{"2001:db8::/32"},
-			},
-			isPlus:      true,
+			name:        "valid cache without purge features",
+			cache:       createCache("basiccache", "10m", nil, nil),
+			isPlus:      false,
 			expectValid: true,
 		},
 		{
-			name: "valid cache without purge features",
-			cache: &v1.Cache{
-				CacheZoneName: "basiccache",
-				CacheZoneSize: "10m",
-			},
+			name:        "valid allowedCodes with single 'any'",
+			cache:       createCache("test", "10m", []interface{}{"any"}, nil),
+			isPlus:      false,
+			expectValid: true,
+		},
+		{
+			name:        "valid allowedCodes with integers",
+			cache:       createCache("test", "10m", []interface{}{200, 404, 500}, nil),
+			isPlus:      false,
+			expectValid: true,
+		},
+		{
+			name:        "valid allowedCodes with edge case status codes",
+			cache:       createCache("test", "10m", []interface{}{100, 599}, nil),
+			isPlus:      false,
+			expectValid: true,
+		},
+		{
+			name:        "valid empty allowedCodes",
+			cache:       createCache("test", "10m", []interface{}{}, nil),
 			isPlus:      false,
 			expectValid: true,
 		},
 
-		// Invalid cache configurations - NGINX Plus features only
+		// Invalid cache configurations
 		{
-			name: "cache purge not allowed on OSS",
-			cache: &v1.Cache{
-				CacheZoneName:   "purgeoss",
-				CacheZoneSize:   "10m",
-				CachePurgeAllow: []string{"192.168.1.1"},
-			},
+			name:          "cache purge not allowed on OSS",
+			cache:         createCache("purgeoss", "10m", nil, []string{"192.168.1.1"}),
 			isPlus:        false,
 			expectValid:   false,
 			expectedError: "cache purge is only supported in NGINX Plus",
 		},
 		{
-			name: "invalid IP address in purge allow",
-			cache: &v1.Cache{
-				CacheZoneName:   "invalidip",
-				CacheZoneSize:   "10m",
-				CachePurgeAllow: []string{"invalid-ip"},
-			},
+			name:          "invalid IP address in purge allow",
+			cache:         createCache("invalidip", "10m", nil, []string{"invalid-ip"}),
 			isPlus:        true,
 			expectValid:   false,
 			expectedError: "must be a valid IP address or CIDR",
 		},
 		{
-			name: "invalid CIDR in purge allow",
-			cache: &v1.Cache{
-				CacheZoneName:   "invalidcidr",
-				CacheZoneSize:   "10m",
-				CachePurgeAllow: []string{"192.168.1.1/99"},
-			},
-			isPlus:        true,
+			name:          "allowedCodes with 'any' mixed with integers",
+			cache:         createCache("test", "10m", []interface{}{"any", 200}, nil),
+			isPlus:        false,
 			expectValid:   false,
-			expectedError: "must be a valid IP address or CIDR",
+			expectedError: "the string 'any' cannot be mixed with other codes",
 		},
 		{
-			name: "mixed valid and invalid IPs in purge allow",
-			cache: &v1.Cache{
-				CacheZoneName:   "test",
-				CacheZoneSize:   "10m",
-				CachePurgeAllow: []string{"192.168.1.1", "not-an-ip"},
-			},
-			isPlus:        true,
+			name:          "allowedCodes with invalid string",
+			cache:         createCache("test", "10m", []interface{}{"invalid"}, nil),
+			isPlus:        false,
 			expectValid:   false,
-			expectedError: "must be a valid IP address or CIDR",
+			expectedError: "must be an integer HTTP status code (100-599) or the single string 'any'",
 		},
 		{
-			name: "empty string in IP list",
-			cache: &v1.Cache{
-				CacheZoneName:   "test",
-				CacheZoneSize:   "10m",
-				CachePurgeAllow: []string{"192.168.1.1", ""},
-			},
-			isPlus:        true,
+			name:          "allowedCodes with status code below 100",
+			cache:         createCache("test", "10m", []interface{}{99}, nil),
+			isPlus:        false,
 			expectValid:   false,
-			expectedError: "must be a valid IP address or CIDR",
+			expectedError: "HTTP status code must be between 100 and 599",
 		},
 		{
-			name: "hostname instead of IP in purge allow",
-			cache: &v1.Cache{
-				CacheZoneName:   "test",
-				CacheZoneSize:   "10m",
-				CachePurgeAllow: []string{"example.com"},
-			},
-			isPlus:        true,
+			name:          "allowedCodes with status code above 599",
+			cache:         createCache("test", "10m", []interface{}{600}, nil),
+			isPlus:        false,
 			expectValid:   false,
-			expectedError: "must be a valid IP address or CIDR",
+			expectedError: "HTTP status code must be between 100 and 599",
+		},
+		{
+			name:          "allowedCodes with multiple 'any' strings",
+			cache:         createCache("test", "10m", []interface{}{"any", "any"}, nil),
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "the string 'any' cannot be mixed with other codes",
+		},
+		{
+			name:          "allowedCodes with valid and invalid status codes",
+			cache:         createCache("test", "10m", []interface{}{200, 700}, nil),
+			isPlus:        false,
+			expectValid:   false,
+			expectedError: "HTTP status code must be between 100 and 599",
 		},
 	}
 

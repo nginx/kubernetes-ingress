@@ -427,8 +427,53 @@ func validateLogConfs(logs []*v1.SecurityLog, fieldPath *field.Path, bundleMode 
 func validateCache(cache *v1.Cache, fieldPath *field.Path, isPlus bool) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	// Validate NGINX Plus specific features only - CRD handles all other validation
+	allErrs = append(allErrs, validateCacheAllowedCodes(cache, fieldPath)...)
+
 	allErrs = append(allErrs, validateCachePlusFeatures(cache, fieldPath, isPlus)...)
+
+	return allErrs
+}
+
+// validateCacheAllowedCodes validates the allowedCodes field
+func validateCacheAllowedCodes(cache *v1.Cache, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if len(cache.AllowedCodes) == 0 {
+		return allErrs // No validation needed for empty slice
+	}
+
+	// Check if it's the special case: single element "any"
+	if len(cache.AllowedCodes) == 1 && cache.AllowedCodes[0].Type == 1 && cache.AllowedCodes[0].StrVal == "any" {
+		return allErrs // Valid: single "any" string
+	}
+
+	// Check if it contains "any" mixed with other codes (invalid)
+	hasAny := false
+	for i, code := range cache.AllowedCodes {
+		if code.Type == 1 && code.StrVal == "any" {
+			hasAny = true
+			if len(cache.AllowedCodes) > 1 {
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("allowedCodes").Index(i), code.StrVal, "the string 'any' cannot be mixed with other codes"))
+			}
+		}
+	}
+
+	// If we have "any" mixed with others, we already reported the error above
+	if hasAny {
+		return allErrs
+	}
+
+	// Validate all elements are integers in the range 100-599
+	for i, code := range cache.AllowedCodes {
+		if code.Type == 1 { // String type
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("allowedCodes").Index(i), code.StrVal, "must be an integer HTTP status code (100-599) or the single string 'any'"))
+		} else { // Integer type
+			intVal := int(code.IntVal)
+			if intVal < 100 || intVal > 599 {
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("allowedCodes").Index(i), intVal, "HTTP status code must be between 100 and 599"))
+			}
+		}
+	}
 
 	return allErrs
 }

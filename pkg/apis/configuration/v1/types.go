@@ -1023,7 +1023,6 @@ type Cache struct {
 	// Examples: "10m", "1g", "512k".
 	CacheZoneSize string `json:"cacheZoneSize"`
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:XValidation:rule="(size(self) == 1 && type(self[0]) == string && self[0] == 'any') || self.all(code, type(code) == int && code >= 100 && code <= 599)",message="allowed codes must be either the single string 'any', or a list of HTTP status codes (100-599) as integers only - 'any' cannot be mixed with other codes"
 	// AllowedCodes defines which HTTP response codes should be cached.
 	// Accepts either:
 	// - The string "any" to cache all response codes (must be the only element)
