@@ -1011,35 +1011,61 @@ type SuppliedIn struct {
 // +kubebuilder:validation:XValidation:rule="!has(self.allowedCodes) || (has(self.allowedCodes) && has(self.time))",message="time is required when allowedCodes is specified"
 type Cache struct {
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:XValidation:rule="size(self) <= 64 && self.matches('^[a-z][a-zA-Z0-9_]*[a-zA-Z0-9]$|^[a-z]$')",message="cache zone name must be 1-64 characters, start with lowercase letter, and contain only alphanumeric characters and underscores"
-	// CacheZoneName defines the name of the cache zone.
+	// +kubebuilder:validation:Pattern=`^[a-z][a-zA-Z0-9_]*[a-zA-Z0-9]$|^[a-z]$`
+	// CacheZoneName defines the name of the cache zone. Must start with a lowercase letter, 
+	// followed by alphanumeric characters or underscores, and end with an alphanumeric character.
+	// Single lowercase letters are also allowed. Examples: "cache", "my_cache", "cache1".
 	CacheZoneName string `json:"cacheZoneName"`
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:XValidation:rule="self.matches('^[0-9]+[kmg]$')",message="cache zone size must be a number followed by k, m, or g (e.g., '10m', '1g')"
-	// CacheZoneSize defines the size of the cache zone.
+	// +kubebuilder:validation:Pattern=`^[0-9]+[kmg]$`
+	// CacheZoneSize defines the size of the cache zone. Must be a number followed by a size unit:
+	// 'k' for kilobytes, 'm' for megabytes, or 'g' for gigabytes.
+	// Examples: "10m", "1g", "512k".
 	CacheZoneSize string `json:"cacheZoneSize"`
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:XValidation:rule="(size(self) == 1 && type(self[0]) == string && self[0] == 'any') || self.all(code, type(code) == int && code >= 100 && code <= 599)",message="allowed codes must be either the single string 'any', or a list of HTTP status codes (100-599) as integers only - 'any' cannot be mixed with other codes"
-	// AllowedCodes defines which response codes should be cached. Can be HTTP status codes (100-599) as integers or the string "any" to cache all responses. The string "any" cannot be combined with other codes.
+	// AllowedCodes defines which HTTP response codes should be cached. 
+	// Accepts either:
+	// - The string "any" to cache all response codes (must be the only element)
+	// - A list of HTTP status codes as integers (100-599)
+	// Examples: ["any"], [200, 301, 404], [200].
+	// Invalid: ["any", 200] (cannot mix "any" with specific codes).
 	AllowedCodes []intstr.IntOrString `json:"allowedCodes,omitempty"`
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:MaxItems=3
-	// AllowedMethods defines which HTTP methods should be cached. Only GET, HEAD, and POST are supported by NGINX proxy_cache_methods directive. GET and HEAD are always cached by default.
 	// +kubebuilder:validation:XValidation:rule="self.all(method, method in ['GET', 'HEAD', 'POST'])",message="allowed methods must be one of: GET, HEAD, POST"
+	// AllowedMethods defines which HTTP methods should be cached. 
+	// Only "GET", "HEAD", and "POST" are supported by NGINX proxy_cache_methods directive.
+	// GET and HEAD are always cached by default even if not specified.
+	// Maximum of 3 items allowed. Examples: ["GET"], ["GET", "HEAD", "POST"].
+	// Invalid methods: PUT, DELETE, PATCH, etc.
 	AllowedMethods []string `json:"allowedMethods,omitempty"`
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:XValidation:rule="self.matches('^[0-9]+[smhd]$')",message="time must be a number followed by s, m, h, or d (e.g., '30s', '5m', '1h', '2d')"
-	// Time defines the default cache time (required when allowedCodes is specified).
+	// +kubebuilder:validation:Pattern=`^[0-9]+[smhd]$`
+	// Time defines the default cache time. Required when allowedCodes is specified.
+	// Must be a number followed by a time unit:
+	// 's' for seconds, 'm' for minutes, 'h' for hours, 'd' for days.
+	// Examples: "30s", "5m", "1h", "2d".
 	Time string `json:"time,omitempty"`
 	// +kubebuilder:validation:Optional
-	// CachePurgeAllow defines IP addresses allowed to purge cache (NGINX Plus only).
+	// CachePurgeAllow defines IP addresses or CIDR blocks allowed to purge cache.
+	// This feature is only available in NGINX Plus.
+	// Examples: ["192.168.1.100", "10.0.0.0/8", "::1"].
+	// Invalid in NGINX OSS (will be ignored).
 	CachePurgeAllow []string `json:"cachePurgeAllow,omitempty"`
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=false
-	// OverrideUpstreamCache controls whether to override upstream cache headers (using proxy_ignore_headers directive).
+	// OverrideUpstreamCache controls whether to override upstream cache headers 
+	// (using proxy_ignore_headers directive). When true, NGINX will ignore 
+	// cache-related headers from upstream servers like Cache-Control, Expires, etc.
+	// Default: false.
 	OverrideUpstreamCache bool `json:"overrideUpstreamCache,omitempty"`
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:XValidation:rule="self.matches('^[12](?::[12]){0,2}$')",message="levels must be in format like '1:2', '2:2', or '1:2:2' with values 1 or 2"
-	// Levels defines the cache directory hierarchy levels for storing cached files (e.g., "1:2", "2:2", "1:2:2").
+	// +kubebuilder:validation:Pattern=`^[12](?::[12]){0,2}$`
+	// Levels defines the cache directory hierarchy levels for storing cached files.
+	// Must be in format "X:Y" or "X:Y:Z" where X, Y, Z are either 1 or 2.
+	// This controls the number of subdirectory levels and their name lengths.
+	// Examples: "1:2", "2:2", "1:2:2".
+	// Invalid: "3:1", "1:3", "1:2:3".
 	Levels string `json:"levels,omitempty"`
 }
