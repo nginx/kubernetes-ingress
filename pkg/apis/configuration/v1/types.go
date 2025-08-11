@@ -1019,7 +1019,8 @@ type Cache struct {
 	// CacheZoneSize defines the size of the cache zone.
 	CacheZoneSize string `json:"cacheZoneSize"`
 	// +kubebuilder:validation:Optional
-	// AllowedCodes defines which response codes should be cached. Can be HTTP status codes (100-599) or the string "any" to cache all responses.
+	// +kubebuilder:validation:XValidation:rule="(size(self) == 1 && type(self[0]) == string && self[0] == 'any') || self.all(code, type(code) == int && code >= 100 && code <= 599)",message="allowed codes must be either the single string 'any', or a list of HTTP status codes (100-599) as integers only - 'any' cannot be mixed with other codes"
+	// AllowedCodes defines which response codes should be cached. Can be HTTP status codes (100-599) as integers or the string "any" to cache all responses. The string "any" cannot be combined with other codes.
 	AllowedCodes []intstr.IntOrString `json:"allowedCodes,omitempty"`
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:MaxItems=3
