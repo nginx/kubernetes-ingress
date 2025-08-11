@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
+	"github.com/nginx/kubernetes-ingress/internal/validation"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1931,9 +1932,9 @@ func TestParseProxyBuffers(t *testing.T) {
 	tests := []struct {
 		name                         string
 		configMap                    *v1.ConfigMap
-		expectedProxyBuffers         string
-		expectedProxyBufferSize      string
-		expectedProxyBusyBuffersSize string
+		expectedProxyBuffers         validation.NumberSizeConfig
+		expectedProxyBufferSize      validation.SizeWithUnit
+		expectedProxyBusyBuffersSize validation.SizeWithUnit
 		description                  string
 	}{
 		{
@@ -1945,10 +1946,22 @@ func TestParseProxyBuffers(t *testing.T) {
 					"proxy-busy-buffers-size": "16k",
 				},
 			},
-			expectedProxyBuffers:         "8 4k",
-			expectedProxyBufferSize:      "8k",
-			expectedProxyBusyBuffersSize: "16k",
-			description:                  "should parse all proxy buffer settings correctly",
+			expectedProxyBuffers: validation.NumberSizeConfig{
+				Number: 8,
+				Size: validation.SizeWithUnit{
+					Size: 4,
+					Unit: validation.SizeKB,
+				},
+			},
+			expectedProxyBufferSize: validation.SizeWithUnit{
+				Size: 8,
+				Unit: validation.SizeKB,
+			},
+			expectedProxyBusyBuffersSize: validation.SizeWithUnit{
+				Size: 16,
+				Unit: validation.SizeKB,
+			},
+			description: "should parse all proxy buffer settings correctly",
 		},
 		{
 			name: "only proxy-buffers provided",
@@ -1957,9 +1970,15 @@ func TestParseProxyBuffers(t *testing.T) {
 					"proxy-buffers": "16 8k",
 				},
 			},
-			expectedProxyBuffers:         "16 8k",
-			expectedProxyBufferSize:      "",
-			expectedProxyBusyBuffersSize: "",
+			expectedProxyBuffers: validation.NumberSizeConfig{
+				Number: 16,
+				Size: validation.SizeWithUnit{
+					Size: 8,
+					Unit: validation.SizeKB,
+				},
+			},
+			expectedProxyBufferSize:      validation.SizeWithUnit{},
+			expectedProxyBusyBuffersSize: validation.SizeWithUnit{},
 			description:                  "should parse proxy-buffers only",
 		},
 		{
@@ -1969,9 +1988,12 @@ func TestParseProxyBuffers(t *testing.T) {
 					"proxy-buffer-size": "16k",
 				},
 			},
-			expectedProxyBuffers:         "",
-			expectedProxyBufferSize:      "16k",
-			expectedProxyBusyBuffersSize: "",
+			expectedProxyBuffers: validation.NumberSizeConfig{},
+			expectedProxyBufferSize: validation.SizeWithUnit{
+				Size: 16,
+				Unit: validation.SizeKB,
+			},
+			expectedProxyBusyBuffersSize: validation.SizeWithUnit{},
 			description:                  "should parse proxy-buffer-size only",
 		},
 		{
@@ -1983,10 +2005,22 @@ func TestParseProxyBuffers(t *testing.T) {
 					"proxy-busy-buffers-size": "16K",
 				},
 			},
-			expectedProxyBuffers:         "8 4k",
-			expectedProxyBufferSize:      "8k",
-			expectedProxyBusyBuffersSize: "16k",
-			description:                  "should normalize case insensitive units",
+			expectedProxyBuffers: validation.NumberSizeConfig{
+				Number: 8,
+				Size: validation.SizeWithUnit{
+					Size: 4,
+					Unit: validation.SizeKB,
+				},
+			},
+			expectedProxyBufferSize: validation.SizeWithUnit{
+				Size: 8,
+				Unit: validation.SizeKB,
+			},
+			expectedProxyBusyBuffersSize: validation.SizeWithUnit{
+				Size: 16,
+				Unit: validation.SizeKB,
+			},
+			description: "should normalize case insensitive units",
 		},
 		{
 			name: "invalid units get normalized",
@@ -1997,19 +2031,31 @@ func TestParseProxyBuffers(t *testing.T) {
 					"proxy-busy-buffers-size": "16z",
 				},
 			},
-			expectedProxyBuffers:         "8 4m",
-			expectedProxyBufferSize:      "8m",
-			expectedProxyBusyBuffersSize: "16m",
-			description:                  "should normalize invalid units to 'm'",
+			expectedProxyBuffers: validation.NumberSizeConfig{
+				Number: 8,
+				Size: validation.SizeWithUnit{
+					Size: 4,
+					Unit: validation.SizeMB,
+				},
+			},
+			expectedProxyBufferSize: validation.SizeWithUnit{
+				Size: 8,
+				Unit: validation.SizeMB,
+			},
+			expectedProxyBusyBuffersSize: validation.SizeWithUnit{
+				Size: 16,
+				Unit: validation.SizeMB,
+			},
+			description: "should normalize invalid units to 'm'",
 		},
 		{
 			name: "empty configmap",
 			configMap: &v1.ConfigMap{
 				Data: map[string]string{},
 			},
-			expectedProxyBuffers:         "",
-			expectedProxyBufferSize:      "",
-			expectedProxyBusyBuffersSize: "",
+			expectedProxyBuffers:         validation.NumberSizeConfig{},
+			expectedProxyBufferSize:      validation.SizeWithUnit{},
+			expectedProxyBusyBuffersSize: validation.SizeWithUnit{},
 			description:                  "should handle empty configmap gracefully",
 		},
 	}
@@ -2114,11 +2160,11 @@ func TestParseProxyBuffersInvalidFormat(t *testing.T) {
 			}
 
 			if test.expectValid {
-				if result.ProxyBuffers != test.proxyBuffers {
+				if result.ProxyBuffers.String() != test.proxyBuffers {
 					t.Errorf("%s: expected ProxyBuffers=%q, got %q", test.description, test.proxyBuffers, result.ProxyBuffers)
 				}
 			} else {
-				if result.ProxyBuffers != "" {
+				if result.ProxyBuffers.String() != "" {
 					t.Errorf("%s: expected ProxyBuffers to be empty for invalid config, got %q", test.description, result.ProxyBuffers)
 				}
 

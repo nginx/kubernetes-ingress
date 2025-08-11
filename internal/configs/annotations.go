@@ -297,16 +297,34 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		}
 	}
 
+	// Proxy Buffers uses number + size format, like "8 4k".
 	if proxyBuffers, exists := ingEx.Ingress.Annotations["nginx.org/proxy-buffers"]; exists {
-		cfgParams.ProxyBuffers = proxyBuffers
+		proxyBufferUnits, err := validation.NewNumberSizeConfig(proxyBuffers)
+		if err != nil {
+			nl.Errorf(l, "error parsing nginx.org/proxy-buffers: %s", err)
+		} else {
+			cfgParams.ProxyBuffers = proxyBufferUnits
+		}
 	}
 
+	// Proxy Buffer Size uses only size format, like "4k".
 	if proxyBufferSize, exists := ingEx.Ingress.Annotations["nginx.org/proxy-buffer-size"]; exists {
-		cfgParams.ProxyBufferSize = validation.NormalizeBufferSize(proxyBufferSize)
+		proxyBufferSizeUnit, err := validation.NewSizeWithUnit(proxyBufferSize)
+		if err != nil {
+			nl.Errorf(l, "error parsing nginx.org/proxy-buffer-size: %s", err)
+		} else {
+			cfgParams.ProxyBufferSize = proxyBufferSizeUnit
+		}
 	}
 
+	// Proxy Busy Buffers Size uses only size format, like "8k".
 	if proxyBusyBuffersSize, exists := ingEx.Ingress.Annotations["nginx.org/proxy-busy-buffers-size"]; exists {
-		cfgParams.ProxyBusyBuffersSize = validation.NormalizeBufferSize(proxyBusyBuffersSize)
+		proxyBusyBufferSizeUnit, err := validation.NewSizeWithUnit(proxyBusyBuffersSize)
+		if err != nil {
+			nl.Errorf(l, "error parsing nginx.org/proxy-busy-buffers-size: %s", err)
+		} else {
+			cfgParams.ProxyBusyBuffersSize = proxyBusyBufferSizeUnit
+		}
 	}
 
 	if upstreamZoneSize, exists := ingEx.Ingress.Annotations["nginx.org/upstream-zone-size"]; exists {
