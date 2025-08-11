@@ -1075,6 +1075,12 @@ spec:
                           type: string
                       type: object
                     type: array
+                  disallowedGeolocationReference:
+                    properties:
+                      link:
+                        pattern: ^http
+                        type: string
+                    type: object
                   enablePassiveMode:
                     type: boolean
                   enforcementMode:
