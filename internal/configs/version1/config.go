@@ -3,7 +3,6 @@ package version1
 import (
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
-	"github.com/nginx/kubernetes-ingress/internal/validation"
 )
 
 // UpstreamLabels describes the Prometheus labels for an NGINX upstream.
@@ -179,9 +178,9 @@ type Location struct {
 	SSL                  bool
 	GRPC                 bool
 	ProxyBuffering       bool
-	ProxyBuffers         validation.NumberSizeConfig
-	ProxyBufferSize      validation.SizeWithUnit
-	ProxyBusyBuffersSize validation.SizeWithUnit
+	ProxyBuffers         string
+	ProxyBufferSize      string
+	ProxyBusyBuffersSize string
 	ProxyMaxTempFileSize string
 	ProxySSLName         string
 	JWTAuth              *JWTAuth
