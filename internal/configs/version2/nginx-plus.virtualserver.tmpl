@@ -671,10 +671,15 @@ server {
 
         proxy_buffering {{ if $l.ProxyBuffering }}on{{ else }}off{{ end }};
             {{- if not $l.GRPCPass }}
-                {{- $proxyBuffersConfig := makeProxyBuffers $l.ProxyBuffers $l.ProxyBufferSize $l.ProxyBusyBuffersSize }}
-                {{- if $proxyBuffersConfig }}
-        {{ $proxyBuffersConfig }}
-                {{- end }}
+                {{- if $l.ProxyBuffers}}
+        proxy_buffers {{$l.ProxyBuffers}};
+                {{- end}}
+                {{- if $l.ProxyBufferSize}}
+        proxy_buffer_size {{$l.ProxyBufferSize}};
+                {{- end}}
+                {{- if $l.ProxyBusyBuffersSize}}
+        proxy_busy_buffers_size {{$l.ProxyBusyBuffersSize}};
+                {{- end}}
             {{- else }}
                 {{- if $l.ProxyBufferSize }}
         grpc_buffer_size {{ $l.ProxyBufferSize }};
