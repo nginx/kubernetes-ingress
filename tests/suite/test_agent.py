@@ -1,5 +1,6 @@
 import pytest
 from kubernetes.stream import stream
+from settings import TEST_DATA
 from suite.utils.resources_utils import get_file_contents, get_first_pod_name, wait_before_test
 
 
@@ -47,37 +48,9 @@ class TestAgentV3:
         assert "nginx-agent version v3" in result_conf
 
         # Test for agent.config file - verify the agent config exists inside the NIC pod
-        # The expected config that will be asserted against later
-        expected_config = """#
-# /etc/nginx-agent/nginx-agent.conf
-#
-# Configuration file for NGINX Agent.
-#
-
-log:
-  # set log level (error, warn, info, debug; default "info")
-  level: info
-  # set log path. if empty, don't log to file.
-  path: /var/log/nginx-agent/
-
-allowed_directories:
-    - /etc/nginx
-    - /usr/local/etc/nginx
-    - /usr/share/nginx/modules
-    - /var/run/nginx
-    - /var/log/nginx
-#
-# Command server settings to connect to a management plane server
-#
-#command:
-#  server:
-#    host: "agent.connect.nginx.com"
-#    port: 443
-#  auth:
-#    token: ""
-#  tls:
-#    skip_verify: false"""
-        expected_config = expected_config.strip()
+        # Read expected config from test data file (agentv3 configuration)
+        with open(f"{TEST_DATA}/agent/agent-v3.conf") as f:
+            expected_config = f.read().strip()
 
         # Get the actual config file content from the pod
         config_contents = get_file_contents(
