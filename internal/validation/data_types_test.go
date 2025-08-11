@@ -1,10 +1,14 @@
-package version2
+package validation_test
 
 import (
 	"testing"
+
+	"github.com/nginx/kubernetes-ingress/internal/validation"
 )
 
 func TestNewSizeWithUnit(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		sizeStr string
@@ -97,15 +101,18 @@ func TestNewSizeWithUnit(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewSizeWithUnit(tt.sizeStr)
+			t.Parallel()
+
+			got, err := validation.NewSizeWithUnit(tt.sizeStr)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("NewSizeWithUnit() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("Newvalidation.SizeWithUnit() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 
 			if got.String() != tt.want {
-				t.Errorf("NewSizeWithUnit() got = %v, want %v", got, tt.want)
+				t.Errorf("Newvalidation.SizeWithUnit() got = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -115,58 +122,61 @@ func TestNewNumberSizeConfig(t *testing.T) {
 	tests := []struct {
 		name    string
 		sizeStr string
-		want    NumberSizeConfig
+		want    validation.NumberSizeConfig
 		wantErr bool
 	}{
 		{
 			name:    "valid number and size with k unit",
 			sizeStr: "8 4k",
-			want: NumberSizeConfig{
+			want: validation.NumberSizeConfig{
 				Number: 8,
-				Size:   SizeWithUnit{Size: 4, Unit: SizeKB},
+				Size:   validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB},
 			},
 			wantErr: false,
 		},
 		{
 			name:    "valid number and size with m unit",
 			sizeStr: "10 2m",
-			want: NumberSizeConfig{
+			want: validation.NumberSizeConfig{
 				Number: 10,
-				Size:   SizeWithUnit{Size: 2, Unit: SizeMB},
+				Size:   validation.SizeWithUnit{Size: 2, Unit: validation.SizeMB},
 			},
 			wantErr: false,
 		},
 		{
 			name:    "valid number and size with g unit",
 			sizeStr: "3 1g",
-			want: NumberSizeConfig{
+			want: validation.NumberSizeConfig{
 				Number: 3,
-				Size:   SizeWithUnit{Size: 1, Unit: SizeGB},
+				Size:   validation.SizeWithUnit{Size: 1, Unit: validation.SizeGB},
 			},
 			wantErr: false,
 		},
 		{
 			name:    "invalid zero number with valid size",
 			sizeStr: "0 4k",
-			want:    NumberSizeConfig{},
+			want:    validation.NumberSizeConfig{},
 			wantErr: true,
 		},
 		{
 			name:    "valid number with invalid size unit",
 			sizeStr: "5 4x",
-			want:    NumberSizeConfig{},
+			want:    validation.NumberSizeConfig{},
 			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewNumberSizeConfig(tt.sizeStr)
+			t.Parallel()
+
+			got, err := validation.NewNumberSizeConfig(tt.sizeStr)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("NewNumberSizeConfig() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("Newvalidation.NumberSizeConfig() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if got != tt.want {
-				t.Errorf("NewNumberSizeConfig() got = %v, want %v", got, tt.want)
+				t.Errorf("Newvalidation.NumberSizeConfig() got = %v, want %v", got, tt.want)
 			}
 		})
 	}

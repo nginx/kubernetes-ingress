@@ -2,10 +2,7 @@ package version2
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
-	"strconv"
-	"strings"
 )
 
 // UpstreamLabels describes the Prometheus labels for an NGINX upstream.
