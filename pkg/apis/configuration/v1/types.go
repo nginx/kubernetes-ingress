@@ -1012,7 +1012,7 @@ type SuppliedIn struct {
 type Cache struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^[a-z][a-zA-Z0-9_]*[a-zA-Z0-9]$|^[a-z]$`
-	// CacheZoneName defines the name of the cache zone. Must start with a lowercase letter, 
+	// CacheZoneName defines the name of the cache zone. Must start with a lowercase letter,
 	// followed by alphanumeric characters or underscores, and end with an alphanumeric character.
 	// Single lowercase letters are also allowed. Examples: "cache", "my_cache", "cache1".
 	CacheZoneName string `json:"cacheZoneName"`
@@ -1024,7 +1024,7 @@ type Cache struct {
 	CacheZoneSize string `json:"cacheZoneSize"`
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:XValidation:rule="(size(self) == 1 && type(self[0]) == string && self[0] == 'any') || self.all(code, type(code) == int && code >= 100 && code <= 599)",message="allowed codes must be either the single string 'any', or a list of HTTP status codes (100-599) as integers only - 'any' cannot be mixed with other codes"
-	// AllowedCodes defines which HTTP response codes should be cached. 
+	// AllowedCodes defines which HTTP response codes should be cached.
 	// Accepts either:
 	// - The string "any" to cache all response codes (must be the only element)
 	// - A list of HTTP status codes as integers (100-599)
@@ -1034,7 +1034,7 @@ type Cache struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:MaxItems=3
 	// +kubebuilder:validation:XValidation:rule="self.all(method, method in ['GET', 'HEAD', 'POST'])",message="allowed methods must be one of: GET, HEAD, POST"
-	// AllowedMethods defines which HTTP methods should be cached. 
+	// AllowedMethods defines which HTTP methods should be cached.
 	// Only "GET", "HEAD", and "POST" are supported by NGINX proxy_cache_methods directive.
 	// GET and HEAD are always cached by default even if not specified.
 	// Maximum of 3 items allowed. Examples: ["GET"], ["GET", "HEAD", "POST"].
@@ -1055,8 +1055,8 @@ type Cache struct {
 	CachePurgeAllow []string `json:"cachePurgeAllow,omitempty"`
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=false
-	// OverrideUpstreamCache controls whether to override upstream cache headers 
-	// (using proxy_ignore_headers directive). When true, NGINX will ignore 
+	// OverrideUpstreamCache controls whether to override upstream cache headers
+	// (using proxy_ignore_headers directive). When true, NGINX will ignore
 	// cache-related headers from upstream servers like Cache-Control, Expires, etc.
 	// Default: false.
 	OverrideUpstreamCache bool `json:"overrideUpstreamCache,omitempty"`
