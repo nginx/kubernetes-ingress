@@ -85,15 +85,15 @@ match {{ $m.Name }} {
 {{- /* Generate cache-zone-specific purge configuration with VirtualServer isolation */ -}}
 {{- /* Check server-level cache purge restrictions */ -}}
 {{- if and $s.Cache (gt (len $s.Cache.CachePurgeAllow) 0) }}
-geo $purge_allowed_{{ $s.Cache.ZoneName }} {
+geo $purge_allowed_{{ replaceAll $s.Cache.ZoneName "-" "_" }} {
     default 0;
 {{- range $ip := $s.Cache.CachePurgeAllow }}
     {{ $ip }} 1;
 {{- end }}
 }
 
-map $request_method $cache_purge_{{ $s.Cache.ZoneName }} {
-    PURGE   $purge_allowed_{{ $s.Cache.ZoneName }};
+map $request_method $cache_purge_{{ replaceAll $s.Cache.ZoneName "-" "_" }} {
+    PURGE   $purge_allowed_{{ replaceAll $s.Cache.ZoneName "-" "_" }};
     default 0;
 }
 {{- end }}
@@ -101,15 +101,15 @@ map $request_method $cache_purge_{{ $s.Cache.ZoneName }} {
 {{- /* Check location-level cache purge restrictions */ -}}
 {{- range $l := $s.Locations }}
 {{- if and $l.Cache (gt (len $l.Cache.CachePurgeAllow) 0) }}
-geo $purge_allowed_{{ $l.Cache.ZoneName }} {
+geo $purge_allowed_{{ replaceAll $l.Cache.ZoneName "-" "_" }} {
     default 0;
 {{- range $ip := $l.Cache.CachePurgeAllow }}
     {{ $ip }} 1;
 {{- end }}
 }
 
-map $request_method $cache_purge_{{ $l.Cache.ZoneName }} {
-    PURGE   $purge_allowed_{{ $l.Cache.ZoneName }};
+map $request_method $cache_purge_{{ replaceAll $l.Cache.ZoneName "-" "_" }} {
+    PURGE   $purge_allowed_{{ replaceAll $l.Cache.ZoneName "-" "_" }};
     default 0;
 }
 {{- end }}
@@ -241,7 +241,7 @@ server {
     proxy_cache_methods{{ range $s.Cache.AllowedMethods }} {{ . }}{{ end }};
             {{- end }}
             {{- if gt (len $s.Cache.CachePurgeAllow) 0 }}
-    proxy_cache_purge $cache_purge_{{ $s.Cache.ZoneName }};
+    proxy_cache_purge $cache_purge_{{ replaceAll $s.Cache.ZoneName "-" "_" }};
             {{- end }}
     {{- end }}
 
@@ -745,7 +745,7 @@ server {
         proxy_cache_methods{{ range $l.Cache.AllowedMethods }} {{ . }}{{ end }};
                 {{- end }}
                 {{- if gt (len $l.Cache.CachePurgeAllow) 0 }}
-        proxy_cache_purge $cache_purge_{{ $l.Cache.ZoneName }};
+        proxy_cache_purge $cache_purge_{{ replaceAll $l.Cache.ZoneName "-" "_" }};
                 {{- end }}
         {{- end }}
 
