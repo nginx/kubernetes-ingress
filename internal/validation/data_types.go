@@ -101,6 +101,10 @@ type NumberSizeConfig struct {
 }
 
 func (nsc NumberSizeConfig) String() string {
+	if nsc.Number == 0 || nsc.Size.Size == 0 {
+		return ""
+	}
+
 	return fmt.Sprintf("%d %s", nsc.Number, nsc.Size)
 }
 
