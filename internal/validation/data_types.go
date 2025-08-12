@@ -71,10 +71,12 @@ func NewSizeWithUnit(sizeStr string) (SizeWithUnit, error) {
 		unit = SizeKB
 	case 'm':
 		unit = SizeMB
-	case 'g':
-		unit = SizeGB
+	case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+		unit = SizeMB    // Default to MB if no unit is specified
+		numStr = sizeStr // If the last character is a digit, treat the whole string as a number
 	default:
-		return SizeWithUnit{}, fmt.Errorf("invalid size unit, must be one of [k, m, g]: %s", sizeStr)
+		unit = SizeMB
+		// return SizeWithUnit{}, fmt.Errorf("invalid size unit, must be one of [k, m, g]: %s", sizeStr)
 	}
 
 	num, err := strconv.ParseUint(numStr, 10, 64)

@@ -34,10 +34,10 @@ func TestNewSizeWithUnit(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "invalid size without unit",
+			name:    "size without unit will be assumed to be mb",
 			sizeStr: "1024",
-			want:    "",
-			wantErr: true,
+			want:    "1024m",
+			wantErr: false,
 		},
 		{
 			name:    "valid size with k unit",
@@ -52,9 +52,9 @@ func TestNewSizeWithUnit(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "valid size with g unit",
+			name:    "invalid size with g unit to be replaced with m",
 			sizeStr: "1g",
-			want:    "1g",
+			want:    "1m",
 			wantErr: false,
 		},
 		{
@@ -70,10 +70,10 @@ func TestNewSizeWithUnit(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "invalid size with invalid unit",
+			name:    "valid size with invalid unit replaced with m",
 			sizeStr: "32x",
-			want:    "",
-			wantErr: true,
+			want:    "32m",
+			wantErr: false,
 		},
 		{
 			name:    "invalid negative size",
@@ -144,11 +144,11 @@ func TestNewNumberSizeConfig(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "valid number and size with g unit",
+			name:    "valid number and size with g unit, replaced with m",
 			sizeStr: "3 1g",
 			want: validation.NumberSizeConfig{
 				Number: 3,
-				Size:   validation.SizeWithUnit{Size: 1, Unit: validation.SizeGB},
+				Size:   validation.SizeWithUnit{Size: 1, Unit: validation.SizeMB},
 			},
 			wantErr: false,
 		},
@@ -159,10 +159,16 @@ func TestNewNumberSizeConfig(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "valid number with invalid size unit",
+			name:    "valid number with invalid size unit, replaced with m",
 			sizeStr: "5 4x",
-			want:    validation.NumberSizeConfig{},
-			wantErr: true,
+			want: validation.NumberSizeConfig{
+				Number: 5,
+				Size: validation.SizeWithUnit{
+					Size: 4,
+					Unit: validation.SizeMB,
+				},
+			},
+			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
