@@ -243,6 +243,8 @@ server {
         proxy_ssl_name {{ .JwksSNIName }};
         {{- end }}
         {{- end }}
+        proxy_pass_request_headers off;
+        proxy_pass_request_body off;
         proxy_set_header Host {{ .JwksHost }};
         set $idp_backend {{ .JwksHost }};
         proxy_pass {{ .JwksScheme}}://$idp_backend{{ if .JwksPort }}:{{ .JwksPort }}{{ end }}{{ .JwksPath }};
