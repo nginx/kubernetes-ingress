@@ -89,7 +89,7 @@ Cache-Control: no-cache
 X-Cache-Status: MISS
 ```
 
-The `X-Cache-Status: MISS` header indicates this response was fetched from the upstream server and is now cached.
+The `X-Cache-Status: MISS` header indicates this response was fetched from the upstream server.  The response is now cached.
 
 ### Test Cache HIT (Subsequent Requests)
 
