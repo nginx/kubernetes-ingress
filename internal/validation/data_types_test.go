@@ -284,6 +284,30 @@ func TestBalanceProxyValues(t *testing.T) {
 			wantProxyBusyBufferSize: validation.SizeWithUnit{Size: 28, Unit: validation.SizeKB},
 			wantErr:                 false,
 		},
+		{
+			name: "only proxy_buffers is defined",
+			args: args{
+				proxyBuffers:     validation.NumberSizeConfig{Number: 8, Size: validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB}},
+				proxyBufferSize:  validation.SizeWithUnit{},
+				proxyBusyBuffers: validation.SizeWithUnit{},
+			},
+			wantProxyBuffers:        validation.NumberSizeConfig{Number: 8, Size: validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB}},
+			wantProxyBufferSize:     validation.SizeWithUnit{},
+			wantProxyBusyBufferSize: validation.SizeWithUnit{},
+			wantErr:                 false,
+		},
+		{
+			name: "only proxy_buffer_size is defined",
+			args: args{
+				proxyBuffers:     validation.NumberSizeConfig{},
+				proxyBufferSize:  validation.SizeWithUnit{Size: 8, Unit: validation.SizeKB},
+				proxyBusyBuffers: validation.SizeWithUnit{},
+			},
+			wantProxyBuffers:        validation.NumberSizeConfig{},
+			wantProxyBufferSize:     validation.SizeWithUnit{Size: 8, Unit: validation.SizeKB},
+			wantProxyBusyBufferSize: validation.SizeWithUnit{},
+			wantErr:                 false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
