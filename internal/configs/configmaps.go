@@ -367,6 +367,20 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		}
 	}
 
+	balancedProxyBuffers, balancedProxyBufferSize, balancedProxyBusyBufferSize, modifications, err := validation.BalanceProxyValues(cfgParams.ProxyBuffers, cfgParams.ProxyBufferSize, cfgParams.ProxyBusyBuffersSize)
+	if err != nil {
+		nl.Errorf(l, "error reconciling proxy_buffers, proxy_buffer_size, and proxy_busy_buffers_size values: %s", err.Error())
+	}
+	cfgParams.ProxyBuffers = balancedProxyBuffers
+	cfgParams.ProxyBufferSize = balancedProxyBufferSize
+	cfgParams.ProxyBusyBuffersSize = balancedProxyBusyBufferSize
+
+	if len(modifications) > 0 {
+		for _, modification := range modifications {
+			nl.Infof(l, "Changes made to proxy values: %s", modification)
+		}
+	}
+
 	// Normalise the three proxy buffer values across each other.
 
 	if proxyMaxTempFileSize, exists := cfgm.Data["proxy-max-temp-file-size"]; exists {
@@ -435,7 +449,7 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		}
 	}
 
-	_, err := parseConfigMapZoneSync(l, cfgm, cfgParams, eventLog, nginxPlus)
+	_, err = parseConfigMapZoneSync(l, cfgm, cfgParams, eventLog, nginxPlus)
 	if err != nil {
 		configOk = false
 	}
