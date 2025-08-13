@@ -167,11 +167,10 @@ func NewNumberSizeConfig(sizeStr string) (NumberSizeConfig, error) {
 func BalanceProxyValues(proxyBuffers NumberSizeConfig, proxyBufferSize, proxyBusyBuffers SizeWithUnit) (NumberSizeConfig, SizeWithUnit, SizeWithUnit, []string, error) {
 	modifications := make([]string, 0)
 
-	// if all proxy configurations are empty, do nothing
-	if proxyBuffers.String() == "" &&
-		proxyBufferSize.String() == "" &&
-		proxyBusyBuffers.String() == "" {
-		return NumberSizeConfig{}, SizeWithUnit{}, SizeWithUnit{}, modifications, nil
+	// Balancing is only needed if proxy_busy_buffers_size is defined.
+	if proxyBusyBuffers.String() == "" {
+		// fmt.Printf("\nproxy busy buffers is empty, returning whatever came in\n")
+		return proxyBuffers, proxyBufferSize, proxyBusyBuffers, modifications, nil
 	}
 
 	// If any of them are defined, we'll align them.

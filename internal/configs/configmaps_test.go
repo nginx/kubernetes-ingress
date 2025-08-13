@@ -2066,7 +2066,11 @@ func TestParseProxyBuffers(t *testing.T) {
 	hasTLSPassthrough := false
 
 	for _, test := range tests {
+		test := test // capture range variable
+
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			eventRecorder := makeEventLogger()
 			result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, eventRecorder)
 
