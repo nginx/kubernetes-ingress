@@ -2141,7 +2141,11 @@ func TestParseProxyBuffersInvalidFormat(t *testing.T) {
 	hasTLSPassthrough := false
 
 	for _, test := range tests {
+		test := test // capture range variable
+
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			cm := &v1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-configmap",
