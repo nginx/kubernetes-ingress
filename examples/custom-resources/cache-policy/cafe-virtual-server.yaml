@@ -7,8 +7,6 @@ spec:
     add_header X-Cache-Status $upstream_cache_status;
   # This header will show the cache status for each request, e.g. X-Cache-Status: MISS or X-Cache-Status: HIT.
   # The cache status can be "HIT", "MISS", "EXPIRED", etc.
-  # This is useful for debugging and monitoring cache behavior but not required for cache functionality.
-
   policies:
   - name: cache-policy
   host: cafe.example.com
@@ -25,8 +23,6 @@ spec:
   - path: /tea
     action:
       pass: tea
-    policies:
-    - name: cache-policy2
   - path: /coffee
     action:
       pass: coffee
