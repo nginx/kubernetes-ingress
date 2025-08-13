@@ -254,12 +254,46 @@ func TestBalanceProxyValues(t *testing.T) {
 			wantProxyBusyBufferSize: validation.SizeWithUnit{Size: 23, Unit: validation.SizeKB},
 			wantErr:                 false,
 		},
+		{
+			name: "trio should pass unchanged",
+			args: args{
+				proxyBuffers:     validation.NumberSizeConfig{Number: 8, Size: validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB}},
+				proxyBufferSize:  validation.SizeWithUnit{Size: 8, Unit: validation.SizeKB},
+				proxyBusyBuffers: validation.SizeWithUnit{Size: 16, Unit: validation.SizeKB},
+			},
+			wantProxyBuffers:        validation.NumberSizeConfig{Number: 8, Size: validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB}},
+			wantProxyBufferSize:     validation.SizeWithUnit{Size: 8, Unit: validation.SizeKB},
+			wantProxyBusyBufferSize: validation.SizeWithUnit{Size: 16, Unit: validation.SizeKB},
+			wantErr:                 false,
+		},
+		{
+			name: "proxy_busy_buffers is in MB",
+			args: args{
+				proxyBuffers: validation.NumberSizeConfig{
+					Number: 8,
+					Size: validation.SizeWithUnit{
+						Size: 4,
+						Unit: validation.SizeKB,
+					},
+				},
+				proxyBufferSize:  validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB},
+				proxyBusyBuffers: validation.SizeWithUnit{Size: 1, Unit: validation.SizeMB},
+			},
+			wantProxyBuffers:        validation.NumberSizeConfig{Number: 8, Size: validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB}},
+			wantProxyBufferSize:     validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB},
+			wantProxyBusyBufferSize: validation.SizeWithUnit{Size: 28, Unit: validation.SizeKB},
+			wantErr:                 false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotProxyBuffers, gotProxyBufferSize, gotProxyBusyBufferSize, _, err := validation.BalanceProxyValues(tt.args.proxyBuffers, tt.args.proxyBufferSize, tt.args.proxyBusyBuffers)
+			gotProxyBuffers, gotProxyBufferSize, gotProxyBusyBufferSize, m, err := validation.BalanceProxyValues(tt.args.proxyBuffers, tt.args.proxyBufferSize, tt.args.proxyBusyBuffers)
 
 			assert.NoError(t, err)
+
+			for _, mm := range m {
+				t.Logf("Modification: %s", mm)
+			}
 
 			assert.Equalf(t, tt.wantProxyBuffers, gotProxyBuffers, "proxy buffers, want: %s, got: %s", tt.wantProxyBuffers, gotProxyBuffers)
 			assert.Equalf(t, tt.wantProxyBufferSize, gotProxyBufferSize, "proxy_buffer_size, want: %s, got: %s", tt.wantProxyBufferSize, gotProxyBufferSize)

@@ -194,7 +194,10 @@ func BalanceProxyValues(proxyBuffers NumberSizeConfig, proxyBufferSize, proxyBus
 		proxyBuffers.Size = defaultSize
 	}
 
-	maxProxyBusyBuffersSize := proxyBuffers.Size.Size * (proxyBuffers.Number - 1)
+	maxProxyBusyBuffersSize := SizeWithUnit{
+		Size: proxyBuffers.Size.Size * (proxyBuffers.Number - 1),
+		Unit: proxyBuffers.Size.Unit,
+	}
 
 	// 3. clamp proxy_buffer_size to be at most all of proxy_buffers minus one
 	//    proxy buffer.
@@ -203,10 +206,8 @@ func BalanceProxyValues(proxyBuffers NumberSizeConfig, proxyBufferSize, proxyBus
 	// than grow so we don't run into resource issues), and also to avoid
 	// undoing work in the last step when adjusting proxy_busy_buffers_size.
 	if proxyBufferSize.SizeBytes() > (proxyBuffers.Size.SizeBytes() * (proxyBuffers.Number - 1)) {
-		newSize := SizeWithUnit{
-			Size: maxProxyBusyBuffersSize,
-			Unit: proxyBuffers.Size.Unit,
-		}
+		newSize := maxProxyBusyBuffersSize
+
 		modifications = append(modifications, fmt.Sprintf("adjusted proxy_buffer_size from %s to %s because it was too big for proxy_buffers (%s)", proxyBufferSize, newSize, proxyBuffers))
 		proxyBufferSize = newSize
 	}
@@ -226,10 +227,10 @@ func BalanceProxyValues(proxyBuffers NumberSizeConfig, proxyBufferSize, proxyBus
 		proxyBusyBuffers = greaterSize
 	}
 
-	if proxyBusyBuffers.SizeBytes() > maxProxyBusyBuffersSize {
-		modifications = append(modifications, fmt.Sprintf("adjusted proxy_busy_buffers_size from %s to %s because it was too large", proxyBusyBuffers, greaterSize))
+	if proxyBusyBuffers.SizeBytes() > maxProxyBusyBuffersSize.SizeBytes() {
+		modifications = append(modifications, fmt.Sprintf("adjusted proxy_busy_buffers_size from %s to %s because it was too large", proxyBusyBuffers, maxProxyBusyBuffersSize))
 
-		proxyBusyBuffers = greaterSize
+		proxyBusyBuffers = maxProxyBusyBuffersSize
 	}
 
 	return proxyBuffers, proxyBufferSize, proxyBusyBuffers, modifications, nil
