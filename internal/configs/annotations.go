@@ -327,6 +327,20 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		}
 	}
 
+	balancedProxyBuffers, balancedProxyBufferSize, balancedProxyBusyBufferSize, modifications, err := validation.BalanceProxyValues(cfgParams.ProxyBuffers, cfgParams.ProxyBufferSize, cfgParams.ProxyBusyBuffersSize)
+	if err != nil {
+		nl.Errorf(l, "error reconciling proxy_buffers, proxy_buffer_size, and proxy_busy_buffers_size values: %s", err.Error())
+	}
+	cfgParams.ProxyBuffers = balancedProxyBuffers
+	cfgParams.ProxyBufferSize = balancedProxyBufferSize
+	cfgParams.ProxyBusyBuffersSize = balancedProxyBusyBufferSize
+
+	if len(modifications) > 0 {
+		for _, modification := range modifications {
+			nl.Infof(l, "Changes made to proxy values: %s", modification)
+		}
+	}
+
 	if upstreamZoneSize, exists := ingEx.Ingress.Annotations["nginx.org/upstream-zone-size"]; exists {
 		cfgParams.UpstreamZoneSize = upstreamZoneSize
 	}
