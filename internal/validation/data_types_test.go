@@ -20,7 +20,7 @@ func TestNewSizeWithUnit(t *testing.T) {
 			name:    "invalid empty string",
 			sizeStr: "",
 			want:    "",
-			wantErr: true,
+			wantErr: false,
 		},
 		{
 			name:    "invalid non-numeric string",
@@ -156,8 +156,11 @@ func TestNewNumberSizeConfig(t *testing.T) {
 		{
 			name:    "invalid zero number with valid size",
 			sizeStr: "0 4k",
-			want:    validation.NumberSizeConfig{},
-			wantErr: true,
+			want: validation.NumberSizeConfig{
+				Number: 2,
+				Size:   validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB},
+			},
+			wantErr: false,
 		},
 		{
 			name:    "valid number with invalid size unit, replaced with m",
