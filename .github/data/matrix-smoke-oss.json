@@ -39,14 +39,14 @@
       "label": "policies 1/2",
       "image": "alpine",
       "type": "oss",
-      "marker": "'policies and not policies_rl and not policies_ac and not policies_jwt and not policies_mtls'",
+      "marker": "'policies and not policies_rl and not policies_ac and not policies_jwt and not policies_mtls and not policies_cache'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
       "label": "policies 2/2",
       "image": "alpine",
       "type": "oss",
-      "marker": "'policies_rl or policies_ac or policies_jwt or policies_mtls or otel'",
+      "marker": "'policies_rl or policies_ac or policies_jwt or policies_mtls or policies_cache or otel'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {

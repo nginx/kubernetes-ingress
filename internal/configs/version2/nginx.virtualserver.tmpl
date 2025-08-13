@@ -439,7 +439,7 @@ server {
         proxy_cache {{ $l.Cache.ZoneName }};
         proxy_cache_key $scheme$proxy_host$request_uri;
                 {{- if $l.Cache.OverrideUpstreamCache }}
-        proxy_ignore_headers Cache-Control Expires Set-Cookie Vary X-Accel-Expires;;
+        proxy_ignore_headers Cache-Control Expires Set-Cookie Vary X-Accel-Expires;
                 {{- end }}
                 {{- if and $l.Cache.Time (eq (len $l.Cache.Valid) 0) }}
         proxy_cache_valid {{ $l.Cache.Time }};
