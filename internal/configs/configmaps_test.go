@@ -1977,9 +1977,15 @@ func TestParseProxyBuffers(t *testing.T) {
 					Unit: validation.SizeKB,
 				},
 			},
-			expectedProxyBufferSize:      validation.SizeWithUnit{},
-			expectedProxyBusyBuffersSize: validation.SizeWithUnit{},
-			description:                  "should parse proxy-buffers only",
+			expectedProxyBufferSize: validation.SizeWithUnit{
+				Size: 8,
+				Unit: validation.SizeKB,
+			},
+			expectedProxyBusyBuffersSize: validation.SizeWithUnit{
+				Size: 8,
+				Unit: validation.SizeKB,
+			},
+			description: "should parse proxy-buffers only",
 		},
 		{
 			name: "only proxy-buffer-size provided",
@@ -1988,13 +1994,22 @@ func TestParseProxyBuffers(t *testing.T) {
 					"proxy-buffer-size": "16k",
 				},
 			},
-			expectedProxyBuffers: validation.NumberSizeConfig{},
+			expectedProxyBuffers: validation.NumberSizeConfig{
+				Number: 2,
+				Size: validation.SizeWithUnit{
+					Size: 4,
+					Unit: validation.SizeKB,
+				},
+			},
 			expectedProxyBufferSize: validation.SizeWithUnit{
-				Size: 16,
+				Size: 4,
 				Unit: validation.SizeKB,
 			},
-			expectedProxyBusyBuffersSize: validation.SizeWithUnit{},
-			description:                  "should parse proxy-buffer-size only",
+			expectedProxyBusyBuffersSize: validation.SizeWithUnit{
+				Size: 4,
+				Unit: validation.SizeKB,
+			},
+			description: "should parse proxy-buffer-size only",
 		},
 		{
 			name: "case insensitive units get normalized",
@@ -2134,8 +2149,8 @@ func TestParseProxyBuffersInvalidFormat(t *testing.T) {
 		{
 			name:         "invalid - empty",
 			proxyBuffers: "",
-			expectValid:  false,
-			description:  "should reject empty string",
+			expectValid:  true,
+			description:  "should accept empty string (will get corrected)",
 		},
 	}
 

@@ -17,7 +17,7 @@ func TestNewSizeWithUnit(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "invalid empty string",
+			name:    "empty string gets an empty response",
 			sizeStr: "",
 			want:    "",
 			wantErr: false,
