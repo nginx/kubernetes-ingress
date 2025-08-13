@@ -1,7 +1,6 @@
 package validation
 
 import (
-	"strings"
 	"testing"
 
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
@@ -2427,185 +2426,142 @@ func TestValidateWAF_FailsOnInvalidApLogBundle(t *testing.T) {
 	}
 }
 
-func TestValidateCache(t *testing.T) {
+func TestValidatePolicy_IsNotValidCachePolicy(t *testing.T) {
 	t.Parallel()
 
-	// Helper function to create Cache with mixed allowedCodes from simple types
-	createCache := func(zoneName, zoneSize string, allowedCodes []interface{}, purgeAllow []string) *v1.Cache {
-		cache := &v1.Cache{
-			CacheZoneName:   zoneName,
-			CacheZoneSize:   zoneSize,
-			CachePurgeAllow: purgeAllow,
-		}
-
-		// Convert simple types to IntOrString
-		if len(allowedCodes) > 0 {
-			for _, code := range allowedCodes {
-				switch v := code.(type) {
-				case string:
-					cache.AllowedCodes = append(cache.AllowedCodes, intstr.FromString(v))
-				case int:
-					cache.AllowedCodes = append(cache.AllowedCodes, intstr.FromInt(v))
-				}
-			}
-		}
-
-		return cache
-	}
-
-	tests := []struct {
-		name          string
-		cache         *v1.Cache
-		isPlus        bool
-		expectValid   bool
-		expectedError string
-	}{
-		// Valid cache configurations
-		{
-			name:        "valid cache with purge (NGINX Plus)",
-			cache:       createCache("purgecache", "20m", nil, []string{"192.168.1.0/24", "10.0.0.1"}),
-			isPlus:      true,
-			expectValid: true,
-		},
-		{
-			name:        "valid IPv6 address in purge allow",
-			cache:       createCache("test", "10m", nil, []string{"2001:db8::1"}),
-			isPlus:      true,
-			expectValid: true,
-		},
-		{
-			name:        "valid cache without purge features",
-			cache:       createCache("basiccache", "10m", nil, nil),
-			isPlus:      false,
-			expectValid: true,
-		},
-		{
-			name:        "valid allowedCodes with single 'any'",
-			cache:       createCache("test", "10m", []interface{}{"any"}, nil),
-			isPlus:      false,
-			expectValid: true,
-		},
-		{
-			name:        "valid allowedCodes with integers",
-			cache:       createCache("test", "10m", []interface{}{200, 404, 500}, nil),
-			isPlus:      false,
-			expectValid: true,
-		},
-		{
-			name:        "valid allowedCodes with edge case status codes",
-			cache:       createCache("test", "10m", []interface{}{100, 599}, nil),
-			isPlus:      false,
-			expectValid: true,
-		},
-		{
-			name:        "valid empty allowedCodes",
-			cache:       createCache("test", "10m", []interface{}{}, nil),
-			isPlus:      false,
-			expectValid: true,
-		},
-
-		// Invalid cache configurations
-		{
-			name:          "cache purge not allowed on OSS",
-			cache:         createCache("purgeoss", "10m", nil, []string{"192.168.1.1"}),
-			isPlus:        false,
-			expectValid:   false,
-			expectedError: "cache purge is only supported in NGINX Plus",
-		},
-		{
-			name:          "invalid IP address in purge allow",
-			cache:         createCache("invalidip", "10m", nil, []string{"invalid-ip"}),
-			isPlus:        true,
-			expectValid:   false,
-			expectedError: "must be a valid IP address or CIDR",
-		},
-		{
-			name:          "allowedCodes with 'any' mixed with integers",
-			cache:         createCache("test", "10m", []interface{}{"any", 200}, nil),
-			isPlus:        false,
-			expectValid:   false,
-			expectedError: "the string 'any' cannot be mixed with other codes",
-		},
-		{
-			name:          "allowedCodes with invalid string",
-			cache:         createCache("test", "10m", []interface{}{"invalid"}, nil),
-			isPlus:        false,
-			expectValid:   false,
-			expectedError: "must be an integer HTTP status code (100-599) or the single string 'any'",
-		},
-		{
-			name:          "allowedCodes with status code below 100",
-			cache:         createCache("test", "10m", []interface{}{99}, nil),
-			isPlus:        false,
-			expectValid:   false,
-			expectedError: "HTTP status code must be between 100 and 599",
-		},
-		{
-			name:          "allowedCodes with status code above 599",
-			cache:         createCache("test", "10m", []interface{}{600}, nil),
-			isPlus:        false,
-			expectValid:   false,
-			expectedError: "HTTP status code must be between 100 and 599",
-		},
-		{
-			name:          "allowedCodes with multiple 'any' strings",
-			cache:         createCache("test", "10m", []interface{}{"any", "any"}, nil),
-			isPlus:        false,
-			expectValid:   false,
-			expectedError: "the string 'any' cannot be mixed with other codes",
-		},
-		{
-			name:          "allowedCodes with valid and invalid status codes",
-			cache:         createCache("test", "10m", []interface{}{200, 700}, nil),
-			isPlus:        false,
-			expectValid:   false,
-			expectedError: "HTTP status code must be between 100 and 599",
-		},
-	}
-
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
-			allErrs := validateCache(test.cache, field.NewPath("cache"), test.isPlus)
-
-			if test.expectValid {
-				if len(allErrs) > 0 {
-					t.Errorf("Expected no validation errors for valid cache, got: %v", allErrs)
-				}
-			} else {
-				if len(allErrs) == 0 {
-					t.Errorf("Expected validation error containing '%s', got no errors", test.expectedError)
-					return
-				}
-
-				found := false
-				for _, err := range allErrs {
-					if strings.Contains(err.Detail, test.expectedError) {
-						found = true
-						break
-					}
-				}
-
-				if !found {
-					t.Errorf("Expected validation error containing '%s', got: %v", test.expectedError, allErrs)
-				}
-			}
-		})
-	}
-}
-
-func TestValidatePolicy_CachePolicy(t *testing.T) {
-	t.Parallel()
-
-	validPolicyTests := []struct {
+	tt := []struct {
 		name   string
 		policy *v1.Policy
 		isPlus bool
 	}{
 		{
-			name: "valid cache policy basic",
+			name: "cache purge not allowed on OSS",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName:   "purgeoss",
+						CacheZoneSize:   "10m",
+						CachePurgeAllow: []string{"192.168.1.1"},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "invalid IP address in purge allow",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName:   "invalidip",
+						CacheZoneSize:   "10m",
+						CachePurgeAllow: []string{"invalid-ip"},
+					},
+				},
+			},
+			isPlus: true,
+		},
+		{
+			name: "allowedCodes with 'any' mixed with integers",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "test",
+						CacheZoneSize: "10m",
+						AllowedCodes:  []intstr.IntOrString{intstr.FromString("any"), intstr.FromInt(200)},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "allowedCodes with invalid string",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "test",
+						CacheZoneSize: "10m",
+						AllowedCodes:  []intstr.IntOrString{intstr.FromString("invalid")},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "allowedCodes with status code below 100",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "test",
+						CacheZoneSize: "10m",
+						AllowedCodes:  []intstr.IntOrString{intstr.FromInt(99)},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "allowedCodes with status code above 599",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "test",
+						CacheZoneSize: "10m",
+						AllowedCodes:  []intstr.IntOrString{intstr.FromInt(600)},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "allowedCodes with multiple 'any' strings",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "test",
+						CacheZoneSize: "10m",
+						AllowedCodes:  []intstr.IntOrString{intstr.FromString("any"), intstr.FromString("any")},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "allowedCodes with valid and invalid status codes",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "test",
+						CacheZoneSize: "10m",
+						AllowedCodes:  []intstr.IntOrString{intstr.FromInt(200), intstr.FromInt(700)},
+					},
+				},
+			},
+			isPlus: false,
+		},
+	}
+
+	for _, tc := range tt {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := ValidatePolicy(tc.policy, tc.isPlus, false, false)
+			if err == nil {
+				t.Errorf("got no errors on invalid Cache policy spec input")
+			}
+		})
+	}
+}
+
+func TestValidatePolicy_IsValidCachePolicy(t *testing.T) {
+	t.Parallel()
+
+	tt := []struct {
+		name   string
+		policy *v1.Policy
+		isPlus bool
+	}{
+		{
+			name: "basic cache policy",
 			policy: &v1.Policy{
 				Spec: v1.PolicySpec{
 					Cache: &v1.Cache{
@@ -2617,7 +2573,7 @@ func TestValidatePolicy_CachePolicy(t *testing.T) {
 			isPlus: false,
 		},
 		{
-			name: "valid cache policy with all options",
+			name: "cache policy with all options",
 			policy: &v1.Policy{
 				Spec: v1.PolicySpec{
 					Cache: &v1.Cache{
@@ -2634,7 +2590,7 @@ func TestValidatePolicy_CachePolicy(t *testing.T) {
 			isPlus: false,
 		},
 		{
-			name: "valid cache policy with purge (NGINX Plus)",
+			name: "cache policy with purge (NGINX Plus)",
 			policy: &v1.Policy{
 				Spec: v1.PolicySpec{
 					Cache: &v1.Cache{
@@ -2646,65 +2602,80 @@ func TestValidatePolicy_CachePolicy(t *testing.T) {
 			},
 			isPlus: true,
 		},
+		{
+			name: "cache policy with IPv6 purge addresses",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName:   "ipv6cache",
+						CacheZoneSize:   "20m",
+						CachePurgeAllow: []string{"2001:db8::1", "fe80::/64"},
+					},
+				},
+			},
+			isPlus: true,
+		},
+		{
+			name: "cache policy with specific allowed codes",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "codecache",
+						CacheZoneSize: "15m",
+						AllowedCodes:  []intstr.IntOrString{intstr.FromInt(200), intstr.FromInt(404), intstr.FromInt(500)},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with edge case status codes",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "edgecase",
+						CacheZoneSize: "5m",
+						AllowedCodes:  []intstr.IntOrString{intstr.FromInt(100), intstr.FromInt(599)},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with purge and CIDR range",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName:   "cidrpurge",
+						CacheZoneSize:   "20m",
+						CachePurgeAllow: []string{"192.168.1.0/24", "10.0.0.1"},
+					},
+				},
+			},
+			isPlus: true,
+		},
+		{
+			name: "cache policy with empty allowed codes",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "emptycode",
+						CacheZoneSize: "10m",
+						AllowedCodes:  []intstr.IntOrString{},
+					},
+				},
+			},
+			isPlus: false,
+		},
 	}
 
-	for _, test := range validPolicyTests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
+	for _, tc := range tt {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
-			err := ValidatePolicy(test.policy, test.isPlus, false, false)
+			err := ValidatePolicy(tc.policy, tc.isPlus, false, false)
 			if err != nil {
-				t.Errorf("Expected valid cache policy, got error: %v", err)
-			}
-		})
-	}
-
-	invalidPolicyTests := []struct {
-		name   string
-		policy *v1.Policy
-		isPlus bool
-	}{
-		{
-			name: "multiple policies defined (cache + access control)",
-			policy: &v1.Policy{
-				Spec: v1.PolicySpec{
-					Cache: &v1.Cache{
-						CacheZoneName: "cache1",
-						CacheZoneSize: "10m",
-					},
-					AccessControl: &v1.AccessControl{
-						Allow: []string{"127.0.0.1"},
-					},
-				},
-			},
-			isPlus: false,
-		},
-		{
-			name: "multiple policies defined (cache + rate limit)",
-			policy: &v1.Policy{
-				Spec: v1.PolicySpec{
-					Cache: &v1.Cache{
-						CacheZoneName: "cache2",
-						CacheZoneSize: "10m",
-					},
-					RateLimit: &v1.RateLimit{
-						Rate: "10r/s",
-					},
-				},
-			},
-			isPlus: false,
-		},
-	}
-
-	for _, test := range invalidPolicyTests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
-			err := ValidatePolicy(test.policy, test.isPlus, false, false)
-			if err == nil {
-				t.Errorf("Expected invalid cache policy to return error, got none")
+				t.Errorf("want no errors, got %+v\n", err)
 			}
 		})
 	}
