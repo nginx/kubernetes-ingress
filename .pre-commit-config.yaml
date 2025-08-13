@@ -3,7 +3,7 @@
 exclude: (^_vendor/|.*pb2.*)
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
         exclude: '(\.md|\.jwt|\.snap|\.avdl)$'
@@ -44,7 +44,7 @@ repos:
         pass_filenames: false
 
   - repo: https://github.com/golangci/golangci-lint
-    rev: v2.2.2
+    rev: v2.3.1
     hooks:
       - id: golangci-lint
         args: [--new-from-patch=/tmp/diff.patch]

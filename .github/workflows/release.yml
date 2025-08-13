@@ -48,7 +48,7 @@ permissions:
 jobs:
   variables:
     name: Set Variables
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     outputs:
@@ -60,7 +60,7 @@ jobs:
       k8s_version: ${{ steps.vars.outputs.k8s_version }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 0
           ref: ${{ inputs.release_branch }}
@@ -84,7 +84,7 @@ jobs:
 
       - name: Fetch Cached Signed Binary Artifacts
         id: binary-cache-sign
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
           path: ${{ github.workspace }}/tarballs
           key: nginx-ingress-release-${{ steps.vars.outputs.go_code_md5 }}
@@ -92,12 +92,12 @@ jobs:
 
   tag:
     name: Create Tag on release branch in NIC repo
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
       - name: Checkout NIC repo
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           ref: ${{ inputs.release_branch }}
           fetch-depth: 0
@@ -289,11 +289,11 @@ jobs:
   certify-openshift-images:
     if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'certify-openshift-images') }}
     name: Certify OpenShift UBI images
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [release-oss]
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           ref: ${{ inputs.release_branch }}
 
@@ -310,7 +310,7 @@ jobs:
   # operator:
   #   if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'operator') && !contains(inputs.skip_step, 'publish-helm-chart') }}
   #   name: Trigger PR for Operator
-  #   runs-on: ubuntu-22.04
+  #   runs-on: ubuntu-24.04
   #   needs: [variables,publish-helm-chart]
   #   steps:
   #     - name:
@@ -335,7 +335,7 @@ jobs:
   # gcp-marketplace:
   #   if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'gcp-marketplace') }}
   #   name: Trigger PR for GCP Marketplace
-  #   runs-on: ubuntu-22.04
+  #   runs-on: ubuntu-24.04
   #   needs: [publish-helm-chart,release-plus-gcr-mktpl]
   #   steps:
   #     - name:
@@ -357,7 +357,7 @@ jobs:
   # azure-marketplace:
   #   if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'azure-marketplace') }}
   #   name: Trigger CNAB Build for Azure Marketplace
-  #   runs-on: ubuntu-22.04
+  #   runs-on: ubuntu-24.04
   #   needs: [publish-helm-chart,release-plus-azure-mktpl]
   #   steps:
   #     - name:
@@ -381,7 +381,7 @@ jobs:
   # aws-marketplace:
   #   if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'aws-marketplace') }}
   #   name: Publish to AWS Marketplace
-  #   runs-on: ubuntu-22.04
+  #   runs-on: ubuntu-24.04
   #   needs: [release-plus-aws-mktpl]
   #   permissions:
   #     contents: read
@@ -400,7 +400,7 @@ jobs:
   #           product_id: AWS_NAP_WAF_DOS_PRODUCT_ID
   #   steps:
   #     - name: Checkout Repository
-  #       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+  #       uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
   #       with:
   #         ref: ${{ inputs.release_branch }}
 
@@ -428,19 +428,19 @@ jobs:
 
   binaries:
     name: Process Binaries
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [variables]
     permissions:
       contents: read
       id-token: write # for cosign to sign artifacts
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           ref: ${{ inputs.release_branch }}
 
       - name: Fetch Binary Artifacts from Cache
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ needs.variables.outputs.go_code_md5 }}
@@ -448,7 +448,7 @@ jobs:
 
       - name: Download Syft
         id: syft
-        uses: anchore/sbom-action/download-syft@cee1b8e05ae5b2593a75e197229729eabaa9f8ec # v0.20.2
+        uses: anchore/sbom-action/download-syft@7b36ad622f042cab6f59a75c2ac24ccb256e9b45 # v0.20.4
         if: ${{ needs.variables.outputs.binary_cache_sign_hit != 'true' }}
 
       - name: Install Cosign
@@ -463,7 +463,7 @@ jobs:
         if: ${{ needs.variables.outputs.binary_cache_sign_hit != 'true' }}
 
       - name: Store Tarball Artifacts in Cache
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
           path: ${{ github.workspace }}/tarballs
           key: nginx-ingress-release-${{ needs.variables.outputs.go_code_md5 }}
@@ -473,7 +473,7 @@ jobs:
   azure-upload:
     if: ${{ ! cancelled() && ! failure() && ! contains(inputs.skip_step, 'azure-upload') }}
     name: Upload packages to Azure
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [variables, binaries]
     permissions:
       id-token: write
@@ -481,12 +481,12 @@ jobs:
     environment: release
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           ref: ${{ inputs.release_branch }}
 
       - name: Fetch Cached Tarball Artifacts
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
           key: nginx-ingress-release-${{ needs.variables.outputs.go_code_md5 }}
           path: ${{ github.workspace }}/tarballs
@@ -517,7 +517,7 @@ jobs:
   github-release:
     if: ${{ ! cancelled() && ! failure() && ! contains(inputs.skip_step, 'github-release') }}
     name: Publish release to GitHub
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [variables, binaries, release-oss, release-plus-gcr-nginx]
     permissions:
       contents: write # to modify the release
@@ -525,12 +525,12 @@ jobs:
       actions: read # for slack notification
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           ref: ${{ inputs.release_branch }}
 
       - name: Fetch Cached Tarball Artifacts
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
           key: nginx-ingress-release-${{ needs.variables.outputs.go_code_md5 }}
           path: ${{ github.workspace }}/tarballs
@@ -602,7 +602,7 @@ jobs:
   release-image-notification:
     if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'release-image-notification') }}
     name: Notify Slack channels about image release
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [variables, binaries, release-oss, release-plus-gcr-nginx]
     permissions:
       contents: read
@@ -613,7 +613,7 @@ jobs:
         image: ["nginx/nginx-ingress:${{ inputs.nic_version }}", "nginx/nginx-ingress:${{ inputs.nic_version }}-ubi", "nginx/nginx-ingress:${{ inputs.nic_version }}-alpine"]
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           ref: ${{ inputs.release_branch }}
 
