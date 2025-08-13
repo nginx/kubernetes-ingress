@@ -191,127 +191,324 @@ func TestNewNumberSizeConfig(t *testing.T) {
 
 func TestBalanceProxyValues(t *testing.T) {
 	type args struct {
-		proxyBuffers     validation.NumberSizeConfig
-		proxyBufferSize  validation.SizeWithUnit
-		proxyBusyBuffers validation.SizeWithUnit
+		proxyBuffers         string
+		proxyBufferSize      string
+		proxyBusyBuffersSize string
 	}
 	tests := []struct {
 		name                    string
 		args                    args
-		wantProxyBuffers        validation.NumberSizeConfig
-		wantProxyBufferSize     validation.SizeWithUnit
-		wantProxyBusyBufferSize validation.SizeWithUnit
+		wantProxyBuffers        string
+		wantProxyBufferSize     string
+		wantProxyBusyBufferSize string
 		wantErr                 bool
 	}{
 		{
-			name: "corrected proxy_buffers",
-			args: args{
-				proxyBuffers:     validation.NumberSizeConfig{Number: 1, Size: validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB}},
-				proxyBufferSize:  validation.SizeWithUnit{Size: 8, Unit: validation.SizeKB},
-				proxyBusyBuffers: validation.SizeWithUnit{Size: 16, Unit: validation.SizeKB},
-			},
-			wantProxyBuffers:        validation.NumberSizeConfig{Number: 2, Size: validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB}},
-			wantProxyBufferSize:     validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB},
-			wantProxyBusyBufferSize: validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB},
-			wantErr:                 false,
+			name:    "All empty",
+			wantErr: false,
 		},
+
 		{
-			name: "everything empty, return empty",
+			name: "only proxy_buffer_size is defined",
 			args: args{
-				proxyBuffers:     validation.NumberSizeConfig{},
-				proxyBufferSize:  validation.SizeWithUnit{},
-				proxyBusyBuffers: validation.SizeWithUnit{},
+				proxyBufferSize: "4k",
 			},
-			wantProxyBuffers:        validation.NumberSizeConfig{},
-			wantProxyBufferSize:     validation.SizeWithUnit{},
-			wantProxyBusyBufferSize: validation.SizeWithUnit{},
+			wantProxyBuffers:        "2 4k",
+			wantProxyBufferSize:     "4k",
+			wantProxyBusyBufferSize: "4k",
 			wantErr:                 false,
 		},
+
+		{
+			name: "only proxy_buffers is defined",
+			args: args{
+				proxyBuffers: "4 16k",
+			},
+			wantProxyBuffers:        "4 16k",
+			wantProxyBufferSize:     "16k",
+			wantProxyBusyBufferSize: "16k",
+			wantErr:                 false,
+		},
+
+		{
+			name: "Invalid combination that should correct itself",
+			args: args{
+				proxyBuffers:    "8 1m",
+				proxyBufferSize: "5m",
+			},
+			wantProxyBuffers:        "8 1m",
+			wantProxyBufferSize:     "5m",
+			wantProxyBusyBufferSize: "5m",
+			wantErr:                 false,
+		},
+
+		{
+			name: "Buffer-size smaller than individual buffer size",
+			args: args{
+				proxyBuffers:    "4 1m",
+				proxyBufferSize: "512k",
+			},
+			wantProxyBuffers:        "4 1m",
+			wantProxyBufferSize:     "512k",
+			wantProxyBusyBufferSize: "1m",
+		},
+
+		{
+			name: "Minimum buffers configuration",
+			args: args{
+				proxyBuffers:    "2 4k",
+				proxyBufferSize: "4k",
+			},
+			wantProxyBuffers:        "2 4k",
+			wantProxyBufferSize:     "4k",
+			wantProxyBusyBufferSize: "4k",
+			wantErr:                 false,
+		},
+
+		{
+			name: "All three parameters set",
+			args: args{
+				proxyBuffers:         "8 4k",
+				proxyBufferSize:      "4k",
+				proxyBusyBuffersSize: "16k",
+			},
+			wantProxyBuffers:        "8 4k",
+			wantProxyBufferSize:     "4k",
+			wantProxyBusyBufferSize: "16k",
+			wantErr:                 false,
+		},
+
+		{
+			name: "Busy buffer too large  - reduces in size",
+			args: args{
+				proxyBuffers:         "4 8k",
+				proxyBufferSize:      "8k",
+				proxyBusyBuffersSize: "40k",
+			},
+			wantProxyBuffers:        "4 8k",
+			wantProxyBufferSize:     "8k",
+			wantProxyBusyBufferSize: "24k",
+			wantErr:                 false,
+		},
+
+		{
+			name: "Empty/zero values - corrected to minimum",
+			args: args{
+				proxyBuffers: "0 4k",
+			},
+			wantProxyBuffers:        "2 4k",
+			wantProxyBufferSize:     "4k",
+			wantProxyBusyBufferSize: "4k",
+			wantErr:                 false,
+		},
+
+		{
+			name: "Extreme values - autocorrect",
+			args: args{
+				proxyBuffers:    "1000000 1k",
+				proxyBufferSize: "999m",
+			},
+			wantProxyBuffers:        "1024 1k",
+			wantProxyBufferSize:     "1023k",
+			wantProxyBusyBufferSize: "1023k",
+			wantErr:                 false,
+		},
+
+		{
+			name: "Autocorrect buffer size and buffers",
+			args: args{
+				proxyBuffers:    "8 4k",
+				proxyBufferSize: "64k",
+			},
+			wantProxyBuffers:        "8 4k",
+			wantProxyBufferSize:     "28k",
+			wantProxyBusyBufferSize: "28k",
+			wantErr:                 false,
+		},
+
+		{
+			name: "Buffer size with busy buffer calculates minimum buffers",
+			args: args{
+				proxyBufferSize:      "4k",
+				proxyBusyBuffersSize: "20k",
+			},
+			wantProxyBuffers:        "2 4k",
+			wantProxyBufferSize:     "4k",
+			wantProxyBusyBufferSize: "4k",
+			wantErr:                 false,
+		},
+
+		{
+			name: "Single buffer corrected to minimum count",
+			args: args{
+				proxyBuffers: "1 2k",
+			},
+			wantProxyBuffers:        "2 2k",
+			wantProxyBufferSize:     "2k",
+			wantProxyBusyBufferSize: "2k",
+			wantErr:                 false,
+		},
+
+		{
+			name: "Single buffer with larger buffer size gets corrected",
+			args: args{
+				proxyBuffers:    "1 2k",
+				proxyBufferSize: "8k",
+			},
+			wantProxyBuffers:        "2 2k",
+			wantProxyBufferSize:     "2k",
+			wantProxyBusyBufferSize: "2k",
+			wantErr:                 false,
+		},
+
+		{
+			name: "Zero buffers corrected to minimum 2",
+			args: args{
+				proxyBuffers: "0 4k",
+			},
+			wantProxyBuffers:        "2 4k",
+			wantProxyBufferSize:     "4k",
+			wantProxyBusyBufferSize: "4k",
+			wantErr:                 false,
+		},
+
+		{
+			name: "Large buffer count unchanged",
+			args: args{
+				proxyBuffers: "16 1k",
+			},
+			wantProxyBuffers:        "16 1k",
+			wantProxyBufferSize:     "1k",
+			wantProxyBusyBufferSize: "1k",
+			wantErr:                 false,
+		},
+
+		{
+			name: "Only busy buffer size set",
+			args: args{
+				proxyBusyBuffersSize: "8k",
+			},
+			wantProxyBuffers:        "2 4k",
+			wantProxyBufferSize:     "4k",
+			wantProxyBusyBufferSize: "4k",
+			wantErr:                 false,
+		},
+
+		{
+			name: "Very small buffers with large buffer size",
+			args: args{
+				proxyBuffers:    "2 1k",
+				proxyBufferSize: "2k",
+			},
+			wantProxyBuffers:        "2 1k",
+			wantProxyBufferSize:     "1k",
+			wantProxyBusyBufferSize: "1k",
+			wantErr:                 false,
+		},
+
+		{
+			name: "Busy buffer exactly at limit",
+			args: args{
+				proxyBuffers:         "4 4k",
+				proxyBusyBuffersSize: "12k",
+			},
+			wantProxyBuffers:        "4 4k",
+			wantProxyBufferSize:     "4k",
+			wantProxyBusyBufferSize: "12k",
+			wantErr:                 false,
+		},
+
+		{
+			name: "Busy buffer too small - gets adjusted",
+			args: args{
+				proxyBuffers:         "4 8k",
+				proxyBufferSize:      "16k",
+				proxyBusyBuffersSize: "4k",
+			},
+			wantProxyBuffers:        "4 8k",
+			wantProxyBufferSize:     "16k",
+			wantProxyBusyBufferSize: "16k",
+			wantErr:                 false,
+		},
+		// no no no no
+		{
+			name: "Both buffers and buffer-size set",
+			args: args{
+				proxyBuffers:    "4 16k",
+				proxyBufferSize: "8k",
+			},
+			wantProxyBuffers:        "4 16k",
+			wantProxyBufferSize:     "8k",
+			wantProxyBusyBufferSize: "16k",
+			wantErr:                 false,
+		},
+
 		{
 			name: "proxy_buffers empty, others aren't, fix proxy_buffers, adjust everything too",
 			args: args{
-				proxyBuffers:     validation.NumberSizeConfig{},
-				proxyBufferSize:  validation.SizeWithUnit{Size: 8, Unit: validation.SizeKB},
-				proxyBusyBuffers: validation.SizeWithUnit{Size: 16, Unit: validation.SizeKB},
+				proxyBufferSize:      "8k",
+				proxyBusyBuffersSize: "16k",
 			},
-			wantProxyBuffers: validation.NumberSizeConfig{
-				Number: 2,
-				Size:   validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB},
-			},
-			wantProxyBufferSize:     validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB},
-			wantProxyBusyBufferSize: validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB},
+			wantProxyBuffers:        "2 4k",
+			wantProxyBufferSize:     "4k",
+			wantProxyBusyBufferSize: "4k",
 			wantErr:                 false,
 		},
 		{
 			name: "proxy_buffers is too small, but valid",
 			args: args{
-				proxyBuffers:     validation.NumberSizeConfig{Number: 24, Size: validation.SizeWithUnit{Size: 1, Unit: validation.SizeKB}},
-				proxyBufferSize:  validation.SizeWithUnit{Size: 32, Unit: validation.SizeKB},
-				proxyBusyBuffers: validation.SizeWithUnit{Size: 64, Unit: validation.SizeKB},
+				proxyBuffers:         "24 1k",
+				proxyBufferSize:      "32k",
+				proxyBusyBuffersSize: "64k",
 			},
-			wantProxyBuffers:        validation.NumberSizeConfig{Number: 24, Size: validation.SizeWithUnit{Size: 1, Unit: validation.SizeKB}},
-			wantProxyBufferSize:     validation.SizeWithUnit{Size: 23, Unit: validation.SizeKB},
-			wantProxyBusyBufferSize: validation.SizeWithUnit{Size: 23, Unit: validation.SizeKB},
+			wantProxyBuffers:        "24 1k",
+			wantProxyBufferSize:     "23k",
+			wantProxyBusyBufferSize: "23k",
 			wantErr:                 false,
 		},
 		{
 			name: "trio should pass unchanged",
 			args: args{
-				proxyBuffers:     validation.NumberSizeConfig{Number: 8, Size: validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB}},
-				proxyBufferSize:  validation.SizeWithUnit{Size: 8, Unit: validation.SizeKB},
-				proxyBusyBuffers: validation.SizeWithUnit{Size: 16, Unit: validation.SizeKB},
+				proxyBuffers:         "8 4k",
+				proxyBufferSize:      "8k",
+				proxyBusyBuffersSize: "16k",
 			},
-			wantProxyBuffers:        validation.NumberSizeConfig{Number: 8, Size: validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB}},
-			wantProxyBufferSize:     validation.SizeWithUnit{Size: 8, Unit: validation.SizeKB},
-			wantProxyBusyBufferSize: validation.SizeWithUnit{Size: 16, Unit: validation.SizeKB},
+			wantProxyBuffers:        "8 4k",
+			wantProxyBufferSize:     "8k",
+			wantProxyBusyBufferSize: "16k",
 			wantErr:                 false,
 		},
 		{
 			name: "proxy_busy_buffers is in MB",
 			args: args{
-				proxyBuffers: validation.NumberSizeConfig{
-					Number: 8,
-					Size: validation.SizeWithUnit{
-						Size: 4,
-						Unit: validation.SizeKB,
-					},
-				},
-				proxyBufferSize:  validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB},
-				proxyBusyBuffers: validation.SizeWithUnit{Size: 1, Unit: validation.SizeMB},
+				proxyBuffers:         "8 4k",
+				proxyBufferSize:      "4k",
+				proxyBusyBuffersSize: "1m",
 			},
-			wantProxyBuffers:        validation.NumberSizeConfig{Number: 8, Size: validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB}},
-			wantProxyBufferSize:     validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB},
-			wantProxyBusyBufferSize: validation.SizeWithUnit{Size: 28, Unit: validation.SizeKB},
-			wantErr:                 false,
-		},
-		{
-			name: "only proxy_buffers is defined",
-			args: args{
-				proxyBuffers:     validation.NumberSizeConfig{Number: 8, Size: validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB}},
-				proxyBufferSize:  validation.SizeWithUnit{},
-				proxyBusyBuffers: validation.SizeWithUnit{},
-			},
-			wantProxyBuffers:        validation.NumberSizeConfig{Number: 8, Size: validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB}},
-			wantProxyBufferSize:     validation.SizeWithUnit{},
-			wantProxyBusyBufferSize: validation.SizeWithUnit{},
-			wantErr:                 false,
-		},
-		{
-			name: "only proxy_buffer_size is defined",
-			args: args{
-				proxyBuffers:     validation.NumberSizeConfig{},
-				proxyBufferSize:  validation.SizeWithUnit{Size: 8, Unit: validation.SizeKB},
-				proxyBusyBuffers: validation.SizeWithUnit{},
-			},
-			wantProxyBuffers:        validation.NumberSizeConfig{},
-			wantProxyBufferSize:     validation.SizeWithUnit{Size: 8, Unit: validation.SizeKB},
-			wantProxyBusyBufferSize: validation.SizeWithUnit{},
+			wantProxyBuffers:        "8 4k",
+			wantProxyBufferSize:     "4k",
+			wantProxyBusyBufferSize: "28k",
 			wantErr:                 false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotProxyBuffers, gotProxyBufferSize, gotProxyBusyBufferSize, m, err := validation.BalanceProxyValues(tt.args.proxyBuffers, tt.args.proxyBufferSize, tt.args.proxyBusyBuffers)
+			pb, err := validation.NewNumberSizeConfig(tt.args.proxyBuffers)
+			if err != nil {
+				t.Fatalf("Failed to parse proxyBuffers: %v", err)
+			}
+
+			pbs, err := validation.NewSizeWithUnit(tt.args.proxyBufferSize)
+			if err != nil {
+				t.Fatalf("Failed to parse proxyBufferSize: %v", err)
+			}
+
+			pbbs, err := validation.NewSizeWithUnit(tt.args.proxyBusyBuffersSize)
+			if err != nil {
+				t.Fatalf("Failed to parse proxyBusyBuffers: %v", err)
+			}
+
+			gotProxyBuffers, gotProxyBufferSize, gotProxyBusyBufferSize, m, err := validation.BalanceProxyValues(pb, pbs, pbbs)
 
 			assert.NoError(t, err)
 
@@ -319,9 +516,9 @@ func TestBalanceProxyValues(t *testing.T) {
 				t.Logf("Modification: %s", mm)
 			}
 
-			assert.Equalf(t, tt.wantProxyBuffers, gotProxyBuffers, "proxy buffers, want: %s, got: %s", tt.wantProxyBuffers, gotProxyBuffers)
-			assert.Equalf(t, tt.wantProxyBufferSize, gotProxyBufferSize, "proxy_buffer_size, want: %s, got: %s", tt.wantProxyBufferSize, gotProxyBufferSize)
-			assert.Equalf(t, tt.wantProxyBusyBufferSize, gotProxyBusyBufferSize, "proxy_busy_buffers_size, want: %s, got: %s", tt.wantProxyBusyBufferSize, gotProxyBusyBufferSize)
+			assert.Equalf(t, tt.wantProxyBuffers, gotProxyBuffers.String(), "proxy buffers, want: %s, got: %s", tt.wantProxyBuffers, gotProxyBuffers.String())
+			assert.Equalf(t, tt.wantProxyBufferSize, gotProxyBufferSize.String(), "proxy_buffer_size, want: %s, got: %s", tt.wantProxyBufferSize, gotProxyBufferSize.String())
+			assert.Equalf(t, tt.wantProxyBusyBufferSize, gotProxyBusyBufferSize.String(), "proxy_busy_buffers_size, want: %s, got: %s", tt.wantProxyBusyBufferSize, gotProxyBusyBufferSize.String())
 		})
 	}
 }

@@ -202,10 +202,6 @@ func makeResolver(resolverAddresses []string, resolverValid string, resolverIPV6
 	return builder.String()
 }
 
-func makeProxyBuffers(proxyBuffers, proxyBufferSize, proxyBusyBuffersSize string) string {
-	return commonhelpers.MakeProxyBuffers(proxyBuffers, proxyBufferSize, proxyBusyBuffersSize)
-}
-
 var helperFunctions = template.FuncMap{
 	"split":                   split,
 	"trim":                    trim,
@@ -221,5 +217,4 @@ var helperFunctions = template.FuncMap{
 	"generateProxySetHeaders": generateProxySetHeaders,
 	"boolToPointerBool":       commonhelpers.BoolToPointerBool,
 	"makeResolver":            makeResolver,
-	"makeProxyBuffers":        makeProxyBuffers,
 }

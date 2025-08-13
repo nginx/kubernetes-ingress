@@ -1,7 +1,6 @@
 package validation
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -71,7 +70,7 @@ func (s SizeWithUnit) SizeBytes() uint64 {
 func NewSizeWithUnit(sizeStr string) (SizeWithUnit, error) {
 	sizeStr = strings.ToLower(strings.TrimSpace(sizeStr))
 	if sizeStr == "" {
-		return SizeWithUnit{}, errors.New("size string is empty")
+		return SizeWithUnit{}, nil
 	}
 
 	var unit SizeUnit
@@ -91,14 +90,20 @@ func NewSizeWithUnit(sizeStr string) (SizeWithUnit, error) {
 	}
 
 	num, err := strconv.ParseUint(numStr, 10, 64)
-	if err != nil || num < 1 || num > 1024 {
-		return SizeWithUnit{}, fmt.Errorf("invalid size value, must be an integer above 0 and maximum of 1024: %s", sizeStr)
+	if err != nil || num < 1 {
+		return SizeWithUnit{}, fmt.Errorf("invalid size value, must be an integer larger than 0: %s", sizeStr)
 	}
 
-	return SizeWithUnit{
+	ret := SizeWithUnit{
 		Size: num,
 		Unit: unit,
-	}, nil
+	}
+
+	if num > 1024 {
+		ret.Size = 1024
+	}
+
+	return ret, nil
 }
 
 // NumberSizeConfig is a configuration that combines a number with a size. Used
@@ -123,7 +128,7 @@ func (nsc NumberSizeConfig) String() string {
 func NewNumberSizeConfig(sizeStr string) (NumberSizeConfig, error) {
 	sizeStr = strings.ToLower(strings.TrimSpace(sizeStr))
 	if sizeStr == "" {
-		return NumberSizeConfig{}, errors.New("size string is empty")
+		return NumberSizeConfig{}, nil
 	}
 
 	parts := strings.Fields(sizeStr)
@@ -132,8 +137,12 @@ func NewNumberSizeConfig(sizeStr string) (NumberSizeConfig, error) {
 	}
 
 	num, err := strconv.ParseUint(parts[0], 10, 64)
-	if err != nil || num < 1 {
-		return NumberSizeConfig{}, fmt.Errorf("invalid number value, must be an integer above 0: %s", parts[0])
+	if err != nil {
+		return NumberSizeConfig{}, fmt.Errorf("invalid number value, could not parse into unsigned integer: %s", parts[0])
+	}
+
+	if num < 2 {
+		num = 2
 	}
 
 	size, err := NewSizeWithUnit(parts[1])
@@ -162,14 +171,16 @@ func NewNumberSizeConfig(sizeStr string) (NumberSizeConfig, error) {
 //  3. proxy_busy_buffers_size must be less than or equal to the size of all
 //     proxy_buffers minus one proxy_buffer
 //
+// The above also means that:
+//  4. proxy_buffer_size must be less than or equal to the size of all
+//     proxy_buffers minus one proxy_buffer
+//
 // This function returns new values and an error. The returns in order are:
 // proxy_buffers, proxy_buffer_size, proxy_busy_buffers_size, error.
 func BalanceProxyValues(proxyBuffers NumberSizeConfig, proxyBufferSize, proxyBusyBuffers SizeWithUnit) (NumberSizeConfig, SizeWithUnit, SizeWithUnit, []string, error) {
 	modifications := make([]string, 0)
 
-	// Balancing is only needed if proxy_busy_buffers_size is defined.
-	if proxyBusyBuffers.String() == "" {
-		// fmt.Printf("\nproxy busy buffers is empty, returning whatever came in\n")
+	if proxyBuffers.String() == "" && proxyBufferSize.String() == "" && proxyBusyBuffers.String() == "" {
 		return proxyBuffers, proxyBufferSize, proxyBusyBuffers, modifications, nil
 	}
 
@@ -181,13 +192,19 @@ func BalanceProxyValues(proxyBuffers NumberSizeConfig, proxyBufferSize, proxyBus
 		return NumberSizeConfig{}, SizeWithUnit{}, SizeWithUnit{}, modifications, fmt.Errorf("could not create default size: %w", err)
 	}
 
-	// 1. there must be at least 2 proxy buffers
+	// 1.a there must be at least 2 proxy buffers
 	if proxyBuffers.Number < 2 {
 		modifications = append(modifications, fmt.Sprintf("adjusted proxy_buffers size from %d to 2", proxyBuffers.Number))
 		proxyBuffers.Number = 2
 	}
 
-	// 2. proxy_buffers size must be greater than 0
+	// 1.b there must be at most 1024 proxy buffers
+	if proxyBuffers.Number > 1024 {
+		modifications = append(modifications, fmt.Sprintf("adjusted proxy_buffers number from %d to 1024", proxyBuffers.Number))
+		proxyBuffers.Number = 1024
+	}
+
+	// 2.a proxy_buffers size must be greater than 0
 	if proxyBuffers.Size.Size == 0 || proxyBuffers.Size.Unit == BadUnit {
 		modifications = append(modifications, fmt.Sprintf("proxy_buffers had an empty size, set it to [%s]", defaultSize))
 		proxyBuffers.Size = defaultSize
@@ -196,6 +213,12 @@ func BalanceProxyValues(proxyBuffers NumberSizeConfig, proxyBufferSize, proxyBus
 	maxProxyBusyBuffersSize := SizeWithUnit{
 		Size: proxyBuffers.Size.Size * (proxyBuffers.Number - 1),
 		Unit: proxyBuffers.Size.Unit,
+	}
+
+	// check if proxy_buffer_size is empty, and set it to one of proxy_buffers
+	if proxyBufferSize.String() == "" {
+		modifications = append(modifications, fmt.Sprintf("proxy_buffer_size was empty, set it to one of proxy_buffers: %s", proxyBuffers.Size))
+		proxyBufferSize = proxyBuffers.Size
 	}
 
 	// 3. clamp proxy_buffer_size to be at most all of proxy_buffers minus one
