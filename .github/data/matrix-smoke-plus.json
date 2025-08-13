@@ -81,7 +81,7 @@
       "label": "policies 3/3",
       "image": "ubi-9-plus",
       "type": "plus",
-      "marker": "policies_rl or policies_cache",
+      "marker": "'policies_rl or policies_cache'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
