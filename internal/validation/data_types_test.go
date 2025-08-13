@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/nginx/kubernetes-ingress/internal/validation"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNewSizeWithUnit(t *testing.T) {
@@ -184,6 +185,85 @@ func TestNewNumberSizeConfig(t *testing.T) {
 			if got != tt.want {
 				t.Errorf("Newvalidation.NumberSizeConfig() got = %v, want %v", got, tt.want)
 			}
+		})
+	}
+}
+
+func TestBalanceProxyValues(t *testing.T) {
+	type args struct {
+		proxyBuffers     validation.NumberSizeConfig
+		proxyBufferSize  validation.SizeWithUnit
+		proxyBusyBuffers validation.SizeWithUnit
+	}
+	tests := []struct {
+		name                    string
+		args                    args
+		wantProxyBuffers        validation.NumberSizeConfig
+		wantProxyBufferSize     validation.SizeWithUnit
+		wantProxyBusyBufferSize validation.SizeWithUnit
+		wantErr                 bool
+	}{
+		{
+			name: "corrected proxy_buffers",
+			args: args{
+				proxyBuffers:     validation.NumberSizeConfig{Number: 1, Size: validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB}},
+				proxyBufferSize:  validation.SizeWithUnit{Size: 8, Unit: validation.SizeKB},
+				proxyBusyBuffers: validation.SizeWithUnit{Size: 16, Unit: validation.SizeKB},
+			},
+			wantProxyBuffers:        validation.NumberSizeConfig{Number: 2, Size: validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB}},
+			wantProxyBufferSize:     validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB},
+			wantProxyBusyBufferSize: validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB},
+			wantErr:                 false,
+		},
+		{
+			name: "everything empty, return empty",
+			args: args{
+				proxyBuffers:     validation.NumberSizeConfig{},
+				proxyBufferSize:  validation.SizeWithUnit{},
+				proxyBusyBuffers: validation.SizeWithUnit{},
+			},
+			wantProxyBuffers:        validation.NumberSizeConfig{},
+			wantProxyBufferSize:     validation.SizeWithUnit{},
+			wantProxyBusyBufferSize: validation.SizeWithUnit{},
+			wantErr:                 false,
+		},
+		{
+			name: "proxy_buffers empty, others aren't, fix proxy_buffers, adjust everything too",
+			args: args{
+				proxyBuffers:     validation.NumberSizeConfig{},
+				proxyBufferSize:  validation.SizeWithUnit{Size: 8, Unit: validation.SizeKB},
+				proxyBusyBuffers: validation.SizeWithUnit{Size: 16, Unit: validation.SizeKB},
+			},
+			wantProxyBuffers: validation.NumberSizeConfig{
+				Number: 2,
+				Size:   validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB},
+			},
+			wantProxyBufferSize:     validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB},
+			wantProxyBusyBufferSize: validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB},
+			wantErr:                 false,
+		},
+		{
+			name: "proxy_buffers is too small, but valid",
+			args: args{
+				proxyBuffers:     validation.NumberSizeConfig{Number: 24, Size: validation.SizeWithUnit{Size: 1, Unit: validation.SizeKB}},
+				proxyBufferSize:  validation.SizeWithUnit{Size: 32, Unit: validation.SizeKB},
+				proxyBusyBuffers: validation.SizeWithUnit{Size: 64, Unit: validation.SizeKB},
+			},
+			wantProxyBuffers:        validation.NumberSizeConfig{Number: 24, Size: validation.SizeWithUnit{Size: 1, Unit: validation.SizeKB}},
+			wantProxyBufferSize:     validation.SizeWithUnit{Size: 23, Unit: validation.SizeKB},
+			wantProxyBusyBufferSize: validation.SizeWithUnit{Size: 23, Unit: validation.SizeKB},
+			wantErr:                 false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotProxyBuffers, gotProxyBufferSize, gotProxyBusyBufferSize, _, err := validation.BalanceProxyValues(tt.args.proxyBuffers, tt.args.proxyBufferSize, tt.args.proxyBusyBuffers)
+
+			assert.NoError(t, err)
+
+			assert.Equalf(t, tt.wantProxyBuffers, gotProxyBuffers, "proxy buffers, want: %s, got: %s", tt.wantProxyBuffers, gotProxyBuffers)
+			assert.Equalf(t, tt.wantProxyBufferSize, gotProxyBufferSize, "proxy_buffer_size, want: %s, got: %s", tt.wantProxyBufferSize, gotProxyBufferSize)
+			assert.Equalf(t, tt.wantProxyBusyBufferSize, gotProxyBusyBufferSize, "proxy_busy_buffers_size, want: %s, got: %s", tt.wantProxyBusyBufferSize, gotProxyBusyBufferSize)
 		})
 	}
 }

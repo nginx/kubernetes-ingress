@@ -7,17 +7,23 @@ import (
 	"strings"
 )
 
+const (
+	// DefaultPageSize is one page size to be used for default values in NGINX.
+	// 4k page size is fairly
+	DefaultPageSize = "4k"
+)
+
 // SizeUnit moves validation and normalisation of incoming string into a custom
 // type so we can pass that one around. Source for the size unit is from nginx
 // documentation. @see https://nginx.org/en/docs/syntax.html
 //
 // This is also used for offsets like buffer sizes with badUnit.
-type SizeUnit int
+type SizeUnit uint64
 
 // SizeUnit represents the size unit used in NGINX configuration. It can be
 // one of KB, MB, GB, or BadUnit for invalid sizes.
 const (
-	BadUnit SizeUnit = iota
+	BadUnit SizeUnit = 1 << (10 * iota)
 	SizeKB
 	SizeMB
 	SizeGB
@@ -55,6 +61,12 @@ func (s SizeWithUnit) String() string {
 	return fmt.Sprintf("%d%s", s.Size, s.Unit)
 }
 
+// SizeBytes returns the size in bytes based on the size and unit to make it
+// easier to compare sizes and use them in calculations.
+func (s SizeWithUnit) SizeBytes() uint64 {
+	return s.Size * uint64(s.Unit)
+}
+
 // NewSizeWithUnit creates a SizeWithUnit from a string representation.
 func NewSizeWithUnit(sizeStr string) (SizeWithUnit, error) {
 	sizeStr = strings.ToLower(strings.TrimSpace(sizeStr))
@@ -76,12 +88,11 @@ func NewSizeWithUnit(sizeStr string) (SizeWithUnit, error) {
 		numStr = sizeStr // If the last character is a digit, treat the whole string as a number
 	default:
 		unit = SizeMB
-		// return SizeWithUnit{}, fmt.Errorf("invalid size unit, must be one of [k, m, g]: %s", sizeStr)
 	}
 
 	num, err := strconv.ParseUint(numStr, 10, 64)
-	if err != nil || num < 1 {
-		return SizeWithUnit{}, fmt.Errorf("invalid size value, must be an integer above 0 and less than 18,446,744,073,709,551,615: %s", sizeStr)
+	if err != nil || num < 1 || num > 1024 {
+		return SizeWithUnit{}, fmt.Errorf("invalid size value, must be an integer above 0 and maximum of 1024: %s", sizeStr)
 	}
 
 	return SizeWithUnit{
@@ -134,4 +145,92 @@ func NewNumberSizeConfig(sizeStr string) (NumberSizeConfig, error) {
 		Number: num,
 		Size:   size,
 	}, nil
+}
+
+// BalanceProxyValues normalises and validates the values for the proxy buffer
+// configuration options and their defaults:
+// * proxy_buffers           8 4k|8k (one memory page size)
+// * proxy_buffer_size         4k|8k (one memory page size)
+// * proxy_busy_buffers_size   8k|16k (two memory page sizes)
+//
+// These requirements are based on the NGINX source code. The rules and their
+// priorities are:
+//
+//  1. there must be at least 2 proxy buffers
+//  2. proxy_busy_buffers_size must be equal to or greater than the max of
+//     proxy_buffer_size and one of proxy_buffers
+//  3. proxy_busy_buffers_size must be less than or equal to the size of all
+//     proxy_buffers minus one proxy_buffer
+//
+// This function returns new values and an error. The returns in order are:
+// proxy_buffers, proxy_buffer_size, proxy_busy_buffers_size, error.
+func BalanceProxyValues(proxyBuffers NumberSizeConfig, proxyBufferSize, proxyBusyBuffers SizeWithUnit) (NumberSizeConfig, SizeWithUnit, SizeWithUnit, []string, error) {
+	modifications := make([]string, 0)
+
+	// if all proxy configurations are empty, do nothing
+	if proxyBuffers.String() == "" &&
+		proxyBufferSize.String() == "" &&
+		proxyBusyBuffers.String() == "" {
+		return NumberSizeConfig{}, SizeWithUnit{}, SizeWithUnit{}, modifications, nil
+	}
+
+	// If any of them are defined, we'll align them.
+
+	// Create a default size so we can use it in case the values are not set.
+	defaultSize, err := NewSizeWithUnit(DefaultPageSize)
+	if err != nil {
+		return NumberSizeConfig{}, SizeWithUnit{}, SizeWithUnit{}, modifications, fmt.Errorf("could not create default size: %w", err)
+	}
+
+	// 1. there must be at least 2 proxy buffers
+	if proxyBuffers.Number < 2 {
+		modifications = append(modifications, fmt.Sprintf("adjusted proxy_buffers size from %d to 2", proxyBuffers.Number))
+		proxyBuffers.Number = 2
+	}
+
+	// 2. proxy_buffers size must be greater than 0
+	if proxyBuffers.Size.Size == 0 || proxyBuffers.Size.Unit == BadUnit {
+		modifications = append(modifications, fmt.Sprintf("proxy_buffers had an empty size, set it to [%s]", defaultSize))
+		proxyBuffers.Size = defaultSize
+	}
+
+	maxProxyBusyBuffersSize := proxyBuffers.Size.Size * (proxyBuffers.Number - 1)
+
+	// 3. clamp proxy_buffer_size to be at most all of proxy_buffers minus one
+	//    proxy buffer.
+	//
+	// This is needed in order to be conservative with memory (rather shrink
+	// than grow so we don't run into resource issues), and also to avoid
+	// undoing work in the last step when adjusting proxy_busy_buffers_size.
+	if proxyBufferSize.SizeBytes() > (proxyBuffers.Size.SizeBytes() * (proxyBuffers.Number - 1)) {
+		newSize := SizeWithUnit{
+			Size: maxProxyBusyBuffersSize,
+			Unit: proxyBuffers.Size.Unit,
+		}
+		modifications = append(modifications, fmt.Sprintf("adjusted proxy_buffer_size from %s to %s because it was too big for proxy_buffers (%s)", proxyBufferSize, newSize, proxyBuffers))
+		proxyBufferSize = newSize
+	}
+
+	// 4. grab the max of proxy_buffer_size and one of proxy_buffers
+	var greaterSize SizeWithUnit
+	if proxyBuffers.Size.SizeBytes() > proxyBufferSize.SizeBytes() {
+		greaterSize = proxyBuffers.Size
+	} else {
+		greaterSize = proxyBufferSize
+	}
+
+	// 4. proxy_busy_buffers_size must be equal to or greater than the max of
+	//    proxy_buffer_size and one of proxy_buffers (greater size from above)
+	if proxyBusyBuffers.SizeBytes() < greaterSize.SizeBytes() {
+		modifications = append(modifications, fmt.Sprintf("adjusted proxy_busy_buffers_size from %s to %s because it was too small", proxyBusyBuffers, greaterSize))
+		proxyBusyBuffers = greaterSize
+	}
+
+	if proxyBusyBuffers.SizeBytes() > maxProxyBusyBuffersSize {
+		modifications = append(modifications, fmt.Sprintf("adjusted proxy_busy_buffers_size from %s to %s because it was too large", proxyBusyBuffers, greaterSize))
+
+		proxyBusyBuffers = greaterSize
+	}
+
+	return proxyBuffers, proxyBufferSize, proxyBusyBuffers, modifications, nil
 }
