@@ -39,24 +39,33 @@ spec:
           metadata:
             type: object
           spec:
-            description: GlobalConfigurationSpec is the spec of the GlobalConfiguration
-              resource.
+            description: GlobalConfigurationSpec resource defines the global configuration
+              parameters of the Ingress Controller.
             properties:
               listeners:
+                description: Listeners field of the GlobalConfigurationSpec resource
                 items:
                   description: Listener defines a listener.
                   properties:
                     ipv4:
+                      description: Specifies the IPv4 address to listen on.
                       type: string
                     ipv6:
+                      description: ipv6 addresse that NGINX will listen on.
                       type: string
                     name:
+                      description: The name of the listener. The name must be unique
+                        across all listeners.
                       type: string
                     port:
+                      description: The port on which the listener will accept connections.
                       type: integer
                     protocol:
+                      description: The protocol of the listener. For example, HTTP.
                       type: string
                     ssl:
+                      description: Whether the listener will be listening for SSL
+                        connections
                       type: boolean
                   type: object
                 type: array

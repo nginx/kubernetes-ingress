@@ -5641,9 +5641,11 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 				},
 				Spec: conf_v1.PolicySpec{
 					JWTAuth: &conf_v1.JWTAuth{
-						Realm:    "Spec Realm API",
-						JwksURI:  "https://idp.spec.example.com:443/spec-keys",
-						KeyCache: "1h",
+						Realm:      "Spec Realm API",
+						JwksURI:    "https://idp.spec.example.com:443/spec-keys",
+						KeyCache:   "1h",
+						SNIEnabled: true,
+						SNIName:    "idp.spec.example.com",
 					},
 				},
 			},
@@ -5713,10 +5715,12 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 					Realm:    "Spec Realm API",
 					KeyCache: "1h",
 					JwksURI: version2.JwksURI{
-						JwksScheme: "https",
-						JwksHost:   "idp.spec.example.com",
-						JwksPort:   "443",
-						JwksPath:   "/spec-keys",
+						JwksScheme:     "https",
+						JwksHost:       "idp.spec.example.com",
+						JwksPort:       "443",
+						JwksPath:       "/spec-keys",
+						JwksSNIEnabled: true,
+						JwksSNIName:    "idp.spec.example.com",
 					},
 				},
 				"default/jwt-policy-route": {
@@ -5736,10 +5740,12 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 				Realm:    "Spec Realm API",
 				KeyCache: "1h",
 				JwksURI: version2.JwksURI{
-					JwksScheme: "https",
-					JwksHost:   "idp.spec.example.com",
-					JwksPort:   "443",
-					JwksPath:   "/spec-keys",
+					JwksScheme:     "https",
+					JwksHost:       "idp.spec.example.com",
+					JwksPort:       "443",
+					JwksPath:       "/spec-keys",
+					JwksSNIName:    "idp.spec.example.com",
+					JwksSNIEnabled: true,
 				},
 			},
 			JWKSAuthEnabled: true,
@@ -20015,6 +20021,75 @@ func TestGenerateErrorPageLocations(t *testing.T) {
 		result := generateErrorPageLocations(i, test.errorPages)
 		if !reflect.DeepEqual(result, test.expected) {
 			t.Errorf("generateErrorPageLocations(%v, %v) returned %v but expected %v", test.upstreamName, test.errorPages, result, test.expected)
+		}
+	}
+}
+
+func TestGenerateErrorPageDetails(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		errorPages     []conf_v1.ErrorPage
+		errorLocations []version2.ErrorPageLocation
+		owner          runtime.Object
+		expected       errorPageDetails
+	}{
+		{}, // empty
+		{
+			errorPages: []conf_v1.ErrorPage{
+				{
+					Codes: []int{404, 405, 500, 502},
+					Return: &conf_v1.ErrorPageReturn{
+						ActionReturn: conf_v1.ActionReturn{
+							Code:    200,
+							Headers: nil,
+						},
+					},
+					Redirect: nil,
+				},
+			},
+			errorLocations: []version2.ErrorPageLocation{
+				{
+					Name:        "@error_page_0_0",
+					DefaultType: "text/plain",
+					Return: &version2.Return{
+						Text: "All Good",
+					},
+				},
+			},
+			owner: &conf_v1.VirtualServer{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Namespace: "namespace",
+					Name:      "name",
+				},
+			},
+			expected: errorPageDetails{
+				pages: []conf_v1.ErrorPage{
+					{
+						Codes: []int{404, 405, 500, 502},
+						Return: &conf_v1.ErrorPageReturn{
+							ActionReturn: conf_v1.ActionReturn{
+								Code:    200,
+								Headers: nil,
+							},
+						},
+						Redirect: nil,
+					},
+				},
+				index: 1,
+				owner: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Namespace: "namespace",
+						Name:      "name",
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		result := generateErrorPageDetails(test.errorPages, test.errorLocations, test.owner)
+		if !reflect.DeepEqual(result, test.expected) {
+			t.Errorf("generateErrorPageDetails() returned %v but expected %v", result, test.expected)
 		}
 	}
 }

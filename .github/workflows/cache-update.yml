@@ -17,7 +17,7 @@ permissions:
 jobs:
   checks:
     name: Checks and variables
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     outputs:
       go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}
       docker_md5: ${{ steps.vars.outputs.docker_md5 }}
@@ -26,7 +26,7 @@ jobs:
       image_matrix_nap: ${{ steps.vars.outputs.image_matrix_nap }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Output Variables
         id: vars

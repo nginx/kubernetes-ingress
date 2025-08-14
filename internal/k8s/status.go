@@ -405,7 +405,7 @@ func (su *statusUpdater) retryUpdateVirtualServerRouteStatus(vsrCopy *conf_v1.Vi
 	return nil
 }
 
-func hasVsStatusChanged(vs *conf_v1.VirtualServer, state string, reason string, message string) bool {
+func (su *statusUpdater) hasVsStatusChanged(vs *conf_v1.VirtualServer, state string, reason string, message string) bool {
 	if vs.Status.State != state {
 		return true
 	}
@@ -415,6 +415,10 @@ func hasVsStatusChanged(vs *conf_v1.VirtualServer, state string, reason string, 
 	}
 
 	if vs.Status.Message != message {
+		return true
+	}
+
+	if !reflect.DeepEqual(vs.Status.ExternalEndpoints, su.externalEndpoints) {
 		return true
 	}
 
@@ -486,7 +490,7 @@ func (su *statusUpdater) UpdateVirtualServerStatus(vs *conf_v1.VirtualServer, st
 
 	vsCopy := vsLatest.(*conf_v1.VirtualServer).DeepCopy()
 
-	if !hasVsStatusChanged(vsCopy, state, reason, message) {
+	if !su.hasVsStatusChanged(vsCopy, state, reason, message) {
 		return nil
 	}
 
@@ -503,7 +507,7 @@ func (su *statusUpdater) UpdateVirtualServerStatus(vs *conf_v1.VirtualServer, st
 	return err
 }
 
-func hasVsrStatusChanged(vsr *conf_v1.VirtualServerRoute, state string, reason string, message string, referencedByString string) bool {
+func (su *statusUpdater) hasVsrStatusChanged(vsr *conf_v1.VirtualServerRoute, state string, reason string, message string, referencedByString string) bool {
 	if vsr.Status.State != state {
 		return true
 	}
@@ -517,6 +521,10 @@ func hasVsrStatusChanged(vsr *conf_v1.VirtualServerRoute, state string, reason s
 	}
 
 	if referencedByString != "" && vsr.Status.ReferencedBy != referencedByString {
+		return true
+	}
+
+	if !reflect.DeepEqual(vsr.Status.ExternalEndpoints, su.externalEndpoints) {
 		return true
 	}
 
@@ -548,7 +556,7 @@ func (su *statusUpdater) UpdateVirtualServerRouteStatusWithReferencedBy(vsr *con
 
 	vsrCopy := vsrLatest.(*conf_v1.VirtualServerRoute).DeepCopy()
 
-	if !hasVsrStatusChanged(vsrCopy, state, reason, message, referencedByString) {
+	if !su.hasVsrStatusChanged(vsrCopy, state, reason, message, referencedByString) {
 		return nil
 	}
 
@@ -587,7 +595,7 @@ func (su *statusUpdater) UpdateVirtualServerRouteStatus(vsr *conf_v1.VirtualServ
 
 	vsrCopy := vsrLatest.(*conf_v1.VirtualServerRoute).DeepCopy()
 
-	if !hasVsrStatusChanged(vsrCopy, state, reason, message, "") {
+	if !su.hasVsrStatusChanged(vsrCopy, state, reason, message, "") {
 		return nil
 	}
 
