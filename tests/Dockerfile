@@ -25,6 +25,7 @@ RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s
     && curl https://get.docker.com/builds/Linux/x86_64/docker-latest.tgz | tar xvz -C /tmp/ && mv /tmp/docker/docker /usr/bin/docker
 
 RUN pip install --require-hashes -r requirements.txt --no-deps
-RUN playwright install --with-deps chromium
+RUN playwright install chromium
+RUN playwright install-deps chromium
 
 ENTRYPOINT ["python3", "-m", "pytest"]
