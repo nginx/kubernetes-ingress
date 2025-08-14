@@ -2,8 +2,8 @@
 VER = $(shell grep IC_VERSION .github/data/version.txt | cut -d '=' -f 2)
 GIT_TAG = $(shell git describe --exact-match --tags || echo untagged)
 VERSION = $(VER)-SNAPSHOT
-NGINX_OSS_VERSION             ?= 1.29
-NGINX_PLUS_VERSION            ?= R34
+NGINX_OSS_VERSION             ?= 1.29.1
+NGINX_PLUS_VERSION            ?= R35
 PLUS_ARGS = --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --secret id=nginx-repo.crt,src=nginx-repo.crt --secret id=nginx-repo.key,src=nginx-repo.key
 
 # Variables that can be overridden

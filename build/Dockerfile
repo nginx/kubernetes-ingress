@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.16
 ARG BUILD_OS=debian
-ARG NGINX_OSS_VERSION=1.29
-ARG NGINX_PLUS_VERSION=R34
+ARG NGINX_OSS_VERSION=1.29.1
+ARG NGINX_PLUS_VERSION=R35
 ARG DOWNLOAD_TAG=edge
 ARG DEBIAN_FRONTEND=noninteractive
 ARG PREBUILT_BASE_IMG=nginx/nginx-ingress:${DOWNLOAD_TAG}
@@ -82,7 +82,7 @@ USER 101
 
 
 ############################################# Base image for Alpine #############################################
-FROM nginx:1.29.0-alpine@sha256:b2e814d28359e77bd0aa5fed1939620075e4ffa0eb20423cc557b375bd5c14ad AS alpine
+FROM nginx:1.29.1-alpine3.22@sha256:599f75c32c9bfe5859e022f75d26e4d939f5b1097c7abc1add287d48ec100f1e AS alpine
 ARG PACKAGE_REPO
 ARG NGINX_OSS_VERSION
 
@@ -100,7 +100,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk
 
 
 ############################################# Base image for Debian #############################################
-FROM nginx:1.29.0@sha256:dc53c8f25a10f9109190ed5b59bda2d707a3bde0e45857ce9e1efaa32ff9cbc1 AS debian
+FROM nginx:1.29.1@sha256:33e0bbc7ca9ecf108140af6288c7c9d1ecc77548cbfd3952fd8466a75edefe57 AS debian
 
 RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_signing.key \
 	--mount=type=bind,from=nginx-files,src=90pkgs-nginx,target=/etc/apt/apt.conf.d/90pkgs-nginx \
@@ -219,7 +219,7 @@ RUN --mount=type=bind,from=alpine-fips-3.19,target=/tmp/fips/ \
 	&& printf "%s\n" "https://pkgs.nginx.com/app-protect-security-updates/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
 	&& printf "%s\n" "https://${PACKAGE_REPO}/nginx-agent/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
 	&& apk add --no-cache libcap-utils libcurl nginx-plus nginx-plus-module-njs nginx-plus-module-otel nginx-plus-module-fips-check \
-	&& apk add --no-cache nginx-agent~3.2 \
+	&& apk add --no-cache nginx-agent~2 \
 	&& mkdir -p /usr/ssl \
 	&& cp -av /tmp/fips/usr/lib/ossl-modules/fips.so /usr/lib/ossl-modules/fips.so \
 	&& cp -av /tmp/fips/usr/ssl/fipsmodule.cnf /usr/ssl/fipsmodule.cnf \
@@ -250,14 +250,14 @@ RUN --mount=type=bind,from=alpine-fips-3.19,target=/tmp/fips/ \
 	&& printf "%s\n" "https://${PACKAGE_REPO}/app-protect-x-plus/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
 	&& printf "%s\n" "https://${PACKAGE_REPO}/nginx-agent/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
 	&& apk add --no-cache libcap-utils libcurl nginx-plus nginx-plus-module-njs nginx-plus-module-otel nginx-plus-module-fips-check \
-    && apk add --no-cache nginx-agent~3.2 \
+    && apk add --no-cache nginx-agent~2 \
 	&& mkdir -p /usr/ssl \
 	&& cp -av /tmp/fips/usr/lib/ossl-modules/fips.so /usr/lib/ossl-modules/fips.so \
 	&& cp -av /tmp/fips/usr/ssl/fipsmodule.cnf /usr/ssl/fipsmodule.cnf \
 	&& cp -av /tmp/fips/etc/ssl/openssl.cnf /etc/ssl/openssl.cnf \
 	&& mkdir -p /etc/nginx/reporting/ \
 	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
-	&& apk add --no-cache app-protect-module-plus~=34.5.442 \
+	&& apk add --no-cache app-protect-module-plus~=35.5.498 \
 	&& sed -i -e '/nginx.com/d' /etc/apk/repositories \
 	&& nap-waf.sh \
 	agent.sh
@@ -359,7 +359,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=nap-waf.sh,target=/usr/local/bin/nap-waf.sh \
 	--mount=type=bind,from=nginx-files,src=debian-agent-12.sources,target=/etc/apt/sources.list.d/nginx-agent.sources \
 	apt-get update \
-	&& apt-get install --no-install-recommends --no-install-suggests -y nginx-agent=2.* app-protect-module-plus=34+5.442* nginx-plus-module-appprotect=34+5.442* app-protect-plugin=6.16.0* \
+	&& apt-get install --no-install-recommends --no-install-suggests -y nginx-agent=2.* app-protect-module-plus=35+5.498* nginx-plus-module-appprotect=34+5.442* app-protect-plugin=6.20.0* \
 	&& nap-waf.sh \
 	&& agent.sh
 
@@ -461,7 +461,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm \
 	&& rpm -Uvh /ubi-bin/c-ares-*.rpm \
 	&& microdnf --nodocs install -y ca-certificates shadow-utils subscription-manager \
-	&& microdnf --nodocs install -y nginx-plus-module-otel nginx-agent-2.* app-protect-module-plus-34+5.442* \
+	&& microdnf --nodocs install -y nginx-plus-module-otel nginx-agent-2.* app-protect-module-plus-35+5.498* \
 	&& nap-waf.sh \
 	&& ubi-clean.sh \
 	&& agent.sh
@@ -531,7 +531,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& rpm --import /tmp/nginx_signing.key \
 	&& rpm -Uvh /ubi-bin/c-ares-*.rpm \
 	&& dnf --nodocs install -y nginx-plus nginx-plus-module-njs nginx-plus-module-otel nginx-plus-module-fips-check nginx-agent-2.* \
-	&& dnf --nodocs install -y app-protect-module-plus-34+5.442* \
+	&& dnf --nodocs install -y app-protect-module-plus-35+5.498* \
 	&& nap-waf.sh \
 	&& agent.sh \
 	&& dnf clean all
