@@ -5,7 +5,7 @@ FROM kindest/node:v1.33.2@sha256:c55080dc5be4f2cc242e6966fdf97bb62282e1cd818a282
 # this is here so we can grab the latest version of skopeo and have dependabot keep it up to date
 FROM quay.io/skopeo/stable:v1.19.0
 
-FROM python:3.13@sha256:a66f18ee22c568a3d45191dfd70bdea2e1bd8d303f982ea1bca276a065285a21
+FROM python:3.13-bookworm@sha256:1bfefad1a8bb66c1573378716c3bf18a59f438fe8a032d7fab43124f6f7ce9c6
 
 RUN apt-get update \
 	&& apt-get install -y curl git apache2-utils \
@@ -25,6 +25,7 @@ RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s
     && curl https://get.docker.com/builds/Linux/x86_64/docker-latest.tgz | tar xvz -C /tmp/ && mv /tmp/docker/docker /usr/bin/docker
 
 RUN pip install --require-hashes -r requirements.txt --no-deps
-RUN playwright install --with-deps chromium
+RUN playwright install chromium
+RUN playwright install-deps chromium
 
 ENTRYPOINT ["python3", "-m", "pytest"]
