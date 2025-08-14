@@ -15,7 +15,7 @@ FROM ghcr.io/nginx/dependencies/nginx-ubi:ubi9@sha256:c9c269ae1ae6a4608fe4e65360
 FROM ghcr.io/nginx/alpine-fips:0.3.0-alpine3.19@sha256:449f1a149e81e36bb929ebd362433a06a158ff2a7e3ba05b4b8d9ea96d59ae91 AS alpine-fips-3.19
 FROM ghcr.io/nginx/alpine-fips:0.3.0-alpine3.22@sha256:86a8ec5ff400572d9004fcfe1468f9c22954ebd7d2b57910cb8d454f148f4ad4 AS alpine-fips-3.22
 FROM redhat/ubi9-minimal:9.6@sha256:8d905a93f1392d4a8f7fb906bd49bf540290674b28d82de3536bb4d0898bf9d7 AS ubi-minimal
-FROM golang:1.24-alpine@sha256:c8c5f95d64aa79b6547f3b626eb84b16a7ce18a139e3e9ca19a8c078b85ba80d AS golang-builder
+FROM golang:1.25-alpine@sha256:77dd832edf2752dafd030693bef196abb24dcba3a2bc3d7a6227a7a1dae73169 AS golang-builder
 
 ############################################# NGINX files #############################################
 FROM scratch AS nginx-files
@@ -264,7 +264,7 @@ RUN --mount=type=bind,from=alpine-fips-3.19,target=/tmp/fips/ \
 
 
 ############################################# Base image for Debian with NGINX Plus only #############################################
-FROM debian:12-slim@sha256:b1a741487078b369e78119849663d7f1a5341ef2768798f7b7406c4240f86aef AS debian-plus-only
+FROM debian:13-slim@sha256:c85a2732e97694ea77237c61304b3bb410e0e961dd6ee945997a06c788c545bb AS debian-plus-only
 ARG NGINX_PLUS_VERSION
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
