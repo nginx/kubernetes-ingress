@@ -1,6 +1,6 @@
 apiVersion: v2
 name: nginx-ingress
-version: 3.2.2
+version: 2.2.2
 appVersion: 5.1.1
 kubeVersion: ">= 1.25.0-0"
 type: application
