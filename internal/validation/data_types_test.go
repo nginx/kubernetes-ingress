@@ -493,6 +493,18 @@ func TestBalanceProxyValues(t *testing.T) {
 			wantProxyBusyBufferSize: "28k",
 			wantErr:                 false,
 		},
+
+		{
+			name: "proxy busy buffers ends up as 1k even though it should not",
+			args: args{
+				proxyBuffers:    "4 2k",
+				proxyBufferSize: "2k",
+			},
+			wantProxyBuffers:        "4 2k",
+			wantProxyBufferSize:     "2k",
+			wantProxyBusyBufferSize: "2k",
+			wantErr:                 false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

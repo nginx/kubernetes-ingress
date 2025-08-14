@@ -17,6 +17,7 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
+	"github.com/nginx/kubernetes-ingress/internal/validation"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	api_v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -478,6 +479,14 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	// generate upstreams for VirtualServer
 	for _, u := range vsEx.VirtualServer.Spec.Upstreams {
+
+		// here
+		err := balanceProxiesForUpstreams(&u)
+		if err != nil {
+			// if we're here, upstream was unchanged
+			vsc.addWarningf(vsEx.VirtualServer, "Balancing proxy buffer values failed for %s: %s", u.Name, err)
+		}
+
 		upstreams, healthChecks, statusMatches = generateUpstreams(
 			sslConfig,
 			vsc,
@@ -496,6 +505,14 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	for _, vsr := range vsEx.VirtualServerRoutes {
 		upstreamNamer := NewUpstreamNamerForVirtualServerRoute(vsEx.VirtualServer, vsr)
 		for _, u := range vsr.Spec.Upstreams {
+			// here
+
+			err := balanceProxiesForUpstreams(&u)
+			if err != nil {
+				// if we're here, upstream was unchanged
+				vsc.addWarningf(vsEx.VirtualServer, "Balancing proxy buffer values failed for %s: %s", u.Name, err)
+			}
+
 			upstreams, healthChecks, statusMatches = generateUpstreams(
 				sslConfig,
 				vsc,
@@ -3451,4 +3468,58 @@ func generateDosCfg(dosResource *appProtectDosResource) *version2.Dos {
 	dos.ApDosSecurityLogEnable = dosResource.AppProtectDosLogEnable
 	dos.ApDosLogConf = dosResource.AppProtectDosLogConfFile
 	return dos
+}
+
+func balanceProxiesForUpstreams(in *conf_v1.Upstream) error {
+	pb, err := validation.NewNumberSizeConfig(fmt.Sprintf("%d %s", in.ProxyBuffers.Number, in.ProxyBuffers.Size))
+	if err != nil {
+		// if there's an error, set it to default `2 4k`
+		pb = validation.NumberSizeConfig{
+			Number: 2,
+			Size: validation.SizeWithUnit{
+				Size: 4,
+				Unit: validation.SizeKB,
+			},
+		}
+	}
+
+	pbs, err := validation.NewSizeWithUnit(in.ProxyBufferSize)
+	if err != nil {
+		// if there's an error, set it to default `4k`
+		pbs = validation.SizeWithUnit{
+			Size: 4,
+			Unit: validation.SizeKB,
+		}
+	}
+
+	pbbs, err := validation.NewSizeWithUnit(in.ProxyBusyBuffersSize)
+	if err != nil {
+		// if there's an error, set it to default `4k`
+		pbbs = validation.SizeWithUnit{
+			Size: 4,
+			Unit: validation.SizeKB,
+		}
+	}
+
+	balancedPB, balancedPBS, balancedPBBS, _, err := validation.BalanceProxyValues(pb, pbs, pbbs)
+	if err != nil {
+		return fmt.Errorf("error balancing proxy values: %w", err)
+	}
+
+	//gosec:disable G115 -- This conversion is safe because balancedPB.Number is validated to be non-negative and at most 1024 in value.
+	pbNumberAsInt := int(balancedPB.Number)
+
+	//gosec:disable G115 -- This conversion is also safe because we're converting an integer back to uint64 that we converted from an uint64 two lines above.
+	if uint64(pbNumberAsInt) != balancedPB.Number {
+		return fmt.Errorf("error balancing proxy values: balanced proxy buffer number %d is out of int range", balancedPB.Number)
+	}
+
+	in.ProxyBuffers = &conf_v1.UpstreamBuffers{
+		Number: pbNumberAsInt,
+		Size:   balancedPB.Size.String(),
+	}
+	in.ProxyBufferSize = balancedPBS.String()
+	in.ProxyBusyBuffersSize = balancedPBBS.String()
+
+	return nil
 }
