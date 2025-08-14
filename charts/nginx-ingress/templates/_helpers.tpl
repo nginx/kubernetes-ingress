@@ -214,9 +214,21 @@ false
 {{- end -}}
 
 {{/*
+Validate that globalConfiguration.customName contains namespace/name format.
+*/}}
+{{- define "nginx-ingress.globalConfiguration.validateCustomName" -}}
+{{- if .Values.controller.globalConfiguration.customName }}
+{{- if not (contains "/" .Values.controller.globalConfiguration.customName) }}
+{{- fail "globalConfiguration.customName must contain a namespace/name format (e.g., 'my-namespace/my-global-config')" }}
+{{- end }}
+{{- end }}
+{{- end -}}
+
+{{/*
 Create the global configuration custom name from the globalConfiguration.customName value.
 */}}
 {{- define "nginx-ingress.globalConfiguration.customName" -}}
+{{- include "nginx-ingress.globalConfiguration.validateCustomName" . -}}
 {{ splitList "/" .Values.controller.globalConfiguration.customName | last }}
 {{- end -}}
 
@@ -224,6 +236,7 @@ Create the global configuration custom name from the globalConfiguration.customN
 Create the global configuration custom namespace from the globalConfiguration.customName value.
 */}}
 {{- define "nginx-ingress.globalConfiguration.customNamespace" -}}
+{{- include "nginx-ingress.globalConfiguration.validateCustomName" . -}}
 {{ splitList "/" .Values.controller.globalConfiguration.customName | first }}
 {{- end -}}
 
