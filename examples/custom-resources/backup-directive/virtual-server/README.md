@@ -121,7 +121,7 @@ Run the below curl command to get a response from your application. In this exam
 3. Check response from the backup service
 
    ```shell
-   Server address: 10.32.2.19:8080
+   Server address: 10.32.2.29:8080
    Server name: coffee-backup-7c64b6b5b6-h4rnx
    Date: 09/Dec/2023:16:18:17 +0000
    URI: /coffee
