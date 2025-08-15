@@ -82,7 +82,7 @@ USER 101
 
 
 ############################################# Base image for Alpine #############################################
-FROM nginx:1.29.1-alpine3.22@sha256:599f75c32c9bfe5859e022f75d26e4d939f5b1097c7abc1add287d48ec100f1e AS alpine
+FROM nginx:1.29.1-alpine3.22@sha256:c3d2ee1eed702c6f29f2e2f727e93b5cafdc7dec7feef3ad2e6d7c39670853ec AS alpine
 ARG PACKAGE_REPO
 ARG NGINX_OSS_VERSION
 
