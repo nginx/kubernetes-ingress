@@ -199,6 +199,7 @@ type Location struct {
 	ProxyBuffering           bool
 	ProxyBuffers             string
 	ProxyBufferSize          string
+	ProxyBusyBuffersSize     string
 	ProxyPass                string
 	ProxyNextUpstream        string
 	ProxyNextUpstreamTimeout string

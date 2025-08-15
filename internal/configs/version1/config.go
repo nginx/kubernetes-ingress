@@ -180,6 +180,7 @@ type Location struct {
 	ProxyBuffering       bool
 	ProxyBuffers         string
 	ProxyBufferSize      string
+	ProxyBusyBuffersSize string
 	ProxyMaxTempFileSize string
 	ProxySSLName         string
 	JWTAuth              *JWTAuth

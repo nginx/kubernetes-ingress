@@ -152,6 +152,8 @@ type Upstream struct {
 	ProxyBuffers *UpstreamBuffers `json:"buffers"`
 	// Sets the size of the buffer used for reading the first part of a response received from the upstream server. The default is set in the proxy-buffer-size ConfigMap key.
 	ProxyBufferSize string `json:"buffer-size"`
+	// Sets the size of the buffers used for reading a response from the upstream server when the proxy_buffering is enabled. The default is set in the proxy-busy-buffers-size ConfigMap key.'
+	ProxyBusyBuffersSize string `json:"busy-buffers-size"`
 	// Sets the maximum allowed size of the client request body. The default is set in the client-max-body-size ConfigMap key.
 	ClientMaxBodySize string `json:"client-max-body-size"`
 	// The TLS configuration for the Upstream.
