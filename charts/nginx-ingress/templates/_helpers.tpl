@@ -354,9 +354,6 @@ Build the args for the service binary.
 - -global-configuration={{ .Values.controller.globalConfiguration.customName }}
 {{- end }}
 {{- end }}
-{{- if and (not .Values.controller.enableCustomResources) .Values.controller.globalConfiguration.customName }}
-- -global-configuration={{ .Values.controller.globalConfiguration.customName }}
-{{- end }}
 - -ready-status={{ .Values.controller.readyStatus.enable }}
 - -ready-status-port={{ .Values.controller.readyStatus.port }}
 - -enable-latency-metrics={{ .Values.controller.enableLatencyMetrics }}
