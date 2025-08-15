@@ -353,7 +353,8 @@ Build the args for the service binary.
 {{- else if .Values.controller.globalConfiguration.customName }}
 - -global-configuration={{ .Values.controller.globalConfiguration.customName }}
 {{- end }}
-{{- else if .Values.controller.globalConfiguration.customName }}
+{{- end }}
+{{- if and (not .Values.controller.enableCustomResources) .Values.controller.globalConfiguration.customName }}
 - -global-configuration={{ .Values.controller.globalConfiguration.customName }}
 {{- end }}
 - -ready-status={{ .Values.controller.readyStatus.enable }}
