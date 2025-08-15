@@ -187,7 +187,19 @@ func TestHelmNICTemplateNegative(t *testing.T) {
 			valuesFile:       "testdata/global-config-invalid-format.yaml",
 			releaseName:      "global-config-invalid-format",
 			namespace:        "default",
-			expectedErrorMsg: "globalConfiguration.customName must contain a namespace/name format",
+			expectedErrorMsg: "globalConfiguration.customName must contain exactly one '/' separator",
+		},
+		"globalConfigMultipleSlashes": {
+			valuesFile:       "testdata/global-config-multiple-slashes.yaml",
+			releaseName:      "global-config-multiple-slashes",
+			namespace:        "default",
+			expectedErrorMsg: "globalConfiguration.customName must contain exactly one '/' separator",
+		},
+		"globalConfigEmptyName": {
+			valuesFile:       "testdata/global-config-empty-name.yaml",
+			releaseName:      "global-config-empty-name",
+			namespace:        "default",
+			expectedErrorMsg: "globalConfiguration.customName namespace and name parts cannot be empty",
 		},
 	}
 
