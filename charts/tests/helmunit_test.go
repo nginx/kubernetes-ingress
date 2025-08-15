@@ -184,22 +184,22 @@ func TestHelmNICTemplateNegative(t *testing.T) {
 			expectedErrorMsgs: []string{"missing properties 'port', 'path'", "port is required"},
 		},
 		"globalConfigInvalidFormat": {
-			valuesFile:       "testdata/global-config-invalid-format.yaml",
-			releaseName:      "global-config-invalid-format",
-			namespace:        "default",
-			expectedErrorMsg: "globalConfiguration.customName must contain exactly one '/' separator",
+			valuesFile:        "testdata/global-config-invalid-format.yaml",
+			releaseName:       "global-config-invalid-format",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"globalConfiguration.customName must contain exactly one '/' separator"},
 		},
 		"globalConfigMultipleSlashes": {
-			valuesFile:       "testdata/global-config-multiple-slashes.yaml",
-			releaseName:      "global-config-multiple-slashes",
-			namespace:        "default",
-			expectedErrorMsg: "globalConfiguration.customName must contain exactly one '/' separator",
+			valuesFile:        "testdata/global-config-multiple-slashes.yaml",
+			releaseName:       "global-config-multiple-slashes",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"globalConfiguration.customName must contain exactly one '/' separator"},
 		},
 		"globalConfigEmptyName": {
-			valuesFile:       "testdata/global-config-empty-name.yaml",
-			releaseName:      "global-config-empty-name",
-			namespace:        "default",
-			expectedErrorMsg: "globalConfiguration.customName namespace and name parts cannot be empty",
+			valuesFile:        "testdata/global-config-empty-name.yaml",
+			releaseName:       "global-config-empty-name",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"globalConfiguration.customName namespace and name parts cannot be empty"},
 		},
 	}
 
@@ -224,11 +224,19 @@ func TestHelmNICTemplateNegative(t *testing.T) {
 				t.Fatalf("Expected helm template to fail for invalid configuration, but it succeeded")
 			}
 
+<<<<<<< HEAD
 			errMsg := err.Error()
 			for _, expected := range tc.expectedErrorMsgs {
 				if strings.Contains(errMsg, expected) {
 					t.Logf("Expected failure occurred: %s", errMsg)
 					return
+=======
+			if len(tc.expectedErrorMsgs) > 0 {
+				for _, expectedMsg := range tc.expectedErrorMsgs {
+					if !strings.Contains(err.Error(), expectedMsg) {
+						t.Fatalf("Expected error to contain '%s', but got: %s", expectedMsg, err.Error())
+					}
+>>>>>>> c8cf19e89 (fixing copilot mentioned error)
 				}
 			}
 
