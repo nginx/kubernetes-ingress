@@ -53,6 +53,7 @@ markers = [
     "policies_jwt",
     "policies_ac",
     "policies_mtls",
+    "policies_cache",
     "rewrite",
     "skip_for_nginx_oss",
     "skip_for_loadbalancer",

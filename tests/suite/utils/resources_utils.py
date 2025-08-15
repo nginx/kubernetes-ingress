@@ -2062,3 +2062,25 @@ def read_ingress(v1: NetworkingV1Api, name, namespace) -> V1Ingress:
     """
     print(f"Read an ingress named '{name}'")
     return v1.read_namespaced_ingress(name, namespace)
+
+
+def pod_restart(v1: CoreV1Api, namespace):
+    """
+    Restart all pods in a deployment.
+    """
+    try:
+        pods = v1.list_namespaced_pod(namespace=namespace)
+
+        print(f"Found {len(pods.items)} pods to restart")
+
+        # Delete all pods (they will be recreated by deployment)
+        for pod in pods.items:
+            print(f"Deleting pod {pod.metadata.name}")
+            v1.delete_namespaced_pod(name=pod.metadata.name, namespace=namespace)
+
+        wait_until_all_pods_are_ready(v1, namespace)
+        print("Pod restart complete")
+
+    except Exception as e:
+        print(f"Error in pod restart: {e}")
+        raise e

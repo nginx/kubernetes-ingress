@@ -1,0 +1,13 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: cache-policy-advanced
+spec:
+  cache:
+    cacheZoneName: "advancedcache"
+    cacheZoneSize: "20m"
+    allowedCodes: [200, 404, 301]
+    allowedMethods: ["GET", "HEAD", "POST"]
+    time: "2h"
+    overrideUpstreamCache: true
+    levels: "2:2"

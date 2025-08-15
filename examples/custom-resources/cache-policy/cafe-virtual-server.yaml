@@ -1,0 +1,28 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: cafe
+spec:
+  server-snippets: |
+    add_header X-Cache-Status $upstream_cache_status;
+  # This header will show the cache status for each request, e.g. X-Cache-Status: MISS or X-Cache-Status: HIT.
+  # The cache status can be "HIT", "MISS", "EXPIRED", etc.
+  policies:
+  - name: cache-policy
+  host: cafe.example.com
+  tls:
+    secret: cafe-secret
+  upstreams:
+  - name: tea
+    service: tea-svc
+    port: 80
+  - name: coffee
+    service: coffee-svc
+    port: 80
+  routes:
+  - path: /tea
+    action:
+      pass: tea
+  - path: /coffee
+    action:
+      pass: coffee
