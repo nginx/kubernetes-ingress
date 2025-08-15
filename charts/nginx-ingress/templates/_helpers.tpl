@@ -238,6 +238,12 @@ Create the global configuration custom namespace from the globalConfiguration.cu
 {{- define "nginx-ingress.globalConfiguration.customNamespace" -}}
 {{- include "nginx-ingress.globalConfiguration.validateCustomName" . -}}
 {{ splitList "/" .Values.controller.globalConfiguration.customName | first }}
+{{- $parts := splitList "/" .Values.controller.globalConfiguration.customName -}}
+{{- if gt (len $parts) 1 -}}
+{{- join "/" (slice $parts 0 (sub (len $parts) 1)) -}}
+{{- else -}}
+{{- first $parts -}}
+{{- end -}}
 {{- end -}}
 
 {{/*
