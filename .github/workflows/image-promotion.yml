@@ -73,7 +73,7 @@ jobs:
           echo "image_matrix_plus=$(cat .github/data/matrix-images-plus.json | jq -c)" >> $GITHUB_OUTPUT
           echo "image_matrix_nap=$(cat .github/data/matrix-images-nap.json | jq -c)" >> $GITHUB_OUTPUT
           ref=${{ github.ref_name }}
-          if [[ $ref =~ /merge ]]; then
+          if [[ $ref =~ /merge$ ]]; then
             additional_tag="pr-${ref%*/merge}"
           else
             additional_tag="${ref//\//-}"
