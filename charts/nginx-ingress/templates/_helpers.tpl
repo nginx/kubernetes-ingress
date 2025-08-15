@@ -221,7 +221,7 @@ Ensures exactly one '/' separator for proper namespace/name parsing.
 {{- if .Values.controller.globalConfiguration.customName }}
 {{- $parts := splitList "/" .Values.controller.globalConfiguration.customName }}
 {{- if ne (len $parts) 2 }}
-{{- fail "globalConfiguration.customName must contain exactly one '/' separator in namespace/name format (e.g., 'my-namespace/my-global-config')" }}
+{{- fail "globalConfiguration.customName must contain exactly one '/' separator (e.g., 'my-namespace/my-global-config')" }}
 {{- end }}
 {{- if or (eq (index $parts 0) "") (eq (index $parts 1) "") }}
 {{- fail "globalConfiguration.customName namespace and name parts cannot be empty (e.g., 'namespace/' or '/name')" }}
