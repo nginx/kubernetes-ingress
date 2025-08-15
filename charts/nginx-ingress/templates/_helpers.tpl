@@ -214,12 +214,17 @@ false
 {{- end -}}
 
 {{/*
-Validate that globalConfiguration.customName contains namespace/name format.
+Validate the globalConfiguration.customName value format.
+Ensures exactly one '/' separator for proper namespace/name parsing.
 */}}
 {{- define "nginx-ingress.globalConfiguration.validateCustomName" -}}
 {{- if .Values.controller.globalConfiguration.customName }}
-{{- if not (contains "/" .Values.controller.globalConfiguration.customName) }}
-{{- fail "globalConfiguration.customName must contain a namespace/name format (e.g., 'my-namespace/my-global-config')" }}
+{{- $parts := splitList "/" .Values.controller.globalConfiguration.customName }}
+{{- if ne (len $parts) 2 }}
+{{- fail "globalConfiguration.customName must contain exactly one '/' separator in namespace/name format (e.g., 'my-namespace/my-global-config')" }}
+{{- end }}
+{{- if or (eq (index $parts 0) "") (eq (index $parts 1) "") }}
+{{- fail "globalConfiguration.customName namespace and name parts cannot be empty (e.g., 'my-namespace/my-global-config')" }}
 {{- end }}
 {{- end }}
 {{- end -}}
@@ -229,7 +234,8 @@ Create the global configuration custom name from the globalConfiguration.customN
 */}}
 {{- define "nginx-ingress.globalConfiguration.customName" -}}
 {{- include "nginx-ingress.globalConfiguration.validateCustomName" . -}}
-{{ splitList "/" .Values.controller.globalConfiguration.customName | last }}
+{{- $parts := splitList "/" .Values.controller.globalConfiguration.customName -}}
+{{- index $parts 1 -}}
 {{- end -}}
 
 {{/*
@@ -237,13 +243,8 @@ Create the global configuration custom namespace from the globalConfiguration.cu
 */}}
 {{- define "nginx-ingress.globalConfiguration.customNamespace" -}}
 {{- include "nginx-ingress.globalConfiguration.validateCustomName" . -}}
-{{ splitList "/" .Values.controller.globalConfiguration.customName | first }}
 {{- $parts := splitList "/" .Values.controller.globalConfiguration.customName -}}
-{{- if gt (len $parts) 1 -}}
-{{- join "/" (slice $parts 0 (sub (len $parts) 1)) -}}
-{{- else -}}
-{{- first $parts -}}
-{{- end -}}
+{{- index $parts 0 -}}
 {{- end -}}
 
 {{/*
