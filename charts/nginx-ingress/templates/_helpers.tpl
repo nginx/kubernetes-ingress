@@ -348,6 +348,9 @@ Build the args for the service binary.
 - -global-configuration={{ .Values.controller.globalConfiguration.customName }}
 {{- end }}
 {{- end }}
+{{- else if .Values.controller.globalConfiguration.customName }}
+- -global-configuration={{ .Values.controller.globalConfiguration.customName }}
+{{- end }}
 {{- end }}
 - -ready-status={{ .Values.controller.readyStatus.enable }}
 - -ready-status-port={{ .Values.controller.readyStatus.port }}
