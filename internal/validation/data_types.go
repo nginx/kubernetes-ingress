@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 )
 
 const (
@@ -256,4 +258,62 @@ func BalanceProxyValues(proxyBuffers NumberSizeConfig, proxyBufferSize, proxyBus
 	}
 
 	return proxyBuffers, proxyBufferSize, proxyBusyBuffers, modifications, nil
+}
+
+// BalanceProxiesForUpstreams balances the proxy buffer settings for an Upstream
+// struct. The only reason for this function is to convert between the data type
+// in the Upstream struct and the data types used in the balancing logic and
+// back.
+func BalanceProxiesForUpstreams(in *conf_v1.Upstream) error {
+	pb, err := NewNumberSizeConfig(fmt.Sprintf("%d %s", in.ProxyBuffers.Number, in.ProxyBuffers.Size))
+	if err != nil {
+		// if there's an error, set it to default `2 4k`
+		pb = NumberSizeConfig{
+			Number: 2,
+			Size: SizeWithUnit{
+				Size: 4,
+				Unit: SizeKB,
+			},
+		}
+	}
+
+	pbs, err := NewSizeWithUnit(in.ProxyBufferSize)
+	if err != nil {
+		// if there's an error, set it to default `4k`
+		pbs = SizeWithUnit{
+			Size: 4,
+			Unit: SizeKB,
+		}
+	}
+
+	pbbs, err := NewSizeWithUnit(in.ProxyBusyBuffersSize)
+	if err != nil {
+		// if there's an error, set it to default `4k`
+		pbbs = SizeWithUnit{
+			Size: 4,
+			Unit: SizeKB,
+		}
+	}
+
+	balancedPB, balancedPBS, balancedPBBS, _, err := BalanceProxyValues(pb, pbs, pbbs)
+	if err != nil {
+		return fmt.Errorf("error balancing proxy values: %w", err)
+	}
+
+	//gosec:disable G115 -- This conversion is safe because balancedPB.Number is validated to be non-negative and at most 1024 in value.
+	pbNumberAsInt := int(balancedPB.Number)
+
+	//gosec:disable G115 -- This conversion is also safe because we're converting an integer back to uint64 that we converted from an uint64 two lines above.
+	if uint64(pbNumberAsInt) != balancedPB.Number {
+		return fmt.Errorf("error balancing proxy values: balanced proxy buffer number %d is out of int range", balancedPB.Number)
+	}
+
+	in.ProxyBuffers = &conf_v1.UpstreamBuffers{
+		Number: pbNumberAsInt,
+		Size:   balancedPB.Size.String(),
+	}
+	in.ProxyBufferSize = balancedPBS.String()
+	in.ProxyBusyBuffersSize = balancedPBBS.String()
+
+	return nil
 }

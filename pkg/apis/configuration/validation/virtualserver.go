@@ -8,6 +8,7 @@ import (
 
 	"github.com/dlclark/regexp2"
 	"github.com/nginx/kubernetes-ingress/internal/configs"
+	internalValidation "github.com/nginx/kubernetes-ingress/internal/validation"
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -618,6 +619,12 @@ func (vsv *VirtualServerValidator) validateUpstreams(upstreams []v1.Upstream, fi
 		allErrs = append(allErrs, validateBackup(u.Backup, u.BackupPort, u.LBMethod, idxPath)...)
 
 		allErrs = append(allErrs, rejectPlusResourcesInOSS(u, idxPath, vsv.isPlus)...)
+
+		err := internalValidation.BalanceProxiesForUpstreams(&u)
+		if err != nil {
+			allErrs = append(allErrs, field.Invalid(idxPath, "balancing proxy buffer sizes", err.Error()))
+		}
+
 	}
 	return allErrs, upstreamNames
 }
