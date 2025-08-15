@@ -448,7 +448,7 @@ jobs:
 
       - name: Download Syft
         id: syft
-        uses: anchore/sbom-action/download-syft@7b36ad622f042cab6f59a75c2ac24ccb256e9b45 # v0.20.4
+        uses: anchore/sbom-action/download-syft@da167eac915b4e86f08b264dbdbc867b61be6f0c # v0.20.5
         if: ${{ needs.variables.outputs.binary_cache_sign_hit != 'true' }}
 
       - name: Install Cosign
