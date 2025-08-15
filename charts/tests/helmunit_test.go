@@ -86,6 +86,11 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "global-configuration",
 			namespace:   "gc",
 		},
+		"globalConfigCustomName": {
+			valuesFile:  "testdata/global-config-custom-name.yaml",
+			releaseName: "global-config-custom-name",
+			namespace:   "default",
+		},
 		"customResources": {
 			valuesFile:  "testdata/custom-resources.yaml",
 			releaseName: "custom-resources",
@@ -177,6 +182,24 @@ func TestHelmNICTemplateNegative(t *testing.T) {
 			releaseName:      "startupstatus-invalid",
 			namespace:        "default",
 			expectedErrorMsg: "port is required",
+		},
+		"globalConfigInvalidFormat": {
+			valuesFile:       "testdata/global-config-invalid-format.yaml",
+			releaseName:      "global-config-invalid-format",
+			namespace:        "default",
+			expectedErrorMsg: "globalConfiguration.customName must contain exactly one '/' separator",
+		},
+		"globalConfigMultipleSlashes": {
+			valuesFile:       "testdata/global-config-multiple-slashes.yaml",
+			releaseName:      "global-config-multiple-slashes",
+			namespace:        "default",
+			expectedErrorMsg: "globalConfiguration.customName must contain exactly one '/' separator",
+		},
+		"globalConfigEmptyName": {
+			valuesFile:       "testdata/global-config-empty-name.yaml",
+			releaseName:      "global-config-empty-name",
+			namespace:        "default",
+			expectedErrorMsg: "globalConfiguration.customName namespace and name parts cannot be empty",
 		},
 	}
 
