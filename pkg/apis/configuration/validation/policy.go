@@ -11,6 +11,7 @@ import (
 
 	validation2 "github.com/nginx/kubernetes-ingress/internal/validation"
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
@@ -443,14 +444,14 @@ func validateCacheAllowedCodes(cache *v1.Cache, fieldPath *field.Path) field.Err
 	}
 
 	// Check if it's the special case: single element "any"
-	if len(cache.AllowedCodes) == 1 && cache.AllowedCodes[0].Type == 1 && cache.AllowedCodes[0].StrVal == "any" {
+	if len(cache.AllowedCodes) == 1 && cache.AllowedCodes[0].Type == intstr.String && cache.AllowedCodes[0].StrVal == "any" {
 		return allErrs // Valid: single "any" string
 	}
 
 	// Check if it contains "any" mixed with other codes (invalid)
 	hasAny := false
 	for i, code := range cache.AllowedCodes {
-		if code.Type == 1 && code.StrVal == "any" {
+		if code.Type == intstr.String && code.StrVal == "any" {
 			hasAny = true
 			if len(cache.AllowedCodes) > 1 {
 				allErrs = append(allErrs, field.Invalid(fieldPath.Child("allowedCodes").Index(i), code.StrVal, "the string 'any' cannot be mixed with other codes"))
@@ -465,7 +466,7 @@ func validateCacheAllowedCodes(cache *v1.Cache, fieldPath *field.Path) field.Err
 
 	// Validate all elements are integers in the range 100-599
 	for i, code := range cache.AllowedCodes {
-		if code.Type == 1 { // String type
+		if code.Type == intstr.String { // String type
 			allErrs = append(allErrs, field.Invalid(fieldPath.Child("allowedCodes").Index(i), code.StrVal, "must be an integer HTTP status code (100-599) or the single string 'any'"))
 		} else { // Integer type
 			intVal := int(code.IntVal)
