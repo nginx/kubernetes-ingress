@@ -1691,6 +1691,21 @@ func (p *policiesCfg) addWAFConfig(
 	return res
 }
 
+func (p *policiesCfg) addCacheConfig(
+	cache *conf_v1.Cache,
+	polKey string,
+	vsNamespace, vsName, ownerNamespace, ownerName string,
+) *validationResults {
+	res := newValidationResults()
+	if p.Cache != nil {
+		res.addWarningf("Multiple cache policies in the same context is not valid. Cache policy %s will be ignored", polKey)
+		return res
+	}
+
+	p.Cache = generateCacheConfig(cache, vsNamespace, vsName, ownerNamespace, ownerName)
+	return res
+}
+
 func (vsc *virtualServerConfigurator) generatePolicies(
 	ownerDetails policyOwnerDetails,
 	policyRefs []conf_v1.PolicyReference,
@@ -1747,12 +1762,7 @@ func (vsc *virtualServerConfigurator) generatePolicies(
 			case pol.Spec.WAF != nil:
 				res = config.addWAFConfig(vsc.cfgParams.Context, pol.Spec.WAF, key, polNamespace, policyOpts.apResources)
 			case pol.Spec.Cache != nil:
-				res = newValidationResults()
-				if config.Cache != nil {
-					res.addWarningf("Multiple cache policies in the same context is not valid. Cache policy %s will be ignored", key)
-				} else {
-					config.Cache = generateCacheConfig(pol.Spec.Cache, ownerDetails.vsNamespace, ownerDetails.vsName, ownerDetails.ownerNamespace, ownerDetails.ownerName)
-				}
+				res = config.addCacheConfig(pol.Spec.Cache, key, ownerDetails.vsNamespace, ownerDetails.vsName, ownerDetails.ownerNamespace, ownerDetails.ownerName)
 			default:
 				res = newValidationResults()
 			}
