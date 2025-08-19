@@ -1,0 +1,12 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: cache-policy-basic
+spec:
+  cache:
+    cacheZoneName: "basiccache"
+    cacheZoneSize: "5m"
+    allowedCodes: ["any"]
+    allowedMethods: ["GET"]
+    time: "30m"
+    overrideUpstreamCache: true
