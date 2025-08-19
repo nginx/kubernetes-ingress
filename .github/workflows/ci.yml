@@ -56,6 +56,7 @@ jobs:
       image_matrix_oss: ${{ steps.vars.outputs.image_matrix_oss }}
       image_matrix_plus: ${{ steps.vars.outputs.image_matrix_plus }}
       image_matrix_nap: ${{ steps.vars.outputs.image_matrix_nap }}
+      docker_build: ${{ steps.docker_build.outputs.docker_build }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -83,7 +84,7 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Output Variables
+      - name: Configure pipeline Variables
         id: vars
         run: |
           kindest_latest=$(curl -s "https://hub.docker.com/v2/repositories/kindest/node/tags" \
@@ -110,16 +111,9 @@ jobs:
           ./.github/scripts/variables.sh docker_md5 >> $GITHUB_OUTPUT
           ./.github/scripts/variables.sh build_tag >> $GITHUB_OUTPUT
           ./.github/scripts/variables.sh stable_tag >> $GITHUB_OUTPUT
-          ref=${{ github.ref_name }}
-          if [[ $ref =~ /merge$ ]]; then
-            additional_tag="pr-${ref%*/merge}"
-          else
-            additional_tag="${ref//\//-}"
-          fi
-          echo "additional_tag=${additional_tag}" >> $GITHUB_OUTPUT
+          REF=${{ github.ref_name }} ./.github/scripts/variables.sh additional_tag >> $GITHUB_OUTPUT
           echo "image_matrix_oss=$(cat .github/data/matrix-images-oss.json | jq -c)" >> $GITHUB_OUTPUT
           echo "image_matrix_plus=$(cat .github/data/matrix-images-plus.json | jq -c)" >> $GITHUB_OUTPUT
-          echo "image_matrix_nap=$(cat .github/data/matrix-images-nap.json | jq -c)" >> $GITHUB_OUTPUT
           cat $GITHUB_OUTPUT
 
       - name: Fetch Cached Binary Artifacts
@@ -157,6 +151,19 @@ jobs:
           echo "exists=${exists}" >> $GITHUB_OUTPUT
         if: ${{ steps.vars.outputs.forked_workflow == 'false' }}
 
+      - name: Check if docker build is needed
+        id: docker_build
+        run: |
+          docker_build="false"
+          if [ "${{ inputs.force }}" = "true" ]; then
+            docker_build="true"
+          elif [ "$forked_workflow" = "true" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ]; then
+            docker_build="true"
+          elif [ "$forked_workflow" = "false" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ] && [ "${{ steps.vars.outputs.stable_image_exists }}" = "false" ]; then
+            docker_build="true"
+          fi
+          echo "docker_build=${docker_build}" >> $GITHUB_OUTPUT
+
       - name: Output variables
         run: |
           echo docs_only: ${{ github.event.pull_request && steps.docs.outputs.docs_only == 'true' }}
@@ -175,6 +182,7 @@ jobs:
           echo 'image_matrix_oss: ${{ steps.vars.outputs.image_matrix_oss }}'
           echo 'image_matrix_plus: ${{ steps.vars.outputs.image_matrix_plus }}'
           echo 'image_matrix_nap: ${{ steps.vars.outputs.image_matrix_nap }}'
+          echo 'docker_build: ${{ steps.docker_build.outputs.docker_build }}'
 
   verify-codegen:
     name: Verify generated code
@@ -354,7 +362,7 @@ jobs:
       packages: write
       pull-requests: write # for scout report
     secrets: inherit
-    if: ${{ inputs.force || (needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false') || (needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.stable_image_exists == 'false' && needs.checks.outputs.docs_only == 'false') }}
+    if: ${{ needs.checks.outputs.docker_build == 'true' }}
 
   build-docker-plus:
     name: Build Docker Plus
@@ -379,7 +387,7 @@ jobs:
       id-token: write
       pull-requests: write # for scout report
     secrets: inherit
-    if: ${{ inputs.force || (needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false') || (needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.stable_image_exists == 'false' && needs.checks.outputs.docs_only == 'false') }}
+    if: ${{ needs.checks.outputs.docker_build == 'true' }}
 
   build-docker-nap:
     name: Build Docker NAP
@@ -405,7 +413,7 @@ jobs:
       id-token: write # gcr login
       pull-requests: write # for scout report
     secrets: inherit
-    if: ${{ inputs.force || (needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false') || (needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.stable_image_exists == 'false' && needs.checks.outputs.docs_only == 'false') }}
+    if: ${{ needs.checks.outputs.docker_build == 'true' }}
 
   tag-target:
     name: Tag untested image with PR number

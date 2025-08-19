@@ -72,13 +72,7 @@ jobs:
           echo "image_matrix_oss=$(cat .github/data/matrix-images-oss.json | jq -c)" >> $GITHUB_OUTPUT
           echo "image_matrix_plus=$(cat .github/data/matrix-images-plus.json | jq -c)" >> $GITHUB_OUTPUT
           echo "image_matrix_nap=$(cat .github/data/matrix-images-nap.json | jq -c)" >> $GITHUB_OUTPUT
-          ref=${{ github.ref_name }}
-          if [[ $ref =~ /merge$ ]]; then
-            additional_tag="pr-${ref%*/merge}"
-          else
-            additional_tag="${ref//\//-}"
-          fi
-          echo "additional_tag=${additional_tag}" >> $GITHUB_OUTPUT
+          REF=${{ github.ref_name }} ./.github/scripts/variables.sh additional_tag >> $GITHUB_OUTPUT
 
       - name: Fetch Cached Binary Artifacts
         id: binary-cache
