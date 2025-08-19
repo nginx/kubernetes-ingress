@@ -36,7 +36,7 @@ spec:
 #      - name: nginx-log
 #        emptyDir: {}
       containers:
-      - image: nginx-plus-ingress:5.0.0
+      - image: nginx-plus-ingress:5.1.0
         imagePullPolicy: IfNotPresent
         name: nginx-plus-ingress
         ports:
@@ -98,21 +98,25 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          - -nginx-plus=true
+          - -nginx-plus
           - -nginx-configmaps=$(POD_NAMESPACE)/nginx-config
+          - -mgmt-configmap=$(POD_NAMESPACE)/nginx-config-mgmt
           - -report-ingress-status
           - -external-service=nginx-ingress
          #- -default-server-tls-secret=$(POD_NAMESPACE)/default-server-secret
          #- -enable-cert-manager
          #- -enable-external-dns
+         #- -enable-app-protect
+         #- -enable-app-protect-dos
          #- -log-level=debug # Enables extensive logging. Useful for troubleshooting. Options include: trace, debug, info, warning, error, fatal
          #- -log-format=glog # Sets the log format. Options include: glog, json, text
          #- -enable-prometheus-metrics
+         #- -enable-service-insight
          #- -global-configuration=$(POD_NAMESPACE)/nginx-configuration
 #      initContainers:
-#      - image: nginx-plus-ingress:5.0.0
+#      - image: nginx/nginx-ingress:5.1.0
 #        imagePullPolicy: IfNotPresent
-#        name: init-nginx-plus-ingress
+#        name: init-nginx-ingress
 #        command: ['cp', '-vdR', '/etc/nginx/.', '/mnt/etc']
 #        securityContext:
 #          allowPrivilegeEscalation: false
