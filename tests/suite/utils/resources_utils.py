@@ -282,6 +282,7 @@ def create_daemon_set(apps_v1_api: AppsV1Api, namespace, body) -> str:
     print(f"Daemon-Set created with name '{body['metadata']['name']}'")
     return body["metadata"]["name"]
 
+
 def create_stateful_set(apps_v1_api, namespace, body) -> str:
     """
     Create a stateful-set based on a dict.
@@ -1174,6 +1175,7 @@ def delete_daemon_set(apps_v1_api: AppsV1Api, name, namespace) -> None:
     apps_v1_api.delete_namespaced_daemon_set(name, namespace, **delete_options)
     ensure_item_removal(apps_v1_api.read_namespaced_daemon_set_status, name, namespace)
     print(f"Daemon-set was removed with name '{name}'")
+
 
 def delete_stateful_set(apps_v1_api: AppsV1Api, name, namespace) -> None:
     """
