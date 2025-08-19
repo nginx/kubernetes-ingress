@@ -26,7 +26,7 @@ get_tests_md5() {
 }
 
 get_chart_md5() {
-  find charts .github/data/version.txt -type f -exec md5sum {} + | LC_ALL=C sort  | md5sum | awk '{ print $1 }'
+  find charts .github/data/version.txt config/crd/bases -type f -exec md5sum {} + | LC_ALL=C sort  | md5sum | awk '{ print $1 }'
 }
 
 get_actions_md5() {
