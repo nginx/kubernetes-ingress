@@ -150,9 +150,11 @@ jobs:
       - name: Check if stable image exists
         id: stable_exists
         run: |
+          exists=false
           if docker pull gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress:${{ steps.vars.outputs.stable_tag }}; then
-            echo "exists=true" >> $GITHUB_OUTPUT
+            exists=true
           fi
+          echo "exists=${exists}" >> $GITHUB_OUTPUT
         if: ${{ steps.vars.outputs.forked_workflow == 'false' }}
 
       - name: Output variables
@@ -352,7 +354,7 @@ jobs:
       packages: write
       pull-requests: write # for scout report
     secrets: inherit
-    if: ${{ inputs.force || (needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false') || (needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.stable_image_exists != 'true' && needs.checks.outputs.docs_only == 'false') }}
+    if: ${{ inputs.force || (needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false') || (needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.stable_image_exists == 'false' && needs.checks.outputs.docs_only == 'false') }}
 
   build-docker-plus:
     name: Build Docker Plus
@@ -377,7 +379,7 @@ jobs:
       id-token: write
       pull-requests: write # for scout report
     secrets: inherit
-    if: ${{ inputs.force || (needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false') || (needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.stable_image_exists != 'true' && needs.checks.outputs.docs_only == 'false') }}
+    if: ${{ inputs.force || (needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false') || (needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.stable_image_exists == 'false' && needs.checks.outputs.docs_only == 'false') }}
 
   build-docker-nap:
     name: Build Docker NAP
@@ -403,7 +405,7 @@ jobs:
       id-token: write # gcr login
       pull-requests: write # for scout report
     secrets: inherit
-    if: ${{ inputs.force || (needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false') || (needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.stable_image_exists != 'true' && needs.checks.outputs.docs_only == 'false') }}
+    if: ${{ inputs.force || (needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false') || (needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.stable_image_exists == 'false' && needs.checks.outputs.docs_only == 'false') }}
 
   tag-target:
     name: Tag untested image with PR number
