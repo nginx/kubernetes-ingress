@@ -67,7 +67,7 @@
       "label": "policies 1/3",
       "image": "ubi-9-plus",
       "type": "plus",
-      "marker": "'policies and not policies_ac and not policies_jwt and not policies_mtls and not policies_rl'",
+      "marker": "'policies and not policies_ac and not policies_jwt and not policies_mtls and not policies_rl and not policies_cache'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
@@ -81,7 +81,7 @@
       "label": "policies 3/3",
       "image": "ubi-9-plus",
       "type": "plus",
-      "marker": "policies_rl",
+      "marker": "'policies_rl or policies_cache'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {

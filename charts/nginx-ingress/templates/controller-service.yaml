@@ -65,6 +65,14 @@ spec:
 {{- end }}
   selector:
     {{- include "nginx-ingress.selectorLabels" . | nindent 4 }}
+  {{- if .Values.controller.service.sessionAffinity.enable }}
+  sessionAffinity: {{ .Values.controller.service.sessionAffinity.type }}
+  {{- if eq .Values.controller.service.sessionAffinity.type "ClientIP" }}
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: {{ .Values.controller.service.sessionAffinity.timeoutSeconds }}
+  {{- end }}
+  {{- end }}
   {{- if .Values.controller.service.externalIPs }}
   externalIPs:
 {{ toYaml .Values.controller.service.externalIPs | indent 4 }}
