@@ -111,7 +111,7 @@ jobs:
           ./.github/scripts/variables.sh build_tag >> $GITHUB_OUTPUT
           ./.github/scripts/variables.sh stable_tag >> $GITHUB_OUTPUT
           ref=${{ github.ref_name }}
-          if [[ $ref =~ /merge ]]; then
+          if [[ $ref =~ /merge$ ]]; then
             additional_tag="pr-${ref%*/merge}"
           else
             additional_tag="${ref//\//-}"
