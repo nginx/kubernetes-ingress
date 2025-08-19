@@ -56,6 +56,7 @@ jobs:
       image_matrix_oss: ${{ steps.vars.outputs.image_matrix_oss }}
       image_matrix_plus: ${{ steps.vars.outputs.image_matrix_plus }}
       image_matrix_nap: ${{ steps.vars.outputs.image_matrix_nap }}
+      docker_build: ${{ steps.docker_build.outputs.docker_build }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -83,7 +84,7 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Output Variables
+      - name: Configure pipeline Variables
         id: vars
         run: |
           kindest_latest=$(curl -s "https://hub.docker.com/v2/repositories/kindest/node/tags" \
@@ -110,13 +111,7 @@ jobs:
           ./.github/scripts/variables.sh docker_md5 >> $GITHUB_OUTPUT
           ./.github/scripts/variables.sh build_tag >> $GITHUB_OUTPUT
           ./.github/scripts/variables.sh stable_tag >> $GITHUB_OUTPUT
-          ref=${{ github.ref_name }}
-          if [[ $ref =~ merge ]]; then
-            additional_tag="pr-${ref%*/merge}"
-          else
-            additional_tag="${ref//\//-}"
-          fi
-          echo "additional_tag=${additional_tag}" >> $GITHUB_OUTPUT
+          REF=${{ github.ref_name }} ./.github/scripts/variables.sh additional_tag >> $GITHUB_OUTPUT
           echo "image_matrix_oss=$(cat .github/data/matrix-images-oss.json | jq -c)" >> $GITHUB_OUTPUT
           echo "image_matrix_plus=$(cat .github/data/matrix-images-plus.json | jq -c)" >> $GITHUB_OUTPUT
           echo "image_matrix_nap=$(cat .github/data/matrix-images-nap.json | jq -c)" >> $GITHUB_OUTPUT
@@ -150,10 +145,25 @@ jobs:
       - name: Check if stable image exists
         id: stable_exists
         run: |
+          exists=false
           if docker pull gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress:${{ steps.vars.outputs.stable_tag }}; then
-            echo "exists=true" >> $GITHUB_OUTPUT
+            exists=true
           fi
+          echo "exists=${exists}" >> $GITHUB_OUTPUT
         if: ${{ steps.vars.outputs.forked_workflow == 'false' }}
+
+      - name: Check if docker build is needed
+        id: docker_build
+        run: |
+          docker_build="false"
+          if [ "${{ inputs.force }}" = "true" ]; then
+            docker_build="true"
+          elif [ "$forked_workflow" = "true" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ]; then
+            docker_build="true"
+          elif [ "$forked_workflow" = "false" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ] && [ "${{ steps.stable_exists.outputs.exists }}" = "false" ]; then
+            docker_build="true"
+          fi
+          echo "docker_build=${docker_build}" >> $GITHUB_OUTPUT
 
       - name: Output variables
         run: |
@@ -173,6 +183,7 @@ jobs:
           echo 'image_matrix_oss: ${{ steps.vars.outputs.image_matrix_oss }}'
           echo 'image_matrix_plus: ${{ steps.vars.outputs.image_matrix_plus }}'
           echo 'image_matrix_nap: ${{ steps.vars.outputs.image_matrix_nap }}'
+          echo 'docker_build: ${{ steps.docker_build.outputs.docker_build }}'
 
   verify-codegen:
     name: Verify generated code
@@ -200,7 +211,7 @@ jobs:
               password ${{ secrets.ARTIFACTORY_TOKEN }}
           EOF
           chmod 600 $HOME/.netrc
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' && needs.checks.outputs.forked_workflow != 'true' }}
+        if: ${{ inputs.force || (needs.checks.outputs.binary_cache_hit != 'true' && needs.checks.outputs.forked_workflow != 'true') }}
 
       - name: Check if go.mod and go.sum are up to date
         run: go mod tidy && git diff --exit-code -- go.mod go.sum
@@ -251,7 +262,7 @@ jobs:
               password ${{ secrets.ARTIFACTORY_TOKEN }}
           EOF
           chmod 600 $HOME/.netrc
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' && needs.checks.outputs.forked_workflow != 'true' }}
+        if: ${{ inputs.force || (needs.checks.outputs.binary_cache_hit != 'true' && needs.checks.outputs.forked_workflow != 'true') }}
 
       - name: Run Tests
         run: make cover
@@ -289,7 +300,7 @@ jobs:
         uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
           go-version-file: go.mod
-        if: ${{ (inputs.force && inputs.force || false) || needs.checks.outputs.binary_cache_hit != 'true' }}
+        if: ${{ inputs.force || needs.checks.outputs.binary_cache_hit != 'true' }}
 
       - name: Setup netrc
         run: |
@@ -299,7 +310,7 @@ jobs:
               password ${{ secrets.ARTIFACTORY_TOKEN }}
           EOF
           chmod 600 $HOME/.netrc
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' && needs.checks.outputs.forked_workflow != 'true' }}
+        if: ${{ inputs.force || (needs.checks.outputs.binary_cache_hit != 'true' && needs.checks.outputs.forked_workflow != 'true') }}
 
       - name: Build binaries
         uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6.4.0
@@ -319,14 +330,14 @@ jobs:
           AWS_NAP_WAF_DOS_PRODUCT_CODE: ${{ secrets.AWS_NAP_WAF_DOS_PRODUCT_CODE }}
           AWS_NAP_WAF_DOS_PUB_KEY: ${{ secrets.AWS_NAP_WAF_DOS_PUB_KEY }}
           GORELEASER_CURRENT_TAG: "v${{ needs.checks.outputs.ic_version }}"
-        if: ${{ (inputs.force && inputs.force || false) || needs.checks.outputs.binary_cache_hit != 'true' }}
+        if: ${{ inputs.force || needs.checks.outputs.binary_cache_hit != 'true' }}
 
       - name: Store Artifacts in Cache
         uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ needs.checks.outputs.go_code_md5 }}
-        if: ${{ (inputs.force && inputs.force || false) || needs.checks.outputs.binary_cache_hit != 'true' }}
+        if: ${{ inputs.force || needs.checks.outputs.binary_cache_hit != 'true' }}
 
   build-docker:
     name: Build Docker OSS
@@ -341,7 +352,7 @@ jobs:
       go-md5: ${{ needs.checks.outputs.go_code_md5 }}
       base-image-md5: ${{ needs.checks.outputs.docker_md5 }}
       authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
-      full-build: ${{ inputs.force && inputs.force || false }}
+      full-build: ${{ inputs.force }}
       tag: ${{ needs.checks.outputs.build_tag }}
       branch: ${{ (github.head_ref && needs.checks.outputs.forked_workflow != 'true') && github.head_ref || github.ref }}
       ic-version: ${{ needs.checks.outputs.ic_version }}
@@ -352,7 +363,7 @@ jobs:
       packages: write
       pull-requests: write # for scout report
     secrets: inherit
-    if: ${{ inputs.force || (needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false') || (needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.stable_image_exists != 'true' && needs.checks.outputs.docs_only == 'false') }}
+    if: ${{ needs.checks.outputs.docker_build == 'true' }}
 
   build-docker-plus:
     name: Build Docker Plus
@@ -370,14 +381,14 @@ jobs:
       branch: ${{ (github.head_ref && needs.checks.outputs.forked_workflow != 'true') && github.head_ref || github.ref }}
       tag: ${{ needs.checks.outputs.build_tag }}
       authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
-      full-build: ${{ inputs.force && inputs.force || false }}
+      full-build: ${{ inputs.force }}
       ic-version: ${{ needs.checks.outputs.ic_version }}
     permissions:
       contents: read
       id-token: write
       pull-requests: write # for scout report
     secrets: inherit
-    if: ${{ inputs.force || (needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false') || (needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.stable_image_exists != 'true' && needs.checks.outputs.docs_only == 'false') }}
+    if: ${{ needs.checks.outputs.docker_build == 'true' }}
 
   build-docker-nap:
     name: Build Docker NAP
@@ -396,14 +407,14 @@ jobs:
       tag: ${{ needs.checks.outputs.build_tag }}
       nap-modules: ${{ matrix.nap_modules }}
       authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
-      full-build: ${{ inputs.force && inputs.force || false }}
+      full-build: ${{ inputs.force }}
       ic-version: ${{ needs.checks.outputs.ic_version }}
     permissions:
       contents: read
       id-token: write # gcr login
       pull-requests: write # for scout report
     secrets: inherit
-    if: ${{ inputs.force || (needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false') || (needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.stable_image_exists != 'true' && needs.checks.outputs.docs_only == 'false') }}
+    if: ${{ needs.checks.outputs.docker_build == 'true' }}
 
   tag-target:
     name: Tag untested image with PR number
@@ -835,4 +846,4 @@ jobs:
       pull-requests: write # for scout report
     uses: ./.github/workflows/image-promotion.yml
     secrets: inherit
-    if: ${{ inputs.force && inputs.force || false }}
+    if: ${{ inputs.force }}
