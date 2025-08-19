@@ -49,13 +49,109 @@ func TestLogFormats(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			var buf bytes.Buffer
-			ctx := initLogger(tc.format, levels.LevelInfo, &buf)
+			ctx := initLogger(tc.format, levels.LevelInfo, "default", &buf)
 			l := nl.LoggerFromContext(ctx)
 			l.Log(ctx, levels.LevelInfo, "test")
 			got := buf.String()
 			re := regexp.MustCompile(tc.wantre)
 			if !re.MatchString(got) {
 				t.Errorf("\ngot:\n%q\nwant:\n%q", got, tc.wantre)
+			}
+		})
+	}
+}
+
+func TestLogTimeFormats(t *testing.T) {
+	testCases := []struct {
+		name       string
+		logFormat  string
+		timeFormat string
+		wantre     string
+		keyName    string
+	}{
+		// JSON format tests
+		{
+			name:       "json default time format",
+			logFormat:  "json",
+			timeFormat: "default",
+			wantre:     `^{"time":"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d+.*","level":"INFO","source":\{"file":"[^"]+\.go","line":\d+\},"msg":".*}`,
+			keyName:    "time",
+		},
+		{
+			name:       "json unix time format",
+			logFormat:  "json",
+			timeFormat: "unix",
+			wantre:     `^{"timestamp":"\d{10}","level":"INFO","source":\{"file":"[^"]+\.go","line":\d+\},"msg":".*}`,
+			keyName:    "timestamp",
+		},
+		{
+			name:       "json unix-ms time format",
+			logFormat:  "json",
+			timeFormat: "unix-ms",
+			wantre:     `^{"timestamp":"\d{10}\.\d{3}","level":"INFO","source":\{"file":"[^"]+\.go","line":\d+\},"msg":".*}`,
+			keyName:    "timestamp",
+		},
+		{
+			name:       "json unix-ns time format",
+			logFormat:  "json",
+			timeFormat: "unix-ns",
+			wantre:     `^{"timestamp":"\d{10}\.\d{9}","level":"INFO","source":\{"file":"[^"]+\.go","line":\d+\},"msg":".*}`,
+			keyName:    "timestamp",
+		},
+		// TEXT format tests
+		{
+			name:       "text default time format",
+			logFormat:  "text",
+			timeFormat: "default",
+			wantre:     `^time=\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d+.*level=\w+\ssource=[^:]+\.go:\d+\smsg=\w+`,
+			keyName:    "",
+		},
+		{
+			name:       "text unix time format",
+			logFormat:  "text",
+			timeFormat: "unix",
+			wantre:     `^timestamp=\d{10}\slevel=\w+\ssource=[^:]+\.go:\d+\smsg=\w+`,
+			keyName:    "",
+		},
+		{
+			name:       "text unix-ms time format",
+			logFormat:  "text",
+			timeFormat: "unix-ms",
+			wantre:     `^timestamp=\d{10}\.\d{3}\slevel=\w+\ssource=[^:]+\.go:\d+\smsg=\w+`,
+			keyName:    "",
+		},
+		{
+			name:       "text unix-ns time format",
+			logFormat:  "text",
+			timeFormat: "unix-ns",
+			wantre:     `^timestamp=\d{10}\.\d{9}\slevel=\w+\ssource=[^:]+\.go:\d+\smsg=\w+`,
+			keyName:    "",
+		},
+	}
+	t.Parallel()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			ctx := initLogger(tc.logFormat, levels.LevelInfo, tc.timeFormat, &buf)
+			l := nl.LoggerFromContext(ctx)
+			l.Log(ctx, levels.LevelInfo, "test")
+			got := buf.String()
+			re := regexp.MustCompile(tc.wantre)
+			if !re.MatchString(got) {
+				t.Errorf("\ngot:\n%q\nwant regex:\n%q", got, tc.wantre)
+			}
+
+			// Only check for timestamp key if keyName is specified and timeFormat is not default
+			if tc.keyName != "" && tc.timeFormat != "default" {
+				var timestampPattern string
+				if tc.logFormat == "json" {
+					timestampPattern = fmt.Sprintf(`"%s":`, tc.keyName)
+				} else {
+					timestampPattern = fmt.Sprintf(`%s=`, tc.keyName)
+				}
+				if !regexp.MustCompile(timestampPattern).MatchString(got) {
+					t.Errorf("Expected '%s' key in %s output for %s format, got: %q", tc.keyName, tc.logFormat, tc.timeFormat, got)
+				}
 			}
 		})
 	}

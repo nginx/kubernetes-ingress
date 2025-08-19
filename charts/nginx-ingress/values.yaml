@@ -164,6 +164,9 @@ controller:
   ## Sets the log format of Ingress Controller. Options include: glog, json, text
   logFormat: glog
 
+  ## Sets time format for logs. Allowed values: default, unix, unix-ms, unix-ns. Applies to json and text.
+  logTimeFormat: default
+
   ## A list of custom ports to expose on the NGINX Ingress Controller pod. Follows the conventional Kubernetes yaml syntax for container ports.
   customPorts: []
 

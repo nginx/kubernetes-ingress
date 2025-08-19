@@ -24,6 +24,7 @@ const (
 	appProtectEnforcerAddrDefault = "127.0.0.1:50000"
 	logLevelDefault               = "info"
 	logFormatDefault              = "glog"
+	logTimeFormatDefault          = "default"
 )
 
 var (
@@ -223,6 +224,9 @@ var (
 	logLevel = flag.String("log-level", logLevelDefault,
 		`Sets log level for Ingress Controller. Allowed values: fatal, error, warning, info, debug, trace.`)
 
+	logTimeFormat = flag.String("log-time-format", logTimeFormatDefault,
+		`Sets time format for logs. Allowed values: default, unix, unix-ms, unix-ns.`)
+
 	enableDynamicWeightChangesReload = flag.Bool(dynamicWeightChangesParam, false, "Enable changing weights of split clients without reloading NGINX. Requires -nginx-plus")
 
 	startupCheckFn func() error
@@ -249,6 +253,11 @@ func initValidate(ctx context.Context) {
 		nl.Warnf(l, "Invalid log level: %s. Valid options are: trace, debug, info, warning, error, fatal. Falling back to default: %s", *logLevel, logLevelDefault)
 	}
 
+	logTimeFormatValidationError := validateLogTimeFormat(*logTimeFormat)
+	if logTimeFormatValidationError != nil {
+		nl.Warnf(l, "Invalid log time format: %s. Valid options are: default, unix, unix-ms, unix-ns. Falling back to default: %s", *logTimeFormat, logTimeFormatDefault)
+	}
+
 	if *enableLatencyMetrics && !*enablePrometheusMetrics {
 		nl.Warn(l, "enable-latency-metrics flag requires enable-prometheus-metrics, latency metrics will not be collected")
 		*enableLatencyMetrics = false
@@ -267,6 +276,10 @@ func initValidate(ctx context.Context) {
 	if *mgmtConfigMap != "" && !*nginxPlus {
 		nl.Warn(l, "mgmt-configmap flag requires -nginx-plus, mgmt configmap will not be used")
 		*mgmtConfigMap = ""
+	}
+
+	if strings.ToLower(*logFormat) == "glog" && strings.ToLower(*logTimeFormat) != "default" {
+		nl.Warnf(l, "log-time-format '%s' is ignored when using log-format 'glog'. Use log-format 'json' or 'text' to apply custom time formatting.", *logTimeFormat)
 	}
 
 	mustValidateInitialChecks(ctx)
@@ -483,6 +496,15 @@ func validateLogFormat(logFormat string) error {
 		return nil
 	}
 	return fmt.Errorf("invalid log format: %v", logFormat)
+}
+
+// validateLogTimeFormat makes sure a given logTimeFormat is one of the allowed values
+func validateLogTimeFormat(timeFormat string) error {
+	switch strings.ToLower(timeFormat) {
+	case "default", "unix", "unix-ms", "unix-ns":
+		return nil
+	}
+	return fmt.Errorf("invalid log time format: %v", timeFormat)
 }
 
 // parseNginxStatusAllowCIDRs converts a comma separated CIDR/IP address string into an array of CIDR/IP addresses.
