@@ -2,6 +2,7 @@ package v1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 const (
@@ -788,6 +789,8 @@ type PolicySpec struct {
 	WAF *WAF `json:"waf"`
 	// The API Key policy configures NGINX to authorize requests which provide a valid API Key in a specified header or query param.
 	APIKey *APIKey `json:"apiKey"`
+	// The Cache Key defines a cache policy for proxy caching
+	Cache *Cache `json:"cache"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -1002,4 +1005,66 @@ type SuppliedIn struct {
 	Header []string `json:"header"`
 	// The location of the API Key as a query param. For example, $arg_apikey. Accepted variables are $arg_.
 	Query []string `json:"query"`
+}
+
+// Cache defines a cache policy for proxy caching.
+// +kubebuilder:validation:XValidation:rule="!has(self.allowedCodes) || (has(self.allowedCodes) && has(self.time))",message="time is required when allowedCodes is specified"
+type Cache struct {
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^[a-z][a-zA-Z0-9_]*[a-zA-Z0-9]$|^[a-z]$`
+	// CacheZoneName defines the name of the cache zone. Must start with a lowercase letter,
+	// followed by alphanumeric characters or underscores, and end with an alphanumeric character.
+	// Single lowercase letters are also allowed. Examples: "cache", "my_cache", "cache1".
+	CacheZoneName string `json:"cacheZoneName"`
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^[0-9]+[kmg]$`
+	// CacheZoneSize defines the size of the cache zone. Must be a number followed by a size unit:
+	// 'k' for kilobytes, 'm' for megabytes, or 'g' for gigabytes.
+	// Examples: "10m", "1g", "512k".
+	CacheZoneSize string `json:"cacheZoneSize"`
+	// +kubebuilder:validation:Optional
+	// AllowedCodes defines which HTTP response codes should be cached.
+	// Accepts either:
+	// - The string "any" to cache all response codes (must be the only element)
+	// - A list of HTTP status codes as integers (100-599)
+	// Examples: ["any"], [200, 301, 404], [200].
+	// Invalid: ["any", 200] (cannot mix "any" with specific codes).
+	AllowedCodes []intstr.IntOrString `json:"allowedCodes,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MaxItems=3
+	// +kubebuilder:validation:XValidation:rule="self.all(method, method in ['GET', 'HEAD', 'POST'])",message="allowed methods must be one of: GET, HEAD, POST"
+	// AllowedMethods defines which HTTP methods should be cached.
+	// Only "GET", "HEAD", and "POST" are supported by NGINX proxy_cache_methods directive.
+	// GET and HEAD are always cached by default even if not specified.
+	// Maximum of 3 items allowed. Examples: ["GET"], ["GET", "HEAD", "POST"].
+	// Invalid methods: PUT, DELETE, PATCH, etc.
+	AllowedMethods []string `json:"allowedMethods,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[0-9]+[smhd]$`
+	// Time defines the default cache time. Required when allowedCodes is specified.
+	// Must be a number followed by a time unit:
+	// 's' for seconds, 'm' for minutes, 'h' for hours, 'd' for days.
+	// Examples: "30s", "5m", "1h", "2d".
+	Time string `json:"time,omitempty"`
+	// +kubebuilder:validation:Optional
+	// CachePurgeAllow defines IP addresses or CIDR blocks allowed to purge cache.
+	// This feature is only available in NGINX Plus.
+	// Examples: ["192.168.1.100", "10.0.0.0/8", "::1"].
+	// Invalid in NGINX OSS (will be ignored).
+	CachePurgeAllow []string `json:"cachePurgeAllow,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	// OverrideUpstreamCache controls whether to override upstream cache headers
+	// (using proxy_ignore_headers directive). When true, NGINX will ignore
+	// cache-related headers from upstream servers like Cache-Control, Expires, etc.
+	// Default: false.
+	OverrideUpstreamCache bool `json:"overrideUpstreamCache,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[12](?::[12]){0,2}$`
+	// Levels defines the cache directory hierarchy levels for storing cached files.
+	// Must be in format "X:Y" or "X:Y:Z" where X, Y, Z are either 1 or 2.
+	// This controls the number of subdirectory levels and their name lengths.
+	// Examples: "1:2", "2:2", "1:2:2".
+	// Invalid: "3:1", "1:3", "1:2:3".
+	Levels string `json:"levels,omitempty"`
 }

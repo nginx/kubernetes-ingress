@@ -1,0 +1,12 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: cache-policy-purge
+spec:
+  cache:
+    cacheZoneName: "mycache"
+    cacheZoneSize: "5m"
+    allowedCodes: ["any"]
+    time: "10m"
+    overrideUpstreamCache: true
+    cachePurgeAllow: ["0.0.0.0/0"]
