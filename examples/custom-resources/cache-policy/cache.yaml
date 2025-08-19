@@ -6,7 +6,7 @@ spec:
   cache:
     cacheZoneName: "testcache" # Required
     cacheZoneSize: "15m" # Required
-    allowedCodes: ["any"] # Optional ["any"] or [200, 301, ...], "any" cannnot be combined with specific codes
+    allowedCodes: ["any"] # Optional ["any"] or [200, 301, ...], "any" cannot be combined with specific codes
     allowedMethods: ["GET", "HEAD", "POST"] # Optional
     time: "30m" # Optional # e.g. "15m", "1h", "2d". Default is "10m"
     overrideUpstreamCache: true # Optional, default is false
