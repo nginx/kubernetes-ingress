@@ -355,7 +355,7 @@ controller:
     ## Pod management policy for StatefulSet. Can be "OrderedReady" or "Parallel".
     ## OrderedReady will start pods one at a time in order, Parallel will start all pods at once.
     podManagementPolicy: "OrderedReady"
-    
+
     ## PersistentVolumeClaim retention policy for StatefulSet
     ## Determines when to delete PVCs when the StatefulSet is deleted or scaled down
     persistentVolumeClaimRetentionPolicy:
@@ -363,7 +363,7 @@ controller:
       whenDeleted: "Retain"
       ## When to delete PVCs when the StatefulSet is scaled down. Can be "Retain" or "Delete".
       whenScaled: "Retain"
-    
+
     ## Volume claim templates for StatefulSet persistent storage
     ## Example configuration for NGINX cache and logs persistence:
     volumeClaimTemplates: []
@@ -379,7 +379,7 @@ controller:
     #     name: nginx-logs
     #   spec:
     #     accessModes: [ "ReadWriteOnce" ]
-    #     storageClassName: "standard"  
+    #     storageClassName: "standard"
     #     resources:
     #       requests:
     #         storage: 1Gi
