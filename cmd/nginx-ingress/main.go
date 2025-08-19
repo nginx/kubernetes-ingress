@@ -1204,29 +1204,25 @@ func initLogger(logFormat string, level slog.Level, timeFormat string, out io.Wr
 					case "unix":
 						// Unix timestamp in seconds
 						return slog.Attr{
-							Key:   "timestamp",
-							Value: slog.StringValue(fmt.Sprintf("%d", t.Unix())),
+							Key:   slog.TimeKey,
+							Value: slog.Int64Value(t.Unix()),
 						}
 					case "unix-ms":
 						// Unix timestamp with milliseconds
-						ms := t.UnixNano() / int64(time.Millisecond)
-						seconds := float64(ms) / 1000.0
 						return slog.Attr{
-							Key:   "timestamp",
-							Value: slog.StringValue(fmt.Sprintf("%.3f", seconds)),
+							Key:   slog.TimeKey,
+							Value: slog.Int64Value(t.UnixMilli()),
 						}
 					case "unix-ns":
 						// Unix timestamp with nanoseconds
-						ns := t.UnixNano()
-						seconds := float64(ns) / 1000000000.0
 						return slog.Attr{
-							Key:   "timestamp",
-							Value: slog.StringValue(fmt.Sprintf("%.9f", seconds)),
+							Key:   slog.TimeKey,
+							Value: slog.Int64Value(t.UnixNano()),
 						}
 					case "default":
 						fallthrough
 					default:
-						// Default timestamp format (keep original time key and format eg. rfc3339)
+						// Default timestamp format (keep original time key and format eg. RFC3339)
 						return a
 					}
 				}
