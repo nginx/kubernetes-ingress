@@ -1,0 +1,14 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: cache-policy
+spec:
+  cache:
+    cacheZoneName: "testcache" # Required
+    cacheZoneSize: "15m" # Required
+    allowedCodes: ["any"] # Optional ["any"] or [200, 301, ...], "any" cannot be combined with specific codes
+    allowedMethods: ["GET", "HEAD", "POST"] # Optional
+    time: "30m" # Optional # e.g. "15m", "1h", "2d". Default is "10m"
+    overrideUpstreamCache: true # Optional, default is false
+    # levels: "1:2" # Optional, default is "1:1" , see https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_cache_path for more details
+    # cachePurgeAllow: [""] # Optional, If set allows cache purging from the specified IPs or CIDR ranges. Nginx Plus only.
