@@ -371,14 +371,15 @@ type Configuration struct {
 	appLogConfReferenceChecker *appProtectResourceReferenceChecker
 	appDosProtectedChecker     *dosResourceReferenceChecker
 
-	isPlus                  bool
-	appProtectEnabled       bool
-	appProtectDosEnabled    bool
-	internalRoutesEnabled   bool
-	isTLSPassthroughEnabled bool
-	snippetsEnabled         bool
-	isCertManagerEnabled    bool
-	isIPV6Disabled          bool
+	isPlus                       bool
+	appProtectEnabled            bool
+	appProtectDosEnabled         bool
+	internalRoutesEnabled        bool
+	isTLSPassthroughEnabled      bool
+	snippetsEnabled              bool
+	isCertManagerEnabled         bool
+	isIPV6Disabled               bool
+	isDirectiveAutoadjustEnabled bool
 
 	lock sync.RWMutex
 }

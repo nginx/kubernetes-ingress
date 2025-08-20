@@ -265,6 +265,7 @@ func main() {
 		IsLatencyMetricsEnabled:             *enableLatencyMetrics,
 		IsDynamicSSLReloadEnabled:           *enableDynamicSSLReload,
 		IsDynamicWeightChangesReloadEnabled: *enableDynamicWeightChangesReload,
+		IsDirectiveAutoadjustEnabled:        *enableDirectiveAutoadjust,
 		NginxVersion:                        nginxVersion,
 	})
 
@@ -274,6 +275,7 @@ func main() {
 		cr_validation.IsDosEnabled(*appProtectDos),
 		cr_validation.IsCertManagerEnabled(*enableCertManager),
 		cr_validation.IsExternalDNSEnabled(*enableExternalDNS),
+		cr_validation.IsDirectiveAutoadjustEnabled(*enableDirectiveAutoadjust),
 	)
 
 	if *enableServiceInsight {
@@ -324,6 +326,7 @@ func main() {
 		CertManagerEnabled:           *enableCertManager,
 		ExternalDNSEnabled:           *enableExternalDNS,
 		IsIPV6Disabled:               *disableIPV6,
+		IsDirectiveAutoadjustEnabled: *enableDirectiveAutoadjust,
 		WatchNamespaceLabel:          *watchNamespaceLabel,
 		EnableTelemetryReporting:     *enableTelemetryReporting,
 		TelemetryReportingEndpoint:   telemetryEndpoint,
@@ -996,7 +999,7 @@ func processConfigMaps(kubeClient *kubernetes.Clientset, cfgParams *configs.Conf
 		if err != nil {
 			nl.Fatalf(l, "Error when getting %v: %v", *nginxConfigMaps, err)
 		}
-		cfgParams, _ = configs.ParseConfigMap(cfgParams.Context, cfm, *nginxPlus, *appProtect, *appProtectDos, *enableTLSPassthrough, eventLog)
+		cfgParams, _ = configs.ParseConfigMap(cfgParams.Context, cfm, *nginxPlus, *appProtect, *appProtectDos, *enableTLSPassthrough, *enableDirectiveAutoadjust, eventLog)
 		if cfgParams.MainServerSSLDHParamFileContent != nil {
 			fileName, err := nginxManager.CreateDHParam(*cfgParams.MainServerSSLDHParamFileContent)
 			if err != nil {

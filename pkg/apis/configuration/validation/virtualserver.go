@@ -20,10 +20,11 @@ type VsvOption func(*VirtualServerValidator)
 
 // VirtualServerValidator validates a VirtualServer/VirtualServerRoute resource.
 type VirtualServerValidator struct {
-	isPlus               bool
-	isDosEnabled         bool
-	isCertManagerEnabled bool
-	isExternalDNSEnabled bool
+	isPlus                       bool
+	isDosEnabled                 bool
+	isCertManagerEnabled         bool
+	isExternalDNSEnabled         bool
+	isDirectiveAutoadjustEnabled bool
 }
 
 // IsPlus modifies the VirtualServerValidator to set the isPlus option.
@@ -54,13 +55,21 @@ func IsExternalDNSEnabled(ed bool) VsvOption {
 	}
 }
 
+// IsDirectiveAutoadjustEnabled modifies the VirtualServerValidator to set the isDirectiveAutoadjustEnabled option.
+func IsDirectiveAutoadjustEnabled(autoadjust bool) VsvOption {
+	return func(v *VirtualServerValidator) {
+		v.isDirectiveAutoadjustEnabled = autoadjust
+	}
+}
+
 // NewVirtualServerValidator creates a new VirtualServerValidator.
 func NewVirtualServerValidator(opts ...VsvOption) *VirtualServerValidator {
 	vsv := VirtualServerValidator{
-		isPlus:               false,
-		isDosEnabled:         false,
-		isCertManagerEnabled: false,
-		isExternalDNSEnabled: false,
+		isPlus:                       false,
+		isDosEnabled:                 false,
+		isCertManagerEnabled:         false,
+		isExternalDNSEnabled:         false,
+		isDirectiveAutoadjustEnabled: false,
 	}
 	for _, o := range opts {
 		o(&vsv)
@@ -620,7 +629,7 @@ func (vsv *VirtualServerValidator) validateUpstreams(upstreams []v1.Upstream, fi
 
 		allErrs = append(allErrs, rejectPlusResourcesInOSS(u, idxPath, vsv.isPlus)...)
 
-		err := internalValidation.BalanceProxiesForUpstreams(&u)
+		err := internalValidation.BalanceProxiesForUpstreams(&u, vsv.isDirectiveAutoadjustEnabled)
 		if err != nil {
 			allErrs = append(allErrs, field.Invalid(idxPath, "balancing proxy buffer sizes", err.Error()))
 		}

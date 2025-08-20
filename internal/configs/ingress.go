@@ -79,17 +79,18 @@ type MergeableIngresses struct {
 // NginxCfgParams is a collection of parameters
 // used by generateNginxCfg() and generateNginxCfgForMergeableIngresses()
 type NginxCfgParams struct {
-	staticParams              *StaticConfigParams
-	ingEx                     *IngressEx
-	mergeableIngs             *MergeableIngresses
-	apResources               *AppProtectResources
-	dosResource               *appProtectDosResource
-	BaseCfgParams             *ConfigParams
-	isMinion                  bool
-	isPlus                    bool
-	isResolverConfigured      bool
-	isWildcardEnabled         bool
-	ingressControllerReplicas int
+	staticParams                 *StaticConfigParams
+	ingEx                        *IngressEx
+	mergeableIngs                *MergeableIngresses
+	apResources                  *AppProtectResources
+	dosResource                  *appProtectDosResource
+	BaseCfgParams                *ConfigParams
+	isMinion                     bool
+	isPlus                       bool
+	isResolverConfigured         bool
+	isWildcardEnabled            bool
+	isDirectiveAutoadjustEnabled bool
+	ingressControllerReplicas    int
 }
 
 //nolint:gocyclo
@@ -98,7 +99,7 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 	hasAppProtect := p.staticParams.MainAppProtectLoadModule
 	hasAppProtectDos := p.staticParams.MainAppProtectDosLoadModule
 
-	cfgParams := parseAnnotations(p.ingEx, p.BaseCfgParams, p.isPlus, hasAppProtect, hasAppProtectDos, p.staticParams.EnableInternalRoutes)
+	cfgParams := parseAnnotations(p.ingEx, p.BaseCfgParams, p.isPlus, hasAppProtect, hasAppProtectDos, p.staticParams.EnableInternalRoutes, p.isDirectiveAutoadjustEnabled)
 
 	wsServices := getWebsocketServices(p.ingEx)
 	spServices := getSessionPersistenceServices(p.BaseCfgParams.Context, p.ingEx)

@@ -523,7 +523,7 @@ func TestBalanceProxyValues(t *testing.T) {
 				t.Fatalf("Failed to parse proxyBusyBuffers: %v", err)
 			}
 
-			gotProxyBuffers, gotProxyBufferSize, gotProxyBusyBufferSize, m, err := validation.BalanceProxyValues(pb, pbs, pbbs)
+			gotProxyBuffers, gotProxyBufferSize, gotProxyBusyBufferSize, m, err := validation.BalanceProxyValues(pb, pbs, pbbs, true)
 
 			assert.NoError(t, err)
 

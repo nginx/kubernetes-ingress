@@ -179,7 +179,11 @@ func NewNumberSizeConfig(sizeStr string) (NumberSizeConfig, error) {
 //
 // This function returns new values and an error. The returns in order are:
 // proxy_buffers, proxy_buffer_size, proxy_busy_buffers_size, error.
-func BalanceProxyValues(proxyBuffers NumberSizeConfig, proxyBufferSize, proxyBusyBuffers SizeWithUnit) (NumberSizeConfig, SizeWithUnit, SizeWithUnit, []string, error) {
+func BalanceProxyValues(proxyBuffers NumberSizeConfig, proxyBufferSize, proxyBusyBuffers SizeWithUnit, autoadjust bool) (NumberSizeConfig, SizeWithUnit, SizeWithUnit, []string, error) {
+	if !autoadjust {
+		return proxyBuffers, proxyBufferSize, proxyBusyBuffers, []string{"auto adjust is turned off, no changes have been made to the proxy values"}, nil
+	}
+
 	modifications := make([]string, 0)
 
 	if proxyBuffers.String() == "" && proxyBufferSize.String() == "" && proxyBusyBuffers.String() == "" {
@@ -264,7 +268,7 @@ func BalanceProxyValues(proxyBuffers NumberSizeConfig, proxyBufferSize, proxyBus
 // struct. The only reason for this function is to convert between the data type
 // in the Upstream struct and the data types used in the balancing logic and
 // back.
-func BalanceProxiesForUpstreams(in *conf_v1.Upstream) error {
+func BalanceProxiesForUpstreams(in *conf_v1.Upstream, autoadjust bool) error {
 	pb, err := NewNumberSizeConfig(fmt.Sprintf("%d %s", in.ProxyBuffers.Number, in.ProxyBuffers.Size))
 	if err != nil {
 		// if there's an error, set it to default `2 4k`
@@ -295,7 +299,7 @@ func BalanceProxiesForUpstreams(in *conf_v1.Upstream) error {
 		}
 	}
 
-	balancedPB, balancedPBS, balancedPBBS, _, err := BalanceProxyValues(pb, pbs, pbbs)
+	balancedPB, balancedPBS, balancedPBBS, _, err := BalanceProxyValues(pb, pbs, pbbs, autoadjust)
 	if err != nil {
 		return fmt.Errorf("error balancing proxy values: %w", err)
 	}

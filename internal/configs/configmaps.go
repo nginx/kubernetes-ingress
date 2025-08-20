@@ -31,7 +31,7 @@ const (
 // ParseConfigMap parses ConfigMap into ConfigParams.
 //
 //nolint:gocyclo
-func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, hasAppProtect bool, hasAppProtectDos bool, hasTLSPassthrough bool, eventLog record.EventRecorder) (*ConfigParams, bool) {
+func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, hasAppProtect bool, hasAppProtectDos bool, hasTLSPassthrough bool, enableDirectiveAutoadjust bool, eventLog record.EventRecorder) (*ConfigParams, bool) {
 	l := nl.LoggerFromContext(ctx)
 	cfgParams := NewDefaultConfigParams(ctx, nginxPlus)
 	configOk := true
@@ -367,7 +367,7 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		}
 	}
 
-	balancedProxyBuffers, balancedProxyBufferSize, balancedProxyBusyBufferSize, modifications, err := validation.BalanceProxyValues(cfgParams.ProxyBuffers, cfgParams.ProxyBufferSize, cfgParams.ProxyBusyBuffersSize)
+	balancedProxyBuffers, balancedProxyBufferSize, balancedProxyBusyBufferSize, modifications, err := validation.BalanceProxyValues(cfgParams.ProxyBuffers, cfgParams.ProxyBufferSize, cfgParams.ProxyBusyBuffersSize, enableDirectiveAutoadjust)
 	if err != nil {
 		nl.Errorf(l, "error reconciling proxy_buffers, proxy_buffer_size, and proxy_busy_buffers_size values: %s", err.Error())
 	}

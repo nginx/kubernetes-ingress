@@ -109,7 +109,8 @@ var allowedAnnotationKeys = []string{
 	"ingress.kubernetes.io/ssl-redirect",
 }
 
-func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool, hasAppProtect bool, hasAppProtectDos bool, enableInternalRoutes bool) ConfigParams {
+// nolint: gocyclo
+func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool, hasAppProtect bool, hasAppProtectDos bool, enableInternalRoutes bool, enableDirectiveAutoadjust bool) ConfigParams {
 	l := nl.LoggerFromContext(baseCfgParams.Context)
 	cfgParams := *baseCfgParams
 
@@ -327,7 +328,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		}
 	}
 
-	balancedProxyBuffers, balancedProxyBufferSize, balancedProxyBusyBufferSize, modifications, err := validation.BalanceProxyValues(cfgParams.ProxyBuffers, cfgParams.ProxyBufferSize, cfgParams.ProxyBusyBuffersSize)
+	balancedProxyBuffers, balancedProxyBufferSize, balancedProxyBusyBufferSize, modifications, err := validation.BalanceProxyValues(cfgParams.ProxyBuffers, cfgParams.ProxyBufferSize, cfgParams.ProxyBusyBuffersSize, enableDirectiveAutoadjust)
 	if err != nil {
 		nl.Errorf(l, "error reconciling proxy_buffers, proxy_buffer_size, and proxy_busy_buffers_size values: %s", err.Error())
 	}
