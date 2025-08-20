@@ -269,6 +269,10 @@ func BalanceProxyValues(proxyBuffers NumberSizeConfig, proxyBufferSize, proxyBus
 // in the Upstream struct and the data types used in the balancing logic and
 // back.
 func BalanceProxiesForUpstreams(in *conf_v1.Upstream, autoadjust bool) error {
+	if in.ProxyBuffers == nil {
+		return nil
+	}
+
 	pb, err := NewNumberSizeConfig(fmt.Sprintf("%d %s", in.ProxyBuffers.Number, in.ProxyBuffers.Size))
 	if err != nil {
 		// if there's an error, set it to default `2 4k`

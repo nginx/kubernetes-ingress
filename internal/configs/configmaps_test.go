@@ -2092,7 +2092,7 @@ func TestParseProxyBuffers(t *testing.T) {
 	hasAppProtect := false
 	hasAppProtectDos := false
 	hasTLSPassthrough := false
-	directiveAutoadjustEnabled := false
+	directiveAutoadjustEnabled := true
 
 	for _, test := range tests {
 		test := test // capture range variable
