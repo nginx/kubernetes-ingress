@@ -1,0 +1,14 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: rate-limit-variables-request-method-write
+spec:
+  rateLimit:
+    rate: 1r/s
+    key: ${request_method}
+    zoneSize: 10M
+    condition:
+      variables:
+        - name: $request_method
+          match: "~^POST|PATCH|PUT|DELETE$"
+      default: true

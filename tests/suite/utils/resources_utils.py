@@ -1011,7 +1011,7 @@ def clear_file_contents(v1: CoreV1Api, file_path, pod_name, pod_namespace):
     )
 
 
-def get_nginx_template_conf(v1: CoreV1Api, ingress_namespace, ic_pod_name=None) -> str:
+def get_nginx_template_conf(v1: CoreV1Api, ingress_namespace, ic_pod_name=None, print_log=True) -> str:
     """
     Get contents of /etc/nginx/nginx.conf in the pod
     :param v1: CoreV1Api
@@ -1022,7 +1022,7 @@ def get_nginx_template_conf(v1: CoreV1Api, ingress_namespace, ic_pod_name=None) 
     if ic_pod_name is None:
         ic_pod_name = get_first_pod_name(v1, ingress_namespace)
     file_path = "/etc/nginx/nginx.conf"
-    return get_file_contents(v1, file_path, ic_pod_name, ingress_namespace)
+    return get_file_contents(v1, file_path, ic_pod_name, ingress_namespace, print_log)
 
 
 def get_ingress_nginx_template_conf(v1: CoreV1Api, ingress_namespace, ingress_name, pod_name, pod_namespace) -> str:
@@ -1068,6 +1068,19 @@ def get_ts_nginx_template_conf(v1: CoreV1Api, resource_namespace, resource_name,
     """
     file_path = f"/etc/nginx/stream-conf.d/ts_{resource_namespace}_{resource_name}.conf"
     return get_file_contents(v1, file_path, pod_name, pod_namespace)
+
+
+def extract_block(nginx_config, block_name):
+    """
+    Extract a block of configuration from the nginx config file.
+
+    :param nginx_config: The nginx config file content as a string.
+    :param block_name: The name of the block to extract.
+    :return: The extracted block as a string.
+    """
+    start = nginx_config.find(block_name)
+    end = nginx_config.find("}", start) + 1
+    return nginx_config[start:end]
 
 
 def create_example_app(kube_apis, app_type, namespace) -> None:
@@ -2049,3 +2062,25 @@ def read_ingress(v1: NetworkingV1Api, name, namespace) -> V1Ingress:
     """
     print(f"Read an ingress named '{name}'")
     return v1.read_namespaced_ingress(name, namespace)
+
+
+def pod_restart(v1: CoreV1Api, namespace):
+    """
+    Restart all pods in a deployment.
+    """
+    try:
+        pods = v1.list_namespaced_pod(namespace=namespace)
+
+        print(f"Found {len(pods.items)} pods to restart")
+
+        # Delete all pods (they will be recreated by deployment)
+        for pod in pods.items:
+            print(f"Deleting pod {pod.metadata.name}")
+            v1.delete_namespaced_pod(name=pod.metadata.name, namespace=namespace)
+
+        wait_until_all_pods_are_ready(v1, namespace)
+        print("Pod restart complete")
+
+    except Exception as e:
+        print(f"Error in pod restart: {e}")
+        raise e

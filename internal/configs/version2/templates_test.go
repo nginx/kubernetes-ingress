@@ -121,6 +121,37 @@ func TestExecuteVirtualServerTemplate_RendersTemplateWithRateLimitJWTClaim(t *te
 	t.Log(string(got))
 }
 
+func TestExecuteVirtualServerTemplate_RendersTemplateWithRateLimitVariableAPIKey(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithRateLimitVariableAPIKey)
+	if err != nil {
+		t.Error(err)
+	}
+	wantedStrings := []string{
+		"limit_req_zone $pol_rl_default_basic_rate_limit_policy_default_cafe",
+		"limit_req_zone $pol_rl_default_premium_rate_limit_policy_default_cafe",
+		"$pol_rl_default_basic_rate_limit_policy_default_cafe {",
+		"$pol_rl_default_premium_rate_limit_policy_default_cafe {",
+		"$rl_default_cafe_variable_apikey_client_name",
+		"default rl_default_cafe_match_basic_rate_limit_policy",
+		"\"basic\" rl_default_cafe_match_basic_rate_limit_policy",
+		"\"premium\" rl_default_cafe_match_premium_rate_limit_policy",
+		"rl_default_cafe_match_basic_rate_limit_policy Val$apikey_client_name",
+		"rl_default_cafe_match_premium_rate_limit_policy Val$apikey_client_name",
+		"map $apikey_auth_token",
+		"map $apikey_client_name",
+	}
+	for _, value := range wantedStrings {
+		if !bytes.Contains(got, []byte(value)) {
+			t.Errorf("didn't get `%s`", value)
+		}
+	}
+
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
+}
+
 func TestExecuteVirtualServerTemplate_RendersTemplateWithSessionCookieSameSite(t *testing.T) {
 	t.Parallel()
 	executor := newTmplExecutorNGINXPlus(t)
@@ -706,6 +737,15 @@ func TestExecuteVirtualServerTemplateWithJWKSWithToken(t *testing.T) {
 	if !bytes.Contains(got, []byte("proxy_cache_valid 200 12h;")) {
 		t.Error("want `proxy_cache_valid 200 12h;` in generated template")
 	}
+
+	if !bytes.Contains(got, []byte("proxy_ssl_server_name on;")) {
+		t.Error("want `proxy_ssl_server_name on;` in generated template")
+	}
+
+	if !bytes.Contains(got, []byte("proxy_ssl_name sni.idp.spec.example.com;")) {
+		t.Error("want `proxy_ssl_name sni.idp.spec.example.com;` in generated template")
+	}
+
 	snaps.MatchSnapshot(t, string(got))
 	t.Log(string(got))
 }
@@ -762,7 +802,7 @@ func TestExecuteVirtualServerTemplateWithAPIKeyPolicyNGINXPlus(t *testing.T) {
 	vscfg.Server.APIKey = &APIKey{
 		Header:  []string{"X-header-name", "other-header"},
 		Query:   []string{"myQuery", "myOtherQuery"},
-		MapName: "vs-default-cafe-apikey-policy",
+		MapName: "vs_default_cafe_apikey_policy",
 	}
 
 	e := newTmplExecutorNGINXPlus(t)
@@ -776,6 +816,180 @@ func TestExecuteVirtualServerTemplateWithAPIKeyPolicyNGINXPlus(t *testing.T) {
 	if !bytes.Contains(got, []byte(want)) {
 		t.Errorf("want %q in generated template", want)
 	}
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
+}
+
+func TestExecuteVirtualServerTemplate_WithCustomOIDCRedirectLocation(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfg)
+	if err != nil {
+		t.Error(err)
+	}
+
+	expectedCustomLocation := "location = /custom-location {"
+	if !bytes.Contains(got, []byte(expectedCustomLocation)) {
+		t.Errorf("Custom redirectURI should generate location block: %s", expectedCustomLocation)
+	}
+
+	expectedDirectives := []string{
+		"status_zone \"OIDC code exchange\";",
+		"js_content oidc.codeExchange;",
+		"error_page 500 502 504 @oidc_error;",
+	}
+
+	for _, directive := range expectedDirectives {
+		if !bytes.Contains(got, []byte(directive)) {
+			t.Errorf("Custom location should contain directive: %s", directive)
+		}
+	}
+
+	expectedRedirVar := `set $redir_location "/custom-location";`
+	if !bytes.Contains(got, []byte(expectedRedirVar)) {
+		t.Errorf("Should set $redir_location to custom value: %s", expectedRedirVar)
+	}
+}
+
+func TestExecuteVirtualServerTemplateWithOIDCAndPKCEPolicyNGINXPlus(t *testing.T) {
+	t.Parallel()
+
+	e := newTmplExecutorNGINXPlus(t)
+	got, err := e.ExecuteVirtualServerTemplate(&virtualServerCfgWithOIDCAndPKCETurnedOn)
+	if err != nil {
+		t.Error(err)
+	}
+
+	want := "include oidc/oidc_pkce_supplements.conf"
+	want2 := "include oidc/oidc.conf;"
+
+	if !bytes.Contains(got, []byte(want)) {
+		t.Errorf("want %q in generated template", want)
+	}
+
+	if !bytes.Contains(got, []byte(want2)) {
+		t.Errorf("want %q in generated template", want2)
+	}
+
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
+}
+
+func TestExecuteVirtualServerTemplateWithCachePolicyNGINXPlus(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithCachePolicyNGINXPlus)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Check cache zone declaration
+	expectedCacheZone := "proxy_cache_path /var/cache/nginx/test_cache_full_advanced levels=2:2 keys_zone=test_cache_full_advanced:50m;"
+	if !bytes.Contains(got, []byte(expectedCacheZone)) {
+		t.Errorf("Expected cache zone declaration: %s", expectedCacheZone)
+	}
+
+	// Check cache purge configuration for NGINX Plus
+	expectedPurgeGeo := "geo $purge_allowed_test_cache_full_advanced {"
+	if !bytes.Contains(got, []byte(expectedPurgeGeo)) {
+		t.Errorf("Expected purge geo block: %s", expectedPurgeGeo)
+	}
+
+	expectedPurgeMap := "map $request_method $cache_purge_test_cache_full_advanced {"
+	if !bytes.Contains(got, []byte(expectedPurgeMap)) {
+		t.Errorf("Expected purge map block: %s", expectedPurgeMap)
+	}
+
+	// Check server-level cache configuration
+	expectedServerCacheDirectives := []string{
+		"proxy_cache test_cache_full_advanced;",
+		"proxy_cache_key $scheme$proxy_host$request_uri;",
+		"proxy_ignore_headers Cache-Control Expires Set-Cookie Vary X-Accel-Expires;",
+		"proxy_cache_valid 200 2h;",
+		"proxy_cache_valid 404 2h;",
+		"proxy_cache_valid 301 2h;",
+		"proxy_cache_methods GET HEAD POST;",
+		"proxy_cache_purge $cache_purge_test_cache_full_advanced;",
+	}
+
+	for _, directive := range expectedServerCacheDirectives {
+		if !bytes.Contains(got, []byte(directive)) {
+			t.Errorf("Expected server cache directive: %s", directive)
+		}
+	}
+
+	// Check location-level cache configuration
+	expectedLocationCacheDirectives := []string{
+		"proxy_cache test_cache_location_location_cache;",
+		"proxy_cache_valid any 1h;",
+		"proxy_cache_methods GET HEAD;",
+	}
+
+	for _, directive := range expectedLocationCacheDirectives {
+		if !bytes.Contains(got, []byte(directive)) {
+			t.Errorf("Expected location cache directive: %s", directive)
+		}
+	}
+
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
+}
+
+func TestExecuteVirtualServerTemplateWithCachePolicyOSS(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINX(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithCachePolicyOSS)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Check cache zone declaration
+	expectedCacheZone := "proxy_cache_path /var/cache/nginx/test_cache_basic_cache levels=1:2 keys_zone=test_cache_basic_cache:10m;"
+	if !bytes.Contains(got, []byte(expectedCacheZone)) {
+		t.Errorf("Expected cache zone declaration: %s", expectedCacheZone)
+	}
+
+	// Ensure no purge configuration for OSS (cachePurgeAllow should be ignored)
+	if bytes.Contains(got, []byte("geo $purge_allowed")) {
+		t.Error("OSS template should not contain cache purge geo blocks")
+	}
+
+	if bytes.Contains(got, []byte("map $request_method $cache_purge")) {
+		t.Error("OSS template should not contain cache purge map blocks")
+	}
+
+	if bytes.Contains(got, []byte("proxy_cache_purge")) {
+		t.Error("OSS template should not contain proxy_cache_purge directive")
+	}
+
+	// Check server-level cache configuration
+	expectedServerCacheDirectives := []string{
+		"proxy_cache test_cache_basic_cache;",
+		"proxy_cache_key $scheme$proxy_host$request_uri;",
+		"proxy_ignore_headers Cache-Control Expires Set-Cookie Vary X-Accel-Expires;",
+		"proxy_cache_valid any 1h;",
+		"proxy_cache_methods GET HEAD;",
+	}
+
+	for _, directive := range expectedServerCacheDirectives {
+		if !bytes.Contains(got, []byte(directive)) {
+			t.Errorf("Expected server cache directive: %s", directive)
+		}
+	}
+
+	// Check location-level cache configuration
+	expectedLocationCacheDirectives := []string{
+		"proxy_cache test_cache_location_simple_cache;",
+		"proxy_cache_valid 200 30m;",
+		"proxy_cache_valid 404 30m;",
+	}
+
+	for _, directive := range expectedLocationCacheDirectives {
+		if !bytes.Contains(got, []byte(directive)) {
+			t.Errorf("Expected location cache directive: %s", directive)
+		}
+	}
+
 	snaps.MatchSnapshot(t, string(got))
 	t.Log(string(got))
 }
@@ -1274,6 +1488,18 @@ var (
 			JWTAuth: &JWTAuth{
 				Realm:  "My Api",
 				Secret: "jwk-secret",
+			},
+			OIDC: &OIDC{
+				AuthEndpoint:          "https://idp.example.com/auth",
+				ClientID:              "test-client",
+				ClientSecret:          "test-secret",
+				JwksURI:               "https://idp.example.com/jwks",
+				TokenEndpoint:         "https://idp.example.com/token",
+				EndSessionEndpoint:    "https://idp.example.com/logout",
+				RedirectURI:           "/custom-location",
+				PostLogoutRedirectURI: "https://example.com/logout",
+				ZoneSyncLeeway:        0,
+				Scope:                 "openid+profile+email",
 			},
 			IngressMTLS: &IngressMTLS{
 				ClientCert:   "ingress-mtls-secret",
@@ -2014,6 +2240,148 @@ var (
 		},
 	}
 
+	virtualServerCfgWithRateLimitVariableAPIKey = VirtualServerConfig{
+		LimitReqZones: []LimitReqZone{
+			{
+				Key:           "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+				ZoneName:      "pol_rl_default_premium_rate_limit_policy_default_cafe",
+				ZoneSize:      "10M",
+				Rate:          "10r/s",
+				PolicyResult:  "$apikey_client_name",
+				GroupVariable: "$rl_default_cafe_variable_apikey_client_name_route_L3RlYQ",
+				PolicyValue:   "rl_default_cafe_match_premium_rate_limit_policy",
+				GroupValue:    `"premium"`,
+				GroupSource:   "$apikey_client_name",
+			},
+			{
+				Key:           "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+				ZoneName:      "pol_rl_default_basic_rate_limit_policy_default_cafe",
+				ZoneSize:      "20M",
+				Rate:          "20r/s",
+				PolicyResult:  "$apikey_client_name",
+				GroupVariable: "$rl_default_cafe_variable_apikey_client_name_route_L3RlYQ",
+				PolicyValue:   "rl_default_cafe_match_basic_rate_limit_policy",
+				GroupValue:    `"basic"`,
+				GroupSource:   "$apikey_client_name",
+				GroupDefault:  true,
+			},
+		},
+		Upstreams: []Upstream{},
+		Maps: []Map{
+			{
+				Source:   "$apikey_client_name",
+				Variable: "$rl_default_cafe_variable_apikey_client_name_route_L3RlYQ",
+				Parameters: []Parameter{
+					{
+						Value:  `"basic"`,
+						Result: "rl_default_cafe_match_basic_rate_limit_policy",
+					},
+					{
+						Value:  "default",
+						Result: "rl_default_cafe_match_basic_rate_limit_policy",
+					},
+					{
+						Value:  `"premium"`,
+						Result: "rl_default_cafe_match_premium_rate_limit_policy",
+					},
+				},
+			},
+			{
+				Source:   "$rl_default_cafe_variable_apikey_client_name_route_L3RlYQ",
+				Variable: "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+				Parameters: []Parameter{
+					{
+						Value:  "default",
+						Result: "''",
+					},
+					{
+						Value:  "rl_default_cafe_match_premium_rate_limit_policy",
+						Result: "Val$apikey_client_name",
+					},
+				},
+			},
+			{
+				Source:   "$rl_default_cafe_variable_apikey_client_name_route_L3RlYQ",
+				Variable: "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+				Parameters: []Parameter{
+					{
+						Value:  "default",
+						Result: "''",
+					},
+					{
+						Value:  "rl_default_cafe_match_basic_rate_limit_policy",
+						Result: "Val$apikey_client_name",
+					},
+				},
+			},
+			{
+				Source:   "$apikey_auth_token",
+				Variable: "$apikey_auth_client_name_default_cafe_api_key_policy",
+				Parameters: []Parameter{
+					{
+						Value:  "default",
+						Result: `""`,
+					},
+					{
+						Value:  `"e96ac3dd8ef94a6c4bb88f216231c1968e1700add139d722fe406cd0cae73074"`,
+						Result: `"premium"`,
+					},
+					{
+						Value:  `"e1e1a4f93c814d938254e6fd7da12f096c9948eae7bc4137656202a413a0f3f4"`,
+						Result: `"basic"`,
+					},
+				},
+			},
+		},
+		Server: Server{
+			ServerName:   "cafe.example.com",
+			StatusZone:   "cafe.example.com",
+			ServerTokens: "off",
+			VSNamespace:  "default",
+			VSName:       "cafe",
+
+			Locations: []Location{
+				{
+					Path:                     "/tea",
+					ProxyPass:                "http://vs_default_cafe_tea",
+					ProxyNextUpstream:        "error timeout",
+					ProxyNextUpstreamTimeout: "0s",
+					ProxyNextUpstreamTries:   0,
+					ProxySSLName:             "tea-svc.default.svc",
+					ProxyPassRequestHeaders:  true,
+					ProxySetHeaders:          []Header{{Name: "Host", Value: "$host"}},
+					ServiceName:              "tea-svc",
+					LimitReqs: []LimitReq{
+						{ZoneName: "pol_rl_default_premium_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+						{ZoneName: "pol_rl_default_basic_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+					},
+					LimitReqOptions: LimitReqOptions{
+						DryRun:     false,
+						LogLevel:   "error",
+						RejectCode: 503,
+					},
+				},
+				{
+					Path:                     "/coffee",
+					ProxyPass:                "http://vs_default_cafe_coffee",
+					ProxyNextUpstream:        "error timeout",
+					ProxyNextUpstreamTimeout: "0s",
+					ProxyNextUpstreamTries:   0,
+					ProxySSLName:             "coffee-svc.default.svc",
+					ProxyPassRequestHeaders:  true,
+					ProxySetHeaders:          []Header{{Name: "Host", Value: "$host"}},
+					ServiceName:              "coffee-svc",
+				},
+			},
+			APIKeyEnabled: true,
+			APIKey: &APIKey{
+				Header:  []string{"X-API-Key"},
+				Query:   []string{"api-key"},
+				MapName: "apikey_auth_client_name_default_cafe_api_key_policy",
+			},
+		},
+	}
+
 	virtualServerCfgWithWAFApBundle = VirtualServerConfig{
 		Server: Server{
 			ServerName: "example.com",
@@ -2105,10 +2473,12 @@ var (
 					Token:    "$http_token",
 					KeyCache: "1h",
 					JwksURI: JwksURI{
-						JwksScheme: "https",
-						JwksHost:   "idp.spec.example.com",
-						JwksPort:   "443",
-						JwksPath:   "/spec-keys",
+						JwksScheme:     "https",
+						JwksHost:       "idp.spec.example.com",
+						JwksPort:       "443",
+						JwksPath:       "/spec-keys",
+						JwksSNIEnabled: true,
+						JwksSNIName:    "sni.idp.spec.example.com",
 					},
 				},
 				"default/jwt-policy-route": {
@@ -2117,10 +2487,12 @@ var (
 					Token:    "$http_token",
 					KeyCache: "1h",
 					JwksURI: JwksURI{
-						JwksScheme: "http",
-						JwksHost:   "idp.route.example.com",
-						JwksPort:   "80",
-						JwksPath:   "/route-keys",
+						JwksScheme:     "http",
+						JwksHost:       "idp.route.example.com",
+						JwksPort:       "80",
+						JwksPath:       "/route-keys",
+						JwksSNIEnabled: true,
+						JwksSNIName:    "sni.idp.spec.example.com",
 					},
 				},
 			},
@@ -2365,6 +2737,142 @@ var (
 			Locations: []Location{
 				{
 					Path: "/",
+				},
+			},
+		},
+	}
+
+	virtualServerCfgWithOIDCAndPKCETurnedOn = VirtualServerConfig{
+		Server: Server{
+			ServerName:    "example.com",
+			StatusZone:    "example.com",
+			ProxyProtocol: true,
+			OIDC: &OIDC{
+				PKCEEnable: true,
+			},
+			Locations: []Location{
+				{
+					Path: "/",
+				},
+			},
+		},
+	}
+
+	virtualServerCfgWithCachePolicyNGINXPlus = VirtualServerConfig{
+		CacheZones: []CacheZone{
+			{
+				Name:   "test_cache_full_advanced",
+				Size:   "50m",
+				Path:   "/var/cache/nginx/test_cache_full_advanced",
+				Levels: "2:2",
+			},
+			{
+				Name:   "test_cache_location_location_cache",
+				Size:   "20m",
+				Path:   "/var/cache/nginx/test_cache_location_location_cache",
+				Levels: "",
+			},
+		},
+		Upstreams: []Upstream{
+			{
+				Name: "test-upstream",
+				Servers: []UpstreamServer{
+					{
+						Address: "10.0.0.20:8001",
+					},
+				},
+			},
+		},
+		Server: Server{
+			ServerName:   "example.com",
+			StatusZone:   "example.com",
+			ServerTokens: "off",
+			// Server-level cache policy with all advanced options (NGINX Plus)
+			Cache: &Cache{
+				ZoneName:              "test_cache_full_advanced",
+				ZoneSize:              "50m",
+				Time:                  "2h",
+				Valid:                 map[string]string{"200": "2h", "404": "2h", "301": "2h"},
+				AllowedMethods:        []string{"GET", "HEAD", "POST"},
+				CachePurgeAllow:       []string{"127.0.0.1", "10.0.0.0/8", "192.168.1.0/24"},
+				OverrideUpstreamCache: true,
+				Levels:                "2:2",
+			},
+			Locations: []Location{
+				{
+					Path:      "/",
+					ProxyPass: "http://test-upstream",
+					// Location-level cache policy with basic options
+					Cache: &Cache{
+						ZoneName:              "test_cache_location_location_cache",
+						ZoneSize:              "20m",
+						Time:                  "1h",
+						Valid:                 map[string]string{"any": "1h"},
+						AllowedMethods:        []string{"GET", "HEAD"},
+						CachePurgeAllow:       nil,
+						OverrideUpstreamCache: false,
+						Levels:                "",
+					},
+				},
+			},
+		},
+	}
+
+	virtualServerCfgWithCachePolicyOSS = VirtualServerConfig{
+		CacheZones: []CacheZone{
+			{
+				Name:   "test_cache_basic_cache",
+				Size:   "10m",
+				Path:   "/var/cache/nginx/test_cache_basic_cache",
+				Levels: "1:2",
+			},
+			{
+				Name:   "test_cache_location_simple_cache",
+				Size:   "5m",
+				Path:   "/var/cache/nginx/test_cache_location_simple_cache",
+				Levels: "",
+			},
+		},
+		Upstreams: []Upstream{
+			{
+				Name: "test-upstream",
+				Servers: []UpstreamServer{
+					{
+						Address: "10.0.0.20:8001",
+					},
+				},
+			},
+		},
+		Server: Server{
+			ServerName:   "example.com",
+			StatusZone:   "example.com",
+			ServerTokens: "off",
+			// Server-level cache policy with basic options (OSS)
+			Cache: &Cache{
+				ZoneName:              "test_cache_basic_cache",
+				ZoneSize:              "10m",
+				Time:                  "1h",
+				Valid:                 map[string]string{"any": "1h"},
+				AllowedMethods:        []string{"GET", "HEAD"},
+				CachePurgeAllow:       []string{"127.0.0.1"}, // This should be ignored for OSS
+				OverrideUpstreamCache: true,
+				Levels:                "1:2",
+			},
+			Locations: []Location{
+				{
+					Path:      "/",
+					ProxyPass: "http://test-upstream",
+					// Location-level cache policy with specific status codes
+					Cache: &Cache{
+						ZoneName:              "test_cache_location_simple_cache",
+						ZoneSize:              "5m",
+						Time:                  "30m",
+						Valid:                 map[string]string{"200": "30m", "404": "30m"},
+						AllowedMethods:        nil,
+						CachePurgeAllow:       nil,
+						OverrideUpstreamCache: false,
+						Levels:                "",
+					},
 				},
 			},
 		},

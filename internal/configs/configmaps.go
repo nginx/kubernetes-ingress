@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nginx/kubernetes-ingress/internal/validation"
+
 	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
 
 	v1 "k8s.io/api/core/v1"
@@ -16,11 +18,12 @@ import (
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
-	"github.com/nginx/kubernetes-ingress/internal/validation"
+	k8s_validation "k8s.io/apimachinery/pkg/util/validation"
 )
 
 const (
 	minimumInterval     = 60
+	maximumInterval     = 24 * 60 * 60 // interval cannot be greater than 24h
 	zoneSyncDefaultPort = 12345
 	kubeDNSDefault      = "kube-dns.kube-system.svc.cluster.local"
 )
@@ -530,6 +533,11 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		}
 	}
 
+	_, otelErr := parseConfigMapOpenTelemetry(l, cfgm, cfgParams, eventLog)
+	if otelErr != nil {
+		configOk = false
+	}
+
 	if hasAppProtect {
 		if appProtectFailureModeAction, exists := cfgm.Data["app-protect-failure-mode-action"]; exists {
 			if appProtectFailureModeAction == "pass" || appProtectFailureModeAction == "drop" {
@@ -740,6 +748,96 @@ func parseConfigMapZoneSync(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *Confi
 	return &cfgParams.ZoneSync, nil
 }
 
+//nolint:gocyclo
+func parseConfigMapOpenTelemetry(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *ConfigParams, eventLog record.EventRecorder) (*ConfigParams, error) {
+	otelValid := true
+
+	if otelExporterEndpoint, exists := cfgm.Data["otel-exporter-endpoint"]; exists {
+		otelExporterEndpoint = strings.TrimSpace(otelExporterEndpoint)
+		if otelExporterEndpoint != "" {
+			if err := validation.ValidateURI(otelExporterEndpoint); err != nil {
+				nl.Warn(l, err)
+				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
+				return nil, err
+			}
+			cfgParams.MainOtelExporterEndpoint = otelExporterEndpoint
+		}
+	}
+
+	if otelExporterHeaderName, exists := cfgm.Data["otel-exporter-header-name"]; exists {
+		otelExporterHeaderName = strings.TrimSpace(otelExporterHeaderName)
+		if otelExporterHeaderName != "" {
+			errorMessages := k8s_validation.IsHTTPHeaderName(otelExporterHeaderName)
+			if len(errorMessages) > 0 {
+				errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'otel-exporter-header-name': %q, %v", cfgm.GetNamespace(), cfgm.GetName(), otelExporterHeaderName, errorMessages)
+				nl.Error(l, errorText)
+				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+				otelValid = false
+			} else {
+				cfgParams.MainOtelExporterHeaderName = otelExporterHeaderName
+			}
+		}
+	}
+
+	if otelExporterHeaderValue, exists := cfgm.Data["otel-exporter-header-value"]; exists {
+		otelExporterHeaderValue = strings.TrimSpace(otelExporterHeaderValue)
+		if otelExporterHeaderValue != "" {
+			cfgParams.MainOtelExporterHeaderValue = otelExporterHeaderValue
+		}
+	}
+
+	if otelServiceName, exists := cfgm.Data["otel-service-name"]; exists {
+		otelServiceName = strings.TrimSpace(otelServiceName)
+		if otelServiceName != "" {
+			cfgParams.MainOtelServiceName = otelServiceName
+		}
+	}
+
+	if otelTraceInHTTP, exists, err := GetMapKeyAsBool(cfgm.Data, "otel-trace-in-http", cfgm); exists {
+		if err != nil {
+			nl.Error(l, err)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
+			otelValid = false
+		}
+		cfgParams.MainOtelTraceInHTTP = otelTraceInHTTP
+	}
+
+	if (cfgParams.MainOtelExporterHeaderName != "" && cfgParams.MainOtelExporterHeaderValue == "") ||
+		(cfgParams.MainOtelExporterHeaderName == "" && cfgParams.MainOtelExporterHeaderValue != "") {
+		cfgParams.MainOtelExporterHeaderName = ""
+		cfgParams.MainOtelExporterHeaderValue = ""
+		errorText := "Both 'otel-exporter-header-name' and 'otel-exporter-header-value' must be set or neither"
+		nl.Error(l, errorText)
+		eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+		otelValid = false
+	}
+
+	if cfgParams.MainOtelExporterEndpoint != "" {
+		cfgParams.MainOtelLoadModule = true
+	}
+
+	if cfgParams.MainOtelExporterEndpoint == "" &&
+		(cfgParams.MainOtelExporterHeaderName != "" ||
+			cfgParams.MainOtelExporterHeaderValue != "" ||
+			cfgParams.MainOtelServiceName != "" ||
+			cfgParams.MainOtelTraceInHTTP) {
+		errorText := "ConfigMap key 'otel-exporter-endpoint' is required when other otel fields are set"
+		nl.Error(l, errorText)
+		eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+		otelValid = false
+		cfgParams.MainOtelTraceInHTTP = false
+		cfgParams.MainOtelExporterHeaderName = ""
+		cfgParams.MainOtelExporterHeaderValue = ""
+		cfgParams.MainOtelServiceName = ""
+	}
+
+	if !otelValid {
+		return nil, errors.New("invalid OpenTelemetry configuration")
+	}
+
+	return cfgParams, nil
+}
+
 // ParseMGMTConfigMap parses the mgmt block ConfigMap into MGMTConfigParams.
 //
 //nolint:gocyclo
@@ -812,23 +910,34 @@ func ParseMGMTConfigMap(ctx context.Context, cfgm *v1.ConfigMap, eventLog record
 
 	if interval, exists := cfgm.Data["usage-report-interval"]; exists {
 		i := strings.TrimSpace(interval)
-		t, err := time.ParseDuration(i)
-		if err != nil {
-			errorText := fmt.Sprintf("Configmap %s/%s: Invalid value for the interval key: got %q: %v. Ignoring.", cfgm.GetNamespace(), cfgm.GetName(), i, err)
-			nl.Error(l, errorText)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-			configWarnings = true
-		}
-		if t.Seconds() < minimumInterval {
-			errorText := fmt.Sprintf("Configmap %s/%s: Value too low for the interval key, got: %v, need higher than %ds. Ignoring.", cfgm.GetNamespace(), cfgm.GetName(), i, minimumInterval)
-			nl.Error(l, errorText)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-			configWarnings = true
-			mgmtCfgParams.Interval = ""
-		} else {
-			mgmtCfgParams.Interval = i
-		}
 
+		// Validate interval: check for unsupported units and parse duration in case json schema validation is not used.
+		if strings.Contains(i, "ms") || strings.Contains(i, "d") {
+			errorText := fmt.Sprintf("Configmap %s/%s: Invalid unit for the interval key: got %q. Only seconds (s), minutes (m), and hours (h) are allowed. Ignoring.", cfgm.GetNamespace(), cfgm.GetName(), i)
+			nl.Error(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			configWarnings = true
+		} else {
+			t, err := time.ParseDuration(i)
+			if err != nil {
+				errorText := fmt.Sprintf("Configmap %s/%s: Invalid value for the interval key: got %q: %v. Ignoring.", cfgm.GetNamespace(), cfgm.GetName(), i, err)
+				nl.Error(l, errorText)
+				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+				configWarnings = true
+			} else if t.Seconds() < minimumInterval {
+				errorText := fmt.Sprintf("Configmap %s/%s: Value too low for the interval key, got: %v, need higher than %ds. Ignoring.", cfgm.GetNamespace(), cfgm.GetName(), i, minimumInterval)
+				nl.Error(l, errorText)
+				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+				configWarnings = true
+			} else if t.Seconds() > maximumInterval {
+				errorText := fmt.Sprintf("Configmap %s/%s: Value too high for the interval key, got: %v, maximum allowed is %ds (24h). Ignoring.", cfgm.GetNamespace(), cfgm.GetName(), i, maximumInterval)
+				nl.Error(l, errorText)
+				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+				configWarnings = true
+			} else {
+				mgmtCfgParams.Interval = i
+			}
+		}
 	}
 	if trustedCertSecretName, exists := cfgm.Data["ssl-trusted-certificate-secret-name"]; exists {
 		mgmtCfgParams.Secrets.TrustedCert = strings.TrimSpace(trustedCertSecretName)
@@ -913,6 +1022,12 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		NginxStatus:                        staticCfgParams.NginxStatus,
 		NginxStatusAllowCIDRs:              staticCfgParams.NginxStatusAllowCIDRs,
 		NginxStatusPort:                    staticCfgParams.NginxStatusPort,
+		MainOtelLoadModule:                 config.MainOtelLoadModule,
+		MainOtelGlobalTraceEnabled:         config.MainOtelTraceInHTTP,
+		MainOtelExporterEndpoint:           config.MainOtelExporterEndpoint,
+		MainOtelExporterHeaderName:         config.MainOtelExporterHeaderName,
+		MainOtelExporterHeaderValue:        config.MainOtelExporterHeaderValue,
+		MainOtelServiceName:                config.MainOtelServiceName,
 		ProxyProtocol:                      config.ProxyProtocol,
 		ResolverAddresses:                  config.ResolverAddresses,
 		ResolverIPV6:                       config.ResolverIPV6,

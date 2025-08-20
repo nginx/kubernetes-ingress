@@ -24,7 +24,7 @@ controller:
 
     # usageReport:
     #   endpoint: "product.connect.nginx.com" # Endpoint for usage report
-    #   interval: 1h
+    #   interval: 1h # Interval for usage report, must be between 60s and 24h,
     #   proxyHost: "proxy.example.com:3138" # Proxy server for usage report, with optional port
     #   proxyCredentialsSecretName: "proxy-credentials" # Secret containing proxy credentials, must contain a `username` and `password` field
 
@@ -84,7 +84,7 @@ controller:
         repository: private-registry.nginx.com/nap/waf-enforcer
 
         ## The tag of the App Protect WAF v5 Enforcer image.
-        tag: "5.6.0"
+        tag: "5.8.0"
         ## The digest of the App Protect WAF v5 Enforcer image.
         ## If digest is specified it has precedence over tag and will be used instead
         # digest: "sha256:CHANGEME"
@@ -100,7 +100,7 @@ controller:
         repository: private-registry.nginx.com/nap/waf-config-mgr
 
         ## The tag of the App Protect WAF v5 Configuration Manager image.
-        tag: "5.6.0"
+        tag: "5.8.0"
         ## The digest of the App Protect WAF v5 Configuration Manager image.
         ## If digest is specified it has precedence over tag and will be used instead
         # digest: "sha256:CHANGEME"
@@ -164,6 +164,16 @@ controller:
   ## Sets the log format of Ingress Controller. Options include: glog, json, text
   logFormat: glog
 
+  ## Cache configuration options
+  cache:
+    ## Enables shared cache across multiple pods using an external persistent volume
+    ## When enabled, the /var/cache/nginx directory will be mounted from a PVC instead of using emptyDir
+    ## User must create and configure a PVC with appropriate access mode
+    enableShared: false
+
+    ## The name of the PersistentVolumeClaim to use for shared cache, should match the name of the PVC created by the user
+    sharedPVCName: "nginx-shared-cache"
+
   ## A list of custom ports to expose on the NGINX Ingress Controller pod. Follows the conventional Kubernetes yaml syntax for container ports.
   customPorts: []
 
@@ -172,7 +182,7 @@ controller:
     repository: nginx/nginx-ingress
 
     ## The tag of the Ingress Controller image. If not specified the appVersion from Chart.yaml is used as a tag.
-    # tag: "5.0.0"
+    # tag: "5.1.1"
     ## The digest of the Ingress Controller image.
     ## If digest is specified it has precedence over tag and will be used instead
     # digest: "sha256:CHANGEME"
@@ -502,6 +512,15 @@ controller:
     ## A list of custom ports to expose through the Ingress Controller service. Follows the conventional Kubernetes yaml syntax for service ports.
     customPorts: []
 
+    ## Session affinity configuration for the Ingress Controller service, ensures requests from the same client IP go to the same pod
+    sessionAffinity:
+      ## Enable session affinity. Valid values: None, ClientIP
+      enable: false
+      ## Session affinity type. Currently only ClientIP is supported.
+      type: ClientIP
+      ## Session affinity timeout in seconds (default: 3600 = 1 hour)
+      timeoutSeconds: 3600
+
   serviceAccount:
     ## The annotations of the service account of the Ingress Controller pods.
     annotations: {}
@@ -565,6 +584,32 @@ controller:
 
     ## The number of seconds after the Ingress Controller pod has started before readiness probes are initiated.
     initialDelaySeconds: 0
+
+  startupStatus:
+
+    ## Enable the startup probe.
+    enable: false
+
+    # ## Set the port where the startup endpoint is exposed. This is a required value if startupStatus.enable is true.
+    # port: 9999
+
+    # ## path to the startup endpoint. This is a required value if startupStatus.enable is true.
+    # path: /
+
+    # ## The number of seconds after the Ingress Controller pod has started before startup probes are initiated.
+    # initialDelaySeconds: 5
+
+    # ## The number of seconds between each startup probe.
+    # periodSeconds: 1
+
+    # ## The number of seconds after which the startup probe times out.
+    # timeoutSeconds: 1
+
+    # ## The number of seconds after which the startup probe is considered successful.
+    # successThreshold: 1
+
+    # ## The number of seconds after which the startup probe is considered failed.
+    # failureThreshold: 30
 
   ## Enable collection of latency metrics for upstreams. Requires prometheus.create.
   enableLatencyMetrics: false
@@ -665,7 +710,14 @@ nginxServiceMesh:
 nginxAgent:
   ## Enables NGINX Agent.
   enable: false
-  logLevel: "error"
+  logLevel: "info"
+
+  # Agent V3 configuration
+  # Dataplane key is required to authenticate NGINX Agent with NGINX One Console
+  dataplaneKeySecretName: ""
+  endpointHost: "agent.connect.nginx.com"
+  endpointPort: 443
+  tlsSkipVerify: false
 
   # Agent V2 configuration
   ## If nginxAgent.instanceGroup is not set the value of nginx-ingress.controller.fullname will be used

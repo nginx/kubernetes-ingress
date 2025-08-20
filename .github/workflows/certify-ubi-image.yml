@@ -21,7 +21,7 @@ on:
       platforms:
         description: A comma separated list of architectures in the image manifest to certify
         required: false
-        default: "amd64,arm64,ppc64le,s390x"
+        default: "amd64,arm64"
 
 defaults:
   run:
@@ -33,10 +33,10 @@ permissions:
 jobs:
   certify-ubi-images:
     name: Certify OpenShift UBI images
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Certify UBI OSS images in quay
         uses: ./.github/actions/certify-openshift-image

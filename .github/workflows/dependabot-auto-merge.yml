@@ -6,7 +6,7 @@ permissions:
 
 jobs:
   dependabot:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}
     permissions:
       pull-requests: write
@@ -20,4 +20,4 @@ jobs:
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{github.event.pull_request.html_url}}
-          GITHUB_TOKEN: ${{ secrets.NGINX_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

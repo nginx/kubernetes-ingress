@@ -70,6 +70,10 @@ map {{ $m.Source }} {{ $m.Variable }} {
 limit_req_zone {{ $z.Key }} zone={{ $z.ZoneName }}:{{ $z.ZoneSize }} rate={{ $z.Rate }}{{- if $z.Sync }} sync{{- end }};
 {{- end }}
 
+{{- range $c := .CacheZones }}
+proxy_cache_path {{ $c.Path }}{{ if $c.Levels }} levels={{ $c.Levels }}{{ end }} keys_zone={{ $c.Name }}:{{ $c.Size }};
+{{- end }}
+
 {{- range $m := .StatusMatches }}
 match {{ $m.Name }} {
     status {{ $m.Code }};
@@ -78,8 +82,45 @@ match {{ $m.Name }} {
 
 {{- $s := .Server }}
 
+{{- /* Generate cache-zone-specific purge configuration with VirtualServer isolation */ -}}
+{{- /* Check server-level cache purge restrictions */ -}}
+{{- if and $s.Cache (gt (len $s.Cache.CachePurgeAllow) 0) }}
+geo $purge_allowed_{{ replaceAll $s.Cache.ZoneName "-" "_" }} {
+    default 0;
+{{- range $ip := $s.Cache.CachePurgeAllow }}
+    {{ $ip }} 1;
+{{- end }}
+}
+
+map $request_method $cache_purge_{{ replaceAll $s.Cache.ZoneName "-" "_" }} {
+    PURGE   $purge_allowed_{{ replaceAll $s.Cache.ZoneName "-" "_" }};
+    default 0;
+}
+{{- end }}
+
+{{- /* Check location-level cache purge restrictions */ -}}
+{{- range $l := $s.Locations }}
+{{- if and $l.Cache (gt (len $l.Cache.CachePurgeAllow) 0) }}
+geo $purge_allowed_{{ replaceAll $l.Cache.ZoneName "-" "_" }} {
+    default 0;
+{{- range $ip := $l.Cache.CachePurgeAllow }}
+    {{ $ip }} 1;
+{{- end }}
+}
+
+map $request_method $cache_purge_{{ replaceAll $l.Cache.ZoneName "-" "_" }} {
+    PURGE   $purge_allowed_{{ replaceAll $l.Cache.ZoneName "-" "_" }};
+    default 0;
+}
+{{- end }}
+{{- end }}
+
 {{- with $s.JWKSAuthEnabled }}
 proxy_cache_path /var/cache/nginx/jwks_uri_{{$s.VSName}} levels=1 keys_zone=jwks_uri_{{$s.VSName}}:1m max_size=10m;
+{{- end }}
+
+{{- if and $s.OIDC $s.OIDC.PKCEEnable }}
+include oidc/oidc_pkce_supplements.conf;
 {{- end }}
 
 server {
@@ -97,7 +138,7 @@ server {
     {{- with $oidc := $s.OIDC }}
     include oidc/oidc.conf;
 
-    set $oidc_pkce_enable 0;
+    set $oidc_pkce_enable {{ boolToInteger $oidc.PKCEEnable }};
     set $oidc_client_auth_method "client_secret_post";
     set $oidc_logout_redirect "{{ $oidc.PostLogoutRedirectURI }}";
     set $oidc_hmac_key "{{ $s.VSName }}";
@@ -112,6 +153,14 @@ server {
     set $oidc_client "{{ $oidc.ClientID }}";
     set $oidc_client_secret "{{ $oidc.ClientSecret }}";
     set $redir_location "{{ $oidc.RedirectURI }}";
+    {{- if and $oidc.RedirectURI (ne $oidc.RedirectURI "/_codexch") }}
+    # Custom OIDC redirect location based on policy redirectURI
+    location = {{ $oidc.RedirectURI }} {
+        status_zone "OIDC code exchange";
+        js_content oidc.codeExchange;
+        error_page 500 502 504 @oidc_error;
+    }
+    {{- end }}
     {{- end }}
 
     {{- with $ssl := $s.SSL }}
@@ -175,6 +224,27 @@ server {
     return {{ .Code }};
     {{- end }}
 
+    {{- with $s.Cache }}
+    # Server-level cache configuration
+    proxy_cache {{ $s.Cache.ZoneName }};
+    proxy_cache_key $scheme$proxy_host$request_uri;
+            {{- if $s.Cache.OverrideUpstreamCache }}
+    proxy_ignore_headers Cache-Control Expires Set-Cookie Vary X-Accel-Expires;
+            {{- end }}
+            {{- if and $s.Cache.Time (eq (len $s.Cache.Valid) 0) }}
+    proxy_cache_valid {{ $s.Cache.Time }};
+            {{- end }}
+            {{- range $code, $time := $s.Cache.Valid }}
+    proxy_cache_valid {{ $code }} {{ $time }};
+            {{- end }}
+            {{- if $s.Cache.AllowedMethods }}
+    proxy_cache_methods{{ range $s.Cache.AllowedMethods }} {{ . }}{{ end }};
+            {{- end }}
+            {{- if gt (len $s.Cache.CachePurgeAllow) 0 }}
+    proxy_cache_purge $cache_purge_{{ replaceAll $s.Cache.ZoneName "-" "_" }};
+            {{- end }}
+    {{- end }}
+
     {{- range $allow := $s.Allow }}
     allow {{ $allow }};
     {{- end }}
@@ -225,6 +295,14 @@ server {
         proxy_cache_valid 200 12h;
         {{- end }}
         {{- with .JwksURI }}
+        {{- if .JwksSNIEnabled }}
+        proxy_ssl_server_name on;
+        {{- if .JwksSNIName }}
+        proxy_ssl_name {{ .JwksSNIName }};
+        {{- end }}
+        {{- end }}
+        proxy_pass_request_headers off;
+        proxy_pass_request_body off;
         proxy_set_header Host {{ .JwksHost }};
         set $idp_backend {{ .JwksHost }};
         proxy_pass {{ .JwksScheme}}://$idp_backend{{ if .JwksPort }}:{{ .JwksPort }}{{ end }}{{ .JwksPath }};
@@ -267,6 +345,7 @@ server {
     js_var $apikey_auth_local_map "{{ .MapName}}";
     js_var $apikey_auth_token $apikey_auth_hash;
     auth_request /_validate_apikey_njs;
+    js_var $apikey_client_name ${{ .MapName }};
     {{- end }}
 
     {{- with $s.WAF }}
@@ -356,7 +435,7 @@ server {
         {{- if $hc.GRPCPass }} type=grpc{{- if $hc.GRPCStatus }} grpc_status={{ $hc.GRPCStatus }}{{- end -}}
         {{- if $hc.GRPCService }} grpc_service={{ $hc.GRPCService }}{{- end -}}{{ end -}};
 
-   }
+    }
     {{- end }}
 
     {{- range $e := $s.ErrorPageLocations }}
@@ -483,6 +562,7 @@ server {
         set $header_query_value {{ makeHeaderQueryValue $l.APIKey | printf }};
         set $apikey_auth_token $apikey_auth_hash;
         auth_request /_validate_apikey_njs;
+        set $apikey_client_name ${{ .MapName }};
         {{- else }}
         {{- with $s.APIKey }}
         set $header_query_value {{ makeHeaderQueryValue $s.APIKey | printf }};
@@ -650,6 +730,27 @@ server {
         {{ $proxyOrGRPC }}_ssl_verify_depth 25;
         {{ $proxyOrGRPC }}_ssl_name {{ $l.ProxySSLName }};
             {{- end }}
+
+        {{- with $l.Cache }}
+        proxy_cache {{ $l.Cache.ZoneName }};
+        proxy_cache_key $scheme$proxy_host$request_uri;
+                {{- if $l.Cache.OverrideUpstreamCache }}
+        proxy_ignore_headers Cache-Control Expires Set-Cookie Vary X-Accel-Expires;
+                {{- end }}
+                {{- if and $l.Cache.Time (eq (len $l.Cache.Valid) 0) }}
+        proxy_cache_valid {{ $l.Cache.Time }};
+                {{- end }}
+                {{- range $code, $time := $l.Cache.Valid }}
+        proxy_cache_valid {{ $code }} {{ $time }};
+                {{- end }}
+                {{- if $l.Cache.AllowedMethods }}
+        proxy_cache_methods{{ range $l.Cache.AllowedMethods }} {{ . }}{{ end }};
+                {{- end }}
+                {{- if gt (len $l.Cache.CachePurgeAllow) 0 }}
+        proxy_cache_purge $cache_purge_{{ replaceAll $l.Cache.ZoneName "-" "_" }};
+                {{- end }}
+        {{- end }}
+
             {{-  if $l.GRPCPass }}
         grpc_pass {{ $l.GRPCPass }};
             {{- else }}
@@ -664,7 +765,7 @@ server {
 
     {{- with $ssl := $s.SSL }}
         {{ if $ssl.HTTP2 }}
-	location @grpc_deadline_exceeded {
+    location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
         add_header grpc-status 4;
@@ -720,6 +821,6 @@ server {
         return 204;
     }
 
-	    {{ end }}
+        {{ end }}
     {{ end }}
 }

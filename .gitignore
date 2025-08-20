@@ -33,6 +33,7 @@ dist/
 # NGINX Plus license files
 *.crt
 *.key
+*.jwt
 
 # RHEL license
 rhel_license
@@ -48,11 +49,6 @@ default.pem
 
 # Platform specific CRD schema generation scripts
 hack/controller-gen-*
-
-# Ignore local docs dependencies
-venv/
-site/public
-site/themes/f5-hugo
 
 # trivy container scanning cache
 .trivycache/

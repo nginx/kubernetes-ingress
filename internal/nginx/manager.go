@@ -610,7 +610,7 @@ func (lm *LocalManager) AppProtectDosAgentStart(apdaDone chan error, debug bool,
 	}()
 }
 
-// AgentStart starts the AppProtect plugin and sets AppProtect log level.
+// AgentStart starts the NGINX Agent and sets the log level.
 func (lm *LocalManager) AgentStart(agentDone chan error, instanceGroup string) {
 	ctx := nl.ContextWithLogger(context.Background(), lm.logger)
 	nl.Debugf(lm.logger, "Starting Agent")
@@ -631,12 +631,15 @@ func (lm *LocalManager) AgentStart(agentDone chan error, instanceGroup string) {
 			nl.Fatalf(lm.logger, "Failed to start NGINX Agent: %v", err)
 		}
 		labels := []string{
-			fmt.Sprintf("product_name=%s", metadataInfo.ProductName),
-			fmt.Sprintf("product_version=%s", metadataInfo.ProductVersion),
-			fmt.Sprintf("cluster_id=%s", metadataInfo.ClusterID),
-			fmt.Sprintf("deployment_name=%s", metadataInfo.DeploymentName),
-			fmt.Sprintf("deployment_id=%s", metadataInfo.DeploymentID),
-			fmt.Sprintf("deployment_namespace=%s", metadataInfo.DeploymentNamespace),
+			fmt.Sprintf("product-type=%s", metadataInfo.ProductType),
+			fmt.Sprintf("product-version=%s", metadataInfo.ProductVersion),
+			fmt.Sprintf("cluster-id=%s", metadataInfo.ClusterID),
+			fmt.Sprintf("installation-id=%s", metadataInfo.InstallationID),
+			fmt.Sprintf("installation-name=%s", metadataInfo.InstallationName),
+			fmt.Sprintf("installation-namespace=%s", metadataInfo.InstallationNamespace),
+			fmt.Sprintf("control-id=%s", metadataInfo.InstallationID),               // control-id is required but is the same as installation-id
+			fmt.Sprintf("control-name=%s", metadataInfo.InstallationName),           // control-name is required but is the same as installation-name
+			fmt.Sprintf("control-namespace=%s", metadataInfo.InstallationNamespace), // control-namespace is required but is the same as installation-namespace
 		}
 		metadataLabels := "--labels=" + strings.Join(labels, ",")
 		args = append(args, metadataLabels)
