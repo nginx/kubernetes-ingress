@@ -276,9 +276,9 @@ func BalanceProxiesForUpstreams(in *conf_v1.Upstream, autoadjust bool) error {
 
 	pb, err := NewNumberSizeConfig(fmt.Sprintf("%d %s", in.ProxyBuffers.Number, in.ProxyBuffers.Size))
 	if err != nil {
-		// if there's an error, set it to default `2 4k`
+		// if there's an error, set it to default `8 4k`
 		pb = NumberSizeConfig{
-			Number: 2,
+			Number: 8,
 			Size: SizeWithUnit{
 				Size: 4,
 				Unit: SizeKB,
