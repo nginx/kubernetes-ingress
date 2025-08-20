@@ -309,13 +309,12 @@ func BalanceProxiesForUpstreams(in *conf_v1.Upstream, autoadjust bool) error {
 		return fmt.Errorf("error balancing proxy values: %w", err)
 	}
 
-	bufferNumber := int(balancedPB.Number)
-	if balancedPB.Number > uint64(math.MaxInt) {
-		bufferNumber = math.MaxInt
+	if balancedPB.Number > uint64(math.MaxInt32) {
+		balancedPB.Number = uint64(math.MaxInt32)
 	}
 
 	in.ProxyBuffers = &conf_v1.UpstreamBuffers{
-		Number: bufferNumber,
+		Number: int(balancedPB.Number),
 		Size:   balancedPB.Size.String(),
 	}
 	in.ProxyBufferSize = balancedPBS.String()
