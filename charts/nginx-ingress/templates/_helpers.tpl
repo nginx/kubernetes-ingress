@@ -304,6 +304,10 @@ Build the args for the service binary.
 - -enable-custom-resources={{ .Values.controller.enableCustomResources }}
 - -enable-snippets={{ .Values.controller.enableSnippets }}
 - -disable-ipv6={{ .Values.controller.disableIPV6 }}
+
+{{- if .Values.controller.directiveAutoAdjust }}
+- -enable-directive-autoadjust={{ .Values.controller.directiveAutoAdjust }}
+{{- end }}
 {{- if .Values.controller.enableCustomResources }}
 - -enable-tls-passthrough={{ .Values.controller.enableTLSPassthrough }}
 {{- if .Values.controller.enableTLSPassthrough }}
