@@ -2,6 +2,7 @@ package validation
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -308,16 +309,12 @@ func BalanceProxiesForUpstreams(in *conf_v1.Upstream, autoadjust bool) error {
 		return fmt.Errorf("error balancing proxy values: %w", err)
 	}
 
-	//gosec:disable G115 -- This conversion is safe because balancedPB.Number is validated to be non-negative and at most 1024 in value.
-	pbNumberAsInt := int(balancedPB.Number)
-
-	//gosec:disable G115 -- This conversion is also safe because we're converting an integer back to uint64 that we converted from an uint64 two lines above.
-	if uint64(pbNumberAsInt) != balancedPB.Number {
-		return fmt.Errorf("error balancing proxy values: balanced proxy buffer number %d is out of int range", balancedPB.Number)
+	if balancedPB.Number > uint64(math.MaxInt) {
+		balancedPB.Number = uint64(math.MaxInt)
 	}
 
 	in.ProxyBuffers = &conf_v1.UpstreamBuffers{
-		Number: pbNumberAsInt,
+		Number: int(balancedPB.Number),
 		Size:   balancedPB.Size.String(),
 	}
 	in.ProxyBufferSize = balancedPBS.String()
