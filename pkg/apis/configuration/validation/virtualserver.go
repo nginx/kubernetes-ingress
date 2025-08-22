@@ -581,8 +581,8 @@ func (vsv *VirtualServerValidator) validateUpstreams(upstreams []v1.Upstream, fi
 	allErrs = field.ErrorList{}
 	upstreamNames = sets.Set[string]{}
 
-	for i, u := range upstreams {
-		u := u // address gosec G601
+	for i := range upstreams {
+		u := &upstreams[i] // Get pointer to the actual slice element
 		idxPath := fieldPath.Index(i)
 
 		upstreamErrors := validateUpstreamName(u.Name, idxPath.Child("name"))
@@ -627,9 +627,9 @@ func (vsv *VirtualServerValidator) validateUpstreams(upstreams []v1.Upstream, fi
 
 		allErrs = append(allErrs, validateBackup(u.Backup, u.BackupPort, u.LBMethod, idxPath)...)
 
-		allErrs = append(allErrs, rejectPlusResourcesInOSS(u, idxPath, vsv.isPlus)...)
+		allErrs = append(allErrs, rejectPlusResourcesInOSS(*u, idxPath, vsv.isPlus)...)
 
-		err := internalValidation.BalanceProxiesForUpstreams(&u, vsv.isDirectiveAutoadjustEnabled)
+		err := internalValidation.BalanceProxiesForUpstreams(u, vsv.isDirectiveAutoadjustEnabled)
 		if err != nil {
 			allErrs = append(allErrs, field.Invalid(idxPath, "balancing proxy buffer sizes", err.Error()))
 		}
