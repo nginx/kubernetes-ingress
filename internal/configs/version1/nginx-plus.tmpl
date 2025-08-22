@@ -22,10 +22,8 @@ load_module modules/ngx_http_app_protect_module.so;
 load_module modules/ngx_http_app_protect_dos_module.so;
 {{- end}}
 load_module modules/ngx_fips_check_module.so;
-{{- if .MainSnippets}}
-{{range $value := .MainSnippets}}
-{{$value}}{{end}}
-{{- end}}
+{{- range $value := .MainSnippets}}
+{{$value}}{{- end}}
 
 load_module modules/ngx_http_js_module.so;
 
@@ -42,10 +40,8 @@ http {
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
-    {{- if .HTTPSnippets}}
-    {{range $value := .HTTPSnippets}}
-    {{$value}}{{end}}
-    {{- end}}
+    {{- range $value := .HTTPSnippets}}
+    {{$value}}{{- end}}
 
     {{if .LogFormat -}}
     log_format  main {{if .LogFormatEscaping}}escape={{ .LogFormatEscaping }} {{end}}
