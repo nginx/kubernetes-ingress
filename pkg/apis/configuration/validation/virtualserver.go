@@ -83,6 +83,28 @@ func (vsv *VirtualServerValidator) ValidateVirtualServer(virtualServer *v1.Virtu
 	return allErrs.ToAggregate()
 }
 
+// BalanceUpstreamProxies balances proxy buffer sizes for all upstreams in a VirtualServer.
+func (vsv *VirtualServerValidator) BalanceUpstreamProxies(virtualServer *v1.VirtualServer) error {
+	for i := range virtualServer.Spec.Upstreams {
+		err := internalValidation.BalanceProxiesForUpstreams(&virtualServer.Spec.Upstreams[i], vsv.isDirectiveAutoadjustEnabled)
+		if err != nil {
+			return fmt.Errorf("upstream %d: %w", i, err)
+		}
+	}
+	return nil
+}
+
+// BalanceUpstreamProxiesForRoute balances proxy buffer sizes for all upstreams in a VirtualServerRoute.
+func (vsv *VirtualServerValidator) BalanceUpstreamProxiesForRoute(virtualServerRoute *v1.VirtualServerRoute) error {
+	for i := range virtualServerRoute.Spec.Upstreams {
+		err := internalValidation.BalanceProxiesForUpstreams(&virtualServerRoute.Spec.Upstreams[i], vsv.isDirectiveAutoadjustEnabled)
+		if err != nil {
+			return fmt.Errorf("upstream %d: %w", i, err)
+		}
+	}
+	return nil
+}
+
 // validateVirtualServerSpec validates a VirtualServerSpec.
 func (vsv *VirtualServerValidator) validateVirtualServerSpec(spec *v1.VirtualServerSpec, fieldPath *field.Path, namespace string) field.ErrorList {
 	allErrs := field.ErrorList{}
@@ -581,8 +603,8 @@ func (vsv *VirtualServerValidator) validateUpstreams(upstreams []v1.Upstream, fi
 	allErrs = field.ErrorList{}
 	upstreamNames = sets.Set[string]{}
 
-	for i := range upstreams {
-		u := &upstreams[i] // Get pointer to the actual slice element
+	for i, u := range upstreams {
+		u := u // address gosec G601
 		idxPath := fieldPath.Index(i)
 
 		upstreamErrors := validateUpstreamName(u.Name, idxPath.Child("name"))
@@ -627,12 +649,7 @@ func (vsv *VirtualServerValidator) validateUpstreams(upstreams []v1.Upstream, fi
 
 		allErrs = append(allErrs, validateBackup(u.Backup, u.BackupPort, u.LBMethod, idxPath)...)
 
-		allErrs = append(allErrs, rejectPlusResourcesInOSS(*u, idxPath, vsv.isPlus)...)
-
-		err := internalValidation.BalanceProxiesForUpstreams(u, vsv.isDirectiveAutoadjustEnabled)
-		if err != nil {
-			allErrs = append(allErrs, field.Invalid(idxPath, "balancing proxy buffer sizes", err.Error()))
-		}
+		allErrs = append(allErrs, rejectPlusResourcesInOSS(u, idxPath, vsv.isPlus)...)
 
 	}
 	return allErrs, upstreamNames

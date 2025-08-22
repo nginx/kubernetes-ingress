@@ -387,6 +387,7 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		input.SnippetsEnabled,
 		input.CertManagerEnabled,
 		input.IsIPV6Disabled,
+		input.IsDirectiveAutoadjustEnabled,
 	)
 
 	lbc.appProtectConfiguration = appprotect.NewConfiguration(lbc.Logger)

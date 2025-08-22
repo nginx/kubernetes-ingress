@@ -9,6 +9,7 @@ import (
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	internalValidation "github.com/nginx/kubernetes-ingress/internal/validation"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
 	networking "k8s.io/api/networking/v1"
@@ -398,6 +399,7 @@ func NewConfiguration(
 	snippetsEnabled bool,
 	isCertManagerEnabled bool,
 	isIPV6Disabled bool,
+	isDirectiveAutoadjustEnabled bool,
 ) *Configuration {
 	return &Configuration{
 		hosts:                        make(map[string]Resource),
@@ -426,6 +428,7 @@ func NewConfiguration(
 		snippetsEnabled:              snippetsEnabled,
 		isCertManagerEnabled:         isCertManagerEnabled,
 		isIPV6Disabled:               isIPV6Disabled,
+		isDirectiveAutoadjustEnabled: isDirectiveAutoadjustEnabled,
 	}
 }
 
@@ -510,7 +513,12 @@ func (c *Configuration) AddOrUpdateVirtualServer(vs *conf_v1.VirtualServer) ([]R
 		if validationError != nil {
 			delete(c.virtualServers, key)
 		} else {
-			c.virtualServers[key] = vs
+			if err := c.balanceUpstreamProxies(vs.Spec.Upstreams); err != nil {
+				validationError = fmt.Errorf("balancing proxy buffer sizes: %w", err)
+				delete(c.virtualServers, key)
+			} else {
+				c.virtualServers[key] = vs
+			}
 		}
 	}
 
@@ -576,7 +584,14 @@ func (c *Configuration) AddOrUpdateVirtualServerRoute(vsr *conf_v1.VirtualServer
 		if validationError != nil {
 			delete(c.virtualServerRoutes, key)
 		} else {
-			c.virtualServerRoutes[key] = vsr
+			// Balance proxy buffer sizes for all upstreams before storing
+			if err := c.balanceUpstreamProxies(vsr.Spec.Upstreams); err != nil {
+				// Create a proper validation error for proxy buffer balancing failures
+				validationError = fmt.Errorf("balancing proxy buffer sizes: %w", err)
+				delete(c.virtualServers, key)
+			} else {
+				c.virtualServerRoutes[key] = vsr
+			}
 		}
 	}
 
@@ -1864,4 +1879,16 @@ func detectChangesInListenerHosts(
 	}
 
 	return removedListenerHosts, updatedListenerHosts, addedListenerHosts
+}
+
+// balanceUpstreamProxies balances proxy buffer sizes for all upstreams.
+// This is the unified function that handles proxy buffer balancing for both VirtualServer and VirtualServerRoute.
+func (c *Configuration) balanceUpstreamProxies(upstreams []conf_v1.Upstream) error {
+	for i := range upstreams {
+		err := internalValidation.BalanceProxiesForUpstreams(&upstreams[i], c.isDirectiveAutoadjustEnabled)
+		if err != nil {
+			return fmt.Errorf("upstream %d: %w", i, err)
+		}
+	}
+	return nil
 }
