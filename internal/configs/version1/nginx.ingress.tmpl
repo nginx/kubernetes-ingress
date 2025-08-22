@@ -107,10 +107,8 @@ server {
 	auth_basic_user_file {{ .Secret }};
 	{{- end }}
 
-	{{- if $server.ServerSnippets}}
 	{{- range $value := $server.ServerSnippets}}
-	{{$value}}{{end}}
-	{{- end}}
+	{{$value}}{{- end}}
 
 	{{- range $location := $server.Locations}}
 	location {{  makeLocationPath $location $.Ingress.Annotations | printf }} {
@@ -137,10 +135,8 @@ server {
 		error_page 504 @grpcerror504;
 		{{- end}}
 
-		{{- if $location.LocationSnippets}}
 		{{- range $value := $location.LocationSnippets}}
-		{{$value}}{{end}}
-		{{- end}}
+		{{$value}}{{- end}}
 
 		{{- with $location.BasicAuth }}
 		auth_basic {{ printf "%q" .Realm }};
@@ -183,10 +179,8 @@ server {
 		{{- if $.Keepalive}}
 		proxy_set_header Connection "";{{end}}
 		{{- end}}
-		{{- if $location.LocationSnippets}}
-		{{range $value := $location.LocationSnippets}}
-		{{$value}}{{end}}
-		{{- end}}
+		{{- range $value := $location.LocationSnippets}}
+		{{$value}}{{- end}}
 		{{- with $location.BasicAuth }}
 		auth_basic {{ printf "%q" .Realm }};
 		auth_basic_user_file {{ .Secret }};
