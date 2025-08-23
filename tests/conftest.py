@@ -47,7 +47,7 @@ def pytest_addoption(parser) -> None:
         "--deployment-type",
         action="store",
         default=DEFAULT_DEPLOYMENT_TYPE,
-        help="The type of the IC deployment: deployment or daemon-set.",
+        help="The type of the IC deployment: deployment, daemon-set, or stateful-set.",
     )
     parser.addoption(
         "--ic-type",
