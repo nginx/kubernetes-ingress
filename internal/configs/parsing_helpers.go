@@ -230,6 +230,7 @@ func ParseOffset(s string) (string, error) {
 const SizeFmt = `\d+[kKmM]?`
 
 var sizeRegexp = regexp.MustCompile("^" + SizeFmt + "$")
+var sizeWithAnyUnitRegexp = regexp.MustCompile(`^(\d+)([a-zA-Z]?)$`)
 
 // ParseSize ensures that the string value is a valid size
 func ParseSize(s string) (string, error) {
@@ -238,6 +239,34 @@ func ParseSize(s string) (string, error) {
 	if sizeRegexp.MatchString(s) {
 		return s, nil
 	}
+	return "", errors.New("invalid size string")
+}
+
+// ParseSizeWithAutoAdjust ensures that the string value is a valid size
+// If an invalid unit is provided, it auto-adjusts to 'm' (megabytes)
+func ParseSizeWithAutoAdjust(s string) (string, error) {
+	s = strings.TrimSpace(s)
+
+	// First check if it's already a valid size
+	if sizeRegexp.MatchString(s) {
+		return s, nil
+	}
+
+	// Check if it matches number + any letter pattern for auto-adjustment
+	match := sizeWithAnyUnitRegexp.FindStringSubmatch(s)
+	if match != nil {
+		number := match[1]
+		unit := strings.ToLower(match[2])
+
+		// If unit is empty or valid, use as-is
+		if unit == "" || unit == "k" || unit == "m" {
+			return number + unit, nil
+		}
+
+		// Auto-adjust invalid units to 'm' (megabytes)
+		return number + "m", nil
+	}
+
 	return "", errors.New("invalid size string")
 }
 
@@ -267,6 +296,7 @@ func ParseRequestRate(s string) (string, error) {
 
 // https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffers
 var proxyBuffersRegexp = regexp.MustCompile(`^\d+ \d+[kKmM]?$`)
+var proxyBuffersWithAnyUnitRegexp = regexp.MustCompile(`^(\d+) (\d+)([a-zA-Z]?)$`)
 
 // ParseProxyBuffersSpec ensures that the string value is a valid proxy buffer spec
 func ParseProxyBuffersSpec(s string) (string, error) {
@@ -275,6 +305,35 @@ func ParseProxyBuffersSpec(s string) (string, error) {
 	if proxyBuffersRegexp.MatchString(s) {
 		return s, nil
 	}
+	return "", errors.New("invalid proxy buffers string")
+}
+
+// ParseProxyBuffersSpecWithAutoAdjust ensures that the string value is a valid proxy buffer spec
+// If an invalid unit is provided for the size, it auto-adjusts to 'm' (megabytes)
+func ParseProxyBuffersSpecWithAutoAdjust(s string) (string, error) {
+	s = strings.TrimSpace(s)
+
+	// First check if it's already a valid proxy buffer spec
+	if proxyBuffersRegexp.MatchString(s) {
+		return s, nil
+	}
+
+	// Check if it matches number + space + number + any letter pattern for auto-adjustment
+	match := proxyBuffersWithAnyUnitRegexp.FindStringSubmatch(s)
+	if match != nil {
+		bufferCount := match[1]
+		bufferSize := match[2]
+		unit := strings.ToLower(match[3])
+
+		// If unit is empty or valid, use as-is
+		if unit == "" || unit == "k" || unit == "m" {
+			return bufferCount + " " + bufferSize + unit, nil
+		}
+
+		// Auto-adjust invalid units to 'm' (megabytes)
+		return bufferCount + " " + bufferSize + "m", nil
+	}
+
 	return "", errors.New("invalid proxy buffers string")
 }
 
