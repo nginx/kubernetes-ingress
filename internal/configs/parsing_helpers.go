@@ -229,8 +229,10 @@ func ParseOffset(s string) (string, error) {
 // SizeFmt http://nginx.org/en/docs/syntax.html
 const SizeFmt = `\d+[kKmM]?`
 
-var sizeRegexp = regexp.MustCompile("^" + SizeFmt + "$")
-var sizeWithAnyUnitRegexp = regexp.MustCompile(`^(\d+)([a-zA-Z]?)$`)
+var (
+	sizeRegexp            = regexp.MustCompile("^" + SizeFmt + "$")
+	sizeWithAnyUnitRegexp = regexp.MustCompile(`^(\d+)([a-zA-Z]?)$`)
+)
 
 // ParseSize ensures that the string value is a valid size
 func ParseSize(s string) (string, error) {
@@ -295,8 +297,10 @@ func ParseRequestRate(s string) (string, error) {
 }
 
 // https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffers
-var proxyBuffersRegexp = regexp.MustCompile(`^\d+ \d+[kKmM]?$`)
-var proxyBuffersWithAnyUnitRegexp = regexp.MustCompile(`^(\d+) (\d+)([a-zA-Z]?)$`)
+var (
+	proxyBuffersRegexp            = regexp.MustCompile(`^\d+ \d+[kKmM]?$`)
+	proxyBuffersWithAnyUnitRegexp = regexp.MustCompile(`^(\d+) (\d+)([a-zA-Z]?)$`)
+)
 
 // ParseProxyBuffersSpec ensures that the string value is a valid proxy buffer spec
 func ParseProxyBuffersSpec(s string) (string, error) {
