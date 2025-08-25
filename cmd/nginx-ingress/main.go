@@ -86,7 +86,7 @@ func main() {
 	commitHash, commitTime, dirtyBuild := getBuildInfo()
 	fmt.Printf("NGINX Ingress Controller Version=%v Commit=%v Date=%v DirtyState=%v Arch=%v/%v Go=%v\n", version, commitHash, commitTime, dirtyBuild, runtime.GOOS, runtime.GOARCH, runtime.Version())
 	parseFlags()
-	ctx := initLogger(*logFormat, logLevels[*logLevel], os.Stdout)
+	ctx := initLogger(*logFormat, logLevels[*logLevel], *logTimeFormat, os.Stdout)
 	l := nl.LoggerFromContext(ctx)
 
 	initValidate(ctx)
@@ -1182,7 +1182,7 @@ func logEventAndExit(ctx context.Context, eventLog record.EventRecorder, obj pkg
 	nl.Fatal(l, err.Error())
 }
 
-func initLogger(logFormat string, level slog.Level, out io.Writer) context.Context {
+func initLogger(logFormat string, level slog.Level, timeFormat string, out io.Writer) context.Context {
 	programLevel := new(slog.LevelVar) // Info by default
 	var h slog.Handler
 
@@ -1195,6 +1195,36 @@ func initLogger(logFormat string, level slog.Level, out io.Writer) context.Conte
 					src.Function = ""
 					src.File = filepath.Base(src.File)
 					a.Value = slog.AnyValue(src)
+				}
+			}
+			// Handle custom timestamp formatting
+			if a.Key == slog.TimeKey {
+				if t, ok := a.Value.Any().(time.Time); ok {
+					switch timeFormat {
+					case "unix":
+						// Unix timestamp in seconds
+						return slog.Attr{
+							Key:   slog.TimeKey,
+							Value: slog.Int64Value(t.Unix()),
+						}
+					case "unix-ms":
+						// Unix timestamp with milliseconds
+						return slog.Attr{
+							Key:   slog.TimeKey,
+							Value: slog.Int64Value(t.UnixMilli()),
+						}
+					case "unix-ns":
+						// Unix timestamp with nanoseconds
+						return slog.Attr{
+							Key:   slog.TimeKey,
+							Value: slog.Int64Value(t.UnixNano()),
+						}
+					case "default":
+						fallthrough
+					default:
+						// Default timestamp format (keep original time key and format eg. RFC3339)
+						return a
+					}
 				}
 			}
 			return a

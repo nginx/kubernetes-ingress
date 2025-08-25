@@ -164,6 +164,9 @@ controller:
   ## Sets the log format of Ingress Controller. Options include: glog, json, text
   logFormat: glog
 
+  ## Sets time format for logs. Allowed values: default, unix, unix-ms, unix-ns. Applies to json and text.
+  logTimeFormat: default
+
   ## Cache configuration options
   cache:
     ## Enables shared cache across multiple pods using an external persistent volume
