@@ -75,6 +75,7 @@ var minionInheritanceList = map[string]bool{
 	"nginx.org/proxy-buffering":          true,
 	"nginx.org/proxy-buffers":            true,
 	"nginx.org/proxy-buffer-size":        true,
+	"nginx.org/proxy-busy-buffers-size":  true,
 	"nginx.org/proxy-max-temp-file-size": true,
 	"nginx.org/upstream-zone-size":       true,
 	"nginx.org/location-snippets":        true,

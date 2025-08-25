@@ -43,6 +43,7 @@ const (
 	hstsBehindProxyAnnotation             = "nginx.org/hsts-behind-proxy"
 	proxyBuffersAnnotation                = "nginx.org/proxy-buffers"
 	proxyBufferSizeAnnotation             = "nginx.org/proxy-buffer-size"
+	proxyBusyBuffersSizeAnnotation        = "nginx.org/proxy-busy-buffers-size"
 	proxyMaxTempFileSizeAnnotation        = "nginx.org/proxy-max-temp-file-size"
 	upstreamZoneSizeAnnotation            = "nginx.org/upstream-zone-size"
 	basicAuthSecretAnnotation             = "nginx.org/basic-auth-secret" // #nosec G101
@@ -213,6 +214,10 @@ var (
 			validateProxyBuffersAnnotation,
 		},
 		proxyBufferSizeAnnotation: {
+			validateRequiredAnnotation,
+			validateSizeAnnotation,
+		},
+		proxyBusyBuffersSizeAnnotation: {
 			validateRequiredAnnotation,
 			validateSizeAnnotation,
 		},
