@@ -26,6 +26,7 @@ func createTestConfiguration() *Configuration {
 	certManagerEnabled := true
 	snippetsEnabled := true
 	isIPV6Disabled := false
+	isDirectiveAutoadjustEnabled := false
 	return NewConfiguration(
 		lbc.HasCorrectIngressClass,
 		isPlus,
@@ -42,6 +43,7 @@ func createTestConfiguration() *Configuration {
 		snippetsEnabled,
 		certManagerEnabled,
 		isIPV6Disabled,
+		isDirectiveAutoadjustEnabled,
 	)
 }
 

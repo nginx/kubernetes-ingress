@@ -478,6 +478,13 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	// generate upstreams for VirtualServer
 	for _, u := range vsEx.VirtualServer.Spec.Upstreams {
+		// // here
+		// err := balanceProxiesForUpstreams(&u)
+		// if err != nil {
+		// 	// if we're here, upstream was unchanged
+		// 	vsc.addWarningf(vsEx.VirtualServer, "Balancing proxy buffer values failed for %s: %s", u.Name, err)
+		// }
+
 		upstreams, healthChecks, statusMatches = generateUpstreams(
 			sslConfig,
 			vsc,
@@ -496,6 +503,14 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	for _, vsr := range vsEx.VirtualServerRoutes {
 		upstreamNamer := NewUpstreamNamerForVirtualServerRoute(vsEx.VirtualServer, vsr)
 		for _, u := range vsr.Spec.Upstreams {
+			// here
+			//
+			// err := balanceProxiesForUpstreams(&u)
+			// if err != nil {
+			// 	// if we're here, upstream was unchanged
+			// 	vsc.addWarningf(vsEx.VirtualServer, "Balancing proxy buffer values failed for %s: %s", u.Name, err)
+			// }
+
 			upstreams, healthChecks, statusMatches = generateUpstreams(
 				sslConfig,
 				vsc,
@@ -2591,8 +2606,9 @@ func generateLocationForProxying(path string, upstreamName string, upstream conf
 		ClientMaxBodySize:        generateString(upstream.ClientMaxBodySize, cfgParams.ClientMaxBodySize),
 		ProxyMaxTempFileSize:     cfgParams.ProxyMaxTempFileSize,
 		ProxyBuffering:           generateBool(upstream.ProxyBuffering, cfgParams.ProxyBuffering),
-		ProxyBuffers:             generateBuffers(upstream.ProxyBuffers, cfgParams.ProxyBuffers),
-		ProxyBufferSize:          generateString(upstream.ProxyBufferSize, cfgParams.ProxyBufferSize),
+		ProxyBuffers:             generateBuffers(upstream.ProxyBuffers, cfgParams.ProxyBuffers.String()),
+		ProxyBufferSize:          generateString(upstream.ProxyBufferSize, cfgParams.ProxyBufferSize.String()),
+		ProxyBusyBuffersSize:     generateString(upstream.ProxyBusyBuffersSize, cfgParams.ProxyBusyBuffersSize.String()),
 		ProxyPass:                generateProxyPass(upstream.TLS.Enable, upstreamName, internal, proxy),
 		ProxyNextUpstream:        generateString(upstream.ProxyNextUpstream, "error timeout"),
 		ProxyNextUpstreamTimeout: generateTimeWithDefault(upstream.ProxyNextUpstreamTimeout, "0s"),

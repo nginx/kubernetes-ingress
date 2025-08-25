@@ -225,6 +225,8 @@ var (
 
 	enableDynamicWeightChangesReload = flag.Bool(dynamicWeightChangesParam, false, "Enable changing weights of split clients without reloading NGINX. Requires -nginx-plus")
 
+	enableDirectiveAutoadjust = flag.Bool("enable-directive-autoadjust", false, "Enable automatic adjustment of NGINX directives to make sure no conflicts will be present. This is an experimental feature and may not work as expected.")
+
 	startupCheckFn func() error
 )
 

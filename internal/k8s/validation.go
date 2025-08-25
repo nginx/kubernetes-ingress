@@ -100,6 +100,7 @@ type annotationValidationContext struct {
 	internalRoutesEnabled bool
 	fieldPath             *field.Path
 	snippetsEnabled       bool
+	directiveAutoadjust   bool
 }
 
 type (
@@ -472,6 +473,7 @@ func validateIngress(
 	appProtectDosEnabled bool,
 	internalRoutesEnabled bool,
 	snippetsEnabled bool,
+	directiveAutoadjust bool,
 ) field.ErrorList {
 	allErrs := validateIngressAnnotations(
 		ing.Annotations,
@@ -482,6 +484,7 @@ func validateIngress(
 		internalRoutesEnabled,
 		field.NewPath("annotations"),
 		snippetsEnabled,
+		directiveAutoadjust,
 	)
 
 	allErrs = append(allErrs, validateIngressSpec(&ing.Spec, field.NewPath("spec"))...)
@@ -531,6 +534,7 @@ func validateIngressAnnotations(
 	internalRoutesEnabled bool,
 	fieldPath *field.Path,
 	snippetsEnabled bool,
+	directiveAutoadjust bool,
 ) field.ErrorList {
 	allErrs := field.ErrorList{}
 
@@ -547,6 +551,7 @@ func validateIngressAnnotations(
 				internalRoutesEnabled: internalRoutesEnabled,
 				fieldPath:             fieldPath.Child(name),
 				snippetsEnabled:       snippetsEnabled,
+				directiveAutoadjust:   directiveAutoadjust,
 			}
 			allErrs = append(allErrs, validateIngressAnnotation(context)...)
 		}
@@ -678,14 +683,28 @@ func validateOffsetAnnotation(context *annotationValidationContext) field.ErrorL
 }
 
 func validateSizeAnnotation(context *annotationValidationContext) field.ErrorList {
-	if _, err := configs.ParseSize(context.value); err != nil {
+	var err error
+	if context.directiveAutoadjust {
+		_, err = configs.ParseSizeWithAutoAdjust(context.value)
+	} else {
+		_, err = configs.ParseSize(context.value)
+	}
+
+	if err != nil {
 		return field.ErrorList{field.Invalid(context.fieldPath, context.value, "must be a size")}
 	}
 	return nil
 }
 
 func validateProxyBuffersAnnotation(context *annotationValidationContext) field.ErrorList {
-	if _, err := configs.ParseProxyBuffersSpec(context.value); err != nil {
+	var err error
+	if context.directiveAutoadjust {
+		_, err = configs.ParseProxyBuffersSpecWithAutoAdjust(context.value)
+	} else {
+		_, err = configs.ParseProxyBuffersSpec(context.value)
+	}
+
+	if err != nil {
 		return field.ErrorList{field.Invalid(context.fieldPath, context.value, "must be a proxy buffer spec")}
 	}
 	return nil
