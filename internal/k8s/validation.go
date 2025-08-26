@@ -217,10 +217,6 @@ var (
 			validateRequiredAnnotation,
 			validateSizeAnnotation,
 		},
-		proxyBusyBuffersSizeAnnotation: {
-			validateRequiredAnnotation,
-			validateSizeAnnotation,
-		},
 		proxyMaxTempFileSizeAnnotation: {
 			validateRequiredAnnotation,
 			validateSizeAnnotation,
