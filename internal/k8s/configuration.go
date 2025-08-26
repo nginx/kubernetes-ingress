@@ -1882,7 +1882,10 @@ func detectChangesInListenerHosts(
 }
 
 // balanceUpstreamProxies balances proxy buffer sizes for all upstreams.
-// This is the unified function that handles proxy buffer balancing for both VirtualServer and VirtualServerRoute.
+// This is the unified function that handles proxy buffer balancing for both
+// VirtualServer and VirtualServerRoute. We need this here because upstreams are
+// values in the slice, but the balancing function takes pointers as it modifies
+// the upstreams.
 func (c *Configuration) balanceUpstreamProxies(upstreams []conf_v1.Upstream) error {
 	for i := range upstreams {
 		err := internalValidation.BalanceProxiesForUpstreams(&upstreams[i], c.isDirectiveAutoadjustEnabled)
