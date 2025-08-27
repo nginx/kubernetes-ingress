@@ -659,7 +659,7 @@
         },
         "directiveAutoAdjust": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "title": "Enables automatic adjustment of the NGINX buffers directives",
           "examples": [
             false,

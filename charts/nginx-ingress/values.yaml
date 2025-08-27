@@ -164,7 +164,7 @@ controller:
   ## Sets the log format of Ingress Controller. Options include: glog, json, text
   logFormat: glog
 
-  ## Enables auto adjusting some of the NGINX directives to help with safe configuration and prevent misconfigurations.
+  ## Enables auto adjusting some of the NGINX directives to help with safe configuration and prevent NGINX misconfigurations.
   directiveAutoAdjust: false
 
   ## Cache configuration options
