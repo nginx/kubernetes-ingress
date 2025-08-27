@@ -224,25 +224,15 @@ func TestHelmNICTemplateNegative(t *testing.T) {
 				t.Fatalf("Expected helm template to fail for invalid configuration, but it succeeded")
 			}
 
-<<<<<<< HEAD
-			errMsg := err.Error()
-			for _, expected := range tc.expectedErrorMsgs {
-				if strings.Contains(errMsg, expected) {
-					t.Logf("Expected failure occurred: %s", errMsg)
-					return
-=======
 			if len(tc.expectedErrorMsgs) > 0 {
 				for _, expectedMsg := range tc.expectedErrorMsgs {
 					if !strings.Contains(err.Error(), expectedMsg) {
 						t.Fatalf("Expected error to contain '%s', but got: %s", expectedMsg, err.Error())
 					}
->>>>>>> c8cf19e89 (fixing copilot mentioned error)
 				}
 			}
 
-			t.Fatalf("Expected error to contain '%s', but got: %s", tc.expectedErrorMsgs[0], errMsg)
-
-			t.Logf("Expected failure occurred: %s", errMsg)
+			t.Logf("Expected failure occurred: %s", err.Error())
 		})
 	}
 }
