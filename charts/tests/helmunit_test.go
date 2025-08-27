@@ -181,7 +181,7 @@ func TestHelmNICTemplateNegative(t *testing.T) {
 			valuesFile:        "testdata/startupstatus-invalid.yaml",
 			releaseName:       "startupstatus-invalid",
 			namespace:         "default",
-			expectedErrorMsgs: []string{"port is required", "path is required"},
+			expectedErrorMsgs: []string{"missing properties 'port', 'path'"},
 		},
 		"globalConfigInvalidFormat": {
 			valuesFile:        "testdata/global-config-invalid-format.yaml",
