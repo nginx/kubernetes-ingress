@@ -158,12 +158,13 @@ jobs:
           docker_build="false"
           if [ "${{ inputs.force }}" = "true" ]; then
             docker_build="true"
-          elif [ "$forked_workflow" = "true" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ]; then
+          elif [ "${{ steps.vars.outputs.forked_workflow }}" = "true" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ]; then
             docker_build="true"
-          elif [ "$forked_workflow" = "false" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ] && [ "${{ steps.stable_exists.outputs.exists }}" = "false" ]; then
+          elif [ "${{ steps.vars.outputs.forked_workflow }}" = "false" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ] && [ "${{ steps.stable_exists.outputs.exists }}" = "false" ]; then
             docker_build="true"
           fi
           echo "docker_build=${docker_build}" >> $GITHUB_OUTPUT
+          cat $GITHUB_OUTPUT
 
       - name: Output variables
         run: |
