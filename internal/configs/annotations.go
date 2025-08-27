@@ -454,6 +454,41 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 //gocyclo:ignore
 func parseRateLimitAnnotations(annotations map[string]string, cfgParams *ConfigParams, context apiObject) []error {
 	errors := make([]error, 0)
+	rateLimitAnnotations := []string{
+		"nginx.org/limit-req-rate",
+		"nginx.org/limit-req-key",
+		"nginx.org/limit-req-zone-size",
+		"nginx.org/limit-req-burst",
+		"nginx.org/limit-req-delay",
+		"nginx.org/limit-req-no-delay",
+		"nginx.org/limit-req-dry-run",
+		"nginx.org/limit-req-log-level",
+		"nginx.org/limit-req-reject-code",
+		"nginx.org/limit-req-scale",
+	}
+
+	hasRateLimitAnnotation := false
+	for _, annotation := range rateLimitAnnotations {
+		if _, exists := annotations[annotation]; exists {
+			hasRateLimitAnnotation = true
+			break
+		}
+	}
+
+	if hasRateLimitAnnotation {
+		mandatoryAnnotations := []string{
+			"nginx.org/limit-req-rate",
+			"nginx.org/limit-req-key",
+			"nginx.org/limit-req-zone-size",
+		}
+
+		for _, mandatory := range mandatoryAnnotations {
+			if _, exists := annotations[mandatory]; !exists {
+				errors = append(errors, fmt.Errorf("ingress %s/%s: rate-limiting configuration requires mandatory annotation %s", context.GetNamespace(), context.GetName(), mandatory))
+			}
+		}
+	}
+
 	if requestRateLimit, exists := annotations["nginx.org/limit-req-rate"]; exists {
 		if rate, err := ParseRequestRate(requestRateLimit); err != nil {
 			errors = append(errors, fmt.Errorf("ingress %s/%s: invalid value for nginx.org/limit-req-rate: got %s: %w", context.GetNamespace(), context.GetName(), requestRateLimit, err))
