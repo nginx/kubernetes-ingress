@@ -221,6 +221,7 @@ func main() {
 		EnableCertManager:              *enableCertManager,
 		DynamicSSLReload:               *enableDynamicSSLReload,
 		DynamicWeightChangesReload:     *enableDynamicWeightChangesReload,
+		IsDirectiveAutoadjustEnabled:   *enableDirectiveAutoadjust,
 		StaticSSLPath:                  staticSSLPath,
 		NginxVersion:                   nginxVersion,
 		AppProtectBundlePath:           appProtectBundlePath,
@@ -265,7 +266,6 @@ func main() {
 		IsLatencyMetricsEnabled:             *enableLatencyMetrics,
 		IsDynamicSSLReloadEnabled:           *enableDynamicSSLReload,
 		IsDynamicWeightChangesReloadEnabled: *enableDynamicWeightChangesReload,
-		IsDirectiveAutoadjustEnabled:        *enableDirectiveAutoadjust,
 		NginxVersion:                        nginxVersion,
 	})
 

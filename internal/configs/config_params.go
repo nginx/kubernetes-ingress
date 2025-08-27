@@ -164,6 +164,7 @@ type StaticConfigParams struct {
 	DynamicSSLReload               bool
 	StaticSSLPath                  string
 	DynamicWeightChangesReload     bool
+	IsDirectiveAutoadjustEnabled   bool
 	NginxVersion                   nginx.Version
 	AppProtectBundlePath           string
 }

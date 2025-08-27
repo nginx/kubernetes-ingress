@@ -123,29 +123,28 @@ type metricLabelsIndex struct {
 // This allows the Ingress Controller to incrementally build the NGINX configuration during the IC start and
 // then apply it at the end of the start.
 type Configurator struct {
-	nginxManager                 nginx.Manager
-	staticCfgParams              *StaticConfigParams
-	CfgParams                    *ConfigParams
-	MgmtCfgParams                *MGMTConfigParams
-	templateExecutor             *version1.TemplateExecutor
-	templateExecutorV2           *version2.TemplateExecutor
-	ingresses                    map[string]*IngressEx
-	minions                      map[string]map[string]bool
-	mergeableIngresses           map[string]*MergeableIngresses
-	virtualServers               map[string]*VirtualServerEx
-	transportServers             map[string]*TransportServerEx
-	tlsPassthroughPairs          map[string]tlsPassthroughPair
-	isWildcardEnabled            bool
-	isPlus                       bool
-	labelUpdater                 collector.LabelUpdater
-	metricLabelsIndex            *metricLabelsIndex
-	isPrometheusEnabled          bool
-	latencyCollector             latCollector.LatencyCollector
-	isLatencyMetricsEnabled      bool
-	isReloadsEnabled             bool
-	isDynamicSSLReloadEnabled    bool
-	isDirectiveAutoadjustEnabled bool
-	ingressControllerReplicas    int
+	nginxManager              nginx.Manager
+	staticCfgParams           *StaticConfigParams
+	CfgParams                 *ConfigParams
+	MgmtCfgParams             *MGMTConfigParams
+	templateExecutor          *version1.TemplateExecutor
+	templateExecutorV2        *version2.TemplateExecutor
+	ingresses                 map[string]*IngressEx
+	minions                   map[string]map[string]bool
+	mergeableIngresses        map[string]*MergeableIngresses
+	virtualServers            map[string]*VirtualServerEx
+	transportServers          map[string]*TransportServerEx
+	tlsPassthroughPairs       map[string]tlsPassthroughPair
+	isWildcardEnabled         bool
+	isPlus                    bool
+	labelUpdater              collector.LabelUpdater
+	metricLabelsIndex         *metricLabelsIndex
+	isPrometheusEnabled       bool
+	latencyCollector          latCollector.LatencyCollector
+	isLatencyMetricsEnabled   bool
+	isReloadsEnabled          bool
+	isDynamicSSLReloadEnabled bool
+	ingressControllerReplicas int
 }
 
 // ConfiguratorParams is a collection of parameters used for the
@@ -165,7 +164,6 @@ type ConfiguratorParams struct {
 	IsLatencyMetricsEnabled             bool
 	IsDynamicSSLReloadEnabled           bool
 	IsDynamicWeightChangesReloadEnabled bool
-	IsDirectiveAutoadjustEnabled        bool
 	NginxVersion                        nginx.Version
 }
 
@@ -184,28 +182,27 @@ func NewConfigurator(p ConfiguratorParams) *Configurator {
 	}
 
 	cnf := Configurator{
-		nginxManager:                 p.NginxManager,
-		staticCfgParams:              p.StaticCfgParams,
-		CfgParams:                    p.Config,
-		MgmtCfgParams:                p.MGMTCfgParams,
-		ingresses:                    make(map[string]*IngressEx),
-		virtualServers:               make(map[string]*VirtualServerEx),
-		transportServers:             make(map[string]*TransportServerEx),
-		templateExecutor:             p.TemplateExecutor,
-		templateExecutorV2:           p.TemplateExecutorV2,
-		minions:                      make(map[string]map[string]bool),
-		mergeableIngresses:           make(map[string]*MergeableIngresses),
-		tlsPassthroughPairs:          make(map[string]tlsPassthroughPair),
-		isPlus:                       p.IsPlus,
-		isWildcardEnabled:            p.IsWildcardEnabled,
-		labelUpdater:                 p.LabelUpdater,
-		metricLabelsIndex:            metricLabelsIndex,
-		isPrometheusEnabled:          p.IsPrometheusEnabled,
-		latencyCollector:             p.LatencyCollector,
-		isLatencyMetricsEnabled:      p.IsLatencyMetricsEnabled,
-		isDynamicSSLReloadEnabled:    p.IsDynamicSSLReloadEnabled,
-		isDirectiveAutoadjustEnabled: p.IsDirectiveAutoadjustEnabled,
-		isReloadsEnabled:             false,
+		nginxManager:              p.NginxManager,
+		staticCfgParams:           p.StaticCfgParams,
+		CfgParams:                 p.Config,
+		MgmtCfgParams:             p.MGMTCfgParams,
+		ingresses:                 make(map[string]*IngressEx),
+		virtualServers:            make(map[string]*VirtualServerEx),
+		transportServers:          make(map[string]*TransportServerEx),
+		templateExecutor:          p.TemplateExecutor,
+		templateExecutorV2:        p.TemplateExecutorV2,
+		minions:                   make(map[string]map[string]bool),
+		mergeableIngresses:        make(map[string]*MergeableIngresses),
+		tlsPassthroughPairs:       make(map[string]tlsPassthroughPair),
+		isPlus:                    p.IsPlus,
+		isWildcardEnabled:         p.IsWildcardEnabled,
+		labelUpdater:              p.LabelUpdater,
+		metricLabelsIndex:         metricLabelsIndex,
+		isPrometheusEnabled:       p.IsPrometheusEnabled,
+		latencyCollector:          p.LatencyCollector,
+		isLatencyMetricsEnabled:   p.IsLatencyMetricsEnabled,
+		isDynamicSSLReloadEnabled: p.IsDynamicSSLReloadEnabled,
+		isReloadsEnabled:          false,
 	}
 	return &cnf
 }
@@ -422,17 +419,16 @@ func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) (bool, Warnings, e
 
 	isMinion := false
 	nginxCfg, warnings := generateNginxCfg(NginxCfgParams{
-		staticParams:                 cnf.staticCfgParams,
-		ingEx:                        ingEx,
-		apResources:                  apResources,
-		dosResource:                  dosResource,
-		isMinion:                     isMinion,
-		isPlus:                       cnf.isPlus,
-		BaseCfgParams:                cnf.CfgParams,
-		isResolverConfigured:         cnf.IsResolverConfigured(),
-		isWildcardEnabled:            cnf.isWildcardEnabled,
-		isDirectiveAutoadjustEnabled: cnf.isDirectiveAutoadjustEnabled,
-		ingressControllerReplicas:    cnf.ingressControllerReplicas,
+		staticParams:              cnf.staticCfgParams,
+		ingEx:                     ingEx,
+		apResources:               apResources,
+		dosResource:               dosResource,
+		isMinion:                  isMinion,
+		isPlus:                    cnf.isPlus,
+		BaseCfgParams:             cnf.CfgParams,
+		isResolverConfigured:      cnf.IsResolverConfigured(),
+		isWildcardEnabled:         cnf.isWildcardEnabled,
+		ingressControllerReplicas: cnf.ingressControllerReplicas,
 	})
 
 	name := objectMetaToFileName(&ingEx.Ingress.ObjectMeta)
@@ -1254,7 +1250,7 @@ func (cnf *Configurator) updatePlusEndpointsForTransportServer(transportServerEx
 
 func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx) error {
 	l := nl.LoggerFromContext(cnf.CfgParams.Context)
-	ingCfg := parseAnnotations(ingEx, cnf.CfgParams, cnf.isPlus, cnf.staticCfgParams.MainAppProtectLoadModule, cnf.staticCfgParams.MainAppProtectDosLoadModule, cnf.staticCfgParams.EnableInternalRoutes, cnf.isDirectiveAutoadjustEnabled)
+	ingCfg := parseAnnotations(ingEx, cnf.CfgParams, cnf.isPlus, cnf.staticCfgParams.MainAppProtectLoadModule, cnf.staticCfgParams.MainAppProtectDosLoadModule, cnf.staticCfgParams.EnableInternalRoutes, cnf.staticCfgParams.IsDirectiveAutoadjustEnabled)
 
 	cfg := nginx.ServerConfig{
 		MaxFails:    ingCfg.MaxFails,
