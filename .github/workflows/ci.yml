@@ -104,7 +104,9 @@ jobs:
           echo "forked_workflow=${forked_workflow}" >> $GITHUB_OUTPUT
           go_proxy="https://proxy.golang.org,direct"
           if [ "$forked_workflow" = "false" ]; then
-            go_proxy="https://azr.artifactory.f5net.com/artifactory/api/go/f5-nginx-go-dev"
+            go_proxy="${{ secrets.ARTIFACTORY_DEV_ENDPOINT }}"
+          elif [ "${{ github.ref_name }}" = "main" ] || [[ "${{ github.ref_name }}" =~ "release-" ]]; then
+            go_proxy="${{ secrets.ARTIFACTORY_ENDPOINT }}"
           fi
           echo "go_proxy=${go_proxy}" >> $GITHUB_OUTPUT
           ./.github/scripts/variables.sh go_code_md5 >> $GITHUB_OUTPUT
