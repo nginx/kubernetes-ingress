@@ -3,7 +3,7 @@
 exclude: (^_vendor/|.*pb2.*)
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
         exclude: '(\.md|\.jwt|\.snap|\.avdl)$'
@@ -27,7 +27,7 @@ repos:
         args: [--fix=lf]
       - id: name-tests-test
         args: [--pytest-test-first]
-        exclude: ^(tests/suite/utils|tests/suite/fixtures|tests/suite/grpc|tests/settings.py)
+        exclude: ^(tests/suite/utils|tests/suite/fixtures|tests/suite/grpc|tests/settings.py|tests/scripts)
       - id: no-commit-to-branch
       - id: requirements-txt-fixer
       - id: fix-byte-order-marker
@@ -44,7 +44,7 @@ repos:
         pass_filenames: false
 
   - repo: https://github.com/golangci/golangci-lint
-    rev: v2.1.6
+    rev: v2.4.0
     hooks:
       - id: golangci-lint
         args: [--new-from-patch=/tmp/diff.patch]
@@ -77,7 +77,7 @@ repos:
           ]
 
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0.33.1
+    rev: 0.33.3
     hooks:
       - id: check-jsonschema
         name: "Check Helm Chart JSON Schema"

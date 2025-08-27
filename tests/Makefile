@@ -56,7 +56,7 @@ $(MINIKUBE_KUBE_CONFIG_FOLDER): $(KUBE_CONFIG_FOLDER)
 setup-venv:
 	$(PYTHON) -m venv $(ROOT_DIR)/tests/venv;
 	source $(ROOT_DIR)/tests/venv/bin/activate \
-	&& pip install --require-hashes -r requirements.txt --no-deps \
+	&& pip install --require-hashes -r $(ROOT_DIR)/tests/requirements.txt --no-deps \
 	&& playwright install --with-deps chromium
 
 

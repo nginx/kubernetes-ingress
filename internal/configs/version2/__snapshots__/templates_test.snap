@@ -1077,6 +1077,149 @@ server {
 
 ---
 
+[TestExecuteVirtualServerTemplateWithCachePolicyNGINXPlus - 1]
+
+upstream test-upstream {
+    zone test-upstream ;
+    server 10.0.0.20:8001 max_fails=0 fail_timeout= max_conns=0;
+}
+
+proxy_cache_path /var/cache/nginx/test_cache_full_advanced levels=2:2 keys_zone=test_cache_full_advanced:50m;
+proxy_cache_path /var/cache/nginx/test_cache_location_location_cache keys_zone=test_cache_location_location_cache:20m;
+geo $purge_allowed_test_cache_full_advanced {
+    default 0;
+    127.0.0.1 1;
+    10.0.0.0/8 1;
+    192.168.1.0/24 1;
+}
+
+map $request_method $cache_purge_test_cache_full_advanced {
+    PURGE   $purge_allowed_test_cache_full_advanced;
+    default 0;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name example.com;
+    status_zone example.com;
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+
+    server_tokens "off";
+    # Server-level cache configuration
+    proxy_cache test_cache_full_advanced;
+    proxy_cache_key $scheme$proxy_host$request_uri;
+    proxy_ignore_headers Cache-Control Expires Set-Cookie Vary X-Accel-Expires;
+    proxy_cache_valid 200 2h;
+    proxy_cache_valid 301 2h;
+    proxy_cache_valid 404 2h;
+    proxy_cache_methods GET HEAD POST;
+    proxy_cache_purge $cache_purge_test_cache_full_advanced;
+
+    
+
+    
+    location / {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache test_cache_location_location_cache;
+        proxy_cache_key $scheme$proxy_host$request_uri;
+        proxy_cache_valid any 1h;
+        proxy_cache_methods GET HEAD;
+        proxy_pass http://test-upstream;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+}
+
+---
+
+[TestExecuteVirtualServerTemplateWithCachePolicyOSS - 1]
+
+upstream test-upstream {zone test-upstream ;
+    server 10.0.0.20:8001 max_fails=0 fail_timeout= max_conns=0;
+}
+
+proxy_cache_path /var/cache/nginx/test_cache_basic_cache levels=1:2 keys_zone=test_cache_basic_cache:10m;
+proxy_cache_path /var/cache/nginx/test_cache_location_simple_cache keys_zone=test_cache_location_simple_cache:5m;
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name example.com;
+
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+
+    server_tokens "off";
+    # Server-level cache configuration
+    proxy_cache test_cache_basic_cache;
+    proxy_cache_key $scheme$proxy_host$request_uri;
+    proxy_ignore_headers Cache-Control Expires Set-Cookie Vary X-Accel-Expires;
+    proxy_cache_valid any 1h;
+    proxy_cache_methods GET HEAD;
+
+    
+
+    
+    location / {
+        set $service "";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache test_cache_location_simple_cache;
+        proxy_cache_key $scheme$proxy_host$request_uri;
+        proxy_cache_valid 200 30m;
+        proxy_cache_valid 404 30m;
+        proxy_pass http://test-upstream;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+}
+
+---
+
 [TestExecuteVirtualServerTemplateWithJWKSWithToken - 1]
 
 upstream vs_default_cafe_tea {
@@ -1115,6 +1258,10 @@ server {
         proxy_set_header Content-Length "";
         proxy_cache jwks_uri_cafe;
         proxy_cache_valid 200 12h;
+        proxy_ssl_server_name on;
+        proxy_ssl_name sni.idp.spec.example.com;
+        proxy_pass_request_headers off;
+        proxy_pass_request_body off;
         proxy_set_header Host idp.spec.example.com;
         set $idp_backend idp.spec.example.com;
         proxy_pass https://$idp_backend:443/spec-keys;
@@ -1125,6 +1272,10 @@ server {
         proxy_set_header Content-Length "";
         proxy_cache jwks_uri_cafe;
         proxy_cache_valid 200 12h;
+        proxy_ssl_server_name on;
+        proxy_ssl_name sni.idp.spec.example.com;
+        proxy_pass_request_headers off;
+        proxy_pass_request_body off;
         proxy_set_header Host idp.route.example.com;
         set $idp_backend idp.route.example.com;
         proxy_pass http://$idp_backend:80/route-keys;
@@ -1235,6 +1386,8 @@ server {
         proxy_set_header Content-Length "";
         proxy_cache jwks_uri_cafe;
         proxy_cache_valid 200 12h;
+        proxy_pass_request_headers off;
+        proxy_pass_request_body off;
         proxy_set_header Host idp.spec.example.com;
         set $idp_backend idp.spec.example.com;
         proxy_pass https://$idp_backend:443/spec-keys;
@@ -1245,6 +1398,8 @@ server {
         proxy_set_header Content-Length "";
         proxy_cache jwks_uri_cafe;
         proxy_cache_valid 200 12h;
+        proxy_pass_request_headers off;
+        proxy_pass_request_body off;
         proxy_set_header Host idp.route.example.com;
         set $idp_backend idp.route.example.com;
         proxy_pass http://$idp_backend:80/route-keys;

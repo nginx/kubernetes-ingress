@@ -9,7 +9,9 @@ import (
 	"strings"
 	"unicode"
 
+	validation2 "github.com/nginx/kubernetes-ingress/internal/validation"
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
@@ -90,8 +92,13 @@ func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, isPlus, enab
 		fieldCount++
 	}
 
+	if spec.Cache != nil {
+		allErrs = append(allErrs, validateCache(spec.Cache, fieldPath.Child("cache"), isPlus)...)
+		fieldCount++
+	}
+
 	if fieldCount != 1 {
-		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`"
+		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`"
 		if isPlus {
 			msg = fmt.Sprint(msg, ", `jwt`, `oidc`, `waf`")
 		}
@@ -198,6 +205,16 @@ func validateJWT(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
 		if jwt.KeyCache != "" {
 			allErrs = append(allErrs, field.Forbidden(fieldPath.Child("keyCache"), "key cache must not be used when using Secret"))
 		}
+
+		// If JwksURI is not set, then none of the SNI fields should be set.
+		if jwt.SNIEnabled {
+			return append(allErrs, field.Forbidden(fieldPath.Child("sniEnabled"), "sniEnabled can only be set when JwksURI is set"))
+		}
+
+		if jwt.SNIName != "" {
+			return append(allErrs, field.Forbidden(fieldPath.Child("sniName"), "sniName can only be set when JwksURI is set"))
+		}
+
 		return allErrs
 	}
 
@@ -213,7 +230,22 @@ func validateJWT(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
 		if jwt.KeyCache == "" {
 			allErrs = append(allErrs, field.Required(fieldPath.Child("keyCache"), "key cache must be set, example value: 1h"))
 		}
-		return allErrs
+
+		// if SNI server name is provided, but SNI is not enabled, return an error
+		if jwt.SNIName != "" && !jwt.SNIEnabled {
+			allErrs = append(allErrs, field.Forbidden(fieldPath.Child("sniServerName"), "sniServerName can only be set when sniEnabled is true"))
+		}
+
+		// if SNI is enabled and SNI server name is provided, make sure it's a valid URI
+		if jwt.SNIEnabled && jwt.SNIName != "" {
+			err := validation2.ValidateURI(jwt.SNIName,
+				validation2.WithAllowedSchemes("https"),
+				validation2.WithUserAllowed(false),
+				validation2.WithDefaultScheme("https"))
+			if err != nil {
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("sniServerName"), jwt.SNIName, "sniServerName is not a valid URI"))
+			}
+		}
 	}
 	return allErrs
 }
@@ -387,6 +419,86 @@ func validateLogConfs(logs []*v1.SecurityLog, fieldPath *field.Path, bundleMode 
 
 	for i := range logs {
 		allErrs = append(allErrs, validateLogConf(logs[i], fieldPath.Index(i), bundleMode)...)
+	}
+
+	return allErrs
+}
+
+// validateCache validates a cache policy
+func validateCache(cache *v1.Cache, fieldPath *field.Path, isPlus bool) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	allErrs = append(allErrs, validateCacheAllowedCodes(cache, fieldPath)...)
+
+	allErrs = append(allErrs, validateCachePlusFeatures(cache, fieldPath, isPlus)...)
+
+	return allErrs
+}
+
+// validateCacheAllowedCodes validates the allowedCodes field
+func validateCacheAllowedCodes(cache *v1.Cache, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if len(cache.AllowedCodes) == 0 {
+		return allErrs // No validation needed for empty slice
+	}
+
+	// Check if it's the special case: single element "any"
+	if len(cache.AllowedCodes) == 1 && cache.AllowedCodes[0].Type == intstr.String && cache.AllowedCodes[0].StrVal == "any" {
+		return allErrs // Valid: single "any" string
+	}
+
+	// Check if it contains "any" mixed with other codes (invalid)
+	hasAny := false
+	for i, code := range cache.AllowedCodes {
+		if code.Type == intstr.String && code.StrVal == "any" {
+			hasAny = true
+			if len(cache.AllowedCodes) > 1 {
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("allowedCodes").Index(i), code.StrVal, "the string 'any' cannot be mixed with other codes"))
+			}
+		}
+	}
+
+	// If we have "any" mixed with others, we already reported the error above
+	if hasAny {
+		return allErrs
+	}
+
+	// Validate all elements are integers in the range 100-599
+	for i, code := range cache.AllowedCodes {
+		if code.Type == intstr.String { // String type
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("allowedCodes").Index(i), code.StrVal, "must be an integer HTTP status code (100-599) or the single string 'any'"))
+		} else { // Integer type
+			intVal := int(code.IntVal)
+			if intVal < 100 || intVal > 599 {
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("allowedCodes").Index(i), intVal, "HTTP status code must be between 100 and 599"))
+			}
+		}
+	}
+
+	return allErrs
+}
+
+// validateCachePlusFeatures validates NGINX Plus specific features, such as cache purge allow IPs
+func validateCachePlusFeatures(cache *v1.Cache, fieldPath *field.Path, isPlus bool) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	// Validate cache purge allow IPs if provided
+	if len(cache.CachePurgeAllow) > 0 {
+		// Check if NGINX Plus is required for cache purge
+		if !isPlus {
+			allErrs = append(allErrs, field.Forbidden(fieldPath.Child("cachePurgeAllow"), "cache purge is only supported in NGINX Plus"))
+		} else {
+			// Validate IP addresses/CIDRs if NGINX Plus is available
+			for i, ip := range cache.CachePurgeAllow {
+				if net.ParseIP(ip) == nil {
+					// Try parsing as CIDR
+					if _, _, err := net.ParseCIDR(ip); err != nil {
+						allErrs = append(allErrs, field.Invalid(fieldPath.Child("cachePurgeAllow").Index(i), ip, "must be a valid IP address or CIDR"))
+					}
+				}
+			}
+		}
 	}
 
 	return allErrs
