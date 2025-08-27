@@ -478,9 +478,9 @@ func parseRateLimitAnnotations(annotations map[string]string, cfgParams *ConfigP
 
 	if hasRateLimitAnnotation {
 		mandatoryAnnotations := []string{
-			LimitReqRateAnnotation,
-			LimitReqKeyAnnotation,
-			LimitReqZoneSizeAnnotation,
+			"nginx.org/limit-req-rate",
+			"nginx.org/limit-req-key",
+			"nginx.org/limit-req-zone-size",
 		}
 
 		for _, mandatory := range mandatoryAnnotations {
