@@ -103,7 +103,8 @@ func NewSizeWithUnit(sizeStr string) (SizeWithUnit, error) {
 	}
 
 	if num > 1024 {
-		ret.Size = 1024
+	if num > MaxAllowedSize {
+		ret.Size = MaxAllowedSize
 	}
 
 	return ret, nil
