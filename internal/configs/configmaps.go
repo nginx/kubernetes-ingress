@@ -354,7 +354,6 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		} else {
 			cfgParams.ProxyBufferSize = proxyBufferSizeData
 		}
-		// normalizedProxyBufferSize := validation.NormalizeBufferSize(proxyBufferSize)
 	}
 
 	// Proxy Busy Buffers Size uses only size format, like "8k".
@@ -380,8 +379,6 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 			nl.Infof(l, "Changes made to proxy values: %s", modification)
 		}
 	}
-
-	// Normalise the three proxy buffer values across each other.
 
 	if proxyMaxTempFileSize, exists := cfgm.Data["proxy-max-temp-file-size"]; exists {
 		cfgParams.ProxyMaxTempFileSize = proxyMaxTempFileSize

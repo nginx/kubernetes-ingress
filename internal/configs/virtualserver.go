@@ -478,13 +478,6 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	// generate upstreams for VirtualServer
 	for _, u := range vsEx.VirtualServer.Spec.Upstreams {
-		// // here
-		// err := balanceProxiesForUpstreams(&u)
-		// if err != nil {
-		// 	// if we're here, upstream was unchanged
-		// 	vsc.addWarningf(vsEx.VirtualServer, "Balancing proxy buffer values failed for %s: %s", u.Name, err)
-		// }
-
 		upstreams, healthChecks, statusMatches = generateUpstreams(
 			sslConfig,
 			vsc,
@@ -503,14 +496,6 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	for _, vsr := range vsEx.VirtualServerRoutes {
 		upstreamNamer := NewUpstreamNamerForVirtualServerRoute(vsEx.VirtualServer, vsr)
 		for _, u := range vsr.Spec.Upstreams {
-			// here
-			//
-			// err := balanceProxiesForUpstreams(&u)
-			// if err != nil {
-			// 	// if we're here, upstream was unchanged
-			// 	vsc.addWarningf(vsEx.VirtualServer, "Balancing proxy buffer values failed for %s: %s", u.Name, err)
-			// }
-
 			upstreams, healthChecks, statusMatches = generateUpstreams(
 				sslConfig,
 				vsc,

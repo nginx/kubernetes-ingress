@@ -15,6 +15,11 @@ const (
 	DefaultPageSize = "4k"
 )
 
+var (
+	maxAllowedSize      = uint64(1024)
+	minNginxBufferCount = uint64(2)
+)
+
 // SizeUnit moves validation and normalisation of incoming string into a custom
 // type so we can pass that one around. Source for the size unit is from nginx
 // documentation. @see https://nginx.org/en/docs/syntax.html
@@ -102,9 +107,8 @@ func NewSizeWithUnit(sizeStr string) (SizeWithUnit, error) {
 		Unit: unit,
 	}
 
-	if num > 1024 {
-	if num > MaxAllowedSize {
-		ret.Size = MaxAllowedSize
+	if num > maxAllowedSize {
+		ret.Size = maxAllowedSize
 	}
 
 	return ret, nil
@@ -145,8 +149,8 @@ func NewNumberSizeConfig(sizeStr string) (NumberSizeConfig, error) {
 		return NumberSizeConfig{}, fmt.Errorf("invalid number value, could not parse into unsigned integer: %s", parts[0])
 	}
 
-	if num < 2 {
-		num = 2
+	if num < minNginxBufferCount {
+		num = minNginxBufferCount
 	}
 
 	size, err := NewSizeWithUnit(parts[1])

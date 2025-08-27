@@ -165,6 +165,7 @@ controller:
   logFormat: glog
 
   ## Enables auto adjusting some of the NGINX directives to help with safe configuration and prevent NGINX misconfigurations.
+  ## See https://docs.nginx.com/nginx-ingress-controller/configuration/proxy-buffers-configuration/  for more details of which configuration options are affected
   directiveAutoAdjust: false
 
   ## Cache configuration options
