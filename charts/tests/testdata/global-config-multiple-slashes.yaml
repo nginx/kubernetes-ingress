@@ -1,0 +1,9 @@
+controller:
+  globalConfiguration:
+    create: true
+    customName: "namespace/sub/name"
+    spec:
+      listeners:
+      - name: dns-udp
+        port: 5353
+        protocol: UDP
