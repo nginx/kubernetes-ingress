@@ -111,30 +111,6 @@ func hasServicePortChanges(oldServicePorts []v1.ServicePort, curServicePorts []v
 	return false
 }
 
-// createUniformSelectors creates uniform selector labels across deployment types (ReplicaSet, DaemonSet, StatefulSet)
-func (lbc *LoadBalancerController) createUniformSelectors() map[string]string {
-	selectors := make(map[string]string)
-
-	// Add common selector labels
-	if val, exists := lbc.metadata.pod.Labels["app.kubernetes.io/name"]; exists {
-		selectors["app.kubernetes.io/name"] = val
-	}
-	if val, exists := lbc.metadata.pod.Labels["app.kubernetes.io/instance"]; exists {
-		selectors["app.kubernetes.io/instance"] = val
-	}
-
-	// Add owner UID for uniqueness across different controller types
-	if len(lbc.metadata.pod.OwnerReferences) > 0 {
-		ownerUID := string(lbc.metadata.pod.OwnerReferences[0].UID)
-		if len(ownerUID) > 63 {
-			ownerUID = ownerUID[:63]
-		}
-		selectors["ownerUid"] = ownerUID
-	}
-
-	return selectors
-}
-
 type portSort []v1.ServicePort
 
 func (a portSort) Len() int {
@@ -168,6 +144,11 @@ func (lbc *LoadBalancerController) syncZoneSyncHeadlessService(svcName string) e
 			return nil
 		}
 
+		selectors, err := CreateUniformSelectorsFromController(lbc.client, lbc.metadata.pod)
+		if err != nil {
+			nl.Errorf(lbc.Logger, "Failed to get selectors: %v", err)
+		}
+
 		newSvc := &v1.Service{
 			ObjectMeta: meta_v1.ObjectMeta{
 				Name:      svcName,
@@ -185,12 +166,16 @@ func (lbc *LoadBalancerController) syncZoneSyncHeadlessService(svcName string) e
 			},
 			Spec: v1.ServiceSpec{
 				ClusterIP: v1.ClusterIPNone,
-				Selector:  lbc.createUniformSelectors(),
+				Selector:  selectors,
 			},
 		}
 
 		createdSvc, err := lbc.client.CoreV1().Services(lbc.metadata.namespace).Create(context.Background(), newSvc, meta_v1.CreateOptions{})
 		if err != nil {
+			if apierrors.IsAlreadyExists(err) {
+				nl.Infof(lbc.Logger, "headless service already created by another pod: %s/%s", lbc.metadata.namespace, svcName)
+				return nil
+			}
 			lbc.recorder.Eventf(lbc.metadata.pod, v1.EventTypeWarning, nl.EventReasonServiceFailedToCreate, "error creating headless service: %v", err)
 			return fmt.Errorf("error creating headless service: %w", err)
 		}
