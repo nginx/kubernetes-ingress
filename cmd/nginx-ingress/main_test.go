@@ -148,18 +148,18 @@ func TestCreateHeadlessService(t *testing.T) {
 	podName := "test-pod"
 
 	podLabels := map[string]string{
-		"app.kubernetes.io/name":    "nginx-ingress",
+		"app.kubernetes.io/name":     "nginx-ingress",
 		"app.kubernetes.io/instance": "my-release",
-		"app": "my-app",
-		"pod-hash": "12345",
+		"app":                        "my-app",
+		"pod-hash":                   "12345",
 	}
 
 	// Expected selectors including owner UID
 	ownerUID := "test-owner-uid-12345"
 	expectedSelector := map[string]string{
-		"app.kubernetes.io/name":    "nginx-ingress",
+		"app.kubernetes.io/name":     "nginx-ingress",
 		"app.kubernetes.io/instance": "my-release",
-		"ownerUid": ownerUID,
+		"ownerUid":                   ownerUID,
 	}
 
 	svcName := "test-hl-service"
