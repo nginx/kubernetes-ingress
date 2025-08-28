@@ -1,0 +1,9 @@
+controller:
+  globalConfiguration:
+    create: true
+    customName: "test-namespace/my-custom-global-config"
+    spec:
+      listeners:
+      - name: dns-udp
+        port: 5353
+        protocol: UDP
