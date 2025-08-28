@@ -146,7 +146,22 @@ func TestCreateHeadlessService(t *testing.T) {
 	configMapNamespace := "default"
 	configMapNamespacedName := fmt.Sprintf("%s/%s", configMapNamespace, configMapName)
 	podName := "test-pod"
-	podLabels := map[string]string{"app": "my-app", "pod-hash": "12345"}
+	
+	podLabels := map[string]string{
+		"app.kubernetes.io/name":    "nginx-ingress",
+		"app.kubernetes.io/instance": "my-release",
+		"app": "my-app",
+		"pod-hash": "12345",
+	}
+
+	// Expected selectors including owner UID
+	ownerUID := "test-owner-uid-12345"
+	expectedSelector := map[string]string{
+		"app.kubernetes.io/name":    "nginx-ingress",
+		"app.kubernetes.io/instance": "my-release",
+		"ownerUid": ownerUID,
+	}
+	
 	svcName := "test-hl-service"
 
 	pod := &api_v1.Pod{
@@ -154,6 +169,15 @@ func TestCreateHeadlessService(t *testing.T) {
 			Name:      podName,
 			Namespace: controllerNamespace,
 			Labels:    podLabels,
+			OwnerReferences: []meta_v1.OwnerReference{
+				{
+					APIVersion: "apps/v1",
+					Kind:       "ReplicaSet", 
+					Name:       "nginx-ingress-123",
+					UID:        types.UID(ownerUID),
+					Controller: commonhelpers.BoolToPointerBool(true),
+				},
+			},
 		},
 	}
 
@@ -187,7 +211,7 @@ func TestCreateHeadlessService(t *testing.T) {
 		{
 			name:                 "Create service if none found",
 			expectedAction:       "create",
-			expectedSelector:     podLabels,
+			expectedSelector:     expectedSelector,
 			expectedOwnerRefs:    expectedOwnerReferences,
 			initialClientObjects: []runtime.Object{pod, configMap},
 		},
@@ -200,11 +224,11 @@ func TestCreateHeadlessService(t *testing.T) {
 					OwnerReferences: expectedOwnerReferences,
 				},
 				Spec: api_v1.ServiceSpec{
-					Selector: podLabels,
+					Selector: expectedSelector,
 				},
 			},
 			expectedAction:       "none",
-			expectedSelector:     podLabels,
+			expectedSelector:     expectedSelector,
 			expectedOwnerRefs:    expectedOwnerReferences,
 			initialClientObjects: []runtime.Object{pod, configMap},
 		},
@@ -221,7 +245,7 @@ func TestCreateHeadlessService(t *testing.T) {
 				},
 			},
 			expectedAction:       "update",
-			expectedSelector:     podLabels,
+			expectedSelector:     expectedSelector,
 			expectedOwnerRefs:    expectedOwnerReferences,
 			initialClientObjects: []runtime.Object{pod, configMap},
 		},
@@ -236,11 +260,11 @@ func TestCreateHeadlessService(t *testing.T) {
 					},
 				},
 				Spec: api_v1.ServiceSpec{
-					Selector: podLabels,
+					Selector: expectedSelector,
 				},
 			},
 			expectedAction:       "update",
-			expectedSelector:     podLabels,
+			expectedSelector:     expectedSelector,
 			expectedOwnerRefs:    expectedOwnerReferences,
 			initialClientObjects: []runtime.Object{pod, configMap},
 		},
@@ -259,7 +283,7 @@ func TestCreateHeadlessService(t *testing.T) {
 				},
 			},
 			expectedAction:       "update",
-			expectedSelector:     podLabels,
+			expectedSelector:     expectedSelector,
 			expectedOwnerRefs:    expectedOwnerReferences,
 			initialClientObjects: []runtime.Object{pod, configMap},
 		},
