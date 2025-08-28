@@ -71,6 +71,7 @@ rules:
   resources:
   - replicasets
   - daemonsets
+  - statefulsets
   verbs:
   - get
 - apiGroups:

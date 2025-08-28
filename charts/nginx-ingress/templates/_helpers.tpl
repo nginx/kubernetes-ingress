@@ -391,8 +391,14 @@ List of volumes for controller.
 {{- if eq (include "nginx-ingress.readOnlyRootFilesystem" .) "true" }}
 - name: nginx-etc
   emptyDir: {}
+{{- if .Values.controller.cache.enableShared }}
+- name: nginx-cache
+  persistentVolumeClaim:
+    claimName: {{ .Values.controller.cache.sharedPVCName }}
+{{- else }}
 - name: nginx-cache
   emptyDir: {}
+{{- end }}
 - name: nginx-lib
   emptyDir: {}
 - name: nginx-state
