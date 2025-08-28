@@ -158,12 +158,13 @@ jobs:
           docker_build="false"
           if [ "${{ inputs.force }}" = "true" ]; then
             docker_build="true"
-          elif [ "$forked_workflow" = "true" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ]; then
+          elif [ "${{ steps.vars.outputs.forked_workflow }}" = "true" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ]; then
             docker_build="true"
-          elif [ "$forked_workflow" = "false" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ] && [ "${{ steps.stable_exists.outputs.exists }}" = "false" ]; then
+          elif [ "${{ steps.vars.outputs.forked_workflow }}" = "false" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ] && [ "${{ steps.stable_exists.outputs.exists }}" = "false" ]; then
             docker_build="true"
           fi
           echo "docker_build=${docker_build}" >> $GITHUB_OUTPUT
+          cat $GITHUB_OUTPUT
 
       - name: Output variables
         run: |
@@ -357,7 +358,7 @@ jobs:
       go-md5: ${{ needs.checks.outputs.go_code_md5 }}
       base-image-md5: ${{ needs.checks.outputs.docker_md5 }}
       authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
-      full-build: ${{ inputs.force }}
+      full-build: ${{ inputs.force && inputs.force || false }}
       tag: ${{ needs.checks.outputs.build_tag }}
       branch: ${{ (github.head_ref && needs.checks.outputs.forked_workflow != 'true') && github.head_ref || github.ref }}
       ic-version: ${{ needs.checks.outputs.ic_version }}
@@ -386,7 +387,7 @@ jobs:
       branch: ${{ (github.head_ref && needs.checks.outputs.forked_workflow != 'true') && github.head_ref || github.ref }}
       tag: ${{ needs.checks.outputs.build_tag }}
       authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
-      full-build: ${{ inputs.force }}
+      full-build: ${{ inputs.force && inputs.force || false }}
       ic-version: ${{ needs.checks.outputs.ic_version }}
     permissions:
       contents: read
@@ -412,7 +413,7 @@ jobs:
       tag: ${{ needs.checks.outputs.build_tag }}
       nap-modules: ${{ matrix.nap_modules }}
       authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
-      full-build: ${{ inputs.force }}
+      full-build: ${{ inputs.force && inputs.force || false }}
       ic-version: ${{ needs.checks.outputs.ic_version }}
     permissions:
       contents: read
@@ -727,7 +728,7 @@ jobs:
       stable-tag: ${{ needs.checks.outputs.stable_tag }}
       authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
       k8s-version: ${{ matrix.k8s }}
-      force: ${{ inputs.run_tests }}
+      force: ${{ inputs.run_tests && inputs.run_tests || true }}
 
   smoke-tests-plus:
     if: ${{ inputs.force || (inputs.run_tests && inputs.run_tests || true) || needs.checks.outputs.docs_only != 'true' }}
@@ -755,7 +756,7 @@ jobs:
       stable-tag: ${{ needs.checks.outputs.stable_tag }}
       authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
       k8s-version: ${{ matrix.k8s }}
-      force: ${{ inputs.run_tests }}
+      force: ${{ inputs.run_tests && inputs.run_tests || true }}
 
   smoke-tests-nap:
     if: ${{ inputs.force || (inputs.run_tests && inputs.run_tests || true) || needs.checks.outputs.docs_only != 'true' }}
@@ -783,7 +784,7 @@ jobs:
       stable-tag: ${{ needs.checks.outputs.stable_tag }}
       authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
       k8s-version: ${{ matrix.k8s }}
-      force: ${{ inputs.run_tests }}
+      force: ${{ inputs.run_tests && inputs.run_tests || true }}
 
   tag-stable:
     name: Tag tested image as stable
