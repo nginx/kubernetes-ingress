@@ -403,7 +403,7 @@ List of volumes for controller.
 - name: nginx-log
   emptyDir: {}
 {{- else if .Values.controller.cache.enableShared }}
-- name: nginx-cache
+- name:  {{ .Values.controller.cache.sharedPVCName }}
   persistentVolumeClaim:
     claimName: {{ .Values.controller.cache.sharedPVCName }}
 {{- end }}
@@ -467,7 +467,7 @@ volumeMounts:
   name: nginx-log
 {{- else if .Values.controller.cache.enableShared }}
 - mountPath: /var/cache/nginx
-  name: nginx-cache
+  name:  {{ .Values.controller.cache.sharedPVCName }}
 {{- end }}
 {{- if .Values.controller.appprotect.v5 }}
 - name: app-protect-bd-config
