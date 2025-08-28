@@ -146,7 +146,7 @@ func TestCreateHeadlessService(t *testing.T) {
 	configMapNamespace := "default"
 	configMapNamespacedName := fmt.Sprintf("%s/%s", configMapNamespace, configMapName)
 	podName := "test-pod"
-	
+
 	podLabels := map[string]string{
 		"app.kubernetes.io/name":    "nginx-ingress",
 		"app.kubernetes.io/instance": "my-release",
@@ -161,7 +161,7 @@ func TestCreateHeadlessService(t *testing.T) {
 		"app.kubernetes.io/instance": "my-release",
 		"ownerUid": ownerUID,
 	}
-	
+
 	svcName := "test-hl-service"
 
 	pod := &api_v1.Pod{
@@ -172,7 +172,7 @@ func TestCreateHeadlessService(t *testing.T) {
 			OwnerReferences: []meta_v1.OwnerReference{
 				{
 					APIVersion: "apps/v1",
-					Kind:       "ReplicaSet", 
+					Kind:       "ReplicaSet",
 					Name:       "nginx-ingress-123",
 					UID:        types.UID(ownerUID),
 					Controller: commonhelpers.BoolToPointerBool(true),
