@@ -114,7 +114,7 @@ func hasServicePortChanges(oldServicePorts []v1.ServicePort, curServicePorts []v
 // createUniformSelectors creates uniform selector labels across deployment types (ReplicaSet, DaemonSet, StatefulSet)
 func (lbc *LoadBalancerController) createUniformSelectors() map[string]string {
 	selectors := make(map[string]string)
-	
+
 	// Add common selector labels
 	if val, exists := lbc.metadata.pod.Labels["app.kubernetes.io/name"]; exists {
 		selectors["app.kubernetes.io/name"] = val
@@ -122,7 +122,7 @@ func (lbc *LoadBalancerController) createUniformSelectors() map[string]string {
 	if val, exists := lbc.metadata.pod.Labels["app.kubernetes.io/instance"]; exists {
 		selectors["app.kubernetes.io/instance"] = val
 	}
-	
+
 	// Add owner UID for uniqueness across different controller types
 	if len(lbc.metadata.pod.OwnerReferences) > 0 {
 		ownerUID := string(lbc.metadata.pod.OwnerReferences[0].UID)
@@ -131,7 +131,7 @@ func (lbc *LoadBalancerController) createUniformSelectors() map[string]string {
 		}
 		selectors["ownerUid"] = ownerUID
 	}
-	
+
 	return selectors
 }
 

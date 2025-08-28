@@ -1125,7 +1125,7 @@ func createHeadlessService(l *slog.Logger, kubeClient kubernetes.Interface, cont
 
 	// Create uniform selector labels across deployment types (ReplicaSet, DaemonSet, StatefulSet)
 	requiredSelectors := make(map[string]string)
-	
+
 	// Add common selector labels
 	if val, exists := pod.Labels["app.kubernetes.io/name"]; exists {
 		requiredSelectors["app.kubernetes.io/name"] = val
@@ -1133,7 +1133,7 @@ func createHeadlessService(l *slog.Logger, kubeClient kubernetes.Interface, cont
 	if val, exists := pod.Labels["app.kubernetes.io/instance"]; exists {
 		requiredSelectors["app.kubernetes.io/instance"] = val
 	}
-	
+
 	// Add owner UID for uniqueness across different controller types
 	if len(pod.OwnerReferences) > 0 {
 		ownerUID := string(pod.OwnerReferences[0].UID)
