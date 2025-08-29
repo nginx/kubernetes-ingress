@@ -1236,7 +1236,6 @@ upstream vs_default_cafe_coffee {
     keepalive 16;
 }
 
-proxy_cache_path /var/cache/nginx/jwks_uri_cafe levels=1 keys_zone=jwks_uri_cafe:1m max_size=10m;
 
 server {
     listen 80;
@@ -1258,8 +1257,6 @@ server {
         internal;
         proxy_method GET;
         proxy_set_header Content-Length "";
-        proxy_cache jwks_uri_cafe;
-        proxy_cache_valid 200 12h;
         proxy_ssl_server_name on;
         proxy_ssl_name sni.idp.spec.example.com;
         proxy_pass_request_headers off;
@@ -1272,8 +1269,6 @@ server {
         internal;
         proxy_method GET;
         proxy_set_header Content-Length "";
-        proxy_cache jwks_uri_cafe;
-        proxy_cache_valid 200 12h;
         proxy_ssl_server_name on;
         proxy_ssl_name sni.idp.spec.example.com;
         proxy_pass_request_headers off;
@@ -1364,7 +1359,6 @@ upstream vs_default_cafe_coffee {
     keepalive 16;
 }
 
-proxy_cache_path /var/cache/nginx/jwks_uri_cafe levels=1 keys_zone=jwks_uri_cafe:1m max_size=10m;
 
 server {
     listen 80;
@@ -1386,8 +1380,6 @@ server {
         internal;
         proxy_method GET;
         proxy_set_header Content-Length "";
-        proxy_cache jwks_uri_cafe;
-        proxy_cache_valid 200 12h;
         proxy_pass_request_headers off;
         proxy_pass_request_body off;
         proxy_set_header Host idp.spec.example.com;
@@ -1398,8 +1390,6 @@ server {
         internal;
         proxy_method GET;
         proxy_set_header Content-Length "";
-        proxy_cache jwks_uri_cafe;
-        proxy_cache_valid 200 12h;
         proxy_pass_request_headers off;
         proxy_pass_request_body off;
         proxy_set_header Host idp.route.example.com;

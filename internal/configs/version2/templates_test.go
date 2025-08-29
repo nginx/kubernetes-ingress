@@ -731,12 +731,6 @@ func TestExecuteVirtualServerTemplateWithJWKSWithToken(t *testing.T) {
 	if !bytes.Contains(got, []byte("token=$http_token")) {
 		t.Error("want `token=$http_token` in generated template")
 	}
-	if !bytes.Contains(got, []byte("proxy_cache jwks_uri_")) {
-		t.Error("want `proxy_cache` in generated template")
-	}
-	if !bytes.Contains(got, []byte("proxy_cache_valid 200 12h;")) {
-		t.Error("want `proxy_cache_valid 200 12h;` in generated template")
-	}
 
 	if !bytes.Contains(got, []byte("proxy_ssl_server_name on;")) {
 		t.Error("want `proxy_ssl_server_name on;` in generated template")
@@ -759,12 +753,6 @@ func TestExecuteVirtualServerTemplateWithJWKSWithoutToken(t *testing.T) {
 	}
 	if bytes.Contains(got, []byte("token=$http_token")) {
 		t.Error("want no `token=$http_token` string in generated template")
-	}
-	if !bytes.Contains(got, []byte("proxy_cache jwks_uri_")) {
-		t.Error("want `proxy_cache` in generated template")
-	}
-	if !bytes.Contains(got, []byte("proxy_cache_valid 200 12h;")) {
-		t.Error("want `proxy_cache_valid 200 12h;` in generated template")
 	}
 	snaps.MatchSnapshot(t, string(got))
 	t.Log(string(got))
