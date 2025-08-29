@@ -16,8 +16,8 @@ const (
 )
 
 var (
-	maxAllowedSize      = uint64(1024)
-	minNginxBufferCount = uint64(2)
+	maxNGINXBufferCount = uint64(1024)
+	minNGINXBufferCount = uint64(2)
 )
 
 // SizeUnit moves validation and normalisation of incoming string into a custom
@@ -107,8 +107,8 @@ func NewSizeWithUnit(sizeStr string) (SizeWithUnit, error) {
 		Unit: unit,
 	}
 
-	if num > maxAllowedSize {
-		ret.Size = maxAllowedSize
+	if num > maxNGINXBufferCount {
+		ret.Size = maxNGINXBufferCount
 	}
 
 	return ret, nil
@@ -149,8 +149,8 @@ func NewNumberSizeConfig(sizeStr string) (NumberSizeConfig, error) {
 		return NumberSizeConfig{}, fmt.Errorf("invalid number value, could not parse into unsigned integer: %s", parts[0])
 	}
 
-	if num < minNginxBufferCount {
-		num = minNginxBufferCount
+	if num < minNGINXBufferCount {
+		num = minNGINXBufferCount
 	}
 
 	size, err := NewSizeWithUnit(parts[1])
