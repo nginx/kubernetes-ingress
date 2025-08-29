@@ -107,10 +107,6 @@ func NewSizeWithUnit(sizeStr string) (SizeWithUnit, error) {
 		Unit: unit,
 	}
 
-	if num > maxNGINXBufferCount {
-		ret.Size = maxNGINXBufferCount
-	}
-
 	return ret, nil
 }
 
@@ -149,6 +145,12 @@ func NewNumberSizeConfig(sizeStr string) (NumberSizeConfig, error) {
 		return NumberSizeConfig{}, fmt.Errorf("invalid number value, could not parse into unsigned integer: %s", parts[0])
 	}
 
+	// clamp the number of buffers to the max allowed by NGINX
+	if num > maxNGINXBufferCount {
+		num = maxNGINXBufferCount
+	}
+
+	// clamp the number of buffers to the min allowed by NGINX
 	if num < minNGINXBufferCount {
 		num = minNGINXBufferCount
 	}
