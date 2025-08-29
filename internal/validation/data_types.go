@@ -145,16 +145,6 @@ func NewNumberSizeConfig(sizeStr string) (NumberSizeConfig, error) {
 		return NumberSizeConfig{}, fmt.Errorf("invalid number value, could not parse into unsigned integer: %s", parts[0])
 	}
 
-	// clamp the number of buffers to the max allowed by NGINX
-	if num > maxNGINXBufferCount {
-		num = maxNGINXBufferCount
-	}
-
-	// clamp the number of buffers to the min allowed by NGINX
-	if num < minNGINXBufferCount {
-		num = minNGINXBufferCount
-	}
-
 	size, err := NewSizeWithUnit(parts[1])
 	if err != nil {
 		return NumberSizeConfig{}, fmt.Errorf("could not parse size with unit: %s", parts[1])
@@ -207,15 +197,15 @@ func BalanceProxyValues(proxyBuffers NumberSizeConfig, proxyBufferSize, proxyBus
 	}
 
 	// 1.a there must be at least 2 proxy buffers
-	if proxyBuffers.Number < 2 {
+	if proxyBuffers.Number < minNGINXBufferCount {
 		modifications = append(modifications, fmt.Sprintf("adjusted proxy_buffers size from %d to 2", proxyBuffers.Number))
-		proxyBuffers.Number = 2
+		proxyBuffers.Number = minNGINXBufferCount
 	}
 
 	// 1.b there must be at most 1024 proxy buffers
-	if proxyBuffers.Number > 1024 {
+	if proxyBuffers.Number > maxNGINXBufferCount {
 		modifications = append(modifications, fmt.Sprintf("adjusted proxy_buffers number from %d to 1024", proxyBuffers.Number))
-		proxyBuffers.Number = 1024
+		proxyBuffers.Number = maxNGINXBufferCount
 	}
 
 	// 2.a proxy_buffers size must be greater than 0
