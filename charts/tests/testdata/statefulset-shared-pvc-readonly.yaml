@@ -1,0 +1,6 @@
+controller:
+  kind: statefulset
+  readOnlyRootFilesystem: true
+  cache:
+    enableShared: true
+    sharedPVCName: nginx-cache

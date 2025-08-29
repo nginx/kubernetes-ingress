@@ -1,0 +1,5 @@
+controller:
+  kind: statefulset
+  cache:
+    enableShared: true
+    sharedPVCName: nginx-cache
