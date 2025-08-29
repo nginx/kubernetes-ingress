@@ -1,9 +1,11 @@
 package validation_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/nginx/kubernetes-ingress/internal/validation"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -154,10 +156,10 @@ func TestNewNumberSizeConfig(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "invalid zero number with valid size",
+			name:    "zero number gets parsed as 0",
 			sizeStr: "0 4k",
 			want: validation.NumberSizeConfig{
-				Number: 2,
+				Number: 0,
 				Size:   validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB},
 			},
 			wantErr: false,
@@ -534,6 +536,325 @@ func TestBalanceProxyValues(t *testing.T) {
 			assert.Equalf(t, tt.wantProxyBuffers, gotProxyBuffers.String(), "proxy buffers, want: %s, got: %s", tt.wantProxyBuffers, gotProxyBuffers.String())
 			assert.Equalf(t, tt.wantProxyBufferSize, gotProxyBufferSize.String(), "proxy_buffer_size, want: %s, got: %s", tt.wantProxyBufferSize, gotProxyBufferSize.String())
 			assert.Equalf(t, tt.wantProxyBusyBufferSize, gotProxyBusyBufferSize.String(), "proxy_busy_buffers_size, want: %s, got: %s", tt.wantProxyBusyBufferSize, gotProxyBusyBufferSize.String())
+		})
+	}
+}
+
+func TestBalanceProxiesForUpstreams(t *testing.T) {
+	tests := []struct {
+		name                    string
+		upstream                *conf_v1.Upstream
+		autoadjust              bool
+		wantProxyBuffers        string
+		wantProxyBufferSize     string
+		wantProxyBusyBufferSize string
+		wantErr                 bool
+	}{
+		{
+			name: "nil ProxyBuffers - no changes",
+			upstream: &conf_v1.Upstream{
+				ProxyBuffers: nil,
+			},
+			autoadjust: true,
+			wantErr:    false,
+		},
+		{
+			name: "valid configuration unchanged",
+			upstream: &conf_v1.Upstream{
+				ProxyBuffers: &conf_v1.UpstreamBuffers{
+					Number: 8,
+					Size:   "4k",
+				},
+				ProxyBufferSize:      "4k",
+				ProxyBusyBuffersSize: "16k",
+			},
+			autoadjust:              true,
+			wantProxyBuffers:        "8 4k",
+			wantProxyBufferSize:     "4k",
+			wantProxyBusyBufferSize: "16k",
+			wantErr:                 false,
+		},
+		{
+			name: "invalid proxy buffers get default values",
+			upstream: &conf_v1.Upstream{
+				ProxyBuffers: &conf_v1.UpstreamBuffers{
+					Number: 0,
+					Size:   "invalid",
+				},
+				ProxyBufferSize:      "invalid",
+				ProxyBusyBuffersSize: "invalid",
+			},
+			autoadjust:              true,
+			wantProxyBuffers:        "8 4k",
+			wantProxyBufferSize:     "4k",
+			wantProxyBusyBufferSize: "4k",
+			wantErr:                 false,
+		},
+		{
+			name: "minimum buffer count enforced",
+			upstream: &conf_v1.Upstream{
+				ProxyBuffers: &conf_v1.UpstreamBuffers{
+					Number: 1,
+					Size:   "8k",
+				},
+				ProxyBufferSize:      "8k",
+				ProxyBusyBuffersSize: "16k",
+			},
+			autoadjust:              true,
+			wantProxyBuffers:        "2 8k",
+			wantProxyBufferSize:     "8k",
+			wantProxyBusyBufferSize: "8k",
+			wantErr:                 false,
+		},
+		{
+			name: "maximum buffer count enforced",
+			upstream: &conf_v1.Upstream{
+				ProxyBuffers: &conf_v1.UpstreamBuffers{
+					Number: 2000,
+					Size:   "4k",
+				},
+				ProxyBufferSize:      "4k",
+				ProxyBusyBuffersSize: "8k",
+			},
+			autoadjust:              true,
+			wantProxyBuffers:        "1024 4k",
+			wantProxyBufferSize:     "4k",
+			wantProxyBusyBufferSize: "8k",
+			wantErr:                 false,
+		},
+		{
+			name: "proxy buffer size too large gets adjusted",
+			upstream: &conf_v1.Upstream{
+				ProxyBuffers: &conf_v1.UpstreamBuffers{
+					Number: 4,
+					Size:   "4k",
+				},
+				ProxyBufferSize:      "32k",
+				ProxyBusyBuffersSize: "8k",
+			},
+			autoadjust:              true,
+			wantProxyBuffers:        "4 4k",
+			wantProxyBufferSize:     "12k",
+			wantProxyBusyBufferSize: "12k",
+			wantErr:                 false,
+		},
+		{
+			name: "proxy busy buffer size too large gets adjusted",
+			upstream: &conf_v1.Upstream{
+				ProxyBuffers: &conf_v1.UpstreamBuffers{
+					Number: 4,
+					Size:   "8k",
+				},
+				ProxyBufferSize:      "8k",
+				ProxyBusyBuffersSize: "64k",
+			},
+			autoadjust:              true,
+			wantProxyBuffers:        "4 8k",
+			wantProxyBufferSize:     "8k",
+			wantProxyBusyBufferSize: "24k",
+			wantErr:                 false,
+		},
+		{
+			name: "proxy busy buffer size too small gets adjusted",
+			upstream: &conf_v1.Upstream{
+				ProxyBuffers: &conf_v1.UpstreamBuffers{
+					Number: 8,
+					Size:   "4k",
+				},
+				ProxyBufferSize:      "8k",
+				ProxyBusyBuffersSize: "2k",
+			},
+			autoadjust:              true,
+			wantProxyBuffers:        "8 4k",
+			wantProxyBufferSize:     "8k",
+			wantProxyBusyBufferSize: "8k",
+			wantErr:                 false,
+		},
+		{
+			name: "empty proxy buffer size gets set to proxy buffers size",
+			upstream: &conf_v1.Upstream{
+				ProxyBuffers: &conf_v1.UpstreamBuffers{
+					Number: 6,
+					Size:   "16k",
+				},
+				ProxyBufferSize:      "",
+				ProxyBusyBuffersSize: "32k",
+			},
+			autoadjust:              true,
+			wantProxyBuffers:        "6 16k",
+			wantProxyBufferSize:     "16k",
+			wantProxyBusyBufferSize: "32k",
+			wantErr:                 false,
+		},
+		{
+			name: "autoadjust disabled - no changes to valid configuration",
+			upstream: &conf_v1.Upstream{
+				ProxyBuffers: &conf_v1.UpstreamBuffers{
+					Number: 8,
+					Size:   "4k",
+				},
+				ProxyBufferSize:      "4k",
+				ProxyBusyBuffersSize: "16k",
+			},
+			autoadjust:              false,
+			wantProxyBuffers:        "8 4k",
+			wantProxyBufferSize:     "4k",
+			wantProxyBusyBufferSize: "16k",
+			wantErr:                 false,
+		},
+		{
+			name: "autoadjust disabled - invalid buffer count unchanged",
+			upstream: &conf_v1.Upstream{
+				ProxyBuffers: &conf_v1.UpstreamBuffers{
+					Number: 1,
+					Size:   "8k",
+				},
+				ProxyBufferSize:      "8k",
+				ProxyBusyBuffersSize: "16k",
+			},
+			autoadjust:              false,
+			wantProxyBuffers:        "1 8k",
+			wantProxyBufferSize:     "8k",
+			wantProxyBusyBufferSize: "16k",
+			wantErr:                 false,
+		},
+		{
+			name: "autoadjust disabled - oversized buffer size unchanged",
+			upstream: &conf_v1.Upstream{
+				ProxyBuffers: &conf_v1.UpstreamBuffers{
+					Number: 4,
+					Size:   "4k",
+				},
+				ProxyBufferSize:      "64k",
+				ProxyBusyBuffersSize: "8k",
+			},
+			autoadjust:              false,
+			wantProxyBuffers:        "4 4k",
+			wantProxyBufferSize:     "64k",
+			wantProxyBusyBufferSize: "8k",
+			wantErr:                 false,
+		},
+		{
+			name: "autoadjust disabled - undersized busy buffer unchanged",
+			upstream: &conf_v1.Upstream{
+				ProxyBuffers: &conf_v1.UpstreamBuffers{
+					Number: 8,
+					Size:   "4k",
+				},
+				ProxyBufferSize:      "8k",
+				ProxyBusyBuffersSize: "2k",
+			},
+			autoadjust:              false,
+			wantProxyBuffers:        "8 4k",
+			wantProxyBufferSize:     "8k",
+			wantProxyBusyBufferSize: "2k",
+			wantErr:                 false,
+		},
+		{
+			name: "autoadjust disabled - oversized busy buffer unchanged",
+			upstream: &conf_v1.Upstream{
+				ProxyBuffers: &conf_v1.UpstreamBuffers{
+					Number: 4,
+					Size:   "8k",
+				},
+				ProxyBufferSize:      "8k",
+				ProxyBusyBuffersSize: "64k",
+			},
+			autoadjust:              false,
+			wantProxyBuffers:        "4 8k",
+			wantProxyBufferSize:     "8k",
+			wantProxyBusyBufferSize: "64k",
+			wantErr:                 false,
+		},
+		{
+			name: "autoadjust disabled - zero buffer count unchanged",
+			upstream: &conf_v1.Upstream{
+				ProxyBuffers: &conf_v1.UpstreamBuffers{
+					Number: 0,
+					Size:   "4k",
+				},
+				ProxyBufferSize:      "4k",
+				ProxyBusyBuffersSize: "8k",
+			},
+			autoadjust:              false,
+			wantProxyBuffers:        "0 4k",
+			wantProxyBufferSize:     "4k",
+			wantProxyBusyBufferSize: "8k",
+			wantErr:                 false,
+		},
+		{
+			name: "autoadjust disabled - extreme buffer count unchanged",
+			upstream: &conf_v1.Upstream{
+				ProxyBuffers: &conf_v1.UpstreamBuffers{
+					Number: 2000,
+					Size:   "1k",
+				},
+				ProxyBufferSize:      "1k",
+				ProxyBusyBuffersSize: "2k",
+			},
+			autoadjust:              false,
+			wantProxyBuffers:        "2000 1k",
+			wantProxyBufferSize:     "1k",
+			wantProxyBusyBufferSize: "2k",
+			wantErr:                 false,
+		},
+		{
+			name: "autoadjust disabled - empty buffer size unchanged",
+			upstream: &conf_v1.Upstream{
+				ProxyBuffers: &conf_v1.UpstreamBuffers{
+					Number: 6,
+					Size:   "16k",
+				},
+				ProxyBufferSize:      "",
+				ProxyBusyBuffersSize: "32k",
+			},
+			autoadjust:              false,
+			wantProxyBuffers:        "6 16k",
+			wantProxyBufferSize:     "",
+			wantProxyBusyBufferSize: "32k",
+			wantErr:                 false,
+		},
+		{
+			name: "autoadjust disabled - invalid size values get defaults but no balancing",
+			upstream: &conf_v1.Upstream{
+				ProxyBuffers: &conf_v1.UpstreamBuffers{
+					Number: 0,
+					Size:   "invalid",
+				},
+				ProxyBufferSize:      "invalid",
+				ProxyBusyBuffersSize: "invalid",
+			},
+			autoadjust:              false,
+			wantProxyBuffers:        "8 4k",
+			wantProxyBufferSize:     "4k",
+			wantProxyBusyBufferSize: "4k",
+			wantErr:                 false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validation.BalanceProxiesForUpstreams(tt.upstream, tt.autoadjust)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("BalanceProxiesForUpstreams() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if tt.upstream.ProxyBuffers != nil {
+				gotProxyBuffers := fmt.Sprintf("%d %s", tt.upstream.ProxyBuffers.Number, tt.upstream.ProxyBuffers.Size)
+				if tt.wantProxyBuffers != "" {
+					assert.Equal(t, tt.wantProxyBuffers, gotProxyBuffers, "proxy buffers mismatch")
+				}
+			}
+
+			if tt.wantProxyBufferSize != "" {
+				assert.Equal(t, tt.wantProxyBufferSize, tt.upstream.ProxyBufferSize, "proxy buffer size mismatch")
+			}
+
+			if tt.wantProxyBusyBufferSize != "" {
+				assert.Equal(t, tt.wantProxyBusyBufferSize, tt.upstream.ProxyBusyBuffersSize, "proxy busy buffer size mismatch")
+			}
 		})
 	}
 }

@@ -121,7 +121,7 @@ type NumberSizeConfig struct {
 }
 
 func (nsc NumberSizeConfig) String() string {
-	if nsc.Number == 0 || nsc.Size.Size == 0 {
+	if nsc.Number == 0 && nsc.Size.Size == 0 {
 		return ""
 	}
 
