@@ -98,7 +98,7 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 	hasAppProtect := p.staticParams.MainAppProtectLoadModule
 	hasAppProtectDos := p.staticParams.MainAppProtectDosLoadModule
 
-	cfgParams := parseAnnotations(p.ingEx, p.BaseCfgParams, p.isPlus, hasAppProtect, hasAppProtectDos, p.staticParams.EnableInternalRoutes)
+	cfgParams := parseAnnotations(p.ingEx, p.BaseCfgParams, p.isPlus, hasAppProtect, hasAppProtectDos, p.staticParams.EnableInternalRoutes, p.staticParams.IsDirectiveAutoadjustEnabled)
 
 	wsServices := getWebsocketServices(p.ingEx)
 	spServices := getSessionPersistenceServices(p.BaseCfgParams.Context, p.ingEx)
@@ -499,8 +499,9 @@ func createLocation(path string, upstream version1.Upstream, cfg *ConfigParams, 
 		SSL:                  ssl,
 		GRPC:                 grpc,
 		ProxyBuffering:       cfg.ProxyBuffering,
-		ProxyBuffers:         cfg.ProxyBuffers,
-		ProxyBufferSize:      cfg.ProxyBufferSize,
+		ProxyBuffers:         cfg.ProxyBuffers.String(),
+		ProxyBufferSize:      cfg.ProxyBufferSize.String(),
+		ProxyBusyBuffersSize: cfg.ProxyBusyBuffersSize.String(),
 		ProxyMaxTempFileSize: cfg.ProxyMaxTempFileSize,
 		ProxySSLName:         proxySSLName,
 		LocationSnippets:     cfg.LocationSnippets,

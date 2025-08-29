@@ -205,3 +205,64 @@ func TestValidateURI(t *testing.T) {
 		})
 	}
 }
+
+func TestParseSize(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		input    string
+		expected int64
+	}{
+		{"", 0},
+		{"1024", 1024},
+		{"4k", 4096},
+		{"2m", 2097152},
+		{"1g", 1048576}, // Now returns 1MB fallback instead of 1GB
+		{"4K", 4096},    // case insensitive
+		{"invalid", 0},
+		{"  8k  ", 8192}, // with whitespace
+		{"4kb", 0},
+		{"8x", 8388608}, // Invalid unit returns same value as MB
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.input, func(t *testing.T) {
+			t.Parallel()
+
+			got := ParseSize(tc.input)
+			if got != tc.expected {
+				t.Errorf("ParseSize(%q) = %d, expected %d", tc.input, got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestFormatSize(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		input    int64
+		expected string
+	}{
+		{0, "0"},
+		{1024, "1k"},
+		{4096, "4k"},
+		{2097152, "2m"},
+		{1073741824, "1024m"}, // Now formats as 1024m instead of 1g (no g support)
+		{1536, "1k"},          // rounds down
+		{500, "500"},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.expected, func(t *testing.T) {
+			t.Parallel()
+
+			got := FormatSize(tc.input)
+			if got != tc.expected {
+				t.Errorf("FormatSize(%d) = %q, expected %q", tc.input, got, tc.expected)
+			}
+		})
+	}
+}
