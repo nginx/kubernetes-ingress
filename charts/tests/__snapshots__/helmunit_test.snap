@@ -11703,9 +11703,6 @@ spec:
       
       - name: nginx-etc
         emptyDir: {}
-      - name: nginx-cache
-        persistentVolumeClaim:
-          claimName: nginx-cache
       - name: nginx-lib
         emptyDir: {}
       - name: nginx-state
@@ -12205,7 +12202,7 @@ spec:
       
       - name: nginx-cache
         persistentVolumeClaim:
-          claimName: nginx-cache
+          claimName: nginx-shared-cache
       serviceAccountName: statefulset-shared-pvc-nginx-ingress
       automountServiceAccountToken: true
       securityContext:
@@ -12664,7 +12661,7 @@ spec:
         emptyDir: {}
       - name: nginx-cache
         persistentVolumeClaim:
-          claimName: nginx-cache
+          claimName: nginx-shared-cache
       - name: nginx-lib
         emptyDir: {}
       - name: nginx-state
