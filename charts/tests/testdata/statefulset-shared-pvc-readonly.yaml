@@ -3,4 +3,4 @@ controller:
   readOnlyRootFilesystem: true
   cache:
     enableShared: true
-    sharedPVCName: nginx-cache
+    sharedPVCName: nginx-shared-cache

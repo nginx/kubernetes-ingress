@@ -388,6 +388,14 @@ volumes:
 List of volumes for controller.
 */}}
 {{- define "nginx-ingress.volumeEntries" -}}
+{{- /* detect if a VCT named nginx-cache exists */ -}}
+{{- $flags := dict "hasCacheVCT" false -}}
+{{- range $i, $tpl := (.Values.controller.statefulset.volumeClaimTemplates | default (list)) -}}
+  {{- if eq (default "" $tpl.metadata.name) "nginx-cache" -}}
+    {{- $_ := set $flags "hasCacheVCT" true -}}
+  {{- end -}}
+{{- end -}}
+
 {{- if eq (include "nginx-ingress.readOnlyRootFilesystem" .) "true" }}
 - name: nginx-etc
   emptyDir: {}
@@ -395,7 +403,7 @@ List of volumes for controller.
 - name: nginx-cache
   persistentVolumeClaim:
     claimName: {{ .Values.controller.cache.sharedPVCName }}
-{{- else }}
+{{- else if not (get $flags "hasCacheVCT") }}
 - name: nginx-cache
   emptyDir: {}
 {{- end }}
