@@ -1120,7 +1120,12 @@ func createHeadlessService(l *slog.Logger, kubeClient kubernetes.Interface, cont
 		return err
 	}
 
-	requiredSelectors := pod.Labels
+	// Create uniform selector labels across deployment types (ReplicaSet, DaemonSet, StatefulSet)
+	requiredSelectors, err := k8s.CreateUniformSelectorsFromController(kubeClient, pod)
+	if err != nil {
+		nl.Errorf(l, "Failed to get selectors: %v", err)
+		return err
+	}
 	requiredOwnerReferences := []meta_v1.OwnerReference{
 		{
 			APIVersion:         "v1",

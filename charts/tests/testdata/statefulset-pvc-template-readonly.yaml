@@ -1,0 +1,13 @@
+controller:
+  kind: statefulset
+  readOnlyRootFilesystem: true
+  statefulset:
+    volumeClaimTemplates:
+    - metadata:
+        name: nginx-cache
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 5Gi
