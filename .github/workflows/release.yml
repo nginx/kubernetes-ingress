@@ -281,6 +281,7 @@ jobs:
       ic_version: ${{ inputs.nic_version }}
       chart_version: ${{ inputs.chart_version }}
       nginx_helm_repo: false # disable automatic repo update until nginx-bot issue is resolved, manually update repo
+      runner: "ubuntu-24.04-amd64"
     permissions:
       contents: write # for pushing to Helm Charts repository
       packages: write # for helm to push to GHCR
