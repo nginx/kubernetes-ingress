@@ -31,6 +31,9 @@ on:
       ic-version:
         required: false
         type: string
+      runner:
+        type: string
+        default: ubuntu-24.04
 
 defaults:
   run:
@@ -41,7 +44,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ inputs.runner }}
     permissions:
       contents: read # for docker/build-push-action to read repo content
       id-token: write # for OIDC login to GCR
@@ -182,15 +185,6 @@ jobs:
         run: |
           mkdir -p "${{ inputs.image }}-results/"
         if: ${{ inputs.authenticated && steps.build-push.conclusion == 'success' }}
-
-      # - name: Run Trivy vulnerability scanner
-      #   uses: aquasecurity/trivy-action@6e7b7d1fd3e4fef0c5fa8cce1229c54b2c9bd0d8 # 0.24.0
-      #   with:
-      #     image-ref: ${{ steps.meta.outputs.tags }}
-      #     format: "sarif"
-      #     output: "${{ inputs.image }}-results/trivy.sarif"
-      #     ignore-unfixed: "true"
-      #   if: ${{ inputs.authenticated && steps.build-push.conclusion == 'success' }}
 
       - name: DockerHub Login for Docker Scout
         uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0

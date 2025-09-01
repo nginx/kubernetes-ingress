@@ -37,13 +37,11 @@ jobs:
       go_path: ${{ steps.vars.outputs.go_path }}
       go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}
       go_proxy: ${{ steps.vars.outputs.go_proxy }}
-      binary_cache_hit: ${{ steps.binary-cache.outputs.cache-hit }}
       chart_version: ${{ steps.vars.outputs.chart_version }}
       ic_version: ${{ steps.vars.outputs.ic_version }}
       docker_md5: ${{ steps.vars.outputs.docker_md5 }}
       build_tag: ${{ steps.vars.outputs.build_tag }}
       stable_tag: ${{ steps.vars.outputs.stable_tag }}
-      stable_image_exists: ${{ steps.stable_exists.outputs.exists }}
       image_matrix_oss: ${{ steps.vars.outputs.image_matrix_oss }}
       image_matrix_plus: ${{ steps.vars.outputs.image_matrix_plus }}
       image_matrix_nap: ${{ steps.vars.outputs.image_matrix_nap }}
@@ -74,14 +72,6 @@ jobs:
           echo "image_matrix_nap=$(cat .github/data/matrix-images-nap.json | jq -c)" >> $GITHUB_OUTPUT
           REF=${{ github.ref_name }} ./.github/scripts/variables.sh additional_tag >> $GITHUB_OUTPUT
 
-      - name: Fetch Cached Binary Artifacts
-        id: binary-cache
-        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
-        with:
-          path: ${{ github.workspace }}/dist
-          key: nginx-ingress-${{ steps.vars.outputs.go_code_md5 }}
-          lookup-only: true
-
       - name: Authenticate to Google Cloud
         id: auth
         uses: google-github-actions/auth@b7593ed2efd1c1617e1b0254da33b86225adb2a5 # v2.1.12
@@ -97,25 +87,16 @@ jobs:
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
 
-      - name: Check if stable image exists
-        id: stable_exists
-        run: |
-          if docker pull gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress:${{ steps.vars.outputs.stable_tag }}; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-          fi
-
       - name: Output variables
         run: |
           echo go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}
           echo go_path: ${{ steps.vars.outputs.go_path }}
           echo go_proxy: ${{ steps.vars.outputs.go_proxy }}
-          echo binary_cache_hit: ${{ steps.binary-cache.outputs.cache-hit }}
           echo chart_version: ${{ steps.vars.outputs.chart_version }}
           echo ic_version: ${{ steps.vars.outputs.ic_version }}
           echo docker_md5: ${{ steps.vars.outputs.docker_md5 }}
           echo build_tag: ${{ steps.vars.outputs.build_tag }}
           echo stable_tag: ${{ steps.vars.outputs.stable_tag }}
-          echo stable_image_exists: ${{ steps.stable_exists.outputs.exists }}
 
   govulncheck:
     name: Run govulncheck
@@ -167,7 +148,7 @@ jobs:
 
   binaries:
     name: Build Binaries
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-amd64
     needs: [checks]
     permissions:
       contents: read
@@ -179,7 +160,6 @@ jobs:
         uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
           go-version-file: go.mod
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
       - name: Setup netrc
         run: |
@@ -189,7 +169,6 @@ jobs:
               password ${{ secrets.ARTIFACTORY_TOKEN }}
           EOF
           chmod 600 $HOME/.netrc
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
       - name: Build binaries
         uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6.4.0
@@ -209,17 +188,14 @@ jobs:
           AWS_NAP_WAF_DOS_PRODUCT_CODE: ${{ secrets.AWS_NAP_WAF_DOS_PRODUCT_CODE }}
           AWS_NAP_WAF_DOS_PUB_KEY: ${{ secrets.AWS_NAP_WAF_DOS_PUB_KEY }}
           GORELEASER_CURRENT_TAG: "v${{ needs.checks.outputs.ic_version }}"
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
       - name: Store Artifacts in Cache
         uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ needs.checks.outputs.go_code_md5 }}
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
   build-docker:
-    if: ${{ needs.checks.outputs.stable_image_exists != 'true' }}
     name: Build Docker OSS
     needs: [checks, binaries]
     strategy:
@@ -235,6 +211,8 @@ jobs:
       tag: ${{ needs.checks.outputs.build_tag }}
       branch: ${{ github.ref }}
       ic-version: ${{ needs.checks.outputs.ic_version }}
+      full-build: true
+      runner: "ubuntu-24.04-amd64"
     permissions:
       contents: read
       actions: read
@@ -245,7 +223,6 @@ jobs:
     secrets: inherit
 
   build-docker-plus:
-    if: ${{ needs.checks.outputs.stable_image_exists != 'true' }}
     name: Build Docker Plus
     needs: [checks, binaries]
     strategy:
@@ -262,6 +239,8 @@ jobs:
       tag: ${{ needs.checks.outputs.build_tag }}
       branch: ${{ github.ref }}
       ic-version: ${{ needs.checks.outputs.ic_version }}
+      full-build: true
+      runner: "ubuntu-24.04-amd64"
     permissions:
       contents: read
       actions: read
@@ -272,7 +251,6 @@ jobs:
     secrets: inherit
 
   build-docker-nap:
-    if: ${{ needs.checks.outputs.stable_image_exists != 'true' }}
     name: Build Docker NAP
     needs: [checks, binaries]
     strategy:
@@ -290,6 +268,8 @@ jobs:
       tag: ${{ needs.checks.outputs.build_tag }}
       branch: ${{ github.ref }}
       ic-version: ${{ needs.checks.outputs.ic_version }}
+      full-build: true
+      runner: "ubuntu-24.04-amd64"
     permissions:
       contents: read
       actions: read
@@ -300,7 +280,6 @@ jobs:
     secrets: inherit
 
   tag-stable:
-    if: ${{ needs.checks.outputs.stable_image_exists != 'true' }}
     name: Tag build image as stable
     needs: [checks, build-docker, build-docker-plus, build-docker-nap]
     permissions:
@@ -388,6 +367,7 @@ jobs:
       ic_version: edge
       chart_version: 0.0.0-edge
       nginx_helm_repo: false
+      runner: "ubuntu-24.04-amd64"
     permissions:
       contents: write # for pushing to Helm Charts repository
       packages: write # for helm to push to GHCR
@@ -460,15 +440,6 @@ jobs:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
-
-      # - name: Run Trivy vulnerability scanner
-      #   uses: aquasecurity/trivy-action@6e7b7d1fd3e4fef0c5fa8cce1229c54b2c9bd0d8 # 0.24.0
-      #   continue-on-error: true
-      #   with:
-      #     image-ref: ${{ steps.meta.outputs.tags }}
-      #     format: "sarif"
-      #     output: "${{ steps.directory.outputs.directory }}/trivy.sarif"
-      #     ignore-unfixed: "true"
 
       - name: DockerHub Login for Docker Scout
         uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
@@ -549,15 +520,6 @@ jobs:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
-
-      # - name: Run Trivy vulnerability scanner
-      #   uses: aquasecurity/trivy-action@6e7b7d1fd3e4fef0c5fa8cce1229c54b2c9bd0d8 # 0.24.0
-      #   continue-on-error: true
-      #   with:
-      #     image-ref: ${{ steps.meta.outputs.tags }}
-      #     format: "sarif"
-      #     output: "${{ steps.directory.outputs.directory }}/trivy.sarif"
-      #     ignore-unfixed: "true"
 
       - name: DockerHub Login for Docker Scout
         uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
@@ -645,15 +607,6 @@ jobs:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
-
-      # - name: Run Trivy vulnerability scanner
-      #   uses: aquasecurity/trivy-action@6e7b7d1fd3e4fef0c5fa8cce1229c54b2c9bd0d8 # 0.24.0
-      #   continue-on-error: true
-      #   with:
-      #     image-ref: ${{ steps.meta.outputs.tags }}
-      #     format: "sarif"
-      #     output: "${{ steps.directory.outputs.directory }}/trivy.sarif"
-      #     ignore-unfixed: "true"
 
       - name: DockerHub Login for Docker Scout
         uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
