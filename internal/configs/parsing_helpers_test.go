@@ -674,15 +674,15 @@ func TestParseProxyBuffersSpecWithAutoAdjust(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := ParseProxyBuffersSpecWithAutoAdjust(tc.input)
 
-		    if tc.hasError && err == nil {
-			  t.Errorf("ParseProxyBuffersSpecWithAutoAdjust(%q) expected error but got none, result: %q", tc.input, result)
-                    }
-		    if err != nil {
-			    t.Errorf("ParseProxyBuffersSpecWithAutoAdjust(%q) unexpected error: %v", tc.input, err)
-		    }
-		    if result != tc.expected {
-			    t.Errorf("ParseProxyBuffersSpecWithAutoAdjust(%q) = %q, expected %q", tc.input, result, tc.expected)
-		    }
+			if tc.hasError && err == nil {
+				t.Errorf("ParseProxyBuffersSpecWithAutoAdjust(%q) expected error but got none, result: %q", tc.input, result)
+			}
+			if !tc.hasError && err != nil {
+				t.Errorf("ParseProxyBuffersSpecWithAutoAdjust(%q) unexpected error: %v", tc.input, err)
+			}
+			if result != tc.expected {
+				t.Errorf("ParseProxyBuffersSpecWithAutoAdjust(%q) = %q, expected %q", tc.input, result, tc.expected)
+			}
 		})
 	}
 }
@@ -981,17 +981,14 @@ func TestParseSizeWithAutoAdjust(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := ParseSizeWithAutoAdjust(tc.input)
 
-			if tc.hasError {
-				if err == nil {
-					t.Errorf("ParseSizeWithAutoAdjust(%q) expected error but got none, result: %q", tc.input, result)
-				}
-			} else {
-				if err != nil {
-					t.Errorf("ParseSizeWithAutoAdjust(%q) unexpected error: %v", tc.input, err)
-				}
-				if result != tc.expected {
-					t.Errorf("ParseSizeWithAutoAdjust(%q) = %q, expected %q", tc.input, result, tc.expected)
-				}
+			if tc.hasError && err == nil {
+				t.Errorf("ParseSizeWithAutoAdjust(%q) expected error but got none, result: %q", tc.input, result)
+			}
+			if !tc.hasError && err != nil {
+				t.Errorf("ParseSizeWithAutoAdjust(%q) unexpected error: %v", tc.input, err)
+			}
+			if result != tc.expected {
+				t.Errorf("ParseSizeWithAutoAdjust(%q) = %q, expected %q", tc.input, result, tc.expected)
 			}
 		})
 	}
