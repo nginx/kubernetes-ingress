@@ -104,7 +104,9 @@ jobs:
           echo "forked_workflow=${forked_workflow}" >> $GITHUB_OUTPUT
           go_proxy="https://proxy.golang.org,direct"
           if [ "$forked_workflow" = "false" ]; then
-            go_proxy="https://azr.artifactory.f5net.com/artifactory/api/go/f5-nginx-go-dev"
+            go_proxy="${{ secrets.ARTIFACTORY_DEV_ENDPOINT }}"
+          elif [ "${{ github.ref_name }}" = "main" ] || [[ "${{ github.ref_name }}" =~ "release-" ]]; then
+            go_proxy="${{ secrets.ARTIFACTORY_ENDPOINT }}"
           fi
           echo "go_proxy=${go_proxy}" >> $GITHUB_OUTPUT
           ./.github/scripts/variables.sh go_code_md5 >> $GITHUB_OUTPUT
@@ -127,7 +129,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: auth
-        uses: google-github-actions/auth@b7593ed2efd1c1617e1b0254da33b86225adb2a5 # v2.1.12
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
           workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
@@ -158,12 +160,13 @@ jobs:
           docker_build="false"
           if [ "${{ inputs.force }}" = "true" ]; then
             docker_build="true"
-          elif [ "$forked_workflow" = "true" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ]; then
+          elif [ "${{ steps.vars.outputs.forked_workflow }}" = "true" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ]; then
             docker_build="true"
-          elif [ "$forked_workflow" = "false" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ] && [ "${{ steps.stable_exists.outputs.exists }}" = "false" ]; then
+          elif [ "${{ steps.vars.outputs.forked_workflow }}" = "false" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ] && [ "${{ steps.stable_exists.outputs.exists }}" = "false" ]; then
             docker_build="true"
           fi
           echo "docker_build=${docker_build}" >> $GITHUB_OUTPUT
+          cat $GITHUB_OUTPUT
 
       - name: Output variables
         run: |
@@ -357,7 +360,7 @@ jobs:
       go-md5: ${{ needs.checks.outputs.go_code_md5 }}
       base-image-md5: ${{ needs.checks.outputs.docker_md5 }}
       authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
-      full-build: ${{ inputs.force }}
+      full-build: ${{ inputs.force && inputs.force || false }}
       tag: ${{ needs.checks.outputs.build_tag }}
       branch: ${{ (github.head_ref && needs.checks.outputs.forked_workflow != 'true') && github.head_ref || github.ref }}
       ic-version: ${{ needs.checks.outputs.ic_version }}
@@ -386,7 +389,7 @@ jobs:
       branch: ${{ (github.head_ref && needs.checks.outputs.forked_workflow != 'true') && github.head_ref || github.ref }}
       tag: ${{ needs.checks.outputs.build_tag }}
       authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
-      full-build: ${{ inputs.force }}
+      full-build: ${{ inputs.force && inputs.force || false }}
       ic-version: ${{ needs.checks.outputs.ic_version }}
     permissions:
       contents: read
@@ -412,7 +415,7 @@ jobs:
       tag: ${{ needs.checks.outputs.build_tag }}
       nap-modules: ${{ matrix.nap_modules }}
       authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
-      full-build: ${{ inputs.force }}
+      full-build: ${{ inputs.force && inputs.force || false }}
       ic-version: ${{ needs.checks.outputs.ic_version }}
     permissions:
       contents: read
@@ -456,7 +459,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: auth
-        uses: google-github-actions/auth@b7593ed2efd1c1617e1b0254da33b86225adb2a5 # v2.1.12
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
           workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
@@ -526,7 +529,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: auth
-        uses: google-github-actions/auth@b7593ed2efd1c1617e1b0254da33b86225adb2a5 # v2.1.12
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
           workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
@@ -666,7 +669,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: auth
-        uses: google-github-actions/auth@b7593ed2efd1c1617e1b0254da33b86225adb2a5 # v2.1.12
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
           workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
@@ -727,7 +730,7 @@ jobs:
       stable-tag: ${{ needs.checks.outputs.stable_tag }}
       authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
       k8s-version: ${{ matrix.k8s }}
-      force: ${{ inputs.run_tests }}
+      force: ${{ inputs.run_tests && inputs.run_tests || true }}
 
   smoke-tests-plus:
     if: ${{ inputs.force || (inputs.run_tests && inputs.run_tests || true) || needs.checks.outputs.docs_only != 'true' }}
@@ -755,7 +758,7 @@ jobs:
       stable-tag: ${{ needs.checks.outputs.stable_tag }}
       authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
       k8s-version: ${{ matrix.k8s }}
-      force: ${{ inputs.run_tests }}
+      force: ${{ inputs.run_tests && inputs.run_tests || true }}
 
   smoke-tests-nap:
     if: ${{ inputs.force || (inputs.run_tests && inputs.run_tests || true) || needs.checks.outputs.docs_only != 'true' }}
@@ -783,7 +786,7 @@ jobs:
       stable-tag: ${{ needs.checks.outputs.stable_tag }}
       authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
       k8s-version: ${{ matrix.k8s }}
-      force: ${{ inputs.run_tests }}
+      force: ${{ inputs.run_tests && inputs.run_tests || true }}
 
   tag-stable:
     name: Tag tested image as stable

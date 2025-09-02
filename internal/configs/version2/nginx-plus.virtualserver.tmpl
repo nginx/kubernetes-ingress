@@ -115,10 +115,6 @@ map $request_method $cache_purge_{{ replaceAll $l.Cache.ZoneName "-" "_" }} {
 {{- end }}
 {{- end }}
 
-{{- with $s.JWKSAuthEnabled }}
-proxy_cache_path /var/cache/nginx/jwks_uri_{{$s.VSName}} levels=1 keys_zone=jwks_uri_{{$s.VSName}}:1m max_size=10m;
-{{- end }}
-
 {{- if and $s.OIDC $s.OIDC.PKCEEnable }}
 include oidc/oidc_pkce_supplements.conf;
 {{- end }}
@@ -290,10 +286,6 @@ server {
         internal;
         proxy_method GET;
         proxy_set_header Content-Length "";
-        {{- if .KeyCache }}
-        proxy_cache jwks_uri_{{ $s.VSName }};
-        proxy_cache_valid 200 12h;
-        {{- end }}
         {{- with .JwksURI }}
         {{- if .JwksSNIEnabled }}
         proxy_ssl_server_name on;
@@ -670,11 +662,20 @@ server {
             {{- end }}
 
         proxy_buffering {{ if $l.ProxyBuffering }}on{{ else }}off{{ end }};
-            {{- if $l.ProxyBuffers }}
-        proxy_buffers {{ $l.ProxyBuffers }};
-            {{- end }}
-            {{- if $l.ProxyBufferSize }}
-        {{ $proxyOrGRPC }}_buffer_size {{ $l.ProxyBufferSize }};
+            {{- if not $l.GRPCPass }}
+                {{- if $l.ProxyBuffers}}
+        proxy_buffers {{$l.ProxyBuffers}};
+                {{- end}}
+                {{- if $l.ProxyBufferSize}}
+        proxy_buffer_size {{$l.ProxyBufferSize}};
+                {{- end}}
+                {{- if $l.ProxyBusyBuffersSize}}
+        proxy_busy_buffers_size {{$l.ProxyBusyBuffersSize}};
+                {{- end}}
+            {{- else }}
+                {{- if $l.ProxyBufferSize }}
+        grpc_buffer_size {{ $l.ProxyBufferSize }};
+                {{- end }}
             {{- end }}
             {{- if not $l.GRPCPass }}
         proxy_http_version 1.1;

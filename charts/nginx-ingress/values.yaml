@@ -164,6 +164,10 @@ controller:
   ## Sets the log format of Ingress Controller. Options include: glog, json, text
   logFormat: glog
 
+  ## Enables auto adjusting some of the NGINX directives to help with safe configuration and prevent NGINX misconfigurations.
+  ## See https://docs.nginx.com/nginx-ingress-controller/configuration/proxy-buffers-configuration/  for more details of which configuration options are affected
+  directiveAutoAdjust: false
+
   ## Cache configuration options
   cache:
     ## Enables shared cache across multiple pods using an external persistent volume
@@ -406,6 +410,11 @@ controller:
   globalConfiguration:
     ## Creates the GlobalConfiguration custom resource. Requires controller.enableCustomResources.
     create: false
+
+    ## customName: "the-namespace/the-name-of-the-global-configuration-custom-resource"
+    ## The name of the GlobalConfiguration custom resource to use instead of the one provided by default.
+    ## Make sure the namespace is watched when watchNamespace or watchNamespaceLabel parameters are in use.
+    customName: ""
 
     ## The spec of the GlobalConfiguration for defining the global configuration parameters of the Ingress Controller.
     spec: {} ## Ensure both curly brackets are removed when adding listeners in YAML format.

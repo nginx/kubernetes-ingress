@@ -657,6 +657,15 @@
             "json"
           ]
         },
+        "directiveAutoAdjust": {
+          "type": "boolean",
+          "default": false,
+          "title": "Enables automatic adjustment of the NGINX buffers directives",
+          "examples": [
+            false,
+            true
+          ]
+        },
         "customPorts": {
           "type": "array",
           "default": [],
@@ -1113,6 +1122,14 @@
               "title": "The create Schema",
               "examples": [
                 false
+              ]
+            },
+            "customName": {
+              "type": "string",
+              "default": "",
+              "title": "The customName Schema",
+              "examples": [
+                "the-namespace/the-name-of-the-global-configuration-custom-resource"
               ]
             },
             "spec": {

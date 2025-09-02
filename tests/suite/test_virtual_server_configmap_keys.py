@@ -55,6 +55,20 @@ def assert_keys_without_validation(config, expected_values):
     assert f" {expected_values['upstream-zone-size']};" in config
 
 
+def assert_keys_without_validation_or_proxies(config, expected_values):
+    assert f"proxy_connect_timeout {expected_values['proxy-connect-timeout']};" in config
+    assert f"proxy_read_timeout {expected_values['proxy-read-timeout']};" in config
+    assert f"client_max_body_size {expected_values['client-max-body-size']};" in config
+    assert f"proxy_max_temp_file_size {expected_values['proxy-max-temp-file-size']};" in config
+    assert f"set_real_ip_from {expected_values['set-real-ip-from']};" in config
+    assert f"real_ip_header {expected_values['real-ip-header']};" in config
+    assert f"{expected_values['location-snippets']}" in config
+    assert f"{expected_values['server-snippets']}" in config
+    assert f"fail_timeout={expected_values['fail-timeout']}" in config
+    assert f"proxy_send_timeout {expected_values['proxy-send-timeout']};" in config
+    assert f" {expected_values['upstream-zone-size']};" in config
+
+
 def assert_keys_with_validation(config, expected_values):
     # based on f"{TEST_DATA}/virtual-server-configmap-keys/configmap-validation-keys.yaml"
     assert "proxy_buffering off;" in config
@@ -223,7 +237,7 @@ class TestVirtualServerConfigMapNoTls:
             cm_src,
         )
         expected_values = get_configmap_fields_from_yaml(
-            f"{TEST_DATA}/virtual-server-configmap-keys/configmap-no-validation-keys-invalid.yaml"
+            f"{TEST_DATA}/virtual-server-configmap-keys/configmap-no-validation-keys-invalid-no-proxies.yaml"
         )
         wait_before_test(1)
         step_2_events = get_events(kube_apis.v1, virtual_server_setup.namespace)
@@ -235,7 +249,7 @@ class TestVirtualServerConfigMapNoTls:
             ingress_controller_prerequisites.namespace,
         )
         assert_not_applied_events_emitted(virtual_server_setup, step_2_events, step_1_events, ic_pods_amount)
-        assert_keys_without_validation(step_2_config, expected_values)
+        assert_keys_without_validation_or_proxies(step_2_config, expected_values)
 
         # to cover the OSS case, this will be changed in the future
         if cli_arguments["ic-type"] == "nginx-ingress":
