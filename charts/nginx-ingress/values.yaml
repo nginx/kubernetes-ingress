@@ -168,16 +168,6 @@ controller:
   ## See https://docs.nginx.com/nginx-ingress-controller/configuration/proxy-buffers-configuration/  for more details of which configuration options are affected
   directiveAutoAdjust: false
 
-  ## Cache configuration options
-  cache:
-    ## Enables shared cache across multiple pods using an external persistent volume
-    ## When enabled, the /var/cache/nginx directory will be mounted from a PVC instead of using emptyDir
-    ## User must create and configure a PVC with appropriate access mode
-    enableShared: false
-
-    ## The name of the PersistentVolumeClaim to use for shared cache, should match the name of the PVC created by the user
-    sharedPVCName: "nginx-shared-cache"
-
   ## A list of custom ports to expose on the NGINX Ingress Controller pod. Follows the conventional Kubernetes yaml syntax for container ports.
   customPorts: []
 
