@@ -1,0 +1,17 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: nginx-config
+  namespace: nginx-ingress
+data:
+  proxy-connect-timeout: "something invalid"
+  proxy-read-timeout: "something invalid"
+  client-max-body-size: "something invalid"
+  proxy-max-temp-file-size: "something invalid"
+  set-real-ip-from: "something invalid"
+  real-ip-header: "something invalid"
+  location-snippets: "something invalid"
+  server-snippets: "something invalid"
+  fail-timeout: "something invalid"
+  proxy-send-timeout: "something invalid"
+  upstream-zone-size: "something invalid"

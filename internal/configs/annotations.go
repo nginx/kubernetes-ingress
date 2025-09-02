@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	"github.com/nginx/kubernetes-ingress/internal/validation"
 )
 
 // JWTKeyAnnotation is the annotation where the Secret with a JWK is specified.
@@ -74,6 +75,7 @@ var minionInheritanceList = map[string]bool{
 	"nginx.org/proxy-buffering":          true,
 	"nginx.org/proxy-buffers":            true,
 	"nginx.org/proxy-buffer-size":        true,
+	"nginx.org/proxy-busy-buffers-size":  true,
 	"nginx.org/proxy-max-temp-file-size": true,
 	"nginx.org/upstream-zone-size":       true,
 	"nginx.org/location-snippets":        true,
@@ -108,7 +110,8 @@ var allowedAnnotationKeys = []string{
 	"ingress.kubernetes.io/ssl-redirect",
 }
 
-func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool, hasAppProtect bool, hasAppProtectDos bool, enableInternalRoutes bool) ConfigParams {
+// nolint: gocyclo
+func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool, hasAppProtect bool, hasAppProtectDos bool, enableInternalRoutes bool, enableDirectiveAutoadjust bool) ConfigParams {
 	l := nl.LoggerFromContext(baseCfgParams.Context)
 	cfgParams := *baseCfgParams
 
@@ -296,12 +299,48 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		}
 	}
 
+	// Proxy Buffers uses number + size format, like "8 4k".
 	if proxyBuffers, exists := ingEx.Ingress.Annotations["nginx.org/proxy-buffers"]; exists {
-		cfgParams.ProxyBuffers = proxyBuffers
+		proxyBufferUnits, err := validation.NewNumberSizeConfig(proxyBuffers)
+		if err != nil {
+			nl.Errorf(l, "error parsing nginx.org/proxy-buffers: %s", err)
+		} else {
+			cfgParams.ProxyBuffers = proxyBufferUnits
+		}
 	}
 
+	// Proxy Buffer Size uses only size format, like "4k".
 	if proxyBufferSize, exists := ingEx.Ingress.Annotations["nginx.org/proxy-buffer-size"]; exists {
-		cfgParams.ProxyBufferSize = proxyBufferSize
+		proxyBufferSizeUnit, err := validation.NewSizeWithUnit(proxyBufferSize)
+		if err != nil {
+			nl.Errorf(l, "error parsing nginx.org/proxy-buffer-size: %s", err)
+		} else {
+			cfgParams.ProxyBufferSize = proxyBufferSizeUnit
+		}
+	}
+
+	// Proxy Busy Buffers Size uses only size format, like "8k".
+	if proxyBusyBuffersSize, exists := ingEx.Ingress.Annotations["nginx.org/proxy-busy-buffers-size"]; exists {
+		proxyBusyBufferSizeUnit, err := validation.NewSizeWithUnit(proxyBusyBuffersSize)
+		if err != nil {
+			nl.Errorf(l, "error parsing nginx.org/proxy-busy-buffers-size: %s", err)
+		} else {
+			cfgParams.ProxyBusyBuffersSize = proxyBusyBufferSizeUnit
+		}
+	}
+
+	balancedProxyBuffers, balancedProxyBufferSize, balancedProxyBusyBufferSize, modifications, err := validation.BalanceProxyValues(cfgParams.ProxyBuffers, cfgParams.ProxyBufferSize, cfgParams.ProxyBusyBuffersSize, enableDirectiveAutoadjust)
+	if err != nil {
+		nl.Errorf(l, "error reconciling proxy_buffers, proxy_buffer_size, and proxy_busy_buffers_size values: %s", err.Error())
+	}
+	cfgParams.ProxyBuffers = balancedProxyBuffers
+	cfgParams.ProxyBufferSize = balancedProxyBufferSize
+	cfgParams.ProxyBusyBuffersSize = balancedProxyBusyBufferSize
+
+	if len(modifications) > 0 {
+		for _, modification := range modifications {
+			nl.Infof(l, "Changes made to proxy values: %s", modification)
+		}
 	}
 
 	if upstreamZoneSize, exists := ingEx.Ingress.Annotations["nginx.org/upstream-zone-size"]; exists {
