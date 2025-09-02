@@ -297,6 +297,9 @@ server {
 		{{- if $location.ProxyBufferSize}}
 		proxy_buffer_size {{$location.ProxyBufferSize}};
 		{{- end}}
+		{{- if $location.ProxyBusyBuffersSize}}
+		proxy_busy_buffers_size {{$location.ProxyBusyBuffersSize}};
+		{{- end}}
 		{{- if $location.ProxyMaxTempFileSize}}
 		proxy_max_temp_file_size {{$location.ProxyMaxTempFileSize}};
 		{{- end}}
