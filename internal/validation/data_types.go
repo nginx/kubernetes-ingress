@@ -74,11 +74,12 @@ func (s SizeWithUnit) SizeBytes() uint64 {
 	return s.Size * uint64(s.Unit)
 }
 
-// NewSizeWithUnit creates a SizeWithUnit from a string representation.
-func NewSizeWithUnit(sizeStr string) (SizeWithUnit, error) {
+// NewSizeWithUnit creates a normalized string from a string representation.
+// If normalize is false, returns the original string after basic validation.
+func NewSizeWithUnit(sizeStr string, normalize bool) (string, error) {
 	sizeStr = strings.ToLower(strings.TrimSpace(sizeStr))
 	if sizeStr == "" {
-		return SizeWithUnit{}, nil
+		return "", nil
 	}
 
 	var unit SizeUnit
@@ -99,15 +100,19 @@ func NewSizeWithUnit(sizeStr string) (SizeWithUnit, error) {
 
 	num, err := strconv.ParseUint(numStr, 10, 64)
 	if err != nil || num < 1 {
-		return SizeWithUnit{}, fmt.Errorf("invalid size value, must be an integer larger than 0: %s", sizeStr)
+		return "", fmt.Errorf("invalid size value, must be an integer larger than 0: %s", sizeStr)
 	}
 
-	ret := SizeWithUnit{
-		Size: num,
-		Unit: unit,
+	// If normalize is false, return the original string after validation
+	if !normalize {
+		return sizeStr, nil
 	}
 
-	return ret, nil
+	// Return the normalized string representation
+	if lastChar >= '0' && lastChar <= '9' {
+		return fmt.Sprintf("%d%s", num, unit), nil
+	}
+	return fmt.Sprintf("%d%c", num, lastChar), nil
 }
 
 // NumberSizeConfig is a configuration that combines a number with a size. Used
@@ -128,32 +133,35 @@ func (nsc NumberSizeConfig) String() string {
 	return fmt.Sprintf("%d %s", nsc.Number, nsc.Size)
 }
 
-// NewNumberSizeConfig creates a NumberSizeConfig from a string representation.
-func NewNumberSizeConfig(sizeStr string) (NumberSizeConfig, error) {
+// NewNumberSizeConfig creates a normalized string from a string representation.
+// If normalize is false, returns the original string after basic validation.
+func NewNumberSizeConfig(sizeStr string, normalize bool) (string, error) {
 	sizeStr = strings.ToLower(strings.TrimSpace(sizeStr))
 	if sizeStr == "" {
-		return NumberSizeConfig{}, nil
+		return "", nil
 	}
 
 	parts := strings.Fields(sizeStr)
 	if len(parts) != 2 {
-		return NumberSizeConfig{}, fmt.Errorf("invalid size format, expected '<number> <size>', got: %s", sizeStr)
+		return "", fmt.Errorf("invalid size format, expected '<number> <size>', got: %s", sizeStr)
 	}
 
 	num, err := strconv.ParseUint(parts[0], 10, 64)
 	if err != nil {
-		return NumberSizeConfig{}, fmt.Errorf("invalid number value, could not parse into unsigned integer: %s", parts[0])
+		return "", fmt.Errorf("invalid number value, could not parse into unsigned integer: %s", parts[0])
 	}
 
-	size, err := NewSizeWithUnit(parts[1])
+	sizeStr2, err := NewSizeWithUnit(parts[1], normalize)
 	if err != nil {
-		return NumberSizeConfig{}, fmt.Errorf("could not parse size with unit: %s", parts[1])
+		return "", fmt.Errorf("could not parse size with unit: %s", parts[1])
 	}
 
-	return NumberSizeConfig{
-		Number: num,
-		Size:   size,
-	}, nil
+	// If normalize is false, return the original string after validation
+	if !normalize {
+		return sizeStr, nil
+	}
+
+	return fmt.Sprintf("%d %s", num, sizeStr2), nil
 }
 
 // BalanceProxyValues normalises and validates the values for the proxy buffer
@@ -175,91 +183,101 @@ func NewNumberSizeConfig(sizeStr string) (NumberSizeConfig, error) {
 //  4. proxy_buffer_size must be less than or equal to the size of all
 //     proxy_buffers minus one proxy_buffer
 //
-// This function returns new values and an error. The returns in order are:
-// proxy_buffers, proxy_buffer_size, proxy_busy_buffers_size, error.
-func BalanceProxyValues(proxyBuffers NumberSizeConfig, proxyBufferSize, proxyBusyBuffers SizeWithUnit, autoadjust bool) (NumberSizeConfig, SizeWithUnit, SizeWithUnit, []string, error) {
+// This function now works with string inputs and returns string outputs.
+// Proxy buffer format is always "number size" separated by a space.
+func BalanceProxyValues(proxyBuffers, proxyBufferSize, proxyBusyBuffers string, autoadjust bool) (string, string, string, []string, error) {
 	if !autoadjust {
 		return proxyBuffers, proxyBufferSize, proxyBusyBuffers, []string{"auto adjust is turned off, no changes have been made to the proxy values"}, nil
 	}
 
 	modifications := make([]string, 0)
 
-	if proxyBuffers.String() == "" && proxyBufferSize.String() == "" && proxyBusyBuffers.String() == "" {
+	if proxyBuffers == "" && proxyBufferSize == "" && proxyBusyBuffers == "" {
 		return proxyBuffers, proxyBufferSize, proxyBusyBuffers, modifications, nil
 	}
 
-	// If any of them are defined, we'll align them.
+	// Helper function to parse size string to bytes for comparison
+	parseSizeToBytes := func(sizeStr string) uint64 {
+		if sizeStr == "" {
+			return 0
+		}
+		sizeStr = strings.ToLower(strings.TrimSpace(sizeStr))
+		lastChar := sizeStr[len(sizeStr)-1]
+		numStr := sizeStr
+		multiplier := uint64(1024 * 1024) // Default to MB
 
-	// Create a default size so we can use it in case the values are not set.
-	defaultSize, err := NewSizeWithUnit(DefaultPageSize)
-	if err != nil {
-		return NumberSizeConfig{}, SizeWithUnit{}, SizeWithUnit{}, modifications, fmt.Errorf("could not create default size: %w", err)
+		switch lastChar {
+		case 'k':
+			multiplier = 1024
+			numStr = sizeStr[:len(sizeStr)-1]
+		case 'm':
+			multiplier = 1024 * 1024
+			numStr = sizeStr[:len(sizeStr)-1]
+		case 'g':
+			multiplier = 1024 * 1024 * 1024
+			numStr = sizeStr[:len(sizeStr)-1]
+		}
+
+		if num, err := strconv.ParseUint(numStr, 10, 64); err == nil {
+			return num * multiplier
+		}
+		return 0
 	}
 
-	// 1.a there must be at least 2 proxy buffers
-	if proxyBuffers.Number < minNGINXBufferCount {
-		modifications = append(modifications, fmt.Sprintf("adjusted proxy_buffers size from %d to 2", proxyBuffers.Number))
-		proxyBuffers.Number = minNGINXBufferCount
+	// Parse proxy buffers (format: "number size")
+	var bufferNumber uint64 = 8     // default
+	var bufferSizeStr string = "4k" // default
+
+	if proxyBuffers != "" {
+		parts := strings.Fields(strings.TrimSpace(proxyBuffers))
+		if len(parts) == 2 {
+			if num, err := strconv.ParseUint(parts[0], 10, 64); err == nil {
+				bufferNumber = num
+				bufferSizeStr = parts[1]
+			}
+		}
 	}
 
-	// 1.b there must be at most 1024 proxy buffers
-	if proxyBuffers.Number > maxNGINXBufferCount {
-		modifications = append(modifications, fmt.Sprintf("adjusted proxy_buffers number from %d to 1024", proxyBuffers.Number))
-		proxyBuffers.Number = maxNGINXBufferCount
+	// Validate buffer number constraints
+	if bufferNumber < minNGINXBufferCount {
+		modifications = append(modifications, fmt.Sprintf("adjusted proxy_buffers number from %d to %d", bufferNumber, minNGINXBufferCount))
+		bufferNumber = minNGINXBufferCount
+	}
+	if bufferNumber > maxNGINXBufferCount {
+		modifications = append(modifications, fmt.Sprintf("adjusted proxy_buffers number from %d to %d", bufferNumber, maxNGINXBufferCount))
+		bufferNumber = maxNGINXBufferCount
 	}
 
-	// 2.a proxy_buffers size must be greater than 0
-	if proxyBuffers.Size.Size == 0 || proxyBuffers.Size.Unit == BadUnit {
-		modifications = append(modifications, fmt.Sprintf("proxy_buffers had an empty size, set it to [%s]", defaultSize))
-		proxyBuffers.Size = defaultSize
+	// Calculate sizes in bytes for validation
+	bufferSizeBytes := parseSizeToBytes(bufferSizeStr)
+	proxyBufferSizeBytes := parseSizeToBytes(proxyBufferSize)
+	proxyBusyBuffersBytes := parseSizeToBytes(proxyBusyBuffers)
+
+	// Set defaults if empty
+	if proxyBufferSize == "" && bufferSizeBytes > 0 {
+		proxyBufferSize = bufferSizeStr
+		proxyBufferSizeBytes = bufferSizeBytes
 	}
 
-	maxProxyBusyBuffersSize := SizeWithUnit{
-		Size: proxyBuffers.Size.Size * (proxyBuffers.Number - 1),
-		Unit: proxyBuffers.Size.Unit,
+	// Basic size validation - ensure values are reasonable
+	maxBusySize := bufferSizeBytes * (bufferNumber - 1)
+
+	if proxyBufferSizeBytes > maxBusySize {
+		modifications = append(modifications, fmt.Sprintf("adjusted proxy_buffer_size because it was too large for proxy_buffers"))
+		proxyBufferSize = bufferSizeStr
 	}
 
-	// check if proxy_buffer_size is empty, and set it to one of proxy_buffers
-	if proxyBufferSize.String() == "" {
-		modifications = append(modifications, fmt.Sprintf("proxy_buffer_size was empty, set it to one of proxy_buffers: %s", proxyBuffers.Size))
-		proxyBufferSize = proxyBuffers.Size
+	if proxyBusyBuffersBytes > maxBusySize {
+		modifications = append(modifications, fmt.Sprintf("adjusted proxy_busy_buffers_size because it was too large"))
+		proxyBusyBuffers = bufferSizeStr
 	}
 
-	// 3. clamp proxy_buffer_size to be at most all of proxy_buffers minus one
-	//    proxy buffer.
-	//
-	// This is needed in order to be conservative with memory (rather shrink
-	// than grow so we don't run into resource issues), and also to avoid
-	// undoing work in the last step when adjusting proxy_busy_buffers_size.
-	if proxyBufferSize.SizeBytes() > (proxyBuffers.Size.SizeBytes() * (proxyBuffers.Number - 1)) {
-		newSize := maxProxyBusyBuffersSize
+	// Build result strings
+	resultProxyBuffers := fmt.Sprintf("%d %s", bufferNumber, bufferSizeStr)
+	resultProxyBufferSize := proxyBufferSize
+	resultProxyBusyBuffers := proxyBusyBuffers
 
-		modifications = append(modifications, fmt.Sprintf("adjusted proxy_buffer_size from %s to %s because it was too big for proxy_buffers (%s)", proxyBufferSize, newSize, proxyBuffers))
-		proxyBufferSize = newSize
-	}
-
-	// 4. grab the max of proxy_buffer_size and one of proxy_buffers
-	var greaterSize SizeWithUnit
-	if proxyBuffers.Size.SizeBytes() > proxyBufferSize.SizeBytes() {
-		greaterSize = proxyBuffers.Size
-	} else {
-		greaterSize = proxyBufferSize
-	}
-
-	// 4. proxy_busy_buffers_size must be equal to or greater than the max of
-	//    proxy_buffer_size and one of proxy_buffers (greater size from above)
-	if proxyBusyBuffers.SizeBytes() < greaterSize.SizeBytes() {
-		modifications = append(modifications, fmt.Sprintf("adjusted proxy_busy_buffers_size from %s to %s because it was too small", proxyBusyBuffers, greaterSize))
-		proxyBusyBuffers = greaterSize
-	}
-
-	if proxyBusyBuffers.SizeBytes() > maxProxyBusyBuffersSize.SizeBytes() {
-		modifications = append(modifications, fmt.Sprintf("adjusted proxy_busy_buffers_size from %s to %s because it was too large", proxyBusyBuffers, maxProxyBusyBuffersSize))
-
-		proxyBusyBuffers = maxProxyBusyBuffersSize
-	}
-
-	return proxyBuffers, proxyBufferSize, proxyBusyBuffers, modifications, nil
+	return resultProxyBuffers, resultProxyBufferSize, resultProxyBusyBuffers, modifications, nil
 }
 
 // BalanceProxiesForUpstreams balances the proxy buffer settings for an Upstream
@@ -271,51 +289,46 @@ func BalanceProxiesForUpstreams(in *conf_v1.Upstream, autoadjust bool) error {
 		return nil
 	}
 
-	pb, err := NewNumberSizeConfig(fmt.Sprintf("%d %s", in.ProxyBuffers.Number, in.ProxyBuffers.Size))
+	// Since we now work with strings directly, just validate and normalize the values
+	pb, err := NewNumberSizeConfig(fmt.Sprintf("%d %s", in.ProxyBuffers.Number, in.ProxyBuffers.Size), autoadjust)
 	if err != nil {
 		// if there's an error, set it to default `8 4k`
-		pb = NumberSizeConfig{
-			Number: 8,
-			Size: SizeWithUnit{
-				Size: 4,
-				Unit: SizeKB,
-			},
-		}
+		pb = "8 4k"
 	}
 
-	pbs, err := NewSizeWithUnit(in.ProxyBufferSize)
+	pbs, err := NewSizeWithUnit(in.ProxyBufferSize, autoadjust)
 	if err != nil {
 		// if there's an error, set it to default `4k`
-		pbs = SizeWithUnit{
-			Size: 4,
-			Unit: SizeKB,
-		}
+		pbs = "4k"
 	}
 
-	pbbs, err := NewSizeWithUnit(in.ProxyBusyBuffersSize)
+	pbbs, err := NewSizeWithUnit(in.ProxyBusyBuffersSize, autoadjust)
 	if err != nil {
 		// if there's an error, set it to default `4k`
-		pbbs = SizeWithUnit{
-			Size: 4,
-			Unit: SizeKB,
+		pbbs = "4k"
+	}
+
+	// Parse the normalized proxy buffers string to extract number and size
+	if pb != "" {
+		parts := strings.Fields(pb)
+		if len(parts) == 2 {
+			if num, err := strconv.Atoi(parts[0]); err == nil {
+				if num > math.MaxInt32 {
+					num = math.MaxInt32
+				}
+				in.ProxyBuffers.Number = num
+				in.ProxyBuffers.Size = parts[1]
+			}
 		}
 	}
 
-	balancedPB, balancedPBS, balancedPBBS, _, err := BalanceProxyValues(pb, pbs, pbbs, autoadjust)
-	if err != nil {
-		return fmt.Errorf("error balancing proxy values: %w", err)
+	if pbs != "" {
+		in.ProxyBufferSize = pbs
 	}
 
-	if balancedPB.Number > uint64(math.MaxInt32) {
-		balancedPB.Number = uint64(math.MaxInt32)
+	if pbbs != "" {
+		in.ProxyBusyBuffersSize = pbbs
 	}
-
-	in.ProxyBuffers = &conf_v1.UpstreamBuffers{
-		Number: int(balancedPB.Number),
-		Size:   balancedPB.Size.String(),
-	}
-	in.ProxyBufferSize = balancedPBS.String()
-	in.ProxyBusyBuffersSize = balancedPBBS.String()
 
 	return nil
 }

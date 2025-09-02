@@ -301,45 +301,61 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 
 	// Proxy Buffers uses number + size format, like "8 4k".
 	if proxyBuffers, exists := ingEx.Ingress.Annotations["nginx.org/proxy-buffers"]; exists {
-		proxyBufferUnits, err := validation.NewNumberSizeConfig(proxyBuffers)
-		if err != nil {
-			nl.Errorf(l, "error parsing nginx.org/proxy-buffers: %s", err)
+		if enableDirectiveAutoadjust {
+			normalizedProxyBuffers, err := validation.NewNumberSizeConfig(proxyBuffers, enableDirectiveAutoadjust)
+			if err != nil {
+				nl.Errorf(l, "error parsing nginx.org/proxy-buffers: %s", err)
+			} else {
+				cfgParams.ProxyBuffers = normalizedProxyBuffers
+			}
 		} else {
-			cfgParams.ProxyBuffers = proxyBufferUnits
+			cfgParams.ProxyBuffers = proxyBuffers
 		}
 	}
 
 	// Proxy Buffer Size uses only size format, like "4k".
 	if proxyBufferSize, exists := ingEx.Ingress.Annotations["nginx.org/proxy-buffer-size"]; exists {
-		proxyBufferSizeUnit, err := validation.NewSizeWithUnit(proxyBufferSize)
-		if err != nil {
-			nl.Errorf(l, "error parsing nginx.org/proxy-buffer-size: %s", err)
+		if enableDirectiveAutoadjust {
+			normalizedProxyBufferSize, err := validation.NewSizeWithUnit(proxyBufferSize, enableDirectiveAutoadjust)
+			if err != nil {
+				nl.Errorf(l, "error parsing nginx.org/proxy-buffer-size: %s", err)
+			} else {
+				cfgParams.ProxyBufferSize = normalizedProxyBufferSize
+			}
 		} else {
-			cfgParams.ProxyBufferSize = proxyBufferSizeUnit
+			cfgParams.ProxyBufferSize = proxyBufferSize
 		}
 	}
 
 	// Proxy Busy Buffers Size uses only size format, like "8k".
 	if proxyBusyBuffersSize, exists := ingEx.Ingress.Annotations["nginx.org/proxy-busy-buffers-size"]; exists {
-		proxyBusyBufferSizeUnit, err := validation.NewSizeWithUnit(proxyBusyBuffersSize)
-		if err != nil {
-			nl.Errorf(l, "error parsing nginx.org/proxy-busy-buffers-size: %s", err)
+		if enableDirectiveAutoadjust {
+			normalizedProxyBusyBuffersSize, err := validation.NewSizeWithUnit(proxyBusyBuffersSize, enableDirectiveAutoadjust)
+			if err != nil {
+				nl.Errorf(l, "error parsing nginx.org/proxy-busy-buffers-size: %s", err)
+			} else {
+				cfgParams.ProxyBusyBuffersSize = normalizedProxyBusyBuffersSize
+			}
 		} else {
-			cfgParams.ProxyBusyBuffersSize = proxyBusyBufferSizeUnit
+			cfgParams.ProxyBusyBuffersSize = proxyBusyBuffersSize
 		}
 	}
 
-	balancedProxyBuffers, balancedProxyBufferSize, balancedProxyBusyBufferSize, modifications, err := validation.BalanceProxyValues(cfgParams.ProxyBuffers, cfgParams.ProxyBufferSize, cfgParams.ProxyBusyBuffersSize, enableDirectiveAutoadjust)
-	if err != nil {
-		nl.Errorf(l, "error reconciling proxy_buffers, proxy_buffer_size, and proxy_busy_buffers_size values: %s", err.Error())
-	}
-	cfgParams.ProxyBuffers = balancedProxyBuffers
-	cfgParams.ProxyBufferSize = balancedProxyBufferSize
-	cfgParams.ProxyBusyBuffersSize = balancedProxyBusyBufferSize
+	// Only run balance validation if auto-adjust is enabled
+	if enableDirectiveAutoadjust {
+		balancedProxyBuffers, balancedProxyBufferSize, balancedProxyBusyBufferSize, modifications, err := validation.BalanceProxyValues(cfgParams.ProxyBuffers, cfgParams.ProxyBufferSize, cfgParams.ProxyBusyBuffersSize, enableDirectiveAutoadjust)
+		if err != nil {
+			nl.Errorf(l, "error reconciling proxy_buffers, proxy_buffer_size, and proxy_busy_buffers_size values: %s", err.Error())
+		} else {
+			cfgParams.ProxyBuffers = balancedProxyBuffers
+			cfgParams.ProxyBufferSize = balancedProxyBufferSize
+			cfgParams.ProxyBusyBuffersSize = balancedProxyBusyBufferSize
 
-	if len(modifications) > 0 {
-		for _, modification := range modifications {
-			nl.Infof(l, "Changes made to proxy values: %s", modification)
+			if len(modifications) > 0 {
+				for _, modification := range modifications {
+					nl.Infof(l, "Changes made to proxy values: %s", modification)
+				}
+			}
 		}
 	}
 
