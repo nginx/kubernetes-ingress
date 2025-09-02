@@ -3,7 +3,7 @@
 FROM kindest/node:v1.33.4@sha256:25a6018e48dfcaee478f4a59af81157a437f15e6e140bf103f85a2e7cd0cbbf2
 
 # this is here so we can grab the latest version of skopeo and have dependabot keep it up to date
-FROM quay.io/skopeo/stable:v1.19.0
+FROM quay.io/skopeo/stable:v1.19.0@sha256:15ed75b792cbffe21a169793d3bd7a12d293d1b2d89acdfd487c028f17c2fcc1
 
 FROM python:3.13-bookworm@sha256:aba8a0cd72f259c2737c8a47050652036c8bc8266a4f39291523a45cf8081960
 
