@@ -41,29 +41,19 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "daemonset",
 			namespace:   "default",
 		},
+		"daemonset-readonly": {
+			valuesFile:  "testdata/daemonset-readonly.yaml",
+			releaseName: "daemonset-readonly",
+			namespace:   "default",
+		},
 		"statefulset": {
 			valuesFile:  "testdata/statefulset.yaml",
 			releaseName: "statefulset",
 			namespace:   "default",
 		},
-		"statefulset-pvc-template": {
-			valuesFile:  "testdata/statefulset-pvc-template.yaml",
-			releaseName: "statefulset-pvc-template",
-			namespace:   "default",
-		},
-		"statefulset-pvc-template-readonly": {
-			valuesFile:  "testdata/statefulset-pvc-template-readonly.yaml",
-			releaseName: "statefulset-pvc-template-readonly",
-			namespace:   "default",
-		},
-		"statefulset-shared-pvc": {
-			valuesFile:  "testdata/statefulset-shared-pvc.yaml",
-			releaseName: "statefulset-shared-pvc",
-			namespace:   "default",
-		},
-		"statefulset-shared-pvc-readonly": {
-			valuesFile:  "testdata/statefulset-shared-pvc-readonly.yaml",
-			releaseName: "statefulset-shared-pvc-readonly",
+		"statefulset-readonly": {
+			valuesFile:  "testdata/statefulset-readonly.yaml",
+			releaseName: "statefulset-readonly",
 			namespace:   "default",
 		},
 		"namespace": {

@@ -225,8 +225,16 @@ spec:
   persistentVolumeClaimRetentionPolicy:
 {{ toYaml .Values.controller.statefulset.persistentVolumeClaimRetentionPolicy | indent 4 }}
 {{- end }}
-{{- if .Values.controller.statefulset.volumeClaimTemplates }}
   volumeClaimTemplates:
+  - metadata:
+      name: nginx-cache
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "standard"
+      resources:
+        requests:
+          storage: 256Mi
+{{- if .Values.controller.statefulset.volumeClaimTemplates }}
 {{ toYaml .Values.controller.statefulset.volumeClaimTemplates | indent 2 }}
 {{- end }}
 {{- end }}

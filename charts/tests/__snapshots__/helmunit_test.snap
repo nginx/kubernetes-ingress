@@ -3437,6 +3437,493 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 ---
 
+[TestHelmNICTemplate/daemonset-readonly - 1]
+/-/-/-/
+# Source: nginx-ingress/templates/controller-serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: daemonset-readonly-nginx-ingress
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.3.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: daemonset-readonly
+    app.kubernetes.io/version: "5.2.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: daemonset-readonly-nginx-ingress
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.3.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: daemonset-readonly
+    app.kubernetes.io/version: "5.2.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  {}
+/-/-/-/
+# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: daemonset-readonly-nginx-ingress-leader-election
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.3.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: daemonset-readonly
+    app.kubernetes.io/version: "5.2.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrole.yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: daemonset-readonly-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.3.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: daemonset-readonly
+    app.kubernetes.io/version: "5.2.0"
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - namespaces
+  - pods
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - list
+- apiGroups:
+  - "apps"
+  resources:
+  - replicasets
+  - daemonsets
+  - statefulsets
+  verbs:
+  - get
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingressclasses
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/status
+  verbs:
+  - update
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers
+  - virtualserverroutes
+  - globalconfigurations
+  - transportservers
+  - policies
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers/status
+  - virtualserverroutes/status
+  - policies/status
+  - transportservers/status
+  verbs:
+  - update
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrolebinding.yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: daemonset-readonly-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.3.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: daemonset-readonly
+    app.kubernetes.io/version: "5.2.0"
+    app.kubernetes.io/managed-by: Helm
+subjects:
+- kind: ServiceAccount
+  name: daemonset-readonly-nginx-ingress
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: daemonset-readonly-nginx-ingress
+  apiGroup: rbac.authorization.k8s.io
+/-/-/-/
+# Source: nginx-ingress/templates/controller-role.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: daemonset-readonly-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.3.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: daemonset-readonly
+    app.kubernetes.io/version: "5.2.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: default
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - pods
+  - secrets
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+    - ""
+  resources:
+    - namespaces
+  verbs:
+    - get
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  resourceNames:
+  - daemonset-readonly-nginx-ingress-leader-election
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+/-/-/-/
+# Source: nginx-ingress/templates/controller-rolebinding.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: daemonset-readonly-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.3.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: daemonset-readonly
+    app.kubernetes.io/version: "5.2.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: daemonset-readonly-nginx-ingress
+subjects:
+- kind: ServiceAccount
+  name: daemonset-readonly-nginx-ingress
+  namespace: default
+/-/-/-/
+# Source: nginx-ingress/templates/controller-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: daemonset-readonly-nginx-ingress-controller
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.3.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: daemonset-readonly
+    app.kubernetes.io/version: "5.2.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  externalTrafficPolicy: Local
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+    nodePort: 
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: https
+    nodePort: 
+  selector:
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: daemonset-readonly
+/-/-/-/
+# Source: nginx-ingress/templates/controller-daemonset.yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: daemonset-readonly-nginx-ingress-controller
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.3.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: daemonset-readonly
+    app.kubernetes.io/version: "5.2.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx-ingress
+      app.kubernetes.io/instance: daemonset-readonly
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx-ingress
+        app.kubernetes.io/instance: daemonset-readonly
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9113"
+        prometheus.io/scheme: "http"
+    spec:
+      serviceAccountName: daemonset-readonly-nginx-ingress
+      automountServiceAccountToken: true
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30      
+      volumes:
+      
+      - name: nginx-etc
+        emptyDir: {}
+      - name: nginx-lib
+        emptyDir: {}
+      - name: nginx-state
+        emptyDir: {}
+      - name: nginx-log
+        emptyDir: {}
+      - name: nginx-cache
+        emptyDir: {}
+      hostNetwork: false
+      dnsPolicy: ClusterFirst
+      containers:
+      - name: nginx-ingress
+        image: nginx/nginx-ingress:5.2.0
+        imagePullPolicy: "IfNotPresent"
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        - name: https
+          containerPort: 443
+          protocol: TCP
+
+        - name: prometheus
+          containerPort: 9113
+        - name: readiness-port
+          containerPort: 8081
+        readinessProbe:
+          httpGet:
+            path: /nginx-ready
+            port: readiness-port
+          periodSeconds: 1
+          initialDelaySeconds: 0
+        securityContext:
+          allowPrivilegeEscalation: true
+          capabilities:
+            add:
+            - NET_BIND_SERVICE
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 101        
+        volumeMounts:
+        
+        - mountPath: /etc/nginx
+          name: nginx-etc
+        - mountPath: /var/cache/nginx
+          name: nginx-cache
+        - mountPath: /var/lib/nginx
+          name: nginx-lib
+        - mountPath: /var/lib/nginx/state
+          name: nginx-state
+        - mountPath: /var/log/nginx
+          name: nginx-log
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        args:
+          
+          - -nginx-plus=false
+          - -nginx-reload-timeout=60000
+          - -enable-app-protect=false
+          - -enable-app-protect-dos=false
+          - -nginx-configmaps=$(POD_NAMESPACE)/daemonset-readonly-nginx-ingress
+          - -ingress-class=nginx
+          - -health-status=false
+          - -health-status-uri=/nginx-health
+          - -nginx-debug=false
+          - -log-level=info
+          - -log-format=glog
+          - -nginx-status=true
+          - -nginx-status-port=8080
+          - -nginx-status-allow-cidrs=127.0.0.1
+          - -report-ingress-status
+          - -external-service=daemonset-readonly-nginx-ingress-controller
+          - -enable-leader-election=true
+          - -leader-election-lock-name=daemonset-readonly-nginx-ingress-leader-election
+          - -enable-prometheus-metrics=true
+          - -prometheus-metrics-listen-port=9113
+          - -prometheus-tls-secret=
+          - -enable-service-insight=false
+          - -service-insight-listen-port=9114
+          - -service-insight-tls-secret=
+          - -enable-custom-resources=true
+          - -enable-snippets=false
+          - -disable-ipv6=false
+          - -enable-tls-passthrough=false
+          - -enable-cert-manager=false
+          - -enable-oidc=false
+          - -enable-external-dns=false
+          - -default-http-listener-port=80
+          - -default-https-listener-port=443
+          - -ready-status=true
+          - -ready-status-port=8081
+          - -enable-latency-metrics=false
+          - -ssl-dynamic-reload=true
+          - -enable-telemetry-reporting=true
+          - -weight-changes-dynamic-reload=false
+      
+      initContainers:
+      - name: init-nginx-ingress
+        image: nginx/nginx-ingress:5.2.0
+        imagePullPolicy: "IfNotPresent"
+        command: ['cp', '-vdR', '/etc/nginx/.', '/mnt/etc']
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsUser: 101 #nginx
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - mountPath: /mnt/etc
+          name: nginx-etc
+/-/-/-/
+# Source: nginx-ingress/templates/controller-ingress-class.yaml
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: nginx
+  labels:
+    helm.sh/chart: nginx-ingress-2.3.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: daemonset-readonly
+    app.kubernetes.io/version: "5.2.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  controller: nginx.org/ingress-controller
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+/-/-/-/
+/-/-/-/
+# Source: nginx-ingress/templates/controller-lease.yaml
+apiVersion: coordination.k8s.io/v1
+kind: Lease
+metadata:
+  name: daemonset-readonly-nginx-ingress-leader-election
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.3.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: daemonset-readonly
+    app.kubernetes.io/version: "5.2.0"
+    app.kubernetes.io/managed-by: Helm
+---
+
 [TestHelmNICTemplate/default_values_file - 1]
 /-/-/-/
 # Source: nginx-ingress/templates/controller-serviceaccount.yaml
@@ -4626,12 +5113,12 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort:
+    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort:
+    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: global-config-custom-name
@@ -4663,7 +5150,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:
+    spec:      
       volumes: []
       serviceAccountName: global-config-custom-name-nginx-ingress
       automountServiceAccountToken: true
@@ -4707,7 +5194,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE
+            - NET_BIND_SERVICE        
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -4719,7 +5206,470 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
+          
+          - -nginx-plus=false
+          - -nginx-reload-timeout=60000
+          - -enable-app-protect=false
+          - -enable-app-protect-dos=false
+          - -nginx-configmaps=$(POD_NAMESPACE)/global-config-custom-name-nginx-ingress
+          - -ingress-class=nginx
+          - -health-status=false
+          - -health-status-uri=/nginx-health
+          - -nginx-debug=false
+          - -log-level=info
+          - -log-format=glog
+          - -nginx-status=true
+          - -nginx-status-port=8080
+          - -nginx-status-allow-cidrs=127.0.0.1
+          - -report-ingress-status
+          - -external-service=global-config-custom-name-nginx-ingress-controller
+          - -enable-leader-election=true
+          - -leader-election-lock-name=global-config-custom-name-nginx-ingress-leader-election
+          - -enable-prometheus-metrics=true
+          - -prometheus-metrics-listen-port=9113
+          - -prometheus-tls-secret=
+          - -enable-service-insight=false
+          - -service-insight-listen-port=9114
+          - -service-insight-tls-secret=
+          - -enable-custom-resources=true
+          - -enable-snippets=false
+          - -disable-ipv6=false
+          - -enable-tls-passthrough=false
+          - -enable-cert-manager=false
+          - -enable-oidc=false
+          - -enable-external-dns=false
+          - -default-http-listener-port=80
+          - -default-https-listener-port=443
+          - -global-configuration=test-namespace/my-custom-global-config
+          - -ready-status=true
+          - -ready-status-port=8081
+          - -enable-latency-metrics=false
+          - -ssl-dynamic-reload=true
+          - -enable-telemetry-reporting=true
+          - -weight-changes-dynamic-reload=false
+/-/-/-/
+# Source: nginx-ingress/templates/controller-ingress-class.yaml
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: nginx
+  labels:
+    helm.sh/chart: nginx-ingress-2.3.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: global-config-custom-name
+    app.kubernetes.io/version: "5.2.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  controller: nginx.org/ingress-controller
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+/-/-/-/
+/-/-/-/
+# Source: nginx-ingress/templates/controller-globalconfiguration.yaml
+apiVersion: k8s.nginx.org/v1
+kind: GlobalConfiguration
+metadata:
+  name: my-custom-global-config
+  namespace: test-namespace
+  labels:
+    helm.sh/chart: nginx-ingress-2.3.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: global-config-custom-name
+    app.kubernetes.io/version: "5.2.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  listeners:
+  - name: dns-udp
+    port: 5353
+    protocol: UDP
+/-/-/-/
+# Source: nginx-ingress/templates/controller-lease.yaml
+apiVersion: coordination.k8s.io/v1
+kind: Lease
+metadata:
+  name: global-config-custom-name-nginx-ingress-leader-election
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.3.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: global-config-custom-name
+    app.kubernetes.io/version: "5.2.0"
+    app.kubernetes.io/managed-by: Helm
+---
 
+[TestHelmNICTemplate/globalConfigCustomName - 1]
+/-/-/-/
+# Source: nginx-ingress/templates/controller-serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: global-config-custom-name-nginx-ingress
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.3.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: global-config-custom-name
+    app.kubernetes.io/version: "5.2.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: global-config-custom-name-nginx-ingress
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.3.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: global-config-custom-name
+    app.kubernetes.io/version: "5.2.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  {}
+/-/-/-/
+# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: global-config-custom-name-nginx-ingress-leader-election
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.3.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: global-config-custom-name
+    app.kubernetes.io/version: "5.2.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrole.yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: global-config-custom-name-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.3.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: global-config-custom-name
+    app.kubernetes.io/version: "5.2.0"
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - namespaces
+  - pods
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - list
+- apiGroups:
+  - "apps"
+  resources:
+  - replicasets
+  - daemonsets
+  - statefulsets
+  verbs:
+  - get
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingressclasses
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/status
+  verbs:
+  - update
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers
+  - virtualserverroutes
+  - globalconfigurations
+  - transportservers
+  - policies
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers/status
+  - virtualserverroutes/status
+  - policies/status
+  - transportservers/status
+  verbs:
+  - update
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrolebinding.yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: global-config-custom-name-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.3.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: global-config-custom-name
+    app.kubernetes.io/version: "5.2.0"
+    app.kubernetes.io/managed-by: Helm
+subjects:
+- kind: ServiceAccount
+  name: global-config-custom-name-nginx-ingress
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: global-config-custom-name-nginx-ingress
+  apiGroup: rbac.authorization.k8s.io
+/-/-/-/
+# Source: nginx-ingress/templates/controller-role.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: global-config-custom-name-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.3.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: global-config-custom-name
+    app.kubernetes.io/version: "5.2.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: default
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - pods
+  - secrets
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+    - ""
+  resources:
+    - namespaces
+  verbs:
+    - get
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  resourceNames:
+  - global-config-custom-name-nginx-ingress-leader-election
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+/-/-/-/
+# Source: nginx-ingress/templates/controller-rolebinding.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: global-config-custom-name-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.3.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: global-config-custom-name
+    app.kubernetes.io/version: "5.2.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: global-config-custom-name-nginx-ingress
+subjects:
+- kind: ServiceAccount
+  name: global-config-custom-name-nginx-ingress
+  namespace: default
+/-/-/-/
+# Source: nginx-ingress/templates/controller-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: global-config-custom-name-nginx-ingress-controller
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.3.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: global-config-custom-name
+    app.kubernetes.io/version: "5.2.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  externalTrafficPolicy: Local
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+    nodePort: 
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: https
+    nodePort: 
+  selector:
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: global-config-custom-name
+/-/-/-/
+# Source: nginx-ingress/templates/controller-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: global-config-custom-name-nginx-ingress-controller
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.3.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: global-config-custom-name
+    app.kubernetes.io/version: "5.2.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx-ingress
+      app.kubernetes.io/instance: global-config-custom-name
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx-ingress
+        app.kubernetes.io/instance: global-config-custom-name
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9113"
+        prometheus.io/scheme: "http"
+    spec:      
+      volumes: []
+      serviceAccountName: global-config-custom-name-nginx-ingress
+      automountServiceAccountToken: true
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      hostNetwork: false
+      dnsPolicy: ClusterFirst
+      containers:
+      - image: nginx/nginx-ingress:5.2.0
+        name: nginx-ingress
+        imagePullPolicy: "IfNotPresent"
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        - name: https
+          containerPort: 443
+          protocol: TCP
+        - name: prometheus
+          containerPort: 9113
+        - name: readiness-port
+          containerPort: 8081
+        readinessProbe:
+          httpGet:
+            path: /nginx-ready
+            port: readiness-port
+          periodSeconds: 1
+          initialDelaySeconds: 0
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsUser: 101 #nginx
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - NET_BIND_SERVICE        
+        volumeMounts: []
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        args:
+          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -10469,468 +11419,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 ---
 
-[TestHelmNICTemplate/globalConfigCustomName - 1]
-/-/-/-/
-# Source: nginx-ingress/templates/controller-serviceaccount.yaml
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: global-config-custom-name-nginx-ingress
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: global-config-custom-name
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: global-config-custom-name-nginx-ingress
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: global-config-custom-name
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: global-config-custom-name-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: global-config-custom-name
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-/-/-/-/
-# Source: nginx-ingress/templates/clusterrole.yaml
-kind: ClusterRole
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: global-config-custom-name-nginx-ingress
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: global-config-custom-name
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - configmaps
-  - namespaces
-  - pods
-  - secrets
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - create
-  - patch
-  - list
-- apiGroups:
-  - ""
-  resources:
-  - services
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - coordination.k8s.io
-  resources:
-  - leases
-  verbs:
-  - list
-  - watch
-- apiGroups:
-  - discovery.k8s.io
-  resources:
-  - endpointslices
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - networking.k8s.io
-  resources:
-  - ingresses
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - nodes
-  verbs:
-  - list
-- apiGroups:
-  - "apps"
-  resources:
-  - replicasets
-  - daemonsets
-  verbs:
-  - get
-- apiGroups:
-  - networking.k8s.io
-  resources:
-  - ingressclasses
-  verbs:
-  - get
-  - list
-- apiGroups:
-  - networking.k8s.io
-  resources:
-  - ingresses/status
-  verbs:
-  - update
-- apiGroups:
-  - k8s.nginx.org
-  resources:
-  - virtualservers
-  - virtualserverroutes
-  - globalconfigurations
-  - transportservers
-  - policies
-  verbs:
-  - list
-  - watch
-  - get
-- apiGroups:
-  - k8s.nginx.org
-  resources:
-  - virtualservers/status
-  - virtualserverroutes/status
-  - policies/status
-  - transportservers/status
-  verbs:
-  - update
-/-/-/-/
-# Source: nginx-ingress/templates/clusterrolebinding.yaml
-kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: global-config-custom-name-nginx-ingress
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: global-config-custom-name
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-subjects:
-- kind: ServiceAccount
-  name: global-config-custom-name-nginx-ingress
-  namespace: default
-roleRef:
-  kind: ClusterRole
-  name: global-config-custom-name-nginx-ingress
-  apiGroup: rbac.authorization.k8s.io
-/-/-/-/
-# Source: nginx-ingress/templates/controller-role.yaml
-kind: Role
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: global-config-custom-name-nginx-ingress
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: global-config-custom-name
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-  namespace: default
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - configmaps
-  - pods
-  - secrets
-  - services
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-    - ""
-  resources:
-    - namespaces
-  verbs:
-    - get
-- apiGroups:
-  - ""
-  resources:
-  - pods
-  verbs:
-  - update
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - create
-  - patch
-  - list
-- apiGroups:
-  - coordination.k8s.io
-  resources:
-  - leases
-  resourceNames:
-  - global-config-custom-name-nginx-ingress-leader-election
-  verbs:
-  - get
-  - update
-- apiGroups:
-  - coordination.k8s.io
-  resources:
-  - leases
-  verbs:
-  - create
-/-/-/-/
-# Source: nginx-ingress/templates/controller-rolebinding.yaml
-kind: RoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: global-config-custom-name-nginx-ingress
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: global-config-custom-name
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-  namespace: default
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: global-config-custom-name-nginx-ingress
-subjects:
-- kind: ServiceAccount
-  name: global-config-custom-name-nginx-ingress
-  namespace: default
-/-/-/-/
-# Source: nginx-ingress/templates/controller-service.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: global-config-custom-name-nginx-ingress-controller
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: global-config-custom-name
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-spec:
-  externalTrafficPolicy: Local
-  type: LoadBalancer
-  ports:
-  - port: 80
-    targetPort: 80
-    protocol: TCP
-    name: http
-    nodePort: 
-  - port: 443
-    targetPort: 443
-    protocol: TCP
-    name: https
-    nodePort: 
-  selector:
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: global-config-custom-name
-/-/-/-/
-# Source: nginx-ingress/templates/controller-deployment.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: global-config-custom-name-nginx-ingress-controller
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: global-config-custom-name
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: nginx-ingress
-      app.kubernetes.io/instance: global-config-custom-name
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/name: nginx-ingress
-        app.kubernetes.io/instance: global-config-custom-name
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "9113"
-        prometheus.io/scheme: "http"
-    spec:      
-      volumes: []
-      serviceAccountName: global-config-custom-name-nginx-ingress
-      automountServiceAccountToken: true
-      securityContext:
-        seccompProfile:
-          type: RuntimeDefault
-      terminationGracePeriodSeconds: 30
-      hostNetwork: false
-      dnsPolicy: ClusterFirst
-      containers:
-      - image: nginx/nginx-ingress:5.2.0
-        name: nginx-ingress
-        imagePullPolicy: "IfNotPresent"
-        ports:
-        - name: http
-          containerPort: 80
-          protocol: TCP
-        - name: https
-          containerPort: 443
-          protocol: TCP
-        - name: prometheus
-          containerPort: 9113
-        - name: readiness-port
-          containerPort: 8081
-        readinessProbe:
-          httpGet:
-            path: /nginx-ready
-            port: readiness-port
-          periodSeconds: 1
-          initialDelaySeconds: 0
-        resources:
-          requests:
-            cpu: 100m
-            memory: 128Mi
-        securityContext:
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: false
-          runAsUser: 101 #nginx
-          runAsNonRoot: true
-          capabilities:
-            drop:
-            - ALL
-            add:
-            - NET_BIND_SERVICE        
-        volumeMounts: []
-        env:
-        - name: POD_NAMESPACE
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.namespace
-        - name: POD_NAME
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.name
-        args:
-          
-          - -nginx-plus=false
-          - -nginx-reload-timeout=60000
-          - -enable-app-protect=false
-          - -enable-app-protect-dos=false
-          - -nginx-configmaps=$(POD_NAMESPACE)/global-config-custom-name-nginx-ingress
-          - -ingress-class=nginx
-          - -health-status=false
-          - -health-status-uri=/nginx-health
-          - -nginx-debug=false
-          - -log-level=info
-          - -log-format=glog
-          - -nginx-status=true
-          - -nginx-status-port=8080
-          - -nginx-status-allow-cidrs=127.0.0.1
-          - -report-ingress-status
-          - -external-service=global-config-custom-name-nginx-ingress-controller
-          - -enable-leader-election=true
-          - -leader-election-lock-name=global-config-custom-name-nginx-ingress-leader-election
-          - -enable-prometheus-metrics=true
-          - -prometheus-metrics-listen-port=9113
-          - -prometheus-tls-secret=
-          - -enable-service-insight=false
-          - -service-insight-listen-port=9114
-          - -service-insight-tls-secret=
-          - -enable-custom-resources=true
-          - -enable-snippets=false
-          - -disable-ipv6=false
-          - -enable-tls-passthrough=false
-          - -enable-cert-manager=false
-          - -enable-oidc=false
-          - -enable-external-dns=false
-          - -default-http-listener-port=80
-          - -default-https-listener-port=443
-          - -global-configuration=test-namespace/my-custom-global-config
-          - -ready-status=true
-          - -ready-status-port=8081
-          - -enable-latency-metrics=false
-          - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=true
-          - -weight-changes-dynamic-reload=false
-/-/-/-/
-# Source: nginx-ingress/templates/controller-ingress-class.yaml
-apiVersion: networking.k8s.io/v1
-kind: IngressClass
-metadata:
-  name: nginx
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: global-config-custom-name
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-spec:
-  controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
-/-/-/-/
-# Source: nginx-ingress/templates/controller-globalconfiguration.yaml
-apiVersion: k8s.nginx.org/v1
-kind: GlobalConfiguration
-metadata:
-  name: my-custom-global-config
-  namespace: test-namespace
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: global-config-custom-name
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-spec:
-  listeners:
-  - name: dns-udp
-    port: 5353
-    protocol: UDP
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: global-config-custom-name-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: global-config-custom-name
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
----
-
 [TestHelmNICTemplate/statefulset - 1]
 /-/-/-/
 # Source: nginx-ingress/templates/controller-serviceaccount.yaml
@@ -11210,12 +11698,12 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort:
+    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort:
+    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: statefulset
@@ -11248,7 +11736,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:
+    spec:      
       volumes: []
       serviceAccountName: statefulset-nginx-ingress
       automountServiceAccountToken: true
@@ -11292,8 +11780,11 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE
-        volumeMounts: []
+            - NET_BIND_SERVICE        
+        volumeMounts:
+        
+        - mountPath: /var/cache/nginx
+          name: nginx-cache
         env:
         - name: POD_NAMESPACE
           valueFrom:
@@ -11304,7 +11795,7 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-
+          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -11344,11 +11835,20 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-
+      
   podManagementPolicy: OrderedReady
   persistentVolumeClaimRetentionPolicy:
     whenDeleted: Retain
     whenScaled: Retain
+  volumeClaimTemplates:
+  - metadata:
+      name: nginx-cache
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "standard"
+      resources:
+        requests:
+          storage: 256Mi
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -11381,18 +11881,18 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 ---
 
-[TestHelmNICTemplate/statefulset-pvc-template - 1]
+[TestHelmNICTemplate/statefulset-readonly - 1]
 /-/-/-/
 # Source: nginx-ingress/templates/controller-serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: statefulset-pvc-template-nginx-ingress
+  name: statefulset-readonly-nginx-ingress
   namespace: default
   labels:
     helm.sh/chart: nginx-ingress-2.3.0
     app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-pvc-template
+    app.kubernetes.io/instance: statefulset-readonly
     app.kubernetes.io/version: "5.2.0"
     app.kubernetes.io/managed-by: Helm
 /-/-/-/
@@ -11400,12 +11900,12 @@ metadata:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: statefulset-pvc-template-nginx-ingress
+  name: statefulset-readonly-nginx-ingress
   namespace: default
   labels:
     helm.sh/chart: nginx-ingress-2.3.0
     app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-pvc-template
+    app.kubernetes.io/instance: statefulset-readonly
     app.kubernetes.io/version: "5.2.0"
     app.kubernetes.io/managed-by: Helm
 data:
@@ -11415,12 +11915,12 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: statefulset-pvc-template-nginx-ingress-leader-election
+  name: statefulset-readonly-nginx-ingress-leader-election
   namespace: default
   labels:
     helm.sh/chart: nginx-ingress-2.3.0
     app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-pvc-template
+    app.kubernetes.io/instance: statefulset-readonly
     app.kubernetes.io/version: "5.2.0"
     app.kubernetes.io/managed-by: Helm
 /-/-/-/
@@ -11428,11 +11928,11 @@ metadata:
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: statefulset-pvc-template-nginx-ingress
+  name: statefulset-readonly-nginx-ingress
   labels:
     helm.sh/chart: nginx-ingress-2.3.0
     app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-pvc-template
+    app.kubernetes.io/instance: statefulset-readonly
     app.kubernetes.io/version: "5.2.0"
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -11543,31 +12043,31 @@ rules:
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: statefulset-pvc-template-nginx-ingress
+  name: statefulset-readonly-nginx-ingress
   labels:
     helm.sh/chart: nginx-ingress-2.3.0
     app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-pvc-template
+    app.kubernetes.io/instance: statefulset-readonly
     app.kubernetes.io/version: "5.2.0"
     app.kubernetes.io/managed-by: Helm
 subjects:
 - kind: ServiceAccount
-  name: statefulset-pvc-template-nginx-ingress
+  name: statefulset-readonly-nginx-ingress
   namespace: default
 roleRef:
   kind: ClusterRole
-  name: statefulset-pvc-template-nginx-ingress
+  name: statefulset-readonly-nginx-ingress
   apiGroup: rbac.authorization.k8s.io
 /-/-/-/
 # Source: nginx-ingress/templates/controller-role.yaml
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: statefulset-pvc-template-nginx-ingress
+  name: statefulset-readonly-nginx-ingress
   labels:
     helm.sh/chart: nginx-ingress-2.3.0
     app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-pvc-template
+    app.kubernetes.io/instance: statefulset-readonly
     app.kubernetes.io/version: "5.2.0"
     app.kubernetes.io/managed-by: Helm
   namespace: default
@@ -11608,7 +12108,7 @@ rules:
   resources:
   - leases
   resourceNames:
-  - statefulset-pvc-template-nginx-ingress-leader-election
+  - statefulset-readonly-nginx-ingress-leader-election
   verbs:
   - get
   - update
@@ -11623,33 +12123,33 @@ rules:
 kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: statefulset-pvc-template-nginx-ingress
+  name: statefulset-readonly-nginx-ingress
   labels:
     helm.sh/chart: nginx-ingress-2.3.0
     app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-pvc-template
+    app.kubernetes.io/instance: statefulset-readonly
     app.kubernetes.io/version: "5.2.0"
     app.kubernetes.io/managed-by: Helm
   namespace: default
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: statefulset-pvc-template-nginx-ingress
+  name: statefulset-readonly-nginx-ingress
 subjects:
 - kind: ServiceAccount
-  name: statefulset-pvc-template-nginx-ingress
+  name: statefulset-readonly-nginx-ingress
   namespace: default
 /-/-/-/
 # Source: nginx-ingress/templates/controller-service.yaml
 apiVersion: v1
 kind: Service
 metadata:
-  name: statefulset-pvc-template-nginx-ingress-controller
+  name: statefulset-readonly-nginx-ingress-controller
   namespace: default
   labels:
     helm.sh/chart: nginx-ingress-2.3.0
     app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-pvc-template
+    app.kubernetes.io/instance: statefulset-readonly
     app.kubernetes.io/version: "5.2.0"
     app.kubernetes.io/managed-by: Helm
 spec:
@@ -11660,509 +12160,47 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort:
+    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort:
+    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-pvc-template
+    app.kubernetes.io/instance: statefulset-readonly
 /-/-/-/
 # Source: nginx-ingress/templates/controller-statefulset.yaml
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: statefulset-pvc-template-nginx-ingress-controller
+  name: statefulset-readonly-nginx-ingress-controller
   namespace: default
   labels:
     helm.sh/chart: nginx-ingress-2.3.0
     app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-pvc-template
+    app.kubernetes.io/instance: statefulset-readonly
     app.kubernetes.io/version: "5.2.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
-  serviceName: statefulset-pvc-template-nginx-ingress-controller
+  serviceName: statefulset-readonly-nginx-ingress-controller
   selector:
     matchLabels:
       app.kubernetes.io/name: nginx-ingress
-      app.kubernetes.io/instance: statefulset-pvc-template
+      app.kubernetes.io/instance: statefulset-readonly
   template:
     metadata:
       labels:
         app.kubernetes.io/name: nginx-ingress
-        app.kubernetes.io/instance: statefulset-pvc-template
+        app.kubernetes.io/instance: statefulset-readonly
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:
-      volumes: []
-      serviceAccountName: statefulset-pvc-template-nginx-ingress
-      automountServiceAccountToken: true
-      securityContext:
-        seccompProfile:
-          type: RuntimeDefault
-      terminationGracePeriodSeconds: 30
-      hostNetwork: false
-      dnsPolicy: ClusterFirst
-      containers:
-      - image: nginx/nginx-ingress:5.2.0
-        name: nginx-ingress
-        imagePullPolicy: "IfNotPresent"
-        ports:
-        - name: http
-          containerPort: 80
-          protocol: TCP
-        - name: https
-          containerPort: 443
-          protocol: TCP
-        - name: prometheus
-          containerPort: 9113
-        - name: readiness-port
-          containerPort: 8081
-        readinessProbe:
-          httpGet:
-            path: /nginx-ready
-            port: readiness-port
-          periodSeconds: 1
-          initialDelaySeconds: 0
-        resources:
-          requests:
-            cpu: 100m
-            memory: 128Mi
-        securityContext:
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: false
-          runAsUser: 101 #nginx
-          runAsNonRoot: true
-          capabilities:
-            drop:
-            - ALL
-            add:
-            - NET_BIND_SERVICE
-        volumeMounts:
-
-        - mountPath: /var/cache/nginx
-          name: nginx-cache
-        env:
-        - name: POD_NAMESPACE
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.namespace
-        - name: POD_NAME
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.name
-        args:
-
-          - -nginx-plus=false
-          - -nginx-reload-timeout=60000
-          - -enable-app-protect=false
-          - -enable-app-protect-dos=false
-          - -nginx-configmaps=$(POD_NAMESPACE)/statefulset-pvc-template-nginx-ingress
-          - -ingress-class=nginx
-          - -health-status=false
-          - -health-status-uri=/nginx-health
-          - -nginx-debug=false
-          - -log-level=info
-          - -log-format=glog
-          - -nginx-status=true
-          - -nginx-status-port=8080
-          - -nginx-status-allow-cidrs=127.0.0.1
-          - -report-ingress-status
-          - -external-service=statefulset-pvc-template-nginx-ingress-controller
-          - -enable-leader-election=true
-          - -leader-election-lock-name=statefulset-pvc-template-nginx-ingress-leader-election
-          - -enable-prometheus-metrics=true
-          - -prometheus-metrics-listen-port=9113
-          - -prometheus-tls-secret=
-          - -enable-service-insight=false
-          - -service-insight-listen-port=9114
-          - -service-insight-tls-secret=
-          - -enable-custom-resources=true
-          - -enable-snippets=false
-          - -disable-ipv6=false
-          - -enable-tls-passthrough=false
-          - -enable-cert-manager=false
-          - -enable-oidc=false
-          - -enable-external-dns=false
-          - -default-http-listener-port=80
-          - -default-https-listener-port=443
-          - -ready-status=true
-          - -ready-status-port=8081
-          - -enable-latency-metrics=false
-          - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=true
-          - -weight-changes-dynamic-reload=false
-
-  podManagementPolicy: OrderedReady
-  persistentVolumeClaimRetentionPolicy:
-    whenDeleted: Retain
-    whenScaled: Retain
-  volumeClaimTemplates:
-  - metadata:
-      name: nginx-cache
-    spec:
-      accessModes:
-      - ReadWriteOnce
-      resources:
-        requests:
-          storage: 5Gi
-/-/-/-/
-# Source: nginx-ingress/templates/controller-ingress-class.yaml
-apiVersion: networking.k8s.io/v1
-kind: IngressClass
-metadata:
-  name: nginx
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-pvc-template
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-spec:
-  controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: statefulset-pvc-template-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-pvc-template
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
----
-
-[TestHelmNICTemplate/statefulset-pvc-template-readonly - 1]
-/-/-/-/
-# Source: nginx-ingress/templates/controller-serviceaccount.yaml
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: statefulset-pvc-template-readonly-nginx-ingress
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-pvc-template-readonly
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: statefulset-pvc-template-readonly-nginx-ingress
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-pvc-template-readonly
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: statefulset-pvc-template-readonly-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-pvc-template-readonly
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-/-/-/-/
-# Source: nginx-ingress/templates/clusterrole.yaml
-kind: ClusterRole
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: statefulset-pvc-template-readonly-nginx-ingress
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-pvc-template-readonly
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - configmaps
-  - namespaces
-  - pods
-  - secrets
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - create
-  - patch
-  - list
-- apiGroups:
-  - ""
-  resources:
-  - services
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - coordination.k8s.io
-  resources:
-  - leases
-  verbs:
-  - list
-  - watch
-- apiGroups:
-  - discovery.k8s.io
-  resources:
-  - endpointslices
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - networking.k8s.io
-  resources:
-  - ingresses
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - nodes
-  verbs:
-  - list
-- apiGroups:
-  - "apps"
-  resources:
-  - replicasets
-  - daemonsets
-  - statefulsets
-  verbs:
-  - get
-- apiGroups:
-  - networking.k8s.io
-  resources:
-  - ingressclasses
-  verbs:
-  - get
-  - list
-- apiGroups:
-  - networking.k8s.io
-  resources:
-  - ingresses/status
-  verbs:
-  - update
-- apiGroups:
-  - k8s.nginx.org
-  resources:
-  - virtualservers
-  - virtualserverroutes
-  - globalconfigurations
-  - transportservers
-  - policies
-  verbs:
-  - list
-  - watch
-  - get
-- apiGroups:
-  - k8s.nginx.org
-  resources:
-  - virtualservers/status
-  - virtualserverroutes/status
-  - policies/status
-  - transportservers/status
-  verbs:
-  - update
-/-/-/-/
-# Source: nginx-ingress/templates/clusterrolebinding.yaml
-kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: statefulset-pvc-template-readonly-nginx-ingress
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-pvc-template-readonly
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-subjects:
-- kind: ServiceAccount
-  name: statefulset-pvc-template-readonly-nginx-ingress
-  namespace: default
-roleRef:
-  kind: ClusterRole
-  name: statefulset-pvc-template-readonly-nginx-ingress
-  apiGroup: rbac.authorization.k8s.io
-/-/-/-/
-# Source: nginx-ingress/templates/controller-role.yaml
-kind: Role
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: statefulset-pvc-template-readonly-nginx-ingress
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-pvc-template-readonly
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-  namespace: default
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - configmaps
-  - pods
-  - secrets
-  - services
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-    - ""
-  resources:
-    - namespaces
-  verbs:
-    - get
-- apiGroups:
-  - ""
-  resources:
-  - pods
-  verbs:
-  - update
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - create
-  - patch
-  - list
-- apiGroups:
-  - coordination.k8s.io
-  resources:
-  - leases
-  resourceNames:
-  - statefulset-pvc-template-readonly-nginx-ingress-leader-election
-  verbs:
-  - get
-  - update
-- apiGroups:
-  - coordination.k8s.io
-  resources:
-  - leases
-  verbs:
-  - create
-/-/-/-/
-# Source: nginx-ingress/templates/controller-rolebinding.yaml
-kind: RoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: statefulset-pvc-template-readonly-nginx-ingress
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-pvc-template-readonly
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-  namespace: default
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: statefulset-pvc-template-readonly-nginx-ingress
-subjects:
-- kind: ServiceAccount
-  name: statefulset-pvc-template-readonly-nginx-ingress
-  namespace: default
-/-/-/-/
-# Source: nginx-ingress/templates/controller-service.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: statefulset-pvc-template-readonly-nginx-ingress-controller
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-pvc-template-readonly
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-spec:
-  externalTrafficPolicy: Local
-  type: LoadBalancer
-  ports:
-  - port: 80
-    targetPort: 80
-    protocol: TCP
-    name: http
-    nodePort:
-  - port: 443
-    targetPort: 443
-    protocol: TCP
-    name: https
-    nodePort:
-  selector:
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-pvc-template-readonly
-/-/-/-/
-# Source: nginx-ingress/templates/controller-statefulset.yaml
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: statefulset-pvc-template-readonly-nginx-ingress-controller
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-pvc-template-readonly
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-spec:
-  replicas: 1
-  serviceName: statefulset-pvc-template-readonly-nginx-ingress-controller
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: nginx-ingress
-      app.kubernetes.io/instance: statefulset-pvc-template-readonly
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/name: nginx-ingress
-        app.kubernetes.io/instance: statefulset-pvc-template-readonly
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "9113"
-        prometheus.io/scheme: "http"
-    spec:
+    spec:      
       volumes:
-
+      
       - name: nginx-etc
         emptyDir: {}
       - name: nginx-lib
@@ -12171,7 +12209,7 @@ spec:
         emptyDir: {}
       - name: nginx-log
         emptyDir: {}
-      serviceAccountName: statefulset-pvc-template-readonly-nginx-ingress
+      serviceAccountName: statefulset-readonly-nginx-ingress
       automountServiceAccountToken: true
       securityContext:
         seccompProfile:
@@ -12205,17 +12243,17 @@ spec:
             cpu: 100m
             memory: 128Mi
         securityContext:
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
-          runAsUser: 101 #nginx
-          runAsNonRoot: true
+          allowPrivilegeEscalation: true
           capabilities:
-            drop:
-            - ALL
             add:
             - NET_BIND_SERVICE
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 101        
         volumeMounts:
-
+        
         - mountPath: /etc/nginx
           name: nginx-etc
         - mountPath: /var/cache/nginx
@@ -12236,12 +12274,12 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-
+          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
           - -enable-app-protect-dos=false
-          - -nginx-configmaps=$(POD_NAMESPACE)/statefulset-pvc-template-readonly-nginx-ingress
+          - -nginx-configmaps=$(POD_NAMESPACE)/statefulset-readonly-nginx-ingress
           - -ingress-class=nginx
           - -health-status=false
           - -health-status-uri=/nginx-health
@@ -12252,9 +12290,9 @@ spec:
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
           - -report-ingress-status
-          - -external-service=statefulset-pvc-template-readonly-nginx-ingress-controller
+          - -external-service=statefulset-readonly-nginx-ingress-controller
           - -enable-leader-election=true
-          - -leader-election-lock-name=statefulset-pvc-template-readonly-nginx-ingress-leader-election
+          - -leader-election-lock-name=statefulset-readonly-nginx-ingress-leader-election
           - -enable-prometheus-metrics=true
           - -prometheus-metrics-listen-port=9113
           - -prometheus-tls-secret=
@@ -12276,7 +12314,7 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-
+      
       initContainers:
       - name: init-nginx-ingress
         image: nginx/nginx-ingress:5.2.0
@@ -12305,11 +12343,11 @@ spec:
   - metadata:
       name: nginx-cache
     spec:
-      accessModes:
-      - ReadWriteOnce
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "standard"
       resources:
         requests:
-          storage: 5Gi
+          storage: 256Mi
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -12319,7 +12357,7 @@ metadata:
   labels:
     helm.sh/chart: nginx-ingress-2.3.0
     app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-pvc-template-readonly
+    app.kubernetes.io/instance: statefulset-readonly
     app.kubernetes.io/version: "5.2.0"
     app.kubernetes.io/managed-by: Helm
 spec:
@@ -12332,962 +12370,12 @@ spec:
 apiVersion: coordination.k8s.io/v1
 kind: Lease
 metadata:
-  name: statefulset-pvc-template-readonly-nginx-ingress-leader-election
+  name: statefulset-readonly-nginx-ingress-leader-election
   namespace: default
   labels:
     helm.sh/chart: nginx-ingress-2.3.0
     app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-pvc-template-readonly
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
----
-
-[TestHelmNICTemplate/statefulset-shared-pvc - 1]
-/-/-/-/
-# Source: nginx-ingress/templates/controller-serviceaccount.yaml
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: statefulset-shared-pvc-nginx-ingress
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-shared-pvc
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: statefulset-shared-pvc-nginx-ingress
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-shared-pvc
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: statefulset-shared-pvc-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-shared-pvc
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-/-/-/-/
-# Source: nginx-ingress/templates/clusterrole.yaml
-kind: ClusterRole
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: statefulset-shared-pvc-nginx-ingress
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-shared-pvc
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - configmaps
-  - namespaces
-  - pods
-  - secrets
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - create
-  - patch
-  - list
-- apiGroups:
-  - ""
-  resources:
-  - services
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - coordination.k8s.io
-  resources:
-  - leases
-  verbs:
-  - list
-  - watch
-- apiGroups:
-  - discovery.k8s.io
-  resources:
-  - endpointslices
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - networking.k8s.io
-  resources:
-  - ingresses
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - nodes
-  verbs:
-  - list
-- apiGroups:
-  - "apps"
-  resources:
-  - replicasets
-  - daemonsets
-  - statefulsets
-  verbs:
-  - get
-- apiGroups:
-  - networking.k8s.io
-  resources:
-  - ingressclasses
-  verbs:
-  - get
-  - list
-- apiGroups:
-  - networking.k8s.io
-  resources:
-  - ingresses/status
-  verbs:
-  - update
-- apiGroups:
-  - k8s.nginx.org
-  resources:
-  - virtualservers
-  - virtualserverroutes
-  - globalconfigurations
-  - transportservers
-  - policies
-  verbs:
-  - list
-  - watch
-  - get
-- apiGroups:
-  - k8s.nginx.org
-  resources:
-  - virtualservers/status
-  - virtualserverroutes/status
-  - policies/status
-  - transportservers/status
-  verbs:
-  - update
-/-/-/-/
-# Source: nginx-ingress/templates/clusterrolebinding.yaml
-kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: statefulset-shared-pvc-nginx-ingress
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-shared-pvc
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-subjects:
-- kind: ServiceAccount
-  name: statefulset-shared-pvc-nginx-ingress
-  namespace: default
-roleRef:
-  kind: ClusterRole
-  name: statefulset-shared-pvc-nginx-ingress
-  apiGroup: rbac.authorization.k8s.io
-/-/-/-/
-# Source: nginx-ingress/templates/controller-role.yaml
-kind: Role
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: statefulset-shared-pvc-nginx-ingress
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-shared-pvc
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-  namespace: default
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - configmaps
-  - pods
-  - secrets
-  - services
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-    - ""
-  resources:
-    - namespaces
-  verbs:
-    - get
-- apiGroups:
-  - ""
-  resources:
-  - pods
-  verbs:
-  - update
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - create
-  - patch
-  - list
-- apiGroups:
-  - coordination.k8s.io
-  resources:
-  - leases
-  resourceNames:
-  - statefulset-shared-pvc-nginx-ingress-leader-election
-  verbs:
-  - get
-  - update
-- apiGroups:
-  - coordination.k8s.io
-  resources:
-  - leases
-  verbs:
-  - create
-/-/-/-/
-# Source: nginx-ingress/templates/controller-rolebinding.yaml
-kind: RoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: statefulset-shared-pvc-nginx-ingress
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-shared-pvc
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-  namespace: default
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: statefulset-shared-pvc-nginx-ingress
-subjects:
-- kind: ServiceAccount
-  name: statefulset-shared-pvc-nginx-ingress
-  namespace: default
-/-/-/-/
-# Source: nginx-ingress/templates/controller-service.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: statefulset-shared-pvc-nginx-ingress-controller
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-shared-pvc
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-spec:
-  externalTrafficPolicy: Local
-  type: LoadBalancer
-  ports:
-  - port: 80
-    targetPort: 80
-    protocol: TCP
-    name: http
-    nodePort:
-  - port: 443
-    targetPort: 443
-    protocol: TCP
-    name: https
-    nodePort:
-  selector:
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-shared-pvc
-/-/-/-/
-# Source: nginx-ingress/templates/controller-statefulset.yaml
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: statefulset-shared-pvc-nginx-ingress-controller
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-shared-pvc
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-spec:
-  replicas: 1
-  serviceName: statefulset-shared-pvc-nginx-ingress-controller
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: nginx-ingress
-      app.kubernetes.io/instance: statefulset-shared-pvc
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/name: nginx-ingress
-        app.kubernetes.io/instance: statefulset-shared-pvc
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "9113"
-        prometheus.io/scheme: "http"
-    spec:
-      volumes:
-
-      - name: nginx-cache
-        persistentVolumeClaim:
-          claimName: nginx-shared-cache
-      serviceAccountName: statefulset-shared-pvc-nginx-ingress
-      automountServiceAccountToken: true
-      securityContext:
-        seccompProfile:
-          type: RuntimeDefault
-      terminationGracePeriodSeconds: 30
-      hostNetwork: false
-      dnsPolicy: ClusterFirst
-      containers:
-      - image: nginx/nginx-ingress:5.2.0
-        name: nginx-ingress
-        imagePullPolicy: "IfNotPresent"
-        ports:
-        - name: http
-          containerPort: 80
-          protocol: TCP
-        - name: https
-          containerPort: 443
-          protocol: TCP
-        - name: prometheus
-          containerPort: 9113
-        - name: readiness-port
-          containerPort: 8081
-        readinessProbe:
-          httpGet:
-            path: /nginx-ready
-            port: readiness-port
-          periodSeconds: 1
-          initialDelaySeconds: 0
-        resources:
-          requests:
-            cpu: 100m
-            memory: 128Mi
-        securityContext:
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: false
-          runAsUser: 101 #nginx
-          runAsNonRoot: true
-          capabilities:
-            drop:
-            - ALL
-            add:
-            - NET_BIND_SERVICE
-        volumeMounts:
-
-        - mountPath: /var/cache/nginx
-          name: nginx-cache
-        env:
-        - name: POD_NAMESPACE
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.namespace
-        - name: POD_NAME
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.name
-        args:
-
-          - -nginx-plus=false
-          - -nginx-reload-timeout=60000
-          - -enable-app-protect=false
-          - -enable-app-protect-dos=false
-          - -nginx-configmaps=$(POD_NAMESPACE)/statefulset-shared-pvc-nginx-ingress
-          - -ingress-class=nginx
-          - -health-status=false
-          - -health-status-uri=/nginx-health
-          - -nginx-debug=false
-          - -log-level=info
-          - -log-format=glog
-          - -nginx-status=true
-          - -nginx-status-port=8080
-          - -nginx-status-allow-cidrs=127.0.0.1
-          - -report-ingress-status
-          - -external-service=statefulset-shared-pvc-nginx-ingress-controller
-          - -enable-leader-election=true
-          - -leader-election-lock-name=statefulset-shared-pvc-nginx-ingress-leader-election
-          - -enable-prometheus-metrics=true
-          - -prometheus-metrics-listen-port=9113
-          - -prometheus-tls-secret=
-          - -enable-service-insight=false
-          - -service-insight-listen-port=9114
-          - -service-insight-tls-secret=
-          - -enable-custom-resources=true
-          - -enable-snippets=false
-          - -disable-ipv6=false
-          - -enable-tls-passthrough=false
-          - -enable-cert-manager=false
-          - -enable-oidc=false
-          - -enable-external-dns=false
-          - -default-http-listener-port=80
-          - -default-https-listener-port=443
-          - -ready-status=true
-          - -ready-status-port=8081
-          - -enable-latency-metrics=false
-          - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=true
-          - -weight-changes-dynamic-reload=false
-
-  podManagementPolicy: OrderedReady
-  persistentVolumeClaimRetentionPolicy:
-    whenDeleted: Retain
-    whenScaled: Retain
-/-/-/-/
-# Source: nginx-ingress/templates/controller-ingress-class.yaml
-apiVersion: networking.k8s.io/v1
-kind: IngressClass
-metadata:
-  name: nginx
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-shared-pvc
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-spec:
-  controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: statefulset-shared-pvc-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-shared-pvc
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
----
-
-[TestHelmNICTemplate/statefulset-shared-pvc-readonly - 1]
-/-/-/-/
-# Source: nginx-ingress/templates/controller-serviceaccount.yaml
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: statefulset-shared-pvc-readonly-nginx-ingress
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-shared-pvc-readonly
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: statefulset-shared-pvc-readonly-nginx-ingress
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-shared-pvc-readonly
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: statefulset-shared-pvc-readonly-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-shared-pvc-readonly
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-/-/-/-/
-# Source: nginx-ingress/templates/clusterrole.yaml
-kind: ClusterRole
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: statefulset-shared-pvc-readonly-nginx-ingress
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-shared-pvc-readonly
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - configmaps
-  - namespaces
-  - pods
-  - secrets
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - create
-  - patch
-  - list
-- apiGroups:
-  - ""
-  resources:
-  - services
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - coordination.k8s.io
-  resources:
-  - leases
-  verbs:
-  - list
-  - watch
-- apiGroups:
-  - discovery.k8s.io
-  resources:
-  - endpointslices
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - networking.k8s.io
-  resources:
-  - ingresses
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - nodes
-  verbs:
-  - list
-- apiGroups:
-  - "apps"
-  resources:
-  - replicasets
-  - daemonsets
-  - statefulsets
-  verbs:
-  - get
-- apiGroups:
-  - networking.k8s.io
-  resources:
-  - ingressclasses
-  verbs:
-  - get
-  - list
-- apiGroups:
-  - networking.k8s.io
-  resources:
-  - ingresses/status
-  verbs:
-  - update
-- apiGroups:
-  - k8s.nginx.org
-  resources:
-  - virtualservers
-  - virtualserverroutes
-  - globalconfigurations
-  - transportservers
-  - policies
-  verbs:
-  - list
-  - watch
-  - get
-- apiGroups:
-  - k8s.nginx.org
-  resources:
-  - virtualservers/status
-  - virtualserverroutes/status
-  - policies/status
-  - transportservers/status
-  verbs:
-  - update
-/-/-/-/
-# Source: nginx-ingress/templates/clusterrolebinding.yaml
-kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: statefulset-shared-pvc-readonly-nginx-ingress
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-shared-pvc-readonly
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-subjects:
-- kind: ServiceAccount
-  name: statefulset-shared-pvc-readonly-nginx-ingress
-  namespace: default
-roleRef:
-  kind: ClusterRole
-  name: statefulset-shared-pvc-readonly-nginx-ingress
-  apiGroup: rbac.authorization.k8s.io
-/-/-/-/
-# Source: nginx-ingress/templates/controller-role.yaml
-kind: Role
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: statefulset-shared-pvc-readonly-nginx-ingress
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-shared-pvc-readonly
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-  namespace: default
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - configmaps
-  - pods
-  - secrets
-  - services
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-    - ""
-  resources:
-    - namespaces
-  verbs:
-    - get
-- apiGroups:
-  - ""
-  resources:
-  - pods
-  verbs:
-  - update
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - create
-  - patch
-  - list
-- apiGroups:
-  - coordination.k8s.io
-  resources:
-  - leases
-  resourceNames:
-  - statefulset-shared-pvc-readonly-nginx-ingress-leader-election
-  verbs:
-  - get
-  - update
-- apiGroups:
-  - coordination.k8s.io
-  resources:
-  - leases
-  verbs:
-  - create
-/-/-/-/
-# Source: nginx-ingress/templates/controller-rolebinding.yaml
-kind: RoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: statefulset-shared-pvc-readonly-nginx-ingress
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-shared-pvc-readonly
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-  namespace: default
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: statefulset-shared-pvc-readonly-nginx-ingress
-subjects:
-- kind: ServiceAccount
-  name: statefulset-shared-pvc-readonly-nginx-ingress
-  namespace: default
-/-/-/-/
-# Source: nginx-ingress/templates/controller-service.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: statefulset-shared-pvc-readonly-nginx-ingress-controller
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-shared-pvc-readonly
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-spec:
-  externalTrafficPolicy: Local
-  type: LoadBalancer
-  ports:
-  - port: 80
-    targetPort: 80
-    protocol: TCP
-    name: http
-    nodePort:
-  - port: 443
-    targetPort: 443
-    protocol: TCP
-    name: https
-    nodePort:
-  selector:
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-shared-pvc-readonly
-/-/-/-/
-# Source: nginx-ingress/templates/controller-statefulset.yaml
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: statefulset-shared-pvc-readonly-nginx-ingress-controller
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-shared-pvc-readonly
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-spec:
-  replicas: 1
-  serviceName: statefulset-shared-pvc-readonly-nginx-ingress-controller
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: nginx-ingress
-      app.kubernetes.io/instance: statefulset-shared-pvc-readonly
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/name: nginx-ingress
-        app.kubernetes.io/instance: statefulset-shared-pvc-readonly
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "9113"
-        prometheus.io/scheme: "http"
-    spec:
-      volumes:
-
-      - name: nginx-etc
-        emptyDir: {}
-      - name: nginx-cache
-        persistentVolumeClaim:
-          claimName: nginx-shared-cache
-      - name: nginx-lib
-        emptyDir: {}
-      - name: nginx-state
-        emptyDir: {}
-      - name: nginx-log
-        emptyDir: {}
-      serviceAccountName: statefulset-shared-pvc-readonly-nginx-ingress
-      automountServiceAccountToken: true
-      securityContext:
-        seccompProfile:
-          type: RuntimeDefault
-      terminationGracePeriodSeconds: 30
-      hostNetwork: false
-      dnsPolicy: ClusterFirst
-      containers:
-      - image: nginx/nginx-ingress:5.2.0
-        name: nginx-ingress
-        imagePullPolicy: "IfNotPresent"
-        ports:
-        - name: http
-          containerPort: 80
-          protocol: TCP
-        - name: https
-          containerPort: 443
-          protocol: TCP
-        - name: prometheus
-          containerPort: 9113
-        - name: readiness-port
-          containerPort: 8081
-        readinessProbe:
-          httpGet:
-            path: /nginx-ready
-            port: readiness-port
-          periodSeconds: 1
-          initialDelaySeconds: 0
-        resources:
-          requests:
-            cpu: 100m
-            memory: 128Mi
-        securityContext:
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
-          runAsUser: 101 #nginx
-          runAsNonRoot: true
-          capabilities:
-            drop:
-            - ALL
-            add:
-            - NET_BIND_SERVICE
-        volumeMounts:
-
-        - mountPath: /etc/nginx
-          name: nginx-etc
-        - mountPath: /var/cache/nginx
-          name: nginx-cache
-        - mountPath: /var/lib/nginx
-          name: nginx-lib
-        - mountPath: /var/lib/nginx/state
-          name: nginx-state
-        - mountPath: /var/log/nginx
-          name: nginx-log
-        env:
-        - name: POD_NAMESPACE
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.namespace
-        - name: POD_NAME
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.name
-        args:
-
-          - -nginx-plus=false
-          - -nginx-reload-timeout=60000
-          - -enable-app-protect=false
-          - -enable-app-protect-dos=false
-          - -nginx-configmaps=$(POD_NAMESPACE)/statefulset-shared-pvc-readonly-nginx-ingress
-          - -ingress-class=nginx
-          - -health-status=false
-          - -health-status-uri=/nginx-health
-          - -nginx-debug=false
-          - -log-level=info
-          - -log-format=glog
-          - -nginx-status=true
-          - -nginx-status-port=8080
-          - -nginx-status-allow-cidrs=127.0.0.1
-          - -report-ingress-status
-          - -external-service=statefulset-shared-pvc-readonly-nginx-ingress-controller
-          - -enable-leader-election=true
-          - -leader-election-lock-name=statefulset-shared-pvc-readonly-nginx-ingress-leader-election
-          - -enable-prometheus-metrics=true
-          - -prometheus-metrics-listen-port=9113
-          - -prometheus-tls-secret=
-          - -enable-service-insight=false
-          - -service-insight-listen-port=9114
-          - -service-insight-tls-secret=
-          - -enable-custom-resources=true
-          - -enable-snippets=false
-          - -disable-ipv6=false
-          - -enable-tls-passthrough=false
-          - -enable-cert-manager=false
-          - -enable-oidc=false
-          - -enable-external-dns=false
-          - -default-http-listener-port=80
-          - -default-https-listener-port=443
-          - -ready-status=true
-          - -ready-status-port=8081
-          - -enable-latency-metrics=false
-          - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=true
-          - -weight-changes-dynamic-reload=false
-
-      initContainers:
-      - name: init-nginx-ingress
-        image: nginx/nginx-ingress:5.2.0
-        imagePullPolicy: "IfNotPresent"
-        command: ['cp', '-vdR', '/etc/nginx/.', '/mnt/etc']
-        resources:
-          requests:
-            cpu: 100m
-            memory: 128Mi
-        securityContext:
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
-          runAsUser: 101 #nginx
-          runAsNonRoot: true
-          capabilities:
-            drop:
-            - ALL
-        volumeMounts:
-        - mountPath: /mnt/etc
-          name: nginx-etc
-  podManagementPolicy: OrderedReady
-  persistentVolumeClaimRetentionPolicy:
-    whenDeleted: Retain
-    whenScaled: Retain
-/-/-/-/
-# Source: nginx-ingress/templates/controller-ingress-class.yaml
-apiVersion: networking.k8s.io/v1
-kind: IngressClass
-metadata:
-  name: nginx
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-shared-pvc-readonly
-    app.kubernetes.io/version: "5.2.0"
-    app.kubernetes.io/managed-by: Helm
-spec:
-  controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: statefulset-shared-pvc-readonly-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.3.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-shared-pvc-readonly
+    app.kubernetes.io/instance: statefulset-readonly
     app.kubernetes.io/version: "5.2.0"
     app.kubernetes.io/managed-by: Helm
 ---

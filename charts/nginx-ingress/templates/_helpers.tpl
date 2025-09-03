@@ -388,31 +388,20 @@ volumes:
 List of volumes for controller.
 */}}
 {{- define "nginx-ingress.volumeEntries" -}}
-{{- /* detect if a VCT named nginx-cache exists */ -}}
-{{- $flags := dict "hasCacheVCT" false -}}
-{{- range $i, $tpl := (.Values.controller.statefulset.volumeClaimTemplates | default (list)) -}}
-  {{- if eq (default "" $tpl.metadata.name) "nginx-cache" -}}
-    {{- $_ := set $flags "hasCacheVCT" true -}}
-  {{- end -}}
-{{- end -}}
-
 {{- if eq (include "nginx-ingress.readOnlyRootFilesystem" .) "true" }}
 - name: nginx-etc
   emptyDir: {}
-{{- if .Values.controller.cache.enableShared }}
-- name: nginx-cache
-  persistentVolumeClaim:
-    claimName: {{ .Values.controller.cache.sharedPVCName }}
-{{- else if not (get $flags "hasCacheVCT") }}
-- name: nginx-cache
-  emptyDir: {}
-{{- end }}
 - name: nginx-lib
   emptyDir: {}
 - name: nginx-state
   emptyDir: {}
 - name: nginx-log
   emptyDir: {}
+{{- /* For StatefulSet, nginx-cache volume is always provided via volumeClaimTemplates */ -}}
+{{- if ne .Values.controller.kind "statefulset" }}
+- name: nginx-cache
+  emptyDir: {}
+{{- end }}
 {{- end }}
 {{- if .Values.controller.appprotect.v5 }}
 {{ toYaml .Values.controller.appprotect.volumes }}
@@ -472,6 +461,9 @@ volumeMounts:
   name: nginx-state
 - mountPath: /var/log/nginx
   name: nginx-log
+{{- else if eq .Values.controller.kind "statefulset" }}
+- mountPath: /var/cache/nginx
+  name: nginx-cache
 {{- end }}
 {{- if .Values.controller.appprotect.v5 }}
 - name: app-protect-bd-config
