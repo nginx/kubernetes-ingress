@@ -184,7 +184,7 @@ func validateSizeWithAutoadjust(size string, fieldPath *field.Path, isDirectiveA
 		// If directive autoadjust is enabled, try using the autoadjust logic directly
 		if isDirectiveAutoadjustEnabled {
 			// Use the existing autoadjust function that handles invalid units
-			if _, autoadjustErr := internalValidation.NewSizeWithUnit(size); autoadjustErr == nil {
+			if _, autoadjustErr := internalValidation.NewSizeWithUnit(size, isDirectiveAutoadjustEnabled); autoadjustErr == nil {
 				return nil // Allow autoadjust to fix the unit later
 			}
 		}

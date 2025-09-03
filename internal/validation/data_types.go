@@ -9,12 +9,6 @@ import (
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 )
 
-const (
-	// DefaultPageSize is one page size to be used for default values in NGINX.
-	// 4k page size is fairly
-	DefaultPageSize = "4k"
-)
-
 var (
 	maxNGINXBufferCount = uint64(1024)
 	minNGINXBufferCount = uint64(2)
@@ -50,30 +44,6 @@ func (s SizeUnit) String() string {
 	}
 }
 
-// SizeWithUnit represents a size value with a unit. It's used for handling any
-// NGINX configuration values that have a size type. All the size values need to
-// be non-negative, hence the use of uint64 for the size.
-//
-// Example: "4k" represents 4 kilobytes.
-type SizeWithUnit struct {
-	Size uint64
-	Unit SizeUnit
-}
-
-func (s SizeWithUnit) String() string {
-	if s.Size == 0 {
-		return ""
-	}
-
-	return fmt.Sprintf("%d%s", s.Size, s.Unit)
-}
-
-// SizeBytes returns the size in bytes based on the size and unit to make it
-// easier to compare sizes and use them in calculations.
-func (s SizeWithUnit) SizeBytes() uint64 {
-	return s.Size * uint64(s.Unit)
-}
-
 // NewSizeWithUnit creates a normalized string from a string representation.
 // If normalize is false, returns the original string after basic validation.
 func NewSizeWithUnit(sizeStr string, normalize bool) (string, error) {
@@ -83,19 +53,23 @@ func NewSizeWithUnit(sizeStr string, normalize bool) (string, error) {
 	}
 
 	var unit SizeUnit
+	var numStr string
 	lastChar := sizeStr[len(sizeStr)-1]
-	numStr := sizeStr[:len(sizeStr)-1]
 
 	switch lastChar {
 	case 'k':
 		unit = SizeKB
+		numStr = sizeStr[:len(sizeStr)-1]
 	case 'm':
 		unit = SizeMB
+		numStr = sizeStr[:len(sizeStr)-1]
 	case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 		unit = SizeMB    // Default to MB if no unit is specified
 		numStr = sizeStr // If the last character is a digit, treat the whole string as a number
 	default:
+		// Invalid units like 'g', 'x' should be replaced with 'm'
 		unit = SizeMB
+		numStr = sizeStr[:len(sizeStr)-1]
 	}
 
 	num, err := strconv.ParseUint(numStr, 10, 64)
@@ -109,28 +83,7 @@ func NewSizeWithUnit(sizeStr string, normalize bool) (string, error) {
 	}
 
 	// Return the normalized string representation
-	if lastChar >= '0' && lastChar <= '9' {
-		return fmt.Sprintf("%d%s", num, unit), nil
-	}
-	return fmt.Sprintf("%d%c", num, lastChar), nil
-}
-
-// NumberSizeConfig is a configuration that combines a number with a size. Used
-// for directives that require a number and a size, like `proxy_buffer_size` or
-// `client_max_body_size`.
-//
-// Example: "8 4k" represents 8 buffers of size 4 kilobytes.
-type NumberSizeConfig struct {
-	Number uint64
-	Size   SizeWithUnit
-}
-
-func (nsc NumberSizeConfig) String() string {
-	if nsc.Number == 0 && nsc.Size.Size == 0 {
-		return ""
-	}
-
-	return fmt.Sprintf("%d %s", nsc.Number, nsc.Size)
+	return fmt.Sprintf("%d%s", num, unit), nil
 }
 
 // NewNumberSizeConfig creates a normalized string from a string representation.
@@ -202,6 +155,10 @@ func BalanceProxyValues(proxyBuffers, proxyBufferSize, proxyBusyBuffers string, 
 			return 0
 		}
 		sizeStr = strings.ToLower(strings.TrimSpace(sizeStr))
+		if len(sizeStr) == 0 {
+			return 0
+		}
+
 		lastChar := sizeStr[len(sizeStr)-1]
 		numStr := sizeStr
 		multiplier := uint64(1024 * 1024) // Default to MB
@@ -216,6 +173,8 @@ func BalanceProxyValues(proxyBuffers, proxyBufferSize, proxyBusyBuffers string, 
 		case 'g':
 			multiplier = 1024 * 1024 * 1024
 			numStr = sizeStr[:len(sizeStr)-1]
+		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+			multiplier = 1024 * 1024 // Default to MB if no unit
 		}
 
 		if num, err := strconv.ParseUint(numStr, 10, 64); err == nil {
@@ -224,10 +183,11 @@ func BalanceProxyValues(proxyBuffers, proxyBufferSize, proxyBusyBuffers string, 
 		return 0
 	}
 
-	// Parse proxy buffers (format: "number size")
-	var bufferNumber uint64 = 8     // default
-	var bufferSizeStr string = "4k" // default
+	// Initialize defaults
+	var bufferNumber uint64 = 8 // default
+	bufferSizeStr := "4k"       // default
 
+	// Parse proxy buffers if provided
 	if proxyBuffers != "" {
 		parts := strings.Fields(strings.TrimSpace(proxyBuffers))
 		if len(parts) == 2 {
@@ -236,9 +196,19 @@ func BalanceProxyValues(proxyBuffers, proxyBufferSize, proxyBusyBuffers string, 
 				bufferSizeStr = parts[1]
 			}
 		}
+	} else {
+		// If proxy_buffers is not set but other values are, determine appropriate settings
+		if proxyBufferSize != "" || proxyBusyBuffers != "" {
+			bufferNumber = minNGINXBufferCount // Start with minimum
+			if proxyBufferSize != "" {
+				bufferSizeStr = proxyBufferSize
+			} else if proxyBusyBuffers != "" {
+				bufferSizeStr = proxyBusyBuffers
+			}
+		}
 	}
 
-	// Validate buffer number constraints
+	// Validate and adjust buffer number constraints
 	if bufferNumber < minNGINXBufferCount {
 		modifications = append(modifications, fmt.Sprintf("adjusted proxy_buffers number from %d to %d", bufferNumber, minNGINXBufferCount))
 		bufferNumber = minNGINXBufferCount
@@ -248,36 +218,61 @@ func BalanceProxyValues(proxyBuffers, proxyBufferSize, proxyBusyBuffers string, 
 		bufferNumber = maxNGINXBufferCount
 	}
 
-	// Calculate sizes in bytes for validation
+	// Set proxy_buffer_size if empty
+	if proxyBufferSize == "" {
+		proxyBufferSize = bufferSizeStr
+	}
+
+	// Set proxy_busy_buffers_size if empty
+	if proxyBusyBuffers == "" {
+		proxyBusyBuffers = bufferSizeStr
+	}
+
+	// Parse sizes for validation
 	bufferSizeBytes := parseSizeToBytes(bufferSizeStr)
 	proxyBufferSizeBytes := parseSizeToBytes(proxyBufferSize)
 	proxyBusyBuffersBytes := parseSizeToBytes(proxyBusyBuffers)
 
-	// Set defaults if empty
-	if proxyBufferSize == "" && bufferSizeBytes > 0 {
+	// Calculate maximum allowed sizes
+	maxBufferSize := bufferSizeBytes * (bufferNumber - 1)
+
+	// Validate and adjust proxy_buffer_size
+	if proxyBufferSizeBytes > maxBufferSize && maxBufferSize > 0 {
+		modifications = append(modifications, "adjusted proxy_buffer_size because it was too large for proxy_buffers")
 		proxyBufferSize = bufferSizeStr
 		proxyBufferSizeBytes = bufferSizeBytes
 	}
 
-	// Basic size validation - ensure values are reasonable
-	maxBusySize := bufferSizeBytes * (bufferNumber - 1)
-
-	if proxyBufferSizeBytes > maxBusySize {
-		modifications = append(modifications, fmt.Sprintf("adjusted proxy_buffer_size because it was too large for proxy_buffers"))
-		proxyBufferSize = bufferSizeStr
+	// Determine the larger of proxy_buffer_size and individual buffer size for busy buffer minimum
+	minBusyBufferSize := bufferSizeBytes
+	if proxyBufferSizeBytes > bufferSizeBytes {
+		minBusyBufferSize = proxyBufferSizeBytes
 	}
 
-	if proxyBusyBuffersBytes > maxBusySize {
-		modifications = append(modifications, fmt.Sprintf("adjusted proxy_busy_buffers_size because it was too large"))
-		proxyBusyBuffers = bufferSizeStr
+	// Validate and adjust proxy_busy_buffers_size
+	if proxyBusyBuffersBytes > maxBufferSize && maxBufferSize > 0 {
+		modifications = append(modifications, "adjusted proxy_busy_buffers_size because it was too large")
+		// Calculate the appropriate max size
+		if maxBufferSize >= 1024 && maxBufferSize%1024 == 0 {
+			proxyBusyBuffers = fmt.Sprintf("%dk", maxBufferSize/1024)
+		} else {
+			proxyBusyBuffers = bufferSizeStr
+		}
+		proxyBusyBuffersBytes = parseSizeToBytes(proxyBusyBuffers)
+	}
+
+	// Ensure busy buffers is at least as large as the minimum required
+	if proxyBusyBuffersBytes < minBusyBufferSize {
+		if minBusyBufferSize == bufferSizeBytes {
+			proxyBusyBuffers = bufferSizeStr
+		} else {
+			proxyBusyBuffers = proxyBufferSize
+		}
 	}
 
 	// Build result strings
 	resultProxyBuffers := fmt.Sprintf("%d %s", bufferNumber, bufferSizeStr)
-	resultProxyBufferSize := proxyBufferSize
-	resultProxyBusyBuffers := proxyBusyBuffers
-
-	return resultProxyBuffers, resultProxyBufferSize, resultProxyBusyBuffers, modifications, nil
+	return resultProxyBuffers, proxyBufferSize, proxyBusyBuffers, modifications, nil
 }
 
 // BalanceProxiesForUpstreams balances the proxy buffer settings for an Upstream
@@ -289,7 +284,11 @@ func BalanceProxiesForUpstreams(in *conf_v1.Upstream, autoadjust bool) error {
 		return nil
 	}
 
-	// Since we now work with strings directly, just validate and normalize the values
+	// When autoadjust is disabled, don't change anything - leave it broken!
+	if !autoadjust {
+		return nil
+	}
+
 	pb, err := NewNumberSizeConfig(fmt.Sprintf("%d %s", in.ProxyBuffers.Number, in.ProxyBuffers.Size), autoadjust)
 	if err != nil {
 		// if there's an error, set it to default `8 4k`
@@ -308,9 +307,14 @@ func BalanceProxiesForUpstreams(in *conf_v1.Upstream, autoadjust bool) error {
 		pbbs = "4k"
 	}
 
-	// Parse the normalized proxy buffers string to extract number and size
-	if pb != "" {
-		parts := strings.Fields(pb)
+	balancedPB, balancedPBS, balancedPBBS, _, err := BalanceProxyValues(pb, pbs, pbbs, autoadjust)
+	if err != nil {
+		return fmt.Errorf("error balancing proxy values: %w", err)
+	}
+
+	// Parse the balanced proxy buffers string back to struct
+	if balancedPB != "" {
+		parts := strings.Fields(balancedPB)
 		if len(parts) == 2 {
 			if num, err := strconv.Atoi(parts[0]); err == nil {
 				if num > math.MaxInt32 {
@@ -322,13 +326,8 @@ func BalanceProxiesForUpstreams(in *conf_v1.Upstream, autoadjust bool) error {
 		}
 	}
 
-	if pbs != "" {
-		in.ProxyBufferSize = pbs
-	}
-
-	if pbbs != "" {
-		in.ProxyBusyBuffersSize = pbbs
-	}
+	in.ProxyBufferSize = balancedPBS
+	in.ProxyBusyBuffersSize = balancedPBBS
 
 	return nil
 }
