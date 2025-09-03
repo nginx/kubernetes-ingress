@@ -807,9 +807,9 @@ func TestBalanceProxiesForUpstreams(t *testing.T) {
 				ProxyBusyBuffersSize: "invalid",
 			},
 			autoadjust:              false,
-			wantProxyBuffers:        "8 4k",
-			wantProxyBufferSize:     "4k",
-			wantProxyBusyBufferSize: "4k",
+			wantProxyBuffers:        "0 invalid",
+			wantProxyBufferSize:     "invalid",
+			wantProxyBusyBufferSize: "invalid",
 			wantErr:                 false,
 		},
 	}

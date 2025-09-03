@@ -183,9 +183,26 @@ func BalanceProxyValues(proxyBuffers, proxyBufferSize, proxyBusyBuffers string, 
 		return 0
 	}
 
+	// Helper function to convert bytes back to size string
+	bytesToSizeString := func(bytes uint64) string {
+		if bytes == 0 {
+			return "0k"
+		}
+		if bytes%(1024*1024*1024) == 0 {
+			return fmt.Sprintf("%dg", bytes/(1024*1024*1024))
+		}
+		if bytes%(1024*1024) == 0 {
+			return fmt.Sprintf("%dm", bytes/(1024*1024))
+		}
+		if bytes%1024 == 0 {
+			return fmt.Sprintf("%dk", bytes/1024)
+		}
+		return fmt.Sprintf("%dk", (bytes+1023)/1024) // Round up to nearest KB
+	}
+
 	// Initialize defaults
-	var bufferNumber uint64 = 8 // default
-	bufferSizeStr := "4k"       // default
+	var bufferNumber uint64 = 8           // default
+	var bufferSizeBytes uint64 = 4 * 1024 // default 4k
 
 	// Parse proxy buffers if provided
 	if proxyBuffers != "" {
@@ -193,18 +210,17 @@ func BalanceProxyValues(proxyBuffers, proxyBufferSize, proxyBusyBuffers string, 
 		if len(parts) == 2 {
 			if num, err := strconv.ParseUint(parts[0], 10, 64); err == nil {
 				bufferNumber = num
-				bufferSizeStr = parts[1]
+				bufferSizeBytes = parseSizeToBytes(parts[1])
 			}
 		}
-	} else {
-		// If proxy_buffers is not set but other values are, determine appropriate settings
+	}
+
+	// Handle special cases where proxy_buffers is not set
+	if proxyBuffers == "" {
 		if proxyBufferSize != "" || proxyBusyBuffers != "" {
 			bufferNumber = minNGINXBufferCount // Start with minimum
-			if proxyBufferSize != "" {
-				bufferSizeStr = proxyBufferSize
-			} else if proxyBusyBuffers != "" {
-				bufferSizeStr = proxyBusyBuffers
-			}
+			// When proxy_buffers is empty, use default 4k buffer size
+			bufferSizeBytes = 4 * 1024 // default 4k
 		}
 	}
 
@@ -218,61 +234,55 @@ func BalanceProxyValues(proxyBuffers, proxyBufferSize, proxyBusyBuffers string, 
 		bufferNumber = maxNGINXBufferCount
 	}
 
-	// Set proxy_buffer_size if empty
-	if proxyBufferSize == "" {
-		proxyBufferSize = bufferSizeStr
-	}
+	// Parse input sizes
+	var proxyBufferSizeBytes uint64
+	var proxyBusyBuffersBytes uint64
 
-	// Set proxy_busy_buffers_size if empty
-	if proxyBusyBuffers == "" {
-		proxyBusyBuffers = bufferSizeStr
-	}
-
-	// Parse sizes for validation
-	bufferSizeBytes := parseSizeToBytes(bufferSizeStr)
-	proxyBufferSizeBytes := parseSizeToBytes(proxyBufferSize)
-	proxyBusyBuffersBytes := parseSizeToBytes(proxyBusyBuffers)
-
-	// Calculate maximum allowed sizes
-	maxBufferSize := bufferSizeBytes * (bufferNumber - 1)
-
-	// Validate and adjust proxy_buffer_size
-	if proxyBufferSizeBytes > maxBufferSize && maxBufferSize > 0 {
-		modifications = append(modifications, "adjusted proxy_buffer_size because it was too large for proxy_buffers")
-		proxyBufferSize = bufferSizeStr
+	if proxyBufferSize != "" {
+		proxyBufferSizeBytes = parseSizeToBytes(proxyBufferSize)
+	} else {
 		proxyBufferSizeBytes = bufferSizeBytes
 	}
 
-	// Determine the larger of proxy_buffer_size and individual buffer size for busy buffer minimum
-	minBusyBufferSize := bufferSizeBytes
-	if proxyBufferSizeBytes > bufferSizeBytes {
-		minBusyBufferSize = proxyBufferSizeBytes
-	}
-
-	// Validate and adjust proxy_busy_buffers_size
-	if proxyBusyBuffersBytes > maxBufferSize && maxBufferSize > 0 {
-		modifications = append(modifications, "adjusted proxy_busy_buffers_size because it was too large")
-		// Calculate the appropriate max size
-		if maxBufferSize >= 1024 && maxBufferSize%1024 == 0 {
-			proxyBusyBuffers = fmt.Sprintf("%dk", maxBufferSize/1024)
-		} else {
-			proxyBusyBuffers = bufferSizeStr
-		}
+	if proxyBusyBuffers != "" {
 		proxyBusyBuffersBytes = parseSizeToBytes(proxyBusyBuffers)
+	} else {
+		proxyBusyBuffersBytes = bufferSizeBytes
 	}
 
-	// Ensure busy buffers is at least as large as the minimum required
-	if proxyBusyBuffersBytes < minBusyBufferSize {
-		if minBusyBufferSize == bufferSizeBytes {
-			proxyBusyBuffers = bufferSizeStr
-		} else {
-			proxyBusyBuffers = proxyBufferSize
-		}
+	// Calculate constraints
+	totalBufferSize := bufferSizeBytes * bufferNumber
+	maxAllowedSize := totalBufferSize - bufferSizeBytes // Total minus one buffer
+
+	// Apply rule 4: proxy_buffer_size must be <= (total_buffers - 1_buffer)
+	if proxyBufferSizeBytes > maxAllowedSize {
+		modifications = append(modifications, "adjusted proxy_buffer_size because it was too large for proxy_buffers")
+		proxyBufferSizeBytes = maxAllowedSize
 	}
 
-	// Build result strings
+	// Apply rule 3: proxy_busy_buffers_size must be <= (total_buffers - 1_buffer)
+	if proxyBusyBuffersBytes > maxAllowedSize {
+		modifications = append(modifications, "adjusted proxy_busy_buffers_size because it was too large")
+		proxyBusyBuffersBytes = maxAllowedSize
+	}
+
+	// Apply rule 2: proxy_busy_buffers_size must be >= max(proxy_buffer_size, buffer_size)
+	minBusySize := bufferSizeBytes
+	if proxyBufferSizeBytes > bufferSizeBytes {
+		minBusySize = proxyBufferSizeBytes
+	}
+
+	if proxyBusyBuffersBytes < minBusySize {
+		proxyBusyBuffersBytes = minBusySize
+	}
+
+	// Convert results back to strings
+	bufferSizeStr := bytesToSizeString(bufferSizeBytes)
+	proxyBufferSizeStr := bytesToSizeString(proxyBufferSizeBytes)
+	proxyBusyBuffersStr := bytesToSizeString(proxyBusyBuffersBytes)
+
 	resultProxyBuffers := fmt.Sprintf("%d %s", bufferNumber, bufferSizeStr)
-	return resultProxyBuffers, proxyBufferSize, proxyBusyBuffers, modifications, nil
+	return resultProxyBuffers, proxyBufferSizeStr, proxyBusyBuffersStr, modifications, nil
 }
 
 // BalanceProxiesForUpstreams balances the proxy buffer settings for an Upstream
