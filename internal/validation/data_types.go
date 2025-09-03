@@ -117,6 +117,139 @@ func NewNumberSizeConfig(sizeStr string, normalize bool) (string, error) {
 	return fmt.Sprintf("%d %s", num, sizeStr2), nil
 }
 
+// Helper function to parse size string to bytes for comparison
+func parseSizeToBytes(sizeStr string) uint64 {
+	if sizeStr == "" {
+		return 0
+	}
+	sizeStr = strings.ToLower(strings.TrimSpace(sizeStr))
+	if len(sizeStr) == 0 {
+		return 0
+	}
+
+	lastChar := sizeStr[len(sizeStr)-1]
+	numStr := sizeStr
+	multiplier := uint64(1024 * 1024) // Default to MB
+
+	switch lastChar {
+	case 'k':
+		multiplier = 1024
+		numStr = sizeStr[:len(sizeStr)-1]
+	case 'm':
+		multiplier = 1024 * 1024
+		numStr = sizeStr[:len(sizeStr)-1]
+	case 'g':
+		multiplier = 1024 * 1024 * 1024
+		numStr = sizeStr[:len(sizeStr)-1]
+	case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+		multiplier = 1024 * 1024 // Default to MB if no unit
+	}
+
+	if num, err := strconv.ParseUint(numStr, 10, 64); err == nil {
+		return num * multiplier
+	}
+	return 0
+}
+
+// Helper function to convert bytes back to size string
+func bytesToSizeString(bytes uint64) string {
+	if bytes == 0 {
+		return "0k"
+	}
+	if bytes%(1024*1024*1024) == 0 {
+		return fmt.Sprintf("%dg", bytes/(1024*1024*1024))
+	}
+	if bytes%(1024*1024) == 0 {
+		return fmt.Sprintf("%dm", bytes/(1024*1024))
+	}
+	if bytes%1024 == 0 {
+		return fmt.Sprintf("%dk", bytes/1024)
+	}
+	return fmt.Sprintf("%dk", (bytes+1023)/1024) // Round up to nearest KB
+}
+
+// parseProxyBuffers extracts buffer number and size from proxy_buffers string
+func parseProxyBuffers(proxyBuffers string) (uint64, uint64) {
+	bufferNumber := uint64(8)           // default
+	bufferSizeBytes := uint64(4 * 1024) // default 4k
+
+	if proxyBuffers != "" {
+		parts := strings.Fields(strings.TrimSpace(proxyBuffers))
+		if len(parts) == 2 {
+			if num, err := strconv.ParseUint(parts[0], 10, 64); err == nil {
+				bufferNumber = num
+				bufferSizeBytes = parseSizeToBytes(parts[1])
+			}
+		}
+	}
+
+	return bufferNumber, bufferSizeBytes
+}
+
+// validateBufferConstraints ensures buffer number is within valid range
+func validateBufferConstraints(bufferNumber uint64) (uint64, []string) {
+	var modifications []string
+
+	if bufferNumber < minNGINXBufferCount {
+		modifications = append(modifications, fmt.Sprintf("adjusted proxy_buffers number from %d to %d", bufferNumber, minNGINXBufferCount))
+		bufferNumber = minNGINXBufferCount
+	}
+	if bufferNumber > maxNGINXBufferCount {
+		modifications = append(modifications, fmt.Sprintf("adjusted proxy_buffers number from %d to %d", bufferNumber, maxNGINXBufferCount))
+		bufferNumber = maxNGINXBufferCount
+	}
+
+	return bufferNumber, modifications
+}
+
+// parseBufferSizes extracts and validates buffer sizes from input strings
+func parseBufferSizes(proxyBufferSize, proxyBusyBuffers string, defaultSize uint64) (uint64, uint64) {
+	var proxyBufferSizeBytes, proxyBusyBuffersBytes uint64
+
+	if proxyBufferSize != "" {
+		proxyBufferSizeBytes = parseSizeToBytes(proxyBufferSize)
+	} else {
+		proxyBufferSizeBytes = defaultSize
+	}
+
+	if proxyBusyBuffers != "" {
+		proxyBusyBuffersBytes = parseSizeToBytes(proxyBusyBuffers)
+	} else {
+		proxyBusyBuffersBytes = defaultSize
+	}
+
+	return proxyBufferSizeBytes, proxyBusyBuffersBytes
+}
+
+// applyBufferSizeConstraints applies NGINX rules for buffer size relationships
+func applyBufferSizeConstraints(proxyBufferSizeBytes, proxyBusyBuffersBytes, bufferSizeBytes, maxAllowedSize uint64) (uint64, uint64, []string) {
+	var modifications []string
+
+	// Apply rule 4: proxy_buffer_size must be <= (total_buffers - 1_buffer)
+	if proxyBufferSizeBytes > maxAllowedSize {
+		modifications = append(modifications, "adjusted proxy_buffer_size because it was too large for proxy_buffers")
+		proxyBufferSizeBytes = maxAllowedSize
+	}
+
+	// Apply rule 3: proxy_busy_buffers_size must be <= (total_buffers - 1_buffer)
+	if proxyBusyBuffersBytes > maxAllowedSize {
+		modifications = append(modifications, "adjusted proxy_busy_buffers_size because it was too large")
+		proxyBusyBuffersBytes = maxAllowedSize
+	}
+
+	// Apply rule 2: proxy_busy_buffers_size must be >= max(proxy_buffer_size, buffer_size)
+	minBusySize := bufferSizeBytes
+	if proxyBufferSizeBytes > bufferSizeBytes {
+		minBusySize = proxyBufferSizeBytes
+	}
+
+	if proxyBusyBuffersBytes < minBusySize {
+		proxyBusyBuffersBytes = minBusySize
+	}
+
+	return proxyBufferSizeBytes, proxyBusyBuffersBytes, modifications
+}
+
 // BalanceProxyValues normalises and validates the values for the proxy buffer
 // configuration options and their defaults:
 // * proxy_buffers           8 4k|8k (one memory page size)
@@ -149,132 +282,29 @@ func BalanceProxyValues(proxyBuffers, proxyBufferSize, proxyBusyBuffers string, 
 		return proxyBuffers, proxyBufferSize, proxyBusyBuffers, modifications, nil
 	}
 
-	// Helper function to parse size string to bytes for comparison
-	parseSizeToBytes := func(sizeStr string) uint64 {
-		if sizeStr == "" {
-			return 0
-		}
-		sizeStr = strings.ToLower(strings.TrimSpace(sizeStr))
-		if len(sizeStr) == 0 {
-			return 0
-		}
+	// Parse proxy buffers or use defaults
+	bufferNumber, bufferSizeBytes := parseProxyBuffers(proxyBuffers)
 
-		lastChar := sizeStr[len(sizeStr)-1]
-		numStr := sizeStr
-		multiplier := uint64(1024 * 1024) // Default to MB
-
-		switch lastChar {
-		case 'k':
-			multiplier = 1024
-			numStr = sizeStr[:len(sizeStr)-1]
-		case 'm':
-			multiplier = 1024 * 1024
-			numStr = sizeStr[:len(sizeStr)-1]
-		case 'g':
-			multiplier = 1024 * 1024 * 1024
-			numStr = sizeStr[:len(sizeStr)-1]
-		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-			multiplier = 1024 * 1024 // Default to MB if no unit
-		}
-
-		if num, err := strconv.ParseUint(numStr, 10, 64); err == nil {
-			return num * multiplier
-		}
-		return 0
-	}
-
-	// Helper function to convert bytes back to size string
-	bytesToSizeString := func(bytes uint64) string {
-		if bytes == 0 {
-			return "0k"
-		}
-		if bytes%(1024*1024*1024) == 0 {
-			return fmt.Sprintf("%dg", bytes/(1024*1024*1024))
-		}
-		if bytes%(1024*1024) == 0 {
-			return fmt.Sprintf("%dm", bytes/(1024*1024))
-		}
-		if bytes%1024 == 0 {
-			return fmt.Sprintf("%dk", bytes/1024)
-		}
-		return fmt.Sprintf("%dk", (bytes+1023)/1024) // Round up to nearest KB
-	}
-
-	// Initialize defaults
-	var bufferNumber uint64 = 8           // default
-	var bufferSizeBytes uint64 = 4 * 1024 // default 4k
-
-	// Parse proxy buffers if provided
-	if proxyBuffers != "" {
-		parts := strings.Fields(strings.TrimSpace(proxyBuffers))
-		if len(parts) == 2 {
-			if num, err := strconv.ParseUint(parts[0], 10, 64); err == nil {
-				bufferNumber = num
-				bufferSizeBytes = parseSizeToBytes(parts[1])
-			}
-		}
-	}
-
-	// Handle special cases where proxy_buffers is not set
-	if proxyBuffers == "" {
-		if proxyBufferSize != "" || proxyBusyBuffers != "" {
-			bufferNumber = minNGINXBufferCount // Start with minimum
-			// When proxy_buffers is empty, use default 4k buffer size
-			bufferSizeBytes = 4 * 1024 // default 4k
-		}
-	}
-
-	// Validate and adjust buffer number constraints
-	if bufferNumber < minNGINXBufferCount {
-		modifications = append(modifications, fmt.Sprintf("adjusted proxy_buffers number from %d to %d", bufferNumber, minNGINXBufferCount))
+	// Handle special case where proxy_buffers is not set
+	if proxyBuffers == "" && (proxyBufferSize != "" || proxyBusyBuffers != "") {
 		bufferNumber = minNGINXBufferCount
-	}
-	if bufferNumber > maxNGINXBufferCount {
-		modifications = append(modifications, fmt.Sprintf("adjusted proxy_buffers number from %d to %d", bufferNumber, maxNGINXBufferCount))
-		bufferNumber = maxNGINXBufferCount
+		bufferSizeBytes = 4 * 1024 // default 4k
 	}
 
-	// Parse input sizes
-	var proxyBufferSizeBytes uint64
-	var proxyBusyBuffersBytes uint64
+	// Validate buffer number constraints
+	bufferNumber, bufferConstraintMods := validateBufferConstraints(bufferNumber)
+	modifications = append(modifications, bufferConstraintMods...)
 
-	if proxyBufferSize != "" {
-		proxyBufferSizeBytes = parseSizeToBytes(proxyBufferSize)
-	} else {
-		proxyBufferSizeBytes = bufferSizeBytes
-	}
+	// Parse buffer sizes
+	proxyBufferSizeBytes, proxyBusyBuffersBytes := parseBufferSizes(proxyBufferSize, proxyBusyBuffers, bufferSizeBytes)
 
-	if proxyBusyBuffers != "" {
-		proxyBusyBuffersBytes = parseSizeToBytes(proxyBusyBuffers)
-	} else {
-		proxyBusyBuffersBytes = bufferSizeBytes
-	}
-
-	// Calculate constraints
+	// Calculate constraints and apply rules
 	totalBufferSize := bufferSizeBytes * bufferNumber
-	maxAllowedSize := totalBufferSize - bufferSizeBytes // Total minus one buffer
+	maxAllowedSize := totalBufferSize - bufferSizeBytes
 
-	// Apply rule 4: proxy_buffer_size must be <= (total_buffers - 1_buffer)
-	if proxyBufferSizeBytes > maxAllowedSize {
-		modifications = append(modifications, "adjusted proxy_buffer_size because it was too large for proxy_buffers")
-		proxyBufferSizeBytes = maxAllowedSize
-	}
-
-	// Apply rule 3: proxy_busy_buffers_size must be <= (total_buffers - 1_buffer)
-	if proxyBusyBuffersBytes > maxAllowedSize {
-		modifications = append(modifications, "adjusted proxy_busy_buffers_size because it was too large")
-		proxyBusyBuffersBytes = maxAllowedSize
-	}
-
-	// Apply rule 2: proxy_busy_buffers_size must be >= max(proxy_buffer_size, buffer_size)
-	minBusySize := bufferSizeBytes
-	if proxyBufferSizeBytes > bufferSizeBytes {
-		minBusySize = proxyBufferSizeBytes
-	}
-
-	if proxyBusyBuffersBytes < minBusySize {
-		proxyBusyBuffersBytes = minBusySize
-	}
+	proxyBufferSizeBytes, proxyBusyBuffersBytes, constraintMods := applyBufferSizeConstraints(
+		proxyBufferSizeBytes, proxyBusyBuffersBytes, bufferSizeBytes, maxAllowedSize)
+	modifications = append(modifications, constraintMods...)
 
 	// Convert results back to strings
 	bufferSizeStr := bytesToSizeString(bufferSizeBytes)
