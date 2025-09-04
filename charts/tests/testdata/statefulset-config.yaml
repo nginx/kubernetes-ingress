@@ -1,0 +1,12 @@
+controller:
+  kind: statefulset
+  statefulset:
+    podManagementPolicy: "Parallel"
+    persistentVolumeClaimRetentionPolicy:
+      whenDeleted: "Retain"
+      whenScaled: "Retain"
+    nginxCachePVC:
+      size: "2Gi"
+      storageClass: "premium-rwx"
+      accessModes:
+        - "ReadWriteMany"
