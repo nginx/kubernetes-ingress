@@ -158,10 +158,10 @@ func (b *Builder) EnsureReactorCalled(testName string, fn coretesting.ReactionFu
 	return func(action coretesting.Action) (handled bool, ret runtime.Object, err error) {
 		handled, ret, err = fn(action)
 		if !handled {
-			return
+			return handled, ret, err
 		}
 		b.requiredReactors[testName] = true
-		return
+		return handled, ret, err
 	}
 }
 
