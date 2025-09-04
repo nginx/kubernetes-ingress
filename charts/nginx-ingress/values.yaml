@@ -358,7 +358,7 @@ controller:
       ## When to delete PVCs when the StatefulSet is scaled down. Can be "Retain" or "Delete".
       whenScaled: "Retain"
 
-    ## Cache configuration for StatefulSet nginx-cache volume
+    ##  Configuration for StatefulSet nginx-cache PVC
     nginxCachePVC:
       ## Storage size for the nginx-cache volume
       size: "256Mi"
