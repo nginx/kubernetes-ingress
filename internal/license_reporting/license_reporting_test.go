@@ -131,7 +131,7 @@ func TestUsageGraceEnding(t *testing.T) {
 	}{
 		{
 			licenseData: client.NginxLicense{
-				Reporting: client.LicenseReporting{
+				Reporting: &client.LicenseReporting{
 					Grace: 3600, // seconds
 				},
 			},
@@ -141,7 +141,7 @@ func TestUsageGraceEnding(t *testing.T) {
 		},
 		{
 			licenseData: client.NginxLicense{
-				Reporting: client.LicenseReporting{
+				Reporting: &client.LicenseReporting{
 					Grace: 60 * 60 * 24 * 31, // 31 days
 				},
 			},
@@ -151,13 +151,19 @@ func TestUsageGraceEnding(t *testing.T) {
 		},
 		{
 			licenseData: client.NginxLicense{
-				Reporting: client.LicenseReporting{
+				Reporting: &client.LicenseReporting{
 					Grace: 0,
 				},
 			},
 			belowExpiringThreshold: true,
 			days:                   0,
 			name:                   "Grace period ended",
+		},
+		{
+			licenseData:            client.NginxLicense{},
+			belowExpiringThreshold: false,
+			days:                   0,
+			name:                   "No grace period",
 		},
 	}
 

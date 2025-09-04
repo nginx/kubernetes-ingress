@@ -140,6 +140,9 @@ func licenseExpiring(licenseData *client.NginxLicense) (bool, int64) {
 }
 
 func usageGraceEnding(licenseData *client.NginxLicense) (bool, int64) {
+	if licenseData.Reporting == nil {
+		return false, 0
+	}
 	grace := time.Second * time.Duration(licenseData.Reporting.Grace) //nolint:gosec
 	daysUntilUsageGraceEnds := int64(grace.Hours() / 24)
 	expiryDays := int64(expiryThreshold.Hours() / 24)
