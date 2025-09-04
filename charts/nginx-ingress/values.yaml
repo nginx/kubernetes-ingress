@@ -358,25 +358,15 @@ controller:
       ## When to delete PVCs when the StatefulSet is scaled down. Can be "Retain" or "Delete".
       whenScaled: "Retain"
 
-    ## Volume claim templates for StatefulSet persistent storage
-    ## Example configuration for NGINX cache and logs persistence:
-    volumeClaimTemplates: []
-    # - metadata:
-    #     name: nginx-cache
-    #   spec:
-    #     accessModes: [ "ReadWriteOnce" ]
-    #     storageClassName: "standard"
-    #     resources:
-    #       requests:
-    #         storage: 5Gi
-    # - metadata:
-    #     name: nginx-logs
-    #   spec:
-    #     accessModes: [ "ReadWriteOnce" ]
-    #     storageClassName: "standard"
-    #     resources:
-    #       requests:
-    #         storage: 1Gi
+    ## Cache configuration for StatefulSet nginx-cache volume
+    nginxCachePVC:
+      ## Storage size for the nginx-cache volume
+      size: "256Mi"
+      ## Storage class for the nginx-cache volume. If empty, uses the cluster default.
+      storageClass: ""
+      ## Access modes for the nginx-cache volume
+      accessModes:
+      - "ReadWriteOnce"
 
   ## Extra containers for the Ingress Controller pods.
   extraContainers: []

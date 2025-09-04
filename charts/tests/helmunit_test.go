@@ -56,6 +56,16 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "statefulset-readonly",
 			namespace:   "default",
 		},
+		"statefulset-config": {
+			valuesFile:  "testdata/statefulset-config.yaml",
+			releaseName: "statefulset-config",
+			namespace:   "default",
+		},
+		"statefulset-no-storageclass": {
+			valuesFile:  "testdata/statefulset-no-storageclass.yaml",
+			releaseName: "statefulset-no-storageclass",
+			namespace:   "default",
+		},
 		"namespace": {
 			valuesFile:  "",
 			releaseName: "namespace",

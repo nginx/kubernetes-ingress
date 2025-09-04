@@ -229,12 +229,12 @@ spec:
   - metadata:
       name: nginx-cache
     spec:
-      accessModes: [ "ReadWriteOnce" ]
-      storageClassName: "standard"
+      accessModes:
+{{ toYaml .Values.controller.statefulset.nginxCachePVC.accessModes | indent 8 }}
+{{- if .Values.controller.statefulset.nginxCachePVC.storageClass }}
+      storageClassName: {{ .Values.controller.statefulset.nginxCachePVC.storageClass | quote }}
+{{- end }}
       resources:
         requests:
-          storage: 256Mi
-{{- if .Values.controller.statefulset.volumeClaimTemplates }}
-{{ toYaml .Values.controller.statefulset.volumeClaimTemplates | indent 2 }}
-{{- end }}
+          storage: {{ .Values.controller.statefulset.nginxCachePVC.size | quote }}
 {{- end }}

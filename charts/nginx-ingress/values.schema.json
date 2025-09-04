@@ -1014,32 +1014,31 @@
               "type": "object",
               "default": {},
               "title": "The PVC retention policy Schema",
-              "properties": {
-                "whenDeleted": {
-                  "type": "string",
-                  "default": "Retain",
-                  "enum": [
-                    "Retain",
-                    "Delete"
-                  ]
-                },
-                "whenScaled": {
-                  "type": "string",
-                  "default": "Retain",
-                  "enum": [
-                    "Retain",
-                    "Delete"
-                  ]
-                }
-              }
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.apps.v1.StatefulSetPersistentVolumeClaimRetentionPolicy"
             },
-            "volumeClaimTemplates": {
-              "type": "array",
-              "default": [],
-              "title": "The volume claim templates Schema",
-              "items": {
-                "type": "object",
-                "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.PersistentVolumeClaim"
+            "nginxCachePVC": {
+              "type": "object",
+              "default": {},
+              "title": "The cache configuration Schema",
+              "properties": {
+                "size": {
+                  "type": "string",
+                  "default": "",
+                  "title": "The storage size for nginx-cache volume"
+                },
+                "storageClass": {
+                  "type": "string",
+                  "default": "",
+                  "title": "The storage class for nginx-cache volume"
+                },
+                "accessModes": {
+                  "type": "array",
+                  "default": ["ReadWriteOnce"],
+                  "title": "The access modes for nginx-cache volume",
+                  "items": {
+                    "type": "string"
+                  }
+                }
               }
             }
           }

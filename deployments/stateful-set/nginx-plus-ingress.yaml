@@ -72,22 +72,17 @@ spec:
             - ALL
             add:
             - NET_BIND_SERVICE
-#        volumeMounts:
+        volumeMounts:
+          - mountPath: /var/cache/nginx
+            name: nginx-cache
 #        - mountPath: /etc/nginx
 #          name: nginx-etc
-#        - mountPath: /var/cache/nginx
-#          name: nginx-cache
 #        - mountPath: /var/lib/nginx
 #          name: nginx-lib
 #        - mountPath: /var/lib/nginx/state
 #          name: nginx-lib-state
 #        - mountPath: /var/log/nginx
 #          name: nginx-log
-#        # StatefulSet persistent volume mounts
-#        - mountPath: /var/cache/nginx-persistent
-#          name: nginx-cache-pvc
-#        - mountPath: /var/log/nginx-persistent
-#          name: nginx-logs-pvc
         env:
         - name: POD_NAMESPACE
           valueFrom:
@@ -130,32 +125,20 @@ spec:
 #        - mountPath: /mnt/etc
 #          name: nginx-etc
   # StatefulSet-specific configuration
-  podManagementPolicy: OrderedReady
+  podManagementPolicy: "OrderedReady"
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: "Retain"
+    whenScaled: "Retain"
   updateStrategy:
     type: RollingUpdate
     rollingUpdate:
       maxUnavailable: 1
-  # Uncomment to enable persistent storage
-#  volumeClaimTemplates:
-#  - metadata:
-#      name: nginx-cache-pvc
-#      labels:
-#        app: nginx-ingress
-#        component: cache
-#    spec:
-#      accessModes: [ "ReadWriteOnce" ]
+  volumeClaimTemplates:
+  - metadata:
+      name: nginx-cache
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
 #      storageClassName: "standard"
-#      resources:
-#        requests:
-#          storage: 5Gi
-#  - metadata:
-#      name: nginx-logs-pvc
-#      labels:
-#        app: nginx-ingress
-#        component: logs
-#    spec:
-#      accessModes: [ "ReadWriteOnce" ]
-#      storageClassName: "standard"
-#      resources:
-#        requests:
-#          storage: 1Gi
+      resources:
+        requests:
+          storage: 256Mi
