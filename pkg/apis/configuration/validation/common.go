@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
-	internalValidation "github.com/nginx/kubernetes-ingress/internal/validation"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
@@ -172,23 +171,11 @@ func validateOffset(offset string, fieldPath *field.Path) field.ErrorList {
 const sizeErrMsg = "must consist of numeric characters followed by a valid size suffix. 'k|K|m|M"
 
 func validateSize(size string, fieldPath *field.Path) field.ErrorList {
-	return validateSizeWithAutoadjust(size, fieldPath, false)
-}
-
-func validateSizeWithAutoadjust(size string, fieldPath *field.Path, isDirectiveAutoadjustEnabled bool) field.ErrorList {
 	if size == "" {
 		return nil
 	}
 
 	if _, err := configs.ParseSize(size); err != nil {
-		// If directive autoadjust is enabled, try using the autoadjust logic directly
-		if isDirectiveAutoadjustEnabled {
-			// Use the existing autoadjust function that handles invalid units
-			if _, autoadjustErr := internalValidation.NewSizeWithUnit(size, isDirectiveAutoadjustEnabled); autoadjustErr == nil {
-				return nil // Allow autoadjust to fix the unit later
-			}
-		}
-
 		msg := validation.RegexError(sizeErrMsg, configs.SizeFmt, "16", "32k", "64M")
 		return field.ErrorList{field.Invalid(fieldPath, size, msg)}
 	}

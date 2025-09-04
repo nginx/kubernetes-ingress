@@ -308,10 +308,6 @@ func validateBackupPortFromPointer(backupPort *uint16, fieldPath *field.Path) fi
 }
 
 func validateBuffer(buff *v1.UpstreamBuffers, fieldPath *field.Path) field.ErrorList {
-	return validateBufferWithAutoadjust(buff, fieldPath, false)
-}
-
-func validateBufferWithAutoadjust(buff *v1.UpstreamBuffers, fieldPath *field.Path, isDirectiveAutoadjustEnabled bool) field.ErrorList {
 	if buff == nil {
 		return nil
 	}
@@ -324,7 +320,7 @@ func validateBufferWithAutoadjust(buff *v1.UpstreamBuffers, fieldPath *field.Pat
 	if buff.Size == "" {
 		allErrs = append(allErrs, field.Required(fieldPath.Child("size"), "cannot be empty"))
 	} else {
-		allErrs = append(allErrs, validateSizeWithAutoadjust(buff.Size, fieldPath.Child("size"), isDirectiveAutoadjustEnabled)...)
+		allErrs = append(allErrs, validateSize(buff.Size, fieldPath.Child("size"))...)
 	}
 	return allErrs
 }
@@ -640,9 +636,9 @@ func (vsv *VirtualServerValidator) validateUpstreams(upstreams []v1.Upstream, fi
 		allErrs = append(allErrs, validateOffset(u.ClientMaxBodySize, idxPath.Child("client-max-body-size"))...)
 		allErrs = append(allErrs, validateUpstreamHealthCheck(u.HealthCheck, u.Type, idxPath.Child("healthCheck"))...)
 		allErrs = append(allErrs, validateTime(u.SlowStart, idxPath.Child("slow-start"))...)
-		allErrs = append(allErrs, validateBufferWithAutoadjust(u.ProxyBuffers, idxPath.Child("buffers"), vsv.isDirectiveAutoadjustEnabled)...)
-		allErrs = append(allErrs, validateSizeWithAutoadjust(u.ProxyBufferSize, idxPath.Child("buffer-size"), vsv.isDirectiveAutoadjustEnabled)...)
-		allErrs = append(allErrs, validateSizeWithAutoadjust(u.ProxyBusyBuffersSize, idxPath.Child("busy-buffers-size"), vsv.isDirectiveAutoadjustEnabled)...)
+		allErrs = append(allErrs, validateBuffer(u.ProxyBuffers, idxPath.Child("buffers"))...)
+		allErrs = append(allErrs, validateSize(u.ProxyBufferSize, idxPath.Child("buffer-size"))...)
+		allErrs = append(allErrs, validateSize(u.ProxyBusyBuffersSize, idxPath.Child("busy-buffers-size"))...)
 		allErrs = append(allErrs, validateQueue(u.Queue, idxPath.Child("queue"))...)
 		allErrs = append(allErrs, validateSessionCookie(u.SessionCookie, idxPath.Child("sessionCookie"))...)
 		allErrs = append(allErrs, validateUpstreamType(u.Type, idxPath.Child("type"))...)
