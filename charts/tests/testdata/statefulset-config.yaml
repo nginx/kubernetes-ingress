@@ -3,8 +3,8 @@ controller:
   statefulset:
     podManagementPolicy: "Parallel"
     persistentVolumeClaimRetentionPolicy:
-      whenDeleted: "Retain"
-      whenScaled: "Retain"
+      whenDeleted: "Delete"
+      whenScaled: "Delete"
     nginxCachePVC:
       size: "2Gi"
       storageClass: "premium-rwx"
