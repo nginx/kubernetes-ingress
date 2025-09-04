@@ -1033,7 +1033,9 @@
                 },
                 "accessModes": {
                   "type": "array",
-                  "default": ["ReadWriteOnce"],
+                  "default": [
+                    "ReadWriteOnce"
+                  ],
                   "title": "The access modes for nginx-cache volume",
                   "items": {
                     "type": "string"
