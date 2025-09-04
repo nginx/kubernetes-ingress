@@ -47,7 +47,7 @@ func (s *storeToIngressLister) GetByKeySafe(key string) (ing *networking.Ingress
 		return nil, exists, err
 	}
 	ing = item.(*networking.Ingress).DeepCopy()
-	return
+	return ing, exists, err
 }
 
 // List lists all Ingress' in the store.
