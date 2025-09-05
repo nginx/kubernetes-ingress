@@ -40,6 +40,7 @@ We value community input and would love to see you at the next community call. A
 | **2025-09-22**           |
 
 You can also join the [NGINX Community Forum](https://community.nginx.org) to chat about the NGINX Ingress Controller.
+
 ---
 
 NGINX Ingress Controller works with both NGINX and NGINX Plus and supports the standard Ingress features - content-based
