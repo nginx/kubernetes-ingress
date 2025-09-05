@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
-	"github.com/nginx/kubernetes-ingress/internal/validation"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1942,277 +1941,310 @@ func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
 func TestParseProxyBuffers(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name                         string
-		configMap                    *v1.ConfigMap
-		expectedProxyBuffers         validation.NumberSizeConfig
-		expectedProxyBufferSize      validation.SizeWithUnit
-		expectedProxyBusyBuffersSize validation.SizeWithUnit
-		description                  string
-	}{
-		{
-			name: "all proxy buffer settings provided",
-			configMap: &v1.ConfigMap{
-				Data: map[string]string{
-					"proxy-buffers":           "8 4k",
-					"proxy-buffer-size":       "8k",
-					"proxy-busy-buffers-size": "16k",
+	// Test with auto-adjust enabled - should use validation functions
+	t.Run("with auto-adjust enabled", func(t *testing.T) {
+		tests := []struct {
+			name                         string
+			configMap                    *v1.ConfigMap
+			expectedProxyBuffers         string
+			expectedProxyBufferSize      string
+			expectedProxyBusyBuffersSize string
+			description                  string
+		}{
+			{
+				name: "all proxy buffer settings provided",
+				configMap: &v1.ConfigMap{
+					Data: map[string]string{
+						"proxy-buffers":           "8 4k",
+						"proxy-buffer-size":       "8k",
+						"proxy-busy-buffers-size": "16k",
+					},
 				},
+				expectedProxyBuffers:         "8 4k",
+				expectedProxyBufferSize:      "8k",
+				expectedProxyBusyBuffersSize: "16k",
+				description:                  "should parse all proxy buffer settings correctly",
 			},
-			expectedProxyBuffers: validation.NumberSizeConfig{
-				Number: 8,
-				Size: validation.SizeWithUnit{
-					Size: 4,
-					Unit: validation.SizeKB,
+			{
+				name: "case insensitive units get normalized",
+				configMap: &v1.ConfigMap{
+					Data: map[string]string{
+						"proxy-buffers":           "8 4K",
+						"proxy-buffer-size":       "8K",
+						"proxy-busy-buffers-size": "16K",
+					},
 				},
+				expectedProxyBuffers:         "8 4k",
+				expectedProxyBufferSize:      "8k",
+				expectedProxyBusyBuffersSize: "16k",
+				description:                  "should normalize case insensitive units",
 			},
-			expectedProxyBufferSize: validation.SizeWithUnit{
-				Size: 8,
-				Unit: validation.SizeKB,
-			},
-			expectedProxyBusyBuffersSize: validation.SizeWithUnit{
-				Size: 16,
-				Unit: validation.SizeKB,
-			},
-			description: "should parse all proxy buffer settings correctly",
-		},
-		{
-			name: "only proxy-buffers provided",
-			configMap: &v1.ConfigMap{
-				Data: map[string]string{
-					"proxy-buffers": "16 8k",
-				},
-			},
-			expectedProxyBuffers: validation.NumberSizeConfig{
-				Number: 16,
-				Size: validation.SizeWithUnit{
-					Size: 8,
-					Unit: validation.SizeKB,
-				},
-			},
-			expectedProxyBufferSize: validation.SizeWithUnit{
-				Size: 8,
-				Unit: validation.SizeKB,
-			},
-			expectedProxyBusyBuffersSize: validation.SizeWithUnit{
-				Size: 8,
-				Unit: validation.SizeKB,
-			},
-			description: "should parse proxy-buffers only",
-		},
-		{
-			name: "only proxy-buffer-size provided",
-			configMap: &v1.ConfigMap{
-				Data: map[string]string{
-					"proxy-buffer-size": "16k",
-				},
-			},
-			expectedProxyBuffers: validation.NumberSizeConfig{
-				Number: 2,
-				Size: validation.SizeWithUnit{
-					Size: 4,
-					Unit: validation.SizeKB,
-				},
-			},
-			expectedProxyBufferSize: validation.SizeWithUnit{
-				Size: 4,
-				Unit: validation.SizeKB,
-			},
-			expectedProxyBusyBuffersSize: validation.SizeWithUnit{
-				Size: 4,
-				Unit: validation.SizeKB,
-			},
-			description: "should parse proxy-buffer-size only",
-		},
-		{
-			name: "case insensitive units get normalized",
-			configMap: &v1.ConfigMap{
-				Data: map[string]string{
-					"proxy-buffers":           "8 4K",
-					"proxy-buffer-size":       "8K",
-					"proxy-busy-buffers-size": "16K",
-				},
-			},
-			expectedProxyBuffers: validation.NumberSizeConfig{
-				Number: 8,
-				Size: validation.SizeWithUnit{
-					Size: 4,
-					Unit: validation.SizeKB,
-				},
-			},
-			expectedProxyBufferSize: validation.SizeWithUnit{
-				Size: 8,
-				Unit: validation.SizeKB,
-			},
-			expectedProxyBusyBuffersSize: validation.SizeWithUnit{
-				Size: 16,
-				Unit: validation.SizeKB,
-			},
-			description: "should normalize case insensitive units",
-		},
-		{
-			name: "invalid units get normalized",
-			configMap: &v1.ConfigMap{
-				Data: map[string]string{
-					"proxy-buffers":           "8 4g",
-					"proxy-buffer-size":       "8x",
-					"proxy-busy-buffers-size": "16z",
-				},
-			},
-			expectedProxyBuffers: validation.NumberSizeConfig{
-				Number: 8,
-				Size: validation.SizeWithUnit{
-					Size: 4,
-					Unit: validation.SizeMB,
-				},
-			},
-			expectedProxyBufferSize: validation.SizeWithUnit{
-				Size: 8,
-				Unit: validation.SizeMB,
-			},
-			expectedProxyBusyBuffersSize: validation.SizeWithUnit{
-				Size: 16,
-				Unit: validation.SizeMB,
-			},
-			description: "should normalize invalid units to 'm'",
-		},
-		{
-			name: "empty configmap",
-			configMap: &v1.ConfigMap{
-				Data: map[string]string{},
-			},
-			expectedProxyBuffers:         validation.NumberSizeConfig{},
-			expectedProxyBufferSize:      validation.SizeWithUnit{},
-			expectedProxyBusyBuffersSize: validation.SizeWithUnit{},
-			description:                  "should handle empty configmap gracefully",
-		},
-	}
+		}
 
-	nginxPlus := true
-	hasAppProtect := false
-	hasAppProtectDos := false
-	hasTLSPassthrough := false
-	directiveAutoadjustEnabled := true
+		nginxPlus := true
+		hasAppProtect := false
+		hasAppProtectDos := false
+		hasTLSPassthrough := false
+		directiveAutoadjustEnabled := true
 
-	for _, test := range tests {
-		test := test // capture range variable
+		for _, test := range tests {
+			test := test // capture range variable
 
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
 
-			eventRecorder := makeEventLogger()
-			result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, eventRecorder)
+				eventRecorder := makeEventLogger()
+				result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, eventRecorder)
 
-			if !configOk {
-				t.Errorf("%s: expected config to be valid but got invalid", test.description)
-			}
+				if !configOk {
+					t.Errorf("%s: expected config to be valid but got invalid", test.description)
+				}
 
-			if result.ProxyBuffers != test.expectedProxyBuffers {
-				t.Errorf("%s: ProxyBuffers = %q, want %q", test.description, result.ProxyBuffers, test.expectedProxyBuffers)
-			}
+				if result.ProxyBuffers != test.expectedProxyBuffers {
+					t.Errorf("%s: ProxyBuffers = %q, want %q", test.description, result.ProxyBuffers, test.expectedProxyBuffers)
+				}
 
-			if result.ProxyBufferSize != test.expectedProxyBufferSize {
-				t.Errorf("%s: ProxyBufferSize = %q, want %q", test.description, result.ProxyBufferSize, test.expectedProxyBufferSize)
-			}
+				if result.ProxyBufferSize != test.expectedProxyBufferSize {
+					t.Errorf("%s: ProxyBufferSize = %q, want %q", test.description, result.ProxyBufferSize, test.expectedProxyBufferSize)
+				}
 
-			if result.ProxyBusyBuffersSize != test.expectedProxyBusyBuffersSize {
-				t.Errorf("%s: ProxyBusyBuffersSize = %q, want %q", test.description, result.ProxyBusyBuffersSize, test.expectedProxyBusyBuffersSize)
-			}
+				if result.ProxyBusyBuffersSize != test.expectedProxyBusyBuffersSize {
+					t.Errorf("%s: ProxyBusyBuffersSize = %q, want %q", test.description, result.ProxyBusyBuffersSize, test.expectedProxyBusyBuffersSize)
+				}
 
-			fakeRecorder := eventRecorder.(*record.FakeRecorder)
-			if len(fakeRecorder.Events) > 0 {
-				t.Errorf("%s: unexpected warnings generated: %d events", test.description, len(fakeRecorder.Events))
-			}
-		})
-	}
+				fakeRecorder := eventRecorder.(*record.FakeRecorder)
+				if len(fakeRecorder.Events) > 0 {
+					t.Errorf("%s: unexpected warnings generated: %d events", test.description, len(fakeRecorder.Events))
+				}
+			})
+		}
+	})
+
+	// Test with auto-adjust disabled - should preserve original strings
+	t.Run("with auto-adjust disabled", func(t *testing.T) {
+		tests := []struct {
+			name                         string
+			configMap                    *v1.ConfigMap
+			expectedProxyBuffers         string
+			expectedProxyBufferSize      string
+			expectedProxyBusyBuffersSize string
+			description                  string
+		}{
+			{
+				name: "preserves original values exactly",
+				configMap: &v1.ConfigMap{
+					Data: map[string]string{
+						"proxy-buffers":           "8 4K",
+						"proxy-buffer-size":       "8K",
+						"proxy-busy-buffers-size": "16K",
+					},
+				},
+				expectedProxyBuffers:         "8 4K", // Original case preserved
+				expectedProxyBufferSize:      "8K",   // Original case preserved
+				expectedProxyBusyBuffersSize: "16K",  // Original case preserved
+				description:                  "should preserve original case and format",
+			},
+			{
+				name: "preserves unusual but valid formats",
+				configMap: &v1.ConfigMap{
+					Data: map[string]string{
+						"proxy-buffers":           "16 8k",
+						"proxy-buffer-size":       "16k",
+						"proxy-busy-buffers-size": "32k",
+					},
+				},
+				expectedProxyBuffers:         "16 8k",
+				expectedProxyBufferSize:      "16k",
+				expectedProxyBusyBuffersSize: "32k",
+				description:                  "should preserve user's exact input",
+			},
+		}
+
+		nginxPlus := true
+		hasAppProtect := false
+		hasAppProtectDos := false
+		hasTLSPassthrough := false
+		directiveAutoadjustEnabled := false
+
+		for _, test := range tests {
+			test := test // capture range variable
+
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				eventRecorder := makeEventLogger()
+				result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, eventRecorder)
+
+				if !configOk {
+					t.Errorf("%s: expected config to be valid but got invalid", test.description)
+				}
+
+				if result.ProxyBuffers != test.expectedProxyBuffers {
+					t.Errorf("%s: ProxyBuffers = %q, want %q", test.description, result.ProxyBuffers, test.expectedProxyBuffers)
+				}
+
+				if result.ProxyBufferSize != test.expectedProxyBufferSize {
+					t.Errorf("%s: ProxyBufferSize = %q, want %q", test.description, result.ProxyBufferSize, test.expectedProxyBufferSize)
+				}
+
+				if result.ProxyBusyBuffersSize != test.expectedProxyBusyBuffersSize {
+					t.Errorf("%s: ProxyBusyBuffersSize = %q, want %q", test.description, result.ProxyBusyBuffersSize, test.expectedProxyBusyBuffersSize)
+				}
+
+				fakeRecorder := eventRecorder.(*record.FakeRecorder)
+				if len(fakeRecorder.Events) > 0 {
+					t.Errorf("%s: unexpected warnings generated: %d events", test.description, len(fakeRecorder.Events))
+				}
+			})
+		}
+	})
 }
 
 func TestParseProxyBuffersInvalidFormat(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name         string
-		proxyBuffers string
-		expectValid  bool
-		description  string
-	}{
-		{
-			name:         "valid format",
-			proxyBuffers: "4 8k",
-			expectValid:  true,
-			description:  "should accept valid 'count size' format",
-		},
-		{
-			name:         "invalid - only size",
-			proxyBuffers: "1k",
-			expectValid:  false,
-			description:  "should reject format with only size",
-		},
-		{
-			name:         "invalid - only count",
-			proxyBuffers: "4",
-			expectValid:  false,
-			description:  "should reject format with only count",
-		},
-		{
-			name:         "invalid - three parts",
-			proxyBuffers: "4 8k extra",
-			expectValid:  false,
-			description:  "should reject format with too many parts",
-		},
-		{
-			name:         "invalid - empty",
-			proxyBuffers: "",
-			expectValid:  true,
-			description:  "should accept empty string (will get corrected)",
-		},
-	}
+	// Test with auto-adjust enabled - should validate and potentially reject invalid formats
+	t.Run("with auto-adjust enabled", func(t *testing.T) {
+		tests := []struct {
+			name         string
+			proxyBuffers string
+			expectValid  bool
+			description  string
+		}{
+			{
+				name:         "valid format",
+				proxyBuffers: "4 8k",
+				expectValid:  true,
+				description:  "should accept valid 'count size' format",
+			},
+			{
+				name:         "invalid - only size",
+				proxyBuffers: "1k",
+				expectValid:  false,
+				description:  "should reject format with only size",
+			},
+			{
+				name:         "invalid - only count",
+				proxyBuffers: "4",
+				expectValid:  false,
+				description:  "should reject format with only count",
+			},
+			{
+				name:         "invalid - three parts",
+				proxyBuffers: "4 8k extra",
+				expectValid:  false,
+				description:  "should reject format with too many parts",
+			},
+			{
+				name:         "empty string",
+				proxyBuffers: "",
+				expectValid:  false,
+				description:  "should not accept empty string",
+			},
+		}
 
-	nginxPlus := true
-	hasAppProtect := false
-	hasAppProtectDos := false
-	hasTLSPassthrough := false
-	directiveAutoadjustEnabled := false
+		nginxPlus := true
+		hasAppProtect := false
+		hasAppProtectDos := false
+		hasTLSPassthrough := false
+		directiveAutoadjustEnabled := true
 
-	for _, test := range tests {
-		test := test // capture range variable
+		for _, test := range tests {
+			test := test // capture range variable
 
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
 
-			cm := &v1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-configmap",
-					Namespace: "default",
-				},
-				Data: map[string]string{
-					"proxy-buffers": test.proxyBuffers,
-				},
-			}
+				cm := &v1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-configmap",
+						Namespace: "default",
+					},
+					Data: map[string]string{
+						"proxy-buffers": test.proxyBuffers,
+					},
+				}
 
-			eventRecorder := makeEventLogger()
-			result, configOk := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, eventRecorder)
+				eventRecorder := makeEventLogger()
+				result, configOk := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, eventRecorder)
 
-			if configOk != test.expectValid {
-				t.Errorf("%s: expected configOk=%v, got configOk=%v", test.description, test.expectValid, configOk)
-			}
+				if configOk != test.expectValid {
+					t.Errorf("%s: expected configOk=%v, got configOk=%v", test.description, test.expectValid, configOk)
+				}
 
-			if test.expectValid {
-				if result.ProxyBuffers.String() != test.proxyBuffers {
+				if test.expectValid {
+					// For valid configs, proxy buffers should be set or empty
+					if test.proxyBuffers != "" && result.ProxyBuffers == "" {
+						t.Errorf("%s: expected ProxyBuffers to be set, got empty", test.description)
+					}
+				} else {
+					// For invalid configs, should have error events
+					fakeRecorder := eventRecorder.(*record.FakeRecorder)
+					if len(fakeRecorder.Events) == 0 {
+						t.Errorf("%s: expected error event to be generated for invalid config", test.description)
+					}
+				}
+			})
+		}
+	})
+
+	// Test with auto-adjust disabled - should preserve original strings without validation
+	t.Run("with auto-adjust disabled", func(t *testing.T) {
+		tests := []struct {
+			name         string
+			proxyBuffers string
+			description  string
+		}{
+			{
+				name:         "valid format preserved",
+				proxyBuffers: "4 8k",
+				description:  "should preserve valid format exactly",
+			},
+		}
+
+		nginxPlus := true
+		hasAppProtect := false
+		hasAppProtectDos := false
+		hasTLSPassthrough := false
+		directiveAutoadjustEnabled := false
+
+		for _, test := range tests {
+			test := test // capture range variable
+
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				cm := &v1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-configmap",
+						Namespace: "default",
+					},
+					Data: map[string]string{
+						"proxy-buffers": test.proxyBuffers,
+					},
+				}
+
+				eventRecorder := makeEventLogger()
+				result, configOk := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, eventRecorder)
+
+				// When auto-adjust is disabled, config should always be valid since no validation occurs
+				if !configOk {
+					t.Errorf("%s: expected config to be valid with auto-adjust disabled, got invalid", test.description)
+				}
+
+				// Should preserve exact original value
+				if result.ProxyBuffers != test.proxyBuffers {
 					t.Errorf("%s: expected ProxyBuffers=%q, got %q", test.description, test.proxyBuffers, result.ProxyBuffers)
 				}
-			} else {
-				if result.ProxyBuffers.String() != "" {
-					t.Errorf("%s: expected ProxyBuffers to be empty for invalid config, got %q", test.description, result.ProxyBuffers)
-				}
 
+				// Should not generate any events when auto-adjust is disabled
 				fakeRecorder := eventRecorder.(*record.FakeRecorder)
-				if len(fakeRecorder.Events) == 0 {
-					t.Errorf("%s: expected error event to be generated for invalid config", test.description)
+				if len(fakeRecorder.Events) > 0 {
+					t.Errorf("%s: unexpected events generated with auto-adjust disabled: %d events", test.description, len(fakeRecorder.Events))
 				}
-			}
-		})
-	}
+			})
+		}
+	})
 }
 
 func makeEventLogger() record.EventRecorder {

@@ -18,7 +18,6 @@ import (
 	nic_glog "github.com/nginx/kubernetes-ingress/internal/logger/glog"
 	"github.com/nginx/kubernetes-ingress/internal/logger/levels"
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
-	"github.com/nginx/kubernetes-ingress/internal/validation"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	api_v1 "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -15982,22 +15981,9 @@ func TestGenerateLocationForProxying(t *testing.T) {
 		ClientMaxBodySize:    "1m",
 		ProxyMaxTempFileSize: "1024m",
 		ProxyBuffering:       true,
-		ProxyBuffers: validation.NumberSizeConfig{
-			Number: 8,
-			Size: validation.SizeWithUnit{
-				Size: 4,
-				Unit: validation.SizeKB,
-			},
-		},
-		ProxyBufferSize: validation.SizeWithUnit{
-			Size: 4,
-			Unit: validation.SizeKB,
-		},
-		ProxyBusyBuffersSize: validation.SizeWithUnit{
-			Size: 8,
-			Unit: validation.SizeKB,
-		},
-		LocationSnippets: []string{"# location snippet"},
+		ProxyBuffers:         "8 4k",
+		ProxyBufferSize:      "4k",
+		ProxyBusyBuffersSize: "8k", LocationSnippets: []string{"# location snippet"},
 	}
 	path := "/"
 	upstreamName := "test-upstream"
@@ -16043,23 +16029,11 @@ func TestGenerateLocationForGrpcProxying(t *testing.T) {
 		ClientMaxBodySize:    "1m",
 		ProxyMaxTempFileSize: "1024m",
 		ProxyBuffering:       true,
-		ProxyBuffers: validation.NumberSizeConfig{
-			Number: 8,
-			Size: validation.SizeWithUnit{
-				Size: 4,
-				Unit: validation.SizeKB,
-			},
-		},
-		ProxyBufferSize: validation.SizeWithUnit{
-			Size: 4,
-			Unit: validation.SizeKB,
-		},
-		ProxyBusyBuffersSize: validation.SizeWithUnit{
-			Size: 8,
-			Unit: validation.SizeKB,
-		},
-		LocationSnippets: []string{"# location snippet"},
-		HTTP2:            true,
+		ProxyBuffers:         "8 4k",
+		ProxyBufferSize:      "4k",
+		ProxyBusyBuffersSize: "8k",
+		LocationSnippets:     []string{"# location snippet"},
+		HTTP2:                true,
 	}
 	path := "/"
 	upstreamName := "test-upstream"

@@ -335,48 +335,56 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 	}
 
 	if proxyBuffers, exists := cfgm.Data["proxy-buffers"]; exists {
-		proxyBuffersData, err := validation.NewNumberSizeConfig(proxyBuffers)
-		if err != nil {
+		if parsedProxyBuffers, err := ParseProxyBuffersSpec(proxyBuffers); err != nil {
 			wrappedError := fmt.Errorf("ConfigMap %s/%s: invalid value for 'proxy-buffers': %w", cfgm.GetNamespace(), cfgm.GetName(), err)
 
 			nl.Errorf(l, "%s", wrappedError.Error())
 			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, wrappedError.Error())
 			configOk = false
 		} else {
-			cfgParams.ProxyBuffers = proxyBuffersData
+			cfgParams.ProxyBuffers = parsedProxyBuffers
 		}
 	}
 
 	if proxyBufferSize, exists := cfgm.Data["proxy-buffer-size"]; exists {
-		proxyBufferSizeData, err := validation.NewSizeWithUnit(proxyBufferSize)
-		if err != nil {
-			nl.Errorf(l, "error parsing nginx.org/proxy-buffer-size: %s", err)
+		if parsedProxyBufferSize, err := ParseSize(proxyBufferSize); err != nil {
+			wrappedError := fmt.Errorf("ConfigMap %s/%s: invalid value for 'proxy-buffer-size': %w", cfgm.GetNamespace(), cfgm.GetName(), err)
+
+			nl.Errorf(l, "%s", wrappedError.Error())
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, wrappedError.Error())
+			configOk = false
 		} else {
-			cfgParams.ProxyBufferSize = proxyBufferSizeData
+			cfgParams.ProxyBufferSize = parsedProxyBufferSize
 		}
 	}
 
-	// Proxy Busy Buffers Size uses only size format, like "8k".
 	if proxyBusyBuffersSize, exists := cfgm.Data["proxy-busy-buffers-size"]; exists {
-		proxyBusyBufferSizeUnit, err := validation.NewSizeWithUnit(proxyBusyBuffersSize)
-		if err != nil {
-			nl.Errorf(l, "error parsing nginx.org/proxy-busy-buffers-size: %s", err)
+		if parsedProxyBusyBuffersSize, err := ParseSize(proxyBusyBuffersSize); err != nil {
+			wrappedError := fmt.Errorf("ConfigMap %s/%s: invalid value for 'proxy-busy-buffers-size': %w", cfgm.GetNamespace(), cfgm.GetName(), err)
+
+			nl.Errorf(l, "%s", wrappedError.Error())
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, wrappedError.Error())
+			configOk = false
 		} else {
-			cfgParams.ProxyBusyBuffersSize = proxyBusyBufferSizeUnit
+			cfgParams.ProxyBusyBuffersSize = parsedProxyBusyBuffersSize
 		}
 	}
 
-	balancedProxyBuffers, balancedProxyBufferSize, balancedProxyBusyBufferSize, modifications, err := validation.BalanceProxyValues(cfgParams.ProxyBuffers, cfgParams.ProxyBufferSize, cfgParams.ProxyBusyBuffersSize, enableDirectiveAutoadjust)
-	if err != nil {
-		nl.Errorf(l, "error reconciling proxy_buffers, proxy_buffer_size, and proxy_busy_buffers_size values: %s", err.Error())
-	}
-	cfgParams.ProxyBuffers = balancedProxyBuffers
-	cfgParams.ProxyBufferSize = balancedProxyBufferSize
-	cfgParams.ProxyBusyBuffersSize = balancedProxyBusyBufferSize
+	// Only run balance validation if auto-adjust is enabled
+	if enableDirectiveAutoadjust {
+		balancedProxyBuffers, balancedProxyBufferSize, balancedProxyBusyBufferSize, modifications, err := validation.BalanceProxyValues(cfgParams.ProxyBuffers, cfgParams.ProxyBufferSize, cfgParams.ProxyBusyBuffersSize, enableDirectiveAutoadjust)
+		if err != nil {
+			nl.Errorf(l, "error reconciling proxy_buffers, proxy_buffer_size, and proxy_busy_buffers_size values: %s", err.Error())
+		} else {
+			cfgParams.ProxyBuffers = balancedProxyBuffers
+			cfgParams.ProxyBufferSize = balancedProxyBufferSize
+			cfgParams.ProxyBusyBuffersSize = balancedProxyBusyBufferSize
 
-	if len(modifications) > 0 {
-		for _, modification := range modifications {
-			nl.Infof(l, "Changes made to proxy values: %s", modification)
+			if len(modifications) > 0 {
+				for _, modification := range modifications {
+					nl.Infof(l, "Changes made to proxy values: %s", modification)
+				}
+			}
 		}
 	}
 
@@ -446,7 +454,7 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		}
 	}
 
-	_, err = parseConfigMapZoneSync(l, cfgm, cfgParams, eventLog, nginxPlus)
+	_, err := parseConfigMapZoneSync(l, cfgm, cfgParams, eventLog, nginxPlus)
 	if err != nil {
 		configOk = false
 	}

@@ -5,7 +5,6 @@ import (
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
-	"github.com/nginx/kubernetes-ingress/internal/validation"
 )
 
 // ConfigParams holds NGINX configuration parameters that affect the main NGINX config
@@ -70,9 +69,9 @@ type ConfigParams struct {
 	MainAppProtectDosLogFormatEscaping     string
 	MainAppProtectDosArbFqdn               string
 	ProxyBuffering                         bool
-	ProxyBuffers                           validation.NumberSizeConfig
-	ProxyBufferSize                        validation.SizeWithUnit
-	ProxyBusyBuffersSize                   validation.SizeWithUnit
+	ProxyBuffers                           string
+	ProxyBufferSize                        string
+	ProxyBusyBuffersSize                   string
 	ProxyConnectTimeout                    string
 	ProxyHideHeaders                       []string
 	ProxyMaxTempFileSize                   string

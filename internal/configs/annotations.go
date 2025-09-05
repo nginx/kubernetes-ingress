@@ -299,47 +299,36 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		}
 	}
 
-	// Proxy Buffers uses number + size format, like "8 4k".
+	// proxyBuffers gets validated in k8s/validation.go in annotationValidations
 	if proxyBuffers, exists := ingEx.Ingress.Annotations["nginx.org/proxy-buffers"]; exists {
-		proxyBufferUnits, err := validation.NewNumberSizeConfig(proxyBuffers)
-		if err != nil {
-			nl.Errorf(l, "error parsing nginx.org/proxy-buffers: %s", err)
-		} else {
-			cfgParams.ProxyBuffers = proxyBufferUnits
-		}
+		cfgParams.ProxyBuffers = proxyBuffers
 	}
 
-	// Proxy Buffer Size uses only size format, like "4k".
+	// proxyBufferSize gets validated in k8s/validation.go in annotationValidations
 	if proxyBufferSize, exists := ingEx.Ingress.Annotations["nginx.org/proxy-buffer-size"]; exists {
-		proxyBufferSizeUnit, err := validation.NewSizeWithUnit(proxyBufferSize)
-		if err != nil {
-			nl.Errorf(l, "error parsing nginx.org/proxy-buffer-size: %s", err)
-		} else {
-			cfgParams.ProxyBufferSize = proxyBufferSizeUnit
-		}
+		cfgParams.ProxyBufferSize = proxyBufferSize
 	}
 
-	// Proxy Busy Buffers Size uses only size format, like "8k".
+	// proxyBusyBuffersSize gets validated in k8s/validation.go in annotationValidations
 	if proxyBusyBuffersSize, exists := ingEx.Ingress.Annotations["nginx.org/proxy-busy-buffers-size"]; exists {
-		proxyBusyBufferSizeUnit, err := validation.NewSizeWithUnit(proxyBusyBuffersSize)
+		cfgParams.ProxyBusyBuffersSize = proxyBusyBuffersSize
+	}
+
+	// Only run balance validation if auto-adjust is enabled
+	if enableDirectiveAutoadjust {
+		balancedProxyBuffers, balancedProxyBufferSize, balancedProxyBusyBufferSize, modifications, err := validation.BalanceProxyValues(cfgParams.ProxyBuffers, cfgParams.ProxyBufferSize, cfgParams.ProxyBusyBuffersSize, enableDirectiveAutoadjust)
 		if err != nil {
-			nl.Errorf(l, "error parsing nginx.org/proxy-busy-buffers-size: %s", err)
+			nl.Errorf(l, "error reconciling proxy_buffers, proxy_buffer_size, and proxy_busy_buffers_size values: %s", err.Error())
 		} else {
-			cfgParams.ProxyBusyBuffersSize = proxyBusyBufferSizeUnit
-		}
-	}
+			cfgParams.ProxyBuffers = balancedProxyBuffers
+			cfgParams.ProxyBufferSize = balancedProxyBufferSize
+			cfgParams.ProxyBusyBuffersSize = balancedProxyBusyBufferSize
 
-	balancedProxyBuffers, balancedProxyBufferSize, balancedProxyBusyBufferSize, modifications, err := validation.BalanceProxyValues(cfgParams.ProxyBuffers, cfgParams.ProxyBufferSize, cfgParams.ProxyBusyBuffersSize, enableDirectiveAutoadjust)
-	if err != nil {
-		nl.Errorf(l, "error reconciling proxy_buffers, proxy_buffer_size, and proxy_busy_buffers_size values: %s", err.Error())
-	}
-	cfgParams.ProxyBuffers = balancedProxyBuffers
-	cfgParams.ProxyBufferSize = balancedProxyBufferSize
-	cfgParams.ProxyBusyBuffersSize = balancedProxyBusyBufferSize
-
-	if len(modifications) > 0 {
-		for _, modification := range modifications {
-			nl.Infof(l, "Changes made to proxy values: %s", modification)
+			if len(modifications) > 0 {
+				for _, modification := range modifications {
+					nl.Infof(l, "Changes made to proxy values: %s", modification)
+				}
+			}
 		}
 	}
 
