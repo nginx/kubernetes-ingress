@@ -147,6 +147,7 @@ func (lbc *LoadBalancerController) syncZoneSyncHeadlessService(svcName string) e
 		selectors, err := CreateUniformSelectorsFromController(lbc.client, lbc.metadata.pod)
 		if err != nil {
 			nl.Errorf(lbc.Logger, "Failed to get selectors: %v", err)
+			return err
 		}
 
 		newSvc := &v1.Service{
