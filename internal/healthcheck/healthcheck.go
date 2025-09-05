@@ -18,7 +18,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
-	"github.com/nginx/nginx-plus-go-client/v2/client"
+	"github.com/nginx/nginx-plus-go-client/v3/client"
 	"k8s.io/utils/strings/slices"
 )
 
