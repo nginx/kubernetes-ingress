@@ -10,7 +10,7 @@ import (
 	"time"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
-	"github.com/nginx/nginx-plus-go-client/v2/client"
+	"github.com/nginx/nginx-plus-go-client/v3/client"
 
 	clusterInfo "github.com/nginx/kubernetes-ingress/internal/common_cluster_info"
 	api_v1 "k8s.io/api/core/v1"
@@ -140,6 +140,9 @@ func licenseExpiring(licenseData *client.NginxLicense) (bool, int64) {
 }
 
 func usageGraceEnding(licenseData *client.NginxLicense) (bool, int64) {
+	if licenseData.Reporting == nil {
+		return false, 0
+	}
 	grace := time.Second * time.Duration(licenseData.Reporting.Grace) //nolint:gosec
 	daysUntilUsageGraceEnds := int64(grace.Hours() / 24)
 	expiryDays := int64(expiryThreshold.Hours() / 24)
