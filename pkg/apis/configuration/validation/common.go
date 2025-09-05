@@ -170,6 +170,11 @@ func validateOffset(offset string, fieldPath *field.Path) field.ErrorList {
 // http://nginx.org/en/docs/syntax.html
 const sizeErrMsg = "must consist of numeric characters followed by a valid size suffix. 'k|K|m|M"
 
+// ValidateSize is a wrapper for validateSize to be used in other packages
+func ValidateSize(size string, fieldPath *field.Path) field.ErrorList {
+	return validateSize(size, fieldPath)
+}
+
 func validateSize(size string, fieldPath *field.Path) field.ErrorList {
 	if size == "" {
 		return nil

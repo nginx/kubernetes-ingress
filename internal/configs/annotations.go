@@ -299,46 +299,19 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		}
 	}
 
-	// Proxy Buffers uses number + size format, like "8 4k".
+	// proxyBuffers gets validated in k8s/validation.go in annotationValidations
 	if proxyBuffers, exists := ingEx.Ingress.Annotations["nginx.org/proxy-buffers"]; exists {
-		if enableDirectiveAutoadjust {
-			normalizedProxyBuffers, err := validation.NewNumberSizeConfig(proxyBuffers, enableDirectiveAutoadjust)
-			if err != nil {
-				nl.Errorf(l, "error parsing nginx.org/proxy-buffers: %s", err)
-			} else {
-				cfgParams.ProxyBuffers = normalizedProxyBuffers
-			}
-		} else {
-			cfgParams.ProxyBuffers = proxyBuffers
-		}
+		cfgParams.ProxyBuffers = proxyBuffers
 	}
 
-	// Proxy Buffer Size uses only size format, like "4k".
+	// proxyBufferSize gets validated in k8s/validation.go in annotationValidations
 	if proxyBufferSize, exists := ingEx.Ingress.Annotations["nginx.org/proxy-buffer-size"]; exists {
-		if enableDirectiveAutoadjust {
-			normalizedProxyBufferSize, err := validation.NewSizeWithUnit(proxyBufferSize, enableDirectiveAutoadjust)
-			if err != nil {
-				nl.Errorf(l, "error parsing nginx.org/proxy-buffer-size: %s", err)
-			} else {
-				cfgParams.ProxyBufferSize = normalizedProxyBufferSize
-			}
-		} else {
-			cfgParams.ProxyBufferSize = proxyBufferSize
-		}
+		cfgParams.ProxyBufferSize = proxyBufferSize
 	}
 
-	// Proxy Busy Buffers Size uses only size format, like "8k".
+	// proxyBusyBuffersSize gets validated in k8s/validation.go in annotationValidations
 	if proxyBusyBuffersSize, exists := ingEx.Ingress.Annotations["nginx.org/proxy-busy-buffers-size"]; exists {
-		if enableDirectiveAutoadjust {
-			normalizedProxyBusyBuffersSize, err := validation.NewSizeWithUnit(proxyBusyBuffersSize, enableDirectiveAutoadjust)
-			if err != nil {
-				nl.Errorf(l, "error parsing nginx.org/proxy-busy-buffers-size: %s", err)
-			} else {
-				cfgParams.ProxyBusyBuffersSize = normalizedProxyBusyBuffersSize
-			}
-		} else {
-			cfgParams.ProxyBusyBuffersSize = proxyBusyBuffersSize
-		}
+		cfgParams.ProxyBusyBuffersSize = proxyBusyBuffersSize
 	}
 
 	// Only run balance validation if auto-adjust is enabled

@@ -306,17 +306,6 @@ var (
 func ParseProxyBuffersSpec(s string) (string, error) {
 	s = strings.TrimSpace(s)
 
-	if proxyBuffersRegexp.MatchString(s) {
-		return s, nil
-	}
-	return "", errors.New("invalid proxy buffers string")
-}
-
-// ParseProxyBuffersSpecWithAutoAdjust ensures that the string value is a valid proxy buffer spec
-// If an invalid unit is provided for the size, it auto-adjusts to 'm' (megabytes)
-func ParseProxyBuffersSpecWithAutoAdjust(s string) (string, error) {
-	s = strings.TrimSpace(s)
-
 	// First check if it's already a valid proxy buffer spec
 	if proxyBuffersRegexp.MatchString(s) {
 		return s, nil
@@ -333,9 +322,6 @@ func ParseProxyBuffersSpecWithAutoAdjust(s string) (string, error) {
 		if unit == "" || unit == "k" || unit == "m" {
 			return bufferCount + " " + bufferSize + unit, nil
 		}
-
-		// Auto-adjust invalid units to 'm' (megabytes)
-		return bufferCount + " " + bufferSize + "m", nil
 	}
 
 	return "", errors.New("invalid proxy buffers string")
