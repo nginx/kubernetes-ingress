@@ -14,6 +14,7 @@ import (
 	nic_glog "github.com/nginx/kubernetes-ingress/internal/logger/glog"
 	"github.com/nginx/kubernetes-ingress/internal/logger/levels"
 	"github.com/stretchr/testify/assert"
+	apps_v1 "k8s.io/api/apps/v1"
 	api_v1 "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -146,16 +147,14 @@ func TestCreateHeadlessService(t *testing.T) {
 	configMapNamespace := "default"
 	configMapNamespacedName := fmt.Sprintf("%s/%s", configMapNamespace, configMapName)
 	podName := "test-pod"
-	podLabels := map[string]string{"app": "my-app", "pod-hash": "12345"}
-	svcName := "test-hl-service"
 
-	pod := &api_v1.Pod{
-		ObjectMeta: meta_v1.ObjectMeta{
-			Name:      podName,
-			Namespace: controllerNamespace,
-			Labels:    podLabels,
-		},
+	podLabels := map[string]string{
+		"app.kubernetes.io/name":     "nginx-ingress",
+		"app.kubernetes.io/instance": "my-release",
+		"pod-template-hash":          "abc123",
 	}
+
+	svcName := "test-hl-service"
 
 	configMap := &api_v1.ConfigMap{
 		ObjectMeta: meta_v1.ObjectMeta{
@@ -177,22 +176,75 @@ func TestCreateHeadlessService(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name                 string
-		existingService      *api_v1.Service
-		expectedAction       string
-		expectedSelector     map[string]string
-		expectedOwnerRefs    []meta_v1.OwnerReference
-		initialClientObjects []runtime.Object
+		name                string
+		ownerKind           string
+		controllerName      string
+		controllerSelectors map[string]string
+		expectedSelector    map[string]string
+		existingService     *api_v1.Service
+		expectedAction      string
+		expectedOwnerRefs   []meta_v1.OwnerReference
 	}{
 		{
-			name:                 "Create service if none found",
-			expectedAction:       "create",
-			expectedSelector:     podLabels,
-			expectedOwnerRefs:    expectedOwnerReferences,
-			initialClientObjects: []runtime.Object{pod, configMap},
+			name:           "Create service for ReplicaSet controller",
+			ownerKind:      "ReplicaSet",
+			controllerName: "nginx-ingress-123",
+			controllerSelectors: map[string]string{
+				"app.kubernetes.io/name":     "nginx-ingress",
+				"app.kubernetes.io/instance": "my-release",
+				"pod-template-hash":          "abc123",
+			},
+			// For ReplicaSet, pod-template-hash should be excluded
+			expectedSelector: map[string]string{
+				"app.kubernetes.io/name":     "nginx-ingress",
+				"app.kubernetes.io/instance": "my-release",
+			},
+			expectedAction:    "create",
+			expectedOwnerRefs: expectedOwnerReferences,
 		},
 		{
-			name: "Skip update if labels and ownerReferences are the same",
+			name:           "Create service for DaemonSet controller",
+			ownerKind:      "DaemonSet",
+			controllerName: "nginx-ingress-ds",
+			controllerSelectors: map[string]string{
+				"app.kubernetes.io/name":     "nginx-ingress",
+				"app.kubernetes.io/instance": "my-release",
+			},
+			expectedSelector: map[string]string{
+				"app.kubernetes.io/name":     "nginx-ingress",
+				"app.kubernetes.io/instance": "my-release",
+			},
+			expectedAction:    "create",
+			expectedOwnerRefs: expectedOwnerReferences,
+		},
+		{
+			name:           "Create service for StatefulSet controller",
+			ownerKind:      "StatefulSet",
+			controllerName: "nginx-ingress-sts",
+			controllerSelectors: map[string]string{
+				"app.kubernetes.io/name":     "nginx-ingress",
+				"app.kubernetes.io/instance": "my-release",
+			},
+			expectedSelector: map[string]string{
+				"app.kubernetes.io/name":     "nginx-ingress",
+				"app.kubernetes.io/instance": "my-release",
+			},
+			expectedAction:    "create",
+			expectedOwnerRefs: expectedOwnerReferences,
+		},
+		{
+			name:           "Skip update if selectors match",
+			ownerKind:      "ReplicaSet",
+			controllerName: "nginx-ingress-123",
+			controllerSelectors: map[string]string{
+				"app.kubernetes.io/name":     "nginx-ingress",
+				"app.kubernetes.io/instance": "my-release",
+				"pod-template-hash":          "abc123",
+			},
+			expectedSelector: map[string]string{
+				"app.kubernetes.io/name":     "nginx-ingress",
+				"app.kubernetes.io/instance": "my-release",
+			},
 			existingService: &api_v1.Service{
 				ObjectMeta: meta_v1.ObjectMeta{
 					Name:            svcName,
@@ -200,74 +252,105 @@ func TestCreateHeadlessService(t *testing.T) {
 					OwnerReferences: expectedOwnerReferences,
 				},
 				Spec: api_v1.ServiceSpec{
-					Selector: podLabels,
+					Selector: map[string]string{
+						"app.kubernetes.io/name":     "nginx-ingress",
+						"app.kubernetes.io/instance": "my-release",
+					},
 				},
 			},
-			expectedAction:       "none",
-			expectedSelector:     podLabels,
-			expectedOwnerRefs:    expectedOwnerReferences,
-			initialClientObjects: []runtime.Object{pod, configMap},
+			expectedAction:    "none",
+			expectedOwnerRefs: expectedOwnerReferences,
 		},
 		{
-			name: "Update service if labels differ",
+			name:           "Update service if selectors differ",
+			ownerKind:      "ReplicaSet",
+			controllerName: "nginx-ingress-123",
+			controllerSelectors: map[string]string{
+				"app.kubernetes.io/name":     "nginx-ingress",
+				"app.kubernetes.io/instance": "my-release",
+				"pod-template-hash":          "abc123",
+			},
+			expectedSelector: map[string]string{
+				"app.kubernetes.io/name":     "nginx-ingress",
+				"app.kubernetes.io/instance": "my-release",
+			},
 			existingService: &api_v1.Service{
 				ObjectMeta: meta_v1.ObjectMeta{
 					Name:            svcName,
 					Namespace:       controllerNamespace,
 					OwnerReferences: expectedOwnerReferences,
-				},
-				Spec: api_v1.ServiceSpec{
-					Selector: map[string]string{"pod-hash": "67890"},
-				},
-			},
-			expectedAction:       "update",
-			expectedSelector:     podLabels,
-			expectedOwnerRefs:    expectedOwnerReferences,
-			initialClientObjects: []runtime.Object{pod, configMap},
-		},
-		{
-			name: "Update service if ownerReferences differ",
-			existingService: &api_v1.Service{
-				ObjectMeta: meta_v1.ObjectMeta{
-					Name:      svcName,
-					Namespace: controllerNamespace,
-					OwnerReferences: []meta_v1.OwnerReference{
-						{Name: "old-owner"},
-					},
-				},
-				Spec: api_v1.ServiceSpec{
-					Selector: podLabels,
-				},
-			},
-			expectedAction:       "update",
-			expectedSelector:     podLabels,
-			expectedOwnerRefs:    expectedOwnerReferences,
-			initialClientObjects: []runtime.Object{pod, configMap},
-		},
-		{
-			name: "Update service if both labels and ownerReferences differ",
-			existingService: &api_v1.Service{
-				ObjectMeta: meta_v1.ObjectMeta{
-					Name:      svcName,
-					Namespace: controllerNamespace,
-					OwnerReferences: []meta_v1.OwnerReference{
-						{Name: "old-owner"},
-					},
 				},
 				Spec: api_v1.ServiceSpec{
 					Selector: map[string]string{"old-label": "true"},
 				},
 			},
-			expectedAction:       "update",
-			expectedSelector:     podLabels,
-			expectedOwnerRefs:    expectedOwnerReferences,
-			initialClientObjects: []runtime.Object{pod, configMap},
+			expectedAction:    "update",
+			expectedOwnerRefs: expectedOwnerReferences,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			clientObjects := tc.initialClientObjects
+			// Create pod with owner reference to the controller
+			pod := &api_v1.Pod{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      podName,
+					Namespace: controllerNamespace,
+					Labels:    podLabels,
+					OwnerReferences: []meta_v1.OwnerReference{
+						{
+							APIVersion: "apps/v1",
+							Kind:       tc.ownerKind,
+							Name:       tc.controllerName,
+							UID:        types.UID("controller-uid-123"),
+							Controller: commonhelpers.BoolToPointerBool(true),
+						},
+					},
+				},
+			}
+
+			// Create the appropriate controller object
+			var controllerObj runtime.Object
+			switch tc.ownerKind {
+			case "ReplicaSet":
+				controllerObj = &apps_v1.ReplicaSet{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      tc.controllerName,
+						Namespace: controllerNamespace,
+					},
+					Spec: apps_v1.ReplicaSetSpec{
+						Selector: &meta_v1.LabelSelector{
+							MatchLabels: tc.controllerSelectors,
+						},
+					},
+				}
+			case "DaemonSet":
+				controllerObj = &apps_v1.DaemonSet{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      tc.controllerName,
+						Namespace: controllerNamespace,
+					},
+					Spec: apps_v1.DaemonSetSpec{
+						Selector: &meta_v1.LabelSelector{
+							MatchLabels: tc.controllerSelectors,
+						},
+					},
+				}
+			case "StatefulSet":
+				controllerObj = &apps_v1.StatefulSet{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      tc.controllerName,
+						Namespace: controllerNamespace,
+					},
+					Spec: apps_v1.StatefulSetSpec{
+						Selector: &meta_v1.LabelSelector{
+							MatchLabels: tc.controllerSelectors,
+						},
+					},
+				}
+			}
+
+			clientObjects := []runtime.Object{pod, configMap, controllerObj}
 			if tc.existingService != nil {
 				clientObjects = append(clientObjects, tc.existingService)
 			}

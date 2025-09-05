@@ -144,6 +144,11 @@ func (lbc *LoadBalancerController) syncZoneSyncHeadlessService(svcName string) e
 			return nil
 		}
 
+		selectors, err := CreateUniformSelectorsFromController(lbc.client, lbc.metadata.pod)
+		if err != nil {
+			return err
+		}
+
 		newSvc := &v1.Service{
 			ObjectMeta: meta_v1.ObjectMeta{
 				Name:      svcName,
@@ -161,12 +166,16 @@ func (lbc *LoadBalancerController) syncZoneSyncHeadlessService(svcName string) e
 			},
 			Spec: v1.ServiceSpec{
 				ClusterIP: v1.ClusterIPNone,
-				Selector:  lbc.metadata.pod.Labels,
+				Selector:  selectors,
 			},
 		}
 
 		createdSvc, err := lbc.client.CoreV1().Services(lbc.metadata.namespace).Create(context.Background(), newSvc, meta_v1.CreateOptions{})
 		if err != nil {
+			if apierrors.IsAlreadyExists(err) {
+				nl.Infof(lbc.Logger, "headless service already created by another pod: %s/%s", lbc.metadata.namespace, svcName)
+				return nil
+			}
 			lbc.recorder.Eventf(lbc.metadata.pod, v1.EventTypeWarning, nl.EventReasonServiceFailedToCreate, "error creating headless service: %v", err)
 			return fmt.Errorf("error creating headless service: %w", err)
 		}

@@ -97,6 +97,8 @@ def service_exists(v1, cli_arguments, namespace) -> bool:
     service_name = f"{DEPLOYMENT_NAME}-replicaset-hl"
     if deployment_type == "daemon-set":
         service_name = f"{DEPLOYMENT_NAME}-daemonset-hl"
+    elif deployment_type == "stateful-set":
+        service_name = f"{DEPLOYMENT_NAME}-statefulset-hl"
 
     try:
         svc = read_service(v1, service_name, namespace)
