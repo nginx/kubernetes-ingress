@@ -1,10 +1,9 @@
-package validation_test
+package validation
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/nginx/kubernetes-ingress/internal/validation"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"github.com/stretchr/testify/assert"
 )
@@ -108,7 +107,7 @@ func TestNewSizeWithUnit(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := validation.NewSizeWithUnit(tt.sizeStr, true)
+			got, err := NewSizeWithUnit(tt.sizeStr, true)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Newvalidation.SizeWithUnit() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -164,7 +163,7 @@ func TestNewNumberSizeConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := validation.NewNumberSizeConfig(tt.sizeStr, true)
+			got, err := newNumberSizeConfig(tt.sizeStr, true)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Newvalidation.NumberSizeConfig() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -492,22 +491,22 @@ func TestBalanceProxyValues(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pb, err := validation.NewNumberSizeConfig(tt.args.proxyBuffers, true)
+			pb, err := newNumberSizeConfig(tt.args.proxyBuffers, true)
 			if err != nil {
 				t.Fatalf("Failed to parse proxyBuffers: %v", err)
 			}
 
-			pbs, err := validation.NewSizeWithUnit(tt.args.proxyBufferSize, true)
+			pbs, err := NewSizeWithUnit(tt.args.proxyBufferSize, true)
 			if err != nil {
 				t.Fatalf("Failed to parse proxyBufferSize: %v", err)
 			}
 
-			pbbs, err := validation.NewSizeWithUnit(tt.args.proxyBusyBuffersSize, true)
+			pbbs, err := NewSizeWithUnit(tt.args.proxyBusyBuffersSize, true)
 			if err != nil {
 				t.Fatalf("Failed to parse proxyBusyBuffers: %v", err)
 			}
 
-			gotProxyBuffers, gotProxyBufferSize, gotProxyBusyBufferSize, m, err := validation.BalanceProxyValues(pb, pbs, pbbs, true)
+			gotProxyBuffers, gotProxyBufferSize, gotProxyBusyBufferSize, m, err := BalanceProxyValues(pb, pbs, pbbs, true)
 
 			assert.NoError(t, err)
 
@@ -816,7 +815,7 @@ func TestBalanceProxiesForUpstreams(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validation.BalanceProxiesForUpstreams(tt.upstream, tt.autoadjust)
+			err := BalanceProxiesForUpstreams(tt.upstream, tt.autoadjust)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("BalanceProxiesForUpstreams() error = %v, wantErr %v", err, tt.wantErr)

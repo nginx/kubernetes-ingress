@@ -86,9 +86,9 @@ func NewSizeWithUnit(sizeStr string, normalize bool) (string, error) {
 	return fmt.Sprintf("%d%s", num, unit), nil
 }
 
-// NewNumberSizeConfig creates a normalized string from a string representation.
+// newNumberSizeConfig creates a normalized string from a string representation.
 // If normalize is false, returns the original string after basic validation.
-func NewNumberSizeConfig(sizeStr string, normalize bool) (string, error) {
+func newNumberSizeConfig(sizeStr string, normalize bool) (string, error) {
 	sizeStr = strings.ToLower(strings.TrimSpace(sizeStr))
 	if sizeStr == "" {
 		return "", nil
@@ -329,7 +329,7 @@ func BalanceProxiesForUpstreams(in *conf_v1.Upstream, autoadjust bool) error {
 		return nil
 	}
 
-	pb, err := NewNumberSizeConfig(fmt.Sprintf("%d %s", in.ProxyBuffers.Number, in.ProxyBuffers.Size), autoadjust)
+	pb, err := newNumberSizeConfig(fmt.Sprintf("%d %s", in.ProxyBuffers.Number, in.ProxyBuffers.Size), autoadjust)
 	if err != nil {
 		// if there's an error, set it to default `8 4k`
 		pb = "8 4k"
