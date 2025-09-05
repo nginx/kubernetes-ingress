@@ -229,9 +229,7 @@ func ParseOffset(s string) (string, error) {
 // SizeFmt http://nginx.org/en/docs/syntax.html
 const SizeFmt = `\d+[kKmM]?`
 
-var (
-	sizeRegexp = regexp.MustCompile("^" + SizeFmt + "$")
-)
+var sizeRegexp = regexp.MustCompile("^" + SizeFmt + "$")
 
 // ParseSize ensures that the string value is a valid size
 func ParseSize(s string) (string, error) {
