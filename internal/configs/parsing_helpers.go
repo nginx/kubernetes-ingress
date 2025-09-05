@@ -230,8 +230,7 @@ func ParseOffset(s string) (string, error) {
 const SizeFmt = `\d+[kKmM]?`
 
 var (
-	sizeRegexp            = regexp.MustCompile("^" + SizeFmt + "$")
-	sizeWithAnyUnitRegexp = regexp.MustCompile(`^(\d+)([a-zA-Z]?)$`)
+	sizeRegexp = regexp.MustCompile("^" + SizeFmt + "$")
 )
 
 // ParseSize ensures that the string value is a valid size
@@ -241,34 +240,6 @@ func ParseSize(s string) (string, error) {
 	if sizeRegexp.MatchString(s) {
 		return s, nil
 	}
-	return "", errors.New("invalid size string")
-}
-
-// ParseSizeWithAutoAdjust ensures that the string value is a valid size
-// If an invalid unit is provided, it auto-adjusts to 'm' (megabytes)
-func ParseSizeWithAutoAdjust(s string) (string, error) {
-	s = strings.TrimSpace(s)
-
-	// First check if it's already a valid size
-	if sizeRegexp.MatchString(s) {
-		return s, nil
-	}
-
-	// Check if it matches number + any letter pattern for auto-adjustment
-	match := sizeWithAnyUnitRegexp.FindStringSubmatch(s)
-	if match != nil {
-		number := match[1]
-		unit := strings.ToLower(match[2])
-
-		// If unit is empty or valid, use as-is
-		if unit == "" || unit == "k" || unit == "m" {
-			return number + unit, nil
-		}
-
-		// Auto-adjust invalid units to 'm' (megabytes)
-		return number + "m", nil
-	}
-
 	return "", errors.New("invalid size string")
 }
 

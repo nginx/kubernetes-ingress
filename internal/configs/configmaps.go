@@ -335,54 +335,38 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 	}
 
 	if proxyBuffers, exists := cfgm.Data["proxy-buffers"]; exists {
-		if enableDirectiveAutoadjust {
-			proxyBuffersData, err := validation.NewNumberSizeConfig(proxyBuffers, enableDirectiveAutoadjust)
-			if err != nil {
-				wrappedError := fmt.Errorf("ConfigMap %s/%s: invalid value for 'proxy-buffers': %w", cfgm.GetNamespace(), cfgm.GetName(), err)
+		if parsedProxyBuffers, err := ParseProxyBuffersSpec(proxyBuffers); err != nil {
+			wrappedError := fmt.Errorf("ConfigMap %s/%s: invalid value for 'proxy-buffers': %w", cfgm.GetNamespace(), cfgm.GetName(), err)
 
-				nl.Errorf(l, "%s", wrappedError.Error())
-				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, wrappedError.Error())
-				configOk = false
-			} else {
-				cfgParams.ProxyBuffers = proxyBuffersData
-			}
+			nl.Errorf(l, "%s", wrappedError.Error())
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, wrappedError.Error())
+			configOk = false
 		} else {
-			cfgParams.ProxyBuffers = proxyBuffers
+			cfgParams.ProxyBuffers = parsedProxyBuffers
 		}
 	}
 
 	if proxyBufferSize, exists := cfgm.Data["proxy-buffer-size"]; exists {
-		if enableDirectiveAutoadjust {
-			proxyBufferSizeData, err := validation.NewSizeWithUnit(proxyBufferSize, enableDirectiveAutoadjust)
-			if err != nil {
-				wrappedError := fmt.Errorf("ConfigMap %s/%s: invalid value for 'proxy-buffer-size': %w", cfgm.GetNamespace(), cfgm.GetName(), err)
+		if parsedProxyBufferSize, err := ParseSize(proxyBufferSize); err != nil {
+			wrappedError := fmt.Errorf("ConfigMap %s/%s: invalid value for 'proxy-buffer-size': %w", cfgm.GetNamespace(), cfgm.GetName(), err)
 
-				nl.Errorf(l, "%s", wrappedError.Error())
-				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, wrappedError.Error())
-				configOk = false
-			} else {
-				cfgParams.ProxyBufferSize = proxyBufferSizeData
-			}
+			nl.Errorf(l, "%s", wrappedError.Error())
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, wrappedError.Error())
+			configOk = false
 		} else {
-			cfgParams.ProxyBufferSize = proxyBufferSize
+			cfgParams.ProxyBufferSize = parsedProxyBufferSize
 		}
 	}
 
-	// Proxy Busy Buffers Size uses only size format, like "8k".
 	if proxyBusyBuffersSize, exists := cfgm.Data["proxy-busy-buffers-size"]; exists {
-		if enableDirectiveAutoadjust {
-			proxyBusyBufferSizeUnit, err := validation.NewSizeWithUnit(proxyBusyBuffersSize, enableDirectiveAutoadjust)
-			if err != nil {
-				wrappedError := fmt.Errorf("ConfigMap %s/%s: invalid value for 'proxy-busy-buffers-size': %w", cfgm.GetNamespace(), cfgm.GetName(), err)
+		if parsedProxyBusyBuffersSize, err := ParseSize(proxyBusyBuffersSize); err != nil {
+			wrappedError := fmt.Errorf("ConfigMap %s/%s: invalid value for 'proxy-busy-buffers-size': %w", cfgm.GetNamespace(), cfgm.GetName(), err)
 
-				nl.Errorf(l, "%s", wrappedError.Error())
-				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, wrappedError.Error())
-				configOk = false
-			} else {
-				cfgParams.ProxyBusyBuffersSize = proxyBusyBufferSizeUnit
-			}
+			nl.Errorf(l, "%s", wrappedError.Error())
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, wrappedError.Error())
+			configOk = false
 		} else {
-			cfgParams.ProxyBusyBuffersSize = proxyBusyBuffersSize
+			cfgParams.ProxyBusyBuffersSize = parsedProxyBusyBuffersSize
 		}
 	}
 

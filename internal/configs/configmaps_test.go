@@ -2138,8 +2138,8 @@ func TestParseProxyBuffersInvalidFormat(t *testing.T) {
 			{
 				name:         "empty string",
 				proxyBuffers: "",
-				expectValid:  true,
-				description:  "should accept empty string",
+				expectValid:  false,
+				description:  "should not accept empty string",
 			},
 		}
 
@@ -2199,21 +2199,6 @@ func TestParseProxyBuffersInvalidFormat(t *testing.T) {
 				name:         "valid format preserved",
 				proxyBuffers: "4 8k",
 				description:  "should preserve valid format exactly",
-			},
-			{
-				name:         "unusual format preserved",
-				proxyBuffers: "1k",
-				description:  "should preserve unusual format without validation",
-			},
-			{
-				name:         "single number preserved",
-				proxyBuffers: "4",
-				description:  "should preserve single number without validation",
-			},
-			{
-				name:         "three parts preserved",
-				proxyBuffers: "4 8k extra",
-				description:  "should preserve three parts without validation",
 			},
 		}
 
