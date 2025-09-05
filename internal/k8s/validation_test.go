@@ -1742,7 +1742,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			internalRoutesEnabled: false,
 			directiveAutoAdjust:   false,
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-buffer-size: Invalid value: "not_a_size": must be a size`,
+				`annotations.nginx.org/proxy-buffer-size: Invalid value: "not_a_size": must consist of numeric characters followed by a valid size suffix. 'k|K|m|M (e.g. '16',  or '32k',  or '64M', regex used for validation is '\d+[kKmM]?')`,
 			},
 			msg: "invalid nginx.org/proxy-buffer-size annotation",
 		},
@@ -1771,7 +1771,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			internalRoutesEnabled: false,
 			directiveAutoAdjust:   false,
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-max-temp-file-size: Invalid value: "not_a_size": must be a size`,
+				`annotations.nginx.org/proxy-max-temp-file-size: Invalid value: "not_a_size": must consist of numeric characters followed by a valid size suffix. 'k|K|m|M (e.g. '16',  or '32k',  or '64M', regex used for validation is '\d+[kKmM]?')`,
 			},
 			msg: "invalid nginx.org/proxy-max-temp-file-size annotation",
 		},
@@ -1800,7 +1800,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			internalRoutesEnabled: false,
 			directiveAutoAdjust:   false,
 			expectedErrors: []string{
-				`annotations.nginx.org/upstream-zone-size: Invalid value: "not a size": must be a size`,
+				`annotations.nginx.org/upstream-zone-size: Invalid value: "not a size": must consist of numeric characters followed by a valid size suffix. 'k|K|m|M (e.g. '16',  or '32k',  or '64M', regex used for validation is '\d+[kKmM]?')`,
 			},
 			msg: "invalid nginx.org/upstream-zone-size annotation",
 		},
