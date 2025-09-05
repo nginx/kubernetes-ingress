@@ -1,6 +1,6 @@
 module github.com/nginx/kubernetes-ingress
 
-go 1.24.4
+go 1.25.1
 
 require (
 	github.com/aws/aws-sdk-go-v2/config v1.31.3
@@ -12,8 +12,8 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/gruntwork-io/terratest v0.50.0
 	github.com/jinzhu/copier v0.4.0
-	github.com/nginx/nginx-plus-go-client/v2 v2.4.0
-	github.com/nginx/nginx-prometheus-exporter v1.4.2
+	github.com/nginx/nginx-plus-go-client/v3 v3.0.0
+	github.com/nginx/nginx-prometheus-exporter v1.5.0
 	github.com/nginx/telemetry-exporter v0.1.4
 	github.com/nginxinc/nginx-service-mesh v1.7.0
 	github.com/prometheus/client_golang v1.23.0
