@@ -351,10 +351,10 @@
                     },
                     "tag": {
                       "type": "string",
-                      "default": "5.6.0",
+                      "default": "5.8.0",
                       "title": "The tag of the  App Protect WAF v5 Enforcer image",
                       "examples": [
-                        "5.6.0"
+                        "5.8.0"
                       ]
                     },
                     "digest": {
@@ -391,7 +391,7 @@
                   "examples": [
                     {
                       "repository": "private-registry.nginx.com/nap/waf-enforcer",
-                      "tag": "5.6.0",
+                      "tag": "5.8.0",
                       "pullPolicy": "IfNotPresent"
                     }
                   ]
@@ -425,10 +425,10 @@
                     },
                     "tag": {
                       "type": "string",
-                      "default": "5.6.0",
+                      "default": "5.8.0",
                       "title": "The tag of the  App Protect WAF v5 Config Manager image",
                       "examples": [
-                        "5.6.0"
+                        "5.8.0"
                       ]
                     },
                     "digest": {
@@ -465,7 +465,7 @@
                   "examples": [
                     {
                       "repository": "private-registry.nginx.com/nap/waf-config-mgr",
-                      "tag": "5.6.0",
+                      "tag": "5.8.0",
                       "pullPolicy": "IfNotPresent"
                     }
                   ]
@@ -657,6 +657,15 @@
             "json"
           ]
         },
+        "directiveAutoAdjust": {
+          "type": "boolean",
+          "default": false,
+          "title": "Enables automatic adjustment of the NGINX buffers directives",
+          "examples": [
+            false,
+            true
+          ]
+        },
         "customPorts": {
           "type": "array",
           "default": [],
@@ -698,10 +707,10 @@
             },
             "tag": {
               "type": "string",
-              "default": "5.1.0",
+              "default": "5.1.1",
               "title": "The tag of the Ingress Controller image",
               "examples": [
-                "5.1.0"
+                "5.1.1"
               ]
             },
             "digest": {
@@ -738,7 +747,7 @@
           "examples": [
             {
               "repository": "nginx/nginx-ingress",
-              "tag": "5.1.0",
+              "tag": "5.1.1",
               "pullPolicy": "IfNotPresent"
             }
           ]
@@ -1115,6 +1124,14 @@
                 false
               ]
             },
+            "customName": {
+              "type": "string",
+              "default": "",
+              "title": "The customName Schema",
+              "examples": [
+                "the-namespace/the-name-of-the-global-configuration-custom-resource"
+              ]
+            },
             "spec": {
               "type": "object",
               "default": {},
@@ -1455,6 +1472,50 @@
                 "type": "object",
                 "ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServicePort"
               }
+            },
+            "sessionAffinity": {
+              "type": "object",
+              "default": {},
+              "title": "The sessionAffinity Schema",
+              "required": [],
+              "properties": {
+                "enable": {
+                  "type": "boolean",
+                  "default": false,
+                  "title": "Enable session affinity",
+                  "examples": [
+                    false
+                  ]
+                },
+                "type": {
+                  "type": "string",
+                  "default": "ClientIP",
+                  "title": "Session affinity type",
+                  "enum": [
+                    "ClientIP"
+                  ],
+                  "examples": [
+                    "ClientIP"
+                  ]
+                },
+                "timeoutSeconds": {
+                  "type": "integer",
+                  "default": 3600,
+                  "title": "Session affinity timeout in seconds",
+                  "minimum": 1,
+                  "maximum": 86400,
+                  "examples": [
+                    3600
+                  ]
+                }
+              },
+              "examples": [
+                {
+                  "enable": false,
+                  "type": "ClientIP",
+                  "timeoutSeconds": 3600
+                }
+              ]
             }
           },
           "examples": [
@@ -1483,7 +1544,12 @@
                 "targetPort": 443,
                 "name": "https"
               },
-              "customPorts": []
+              "customPorts": [],
+              "sessionAffinity": {
+                "enable": false,
+                "type": "ClientIP",
+                "timeoutSeconds": 3600
+              }
             }
           ]
         },
@@ -1953,7 +2019,7 @@
               "port": 50000,
               "image": {
                 "repository": "private-registry.nginx.com/nap/waf-enforcer",
-                "tag": "5.6.0",
+                "tag": "5.8.0",
                 "pullPolicy": "IfNotPresent"
               },
               "securityContext": {}
@@ -1961,7 +2027,7 @@
             "configManager": {
               "image": {
                 "repository": "private-registry.nginx.com/nap/waf-config-mgr",
-                "tag": "5.6.0",
+                "tag": "5.8.0",
                 "pullPolicy": "IfNotPresent"
               },
               "securityContext": {
@@ -2001,7 +2067,7 @@
           "customPorts": [],
           "image": {
             "repository": "nginx/nginx-ingress",
-            "tag": "5.1.0",
+            "tag": "5.1.1",
             "digest": "",
             "pullPolicy": "IfNotPresent"
           },
@@ -2596,7 +2662,7 @@
             "port": 50000,
             "image": {
               "repository": "private-registry.nginx.com/nap/waf-enforcer",
-              "tag": "5.6.0",
+              "tag": "5.8.0",
               "pullPolicy": "IfNotPresent"
             },
             "securityContext": {}
@@ -2604,7 +2670,7 @@
           "configManager": {
             "image": {
               "repository": "private-registry.nginx.com/nap/waf-config-mgr",
-              "tag": "5.6.0",
+              "tag": "5.8.0",
               "pullPolicy": "IfNotPresent"
             },
             "securityContext": {
@@ -2644,7 +2710,7 @@
         "customPorts": [],
         "image": {
           "repository": "nginx/nginx-ingress",
-          "tag": "5.1.0",
+          "tag": "5.1.1",
           "digest": "",
           "pullPolicy": "IfNotPresent"
         },

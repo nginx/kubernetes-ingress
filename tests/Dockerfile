@@ -1,11 +1,11 @@
 # syntax=docker/dockerfile:1.16
 # this is here so we can grab the latest version of kind and have dependabot keep it up to date
-FROM kindest/node:v1.33.2@sha256:c55080dc5be4f2cc242e6966fdf97bb62282e1cd818a28223cf536db8b0fddf4
+FROM kindest/node:v1.33.4@sha256:25a6018e48dfcaee478f4a59af81157a437f15e6e140bf103f85a2e7cd0cbbf2
 
 # this is here so we can grab the latest version of skopeo and have dependabot keep it up to date
-FROM quay.io/skopeo/stable:v1.19.0
+FROM quay.io/skopeo/stable:v1.19.0@sha256:77e6c8901f6976bdfa87b8b14c40b96de754794c492d8ed295f77fba1454a4ab
 
-FROM python:3.13@sha256:68d0775234842868248bfe185eece56e725d3cb195f511a21233d0f564dee501
+FROM python:3.13-bookworm@sha256:aba8a0cd72f259c2737c8a47050652036c8bc8266a4f39291523a45cf8081960
 
 RUN apt-get update \
 	&& apt-get install -y curl git apache2-utils \
@@ -25,6 +25,7 @@ RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s
     && curl https://get.docker.com/builds/Linux/x86_64/docker-latest.tgz | tar xvz -C /tmp/ && mv /tmp/docker/docker /usr/bin/docker
 
 RUN pip install --require-hashes -r requirements.txt --no-deps
-RUN playwright install --with-deps chromium
+RUN playwright install chromium
+RUN playwright install-deps chromium
 
 ENTRYPOINT ["python3", "-m", "pytest"]

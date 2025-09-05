@@ -314,7 +314,7 @@ jobs:
   #   needs: [variables,publish-helm-chart]
   #   steps:
   #     - name:
-  #       uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+  #       uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
   #       with:
   #         github-token: ${{ secrets.NGINX_PAT }}
   #         script: |
@@ -339,7 +339,7 @@ jobs:
   #   needs: [publish-helm-chart,release-plus-gcr-mktpl]
   #   steps:
   #     - name:
-  #       uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+  #       uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
   #       with:
   #         github-token: ${{ secrets.NGINX_PAT }}
   #         script: |
@@ -361,7 +361,7 @@ jobs:
   #   needs: [publish-helm-chart,release-plus-azure-mktpl]
   #   steps:
   #     - name:
-  #       uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+  #       uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
   #       with:
   #         github-token: ${{ secrets.NGINX_PAT }}
   #         script: |
@@ -448,7 +448,7 @@ jobs:
 
       - name: Download Syft
         id: syft
-        uses: anchore/sbom-action/download-syft@7b36ad622f042cab6f59a75c2ac24ccb256e9b45 # v0.20.4
+        uses: anchore/sbom-action/download-syft@da167eac915b4e86f08b264dbdbc867b61be6f0c # v0.20.5
         if: ${{ needs.variables.outputs.binary_cache_sign_hit != 'true' }}
 
       - name: Install Cosign
@@ -584,7 +584,7 @@ jobs:
           echo "release_id=${release_id}" >> $GITHUB_OUTPUT
 
       - name: Publish Github Release
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           script: |
             const {RELEASE_ID} = process.env
