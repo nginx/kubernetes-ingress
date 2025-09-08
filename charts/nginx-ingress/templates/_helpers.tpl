@@ -391,14 +391,17 @@ List of volumes for controller.
 {{- if eq (include "nginx-ingress.readOnlyRootFilesystem" .) "true" }}
 - name: nginx-etc
   emptyDir: {}
-- name: nginx-cache
-  emptyDir: {}
 - name: nginx-lib
   emptyDir: {}
 - name: nginx-state
   emptyDir: {}
 - name: nginx-log
   emptyDir: {}
+{{- /* For StatefulSet, nginx-cache volume is always provided via volumeClaimTemplates */ -}}
+{{- if ne .Values.controller.kind "statefulset" }}
+- name: nginx-cache
+  emptyDir: {}
+{{- end }}
 {{- end }}
 {{- if .Values.controller.appprotect.v5 }}
 {{ toYaml .Values.controller.appprotect.volumes }}
@@ -458,6 +461,9 @@ volumeMounts:
   name: nginx-state
 - mountPath: /var/log/nginx
   name: nginx-log
+{{- else if eq .Values.controller.kind "statefulset" }}
+- mountPath: /var/cache/nginx
+  name: nginx-cache
 {{- end }}
 {{- if .Values.controller.appprotect.v5 }}
 - name: app-protect-bd-config
