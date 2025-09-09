@@ -97,6 +97,54 @@ jobs:
           echo build_tag: ${{ steps.vars.outputs.build_tag }}
           echo stable_tag: ${{ steps.vars.outputs.stable_tag }}
 
+  govulncheck:
+    name: Run govulncheck
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
+    needs: [checks]
+    env:
+      GOPROXY: ${{ needs.checks.outputs.go_proxy }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Setup Golang Environment
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Setup netrc
+        run: |
+          cat <<EOF > $HOME/.netrc
+          machine azr.artifactory.f5net.com
+              login ${{ secrets.ARTIFACTORY_USER }}
+              password ${{ secrets.ARTIFACTORY_TOKEN }}
+          EOF
+          chmod 600 $HOME/.netrc
+
+      - name: govulncheck
+        uses: golang/govulncheck-action@b625fbe08f3bccbe446d94fbf87fcc875a4f50ee # v1.0.4
+        with:
+          output-format: sarif
+          output-file: govulncheck.sarif
+
+      - name: Check SARIF file
+        id: check-sarif
+        run: |
+          if [ -s govulncheck.sarif ] && grep -q '"results":' govulncheck.sarif; then
+            echo "sarif_has_results=true" >> $GITHUB_OUTPUT
+          else
+            echo "sarif_has_results=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@f1f6e5f6af878fb37288ce1c627459e94dbf7d01 # v3.30.1
+        if: steps.check-sarif.outputs.sarif_has_results == 'true'
+        with:
+          sarif_file: govulncheck.sarif
+
   binaries:
     name: Build Binaries
     runs-on: ubuntu-24.04-amd64
@@ -145,3 +193,87 @@ jobs:
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ needs.checks.outputs.go_code_md5 }}
+
+  build-docker:
+    name: Build Docker OSS
+    needs: [checks, binaries]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_oss ) }}
+    uses: ./.github/workflows/build-oss.yml
+    with:
+      platforms: ${{ matrix.platforms }}
+      image: ${{ matrix.image }}
+      go-md5: ${{ needs.checks.outputs.go_code_md5 }}
+      base-image-md5: ${{ needs.checks.outputs.docker_md5 }}
+      authenticated: true
+      tag: ${{ needs.checks.outputs.build_tag }}
+      branch: ${{ github.ref }}
+      ic-version: ${{ needs.checks.outputs.ic_version }}
+      full-build: true
+      runner: "ubuntu-24.04-amd64"
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+      id-token: write
+      packages: write
+      pull-requests: write # for scout report
+    secrets: inherit
+
+  build-docker-plus:
+    name: Build Docker Plus
+    needs: [checks, binaries]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_plus ) }}
+    uses: ./.github/workflows/build-plus.yml
+    with:
+      platforms: ${{ matrix.platforms }}
+      image: ${{ matrix.image }}
+      target: ${{ matrix.target }}
+      go-md5: ${{ needs.checks.outputs.go_code_md5 }}
+      base-image-md5: ${{ needs.checks.outputs.docker_md5 }}
+      authenticated: true
+      tag: ${{ needs.checks.outputs.build_tag }}
+      branch: ${{ github.ref }}
+      ic-version: ${{ needs.checks.outputs.ic_version }}
+      full-build: true
+      runner: "ubuntu-24.04-amd64"
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+      id-token: write
+      packages: write
+      pull-requests: write # for scout report
+    secrets: inherit
+
+  build-docker-nap:
+    name: Build Docker NAP
+    needs: [checks, binaries]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_nap ) }}
+    uses: ./.github/workflows/build-plus.yml
+    with:
+      platforms: ${{ matrix.platforms }}
+      image: ${{ matrix.image }}
+      target: ${{ matrix.target }}
+      go-md5: ${{ needs.checks.outputs.go_code_md5 }}
+      base-image-md5: ${{ needs.checks.outputs.docker_md5 }}
+      nap-modules: ${{ matrix.nap_modules }}
+      authenticated: true
+      tag: ${{ needs.checks.outputs.build_tag }}
+      branch: ${{ github.ref }}
+      ic-version: ${{ needs.checks.outputs.ic_version }}
+      full-build: true
+      runner: "ubuntu-24.04-amd64"
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+      id-token: write
+      packages: write
+      pull-requests: write # for scout report
+    secrets: inherit
