@@ -35,11 +35,13 @@
           "title": "The kind of the Ingress Controller",
           "enum": [
             "deployment",
-            "daemonset"
+            "daemonset",
+            "statefulset"
           ],
           "examples": [
             "deployment",
-            "daemonset"
+            "daemonset",
+            "statefulset"
           ]
         },
         "selectorLabels": {
@@ -657,6 +659,15 @@
             "json"
           ]
         },
+        "directiveAutoAdjust": {
+          "type": "boolean",
+          "default": false,
+          "title": "Enables automatic adjustment of the NGINX buffers directives",
+          "examples": [
+            false,
+            true
+          ]
+        },
         "customPorts": {
           "type": "array",
           "default": [],
@@ -984,6 +995,55 @@
               }
             }
           ]
+        },
+        "statefulset": {
+          "type": "object",
+          "default": {},
+          "title": "The StatefulSet configuration Schema",
+          "properties": {
+            "podManagementPolicy": {
+              "type": "string",
+              "default": "OrderedReady",
+              "title": "The pod management policy",
+              "enum": [
+                "OrderedReady",
+                "Parallel"
+              ]
+            },
+            "persistentVolumeClaimRetentionPolicy": {
+              "type": "object",
+              "default": {},
+              "title": "The persistentVolumeClaimRetentionPolicy Schema",
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.apps.v1.StatefulSetPersistentVolumeClaimRetentionPolicy"
+            },
+            "nginxCachePVC": {
+              "type": "object",
+              "default": {},
+              "title": "The nginxCachePVC Schema",
+              "properties": {
+                "size": {
+                  "type": "string",
+                  "default": "256Mi",
+                  "title": "The size Schema",
+                  "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.apimachinery.pkg.api.resource.Quantity"
+                },
+                "storageClass": {
+                  "type": "string",
+                  "title": "The storageClass Schema",
+                  "default": "",
+                  "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.PersistentVolumeClaimSpec/properties/storageClassName"
+                },
+                "accessModes": {
+                  "type": "array",
+                  "default": [
+                    "ReadWriteOnce"
+                  ],
+                  "title": "The accessModes Schema",
+                  "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.PersistentVolumeClaimSpec/properties/accessModes"
+                }
+              }
+            }
+          }
         },
         "extraContainers": {
           "type": "array",

@@ -34,7 +34,7 @@ import (
 	cr_validation "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
 	k8s_nginx "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned"
 	conf_scheme "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/scheme"
-	"github.com/nginx/nginx-plus-go-client/v2/client"
+	"github.com/nginx/nginx-plus-go-client/v3/client"
 	nginxCollector "github.com/nginx/nginx-prometheus-exporter/collector"
 	"github.com/prometheus/client_golang/prometheus"
 	api_v1 "k8s.io/api/core/v1"
@@ -221,6 +221,7 @@ func main() {
 		EnableCertManager:              *enableCertManager,
 		DynamicSSLReload:               *enableDynamicSSLReload,
 		DynamicWeightChangesReload:     *enableDynamicWeightChangesReload,
+		IsDirectiveAutoadjustEnabled:   *enableDirectiveAutoadjust,
 		StaticSSLPath:                  staticSSLPath,
 		NginxVersion:                   nginxVersion,
 		AppProtectBundlePath:           appProtectBundlePath,
@@ -274,6 +275,7 @@ func main() {
 		cr_validation.IsDosEnabled(*appProtectDos),
 		cr_validation.IsCertManagerEnabled(*enableCertManager),
 		cr_validation.IsExternalDNSEnabled(*enableExternalDNS),
+		cr_validation.IsDirectiveAutoadjustEnabled(*enableDirectiveAutoadjust),
 	)
 
 	if *enableServiceInsight {
@@ -324,6 +326,7 @@ func main() {
 		CertManagerEnabled:           *enableCertManager,
 		ExternalDNSEnabled:           *enableExternalDNS,
 		IsIPV6Disabled:               *disableIPV6,
+		IsDirectiveAutoadjustEnabled: *enableDirectiveAutoadjust,
 		WatchNamespaceLabel:          *watchNamespaceLabel,
 		EnableTelemetryReporting:     *enableTelemetryReporting,
 		TelemetryReportingEndpoint:   telemetryEndpoint,
@@ -996,7 +999,7 @@ func processConfigMaps(kubeClient *kubernetes.Clientset, cfgParams *configs.Conf
 		if err != nil {
 			nl.Fatalf(l, "Error when getting %v: %v", *nginxConfigMaps, err)
 		}
-		cfgParams, _ = configs.ParseConfigMap(cfgParams.Context, cfm, *nginxPlus, *appProtect, *appProtectDos, *enableTLSPassthrough, eventLog)
+		cfgParams, _ = configs.ParseConfigMap(cfgParams.Context, cfm, *nginxPlus, *appProtect, *appProtectDos, *enableTLSPassthrough, *enableDirectiveAutoadjust, eventLog)
 		if cfgParams.MainServerSSLDHParamFileContent != nil {
 			fileName, err := nginxManager.CreateDHParam(*cfgParams.MainServerSSLDHParamFileContent)
 			if err != nil {
@@ -1120,7 +1123,11 @@ func createHeadlessService(l *slog.Logger, kubeClient kubernetes.Interface, cont
 		return err
 	}
 
-	requiredSelectors := pod.Labels
+	// Create uniform selector labels across deployment types (ReplicaSet, DaemonSet, StatefulSet)
+	requiredSelectors, err := k8s.CreateUniformSelectorsFromController(kubeClient, pod)
+	if err != nil {
+		return err
+	}
 	requiredOwnerReferences := []meta_v1.OwnerReference{
 		{
 			APIVersion:         "v1",

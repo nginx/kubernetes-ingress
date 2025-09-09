@@ -1,0 +1,13 @@
+controller:
+  kind: statefulset
+  statefulset:
+    podManagementPolicy: "Parallel"
+    persistentVolumeClaimRetentionPolicy:
+      whenDeleted: "Delete"
+      whenScaled: "Delete"
+    nginxCachePVC:
+      size: "2Gi"
+      # storageClass is intentionally omitted to test empty storageClass behavior
+      #  storageClass: "premium-rwx"
+      accessModes:
+      - "ReadWriteMany"

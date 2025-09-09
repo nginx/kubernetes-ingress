@@ -79,7 +79,7 @@ func TestValidateIngress_WithValidPathRegexValuesForNGINXPlus(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			allErrs := validateIngress(tc.ingress, tc.isPlus, false, false, false, false)
+			allErrs := validateIngress(tc.ingress, tc.isPlus, false, false, false, false, false)
 			if len(allErrs) != 0 {
 				t.Errorf("want no errors, got %+v\n", allErrs)
 			}
@@ -154,7 +154,7 @@ func TestValidateIngress_WithValidPathRegexValuesForNGINX(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			allErrs := validateIngress(tc.ingress, tc.isPlus, false, false, false, false)
+			allErrs := validateIngress(tc.ingress, tc.isPlus, false, false, false, false, false)
 			if len(allErrs) != 0 {
 				t.Errorf("want no errors, got %+v\n", allErrs)
 			}
@@ -211,7 +211,7 @@ func TestValidateIngress_WithInvalidPathRegexValuesForNGINXPlus(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			allErrs := validateIngress(tc.ingress, tc.isPlus, false, false, false, false)
+			allErrs := validateIngress(tc.ingress, tc.isPlus, false, false, false, false, false)
 			if len(allErrs) == 0 {
 				t.Error("want errors on invalid path regex values")
 			}
@@ -269,7 +269,7 @@ func TestValidateIngress_WithInvalidPathRegexValuesForNGINX(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			allErrs := validateIngress(tc.ingress, tc.isPlus, false, false, false, false)
+			allErrs := validateIngress(tc.ingress, tc.isPlus, false, false, false, false, false)
 			if len(allErrs) == 0 {
 				t.Error("want errors on invalid path regex values")
 			}
@@ -392,7 +392,7 @@ func TestValidateIngress(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		allErrs := validateIngress(test.ing, test.isPlus, test.appProtectEnabled, test.appProtectDosEnabled, test.internalRoutesEnabled, false)
+		allErrs := validateIngress(test.ing, test.isPlus, test.appProtectEnabled, test.appProtectDosEnabled, test.internalRoutesEnabled, false, false)
 		assertion := assertErrors("validateIngress()", test.msg, allErrs, test.expectedErrors)
 		if assertion != "" {
 			t.Error(assertion)
@@ -410,6 +410,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		appProtectDosEnabled  bool
 		internalRoutesEnabled bool
 		snippetsEnabled       bool
+		directiveAutoAdjust   bool
 		expectedErrors        []string
 		msg                   string
 	}{
@@ -420,6 +421,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid no annotations",
 		},
@@ -434,6 +436,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				`annotations.nginx.org/lb-method: Invalid value: "invalid_method": invalid load balancing method: "invalid_method"`,
 				`annotations.nginx.org/mergeable-ingress-type: Invalid value: "invalid": must be one of: 'master' or 'minion'`,
@@ -897,6 +900,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			snippetsEnabled:       true,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/server-snippets annotation, single-value",
 		},
@@ -910,6 +914,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			snippetsEnabled:       true,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/server-snippets annotation, multi-value",
 		},
@@ -922,6 +927,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			internalRoutesEnabled: false,
 			snippetsEnabled:       false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				`annotations.nginx.org/server-snippets: Forbidden: snippet specified but snippets feature is not enabled`,
 			},
@@ -938,6 +944,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			snippetsEnabled:       true,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/location-snippets annotation, single-value",
 		},
@@ -951,6 +958,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			snippetsEnabled:       true,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/location-snippets annotation, multi-value",
 		},
@@ -963,6 +971,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			internalRoutesEnabled: false,
 			snippetsEnabled:       false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				`annotations.nginx.org/location-snippets: Forbidden: snippet specified but snippets feature is not enabled`,
 			},
@@ -978,6 +987,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/proxy-connect-timeout annotation",
 		},
@@ -990,6 +1000,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				`annotations.nginx.org/proxy-connect-timeout: Invalid value: "not_a_time": must be a time`,
 			},
@@ -1005,6 +1016,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/proxy-read-timeout annotation",
 		},
@@ -1017,6 +1029,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				`annotations.nginx.org/proxy-read-timeout: Invalid value: "not_a_time": must be a time`,
 			},
@@ -1032,6 +1045,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/proxy-send-timeout annotation",
 		},
@@ -1044,6 +1058,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				`annotations.nginx.org/proxy-send-timeout: Invalid value: "not_a_time": must be a time`,
 			},
@@ -1059,6 +1074,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/proxy-hide-headers annotation, single-value",
 		},
@@ -1071,6 +1087,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/proxy-hide-headers annotation, multi-value",
 		},
@@ -1083,6 +1100,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/proxy-hide-headers annotation, multi-value with spaces",
 		},
@@ -1095,6 +1113,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				`annotations.nginx.org/proxy-hide-headers: Invalid value: "$header1": a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`,
 			},
@@ -1109,6 +1128,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				`annotations.nginx.org/proxy-hide-headers: Invalid value: "{header1": a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`,
 			},
@@ -1123,6 +1143,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				`annotations.nginx.org/proxy-hide-headers: Invalid value: "$header1": a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`,
 			},
@@ -1137,11 +1158,13 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				`annotations.nginx.org/proxy-hide-headers: Invalid value: "$header2": a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`,
 			},
 			msg: "invalid nginx.org/proxy-hide-headers annotation, multi-value containing '$' after valid header",
 		},
+
 		{
 			annotations: map[string]string{
 				"nginx.org/proxy-pass-headers": "header-1",
@@ -1151,6 +1174,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/proxy-pass-headers annotation, single-value",
 		},
@@ -1163,6 +1187,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/proxy-pass-headers annotation, multi-value",
 		},
@@ -1175,6 +1200,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/proxy-pass-headers annotation, multi-value with spaces",
 		},
@@ -1187,6 +1213,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				`annotations.nginx.org/proxy-pass-headers: Invalid value: "$header1": a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`,
 			},
@@ -1201,6 +1228,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				`annotations.nginx.org/proxy-pass-headers: Invalid value: "{header1": a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`,
 			},
@@ -1215,6 +1243,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				`annotations.nginx.org/proxy-pass-headers: Invalid value: "$header1": a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`,
 			},
@@ -1229,11 +1258,13 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				`annotations.nginx.org/proxy-pass-headers: Invalid value: "$header2": a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`,
 			},
 			msg: "invalid nginx.org/proxy-pass-headers annotation, multi-value containing '$' after valid header",
 		},
+
 		{
 			annotations: map[string]string{
 				"nginx.org/proxy-set-headers": "header-1",
@@ -1243,6 +1274,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/proxy-set-headers annotation, single-value",
 		},
@@ -1255,6 +1287,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/proxy-set-headers annotation, multi-value",
 		},
@@ -1267,6 +1300,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/proxy-set-headers annotation, multi-value with spaces",
 		},
@@ -1279,6 +1313,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				`annotations.nginx.org/proxy-set-headers: Invalid value: "$header1": a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`,
 			},
@@ -1293,6 +1328,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				`annotations.nginx.org/proxy-set-headers: Invalid value: "{header1": a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`,
 			},
@@ -1307,6 +1343,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				`annotations.nginx.org/proxy-set-headers: Invalid value: "$header1": a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`,
 			},
@@ -1321,6 +1358,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				`annotations.nginx.org/proxy-set-headers: Invalid value: "$header2": a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`,
 			},
@@ -1335,6 +1373,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/client-max-body-size annotation",
 		},
@@ -1347,6 +1386,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				`annotations.nginx.org/client-max-body-size: Invalid value: "not_an_offset": must be an offset`,
 			},
@@ -1362,6 +1402,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/redirect-to-https annotation",
 		},
@@ -1374,6 +1415,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				`annotations.nginx.org/redirect-to-https: Invalid value: "not_a_boolean": must be a boolean`,
 			},
@@ -1389,6 +1431,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid ingress.kubernetes.io/ssl-redirect annotation",
 		},
@@ -1401,6 +1444,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				`annotations.ingress.kubernetes.io/ssl-redirect: Invalid value: "not_a_boolean": must be a boolean`,
 			},
@@ -1416,6 +1460,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/proxy-buffering annotation",
 		},
@@ -1428,6 +1473,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				`annotations.nginx.org/proxy-buffering: Invalid value: "not_a_boolean": must be a boolean`,
 			},
@@ -1443,6 +1489,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/hsts annotation",
 		},
@@ -1455,6 +1502,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				`annotations.nginx.org/hsts: Invalid value: "not_a_boolean": must be a boolean`,
 			},
@@ -1471,6 +1519,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/hsts-max-age annotation",
 		},
@@ -1484,6 +1533,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/hsts-max-age nginx.org/hsts can be false",
 		},
@@ -1497,6 +1547,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				`annotations.nginx.org/hsts-max-age: Invalid value: "not_a_number": must be an integer`,
 			},
@@ -1511,6 +1562,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				"annotations.nginx.org/hsts-max-age: Forbidden: related annotation nginx.org/hsts: must be set",
 			},
@@ -1527,6 +1579,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/hsts-include-subdomains annotation",
 		},
@@ -1540,6 +1593,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/hsts-include-subdomains, nginx.org/hsts can be false",
 		},
@@ -1553,6 +1607,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				`annotations.nginx.org/hsts-include-subdomains: Invalid value: "not_a_boolean": must be a boolean`,
 			},
@@ -1567,6 +1622,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				"annotations.nginx.org/hsts-include-subdomains: Forbidden: related annotation nginx.org/hsts: must be set",
 			},
@@ -1583,6 +1639,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/hsts-behind-proxy annotation",
 		},
@@ -1596,6 +1653,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/hsts-behind-proxy, nginx.org/hsts can be false",
 		},
@@ -1609,6 +1667,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				`annotations.nginx.org/hsts-behind-proxy: Invalid value: "not_a_boolean": must be a boolean`,
 			},
@@ -1623,6 +1682,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				"annotations.nginx.org/hsts-behind-proxy: Forbidden: related annotation nginx.org/hsts: must be set",
 			},
@@ -1638,6 +1698,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/proxy-buffers annotation",
 		},
@@ -1650,6 +1711,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				`annotations.nginx.org/proxy-buffers: Invalid value: "not_a_proxy_buffers_spec": must be a proxy buffer spec`,
 			},
@@ -1665,6 +1727,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/proxy-buffer-size annotation",
 		},
@@ -1677,8 +1740,9 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-buffer-size: Invalid value: "not_a_size": must be a size`,
+				`annotations.nginx.org/proxy-buffer-size: Invalid value: "not_a_size": must consist of numeric characters followed by a valid size suffix. 'k|K|m|M (e.g. '16',  or '32k',  or '64M', regex used for validation is '\d+[kKmM]?')`,
 			},
 			msg: "invalid nginx.org/proxy-buffer-size annotation",
 		},
@@ -1692,6 +1756,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/proxy-max-temp-file-size annotation",
 		},
@@ -1704,8 +1769,9 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-max-temp-file-size: Invalid value: "not_a_size": must be a size`,
+				`annotations.nginx.org/proxy-max-temp-file-size: Invalid value: "not_a_size": must consist of numeric characters followed by a valid size suffix. 'k|K|m|M (e.g. '16',  or '32k',  or '64M', regex used for validation is '\d+[kKmM]?')`,
 			},
 			msg: "invalid nginx.org/proxy-max-temp-file-size annotation",
 		},
@@ -1719,6 +1785,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/upstream-zone-size annotation",
 		},
@@ -1731,8 +1798,9 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
 			expectedErrors: []string{
-				`annotations.nginx.org/upstream-zone-size: Invalid value: "not a size": must be a size`,
+				`annotations.nginx.org/upstream-zone-size: Invalid value: "not a size": must consist of numeric characters followed by a valid size suffix. 'k|K|m|M (e.g. '16',  or '32k',  or '64M', regex used for validation is '\d+[kKmM]?')`,
 			},
 			msg: "invalid nginx.org/upstream-zone-size annotation",
 		},
@@ -3189,6 +3257,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 				test.internalRoutesEnabled,
 				field.NewPath("annotations"),
 				test.snippetsEnabled,
+				test.directiveAutoAdjust,
 			)
 			assertion := assertErrors("validateIngressAnnotations()", test.msg, allErrs, test.expectedErrors)
 			if assertion != "" {

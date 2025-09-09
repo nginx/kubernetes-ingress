@@ -338,6 +338,9 @@ Build the args for the service binary.
 - -enable-custom-resources={{ .Values.controller.enableCustomResources }}
 - -enable-snippets={{ .Values.controller.enableSnippets }}
 - -disable-ipv6={{ .Values.controller.disableIPV6 }}
+{{- if .Values.controller.directiveAutoAdjust }}
+- -enable-directive-autoadjust={{ .Values.controller.directiveAutoAdjust }}
+{{- end }}
 {{- if .Values.controller.enableCustomResources }}
 - -enable-tls-passthrough={{ .Values.controller.enableTLSPassthrough }}
 {{- if .Values.controller.enableTLSPassthrough }}
@@ -388,24 +391,17 @@ List of volumes for controller.
 {{- if eq (include "nginx-ingress.readOnlyRootFilesystem" .) "true" }}
 - name: nginx-etc
   emptyDir: {}
-{{- if .Values.controller.cache.enableShared }}
-- name: nginx-cache
-  persistentVolumeClaim:
-    claimName: {{ .Values.controller.cache.sharedPVCName }}
-{{- else }}
-- name: nginx-cache
-  emptyDir: {}
-{{- end }}
 - name: nginx-lib
   emptyDir: {}
 - name: nginx-state
   emptyDir: {}
 - name: nginx-log
   emptyDir: {}
-{{- else if .Values.controller.cache.enableShared }}
+{{- /* For StatefulSet, nginx-cache volume is always provided via volumeClaimTemplates */ -}}
+{{- if ne .Values.controller.kind "statefulset" }}
 - name: nginx-cache
-  persistentVolumeClaim:
-    claimName: {{ .Values.controller.cache.sharedPVCName }}
+  emptyDir: {}
+{{- end }}
 {{- end }}
 {{- if .Values.controller.appprotect.v5 }}
 {{ toYaml .Values.controller.appprotect.volumes }}
@@ -465,7 +461,7 @@ volumeMounts:
   name: nginx-state
 - mountPath: /var/log/nginx
   name: nginx-log
-{{- else if .Values.controller.cache.enableShared }}
+{{- else if eq .Values.controller.kind "statefulset" }}
 - mountPath: /var/cache/nginx
   name: nginx-cache
 {{- end }}
