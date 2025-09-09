@@ -3,7 +3,7 @@ package nginx
 import (
 	"testing"
 
-	"github.com/nginx/nginx-plus-go-client/v2/client"
+	"github.com/nginx/nginx-plus-go-client/v3/client"
 )
 
 // Helper functions to create pointers

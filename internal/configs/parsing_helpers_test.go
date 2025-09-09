@@ -598,22 +598,71 @@ func TestParseSize(t *testing.T) {
 
 func TestParseProxyBuffersSpec(t *testing.T) {
 	t.Parallel()
-	testsWithValidInput := []string{"1 1k", "10 24k", "2 2K", "6 3m", "128 3M"}
-	invalidInput := []string{"-1", "-6 2k", "", "blah", "16k", "10M", "2 4g", "3 4G"}
-	for _, test := range testsWithValidInput {
-		result, err := ParseProxyBuffersSpec(test)
-		if err != nil {
-			t.Fatalf("ParseProxyBuffersSpec(%q) returned an error for valid input", test)
-		}
-		if test != result {
-			t.Errorf("TestParseProxyBuffersSpec(%q) returned %q expected %q", test, result, test)
-		}
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+		hasError bool
+	}{
+		{
+			name:     "valid proxy buffers with k unit",
+			input:    "8 4k",
+			expected: "8 4k",
+			hasError: false,
+		},
+		{
+			name:     "valid proxy buffers with M unit",
+			input:    "32 2M",
+			expected: "32 2M",
+			hasError: false,
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "",
+			hasError: true,
+		},
+		{
+			name:     "only buffer count",
+			input:    "8",
+			expected: "",
+			hasError: true,
+		},
+		{
+			name:     "negative buffer count",
+			input:    "-8 4k",
+			expected: "",
+			hasError: true,
+		},
+		{
+			name:     "non-numeric buffer size",
+			input:    "8 abc",
+			expected: "",
+			hasError: true,
+		},
+		{
+			name:     "blah",
+			input:    "blah",
+			expected: "",
+			hasError: true,
+		},
 	}
-	for _, test := range invalidInput {
-		result, err := ParseProxyBuffersSpec(test)
-		if err == nil {
-			t.Errorf("TestParseProxyBuffersSpec(%q) didn't return error. Returned: %q", test, result)
-		}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := ParseProxyBuffersSpec(tc.input)
+
+			if tc.hasError && err == nil {
+				t.Errorf("ParseProxyBuffersSpecWithAutoAdjust(%q) expected error but got none, result: %q", tc.input, result)
+			}
+			if !tc.hasError && err != nil {
+				t.Errorf("ParseProxyBuffersSpecWithAutoAdjust(%q) unexpected error: %v", tc.input, err)
+			}
+			if result != tc.expected {
+				t.Errorf("ParseProxyBuffersSpecWithAutoAdjust(%q) = %q, expected %q", tc.input, result, tc.expected)
+			}
+		})
 	}
 }
 

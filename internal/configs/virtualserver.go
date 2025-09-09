@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 const (
@@ -467,9 +468,13 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	var healthChecks []version2.HealthCheck
 	var limitReqZones []version2.LimitReqZone
 	var authJWTClaimSets []version2.AuthJWTClaimSet
+	var cacheZones []version2.CacheZone
 
 	limitReqZones = append(limitReqZones, policiesCfg.RateLimit.Zones...)
 	authJWTClaimSets = append(authJWTClaimSets, policiesCfg.RateLimit.AuthJWTClaimSets...)
+
+	// Add cache zone from global policy if present
+	addCacheZone(&cacheZones, policiesCfg.Cache)
 
 	// generate upstreams for VirtualServer
 	for _, u := range vsEx.VirtualServer.Spec.Upstreams {
@@ -601,6 +606,9 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
 
 		authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.RateLimit.AuthJWTClaimSets...)
+
+		// Add cache zone from route policy if present
+		addCacheZone(&cacheZones, routePoliciesCfg.Cache)
 
 		dosRouteCfg := generateDosCfg(dosResources[r.Path])
 
@@ -751,6 +759,9 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 			authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.RateLimit.AuthJWTClaimSets...)
 
+			// Add cache zone from subroute policy if present
+			addCacheZone(&cacheZones, routePoliciesCfg.Cache)
+
 			dosRouteCfg := generateDosCfg(dosResources[r.Path])
 
 			if len(r.Matches) > 0 {
@@ -838,6 +849,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		StatusMatches:    statusMatches,
 		LimitReqZones:    removeDuplicateLimitReqZones(limitReqZones),
 		AuthJWTClaimSets: removeDuplicateAuthJWTClaimSets(authJWTClaimSets),
+		CacheZones:       cacheZones,
 		HTTPSnippets:     httpSnippets,
 		Server: version2.Server{
 			ServerName:                vsEx.VirtualServer.Spec.Host,
@@ -879,6 +891,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			OIDC:                      vsc.oidcPolCfg.oidc,
 			WAF:                       policiesCfg.WAF,
 			Dos:                       dosCfg,
+			Cache:                     policiesCfg.Cache,
 			PoliciesErrorReturn:       policiesCfg.ErrorReturn,
 			VSNamespace:               vsEx.VirtualServer.Namespace,
 			VSName:                    vsEx.VirtualServer.Name,
@@ -973,6 +986,7 @@ type policiesCfg struct {
 	OIDC            bool
 	APIKey          apiKeyAuth
 	WAF             *version2.WAF
+	Cache           *version2.Cache
 	ErrorReturn     *version2.Return
 	BundleValidator bundleValidator
 }
@@ -1677,6 +1691,21 @@ func (p *policiesCfg) addWAFConfig(
 	return res
 }
 
+func (p *policiesCfg) addCacheConfig(
+	cache *conf_v1.Cache,
+	polKey string,
+	vsNamespace, vsName, ownerNamespace, ownerName string,
+) *validationResults {
+	res := newValidationResults()
+	if p.Cache != nil {
+		res.addWarningf("Multiple cache policies in the same context is not valid. Cache policy %s will be ignored", polKey)
+		return res
+	}
+
+	p.Cache = generateCacheConfig(cache, vsNamespace, vsName, ownerNamespace, ownerName)
+	return res
+}
+
 func (vsc *virtualServerConfigurator) generatePolicies(
 	ownerDetails policyOwnerDetails,
 	policyRefs []conf_v1.PolicyReference,
@@ -1732,6 +1761,8 @@ func (vsc *virtualServerConfigurator) generatePolicies(
 					ownerDetails.vsName, policyOpts.secretRefs)
 			case pol.Spec.WAF != nil:
 				res = config.addWAFConfig(vsc.cfgParams.Context, pol.Spec.WAF, key, polNamespace, policyOpts.apResources)
+			case pol.Spec.Cache != nil:
+				res = config.addCacheConfig(pol.Spec.Cache, key, ownerDetails.vsNamespace, ownerDetails.vsName, ownerDetails.ownerNamespace, ownerDetails.ownerName)
 			default:
 				res = newValidationResults()
 			}
@@ -1891,6 +1922,72 @@ func generateLimitReqOptions(rateLimitPol *conf_v1.RateLimit) version2.LimitReqO
 	}
 }
 
+func generateCacheConfig(cache *conf_v1.Cache, vsNamespace, vsName, ownerNamespace, ownerName string) *version2.Cache {
+	// Create unique zone name including VS namespace/name and owner namespace/name for policy reuse
+	// This ensures that the same cache policy can be safely reused across different VS/VSR
+	var uniqueZoneName string
+	if vsNamespace == ownerNamespace && vsName == ownerName {
+		// Policy is applied directly to VirtualServer, use VS namespace/name only
+		uniqueZoneName = fmt.Sprintf("%s_%s_%s", vsNamespace, vsName, cache.CacheZoneName)
+	} else {
+		// Policy is applied to VirtualServerRoute, include both VS and owner info
+		uniqueZoneName = fmt.Sprintf("%s_%s_%s_%s_%s", vsNamespace, vsName, ownerNamespace, ownerName, cache.CacheZoneName)
+	}
+
+	cacheConfig := &version2.Cache{
+		ZoneName:              uniqueZoneName,
+		Time:                  cache.Time,
+		Valid:                 make(map[string]string),
+		AllowedMethods:        cache.AllowedMethods,
+		CachePurgeAllow:       cache.CachePurgeAllow,
+		ZoneSize:              cache.CacheZoneSize,
+		OverrideUpstreamCache: cache.OverrideUpstreamCache,
+		Levels:                cache.Levels, // Pass Levels from Cache to CacheZone
+	}
+
+	// Convert allowed codes to proxy_cache_valid entries
+	for _, code := range cache.AllowedCodes {
+		if cache.Time != "" {
+			if code.Type == intstr.String {
+				// Handle the "any" string case
+				cacheConfig.Valid[code.StrVal] = cache.Time
+			} else {
+				// Handle integer status codes
+				cacheConfig.Valid[fmt.Sprintf("%d", code.IntVal)] = cache.Time
+			}
+		}
+	}
+
+	return cacheConfig
+}
+
+func addCacheZone(cacheZones *[]version2.CacheZone, cache *version2.Cache) {
+	if cache == nil {
+		return
+	}
+
+	zoneSize := "10m" // default
+	if cache.ZoneSize != "" {
+		zoneSize = cache.ZoneSize
+	}
+
+	cacheZone := version2.CacheZone{
+		Name:   cache.ZoneName,
+		Size:   zoneSize,
+		Path:   fmt.Sprintf("/var/cache/nginx/%s", cache.ZoneName),
+		Levels: cache.Levels, // Pass Levels from Cache to CacheZone
+	}
+
+	// Check for duplicates
+	for _, existing := range *cacheZones {
+		if existing.Name == cacheZone.Name {
+			return // Already exists, don't add duplicate
+		}
+	}
+
+	*cacheZones = append(*cacheZones, cacheZone)
+}
+
 func removeDuplicateLimitReqZones(rlz []version2.LimitReqZone) []version2.LimitReqZone {
 	encountered := make(map[string]bool)
 	result := []version2.LimitReqZone{}
@@ -1975,6 +2072,7 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 	location.OIDC = cfg.OIDC
 	location.WAF = cfg.WAF
 	location.APIKey = cfg.APIKey.Key
+	location.Cache = cfg.Cache
 	location.PoliciesErrorReturn = cfg.ErrorReturn
 }
 
@@ -2495,6 +2593,7 @@ func generateLocationForProxying(path string, upstreamName string, upstream conf
 		ProxyBuffering:           generateBool(upstream.ProxyBuffering, cfgParams.ProxyBuffering),
 		ProxyBuffers:             generateBuffers(upstream.ProxyBuffers, cfgParams.ProxyBuffers),
 		ProxyBufferSize:          generateString(upstream.ProxyBufferSize, cfgParams.ProxyBufferSize),
+		ProxyBusyBuffersSize:     generateString(upstream.ProxyBusyBuffersSize, cfgParams.ProxyBusyBuffersSize),
 		ProxyPass:                generateProxyPass(upstream.TLS.Enable, upstreamName, internal, proxy),
 		ProxyNextUpstream:        generateString(upstream.ProxyNextUpstream, "error timeout"),
 		ProxyNextUpstreamTimeout: generateTimeWithDefault(upstream.ProxyNextUpstreamTimeout, "0s"),

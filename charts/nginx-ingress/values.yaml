@@ -1,8 +1,8 @@
 controller:
-  ## The name of the Ingress Controller daemonset or deployment.
+  ## The name of the Ingress Controller daemonset, deployment, or statefulset.
   name: controller
 
-  ## The kind of the Ingress Controller installation - deployment or daemonset.
+  ## The kind of the Ingress Controller installation - deployment, daemonset, or statefulset.
   kind: deployment
 
   ## The selectorLabels used to override the default values.
@@ -161,11 +161,12 @@ controller:
   ## The log level of the Ingress Controller. Options include: trace, debug, info, warning, error, fatal
   logLevel: info
 
-  ## Sets the log format of Ingress Controller. Options include: glog, json, text
+  ## Sets the log format of Ingress Controller. Options include: glog, json, json-unix, json-unix-ns, text, text-unix, text-unix-ms
   logFormat: glog
 
-  ## Sets time format for logs. Allowed values: default, unix, unix-ms, unix-ns. Applies to json and text.
-  logTimeFormat: default
+  ## Enables auto adjusting some of the NGINX directives to help with safe configuration and prevent NGINX misconfigurations.
+  ## See https://docs.nginx.com/nginx-ingress-controller/configuration/proxy-buffers-configuration/  for more details of which configuration options are affected
+  directiveAutoAdjust: false
 
   ## A list of custom ports to expose on the NGINX Ingress Controller pod. Follows the conventional Kubernetes yaml syntax for container ports.
   customPorts: []
@@ -175,7 +176,7 @@ controller:
     repository: nginx/nginx-ingress
 
     ## The tag of the Ingress Controller image. If not specified the appVersion from Chart.yaml is used as a tag.
-    # tag: "5.1.0"
+    # tag: "5.1.1"
     ## The digest of the Ingress Controller image.
     ## If digest is specified it has precedence over tag and will be used instead
     # digest: "sha256:CHANGEME"
@@ -343,6 +344,30 @@ controller:
     ## Strategy used to replace old Pods by new ones. .spec.strategy.type can be "Recreate" or "RollingUpdate" for Deployments, and "OnDelete" or "RollingUpdate" for Daemonsets. "RollingUpdate" is the default value.
   strategy: {}
 
+  ## StatefulSet-specific configuration (only used when kind is "statefulset")
+  statefulset:
+    ## Pod management policy for StatefulSet. Can be "OrderedReady" or "Parallel".
+    ## OrderedReady will start pods one at a time in order, Parallel will start all pods at once.
+    podManagementPolicy: "OrderedReady"
+
+    ## PersistentVolumeClaim retention policy for StatefulSet
+    ## Determines when to delete PVCs when the StatefulSet is deleted or scaled down
+    persistentVolumeClaimRetentionPolicy:
+      ## When to delete PVCs when the StatefulSet is deleted. Can be "Retain" or "Delete".
+      whenDeleted: "Retain"
+      ## When to delete PVCs when the StatefulSet is scaled down. Can be "Retain" or "Delete".
+      whenScaled: "Retain"
+
+    ##  Configuration for StatefulSet nginx-cache PVC
+    nginxCachePVC:
+      ## Storage size for the nginx-cache volume
+      size: "256Mi"
+      ## Storage class for the nginx-cache volume. If empty, uses the cluster default.
+      storageClass: ""
+      ## Access modes for the nginx-cache volume
+      accessModes:
+      - "ReadWriteOnce"
+
   ## Extra containers for the Ingress Controller pods.
   extraContainers: []
   # - name: container
@@ -399,6 +424,11 @@ controller:
   globalConfiguration:
     ## Creates the GlobalConfiguration custom resource. Requires controller.enableCustomResources.
     create: false
+
+    ## customName: "the-namespace/the-name-of-the-global-configuration-custom-resource"
+    ## The name of the GlobalConfiguration custom resource to use instead of the one provided by default.
+    ## Make sure the namespace is watched when watchNamespace or watchNamespaceLabel parameters are in use.
+    customName: ""
 
     ## The spec of the GlobalConfiguration for defining the global configuration parameters of the Ingress Controller.
     spec: {} ## Ensure both curly brackets are removed when adding listeners in YAML format.
@@ -504,6 +534,15 @@ controller:
 
     ## A list of custom ports to expose through the Ingress Controller service. Follows the conventional Kubernetes yaml syntax for service ports.
     customPorts: []
+
+    ## Session affinity configuration for the Ingress Controller service, ensures requests from the same client IP go to the same pod
+    sessionAffinity:
+      ## Enable session affinity. Valid values: None, ClientIP
+      enable: false
+      ## Session affinity type. Currently only ClientIP is supported.
+      type: ClientIP
+      ## Session affinity timeout in seconds (default: 3600 = 1 hour)
+      timeoutSeconds: 3600
 
   serviceAccount:
     ## The annotations of the service account of the Ingress Controller pods.

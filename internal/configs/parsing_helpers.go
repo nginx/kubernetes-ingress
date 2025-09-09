@@ -266,15 +266,33 @@ func ParseRequestRate(s string) (string, error) {
 }
 
 // https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffers
-var proxyBuffersRegexp = regexp.MustCompile(`^\d+ \d+[kKmM]?$`)
+var (
+	proxyBuffersRegexp            = regexp.MustCompile(`^\d+ \d+[kKmM]?$`)
+	proxyBuffersWithAnyUnitRegexp = regexp.MustCompile(`^(\d+) (\d+)([a-zA-Z]?)$`)
+)
 
 // ParseProxyBuffersSpec ensures that the string value is a valid proxy buffer spec
 func ParseProxyBuffersSpec(s string) (string, error) {
 	s = strings.TrimSpace(s)
 
+	// First check if it's already a valid proxy buffer spec
 	if proxyBuffersRegexp.MatchString(s) {
 		return s, nil
 	}
+
+	// Check if it matches number + space + number + any letter pattern for auto-adjustment
+	match := proxyBuffersWithAnyUnitRegexp.FindStringSubmatch(s)
+	if match != nil {
+		bufferCount := match[1]
+		bufferSize := match[2]
+		unit := strings.ToLower(match[3])
+
+		// If unit is empty or valid, use as-is
+		if unit == "" || unit == "k" || unit == "m" {
+			return bufferCount + " " + bufferSize + unit, nil
+		}
+	}
+
 	return "", errors.New("invalid proxy buffers string")
 }
 

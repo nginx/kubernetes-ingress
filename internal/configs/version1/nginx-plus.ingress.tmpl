@@ -213,10 +213,8 @@ server {
 		error_page 504 @grpcerror504;
 		{{- end}}
 
-		{{- if $location.LocationSnippets}}
 		{{- range $value := $location.LocationSnippets}}
 		{{$value}}{{end}}
-		{{- end}}
 
 		{{- with $jwt := $location.JWTAuth}}
 		auth_jwt_key_file {{$jwt.Key}};
@@ -264,10 +262,8 @@ server {
 		{{- if $.Keepalive}}
 		proxy_set_header Connection "";{{end}}
 		{{- end}}
-		{{- if $location.LocationSnippets}}
-		{{range $value := $location.LocationSnippets}}
-		{{$value}}{{end}}
-		{{- end}}
+		{{- range $value := $location.LocationSnippets}}
+		{{$value}}{{- end}}
 
 		{{- with $jwt := $location.JWTAuth }}
 		auth_jwt_key_file {{$jwt.Key}};
@@ -300,6 +296,9 @@ server {
 		{{- end}}
 		{{- if $location.ProxyBufferSize}}
 		proxy_buffer_size {{$location.ProxyBufferSize}};
+		{{- end}}
+		{{- if $location.ProxyBusyBuffersSize}}
+		proxy_busy_buffers_size {{$location.ProxyBusyBuffersSize}};
 		{{- end}}
 		{{- if $location.ProxyMaxTempFileSize}}
 		proxy_max_temp_file_size {{$location.ProxyMaxTempFileSize}};

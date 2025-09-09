@@ -283,6 +283,21 @@ def create_daemon_set(apps_v1_api: AppsV1Api, namespace, body) -> str:
     return body["metadata"]["name"]
 
 
+def create_stateful_set(apps_v1_api, namespace, body) -> str:
+    """
+    Create a stateful-set based on a dict.
+
+    :param apps_v1_api: AppsV1Api
+    :param namespace: namespace name
+    :param body: dict
+    :return: str
+    """
+    print("Create a statefulset:")
+    apps_v1_api.create_namespaced_stateful_set(namespace, body)
+    print(f"StatefulSet created with name '{body['metadata']['name']}'")
+    return body["metadata"]["name"]
+
+
 class PodNotReadyException(Exception):
     def __init__(self, message="After several seconds the pods aren't ContainerReady. Exiting!"):
         self.message = message
@@ -1162,6 +1177,25 @@ def delete_daemon_set(apps_v1_api: AppsV1Api, name, namespace) -> None:
     print(f"Daemon-set was removed with name '{name}'")
 
 
+def delete_stateful_set(apps_v1_api: AppsV1Api, name, namespace) -> None:
+    """
+    Delete a stateful-set.
+
+    :param apps_v1_api: AppsV1Api
+    :param name:
+    :param namespace:
+    :return:
+    """
+    delete_options = {
+        "grace_period_seconds": 0,
+        "propagation_policy": "Foreground",
+    }
+    print(f"Delete a statefulset: {name}")
+    apps_v1_api.delete_namespaced_stateful_set(name, namespace, **delete_options)
+    ensure_item_removal(apps_v1_api.read_namespaced_stateful_set_status, name, namespace)
+    print(f"StatefulSet was removed with name '{name}'")
+
+
 def wait_before_test(delay=RECONFIGURATION_DELAY) -> None:
     """
     Wait for a time in seconds.
@@ -1226,8 +1260,12 @@ def create_ingress_controller(v1: CoreV1Api, apps_v1_api: AppsV1Api, cli_argumen
         dep["spec"]["template"]["spec"]["containers"][0]["args"].extend(args)
     if cli_arguments["deployment-type"] == "deployment":
         name = create_deployment(apps_v1_api, namespace, dep)
-    else:
+    elif cli_arguments["deployment-type"] == "daemon-set":
         name = create_daemon_set(apps_v1_api, namespace, dep)
+    elif cli_arguments["deployment-type"] == "stateful-set":
+        name = create_stateful_set(apps_v1_api, namespace, dep)
+    else:
+        raise ValueError(f"Unknown deployment-type: {cli_arguments['deployment-type']}")
     before = time.time()
     wait_until_all_pods_are_ready(v1, namespace)
     after = time.time()
@@ -1431,8 +1469,12 @@ def create_ingress_controller_wafv5(
         dep["spec"]["template"]["spec"]["containers"][0]["args"].extend(args)
     if cli_arguments["deployment-type"] == "deployment":
         name = create_deployment(apps_v1_api, namespace, dep)
-    else:
+    elif cli_arguments["deployment-type"] == "daemon-set":
         name = create_daemon_set(apps_v1_api, namespace, dep)
+    elif cli_arguments["deployment-type"] == "stateful-set":
+        name = create_stateful_set(apps_v1_api, namespace, dep)
+    else:
+        raise ValueError(f"Unknown deployment-type: {cli_arguments['deployment-type']}")
     before = time.time()
     wait_until_all_pods_are_ready(v1, namespace)
     after = time.time()
@@ -1455,6 +1497,10 @@ def delete_ingress_controller(apps_v1_api: AppsV1Api, name, dep_type, namespace)
         delete_deployment(apps_v1_api, name, namespace)
     elif dep_type == "daemon-set":
         delete_daemon_set(apps_v1_api, name, namespace)
+    elif dep_type == "stateful-set":
+        delete_stateful_set(apps_v1_api, name, namespace)
+    else:
+        raise ValueError(f"Unknown deployment-type: {dep_type}")
 
 
 def create_dos_arbitrator(
@@ -1554,6 +1600,8 @@ def create_items_from_yaml(kube_apis, yaml_manifest, namespace) -> {}:
                     res["Deployment"] = create_deployment(kube_apis.apps_v1_api, namespace, doc)
                 elif doc["kind"] == "DaemonSet":
                     res["DaemonSet"] = create_daemon_set(kube_apis.apps_v1_api, namespace, doc)
+                elif doc["kind"] == "StatefulSet":
+                    res["StatefulSet"] = create_stateful_set(kube_apis.apps_v1_api, namespace, doc)
                 elif doc["kind"] == "Namespace":
                     res["Namespace"] = create_namespace(kube_apis.v1, doc)
 
@@ -2062,3 +2110,25 @@ def read_ingress(v1: NetworkingV1Api, name, namespace) -> V1Ingress:
     """
     print(f"Read an ingress named '{name}'")
     return v1.read_namespaced_ingress(name, namespace)
+
+
+def pod_restart(v1: CoreV1Api, namespace):
+    """
+    Restart all pods in a deployment.
+    """
+    try:
+        pods = v1.list_namespaced_pod(namespace=namespace)
+
+        print(f"Found {len(pods.items)} pods to restart")
+
+        # Delete all pods (they will be recreated by deployment)
+        for pod in pods.items:
+            print(f"Deleting pod {pod.metadata.name}")
+            v1.delete_namespaced_pod(name=pod.metadata.name, namespace=namespace)
+
+        wait_until_all_pods_are_ready(v1, namespace)
+        print("Pod restart complete")
+
+    except Exception as e:
+        print(f"Error in pod restart: {e}")
+        raise e

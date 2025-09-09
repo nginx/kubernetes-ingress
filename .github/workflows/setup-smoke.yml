@@ -33,6 +33,9 @@ on:
       k8s-version:
         required: true
         type: string
+      force:
+        required: true
+        type: boolean
 
 defaults:
   run:
@@ -60,7 +63,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: auth
-        uses: google-github-actions/auth@b7593ed2efd1c1617e1b0254da33b86225adb2a5 # v2.1.12
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
           workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
@@ -80,6 +83,9 @@ jobs:
         run: |
           if docker pull ${{ steps.image_details.outputs.name }}:${{ steps.image_details.outputs.stable_tag }}; then
             echo "exists=true" >> $GITHUB_OUTPUT
+          fi
+          if [ "${{ inputs.force }}" = "true" ]; then
+            echo "exists=false" >> $GITHUB_OUTPUT
           fi
         if: ${{ inputs.authenticated }}
 
@@ -103,7 +109,7 @@ jobs:
           fail-on-cache-miss: true
         if: ${{ !inputs.authenticated }}
 
-      - name: Check if test image exists
+      - name: Check if pytest image exists
         id: check-image
         run: |
           docker manifest inspect "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') || 'latest' }}"
@@ -111,7 +117,7 @@ jobs:
         continue-on-error: true
         if: ${{ inputs.authenticated  }}
 
-      - name: Build Test-Runner Container
+      - name: Build Pytest-Runner Container
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           file: tests/Dockerfile
