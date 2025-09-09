@@ -1,6 +1,9 @@
 name: Patch Docker Image
 
 on:
+  push:
+    branches:
+      - chore/publish-runner
   workflow_call:
     inputs:
       image:
@@ -75,10 +78,10 @@ jobs:
           file: build/Dockerfile
           context: "."
           target: patched
-          tags: "${{ inputs.target_image }}:${{ inputs.target_tag }}"
-          platforms: ${{ inputs.platforms }}
+          tags: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress:edge"
+          platforms: "linux/arm64, linux/amd64"
           pull: true
           push: true
           build-args: |
-            IMAGE_NAME=${{ inputs.image }}:${{ inputs.tag }}
-            IC_VERSION=${{ inputs.ic_version }}
+            IMAGE_NAME=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress:edge
+            IC_VERSION=5.2.0
