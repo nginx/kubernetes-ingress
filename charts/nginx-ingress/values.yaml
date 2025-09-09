@@ -161,7 +161,7 @@ controller:
   ## The log level of the Ingress Controller. Options include: trace, debug, info, warning, error, fatal
   logLevel: info
 
-  ## Sets the log format of Ingress Controller. Options include: glog, json, json-unix, json-unix-ns, text, text-unix, text-unix-ms
+  ## Sets the log format of Ingress Controller. Options include: glog, json, json-unix, json-unix-ms, text, text-unix, text-unix-ms
   logFormat: glog
 
   ## Enables auto adjusting some of the NGINX directives to help with safe configuration and prevent NGINX misconfigurations.

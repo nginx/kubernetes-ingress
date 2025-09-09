@@ -50,7 +50,7 @@ func TestLogFormats(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			var buf bytes.Buffer
-			ctx := initLogger(tc.format, levels.LevelInfo, "default", &buf)
+			ctx := initLogger(tc.format, levels.LevelInfo, &buf)
 			l := nl.LoggerFromContext(ctx)
 			l.Log(ctx, levels.LevelInfo, "test")
 			got := buf.String()
@@ -64,67 +64,48 @@ func TestLogFormats(t *testing.T) {
 
 func TestLogTimeFormats(t *testing.T) {
 	testCases := []struct {
-		name       string
-		logFormat  string
-		timeFormat string
-		wantre     string
+		name      string
+		logFormat string
+		wantre    string
 	}{
 		// JSON format tests
 		{
-			name:       "json default time format",
-			logFormat:  "json",
-			timeFormat: "default",
-			wantre:     `^{"time":"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d+.*","level":"INFO","source":\{"file":"[^"]+\.go","line":\d+\},"msg":".*}`,
+			name:      "json default time format",
+			logFormat: "json",
+			wantre:    `^{"time":"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d+.*","level":"INFO","source":\{"file":"[^"]+\.go","line":\d+\},"msg":".*}`,
 		},
 		{
-			name:       "json unix time format",
-			logFormat:  "json",
-			timeFormat: "unix",
-			wantre:     `^{"time":\d{10},"level":"INFO","source":\{"file":"[^"]+\.go","line":\d+\},"msg":".*}`,
+			name:      "json unix time format",
+			logFormat: "json-unix",
+			wantre:    `^{"time":\d{10},"level":"INFO","source":\{"file":"[^"]+\.go","line":\d+\},"msg":".*}`,
 		},
 		{
-			name:       "json unix-ms time format",
-			logFormat:  "json",
-			timeFormat: "unix-ms",
-			wantre:     `^{"time":\d{13},"level":"INFO","source":\{"file":"[^"]+\.go","line":\d+\},"msg":".*}`,
-		},
-		{
-			name:       "json unix-ns time format",
-			logFormat:  "json",
-			timeFormat: "unix-ns",
-			wantre:     `^{"time":\d{19},"level":"INFO","source":\{"file":"[^"]+\.go","line":\d+\},"msg":".*}`,
+			name:      "json unix-ms time format",
+			logFormat: "json-unix-ms",
+			wantre:    `^{"time":\d{13},"level":"INFO","source":\{"file":"[^"]+\.go","line":\d+\},"msg":".*}`,
 		},
 		// TEXT format tests
 		{
-			name:       "text default time format",
-			logFormat:  "text",
-			timeFormat: "default",
-			wantre:     `^time=\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d+.*level=\w+\ssource=[^:]+\.go:\d+\smsg=\w+`,
+			name:      "text default time format",
+			logFormat: "text",
+			wantre:    `^time=\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d+.*level=\w+\ssource=[^:]+\.go:\d+\smsg=\w+`,
 		},
 		{
-			name:       "text unix time format",
-			logFormat:  "text",
-			timeFormat: "unix",
-			wantre:     `^time=\d{10}\slevel=\w+\ssource=[^:]+\.go:\d+\smsg=\w+`,
+			name:      "text unix time format",
+			logFormat: "text-unix",
+			wantre:    `^time=\d{10}\slevel=\w+\ssource=[^:]+\.go:\d+\smsg=\w+`,
 		},
 		{
-			name:       "text unix-ms time format",
-			logFormat:  "text",
-			timeFormat: "unix-ms",
-			wantre:     `^time=\d{13}\slevel=\w+\ssource=[^:]+\.go:\d+\smsg=\w+`,
-		},
-		{
-			name:       "text unix-ns time format",
-			logFormat:  "text",
-			timeFormat: "unix-ns",
-			wantre:     `^time=\d{19}\slevel=\w+\ssource=[^:]+\.go:\d+\smsg=\w+`,
+			name:      "text unix-ms time format",
+			logFormat: "text-unix-ms",
+			wantre:    `^time=\d{13}\slevel=\w+\ssource=[^:]+\.go:\d+\smsg=\w+`,
 		},
 	}
 	t.Parallel()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			var buf bytes.Buffer
-			ctx := initLogger(tc.logFormat, levels.LevelInfo, tc.timeFormat, &buf)
+			ctx := initLogger(tc.logFormat, levels.LevelInfo, &buf)
 			l := nl.LoggerFromContext(ctx)
 			l.Log(ctx, levels.LevelInfo, "test")
 			got := buf.String()
