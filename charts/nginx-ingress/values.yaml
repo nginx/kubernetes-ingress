@@ -161,11 +161,12 @@ controller:
   ## The log level of the Ingress Controller. Options include: trace, debug, info, warning, error, fatal
   logLevel: info
 
-  ## Sets the log format of Ingress Controller. Options include: glog, json, text
+  ## Sets the log format of Ingress Controller. Options include: glog, json, json-unix, json-unix-ns, text, text-unix, text-unix-ms
   logFormat: glog
 
-  ## Sets time format for logs. Allowed values: default, unix, unix-ms, unix-ns. Applies to json and text.
-  logTimeFormat: default
+  ## Enables auto adjusting some of the NGINX directives to help with safe configuration and prevent NGINX misconfigurations.
+  ## See https://docs.nginx.com/nginx-ingress-controller/configuration/proxy-buffers-configuration/  for more details of which configuration options are affected
+  directiveAutoAdjust: false
 
   ## Cache configuration options
   cache:

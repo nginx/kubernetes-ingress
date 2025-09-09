@@ -617,6 +617,76 @@ func TestParseProxyBuffersSpec(t *testing.T) {
 	}
 }
 
+func TestParseProxyBuffersSpecWithAutoAdjust(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+		hasError bool
+	}{
+		{
+			name:     "valid proxy buffers with k unit",
+			input:    "8 4k",
+			expected: "8 4k",
+			hasError: false,
+		},
+		{
+			name:     "valid proxy buffers with M unit",
+			input:    "32 2M",
+			expected: "32 2M",
+			hasError: false,
+		},
+		{
+			name:     "auto-adjust random letter to m",
+			input:    "16 8x",
+			expected: "16 8m",
+			hasError: false,
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "",
+			hasError: true,
+		},
+		{
+			name:     "only buffer count",
+			input:    "8",
+			expected: "",
+			hasError: true,
+		},
+		{
+			name:     "negative buffer count",
+			input:    "-8 4k",
+			expected: "",
+			hasError: true,
+		},
+		{
+			name:     "non-numeric buffer size",
+			input:    "8 abc",
+			expected: "",
+			hasError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := ParseProxyBuffersSpecWithAutoAdjust(tc.input)
+
+			if tc.hasError && err == nil {
+				t.Errorf("ParseProxyBuffersSpecWithAutoAdjust(%q) expected error but got none, result: %q", tc.input, result)
+			}
+			if !tc.hasError && err != nil {
+				t.Errorf("ParseProxyBuffersSpecWithAutoAdjust(%q) unexpected error: %v", tc.input, err)
+			}
+			if result != tc.expected {
+				t.Errorf("ParseProxyBuffersSpecWithAutoAdjust(%q) = %q, expected %q", tc.input, result, tc.expected)
+			}
+		})
+	}
+}
+
 func TestVerifyThresholds(t *testing.T) {
 	t.Parallel()
 	validInput := []string{
@@ -845,5 +915,81 @@ func TestParseFloat64(t *testing.T) {
 		if err == nil {
 			t.Errorf("TestParseFloat64(%q) does not return an error for invalid input", input)
 		}
+	}
+}
+
+func TestParseSizeWithAutoAdjust(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+		hasError bool
+	}{
+		{
+			name:     "plain number without unit",
+			input:    "100",
+			expected: "100",
+			hasError: false,
+		},
+		{
+			name:     "valid size with k unit",
+			input:    "100k",
+			expected: "100k",
+			hasError: false,
+		},
+		{
+			name:     "valid size with M unit",
+			input:    "100M",
+			expected: "100M",
+			hasError: false,
+		},
+		{
+			name:     "auto-adjust g to m",
+			input:    "100g",
+			expected: "100m",
+			hasError: false,
+		},
+		{
+			name:     "auto-adjust random letter to m",
+			input:    "100x",
+			expected: "100m",
+			hasError: false,
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "",
+			hasError: true,
+		},
+		{
+			name:     "non-numeric",
+			input:    "abc",
+			expected: "",
+			hasError: true,
+		},
+		{
+			name:     "negative number",
+			input:    "-100m",
+			expected: "",
+			hasError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := ParseSizeWithAutoAdjust(tc.input)
+
+			if tc.hasError && err == nil {
+				t.Errorf("ParseSizeWithAutoAdjust(%q) expected error but got none, result: %q", tc.input, result)
+			}
+			if !tc.hasError && err != nil {
+				t.Errorf("ParseSizeWithAutoAdjust(%q) unexpected error: %v", tc.input, err)
+			}
+			if result != tc.expected {
+				t.Errorf("ParseSizeWithAutoAdjust(%q) = %q, expected %q", tc.input, result, tc.expected)
+			}
+		})
 	}
 }
