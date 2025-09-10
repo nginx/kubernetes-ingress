@@ -91,10 +91,10 @@ jobs:
           output=$(helm package ${helm_versions} kic/charts/nginx-ingress)
           echo "path=$(basename -- $(echo $output | cut -d: -f2))" >> $GITHUB_OUTPUT
 
-#      - name: Push to OCI registries
-#        run: |
-#          helm push ${{ steps.package.outputs.path }} oci://ghcr.io/nginx/charts
-#          helm push ${{ steps.package.outputs.path }} oci://registry-1.docker.io/nginxcharts
+      - name: Push to OCI registries
+        run: |
+          helm push ${{ steps.package.outputs.path }} oci://ghcr.io/nginx/charts
+          helm push ${{ steps.package.outputs.path }} oci://registry-1.docker.io/nginxcharts
 
       - name: Checkout Repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -105,13 +105,13 @@ jobs:
           path: helm-charts
         if: ${{ inputs.nginx_helm_repo }}
 
-#      - name: Push Helm Chart to Helm Charts Repository
-#        run: |
-#          mv ${{ steps.package.outputs.path }} ${{ github.workspace }}/helm-charts/stable/
-#          cd ${{ github.workspace }}/helm-charts
-#          helm repo index stable --url https://helm.nginx.com/stable
-#          git add -A
-#          git -c user.name='NGINX Kubernetes Team' -c user.email='kubernetes@nginx.com' \
-#          commit -m "NGINX Ingress Controller - Release ${{ inputs.chart_version }}"
-#          git push -u origin master
-#        if: ${{ inputs.nginx_helm_repo }}
+      - name: Push Helm Chart to Helm Charts Repository
+        run: |
+          mv ${{ steps.package.outputs.path }} ${{ github.workspace }}/helm-charts/stable/
+          cd ${{ github.workspace }}/helm-charts
+          helm repo index stable --url https://helm.nginx.com/stable
+          git add -A
+          git -c user.name='NGINX Kubernetes Team' -c user.email='kubernetes@nginx.com' \
+          commit -m "NGINX Ingress Controller - Release ${{ inputs.chart_version }}"
+          git push -u origin master
+        if: ${{ inputs.nginx_helm_repo }}
