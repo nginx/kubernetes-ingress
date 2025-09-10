@@ -218,67 +218,67 @@ jobs:
       packages: write
       pull-requests: write # for scout report
     secrets: inherit
-
-  build-docker-plus:
-    name: Build Docker Plus
-    needs: [checks, binaries]
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_plus ) }}
-    uses: ./.github/workflows/build-plus.yml
-    with:
-      platforms: ${{ matrix.platforms }}
-      image: ${{ matrix.image }}
-      target: ${{ matrix.target }}
-      go-md5: ${{ needs.checks.outputs.go_code_md5 }}
-      base-image-md5: ${{ needs.checks.outputs.docker_md5 }}
-      authenticated: true
-      tag: ${{ needs.checks.outputs.build_tag }}
-      branch: ${{ github.ref }}
-      ic-version: ${{ needs.checks.outputs.ic_version }}
-      full-build: true
-      runner: "ubuntu-24.04-amd64"
-    permissions:
-      contents: read
-      actions: read
-      security-events: write
-      id-token: write
-      packages: write
-      pull-requests: write # for scout report
-    secrets: inherit
-
-  build-docker-nap:
-    name: Build Docker NAP
-    needs: [checks, binaries]
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_nap ) }}
-    uses: ./.github/workflows/build-plus.yml
-    with:
-      platforms: ${{ matrix.platforms }}
-      image: ${{ matrix.image }}
-      target: ${{ matrix.target }}
-      go-md5: ${{ needs.checks.outputs.go_code_md5 }}
-      base-image-md5: ${{ needs.checks.outputs.docker_md5 }}
-      nap-modules: ${{ matrix.nap_modules }}
-      authenticated: true
-      tag: ${{ needs.checks.outputs.build_tag }}
-      branch: ${{ github.ref }}
-      ic-version: ${{ needs.checks.outputs.ic_version }}
-      full-build: true
-      runner: "ubuntu-24.04-amd64"
-    permissions:
-      contents: read
-      actions: read
-      security-events: write
-      id-token: write
-      packages: write
-      pull-requests: write # for scout report
-    secrets: inherit
+#
+#  build-docker-plus:
+#    name: Build Docker Plus
+#    needs: [checks, binaries]
+#    strategy:
+#      fail-fast: false
+#      matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_plus ) }}
+#    uses: ./.github/workflows/build-plus.yml
+#    with:
+#      platforms: ${{ matrix.platforms }}
+#      image: ${{ matrix.image }}
+#      target: ${{ matrix.target }}
+#      go-md5: ${{ needs.checks.outputs.go_code_md5 }}
+#      base-image-md5: ${{ needs.checks.outputs.docker_md5 }}
+#      authenticated: true
+#      tag: ${{ needs.checks.outputs.build_tag }}
+#      branch: ${{ github.ref }}
+#      ic-version: ${{ needs.checks.outputs.ic_version }}
+#      full-build: true
+#      runner: "ubuntu-24.04-amd64"
+#    permissions:
+#      contents: read
+#      actions: read
+#      security-events: write
+#      id-token: write
+#      packages: write
+#      pull-requests: write # for scout report
+#    secrets: inherit
+#
+#  build-docker-nap:
+#    name: Build Docker NAP
+#    needs: [checks, binaries]
+#    strategy:
+#      fail-fast: false
+#      matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_nap ) }}
+#    uses: ./.github/workflows/build-plus.yml
+#    with:
+#      platforms: ${{ matrix.platforms }}
+#      image: ${{ matrix.image }}
+#      target: ${{ matrix.target }}
+#      go-md5: ${{ needs.checks.outputs.go_code_md5 }}
+#      base-image-md5: ${{ needs.checks.outputs.docker_md5 }}
+#      nap-modules: ${{ matrix.nap_modules }}
+#      authenticated: true
+#      tag: ${{ needs.checks.outputs.build_tag }}
+#      branch: ${{ github.ref }}
+#      ic-version: ${{ needs.checks.outputs.ic_version }}
+#      full-build: true
+#      runner: "ubuntu-24.04-amd64"
+#    permissions:
+#      contents: read
+#      actions: read
+#      security-events: write
+#      id-token: write
+#      packages: write
+#      pull-requests: write # for scout report
+#    secrets: inherit
 
   tag-stable:
     name: Tag build image as stable
-    needs: [checks, build-docker, build-docker-plus, build-docker-nap]
+    needs: [checks, build-docker]
     permissions:
       contents: read # To checkout repository
       id-token: write # To sign into Google Container Registry
@@ -297,8 +297,8 @@ jobs:
     needs:
       - checks
       - build-docker
-      - build-docker-plus
-      - build-docker-nap
+#      - build-docker-plus
+#      - build-docker-nap
       - tag-stable
     permissions:
       contents: read # To checkout repository
