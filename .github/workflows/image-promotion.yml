@@ -176,7 +176,7 @@ jobs:
           args: build --snapshot --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GOPATH: $HOME/go
+          GOPATH: /home/ubuntu/go
           GOPROXY: ${{ needs.checks.outputs.go_proxy }}
           AWS_PRODUCT_CODE: ${{ secrets.AWS_PRODUCT_CODE }}
           AWS_PUB_KEY: ${{ secrets.AWS_PUB_KEY }}
