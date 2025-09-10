@@ -11,7 +11,8 @@ name: Image Promotion
 on:
   push:
     branches:
-      - chore/publish-runner
+      - main
+      - release-*
   workflow_call:
 
 defaults:
@@ -139,7 +140,7 @@ jobs:
           fi
 
       - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@f1f6e5f6af878fb37288ce1c627459e94dbf7d01 # v3.30.1
+        uses: github/codeql-action/upload-sarif@d3678e237b9c32a6c9bffb3315c335f976f3549f # v3.30.2
         if: steps.check-sarif.outputs.sarif_has_results == 'true'
         with:
           sarif_file: govulncheck.sarif
@@ -278,7 +279,7 @@ jobs:
 
   tag-stable:
     name: Tag build image as stable
-    needs: [ checks, build-docker, build-docker-plus, build-docker-nap ]
+    needs: [checks, build-docker, build-docker-plus, build-docker-nap]
     permissions:
       contents: read # To checkout repository
       id-token: write # To sign into Google Container Registry
@@ -286,7 +287,7 @@ jobs:
     with:
       source_tag: ${{ needs.checks.outputs.build_tag }}
       target_tag: ${{ needs.checks.outputs.stable_tag }}
-      dry_run: true
+      dry_run: false
     secrets: inherit
 
   tag-candidate:
@@ -307,7 +308,7 @@ jobs:
     with:
       source_tag: ${{ needs.checks.outputs.stable_tag }}
       target_tag: ${{ github.ref_name == github.event.repository.default_branch && 'edge' || needs.checks.outputs.additional_tag }}
-      dry_run: true
+      dry_run: false
     secrets: inherit
     if: ${{ !cancelled() && !failure() }}
 
@@ -315,7 +316,7 @@ jobs:
     # pushes edge images to docker hub
     if: ${{ !cancelled() && !failure() && github.ref_name == github.event.repository.default_branch }}
     name: Release Docker OSS
-    needs: [ checks, build-docker ]
+    needs: [checks, build-docker]
     uses: ./.github/workflows/oss-release.yml
     with:
       gcr_release_registry: false
@@ -326,7 +327,7 @@ jobs:
       source_tag: ${{ needs.checks.outputs.stable_tag }}
       target_tag: "edge"
       branch: ${{ github.ref_name }}
-      dry_run: true
+      dry_run: false
     permissions:
       contents: read
       id-token: write
@@ -337,7 +338,7 @@ jobs:
     # pushes plus edge images to nginx registry
     if: ${{ !cancelled() && !failure() && github.ref_name == github.event.repository.default_branch }}
     name: Release Docker Plus
-    needs: [ checks, build-docker-plus, build-docker-nap ]
+    needs: [checks, build-docker-plus, build-docker-nap]
     uses: ./.github/workflows/plus-release.yml
     with:
       nginx_registry: true
@@ -348,7 +349,7 @@ jobs:
       source_tag: ${{ needs.checks.outputs.stable_tag }}
       target_tag: "edge"
       branch: ${{ github.ref_name }}
-      dry_run: true
+      dry_run: false
     permissions:
       contents: read
       id-token: write
@@ -357,7 +358,7 @@ jobs:
   publish-helm-chart:
     if: ${{ !cancelled() && !failure() && github.ref_name == github.event.repository.default_branch }}
     name: Publish Helm Chart
-    needs: [ checks ]
+    needs: [checks]
     uses: ./.github/workflows/publish-helm.yml
     with:
       branch: ${{ github.ref_name }}
@@ -374,7 +375,7 @@ jobs:
     if: ${{ !cancelled() && !failure() && github.ref_name == github.event.repository.default_branch }}
     name: Certify OpenShift UBI images
     runs-on: ubuntu-24.04
-    needs: [ release-oss ]
+    needs: [release-oss]
     steps:
       - name: Checkout Repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -391,7 +392,7 @@ jobs:
   scan-docker-oss:
     name: Scan ${{ matrix.image }}
     runs-on: ubuntu-24.04
-    needs: [ checks, tag-candidate ]
+    needs: [checks, tag-candidate]
     permissions:
       contents: read
       id-token: write
@@ -471,7 +472,7 @@ jobs:
   scan-docker-plus:
     name: Scan ${{ matrix.image }}-${{ matrix.target }}
     runs-on: ubuntu-24.04
-    needs: [ checks, tag-candidate ]
+    needs: [checks, tag-candidate]
     permissions:
       contents: read
       id-token: write
@@ -551,7 +552,7 @@ jobs:
   scan-docker-nap:
     name: Scan ${{ matrix.image }}-${{ matrix.target }}-${{ matrix.nap_modules }}
     runs-on: ubuntu-24.04
-    needs: [ checks, tag-candidate ]
+    needs: [checks, tag-candidate]
     permissions:
       contents: read
       id-token: write
@@ -639,7 +640,7 @@ jobs:
   update-release-draft:
     name: Update Release Draft
     runs-on: ubuntu-24.04
-    needs: [ checks ]
+    needs: [checks]
     permissions:
       contents: write
     steps:
