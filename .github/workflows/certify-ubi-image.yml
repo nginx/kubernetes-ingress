@@ -17,7 +17,7 @@ on:
         description: "Preflight version to use"
         required: false
         type: string
-        default: "1.11.1"
+        default: "1.14.1"
       platforms:
         description: A comma separated list of architectures in the image manifest to certify
         required: false
