@@ -30,7 +30,7 @@ builds:
   #   asmflags:
   #     - all=-trimpath={{.Env.GOPATH}}
   #   ldflags:
-  #     - -s -w -X main.version={{.Version}} -X main.productCode={{.Env.AWS_PRODUCT_CODE}} -X main.pubKeyString={{.Env.AWS_PUB_KEY}}∂
+  #     - -s -w -X main.version={{.Version}} -X main.productCode={{.Env.AWS_PRODUCT_CODE}} -X main.pubKeyString={{.Env.AWS_PUB_KEY}}
   #   main: ./cmd/nginx-ingress/
   #   binary: nginx-ingress
   #   tags:
