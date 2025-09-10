@@ -184,5 +184,5 @@ jobs:
           project_id: ${{ secrets.CERTIFICATION_PROJECT_ID }}
           pyxis_token: ${{ secrets.PYXIS_API_TOKEN }}
           platforms: ""
-          preflight_version: 1.11.1
+          preflight_version: 1.14.1
           submit: ${{ ! inputs.dry_run || true }}

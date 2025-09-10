@@ -305,7 +305,7 @@ jobs:
           image: quay.io/nginx/nginx-ingress:${{ inputs.nic_version }}-ubi
           project_id: ${{ secrets.CERTIFICATION_PROJECT_ID }}
           pyxis_token: ${{ secrets.PYXIS_API_TOKEN }}
-          preflight_version: 1.13.3
+          preflight_version: 1.14.1
 
   ## Disable operator release step for now until nginx-bot issue is resolved, manually trigger workflow in nginx-ingress-helm-operator
   # operator:
