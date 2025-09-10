@@ -192,124 +192,124 @@ jobs:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ needs.checks.outputs.go_code_md5 }}
 
-#  build-docker:
-#    name: Build Docker OSS
-#    needs: [checks, binaries]
-#    strategy:
-#      fail-fast: false
-#      matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_oss ) }}
-#    uses: ./.github/workflows/build-oss.yml
-#    with:
-#      platforms: ${{ matrix.platforms }}
-#      image: ${{ matrix.image }}
-#      go-md5: ${{ needs.checks.outputs.go_code_md5 }}
-#      base-image-md5: ${{ needs.checks.outputs.docker_md5 }}
-#      authenticated: true
-#      tag: ${{ needs.checks.outputs.build_tag }}
-#      branch: ${{ github.ref }}
-#      ic-version: ${{ needs.checks.outputs.ic_version }}
-#      full-build: true
-#      runner: "ubuntu-24.04-amd64"
-#    permissions:
-#      contents: read
-#      actions: read
-#      security-events: write
-#      id-token: write
-#      packages: write
-#      pull-requests: write # for scout report
-#    secrets: inherit
-#
-#  build-docker-plus:
-#    name: Build Docker Plus
-#    needs: [checks, binaries]
-#    strategy:
-#      fail-fast: false
-#      matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_plus ) }}
-#    uses: ./.github/workflows/build-plus.yml
-#    with:
-#      platforms: ${{ matrix.platforms }}
-#      image: ${{ matrix.image }}
-#      target: ${{ matrix.target }}
-#      go-md5: ${{ needs.checks.outputs.go_code_md5 }}
-#      base-image-md5: ${{ needs.checks.outputs.docker_md5 }}
-#      authenticated: true
-#      tag: ${{ needs.checks.outputs.build_tag }}
-#      branch: ${{ github.ref }}
-#      ic-version: ${{ needs.checks.outputs.ic_version }}
-#      full-build: true
-#      runner: "ubuntu-24.04-amd64"
-#    permissions:
-#      contents: read
-#      actions: read
-#      security-events: write
-#      id-token: write
-#      packages: write
-#      pull-requests: write # for scout report
-#    secrets: inherit
-#
-#  build-docker-nap:
-#    name: Build Docker NAP
-#    needs: [checks, binaries]
-#    strategy:
-#      fail-fast: false
-#      matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_nap ) }}
-#    uses: ./.github/workflows/build-plus.yml
-#    with:
-#      platforms: ${{ matrix.platforms }}
-#      image: ${{ matrix.image }}
-#      target: ${{ matrix.target }}
-#      go-md5: ${{ needs.checks.outputs.go_code_md5 }}
-#      base-image-md5: ${{ needs.checks.outputs.docker_md5 }}
-#      nap-modules: ${{ matrix.nap_modules }}
-#      authenticated: true
-#      tag: ${{ needs.checks.outputs.build_tag }}
-#      branch: ${{ github.ref }}
-#      ic-version: ${{ needs.checks.outputs.ic_version }}
-#      full-build: true
-#      runner: "ubuntu-24.04-amd64"
-#    permissions:
-#      contents: read
-#      actions: read
-#      security-events: write
-#      id-token: write
-#      packages: write
-#      pull-requests: write # for scout report
-#    secrets: inherit
-#
-#  tag-stable:
-#    name: Tag build image as stable
-#    needs: [checks, build-docker, build-docker-plus, build-docker-nap]
-#    permissions:
-#      contents: read # To checkout repository
-#      id-token: write # To sign into Google Container Registry
-#    uses: ./.github/workflows/retag-images.yml
-#    with:
-#      source_tag: ${{ needs.checks.outputs.build_tag }}
-#      target_tag: ${{ needs.checks.outputs.stable_tag }}
-#      dry_run: false
-#    secrets: inherit
-#
-#  tag-candidate:
-#    # pushes edge or release images to gcr/dev
-#    # for main: this keeps a copy of edge in gcr/dev
-#    # for release-*: this stages a release candidate in gcr/dev which can be used for release promotion
-#    name: Tag tested image as stable
-#    needs:
-#      - checks
-#      - build-docker
-#      - build-docker-plus
-#      - build-docker-nap
-#      - tag-stable
-#    permissions:
-#      contents: read # To checkout repository
-#      id-token: write # To sign into Google Container Registry
-#    uses: ./.github/workflows/retag-images.yml
-#    with:
-#      source_tag: ${{ needs.checks.outputs.stable_tag }}
-#      target_tag: ${{ github.ref_name == github.event.repository.default_branch && 'edge' || needs.checks.outputs.additional_tag }}
-#      dry_run: false
-#    secrets: inherit
-#    if: ${{ !cancelled() && !failure() }}
+  build-docker:
+    name: Build Docker OSS
+    needs: [checks, binaries]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_oss ) }}
+    uses: ./.github/workflows/build-oss.yml
+    with:
+      platforms: ${{ matrix.platforms }}
+      image: ${{ matrix.image }}
+      go-md5: ${{ needs.checks.outputs.go_code_md5 }}
+      base-image-md5: ${{ needs.checks.outputs.docker_md5 }}
+      authenticated: true
+      tag: ${{ needs.checks.outputs.build_tag }}
+      branch: ${{ github.ref }}
+      ic-version: ${{ needs.checks.outputs.ic_version }}
+      full-build: true
+      runner: "ubuntu-24.04-amd64"
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+      id-token: write
+      packages: write
+      pull-requests: write # for scout report
+    secrets: inherit
+
+  build-docker-plus:
+    name: Build Docker Plus
+    needs: [checks, binaries]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_plus ) }}
+    uses: ./.github/workflows/build-plus.yml
+    with:
+      platforms: ${{ matrix.platforms }}
+      image: ${{ matrix.image }}
+      target: ${{ matrix.target }}
+      go-md5: ${{ needs.checks.outputs.go_code_md5 }}
+      base-image-md5: ${{ needs.checks.outputs.docker_md5 }}
+      authenticated: true
+      tag: ${{ needs.checks.outputs.build_tag }}
+      branch: ${{ github.ref }}
+      ic-version: ${{ needs.checks.outputs.ic_version }}
+      full-build: true
+      runner: "ubuntu-24.04-amd64"
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+      id-token: write
+      packages: write
+      pull-requests: write # for scout report
+    secrets: inherit
+
+  build-docker-nap:
+    name: Build Docker NAP
+    needs: [checks, binaries]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_nap ) }}
+    uses: ./.github/workflows/build-plus.yml
+    with:
+      platforms: ${{ matrix.platforms }}
+      image: ${{ matrix.image }}
+      target: ${{ matrix.target }}
+      go-md5: ${{ needs.checks.outputs.go_code_md5 }}
+      base-image-md5: ${{ needs.checks.outputs.docker_md5 }}
+      nap-modules: ${{ matrix.nap_modules }}
+      authenticated: true
+      tag: ${{ needs.checks.outputs.build_tag }}
+      branch: ${{ github.ref }}
+      ic-version: ${{ needs.checks.outputs.ic_version }}
+      full-build: true
+      runner: "ubuntu-24.04-amd64"
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+      id-token: write
+      packages: write
+      pull-requests: write # for scout report
+    secrets: inherit
+
+  tag-stable:
+    name: Tag build image as stable
+    needs: [checks, build-docker, build-docker-plus, build-docker-nap]
+    permissions:
+      contents: read # To checkout repository
+      id-token: write # To sign into Google Container Registry
+    uses: ./.github/workflows/retag-images.yml
+    with:
+      source_tag: ${{ needs.checks.outputs.build_tag }}
+      target_tag: ${{ needs.checks.outputs.stable_tag }}
+      dry_run: false
+    secrets: inherit
+
+  tag-candidate:
+    # pushes edge or release images to gcr/dev
+    # for main: this keeps a copy of edge in gcr/dev
+    # for release-*: this stages a release candidate in gcr/dev which can be used for release promotion
+    name: Tag tested image as stable
+    needs:
+      - checks
+      - build-docker
+      - build-docker-plus
+      - build-docker-nap
+      - tag-stable
+    permissions:
+      contents: read # To checkout repository
+      id-token: write # To sign into Google Container Registry
+    uses: ./.github/workflows/retag-images.yml
+    with:
+      source_tag: ${{ needs.checks.outputs.stable_tag }}
+      target_tag: ${{ github.ref_name == github.event.repository.default_branch && 'edge' || needs.checks.outputs.additional_tag }}
+      dry_run: false
+    secrets: inherit
+    if: ${{ !cancelled() && !failure() }}
 #
 #  release-oss:
 #    # pushes edge images to docker hub
