@@ -92,8 +92,8 @@ jobs:
           GITHUB_USERNAME: ${{ github.actor }}
           GITHUB_EMAIL: ${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DRY_RUN: ${{ inputs.dry_run && 'true' || 'true' }}
-          DEBUG: ${{ inputs.debug && 'true' || 'true' }}
+          DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
+          DEBUG: ${{ inputs.debug && 'true' || 'false' }}
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
