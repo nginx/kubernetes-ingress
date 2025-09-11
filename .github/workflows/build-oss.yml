@@ -44,6 +44,7 @@ permissions:
 
 jobs:
   build:
+    name: "${{ inputs.image }} ${{inputs.platforms }}"
     runs-on: ${{ inputs.runner }}
     permissions:
       contents: read # for docker/build-push-action to read repo content
