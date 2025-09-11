@@ -34,7 +34,6 @@ jobs:
       contents: read
       id-token: write
     outputs:
-      go_path: ${{ steps.vars.outputs.go_path }}
       go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}
       go_proxy: ${{ steps.vars.outputs.go_proxy }}
       chart_version: ${{ steps.vars.outputs.chart_version }}
@@ -89,7 +88,6 @@ jobs:
       - name: Output variables
         run: |
           echo go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}
-          echo go_path: ${{ steps.vars.outputs.go_path }}
           echo go_proxy: ${{ steps.vars.outputs.go_proxy }}
           echo chart_version: ${{ steps.vars.outputs.chart_version }}
           echo ic_version: ${{ steps.vars.outputs.ic_version }}
