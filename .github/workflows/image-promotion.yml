@@ -34,8 +34,8 @@ jobs:
       contents: read
       id-token: write
     outputs:
-      go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}
       go_path: ${{ steps.vars.outputs.go_path }}
+      go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}
       go_proxy: ${{ steps.vars.outputs.go_proxy }}
       chart_version: ${{ steps.vars.outputs.chart_version }}
       ic_version: ${{ steps.vars.outputs.ic_version }}
