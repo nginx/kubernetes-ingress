@@ -12,6 +12,10 @@ builds:
       - arm64
     flags:
       - -trimpath
+    gcflags:
+      - all=-trimpath={{.Env.GOPATH}}
+    asmflags:
+      - all=-trimpath={{.Env.GOPATH}}
     ldflags:
       - -s -w -X main.version={{.Version}}
     main: ./cmd/nginx-ingress/
