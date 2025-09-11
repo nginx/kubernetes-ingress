@@ -146,73 +146,27 @@ jobs:
         with:
           sarif_file: govulncheck.sarif
 
-  binaries:
-    name: Build Binaries
-    runs-on: ubuntu-24.04-amd64
+
+
+  build-artifacts:
+    name: Build Artifacts
     needs: [checks]
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-
-      - name: Setup Golang Environment
-        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
-        with:
-          go-version-file: go.mod
-
-      - name: Setup netrc
-        run: |
-          cat <<EOF > $HOME/.netrc
-          machine azr.artifactory.f5net.com
-              login ${{ secrets.ARTIFACTORY_USER }}
-              password ${{ secrets.ARTIFACTORY_TOKEN }}
-          EOF
-          chmod 600 $HOME/.netrc
-
-      - name: Build binaries
-        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6.4.0
-        with:
-          version: latest
-          args: build --snapshot --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GOPATH: ${{ needs.checks.outputs.go_path }}
-          GOPROXY: ${{ needs.checks.outputs.go_proxy }}
-          AWS_PRODUCT_CODE: ${{ secrets.AWS_PRODUCT_CODE }}
-          AWS_PUB_KEY: ${{ secrets.AWS_PUB_KEY }}
-          AWS_NAP_DOS_PRODUCT_CODE: ${{ secrets.AWS_NAP_DOS_PRODUCT_CODE }}
-          AWS_NAP_DOS_PUB_KEY: ${{ secrets.AWS_NAP_DOS_PUB_KEY }}
-          AWS_NAP_WAF_PRODUCT_CODE: ${{ secrets.AWS_NAP_WAF_PRODUCT_CODE }}
-          AWS_NAP_WAF_PUB_KEY: ${{ secrets.AWS_NAP_WAF_PUB_KEY }}
-          AWS_NAP_WAF_DOS_PRODUCT_CODE: ${{ secrets.AWS_NAP_WAF_DOS_PRODUCT_CODE }}
-          AWS_NAP_WAF_DOS_PUB_KEY: ${{ secrets.AWS_NAP_WAF_DOS_PUB_KEY }}
-          GORELEASER_CURRENT_TAG: "v${{ needs.checks.outputs.ic_version }}"
-
-      - name: Store Artifacts in Cache
-        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
-        with:
-          path: ${{ github.workspace }}/dist
-          key: nginx-ingress-${{ needs.checks.outputs.go_code_md5 }}
-
-  build-docker:
-    name: Build Docker OSS
-    needs: [checks, binaries]
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_oss ) }}
-    uses: ./.github/workflows/build-oss.yml
+    uses: ./.github/workflows/build-artifacts.yml
     with:
-      platforms: ${{ matrix.platforms }}
-      image: ${{ matrix.image }}
-      go-md5: ${{ needs.checks.outputs.go_code_md5 }}
-      base-image-md5: ${{ needs.checks.outputs.docker_md5 }}
+      force: true
       authenticated: true
-      tag: ${{ needs.checks.outputs.build_tag }}
-      branch: ${{ github.ref }}
       ic-version: ${{ needs.checks.outputs.ic_version }}
-      full-build: true
+      go-path: ${{ needs.checks.outputs.go_path }}
+      go-proxy: ${{ needs.checks.outputs.go_proxy }}
+      image-matrix-oss: ${{ needs.checks.outputs.image_matrix_oss }}
+      image-matrix-plus: ${{ needs.checks.outputs.image_matrix_plus }}
+      image-matrix-nap: ${{ needs.checks.outputs.image_matrix_nap }}
+      branch: ${{ github.ref }}
+      tag: ${{ needs.checks.outputs.build_tag }}
+      go-md5: ${{ needs.checks.outputs.go_code_md5 }}
+      docker-md5: ${{ needs.checks.outputs.docker_md5 }}
       runner: "ubuntu-24.04-amd64"
+    secrets: inherit
     permissions:
       contents: read
       actions: read
@@ -220,68 +174,10 @@ jobs:
       id-token: write
       packages: write
       pull-requests: write # for scout report
-    secrets: inherit
-
-  build-docker-plus:
-    name: Build Docker Plus
-    needs: [checks, binaries]
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_plus ) }}
-    uses: ./.github/workflows/build-plus.yml
-    with:
-      platforms: ${{ matrix.platforms }}
-      image: ${{ matrix.image }}
-      target: ${{ matrix.target }}
-      go-md5: ${{ needs.checks.outputs.go_code_md5 }}
-      base-image-md5: ${{ needs.checks.outputs.docker_md5 }}
-      authenticated: true
-      tag: ${{ needs.checks.outputs.build_tag }}
-      branch: ${{ github.ref }}
-      ic-version: ${{ needs.checks.outputs.ic_version }}
-      full-build: true
-      runner: "ubuntu-24.04-amd64"
-    permissions:
-      contents: read
-      actions: read
-      security-events: write
-      id-token: write
-      packages: write
-      pull-requests: write # for scout report
-    secrets: inherit
-
-  build-docker-nap:
-    name: Build Docker NAP
-    needs: [checks, binaries]
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_nap ) }}
-    uses: ./.github/workflows/build-plus.yml
-    with:
-      platforms: ${{ matrix.platforms }}
-      image: ${{ matrix.image }}
-      target: ${{ matrix.target }}
-      go-md5: ${{ needs.checks.outputs.go_code_md5 }}
-      base-image-md5: ${{ needs.checks.outputs.docker_md5 }}
-      nap-modules: ${{ matrix.nap_modules }}
-      authenticated: true
-      tag: ${{ needs.checks.outputs.build_tag }}
-      branch: ${{ github.ref }}
-      ic-version: ${{ needs.checks.outputs.ic_version }}
-      full-build: true
-      runner: "ubuntu-24.04-amd64"
-    permissions:
-      contents: read
-      actions: read
-      security-events: write
-      id-token: write
-      packages: write
-      pull-requests: write # for scout report
-    secrets: inherit
 
   tag-stable:
     name: Tag build image as stable
-    needs: [checks, build-docker, build-docker-plus, build-docker-nap]
+    needs: [checks, build-artifacts]
     permissions:
       contents: read # To checkout repository
       id-token: write # To sign into Google Container Registry
@@ -299,9 +195,7 @@ jobs:
     name: Tag tested image as stable
     needs:
       - checks
-      - build-docker
-      - build-docker-plus
-      - build-docker-nap
+      - build-artifacts
       - tag-stable
     permissions:
       contents: read # To checkout repository
@@ -318,7 +212,7 @@ jobs:
     # pushes edge images to docker hub
     if: ${{ !cancelled() && !failure() && github.ref_name == github.event.repository.default_branch }}
     name: Release Docker OSS
-    needs: [checks, build-docker]
+    needs: [checks, build-artifacts]
     uses: ./.github/workflows/oss-release.yml
     with:
       gcr_release_registry: false
@@ -340,7 +234,7 @@ jobs:
     # pushes plus edge images to nginx registry
     if: ${{ !cancelled() && !failure() && github.ref_name == github.event.repository.default_branch }}
     name: Release Docker Plus
-    needs: [checks, build-docker-plus, build-docker-nap]
+    needs: [checks, build-artifacts]
     uses: ./.github/workflows/plus-release.yml
     with:
       nginx_registry: true
