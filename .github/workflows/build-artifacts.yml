@@ -56,9 +56,8 @@ jobs:
     name: Build Binaries
     runs-on: ${{ inputs.runner }}
     permissions:
-      contents: write # for goreleaser/goreleaser-action to manage releases
-      id-token: write # for goreleaser/goreleaser-action to sign artifacts
-      issues: write # for goreleaser/goreleaser-action to close milestone
+      contents: read
+      id-token: write
     steps:
       - name: Checkout Repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
