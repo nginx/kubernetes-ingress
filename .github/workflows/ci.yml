@@ -34,13 +34,14 @@ permissions:
 jobs:
   checks:
     name: Checks and variables
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-amd64
     permissions:
       contents: read
       id-token: write
     outputs:
       docs_only: ${{ github.event.pull_request && steps.docs.outputs.docs_only == 'true' }}
       k8s_latest: ${{ steps.vars.outputs.k8s_latest }}
+      go_path: ${{ steps.vars.outputs.go_path }}
       go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}
       go_proxy: ${{ steps.vars.outputs.go_proxy }}
       binary_cache_hit: ${{ steps.binary-cache.outputs.cache-hit }}
@@ -95,6 +96,7 @@ jobs:
             | sed 's/^.\{1\}//' \
             | tr -d '\n')
           echo "k8s_latest=$kindest_latest" >> $GITHUB_OUTPUT
+          echo "go_path=$(go env GOPATH)" >> $GITHUB_OUTPUT
           source .github/data/version.txt
           echo "ic_version=${IC_VERSION}" >> $GITHUB_OUTPUT
           echo "chart_version=${HELM_CHART_VERSION}" >> $GITHUB_OUTPUT
@@ -170,6 +172,7 @@ jobs:
         run: |
           echo docs_only: ${{ github.event.pull_request && steps.docs.outputs.docs_only == 'true' }}
           echo k8s_latest: ${{ steps.vars.outputs.k8s_latest }}
+          echo go_path: ${{ steps.vars.outputs.go_path }}
           echo go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}
           echo binary_cache_hit: ${{ steps.binary-cache.outputs.cache-hit }}
           echo chart_version: ${{ steps.vars.outputs.chart_version }}
@@ -324,6 +327,7 @@ jobs:
           args: build --snapshot --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOPATH: ${{ needs.checks.outputs.go_path }}
           GOPROXY: ${{ needs.checks.outputs.go_proxy }}
           AWS_PRODUCT_CODE: ${{ secrets.AWS_PRODUCT_CODE }}
           AWS_PUB_KEY: ${{ secrets.AWS_PUB_KEY }}
