@@ -1,10 +1,9 @@
-package validation_test
+package validation
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/nginx/kubernetes-ingress/internal/validation"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"github.com/stretchr/testify/assert"
 )
@@ -108,13 +107,13 @@ func TestNewSizeWithUnit(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := validation.NewSizeWithUnit(tt.sizeStr)
+			got, err := NewSizeWithUnit(tt.sizeStr, true)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Newvalidation.SizeWithUnit() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 
-			if got.String() != tt.want {
+			if got != tt.want {
 				t.Errorf("Newvalidation.SizeWithUnit() got = %v, want %v", got, tt.want)
 			}
 		})
@@ -125,55 +124,37 @@ func TestNewNumberSizeConfig(t *testing.T) {
 	tests := []struct {
 		name    string
 		sizeStr string
-		want    validation.NumberSizeConfig
+		want    string
 		wantErr bool
 	}{
 		{
 			name:    "valid number and size with k unit",
 			sizeStr: "8 4k",
-			want: validation.NumberSizeConfig{
-				Number: 8,
-				Size:   validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB},
-			},
+			want:    "8 4k",
 			wantErr: false,
 		},
 		{
 			name:    "valid number and size with m unit",
 			sizeStr: "10 2m",
-			want: validation.NumberSizeConfig{
-				Number: 10,
-				Size:   validation.SizeWithUnit{Size: 2, Unit: validation.SizeMB},
-			},
+			want:    "10 2m",
 			wantErr: false,
 		},
 		{
 			name:    "valid number and size with g unit, replaced with m",
 			sizeStr: "3 1g",
-			want: validation.NumberSizeConfig{
-				Number: 3,
-				Size:   validation.SizeWithUnit{Size: 1, Unit: validation.SizeMB},
-			},
+			want:    "3 1m",
 			wantErr: false,
 		},
 		{
 			name:    "zero number gets parsed as 0",
 			sizeStr: "0 4k",
-			want: validation.NumberSizeConfig{
-				Number: 0,
-				Size:   validation.SizeWithUnit{Size: 4, Unit: validation.SizeKB},
-			},
+			want:    "0 4k",
 			wantErr: false,
 		},
 		{
 			name:    "valid number with invalid size unit, replaced with m",
 			sizeStr: "5 4x",
-			want: validation.NumberSizeConfig{
-				Number: 5,
-				Size: validation.SizeWithUnit{
-					Size: 4,
-					Unit: validation.SizeMB,
-				},
-			},
+			want:    "5 4m",
 			wantErr: false,
 		},
 	}
@@ -182,7 +163,7 @@ func TestNewNumberSizeConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := validation.NewNumberSizeConfig(tt.sizeStr)
+			got, err := newNumberSizeConfig(tt.sizeStr, true)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Newvalidation.NumberSizeConfig() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -510,22 +491,22 @@ func TestBalanceProxyValues(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pb, err := validation.NewNumberSizeConfig(tt.args.proxyBuffers)
+			pb, err := newNumberSizeConfig(tt.args.proxyBuffers, true)
 			if err != nil {
 				t.Fatalf("Failed to parse proxyBuffers: %v", err)
 			}
 
-			pbs, err := validation.NewSizeWithUnit(tt.args.proxyBufferSize)
+			pbs, err := NewSizeWithUnit(tt.args.proxyBufferSize, true)
 			if err != nil {
 				t.Fatalf("Failed to parse proxyBufferSize: %v", err)
 			}
 
-			pbbs, err := validation.NewSizeWithUnit(tt.args.proxyBusyBuffersSize)
+			pbbs, err := NewSizeWithUnit(tt.args.proxyBusyBuffersSize, true)
 			if err != nil {
 				t.Fatalf("Failed to parse proxyBusyBuffers: %v", err)
 			}
 
-			gotProxyBuffers, gotProxyBufferSize, gotProxyBusyBufferSize, m, err := validation.BalanceProxyValues(pb, pbs, pbbs, true)
+			gotProxyBuffers, gotProxyBufferSize, gotProxyBusyBufferSize, m, err := BalanceProxyValues(pb, pbs, pbbs, true)
 
 			assert.NoError(t, err)
 
@@ -533,9 +514,9 @@ func TestBalanceProxyValues(t *testing.T) {
 				t.Logf("Modification: %s", mm)
 			}
 
-			assert.Equalf(t, tt.wantProxyBuffers, gotProxyBuffers.String(), "proxy buffers, want: %s, got: %s", tt.wantProxyBuffers, gotProxyBuffers.String())
-			assert.Equalf(t, tt.wantProxyBufferSize, gotProxyBufferSize.String(), "proxy_buffer_size, want: %s, got: %s", tt.wantProxyBufferSize, gotProxyBufferSize.String())
-			assert.Equalf(t, tt.wantProxyBusyBufferSize, gotProxyBusyBufferSize.String(), "proxy_busy_buffers_size, want: %s, got: %s", tt.wantProxyBusyBufferSize, gotProxyBusyBufferSize.String())
+			assert.Equalf(t, tt.wantProxyBuffers, gotProxyBuffers, "proxy buffers, want: %s, got: %s", tt.wantProxyBuffers, gotProxyBuffers)
+			assert.Equalf(t, tt.wantProxyBufferSize, gotProxyBufferSize, "proxy_buffer_size, want: %s, got: %s", tt.wantProxyBufferSize, gotProxyBufferSize)
+			assert.Equalf(t, tt.wantProxyBusyBufferSize, gotProxyBusyBufferSize, "proxy_busy_buffers_size, want: %s, got: %s", tt.wantProxyBusyBufferSize, gotProxyBusyBufferSize)
 		})
 	}
 }
@@ -825,16 +806,16 @@ func TestBalanceProxiesForUpstreams(t *testing.T) {
 				ProxyBusyBuffersSize: "invalid",
 			},
 			autoadjust:              false,
-			wantProxyBuffers:        "8 4k",
-			wantProxyBufferSize:     "4k",
-			wantProxyBusyBufferSize: "4k",
+			wantProxyBuffers:        "0 invalid",
+			wantProxyBufferSize:     "invalid",
+			wantProxyBusyBufferSize: "invalid",
 			wantErr:                 false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validation.BalanceProxiesForUpstreams(tt.upstream, tt.autoadjust)
+			err := BalanceProxiesForUpstreams(tt.upstream, tt.autoadjust)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("BalanceProxiesForUpstreams() error = %v, wantErr %v", err, tt.wantErr)

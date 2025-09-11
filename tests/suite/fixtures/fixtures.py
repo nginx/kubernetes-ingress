@@ -241,7 +241,6 @@ def ingress_controller_prerequisites(cli_arguments, kube_apis, request) -> Ingre
         ]
     )
     config_map_yaml = f"{DEPLOYMENTS}/common/nginx-config.yaml"
-    mgmt_config_map_yaml = f"{DEPLOYMENTS}/common/plus-mgmt-configmap.yaml"
     create_configmap_from_yaml(kube_apis.v1, namespace, config_map_yaml)
     mgmt_config_map_yaml = f"{DEPLOYMENTS}/common/plus-mgmt-configmap.yaml"
     with open(config_map_yaml) as f:

@@ -217,6 +217,9 @@ var (
 			validateRequiredAnnotation,
 			validateSizeAnnotation,
 		},
+		proxyBusyBuffersSizeAnnotation: {
+			validateSizeAnnotation,
+		},
 		proxyMaxTempFileSizeAnnotation: {
 			validateRequiredAnnotation,
 			validateSizeAnnotation,
@@ -684,28 +687,11 @@ func validateOffsetAnnotation(context *annotationValidationContext) field.ErrorL
 }
 
 func validateSizeAnnotation(context *annotationValidationContext) field.ErrorList {
-	var err error
-	if context.directiveAutoadjust {
-		_, err = configs.ParseSizeWithAutoAdjust(context.value)
-	} else {
-		_, err = configs.ParseSize(context.value)
-	}
-
-	if err != nil {
-		return field.ErrorList{field.Invalid(context.fieldPath, context.value, "must be a size")}
-	}
-	return nil
+	return ap_validation.ValidateSize(context.value, context.fieldPath)
 }
 
 func validateProxyBuffersAnnotation(context *annotationValidationContext) field.ErrorList {
-	var err error
-	if context.directiveAutoadjust {
-		_, err = configs.ParseProxyBuffersSpecWithAutoAdjust(context.value)
-	} else {
-		_, err = configs.ParseProxyBuffersSpec(context.value)
-	}
-
-	if err != nil {
+	if _, err := configs.ParseProxyBuffersSpec(context.value); err != nil {
 		return field.ErrorList{field.Invalid(context.fieldPath, context.value, "must be a proxy buffer spec")}
 	}
 	return nil
