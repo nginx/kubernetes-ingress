@@ -50,7 +50,7 @@ permissions:
 
 jobs:
   build:
-    name: "${{ inputs.image }}, ${{ inputs.target }}, ${{inputs.platforms }}, ${{ inputs.nap-modules != '' && inputs.nap-modules || 'plus' }}"
+    name: "${{ contains(inputs.image, 'nap') && 'NAP' || 'Plus' }} ${{ inputs.image }}, ${{ inputs.target }}, ${{inputs.platforms }}, ${{ inputs.nap-modules != '' && inputs.nap-modules || 'plus' }}"
     permissions:
       contents: read # for docker/build-push-action to read repo content
       id-token: write # for OIDC login to AWS
