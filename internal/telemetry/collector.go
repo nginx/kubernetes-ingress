@@ -165,6 +165,7 @@ func (c *Collector) Collect(ctx context.Context) {
 			EgressMTLSPolicies:         int64(report.EgressMTLSCount),
 			OIDCPolicies:               int64(report.OIDCCount),
 			WAFPolicies:                int64(report.WAFCount),
+			CachePolicies:              int64(report.CacheCount),
 			GlobalConfiguration:        report.GlobalConfiguration,
 			IngressAnnotations:         report.IngressAnnotations,
 			AppProtectVersion:          report.AppProtectVersion,
@@ -219,6 +220,7 @@ type Report struct {
 	EgressMTLSCount         int
 	OIDCCount               int
 	WAFCount                int
+	CacheCount              int
 	GlobalConfiguration     bool
 	IngressAnnotations      []string
 	AppProtectVersion       string
@@ -297,6 +299,7 @@ func (c *Collector) BuildReport(ctx context.Context) (Report, error) {
 		egressMTLSCount         int
 		oidcCount               int
 		wafCount                int
+		cacheCount              int
 	)
 	// Collect Custom Resources (Policies) only if CR enabled at startup.
 	if c.Config.CustomResourcesEnabled {
@@ -312,6 +315,7 @@ func (c *Collector) BuildReport(ctx context.Context) (Report, error) {
 		egressMTLSCount = policies["EgressMTLS"]
 		oidcCount = policies["OIDC"]
 		wafCount = policies["WAF"]
+		cacheCount = policies["Cache"]
 	}
 
 	ingressAnnotations := c.IngressAnnotations()
@@ -374,6 +378,7 @@ func (c *Collector) BuildReport(ctx context.Context) (Report, error) {
 		EgressMTLSCount:         egressMTLSCount,
 		OIDCCount:               oidcCount,
 		WAFCount:                wafCount,
+		CacheCount:              cacheCount,
 		GlobalConfiguration:     c.Config.GlobalConfiguration,
 		IngressAnnotations:      ingressAnnotations,
 		AppProtectVersion:       appProtectVersion,
