@@ -99,7 +99,10 @@ It is the UID of the `kube-system` Namespace. */
 		
 		/** WAFPolicies is the number of WAF policies managed by NGINX Ingress Controller */
 		long? WAFPolicies = null;
-		
+
+		/** CachePolicies is the number of Cache policies managed by NGINX Ingress Controller */
+		long? CachePolicies = null;
+
 		/** GlobalConfiguration indicates if a GlobalConfiguration resource is used. */
 		boolean? GlobalConfiguration = null;
 		

@@ -124,6 +124,8 @@ type NICResourceCounts struct {
 	OIDCPolicies int64
 	// WAFPolicies is the number of WAF policies managed by NGINX Ingress Controller
 	WAFPolicies int64
+	// CachePolicies is the number of Cache policies managed by NGINX Ingress Controller
+	CachePolicies int64
 	// GlobalConfiguration indicates if a GlobalConfiguration resource is used.
 	GlobalConfiguration bool
 	// IngressAnnotations is the list of annotations resources managed by NGINX Ingress Controller
