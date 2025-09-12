@@ -34,7 +34,6 @@ func (d *NICResourceCounts) Attributes() []attribute.KeyValue {
 	attrs = append(attrs, attribute.Int64("EgressMTLSPolicies", d.EgressMTLSPolicies))
 	attrs = append(attrs, attribute.Int64("OIDCPolicies", d.OIDCPolicies))
 	attrs = append(attrs, attribute.Int64("WAFPolicies", d.WAFPolicies))
-	attrs = append(attrs, attribute.Int64("CachePolicies", d.CachePolicies))
 	attrs = append(attrs, attribute.Bool("GlobalConfiguration", d.GlobalConfiguration))
 	attrs = append(attrs, attribute.StringSlice("IngressAnnotations", d.IngressAnnotations))
 	attrs = append(attrs, attribute.String("AppProtectVersion", d.AppProtectVersion))
@@ -45,6 +44,7 @@ func (d *NICResourceCounts) Attributes() []attribute.KeyValue {
 	attrs = append(attrs, attribute.StringSlice("MGMTConfigMapKeys", d.MGMTConfigMapKeys))
 	attrs = append(attrs, attribute.Int64("JWTRateLimitPolicies", d.JWTRateLimitPolicies))
 	attrs = append(attrs, attribute.Int64("VariablesRateLimitPolicies", d.VariablesRateLimitPolicies))
+	attrs = append(attrs, attribute.Int64("CachePolicies", d.CachePolicies))
 
 	return attrs
 }
