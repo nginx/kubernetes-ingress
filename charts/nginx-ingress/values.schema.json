@@ -2564,6 +2564,171 @@
           ]
         }
       }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "default": {
+        "enabled": false
+      },
+      "title": "Configuration for NetworkPolicy",
+      "required": [
+        "enabled"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "title": "Enable NetworkPolicy",
+          "examples": [
+            false,
+            true
+          ]
+        },
+        "policyTypes": {
+          "type": "array",
+          "default": [
+            "Ingress",
+            "Egress"
+          ],
+          "title": "Types of policy to create",
+          "items": {
+            "type": "string",
+            "enum": [
+              "Ingress",
+              "Egress"
+            ]
+          },
+          "examples": [
+            [
+              "Ingress"
+            ],
+            [
+              "Egress"
+            ],
+            [
+              "Ingress",
+              "Egress"
+            ]
+          ]
+        },
+        "podSelector": {
+          "type": "object",
+          "default": {},
+          "title": "Label selector for pods (defaults to ingress controller pods)",
+          "examples": [
+            {},
+            {
+              "matchLabels": {
+                "app": "nginx-ingress"
+              }
+            }
+          ]
+        },
+        "ingress": {
+          "type": "array",
+          "default": [
+            {
+              "from": [],
+              "ports": [
+                {
+                  "protocol": "TCP",
+                  "port": 80
+                },
+                {
+                  "protocol": "TCP",
+                  "port": 443
+                }
+              ]
+            }
+          ],
+          "title": "Ingress rules",
+          "items": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "array",
+                "title": "List of peer selectors (e.g. namespaces, pods)",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "ports": {
+                "type": "array",
+                "title": "List of ports and protocols",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "protocol": {
+                      "type": "string",
+                      "enum": [
+                        "TCP",
+                        "UDP",
+                        "SCTP"
+                      ]
+                    },
+                    "port": {
+                      "type": [
+                        "integer",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "egress": {
+          "type": "array",
+          "default": [
+            {
+              "to": [],
+              "ports": [
+                {
+                  "protocol": "UDP",
+                  "port": 53
+                }
+              ]
+            }
+          ],
+          "title": "Egress rules",
+          "items": {
+            "type": "object",
+            "properties": {
+              "to": {
+                "type": "array",
+                "title": "List of peer selectors",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "ports": {
+                "type": "array",
+                "title": "List of ports and protocols",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "protocol": {
+                      "type": "string",
+                      "enum": [
+                        "TCP",
+                        "UDP",
+                        "SCTP"
+                      ]
+                    },
+                    "port": {
+                      "type": [
+                        "integer",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "examples": [
