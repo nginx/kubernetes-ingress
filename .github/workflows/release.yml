@@ -34,7 +34,7 @@ on:
         default: false
       skip_step:
         description: "Comma separated list of jobs to skip"
-        # publish-helm-chart,operator,release-oss,release-plus,certify-openshift-images,aws-marketplace,azure-marketplace,gcp-marketplace,azure-upload,github-release,release-image-notification
+        # publish-helm-chart,build-artifacts,operator,release-oss,release-plus,certify-openshift-images,aws-marketplace,azure-marketplace,gcp-marketplace,azure-upload,github-release,release-image-notification
         type: string
         required: false
 
@@ -94,6 +94,7 @@ jobs:
           cat $GITHUB_OUTPUT
 
   build-artifacts:
+    if: ${{ !cancelled() && !failure() && !inputs.dry_run && !contains(inputs.skip_step, 'build-artifacts') }}
     name: Build Artifacts
     needs: [variables]
     uses: ./.github/workflows/build-artifacts.yml
