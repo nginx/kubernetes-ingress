@@ -44,6 +44,7 @@ func (d *NICResourceCounts) Attributes() []attribute.KeyValue {
 	attrs = append(attrs, attribute.StringSlice("MGMTConfigMapKeys", d.MGMTConfigMapKeys))
 	attrs = append(attrs, attribute.Int64("JWTRateLimitPolicies", d.JWTRateLimitPolicies))
 	attrs = append(attrs, attribute.Int64("VariablesRateLimitPolicies", d.VariablesRateLimitPolicies))
+	attrs = append(attrs, attribute.Int64("CachePolicies", d.CachePolicies))
 
 	return attrs
 }
