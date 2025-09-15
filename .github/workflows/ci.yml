@@ -733,7 +733,6 @@ jobs:
   trigger-image-promotion:
     name: Promote images on Force Run
     needs:
-      - build-artifacts
       - final-results
     permissions:
       contents: write # for pushing to Helm Charts repository
