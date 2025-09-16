@@ -452,7 +452,7 @@ jobs:
         if: ${{ needs.variables.outputs.binary_cache_sign_hit != 'true' }}
 
       - name: Install Cosign
-        uses: sigstore/cosign-installer@d58896d6a1865668819e1d91763c7751a165e159 # v3.9.2
+        uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 # v3.10.0
         if: ${{ needs.variables.outputs.binary_cache_sign_hit != 'true' }}
 
       - name: Create Tarballs
@@ -636,7 +636,7 @@ jobs:
           echo "sha_long=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
       - name: Send Notification
-        uses: 8398a7/action-slack@1750b5085f3ec60384090fb7c52965ef822e869e # v3.18.0
+        uses: 8398a7/action-slack@77eaa4f1c608a7d68b38af4e3f739dcd8cba273e # v3.19.0
         with:
           status: custom
           custom_payload: |
