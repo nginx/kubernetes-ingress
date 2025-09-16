@@ -316,6 +316,15 @@ jobs:
       pull-requests: write # for scout report
     secrets: inherit
 
+  #  To pass the build in "Build Binaries" check
+  build-binaries:
+    name: Build Binaries
+    runs-on: ubuntu-24.04
+    needs: [build-artifacts]
+    steps:
+      - name: Report build binaries status
+        run: echo "Build binaries completed successfully via build-artifacts job"
+
   tag-target:
     name: Tag untested image with PR number
     needs: [checks, build-artifacts]
@@ -734,6 +743,7 @@ jobs:
     name: Promote images on Force Run
     needs:
       - final-results
+      - build-artifacts
     permissions:
       contents: write # for pushing to Helm Charts repository
       id-token: write # To sign into Google Container Registry
