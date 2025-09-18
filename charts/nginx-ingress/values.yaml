@@ -777,10 +777,11 @@ networkPolicy:
     - Ingress
     - Egress
 
-  ## Label selector for pods the NetworkPolicy applies to (defaults to ingress controller pods)
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/name: nginx-ingress
+  ## Label selector for pods the NetworkPolicy applies to (defaults to all pods in the same namespace)
+  podSelector: {}
+  ##  matchLabels:
+  ##    app.kubernetes.io/name: nginx-ingress
+  ##    app.kubernetes.io/instance: nginx-ingress
 
   ## List of ingress rules for allowed sources and ports
   ingress:

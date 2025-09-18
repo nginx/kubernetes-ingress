@@ -6665,29 +6665,42 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   podSelector:
-    app: nginx-ingress
     matchLabels:
-      app: nginx-ingress
+      app.kubernetes.io/instance: nginx-ingress
+      app.kubernetes.io/name: nginx-ingress
   policyTypes:
     - Ingress
     - Egress
   ingress:
-    - from:
-      - namespaceSelector:
-          matchLabels:
-            name: production
-      - podSelector:
-          matchLabels:
-            role: frontend
+    - from: []
       ports:
       - port: 80
         protocol: TCP
       - port: 443
         protocol: TCP
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            name: monitoring
+      - podSelector:
+          matchLabels:
+            app: prometheus
+      ports:
+      - port: 8081
+        protocol: TCP
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            name: nginx-ingress
+      ports:
+      - port: 8080
+        protocol: TCP
   egress:
     - ports:
       - port: 53
         protocol: UDP
+      - port: 53
+        protocol: TCP
       to:
       - namespaceSelector:
           matchLabels:
@@ -6695,7 +6708,22 @@ spec:
     - ports:
       - port: 443
         protocol: TCP
+      - port: 6443
+        protocol: TCP
       to: []
+    - ports:
+      - port: 80
+        protocol: TCP
+      - port: 443
+        protocol: TCP
+      - port: 8080
+        protocol: TCP
+      - port: 8443
+        protocol: TCP
+      - port: 9000
+        protocol: TCP
+      to:
+      - podSelector: {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-serviceaccount.yaml
 apiVersion: v1
