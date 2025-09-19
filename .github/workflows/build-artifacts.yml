@@ -1,0 +1,185 @@
+name: Build Artifacts
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+      go-md5:
+        required: true
+        type: string
+      docker-md5:
+        required: true
+        type: string
+      branch:
+        required: true
+        type: string
+      authenticated:
+        required: true
+        type: boolean
+      force:
+        description: Always build artifacts
+        type: boolean
+        default: false
+      ic-version:
+        required: true
+        type: string
+      runner:
+        type: string
+        default: ubuntu-24.04
+      go-proxy:
+        required: true
+        type: string
+      go-path:
+        required: true
+        type: string
+      image-matrix-oss:
+        required: true
+        type: string
+      image-matrix-plus:
+        required: true
+        type: string
+      image-matrix-nap:
+        required: true
+        type: string
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+jobs:
+  binaries:
+    name: Build Binaries
+    runs-on: ${{ inputs.runner }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: Setup Golang Environment
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version-file: go.mod
+        if: ${{ inputs.force }}
+
+      - name: Setup netrc
+        run: |
+          cat <<EOF > $HOME/.netrc
+          machine azr.artifactory.f5net.com
+              login ${{ secrets.ARTIFACTORY_USER }}
+              password ${{ secrets.ARTIFACTORY_TOKEN }}
+          EOF
+          chmod 600 $HOME/.netrc
+        if: ${{ inputs.force || inputs.authenticated == 'true' }}
+
+      - name: Build binaries
+        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6.4.0
+        with:
+          version: latest
+          args: build --snapshot --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOPATH: ${{ inputs.go-path }}
+          GOPROXY: ${{ inputs.go-proxy }}
+          AWS_PRODUCT_CODE: ${{ secrets.AWS_PRODUCT_CODE }}
+          AWS_PUB_KEY: ${{ secrets.AWS_PUB_KEY }}
+          AWS_NAP_DOS_PRODUCT_CODE: ${{ secrets.AWS_NAP_DOS_PRODUCT_CODE }}
+          AWS_NAP_DOS_PUB_KEY: ${{ secrets.AWS_NAP_DOS_PUB_KEY }}
+          AWS_NAP_WAF_PRODUCT_CODE: ${{ secrets.AWS_NAP_WAF_PRODUCT_CODE }}
+          AWS_NAP_WAF_PUB_KEY: ${{ secrets.AWS_NAP_WAF_PUB_KEY }}
+          AWS_NAP_WAF_DOS_PRODUCT_CODE: ${{ secrets.AWS_NAP_WAF_DOS_PRODUCT_CODE }}
+          AWS_NAP_WAF_DOS_PUB_KEY: ${{ secrets.AWS_NAP_WAF_DOS_PUB_KEY }}
+          GORELEASER_CURRENT_TAG: "v${{ inputs.ic-version }}"
+        if: ${{ inputs.force }}
+
+      - name: Store Artifacts in Cache
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: ${{ github.workspace }}/dist
+          key: nginx-ingress-${{ inputs.go-md5 }}
+        if: ${{ inputs.force }}
+
+  build-docker:
+    name: Build Docker OSS
+    needs: [binaries]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON( inputs.image-matrix-oss ) }}
+    uses: ./.github/workflows/build-oss.yml
+    with:
+      platforms: ${{ matrix.platforms }}
+      image: ${{ matrix.image }}
+      go-md5: ${{ inputs.go-md5 }}
+      base-image-md5: ${{ inputs.docker-md5 }}
+      authenticated: ${{ inputs.authenticated }}
+      full-build: ${{ inputs.force }}
+      tag: ${{ inputs.tag }}
+      branch: ${{ inputs.branch }}
+      ic-version: ${{ inputs.ic-version }}
+      runner: ${{ inputs.runner }}
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+      packages: write
+      pull-requests: write # for scout report
+    secrets: inherit
+
+  build-docker-plus:
+    name: Build Docker Plus
+    needs: [binaries]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON( inputs.image-matrix-plus ) }}
+    uses: ./.github/workflows/build-plus.yml
+    with:
+      platforms: ${{ matrix.platforms }}
+      image: ${{ matrix.image }}
+      target: ${{ matrix.target }}
+      go-md5: ${{ inputs.go-md5 }}
+      base-image-md5: ${{ inputs.docker-md5 }}
+      branch: ${{ inputs.branch }}
+      tag: ${{ inputs.tag }}
+      authenticated: ${{ inputs.authenticated }}
+      full-build: ${{ inputs.force }}
+      ic-version: ${{ inputs.ic-version }}
+      runner: ${{ inputs.runner }}
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write # for scout report
+    secrets: inherit
+
+  build-docker-nap:
+    name: Build Docker NAP
+    needs: [binaries]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON( inputs.image-matrix-nap ) }}
+    uses: ./.github/workflows/build-plus.yml
+    with:
+      platforms: ${{ matrix.platforms }}
+      image: ${{ matrix.image }}
+      target: ${{ matrix.target }}
+      go-md5: ${{ inputs.go-md5 }}
+      base-image-md5: ${{ inputs.docker-md5 }}
+      branch: ${{ inputs.branch }}
+      tag: ${{ inputs.tag }}
+      nap-modules: ${{ matrix.nap_modules }}
+      authenticated: ${{ inputs.authenticated }}
+      full-build: ${{ inputs.force }}
+      ic-version: ${{ inputs.ic-version }}
+      runner: ${{ inputs.runner }}
+    permissions:
+      contents: read
+      id-token: write # gcr login
+      pull-requests: write # for scout report
+    secrets: inherit
