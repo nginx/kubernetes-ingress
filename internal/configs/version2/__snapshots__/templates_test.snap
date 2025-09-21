@@ -323,11 +323,9 @@ server {
     app_protect_dos_monitor uri=test.example.com protocol=http timeout=30;
     # server snippet
     location /split {
-        
         rewrite ^ @split_0 last;
     }
     location /coffee {
-        
         rewrite ^ @match last;
     }
     location @hc-coffee {
@@ -752,11 +750,9 @@ server {
     app_protect_dos_monitor uri=test.example.com protocol=http timeout=30;
     # server snippet
     location /split {
-        
         rewrite ^ @split_0 last;
     }
     location /coffee {
-        
         rewrite ^ @match last;
     }
     location @hc-coffee {
@@ -2887,11 +2883,9 @@ server {
     limit_req zone=pol_rl_test_test_test burst=5 delay=10;
     # server snippet
     location /split {
-        
         rewrite ^ @split_0 last;
     }
     location /coffee {
-        
         rewrite ^ @match last;
     }
     location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_0 {
@@ -3273,11 +3267,9 @@ server {
     
     # server snippet
     location /split {
-        
         rewrite ^ @split_0 last;
     }
     location /coffee {
-        
         rewrite ^ @match last;
     }
     location @hc-coffee {
