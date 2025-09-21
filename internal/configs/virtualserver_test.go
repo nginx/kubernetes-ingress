@@ -1181,6 +1181,77 @@ func vsEx() VirtualServerEx {
 	}
 }
 
+// TestUpstreamClientMaxBodySizeInInternalRedirect validates that clientMaxBodySize from upstream is present in the InternalRedirectLocation after config generation.
+func TestUpstreamClientMaxBodySizeInInternalRedirect(t *testing.T) {
+	t.Parallel()
+
+	vse := VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "cafe.example.com",
+				Upstreams: []conf_v1.Upstream{
+					{
+						Name:              "tea",
+						Service:           "tea-svc",
+						Port:              80,
+						ClientMaxBodySize: "7m",
+					},
+				},
+				Routes: []conf_v1.Route{
+					{
+						Path: "/tea",
+						Matches: []conf_v1.Match{
+							{
+								Conditions: []conf_v1.Condition{
+									{
+										Variable: "$request_method",
+										Value:    "POST",
+									},
+								},
+								Action: &conf_v1.Action{
+									Proxy: &conf_v1.ActionProxy{
+										Upstream: "tea",
+									},
+								},
+							},
+						},
+						Action: &conf_v1.Action{
+							Return: &conf_v1.ActionReturn{
+								Code: 200,
+								Body: "Hello from cafe",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	vsc := newVirtualServerConfigurator(&baseCfgParams, true, false, &StaticConfigParams{TLSPassthrough: true}, false, &fakeBV)
+	vsConfig, warnings := vsc.GenerateVirtualServerConfig(&vse, nil, nil)
+	if len(warnings) > 0 {
+		t.Fatalf("unexpected warnings: %v", warnings)
+	}
+
+	// Check InternalRedirectLocations for /tea and validate ClientMaxBodySize
+	foundIR := false
+	for _, ir := range vsConfig.Server.InternalRedirectLocations {
+		if ir.Path == "/tea" {
+			foundIR = true
+			if ir.ClientMaxBodySize != "7m" {
+				t.Errorf("expected InternalRedirectLocation.ClientMaxBodySize to be '7m', got '%s'", ir.ClientMaxBodySize)
+			}
+		}
+	}
+	if !foundIR {
+		t.Fatalf("InternalRedirectLocation for /tea not found in generated config")
+	}
+}
+
 func TestGenerateVirtualServerConfigWithBackupForNGINXPlus(t *testing.T) {
 	t.Parallel()
 

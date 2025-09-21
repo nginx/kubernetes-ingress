@@ -211,6 +211,9 @@ server {
 
     {{- range $l := $s.InternalRedirectLocations }}
     location {{ $l.Path }} {
+        {{ if $l.ClientMaxBodySize }}
+        client_max_body_size {{ $l.ClientMaxBodySize }};
+        {{ end }}
         rewrite ^ {{ $l.Destination }} last;
     }
     {{- end }}
