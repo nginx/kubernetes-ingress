@@ -1193,14 +1193,14 @@ func (p *policiesCfg) addJWTAuthConfig(
 		if jwtAuth.SSLVerify && jwtAuth.TrustedCertSecret != "" {
 			trustedCertSecretKey := fmt.Sprintf("%s/%s", polNamespace, jwtAuth.TrustedCertSecret)
 			trustedCertSecretRef := secretRefs[trustedCertSecretKey]
-			
+
 			// Check if secret reference exists
 			if trustedCertSecretRef == nil {
 				res.addWarningf("JWT policy %s references a non-existent trusted cert secret %s", polKey, trustedCertSecretKey)
 				res.isError = true
 				return res
 			}
-			
+
 			var secretType api_v1.SecretType
 			if trustedCertSecretRef.Secret != nil {
 				secretType = trustedCertSecretRef.Secret.Type
@@ -1214,7 +1214,7 @@ func (p *policiesCfg) addJWTAuthConfig(
 				res.isError = true
 				return res
 			}
-			
+
 			caFields := strings.Fields(trustedCertSecretRef.Path)
 			if len(caFields) > 0 {
 				trustedCertPath = caFields[0]
