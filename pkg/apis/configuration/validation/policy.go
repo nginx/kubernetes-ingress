@@ -246,6 +246,14 @@ func validateJWT(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
 				allErrs = append(allErrs, field.Invalid(fieldPath.Child("sniServerName"), jwt.SNIName, "sniServerName is not a valid URI"))
 			}
 		}
+
+		if jwt.TrustedCertSecret != "" {
+			allErrs = append(allErrs, validateSecretName(jwt.TrustedCertSecret, fieldPath.Child("trustedCertSecret"))...)
+			// If trustedCertSecret is set but sslVerify is false, warn user
+			if !jwt.SSLVerify {
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("sslVerify"), jwt.SSLVerify, "sslVerify should be enabled when trustedCertSecret is specified"))
+			}
+		}
 	}
 	return allErrs
 }

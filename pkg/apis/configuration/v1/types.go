@@ -893,6 +893,14 @@ type JWTAuth struct {
 	SNIEnabled bool `json:"sniEnabled"`
 	// The SNI name to use when connecting to the remote server. If not set, the hostname from the ``jwksURI`` will be used.
 	SNIName string `json:"sniName"`
+	// Enables verification of the JWKS server SSL certificate. Default is false.
+	SSLVerify bool `json:"sslVerify"`
+	// The name of the Kubernetes secret that stores the CA certificate for JWKS server verification. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/ca, and the certificate must be stored in the secret under the key ca.crt.
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	TrustedCertSecret string `json:"trustedCertSecret"`
+	// Sets the verification depth in the JWKS server certificates chain. The default is 1.
+	// +kubebuilder:validation:Minimum=1
+	SSLVerifyDepth *int `json:"sslVerifyDepth"`
 }
 
 // BasicAuth holds HTTP Basic authentication configuration
