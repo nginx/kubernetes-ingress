@@ -290,80 +290,24 @@ jobs:
           install-go: false
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' && (inputs.run_tests && inputs.run_tests || true) }}
 
-  binaries:
-    name: Build Binaries
-    runs-on: ubuntu-24.04
+  build-artifacts:
+    name: Build Artifacts
     needs: [checks, unit-tests, verify-codegen]
-    permissions:
-      contents: write # for goreleaser/goreleaser-action to manage releases
-      id-token: write # for goreleaser/goreleaser-action to sign artifacts
-      issues: write # for goreleaser/goreleaser-action to close milestone
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          fetch-depth: 0
-
-      - name: Setup Golang Environment
-        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
-        with:
-          go-version-file: go.mod
-        if: ${{ inputs.force || needs.checks.outputs.binary_cache_hit != 'true' }}
-
-      - name: Setup netrc
-        run: |
-          cat <<EOF > $HOME/.netrc
-          machine azr.artifactory.f5net.com
-              login ${{ secrets.ARTIFACTORY_USER }}
-              password ${{ secrets.ARTIFACTORY_TOKEN }}
-          EOF
-          chmod 600 $HOME/.netrc
-        if: ${{ inputs.force || (needs.checks.outputs.binary_cache_hit != 'true' && needs.checks.outputs.forked_workflow != 'true') }}
-
-      - name: Build binaries
-        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6.4.0
-        with:
-          version: latest
-          args: build --snapshot --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GOPATH: ${{ needs.checks.outputs.go_path }}
-          GOPROXY: ${{ needs.checks.outputs.go_proxy }}
-          AWS_PRODUCT_CODE: ${{ secrets.AWS_PRODUCT_CODE }}
-          AWS_PUB_KEY: ${{ secrets.AWS_PUB_KEY }}
-          AWS_NAP_DOS_PRODUCT_CODE: ${{ secrets.AWS_NAP_DOS_PRODUCT_CODE }}
-          AWS_NAP_DOS_PUB_KEY: ${{ secrets.AWS_NAP_DOS_PUB_KEY }}
-          AWS_NAP_WAF_PRODUCT_CODE: ${{ secrets.AWS_NAP_WAF_PRODUCT_CODE }}
-          AWS_NAP_WAF_PUB_KEY: ${{ secrets.AWS_NAP_WAF_PUB_KEY }}
-          AWS_NAP_WAF_DOS_PRODUCT_CODE: ${{ secrets.AWS_NAP_WAF_DOS_PRODUCT_CODE }}
-          AWS_NAP_WAF_DOS_PUB_KEY: ${{ secrets.AWS_NAP_WAF_DOS_PUB_KEY }}
-          GORELEASER_CURRENT_TAG: "v${{ needs.checks.outputs.ic_version }}"
-        if: ${{ inputs.force || needs.checks.outputs.binary_cache_hit != 'true' }}
-
-      - name: Store Artifacts in Cache
-        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
-        with:
-          path: ${{ github.workspace }}/dist
-          key: nginx-ingress-${{ needs.checks.outputs.go_code_md5 }}
-        if: ${{ inputs.force || needs.checks.outputs.binary_cache_hit != 'true' }}
-
-  build-docker:
-    name: Build Docker OSS
-    needs: [binaries, checks]
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_oss ) }}
-    uses: ./.github/workflows/build-oss.yml
+    uses: ./.github/workflows/build-artifacts.yml
     with:
-      platforms: ${{ matrix.platforms }}
-      image: ${{ matrix.image }}
-      go-md5: ${{ needs.checks.outputs.go_code_md5 }}
-      base-image-md5: ${{ needs.checks.outputs.docker_md5 }}
-      authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
-      full-build: ${{ inputs.force && inputs.force || false }}
-      tag: ${{ needs.checks.outputs.build_tag }}
+      force: ${{ needs.checks.outputs.docker_build == 'true' || needs.checks.outputs.binary_cache_hit != 'true' }}
       branch: ${{ (github.head_ref && needs.checks.outputs.forked_workflow != 'true') && github.head_ref || github.ref }}
+      tag: ${{ needs.checks.outputs.build_tag }}
+      docker-md5: ${{ needs.checks.outputs.docker_md5 }}
+      go-md5: ${{ needs.checks.outputs.go_code_md5 }}
+      go-path: ${{ needs.checks.outputs.go_path }}
+      go-proxy: ${{ needs.checks.outputs.go_proxy }}
+      image-matrix-oss: ${{ needs.checks.outputs.image_matrix_oss }}
+      image-matrix-plus: ${{ needs.checks.outputs.image_matrix_plus }}
+      image-matrix-nap: ${{ needs.checks.outputs.image_matrix_nap }}
       ic-version: ${{ needs.checks.outputs.ic_version }}
+      authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
+      runner: ubuntu-24.04
     permissions:
       contents: read
       actions: read
@@ -371,62 +315,19 @@ jobs:
       packages: write
       pull-requests: write # for scout report
     secrets: inherit
-    if: ${{ needs.checks.outputs.docker_build == 'true' }}
 
-  build-docker-plus:
-    name: Build Docker Plus
-    needs: [binaries, checks]
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_plus ) }}
-    uses: ./.github/workflows/build-plus.yml
-    with:
-      platforms: ${{ matrix.platforms }}
-      image: ${{ matrix.image }}
-      target: ${{ matrix.target }}
-      go-md5: ${{ needs.checks.outputs.go_code_md5 }}
-      base-image-md5: ${{ needs.checks.outputs.docker_md5 }}
-      branch: ${{ (github.head_ref && needs.checks.outputs.forked_workflow != 'true') && github.head_ref || github.ref }}
-      tag: ${{ needs.checks.outputs.build_tag }}
-      authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
-      full-build: ${{ inputs.force && inputs.force || false }}
-      ic-version: ${{ needs.checks.outputs.ic_version }}
-    permissions:
-      contents: read
-      id-token: write
-      pull-requests: write # for scout report
-    secrets: inherit
-    if: ${{ needs.checks.outputs.docker_build == 'true' }}
-
-  build-docker-nap:
-    name: Build Docker NAP
-    needs: [binaries, checks]
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_nap ) }}
-    uses: ./.github/workflows/build-plus.yml
-    with:
-      platforms: ${{ matrix.platforms }}
-      image: ${{ matrix.image }}
-      target: ${{ matrix.target }}
-      go-md5: ${{ needs.checks.outputs.go_code_md5 }}
-      base-image-md5: ${{ needs.checks.outputs.docker_md5 }}
-      branch: ${{ (github.head_ref && needs.checks.outputs.forked_workflow != 'true') && github.head_ref || github.ref }}
-      tag: ${{ needs.checks.outputs.build_tag }}
-      nap-modules: ${{ matrix.nap_modules }}
-      authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
-      full-build: ${{ inputs.force && inputs.force || false }}
-      ic-version: ${{ needs.checks.outputs.ic_version }}
-    permissions:
-      contents: read
-      id-token: write # gcr login
-      pull-requests: write # for scout report
-    secrets: inherit
-    if: ${{ needs.checks.outputs.docker_build == 'true' }}
+  #  To pass the build in "Build Binaries" check
+  build-binaries:
+    name: Build Binaries
+    runs-on: ubuntu-24.04
+    needs: [build-artifacts]
+    steps:
+      - name: Report build binaries status
+        run: echo "Build binaries completed successfully via build-artifacts job"
 
   tag-target:
     name: Tag untested image with PR number
-    needs: [checks, build-docker, build-docker-plus, build-docker-nap]
+    needs: [checks, build-artifacts]
     permissions:
       contents: read # To checkout repository
       id-token: write # To sign into Google Container Registry
@@ -442,7 +343,7 @@ jobs:
     if: ${{ needs.checks.outputs.docs_only != 'true' && (inputs.run_tests && inputs.run_tests || true) }}
     name: Package Tests
     runs-on: ubuntu-24.04
-    needs: [checks, binaries, build-docker, build-docker-plus, build-docker-nap]
+    needs: [checks, build-artifacts]
     permissions:
       contents: read
       pull-requests: write # for package report
@@ -502,7 +403,7 @@ jobs:
     if: ${{ needs.checks.outputs.docs_only != 'true' && (inputs.run_tests && inputs.run_tests || true) }}
     name: Helm Tests ${{ matrix.base-os }}
     runs-on: ubuntu-24.04
-    needs: [checks, binaries, build-docker, build-docker-plus]
+    needs: [checks, build-artifacts]
     strategy:
       fail-fast: false
       matrix:
@@ -646,7 +547,7 @@ jobs:
     if: ${{ inputs.force || (inputs.run_tests && inputs.run_tests || true) || needs.checks.outputs.docs_only != 'true' }}
     name: Setup Matrix for Smoke Tests
     runs-on: ubuntu-24.04
-    needs: [binaries, checks]
+    needs: [build-artifacts, checks]
     permissions:
       contents: read
       id-token: write
@@ -710,7 +611,7 @@ jobs:
     needs:
       - checks
       - setup-matrix
-      - build-docker
+      - build-artifacts
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.setup-matrix.outputs.matrix_oss) }}
@@ -738,7 +639,7 @@ jobs:
     needs:
       - checks
       - setup-matrix
-      - build-docker-plus
+      - build-artifacts
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.setup-matrix.outputs.matrix_plus) }}
@@ -766,7 +667,7 @@ jobs:
     needs:
       - checks
       - setup-matrix
-      - build-docker-nap
+      - build-artifacts
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.setup-matrix.outputs.matrix_nap) }}
@@ -790,7 +691,7 @@ jobs:
 
   tag-stable:
     name: Tag tested image as stable
-    needs: [checks, build-docker, build-docker-plus, build-docker-nap, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap]
+    needs: [checks, build-artifacts, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap]
     permissions:
       contents: read # To checkout repository
       id-token: write # To sign into Google Container Registry
@@ -806,7 +707,7 @@ jobs:
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     name: Final CI Results
-    needs: [tag-stable, build-docker, build-docker-plus, build-docker-nap, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap, package-tests, helm-tests]
+    needs: [tag-stable, build-artifacts, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap, package-tests, helm-tests]
     steps:
       - run: |
           tagResult="${{ needs.tag-stable.result }}"
@@ -815,9 +716,7 @@ jobs:
           smokeOSSResult="${{ needs.smoke-tests-oss.result }}"
           smokePlusResult="${{ needs.smoke-tests-plus.result }}"
           smokeNAPResult="${{ needs.smoke-tests-nap.result }}"
-          buildOSSResult="${{ needs.build-docker.result }}"
-          buildPlusResult="${{ needs.build-docker-plus.result }}"
-          buildNAPResult="${{ needs.build-docker-nap.result }}"
+          buildArtifactsResult="${{ needs.build-artifacts.result }}"
           if [[ $tagResult != "success" && $tagResult != "skipped" ]]; then
             exit 1
           fi
@@ -830,13 +729,7 @@ jobs:
           if [[ $smokeNAPResult != "success" && $smokeNAPResult != "skipped" ]]; then
             exit 1
           fi
-          if [[ $buildOSSResult != "success" && $buildOSSResult != "skipped" ]]; then
-            exit 1
-          fi
-          if [[ $buildPlusResult != "success" && $buildPlusResult != "skipped" ]]; then
-            exit 1
-          fi
-          if [[ $buildNAPResult != "success" && $buildNAPResult != "skipped" ]]; then
+          if [[ $buildArtifactsResult != "success" && $buildArtifactsResult != "skipped" ]]; then
             exit 1
           fi
           if [[ $helmResult != "success" && $helmResult != "skipped" ]]; then
@@ -849,10 +742,8 @@ jobs:
   trigger-image-promotion:
     name: Promote images on Force Run
     needs:
-      - build-docker
-      - build-docker-plus
-      - build-docker-nap
       - final-results
+      - build-artifacts
     permissions:
       contents: write # for pushing to Helm Charts repository
       id-token: write # To sign into Google Container Registry

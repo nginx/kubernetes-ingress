@@ -144,4 +144,6 @@ type NICResourceCounts struct {
 	JWTRateLimitPolicies int64
 	// VariablesRateLimitPolicies is the number of Variables Condition RateLimit policies managed by NGINX Ingress Controller
 	VariablesRateLimitPolicies int64
+	// CachePolicies is the number of Cache policies managed by NGINX Ingress Controller
+	CachePolicies int64
 }
