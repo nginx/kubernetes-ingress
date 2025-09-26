@@ -3067,10 +3067,21 @@ func generateMatchesConfig(route conf_v1.Route, upstreamNamer *upstreamNamer, cr
 		}
 	}
 
+	// Find any locations with a clientMaxBodySize defined to populate the parent rewrite/redirect location
+	// See issue #7332 for why this needs to exist on the InternalRedirectLocation struct
+	var clientMaxBodySize string
+	for _, l := range locations {
+		if l.ClientMaxBodySize != "" {
+			clientMaxBodySize = l.ClientMaxBodySize
+			break
+		}
+	}
+
 	// Generate an InternalRedirectLocation to the location defined by the main map variable
 	irl := version2.InternalRedirectLocation{
-		Path:        route.Path,
-		Destination: variable,
+		Path:              route.Path,
+		Destination:       variable,
+		ClientMaxBodySize: clientMaxBodySize,
 	}
 
 	return routingCfg{
