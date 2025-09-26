@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
@@ -5722,6 +5723,9 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 						JwksPath:       "/spec-keys",
 						JwksSNIEnabled: true,
 						JwksSNIName:    "idp.spec.example.com",
+						SSLVerify:      false,
+						TrustedCert:    "",
+						SSLVerifyDepth: 1,
 					},
 				},
 				"default/jwt-policy-route": {
@@ -5729,10 +5733,13 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 					Realm:    "Route Realm API",
 					KeyCache: "1h",
 					JwksURI: version2.JwksURI{
-						JwksScheme: "http",
-						JwksHost:   "idp.route.example.com",
-						JwksPort:   "80",
-						JwksPath:   "/route-keys",
+						JwksScheme:     "http",
+						JwksHost:       "idp.route.example.com",
+						JwksPort:       "80",
+						JwksPath:       "/route-keys",
+						SSLVerify:      false,
+						TrustedCert:    "",
+						SSLVerifyDepth: 1,
 					},
 				},
 			},
@@ -5747,6 +5754,9 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 					JwksPath:       "/spec-keys",
 					JwksSNIName:    "idp.spec.example.com",
 					JwksSNIEnabled: true,
+					SSLVerify:      false,
+					TrustedCert:    "",
+					SSLVerifyDepth: 1,
 				},
 			},
 			JWKSAuthEnabled: true,
@@ -5778,10 +5788,13 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 						Realm:    "Route Realm API",
 						KeyCache: "1h",
 						JwksURI: version2.JwksURI{
-							JwksScheme: "http",
-							JwksHost:   "idp.route.example.com",
-							JwksPort:   "80",
-							JwksPath:   "/route-keys",
+							JwksScheme:     "http",
+							JwksHost:       "idp.route.example.com",
+							JwksPort:       "80",
+							JwksPath:       "/route-keys",
+							SSLVerify:      false,
+							TrustedCert:    "",
+							SSLVerifyDepth: 1,
 						},
 					},
 				},
@@ -5801,10 +5814,13 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 						Realm:    "Route Realm API",
 						KeyCache: "1h",
 						JwksURI: version2.JwksURI{
-							JwksScheme: "http",
-							JwksHost:   "idp.route.example.com",
-							JwksPort:   "80",
-							JwksPath:   "/route-keys",
+							JwksScheme:     "http",
+							JwksHost:       "idp.route.example.com",
+							JwksPort:       "80",
+							JwksPath:       "/route-keys",
+							SSLVerify:      false,
+							TrustedCert:    "",
+							SSLVerifyDepth: 1,
 						},
 					},
 				},
@@ -12413,10 +12429,15 @@ func TestGeneratePolicies(t *testing.T) {
 						Key:   "default/jwt-policy-2",
 						Realm: "My Test API",
 						JwksURI: version2.JwksURI{
-							JwksScheme: "https",
-							JwksHost:   "idp.example.com",
-							JwksPort:   "443",
-							JwksPath:   "/keys",
+							JwksScheme:     "https",
+							JwksHost:       "idp.example.com",
+							JwksPort:       "443",
+							JwksPath:       "/keys",
+							JwksSNIName:    "",
+							JwksSNIEnabled: false,
+							SSLVerify:      false,
+							TrustedCert:    "",
+							SSLVerifyDepth: 1,
 						},
 						KeyCache: "1h",
 					},
@@ -12454,10 +12475,15 @@ func TestGeneratePolicies(t *testing.T) {
 						Key:   "default/jwt-policy-2",
 						Realm: "My Test API",
 						JwksURI: version2.JwksURI{
-							JwksScheme: "https",
-							JwksHost:   "idp.example.com",
-							JwksPort:   "",
-							JwksPath:   "/keys",
+							JwksScheme:     "https",
+							JwksHost:       "idp.example.com",
+							JwksPort:       "",
+							JwksPath:       "/keys",
+							JwksSNIName:    "",
+							JwksSNIEnabled: false,
+							SSLVerify:      false,
+							TrustedCert:    "",
+							SSLVerifyDepth: 1,
 						},
 						KeyCache: "1h",
 					},
@@ -13053,7 +13079,7 @@ func TestGeneratePolicies(t *testing.T) {
 			result.BundleValidator = nil
 
 			if !reflect.DeepEqual(tc.expected, result) {
-				t.Error(cmp.Diff(tc.expected, result))
+				t.Error(cmp.Diff(tc.expected, result, cmpopts.IgnoreFields(policiesCfg{}, "Context")))
 			}
 			if len(vsc.warnings) > 0 {
 				t.Errorf("generatePolicies() returned unexpected warnings %v for the case of %s", vsc.warnings, tc.msg)

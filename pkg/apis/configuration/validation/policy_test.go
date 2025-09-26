@@ -8,6 +8,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
+func intPtr(n int) *int {
+	return &n
+}
+
 func TestValidatePolicy_JWTIsNotValidOn(t *testing.T) {
 	t.Parallel()
 
@@ -188,6 +192,62 @@ func TestValidatePolicy_JWTIsNotValidOn(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "SSL verification enabled but no trusted cert secret",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:     "My Product API",
+						JwksURI:   "https://myjwksuri.com",
+						KeyCache:  "1h",
+						SSLVerify: true,
+					},
+				},
+			},
+		},
+		{
+			name: "Trusted cert secret provided but SSL verification disabled",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:             "My Product API",
+						JwksURI:           "https://myjwksuri.com",
+						KeyCache:          "1h",
+						SSLVerify:         false,
+						TrustedCertSecret: "my-ca-secret",
+					},
+				},
+			},
+		},
+		{
+			name: "Invalid SSL verify depth",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:             "My Product API",
+						JwksURI:           "https://myjwksuri.com",
+						KeyCache:          "1h",
+						SSLVerify:         true,
+						TrustedCertSecret: "my-ca-secret",
+						SSLVerifyDepth:    intPtr(0),
+					},
+				},
+			},
+		},
+		{
+			name: "Invalid trusted cert secret name with special characters",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:             "My Product API",
+						JwksURI:           "https://myjwksuri.com",
+						KeyCache:          "1h",
+						SSLVerify:         true,
+						TrustedCertSecret: "my-ca-secret.invalid!",
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range tt {
@@ -280,6 +340,51 @@ func TestValidatePolicy_IsValidOnJWTPolicy(t *testing.T) {
 						JwksURI:    "https://login.mydomain.com/keys",
 						SNIEnabled: true,
 						SNIName:    "https://example.org",
+					},
+				},
+			},
+		},
+		{
+			name: "with SSL verification and trusted cert secret",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:             "My Product API",
+						KeyCache:          "1h",
+						JwksURI:           "https://login.mydomain.com/keys",
+						SSLVerify:         true,
+						TrustedCertSecret: "my-ca-secret",
+					},
+				},
+			},
+		},
+		{
+			name: "with SSL verification and custom verify depth",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:             "My Product API",
+						KeyCache:          "1h",
+						JwksURI:           "https://login.mydomain.com/keys",
+						SSLVerify:         true,
+						TrustedCertSecret: "my-ca-secret",
+						SSLVerifyDepth:    intPtr(2),
+					},
+				},
+			},
+		},
+		{
+			name: "with SSL verification and SNI",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:             "My Product API",
+						KeyCache:          "1h",
+						JwksURI:           "https://login.mydomain.com/keys",
+						SSLVerify:         true,
+						TrustedCertSecret: "my-ca-secret",
+						SNIEnabled:        true,
+						SNIName:           "login.mydomain.com",
 					},
 				},
 			},
