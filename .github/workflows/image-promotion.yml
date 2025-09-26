@@ -141,7 +141,7 @@ jobs:
           fi
 
       - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@192325c86100d080feab897ff886c34abd4c83a3 # v3.30.3
+        uses: github/codeql-action/upload-sarif@303c0aef88fc2fe5ff6d63d3b1596bfd83dfa1f9 # v3.30.4
         if: steps.check-sarif.outputs.sarif_has_results == 'true'
         with:
           sarif_file: govulncheck.sarif
@@ -359,7 +359,7 @@ jobs:
          overwrite: true
 
      - name: Upload Scan results to GitHub Security tab
-       uses: github/codeql-action/upload-sarif@192325c86100d080feab897ff886c34abd4c83a3 # v3.30.3
+       uses: github/codeql-action/upload-sarif@303c0aef88fc2fe5ff6d63d3b1596bfd83dfa1f9 # v3.30.4
        with:
          sarif_file: "${{ steps.directory.outputs.directory }}/"
 
@@ -439,7 +439,7 @@ jobs:
          overwrite: true
 
      - name: Upload Scan results to GitHub Security tab
-       uses: github/codeql-action/upload-sarif@192325c86100d080feab897ff886c34abd4c83a3 # v3.30.3
+       uses: github/codeql-action/upload-sarif@303c0aef88fc2fe5ff6d63d3b1596bfd83dfa1f9 # v3.30.4
        with:
          sarif_file: "${{ steps.directory.outputs.directory }}/"
 
@@ -526,7 +526,7 @@ jobs:
          overwrite: true
 
      - name: Upload Scan results to GitHub Security tab
-       uses: github/codeql-action/upload-sarif@192325c86100d080feab897ff886c34abd4c83a3 # v3.30.3
+       uses: github/codeql-action/upload-sarif@303c0aef88fc2fe5ff6d63d3b1596bfd83dfa1f9 # v3.30.4
        with:
          sarif_file: "${{ steps.directory.outputs.directory }}/"
        continue-on-error: true
@@ -542,7 +542,7 @@ jobs:
        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
      - name: Create/Update Draft
-       uses: lucacome/draft-release@00f74370c044c322da6cb52acc707d62c7762c71 # v1.2.4
+       uses: lucacome/draft-release@fd099feb33710d1fa27b915a08a7acd6a1fb7fd2 # v2.0.0
        id: release-notes
        with:
          minor-label: "enhancement"
