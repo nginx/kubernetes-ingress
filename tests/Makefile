@@ -19,7 +19,8 @@ REGISTRY                    ?= docker.io ## The registry where the image is loca
 PREFIX                      ?= nginx/nginx-ingress ## The name of the image. For example, nginx/nginx-ingress
 TAG                         ?= edge ## The tag of the image. For example, edge
 K8S_CLUSTER_NAME            ?= local ## The name used when creating/using a Kind Kubernetes cluster
-K8S_CLUSTER_VERSION         ?= $(shell grep -m1 'FROM kindest/node' < ${DOCKERFILEPATH} | cut -d ':' -f 2 | sed -e 's/^v//' | cut -d '@' -f 1) ## The version used when creating a Kind Kubernetes cluster
+# renovate: datasource=docker depName=kindest/node
+K8S_CLUSTER_VERSION         ?= v1.34.0
 K8S_TIMEOUT                 ?= 75s ## The timeout used when creating a Kind Kubernetes cluster
 AD_SECRET                   ?=
 PLUS_JWT                    ?=
