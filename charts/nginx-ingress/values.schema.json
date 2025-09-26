@@ -2681,6 +2681,78 @@
           ]
         }
       }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "default": {
+        "enabled": false
+      },
+      "title": "Configuration for NetworkPolicy",
+      "required": [
+        "enabled"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "title": "Enable NetworkPolicy",
+          "examples": [
+            false,
+            true
+          ]
+        },
+        "policyTypes": {
+          "type": "array",
+          "default": [
+            "Ingress",
+            "Egress"
+          ],
+          "title": "Types of policy to create",
+          "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.networking.v1.NetworkPolicySpec/properties/policyTypes"
+        },
+        "podSelector": {
+          "type": "object",
+          "default": {},
+          "title": "Label selector for pods (defaults to ingress controller pods)",
+          "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.LabelSelector"
+        },
+        "ingress": {
+          "type": "array",
+          "default": [
+            {
+              "from": [],
+              "ports": [
+                {
+                  "protocol": "TCP",
+                  "port": 80
+                },
+                {
+                  "protocol": "TCP",
+                  "port": 443
+                }
+              ]
+            }
+          ],
+          "title": "Ingress rules",
+          "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.networking.v1.NetworkPolicySpec/properties/ingress"
+        },
+        "egress": {
+          "type": "array",
+          "default": [
+            {
+              "to": [],
+              "ports": [
+                {
+                  "protocol": "UDP",
+                  "port": 53
+                }
+              ]
+            }
+          ],
+          "title": "Egress rules",
+          "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.networking.v1.NetworkPolicySpec/properties/egress"
+        }
+      }
     }
   },
   "examples": [
