@@ -27,7 +27,6 @@ from suite.utils.vs_vsr_resources_utils import (
 
 username = "nginx-user-" + secrets.token_hex(4)
 password = secrets.token_hex(8)
-keycloak_src = f"{TEST_DATA}/oidc/keycloak.yaml"
 keycloak_vs_src = f"{TEST_DATA}/oidc/virtual-server-idp.yaml"
 oidc_secret_src = f"{TEST_DATA}/oidc/client-secret.yaml"
 oidc_pol_src = f"{TEST_DATA}/oidc/oidc.yaml"
