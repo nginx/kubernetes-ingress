@@ -1349,7 +1349,7 @@
             "allocateLoadBalancerNodePorts": {
               "default": false,
               "title": "The allocateLoadBalancerNodePorts Schema",
-              "ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/allocateLoadBalancerNodePorts"
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/allocateLoadBalancerNodePorts"
             },
             "ipFamilyPolicy": {
               "default": "",
@@ -1362,7 +1362,7 @@
             "ipFamilies": {
               "default": [],
               "title": "The ipFamilies Schema",
-              "ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/ipFamilies"
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/ipFamilies"
             },
             "httpPort": {
               "type": "object",
@@ -1483,7 +1483,7 @@
               "default": [],
               "title": "The customPorts",
               "items": {
-                "ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServicePort"
+                "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServicePort"
               }
             },
             "sessionAffinity": {
