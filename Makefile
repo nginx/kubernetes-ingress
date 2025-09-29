@@ -18,6 +18,8 @@ override DOCKER_BUILD_OPTIONS += --build-arg IC_VERSION=$(VERSION) --build-arg P
 ARCH                          ?= amd64 ## The architecture of the image or binary. For example: amd64, arm64, ppc64le, s390x. Not all architectures are supported for all targets
 GOOS                          ?= linux ## The OS of the binary. For example linux, darwin
 TELEMETRY_ENDPOINT            ?= oss.edge.df.f5.com:443
+# renovate: datasource=docker depName=golangci/golangci-lint
+GOLANGCI_LINT_VERSION         ?= v2.5.0 ## The version of golangci-lint to use
 
 # Additional flags added here can be accessed in main.go.
 # e.g. `main.version` maps to `var version` in main.go
@@ -51,7 +53,7 @@ all: test lint verify-codegen update-crds debian-image
 .PHONY: lint
 lint: ## Run linter
 	@git fetch
-	docker run --pull always --rm -v $(shell pwd):/kubernetes-ingress -w /kubernetes-ingress -v $(shell go env GOCACHE):/cache/go -e GOCACHE=/cache/go -e GOLANGCI_LINT_CACHE=/cache/go -v $(shell go env GOPATH)/pkg:/go/pkg golangci/golangci-lint:latest git diff -p origin/main > /tmp/diff.patch && golangci-lint --color always run -v --new-from-patch=/tmp/diff.patch
+	docker run --pull always --rm -v $(shell pwd):/kubernetes-ingress -w /kubernetes-ingress -v $(shell go env GOCACHE):/cache/go -e GOCACHE=/cache/go -e GOLANGCI_LINT_CACHE=/cache/go -v $(shell go env GOPATH)/pkg:/go/pkg golangci/golangci-lint:$(GOLANGCI_LINT_VERSION) git diff -p origin/main > /tmp/diff.patch && golangci-lint --color always run -v --new-from-patch=/tmp/diff.patch
 
 .PHONY: lint-python
 lint-python: ## Run linter for python tests
