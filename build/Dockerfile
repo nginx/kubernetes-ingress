@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.16
+# syntax=docker/dockerfile:1.18
 ARG BUILD_OS=debian
 ARG NGINX_OSS_VERSION=1.29
 ARG NGINX_PLUS_VERSION=R35
