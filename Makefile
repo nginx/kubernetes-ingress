@@ -5,7 +5,7 @@ VERSION = $(VER)-SNAPSHOT
 NGINX_OSS_VERSION             ?= 1.29
 NGINX_PLUS_VERSION            ?= R35
 NGINX_AGENT_VERSION           ?= 3.3
-NAP_AGENT_VERSION             ?= 2.*
+NAP_AGENT_VERSION             ?= 2
 PLUS_ARGS = --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --secret id=nginx-repo.crt,src=nginx-repo.crt --secret id=nginx-repo.key,src=nginx-repo.key
 
 # Variables that can be overridden
