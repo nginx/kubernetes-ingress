@@ -476,13 +476,15 @@ spec:
                       used.
                     type: string
                   sslVerify:
+                    default: false
                     description: Enables verification of the JWKS server SSL certificate.
                       Default is false.
                     type: boolean
                   sslVerifyDepth:
+                    default: 1
                     description: Sets the verification depth in the JWKS server certificates
                       chain. The default is 1.
-                    minimum: 1
+                    minimum: 0
                     type: integer
                   token:
                     description: 'The token specifies a variable that contains the
