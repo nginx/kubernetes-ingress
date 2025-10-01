@@ -117,7 +117,7 @@ jobs:
 
   generate-assertion-doc:
     if: ${{ inputs.force }}
-    name: Generate Assertion Documentation ${{ matrix.nic.os }}-${{ matrix.nic.arch }}
+    name: Assertion Doc ${{ matrix.nic.arch }}
     needs: [binaries]
     runs-on: ${{ inputs.runner }}
     strategy:
