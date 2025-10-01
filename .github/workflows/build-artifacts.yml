@@ -58,6 +58,8 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    outputs:
+      json: ${{ steps.nic_binaries.outputs.json }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -100,6 +102,23 @@ jobs:
           GORELEASER_CURRENT_TAG: "v${{ inputs.ic-version }}"
         if: ${{ inputs.force }}
 
+      - name: Extract NGINC Ingress Controller binaries info
+        id: nic_binaries
+        run: |
+          set -e
+          json='[]'
+          for bin in $(find ${{ github.workspace }}/dist -type f -name "nginx-ingress"); do
+            dir=$(basename $(dirname "$bin"))
+            if [[ "$dir" =~ ${{ github.event.repository.name }}_([a-zA-Z0-9]+)_([a-zA-Z0-9]+) ]]; then
+              os="${BASH_REMATCH[1]}"
+              arch="${BASH_REMATCH[2]}"
+              digest=$(sha256sum "$bin" | cut -d' ' -f1)
+              json=$(echo $json | jq --arg path "$bin" --arg os "$os" --arg arch "$arch" --arg digest "$digest" '. += [{"path": $path, "os": $os, "arch": $arch, "digest": $digest}]')
+            fi
+          done
+          echo "json=$json" >> $GITHUB_OUTPUT
+        if: ${{ inputs.force }}
+
       - name: Store Artifacts in Cache
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
@@ -111,6 +130,10 @@ jobs:
     name: Generate Assertion Documentation
     needs: [binaries]
     runs-on: ${{ inputs.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        nic: ${{ fromJSON( needs.binaries.outputs.json ) }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -141,19 +164,12 @@ jobs:
           fail-on-cache-miss: true
         if: ${{ inputs.force }}
 
-      - name: Get amd64 binary path
-        id: getbinary
-        run: |
-          echo "binary_path=$(find $GITHUB_WORKSPACE/dist -type f -path "*linux_amd64*")" >> $GITHUB_OUTPUT
-          cat $GITHUB_OUTPUT
-        if: ${{ inputs.force }}
-
       - name: List packages in Go binary
         id: godeps
         run: |
-          go version -m ${{ steps.getbinary.outputs.binary_path }} > go_version_out_${{ github.run_id }}_${{ github.run_number }}.txt
+          go version -m ${{ matrix.nic.path }} > go_version_out_${{ github.run_id }}_${{ github.run_number }}.txt
           echo "go_version_out=$(find -type f -name "go_version_out*.txt" | head -n 1)" >> $GITHUB_OUTPUT
-          echo "artifact_digest=$(openssl dgst -sha256 -r ${{ steps.getbinary.outputs.binary_path }} | cut -d ' ' -f 1)" >> $GITHUB_OUTPUT
+          echo "artifact_digest=$(openssl dgst -sha256 -r ${{ matrix.nic.path }} | cut -d ' ' -f 1)" >> $GITHUB_OUTPUT
           cat $GITHUB_OUTPUT
         if: ${{ inputs.force }}
 
@@ -161,17 +177,19 @@ jobs:
         id: assertiondoc
         uses: nginxinc/compliance-rules/.github/actions/assertion@v0.3.0
         with:
-          artifact-name: "nginx-ingress_${{ github.ref_name }}_linux_amd64"
+          artifact-name: "${{ github.event.repository.name }}_${{ github.sha }}_${{ github.run_number }}_${{ matrix.nic.os }}_${{ matrix.nic.arch }}"
           artifact-digest: ${{ steps.godeps.outputs.artifact_digest }}
           build-type: "github.com"
           builder-id: "github"
           builder-version: v0.1.0
+          started-on: ${{ github.event.head_commit.timestamp || github.event.created_at }}
+          finished-on: ${{ github.event.head_commit.timestamp || github.event.created_at }}
           invocation-id: ${{ github.run_id }}.${{ github.run_number }}.${{ github.run_attempt }}
           artifactory-user: ${{ secrets.ARTIFACTORY_USER }}
           artifactory-api-token: ${{ secrets.ARTIFACTORY_TOKEN }}
           artifactory-url: ${{ secrets.ARTIFACTORY_URL }}
           artifactory-repo: 'f5-nginx-go-local-approved-dependency'
-          assertion-doc-file: assertion_ptdcli_${{ github.ref_name }}.json
+          assertion-doc-file: assertion_${{ github.event.repository.name }}_${{ github.sha }}_${{ github.run_id }}_${{ github.run_number }}_${{ matrix.nic.os }}_${{ matrix.nic.arch }}.json
           build-content-path: ${{ steps.godeps.outputs.go_version_out }}
         if: ${{ inputs.force }}
 
@@ -183,7 +201,7 @@ jobs:
       - name: Store assertion document
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: assertion_nginx-ingress_${{ github.ref_name }}_linux_amd64.json
+          name: ${{ steps.assertiondoc.outputs.assertion-document }}
           path: ${{ steps.assertiondoc.outputs.assertion-document }}
         if: ${{ inputs.force }}
 
