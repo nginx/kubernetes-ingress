@@ -105,18 +105,7 @@ jobs:
       - name: Extract NGINC Ingress Controller binaries info
         id: nic_binaries
         run: |
-          set -e
-          json='[]'
-          for bin in $(find ${{ github.workspace }}/dist -type f -name "nginx-ingress"); do
-            dir=$(basename $(dirname "$bin"))
-            if [[ "$dir" =~ ${{ github.event.repository.name }}_([a-zA-Z0-9]+)_([a-zA-Z0-9]+) ]]; then
-              os="${BASH_REMATCH[1]}"
-              arch="${BASH_REMATCH[2]}"
-              digest=$(sha256sum "$bin" | cut -d' ' -f1)
-              json=$(echo $json | jq --arg path "$bin" --arg os "$os" --arg arch "$arch" --arg digest "$digest" '. += [{"path": $path, "os": $os, "arch": $arch, "digest": $digest}]')
-            fi
-          done
-          echo "json=$json" >> $GITHUB_OUTPUT
+          echo "json=$(.github/scripts/binary-json.sh)" >> $GITHUB_OUTPUT
         if: ${{ inputs.force }}
 
       - name: Store Artifacts in Cache
