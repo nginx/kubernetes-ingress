@@ -7,7 +7,7 @@ NGINX_PLUS_VERSION            ?= R35
 NAP_WAF_VERSION               ?= 35+5.498
 NAP_WAF_COMMON_VERSION        ?= 11.533
 NAP_WAF_PLUGIN_VERSION        ?= 6.20.0
-NAP_AGENT_VERSION             ?= 2
+NAP_AGENT_VERSION             ?= 2.0
 NGINX_AGENT_VERSION           ?= 3.3
 PLUS_ARGS = --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --secret id=nginx-repo.crt,src=nginx-repo.crt --secret id=nginx-repo.key,src=nginx-repo.key
 
