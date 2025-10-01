@@ -187,12 +187,6 @@ jobs:
         with:
           assertion-doc: ${{ steps.assertiondoc.outputs.assertion-document-path }}
 
-      - name: Store assertion document
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: ${{ steps.assertiondoc.outputs.assertion-document }}
-          path: ${{ steps.assertiondoc.outputs.assertion-document }}
-
   build-docker:
     name: Build Docker OSS
     needs: [binaries]
