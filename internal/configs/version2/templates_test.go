@@ -3031,4 +3031,161 @@ var (
 			},
 		},
 	}
+
+	// JWT SSL Verification test configs
+	virtualServerCfgWithJWTSSLDefaultCert = VirtualServerConfig{
+		Upstreams: []Upstream{
+			{
+				Name: "vs_default_cafe_tea",
+				Servers: []UpstreamServer{
+					{Address: "10.0.0.20:80"},
+				},
+			},
+		},
+		Server: Server{
+			JWTAuthList: map[string]*JWTAuth{
+				"default/jwt-ssl-policy": {
+					Key:      "default/jwt-ssl-policy",
+					Realm:    "SSL API",
+					KeyCache: "1h",
+					JwksURI: JwksURI{
+						JwksScheme:     "https",
+						JwksHost:       "idp.example.com",
+						JwksPath:       "/keys",
+						SSLVerify:      true,
+						SSLVerifyDepth: 1,
+					},
+				},
+			},
+			Locations: []Location{
+				{
+					Path:      "/",
+					ProxyPass: "http://vs_default_cafe_tea",
+					JWTAuth: &JWTAuth{
+						Key: "default/jwt-ssl-policy",
+					},
+				},
+			},
+		},
+	}
+
+	virtualServerCfgWithJWTSSLSecretCert = VirtualServerConfig{
+		Upstreams: []Upstream{
+			{
+				Name: "vs_default_cafe_tea",
+				Servers: []UpstreamServer{
+					{Address: "10.0.0.20:80"},
+				},
+			},
+		},
+		Server: Server{
+			JWTAuthList: map[string]*JWTAuth{
+				"default/jwt-ssl-policy": {
+					Key:      "default/jwt-ssl-policy",
+					Realm:    "SSL API",
+					KeyCache: "1h",
+					JwksURI: JwksURI{
+						JwksScheme:     "https",
+						JwksHost:       "idp.example.com",
+						JwksPath:       "/keys",
+						SSLVerify:      true,
+						TrustedCert:    "/etc/nginx/secrets/default-my-ca-secret",
+						SSLVerifyDepth: 2,
+					},
+				},
+			},
+			Locations: []Location{
+				{
+					Path:      "/",
+					ProxyPass: "http://vs_default_cafe_tea",
+					JWTAuth: &JWTAuth{
+						Key: "default/jwt-ssl-policy",
+					},
+				},
+			},
+		},
+	}
+
+	virtualServerCfgWithJWTNoSSL = VirtualServerConfig{
+		Upstreams: []Upstream{
+			{
+				Name: "vs_default_cafe_tea",
+				Servers: []UpstreamServer{
+					{Address: "10.0.0.20:80"},
+				},
+			},
+		},
+		Server: Server{
+			JWTAuthList: map[string]*JWTAuth{
+				"default/jwt-no-ssl-policy": {
+					Key:      "default/jwt-no-ssl-policy",
+					Realm:    "No SSL API",
+					KeyCache: "1h",
+					JwksURI: JwksURI{
+						JwksScheme: "https",
+						JwksHost:   "idp.example.com",
+						JwksPath:   "/keys",
+						SSLVerify:  false,
+					},
+				},
+			},
+			Locations: []Location{
+				{
+					Path:      "/",
+					ProxyPass: "http://vs_default_cafe_tea",
+					JWTAuth: &JWTAuth{
+						Key: "default/jwt-no-ssl-policy",
+					},
+				},
+			},
+		},
+	}
 )
+
+func TestJWTSSLVerificationDefaultCert(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithJWTSSLDefaultCert)
+	if err != nil {
+		t.Error(err)
+	}
+	if !bytes.Contains(got, []byte("proxy_ssl_verify on;")) {
+		t.Error("want `proxy_ssl_verify on;` in generated template")
+	}
+	if !bytes.Contains(got, []byte("proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;")) {
+		t.Error("want system CA bundle path in generated template")
+	}
+}
+
+func TestJWTSSLVerificationSecretCert(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithJWTSSLSecretCert)
+	if err != nil {
+		t.Error(err)
+	}
+	if !bytes.Contains(got, []byte("proxy_ssl_verify on;")) {
+		t.Error("want `proxy_ssl_verify on;` in generated template")
+	}
+	if !bytes.Contains(got, []byte("proxy_ssl_trusted_certificate /etc/nginx/secrets/default-my-ca-secret;")) {
+		t.Error("want custom CA secret path in generated template")
+	}
+	if !bytes.Contains(got, []byte("proxy_ssl_verify_depth 2;")) {
+		t.Error("want custom SSL verify depth in generated template")
+	}
+}
+
+func TestJWTNoSSLVerification(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithJWTNoSSL)
+	if err != nil {
+		t.Error(err)
+	}
+	if !bytes.Contains(got, []byte("proxy_ssl_verify off;")) {
+		t.Error("want `proxy_ssl_verify off;` in generated template")
+	}
+	if bytes.Contains(got, []byte("proxy_ssl_trusted_certificate")) {
+		t.Error("want no SSL trusted certificate directive in generated template")
+	}
+}
