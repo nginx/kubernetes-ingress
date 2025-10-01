@@ -2,8 +2,9 @@
 
 set -eo pipefail
 
-path=$1
-project=$2
+path=${1:-dist/}
+project=${2:-kubernetes-ingress}
+binary_name=${3:-nginx-ingress}
 
 if [ -z "$path" ] || [ -z "$project" ]; then
   echo "Usage: $0 <path> <project>"
@@ -12,7 +13,7 @@ fi
 
 
 json='[]'
-for bin in $(find "$path" -type f -name "nginx-ingress"); do
+for bin in $(find "$path" -type f -name "$binary_name"); do
   dir=$(basename "$(dirname $bin)")
   if [[ "$dir" =~ ${project}_([a-zA-Z0-9]+)_([a-zA-Z0-9]+) ]]; then
     os="${BASH_REMATCH[1]}"
