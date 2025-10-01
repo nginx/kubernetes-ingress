@@ -33,11 +33,12 @@ We value community input and would love to see you at the next community call. A
 
 | **Community Call Dates** |
 | ------------------------ |
-| **2025-07-28**           |
-| **2025-08-11**           |
-| **2025-08-25**           |
-| **2025-09-08**           |
-| **2025-09-22**           |
+| **2025-10-06**           |
+| **2025-10-20**           |
+| **2025-11-03**           |
+| **2025-11-17**           |
+| **2025-12-01**           |
+| **2025-12-15**           |
 
 You can also join the [NGINX Community Forum](https://community.nginx.org) to chat about the NGINX Ingress Controller.
 

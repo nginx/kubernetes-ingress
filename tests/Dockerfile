@@ -1,10 +1,4 @@
-# syntax=docker/dockerfile:1.16
-# this is here so we can grab the latest version of kind and have dependabot keep it up to date
-FROM kindest/node:v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a
-
-# this is here so we can grab the latest version of skopeo and have dependabot keep it up to date
-FROM quay.io/skopeo/stable:v1.20.0-immutable@sha256:519b95573a7490eb4740c8180d3dc33d86417222956e655719e74d3509586a33
-
+# syntax=docker/dockerfile:1.18
 FROM python:3.13-bookworm@sha256:f64a1db27d5d0fdcb48a54c553e67b0ec920c8a1ef0b627e87b8d3d73dc003fb
 
 RUN apt-get update \

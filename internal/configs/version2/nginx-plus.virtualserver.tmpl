@@ -293,6 +293,17 @@ server {
         proxy_ssl_name {{ .JwksSNIName }};
         {{- end }}
         {{- end }}
+        {{- if .SSLVerify }}
+        proxy_ssl_verify on;
+        proxy_ssl_verify_depth {{ .SSLVerifyDepth }};
+        {{- if .TrustedCert }}
+        proxy_ssl_trusted_certificate {{ .TrustedCert }};
+        {{- else }}
+        proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+        {{- end }}
+        {{- else }}
+        proxy_ssl_verify off;
+        {{- end }}
         proxy_pass_request_headers off;
         proxy_pass_request_body off;
         proxy_set_header Host {{ .JwksHost }};
