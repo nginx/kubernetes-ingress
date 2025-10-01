@@ -102,7 +102,7 @@ jobs:
           GORELEASER_CURRENT_TAG: "v${{ inputs.ic-version }}"
         if: ${{ inputs.force }}
 
-      - name: Extract NGINC Ingress Controller binaries info
+      - name: Extract NGINX Ingress Controller binary info
         id: nic_binaries
         run: |
           echo "json=$(.github/scripts/binary-json.sh ${{ github.workspace }}/dist ${{ github.event.repository.name }} "nginx-ingress")" >> $GITHUB_OUTPUT
@@ -116,7 +116,8 @@ jobs:
         if: ${{ inputs.force }}
 
   generate-assertion-doc:
-    name: Generate Assertion Documentation
+    if: ${{ inputs.force }}
+    name: Generate Assertion Documentation ${{ matrix.nic.os }}-${{ matrix.nic.arch }}
     needs: [binaries]
     runs-on: ${{ inputs.runner }}
     strategy:
@@ -133,7 +134,6 @@ jobs:
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
           go-version-file: go.mod
-        if: ${{ inputs.force }}
 
       - name: Setup netrc
         run: |
@@ -143,7 +143,6 @@ jobs:
               password ${{ secrets.ARTIFACTORY_TOKEN }}
           EOF
           chmod 600 $HOME/.netrc
-        if: ${{ inputs.force }}
 
       - name: Fetch Cached Artifacts
         uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
@@ -151,16 +150,17 @@ jobs:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ inputs.go-md5 }}
           fail-on-cache-miss: true
-        if: ${{ inputs.force }}
 
       - name: List packages in Go binary
         id: godeps
+        env:
+          GOPATH: ${{ inputs.go-path }}
+          GOPROXY: ${{ inputs.go-proxy }}
         run: |
           go version -m ${{ matrix.nic.path }} > go_version_out_${{ github.run_id }}_${{ github.run_number }}.txt
           echo "go_version_out=$(find -type f -name "go_version_out*.txt" | head -n 1)" >> $GITHUB_OUTPUT
           echo "artifact_digest=$(openssl dgst -sha256 -r ${{ matrix.nic.path }} | cut -d ' ' -f 1)" >> $GITHUB_OUTPUT
           cat $GITHUB_OUTPUT
-        if: ${{ inputs.force }}
 
       - name: Generate Assertion Document
         id: assertiondoc
@@ -180,19 +180,16 @@ jobs:
           artifactory-repo: 'f5-nginx-go-local-approved-dependency'
           assertion-doc-file: assertion_${{ github.event.repository.name }}_${{ github.sha }}_${{ github.run_id }}_${{ github.run_number }}_${{ matrix.nic.os }}_${{ matrix.nic.arch }}.json
           build-content-path: ${{ steps.godeps.outputs.go_version_out }}
-        if: ${{ inputs.force }}
 
       - name: Check assertion file content
         run: |
           cat ${{ steps.assertiondoc.outputs.assertion-document }}
-        if: ${{ inputs.force }}
 
       - name: Store assertion document
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ${{ steps.assertiondoc.outputs.assertion-document }}
           path: ${{ steps.assertiondoc.outputs.assertion-document }}
-        if: ${{ inputs.force }}
 
   build-docker:
     name: Build Docker OSS
