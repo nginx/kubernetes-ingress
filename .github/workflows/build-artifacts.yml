@@ -131,7 +131,7 @@ jobs:
               password ${{ secrets.ARTIFACTORY_TOKEN }}
           EOF
           chmod 600 $HOME/.netrc
-        if: ${{ inputs.force || inputs.authenticated == 'true' }}
+        if: ${{ inputs.force }}
 
       - name: Fetch Cached Artifacts
         uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
@@ -139,14 +139,14 @@ jobs:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ inputs.go-md5 }}
           fail-on-cache-miss: true
-        if: ${{ inputs.force || inputs.authenticated == 'true' }}
+        if: ${{ inputs.force }}
 
       - name: Get amd64 binary path
         id: getbinary
         run: |
           echo "binary_path=$(find $GITHUB_WORKSPACE/dist -type f -path "*linux_amd64*")" >> $GITHUB_OUTPUT
           cat $GITHUB_OUTPUT
-        if: ${{ inputs.force || inputs.authenticated == 'true' }}
+        if: ${{ inputs.force }}
 
       - name: List packages in Go binary
         id: godeps
@@ -155,7 +155,7 @@ jobs:
           echo "go_version_out=$(find -type f -name "go_version_out*.txt" | head -n 1)" >> $GITHUB_OUTPUT
           echo "artifact_digest=$(openssl dgst -sha256 -r ${{ steps.getbinary.outputs.binary_path }} | cut -d ' ' -f 1)" >> $GITHUB_OUTPUT
           cat $GITHUB_OUTPUT
-        if: ${{ inputs.force || inputs.authenticated == 'true' }}
+        if: ${{ inputs.force }}
 
       - name: Generate Assertion Document
         id: assertiondoc
@@ -173,19 +173,19 @@ jobs:
           artifactory-repo: 'f5-nginx-go-local-approved-dependency'
           assertion-doc-file: assertion_ptdcli_${{ github.ref_name }}.json
           build-content-path: ${{ steps.godeps.outputs.go_version_out }}
-        if: ${{ inputs.force || inputs.authenticated == 'true' }}
+        if: ${{ inputs.force }}
 
       - name: Check assertion file content
         run: |
           cat ${{ steps.assertiondoc.outputs.assertion-document }}
-        if: ${{ inputs.force || inputs.authenticated == 'true' }}
+        if: ${{ inputs.force }}
 
       - name: Store assertion document
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: assertion_nginx-ingress_${{ github.ref_name }}_linux_amd64.json
           path: ${{ steps.assertiondoc.outputs.assertion-document }}
-        if: ${{ inputs.force || inputs.authenticated == 'true' }}
+        if: ${{ inputs.force }}
 
   build-docker:
     name: Build Docker OSS
