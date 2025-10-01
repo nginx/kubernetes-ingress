@@ -15,7 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/marketplacemetering"
 	"github.com/aws/aws-sdk-go-v2/service/marketplacemetering/types"
 
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 var (
