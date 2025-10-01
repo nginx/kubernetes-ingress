@@ -159,7 +159,7 @@ jobs:
 
       - name: Generate Assertion Document
         id: assertiondoc
-        uses: nginxinc/ns-assertion-action@main
+        uses: nginxinc/compliance-rules/.github/actions/assertion@v0.3.0
         with:
           artifact-name: "nginx-ingress_${{ github.ref_name }}_linux_amd64"
           artifact-digest: ${{ steps.godeps.outputs.artifact_digest }}
