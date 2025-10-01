@@ -7,10 +7,7 @@ export ROOTDIR=$(git rev-parse --show-toplevel || echo ".")
 
 SKOPEO_BIN=skopeo
 if [ -n "$CI" ]; then
-    SKOPEO_IMAGE=quay.io/skopeo/stable
-    # renovate: datasource=docker depName=quay.io/skopeo/stable
-    SKOPEO_VERSION=v1.20.0-immutable
-    SKOPEO_BIN="docker run --rm -v $HOME/.docker/config.json:/tmp/auth.json ${SKOPEO_IMAGE}:${SKOPEO_VERSION}"
+    SKOPEO_BIN="docker run --rm -v $HOME/.docker/config.json:/tmp/auth.json $(grep skopeo "${ROOTDIR}/tests/Dockerfile" | grep FROM | cut -d ' ' -f 2)"
 fi
 
 ## Setup inputs
