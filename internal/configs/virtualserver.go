@@ -1188,6 +1188,44 @@ func (p *policiesCfg) addJWTAuthConfig(
 	} else if jwtAuth.JwksURI != "" {
 		uri, _ := url.Parse(jwtAuth.JwksURI)
 
+		// Handle SSL verification for JWKS
+		var trustedCertPath string
+		if jwtAuth.SSLVerify && jwtAuth.TrustedCertSecret != "" {
+			trustedCertSecretKey := fmt.Sprintf("%s/%s", polNamespace, jwtAuth.TrustedCertSecret)
+			trustedCertSecretRef := secretRefs[trustedCertSecretKey]
+
+			// Check if secret reference exists
+			if trustedCertSecretRef == nil {
+				res.addWarningf("JWT policy %s references a non-existent trusted cert secret %s", polKey, trustedCertSecretKey)
+				res.isError = true
+				return res
+			}
+
+			var secretType api_v1.SecretType
+			if trustedCertSecretRef.Secret != nil {
+				secretType = trustedCertSecretRef.Secret.Type
+			}
+			if secretType != "" && secretType != secrets.SecretTypeCA {
+				res.addWarningf("JWT policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, trustedCertSecretKey, secretType, secrets.SecretTypeCA)
+				res.isError = true
+				return res
+			} else if trustedCertSecretRef.Error != nil {
+				res.addWarningf("JWT policy %s references an invalid trusted cert secret %s: %v", polKey, trustedCertSecretKey, trustedCertSecretRef.Error)
+				res.isError = true
+				return res
+			}
+
+			caFields := strings.Fields(trustedCertSecretRef.Path)
+			if len(caFields) > 0 {
+				trustedCertPath = caFields[0]
+			}
+		}
+
+		sslVerifyDepth := 1
+		if jwtAuth.SSLVerifyDepth != nil {
+			sslVerifyDepth = *jwtAuth.SSLVerifyDepth
+		}
+
 		JwksURI := &version2.JwksURI{
 			JwksScheme:     uri.Scheme,
 			JwksHost:       uri.Hostname(),
@@ -1195,6 +1233,9 @@ func (p *policiesCfg) addJWTAuthConfig(
 			JwksPath:       uri.Path,
 			JwksSNIName:    jwtAuth.SNIName,
 			JwksSNIEnabled: jwtAuth.SNIEnabled,
+			SSLVerify:      jwtAuth.SSLVerify,
+			TrustedCert:    trustedCertPath,
+			SSLVerifyDepth: sslVerifyDepth,
 		}
 
 		p.JWTAuth.Auth = &version2.JWTAuth{
