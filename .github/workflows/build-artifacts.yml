@@ -120,6 +120,9 @@ jobs:
     name: Assertion Doc ${{ matrix.nic.arch }}
     needs: [binaries]
     runs-on: ${{ inputs.runner }}
+    permissions:
+      contents: read
+      id-token: write # for compliance-rules action to sign assertion doc
     strategy:
       fail-fast: false
       matrix:
