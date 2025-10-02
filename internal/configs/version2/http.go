@@ -448,6 +448,9 @@ type JwksURI struct {
 	JwksPath       string
 	JwksSNIName    string
 	JwksSNIEnabled bool
+	SSLVerify      bool
+	TrustedCert    string
+	SSLVerifyDepth int
 }
 
 // BasicAuth refers to basic HTTP authentication mechanism options
