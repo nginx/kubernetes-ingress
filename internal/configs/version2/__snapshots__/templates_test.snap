@@ -1259,6 +1259,7 @@ server {
         proxy_set_header Content-Length "";
         proxy_ssl_server_name on;
         proxy_ssl_name sni.idp.spec.example.com;
+        proxy_ssl_verify off;
         proxy_pass_request_headers off;
         proxy_pass_request_body off;
         proxy_set_header Host idp.spec.example.com;
@@ -1271,6 +1272,7 @@ server {
         proxy_set_header Content-Length "";
         proxy_ssl_server_name on;
         proxy_ssl_name sni.idp.spec.example.com;
+        proxy_ssl_verify off;
         proxy_pass_request_headers off;
         proxy_pass_request_body off;
         proxy_set_header Host idp.route.example.com;
@@ -1380,6 +1382,7 @@ server {
         internal;
         proxy_method GET;
         proxy_set_header Content-Length "";
+        proxy_ssl_verify off;
         proxy_pass_request_headers off;
         proxy_pass_request_body off;
         proxy_set_header Host idp.spec.example.com;
@@ -1390,6 +1393,7 @@ server {
         internal;
         proxy_method GET;
         proxy_set_header Content-Length "";
+        proxy_ssl_verify off;
         proxy_pass_request_headers off;
         proxy_pass_request_body off;
         proxy_set_header Host idp.route.example.com;
