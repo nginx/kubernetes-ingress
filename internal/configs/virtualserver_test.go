@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
@@ -5722,6 +5723,9 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 						JwksPath:       "/spec-keys",
 						JwksSNIEnabled: true,
 						JwksSNIName:    "idp.spec.example.com",
+						SSLVerify:      false,
+						TrustedCert:    "",
+						SSLVerifyDepth: 1,
 					},
 				},
 				"default/jwt-policy-route": {
@@ -5729,10 +5733,13 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 					Realm:    "Route Realm API",
 					KeyCache: "1h",
 					JwksURI: version2.JwksURI{
-						JwksScheme: "http",
-						JwksHost:   "idp.route.example.com",
-						JwksPort:   "80",
-						JwksPath:   "/route-keys",
+						JwksScheme:     "http",
+						JwksHost:       "idp.route.example.com",
+						JwksPort:       "80",
+						JwksPath:       "/route-keys",
+						SSLVerify:      false,
+						TrustedCert:    "",
+						SSLVerifyDepth: 1,
 					},
 				},
 			},
@@ -5747,6 +5754,9 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 					JwksPath:       "/spec-keys",
 					JwksSNIName:    "idp.spec.example.com",
 					JwksSNIEnabled: true,
+					SSLVerify:      false,
+					TrustedCert:    "",
+					SSLVerifyDepth: 1,
 				},
 			},
 			JWKSAuthEnabled: true,
@@ -5778,10 +5788,13 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 						Realm:    "Route Realm API",
 						KeyCache: "1h",
 						JwksURI: version2.JwksURI{
-							JwksScheme: "http",
-							JwksHost:   "idp.route.example.com",
-							JwksPort:   "80",
-							JwksPath:   "/route-keys",
+							JwksScheme:     "http",
+							JwksHost:       "idp.route.example.com",
+							JwksPort:       "80",
+							JwksPath:       "/route-keys",
+							SSLVerify:      false,
+							TrustedCert:    "",
+							SSLVerifyDepth: 1,
 						},
 					},
 				},
@@ -5801,10 +5814,13 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 						Realm:    "Route Realm API",
 						KeyCache: "1h",
 						JwksURI: version2.JwksURI{
-							JwksScheme: "http",
-							JwksHost:   "idp.route.example.com",
-							JwksPort:   "80",
-							JwksPath:   "/route-keys",
+							JwksScheme:     "http",
+							JwksHost:       "idp.route.example.com",
+							JwksPort:       "80",
+							JwksPath:       "/route-keys",
+							SSLVerify:      false,
+							TrustedCert:    "",
+							SSLVerifyDepth: 1,
 						},
 					},
 				},
@@ -5840,6 +5856,183 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 
 	if len(warnings) != 0 {
 		t.Errorf("GenerateVirtualServerConfig returned warnings: %v", vsc.warnings)
+	}
+}
+
+func TestGenerateVirtualServerConfigJWTSSLVerifyDepth(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		sslVerifyDepth *int
+		expectedDepth  int
+		description    string
+	}{
+		{
+			name:           "default_depth",
+			sslVerifyDepth: nil, // Not specified - should default to 1
+			expectedDepth:  1,
+			description:    "When SSLVerifyDepth is not specified, it should default to 1",
+		},
+		{
+			name:           "explicit_depth",
+			sslVerifyDepth: createPointerFromInt(3), // Explicitly set to 3
+			expectedDepth:  3,
+			description:    "When SSLVerifyDepth is explicitly set, it should respect that value",
+		},
+		{
+			name:           "explicit_zero_depth",
+			sslVerifyDepth: createPointerFromInt(0), // Explicitly set to 0
+			expectedDepth:  0,
+			description:    "When SSLVerifyDepth is explicitly set to 0, it should respect that value",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			virtualServerEx := VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Policies: []conf_v1.PolicyReference{
+							{
+								Name: "jwt-ssl-policy",
+							},
+						},
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "tea",
+								Service: "tea-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path: "/tea",
+								Action: &conf_v1.Action{
+									Pass: "tea",
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/jwt-ssl-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "jwt-ssl-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							JWTAuth: &conf_v1.JWTAuth{
+								Realm:          "SSL Test API",
+								JwksURI:        "https://idp.example.com/keys",
+								SSLVerify:      true,
+								SSLVerifyDepth: tt.sslVerifyDepth,
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+				},
+			}
+
+			expected := version2.VirtualServerConfig{
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+						Keepalive: 16,
+					},
+				},
+				HTTPSnippets:  []string{},
+				LimitReqZones: []version2.LimitReqZone{},
+				Server: version2.Server{
+					JWTAuthList: map[string]*version2.JWTAuth{
+						"default/jwt-ssl-policy": {
+							Key:   "default/jwt-ssl-policy",
+							Realm: "SSL Test API",
+							JwksURI: version2.JwksURI{
+								JwksScheme:     "https",
+								JwksHost:       "idp.example.com",
+								JwksPath:       "/keys",
+								SSLVerify:      true,
+								SSLVerifyDepth: tt.expectedDepth,
+							},
+						},
+					},
+					JWTAuth: &version2.JWTAuth{
+						Key:   "default/jwt-ssl-policy",
+						Realm: "SSL Test API",
+						JwksURI: version2.JwksURI{
+							JwksScheme:     "https",
+							JwksHost:       "idp.example.com",
+							JwksPath:       "/keys",
+							SSLVerify:      true,
+							SSLVerifyDepth: tt.expectedDepth,
+						},
+					},
+					JWKSAuthEnabled: true,
+					ServerName:      "cafe.example.com",
+					StatusZone:      "cafe.example.com",
+					ProxyProtocol:   true,
+					ServerTokens:    "off",
+					RealIPHeader:    "X-Real-IP",
+					SetRealIPFrom:   []string{"0.0.0.0/0"},
+					RealIPRecursive: true,
+					Snippets:        []string{"# server snippet"},
+					VSNamespace:     "default",
+					VSName:          "cafe",
+					Locations: []version2.Location{
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							HasKeepalive:             true,
+							ProxySSLName:             "tea-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+						},
+					},
+				},
+			}
+
+			isPlus := false
+			isResolverConfigured := false
+			isWildcardEnabled := false
+			vsc := newVirtualServerConfigurator(&baseCfgParams, isPlus, isResolverConfigured, &StaticConfigParams{}, isWildcardEnabled, &fakeBV)
+
+			result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+
+			if diff := cmp.Diff(expected, result); diff != "" {
+				t.Errorf("%s: GenerateVirtualServerConfig() mismatch (-want +got):\n%s", tt.description, diff)
+			}
+
+			if len(warnings) != 0 {
+				t.Errorf("%s: GenerateVirtualServerConfig returned warnings: %v", tt.description, vsc.warnings)
+			}
+		})
 	}
 }
 
@@ -12413,10 +12606,15 @@ func TestGeneratePolicies(t *testing.T) {
 						Key:   "default/jwt-policy-2",
 						Realm: "My Test API",
 						JwksURI: version2.JwksURI{
-							JwksScheme: "https",
-							JwksHost:   "idp.example.com",
-							JwksPort:   "443",
-							JwksPath:   "/keys",
+							JwksScheme:     "https",
+							JwksHost:       "idp.example.com",
+							JwksPort:       "443",
+							JwksPath:       "/keys",
+							JwksSNIName:    "",
+							JwksSNIEnabled: false,
+							SSLVerify:      false,
+							TrustedCert:    "",
+							SSLVerifyDepth: 1,
 						},
 						KeyCache: "1h",
 					},
@@ -12454,10 +12652,15 @@ func TestGeneratePolicies(t *testing.T) {
 						Key:   "default/jwt-policy-2",
 						Realm: "My Test API",
 						JwksURI: version2.JwksURI{
-							JwksScheme: "https",
-							JwksHost:   "idp.example.com",
-							JwksPort:   "",
-							JwksPath:   "/keys",
+							JwksScheme:     "https",
+							JwksHost:       "idp.example.com",
+							JwksPort:       "",
+							JwksPath:       "/keys",
+							JwksSNIName:    "",
+							JwksSNIEnabled: false,
+							SSLVerify:      false,
+							TrustedCert:    "",
+							SSLVerifyDepth: 1,
 						},
 						KeyCache: "1h",
 					},
@@ -13053,7 +13256,7 @@ func TestGeneratePolicies(t *testing.T) {
 			result.BundleValidator = nil
 
 			if !reflect.DeepEqual(tc.expected, result) {
-				t.Error(cmp.Diff(tc.expected, result))
+				t.Error(cmp.Diff(tc.expected, result, cmpopts.IgnoreFields(policiesCfg{}, "Context")))
 			}
 			if len(vsc.warnings) > 0 {
 				t.Errorf("generatePolicies() returned unexpected warnings %v for the case of %s", vsc.warnings, tc.msg)
