@@ -21,69 +21,72 @@ func TestValidClaims(t *testing.T) {
 			IssuedAt: &iat,
 		},
 	}
-	if err := c.Valid(); err != nil {
+	v := jwt.NewValidator(
+		jwt.WithIssuedAt(),
+	)
+	if err := v.Validate(c); err != nil {
 		t.Fatalf("Failed to verify claims, wanted: %v got %v", nil, err)
 	}
 }
 
 func TestInvalidClaims(t *testing.T) {
-	badClaims := []struct {
-		c             claims
-		expectedError error
+	type fields struct {
+		leeway       time.Duration
+		timeFunc     func() time.Time
+		expectedAud  string
+		expectAllAud []string
+		expectedIss  string
+		expectedSub  string
+	}
+	type args struct {
+		claims jwt.Claims
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		wantErr error
 	}{
 		{
-			claims{
-				"",
-				1,
-				"nonce",
-				jwt.RegisteredClaims{
-					IssuedAt: jwt.NewNumericDate(time.Now().Add(time.Hour * -1)),
-				},
-			},
-			errors.New("token doesn't include the ProductCode"),
+			name:    "missing ProductCode",
+			fields:  fields{},
+			args:    args{jwt.RegisteredClaims{}},
+			wantErr: ErrMissingProductCode,
 		},
 		{
-			claims{
-				"productCode",
-				1,
-				"",
-				jwt.RegisteredClaims{
-					IssuedAt: jwt.NewNumericDate(time.Now().Add(time.Hour * -1)),
-				},
-			},
-			errors.New("token doesn't include the Nonce"),
+			name:    "missing Nonce",
+			fields:  fields{},
+			args:    args{jwt.RegisteredClaims{}},
+			wantErr: ErrMissingNonce,
 		},
 		{
-			claims{
-				"productCode",
-				0,
-				"nonce",
-				jwt.RegisteredClaims{
-					IssuedAt: jwt.NewNumericDate(time.Now().Add(time.Hour * -1)),
-				},
-			},
-			errors.New("token doesn't include the PublicKeyVersion"),
+			name:    "missing PublicKeyVersion",
+			fields:  fields{},
+			args:    args{jwt.RegisteredClaims{}},
+			wantErr: ErrMissingKeyVersion,
 		},
 		{
-			claims{
-				"test",
-				1,
-				"nonce",
-				jwt.RegisteredClaims{
-					IssuedAt: jwt.NewNumericDate(time.Now().Add(time.Hour * +2)),
-				},
-			},
-			errors.New("token used before issued"),
+			name:    "iat is in the future",
+			fields:  fields{},
+			args:    args{jwt.RegisteredClaims{IssuedAt: jwt.NewNumericDate(time.Now().Add(time.Hour * +2))}},
+			wantErr: jwt.ErrTokenUsedBeforeIssued,
 		},
 	}
 
-	for _, badC := range badClaims {
-
-		err := badC.c.Valid()
-		if err == nil {
-			t.Errorf("Valid() returned no error when it should have returned error %q", badC.expectedError)
-		} else if err.Error() != badC.expectedError.Error() {
-			t.Errorf("Valid() returned error %q when it should have returned error %q", err, badC.expectedError)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := jwt.NewValidator(
+				jwt.WithLeeway(tt.fields.leeway),
+				jwt.WithTimeFunc(tt.fields.timeFunc),
+				jwt.WithIssuedAt(),
+				jwt.WithAudience(tt.fields.expectedAud),
+				jwt.WithAllAudiences(tt.fields.expectAllAud...),
+				jwt.WithIssuer(tt.fields.expectedIss),
+				jwt.WithSubject(tt.fields.expectedSub),
+			)
+			if err := v.Validate(tt.args.claims); (err != nil) && !errors.Is(err, tt.wantErr) {
+				t.Errorf("validator.Validate() error = %v, wantErr = %v", err, tt.wantErr)
+			}
+		})
 	}
 }
