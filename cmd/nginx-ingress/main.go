@@ -12,7 +12,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"reflect"
-	"regexp"
 	"runtime"
 	"strings"
 	"syscall"
@@ -146,10 +145,12 @@ func main() {
 	if *appProtect {
 		appProtectVersion = getAppProtectVersionInfo(ctx)
 
-		r := regexp.MustCompile("^5.*")
-		if r.MatchString(appProtectVersion) {
-			appProtectV5 = true
-			appProtectBundlePath = appProtectv5BundleFolder
+		for _, flag := range parsedFlags {
+			if strings.Contains(flag, "app-protect-enforcer-address") {
+				appProtectV5 = true
+				appProtectBundlePath = appProtectv5BundleFolder
+				break
+			}
 		}
 	}
 
