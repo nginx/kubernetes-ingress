@@ -1470,6 +1470,7 @@ server {
 
 [TestExecuteVirtualServerTemplateWithOIDCAndPKCEPolicyNGINXPlus - 1]
 
+keyval $idp_sid $client_sid              zone=oidc_sids;
 include oidc/oidc_pkce_supplements.conf;
 
 server {
