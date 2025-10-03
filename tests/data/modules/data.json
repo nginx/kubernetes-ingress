@@ -134,7 +134,7 @@
         },
         {
           "name": "app-protect-plugin",
-          "version": "6.20.0"
+          "version": "6.23.0"
         },
         {
           "name": "nginx-agent",
@@ -403,7 +403,7 @@
         },
         {
           "name": "app-protect-plugin",
-          "version": "6.20.0"
+          "version": "6.23.0"
         }
       ],
       "system": "alpine",
@@ -549,7 +549,7 @@
         },
         {
           "name": "app-protect-plugin",
-          "version": "6.20.0"
+          "version": "6.23.0"
         }
       ],
       "system": "ubi",
@@ -637,7 +637,7 @@
         },
         {
           "name": "app-protect-plugin",
-          "version": "6.20.0"
+          "version": "6.23.0"
         }
       ],
       "system": "ubi",
