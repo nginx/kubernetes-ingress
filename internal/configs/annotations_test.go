@@ -215,6 +215,39 @@ func TestParseRateLimitAnnotations(t *testing.T) {
 	}, NewDefaultConfigParams(context.Background(), false), ctx); len(errors) == 0 {
 		t.Error("No Errors when parsing invalid log level")
 	}
+
+	if errors := parseRateLimitAnnotations(map[string]string{
+		"nginx.org/limit-req-rate": "1r/s",
+	}, NewDefaultConfigParams(context.Background(), false), ctx); len(errors) != 2 {
+		t.Errorf("Expected 2 errors for missing mandatory annotations, got %d", len(errors))
+	}
+
+	if errors := parseRateLimitAnnotations(map[string]string{
+		"nginx.org/limit-req-rate": "1r/s",
+		"nginx.org/limit-req-key":  "${binary_remote_addr}",
+	}, NewDefaultConfigParams(context.Background(), false), ctx); len(errors) != 1 {
+		t.Errorf("Expected 1 error for missing mandatory annotation, got %d", len(errors))
+	}
+
+	if errors := parseRateLimitAnnotations(map[string]string{
+		"nginx.org/limit-req-burst": "10",
+	}, NewDefaultConfigParams(context.Background(), false), ctx); len(errors) != 3 {
+		t.Errorf("Expected 3 errors for missing all mandatory annotations, got %d", len(errors))
+	}
+
+	if errors := parseRateLimitAnnotations(map[string]string{
+		"nginx.org/proxy-connect-timeout": "30s",
+	}, NewDefaultConfigParams(context.Background(), false), ctx); len(errors) != 0 {
+		t.Errorf("Expected 0 errors for non rate-limiting annotations, got %d", len(errors))
+	}
+
+	if errors := parseRateLimitAnnotations(map[string]string{
+		"nginx.org/limit-req-rate":      "1r/s",
+		"nginx.org/limit-req-key":       "${binary_remote_addr}",
+		"nginx.org/limit-req-zone-size": "10m",
+	}, NewDefaultConfigParams(context.Background(), false), ctx); len(errors) != 0 {
+		t.Errorf("Expected 0 errors for complete mandatory annotations, got %d", len(errors))
+	}
 }
 
 func BenchmarkParseRewrites(b *testing.B) {
