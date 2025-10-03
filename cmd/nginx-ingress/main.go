@@ -148,12 +148,6 @@ func main() {
 		if _, err := os.Stat("/opt/app_protect/VERSION.common"); os.IsNotExist(err) {
 			appProtectV5 = true
 			appProtectBundlePath = appProtectv5BundleFolder
-			nl.Infof(l, "Detected WAF v5")
-		} else {
-			if err != nil {
-				nl.Warnf(l, "Cannot detect WAF version: %v, defaulting to WAF v4", err)
-			}
-			nl.Infof(l, "Detected WAF v4")
 		}
 	}
 
