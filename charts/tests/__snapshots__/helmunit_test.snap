@@ -1936,7 +1936,7 @@ spec:
           - -weight-changes-dynamic-reload=false
       
       - name: waf-enforcer
-        image: my.private.reg/nap/waf-enforcer:5.8.0
+        image: my.private.reg/nap/waf-enforcer:5.9.0
         imagePullPolicy: "IfNotPresent"
         env:
           - name: ENFORCER_PORT
@@ -1947,7 +1947,7 @@ spec:
           - name: app-protect-bd-config
             mountPath: /opt/app_protect/bd_config
       - name: waf-config-mgr
-        image: my.private.reg/nap/waf-config-mgr:5.8.0
+        image: my.private.reg/nap/waf-config-mgr:5.9.0
         imagePullPolicy: "IfNotPresent"
         securityContext:
       
@@ -2519,7 +2519,7 @@ spec:
           - -agent-instance-group=app-protect-wafv5-agentv2-nginx-ingress-controller
       
       - name: waf-enforcer
-        image: my.private.reg/nap/waf-enforcer:5.8.0
+        image: my.private.reg/nap/waf-enforcer:5.9.0
         imagePullPolicy: "IfNotPresent"
         env:
           - name: ENFORCER_PORT
@@ -2530,7 +2530,7 @@ spec:
           - name: app-protect-bd-config
             mountPath: /opt/app_protect/bd_config
       - name: waf-config-mgr
-        image: my.private.reg/nap/waf-config-mgr:5.8.0
+        image: my.private.reg/nap/waf-config-mgr:5.9.0
         imagePullPolicy: "IfNotPresent"
         securityContext:
       
