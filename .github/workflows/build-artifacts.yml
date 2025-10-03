@@ -116,7 +116,7 @@ jobs:
         if: ${{ inputs.force }}
 
   generate-assertion-doc:
-    if: ${{ inputs.force }}
+    if: ${{ github.event_name != 'pull_request' }}
     name: Assertion Doc ${{ matrix.nic.arch }}
     needs: [binaries]
     runs-on: ${{ inputs.runner }}
