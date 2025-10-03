@@ -1414,7 +1414,6 @@ def create_ingress_controller_wafv5(
         [
             f"-default-server-tls-secret=$(POD_NAMESPACE)/default-server-secret",
             f"-enable-telemetry-reporting=false",
-            f"-app-protect-enforcer-address",
         ]
     )
 
