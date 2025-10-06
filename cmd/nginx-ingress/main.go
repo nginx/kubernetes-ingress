@@ -12,7 +12,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"reflect"
-	"regexp"
 	"runtime"
 	"strings"
 	"syscall"
@@ -146,8 +145,7 @@ func main() {
 	if *appProtect {
 		appProtectVersion = getAppProtectVersionInfo(ctx)
 
-		r := regexp.MustCompile("^5.*")
-		if r.MatchString(appProtectVersion) {
+		if _, err := os.Stat("/opt/app_protect/VERSION.common"); os.IsNotExist(err) {
 			appProtectV5 = true
 			appProtectBundlePath = appProtectv5BundleFolder
 		}
