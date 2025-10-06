@@ -52,7 +52,7 @@ runs:
     - name: Deploy Kubernetes
       id: k8s
       run: |
-        make -f tests/Makefile create-kind-cluster K8S_CLUSTER_NAME=${{ github.run_id }} K8S_CLUSTER_VERSION=${{ inputs.k8s-version }} K8S_TIMEOUT=${{ inputs.k8s-timeout }}
+        make -f tests/Makefile create-kind-cluster K8S_CLUSTER_NAME=${{ github.run_id }} K8S_CLUSTER_VERSION=v${{ inputs.k8s-version }} K8S_TIMEOUT=${{ inputs.k8s-timeout }}
         make -f tests/Makefile image-load REGISTRY="" PREFIX=${{ inputs.image-name }} TAG=${{ inputs.tag }} K8S_CLUSTER_NAME=${{ github.run_id }}
         label="${{ inputs.label }}"
         nospaces="${label// /_}"
