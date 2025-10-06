@@ -179,6 +179,10 @@
   "timezone": "Europe/Dublin",
   "automerge": true,
   "automergeStrategy": "squash",
+  "baseBranchPatterns": [
+    "main",
+    "release-5.2"
+  ],
   "commitBodyTable": true,
   "configMigration": true,
   "customDatasources": {
