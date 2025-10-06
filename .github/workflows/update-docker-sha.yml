@@ -80,7 +80,7 @@ jobs:
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
         id: pr
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.NGINX_PAT }}
           commit-message: Update docker images ${{ steps.update_images.outputs.docker_md5 }}
           title: Docker image update ${{ steps.update_images.outputs.docker_md5 }}
           branch: deps/image-update-${{ needs.vars.outputs.source_branch }}-${{ steps.update_images.outputs.docker_md5 }}
