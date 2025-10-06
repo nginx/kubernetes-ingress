@@ -1098,6 +1098,42 @@ type BundleSource struct {
 	VerifyChecksum bool `json:"verifyChecksum,omitempty"`
 }
 
+// The OIDCv2 policy configures NGINX Plus as a relying party for OpenID Connect authentication using the native ngx_http_oidc_module.
+type OIDCv2 struct {
+	// Sets the Issuer Identifier URL of the OpenID Provider; required directive. The URL must exactly match the value of “issuer” in the OpenID Provider metadata and requires the “https” scheme.
+	// +kubebuilder:validation:Pattern=`^https://([^/\s]+)(/.*)?$`
+	// +kubebuilder:validation:Required
+	Issuer string `json:"issuer"`
+	// The client ID provided by your OpenID Connect provider.
+	// +kubebuilder:validation:Required
+	ClientID string `json:"clientID"`
+	// The name of the Kubernetes secret that stores the client secret provided by your OpenID Connect provider. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/oidc, and the secret under the key client-secret, otherwise the secret will be rejected as invalid. If PKCE is enabled, this should be not configured.
+	// +kubebuilder:validation:Optional
+	ClientSecret string `json:"clientSecret"`
+	// ConfigURL is the URL of the OpenID Provider Configuration Information. If not set, it will be default to https://<issuer>/.well-known/openid-configuration.
+	// +kubebuilder:default:=.well-known/openid-configuration
+	// +kubebuilder:validation:Optional
+	ConfigURL string `json:"configURL"`
+	// List of OpenID Connect scopes. The scope openid always needs to be present and others can be added concatenating them with a + sign, for example openid+profile+email, openid+email+userDefinedScope. The default is openid.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:=openid
+	Scope string `json:"scope"`
+	// Allows overriding the default redirect URI. The default is /oidc_callback.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:=/oidc_callback
+	RedirectURI string `json:"redirectURI"`
+	// URL provided by your OpenID Connect provider to request the end user be logged out.
+	// +kubebuilder:validation:Optional
+	LogoutURI string `json:"logoutURI"`
+	// URI to redirect to after the logout has been performed. Requires endSessionEndpoint.
+	// +kubebuilder:validation:Optional
+	PostLogoutRedirectURI string `json:"postLogoutRedirectURI"`
+	// Enables downloading of the UserInfo data and makes UserInfo claims available via the $oidc_claim_name variables
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	UserInfoEnable bool `json:"userInfoEnable"`
+}
+
 // The WAF policy configures NGINX Plus to secure client requests using App Protect WAF policies.
 // Mutual exclusivity of apPolicy, apBundle, and apBundleSource is enforced by the Go validation layer.
 type WAF struct {
