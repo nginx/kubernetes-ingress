@@ -48,6 +48,10 @@ jobs:
           IC_VERSION: ${{ inputs.ic_version }}
           CHART_VERSION: ${{ inputs.helm_chart_version }}
 
+      - name: Update Snapshots
+        run: |
+          make test-update-snaps
+
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
         with:
