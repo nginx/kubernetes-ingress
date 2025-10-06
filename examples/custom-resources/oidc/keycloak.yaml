@@ -34,12 +34,14 @@ spec:
         image: quay.io/keycloak/keycloak:26.4.0
         args: ["start-dev"]
         env:
-        - name: KEYCLOAK_ADMIN
+        - name: KC_BOOTSTRAP_ADMIN_USERNAME
           value: "admin"
-        - name: KEYCLOAK_ADMIN_PASSWORD
+        - name: KC_BOOTSTRAP_ADMIN_PASSWORD
           value: "admin"
-        - name: KC_PROXY
-          value: "edge"
+        - name: KC_HTTP_ENABLED
+          value: "true"
+        - name: KC_PROXY_HEADERS
+          value: "xforwarded"
         ports:
         - name: http
           containerPort: 8080
