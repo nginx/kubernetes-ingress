@@ -5,7 +5,7 @@ on:
       - main
       - release-*
     paths:
-      - tests/Dockerfile
+      - tests/Makefile
 
 concurrency:
   group: ${{ github.ref_name }}-k8s-version
