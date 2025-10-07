@@ -174,6 +174,18 @@
         "source[\\s]+=[\\s]+\"github.com/(?<depName>\\S*)\"[\\s]+version[\\s]+=[\\s]+\"(?<currentValue>\\S*)\"",
         "version[\\s]+=[\\s]+\"(?<currentValue>\\S*)[\\s]+source[\\s]+=[\\s]+\"github.com/(?<depName>\\S*)\""
       ]
+    },
+    {
+      "customType": "regex",
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "kindest/node",
+      "description": "Kubernetes version in helm schema file",
+      "managerFilePatterns": [
+        "/values\\.schema\\.json$/"
+      ],
+      "matchStrings": [
+        "master\\/(?<currentValue>v\\d+\\.\\d+\\.\\d+)\\/_definitions\\.json"
+      ]
     }
   ],
   "timezone": "Europe/Dublin",
