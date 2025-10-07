@@ -393,6 +393,27 @@ type Queue struct {
 	Timeout string
 }
 
+// OIDCProvider defines an OIDC provider.
+type OIDCProvider struct {
+	Name            string
+	Issuer          string
+	ClientID        string
+	ClientSecret    string
+	ConfigURL       string
+	CookieName      string
+	ExtraAuthArgs   string
+	RedirectURI     string
+	LogoutURI       string
+	PostLogoutURI   string
+	LogoutTokenHint bool
+	Scope           string
+	SessionStore    string
+	SessionTimeout  string
+	SSLCrl          string
+	SSLTrustedCert  string
+	UserInfoEnable  bool
+}
+
 // LimitReqZone defines a rate limit shared memory zone.
 type LimitReqZone struct {
 	Key           string
