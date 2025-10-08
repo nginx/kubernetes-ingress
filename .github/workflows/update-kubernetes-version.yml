@@ -23,7 +23,7 @@ jobs:
       - name: Get current k8s version from Kind image
         id: k8s-version
         run: |
-          v=$(grep "K8S_CLUSTER_VERSION.*?=" tests/Makefile | head -1 | cut -d '=' -f 2 | xargs)
+          v=$(grep "^K8S_CLUSTER_VERSION" tests/Makefile | awk '{ print $3 }')
           echo "version=${v}" >> $GITHUB_OUTPUT
           cat $GITHUB_OUTPUT
 
