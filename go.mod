@@ -8,7 +8,7 @@ require (
 	github.com/cert-manager/cert-manager v1.18.2
 	github.com/dlclark/regexp2 v1.11.5
 	github.com/gkampitakis/go-snaps v0.5.15
-	github.com/golang-jwt/jwt/v4 v4.5.2
+	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/go-cmp v0.7.0
 	github.com/gruntwork-io/terratest v0.50.0
 	github.com/jinzhu/copier v0.4.0
@@ -26,7 +26,7 @@ require (
 	k8s.io/apimachinery v0.33.4
 	k8s.io/client-go v0.33.4
 	k8s.io/code-generator v0.33.4
-	k8s.io/utils v0.0.0-20241210054802-24370beab758
+	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4
 	sigs.k8s.io/controller-tools v0.18.0
 	sigs.k8s.io/yaml v1.6.0
 )
