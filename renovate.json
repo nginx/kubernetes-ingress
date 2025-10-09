@@ -21,7 +21,8 @@
     },
     {
       "addLabels": [
-        "python"
+        "python",
+        "skip changelog"
       ],
       "matchDatasources": [
         "pypi"
@@ -55,7 +56,8 @@
     },
     {
       "addLabels": [
-        "github_actions"
+        "github_actions",
+        "skip changelog"
       ],
       "matchManagers": [
         "github-actions"
