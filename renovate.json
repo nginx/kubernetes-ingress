@@ -232,6 +232,19 @@
     "yarnDedupeHighest",
     "npmDedupe"
   ],
+  "postUpgradeTasks": {
+    "commands": [
+      "make update-crds",
+      "make update-codegen",
+      "make test-update-snaps"
+    ],
+    "fileFilters": [
+      "**/*.go",
+      "**/go.mod",
+      "**/go.sum"
+    ],
+    "executionMode": "branch"
+  },
   "pre-commit": {
     "enabled": true
   },
