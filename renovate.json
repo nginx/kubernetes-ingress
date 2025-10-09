@@ -21,11 +21,13 @@
     },
     {
       "addLabels": [
-        "python"
+        "python",
+        "skip changelog"
       ],
       "matchDatasources": [
         "pypi"
-      ]
+      ],
+      "groupName": "python dependencies"
     },
     {
       "addLabels": [
@@ -54,11 +56,13 @@
     },
     {
       "addLabels": [
-        "github_actions"
+        "github_actions",
+        "skip changelog"
       ],
       "matchManagers": [
         "github-actions"
-      ]
+      ],
+      "groupName": "github actions"
     },
     {
       "matchPackageNames": [
