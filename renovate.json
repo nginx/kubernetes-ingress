@@ -25,7 +25,8 @@
       ],
       "matchDatasources": [
         "pypi"
-      ]
+      ],
+      "groupName": "python dependencies"
     },
     {
       "addLabels": [
@@ -58,7 +59,8 @@
       ],
       "matchManagers": [
         "github-actions"
-      ]
+      ],
+      "groupName": "github actions"
     },
     {
       "matchPackageNames": [
