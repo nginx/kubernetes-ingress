@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1.19
 ARG BUILD_OS=debian
-ARG NGINX_OSS_VERSION=1.29
+# renovate: datasource=docker depName=nginx/nginx
+ARG NGINX_OSS_VERSION=1.29.1
 ARG NGINX_PLUS_VERSION=R35
 ARG NAP_WAF_VERSION=35+5.527
 ARG NAP_WAF_COMMON_VERSION=11.559
@@ -106,6 +107,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk
 
 ############################################# Base image for Debian #############################################
 FROM nginx:1.29.1@sha256:8adbdcb969e2676478ee2c7ad333956f0c8e0e4c5a7463f4611d7a2e7a7ff5dc AS debian
+ARG NGINX_OSS_VERSION
 ARG NGINX_AGENT_VERSION
 
 RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_signing.key \
@@ -121,7 +123,9 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_s
     http://packages.nginx.org/nginx-agent/debian `lsb_release -cs` agent" >> /etc/apt/sources.list.d/nginx.list \
 	&& printf "%s" "Package: *\nPin: origin nginx.org\nPin: release o=nginx\nPin-Priority: 900\n" > /etc/apt/preferences.d/99nginx \
 	&& apt-get update \
-	&& apt-get install --no-install-recommends --no-install-suggests -y nginx-agent=${NGINX_AGENT_VERSION}* nginx-module-otel=${NGINX_OSS_VERSION}* \
+	&& apt-get install --no-install-recommends --no-install-suggests -y \
+	nginx-agent=${NGINX_AGENT_VERSION}* \
+	nginx-module-otel=${NGINX_OSS_VERSION}* \
 	&& apt-get purge --auto-remove -y gpg \
 	&& rm -rf /var/lib/apt/lists/* /etc/apt/preferences.d/99nginx /etc/apt/sources.list.d/nginx.list \
 	&& agent.sh

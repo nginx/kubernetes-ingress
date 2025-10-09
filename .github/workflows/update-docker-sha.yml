@@ -16,8 +16,6 @@ on:
       dry_run:
         type: boolean
         default: false
-  schedule:
-    - cron: "0 1 * * 1-5" # 01:00 UTC Mon-Fri
 
 defaults:
   run:
