@@ -501,7 +501,7 @@ jobs:
   azure-upload:
     if: ${{ ! cancelled() && ! failure() && ! contains(inputs.skip_step, 'azure-upload') }}
     name: Upload packages to Azure
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-amd64
     needs: [variables, binaries]
     permissions:
       id-token: write
@@ -545,7 +545,7 @@ jobs:
   github-release:
     if: ${{ ! cancelled() && ! failure() && ! contains(inputs.skip_step, 'github-release') }}
     name: Publish release to GitHub
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-amd64
     needs: [variables, binaries, release-oss, release-plus-gcr-nginx]
     permissions:
       contents: write # to modify the release
