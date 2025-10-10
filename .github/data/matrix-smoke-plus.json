@@ -81,7 +81,7 @@
       "label": "policies 2/5",
       "image": "ubi-9-plus",
       "type": "plus",
-      "marker": "'policies_ac or policies_mtls'",
+      "marker": "'policies_ac or policies_mtls or policies_cache'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
@@ -95,14 +95,14 @@
       "label": "policies 4/5",
       "image": "ubi-9-plus",
       "type": "plus",
-      "marker": "'policies_cache'",
+      "marker": "'policies_rl_vs'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
       "label": "policies 5/5",
       "image": "ubi-9-plus",
       "type": "plus",
-      "marker": "'policies_rl'",
+      "marker": "'policies_rl_vsr'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {

@@ -100,6 +100,7 @@ rl_pol_read_no_default_variables_request_method = (
 
 @pytest.mark.policies
 @pytest.mark.policies_rl
+@pytest.mark.policies_rl_vs
 @pytest.mark.parametrize(
     "crd_ingress_controller, virtual_server_setup",
     [
@@ -636,6 +637,7 @@ class TestRateLimitingPolicies:
 
 @pytest.mark.policies
 @pytest.mark.policies_rl
+@pytest.mark.policies_rl_vs
 @pytest.mark.parametrize(
     "crd_ingress_controller, virtual_server_setup",
     [
