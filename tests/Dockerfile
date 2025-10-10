@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.19
-FROM python:3.13-bookworm@sha256:afe6f5c21893b34eff06617b81429646e21981cfa36e6e5916e8b3608d6fcba3
+FROM python:3.14-bookworm@sha256:776ab36198fa76233d7b91abb01ab694332695ba214de14b62e4e558fd530464
 
 RUN apt-get update \
 	&& apt-get install -y curl git apache2-utils \
