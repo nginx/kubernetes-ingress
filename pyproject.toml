@@ -45,6 +45,8 @@ markers = [
     "dos_learning",
     "hsts",
     "ingresses",
+    "ingresses_jwt",
+    "ingresses_smoke",
     "multi_ns",
     "oidc",
     "otel",
