@@ -12,7 +12,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/gruntwork-io/terratest v0.50.0
 	github.com/jinzhu/copier v0.4.0
-	github.com/nginx/nginx-plus-go-client/v3 v3.0.0
+	github.com/nginx/nginx-plus-go-client/v3 v3.0.1
 	github.com/nginx/nginx-prometheus-exporter v1.5.0
 	github.com/nginx/telemetry-exporter v0.1.4
 	github.com/nginxinc/nginx-service-mesh v1.7.0
@@ -180,7 +180,7 @@ require (
 	golang.org/x/mod v0.26.0 // indirect
 	golang.org/x/net v0.43.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
-	golang.org/x/sync v0.16.0 // indirect
+	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/term v0.34.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
