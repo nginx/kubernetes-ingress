@@ -1002,7 +1002,7 @@ data:
     features:
       - registration
       - nginx-counting
-      - metrics-sender
+      - metrics
       - dataplane-status
     extensions:
       - nginx-app-protect
@@ -1323,7 +1323,7 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: app-protect-waf-agentv2
-        agent-configuration-revision-hash: "58428611"
+        agent-configuration-revision-hash: "df256a4f"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
@@ -2055,7 +2055,7 @@ data:
     features:
       - registration
       - nginx-counting
-      - metrics-sender
+      - metrics
       - dataplane-status
     extensions:
       - nginx-app-protect
@@ -2376,7 +2376,7 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: app-protect-wafv5-agentv2
-        agent-configuration-revision-hash: "a8989f3a"
+        agent-configuration-revision-hash: "7f0862bf"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
