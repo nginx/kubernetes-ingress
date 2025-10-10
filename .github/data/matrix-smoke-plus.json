@@ -64,24 +64,38 @@
       "platforms": "linux/arm64, linux/amd64"
     },
     {
-      "label": "policies 1/3",
+      "label": "policies 1/5",
       "image": "ubi-9-plus",
       "type": "plus",
       "marker": "'policies and not policies_ac and not policies_jwt and not policies_mtls and not policies_rl and not policies_cache'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
-      "label": "policies 2/3",
+      "label": "policies 2/5",
       "image": "ubi-9-plus",
       "type": "plus",
-      "marker": "'policies_ac or policies_jwt or policies_mtls or otel'",
+      "marker": "'policies_ac or policies_mtls'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
-      "label": "policies 3/3",
+      "label": "policies 3/5",
       "image": "ubi-9-plus",
       "type": "plus",
-      "marker": "'policies_rl or policies_cache'",
+      "marker": "'policies_jwt or or otel'",
+      "platforms": "linux/arm64, linux/amd64"
+    },
+    {
+      "label": "policies 4/5",
+      "image": "ubi-9-plus",
+      "type": "plus",
+      "marker": "'policies_cache'",
+      "platforms": "linux/arm64, linux/amd64"
+    },
+    {
+      "label": "policies 5/5",
+      "image": "ubi-9-plus",
+      "type": "plus",
+      "marker": "'policies_rl'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
