@@ -35,7 +35,7 @@ spec:
 #      - name: nginx-log
 #        emptyDir: {}
       containers:
-      - image: nginx-plus-ingress:5.2.0
+      - image: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress@sha256:69a0539cc9b9f04d17c759233457581cc3ab69571dc9dddd484d56144b584239
         imagePullPolicy: IfNotPresent
         name: nginx-plus-ingress
         ports:
@@ -97,6 +97,7 @@ spec:
           - -mgmt-configmap=$(POD_NAMESPACE)/nginx-config-mgmt
           - -report-ingress-status
           - -external-service=nginx-ingress
+          - -enable-oidc
          #- -default-server-tls-secret=$(POD_NAMESPACE)/default-server-secret
          #- -enable-cert-manager
          #- -enable-external-dns
