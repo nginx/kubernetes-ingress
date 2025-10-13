@@ -190,6 +190,10 @@ jobs:
   #       with:
   #         assertion-doc: ${{ steps.assertiondoc.outputs.assertion-document-path }}
 
+      - name: Cleanup netrc
+        run: rm -f $HOME/.netrc
+        if: ${{ always() }}
+
   build-docker:
     name: Build Docker OSS
     needs: [binaries]

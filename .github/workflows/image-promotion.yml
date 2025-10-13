@@ -146,6 +146,10 @@ jobs:
         with:
           sarif_file: govulncheck.sarif
 
+      - name: Cleanup netrc
+        run: rm -f $HOME/.netrc
+        if: ${{ always() }}
+
   build-artifacts:
     name: Build Artifacts
     needs: [checks]
