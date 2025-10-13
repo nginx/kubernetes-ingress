@@ -109,7 +109,6 @@ jobs:
           else
             echo "go_proxy=https://proxy.golang.org,direct" >> $GITHUB_OUTPUT
           fi
-          echo "go_proxy=${go_proxy}" >> $GITHUB_OUTPUT
           ./.github/scripts/variables.sh go_code_md5 >> $GITHUB_OUTPUT
           ./.github/scripts/variables.sh docker_md5 >> $GITHUB_OUTPUT
           ./.github/scripts/variables.sh build_tag >> $GITHUB_OUTPUT
