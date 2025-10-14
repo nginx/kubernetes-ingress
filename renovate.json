@@ -123,8 +123,8 @@
       "customType": "regex",
       "description": "Update _VERSION variables in Dockerfiles",
       "managerFilePatterns": [
-        "(^|/|\\.)Dockerfile$",
-        "(^|/)Dockerfile\\.[^/]*$"
+        "/(^|/|\\.)Dockerfile$/",
+        "/(^|/)Dockerfile\\.[^/]*$/"
       ],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>.+?)(?: (?:packageName|lookupName)=(?<packageName>.+?))?(?: versioning=(?<versioning>[a-z-]+?))?\\s(?:ENV|ARG) .+?_VERSION=(?<currentValue>.+?)\\s"
@@ -135,7 +135,7 @@
       "datasourceTemplate": "github-tags",
       "description": "Update Github Action references in the Markdown files",
       "managerFilePatterns": [
-        "\\.md$"
+        "/\\.md$/"
       ],
       "matchStrings": [
         "\\suses: (?<depName>[\\w-]+/[\\w-]+)(?<path>/.*)?@(?<currentValue>v\\d+\\.\\d+\\.\\d+)",
@@ -147,7 +147,7 @@
       "customType": "regex",
       "description": "Update `version:` and `_VERSION:` variables in github workflows",
       "managerFilePatterns": [
-        "^\\.github\\/workflows\\/\\w+\\.ya?ml$"
+        "/^\\.github\\/workflows\\/\\w+\\.ya?ml$/"
       ],
       "matchStrings": [
         "\\s+(?:[[:word:]]-)?version: (?<currentValue>.+?) # renovate: datasource=(?<datasource>.+?) depName=(?<depName>.+?)(?: (?:packageName|lookupName)=(?<packageName>.+?))?(?: versioning=(?<versioning>.+?))?\\s",
@@ -158,7 +158,7 @@
       "customType": "regex",
       "description": "Update `Version:` in go files",
       "managerFilePatterns": [
-        "\\.go$"
+        "/\\.go$/"
       ],
       "matchStrings": [
         "// renovate: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>.+?)(?: registryUrl=(?<registryUrl>.+?))?(?: (?:packageName|lookupName)=(?<packageName>.+?))?(?: versioning=(?<versioning>[a-z-]+?))?\\s.+?Version :?= \"(?<currentValue>.+?)\"\\s"
@@ -171,7 +171,7 @@
       "datasourceTemplate": "github-tags",
       "depNameTemplate": "{{#if depName}}{{#if (containsString depName \"hashicorp/\")}}{{{replace \"hashicorp/\" \"hashicorp/packer-plugin-\" depName}}}{{else}}{{{depName}}}{{/if}}{{else}}hashicorp/packer{{/if}}",
       "managerFilePatterns": [
-        "\\.pkr\\.hcl"
+        "/\\.pkr\\.hcl$/"
       ],
       "matchStrings": [
         "required_version[\\s]+=[\\s]+\"=?(?<currentValue>\\S*)\"",
@@ -231,6 +231,22 @@
     "gomodUpdateImportPaths",
     "yarnDedupeHighest",
     "npmDedupe"
+  ],
+  "postUpgradeTasks": {
+    "commands": [
+      "make update-crds",
+      "make update-codegen",
+      "make test-update-snaps"
+    ],
+    "fileFilters": [
+      "**/*.go",
+      "**/go.mod",
+      "**/go.sum"
+    ],
+    "executionMode": "branch"
+  },
+  "allowedCommands": [
+    "^make .+"
   ],
   "pre-commit": {
     "enabled": true
