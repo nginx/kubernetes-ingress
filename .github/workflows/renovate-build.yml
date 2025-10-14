@@ -55,7 +55,7 @@ jobs:
         run: |
           GOPROXY_VALUE=https://proxy.golang.org,direct
           if [ "${{ github.ref_name }}" = "${{ github.event.repository.default_branch }}" ] || [[ "${{ github.ref_name }}" =~ "release-" ]]; then
-            echo "GOPROXY_VALUE=${{ secrets.ARTIFACTORY_ENDPOINT }}"
+            "GOPROXY_VALUE=${{ secrets.ARTIFACTORY_DEV_ENDPOINT }}"
           fi
           echo "GOPROXY=${GOPROXY_VALUE}" >> $GITHUB_ENV
 
