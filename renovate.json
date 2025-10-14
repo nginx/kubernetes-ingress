@@ -245,6 +245,9 @@
     ],
     "executionMode": "branch"
   },
+  "allowedCommands": [
+    "^make .+"
+  ],
   "pre-commit": {
     "enabled": true
   },
