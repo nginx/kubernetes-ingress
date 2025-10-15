@@ -49,6 +49,13 @@ def get_run_branch_jobs(runs):
     return results
 
 
+def get_run_durations(runs):
+    results = {}
+    for run in runs:
+        results[run.id] = run.timing().run_duration_ms / 1000
+    return results
+
+
 def convert_seconds(seconds):
     min, sec = divmod(seconds, 60)
     hour, min = divmod(min, 60)
@@ -63,8 +70,10 @@ if not runs:
     print("No workflow runs found.")
     exit(1)
 wj = get_run_branch_jobs(runs)
+wd = get_run_durations(runs)
 for run_id in sorted(wj.keys()):
-    print(f"Workflow Run ID: {run_id}")
+    duration = wd.get(run_id)
+    print(f"Workflow Run ID: {run_id}, Duration: {convert_seconds(duration)}")
     for job in wj[run_id]:
         job_duration = (job.completed_at - job.started_at).total_seconds()
         if job.status == "completed" and job.conclusion == "success" and job_duration > DURATION:

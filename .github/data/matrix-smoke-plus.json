@@ -1,31 +1,38 @@
 {
   "images": [
     {
-      "label": "VS 1/4",
+      "label": "VS 1/5",
       "image": "debian-plus",
       "type": "plus",
       "marker": "'vs and not vs_ipv6 and not vs_rewrite and not vs_responses and not vs_grpc and not vs_redirects and not vs_externalname and not vs_externaldns and not vs_certmanager and not vs_api and not vs_backup and not vs_use_cluster_ip and not vs_canary and not vs_upstream and not vs_config_map and not vs_listeners'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
-      "label": "VS 2/4",
+      "label": "VS 2/5",
       "image": "debian-plus",
       "type": "plus",
       "marker": "'vs_grpc or vs_redirects or vs_externalname or vs_externaldns or vs_api or vs_backup or vs_use_cluster_ip or vs_canary or vs_upstream or vs_config_map'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
-      "label": "VS 3/4",
+      "label": "VS 3/5",
       "image": "debian-plus",
       "type": "plus",
       "marker": "'vs_responses or vs_ipv6 or vs_rewrite'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
-      "label": "VS 4/4",
+      "label": "VS 4/5",
       "image": "debian-plus",
       "type": "plus",
-      "marker": "'vs_listeners or vs_certmanager'",
+      "marker": "'vs_certmanager'",
+      "platforms": "linux/arm64, linux/amd64"
+    },
+    {
+      "label": "VS 5/5",
+      "image": "debian-plus",
+      "type": "plus",
+      "marker": "'vs_listeners'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
