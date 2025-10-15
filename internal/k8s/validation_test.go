@@ -3561,7 +3561,7 @@ func TestValidateMasterSpec(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				"spec.rules: Too many: 2: must have at most 1 items",
+				"spec.rules: Too many: 2: must have at most 1 item",
 			},
 			msg: "too many hosts",
 		},
@@ -3637,7 +3637,7 @@ func TestValidateMinionSpec(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				"spec.rules: Too many: 2: must have at most 1 items",
+				"spec.rules: Too many: 2: must have at most 1 item",
 			},
 			msg: "too many hosts",
 		},
