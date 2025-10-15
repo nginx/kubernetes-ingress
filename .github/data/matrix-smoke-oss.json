@@ -36,21 +36,28 @@
       "platforms": "linux/arm64, linux/amd64"
     },
     {
-      "label": "policies 1/3",
+      "label": "policies 1/4",
       "image": "alpine",
       "type": "oss",
       "marker": "'policies and not policies_rl and not policies_ac and not policies_jwt and not policies_mtls and not policies_cache'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
-      "label": "policies 2/3",
+      "label": "policies 2/4",
       "image": "alpine",
       "type": "oss",
-      "marker": "'policies_rl or policies_ac or policies_jwt'",
+      "marker": "'policies_ac or policies_jwt'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
-      "label": "policies 3/3",
+      "label": "policies 3/4",
+      "image": "alpine",
+      "type": "oss",
+      "marker": "'policies_rl'",
+      "platforms": "linux/arm64, linux/amd64"
+    },
+    {
+      "label": "policies 4/4",
       "image": "alpine",
       "type": "oss",
       "marker": "'policies_mtls or policies_cache or otel'",
