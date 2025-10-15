@@ -18,14 +18,14 @@
       "label": "VS 3/4",
       "image": "debian-plus",
       "type": "plus",
-      "marker": "'vs_responses or vs_ipv6 or vs_rewrite or vs_certmanager'",
+      "marker": "'vs_responses or vs_ipv6 or vs_rewrite'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
       "label": "VS 4/4",
       "image": "debian-plus",
       "type": "plus",
-      "marker": "'vs_listeners'",
+      "marker": "'vs_listeners or vs_certmanager'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
