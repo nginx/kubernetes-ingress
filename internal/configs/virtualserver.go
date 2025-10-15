@@ -896,6 +896,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			VSNamespace:               vsEx.VirtualServer.Namespace,
 			VSName:                    vsEx.VirtualServer.Name,
 			DisableIPV6:               vsc.isIPV6Disabled,
+			NGINXDebugLevel:           vsc.cfgParams.MainErrorLogLevel,
 		},
 		SpiffeCerts:             enabledInternalRoutes,
 		SpiffeClientCerts:       vsc.spiffeCerts && !enabledInternalRoutes,

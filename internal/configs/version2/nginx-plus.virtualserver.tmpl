@@ -137,7 +137,7 @@ server {
     {{- with $oidc := $s.OIDC }}
     include oidc/oidc.conf;
 
-    {{- if eq $.ErrorLogLevel "debug" }}
+    {{- if eq $s.NGINXDebugLevel "debug" }}
     set $oidc_debug true;
     {{- end }}
 
