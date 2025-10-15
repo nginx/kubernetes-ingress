@@ -102,13 +102,13 @@ jobs:
           echo "chart_version=${HELM_CHART_VERSION}" >> $GITHUB_OUTPUT
           forked_workflow=${{ (github.event.pull_request && github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name) || github.repository != 'nginx/kubernetes-ingress' }}
           echo "forked_workflow=${forked_workflow}" >> $GITHUB_OUTPUT
-          go_proxy="https://proxy.golang.org,direct"
-          if [ "$forked_workflow" = "false" ]; then
-            go_proxy="${{ secrets.ARTIFACTORY_DEV_ENDPOINT }}"
-          elif [ "${{ github.ref_name }}" = "main" ] || [[ "${{ github.ref_name }}" =~ "release-" ]]; then
-            go_proxy="${{ secrets.ARTIFACTORY_ENDPOINT }}"
+          if [ "$forked_workflow" = "false" ] && [ "${{ github.ref_name }}" != "${{ github.event.repository.default_branch }}" ]; then
+            echo "go_proxy=${{ secrets.ARTIFACTORY_DEV_ENDPOINT }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref_name }}" = "${{ github.event.repository.default_branch }}" ] || [[ "${{ github.ref_name }}" =~ "release-" ]]; then
+            echo "go_proxy=${{ secrets.ARTIFACTORY_ENDPOINT }}" >> $GITHUB_OUTPUT
+          else
+            echo "go_proxy=https://proxy.golang.org,direct" >> $GITHUB_OUTPUT
           fi
-          echo "go_proxy=${go_proxy}" >> $GITHUB_OUTPUT
           ./.github/scripts/variables.sh go_code_md5 >> $GITHUB_OUTPUT
           ./.github/scripts/variables.sh docker_md5 >> $GITHUB_OUTPUT
           ./.github/scripts/variables.sh build_tag >> $GITHUB_OUTPUT
@@ -241,6 +241,10 @@ jobs:
           make telemetry-schema && git diff --name-only --exit-code internal/telemetry
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
+      - name: Cleanup netrc
+        run: rm -f $HOME/.netrc
+        if: ${{ always() }}
+
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-24.04
@@ -289,6 +293,10 @@ jobs:
           version: "v0.6.0"
           install-go: false
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' && (inputs.run_tests && inputs.run_tests || true) }}
+
+      - name: Cleanup netrc
+        run: rm -f $HOME/.netrc
+        if: ${{ always() }}
 
   build-artifacts:
     name: Build Artifacts
