@@ -29,10 +29,17 @@
       "platforms": "linux/arm64, linux/amd64"
     },
     {
-      "label": "TS",
+      "label": "TS 1/2",
       "image": "debian-plus",
       "type": "plus",
-      "marker": "'ts or otel'",
+      "marker": "'ts and not ts_tcp and not ts_udp'",
+      "platforms": "linux/arm64, linux/amd64"
+    },
+    {
+      "label": "TS 2/2",
+      "image": "debian-plus",
+      "type": "plus",
+      "marker": "'ts_tcp or ts_udp or otel'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {

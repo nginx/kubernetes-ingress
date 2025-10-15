@@ -64,6 +64,8 @@ markers = [
     "smoke",
     "startup",
     "ts",
+    "ts_tcp",
+    "ts_udp",
     "upgrade",
     "vs",
     "vs_api",
