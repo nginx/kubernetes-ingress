@@ -57,9 +57,9 @@ def get_run_durations(runs):
 
 
 def convert_seconds(seconds):
-    min, sec = divmod(seconds, 60)
-    hour, min = divmod(min, 60)
-    return "%d:%02d:%02d" % (hour, min, sec)
+    minutes, remaining_seconds = divmod(seconds, 60)
+    hour, minutes = divmod(minutes, 60)
+    return "%d:%02d:%02d" % (hour, minutes, remaining_seconds)
 
 
 r = get_github_repo(OWNER, REPO, TOKEN)
