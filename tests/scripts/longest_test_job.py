@@ -23,14 +23,18 @@ DURATION = args.duration
 WORKFLOW = args.workflow
 
 
-def get_github_repo(owner, repo, token):
+def get_github_handle(token):
     # Authenticate to GitHub
     auth = Auth.Token(token)
     g = Github(auth=auth)
+    if g is None:
+        return None
+    return g
 
+
+def get_github_repo(owner, repo, handle):
     # Get the repository
-    repository = g.get_repo(f"{owner}/{repo}")
-    g.close()  # Close the connection
+    repository = handle.get_repo(f"{owner}/{repo}")
     return repository
 
 
@@ -62,7 +66,11 @@ def convert_seconds(seconds):
     return "%d:%02d:%02d" % (hour, minutes, remaining_seconds)
 
 
-r = get_github_repo(OWNER, REPO, TOKEN)
+g = get_github_handle(TOKEN)
+if g is None:
+    print("Failed to authenticate to GitHub")
+    exit(1)
+r = get_github_repo(OWNER, REPO, g)
 
 # Get the latest workflow runs
 runs = get_workflow_runs(r, WORKFLOW, branch=BRANCH)
@@ -78,3 +86,5 @@ for run_id in sorted(wj.keys()):
         job_duration = (job.completed_at - job.started_at).total_seconds()
         if job.status == "completed" and job.conclusion == "success" and job_duration > DURATION:
             print(f"  Job: {job.name}, Duration: {convert_seconds(job_duration)}, URL: {job.html_url}")
+
+g.close()
