@@ -61,7 +61,7 @@
       "image": "ubi-9-plus-nap",
       "type": "plus",
       "nap_modules": "dos",
-      "marker": "'dos_learning or otel'",
+      "marker": "'dos_learning'",
       "platforms": "linux/amd64"
     },
     {

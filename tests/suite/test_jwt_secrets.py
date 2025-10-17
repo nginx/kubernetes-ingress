@@ -93,6 +93,7 @@ def jwt_secret(request, kube_apis, ingress_controller_endpoint, jwt_secrets_setu
 
 
 @pytest.mark.ingresses
+@pytest.mark.ingresses_jwt
 @pytest.mark.skip_for_nginx_oss
 class TestJWTSecrets:
     def test_response_code_200_and_server_name(self, jwt_secrets_setup, jwt_secret):
