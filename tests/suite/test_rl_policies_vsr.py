@@ -119,6 +119,7 @@ rl_vsr_multiple_tiered_variables_apikey = (
 
 @pytest.mark.policies
 @pytest.mark.policies_rl
+@pytest.mark.policies_rl_vsr
 @pytest.mark.parametrize(
     "crd_ingress_controller, v_s_route_setup",
     [
@@ -683,6 +684,7 @@ class TestRateLimitingPoliciesVsr:
 
 @pytest.mark.policies
 @pytest.mark.policies_rl
+@pytest.mark.policies_rl_vsr
 @pytest.mark.parametrize(
     "crd_ingress_controller, v_s_route_setup",
     [
