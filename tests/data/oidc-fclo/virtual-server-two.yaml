@@ -13,6 +13,6 @@ spec:
   routes:
   - path: /
     policies:
-    - name: oidc-policy-one
+    - name: oidc-policy-two
     action:
       pass: fclo-two

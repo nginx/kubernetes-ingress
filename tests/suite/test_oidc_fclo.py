@@ -223,7 +223,7 @@ def run_oidc_fclo(browser_type, ip_address, port):
     try:
         page = context.new_page()
 
-        page.goto("https://virtual-server-tls.example.com")
+        page.goto("https://fclo-one.example.com")
         page.wait_for_selector('input[name="username"]')
         page.fill('input[name="username"]', username)
         page.wait_for_selector('input[name="password"]', timeout=5000)
@@ -240,7 +240,16 @@ def run_oidc_fclo(browser_type, ip_address, port):
             "Request ID:",
         ]
         for field in fields_to_check:
-            assert field in page_text, f"'{field}' not found in page text"
+            assert field in page_text, f"'{field}' not found in page text on fclo one"
+
+        page.goto("https://fclo-two.example.com")
+        page.wait_for_load_state("load")
+        page_text = page.text_content("body")
+
+        print(f"page text on fclo two\n\n{page_text}")
+
+        for field in fields_to_check:
+            assert field in page_text, f"'{field}' not found in page text on fclo two"
 
     except Error as e:
         assert False, f"Error: {e}"
