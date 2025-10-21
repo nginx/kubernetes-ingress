@@ -87,6 +87,8 @@ type ConfigParams struct {
 	ResolverValid                          string
 	ServerSnippets                         []string
 	ServerTokens                           string
+	ServerSSLCiphers                       string
+	ServerSSLPreferServerCiphers           bool
 	SlowStart                              string
 	SSLRedirect                            bool
 	UpstreamZoneSize                       string

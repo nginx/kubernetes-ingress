@@ -59,6 +59,12 @@ server {
 	{{- else}}
 	ssl_certificate {{ makeSecretPath $server.SSLCertificate $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
 	ssl_certificate_key {{ makeSecretPath $server.SSLCertificateKey $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+	{{- if $server.SSLCiphers}}
+	ssl_ciphers "{{$server.SSLCiphers}}";
+	{{- end}}
+	{{- if $server.SSLPreferServerCiphers}}
+	ssl_prefer_server_ciphers on;
+	{{- end}}
 	{{- end}}
 	{{- end}}
 	{{- end}}
