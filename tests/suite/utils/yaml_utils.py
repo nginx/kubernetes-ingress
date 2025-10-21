@@ -106,6 +106,7 @@ def get_route_namespace_from_vs_yaml(file) -> []:
                 res.append(route["route"].split("/")[0])
     return res
 
+
 def get_upstream_namespace_from_vs_yaml(file, default_namespace) -> []:
     """
     Parse yaml file and return namespaces of all spec.upstreams.service that contain namespace references.
@@ -127,6 +128,7 @@ def get_upstream_namespace_from_vs_yaml(file, default_namespace) -> []:
                         # if namespace not in res:
                     res.append(namespace)
     return res
+
 
 def get_paths_from_vsr_yaml(file) -> []:
     """
