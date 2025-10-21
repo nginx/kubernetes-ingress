@@ -61,12 +61,12 @@ class KeycloakSetupForFCLO:
 
 
 @pytest.fixture(scope="class")
-def keycloak_setup(request, kube_apis, test_namespace, ingress_controller_endpoint, virtual_server_setup):
+def keycloak_setup(request, kube_apis, test_namespace, ingress_controller_endpoint):
 
     # Create Keycloak resources and setup Keycloak idp
 
     secret_name = create_secret_from_yaml(
-        kube_apis.v1, virtual_server_setup.namespace, f"{TEST_DATA}/virtual-server-tls/tls-secret.yaml"
+        kube_apis.v1, test_namespace, f"{TEST_DATA}/virtual-server-tls/tls-secret.yaml"
     )
     keycloak_address = "keycloak.example.com"
     create_example_app(kube_apis, "keycloak", test_namespace)
@@ -137,7 +137,7 @@ def keycloak_setup(request, kube_apis, test_namespace, ingress_controller_endpoi
     ],
     indirect=True,
 )
-class TestOIDC:
+class TestOIDCFCLO:
     def test_oidc(
         self,
         request,
@@ -186,8 +186,8 @@ class TestOIDC:
         wait_before_test()
 
         print(f"Creating the virtual servers for the webapps")
-        create_virtual_server_from_yaml(kube_apis, webapp_vs_one_src, test_namespace)
-        create_virtual_server_from_yaml(kube_apis, webapp_vs_two_src, test_namespace)
+        create_virtual_server_from_yaml(kube_apis.custom_objects, webapp_vs_one_src, test_namespace)
+        create_virtual_server_from_yaml(kube_apis.custom_objects, webapp_vs_two_src, test_namespace)
 
         wait_before_test()
         print(f"Update nginx configmap")
@@ -252,21 +252,19 @@ def run_oidc_fclo(browser_type, ip_address, port):
 
 # Used in the create_client_and_get_secret function
 def get_create_client_payload(name):
-    return f"""{
-        "clientId": {name},
-        "redirectUris": [
-            "https://{name}.example.com:443/*"
-        ],
+    return {
+        "clientId": f"{name}",
+        "redirectUris": [f"https://{name}.example.com:443/*"],
         "standardFlowEnabled": True,
         "directAccessGrantsEnabled": True,
         "publicClient": False,
         "frontchannelLogout": True,
         "attributes": {
-            "post.logout.redirect.uris": "https://{name}.example.com:443/*",
-            "frontchannel.logout.url": f"https://{name}.example.com/front_channel_logout"
+            "post.logout.redirect.uris": f"https://{name}.example.com:443/*",
+            "frontchannel.logout.url": f"https://{name}.example.com/front_channel_logout",
         },
-        "protocol": "openid-connect"
-    }"""
+        "protocol": "openid-connect",
+    }
 
 
 # Used in the create_client_and_get_secret function
