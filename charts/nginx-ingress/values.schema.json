@@ -2093,6 +2093,7 @@
           "terminationGracePeriodSeconds": 30,
           "autoscaling": {
             "enabled": false,
+            "create": true,
             "annotations": {},
             "minReplicas": 1,
             "maxReplicas": 3,
@@ -2733,6 +2734,7 @@
         "terminationGracePeriodSeconds": 30,
         "autoscaling": {
           "enabled": false,
+          "create": true,
           "annotations": {},
           "minReplicas": 1,
           "maxReplicas": 3,

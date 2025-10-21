@@ -36,6 +36,16 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "default",
 			namespace:   "default",
 		},
+		"deployment-hpa": {
+			valuesFile:  "testdata/deployment-hpa.yaml",
+			releaseName: "deployment-hpa",
+			namespace:   "default",
+		},
+		"deployment-hpa-no-create": {
+			valuesFile:  "testdata/deployment-hpa-no-create.yaml",
+			releaseName: "deployment-hpa-no-create",
+			namespace:   "default",
+		},
 		"daemonset": {
 			valuesFile:  "testdata/daemonset.yaml",
 			releaseName: "daemonset",
