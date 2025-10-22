@@ -14,6 +14,7 @@ from suite.utils.resources_utils import (
     create_secret_from_yaml,
     delete_common_app,
     delete_secret,
+    get_pod_name_that_contains,
     replace_configmap_from_yaml,
     wait_before_test,
     wait_until_all_pods_are_ready,
@@ -204,6 +205,24 @@ class TestOIDCFCLO:
                 playwright.chromium, ingress_controller_endpoint.public_ip, ingress_controller_endpoint.port_ssl
             )
 
+        # Check nginx-ingress logs for two instances to /front_channel_logout
+        nic_pod_name = get_pod_name_that_contains(
+            kube_apis.v1, ingress_controller_prerequisites.namespace, "nginx-ingress-"
+        )
+
+        logs = kube_apis.v1.read_namespaced_pod_log(nic_pod_name, ingress_controller_prerequisites.namespace)
+
+        count_get_fclo = logs.count("GET /front_channel_logout?sid=")
+        count_fclo_initiated = logs.count("OIDC Front-Channel Logout initiated for sid:")
+
+        assert (
+            count_get_fclo == 2
+        ), f"nginx-ingress logs do not contain GET /front_channel_logout?sid= twice, got {count_get_fclo}"
+
+        assert (
+            count_fclo_initiated == 2
+        ), f"nginx-ingress logs do not contain OIDC Front-Channel Logout initiated for sid twice, got {count_fclo_initiated}"
+
         delete_secret(kube_apis.v1, secret_one_name, test_namespace)
         delete_secret(kube_apis.v1, secret_two_name, test_namespace)
         delete_policy(kube_apis.custom_objects, pol_one, test_namespace)
@@ -211,7 +230,6 @@ class TestOIDCFCLO:
 
 
 def run_oidc_fclo(browser_type, ip_address, port):
-
     browser = browser_type.launch(headless=True, args=[f"--host-resolver-rules=MAP * {ip_address}:{port}"])
     context = browser.new_context(
         ignore_https_errors=True,
@@ -222,6 +240,8 @@ def run_oidc_fclo(browser_type, ip_address, port):
 
     try:
         page = context.new_page()
+
+        # Log in to keycloak via fclo one
 
         page.goto("https://fclo-one.example.com")
         page.wait_for_selector('input[name="username"]')
@@ -242,14 +262,25 @@ def run_oidc_fclo(browser_type, ip_address, port):
         for field in fields_to_check:
             assert field in page_text, f"'{field}' not found in page text on fclo one"
 
+        # Check that we're also logged in via fclo two
         page.goto("https://fclo-two.example.com")
         page.wait_for_load_state("load")
         page_text = page.text_content("body")
 
-        print(f"page text on fclo two\n\n{page_text}")
-
         for field in fields_to_check:
             assert field in page_text, f"'{field}' not found in page text on fclo two"
+
+        # Start the log out process, go to keycloak's logout page
+        page.goto("https://keycloak.example.com/realms/master/protocol/openid-connect/logout")
+        page.locator("#kc-logout").click()
+        page_text = page.text_content("body")
+        fields_to_check = [
+            "You are logging out from following apps",
+            "fclo-one client name",
+            "fclo-two client name",
+        ]
+        for field in fields_to_check:
+            assert field in page_text, f"'{field}' not found in keycloak logout page"
 
     except Error as e:
         assert False, f"Error: {e}"
@@ -263,6 +294,7 @@ def run_oidc_fclo(browser_type, ip_address, port):
 def get_create_client_payload(name):
     return {
         "clientId": f"{name}",
+        "name": f"{name} client name",
         "redirectUris": [f"https://{name}.example.com:443/*"],
         "standardFlowEnabled": True,
         "directAccessGrantsEnabled": True,
