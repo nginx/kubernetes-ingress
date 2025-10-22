@@ -1,7 +1,7 @@
 # OIDC with Front Channel Logout
 
-In this example, we deploy a web application, configure load balancing for it via a VirtualServer, and protect the
-application using an OpenID Connect policy and [Keycloak](https://www.keycloak.org/), and ensure behaviour is consistent across multiple replicas by enabling [Zone Synchronization](https://docs.nginx.com/nginx/admin-guide/high-availability/zone_sync/).
+In this example, we deploy two web applications, configure load balancing for them via VirtualServers, and protect the
+applications using an OpenID Connect policies and [Keycloak](https://www.keycloak.org/), and ensure behaviour is consistent across multiple replicas by enabling [Zone Synchronization](https://docs.nginx.com/nginx/admin-guide/high-availability/zone_sync/).
 
 **Note**: The KeyCloak container does not support IPv6 environments.
 
@@ -27,16 +27,16 @@ kubectl config set-context --namespace default --current
     ```text
     ...
 
-    XXX.YYY.ZZZ.III webapp.example.com
+    XXX.YYY.ZZZ.III fclo-one.example.com
+    XXX.YYY.ZZZ.III fclo-two.example.com
     XXX.YYY.ZZZ.III keycloak.example.com
     ```
 
-    Here `webapp.example.com` is the domain for the web application and `keycloak.example.com` is the domain for
-    Keycloak.
+    Here `fclo-one.example.com` and `fclo-two.example.com` are the domains for the two web applications, and `keycloak.example.com` is the domain for Keycloak.
 
 ## Step 1 - Deploy a TLS Secret
 
-Create a secret with the TLS certificate and key that will be used for TLS termination of the web application and
+Create a secret with the TLS certificate and key that will be used for TLS termination of the web applications and
 Keycloak:
 
 ```shell
@@ -45,10 +45,10 @@ kubectl apply -f tls-secret.yaml
 
 ## Step 2 - Deploy a Web Application
 
-Create the application deployment and service:
+Create the application deployments and services:
 
 ```shell
-kubectl apply -f webapp.yaml
+kubectl apply -f two-webapps.yaml
 ```
 
 ## Step 3 - Deploy Keycloak
@@ -67,36 +67,18 @@ kubectl apply -f webapp.yaml
 
 ## Step 4 - Configure Keycloak
 
-To set up Keycloak:
+To set up Keycloak follow the steps in the "Configuring Keycloak" [section of the documentation](keycloak_setup.md). That guide will get you to create a user, two OIDC clients, and save the client secrets in the necessary files.
 
-1. Follow the steps in the "Configuring Keycloak" [section of the documentation](https://docs.nginx.com/nginx/deployment-guides/single-sign-on/keycloak/#configuring-keycloak):
-    1. To connect to Keycloak, use `https://keycloak.example.com`.
-    2. Make sure to save the client secret for NGINX-Plus client to the `SECRET` shell variable:
+## Step 5 - Deploy the Client Secrets
 
-        ```shell
-        SECRET=value
-        ```
+By this step, you should have encoded and edited both the `client-secret-one.yaml` and `client-secret-two.yaml` files. If you haven't, go back to the previous step.
 
-2. Alternatively, [execute the commands](./keycloak_setup.md).
+Apply the secrets that will be used by the OIDC policies for the two virtual server:
 
-## Step 5 - Deploy the Client Secret
-
-**Note**: If you're using PKCE, skip this step. PKCE clients do not have client secrets. Applying this will result
-in a broken deployment.
-
-1. Encode the secret, obtained in the previous step:
-
-    ```shell
-    echo -n $SECRET | base64
-    ```
-
-2. Edit `client-secret.yaml`, replacing `<insert-secret-here>` with the encoded secret.
-
-3. Create a secret with the name `oidc-secret` that will be used by the OIDC policy:
-
-    ```shell
-    kubectl apply -f client-secret.yaml
-    ```
+```shell
+kubectl apply -f client-secret-one.yaml
+kubectl apply -f client-secret-two.yaml
+```
 
 ## Step 6 - Configure Zone Synchronization and Resolver
 
@@ -115,37 +97,48 @@ Steps:
     kubectl apply -f nginx-config.yaml
     ```
 
-## Step 7 - Deploy the OIDC Policy
+## Step 7 - Deploy the OIDC Policies
 
-Create a policy with the name `oidc-policy` that references the secret from the previous step:
+Create policies with the names `oidc-one-policy` and `oidc-two-policy` that references the secrets from the previous step:
 
 ```shell
-kubectl apply -f oidc.yaml
+kubectl apply -f oidc-one.yaml
+kubectl apply -f oidc-two.yaml
 ```
 
 ## Step 8 - Configure Load Balancing
 
-Create a VirtualServer resource for the web application:
+Create VirtualServer resources for the web applications:
 
 ```shell
-kubectl apply -f virtual-server.yaml
+kubectl apply -f two-virtual-servers.yaml
 ```
 
-Note that the VirtualServer references the policy `oidc-policy` created in Step 6.
+Note that the VirtualServers reference the policies `oidc-one-policy` and `oidc-two-policy` created in Step 6.
 
 ## Step 9 - Test the Configuration
 
-1. Open a web browser and navigate to the URL of the web application: `https://webapp.example.com`. You will be
+1. Open a web browser and navigate to the URL of one of the web applications: `https://fclo-one.example.com`. You will be
    redirected to Keycloak.
 2. Log in with the username and password for the user you created in Keycloak, `nginx-user` and `test`.
 ![keycloak](./keycloak.webp)
 3. Once logged in, you will be redirected to the web application and get a response from it. Notice the field `User ID`
 in the response, this will match the ID for your user in Keycloak. ![webapp](./webapp.webp)
+4. If you then navigate to the URL of the other web application, `https://fclo-two.example.com`, you will already be authenticated, and you will see the same `User ID` on the page.
 
 ## Step 10 - Log Out
 
-1. To log out, navigate to `https://webapp.example.com/logout`. Your session will be terminated, and you will be
-   redirected to the default post logout URI `https://webapp.example.com/_logout`.
-![logout](./logout.webp)
-2. To confirm that you have been logged out, navigate to `https://webapp.example.com`. You will be redirected to
-   Keycloak to log in again.
+**Note:** As Front Channel Logout depends on an invisible iframe from keycloak that points to different domains, your browser's Content Security Policy will normally refuse to make the request. In order to make this work, you will need to install a browser extension that disables applying any CSP headers. This will lower your browser's protection, so please make sure to remove or disable the extension as soon as you're done with the test.
+
+1. To log out, navigate to `https://fclo-one.example.com/logout`. Your session will be terminated, and you will be
+   redirected to the default post logout URI `https://fclo-one.example.com/_logout`.
+![logout](./logout.webp). You can also initiate this logout from the other webapp as well
+2. To confirm that you have been logged out, navigate to `https://fclo-one.example.com` or `https://fclo-two.example.com`. You will be redirected to Keycloak to log in again.
+3. To confirm that front channel logout was responsible for this, you can look at the `nginx-ingress` pod's logs. You should look for the following two lines:
+
+   ```text
+   OIDC Front-Channel Logout initiated for sid: <uuid v4>
+   GET /front_channel_logout?sid=<uuid v4>
+   ```
+
+   These should show up twice, once for each client.

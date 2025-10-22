@@ -7,3 +7,4 @@ data:
   zone-sync: "true"
   resolver-addresses: kube-dns.kube-system.svc.cluster.local
   resolver-valid: 5s
+  error-log-level: "debug"
