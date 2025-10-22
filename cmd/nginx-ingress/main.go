@@ -88,7 +88,7 @@ func main() {
 	parseFlags()
 	ctx := initLogger(*logFormat, logLevels[*logLevel], os.Stdout)
 	l := nl.LoggerFromContext(ctx)
-   
+
 	cleanupSocketFiles(l)
 
 	initValidate(ctx)
