@@ -832,7 +832,6 @@ func handleTermination(lbc *k8s.LoadBalancerController, nginxManager nginx.Manag
 	os.Exit(0)
 }
 
-
 // Clean up any leftover socket files from previous runs
 func cleanupSocketFiles(l *slog.Logger) {
 	files, readErr := os.ReadDir(fmt.Sprintf("%s/", socketPath))
