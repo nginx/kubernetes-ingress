@@ -3579,7 +3579,7 @@ func TestExecuteTemplate_ForIngressForNGINXWithSSLCiphers(t *testing.T) {
 	}
 
 	wantDirectives := []string{
-		`ssl_ciphers "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256";`,
+		"ssl_ciphers ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256;",
 		"ssl_prefer_server_ciphers on;",
 	}
 
@@ -3626,7 +3626,7 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithSSLCiphers(t *testing.T) {
 	}
 
 	wantDirectives := []string{
-		`ssl_ciphers "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256";`,
+		"ssl_ciphers ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256;",
 		"ssl_prefer_server_ciphers on;",
 	}
 
