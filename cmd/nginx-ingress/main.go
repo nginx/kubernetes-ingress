@@ -88,8 +88,7 @@ func main() {
 	parseFlags()
 	ctx := initLogger(*logFormat, logLevels[*logLevel], os.Stdout)
 	l := nl.LoggerFromContext(ctx)
-
-	// removes .sock files after nginx exits
+   
 	cleanupSocketFiles(l)
 
 	initValidate(ctx)
@@ -833,13 +832,14 @@ func handleTermination(lbc *k8s.LoadBalancerController, nginxManager nginx.Manag
 	os.Exit(0)
 }
 
+
+// Clean up any leftover socket files from previous runs
 func cleanupSocketFiles(l *slog.Logger) {
 	files, readErr := os.ReadDir(fmt.Sprintf("%s/", socketPath))
 	if readErr != nil {
 		nl.Errorf(l, "error trying to read directory %s: %v", socketPath, readErr)
 	} else {
 		for _, f := range files {
-			nl.Debugf(l, "Processing file %s", f.Name())
 			if !f.IsDir() && strings.HasSuffix(f.Name(), ".sock") {
 				fullPath := filepath.Join(socketPath, f.Name())
 				nl.Infof(l, "Removing socket file %s", fullPath)
