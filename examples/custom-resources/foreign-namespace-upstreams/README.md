@@ -1,4 +1,4 @@
-# Cross-Namespace Configuration
+# Upstreams in foreign namespaces
 
 In this example we use the [VirtualServer and
 VirtualServerRoute](https://docs.nginx.com/nginx-ingress-controller/configuration/virtualserver-and-virtualserverroute-resources/)
