@@ -525,7 +525,7 @@ func createPlusClient(ctx context.Context, nginxPlus bool, useFakeNginxManager b
 	var err error
 
 	if nginxPlus && !useFakeNginxManager {
-		httpClient := getSocketClient(fmt.Sprintf("%s/nginx-plus-api.sock", socketPath))
+		httpClient := getSocketClient(filepath.Join(socketPath, "nginx-plus-api.sock"))
 		plusClient, err = client.NewNginxClient("http://nginx-plus-api/api", client.WithHTTPClient(httpClient))
 		if err != nil {
 			nl.Fatalf(l, "Failed to create NginxClient for Plus: %v", err)
@@ -942,7 +942,7 @@ func createPlusAndLatencyCollectors(
 			plusCollector = nginxCollector.NewNginxPlusCollector(plusClient, "nginx_ingress_nginxplus", variableLabelNames, constLabels, l)
 			go metrics.RunPrometheusListenerForNginxPlus(ctx, *prometheusMetricsListenPort, plusCollector, registry, prometheusSecret)
 		} else {
-			httpClient := getSocketClient(fmt.Sprintf("%s/nginx-status.sock", socketPath))
+			httpClient := getSocketClient(filepath.Join(socketPath, "%s/nginx-status.sock"))
 			client := metrics.NewNginxMetricsClient(httpClient)
 			go metrics.RunPrometheusListenerForNginx(ctx, *prometheusMetricsListenPort, client, registry, constLabels, prometheusSecret)
 		}
@@ -951,7 +951,7 @@ func createPlusAndLatencyCollectors(
 			if err := lc.Register(registry); err != nil {
 				nl.Errorf(l, "Error registering Latency Prometheus metrics: %v", err)
 			}
-			syslogListener = metrics.NewLatencyMetricsListener(ctx, fmt.Sprintf("%s/nginx-syslog.sock", socketPath), lc)
+			syslogListener = metrics.NewLatencyMetricsListener(ctx, filepath.Join(socketPath, "nginx-syslog.sock"), lc)
 			go syslogListener.Run()
 		}
 	}
