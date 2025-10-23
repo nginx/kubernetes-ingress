@@ -1,7 +1,7 @@
 # OIDC with Front Channel Logout
 
 In this example, we deploy two web applications, configure load balancing for them via VirtualServers, and protect the
-applications using an OpenID Connect policies and [Keycloak](https://www.keycloak.org/), and ensure behaviour is consistent across multiple replicas by enabling [Zone Synchronization](https://docs.nginx.com/nginx/admin-guide/high-availability/zone_sync/).
+applications using an [OIDC Policies](https://docs.nginx.com/nginx-ingress-controller/configuration/policy-resource/#oidc) and [Keycloak](https://www.keycloak.org/), and ensure behaviour is consistent across multiple replicas by enabling [Zone Synchronization](https://docs.nginx.com/nginx/admin-guide/high-availability/zone_sync/).
 
 **Note**: The KeyCloak container does not support IPv6 environments.
 
