@@ -196,7 +196,8 @@ class TestOIDCFCLO:
         retry = 0
         count_fclo_initiated = 0
         logs = ""
-        while count_fclo_initiated != 2 and retry < 10:
+        expected_fclo_count = 2
+        while count_fclo_initiated != expected_fclo_count and retry < 10:
             wait_before_test(1)  # wait one second before retrying
 
             logs = kube_apis.v1.read_namespaced_pod_log(nic_pod_name, ingress_controller_prerequisites.namespace)
@@ -204,16 +205,16 @@ class TestOIDCFCLO:
             count_fclo_initiated = logs.count("OIDC Front-Channel Logout initiated for sid:")
 
             print(f"OIDC FCLO Initiated count in the while loop: {count_fclo_initiated}, retrying... {retry}")
-            retry = retry + 1
+            retry += 1
 
         assert (
-            count_fclo_initiated == 2
+            count_fclo_initiated == expected_fclo_count
         ), f"nginx-ingress logs do not contain OIDC Front-Channel Logout initiated for sid twice, got {count_fclo_initiated}"
 
         count_get_fclo = logs.count("GET /front_channel_logout?sid=")
 
         assert (
-            count_get_fclo == 2
+            count_get_fclo == expected_fclo_count
         ), f"nginx-ingress logs do not contain GET /front_channel_logout?sid= twice, got {count_get_fclo}"
 
         delete_secret(kube_apis.v1, secret_one_name, test_namespace)
