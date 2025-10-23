@@ -29,15 +29,20 @@ def virtual_server_foreign_upstream_app_setup(
     request, kube_apis, ingress_controller_endpoint, test_namespace
 ) -> VirtualServerSetup:
     """
-    Prepare a secure example app for Virtual Server .
+    Prepare Virtual Server Example with backends in foreign namespaces:
 
-    1st namespace with backend1-svc and deployment
-    and 2nd namespace with backend2-svc and deployment.
+    1st namespace with backend1-svc and deployment in the same namespace as VS,
+    and 2nd namespace with backend2-svc and deployment in another namespace.
 
-    :param request: internal pytest fixture
-    :param kube_apis: client apis
-    :param v_s_route_setup:
-    :return:
+    :param request: internal pytest fixture to parametrize this method:
+        {example: virtual-server|virtual-server-tls|..., app_type: simple|split|...}
+        'example' is a directory name in TEST_DATA,
+        'app_type' is a directory name in TEST_DATA/common/app
+     :param kube_apis: client apis
+    :param crd_ingress_controller:
+    :param ingress_controller_endpoint:
+    :param test_namespace:
+    :return: VirtualServerSetup
     """
     print("------------------------- Deploy Virtual Server Example -----------------------------------")
     vs_source = f"{TEST_DATA}/{request.param['example']}/standard/virtual-server.yaml"
@@ -74,7 +79,7 @@ def virtual_server_foreign_upstream_app_setup(
                 delete_items_from_yaml(
                     kube_apis, f"{TEST_DATA}/common/app/{request.param["app_type"]}/backend2.yaml", ns_2
                 )
-                # Clean up foreign namespaces
+
                 try:
                     delete_namespace(kube_apis.v1, ns_1)
                     delete_namespace(kube_apis.v1, ns_2)
@@ -144,7 +149,7 @@ class TestVirtualServerForeignUpstream:
         wait_and_assert_status_code(200, virtual_server_foreign_upstream_app_setup.backend_1_url, new_host)
         wait_and_assert_status_code(200, virtual_server_foreign_upstream_app_setup.backend_2_url, new_host)
 
-        print("Step 3: restore VS and check")
+        print("\nStep 3: restore VS and check")
         patch_virtual_server_from_yaml(
             kube_apis.custom_objects,
             virtual_server_foreign_upstream_app_setup.vs_name,
@@ -170,7 +175,7 @@ class TestVirtualServerForeignUpstream:
     def test_responses_vsr_foreign_upstream(
         self, kube_apis, crd_ingress_controller, virtual_server_foreign_upstream_app_setup
     ):
-        print(f"\nStep 3: create VSRoute and check")
+        print(f"\nStep 4: create VS Route in the same namespace and check")
         vs_source = f"{TEST_DATA}/virtual-server-foreign-upstream/standard/virtual-server-vsr.yaml"
         patch_virtual_server_from_yaml(
             kube_apis.custom_objects,
@@ -205,7 +210,7 @@ class TestVirtualServerForeignUpstream:
         wait_and_assert_status_code(200, virtual_server_foreign_upstream_app_setup.backend_1_url, new_host)
         wait_and_assert_status_code(200, virtual_server_foreign_upstream_app_setup.backend_2_url, new_host)
 
-        print("Step 3: restore VS and check")
+        print("\nStep 5: remove VSR, restore VS and check")
         delete_v_s_route(kube_apis.custom_objects, vs_route, virtual_server_foreign_upstream_app_setup.namespace)
 
         patch_virtual_server_from_yaml(
