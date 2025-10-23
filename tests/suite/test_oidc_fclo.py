@@ -164,25 +164,8 @@ class TestOIDCFCLO:
         secret_data["data"]["client-secret"] = keycloak_setup.secret_two
         secret_two_name = create_secret(kube_apis.v1, test_namespace, secret_data)
 
-        print(f"Create oidc policy for client one")
-        with open(oidc_pol_one_src) as f:
-            doc = yaml.safe_load(f)
-        pol = doc["metadata"]["name"]
-        doc["spec"]["oidc"]["tokenEndpoint"] = doc["spec"]["oidc"]["tokenEndpoint"].replace("default", test_namespace)
-        doc["spec"]["oidc"]["jwksURI"] = doc["spec"]["oidc"]["jwksURI"].replace("default", test_namespace)
-        kube_apis.custom_objects.create_namespaced_custom_object("k8s.nginx.org", "v1", test_namespace, "policies", doc)
-        print(f"Policy created with name {pol}")
-        pol_one = pol
-
-        print(f"Create oidc policy for client two")
-        with open(oidc_pol_two_src) as f:
-            doc = yaml.safe_load(f)
-        pol = doc["metadata"]["name"]
-        doc["spec"]["oidc"]["tokenEndpoint"] = doc["spec"]["oidc"]["tokenEndpoint"].replace("default", test_namespace)
-        doc["spec"]["oidc"]["jwksURI"] = doc["spec"]["oidc"]["jwksURI"].replace("default", test_namespace)
-        kube_apis.custom_objects.create_namespaced_custom_object("k8s.nginx.org", "v1", test_namespace, "policies", doc)
-        print(f"Policy created with name {pol}")
-        pol_two = pol
+        pol_one = create_policy(oidc_pol_one_src, kube_apis, test_namespace)
+        pol_two = create_policy(oidc_pol_two_src, kube_apis, test_namespace)
 
         wait_before_test()
 
@@ -337,3 +320,16 @@ def create_client_and_get_secret(ip, port, name, headers):
     client_secret = response.json()["value"]
 
     return client_secret
+
+
+def create_policy(policy_file_path, kube_apis, test_namespace) -> str:
+    print(f"Create oidc policy for client one")
+    with open(policy_file_path) as f:
+        doc = yaml.safe_load(f)
+    pol = doc["metadata"]["name"]
+    doc["spec"]["oidc"]["tokenEndpoint"] = doc["spec"]["oidc"]["tokenEndpoint"].replace("default", test_namespace)
+    doc["spec"]["oidc"]["jwksURI"] = doc["spec"]["oidc"]["jwksURI"].replace("default", test_namespace)
+    kube_apis.custom_objects.create_namespaced_custom_object("k8s.nginx.org", "v1", test_namespace, "policies", doc)
+    print(f"Policy created with name {pol}")
+
+    return pol
