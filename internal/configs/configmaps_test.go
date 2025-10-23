@@ -2,11 +2,13 @@ package configs
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"reflect"
 	"testing"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
+	"github.com/stretchr/testify/assert"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -2245,6 +2247,36 @@ func TestParseProxyBuffersInvalidFormat(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestParseErrorLogLevelToVirtualServer(t *testing.T) {
+	t.Parallel()
+
+	testCases := []string{"debug", "error", "warning", "nonsense"}
+
+	for _, testLevel := range testCases {
+		t.Run(fmt.Sprintf("setting log level to %s", testLevel), func(t *testing.T) {
+			cm := &v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-configmap",
+					Namespace: "default",
+				},
+				Data: map[string]string{
+					"error-log-level": testLevel,
+				},
+			}
+
+			eventRecorder := makeEventLogger()
+
+			result, configOk := ParseConfigMap(context.Background(), cm, true, false, false, false, false, eventRecorder)
+
+			if !configOk {
+				t.Errorf("expected config map with error-log-level set to be %s to be valid", testLevel)
+			}
+
+			assert.Equal(t, testLevel, result.MainErrorLogLevel)
+		})
+	}
 }
 
 func makeEventLogger() record.EventRecorder {

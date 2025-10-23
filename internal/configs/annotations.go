@@ -18,6 +18,12 @@ const BasicAuthSecretAnnotation = "nginx.org/basic-auth-secret" // #nosec G101
 // PathRegexAnnotation is the annotation where the regex location (path) modifier is specified.
 const PathRegexAnnotation = "nginx.org/path-regex"
 
+// SSLCiphersAnnotation is the annotation where SSL ciphers are specified.
+const SSLCiphersAnnotation = "nginx.org/ssl-ciphers"
+
+// SSLPreferServerCiphersAnnotation is the annotation where SSL prefer server ciphers is specified.
+const SSLPreferServerCiphersAnnotation = "nginx.org/ssl-prefer-server-ciphers"
+
 // UseClusterIPAnnotation is the annotation where the use-cluster-ip boolean is specified.
 const UseClusterIPAnnotation = "nginx.org/use-cluster-ip"
 
@@ -60,6 +66,8 @@ var minionDenylist = map[string]bool{
 	"nginx.org/listen-ports":                            true,
 	"nginx.org/listen-ports-ssl":                        true,
 	"nginx.org/server-snippets":                         true,
+	"nginx.org/ssl-ciphers":                             true,
+	"nginx.org/ssl-prefer-server-ciphers":               true,
 	"appprotect.f5.com/app_protect_enable":              true,
 	"appprotect.f5.com/app_protect_policy":              true,
 	"appprotect.f5.com/app_protect_security_log_enable": true,
@@ -249,6 +257,18 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 			nl.Error(l, err)
 		} else {
 			cfgParams.SSLRedirect = sslRedirect
+		}
+	}
+
+	if sslCiphers, exists := ingEx.Ingress.Annotations[SSLCiphersAnnotation]; exists {
+		cfgParams.ServerSSLCiphers = sslCiphers
+	}
+
+	if sslPreferServerCiphers, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, SSLPreferServerCiphersAnnotation, ingEx.Ingress); exists {
+		if err != nil {
+			nl.Error(l, err)
+		} else {
+			cfgParams.ServerSSLPreferServerCiphers = sslPreferServerCiphers
 		}
 	}
 
