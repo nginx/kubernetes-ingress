@@ -66,7 +66,6 @@ var (
 		"error":   levels.LevelError,
 		"fatal":   levels.LevelFatal,
 	}
-	socketPath = "/var/lib/nginx"
 )
 
 const (
@@ -77,6 +76,7 @@ const (
 	appProtectVersionPath    = "/opt/app_protect/RELEASE"
 	appProtectv4BundleFolder = "/etc/nginx/waf/bundles/"
 	appProtectv5BundleFolder = "/etc/app_protect/bundles/"
+	socketPath               = "/var/lib/nginx"
 	fatalEventFlushTime      = 200 * time.Millisecond
 	secretErrorReason        = "SecretError"
 	configMapErrorReason     = "ConfigMapError"
