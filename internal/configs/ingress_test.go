@@ -1873,6 +1873,78 @@ func TestGenerateNginxCfgForInternalRoute(t *testing.T) {
 	}
 }
 
+func TestGenerateNginxCfgForSSLCiphers(t *testing.T) {
+	t.Parallel()
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations["nginx.org/ssl-ciphers"] = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256"
+	cafeIngressEx.Ingress.Annotations["nginx.org/ssl-prefer-server-ciphers"] = "true"
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	expected := createExpectedConfigForCafeIngressEx(isPlus)
+	expected.Servers[0].SSLCiphers = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256"
+	expected.Servers[0].SSLPreferServerCiphers = true
+	expected.Ingress.Annotations["nginx.org/ssl-ciphers"] = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256"
+	expected.Ingress.Annotations["nginx.org/ssl-prefer-server-ciphers"] = "true"
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:         &StaticConfigParams{},
+		ingEx:                &cafeIngressEx,
+		apResources:          nil,
+		dosResource:          nil,
+		isMinion:             false,
+		isPlus:               isPlus,
+		BaseCfgParams:        configParams,
+		isResolverConfigured: false,
+		isWildcardEnabled:    false,
+	})
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateNginxCfg() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgForMergeableIngressesSSLCiphers(t *testing.T) {
+	t.Parallel()
+	mergeableIngresses := createMergeableCafeIngress()
+	mergeableIngresses.Master.Ingress.Annotations["nginx.org/ssl-ciphers"] = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256"
+	mergeableIngresses.Master.Ingress.Annotations["nginx.org/ssl-prefer-server-ciphers"] = "true"
+
+	// Add SSL cipher annotations to minions - they should be ignored
+	mergeableIngresses.Minions[0].Ingress.Annotations["nginx.org/ssl-ciphers"] = "INVALID_CIPHER"
+	mergeableIngresses.Minions[0].Ingress.Annotations["nginx.org/ssl-prefer-server-ciphers"] = "false"
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	expected := createExpectedConfigForMergeableCafeIngress(isPlus)
+	expected.Servers[0].SSLCiphers = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256"
+	expected.Servers[0].SSLPreferServerCiphers = true
+	expected.Ingress.Annotations["nginx.org/ssl-ciphers"] = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256"
+	expected.Ingress.Annotations["nginx.org/ssl-prefer-server-ciphers"] = "true"
+
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs:        mergeableIngresses,
+		apResources:          nil,
+		dosResource:          nil,
+		BaseCfgParams:        configParams,
+		isPlus:               isPlus,
+		isResolverConfigured: false,
+		staticParams:         &StaticConfigParams{},
+		isWildcardEnabled:    false,
+	})
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
+	}
+}
+
 func TestIsSSLEnabled(t *testing.T) {
 	t.Parallel()
 	type testCase struct {
