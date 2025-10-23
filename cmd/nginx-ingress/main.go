@@ -834,7 +834,7 @@ func handleTermination(lbc *k8s.LoadBalancerController, nginxManager nginx.Manag
 
 // Clean up any leftover socket files from previous runs
 func cleanupSocketFiles(l *slog.Logger) {
-	files, readErr := os.ReadDir(fmt.Sprintf("%s/", socketPath))
+	files, readErr := os.ReadDir(socketPath)
 	if readErr != nil {
 		nl.Errorf(l, "error trying to read directory %s: %v", socketPath, readErr)
 	} else {
