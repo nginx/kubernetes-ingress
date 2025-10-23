@@ -84,8 +84,8 @@ def virtual_server_foreign_upstream_app_setup(
                     delete_namespace(kube_apis.v1, ns_1)
                     delete_namespace(kube_apis.v1, ns_2)
 
-                except:
-                    pass
+                except Exception as ex:
+                    print(f"Exception during teardown: {ex}")
 
     request.addfinalizer(fin)
 
