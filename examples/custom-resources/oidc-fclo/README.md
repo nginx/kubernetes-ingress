@@ -32,7 +32,7 @@ kubectl config set-context --namespace default --current
     XXX.YYY.ZZZ.III keycloak.example.com
     ```
 
-    Here `fclo-one.example.com` and `fclo-two.example.com` are the domains for the two web applications, and `keycloak.example.com` is the domain for Keycloak.
+    Here `fclo-one.example.com` and `fclo-two.example.com` are the domains for the two web applications protected by OIDC authentication, and `keycloak.example.com` is the domain for the Keycloak IdP.
 
 ## Step 1 - Deploy a TLS Secret
 
