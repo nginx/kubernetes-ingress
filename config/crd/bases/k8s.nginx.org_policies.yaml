@@ -629,7 +629,7 @@ spec:
               oidc:
                 description: The OpenID Connect policy configures NGINX to authenticate
                   client requests by validating a JWT token against an OAuth2/OIDC
-                  token provider, such as Auth0 or Keycloak.
+                  token provider, such as Auth0 or Keycloak.  NJS based.
                 properties:
                   accessTokenEnable:
                     description: Option of whether Bearer token is used to authorize
@@ -717,6 +717,63 @@ spec:
                 x-kubernetes-validations:
                 - message: trustedCertSecret can be set only if sslVerify is true
                   rule: (self.sslVerify == true) || (self.sslVerify == false && !has(self.trustedCertSecret))
+              oidcv2:
+                description: The OpenID Connect policy configures NGINX to authenticate
+                  client requests by validating a JWT token against an OAuth2/OIDC
+                  token provider, such as Auth0 or Keycloak. NGINX Plus native.
+                properties:
+                  clientID:
+                    description: The client ID provided by your OpenID Connect provider.
+                    type: string
+                  clientSecret:
+                    description: The name of the Kubernetes secret that stores the
+                      client secret provided by your OpenID Connect provider. It must
+                      be in the same namespace as the Policy resource. The secret
+                      must be of the type nginx.org/oidc, and the secret under the
+                      key client-secret, otherwise the secret will be rejected as
+                      invalid. If PKCE is enabled, this should be not configured.
+                    type: string
+                  configURL:
+                    default: .well-known/openid-configuration
+                    description: ConfigURL is the URL of the OpenID Provider Configuration
+                      Information. If not set, it will be default to https://<issuer>/.well-known/openid-configuration.
+                    type: string
+                  issuer:
+                    description: Sets the Issuer Identifier URL of the OpenID Provider;
+                      required directive. The URL must exactly match the value of
+                      “issuer” in the OpenID Provider metadata and requires the “https”
+                      scheme.
+                    pattern: ^https://([^/\s]+)(/.*)?$
+                    type: string
+                  logoutURI:
+                    description: URL provided by your OpenID Connect provider to request
+                      the end user be logged out.
+                    type: string
+                  postLogoutRedirectURI:
+                    description: URI to redirect to after the logout has been performed.
+                      Requires endSessionEndpoint.
+                    type: string
+                  redirectURI:
+                    default: /oidc_callback
+                    description: Allows overriding the default redirect URI. The default
+                      is /oidc_callback.
+                    type: string
+                  scope:
+                    default: openid
+                    description: List of OpenID Connect scopes. The scope openid always
+                      needs to be present and others can be added concatenating them
+                      with a + sign, for example openid+profile+email, openid+email+userDefinedScope.
+                      The default is openid.
+                    type: string
+                  userInfoEnable:
+                    default: false
+                    description: Enables downloading of the UserInfo data and makes
+                      UserInfo claims available via the $oidc_claim_name variables
+                    type: boolean
+                required:
+                - clientID
+                - issuer
+                type: object
               rateLimit:
                 description: The rate limit policy controls the rate of processing
                   requests per a defined key.

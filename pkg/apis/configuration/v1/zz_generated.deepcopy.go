@@ -971,6 +971,11 @@ func (in *PolicySpec) DeepCopyInto(out *PolicySpec) {
 		*out = new(OIDC)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.OIDCv2 != nil {
+		in, out := &in.OIDCv2, &out.OIDCv2
+		*out = new(OIDCv2)
+		**out = **in
+	}
 	if in.WAF != nil {
 		in, out := &in.WAF, &out.WAF
 		*out = new(WAF)

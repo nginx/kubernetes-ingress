@@ -101,7 +101,7 @@ The `.spec` object supports the following fields:
 | `jwt.sslVerifyDepth` | `integer` | Sets the verification depth in the JWKS server certificates chain. The default is 1. |
 | `jwt.token` | `string` | The token specifies a variable that contains the JSON Web Token. By default the JWT is passed in the Authorization header as a Bearer Token. JWT may be also passed as a cookie or a part of a query string, for example: $cookie_auth_token. Accepted variables are $http_, $arg_, $cookie_. |
 | `jwt.trustedCertSecret` | `string` | The name of the Kubernetes secret that stores the CA certificate for JWKS server verification. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/ca, and the certificate must be stored in the secret under the key ca.crt. |
-| `oidc` | `object` | The OpenID Connect policy configures NGINX to authenticate client requests by validating a JWT token against an OAuth2/OIDC token provider, such as Auth0 or Keycloak. |
+| `oidc` | `object` | The OpenID Connect policy configures NGINX to authenticate client requests by validating a JWT token against an OAuth2/OIDC token provider, such as Auth0 or Keycloak. NJS based. |
 | `oidc.accessTokenEnable` | `boolean` | Option of whether Bearer token is used to authorize NGINX to access protected backend. |
 | `oidc.authEndpoint` | `string` | URL for the authorization endpoint provided by your OpenID Connect provider. |
 | `oidc.authExtraArgs` | `array[string]` | A list of extra URL arguments to pass to the authorization endpoint provided by your OpenID Connect provider. Arguments must be URL encoded, multiple arguments may be included in the list, for example [ arg1=value1, arg2=value2 ] |
@@ -118,6 +118,16 @@ The `.spec` object supports the following fields:
 | `oidc.tokenEndpoint` | `string` | URL for the token endpoint provided by your OpenID Connect provider. |
 | `oidc.trustedCertSecret` | `string` | The name of the Kubernetes secret that stores the CA certificate for IDP server verification. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/ca, and the certificate must be stored in the secret under the key ca.crt. |
 | `oidc.zoneSyncLeeway` | `integer` | Specifies the maximum timeout in milliseconds for synchronizing ID/access tokens and shared values between Ingress Controller pods. The default is 200. |
+| `oidcv2` | `object` | The OpenID Connect policy configures NGINX to authenticate client requests by validating a JWT token against an OAuth2/OIDC token provider, such as Auth0 or Keycloak. NGINX Plus native. |
+| `oidcv2.clientID` | `string` | The client ID provided by your OpenID Connect provider. |
+| `oidcv2.clientSecret` | `string` | The name of the Kubernetes secret that stores the client secret provided by your OpenID Connect provider. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/oidc, and the secret under the key client-secret, otherwise the secret will be rejected as invalid. If PKCE is enabled, this should be not configured. |
+| `oidcv2.configURL` | `string` | ConfigURL is the URL of the OpenID Provider Configuration Information. If not set, it will be default to https://<issuer>/.well-known/openid-configuration. |
+| `oidcv2.issuer` | `string` | Sets the Issuer Identifier URL of the OpenID Provider; required directive. The URL must exactly match the value of “issuer” in the OpenID Provider metadata and requires the “https” scheme. |
+| `oidcv2.logoutURI` | `string` | URL provided by your OpenID Connect provider to request the end user be logged out. |
+| `oidcv2.postLogoutRedirectURI` | `string` | URI to redirect to after the logout has been performed. Requires endSessionEndpoint. |
+| `oidcv2.redirectURI` | `string` | Allows overriding the default redirect URI. The default is /oidc_callback. |
+| `oidcv2.scope` | `string` | List of OpenID Connect scopes. The scope openid always needs to be present and others can be added concatenating them with a + sign, for example openid+profile+email, openid+email+userDefinedScope. The default is openid. |
+| `oidcv2.userInfoEnable` | `boolean` | Enables downloading of the UserInfo data and makes UserInfo claims available via the $oidc_claim_name variables |
 | `rateLimit` | `object` | The rate limit policy controls the rate of processing requests per a defined key. |
 | `rateLimit.burst` | `integer` | Excessive requests are delayed until their number exceeds the burst size, in which case the request is terminated with an error. |
 | `rateLimit.condition` | `object` | Add a condition to a rate-limit policy. |
