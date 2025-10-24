@@ -13,7 +13,7 @@ This example is based on the official Keda [example](https://keda.sh/docs/2.18/s
 
 ## 3. Apply the Keda ScaledObject
 
-Adjust the setting to suit your requirements.  See the [ScaledObject](https://keda.sh/docs/2.18/reference/scaledobject-spec/) reference for more details
+Adjust the settings to suit your requirements.  See the [ScaledObject](https://keda.sh/docs/2.18/reference/scaledobject-spec/) reference for more details
 
 1. Apply `scaled-object.yaml`
 
