@@ -731,12 +731,15 @@ func TestExecuteVirtualServerTemplateWithJWKSWithToken(t *testing.T) {
 	if !bytes.Contains(got, []byte("token=$http_token")) {
 		t.Error("want `token=$http_token` in generated template")
 	}
-	if !bytes.Contains(got, []byte("proxy_cache jwks_uri_")) {
-		t.Error("want `proxy_cache` in generated template")
+
+	if !bytes.Contains(got, []byte("proxy_ssl_server_name on;")) {
+		t.Error("want `proxy_ssl_server_name on;` in generated template")
 	}
-	if !bytes.Contains(got, []byte("proxy_cache_valid 200 12h;")) {
-		t.Error("want `proxy_cache_valid 200 12h;` in generated template")
+
+	if !bytes.Contains(got, []byte("proxy_ssl_name sni.idp.spec.example.com;")) {
+		t.Error("want `proxy_ssl_name sni.idp.spec.example.com;` in generated template")
 	}
+
 	snaps.MatchSnapshot(t, string(got))
 	t.Log(string(got))
 }
@@ -750,12 +753,6 @@ func TestExecuteVirtualServerTemplateWithJWKSWithoutToken(t *testing.T) {
 	}
 	if bytes.Contains(got, []byte("token=$http_token")) {
 		t.Error("want no `token=$http_token` string in generated template")
-	}
-	if !bytes.Contains(got, []byte("proxy_cache jwks_uri_")) {
-		t.Error("want `proxy_cache` in generated template")
-	}
-	if !bytes.Contains(got, []byte("proxy_cache_valid 200 12h;")) {
-		t.Error("want `proxy_cache_valid 200 12h;` in generated template")
 	}
 	snaps.MatchSnapshot(t, string(got))
 	t.Log(string(got))
@@ -860,6 +857,163 @@ func TestExecuteVirtualServerTemplateWithOIDCAndPKCEPolicyNGINXPlus(t *testing.T
 
 	if !bytes.Contains(got, []byte(want2)) {
 		t.Errorf("want %q in generated template", want2)
+	}
+
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
+}
+
+func TestExecuteVirtualServerTemplateWithNGINXDebugLevelDebug(t *testing.T) {
+	t.Parallel()
+
+	e := newTmplExecutorNGINXPlus(t)
+	got, err := e.ExecuteVirtualServerTemplate(&virtualServerCfgWithOIDCAndDebugTurnedOn)
+	if err != nil {
+		t.Error(err)
+	}
+
+	want := "set $oidc_debug true;"
+
+	if !bytes.Contains(got, []byte(want)) {
+		t.Errorf("want %q in generated template", want)
+	}
+
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
+}
+
+func TestExecuteVirtualServerTemplateWithNGINXDebugLevelNotDebug(t *testing.T) {
+	t.Parallel()
+
+	e := newTmplExecutorNGINXPlus(t)
+	got, err := e.ExecuteVirtualServerTemplate(&virtualServerCfgWithOIDCAndDebugTurnedOff)
+	if err != nil {
+		t.Error(err)
+	}
+
+	doNotWant := "set $oidc_debug true;"
+
+	if bytes.Contains(got, []byte(doNotWant)) {
+		t.Errorf("did not want %q in generated template", doNotWant)
+	}
+
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
+}
+
+func TestExecuteVirtualServerTemplateWithCachePolicyNGINXPlus(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithCachePolicyNGINXPlus)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Check cache zone declaration
+	expectedCacheZone := "proxy_cache_path /var/cache/nginx/test_cache_full_advanced levels=2:2 keys_zone=test_cache_full_advanced:50m;"
+	if !bytes.Contains(got, []byte(expectedCacheZone)) {
+		t.Errorf("Expected cache zone declaration: %s", expectedCacheZone)
+	}
+
+	// Check cache purge configuration for NGINX Plus
+	expectedPurgeGeo := "geo $purge_allowed_test_cache_full_advanced {"
+	if !bytes.Contains(got, []byte(expectedPurgeGeo)) {
+		t.Errorf("Expected purge geo block: %s", expectedPurgeGeo)
+	}
+
+	expectedPurgeMap := "map $request_method $cache_purge_test_cache_full_advanced {"
+	if !bytes.Contains(got, []byte(expectedPurgeMap)) {
+		t.Errorf("Expected purge map block: %s", expectedPurgeMap)
+	}
+
+	// Check server-level cache configuration
+	expectedServerCacheDirectives := []string{
+		"proxy_cache test_cache_full_advanced;",
+		"proxy_cache_key $scheme$proxy_host$request_uri;",
+		"proxy_ignore_headers Cache-Control Expires Set-Cookie Vary X-Accel-Expires;",
+		"proxy_cache_valid 200 2h;",
+		"proxy_cache_valid 404 2h;",
+		"proxy_cache_valid 301 2h;",
+		"proxy_cache_methods GET HEAD POST;",
+		"proxy_cache_purge $cache_purge_test_cache_full_advanced;",
+	}
+
+	for _, directive := range expectedServerCacheDirectives {
+		if !bytes.Contains(got, []byte(directive)) {
+			t.Errorf("Expected server cache directive: %s", directive)
+		}
+	}
+
+	// Check location-level cache configuration
+	expectedLocationCacheDirectives := []string{
+		"proxy_cache test_cache_location_location_cache;",
+		"proxy_cache_valid any 1h;",
+		"proxy_cache_methods GET HEAD;",
+	}
+
+	for _, directive := range expectedLocationCacheDirectives {
+		if !bytes.Contains(got, []byte(directive)) {
+			t.Errorf("Expected location cache directive: %s", directive)
+		}
+	}
+
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
+}
+
+func TestExecuteVirtualServerTemplateWithCachePolicyOSS(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINX(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithCachePolicyOSS)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Check cache zone declaration
+	expectedCacheZone := "proxy_cache_path /var/cache/nginx/test_cache_basic_cache levels=1:2 keys_zone=test_cache_basic_cache:10m;"
+	if !bytes.Contains(got, []byte(expectedCacheZone)) {
+		t.Errorf("Expected cache zone declaration: %s", expectedCacheZone)
+	}
+
+	// Ensure no purge configuration for OSS (cachePurgeAllow should be ignored)
+	if bytes.Contains(got, []byte("geo $purge_allowed")) {
+		t.Error("OSS template should not contain cache purge geo blocks")
+	}
+
+	if bytes.Contains(got, []byte("map $request_method $cache_purge")) {
+		t.Error("OSS template should not contain cache purge map blocks")
+	}
+
+	if bytes.Contains(got, []byte("proxy_cache_purge")) {
+		t.Error("OSS template should not contain proxy_cache_purge directive")
+	}
+
+	// Check server-level cache configuration
+	expectedServerCacheDirectives := []string{
+		"proxy_cache test_cache_basic_cache;",
+		"proxy_cache_key $scheme$proxy_host$request_uri;",
+		"proxy_ignore_headers Cache-Control Expires Set-Cookie Vary X-Accel-Expires;",
+		"proxy_cache_valid any 1h;",
+		"proxy_cache_methods GET HEAD;",
+	}
+
+	for _, directive := range expectedServerCacheDirectives {
+		if !bytes.Contains(got, []byte(directive)) {
+			t.Errorf("Expected server cache directive: %s", directive)
+		}
+	}
+
+	// Check location-level cache configuration
+	expectedLocationCacheDirectives := []string{
+		"proxy_cache test_cache_location_simple_cache;",
+		"proxy_cache_valid 200 30m;",
+		"proxy_cache_valid 404 30m;",
+	}
+
+	for _, directive := range expectedLocationCacheDirectives {
+		if !bytes.Contains(got, []byte(directive)) {
+			t.Errorf("Expected location cache directive: %s", directive)
+		}
 	}
 
 	snaps.MatchSnapshot(t, string(got))
@@ -1079,6 +1233,7 @@ func vsConfig() VirtualServerConfig {
 					ProxyBuffering:           true,
 					ProxyBuffers:             "8 4k",
 					ProxyBufferSize:          "4k",
+					ProxyBusyBuffersSize:     "8k",
 					ProxyMaxTempFileSize:     "1024m",
 					ProxyPass:                "http://test-upstream",
 					ProxyNextUpstream:        "error timeout",
@@ -1442,6 +1597,7 @@ var (
 					ProxyBuffering:           true,
 					ProxyBuffers:             "8 4k",
 					ProxyBufferSize:          "4k",
+					ProxyBusyBuffersSize:     "8k",
 					ProxyMaxTempFileSize:     "1024m",
 					ProxyPass:                "http://test-upstream",
 					ProxyNextUpstream:        "error timeout",
@@ -1791,6 +1947,7 @@ var (
 					ProxyBuffering:           true,
 					ProxyBuffers:             "8 4k",
 					ProxyBufferSize:          "4k",
+					ProxyBusyBuffersSize:     "8k",
 					ProxyMaxTempFileSize:     "1024m",
 					ProxyPass:                "http://test-upstream",
 					ProxyNextUpstream:        "error timeout",
@@ -2345,10 +2502,12 @@ var (
 					Token:    "$http_token",
 					KeyCache: "1h",
 					JwksURI: JwksURI{
-						JwksScheme: "https",
-						JwksHost:   "idp.spec.example.com",
-						JwksPort:   "443",
-						JwksPath:   "/spec-keys",
+						JwksScheme:     "https",
+						JwksHost:       "idp.spec.example.com",
+						JwksPort:       "443",
+						JwksPath:       "/spec-keys",
+						JwksSNIEnabled: true,
+						JwksSNIName:    "sni.idp.spec.example.com",
 					},
 				},
 				"default/jwt-policy-route": {
@@ -2357,10 +2516,12 @@ var (
 					Token:    "$http_token",
 					KeyCache: "1h",
 					JwksURI: JwksURI{
-						JwksScheme: "http",
-						JwksHost:   "idp.route.example.com",
-						JwksPort:   "80",
-						JwksPath:   "/route-keys",
+						JwksScheme:     "http",
+						JwksHost:       "idp.route.example.com",
+						JwksPort:       "80",
+						JwksPath:       "/route-keys",
+						JwksSNIEnabled: true,
+						JwksSNIName:    "sni.idp.spec.example.com",
 					},
 				},
 			},
@@ -2626,6 +2787,160 @@ var (
 		},
 	}
 
+	virtualServerCfgWithOIDCAndDebugTurnedOn = VirtualServerConfig{
+		Server: Server{
+			ServerName:    "example.com",
+			StatusZone:    "example.com",
+			ProxyProtocol: true,
+			OIDC: &OIDC{
+				PKCEEnable: true,
+			},
+			NGINXDebugLevel: "debug",
+			Locations: []Location{
+				{
+					Path: "/",
+				},
+			},
+		},
+	}
+
+	virtualServerCfgWithOIDCAndDebugTurnedOff = VirtualServerConfig{
+		Server: Server{
+			ServerName:    "example.com",
+			StatusZone:    "example.com",
+			ProxyProtocol: true,
+			OIDC: &OIDC{
+				PKCEEnable: true,
+			},
+			NGINXDebugLevel: "error",
+			Locations: []Location{
+				{
+					Path: "/",
+				},
+			},
+		},
+	}
+
+	virtualServerCfgWithCachePolicyNGINXPlus = VirtualServerConfig{
+		CacheZones: []CacheZone{
+			{
+				Name:   "test_cache_full_advanced",
+				Size:   "50m",
+				Path:   "/var/cache/nginx/test_cache_full_advanced",
+				Levels: "2:2",
+			},
+			{
+				Name:   "test_cache_location_location_cache",
+				Size:   "20m",
+				Path:   "/var/cache/nginx/test_cache_location_location_cache",
+				Levels: "",
+			},
+		},
+		Upstreams: []Upstream{
+			{
+				Name: "test-upstream",
+				Servers: []UpstreamServer{
+					{
+						Address: "10.0.0.20:8001",
+					},
+				},
+			},
+		},
+		Server: Server{
+			ServerName:   "example.com",
+			StatusZone:   "example.com",
+			ServerTokens: "off",
+			// Server-level cache policy with all advanced options (NGINX Plus)
+			Cache: &Cache{
+				ZoneName:              "test_cache_full_advanced",
+				ZoneSize:              "50m",
+				Time:                  "2h",
+				Valid:                 map[string]string{"200": "2h", "404": "2h", "301": "2h"},
+				AllowedMethods:        []string{"GET", "HEAD", "POST"},
+				CachePurgeAllow:       []string{"127.0.0.1", "10.0.0.0/8", "192.168.1.0/24"},
+				OverrideUpstreamCache: true,
+				Levels:                "2:2",
+			},
+			Locations: []Location{
+				{
+					Path:      "/",
+					ProxyPass: "http://test-upstream",
+					// Location-level cache policy with basic options
+					Cache: &Cache{
+						ZoneName:              "test_cache_location_location_cache",
+						ZoneSize:              "20m",
+						Time:                  "1h",
+						Valid:                 map[string]string{"any": "1h"},
+						AllowedMethods:        []string{"GET", "HEAD"},
+						CachePurgeAllow:       nil,
+						OverrideUpstreamCache: false,
+						Levels:                "",
+					},
+				},
+			},
+		},
+	}
+
+	virtualServerCfgWithCachePolicyOSS = VirtualServerConfig{
+		CacheZones: []CacheZone{
+			{
+				Name:   "test_cache_basic_cache",
+				Size:   "10m",
+				Path:   "/var/cache/nginx/test_cache_basic_cache",
+				Levels: "1:2",
+			},
+			{
+				Name:   "test_cache_location_simple_cache",
+				Size:   "5m",
+				Path:   "/var/cache/nginx/test_cache_location_simple_cache",
+				Levels: "",
+			},
+		},
+		Upstreams: []Upstream{
+			{
+				Name: "test-upstream",
+				Servers: []UpstreamServer{
+					{
+						Address: "10.0.0.20:8001",
+					},
+				},
+			},
+		},
+		Server: Server{
+			ServerName:   "example.com",
+			StatusZone:   "example.com",
+			ServerTokens: "off",
+			// Server-level cache policy with basic options (OSS)
+			Cache: &Cache{
+				ZoneName:              "test_cache_basic_cache",
+				ZoneSize:              "10m",
+				Time:                  "1h",
+				Valid:                 map[string]string{"any": "1h"},
+				AllowedMethods:        []string{"GET", "HEAD"},
+				CachePurgeAllow:       []string{"127.0.0.1"}, // This should be ignored for OSS
+				OverrideUpstreamCache: true,
+				Levels:                "1:2",
+			},
+			Locations: []Location{
+				{
+					Path:      "/",
+					ProxyPass: "http://test-upstream",
+					// Location-level cache policy with specific status codes
+					Cache: &Cache{
+						ZoneName:              "test_cache_location_simple_cache",
+						ZoneSize:              "5m",
+						Time:                  "30m",
+						Valid:                 map[string]string{"200": "30m", "404": "30m"},
+						AllowedMethods:        nil,
+						CachePurgeAllow:       nil,
+						OverrideUpstreamCache: false,
+						Levels:                "",
+					},
+				},
+			},
+		},
+	}
+
 	transportServerCfg = TransportServerConfig{
 		Upstreams: []StreamUpstream{
 			{
@@ -2788,4 +3103,161 @@ var (
 			},
 		},
 	}
+
+	// JWT SSL Verification test configs
+	virtualServerCfgWithJWTSSLDefaultCert = VirtualServerConfig{
+		Upstreams: []Upstream{
+			{
+				Name: "vs_default_cafe_tea",
+				Servers: []UpstreamServer{
+					{Address: "10.0.0.20:80"},
+				},
+			},
+		},
+		Server: Server{
+			JWTAuthList: map[string]*JWTAuth{
+				"default/jwt-ssl-policy": {
+					Key:      "default/jwt-ssl-policy",
+					Realm:    "SSL API",
+					KeyCache: "1h",
+					JwksURI: JwksURI{
+						JwksScheme:     "https",
+						JwksHost:       "idp.example.com",
+						JwksPath:       "/keys",
+						SSLVerify:      true,
+						SSLVerifyDepth: 1,
+					},
+				},
+			},
+			Locations: []Location{
+				{
+					Path:      "/",
+					ProxyPass: "http://vs_default_cafe_tea",
+					JWTAuth: &JWTAuth{
+						Key: "default/jwt-ssl-policy",
+					},
+				},
+			},
+		},
+	}
+
+	virtualServerCfgWithJWTSSLSecretCert = VirtualServerConfig{
+		Upstreams: []Upstream{
+			{
+				Name: "vs_default_cafe_tea",
+				Servers: []UpstreamServer{
+					{Address: "10.0.0.20:80"},
+				},
+			},
+		},
+		Server: Server{
+			JWTAuthList: map[string]*JWTAuth{
+				"default/jwt-ssl-policy": {
+					Key:      "default/jwt-ssl-policy",
+					Realm:    "SSL API",
+					KeyCache: "1h",
+					JwksURI: JwksURI{
+						JwksScheme:     "https",
+						JwksHost:       "idp.example.com",
+						JwksPath:       "/keys",
+						SSLVerify:      true,
+						TrustedCert:    "/etc/nginx/secrets/default-my-ca-secret",
+						SSLVerifyDepth: 2,
+					},
+				},
+			},
+			Locations: []Location{
+				{
+					Path:      "/",
+					ProxyPass: "http://vs_default_cafe_tea",
+					JWTAuth: &JWTAuth{
+						Key: "default/jwt-ssl-policy",
+					},
+				},
+			},
+		},
+	}
+
+	virtualServerCfgWithJWTNoSSL = VirtualServerConfig{
+		Upstreams: []Upstream{
+			{
+				Name: "vs_default_cafe_tea",
+				Servers: []UpstreamServer{
+					{Address: "10.0.0.20:80"},
+				},
+			},
+		},
+		Server: Server{
+			JWTAuthList: map[string]*JWTAuth{
+				"default/jwt-no-ssl-policy": {
+					Key:      "default/jwt-no-ssl-policy",
+					Realm:    "No SSL API",
+					KeyCache: "1h",
+					JwksURI: JwksURI{
+						JwksScheme: "https",
+						JwksHost:   "idp.example.com",
+						JwksPath:   "/keys",
+						SSLVerify:  false,
+					},
+				},
+			},
+			Locations: []Location{
+				{
+					Path:      "/",
+					ProxyPass: "http://vs_default_cafe_tea",
+					JWTAuth: &JWTAuth{
+						Key: "default/jwt-no-ssl-policy",
+					},
+				},
+			},
+		},
+	}
 )
+
+func TestJWTSSLVerificationDefaultCert(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithJWTSSLDefaultCert)
+	if err != nil {
+		t.Error(err)
+	}
+	if !bytes.Contains(got, []byte("proxy_ssl_verify on;")) {
+		t.Error("want `proxy_ssl_verify on;` in generated template")
+	}
+	if !bytes.Contains(got, []byte("proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;")) {
+		t.Error("want system CA bundle path in generated template")
+	}
+}
+
+func TestJWTSSLVerificationSecretCert(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithJWTSSLSecretCert)
+	if err != nil {
+		t.Error(err)
+	}
+	if !bytes.Contains(got, []byte("proxy_ssl_verify on;")) {
+		t.Error("want `proxy_ssl_verify on;` in generated template")
+	}
+	if !bytes.Contains(got, []byte("proxy_ssl_trusted_certificate /etc/nginx/secrets/default-my-ca-secret;")) {
+		t.Error("want custom CA secret path in generated template")
+	}
+	if !bytes.Contains(got, []byte("proxy_ssl_verify_depth 2;")) {
+		t.Error("want custom SSL verify depth in generated template")
+	}
+}
+
+func TestJWTNoSSLVerification(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithJWTNoSSL)
+	if err != nil {
+		t.Error(err)
+	}
+	if !bytes.Contains(got, []byte("proxy_ssl_verify off;")) {
+		t.Error("want `proxy_ssl_verify off;` in generated template")
+	}
+	if bytes.Contains(got, []byte("proxy_ssl_trusted_certificate")) {
+		t.Error("want no SSL trusted certificate directive in generated template")
+	}
+}

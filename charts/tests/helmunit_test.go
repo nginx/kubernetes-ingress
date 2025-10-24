@@ -5,6 +5,7 @@ package test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gkampitakis/go-snaps/snaps"
@@ -38,6 +39,31 @@ func TestHelmNICTemplate(t *testing.T) {
 		"daemonset": {
 			valuesFile:  "testdata/daemonset.yaml",
 			releaseName: "daemonset",
+			namespace:   "default",
+		},
+		"daemonset-readonly": {
+			valuesFile:  "testdata/daemonset-readonly.yaml",
+			releaseName: "daemonset-readonly",
+			namespace:   "default",
+		},
+		"statefulset": {
+			valuesFile:  "testdata/statefulset.yaml",
+			releaseName: "statefulset",
+			namespace:   "default",
+		},
+		"statefulset-readonly": {
+			valuesFile:  "testdata/statefulset-readonly.yaml",
+			releaseName: "statefulset-readonly",
+			namespace:   "default",
+		},
+		"statefulset-config": {
+			valuesFile:  "testdata/statefulset-config.yaml",
+			releaseName: "statefulset-config",
+			namespace:   "default",
+		},
+		"statefulset-no-storageclass": {
+			valuesFile:  "testdata/statefulset-no-storageclass.yaml",
+			releaseName: "statefulset-no-storageclass",
 			namespace:   "default",
 		},
 		"namespace": {
@@ -85,6 +111,11 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "global-configuration",
 			namespace:   "gc",
 		},
+		"globalConfigCustomName": {
+			valuesFile:  "testdata/global-config-custom-name.yaml",
+			releaseName: "global-config-custom-name",
+			namespace:   "default",
+		},
 		"customResources": {
 			valuesFile:  "testdata/custom-resources.yaml",
 			releaseName: "custom-resources",
@@ -130,6 +161,11 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "app-protect-waf-agentv2",
 			namespace:   "default",
 		},
+		"startupStatusValid": {
+			valuesFile:  "testdata/startupstatus-valid.yaml",
+			releaseName: "startupstatus",
+			namespace:   "default",
+		},
 	}
 
 	// Path to the helm chart we will test
@@ -152,6 +188,76 @@ func TestHelmNICTemplate(t *testing.T) {
 
 			snaps.MatchSnapshot(t, output)
 			t.Log(output)
+		})
+	}
+}
+
+// Test for negative cases where helm template rendering should fail
+func TestHelmNICTemplateNegative(t *testing.T) {
+	t.Parallel()
+
+	negativeTests := map[string]struct {
+		valuesFile        string
+		releaseName       string
+		namespace         string
+		expectedErrorMsgs []string
+	}{
+		"startupStatusInvalid": {
+			valuesFile:        "testdata/startupstatus-invalid.yaml",
+			releaseName:       "startupstatus-invalid",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"missing properties 'port', 'path'"},
+		},
+		"globalConfigInvalidFormat": {
+			valuesFile:        "testdata/global-config-invalid-format.yaml",
+			releaseName:       "global-config-invalid-format",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"globalConfiguration.customName must contain exactly one '/' separator in namespace/name format (e.g., \"my-namespace/my-global-config\")"},
+		},
+		"globalConfigMultipleSlashes": {
+			valuesFile:        "testdata/global-config-multiple-slashes.yaml",
+			releaseName:       "global-config-multiple-slashes",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"globalConfiguration.customName must contain exactly one '/' separator in namespace/name format (e.g., \"my-namespace/my-global-config\")"},
+		},
+		"globalConfigEmptyName": {
+			valuesFile:        "testdata/global-config-empty-name.yaml",
+			releaseName:       "global-config-empty-name",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"globalConfiguration.customName namespace and name parts cannot be empty (e.g., \"my-namespace/my-global-config\")"},
+		},
+	}
+
+	// Path to the helm chart we will test
+	helmChartPath, err := filepath.Abs("../nginx-ingress")
+	if err != nil {
+		t.Fatal("Failed to open helm chart path ../nginx-ingress")
+	}
+
+	for testName, tc := range negativeTests {
+		t.Run(testName, func(t *testing.T) {
+			options := &helm.Options{
+				KubectlOptions: k8s.NewKubectlOptions("", "", tc.namespace),
+			}
+
+			if tc.valuesFile != "" {
+				options.ValuesFiles = []string{tc.valuesFile}
+			}
+			_, err := helm.RenderTemplateE(t, options, helmChartPath, tc.releaseName, make([]string, 0))
+
+			if err == nil {
+				t.Fatalf("Expected helm template to fail for invalid configuration, but it succeeded")
+			}
+
+			if len(tc.expectedErrorMsgs) > 0 {
+				for _, expectedMsg := range tc.expectedErrorMsgs {
+					if !strings.Contains(err.Error(), expectedMsg) {
+						t.Fatalf("Expected error to contain '%s', but got: %s", expectedMsg, err.Error())
+					}
+				}
+			}
+
+			t.Logf("Expected failure occurred: %s", err.Error())
 		})
 	}
 }

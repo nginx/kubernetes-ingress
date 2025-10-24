@@ -35,21 +35,21 @@
           "title": "The kind of the Ingress Controller",
           "enum": [
             "deployment",
-            "daemonset"
+            "daemonset",
+            "statefulset"
           ],
           "examples": [
             "deployment",
-            "daemonset"
+            "daemonset",
+            "statefulset"
           ]
         },
         "selectorLabels": {
-          "type": "object",
           "default": {},
           "title": "The selectorLabels Schema",
           "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.LabelSelector/properties/matchLabels"
         },
         "annotations": {
-          "type": "object",
           "default": {},
           "title": "The annotations Schema",
           "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta/properties/annotations"
@@ -134,10 +134,11 @@
                 },
                 "interval": {
                   "type": "string",
-                  "pattern": "^[0-9]+[mhd]$",
+                  "pattern": "^[0-9]+[smh]$",
                   "default": "1h",
                   "title": "The usage report interval Schema",
                   "examples": [
+                    "60s",
                     "1m",
                     "1h",
                     "24h"
@@ -309,7 +310,6 @@
               ],
               "title": "Volumes for App Protect WAF v5",
               "items": {
-                "type": "object",
                 "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.Volume"
               }
             },
@@ -350,10 +350,10 @@
                     },
                     "tag": {
                       "type": "string",
-                      "default": "5.6.0",
+                      "default": "5.9.0",
                       "title": "The tag of the  App Protect WAF v5 Enforcer image",
                       "examples": [
-                        "5.6.0"
+                        "5.9.0"
                       ]
                     },
                     "digest": {
@@ -365,7 +365,6 @@
                       ]
                     },
                     "pullPolicy": {
-                      "type": "string",
                       "default": "IfNotPresent",
                       "title": "The pullPolicy for the  App Protect WAF v5 Enforcer image",
                       "allOf": [
@@ -390,13 +389,12 @@
                   "examples": [
                     {
                       "repository": "private-registry.nginx.com/nap/waf-enforcer",
-                      "tag": "5.6.0",
+                      "tag": "5.9.0",
                       "pullPolicy": "IfNotPresent"
                     }
                   ]
                 },
                 "securityContext": {
-                  "type": "object",
                   "default": {},
                   "title": "The securityContext Schema",
                   "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.SecurityContext"
@@ -424,10 +422,10 @@
                     },
                     "tag": {
                       "type": "string",
-                      "default": "5.6.0",
+                      "default": "5.9.0",
                       "title": "The tag of the  App Protect WAF v5 Config Manager image",
                       "examples": [
-                        "5.6.0"
+                        "5.9.0"
                       ]
                     },
                     "digest": {
@@ -439,7 +437,6 @@
                       ]
                     },
                     "pullPolicy": {
-                      "type": "string",
                       "default": "IfNotPresent",
                       "title": "The pullPolicy for the  App Protect WAF v5 Config Manager image",
                       "allOf": [
@@ -464,13 +461,12 @@
                   "examples": [
                     {
                       "repository": "private-registry.nginx.com/nap/waf-config-mgr",
-                      "tag": "5.6.0",
+                      "tag": "5.9.0",
                       "pullPolicy": "IfNotPresent"
                     }
                   ]
                 },
                 "securityContext": {
-                  "type": "object",
                   "default": {
                     "allowPrivilegeEscalation": false,
                     "runAsUser": 101,
@@ -594,7 +590,6 @@
           "additionalProperties": false
         },
         "dnsPolicy": {
-          "type": "string",
           "allOf": [
             {
               "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.PodSpec/properties/dnsPolicy"
@@ -656,6 +651,15 @@
             "json"
           ]
         },
+        "directiveAutoAdjust": {
+          "type": "boolean",
+          "default": false,
+          "title": "Enables automatic adjustment of the NGINX buffers directives",
+          "examples": [
+            false,
+            true
+          ]
+        },
         "customPorts": {
           "type": "array",
           "default": [],
@@ -697,10 +701,10 @@
             },
             "tag": {
               "type": "string",
-              "default": "5.0.0",
+              "default": "5.2.1",
               "title": "The tag of the Ingress Controller image",
               "examples": [
-                "5.0.0"
+                "5.2.1"
               ]
             },
             "digest": {
@@ -712,7 +716,6 @@
               ]
             },
             "pullPolicy": {
-              "type": "string",
               "default": "IfNotPresent",
               "title": "The pullPolicy for the Ingress Controller image",
               "allOf": [
@@ -737,13 +740,12 @@
           "examples": [
             {
               "repository": "nginx/nginx-ingress",
-              "tag": "5.0.0",
+              "tag": "5.2.1",
               "pullPolicy": "IfNotPresent"
             }
           ]
         },
         "lifecycle": {
-          "type": "object",
           "default": {},
           "title": "The lifecycle Schema",
           "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.Lifecycle"
@@ -771,7 +773,6 @@
               ]
             },
             "annotations": {
-              "type": "object",
               "default": {},
               "title": "The annotations Schema",
               "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta/properties/annotations"
@@ -858,31 +859,26 @@
           "examples": []
         },
         "nodeSelector": {
-          "type": "object",
           "default": {},
           "title": "The nodeSelector Schema",
           "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.PodSpec/properties/nodeSelector"
         },
         "terminationGracePeriodSeconds": {
-          "type": "integer",
           "default": 30,
           "title": "The terminationGracePeriodSeconds Schema",
           "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.PodSpec/properties/terminationGracePeriodSeconds"
         },
         "podSecurityContext": {
-          "type": "object",
           "default": {},
           "title": "The podSecurityContext Schema",
           "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.PodSecurityContext"
         },
         "securityContext": {
-          "type": "object",
           "default": {},
           "title": "The securityContext Schema",
           "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.SecurityContext"
         },
         "initContainerSecurityContext": {
-          "type": "object",
           "default": {},
           "title": "The initContainerSecurityContext Schema",
           "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.SecurityContext"
@@ -894,7 +890,6 @@
           "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.ResourceRequirements"
         },
         "initContainerResources": {
-          "type": "object",
           "default": {},
           "title": "The resources Schema",
           "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.ResourceRequirements"
@@ -904,18 +899,15 @@
           "default": [],
           "title": "The tolerations Schema",
           "items": {
-            "type": "object",
             "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.Toleration"
           }
         },
         "affinity": {
-          "type": "object",
           "default": {},
           "title": "The affinity Schema",
           "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.Affinity"
         },
         "topologySpreadConstraints": {
-          "type": "object",
           "default": {},
           "title": "The topologySpreadConstraints Schema",
           "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.PodSpec/properties/topologySpreadConstraints"
@@ -925,7 +917,6 @@
           "default": [],
           "title": "The env Schema",
           "items": {
-            "type": "object",
             "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.EnvVar"
           }
         },
@@ -934,7 +925,6 @@
           "default": [],
           "title": "The volumes Schema",
           "items": {
-            "type": "object",
             "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.Volume"
           }
         },
@@ -943,7 +933,6 @@
           "default": [],
           "title": "The volumeMounts Schema",
           "items": {
-            "type": "object",
             "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.VolumeMount"
           }
         },
@@ -952,7 +941,6 @@
           "default": [],
           "title": "The initContainers Schema",
           "items": {
-            "type": "object",
             "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.Container"
           }
         },
@@ -984,12 +972,56 @@
             }
           ]
         },
+        "statefulset": {
+          "type": "object",
+          "default": {},
+          "title": "The StatefulSet configuration Schema",
+          "properties": {
+            "podManagementPolicy": {
+              "type": "string",
+              "default": "OrderedReady",
+              "title": "The pod management policy",
+              "enum": [
+                "OrderedReady",
+                "Parallel"
+              ]
+            },
+            "persistentVolumeClaimRetentionPolicy": {
+              "default": {},
+              "title": "The persistentVolumeClaimRetentionPolicy Schema",
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.apps.v1.StatefulSetPersistentVolumeClaimRetentionPolicy"
+            },
+            "nginxCachePVC": {
+              "type": "object",
+              "default": {},
+              "title": "The nginxCachePVC Schema",
+              "properties": {
+                "size": {
+                  "default": "256Mi",
+                  "title": "The size Schema",
+                  "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.apimachinery.pkg.api.resource.Quantity"
+                },
+                "storageClass": {
+                  "title": "The storageClass Schema",
+                  "default": "",
+                  "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.PersistentVolumeClaimSpec/properties/storageClassName"
+                },
+                "accessModes": {
+                  "default": [
+                    "ReadWriteOnce"
+                  ],
+                  "title": "The accessModes Schema",
+                  "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.PersistentVolumeClaimSpec/properties/accessModes"
+                }
+              }
+            }
+          }
+        },
         "extraContainers": {
           "type": "array",
           "default": [],
           "title": "The extraContainers Schema",
           "items": {
-            "type": "object",
             "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.Container"
           }
         },
@@ -1112,6 +1144,14 @@
               "title": "The create Schema",
               "examples": [
                 false
+              ]
+            },
+            "customName": {
+              "type": "string",
+              "default": "",
+              "title": "The customName Schema",
+              "examples": [
+                "the-namespace/the-name-of-the-global-configuration-custom-resource"
               ]
             },
             "spec": {
@@ -1263,19 +1303,16 @@
               ]
             },
             "type": {
-              "type": "string",
               "default": "",
               "title": "The type",
               "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/type"
             },
             "externalTrafficPolicy": {
-              "type": "string",
               "default": "",
               "title": "The externalTrafficPolicy",
               "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/externalTrafficPolicy"
             },
             "annotations": {
-              "type": "object",
               "default": {},
               "title": "The annotations",
               "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta/properties/annotations"
@@ -1291,13 +1328,11 @@
               ]
             },
             "loadBalancerIP": {
-              "type": "string",
               "default": "",
               "title": "The loadBalancerIP",
               "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/loadBalancerIP"
             },
             "externalIPs": {
-              "type": "array",
               "default": [],
               "title": "The externalIPs",
               "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/externalIPs"
@@ -1312,13 +1347,11 @@
               ]
             },
             "allocateLoadBalancerNodePorts": {
-              "type": "boolean",
               "default": false,
               "title": "The allocateLoadBalancerNodePorts Schema",
-              "ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/allocateLoadBalancerNodePorts"
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/allocateLoadBalancerNodePorts"
             },
             "ipFamilyPolicy": {
-              "type": "string",
               "default": "",
               "title": "The ipFamilyPolicy Schema",
               "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/ipFamilyPolicy",
@@ -1327,10 +1360,9 @@
               ]
             },
             "ipFamilies": {
-              "type": "array",
               "default": [],
               "title": "The ipFamilies Schema",
-              "ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/ipFamilies"
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/ipFamilies"
             },
             "httpPort": {
               "type": "object",
@@ -1451,9 +1483,52 @@
               "default": [],
               "title": "The customPorts",
               "items": {
-                "type": "object",
-                "ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServicePort"
+                "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServicePort"
               }
+            },
+            "sessionAffinity": {
+              "type": "object",
+              "default": {},
+              "title": "The sessionAffinity Schema",
+              "required": [],
+              "properties": {
+                "enable": {
+                  "type": "boolean",
+                  "default": false,
+                  "title": "Enable session affinity",
+                  "examples": [
+                    false
+                  ]
+                },
+                "type": {
+                  "type": "string",
+                  "default": "ClientIP",
+                  "title": "Session affinity type",
+                  "enum": [
+                    "ClientIP"
+                  ],
+                  "examples": [
+                    "ClientIP"
+                  ]
+                },
+                "timeoutSeconds": {
+                  "type": "integer",
+                  "default": 3600,
+                  "title": "Session affinity timeout in seconds",
+                  "minimum": 1,
+                  "maximum": 86400,
+                  "examples": [
+                    3600
+                  ]
+                }
+              },
+              "examples": [
+                {
+                  "enable": false,
+                  "type": "ClientIP",
+                  "timeoutSeconds": 3600
+                }
+              ]
             }
           },
           "examples": [
@@ -1482,7 +1557,12 @@
                 "targetPort": 443,
                 "name": "https"
               },
-              "customPorts": []
+              "customPorts": [],
+              "sessionAffinity": {
+                "enable": false,
+                "type": "ClientIP",
+                "timeoutSeconds": 3600
+              }
             }
           ]
         },
@@ -1493,7 +1573,6 @@
           "required": [],
           "properties": {
             "annotations": {
-              "type": "object",
               "default": {},
               "title": "The annotations Schema",
               "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta/properties/annotations"
@@ -1638,7 +1717,6 @@
               ]
             },
             "annotations": {
-              "type": "object",
               "default": {},
               "title": "The annotations Schema",
               "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta/properties/annotations"
@@ -1662,13 +1740,11 @@
           "required": [],
           "properties": {
             "annotations": {
-              "type": "object",
               "default": {},
               "title": "The annotations Schema",
               "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta/properties/annotations"
             },
             "extraLabels": {
-              "type": "object",
               "default": {},
               "title": "The extraLabels Schema",
               "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta/properties/labels"
@@ -1682,7 +1758,6 @@
           ]
         },
         "priorityClassName": {
-          "type": "string",
           "default": "",
           "title": "The priorityClassName",
           "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.PodSpec/properties/priorityClassName"
@@ -1699,7 +1774,6 @@
               "type": "boolean"
             },
             "annotations": {
-              "type": "object",
               "default": {},
               "title": "The annotations Schema",
               "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta/properties/annotations"
@@ -1745,7 +1819,6 @@
               ]
             },
             "initialDelaySeconds": {
-              "type": "integer",
               "default": 0,
               "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.Probe/properties/initialDelaySeconds"
             }
@@ -1755,6 +1828,93 @@
               "enable": true,
               "port": 8081,
               "initialDelaySeconds": 0
+            }
+          ]
+        },
+        "startupStatus": {
+          "type": "object",
+          "default": {},
+          "title": "The startupStatus",
+          "required": [],
+          "properties": {
+            "enable": {
+              "type": "boolean",
+              "default": false,
+              "title": "Enable the startup probe",
+              "examples": [
+                true
+              ]
+            },
+            "port": {
+              "type": "integer",
+              "default": 0,
+              "title": "The port for the startup probe",
+              "examples": [
+                9999
+              ]
+            },
+            "path": {
+              "type": "string",
+              "default": "",
+              "title": "The path for the startup probe",
+              "examples": [
+                "/"
+              ]
+            },
+            "initialDelaySeconds": {
+              "default": 0,
+              "title": "Initial delay seconds for the startup probe",
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.Probe/properties/initialDelaySeconds"
+            },
+            "periodSeconds": {
+              "default": 0,
+              "title": "Period seconds for the startup probe",
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.Probe/properties/periodSeconds"
+            },
+            "timeoutSeconds": {
+              "default": 0,
+              "title": "Timeout seconds for the startup probe",
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.Probe/properties/timeoutSeconds"
+            },
+            "successThreshold": {
+              "default": 0,
+              "title": "Success threshold for the startup probe",
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.Probe/properties/successThreshold"
+            },
+            "failureThreshold": {
+              "default": 0,
+              "title": "Failure threshold for the startup probe",
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.Probe/properties/failureThreshold"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "enable": {
+                    "const": true
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "enable",
+                  "port",
+                  "path"
+                ]
+              }
+            }
+          ],
+          "examples": [
+            {
+              "enable": true,
+              "port": 9999,
+              "path": "/",
+              "initialDelaySeconds": 5,
+              "periodSeconds": 1,
+              "timeoutSeconds": 1,
+              "successThreshold": 1,
+              "failureThreshold": 30
             }
           ]
         },
@@ -1860,7 +2020,7 @@
               "port": 50000,
               "image": {
                 "repository": "private-registry.nginx.com/nap/waf-enforcer",
-                "tag": "5.6.0",
+                "tag": "5.9.0",
                 "pullPolicy": "IfNotPresent"
               },
               "securityContext": {}
@@ -1868,7 +2028,7 @@
             "configManager": {
               "image": {
                 "repository": "private-registry.nginx.com/nap/waf-config-mgr",
-                "tag": "5.6.0",
+                "tag": "5.9.0",
                 "pullPolicy": "IfNotPresent"
               },
               "securityContext": {
@@ -1908,7 +2068,7 @@
           "customPorts": [],
           "image": {
             "repository": "nginx/nginx-ingress",
-            "tag": "5.0.0",
+            "tag": "5.2.1",
             "digest": "",
             "pullPolicy": "IfNotPresent"
           },
@@ -2139,7 +2299,6 @@
               ]
             },
             "labels": {
-              "type": "object",
               "default": {},
               "title": "The labels Schema",
               "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta/properties/labels"
@@ -2161,13 +2320,11 @@
               ]
             },
             "labels": {
-              "type": "object",
               "default": {},
               "title": "The labels Schema",
               "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta/properties/labels"
             },
             "selectorMatchLabels": {
-              "type": "object",
               "default": {},
               "title": "The selectorMatchLabels Schema",
               "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.LabelSelector/properties/matchLabels"
@@ -2333,10 +2490,10 @@
         },
         "endpointHost": {
           "type": "string",
-          "default": "product.connect.nginx.com",
-          "title": "FQDN or IP for connecting to NGINX One SaaS Console",
+          "default": "agent.connect.nginx.com",
+          "title": "FQDN or IP for connecting to NGINX One Console",
           "examples": [
-            "product.connect.nginx.com"
+            "agent.connect.nginx.com"
           ]
         },
         "endpointPort": {
@@ -2503,7 +2660,7 @@
             "port": 50000,
             "image": {
               "repository": "private-registry.nginx.com/nap/waf-enforcer",
-              "tag": "5.6.0",
+              "tag": "5.9.0",
               "pullPolicy": "IfNotPresent"
             },
             "securityContext": {}
@@ -2511,7 +2668,7 @@
           "configManager": {
             "image": {
               "repository": "private-registry.nginx.com/nap/waf-config-mgr",
-              "tag": "5.6.0",
+              "tag": "5.9.0",
               "pullPolicy": "IfNotPresent"
             },
             "securityContext": {
@@ -2551,7 +2708,7 @@
         "customPorts": [],
         "image": {
           "repository": "nginx/nginx-ingress",
-          "tag": "5.0.0",
+          "tag": "5.2.1",
           "digest": "",
           "pullPolicy": "IfNotPresent"
         },

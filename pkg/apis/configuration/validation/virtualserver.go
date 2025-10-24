@@ -8,6 +8,7 @@ import (
 
 	"github.com/dlclark/regexp2"
 	"github.com/nginx/kubernetes-ingress/internal/configs"
+	internalValidation "github.com/nginx/kubernetes-ingress/internal/validation"
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -19,10 +20,11 @@ type VsvOption func(*VirtualServerValidator)
 
 // VirtualServerValidator validates a VirtualServer/VirtualServerRoute resource.
 type VirtualServerValidator struct {
-	isPlus               bool
-	isDosEnabled         bool
-	isCertManagerEnabled bool
-	isExternalDNSEnabled bool
+	isPlus                       bool
+	isDosEnabled                 bool
+	isCertManagerEnabled         bool
+	isExternalDNSEnabled         bool
+	isDirectiveAutoadjustEnabled bool
 }
 
 // IsPlus modifies the VirtualServerValidator to set the isPlus option.
@@ -53,13 +55,21 @@ func IsExternalDNSEnabled(ed bool) VsvOption {
 	}
 }
 
+// IsDirectiveAutoadjustEnabled modifies the VirtualServerValidator to set the isDirectiveAutoadjustEnabled option.
+func IsDirectiveAutoadjustEnabled(autoadjust bool) VsvOption {
+	return func(v *VirtualServerValidator) {
+		v.isDirectiveAutoadjustEnabled = autoadjust
+	}
+}
+
 // NewVirtualServerValidator creates a new VirtualServerValidator.
 func NewVirtualServerValidator(opts ...VsvOption) *VirtualServerValidator {
 	vsv := VirtualServerValidator{
-		isPlus:               false,
-		isDosEnabled:         false,
-		isCertManagerEnabled: false,
-		isExternalDNSEnabled: false,
+		isPlus:                       false,
+		isDosEnabled:                 false,
+		isCertManagerEnabled:         false,
+		isExternalDNSEnabled:         false,
+		isDirectiveAutoadjustEnabled: false,
 	}
 	for _, o := range opts {
 		o(&vsv)
@@ -71,6 +81,28 @@ func NewVirtualServerValidator(opts ...VsvOption) *VirtualServerValidator {
 func (vsv *VirtualServerValidator) ValidateVirtualServer(virtualServer *v1.VirtualServer) error {
 	allErrs := vsv.validateVirtualServerSpec(&virtualServer.Spec, field.NewPath("spec"), virtualServer.Namespace)
 	return allErrs.ToAggregate()
+}
+
+// BalanceUpstreamProxies balances proxy buffer sizes for all upstreams in a VirtualServer.
+func (vsv *VirtualServerValidator) BalanceUpstreamProxies(virtualServer *v1.VirtualServer) error {
+	for i := range virtualServer.Spec.Upstreams {
+		err := internalValidation.BalanceProxiesForUpstreams(&virtualServer.Spec.Upstreams[i], vsv.isDirectiveAutoadjustEnabled)
+		if err != nil {
+			return fmt.Errorf("upstream %d: %w", i, err)
+		}
+	}
+	return nil
+}
+
+// BalanceUpstreamProxiesForRoute balances proxy buffer sizes for all upstreams in a VirtualServerRoute.
+func (vsv *VirtualServerValidator) BalanceUpstreamProxiesForRoute(virtualServerRoute *v1.VirtualServerRoute) error {
+	for i := range virtualServerRoute.Spec.Upstreams {
+		err := internalValidation.BalanceProxiesForUpstreams(&virtualServerRoute.Spec.Upstreams[i], vsv.isDirectiveAutoadjustEnabled)
+		if err != nil {
+			return fmt.Errorf("upstream %d: %w", i, err)
+		}
+	}
+	return nil
 }
 
 // validateVirtualServerSpec validates a VirtualServerSpec.
@@ -606,6 +638,7 @@ func (vsv *VirtualServerValidator) validateUpstreams(upstreams []v1.Upstream, fi
 		allErrs = append(allErrs, validateTime(u.SlowStart, idxPath.Child("slow-start"))...)
 		allErrs = append(allErrs, validateBuffer(u.ProxyBuffers, idxPath.Child("buffers"))...)
 		allErrs = append(allErrs, validateSize(u.ProxyBufferSize, idxPath.Child("buffer-size"))...)
+		allErrs = append(allErrs, validateSize(u.ProxyBusyBuffersSize, idxPath.Child("busy-buffers-size"))...)
 		allErrs = append(allErrs, validateQueue(u.Queue, idxPath.Child("queue"))...)
 		allErrs = append(allErrs, validateSessionCookie(u.SessionCookie, idxPath.Child("sessionCookie"))...)
 		allErrs = append(allErrs, validateUpstreamType(u.Type, idxPath.Child("type"))...)
@@ -617,6 +650,7 @@ func (vsv *VirtualServerValidator) validateUpstreams(upstreams []v1.Upstream, fi
 		allErrs = append(allErrs, validateBackup(u.Backup, u.BackupPort, u.LBMethod, idxPath)...)
 
 		allErrs = append(allErrs, rejectPlusResourcesInOSS(u, idxPath, vsv.isPlus)...)
+
 	}
 	return allErrs, upstreamNames
 }

@@ -17,6 +17,7 @@ limitations under the License.
 package k8s
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"strings"
@@ -25,6 +26,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -47,7 +49,7 @@ func (s *storeToIngressLister) GetByKeySafe(key string) (ing *networking.Ingress
 		return nil, exists, err
 	}
 	ing = item.(*networking.Ingress).DeepCopy()
-	return
+	return ing, exists, err
 }
 
 // List lists all Ingress' in the store.
@@ -169,4 +171,47 @@ func GetK8sVersion(client kubernetes.Interface) (v *version.Version, err error) 
 		return nil, fmt.Errorf("unexpected error parsing running Kubernetes version: %w", err)
 	}
 	return runningVersion, nil
+}
+
+// CreateUniformSelectorsFromController creates uniform selector labels by getting them from the actual controller object
+func CreateUniformSelectorsFromController(kubeClient kubernetes.Interface, pod *v1.Pod) (map[string]string, error) {
+	if len(pod.OwnerReferences) == 0 {
+		return nil, fmt.Errorf("pod has no owner references")
+	}
+
+	owner := pod.OwnerReferences[0]
+
+	switch strings.ToLower(owner.Kind) {
+	case "daemonset":
+		ds, err := kubeClient.AppsV1().DaemonSets(pod.Namespace).Get(context.Background(), owner.Name, meta_v1.GetOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("failed to get DaemonSet %s: %w", owner.Name, err)
+		}
+		return ds.Spec.Selector.MatchLabels, nil
+
+	case "statefulset":
+		sts, err := kubeClient.AppsV1().StatefulSets(pod.Namespace).Get(context.Background(), owner.Name, meta_v1.GetOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("failed to get StatefulSet %s: %w", owner.Name, err)
+		}
+		return sts.Spec.Selector.MatchLabels, nil
+
+	case "replicaset":
+		rs, err := kubeClient.AppsV1().ReplicaSets(pod.Namespace).Get(context.Background(), owner.Name, meta_v1.GetOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("failed to get ReplicaSet %s: %w", owner.Name, err)
+		}
+
+		// For ReplicaSet, exclude pod-template-hash
+		selectors := make(map[string]string)
+		for k, v := range rs.Spec.Selector.MatchLabels {
+			if k != "pod-template-hash" {
+				selectors[k] = v
+			}
+		}
+		return selectors, nil
+
+	default:
+		return nil, fmt.Errorf("unsupported: %s", owner.Kind)
+	}
 }

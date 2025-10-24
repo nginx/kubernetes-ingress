@@ -1,0 +1,78 @@
+name: Run build for Renovate PRs
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: ${{ github.ref_name }}-renovate
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Check for changes
+    runs-on: ubuntu-24.04
+    outputs:
+      generate: ${{ steps.filter.outputs.generate }}
+    permissions:
+      pull-requests: read
+    if: ${{ github.actor == 'renovate[bot]' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Check for changes
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        with:
+          filters: |
+            generate:
+            - go.mod
+            - go.sum
+
+  build:
+    name: Build for renovate PRs
+    runs-on: ubuntu-24.04
+    needs: check
+    permissions:
+      contents: write
+    if: ${{ needs.check.outputs.generate == 'true' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Configure GOPROXY
+        id: goproxy
+        run: |
+          GOPROXY_VALUE=https://proxy.golang.org,direct
+          if [ "${{ github.ref_name }}" = "${{ github.event.repository.default_branch }}" ] || [[ "${{ github.ref_name }}" =~ "release-" ]]; then
+            GOPROXY_VALUE=${{ secrets.ARTIFACTORY_DEV_ENDPOINT }}
+          fi
+          echo "GOPROXY=${GOPROXY_VALUE}" >> $GITHUB_ENV
+
+      - name: Setup Golang Environment
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version-file: go.mod
+
+      # go mod tidy can be removed once https://github.com/renovatebot/renovate/issues/12999 is implemented
+      - name: Update files for renovate
+        run: |
+          make update-crds
+          make update-codegen
+
+      - name: Commit changes
+        id: commit
+        uses: stefanzweifel/git-auto-commit-action@28e16e81777b558cc906c8750092100bbb34c5e3 # v7.0.0
+        with:
+          commit_message: "Update files for renovate"
+          commit_author: "renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>"

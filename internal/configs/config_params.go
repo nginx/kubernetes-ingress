@@ -71,6 +71,7 @@ type ConfigParams struct {
 	ProxyBuffering                         bool
 	ProxyBuffers                           string
 	ProxyBufferSize                        string
+	ProxyBusyBuffersSize                   string
 	ProxyConnectTimeout                    string
 	ProxyHideHeaders                       []string
 	ProxyMaxTempFileSize                   string
@@ -86,6 +87,8 @@ type ConfigParams struct {
 	ResolverValid                          string
 	ServerSnippets                         []string
 	ServerTokens                           string
+	ServerSSLCiphers                       string
+	ServerSSLPreferServerCiphers           bool
 	SlowStart                              string
 	SSLRedirect                            bool
 	UpstreamZoneSize                       string
@@ -162,6 +165,7 @@ type StaticConfigParams struct {
 	DynamicSSLReload               bool
 	StaticSSLPath                  string
 	DynamicWeightChangesReload     bool
+	IsDirectiveAutoadjustEnabled   bool
 	NginxVersion                   nginx.Version
 	AppProtectBundlePath           string
 }

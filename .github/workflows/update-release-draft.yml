@@ -22,19 +22,19 @@ permissions:
 jobs:
   variables:
     name: Set variables
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     outputs:
       chart_version: ${{ steps.vars.outputs.chart_version }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           ref: ${{ inputs.branch }}
 
       - name: Setup Golang Environment
-        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
           go-version-file: go.mod
 
@@ -50,18 +50,18 @@ jobs:
 
   update-release-draft:
     name: Update Release Draft
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [variables]
     permissions:
       contents: write
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           ref: ${{ inputs.branch }}
 
       - name: Create/Update Draft
-        uses: lucacome/draft-release@38def8b74645796e9743b53e0f187d4a8915ea3e # v1.2.3
+        uses: lucacome/draft-release@fd099feb33710d1fa27b915a08a7acd6a1fb7fd2 # v2.0.0
         id: release-notes
         with:
           minor-label: "enhancement"

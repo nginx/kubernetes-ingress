@@ -23,6 +23,7 @@ import (
 
 const (
 	minimumInterval     = 60
+	maximumInterval     = 24 * 60 * 60 // interval cannot be greater than 24h
 	zoneSyncDefaultPort = 12345
 	kubeDNSDefault      = "kube-dns.kube-system.svc.cluster.local"
 )
@@ -30,7 +31,7 @@ const (
 // ParseConfigMap parses ConfigMap into ConfigParams.
 //
 //nolint:gocyclo
-func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, hasAppProtect bool, hasAppProtectDos bool, hasTLSPassthrough bool, eventLog record.EventRecorder) (*ConfigParams, bool) {
+func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, hasAppProtect bool, hasAppProtectDos bool, hasTLSPassthrough bool, enableDirectiveAutoadjust bool, eventLog record.EventRecorder) (*ConfigParams, bool) {
 	l := nl.LoggerFromContext(ctx)
 	cfgParams := NewDefaultConfigParams(ctx, nginxPlus)
 	configOk := true
@@ -334,11 +335,57 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 	}
 
 	if proxyBuffers, exists := cfgm.Data["proxy-buffers"]; exists {
-		cfgParams.ProxyBuffers = proxyBuffers
+		if parsedProxyBuffers, err := ParseProxyBuffersSpec(proxyBuffers); err != nil {
+			wrappedError := fmt.Errorf("ConfigMap %s/%s: invalid value for 'proxy-buffers': %w", cfgm.GetNamespace(), cfgm.GetName(), err)
+
+			nl.Errorf(l, "%s", wrappedError.Error())
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, wrappedError.Error())
+			configOk = false
+		} else {
+			cfgParams.ProxyBuffers = parsedProxyBuffers
+		}
 	}
 
 	if proxyBufferSize, exists := cfgm.Data["proxy-buffer-size"]; exists {
-		cfgParams.ProxyBufferSize = proxyBufferSize
+		if parsedProxyBufferSize, err := ParseSize(proxyBufferSize); err != nil {
+			wrappedError := fmt.Errorf("ConfigMap %s/%s: invalid value for 'proxy-buffer-size': %w", cfgm.GetNamespace(), cfgm.GetName(), err)
+
+			nl.Errorf(l, "%s", wrappedError.Error())
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, wrappedError.Error())
+			configOk = false
+		} else {
+			cfgParams.ProxyBufferSize = parsedProxyBufferSize
+		}
+	}
+
+	if proxyBusyBuffersSize, exists := cfgm.Data["proxy-busy-buffers-size"]; exists {
+		if parsedProxyBusyBuffersSize, err := ParseSize(proxyBusyBuffersSize); err != nil {
+			wrappedError := fmt.Errorf("ConfigMap %s/%s: invalid value for 'proxy-busy-buffers-size': %w", cfgm.GetNamespace(), cfgm.GetName(), err)
+
+			nl.Errorf(l, "%s", wrappedError.Error())
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, wrappedError.Error())
+			configOk = false
+		} else {
+			cfgParams.ProxyBusyBuffersSize = parsedProxyBusyBuffersSize
+		}
+	}
+
+	// Only run balance validation if auto-adjust is enabled
+	if enableDirectiveAutoadjust {
+		balancedProxyBuffers, balancedProxyBufferSize, balancedProxyBusyBufferSize, modifications, err := validation.BalanceProxyValues(cfgParams.ProxyBuffers, cfgParams.ProxyBufferSize, cfgParams.ProxyBusyBuffersSize, enableDirectiveAutoadjust)
+		if err != nil {
+			nl.Errorf(l, "error reconciling proxy_buffers, proxy_buffer_size, and proxy_busy_buffers_size values: %s", err.Error())
+		} else {
+			cfgParams.ProxyBuffers = balancedProxyBuffers
+			cfgParams.ProxyBufferSize = balancedProxyBufferSize
+			cfgParams.ProxyBusyBuffersSize = balancedProxyBusyBufferSize
+
+			if len(modifications) > 0 {
+				for _, modification := range modifications {
+					nl.Infof(l, "Changes made to proxy values: %s", modification)
+				}
+			}
+		}
 	}
 
 	if proxyMaxTempFileSize, exists := cfgm.Data["proxy-max-temp-file-size"]; exists {
@@ -909,23 +956,34 @@ func ParseMGMTConfigMap(ctx context.Context, cfgm *v1.ConfigMap, eventLog record
 
 	if interval, exists := cfgm.Data["usage-report-interval"]; exists {
 		i := strings.TrimSpace(interval)
-		t, err := time.ParseDuration(i)
-		if err != nil {
-			errorText := fmt.Sprintf("Configmap %s/%s: Invalid value for the interval key: got %q: %v. Ignoring.", cfgm.GetNamespace(), cfgm.GetName(), i, err)
-			nl.Error(l, errorText)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-			configWarnings = true
-		}
-		if t.Seconds() < minimumInterval {
-			errorText := fmt.Sprintf("Configmap %s/%s: Value too low for the interval key, got: %v, need higher than %ds. Ignoring.", cfgm.GetNamespace(), cfgm.GetName(), i, minimumInterval)
-			nl.Error(l, errorText)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-			configWarnings = true
-			mgmtCfgParams.Interval = ""
-		} else {
-			mgmtCfgParams.Interval = i
-		}
 
+		// Validate interval: check for unsupported units and parse duration in case json schema validation is not used.
+		if strings.Contains(i, "ms") || strings.Contains(i, "d") {
+			errorText := fmt.Sprintf("Configmap %s/%s: Invalid unit for the interval key: got %q. Only seconds (s), minutes (m), and hours (h) are allowed. Ignoring.", cfgm.GetNamespace(), cfgm.GetName(), i)
+			nl.Error(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			configWarnings = true
+		} else {
+			t, err := time.ParseDuration(i)
+			if err != nil {
+				errorText := fmt.Sprintf("Configmap %s/%s: Invalid value for the interval key: got %q: %v. Ignoring.", cfgm.GetNamespace(), cfgm.GetName(), i, err)
+				nl.Error(l, errorText)
+				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+				configWarnings = true
+			} else if t.Seconds() < minimumInterval {
+				errorText := fmt.Sprintf("Configmap %s/%s: Value too low for the interval key, got: %v, need higher than %ds. Ignoring.", cfgm.GetNamespace(), cfgm.GetName(), i, minimumInterval)
+				nl.Error(l, errorText)
+				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+				configWarnings = true
+			} else if t.Seconds() > maximumInterval {
+				errorText := fmt.Sprintf("Configmap %s/%s: Value too high for the interval key, got: %v, maximum allowed is %ds (24h). Ignoring.", cfgm.GetNamespace(), cfgm.GetName(), i, maximumInterval)
+				nl.Error(l, errorText)
+				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+				configWarnings = true
+			} else {
+				mgmtCfgParams.Interval = i
+			}
+		}
 	}
 	if trustedCertSecretName, exists := cfgm.Data["ssl-trusted-certificate-secret-name"]; exists {
 		mgmtCfgParams.Secrets.TrustedCert = strings.TrimSpace(trustedCertSecretName)

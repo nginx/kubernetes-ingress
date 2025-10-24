@@ -72,27 +72,27 @@ permissions:
 jobs:
   release-to-gcr-release-registry:
     name: Push images to the GCR Release Registry
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       id-token: write
     if: ${{ inputs.gcr_release_registry }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           ref: ${{ inputs.branch }}
 
       - name: Authenticate to Google Cloud
         id: gcr-auth
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
           workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
           service_account: ${{ secrets.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -117,27 +117,27 @@ jobs:
     if: ${{ inputs.nginx_registry }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           ref: ${{ inputs.branch }}
 
       - name: Authenticate to Google Cloud
         id: gcr-auth
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
           workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
           service_account: ${{ secrets.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.gcr-auth.outputs.access_token }}
 
       - name: Get Id Token
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         id: idtoken
         with:
           script: |
@@ -145,7 +145,7 @@ jobs:
             core.setOutput('id_token', id_token)
 
       - name: Login to NGINX Registry
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           registry: docker-mgmt.nginx.com
           username: ${{ steps.idtoken.outputs.id_token }}
@@ -163,20 +163,20 @@ jobs:
 
   release-plus-to-gcr-marketplace-registry:
     name: Push Plus images to the GCR Marketplace Registry
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       id-token: write
     if: ${{ inputs.gcr_mktpl_registry }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           ref: ${{ inputs.branch }}
 
       - name: Authenticate to Google Cloud
         id: gcr-priv-auth
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
           workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
@@ -184,7 +184,7 @@ jobs:
 
       - name: Authenticate to Google Cloud Marketplace
         id: gcr-mktpl-auth
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
           workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY_MKTPL }}
@@ -204,40 +204,40 @@ jobs:
 
   release-plus-to-ecr-marketplace-registry:
     name: Push Plus images to the AWS Marketplace Registry
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       id-token: write
     if: ${{ inputs.ecr_mktpl_registry }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           ref: ${{ inputs.branch }}
 
       - name: Authenticate to Google Cloud
         id: gcr-auth
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
           workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
           service_account: ${{ secrets.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.gcr-auth.outputs.access_token }}
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df # v4.2.1
+        uses: aws-actions/configure-aws-credentials@00943011d9042930efac3dcd3a170e4273319bc8 # v5.1.0
         with:
           aws-region: us-east-1
           role-to-assume: ${{ secrets.AWS_ROLE_MARKETPLACE }}
 
       - name: Login to ECR
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           registry: 709825985650.dkr.ecr.us-east-1.amazonaws.com
 
@@ -253,34 +253,34 @@ jobs:
 
   release-plus-to-azure-marketplace-registry:
     name: Push Plus images to the Azure Marketplace Registry
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       id-token: write
     if: ${{ inputs.az_mktpl_registry }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           ref: ${{ inputs.branch }}
 
       - name: Authenticate to Google Cloud
         id: gcr-auth
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
           workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
           service_account: ${{ secrets.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.gcr-auth.outputs.access_token }}
 
       - name: Login to ACR
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           registry: nginxmktpl.azurecr.io
           username: ${{ secrets.AZ_MKTPL_ID }}

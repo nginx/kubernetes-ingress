@@ -14,6 +14,11 @@ on:
         description: "Force rebuild"
         required: false
         default: false
+      run_tests:
+        type: boolean
+        description: "Run unit & e2e tests"
+        required: false
+        default: true
 
 defaults:
   run:
@@ -29,15 +34,16 @@ permissions:
 jobs:
   checks:
     name: Checks and variables
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       id-token: write
     outputs:
       docs_only: ${{ github.event.pull_request && steps.docs.outputs.docs_only == 'true' }}
-      k8s_latest: "1.32.0"
+      k8s_latest: ${{ steps.vars.outputs.k8s_latest }}
       go_path: ${{ steps.vars.outputs.go_path }}
       go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}
+      go_proxy: ${{ steps.vars.outputs.go_proxy }}
       binary_cache_hit: ${{ steps.binary-cache.outputs.cache-hit }}
       chart_version: ${{ steps.vars.outputs.chart_version }}
       ic_version: ${{ steps.vars.outputs.ic_version }}
@@ -50,9 +56,10 @@ jobs:
       image_matrix_oss: ${{ steps.vars.outputs.image_matrix_oss }}
       image_matrix_plus: ${{ steps.vars.outputs.image_matrix_plus }}
       image_matrix_nap: ${{ steps.vars.outputs.image_matrix_nap }}
+      docker_build: ${{ steps.docker_build.outputs.docker_build }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 0
 
@@ -73,11 +80,11 @@ jobs:
         shell: bash --noprofile --norc -o pipefail {0}
 
       - name: Setup Golang Environment
-        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
           go-version-file: go.mod
 
-      - name: Output Variables
+      - name: Configure pipeline Variables
         id: vars
         run: |
           kindest_latest=$(curl -s "https://hub.docker.com/v2/repositories/kindest/node/tags" \
@@ -93,18 +100,20 @@ jobs:
           source .github/data/version.txt
           echo "ic_version=${IC_VERSION}" >> $GITHUB_OUTPUT
           echo "chart_version=${HELM_CHART_VERSION}" >> $GITHUB_OUTPUT
-          echo "forked_workflow=${{ (github.event.pull_request && github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name) || github.repository != 'nginx/kubernetes-ingress' }}" >> $GITHUB_OUTPUT
+          forked_workflow=${{ (github.event.pull_request && github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name) || github.repository != 'nginx/kubernetes-ingress' }}
+          echo "forked_workflow=${forked_workflow}" >> $GITHUB_OUTPUT
+          if [ "$forked_workflow" = "false" ] && [ "${{ github.ref_name }}" != "${{ github.event.repository.default_branch }}" ]; then
+            echo "go_proxy=${{ secrets.ARTIFACTORY_DEV_ENDPOINT }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref_name }}" = "${{ github.event.repository.default_branch }}" ] || [[ "${{ github.ref_name }}" =~ "release-" ]]; then
+            echo "go_proxy=${{ secrets.ARTIFACTORY_ENDPOINT }}" >> $GITHUB_OUTPUT
+          else
+            echo "go_proxy=https://proxy.golang.org,direct" >> $GITHUB_OUTPUT
+          fi
           ./.github/scripts/variables.sh go_code_md5 >> $GITHUB_OUTPUT
           ./.github/scripts/variables.sh docker_md5 >> $GITHUB_OUTPUT
           ./.github/scripts/variables.sh build_tag >> $GITHUB_OUTPUT
           ./.github/scripts/variables.sh stable_tag >> $GITHUB_OUTPUT
-          ref=${{ github.ref_name }}
-          if [[ $ref =~ merge ]]; then
-            additional_tag="pr-${ref%*/merge}"
-          else
-            additional_tag="${ref//\//-}"
-          fi
-          echo "additional_tag=${additional_tag}" >> $GITHUB_OUTPUT
+          REF=${{ github.ref_name }} ./.github/scripts/variables.sh additional_tag >> $GITHUB_OUTPUT
           echo "image_matrix_oss=$(cat .github/data/matrix-images-oss.json | jq -c)" >> $GITHUB_OUTPUT
           echo "image_matrix_plus=$(cat .github/data/matrix-images-plus.json | jq -c)" >> $GITHUB_OUTPUT
           echo "image_matrix_nap=$(cat .github/data/matrix-images-nap.json | jq -c)" >> $GITHUB_OUTPUT
@@ -112,7 +121,7 @@ jobs:
 
       - name: Fetch Cached Binary Artifacts
         id: binary-cache
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ steps.vars.outputs.go_code_md5 }}
@@ -120,7 +129,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: auth
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
           workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
@@ -128,7 +137,7 @@ jobs:
         if: ${{ steps.vars.outputs.forked_workflow == 'false' }}
 
       - name: Login to GCR
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -138,10 +147,26 @@ jobs:
       - name: Check if stable image exists
         id: stable_exists
         run: |
+          exists=false
           if docker pull gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress:${{ steps.vars.outputs.stable_tag }}; then
-            echo "exists=true" >> $GITHUB_OUTPUT
+            exists=true
           fi
+          echo "exists=${exists}" >> $GITHUB_OUTPUT
         if: ${{ steps.vars.outputs.forked_workflow == 'false' }}
+
+      - name: Check if docker build is needed
+        id: docker_build
+        run: |
+          docker_build="false"
+          if [ "${{ inputs.force }}" = "true" ]; then
+            docker_build="true"
+          elif [ "${{ steps.vars.outputs.forked_workflow }}" = "true" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ]; then
+            docker_build="true"
+          elif [ "${{ steps.vars.outputs.forked_workflow }}" = "false" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ] && [ "${{ steps.stable_exists.outputs.exists }}" = "false" ]; then
+            docker_build="true"
+          fi
+          echo "docker_build=${docker_build}" >> $GITHUB_OUTPUT
+          cat $GITHUB_OUTPUT
 
       - name: Output variables
         run: |
@@ -161,22 +186,35 @@ jobs:
           echo 'image_matrix_oss: ${{ steps.vars.outputs.image_matrix_oss }}'
           echo 'image_matrix_plus: ${{ steps.vars.outputs.image_matrix_plus }}'
           echo 'image_matrix_nap: ${{ steps.vars.outputs.image_matrix_nap }}'
+          echo 'docker_build: ${{ steps.docker_build.outputs.docker_build }}'
 
   verify-codegen:
     name: Verify generated code
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     needs: checks
+    env:
+      GOPROXY: ${{ needs.checks.outputs.go_proxy }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Setup Golang Environment
-        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
           go-version-file: go.mod
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
+
+      - name: Setup netrc
+        run: |
+          cat <<EOF > $HOME/.netrc
+          machine azr.artifactory.f5net.com
+              login ${{ secrets.ARTIFACTORY_USER }}
+              password ${{ secrets.ARTIFACTORY_TOKEN }}
+          EOF
+          chmod 600 $HOME/.netrc
+        if: ${{ inputs.force || (needs.checks.outputs.binary_cache_hit != 'true' && needs.checks.outputs.forked_workflow != 'true') }}
 
       - name: Check if go.mod and go.sum are up to date
         run: go mod tidy && git diff --exit-code -- go.mod go.sum
@@ -203,101 +241,81 @@ jobs:
           make telemetry-schema && git diff --name-only --exit-code internal/telemetry
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
+      - name: Cleanup netrc
+        run: rm -f $HOME/.netrc
+        if: ${{ always() }}
+
   unit-tests:
     name: Unit Tests
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: checks
+    env:
+      GOPROXY: ${{ needs.checks.outputs.go_proxy }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Setup Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        with:
+          version: 'v3.18.6'
 
       - name: Setup Golang Environment
-        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
           go-version-file: go.mod
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
+        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' && (inputs.run_tests && inputs.run_tests || true) }}
+
+      - name: Setup netrc
+        run: |
+          cat <<EOF > $HOME/.netrc
+          machine azr.artifactory.f5net.com
+              login ${{ secrets.ARTIFACTORY_USER }}
+              password ${{ secrets.ARTIFACTORY_TOKEN }}
+          EOF
+          chmod 600 $HOME/.netrc
+        if: ${{ inputs.force || (needs.checks.outputs.binary_cache_hit != 'true' && needs.checks.outputs.forked_workflow != 'true') }}
 
       - name: Run Tests
         run: make cover
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
+        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' && (inputs.run_tests && inputs.run_tests || true) }}
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24 # v5.4.3
+        uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # v5.5.1
         with:
           files: ./coverage.txt
           token: ${{ secrets.CODECOV_TOKEN }} # required
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
+        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' && (inputs.run_tests && inputs.run_tests || true) }}
 
       - name: Run static check
-        uses: dominikh/staticcheck-action@fe1dd0c3658873b46f8c9bb3291096a617310ca6 # v1.3.1
+        uses: dominikh/staticcheck-action@024238d2898c874f26d723e7d0ff4308c35589a2 # v1.4.0
         with:
           version: "v0.6.0"
           install-go: false
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
+        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' && (inputs.run_tests && inputs.run_tests || true) }}
 
-  binaries:
-    name: Build Binaries
-    runs-on: ubuntu-22.04
+      - name: Cleanup netrc
+        run: rm -f $HOME/.netrc
+        if: ${{ always() }}
+
+  build-artifacts:
+    name: Build Artifacts
     needs: [checks, unit-tests, verify-codegen]
-    permissions:
-      contents: write # for goreleaser/goreleaser-action to manage releases
-      id-token: write # for goreleaser/goreleaser-action to sign artifacts
-      issues: write # for goreleaser/goreleaser-action to close milestone
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 0
-
-      - name: Setup Golang Environment
-        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
-        with:
-          go-version-file: go.mod
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
-
-      - name: Build binaries
-        uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552 # v6.3.0
-        with:
-          version: latest
-          args: build --snapshot --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GOPATH: ${{ needs.checks.outputs.go_path }}
-          AWS_PRODUCT_CODE: ${{ secrets.AWS_PRODUCT_CODE }}
-          AWS_PUB_KEY: ${{ secrets.AWS_PUB_KEY }}
-          AWS_NAP_DOS_PRODUCT_CODE: ${{ secrets.AWS_NAP_DOS_PRODUCT_CODE }}
-          AWS_NAP_DOS_PUB_KEY: ${{ secrets.AWS_NAP_DOS_PUB_KEY }}
-          AWS_NAP_WAF_PRODUCT_CODE: ${{ secrets.AWS_NAP_WAF_PRODUCT_CODE }}
-          AWS_NAP_WAF_PUB_KEY: ${{ secrets.AWS_NAP_WAF_PUB_KEY }}
-          AWS_NAP_WAF_DOS_PRODUCT_CODE: ${{ secrets.AWS_NAP_WAF_DOS_PRODUCT_CODE }}
-          AWS_NAP_WAF_DOS_PUB_KEY: ${{ secrets.AWS_NAP_WAF_DOS_PUB_KEY }}
-          GORELEASER_CURRENT_TAG: "v${{ needs.checks.outputs.ic_version }}"
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
-
-      - name: Store Artifacts in Cache
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
-        with:
-          path: ${{ github.workspace }}/dist
-          key: nginx-ingress-${{ needs.checks.outputs.go_code_md5 }}
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
-
-  build-docker:
-    name: Build Docker OSS
-    needs: [binaries, checks]
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_oss ) }}
-    uses: ./.github/workflows/build-oss.yml
+    uses: ./.github/workflows/build-artifacts.yml
     with:
-      platforms: ${{ matrix.platforms }}
-      image: ${{ matrix.image }}
-      go-md5: ${{ needs.checks.outputs.go_code_md5 }}
-      base-image-md5: ${{ needs.checks.outputs.docker_md5 }}
-      authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
-      full-build: ${{ inputs.force && inputs.force || false }}
-      tag: ${{ needs.checks.outputs.build_tag }}
+      force: ${{ needs.checks.outputs.docker_build == 'true' || needs.checks.outputs.binary_cache_hit != 'true' }}
       branch: ${{ (github.head_ref && needs.checks.outputs.forked_workflow != 'true') && github.head_ref || github.ref }}
+      tag: ${{ needs.checks.outputs.build_tag }}
+      docker-md5: ${{ needs.checks.outputs.docker_md5 }}
+      go-md5: ${{ needs.checks.outputs.go_code_md5 }}
+      go-path: ${{ needs.checks.outputs.go_path }}
+      go-proxy: ${{ needs.checks.outputs.go_proxy }}
+      image-matrix-oss: ${{ needs.checks.outputs.image_matrix_oss }}
+      image-matrix-plus: ${{ needs.checks.outputs.image_matrix_plus }}
+      image-matrix-nap: ${{ needs.checks.outputs.image_matrix_nap }}
       ic-version: ${{ needs.checks.outputs.ic_version }}
+      authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
+      runner: ubuntu-24.04
     permissions:
       contents: read
       actions: read
@@ -305,62 +323,19 @@ jobs:
       packages: write
       pull-requests: write # for scout report
     secrets: inherit
-    if: ${{ inputs.force || (needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false') || (needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.stable_image_exists != 'true' && needs.checks.outputs.docs_only == 'false') }}
 
-  build-docker-plus:
-    name: Build Docker Plus
-    needs: [binaries, checks]
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_plus ) }}
-    uses: ./.github/workflows/build-plus.yml
-    with:
-      platforms: ${{ matrix.platforms }}
-      image: ${{ matrix.image }}
-      target: ${{ matrix.target }}
-      go-md5: ${{ needs.checks.outputs.go_code_md5 }}
-      base-image-md5: ${{ needs.checks.outputs.docker_md5 }}
-      branch: ${{ (github.head_ref && needs.checks.outputs.forked_workflow != 'true') && github.head_ref || github.ref }}
-      tag: ${{ needs.checks.outputs.build_tag }}
-      authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
-      full-build: ${{ inputs.force && inputs.force || false }}
-      ic-version: ${{ needs.checks.outputs.ic_version }}
-    permissions:
-      contents: read
-      id-token: write
-      pull-requests: write # for scout report
-    secrets: inherit
-    if: ${{ inputs.force || (needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false') || (needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.stable_image_exists != 'true' && needs.checks.outputs.docs_only == 'false') }}
-
-  build-docker-nap:
-    name: Build Docker NAP
-    needs: [binaries, checks]
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_nap ) }}
-    uses: ./.github/workflows/build-plus.yml
-    with:
-      platforms: ${{ matrix.platforms }}
-      image: ${{ matrix.image }}
-      target: ${{ matrix.target }}
-      go-md5: ${{ needs.checks.outputs.go_code_md5 }}
-      base-image-md5: ${{ needs.checks.outputs.docker_md5 }}
-      branch: ${{ (github.head_ref && needs.checks.outputs.forked_workflow != 'true') && github.head_ref || github.ref }}
-      tag: ${{ needs.checks.outputs.build_tag }}
-      nap-modules: ${{ matrix.nap_modules }}
-      authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
-      full-build: ${{ inputs.force && inputs.force || false }}
-      ic-version: ${{ needs.checks.outputs.ic_version }}
-    permissions:
-      contents: read
-      id-token: write # gcr login
-      pull-requests: write # for scout report
-    secrets: inherit
-    if: ${{ inputs.force || (needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false') || (needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.stable_image_exists != 'true' && needs.checks.outputs.docs_only == 'false') }}
+  #  To pass the build in "Build Binaries" check
+  build-binaries:
+    name: Build Binaries
+    runs-on: ubuntu-24.04
+    needs: [build-artifacts]
+    steps:
+      - name: Report build binaries status
+        run: echo "Build binaries completed successfully via build-artifacts job"
 
   tag-target:
     name: Tag untested image with PR number
-    needs: [checks, build-docker, build-docker-plus, build-docker-nap]
+    needs: [checks, build-artifacts]
     permissions:
       contents: read # To checkout repository
       id-token: write # To sign into Google Container Registry
@@ -372,11 +347,71 @@ jobs:
     secrets: inherit
     if: ${{ inputs.force || (needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false') || (needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.stable_image_exists != 'true' && needs.checks.outputs.docs_only == 'false') }}
 
+  package-tests:
+    if: ${{ needs.checks.outputs.docs_only != 'true' && (inputs.run_tests && inputs.run_tests || true) }}
+    name: Package Tests
+    runs-on: ubuntu-24.04
+    needs: [checks, build-artifacts]
+    permissions:
+      contents: read
+      pull-requests: write # for package report
+      id-token: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+        with:
+          platforms: arm64
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          token_format: access_token
+          workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
+          service_account: ${{ secrets.GCR_SERVICE_ACCOUNT }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+
+      - name: Login to GCR
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: gcr.io
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+
+      - name: Install Python dependencies
+        run: |
+          make -f tests/Makefile setup-venv
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+
+      - name: Run tests
+        id: packages
+        run: |
+          source tests/venv/bin/activate
+          python tests/scripts/check_container_packages.py --tag ${{ needs.checks.outputs.build_tag }} --log package_output.txt
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+
+      - name: Add comment
+        run: |
+          # make sure the comment is formatted correctly, as a code block
+          echo '### Package Report' > output.txt
+          echo '<details>' >> output.txt
+          cat package_output.txt | sed -r 's#^(.*)$#\1<br>#' >> output.txt
+          echo '</details>' >> output.txt
+          gh pr comment --edit-last --create-if-none ${{ github.event.pull_request.number }} -F output.txt
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: ${{ ( needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' ) && github.event.pull_request }}
+
   helm-tests:
-    if: ${{ needs.checks.outputs.docs_only != 'true' }}
+    if: ${{ needs.checks.outputs.docs_only != 'true' && (inputs.run_tests && inputs.run_tests || true) }}
     name: Helm Tests ${{ matrix.base-os }}
-    runs-on: ubuntu-22.04
-    needs: [checks, binaries, build-docker, build-docker-plus]
+    runs-on: ubuntu-24.04
+    needs: [checks, build-artifacts]
     strategy:
       fail-fast: false
       matrix:
@@ -394,11 +429,16 @@ jobs:
       id-token: write
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Setup Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        with:
+          version: 'v3.18.6'
 
       - name: Authenticate to Google Cloud
         id: auth
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
           workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
@@ -406,7 +446,7 @@ jobs:
         if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
 
       - name: Login to GCR
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -427,7 +467,7 @@ jobs:
         if: ${{ ( needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' ) && steps.stable_exists.outputs.exists != 'true' }}
 
       - name: Fetch Cached Artifacts
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ needs.checks.outputs.go_code_md5 }}
@@ -512,10 +552,10 @@ jobs:
         if: ${{ steps.stable_exists.outputs.exists != 'true' && needs.checks.outputs.docs_only == 'false' }}
 
   setup-matrix:
-    if: ${{ inputs.force || needs.checks.outputs.docs_only != 'true' }}
+    if: ${{ inputs.force || (inputs.run_tests && inputs.run_tests || true) || needs.checks.outputs.docs_only != 'true' }}
     name: Setup Matrix for Smoke Tests
-    runs-on: ubuntu-22.04
-    needs: [binaries, checks]
+    runs-on: ubuntu-24.04
+    needs: [build-artifacts, checks]
     permissions:
       contents: read
       id-token: write
@@ -525,7 +565,7 @@ jobs:
       matrix_nap: ${{ steps.set-matrix.outputs.matrix_nap }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - id: set-matrix
         run: |
@@ -538,7 +578,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: auth
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
           workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
@@ -546,7 +586,7 @@ jobs:
         if: ${{ needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.docs_only == 'false' }}
 
       - name: Login to GCR
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -574,12 +614,12 @@ jobs:
         if: ${{ steps.check-image.outcome == 'failure' && needs.checks.outputs.docs_only == 'false' }}
 
   smoke-tests-oss:
-    if: ${{ inputs.force || needs.checks.outputs.docs_only != 'true' }}
+    if: ${{ inputs.force || (inputs.run_tests && inputs.run_tests || true) || needs.checks.outputs.docs_only != 'true' }}
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     needs:
       - checks
       - setup-matrix
-      - build-docker
+      - build-artifacts
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.setup-matrix.outputs.matrix_oss) }}
@@ -599,14 +639,15 @@ jobs:
       stable-tag: ${{ needs.checks.outputs.stable_tag }}
       authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
       k8s-version: ${{ matrix.k8s }}
+      force: ${{ inputs.run_tests && inputs.run_tests || true }}
 
   smoke-tests-plus:
-    if: ${{ inputs.force || needs.checks.outputs.docs_only != 'true' }}
+    if: ${{ inputs.force || (inputs.run_tests && inputs.run_tests || true) || needs.checks.outputs.docs_only != 'true' }}
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     needs:
       - checks
       - setup-matrix
-      - build-docker-plus
+      - build-artifacts
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.setup-matrix.outputs.matrix_plus) }}
@@ -626,14 +667,15 @@ jobs:
       stable-tag: ${{ needs.checks.outputs.stable_tag }}
       authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
       k8s-version: ${{ matrix.k8s }}
+      force: ${{ inputs.run_tests && inputs.run_tests || true }}
 
   smoke-tests-nap:
-    if: ${{ inputs.force || needs.checks.outputs.docs_only != 'true' }}
+    if: ${{ inputs.force || (inputs.run_tests && inputs.run_tests || true) || needs.checks.outputs.docs_only != 'true' }}
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     needs:
       - checks
       - setup-matrix
-      - build-docker-nap
+      - build-artifacts
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.setup-matrix.outputs.matrix_nap) }}
@@ -653,10 +695,11 @@ jobs:
       stable-tag: ${{ needs.checks.outputs.stable_tag }}
       authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
       k8s-version: ${{ matrix.k8s }}
+      force: ${{ inputs.run_tests && inputs.run_tests || true }}
 
   tag-stable:
     name: Tag tested image as stable
-    needs: [checks, build-docker, build-docker-plus, build-docker-nap, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap]
+    needs: [checks, build-artifacts, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap]
     permissions:
       contents: read # To checkout repository
       id-token: write # To sign into Google Container Registry
@@ -670,18 +713,18 @@ jobs:
 
   final-results:
     if: ${{ !cancelled() }}
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     name: Final CI Results
-    needs: [tag-stable, build-docker, build-docker-plus, build-docker-nap, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap]
+    needs: [tag-stable, build-artifacts, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap, package-tests, helm-tests]
     steps:
       - run: |
           tagResult="${{ needs.tag-stable.result }}"
+          packageResult="${{ needs.package-tests.result }}"
+          helmResult="${{ needs.helm-tests.result }}"
           smokeOSSResult="${{ needs.smoke-tests-oss.result }}"
           smokePlusResult="${{ needs.smoke-tests-plus.result }}"
           smokeNAPResult="${{ needs.smoke-tests-nap.result }}"
-          buildOSSResult="${{ needs.build-docker.result }}"
-          buildPlusResult="${{ needs.build-docker-plus.result }}"
-          buildNAPResult="${{ needs.build-docker-nap.result }}"
+          buildArtifactsResult="${{ needs.build-artifacts.result }}"
           if [[ $tagResult != "success" && $tagResult != "skipped" ]]; then
             exit 1
           fi
@@ -694,23 +737,21 @@ jobs:
           if [[ $smokeNAPResult != "success" && $smokeNAPResult != "skipped" ]]; then
             exit 1
           fi
-          if [[ $buildOSSResult != "success" && $buildOSSResult != "skipped" ]]; then
+          if [[ $buildArtifactsResult != "success" && $buildArtifactsResult != "skipped" ]]; then
             exit 1
           fi
-          if [[ $buildPlusResult != "success" && $buildPlusResult != "skipped" ]]; then
+          if [[ $helmResult != "success" && $helmResult != "skipped" ]]; then
             exit 1
           fi
-          if [[ $buildNAPResult != "success" && $buildNAPResult != "skipped" ]]; then
+          if [[ $packageResult != "success" && $packageResult != "skipped" ]]; then
             exit 1
           fi
 
   trigger-image-promotion:
     name: Promote images on Force Run
     needs:
-      - build-docker
-      - build-docker-plus
-      - build-docker-nap
       - final-results
+      - build-artifacts
     permissions:
       contents: write # for pushing to Helm Charts repository
       id-token: write # To sign into Google Container Registry
@@ -720,4 +761,4 @@ jobs:
       pull-requests: write # for scout report
     uses: ./.github/workflows/image-promotion.yml
     secrets: inherit
-    if: ${{ inputs.force && inputs.force || false }}
+    if: ${{ inputs.force }}

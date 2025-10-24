@@ -130,5 +130,8 @@ It is the UID of the `kube-system` Namespace. */
 		/** VariablesRateLimitPolicies is the number of Variables Condition RateLimit policies managed by NGINX Ingress Controller */
 		long? VariablesRateLimitPolicies = null;
 		
+		/** CachePolicies is the number of Cache policies managed by NGINX Ingress Controller */
+		long? CachePolicies = null;
+		
 	}
 }

@@ -311,21 +311,23 @@ func (cnf *Configurator) AddOrUpdateIngress(ingEx *IngressEx) (Warnings, error) 
 	return warnings, nil
 }
 
-// virtualServerForHost takes a hostname and returns a VS for the given hostname.
-func (cnf *Configurator) virtualServerForHost(hostname string) *conf_v1.VirtualServer {
+// virtualServerExForHost takes a hostname and returns a VirtualServerEx for the given hostname.
+func (cnf *Configurator) virtualServerExForHost(hostname string) *VirtualServerEx {
 	for _, vsEx := range cnf.virtualServers {
 		if vsEx.VirtualServer.Spec.Host == hostname {
-			return vsEx.VirtualServer
+			return vsEx
 		}
 	}
 	return nil
 }
 
-// upstreamsForVirtualServer takes VirtualServer and returns a list of associated upstreams.
-func (cnf *Configurator) upstreamsForVirtualServer(vs *conf_v1.VirtualServer) []string {
+// upstreamsForVirtualServer takes a VirtualServerEx and returns a list of associated upstreams.
+func (cnf *Configurator) upstreamsForVirtualServer(vsEx *VirtualServerEx) []string {
 	l := nl.LoggerFromContext(cnf.CfgParams.Context)
+	vs := vsEx.VirtualServer
+	var upstreamNames []string
+
 	nl.Debugf(l, "Get upstreamName for vs: %s", vs.Spec.Host)
-	upstreamNames := make([]string, 0, len(vs.Spec.Upstreams))
 
 	virtualServerUpstreamNamer := NewUpstreamNamerForVirtualServer(vs)
 
@@ -334,6 +336,17 @@ func (cnf *Configurator) upstreamsForVirtualServer(vs *conf_v1.VirtualServer) []
 		nl.Debugf(l, "upstream: %s, upstreamName: %s", u.Name, upstreamName)
 		upstreamNames = append(upstreamNames, upstreamName)
 	}
+
+	for _, vsr := range vsEx.VirtualServerRoutes {
+		upstreamNamer := NewUpstreamNamerForVirtualServerRoute(vs, vsr)
+		for _, u := range vsr.Spec.Upstreams {
+			upstreamName := upstreamNamer.GetNameForUpstream(u.Name)
+			nl.Debugf(l, "upstream: %s, upstreamName: %s", u.Name, upstreamName)
+			upstreamNames = append(upstreamNames, upstreamName)
+
+		}
+	}
+
 	return upstreamNames
 }
 
@@ -341,9 +354,9 @@ func (cnf *Configurator) upstreamsForVirtualServer(vs *conf_v1.VirtualServer) []
 func (cnf *Configurator) UpstreamsForHost(hostname string) []string {
 	l := nl.LoggerFromContext(cnf.CfgParams.Context)
 	nl.Debugf(l, "Get upstream for host: %s", hostname)
-	vs := cnf.virtualServerForHost(hostname)
-	if vs != nil {
-		return cnf.upstreamsForVirtualServer(vs)
+	vsEx := cnf.virtualServerExForHost(hostname)
+	if vsEx != nil {
+		return cnf.upstreamsForVirtualServer(vsEx)
 	}
 	return nil
 }
@@ -1237,7 +1250,7 @@ func (cnf *Configurator) updatePlusEndpointsForTransportServer(transportServerEx
 
 func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx) error {
 	l := nl.LoggerFromContext(cnf.CfgParams.Context)
-	ingCfg := parseAnnotations(ingEx, cnf.CfgParams, cnf.isPlus, cnf.staticCfgParams.MainAppProtectLoadModule, cnf.staticCfgParams.MainAppProtectDosLoadModule, cnf.staticCfgParams.EnableInternalRoutes)
+	ingCfg := parseAnnotations(ingEx, cnf.CfgParams, cnf.isPlus, cnf.staticCfgParams.MainAppProtectLoadModule, cnf.staticCfgParams.MainAppProtectDosLoadModule, cnf.staticCfgParams.EnableInternalRoutes, cnf.staticCfgParams.IsDirectiveAutoadjustEnabled)
 
 	cfg := nginx.ServerConfig{
 		MaxFails:    ingCfg.MaxFails,

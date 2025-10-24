@@ -22,6 +22,7 @@ type VirtualServerConfig struct {
 	LimitReqZones           []LimitReqZone
 	Maps                    []Map
 	AuthJWTClaimSets        []AuthJWTClaimSet
+	CacheZones              []CacheZone
 	Server                  Server
 	SpiffeCerts             bool
 	SpiffeClientCerts       bool
@@ -102,11 +103,13 @@ type Server struct {
 	APIKeyEnabled             bool
 	WAF                       *WAF
 	Dos                       *Dos
+	Cache                     *Cache
 	PoliciesErrorReturn       *Return
 	VSNamespace               string
 	VSName                    string
 	DisableIPV6               bool
 	Gunzip                    bool
+	NGINXDebugLevel           string
 }
 
 // SSL defines SSL configuration for a server.
@@ -199,6 +202,7 @@ type Location struct {
 	ProxyBuffering           bool
 	ProxyBuffers             string
 	ProxyBufferSize          string
+	ProxyBusyBuffersSize     string
 	ProxyPass                string
 	ProxyNextUpstream        string
 	ProxyNextUpstreamTimeout string
@@ -228,6 +232,7 @@ type Location struct {
 	WAF                      *WAF
 	Dos                      *Dos
 	PoliciesErrorReturn      *Return
+	Cache                    *Cache
 	ServiceName              string
 	IsVSR                    bool
 	VSRName                  string
@@ -438,10 +443,15 @@ type JWTAuth struct {
 
 // JwksURI defines the components of a JwksURI
 type JwksURI struct {
-	JwksScheme string
-	JwksHost   string
-	JwksPort   string
-	JwksPath   string
+	JwksScheme     string
+	JwksHost       string
+	JwksPort       string
+	JwksPath       string
+	JwksSNIName    string
+	JwksSNIEnabled bool
+	SSLVerify      bool
+	TrustedCert    string
+	SSLVerifyDepth int
 }
 
 // BasicAuth refers to basic HTTP authentication mechanism options
@@ -477,4 +487,24 @@ type TwoWaySplitClients struct {
 type Variable struct {
 	Name  string
 	Value string
+}
+
+// CacheZone defines a proxy cache zone configuration.
+type CacheZone struct {
+	Name   string
+	Size   string
+	Path   string
+	Levels string // Optional. Directory hierarchy for cache files (e.g., "1:2", "2:2", "1:2:2")
+}
+
+// Cache defines cache configuration for locations.
+type Cache struct {
+	ZoneName              string
+	ZoneSize              string
+	Time                  string
+	Valid                 map[string]string // map for codes to time
+	AllowedMethods        []string          // HTTP methods allowed for caching based on proxy_cache_methods
+	CachePurgeAllow       []string          // IPs/CIDRs allowed to purge cache
+	OverrideUpstreamCache bool              // Controls whether to override upstream cache headers
+	Levels                string            // Optional. Directory hierarchy for cache files (e.g., "1:2", "2:2", "1:2:2")
 }

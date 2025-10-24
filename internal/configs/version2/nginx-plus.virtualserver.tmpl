@@ -70,6 +70,10 @@ map {{ $m.Source }} {{ $m.Variable }} {
 limit_req_zone {{ $z.Key }} zone={{ $z.ZoneName }}:{{ $z.ZoneSize }} rate={{ $z.Rate }}{{- if $z.Sync }} sync{{- end }};
 {{- end }}
 
+{{- range $c := .CacheZones }}
+proxy_cache_path {{ $c.Path }}{{ if $c.Levels }} levels={{ $c.Levels }}{{ end }} keys_zone={{ $c.Name }}:{{ $c.Size }};
+{{- end }}
+
 {{- range $m := .StatusMatches }}
 match {{ $m.Name }} {
     status {{ $m.Code }};
@@ -78,12 +82,44 @@ match {{ $m.Name }} {
 
 {{- $s := .Server }}
 
-{{- with $s.JWKSAuthEnabled }}
-proxy_cache_path /var/cache/nginx/jwks_uri_{{$s.VSName}} levels=1 keys_zone=jwks_uri_{{$s.VSName}}:1m max_size=10m;
+{{- /* Generate cache-zone-specific purge configuration with VirtualServer isolation */ -}}
+{{- /* Check server-level cache purge restrictions */ -}}
+{{- if and $s.Cache (gt (len $s.Cache.CachePurgeAllow) 0) }}
+geo $purge_allowed_{{ replaceAll $s.Cache.ZoneName "-" "_" }} {
+    default 0;
+{{- range $ip := $s.Cache.CachePurgeAllow }}
+    {{ $ip }} 1;
+{{- end }}
+}
+
+map $request_method $cache_purge_{{ replaceAll $s.Cache.ZoneName "-" "_" }} {
+    PURGE   $purge_allowed_{{ replaceAll $s.Cache.ZoneName "-" "_" }};
+    default 0;
+}
 {{- end }}
 
-{{- if and $s.OIDC $s.OIDC.PKCEEnable }}
+{{- /* Check location-level cache purge restrictions */ -}}
+{{- range $l := $s.Locations }}
+{{- if and $l.Cache (gt (len $l.Cache.CachePurgeAllow) 0) }}
+geo $purge_allowed_{{ replaceAll $l.Cache.ZoneName "-" "_" }} {
+    default 0;
+{{- range $ip := $l.Cache.CachePurgeAllow }}
+    {{ $ip }} 1;
+{{- end }}
+}
+
+map $request_method $cache_purge_{{ replaceAll $l.Cache.ZoneName "-" "_" }} {
+    PURGE   $purge_allowed_{{ replaceAll $l.Cache.ZoneName "-" "_" }};
+    default 0;
+}
+{{- end }}
+{{- end }}
+
+{{- if $s.OIDC  }}
+keyval $idp_sid $client_sid              zone=oidc_sids;
+{{- if $s.OIDC.PKCEEnable }}
 include oidc/oidc_pkce_supplements.conf;
+{{- end }}
 {{- end }}
 
 server {
@@ -100,6 +136,10 @@ server {
 
     {{- with $oidc := $s.OIDC }}
     include oidc/oidc.conf;
+
+    {{- if eq $s.NGINXDebugLevel "debug" }}
+    set $oidc_debug true;
+    {{- end }}
 
     set $oidc_pkce_enable {{ boolToInteger $oidc.PKCEEnable }};
     set $oidc_client_auth_method "client_secret_post";
@@ -187,6 +227,27 @@ server {
     return {{ .Code }};
     {{- end }}
 
+    {{- with $s.Cache }}
+    # Server-level cache configuration
+    proxy_cache {{ $s.Cache.ZoneName }};
+    proxy_cache_key $scheme$proxy_host$request_uri;
+            {{- if $s.Cache.OverrideUpstreamCache }}
+    proxy_ignore_headers Cache-Control Expires Set-Cookie Vary X-Accel-Expires;
+            {{- end }}
+            {{- if and $s.Cache.Time (eq (len $s.Cache.Valid) 0) }}
+    proxy_cache_valid {{ $s.Cache.Time }};
+            {{- end }}
+            {{- range $code, $time := $s.Cache.Valid }}
+    proxy_cache_valid {{ $code }} {{ $time }};
+            {{- end }}
+            {{- if $s.Cache.AllowedMethods }}
+    proxy_cache_methods{{ range $s.Cache.AllowedMethods }} {{ . }}{{ end }};
+            {{- end }}
+            {{- if gt (len $s.Cache.CachePurgeAllow) 0 }}
+    proxy_cache_purge $cache_purge_{{ replaceAll $s.Cache.ZoneName "-" "_" }};
+            {{- end }}
+    {{- end }}
+
     {{- range $allow := $s.Allow }}
     allow {{ $allow }};
     {{- end }}
@@ -232,11 +293,26 @@ server {
         internal;
         proxy_method GET;
         proxy_set_header Content-Length "";
-        {{- if .KeyCache }}
-        proxy_cache jwks_uri_{{ $s.VSName }};
-        proxy_cache_valid 200 12h;
-        {{- end }}
         {{- with .JwksURI }}
+        {{- if .JwksSNIEnabled }}
+        proxy_ssl_server_name on;
+        {{- if .JwksSNIName }}
+        proxy_ssl_name {{ .JwksSNIName }};
+        {{- end }}
+        {{- end }}
+        {{- if .SSLVerify }}
+        proxy_ssl_verify on;
+        proxy_ssl_verify_depth {{ .SSLVerifyDepth }};
+        {{- if .TrustedCert }}
+        proxy_ssl_trusted_certificate {{ .TrustedCert }};
+        {{- else }}
+        proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+        {{- end }}
+        {{- else }}
+        proxy_ssl_verify off;
+        {{- end }}
+        proxy_pass_request_headers off;
+        proxy_pass_request_body off;
         proxy_set_header Host {{ .JwksHost }};
         set $idp_backend {{ .JwksHost }};
         proxy_pass {{ .JwksScheme}}://$idp_backend{{ if .JwksPort }}:{{ .JwksPort }}{{ end }}{{ .JwksPath }};
@@ -604,11 +680,20 @@ server {
             {{- end }}
 
         proxy_buffering {{ if $l.ProxyBuffering }}on{{ else }}off{{ end }};
-            {{- if $l.ProxyBuffers }}
-        proxy_buffers {{ $l.ProxyBuffers }};
-            {{- end }}
-            {{- if $l.ProxyBufferSize }}
-        {{ $proxyOrGRPC }}_buffer_size {{ $l.ProxyBufferSize }};
+            {{- if not $l.GRPCPass }}
+                {{- if $l.ProxyBuffers}}
+        proxy_buffers {{$l.ProxyBuffers}};
+                {{- end}}
+                {{- if $l.ProxyBufferSize}}
+        proxy_buffer_size {{$l.ProxyBufferSize}};
+                {{- end}}
+                {{- if $l.ProxyBusyBuffersSize}}
+        proxy_busy_buffers_size {{$l.ProxyBusyBuffersSize}};
+                {{- end}}
+            {{- else }}
+                {{- if $l.ProxyBufferSize }}
+        grpc_buffer_size {{ $l.ProxyBufferSize }};
+                {{- end }}
             {{- end }}
             {{- if not $l.GRPCPass }}
         proxy_http_version 1.1;
@@ -664,6 +749,27 @@ server {
         {{ $proxyOrGRPC }}_ssl_verify_depth 25;
         {{ $proxyOrGRPC }}_ssl_name {{ $l.ProxySSLName }};
             {{- end }}
+
+        {{- with $l.Cache }}
+        proxy_cache {{ $l.Cache.ZoneName }};
+        proxy_cache_key $scheme$proxy_host$request_uri;
+                {{- if $l.Cache.OverrideUpstreamCache }}
+        proxy_ignore_headers Cache-Control Expires Set-Cookie Vary X-Accel-Expires;
+                {{- end }}
+                {{- if and $l.Cache.Time (eq (len $l.Cache.Valid) 0) }}
+        proxy_cache_valid {{ $l.Cache.Time }};
+                {{- end }}
+                {{- range $code, $time := $l.Cache.Valid }}
+        proxy_cache_valid {{ $code }} {{ $time }};
+                {{- end }}
+                {{- if $l.Cache.AllowedMethods }}
+        proxy_cache_methods{{ range $l.Cache.AllowedMethods }} {{ . }}{{ end }};
+                {{- end }}
+                {{- if gt (len $l.Cache.CachePurgeAllow) 0 }}
+        proxy_cache_purge $cache_purge_{{ replaceAll $l.Cache.ZoneName "-" "_" }};
+                {{- end }}
+        {{- end }}
+
             {{-  if $l.GRPCPass }}
         grpc_pass {{ $l.GRPCPass }};
             {{- else }}

@@ -20,7 +20,7 @@ import (
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	"github.com/nginx/kubernetes-ingress/internal/metrics/collectors"
 
-	"github.com/nginx/nginx-plus-go-client/v2/client"
+	"github.com/nginx/nginx-plus-go-client/v3/client"
 )
 
 const (
@@ -634,10 +634,12 @@ func (lm *LocalManager) AgentStart(agentDone chan error, instanceGroup string) {
 			fmt.Sprintf("product-type=%s", metadataInfo.ProductType),
 			fmt.Sprintf("product-version=%s", metadataInfo.ProductVersion),
 			fmt.Sprintf("cluster-id=%s", metadataInfo.ClusterID),
-			fmt.Sprintf("installation-name=%s", metadataInfo.InstallationName),
 			fmt.Sprintf("installation-id=%s", metadataInfo.InstallationID),
-			fmt.Sprintf("control-id=%s", metadataInfo.InstallationID), // control-id is required but is the same as installation-id
+			fmt.Sprintf("installation-name=%s", metadataInfo.InstallationName),
 			fmt.Sprintf("installation-namespace=%s", metadataInfo.InstallationNamespace),
+			fmt.Sprintf("control-id=%s", metadataInfo.InstallationID),               // control-id is required but is the same as installation-id
+			fmt.Sprintf("control-name=%s", metadataInfo.InstallationName),           // control-name is required but is the same as installation-name
+			fmt.Sprintf("control-namespace=%s", metadataInfo.InstallationNamespace), // control-namespace is required but is the same as installation-namespace
 		}
 		metadataLabels := "--labels=" + strings.Join(labels, ",")
 		args = append(args, metadataLabels)

@@ -214,6 +214,40 @@ false
 {{- end -}}
 
 {{/*
+Validate the globalConfiguration.customName value format.
+Ensures exactly one '/' separator for proper namespace/name parsing.
+*/}}
+{{- define "nginx-ingress.globalConfiguration.validateCustomName" -}}
+{{- if .Values.controller.globalConfiguration.customName }}
+{{- $parts := splitList "/" .Values.controller.globalConfiguration.customName }}
+{{- if ne (len $parts) 2 }}
+{{- fail "globalConfiguration.customName must contain exactly one '/' separator in namespace/name format (e.g., \"my-namespace/my-global-config\")" }}
+{{- end }}
+{{- if or (eq (index $parts 0) "") (eq (index $parts 1) "") }}
+{{- fail "globalConfiguration.customName namespace and name parts cannot be empty (e.g., \"my-namespace/my-global-config\")" }}
+{{- end }}
+{{- end }}
+{{- end -}}
+
+{{/*
+Create the global configuration custom name from the globalConfiguration.customName value.
+*/}}
+{{- define "nginx-ingress.globalConfiguration.customName" -}}
+{{- include "nginx-ingress.globalConfiguration.validateCustomName" . -}}
+{{- $parts := splitList "/" .Values.controller.globalConfiguration.customName -}}
+{{- index $parts 1 -}}
+{{- end -}}
+
+{{/*
+Create the global configuration custom namespace from the globalConfiguration.customName value.
+*/}}
+{{- define "nginx-ingress.globalConfiguration.customNamespace" -}}
+{{- include "nginx-ingress.globalConfiguration.validateCustomName" . -}}
+{{- $parts := splitList "/" .Values.controller.globalConfiguration.customName -}}
+{{- index $parts 0 -}}
+{{- end -}}
+
+{{/*
 Build the args for the service binary.
 */}}
 {{- define "nginx-ingress.args" -}}
@@ -304,6 +338,9 @@ Build the args for the service binary.
 - -enable-custom-resources={{ .Values.controller.enableCustomResources }}
 - -enable-snippets={{ .Values.controller.enableSnippets }}
 - -disable-ipv6={{ .Values.controller.disableIPV6 }}
+{{- if .Values.controller.directiveAutoAdjust }}
+- -enable-directive-autoadjust={{ .Values.controller.directiveAutoAdjust }}
+{{- end }}
 {{- if .Values.controller.enableCustomResources }}
 - -enable-tls-passthrough={{ .Values.controller.enableTLSPassthrough }}
 {{- if .Values.controller.enableTLSPassthrough }}
@@ -314,8 +351,10 @@ Build the args for the service binary.
 - -enable-external-dns={{ .Values.controller.enableExternalDNS }}
 - -default-http-listener-port={{ .Values.controller.defaultHTTPListenerPort}}
 - -default-https-listener-port={{ .Values.controller.defaultHTTPSListenerPort}}
-{{- if .Values.controller.globalConfiguration.create }}
+{{- if and .Values.controller.globalConfiguration.create (not .Values.controller.globalConfiguration.customName) }}
 - -global-configuration=$(POD_NAMESPACE)/{{ include "nginx-ingress.controller.fullname" . }}
+{{- else if .Values.controller.globalConfiguration.customName }}
+- -global-configuration={{ .Values.controller.globalConfiguration.customName }}
 {{- end }}
 {{- end }}
 - -ready-status={{ .Values.controller.readyStatus.enable }}
@@ -352,14 +391,17 @@ List of volumes for controller.
 {{- if eq (include "nginx-ingress.readOnlyRootFilesystem" .) "true" }}
 - name: nginx-etc
   emptyDir: {}
-- name: nginx-cache
-  emptyDir: {}
 - name: nginx-lib
   emptyDir: {}
 - name: nginx-state
   emptyDir: {}
 - name: nginx-log
   emptyDir: {}
+{{- /* For StatefulSet, nginx-cache volume is always provided via volumeClaimTemplates */ -}}
+{{- if ne .Values.controller.kind "statefulset" }}
+- name: nginx-cache
+  emptyDir: {}
+{{- end }}
 {{- end }}
 {{- if .Values.controller.appprotect.v5 }}
 {{ toYaml .Values.controller.appprotect.volumes }}
@@ -419,6 +461,9 @@ volumeMounts:
   name: nginx-state
 - mountPath: /var/log/nginx
   name: nginx-log
+{{- else if eq .Values.controller.kind "statefulset" }}
+- mountPath: /var/cache/nginx
+  name: nginx-cache
 {{- end }}
 {{- if .Values.controller.appprotect.v5 }}
 - name: app-protect-bd-config
@@ -540,7 +585,7 @@ tls:
 features:
   - registration
   - nginx-counting
-  - metrics-sender
+  - metrics
   - dataplane-status
 extensions:
   - nginx-app-protect

@@ -17,7 +17,7 @@ on:
         description: "Preflight version to use"
         required: false
         type: string
-        default: "1.11.1"
+        default: "1.14.1"
       platforms:
         description: A comma separated list of architectures in the image manifest to certify
         required: false
@@ -33,10 +33,10 @@ permissions:
 jobs:
   certify-ubi-images:
     name: Certify OpenShift UBI images
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Certify UBI OSS images in quay
         uses: ./.github/actions/certify-openshift-image

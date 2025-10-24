@@ -36,38 +36,59 @@
       "platforms": "linux/arm64, linux/amd64"
     },
     {
-      "label": "policies 1/2",
+      "label": "policies 1/4",
       "image": "alpine",
       "type": "oss",
-      "marker": "'policies and not policies_rl and not policies_ac and not policies_jwt and not policies_mtls'",
+      "marker": "'policies and not policies_rl and not policies_ac and not policies_jwt and not policies_mtls and not policies_cache'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
-      "label": "policies 2/2",
+      "label": "policies 2/4",
       "image": "alpine",
       "type": "oss",
-      "marker": "'policies_rl or policies_ac or policies_jwt or policies_mtls or otel'",
+      "marker": "'policies_ac or policies_jwt'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
-      "label": "VS 1/3",
+      "label": "policies 3/4",
+      "image": "alpine",
+      "type": "oss",
+      "marker": "'policies_rl'",
+      "platforms": "linux/arm64, linux/amd64"
+    },
+    {
+      "label": "policies 4/4",
+      "image": "alpine",
+      "type": "oss",
+      "marker": "'policies_mtls or policies_cache or otel'",
+      "platforms": "linux/arm64, linux/amd64"
+    },
+    {
+      "label": "VS 1/4",
       "image": "debian",
       "type": "oss",
       "marker": "'vs and not vs_ipv6 and not vs_rewrite and not vs_responses and not vs_grpc and not vs_redirects and not vs_externalname and not vs_externaldns and not vs_certmanager and not vs_api and not vs_backup and not vs_use_cluster_ip and not vs_canary and not vs_upstream and not vs_config_map'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
-      "label": "VS 2/3",
+      "label": "VS 2/4",
       "image": "debian",
       "type": "oss",
       "marker": "'vs_grpc or vs_redirects or vs_externalname or vs_externaldns or vs_api or vs_backup or vs_use_cluster_ip or vs_canary or vs_upstream or vs_config_map'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
-      "label": "VS 3/3",
+      "label": "VS 3/4",
       "image": "debian",
       "type": "oss",
-      "marker": "'vs_responses or vs_ipv6 or vs_rewrite or vs_certmanager or otel'",
+      "marker": "'vs_responses or vs_ipv6 or vs_rewrite'",
+      "platforms": "linux/arm64, linux/amd64"
+    },
+    {
+      "label": "VS 4/4",
+      "image": "debian",
+      "type": "oss",
+      "marker": "'vs_certmanager or otel'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {

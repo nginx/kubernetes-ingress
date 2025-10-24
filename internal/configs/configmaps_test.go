@@ -2,13 +2,16 @@ package configs
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"reflect"
 	"testing"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
+	"github.com/stretchr/testify/assert"
 
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
 )
 
@@ -44,13 +47,14 @@ func TestParseConfigMapWithAppProtectCompressedRequestsAction(t *testing.T) {
 	hasAppProtect := true
 	hasAppProtectDos := false
 	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
 	for _, test := range tests {
 		cm := &v1.ConfigMap{
 			Data: map[string]string{
 				"app-protect-compressed-requests-action": test.action,
 			},
 		}
-		result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, makeEventLogger())
+		result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
 		if result.MainAppProtectCompressedRequestsAction != test.expect {
 			t.Errorf("ParseConfigMap() returned %q but expected %q for the case %s", result.MainAppProtectCompressedRequestsAction, test.expect, test.msg)
 		}
@@ -113,13 +117,14 @@ func TestParseConfigMapWithAppProtectReconnectPeriod(t *testing.T) {
 	hasAppProtect := true
 	hasAppProtectDos := false
 	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
 	for _, test := range tests {
 		cm := &v1.ConfigMap{
 			Data: map[string]string{
 				"app-protect-reconnect-period-seconds": test.period,
 			},
 		}
-		result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, makeEventLogger())
+		result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
 		if result.MainAppProtectReconnectPeriod != test.expect {
 			t.Errorf("ParseConfigMap() returned %q but expected %q for the case %s", result.MainAppProtectReconnectPeriod, test.expect, test.msg)
 		}
@@ -153,6 +158,7 @@ func TestParseConfigMapWithTLSPassthroughProxyProtocol(t *testing.T) {
 	hasAppProtect := true
 	hasAppProtectDos := false
 	hasTLSPassthrough := true
+	directiveAutoadjustEnabled := false
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
 			cm := &v1.ConfigMap{
@@ -160,7 +166,7 @@ func TestParseConfigMapWithTLSPassthroughProxyProtocol(t *testing.T) {
 					"real-ip-header": test.realIPheader,
 				},
 			}
-			result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, makeEventLogger())
+			result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
 			if result.RealIPHeader != test.want {
 				t.Errorf("want %q, got %q", test.want, result.RealIPHeader)
 			}
@@ -195,6 +201,7 @@ func TestParseConfigMapWithoutTLSPassthroughProxyProtocol(t *testing.T) {
 	hasAppProtect := true
 	hasAppProtectDos := false
 	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
 			cm := &v1.ConfigMap{
@@ -202,7 +209,7 @@ func TestParseConfigMapWithoutTLSPassthroughProxyProtocol(t *testing.T) {
 					"real-ip-header": test.realIPheader,
 				},
 			}
-			result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, makeEventLogger())
+			result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
 			if result.RealIPHeader != test.want {
 				t.Errorf("want %q, got %q", test.want, result.RealIPHeader)
 			}
@@ -241,6 +248,7 @@ func TestParseConfigMapAccessLog(t *testing.T) {
 	hasAppProtect := false
 	hasAppProtectDos := false
 	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
 			cm := &v1.ConfigMap{
@@ -249,7 +257,7 @@ func TestParseConfigMapAccessLog(t *testing.T) {
 					"access-log-off": test.accessLogOff,
 				},
 			}
-			result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, makeEventLogger())
+			result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
 			if result.MainAccessLog != test.want {
 				t.Errorf("want %q, got %q", test.want, result.MainAccessLog)
 			}
@@ -274,6 +282,7 @@ func TestParseConfigMapAccessLogDefault(t *testing.T) {
 	hasAppProtect := false
 	hasAppProtectDos := false
 	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
 			cm := &v1.ConfigMap{
@@ -281,7 +290,7 @@ func TestParseConfigMapAccessLogDefault(t *testing.T) {
 					"access-log-off": "False",
 				},
 			}
-			result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, makeEventLogger())
+			result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
 			if result.MainAccessLog != test.want {
 				t.Errorf("want %q, got %q", test.want, result.MainAccessLog)
 			}
@@ -683,6 +692,200 @@ func TestParseMGMTConfigMapUsageReportInterval(t *testing.T) {
 	}
 }
 
+func TestParseMGMTConfigMapUsageReportIntervalMaximum(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap      *v1.ConfigMap
+		expectWarnings bool
+		expectInterval string
+		msg            string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "24h",
+				},
+			},
+			expectWarnings: false,
+			expectInterval: "24h",
+			msg:            "24h should be accepted (maximum allowed)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "25h",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "25h should be rejected (exceeds maximum)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "1440m",
+				},
+			},
+			expectWarnings: false,
+			expectInterval: "1440m",
+			msg:            "1440m (24h) should be accepted",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "1441m",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "1441m (>24h) should be rejected",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, warnings, err := ParseMGMTConfigMap(context.Background(), test.configMap, makeEventLogger())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if warnings != test.expectWarnings {
+				t.Errorf("Expected warnings=%v, got warnings=%v", test.expectWarnings, warnings)
+			}
+
+			if result.Interval != test.expectInterval {
+				t.Errorf("Expected interval=%q, got interval=%q", test.expectInterval, result.Interval)
+			}
+		})
+	}
+}
+
+func TestParseMGMTConfigMapUsageReportIntervalEdgeCases(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap      *v1.ConfigMap
+		expectWarnings bool
+		expectInterval string
+		msg            string
+	}{
+		// Test milliseconds (should be rejected due to unsupported unit)
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "1000ms",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "1000ms should be rejected (ms unit not allowed)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "60000ms",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "60000ms should be rejected (ms unit not allowed)",
+		},
+		// Test that large ms values are also rejected for unit, not value
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "3600000ms",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "3600000ms (1h) should be rejected (ms unit not allowed)",
+		},
+		// Test days (should be rejected by Go's ParseDuration)
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "1d",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "1d should be rejected (Go doesn't support 'd' unit)",
+		},
+		// Test values > 24h (valid in Go but should be rejected by max check)
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "25h",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "25h should be rejected (exceeds 24h maximum)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "48h",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "48h should be rejected (exceeds 24h maximum)",
+		},
+		// exactly 86400 seconds (24h)
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "86400s",
+				},
+			},
+			expectWarnings: false,
+			expectInterval: "86400s",
+			msg:            "86400s (24h) should be accepted",
+		},
+		// 86401 seconds (24h + 1s)
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "86401s",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "86401s (>24h) should be rejected",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, warnings, err := ParseMGMTConfigMap(context.Background(), test.configMap, makeEventLogger())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if warnings != test.expectWarnings {
+				t.Errorf("Expected warnings=%v, got warnings=%v", test.expectWarnings, warnings)
+			}
+
+			if result.Interval != test.expectInterval {
+				t.Errorf("Expected interval=%q, got interval=%q", test.expectInterval, result.Interval)
+			}
+		})
+	}
+}
+
 func TestParseMGMTConfigMapResolverIPV6(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -1039,7 +1242,7 @@ func TestParseZoneSync(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
-			result, _ := ParseConfigMap(context.Background(), test.configMap, true, false, false, false, makeEventLogger())
+			result, _ := ParseConfigMap(context.Background(), test.configMap, true, false, false, false, true, makeEventLogger())
 			if result.ZoneSync.Enable != test.want.Enable {
 				t.Errorf("Enable: want %v, got %v", test.want.Enable, result.ZoneSync)
 			}
@@ -1082,7 +1285,7 @@ func TestParseZoneSyncForOSS(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
-			_, configOk := ParseConfigMap(context.Background(), test.configMap, false, false, false, false, makeEventLogger())
+			_, configOk := ParseConfigMap(context.Background(), test.configMap, false, false, false, false, true, makeEventLogger())
 			if configOk {
 				t.Errorf("Expected config not valid, got valid")
 			}
@@ -1119,10 +1322,11 @@ func TestParseZoneSyncPort(t *testing.T) {
 	hasAppProtect := true
 	hasAppProtectDos := false
 	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
 
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
-			result, _ := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, makeEventLogger())
+			result, _ := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
 			if result.ZoneSync.Port != test.want.Port {
 				t.Errorf("Port: want %v, got %v", test.want.Port, result.ZoneSync.Port)
 			}
@@ -1154,9 +1358,10 @@ func TestZoneSyncPortSetToDefaultOnZoneSyncEnabledAndPortNotProvided(t *testing.
 	hasAppProtect := false
 	hasAppProtectDos := false
 	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
-			result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, makeEventLogger())
+			result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
 			if !configOk {
 				t.Error("zone-sync: want configOk true, got configOk false ")
 			}
@@ -1224,10 +1429,11 @@ func TestParseZoneSyncPortErrors(t *testing.T) {
 	hasAppProtect := true
 	hasAppProtectDos := false
 	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
 
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
-			_, ok := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, makeEventLogger())
+			_, ok := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
 			if ok {
 				t.Error("Expected config not valid, got valid")
 			}
@@ -1300,10 +1506,11 @@ func TestParseZoneSyncResolverErrors(t *testing.T) {
 	hasAppProtect := true
 	hasAppProtectDos := false
 	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
 
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
-			_, ok := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, makeEventLogger())
+			_, ok := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
 			if ok {
 				t.Error("Expected config not valid, got valid")
 			}
@@ -1359,8 +1566,9 @@ func TestParseZoneSyncResolverIPV6MapResolverIPV6(t *testing.T) {
 			hasAppProtect := false
 			hasAppProtectDos := false
 			hasTLSPassthrough := false
+			directiveAutoadjustEnabled := false
 
-			result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, makeEventLogger())
+			result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
 
 			if !configOk {
 				t.Errorf("zone-sync-resolver-ipv6: want configOk true, got configOk %v  ", configOk)
@@ -1468,12 +1676,13 @@ func TestOpenTelemetryConfigurationSuccess(t *testing.T) {
 	hasAppProtect := false
 	hasAppProtectDos := false
 	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
 	expectedConfigOk := true
 
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
 			result, configOk := ParseConfigMap(context.Background(), test.configMap, isPlus,
-				hasAppProtect, hasAppProtectDos, hasTLSPassthrough, makeEventLogger())
+				hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
 			if configOk != expectedConfigOk {
 				t.Errorf("configOk: want %v, got %v", expectedConfigOk, configOk)
 			}
@@ -1699,12 +1908,13 @@ func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
 	hasAppProtect := false
 	hasAppProtectDos := false
 	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
 	expectedConfigOk := false
 
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
 			result, configOk := ParseConfigMap(context.Background(), test.configMap, isPlus,
-				hasAppProtect, hasAppProtectDos, hasTLSPassthrough, makeEventLogger())
+				hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
 			if configOk != expectedConfigOk {
 				t.Errorf("configOk: want %v, got %v", expectedConfigOk, configOk)
 			}
@@ -1726,6 +1936,345 @@ func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
 			if result.MainOtelTraceInHTTP != test.expectedTraceInHTTP {
 				t.Errorf("MainOtelTraceInHTTP: want %v, got %v", test.expectedTraceInHTTP, result.MainOtelTraceInHTTP)
 			}
+		})
+	}
+}
+
+func TestParseProxyBuffers(t *testing.T) {
+	t.Parallel()
+
+	// Test with auto-adjust enabled - should use validation functions
+	t.Run("with auto-adjust enabled", func(t *testing.T) {
+		tests := []struct {
+			name                         string
+			configMap                    *v1.ConfigMap
+			expectedProxyBuffers         string
+			expectedProxyBufferSize      string
+			expectedProxyBusyBuffersSize string
+			description                  string
+		}{
+			{
+				name: "all proxy buffer settings provided",
+				configMap: &v1.ConfigMap{
+					Data: map[string]string{
+						"proxy-buffers":           "8 4k",
+						"proxy-buffer-size":       "8k",
+						"proxy-busy-buffers-size": "16k",
+					},
+				},
+				expectedProxyBuffers:         "8 4k",
+				expectedProxyBufferSize:      "8k",
+				expectedProxyBusyBuffersSize: "16k",
+				description:                  "should parse all proxy buffer settings correctly",
+			},
+			{
+				name: "case insensitive units get normalized",
+				configMap: &v1.ConfigMap{
+					Data: map[string]string{
+						"proxy-buffers":           "8 4K",
+						"proxy-buffer-size":       "8K",
+						"proxy-busy-buffers-size": "16K",
+					},
+				},
+				expectedProxyBuffers:         "8 4k",
+				expectedProxyBufferSize:      "8k",
+				expectedProxyBusyBuffersSize: "16k",
+				description:                  "should normalize case insensitive units",
+			},
+		}
+
+		nginxPlus := true
+		hasAppProtect := false
+		hasAppProtectDos := false
+		hasTLSPassthrough := false
+		directiveAutoadjustEnabled := true
+
+		for _, test := range tests {
+			test := test // capture range variable
+
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				eventRecorder := makeEventLogger()
+				result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, eventRecorder)
+
+				if !configOk {
+					t.Errorf("%s: expected config to be valid but got invalid", test.description)
+				}
+
+				if result.ProxyBuffers != test.expectedProxyBuffers {
+					t.Errorf("%s: ProxyBuffers = %q, want %q", test.description, result.ProxyBuffers, test.expectedProxyBuffers)
+				}
+
+				if result.ProxyBufferSize != test.expectedProxyBufferSize {
+					t.Errorf("%s: ProxyBufferSize = %q, want %q", test.description, result.ProxyBufferSize, test.expectedProxyBufferSize)
+				}
+
+				if result.ProxyBusyBuffersSize != test.expectedProxyBusyBuffersSize {
+					t.Errorf("%s: ProxyBusyBuffersSize = %q, want %q", test.description, result.ProxyBusyBuffersSize, test.expectedProxyBusyBuffersSize)
+				}
+
+				fakeRecorder := eventRecorder.(*record.FakeRecorder)
+				if len(fakeRecorder.Events) > 0 {
+					t.Errorf("%s: unexpected warnings generated: %d events", test.description, len(fakeRecorder.Events))
+				}
+			})
+		}
+	})
+
+	// Test with auto-adjust disabled - should preserve original strings
+	t.Run("with auto-adjust disabled", func(t *testing.T) {
+		tests := []struct {
+			name                         string
+			configMap                    *v1.ConfigMap
+			expectedProxyBuffers         string
+			expectedProxyBufferSize      string
+			expectedProxyBusyBuffersSize string
+			description                  string
+		}{
+			{
+				name: "preserves original values exactly",
+				configMap: &v1.ConfigMap{
+					Data: map[string]string{
+						"proxy-buffers":           "8 4K",
+						"proxy-buffer-size":       "8K",
+						"proxy-busy-buffers-size": "16K",
+					},
+				},
+				expectedProxyBuffers:         "8 4K", // Original case preserved
+				expectedProxyBufferSize:      "8K",   // Original case preserved
+				expectedProxyBusyBuffersSize: "16K",  // Original case preserved
+				description:                  "should preserve original case and format",
+			},
+			{
+				name: "preserves unusual but valid formats",
+				configMap: &v1.ConfigMap{
+					Data: map[string]string{
+						"proxy-buffers":           "16 8k",
+						"proxy-buffer-size":       "16k",
+						"proxy-busy-buffers-size": "32k",
+					},
+				},
+				expectedProxyBuffers:         "16 8k",
+				expectedProxyBufferSize:      "16k",
+				expectedProxyBusyBuffersSize: "32k",
+				description:                  "should preserve user's exact input",
+			},
+		}
+
+		nginxPlus := true
+		hasAppProtect := false
+		hasAppProtectDos := false
+		hasTLSPassthrough := false
+		directiveAutoadjustEnabled := false
+
+		for _, test := range tests {
+			test := test // capture range variable
+
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				eventRecorder := makeEventLogger()
+				result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, eventRecorder)
+
+				if !configOk {
+					t.Errorf("%s: expected config to be valid but got invalid", test.description)
+				}
+
+				if result.ProxyBuffers != test.expectedProxyBuffers {
+					t.Errorf("%s: ProxyBuffers = %q, want %q", test.description, result.ProxyBuffers, test.expectedProxyBuffers)
+				}
+
+				if result.ProxyBufferSize != test.expectedProxyBufferSize {
+					t.Errorf("%s: ProxyBufferSize = %q, want %q", test.description, result.ProxyBufferSize, test.expectedProxyBufferSize)
+				}
+
+				if result.ProxyBusyBuffersSize != test.expectedProxyBusyBuffersSize {
+					t.Errorf("%s: ProxyBusyBuffersSize = %q, want %q", test.description, result.ProxyBusyBuffersSize, test.expectedProxyBusyBuffersSize)
+				}
+
+				fakeRecorder := eventRecorder.(*record.FakeRecorder)
+				if len(fakeRecorder.Events) > 0 {
+					t.Errorf("%s: unexpected warnings generated: %d events", test.description, len(fakeRecorder.Events))
+				}
+			})
+		}
+	})
+}
+
+func TestParseProxyBuffersInvalidFormat(t *testing.T) {
+	t.Parallel()
+
+	// Test with auto-adjust enabled - should validate and potentially reject invalid formats
+	t.Run("with auto-adjust enabled", func(t *testing.T) {
+		tests := []struct {
+			name         string
+			proxyBuffers string
+			expectValid  bool
+			description  string
+		}{
+			{
+				name:         "valid format",
+				proxyBuffers: "4 8k",
+				expectValid:  true,
+				description:  "should accept valid 'count size' format",
+			},
+			{
+				name:         "invalid - only size",
+				proxyBuffers: "1k",
+				expectValid:  false,
+				description:  "should reject format with only size",
+			},
+			{
+				name:         "invalid - only count",
+				proxyBuffers: "4",
+				expectValid:  false,
+				description:  "should reject format with only count",
+			},
+			{
+				name:         "invalid - three parts",
+				proxyBuffers: "4 8k extra",
+				expectValid:  false,
+				description:  "should reject format with too many parts",
+			},
+			{
+				name:         "empty string",
+				proxyBuffers: "",
+				expectValid:  false,
+				description:  "should not accept empty string",
+			},
+		}
+
+		nginxPlus := true
+		hasAppProtect := false
+		hasAppProtectDos := false
+		hasTLSPassthrough := false
+		directiveAutoadjustEnabled := true
+
+		for _, test := range tests {
+			test := test // capture range variable
+
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				cm := &v1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-configmap",
+						Namespace: "default",
+					},
+					Data: map[string]string{
+						"proxy-buffers": test.proxyBuffers,
+					},
+				}
+
+				eventRecorder := makeEventLogger()
+				result, configOk := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, eventRecorder)
+
+				if configOk != test.expectValid {
+					t.Errorf("%s: expected configOk=%v, got configOk=%v", test.description, test.expectValid, configOk)
+				}
+
+				if test.expectValid {
+					// For valid configs, proxy buffers should be set or empty
+					if test.proxyBuffers != "" && result.ProxyBuffers == "" {
+						t.Errorf("%s: expected ProxyBuffers to be set, got empty", test.description)
+					}
+				} else {
+					// For invalid configs, should have error events
+					fakeRecorder := eventRecorder.(*record.FakeRecorder)
+					if len(fakeRecorder.Events) == 0 {
+						t.Errorf("%s: expected error event to be generated for invalid config", test.description)
+					}
+				}
+			})
+		}
+	})
+
+	// Test with auto-adjust disabled - should preserve original strings without validation
+	t.Run("with auto-adjust disabled", func(t *testing.T) {
+		tests := []struct {
+			name         string
+			proxyBuffers string
+			description  string
+		}{
+			{
+				name:         "valid format preserved",
+				proxyBuffers: "4 8k",
+				description:  "should preserve valid format exactly",
+			},
+		}
+
+		nginxPlus := true
+		hasAppProtect := false
+		hasAppProtectDos := false
+		hasTLSPassthrough := false
+		directiveAutoadjustEnabled := false
+
+		for _, test := range tests {
+			test := test // capture range variable
+
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				cm := &v1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-configmap",
+						Namespace: "default",
+					},
+					Data: map[string]string{
+						"proxy-buffers": test.proxyBuffers,
+					},
+				}
+
+				eventRecorder := makeEventLogger()
+				result, configOk := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, eventRecorder)
+
+				// When auto-adjust is disabled, config should always be valid since no validation occurs
+				if !configOk {
+					t.Errorf("%s: expected config to be valid with auto-adjust disabled, got invalid", test.description)
+				}
+
+				// Should preserve exact original value
+				if result.ProxyBuffers != test.proxyBuffers {
+					t.Errorf("%s: expected ProxyBuffers=%q, got %q", test.description, test.proxyBuffers, result.ProxyBuffers)
+				}
+
+				// Should not generate any events when auto-adjust is disabled
+				fakeRecorder := eventRecorder.(*record.FakeRecorder)
+				if len(fakeRecorder.Events) > 0 {
+					t.Errorf("%s: unexpected events generated with auto-adjust disabled: %d events", test.description, len(fakeRecorder.Events))
+				}
+			})
+		}
+	})
+}
+
+func TestParseErrorLogLevelToVirtualServer(t *testing.T) {
+	t.Parallel()
+
+	testCases := []string{"debug", "error", "warning", "nonsense"}
+
+	for _, testLevel := range testCases {
+		t.Run(fmt.Sprintf("setting log level to %s", testLevel), func(t *testing.T) {
+			cm := &v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-configmap",
+					Namespace: "default",
+				},
+				Data: map[string]string{
+					"error-log-level": testLevel,
+				},
+			}
+
+			eventRecorder := makeEventLogger()
+
+			result, configOk := ParseConfigMap(context.Background(), cm, true, false, false, false, false, eventRecorder)
+
+			if !configOk {
+				t.Errorf("expected config map with error-log-level set to be %s to be valid", testLevel)
+			}
+
+			assert.Equal(t, testLevel, result.MainErrorLogLevel)
 		})
 	}
 }

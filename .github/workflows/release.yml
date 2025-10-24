@@ -34,7 +34,7 @@ on:
         default: false
       skip_step:
         description: "Comma separated list of jobs to skip"
-        # publish-helm-chart,operator,release-oss,release-plus,certify-openshift-images,aws-marketplace,azure-marketplace,gcp-marketplace,azure-upload,github-release,release-image-notification
+        # publish-helm-chart,build-artifacts,operator,release-oss,release-plus,certify-openshift-images,aws-marketplace,azure-marketplace,gcp-marketplace,azure-upload,github-release,release-image-notification
         type: string
         required: false
 
@@ -48,19 +48,24 @@ permissions:
 jobs:
   variables:
     name: Set Variables
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04-amd64
     permissions:
       contents: read
     outputs:
       source_tag: ${{ steps.vars.outputs.stable_tag }}
       short_tag: ${{ steps.vars.outputs.short_tag }}
+      go_path: ${{ steps.vars.outputs.go_path }}
+      go_proxy: ${{ steps.vars.outputs.go_proxy }}
       go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}
-      binary_cache_sign_hit: ${{ steps.binary-cache-sign.outputs.cache-hit }}
+      docker_md5: ${{ steps.vars.outputs.docker_md5 }}
+      image_matrix_oss: ${{ steps.vars.outputs.image_matrix_oss }}
+      image_matrix_plus: ${{ steps.vars.outputs.image_matrix_plus }}
+      image_matrix_nap: ${{ steps.vars.outputs.image_matrix_nap }}
       date: ${{ steps.vars.outputs.date }}
       k8s_version: ${{ steps.vars.outputs.k8s_version }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 0
           ref: ${{ inputs.release_branch }}
@@ -75,6 +80,12 @@ jobs:
           fi
           tag=${{ inputs.nic_version }}
           echo "short_tag=${tag%.*}" >> $GITHUB_OUTPUT
+          echo "go_path=$(go env GOPATH)" >> $GITHUB_OUTPUT
+          echo "go_proxy=${{ secrets.ARTIFACTORY_ENDPOINT }}" >> $GITHUB_OUTPUT
+          echo "image_matrix_oss=$(cat .github/data/matrix-images-oss.json | jq -c)" >> $GITHUB_OUTPUT
+          echo "image_matrix_plus=$(cat .github/data/matrix-images-plus.json | jq -c)" >> $GITHUB_OUTPUT
+          echo "image_matrix_nap=$(cat .github/data/matrix-images-nap.json | jq -c)" >> $GITHUB_OUTPUT
+          ./.github/scripts/variables.sh docker_md5 >> $GITHUB_OUTPUT
           ./.github/scripts/variables.sh go_code_md5 >> $GITHUB_OUTPUT
           date=$(date "+%Y%m%d")
           echo "date=${date}" >> $GITHUB_OUTPUT
@@ -82,22 +93,44 @@ jobs:
           echo "k8s_version=${k8s_version}" >> $GITHUB_OUTPUT
           cat $GITHUB_OUTPUT
 
-      - name: Fetch Cached Signed Binary Artifacts
-        id: binary-cache-sign
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
-        with:
-          path: ${{ github.workspace }}/tarballs
-          key: nginx-ingress-release-${{ steps.vars.outputs.go_code_md5 }}
-          lookup-only: true
+  build-artifacts:
+    if: ${{ !cancelled() && !failure() && !inputs.dry_run && !contains(inputs.skip_step, 'build-artifacts') }}
+    name: Build Artifacts
+    needs: [variables]
+    uses: ./.github/workflows/build-artifacts.yml
+    with:
+      force: true
+      authenticated: true
+      ic-version: ${{ inputs.nic_version }}
+      go-path: ${{ needs.variables.outputs.go_path }}
+      go-proxy: ${{ needs.variables.outputs.go_proxy }}
+      image-matrix-oss: ${{ needs.variables.outputs.image_matrix_oss }}
+      image-matrix-plus: ${{ needs.variables.outputs.image_matrix_plus }}
+      image-matrix-nap: ${{ needs.variables.outputs.image_matrix_nap }}
+      branch: ${{ inputs.release_branch }}
+      tag: ${{ needs.variables.outputs.source_tag }}
+      go-md5: ${{ needs.variables.outputs.go_code_md5 }}
+      docker-md5: ${{ needs.variables.outputs.docker_md5 }}
+      runner: "ubuntu-24.04-amd64"
+    secrets: inherit
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+      id-token: write
+      packages: write
+      pull-requests: write # for scout report
+      checks: write # for setting status on commit
 
   tag:
     name: Create Tag on release branch in NIC repo
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
+    needs: [build-artifacts]
     permissions:
       contents: write
     steps:
       - name: Checkout NIC repo
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           ref: ${{ inputs.release_branch }}
           fetch-depth: 0
@@ -136,7 +169,7 @@ jobs:
   release-oss:
     if: ${{ ! cancelled() && ! failure() && ! contains(inputs.skip_step, 'release-oss') }}
     name: Release Docker OSS
-    needs: [variables]
+    needs: [variables, build-artifacts]
     uses: ./.github/workflows/oss-release.yml
     strategy:
       fail-fast: false
@@ -165,7 +198,7 @@ jobs:
   release-plus-gcr-nginx:
     if: ${{ ! cancelled() && ! failure() && ! contains(inputs.skip_step, 'release-plus') }}
     name: Release Docker Plus
-    needs: [variables]
+    needs: [variables, build-artifacts]
     uses: ./.github/workflows/plus-release.yml
     strategy:
       fail-fast: false
@@ -280,7 +313,8 @@ jobs:
       branch: ${{ inputs.release_branch }}
       ic_version: ${{ inputs.nic_version }}
       chart_version: ${{ inputs.chart_version }}
-      nginx_helm_repo: false # disable automatic repo update until nginx-bot issue is resolved, manually update repo
+      nginx_helm_repo: true # disable automatic repo update until nginx-bot issue is resolved, manually update repo
+      runner: "ubuntu-24.04-amd64"
     permissions:
       contents: write # for pushing to Helm Charts repository
       packages: write # for helm to push to GHCR
@@ -289,11 +323,11 @@ jobs:
   certify-openshift-images:
     if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'certify-openshift-images') }}
     name: Certify OpenShift UBI images
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [release-oss]
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           ref: ${{ inputs.release_branch }}
 
@@ -304,42 +338,41 @@ jobs:
           image: quay.io/nginx/nginx-ingress:${{ inputs.nic_version }}-ubi
           project_id: ${{ secrets.CERTIFICATION_PROJECT_ID }}
           pyxis_token: ${{ secrets.PYXIS_API_TOKEN }}
-          preflight_version: 1.13.3
+          preflight_version: 1.14.1
 
-  ## Disable operator release step for now until nginx-bot issue is resolved, manually trigger workflow in nginx-ingress-helm-operator
-  # operator:
-  #   if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'operator') && !contains(inputs.skip_step, 'publish-helm-chart') }}
-  #   name: Trigger PR for Operator
-  #   runs-on: ubuntu-22.04
-  #   needs: [variables,publish-helm-chart]
-  #   steps:
-  #     - name:
-  #       uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
-  #       with:
-  #         github-token: ${{ secrets.NGINX_PAT }}
-  #         script: |
-  #           await github.rest.actions.createWorkflowDispatch({
-  #             owner: context.repo.owner,
-  #             repo: 'nginx-ingress-helm-operator',
-  #             workflow_id: 'sync-chart.yml',
-  #             ref: 'main',
-  #             inputs: {
-  #               chart_version: '${{ inputs.chart_version }}',
-  #               operator_version: '${{ inputs.operator_version }}',
-  #               k8s_version: '${{ needs.variables.outputs.k8s_version }}',
-  #               dry_run: '${{ inputs.dry_run }}'
-  #             },
-  #           })
+  operator:
+    if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'operator') && !contains(inputs.skip_step, 'publish-helm-chart') }}
+    name: Trigger PR for Operator
+    runs-on: ubuntu-24.04
+    needs: [variables,publish-helm-chart]
+    steps:
+      - name:
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          github-token: ${{ secrets.NGINX_PAT }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: 'nginx-ingress-helm-operator',
+              workflow_id: 'sync-chart.yml',
+              ref: 'main',
+              inputs: {
+                chart_version: '${{ inputs.chart_version }}',
+                operator_version: '${{ inputs.operator_version }}',
+                k8s_version: '${{ needs.variables.outputs.k8s_version }}',
+                dry_run: '${{ inputs.dry_run }}'
+              },
+            })
 
   ## Disable GCP Marketplace step for now until a decision is made on how to handle GCP Marketplace with licensing
   # gcp-marketplace:
   #   if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'gcp-marketplace') }}
   #   name: Trigger PR for GCP Marketplace
-  #   runs-on: ubuntu-22.04
+  #   runs-on: ubuntu-24.04
   #   needs: [publish-helm-chart,release-plus-gcr-mktpl]
   #   steps:
   #     - name:
-  #       uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+  #       uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
   #       with:
   #         github-token: ${{ secrets.NGINX_PAT }}
   #         script: |
@@ -357,11 +390,11 @@ jobs:
   # azure-marketplace:
   #   if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'azure-marketplace') }}
   #   name: Trigger CNAB Build for Azure Marketplace
-  #   runs-on: ubuntu-22.04
+  #   runs-on: ubuntu-24.04
   #   needs: [publish-helm-chart,release-plus-azure-mktpl]
   #   steps:
   #     - name:
-  #       uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+  #       uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
   #       with:
   #         github-token: ${{ secrets.NGINX_PAT }}
   #         script: |
@@ -381,7 +414,7 @@ jobs:
   # aws-marketplace:
   #   if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'aws-marketplace') }}
   #   name: Publish to AWS Marketplace
-  #   runs-on: ubuntu-22.04
+  #   runs-on: ubuntu-24.04
   #   needs: [release-plus-aws-mktpl]
   #   permissions:
   #     contents: read
@@ -400,7 +433,7 @@ jobs:
   #           product_id: AWS_NAP_WAF_DOS_PRODUCT_ID
   #   steps:
   #     - name: Checkout Repository
-  #       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+  #       uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
   #       with:
   #         ref: ${{ inputs.release_branch }}
 
@@ -428,63 +461,60 @@ jobs:
 
   binaries:
     name: Process Binaries
-    runs-on: ubuntu-22.04
-    needs: [variables]
+    runs-on: ubuntu-24.04-amd64
+    needs: [variables, build-artifacts]
     permissions:
       contents: read
       id-token: write # for cosign to sign artifacts
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           ref: ${{ inputs.release_branch }}
 
       - name: Fetch Binary Artifacts from Cache
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ needs.variables.outputs.go_code_md5 }}
-        if: ${{ needs.variables.outputs.binary_cache_sign_hit != 'true' }}
 
       - name: Download Syft
         id: syft
-        uses: anchore/sbom-action/download-syft@9246b90769f852b3a8921f330c59e0b3f439d6e9 # v0.20.1
-        if: ${{ needs.variables.outputs.binary_cache_sign_hit != 'true' }}
+        uses: anchore/sbom-action/download-syft@aa0e114b2e19480f157109b9922bda359bd98b90 # v0.20.8
 
       - name: Install Cosign
-        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3.9.1
-        if: ${{ needs.variables.outputs.binary_cache_sign_hit != 'true' }}
+        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
 
       - name: Create Tarballs
         run: |
           ./.github/scripts/create-release-tarballs.sh dist ${{ inputs.nic_version }}
         env:
           SYFT_BIN: ${{ steps.syft.outputs.cmd }}
-        if: ${{ needs.variables.outputs.binary_cache_sign_hit != 'true' }}
 
       - name: Store Tarball Artifacts in Cache
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ github.workspace }}/tarballs
           key: nginx-ingress-release-${{ needs.variables.outputs.go_code_md5 }}
-        if: ${{ needs.variables.outputs.binary_cache_sign_hit != 'true' }}
 
+  # Upload packages, sboms & checksums to release storage
   azure-upload:
     if: ${{ ! cancelled() && ! failure() && ! contains(inputs.skip_step, 'azure-upload') }}
     name: Upload packages to Azure
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04-amd64
     needs: [variables, binaries]
     permissions:
       id-token: write
       contents: read
+    environment: release
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           ref: ${{ inputs.release_branch }}
 
       - name: Fetch Cached Tarball Artifacts
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           key: nginx-ingress-release-${{ needs.variables.outputs.go_code_md5 }}
           path: ${{ github.workspace }}/tarballs
@@ -498,7 +528,7 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Azure Upload Release Packages
-        uses: azure/CLI@089eac9d8cc39f5d003e94f8b65efc51076c9cbd # v2.1.0
+        uses: azure/CLI@9f7ce6f37c31b777ec6c6b6d1dfe7db79f497956 # v2.2.0
         with:
           inlineScript: |
             for i in $(find tarballs -type f); do
@@ -515,20 +545,20 @@ jobs:
   github-release:
     if: ${{ ! cancelled() && ! failure() && ! contains(inputs.skip_step, 'github-release') }}
     name: Publish release to GitHub
-    runs-on: ubuntu-22.04
-    needs: [variables, binaries, release-oss, release-plus-gcr-nginx, azure-upload]
+    runs-on: ubuntu-24.04-amd64
+    needs: [variables, binaries, release-oss, release-plus-gcr-nginx]
     permissions:
       contents: write # to modify the release
       issues: write # to close milestone
       actions: read # for slack notification
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           ref: ${{ inputs.release_branch }}
 
       - name: Fetch Cached Tarball Artifacts
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           key: nginx-ingress-release-${{ needs.variables.outputs.go_code_md5 }}
           path: ${{ github.workspace }}/tarballs
@@ -582,7 +612,7 @@ jobs:
           echo "release_id=${release_id}" >> $GITHUB_OUTPUT
 
       - name: Publish Github Release
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           script: |
             const {RELEASE_ID} = process.env
@@ -600,7 +630,7 @@ jobs:
   release-image-notification:
     if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'release-image-notification') }}
     name: Notify Slack channels about image release
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [variables, binaries, release-oss, release-plus-gcr-nginx]
     permissions:
       contents: read
@@ -611,7 +641,7 @@ jobs:
         image: ["nginx/nginx-ingress:${{ inputs.nic_version }}", "nginx/nginx-ingress:${{ inputs.nic_version }}-ubi", "nginx/nginx-ingress:${{ inputs.nic_version }}-alpine"]
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           ref: ${{ inputs.release_branch }}
 
@@ -634,7 +664,7 @@ jobs:
           echo "sha_long=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
       - name: Send Notification
-        uses: 8398a7/action-slack@1750b5085f3ec60384090fb7c52965ef822e869e # v3.18.0
+        uses: 8398a7/action-slack@77eaa4f1c608a7d68b38af4e3f739dcd8cba273e # v3.19.0
         with:
           status: custom
           custom_payload: |

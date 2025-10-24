@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
@@ -22,6 +23,7 @@ import (
 	api_v1 "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 func createPointerFromBool(b bool) *bool {
@@ -5641,9 +5643,11 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 				},
 				Spec: conf_v1.PolicySpec{
 					JWTAuth: &conf_v1.JWTAuth{
-						Realm:    "Spec Realm API",
-						JwksURI:  "https://idp.spec.example.com:443/spec-keys",
-						KeyCache: "1h",
+						Realm:      "Spec Realm API",
+						JwksURI:    "https://idp.spec.example.com:443/spec-keys",
+						KeyCache:   "1h",
+						SNIEnabled: true,
+						SNIName:    "idp.spec.example.com",
 					},
 				},
 			},
@@ -5713,10 +5717,15 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 					Realm:    "Spec Realm API",
 					KeyCache: "1h",
 					JwksURI: version2.JwksURI{
-						JwksScheme: "https",
-						JwksHost:   "idp.spec.example.com",
-						JwksPort:   "443",
-						JwksPath:   "/spec-keys",
+						JwksScheme:     "https",
+						JwksHost:       "idp.spec.example.com",
+						JwksPort:       "443",
+						JwksPath:       "/spec-keys",
+						JwksSNIEnabled: true,
+						JwksSNIName:    "idp.spec.example.com",
+						SSLVerify:      false,
+						TrustedCert:    "",
+						SSLVerifyDepth: 1,
 					},
 				},
 				"default/jwt-policy-route": {
@@ -5724,10 +5733,13 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 					Realm:    "Route Realm API",
 					KeyCache: "1h",
 					JwksURI: version2.JwksURI{
-						JwksScheme: "http",
-						JwksHost:   "idp.route.example.com",
-						JwksPort:   "80",
-						JwksPath:   "/route-keys",
+						JwksScheme:     "http",
+						JwksHost:       "idp.route.example.com",
+						JwksPort:       "80",
+						JwksPath:       "/route-keys",
+						SSLVerify:      false,
+						TrustedCert:    "",
+						SSLVerifyDepth: 1,
 					},
 				},
 			},
@@ -5736,10 +5748,15 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 				Realm:    "Spec Realm API",
 				KeyCache: "1h",
 				JwksURI: version2.JwksURI{
-					JwksScheme: "https",
-					JwksHost:   "idp.spec.example.com",
-					JwksPort:   "443",
-					JwksPath:   "/spec-keys",
+					JwksScheme:     "https",
+					JwksHost:       "idp.spec.example.com",
+					JwksPort:       "443",
+					JwksPath:       "/spec-keys",
+					JwksSNIName:    "idp.spec.example.com",
+					JwksSNIEnabled: true,
+					SSLVerify:      false,
+					TrustedCert:    "",
+					SSLVerifyDepth: 1,
 				},
 			},
 			JWKSAuthEnabled: true,
@@ -5771,10 +5788,13 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 						Realm:    "Route Realm API",
 						KeyCache: "1h",
 						JwksURI: version2.JwksURI{
-							JwksScheme: "http",
-							JwksHost:   "idp.route.example.com",
-							JwksPort:   "80",
-							JwksPath:   "/route-keys",
+							JwksScheme:     "http",
+							JwksHost:       "idp.route.example.com",
+							JwksPort:       "80",
+							JwksPath:       "/route-keys",
+							SSLVerify:      false,
+							TrustedCert:    "",
+							SSLVerifyDepth: 1,
 						},
 					},
 				},
@@ -5794,10 +5814,13 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 						Realm:    "Route Realm API",
 						KeyCache: "1h",
 						JwksURI: version2.JwksURI{
-							JwksScheme: "http",
-							JwksHost:   "idp.route.example.com",
-							JwksPort:   "80",
-							JwksPath:   "/route-keys",
+							JwksScheme:     "http",
+							JwksHost:       "idp.route.example.com",
+							JwksPort:       "80",
+							JwksPath:       "/route-keys",
+							SSLVerify:      false,
+							TrustedCert:    "",
+							SSLVerifyDepth: 1,
 						},
 					},
 				},
@@ -5833,6 +5856,183 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 
 	if len(warnings) != 0 {
 		t.Errorf("GenerateVirtualServerConfig returned warnings: %v", vsc.warnings)
+	}
+}
+
+func TestGenerateVirtualServerConfigJWTSSLVerifyDepth(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		sslVerifyDepth *int
+		expectedDepth  int
+		description    string
+	}{
+		{
+			name:           "default_depth",
+			sslVerifyDepth: nil, // Not specified - should default to 1
+			expectedDepth:  1,
+			description:    "When SSLVerifyDepth is not specified, it should default to 1",
+		},
+		{
+			name:           "explicit_depth",
+			sslVerifyDepth: createPointerFromInt(3), // Explicitly set to 3
+			expectedDepth:  3,
+			description:    "When SSLVerifyDepth is explicitly set, it should respect that value",
+		},
+		{
+			name:           "explicit_zero_depth",
+			sslVerifyDepth: createPointerFromInt(0), // Explicitly set to 0
+			expectedDepth:  0,
+			description:    "When SSLVerifyDepth is explicitly set to 0, it should respect that value",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			virtualServerEx := VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Policies: []conf_v1.PolicyReference{
+							{
+								Name: "jwt-ssl-policy",
+							},
+						},
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "tea",
+								Service: "tea-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path: "/tea",
+								Action: &conf_v1.Action{
+									Pass: "tea",
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/jwt-ssl-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "jwt-ssl-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							JWTAuth: &conf_v1.JWTAuth{
+								Realm:          "SSL Test API",
+								JwksURI:        "https://idp.example.com/keys",
+								SSLVerify:      true,
+								SSLVerifyDepth: tt.sslVerifyDepth,
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+				},
+			}
+
+			expected := version2.VirtualServerConfig{
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+						Keepalive: 16,
+					},
+				},
+				HTTPSnippets:  []string{},
+				LimitReqZones: []version2.LimitReqZone{},
+				Server: version2.Server{
+					JWTAuthList: map[string]*version2.JWTAuth{
+						"default/jwt-ssl-policy": {
+							Key:   "default/jwt-ssl-policy",
+							Realm: "SSL Test API",
+							JwksURI: version2.JwksURI{
+								JwksScheme:     "https",
+								JwksHost:       "idp.example.com",
+								JwksPath:       "/keys",
+								SSLVerify:      true,
+								SSLVerifyDepth: tt.expectedDepth,
+							},
+						},
+					},
+					JWTAuth: &version2.JWTAuth{
+						Key:   "default/jwt-ssl-policy",
+						Realm: "SSL Test API",
+						JwksURI: version2.JwksURI{
+							JwksScheme:     "https",
+							JwksHost:       "idp.example.com",
+							JwksPath:       "/keys",
+							SSLVerify:      true,
+							SSLVerifyDepth: tt.expectedDepth,
+						},
+					},
+					JWKSAuthEnabled: true,
+					ServerName:      "cafe.example.com",
+					StatusZone:      "cafe.example.com",
+					ProxyProtocol:   true,
+					ServerTokens:    "off",
+					RealIPHeader:    "X-Real-IP",
+					SetRealIPFrom:   []string{"0.0.0.0/0"},
+					RealIPRecursive: true,
+					Snippets:        []string{"# server snippet"},
+					VSNamespace:     "default",
+					VSName:          "cafe",
+					Locations: []version2.Location{
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							HasKeepalive:             true,
+							ProxySSLName:             "tea-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+						},
+					},
+				},
+			}
+
+			isPlus := false
+			isResolverConfigured := false
+			isWildcardEnabled := false
+			vsc := newVirtualServerConfigurator(&baseCfgParams, isPlus, isResolverConfigured, &StaticConfigParams{}, isWildcardEnabled, &fakeBV)
+
+			result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+
+			if diff := cmp.Diff(expected, result); diff != "" {
+				t.Errorf("%s: GenerateVirtualServerConfig() mismatch (-want +got):\n%s", tt.description, diff)
+			}
+
+			if len(warnings) != 0 {
+				t.Errorf("%s: GenerateVirtualServerConfig returned warnings: %v", tt.description, vsc.warnings)
+			}
+		})
 	}
 }
 
@@ -11321,13 +11521,559 @@ func TestGenerateVirtualServerConfigWithRateLimitGroupsWarning(t *testing.T) {
 	}
 }
 
+func TestGenerateVirtualServerConfigCache(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		msg             string
+		virtualServerEx VirtualServerEx
+		expected        version2.VirtualServerConfig
+	}{
+		{
+			msg: "cache policy at vs spec level",
+			virtualServerEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Policies: []conf_v1.PolicyReference{
+							{
+								Name: "cache-policy",
+							},
+						},
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "tea",
+								Service: "tea-svc",
+								Port:    80,
+							},
+							{
+								Name:    "coffee",
+								Service: "coffee-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path: "/tea",
+								Action: &conf_v1.Action{
+									Pass: "tea",
+								},
+							},
+							{
+								Path: "/coffee",
+								Action: &conf_v1.Action{
+									Pass: "coffee",
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/cache-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "cache-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							Cache: &conf_v1.Cache{
+								CacheZoneName: "my-cache",
+								CacheZoneSize: "10m",
+								Time:          "1h",
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+					"default/coffee-svc:80": {
+						"10.0.0.30:80",
+					},
+				},
+			},
+			expected: version2.VirtualServerConfig{
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "coffee-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_coffee",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.30:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets:  []string{},
+				LimitReqZones: []version2.LimitReqZone{},
+				CacheZones: []version2.CacheZone{
+					{
+						Name:   "default_cafe_my-cache",
+						Size:   "10m",
+						Path:   "/var/cache/nginx/default_cafe_my-cache",
+						Levels: "",
+					},
+				},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+					Cache: &version2.Cache{
+						ZoneName:              "default_cafe_my-cache",
+						ZoneSize:              "10m",
+						Time:                  "1h",
+						Valid:                 map[string]string{},
+						AllowedMethods:        nil,
+						CachePurgeAllow:       nil,
+						OverrideUpstreamCache: false,
+						Levels:                "",
+					},
+					Locations: []version2.Location{
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+						},
+						{
+							Path:                     "/coffee",
+							ProxyPass:                "http://vs_default_cafe_coffee",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "coffee-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "coffee-svc",
+						},
+					},
+				},
+			},
+		},
+		{
+			msg: "cache policy at route level",
+			virtualServerEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "tea",
+								Service: "tea-svc",
+								Port:    80,
+							},
+							{
+								Name:    "coffee",
+								Service: "coffee-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path: "/tea",
+								Policies: []conf_v1.PolicyReference{
+									{
+										Name: "route-cache-policy",
+									},
+								},
+								Action: &conf_v1.Action{
+									Pass: "tea",
+								},
+							},
+							{
+								Path: "/coffee",
+								Action: &conf_v1.Action{
+									Pass: "coffee",
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/route-cache-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "route-cache-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							Cache: &conf_v1.Cache{
+								CacheZoneName: "route-cache",
+								CacheZoneSize: "5m",
+								Time:          "30m",
+								AllowedCodes: []intstr.IntOrString{
+									intstr.FromInt(200),
+									intstr.FromInt(404),
+								},
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+					"default/coffee-svc:80": {
+						"10.0.0.30:80",
+					},
+				},
+			},
+			expected: version2.VirtualServerConfig{
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "coffee-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_coffee",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.30:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets:  []string{},
+				LimitReqZones: []version2.LimitReqZone{},
+				CacheZones: []version2.CacheZone{
+					{
+						Name:   "default_cafe_route-cache",
+						Size:   "5m",
+						Path:   "/var/cache/nginx/default_cafe_route-cache",
+						Levels: "",
+					},
+				},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+					Locations: []version2.Location{
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+							Cache: &version2.Cache{
+								ZoneName:              "default_cafe_route-cache",
+								ZoneSize:              "5m",
+								Time:                  "30m",
+								Valid:                 map[string]string{"200": "30m", "404": "30m"},
+								AllowedMethods:        nil,
+								CachePurgeAllow:       nil,
+								OverrideUpstreamCache: false,
+								Levels:                "",
+							},
+						},
+						{
+							Path:                     "/coffee",
+							ProxyPass:                "http://vs_default_cafe_coffee",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "coffee-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "coffee-svc",
+						},
+					},
+				},
+			},
+		},
+		{
+			msg: "cache policy at VSR subroute level",
+			virtualServerEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "tea",
+								Service: "tea-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path:  "/tea",
+								Route: "default/tea-vsr",
+							},
+						},
+					},
+				},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
+					{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "tea-vsr",
+							Namespace: "default",
+						},
+						Spec: conf_v1.VirtualServerRouteSpec{
+							Host: "cafe.example.com",
+							Upstreams: []conf_v1.Upstream{
+								{
+									Name:    "tea-v1",
+									Service: "tea-v1-svc",
+									Port:    80,
+								},
+								{
+									Name:    "tea-v2",
+									Service: "tea-v2-svc",
+									Port:    80,
+								},
+							},
+							Subroutes: []conf_v1.Route{
+								{
+									Path: "/tea/v1",
+									Policies: []conf_v1.PolicyReference{
+										{
+											Name: "vsr-cache-policy",
+										},
+									},
+									Action: &conf_v1.Action{
+										Pass: "tea-v1",
+									},
+								},
+								{
+									Path: "/tea/v2",
+									Action: &conf_v1.Action{
+										Pass: "tea-v2",
+									},
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/vsr-cache-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "vsr-cache-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							Cache: &conf_v1.Cache{
+								CacheZoneName:         "vsr-cache",
+								CacheZoneSize:         "20m",
+								Time:                  "2h",
+								OverrideUpstreamCache: true,
+								CachePurgeAllow:       []string{"127.0.0.1"},
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+					"default/tea-v1-svc:80": {
+						"10.0.0.21:80",
+					},
+					"default/tea-v2-svc:80": {
+						"10.0.0.22:80",
+					},
+				},
+			},
+			expected: version2.VirtualServerConfig{
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-v1-svc",
+							ResourceType:      "virtualserverroute",
+							ResourceName:      "tea-vsr",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_vsr_default_tea-vsr_tea-v1",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.21:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-v2-svc",
+							ResourceType:      "virtualserverroute",
+							ResourceName:      "tea-vsr",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_vsr_default_tea-vsr_tea-v2",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.22:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets:  []string{},
+				LimitReqZones: []version2.LimitReqZone{},
+				CacheZones: []version2.CacheZone{
+					{
+						Name:   "default_cafe_default_tea-vsr_vsr-cache",
+						Size:   "20m",
+						Path:   "/var/cache/nginx/default_cafe_default_tea-vsr_vsr-cache",
+						Levels: "",
+					},
+				},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+					Locations: []version2.Location{
+						{
+							Path:                     "/tea/v1",
+							ProxyPass:                "http://vs_default_cafe_vsr_default_tea-vsr_tea-v1",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-v1-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-v1-svc",
+							IsVSR:                    true,
+							VSRName:                  "tea-vsr",
+							VSRNamespace:             "default",
+							Cache: &version2.Cache{
+								ZoneName:              "default_cafe_default_tea-vsr_vsr-cache",
+								ZoneSize:              "20m",
+								Time:                  "2h",
+								Valid:                 map[string]string{},
+								AllowedMethods:        nil,
+								CachePurgeAllow:       []string{"127.0.0.1"},
+								OverrideUpstreamCache: true,
+								Levels:                "",
+							},
+						},
+						{
+							Path:                     "/tea/v2",
+							ProxyPass:                "http://vs_default_cafe_vsr_default_tea-vsr_tea-v2",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-v2-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-v2-svc",
+							IsVSR:                    true,
+							VSRName:                  "tea-vsr",
+							VSRNamespace:             "default",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	baseCfgParams := ConfigParams{
+		Context:      context.Background(),
+		ServerTokens: "off",
+	}
+
+	vsc := newVirtualServerConfigurator(
+		&baseCfgParams,
+		false,
+		false,
+		&StaticConfigParams{},
+		false,
+		&fakeBV,
+	)
+
+	for _, test := range tests {
+		result, warnings := vsc.GenerateVirtualServerConfig(&test.virtualServerEx, nil, nil)
+
+		if diff := cmp.Diff(test.expected, result); diff != "" {
+			t.Errorf("GenerateVirtualServerConfig() mismatch (-want +got):\n%s", diff)
+			t.Error(test.msg)
+		}
+
+		if len(warnings) != 0 {
+			t.Errorf("GenerateVirtualServerConfig returned warnings: %v", warnings)
+		}
+	}
+}
+
 func TestGeneratePolicies(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 	ownerDetails := policyOwnerDetails{
 		owner:          nil, // nil is OK for the unit test
 		ownerNamespace: "default",
 		vsNamespace:    "default",
 		vsName:         "test",
+		ownerName:      "test",
 	}
 	mTLSCertPath := "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crt"
 	mTLSCrlPath := "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crl"
@@ -11860,10 +12606,15 @@ func TestGeneratePolicies(t *testing.T) {
 						Key:   "default/jwt-policy-2",
 						Realm: "My Test API",
 						JwksURI: version2.JwksURI{
-							JwksScheme: "https",
-							JwksHost:   "idp.example.com",
-							JwksPort:   "443",
-							JwksPath:   "/keys",
+							JwksScheme:     "https",
+							JwksHost:       "idp.example.com",
+							JwksPort:       "443",
+							JwksPath:       "/keys",
+							JwksSNIName:    "",
+							JwksSNIEnabled: false,
+							SSLVerify:      false,
+							TrustedCert:    "",
+							SSLVerifyDepth: 1,
 						},
 						KeyCache: "1h",
 					},
@@ -11901,10 +12652,15 @@ func TestGeneratePolicies(t *testing.T) {
 						Key:   "default/jwt-policy-2",
 						Realm: "My Test API",
 						JwksURI: version2.JwksURI{
-							JwksScheme: "https",
-							JwksHost:   "idp.example.com",
-							JwksPort:   "",
-							JwksPath:   "/keys",
+							JwksScheme:     "https",
+							JwksHost:       "idp.example.com",
+							JwksPort:       "",
+							JwksPath:       "/keys",
+							JwksSNIName:    "",
+							JwksSNIEnabled: false,
+							SSLVerify:      false,
+							TrustedCert:    "",
+							SSLVerifyDepth: 1,
 						},
 						KeyCache: "1h",
 					},
@@ -12275,6 +13031,219 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 			msg: "WAF reference",
 		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "cache-policy-basic",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/cache-policy-basic": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cache-policy-basic",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						Cache: &conf_v1.Cache{
+							CacheZoneName: "basic-cache",
+							CacheZoneSize: "10m",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				Cache: &version2.Cache{
+					ZoneName: "default_test_basic-cache",
+					ZoneSize: "10m",
+					Valid:    map[string]string{},
+				},
+			},
+			msg: "basic cache policy reference",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "cache-policy-full",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/cache-policy-full": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cache-policy-full",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						Cache: &conf_v1.Cache{
+							CacheZoneName:         "full-cache",
+							CacheZoneSize:         "100m",
+							AllowedCodes:          []intstr.IntOrString{intstr.FromString("any")},
+							AllowedMethods:        []string{"GET", "HEAD", "POST"},
+							Time:                  "1h",
+							OverrideUpstreamCache: true,
+							Levels:                "1:2",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				Cache: &version2.Cache{
+					ZoneName:              "default_test_full-cache",
+					ZoneSize:              "100m",
+					Time:                  "1h",
+					Valid:                 map[string]string{"any": "1h"},
+					AllowedMethods:        []string{"GET", "HEAD", "POST"},
+					OverrideUpstreamCache: true,
+					Levels:                "1:2",
+				},
+			},
+			msg: "full cache policy with all options",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "cache-policy-status-codes",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/cache-policy-status-codes": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cache-policy-status-codes",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						Cache: &conf_v1.Cache{
+							CacheZoneName: "status-cache",
+							CacheZoneSize: "50m",
+							AllowedCodes: []intstr.IntOrString{
+								intstr.FromInt(200),
+								intstr.FromInt(301),
+								intstr.FromInt(404),
+							},
+							Time: "30m",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				Cache: &version2.Cache{
+					ZoneName: "default_test_status-cache",
+					ZoneSize: "50m",
+					Time:     "30m",
+					Valid: map[string]string{
+						"200": "30m",
+						"301": "30m",
+						"404": "30m",
+					},
+				},
+			},
+			msg: "cache policy with specific status codes",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "cache-policy-methods",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/cache-policy-methods": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cache-policy-methods",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						Cache: &conf_v1.Cache{
+							CacheZoneName:  "methods-cache",
+							CacheZoneSize:  "25m",
+							AllowedMethods: []string{"GET", "HEAD"},
+							Levels:         "2:2",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				Cache: &version2.Cache{
+					ZoneName:       "default_test_methods-cache",
+					ZoneSize:       "25m",
+					Valid:          map[string]string{},
+					AllowedMethods: []string{"GET", "HEAD"},
+					Levels:         "2:2",
+				},
+			},
+			msg: "cache policy with allowed methods and levels",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "cache-policy-purge",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/cache-policy-purge": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cache-policy-purge",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						Cache: &conf_v1.Cache{
+							CacheZoneName:   "purge-cache",
+							CacheZoneSize:   "75m",
+							CachePurgeAllow: []string{"192.168.1.0/24", "10.0.0.1"},
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				Cache: &version2.Cache{
+					ZoneName:        "default_test_purge-cache",
+					ZoneSize:        "75m",
+					Valid:           map[string]string{},
+					CachePurgeAllow: []string{"192.168.1.0/24", "10.0.0.1"},
+				},
+			},
+			msg: "cache policy with purge allow IPs",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name: "cache-policy-implicit",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/cache-policy-implicit": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cache-policy-implicit",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						Cache: &conf_v1.Cache{
+							CacheZoneName: "implicit-cache",
+							CacheZoneSize: "15m",
+							Time:          "45m",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				Cache: &version2.Cache{
+					ZoneName: "default_test_implicit-cache",
+					ZoneSize: "15m",
+					Time:     "45m",
+					Valid:    map[string]string{},
+				},
+			},
+			msg: "implicit cache policy reference",
+		},
 	}
 
 	vsc := newVirtualServerConfigurator(&ConfigParams{Context: ctx}, false, false, &StaticConfigParams{}, false, &fakeBV)
@@ -12287,7 +13256,7 @@ func TestGeneratePolicies(t *testing.T) {
 			result.BundleValidator = nil
 
 			if !reflect.DeepEqual(tc.expected, result) {
-				t.Error(cmp.Diff(tc.expected, result))
+				t.Error(cmp.Diff(tc.expected, result, cmpopts.IgnoreFields(policiesCfg{}, "Context")))
 			}
 			if len(vsc.warnings) > 0 {
 				t.Errorf("generatePolicies() returned unexpected warnings %v for the case of %s", vsc.warnings, tc.msg)
@@ -15217,7 +16186,7 @@ func TestGenerateLocationForProxying(t *testing.T) {
 		ProxyBuffering:       true,
 		ProxyBuffers:         "8 4k",
 		ProxyBufferSize:      "4k",
-		LocationSnippets:     []string{"# location snippet"},
+		ProxyBusyBuffersSize: "8k", LocationSnippets: []string{"# location snippet"},
 	}
 	path := "/"
 	upstreamName := "test-upstream"
@@ -15234,6 +16203,7 @@ func TestGenerateLocationForProxying(t *testing.T) {
 		ProxyBuffering:           true,
 		ProxyBuffers:             "8 4k",
 		ProxyBufferSize:          "4k",
+		ProxyBusyBuffersSize:     "8k",
 		ProxyPass:                "http://test-upstream",
 		ProxyNextUpstream:        "error timeout",
 		ProxyNextUpstreamTimeout: "0s",
@@ -15264,6 +16234,7 @@ func TestGenerateLocationForGrpcProxying(t *testing.T) {
 		ProxyBuffering:       true,
 		ProxyBuffers:         "8 4k",
 		ProxyBufferSize:      "4k",
+		ProxyBusyBuffersSize: "8k",
 		LocationSnippets:     []string{"# location snippet"},
 		HTTP2:                true,
 	}
@@ -15282,6 +16253,7 @@ func TestGenerateLocationForGrpcProxying(t *testing.T) {
 		ProxyBuffering:           true,
 		ProxyBuffers:             "8 4k",
 		ProxyBufferSize:          "4k",
+		ProxyBusyBuffersSize:     "8k",
 		ProxyPass:                "http://test-upstream",
 		ProxyNextUpstream:        "error timeout",
 		ProxyNextUpstreamTimeout: "0s",
@@ -20015,6 +20987,75 @@ func TestGenerateErrorPageLocations(t *testing.T) {
 		result := generateErrorPageLocations(i, test.errorPages)
 		if !reflect.DeepEqual(result, test.expected) {
 			t.Errorf("generateErrorPageLocations(%v, %v) returned %v but expected %v", test.upstreamName, test.errorPages, result, test.expected)
+		}
+	}
+}
+
+func TestGenerateErrorPageDetails(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		errorPages     []conf_v1.ErrorPage
+		errorLocations []version2.ErrorPageLocation
+		owner          runtime.Object
+		expected       errorPageDetails
+	}{
+		{}, // empty
+		{
+			errorPages: []conf_v1.ErrorPage{
+				{
+					Codes: []int{404, 405, 500, 502},
+					Return: &conf_v1.ErrorPageReturn{
+						ActionReturn: conf_v1.ActionReturn{
+							Code:    200,
+							Headers: nil,
+						},
+					},
+					Redirect: nil,
+				},
+			},
+			errorLocations: []version2.ErrorPageLocation{
+				{
+					Name:        "@error_page_0_0",
+					DefaultType: "text/plain",
+					Return: &version2.Return{
+						Text: "All Good",
+					},
+				},
+			},
+			owner: &conf_v1.VirtualServer{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Namespace: "namespace",
+					Name:      "name",
+				},
+			},
+			expected: errorPageDetails{
+				pages: []conf_v1.ErrorPage{
+					{
+						Codes: []int{404, 405, 500, 502},
+						Return: &conf_v1.ErrorPageReturn{
+							ActionReturn: conf_v1.ActionReturn{
+								Code:    200,
+								Headers: nil,
+							},
+						},
+						Redirect: nil,
+					},
+				},
+				index: 1,
+				owner: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Namespace: "namespace",
+						Name:      "name",
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		result := generateErrorPageDetails(test.errorPages, test.errorLocations, test.owner)
+		if !reflect.DeepEqual(result, test.expected) {
+			t.Errorf("generateErrorPageDetails() returned %v but expected %v", result, test.expected)
 		}
 	}
 }

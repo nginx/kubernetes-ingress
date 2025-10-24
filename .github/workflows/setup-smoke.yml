@@ -33,6 +33,9 @@ on:
       k8s-version:
         required: true
         type: string
+      force:
+        required: true
+        type: boolean
 
 defaults:
   run:
@@ -46,10 +49,10 @@ jobs:
     permissions:
       contents: read # for docker/build-push-action to read repo content
       id-token: write # for OIDC login to GCR
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Set image variables
         id: image_details
@@ -60,7 +63,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: auth
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
           workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
@@ -68,7 +71,7 @@ jobs:
         if: ${{ inputs.authenticated }}
 
       - name: Login to GCR
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -80,6 +83,9 @@ jobs:
         run: |
           if docker pull ${{ steps.image_details.outputs.name }}:${{ steps.image_details.outputs.stable_tag }}; then
             echo "exists=true" >> $GITHUB_OUTPUT
+          fi
+          if [ "${{ inputs.force }}" = "true" ]; then
+            echo "exists=false" >> $GITHUB_OUTPUT
           fi
         if: ${{ inputs.authenticated }}
 
@@ -96,14 +102,14 @@ jobs:
         if: ${{ inputs.authenticated && steps.stable_exists.outputs.exists != 'true'  }}
 
       - name: Fetch Cached Artifacts
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ inputs.go-md5 }}
           fail-on-cache-miss: true
         if: ${{ !inputs.authenticated }}
 
-      - name: Check if test image exists
+      - name: Check if pytest image exists
         id: check-image
         run: |
           docker manifest inspect "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') || 'latest' }}"
@@ -111,7 +117,7 @@ jobs:
         continue-on-error: true
         if: ${{ inputs.authenticated  }}
 
-      - name: Build Test-Runner Container
+      - name: Build Pytest-Runner Container
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           file: tests/Dockerfile
@@ -146,7 +152,7 @@ jobs:
 
       - name: Generate WAF v5 tgz from JSON
         run: |
-          docker run --rm --user root -v /var/run/docker.sock:/var/run/docker.sock -v ${{ github.workspace }}/tests/data/ap-waf-v5:/data gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/nap/waf-compiler:5.6.0 -p /data/wafv5.json -o /data/wafv5.tgz
+          docker run --rm --user root -v /var/run/docker.sock:/var/run/docker.sock -v ${{ github.workspace }}/tests/data/ap-waf-v5:/data gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/nap/waf-compiler:5.9.0 -p /data/wafv5.json -o /data/wafv5.tgz
         if: ${{ contains(inputs.image, 'nap-v5')}}
 
       - name: Run Smoke Tests

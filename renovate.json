@@ -1,0 +1,240 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "packageRules": [
+    {
+      "enabled": false,
+      "matchPackageNames": [
+        "boto3"
+      ],
+      "matchUpdateTypes": [
+        "patch"
+      ]
+    },
+    {
+      "addLabels": [
+        "go"
+      ],
+      "matchDatasources": [
+        "go",
+        "golang-version"
+      ]
+    },
+    {
+      "addLabels": [
+        "python",
+        "skip changelog"
+      ],
+      "matchDatasources": [
+        "pypi"
+      ],
+      "groupName": "python dependencies"
+    },
+    {
+      "addLabels": [
+        "javascript"
+      ],
+      "matchDatasources": [
+        "npm"
+      ],
+      "rangeStrategy": "bump"
+    },
+    {
+      "addLabels": [
+        "docker"
+      ],
+      "matchDatasources": [
+        "docker"
+      ]
+    },
+    {
+      "addLabels": [
+        "helm"
+      ],
+      "matchDatasources": [
+        "helm"
+      ]
+    },
+    {
+      "addLabels": [
+        "github_actions",
+        "skip changelog"
+      ],
+      "matchManagers": [
+        "github-actions"
+      ],
+      "groupName": "github actions"
+    },
+    {
+      "matchPackageNames": [
+        "/private-registry\\.nginx\\.com/",
+        "/registry\\.redhat\\.io/",
+        "/nginxdemos\\/nginx-hello/"
+      ],
+      "matchDatasources": [
+        "docker",
+        "kubernetes"
+      ],
+      "enabled": false
+    }
+  ],
+  "kubernetes": {
+    "managerFilePatterns": [
+      "/bundle/manifests/.+\\.yaml$/",
+      "/bundle/tests/scorecard/.+\\.yaml$/",
+      "/config/.+\\.yaml$/",
+      "/examples/.+\\.yaml$/",
+      "/tests/data/.+\\.yaml$/",
+      "/helm-charts/nginx-ingress/crds/.+\\.yaml$/",
+      "/helm-charts/nginx-ingress/templates/.+\\.yaml$/"
+    ]
+  },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Update env variable version in Github Actions workflow",
+      "managerFilePatterns": [
+        "/.github/workflows/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "\\s+.+?: (?<currentValue>.+?) # renovate: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>.+?)(?: (?:packageName|lookupName)=(?<packageName>.+?))?(?: versioning=(?<versioning>[a-z-]+?))?\\s"
+      ]
+    },
+    {
+      "customType": "regex",
+      "description": "Update Operator SDK version in bundle Dockerfile",
+      "managerFilePatterns": [
+        "/bundle\\.Dockerfile$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>.+?)(?: (?:packageName|lookupName)=(?<packageName>.+?))?(?: versioning=(?<versioning>[a-z-]+?))?\\sLABEL operators.operatorframework.io.metrics.builder=operator-sdk-(?<currentValue>.+?)\\s"
+      ]
+    },
+    {
+      "customType": "regex",
+      "description": "Update _VERSION variables in shell scripts and Makefiles",
+      "managerFilePatterns": [
+        "/\\.sh$/",
+        "/Makefile$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>.+?)?(?: (?:packageName|lookupName)=(?<packageName>.+?))?(?: versioning=(?<versioning>[a-z-]+?))?\\s+\\w+?_VERSION\\s*\\??=\\s*(?<currentValue>.+?)\\s"
+      ]
+    },
+    {
+      "customType": "regex",
+      "description": "Update _VERSION variables in Dockerfiles",
+      "managerFilePatterns": [
+        "/(^|/|\\.)Dockerfile$/",
+        "/(^|/)Dockerfile\\.[^/]*$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>.+?)(?: (?:packageName|lookupName)=(?<packageName>.+?))?(?: versioning=(?<versioning>[a-z-]+?))?\\s(?:ENV|ARG) .+?_VERSION=(?<currentValue>.+?)\\s"
+      ]
+    },
+    {
+      "customType": "regex",
+      "datasourceTemplate": "github-tags",
+      "description": "Update Github Action references in the Markdown files",
+      "managerFilePatterns": [
+        "/\\.md$/"
+      ],
+      "matchStrings": [
+        "\\suses: (?<depName>[\\w-]+/[\\w-]+)(?<path>/.*)?@(?<currentValue>v\\d+\\.\\d+\\.\\d+)",
+        "\\suses: (?<depName>[\\w-]+/[\\w-]+)(?<path>/.*)?@(?<currentDigest>[a-z0-9]{40}|[a-z0-9]{64}) # (?<currentValue>v\\d+\\.\\d+\\.\\d+)"
+      ],
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "Update `version:` and `_VERSION:` variables in github workflows",
+      "managerFilePatterns": [
+        "/^\\.github\\/workflows\\/\\w+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "\\s+(?:[[:word:]]-)?version: (?<currentValue>.+?) # renovate: datasource=(?<datasource>.+?) depName=(?<depName>.+?)(?: (?:packageName|lookupName)=(?<packageName>.+?))?(?: versioning=(?<versioning>.+?))?\\s",
+        "\\s*[[:word:]]+?_VERSION=(?<currentValue>.+?) # renovate: datasource=(?<datasource>.+?) depName=(?<depName>.+?)(?: (?:packageName|lookupName)=(?<packageName>.+?))?(?: versioning=(?<versioning>.+?))?\\s"
+      ]
+    },
+    {
+      "customType": "regex",
+      "description": "Update `Version:` in go files",
+      "managerFilePatterns": [
+        "/\\.go$/"
+      ],
+      "matchStrings": [
+        "// renovate: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>.+?)(?: registryUrl=(?<registryUrl>.+?))?(?: (?:packageName|lookupName)=(?<packageName>.+?))?(?: versioning=(?<versioning>[a-z-]+?))?\\s.+?Version :?= \"(?<currentValue>.+?)\"\\s"
+      ],
+      "versioningTemplate": "{{#if versioning}}{{versioning}}{{else}}semver{{/if}}"
+    },
+    {
+      "customType": "regex",
+      "description": "Update Packer and Packer Plugin versions in Packer files",
+      "datasourceTemplate": "github-tags",
+      "depNameTemplate": "{{#if depName}}{{#if (containsString depName \"hashicorp/\")}}{{{replace \"hashicorp/\" \"hashicorp/packer-plugin-\" depName}}}{{else}}{{{depName}}}{{/if}}{{else}}hashicorp/packer{{/if}}",
+      "managerFilePatterns": [
+        "/\\.pkr\\.hcl$/"
+      ],
+      "matchStrings": [
+        "required_version[\\s]+=[\\s]+\"=?(?<currentValue>\\S*)\"",
+        "source[\\s]+=[\\s]+\"github.com/(?<depName>\\S*)\"[\\s]+version[\\s]+=[\\s]+\"(?<currentValue>\\S*)\"",
+        "version[\\s]+=[\\s]+\"(?<currentValue>\\S*)[\\s]+source[\\s]+=[\\s]+\"github.com/(?<depName>\\S*)\""
+      ]
+    },
+    {
+      "customType": "regex",
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "kindest/node",
+      "description": "Kubernetes version in helm schema file",
+      "managerFilePatterns": [
+        "/values\\.schema\\.json$/"
+      ],
+      "matchStrings": [
+        "master\\/(?<currentValue>v\\d+\\.\\d+\\.\\d+)\\/_definitions\\.json"
+      ]
+    }
+  ],
+  "timezone": "Europe/Dublin",
+  "automerge": true,
+  "automergeStrategy": "squash",
+  "baseBranchPatterns": [
+    "main",
+    "release-5.2"
+  ],
+  "commitBodyTable": true,
+  "configMigration": true,
+  "customDatasources": {
+    "nginx-plus": {
+      "defaultRegistryUrlTemplate": "https://raw.githubusercontent.com/lucacome/renovate-datasource/main/nginx-plus/releases.json",
+      "format": "json"
+    }
+  },
+  "extends": [
+    "schedule:daily",
+    "config:recommended",
+    "docker:enableMajor",
+    "helpers:pinGitHubActionDigests",
+    ":gitSignOff",
+    ":maintainLockFilesMonthly",
+    ":disableRateLimiting",
+    ":semanticCommitsDisabled"
+  ],
+  "ignorePaths": [
+    "**/node_modules/**"
+  ],
+  "ignorePresets": [
+    ":ignoreModulesAndTests"
+  ],
+  "labels": [
+    "dependencies"
+  ],
+  "postUpdateOptions": [
+    "gomodTidy",
+    "gomodUpdateImportPaths",
+    "yarnDedupeHighest",
+    "npmDedupe"
+  ],
+  "pre-commit": {
+    "enabled": true
+  },
+  "rebaseWhen": "behind-base-branch"
+}

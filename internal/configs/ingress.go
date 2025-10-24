@@ -98,7 +98,7 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 	hasAppProtect := p.staticParams.MainAppProtectLoadModule
 	hasAppProtectDos := p.staticParams.MainAppProtectDosLoadModule
 
-	cfgParams := parseAnnotations(p.ingEx, p.BaseCfgParams, p.isPlus, hasAppProtect, hasAppProtectDos, p.staticParams.EnableInternalRoutes)
+	cfgParams := parseAnnotations(p.ingEx, p.BaseCfgParams, p.isPlus, hasAppProtect, hasAppProtectDos, p.staticParams.EnableInternalRoutes, p.staticParams.IsDirectiveAutoadjustEnabled)
 
 	wsServices := getWebsocketServices(p.ingEx)
 	spServices := getSessionPersistenceServices(p.BaseCfgParams.Context, p.ingEx)
@@ -151,30 +151,32 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 		statusZone := rule.Host
 
 		server := version1.Server{
-			Name:                  serverName,
-			ServerTokens:          cfgParams.ServerTokens,
-			HTTP2:                 cfgParams.HTTP2,
-			RedirectToHTTPS:       cfgParams.RedirectToHTTPS,
-			SSLRedirect:           cfgParams.SSLRedirect,
-			ProxyProtocol:         cfgParams.ProxyProtocol,
-			HSTS:                  cfgParams.HSTS,
-			HSTSMaxAge:            cfgParams.HSTSMaxAge,
-			HSTSIncludeSubdomains: cfgParams.HSTSIncludeSubdomains,
-			HSTSBehindProxy:       cfgParams.HSTSBehindProxy,
-			StatusZone:            statusZone,
-			RealIPHeader:          cfgParams.RealIPHeader,
-			SetRealIPFrom:         cfgParams.SetRealIPFrom,
-			RealIPRecursive:       cfgParams.RealIPRecursive,
-			ProxyHideHeaders:      cfgParams.ProxyHideHeaders,
-			ProxyPassHeaders:      cfgParams.ProxyPassHeaders,
-			ServerSnippets:        cfgParams.ServerSnippets,
-			Ports:                 cfgParams.Ports,
-			SSLPorts:              cfgParams.SSLPorts,
-			TLSPassthrough:        p.staticParams.TLSPassthrough,
-			AppProtectEnable:      cfgParams.AppProtectEnable,
-			AppProtectLogEnable:   cfgParams.AppProtectLogEnable,
-			SpiffeCerts:           cfgParams.SpiffeServerCerts,
-			DisableIPV6:           p.staticParams.DisableIPV6,
+			Name:                   serverName,
+			ServerTokens:           cfgParams.ServerTokens,
+			HTTP2:                  cfgParams.HTTP2,
+			RedirectToHTTPS:        cfgParams.RedirectToHTTPS,
+			SSLRedirect:            cfgParams.SSLRedirect,
+			SSLCiphers:             cfgParams.ServerSSLCiphers,
+			SSLPreferServerCiphers: cfgParams.ServerSSLPreferServerCiphers,
+			ProxyProtocol:          cfgParams.ProxyProtocol,
+			HSTS:                   cfgParams.HSTS,
+			HSTSMaxAge:             cfgParams.HSTSMaxAge,
+			HSTSIncludeSubdomains:  cfgParams.HSTSIncludeSubdomains,
+			HSTSBehindProxy:        cfgParams.HSTSBehindProxy,
+			StatusZone:             statusZone,
+			RealIPHeader:           cfgParams.RealIPHeader,
+			SetRealIPFrom:          cfgParams.SetRealIPFrom,
+			RealIPRecursive:        cfgParams.RealIPRecursive,
+			ProxyHideHeaders:       cfgParams.ProxyHideHeaders,
+			ProxyPassHeaders:       cfgParams.ProxyPassHeaders,
+			ServerSnippets:         cfgParams.ServerSnippets,
+			Ports:                  cfgParams.Ports,
+			SSLPorts:               cfgParams.SSLPorts,
+			TLSPassthrough:         p.staticParams.TLSPassthrough,
+			AppProtectEnable:       cfgParams.AppProtectEnable,
+			AppProtectLogEnable:    cfgParams.AppProtectLogEnable,
+			SpiffeCerts:            cfgParams.SpiffeServerCerts,
+			DisableIPV6:            p.staticParams.DisableIPV6,
 		}
 
 		warnings := addSSLConfig(&server, p.ingEx.Ingress, rule.Host, p.ingEx.Ingress.Spec.TLS, p.ingEx.SecretRefs, p.isWildcardEnabled)
@@ -501,6 +503,7 @@ func createLocation(path string, upstream version1.Upstream, cfg *ConfigParams, 
 		ProxyBuffering:       cfg.ProxyBuffering,
 		ProxyBuffers:         cfg.ProxyBuffers,
 		ProxyBufferSize:      cfg.ProxyBufferSize,
+		ProxyBusyBuffersSize: cfg.ProxyBusyBuffersSize,
 		ProxyMaxTempFileSize: cfg.ProxyMaxTempFileSize,
 		ProxySSLName:         proxySSLName,
 		LocationSnippets:     cfg.LocationSnippets,

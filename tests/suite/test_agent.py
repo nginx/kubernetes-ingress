@@ -1,6 +1,7 @@
 import pytest
 from kubernetes.stream import stream
-from suite.utils.resources_utils import get_first_pod_name, wait_before_test
+from settings import TEST_DATA
+from suite.utils.resources_utils import get_file_contents, get_first_pod_name, wait_before_test
 
 
 @pytest.mark.agentv3
@@ -45,3 +46,21 @@ class TestAgentV3:
 
         assert f"Failed to get nginx-agent version: fork/exec /usr/bin/nginx-agent" not in log
         assert "nginx-agent version v3" in result_conf
+
+        # Test for agent.config file - verify the agent config exists inside the NIC pod
+        # Read expected config from test data file (agentv3 configuration)
+        with open(f"{TEST_DATA}/agent/agent-v3.conf") as f:
+            expected_config = f.read().strip()
+
+        # Get the actual config file content from the pod
+        config_contents = get_file_contents(
+            kube_apis.v1, "/etc/nginx-agent/nginx-agent.conf", pod_name, ingress_controller_prerequisites.namespace
+        )
+
+        # Normalize whitespace for comparison - remove trailing spaces from each line
+        def normalize_config(config_text):
+            return "\n".join(line.rstrip() for line in config_text.strip().split("\n"))
+
+        config_contents_normalized = normalize_config(config_contents)
+        expected_config_normalized = normalize_config(expected_config)
+        assert config_contents_normalized == expected_config_normalized

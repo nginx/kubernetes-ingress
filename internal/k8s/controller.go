@@ -235,6 +235,7 @@ type NewLoadBalancerControllerInput struct {
 	CertManagerEnabled           bool
 	ExternalDNSEnabled           bool
 	IsIPV6Disabled               bool
+	IsDirectiveAutoadjustEnabled bool
 	WatchNamespaceLabel          string
 	EnableTelemetryReporting     bool
 	TelemetryReportingEndpoint   string
@@ -386,6 +387,7 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		input.SnippetsEnabled,
 		input.CertManagerEnabled,
 		input.IsIPV6Disabled,
+		input.IsDirectiveAutoadjustEnabled,
 	)
 
 	lbc.appProtectConfiguration = appprotect.NewConfiguration(lbc.Logger)
@@ -892,7 +894,7 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 	var reloadNginx bool
 
 	if lbc.configMap != nil {
-		cfgParams, isNGINXConfigValid = configs.ParseConfigMap(ctx, lbc.configMap, lbc.isNginxPlus, lbc.appProtectEnabled, lbc.appProtectDosEnabled, lbc.configuration.isTLSPassthroughEnabled, lbc.recorder)
+		cfgParams, isNGINXConfigValid = configs.ParseConfigMap(ctx, lbc.configMap, lbc.isNginxPlus, lbc.appProtectEnabled, lbc.appProtectDosEnabled, lbc.configuration.isTLSPassthroughEnabled, lbc.configuration.isDirectiveAutoadjustEnabled, lbc.recorder)
 	}
 	if lbc.mgmtConfigMap != nil && lbc.isNginxPlus {
 		mgmtCfgParams, mgmtConfigHasWarnings, mgmtErr = configs.ParseMGMTConfigMap(ctx, lbc.mgmtConfigMap, lbc.recorder)
@@ -2413,6 +2415,10 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 	if err != nil {
 		nl.Warnf(lbc.Logger, "Error getting EgressMTLS secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
 	}
+	err = lbc.addJWTTrustedCertSecretRefs(virtualServerEx.SecretRefs, policies)
+	if err != nil {
+		nl.Warnf(lbc.Logger, "Error getting JWT trusted cert secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
+	}
 	err = lbc.addOIDCSecretRefs(virtualServerEx.SecretRefs, policies)
 	if err != nil {
 		nl.Warnf(lbc.Logger, "Error getting OIDC secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
@@ -2526,6 +2532,10 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 		if err != nil {
 			nl.Warnf(lbc.Logger, "Error getting EgressMTLS secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
 		}
+		err = lbc.addJWTTrustedCertSecretRefs(virtualServerEx.SecretRefs, vsRoutePolicies)
+		if err != nil {
+			nl.Warnf(lbc.Logger, "Error getting JWT trusted cert secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
+		}
 
 		err = lbc.addWAFPolicyRefs(virtualServerEx.ApPolRefs, virtualServerEx.LogConfRefs, vsRoutePolicies)
 		if err != nil {
@@ -2573,6 +2583,10 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 			err = lbc.addEgressMTLSSecretRefs(virtualServerEx.SecretRefs, vsrSubroutePolicies)
 			if err != nil {
 				nl.Warnf(lbc.Logger, "Error getting EgressMTLS secrets for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
+			}
+			err = lbc.addJWTTrustedCertSecretRefs(virtualServerEx.SecretRefs, vsrSubroutePolicies)
+			if err != nil {
+				nl.Warnf(lbc.Logger, "Error getting JWT trusted cert secrets for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
 			}
 
 			err = lbc.addOIDCSecretRefs(virtualServerEx.SecretRefs, vsrSubroutePolicies)
@@ -2826,6 +2840,26 @@ func (lbc *LoadBalancerController) addEgressMTLSSecretRefs(secretRefs map[string
 	return nil
 }
 
+func (lbc *LoadBalancerController) addJWTTrustedCertSecretRefs(secretRefs map[string]*secrets.SecretReference, policies []*conf_v1.Policy) error {
+	for _, pol := range policies {
+		if pol.Spec.JWTAuth == nil {
+			continue
+		}
+		if pol.Spec.JWTAuth.TrustedCertSecret != "" {
+			secretKey := fmt.Sprintf("%v/%v", pol.Namespace, pol.Spec.JWTAuth.TrustedCertSecret)
+			secretRef := lbc.secretStore.GetSecret(secretKey)
+
+			secretRefs[secretKey] = secretRef
+
+			if secretRef.Error != nil {
+				return secretRef.Error
+			}
+		}
+	}
+
+	return nil
+}
+
 func (lbc *LoadBalancerController) addOIDCSecretRefs(secretRefs map[string]*secrets.SecretReference, policies []*conf_v1.Policy) error {
 	for _, pol := range policies {
 		if pol.Spec.OIDC == nil {
@@ -2878,6 +2912,8 @@ func findPoliciesForSecret(policies []*conf_v1.Policy, secretNamespace string, s
 		if pol.Spec.IngressMTLS != nil && pol.Spec.IngressMTLS.ClientCertSecret == secretName && pol.Namespace == secretNamespace {
 			res = append(res, pol)
 		} else if pol.Spec.JWTAuth != nil && pol.Spec.JWTAuth.Secret == secretName && pol.Namespace == secretNamespace {
+			res = append(res, pol)
+		} else if pol.Spec.JWTAuth != nil && pol.Spec.JWTAuth.TrustedCertSecret == secretName && pol.Namespace == secretNamespace {
 			res = append(res, pol)
 		} else if pol.Spec.BasicAuth != nil && pol.Spec.BasicAuth.Secret == secretName && pol.Namespace == secretNamespace {
 			res = append(res, pol)

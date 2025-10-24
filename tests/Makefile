@@ -19,7 +19,8 @@ REGISTRY                    ?= docker.io ## The registry where the image is loca
 PREFIX                      ?= nginx/nginx-ingress ## The name of the image. For example, nginx/nginx-ingress
 TAG                         ?= edge ## The tag of the image. For example, edge
 K8S_CLUSTER_NAME            ?= local ## The name used when creating/using a Kind Kubernetes cluster
-K8S_CLUSTER_VERSION         ?= $(shell grep -m1 'FROM kindest/node' < ${DOCKERFILEPATH} | cut -d ':' -f 2 | sed -e 's/^v//' | cut -d '@' -f 1) ## The version used when creating a Kind Kubernetes cluster
+# renovate: datasource=docker depName=kindest/node
+K8S_CLUSTER_VERSION         ?= v1.34.0
 K8S_TIMEOUT                 ?= 75s ## The timeout used when creating a Kind Kubernetes cluster
 AD_SECRET                   ?=
 PLUS_JWT                    ?=
@@ -56,7 +57,7 @@ $(MINIKUBE_KUBE_CONFIG_FOLDER): $(KUBE_CONFIG_FOLDER)
 setup-venv:
 	$(PYTHON) -m venv $(ROOT_DIR)/tests/venv;
 	source $(ROOT_DIR)/tests/venv/bin/activate \
-	&& pip install --require-hashes -r requirements.txt --no-deps \
+	&& pip install --require-hashes -r $(ROOT_DIR)/tests/requirements.txt --no-deps \
 	&& playwright install --with-deps chromium
 
 
@@ -122,7 +123,7 @@ run-tests-in-kind: ## Run tests in Kind
 create-kind-cluster: $(KIND_KUBE_CONFIG_FOLDER) ## Create a Kind K8S cluster
 	@kind create cluster \
 		--name $(K8S_CLUSTER_NAME) \
-		--image=kindest/node:v$(K8S_CLUSTER_VERSION) \
+		--image=kindest/node:$(K8S_CLUSTER_VERSION) \
 		--config=<(sed 's/dual/${IP_FAMILY}/' $(ROOT_DIR)/tests/ci-files/ci-kind-config.yaml) \
 		--wait $(K8S_TIMEOUT)
 	@kind get kubeconfig --name $(K8S_CLUSTER_NAME) --internal > $(KIND_KUBE_CONFIG_FOLDER)/config
@@ -163,7 +164,7 @@ run-tests-in-minikube: ## Run tests in Minikube
 
 .PHONY: create-mini-cluster
 create-mini-cluster: $(MINIKUBE_KUBE_CONFIG_FOLDER) ## Create a Minikube K8S cluster
-	@minikube start --kubernetes-version=v$(K8S_CLUSTER_VERSION) \
+	@minikube start --kubernetes-version=$(K8S_CLUSTER_VERSION) \
 	&& KUBECONFIG=$(MINIKUBE_KUBE_CONFIG_FOLDER)/config minikube update-context \
 	&& KUBECONFIG=$(MINIKUBE_KUBE_CONFIG_FOLDER)/config kubectl config set-cluster minikube --server=https://minikube:8443
 

@@ -1,5 +1,4 @@
 .github/actionlint.yaml
-.github/dependabot.yml
 .github/labeler.yml
 .github/PULL_REQUEST_TEMPLATE.md
 .github/release.yml
@@ -26,8 +25,6 @@
 .github/workflows/cherry-pick.yml
 .github/workflows/codeql-analysis.yml
 .github/workflows/create-release-branch.yml
-.github/workflows/dependabot-auto-merge.yml
-.github/workflows/dependabot-hugo.yml
 .github/workflows/dependency-review.yml
 .github/workflows/dockerhub-description.yml
 .github/workflows/docs-build-push.yml
@@ -52,7 +49,6 @@
 .github/workflows/stale.yml
 .github/workflows/update-docker-images.yml
 .github/workflows/update-docker-sha.yml
-.github/workflows/update-kubernetes-version.yml
 .github/workflows/update-release-draft.yml
 .github/workflows/updates-notification.yml
 .github/workflows/version-bump.yml
