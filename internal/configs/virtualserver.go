@@ -496,9 +496,11 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	var limitReqZones []version2.LimitReqZone
 	var authJWTClaimSets []version2.AuthJWTClaimSet
 	var cacheZones []version2.CacheZone
+	var oidcProviders []version2.OIDCProvider
 
 	limitReqZones = append(limitReqZones, policiesCfg.RateLimit.Zones...)
 	authJWTClaimSets = append(authJWTClaimSets, policiesCfg.RateLimit.AuthJWTClaimSets...)
+	oidcProviders = append(oidcProviders, policiesCfg.OIDCv2Providers...)
 
 	// Add cache zone from global policy if present
 	addCacheZone(&cacheZones, policiesCfg.Cache)
@@ -800,8 +802,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		}
 
 		limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
-
 		authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.RateLimit.AuthJWTClaimSets...)
+		oidcProviders = append(oidcProviders, routePoliciesCfg.OIDCv2Providers...)
 
 		// Add cache zone from route policy if present
 		addCacheZone(&cacheZones, routePoliciesCfg.Cache)
@@ -1032,8 +1034,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			}
 
 			limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
-
 			authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.RateLimit.AuthJWTClaimSets...)
+			oidcProviders = append(oidcProviders, routePoliciesCfg.OIDCv2Providers...)
 
 			// Add cache zone from subroute policy if present
 			addCacheZone(&cacheZones, routePoliciesCfg.Cache)
@@ -1129,6 +1131,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		StatusMatches:    statusMatches,
 		LimitReqZones:    removeDuplicateLimitReqZones(limitReqZones),
 		AuthJWTClaimSets: removeDuplicateAuthJWTClaimSets(authJWTClaimSets),
+		OIDCProviders:    removeDuplicateOIDCProviders(oidcProviders),
 		CacheZones:       cacheZones,
 		HTTPSnippets:     httpSnippets,
 		Server: version2.Server{
@@ -1402,6 +1405,20 @@ func removeDuplicateLimitReqZones(rlz []version2.LimitReqZone) []version2.LimitR
 	for _, v := range rlz {
 		if !encountered[v.ZoneName] {
 			encountered[v.ZoneName] = true
+			result = append(result, v)
+		}
+	}
+
+	return result
+}
+
+func removeDuplicateOIDCProviders(providers []version2.OIDCProvider) []version2.OIDCProvider {
+	encountered := make(map[string]bool)
+	result := []version2.OIDCProvider{}
+
+	for _, v := range providers {
+		if !encountered[v.Name] {
+			encountered[v.Name] = true
 			result = append(result, v)
 		}
 	}

@@ -22,6 +22,7 @@ type VirtualServerConfig struct {
 	LimitReqZones           []LimitReqZone
 	Maps                    []Map
 	AuthJWTClaimSets        []AuthJWTClaimSet
+	OIDCProviders           []OIDCProvider
 	CacheZones              []CacheZone
 	Server                  Server
 	SpiffeCerts             bool
@@ -411,6 +412,7 @@ type OIDCProvider struct {
 	SessionTimeout  string
 	SSLCrl          string
 	SSLTrustedCert  string
+	Sync            bool
 	UserInfoEnable  bool
 }
 
