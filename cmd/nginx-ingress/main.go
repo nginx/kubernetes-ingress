@@ -76,6 +76,7 @@ const (
 	appProtectVersionPath    = "/opt/app_protect/RELEASE"
 	appProtectv4BundleFolder = "/etc/nginx/waf/bundles/"
 	appProtectv5BundleFolder = "/etc/app_protect/bundles/"
+	socketPath               = "/var/lib/nginx"
 	fatalEventFlushTime      = 200 * time.Millisecond
 	secretErrorReason        = "SecretError"
 	configMapErrorReason     = "ConfigMapError"
@@ -87,6 +88,8 @@ func main() {
 	parseFlags()
 	ctx := initLogger(*logFormat, logLevels[*logLevel], os.Stdout)
 	l := nl.LoggerFromContext(ctx)
+
+	cleanupSocketFiles(l)
 
 	initValidate(ctx)
 	parsedFlags := os.Args[1:]
@@ -522,7 +525,7 @@ func createPlusClient(ctx context.Context, nginxPlus bool, useFakeNginxManager b
 	var err error
 
 	if nginxPlus && !useFakeNginxManager {
-		httpClient := getSocketClient("/var/lib/nginx/nginx-plus-api.sock")
+		httpClient := getSocketClient(filepath.Join(socketPath, "nginx-plus-api.sock"))
 		plusClient, err = client.NewNginxClient("http://nginx-plus-api/api", client.WithHTTPClient(httpClient))
 		if err != nil {
 			nl.Fatalf(l, "Failed to create NginxClient for Plus: %v", err)
@@ -801,21 +804,6 @@ func handleTermination(lbc *k8s.LoadBalancerController, nginxManager nginx.Manag
 	select {
 	case err := <-cpcfg.nginxDone:
 		if err != nil {
-			// removes .sock files after nginx exits
-			socketPath := "/var/lib/nginx/"
-			files, readErr := os.ReadDir(socketPath)
-			if readErr != nil {
-				nl.Errorf(lbc.Logger, "error trying to read directory %s: %v", socketPath, readErr)
-			} else {
-				for _, f := range files {
-					if !f.IsDir() && strings.HasSuffix(f.Name(), ".sock") {
-						fullPath := filepath.Join(socketPath, f.Name())
-						if removeErr := os.Remove(fullPath); removeErr != nil {
-							nl.Errorf(lbc.Logger, "error trying to remove file %s: %v", fullPath, removeErr)
-						}
-					}
-				}
-			}
 			nl.Fatalf(lbc.Logger, "nginx command exited unexpectedly with status: %v", err)
 		} else {
 			nl.Info(lbc.Logger, "nginx command exited successfully")
@@ -842,6 +830,24 @@ func handleTermination(lbc *k8s.LoadBalancerController, nginxManager nginx.Manag
 	}
 	nl.Info(lbc.Logger, "Exiting successfully")
 	os.Exit(0)
+}
+
+// Clean up any leftover socket files from previous runs
+func cleanupSocketFiles(l *slog.Logger) {
+	files, readErr := os.ReadDir(socketPath)
+	if readErr != nil {
+		nl.Errorf(l, "error trying to read directory %s: %v", socketPath, readErr)
+	} else {
+		for _, f := range files {
+			if !f.IsDir() && strings.HasSuffix(f.Name(), ".sock") {
+				fullPath := filepath.Join(socketPath, f.Name())
+				nl.Infof(l, "Removing socket file %s", fullPath)
+				if removeErr := os.Remove(fullPath); removeErr != nil {
+					nl.Errorf(l, "error trying to remove file %s: %v", fullPath, removeErr)
+				}
+			}
+		}
+	}
 }
 
 func ready(lbc *k8s.LoadBalancerController) http.HandlerFunc {
@@ -936,7 +942,7 @@ func createPlusAndLatencyCollectors(
 			plusCollector = nginxCollector.NewNginxPlusCollector(plusClient, "nginx_ingress_nginxplus", variableLabelNames, constLabels, l)
 			go metrics.RunPrometheusListenerForNginxPlus(ctx, *prometheusMetricsListenPort, plusCollector, registry, prometheusSecret)
 		} else {
-			httpClient := getSocketClient("/var/lib/nginx/nginx-status.sock")
+			httpClient := getSocketClient(filepath.Join(socketPath, "%s/nginx-status.sock"))
 			client := metrics.NewNginxMetricsClient(httpClient)
 			go metrics.RunPrometheusListenerForNginx(ctx, *prometheusMetricsListenPort, client, registry, constLabels, prometheusSecret)
 		}
@@ -945,7 +951,7 @@ func createPlusAndLatencyCollectors(
 			if err := lc.Register(registry); err != nil {
 				nl.Errorf(l, "Error registering Latency Prometheus metrics: %v", err)
 			}
-			syslogListener = metrics.NewLatencyMetricsListener(ctx, "/var/lib/nginx/nginx-syslog.sock", lc)
+			syslogListener = metrics.NewLatencyMetricsListener(ctx, filepath.Join(socketPath, "nginx-syslog.sock"), lc)
 			go syslogListener.Run()
 		}
 	}

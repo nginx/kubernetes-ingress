@@ -72,7 +72,7 @@ jobs:
 
       - name: Commit changes
         id: commit
-        uses: stefanzweifel/git-auto-commit-action@778341af668090896ca464160c2def5d1d1a3eb0 # v6.0.1
+        uses: stefanzweifel/git-auto-commit-action@28e16e81777b558cc906c8750092100bbb34c5e3 # v7.0.0
         with:
           commit_message: "Update files for renovate"
           commit_author: "renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>"

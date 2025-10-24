@@ -1,0 +1,113 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fclo-one
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fclo-one
+  template:
+    metadata:
+      labels:
+        app: fclo-one
+    spec:
+      containers:
+      - name: fclo-one
+        image: nginxdemos/nginx-hello:plain-text
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+          - name: config-volume
+            mountPath: /etc/nginx/conf.d
+      volumes:
+        - name: config-volume
+          configMap:
+            name: oidc-config-one
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fclo-one-svc
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: fclo-one
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oidc-config-one
+data:
+  app.conf: |-
+    server {
+    listen 8080;
+    listen [::]:8080;
+
+    location / {
+        default_type text/plain;
+        expires -1;
+        return 200 'Server address: $server_addr:$server_port\nServer name: $hostname\nDate: $time_local\nURI: $request_uri\nRequest ID: $request_id\nUser ID: $http_username\n';
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fclo-two
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fclo-two
+  template:
+    metadata:
+      labels:
+        app: fclo-two
+    spec:
+      containers:
+      - name: fclo-two
+        image: nginxdemos/nginx-hello:plain-text
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+          - name: config-volume
+            mountPath: /etc/nginx/conf.d
+      volumes:
+        - name: config-volume
+          configMap:
+            name: oidc-config-two
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fclo-two-svc
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: fclo-two
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oidc-config-two
+data:
+  app.conf: |-
+    server {
+    listen 8080;
+    listen [::]:8080;
+
+    location / {
+        default_type text/plain;
+        expires -1;
+        return 200 'Server address: $server_addr:$server_port\nServer name: $hostname\nDate: $time_local\nURI: $request_uri\nRequest ID: $request_id\nUser ID: $http_username\n';
+      }
+    }
