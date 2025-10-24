@@ -1,0 +1,10 @@
+The following table shows compatibility between NGINX Ingress Controller (NIC) and F5 WAF for NGINX (NAP-WAF) versions:
+
+{% raw %}{{< bootstrap-table "table table-striped table-responsive" >}}{% endraw %}
+| NIC Version         | NAP-WAF Version | Config Manager | Enforcer |
+| ------------------- | --------------- | -------------- | -------- |
+| {% raw %}{{< nic-version >}}{% endraw %} | {{ current.nap_waf_version }} | {{ current.config_manager_version }} | {{ current.enforcer_version }} |
+{%- for version in previous_versions %}
+| {{ version.nic_version }} | {{ version.nap_waf_version }} | {{ version.config_manager_version }} | {{ version.enforcer_version }} |
+{%- endfor %}
+{% raw %}{{% /bootstrap-table %}}{% endraw %}

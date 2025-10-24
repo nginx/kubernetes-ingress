@@ -8,13 +8,20 @@ DEBUG=${DEBUG:-"false"}
 DRY_RUN=${DRY_RUN:-"false"}
 TIDY=${TIDY:-"true"}
 DOCS_REPO=${DOCS_REPO:-"nginx/documentation"}
+DOCS_BRANCH=${DOCS_BRANCH:-"main"}
 GITHUB_USERNAME=${GITHUB_USERNAME:-""}
 GITHUB_EMAIL=${GITHUB_EMAIL:-""}
 RELEASE_BRANCH_PREFIX=${RELEASE_BRANCH_PREFIX:-"nic-release-"}
 export GH_TOKEN=${GITHUB_TOKEN:-""}
 
  usage() {
-    echo "Usage: $0 <ic_version> <helm_chart_version> <operator_version> <k8s_versions> [<nginx_version>] <release_date>"
+    echo "Usage: $0 <ic_version> <helm_chart_version> <operator_version> <k8s_versions> [<nginx_version>] <release_date> [<nap_waf_version>] [<nap_config_manager_version>] [<nap_enforcer_version>]"
+    echo ""
+    echo "NAP version is optional:"
+    echo "  nap_waf_version: Combined NAP-WAF version (e.g., '35+5.527.0') - NGINX Plus + compiler version"
+    echo "  nap_config_manager_version: Not used (kept for compatibility)"
+    echo "  nap_enforcer_version: Not used (kept for compatibility)"
+    echo "  Only nap_waf_version is used; other NAP arguments are ignored"
     exit 1
  }
 
@@ -25,6 +32,9 @@ operator_version=$3
 k8s_versions=$4
 nginx_version=$5
 release_date=$6
+NAP_WAF_VERSION=${7:-}
+NAP_CONFIG_MANAGER_VERSION=${8:-}
+NAP_ENFORCER_VERSION=${9:-}
 
 if [ -z "${ic_version}" ]; then
     usage
@@ -46,6 +56,12 @@ if [ -z "${release_date}" ]; then
     usage
 fi
 
+# NAP WAF version is optional - if provided, it should be in combined format (e.g., '35+5.527.0')
+# Other NAP versions (config_manager_version, enforcer_version) are ignored since we use combined format
+if [ -n "${NAP_WAF_VERSION}" ]; then
+    echo "INFO: NAP WAF version provided: ${NAP_WAF_VERSION}"
+fi
+
 if [ -z "${GH_TOKEN}" ]; then
     echo "ERROR: GITHUB_TOKEN is not set"
     exit 2
@@ -64,10 +80,11 @@ if [ "${DEBUG}" != "false" ]; then
     echo "DEBUG: DRY_RUN: ${DRY_RUN}"
     echo "DEBUG: TIDY: ${TIDY}"
     echo "DEBUG: DOCS_REPO: ${DOCS_REPO}"
+    echo "DEBUG: DOCS_BRANCH: ${DOCS_BRANCH}"
     echo "DEBUG: GITHUB_USERNAME: ${GITHUB_USERNAME}"
     echo "DEBUG: GITHUB_EMAIL: ${GITHUB_EMAIL}"
     echo "DEBUG: RELEASE_BRANCH_PREFIX: ${RELEASE_BRANCH_PREFIX}"
-    echo "DEBUG: GH_TOKEN: ****$(echo -n $GH_TOKEN | tail -c 4)"
+    echo "DEBUG: GH_TOKEN: ${GH_TOKEN:0:4}****${GH_TOKEN: -4}"
     echo "DEBUG: DOCS_FOLDER: ${DOCS_FOLDER}"
     echo "DEBUG: ic_version: ${ic_version}"
     echo "DEBUG: helm_chart_version: ${helm_chart_version}"
@@ -75,6 +92,9 @@ if [ "${DEBUG}" != "false" ]; then
     echo "DEBUG: k8s_versions: ${k8s_versions}"
     echo "DEBUG: release_date: ${release_date}"
     echo "DEBUG: nginx_version: ${nginx_version}"
+    echo "DEBUG: NAP_WAF_VERSION: ${NAP_WAF_VERSION}"
+    echo "DEBUG: NAP_CONFIG_MANAGER_VERSION: ${NAP_CONFIG_MANAGER_VERSION}"
+    echo "DEBUG: NAP_ENFORCER_VERSION: ${NAP_ENFORCER_VERSION}"
 fi
 
 echo "INFO: Generating release notes from github draft release"
@@ -112,8 +132,20 @@ if [ $? -ne 0 ]; then
 fi
 
 cd ${DOCS_FOLDER}
+
+# Checkout the specified branch if not main
+if [ "${DOCS_BRANCH}" != "main" ]; then
+    echo "INFO: Checking out branch ${DOCS_BRANCH} in the documentation repository"
+    git checkout "${DOCS_BRANCH}" > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        echo "ERROR: failed checking out branch ${DOCS_BRANCH}"
+        exit 2
+    fi
+fi
+
 if [ "${DEBUG}" != "false" ]; then
     echo "DEBUG: Cloned doc repo to ${DOCS_FOLDER} and changed directory"
+    echo "DEBUG: Using docs branch: ${DOCS_BRANCH}"
 fi
 
 # generate branch name
@@ -137,31 +169,48 @@ else
     fi
 fi
 
-# Update the technical specifications using the current file as input
+# Update the technical specifications and NAP compatibility table
 if [ -n "${nginx_version}" ]; then
     echo "INFO: Updating technical specifications"
-    # First, get the current content of the tech specs file
-    tech_specs_file="${DOCS_FOLDER}/content/nic/technical-specifications.md"
-    if [ ! -f "${tech_specs_file}" ]; then
-        echo "ERROR: Technical specifications file not found at ${tech_specs_file}"
-        exit 1
+
+    # Build NAP arguments if provided (combined format only requires WAF version)
+    nap_args=""
+    if [ -n "${NAP_WAF_VERSION}" ]; then
+        nap_args="${NAP_WAF_VERSION} ${NAP_CONFIG_MANAGER_VERSION:-} ${NAP_ENFORCER_VERSION:-}"
+        echo "INFO: NAP compatibility table will also be updated with version: ${NAP_WAF_VERSION}"
     fi
 
-    tech_specs_content=$(cat "${tech_specs_file}" | \
-        python3 ${ROOTDIR}/.github/scripts/tech-specs-update.py \
-            "${ic_version}" "${k8s_versions}" "${nginx_version}" "${DOCS_FOLDER}")
+    # Run the consolidated tech specs update script
+    # Suppress urllib3 warnings about LibreSSL
+    PYTHONWARNINGS="ignore::urllib3.exceptions.NotOpenSSLWarning" \
+    python3 ${ROOTDIR}/.github/scripts/tech-specs-update.py \
+        "${ic_version}" "${k8s_versions}" "${nginx_version}" "${DOCS_FOLDER}" \
+        ${nap_args}
+
     if [ $? -ne 0 ]; then
         echo "ERROR: Failed to update technical specifications"
         exit 1
     fi
-    # Check if the file was updated
-      echo "INFO: Technical specifications updated"
-      if [ "${DEBUG}" != "false" ]; then
-          echo "DEBUG: Updated technical specifications content:"
-          cat "${tech_specs_file}"
-      fi
-      git add "${tech_specs_file}"
-      git commit -m "Update technical specifications for ${ic_version}"
+
+    echo "INFO: Technical specifications updated"
+    if [ "${DEBUG}" != "false" ]; then
+        echo "DEBUG: Updated technical specifications content:"
+        cat "${DOCS_FOLDER}/content/nic/technical-specifications.md"
+    fi
+
+    # Commit changes
+    git add "${DOCS_FOLDER}/content/nic/technical-specifications.md"
+
+    # If NAP table was updated, add it to the commit
+    if [ -n "${nap_args}" ]; then
+        nap_table_file="${DOCS_FOLDER}/content/includes/nic/compatibility-tables/nic-nap.md"
+        if [ -f "${nap_table_file}" ]; then
+            git add "${nap_table_file}"
+        fi
+        git commit -m "Update technical specifications and NAP compatibility table for ${ic_version}"
+    else
+        git commit -m "Update technical specifications for ${ic_version}"
+    fi
 else
     echo "INFO: nginx_version not set, skipping tech specs update"
 fi
@@ -184,7 +233,7 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "INFO: Updating shortcodes in the documentation repository"
-${ROOTDIR}/.github/scripts/docs-shortcode-update.sh "${DOCS_FOLDER}" "${ic_version}" "${helm_chart_version}" "${operator_version}"
+${ROOTDIR}/.github/scripts/docs-shortcode-update.sh "${DOCS_FOLDER}" "${ic_version}" "${helm_chart_version}" "${operator_version}" "${NAP_WAF_VERSION}" "${NAP_CONFIG_MANAGER_VERSION}"
 if [ $? -ne 0 ]; then
     echo "ERROR: failed updating shortcodes"
     exit 2

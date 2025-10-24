@@ -3,39 +3,26 @@ name: Release PR
 on:
   workflow_dispatch:
     inputs:
-      current_version:
-        description: "Current version to replace"
+      current_versions:
+        description: "Current versions to replace (NIC,Helm Chart,Operator)"
         required: true
-        default: "3.3.2"
-      new_version:
-        description: "Version to release"
+        default: "3.3.2,1.0.2,2.3.0"
+      new_versions:
+        description: "New versions to release (NIC,Helm Chart,Operator)"
         required: true
-        default: "3.4.3"
-      current_helm_version:
-        description: "Current helm version to replace"
-        required: true
-        default: "1.0.2"
-      new_helm_version:
-        description: "Helm version to release"
-        required: true
-        default: "1.1.3"
-      current_operator_version:
-        description: "Current operator version to replace"
-        required: true
-        default: "2.3.0"
-      new_operator_version:
-        description: "Operator version to release"
-        required: true
-        default: "2.3.1"
+        default: "3.4.3,1.1.3,2.3.1"
       k8s_versions:
         description: "Kubernetes versions this release has been tested on"
         required: true
-        default: "x.xx-x.xx"
+        default: "1.27-1.33"
       new_nginx_version:
-        # Over Limit: 10 workflow options allowed, this is 11 -- TODO: Find alternative - ask Paul
         description: "Nginx version to release"
-        required: true
+        required: false
         default: "1.27.5 / R34 P1"
+      nap_versions:
+        description: "NAP versions (comma-separated: waf_version,config_manager,enforcer) - leave empty to skip NAP update"
+        required: false
+        default: "35+5.527,5.9.0,5.9.0"
       release_date:
         description: "Date for this release"
         required: true
@@ -64,10 +51,42 @@ jobs:
       pull-requests: write
     runs-on: ubuntu-22.04
     steps:
+      - name: Parse Versions
+        id: parse_versions
+        run: |
+          IFS=',' read -r current_version current_helm_version current_operator_version <<< "${{ inputs.current_versions }}"
+          IFS=',' read -r new_version new_helm_version new_operator_version <<< "${{ inputs.new_versions }}"
+          echo "current_version=${current_version}" >> $GITHUB_OUTPUT
+          echo "new_version=${new_version}" >> $GITHUB_OUTPUT
+          echo "current_helm_version=${current_helm_version}" >> $GITHUB_OUTPUT
+          echo "new_helm_version=${new_helm_version}" >> $GITHUB_OUTPUT
+          echo "current_operator_version=${current_operator_version}" >> $GITHUB_OUTPUT
+          echo "new_operator_version=${new_operator_version}" >> $GITHUB_OUTPUT
+
+          # Parse NGINX version (OSS / Plus format)
+          if [ -n "${{ inputs.new_nginx_version }}" ]; then
+            nginx_full="${{ inputs.new_nginx_version }}"
+            # Split on " / " to get OSS and Plus versions
+            nginx_oss=$(echo "${nginx_full}" | cut -d'/' -f1 | xargs)
+            nginx_plus=$(echo "${nginx_full}" | cut -d'/' -f2 | xargs)
+            echo "nginx_oss_version=${nginx_oss}" >> $GITHUB_OUTPUT
+            echo "nginx_plus_version=${nginx_plus}" >> $GITHUB_OUTPUT
+            echo "nginx_full_version=${nginx_full}" >> $GITHUB_OUTPUT
+            echo "Parsed NGINX versions - OSS: ${nginx_oss}, Plus: ${nginx_plus}"
+          fi
+
+          # Parse NAP versions if provided
+          if [ -n "${{ inputs.nap_versions }}" ]; then
+            IFS=',' read -r nap_waf_version nap_config_manager_version nap_enforcer_version <<< "${{ inputs.nap_versions }}"
+            echo "nap_waf_version=${nap_waf_version}" >> $GITHUB_OUTPUT
+            echo "nap_config_manager_version=${nap_config_manager_version}" >> $GITHUB_OUTPUT
+            echo "nap_enforcer_version=${nap_enforcer_version}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Branch
         id: branch
         run: |
-          version=${{ inputs.new_version }}
+          version=${{ steps.parse_versions.outputs.new_version }}
           version=${version%.*}
           echo "branch=release-$version" >> $GITHUB_OUTPUT
 
@@ -80,20 +99,23 @@ jobs:
       - name: Replace
         run: |
           .github/scripts/release-version-update.sh \
-            ${{ inputs.current_version }} \
-            ${{ inputs.current_helm_version }} \
-            ${{ inputs.current_operator_version }} \
-            ${{ inputs.new_version }} \
-            ${{ inputs.new_helm_version }} \
-            ${{ inputs.new_operator_version }}
+            ${{ steps.parse_versions.outputs.current_version }} \
+            ${{ steps.parse_versions.outputs.current_helm_version }} \
+            ${{ steps.parse_versions.outputs.current_operator_version }} \
+            ${{ steps.parse_versions.outputs.new_version }} \
+            ${{ steps.parse_versions.outputs.new_helm_version }} \
+            ${{ steps.parse_versions.outputs.new_operator_version }}
           pip install --require-hashes -r .github/scripts/requirements.txt --no-deps
           .github/scripts/release-docs.sh \
-            ${{ inputs.new_version }} \
-            ${{ inputs.new_helm_version }} \
-            ${{ inputs.new_operator_version }} \
+            ${{ steps.parse_versions.outputs.new_version }} \
+            ${{ steps.parse_versions.outputs.new_helm_version }} \
+            ${{ steps.parse_versions.outputs.new_operator_version }} \
             "${{ inputs.k8s_versions }}" \
-            "${{ inputs.new_nginx_version }}" \
-            "${{ inputs.release_date }}"
+            "${{ steps.parse_versions.outputs.nginx_full_version }}" \
+            "${{ inputs.release_date }}" \
+            "${{ steps.parse_versions.outputs.nap_waf_version }}" \
+            "${{ steps.parse_versions.outputs.nap_config_manager_version }}" \
+            "${{ steps.parse_versions.outputs.nap_enforcer_version }}"
         env:
           GITHUB_USERNAME: ${{ github.actor }}
           GITHUB_EMAIL: ${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com
@@ -105,9 +127,9 @@ jobs:
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: Release ${{ github.event.inputs.new_version }}
-          title: Release ${{ github.event.inputs.new_version }}
-          branch: docs/release-${{ github.event.inputs.new_version }}
+          commit-message: Release ${{ steps.parse_versions.outputs.new_version }}
+          title: Release ${{ steps.parse_versions.outputs.new_version }}
+          branch: docs/release-${{ steps.parse_versions.outputs.new_version }}
           body: |
-            This automated PR updates the docs for ${{ github.event.inputs.new_version }} release.
+            This automated PR updates the docs for ${{ steps.parse_versions.outputs.new_version }} release.
         if: ${{ ! inputs.dry_run }}
