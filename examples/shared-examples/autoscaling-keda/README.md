@@ -1,6 +1,6 @@
 # Enable Keda scale to 0 in off hours
 
-This example is based on the official Keda [example](https://keda.sh/docs/2.18/scalers/cron/#scale-to-0-during-off-hours).
+This example is based on the Keda [example](https://keda.sh/docs/2.18/scalers/cron/#scale-to-0-during-off-hours).
 
 ## 1. Deploy the Ingress Controller
 
