@@ -244,7 +244,7 @@ def run_oidc_fclo(browser_type, ip_address, port):
         page.fill('input[name="password"]', password)
 
         with page.expect_navigation():
-            page.click('button[type="submit"]')
+            page.locator('button[type="submit"]').click()
         page.wait_for_load_state("load")
         page_text = page.text_content("body")
         fields_to_check = [
