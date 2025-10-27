@@ -83,6 +83,7 @@
       "/bundle/tests/scorecard/.+\\.yaml$/",
       "/config/.+\\.yaml$/",
       "/examples/.+\\.yaml$/",
+      "/tests/data/.+\\.yaml$/",
       "/helm-charts/nginx-ingress/crds/.+\\.yaml$/",
       "/helm-charts/nginx-ingress/templates/.+\\.yaml$/"
     ]

@@ -311,3 +311,245 @@ func BenchmarkMergeMasterAnnotationsIntoMinion(b *testing.B) {
 		mergeMasterAnnotationsIntoMinion(minionAnnotations, masterAnnotations)
 	}
 }
+
+// TestSSLCipherAnnotationParsing tests the parsing of SSL cipher annotations
+func TestSSLCipherAnnotationParsing(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		expected    ConfigParams
+	}{
+		{
+			name: "SSL ciphers annotation only",
+			annotations: map[string]string{
+				"nginx.org/ssl-ciphers": "HIGH:!aNULL:!MD5",
+			},
+			expected: ConfigParams{
+				ServerSSLCiphers:             "HIGH:!aNULL:!MD5",
+				ServerSSLPreferServerCiphers: false,
+			},
+		},
+		{
+			name: "SSL prefer server ciphers annotation only - true",
+			annotations: map[string]string{
+				"nginx.org/ssl-prefer-server-ciphers": "true",
+			},
+			expected: ConfigParams{
+				ServerSSLCiphers:             "",
+				ServerSSLPreferServerCiphers: true,
+			},
+		},
+		{
+			name: "SSL prefer server ciphers annotation only - True",
+			annotations: map[string]string{
+				"nginx.org/ssl-prefer-server-ciphers": "True",
+			},
+			expected: ConfigParams{
+				ServerSSLCiphers:             "",
+				ServerSSLPreferServerCiphers: true,
+			},
+		},
+		{
+			name: "SSL prefer server ciphers annotation only - false",
+			annotations: map[string]string{
+				"nginx.org/ssl-prefer-server-ciphers": "false",
+			},
+			expected: ConfigParams{
+				ServerSSLCiphers:             "",
+				ServerSSLPreferServerCiphers: false,
+			},
+		},
+		{
+			name: "Both SSL cipher annotations",
+			annotations: map[string]string{
+				"nginx.org/ssl-ciphers":               "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256",
+				"nginx.org/ssl-prefer-server-ciphers": "true",
+			},
+			expected: ConfigParams{
+				ServerSSLCiphers:             "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256",
+				ServerSSLPreferServerCiphers: true,
+			},
+		},
+		{
+			name: "Empty SSL ciphers annotation",
+			annotations: map[string]string{
+				"nginx.org/ssl-ciphers": "",
+			},
+			expected: ConfigParams{
+				ServerSSLCiphers:             "",
+				ServerSSLPreferServerCiphers: false,
+			},
+		},
+		{
+			name: "No SSL cipher annotations",
+			annotations: map[string]string{
+				"nginx.org/proxy-connect-timeout": "30s",
+			},
+			expected: ConfigParams{
+				ServerSSLCiphers:             "",
+				ServerSSLPreferServerCiphers: false,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ingress := &networking.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "test-ingress",
+					Namespace:   "default",
+					Annotations: tt.annotations,
+				},
+			}
+
+			ingEx := &IngressEx{
+				Ingress: ingress,
+			}
+
+			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+
+			if result.ServerSSLCiphers != tt.expected.ServerSSLCiphers {
+				t.Errorf("Expected ServerSSLCiphers %q, got %q", tt.expected.ServerSSLCiphers, result.ServerSSLCiphers)
+			}
+
+			if result.ServerSSLPreferServerCiphers != tt.expected.ServerSSLPreferServerCiphers {
+				t.Errorf("Expected ServerSSLPreferServerCiphers %v, got %v", tt.expected.ServerSSLPreferServerCiphers, result.ServerSSLPreferServerCiphers)
+			}
+		})
+	}
+}
+
+// TestSSLCipherAnnotationFiltering tests that SSL cipher annotations are filtered correctly for minions
+func TestSSLCipherAnnotationFiltering(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                string
+		annotations         map[string]string
+		filterFunc          func(map[string]string) []string
+		expectedRemoved     []string
+		expectedAnnotations map[string]string
+	}{
+		{
+			name: "SSL cipher annotations removed from minions",
+			annotations: map[string]string{
+				"nginx.org/ssl-ciphers":               "HIGH:!aNULL:!MD5",
+				"nginx.org/ssl-prefer-server-ciphers": "true",
+				"nginx.org/proxy-connect-timeout":     "30s",
+				"nginx.org/server-snippets":           "add_header X-Frame-Options SAMEORIGIN;",
+			},
+			filterFunc: filterMinionAnnotations,
+			expectedRemoved: []string{
+				"nginx.org/ssl-ciphers",
+				"nginx.org/ssl-prefer-server-ciphers",
+				"nginx.org/server-snippets",
+			},
+			expectedAnnotations: map[string]string{
+				"nginx.org/proxy-connect-timeout": "30s",
+			},
+		},
+		{
+			name: "SSL cipher annotations allowed in masters",
+			annotations: map[string]string{
+				"nginx.org/ssl-ciphers":               "HIGH:!aNULL:!MD5",
+				"nginx.org/ssl-prefer-server-ciphers": "true",
+				"nginx.org/rewrites":                  "serviceName=test rewrite=/",
+				"nginx.org/proxy-connect-timeout":     "30s",
+			},
+			filterFunc: filterMasterAnnotations,
+			expectedRemoved: []string{
+				"nginx.org/rewrites",
+			},
+			expectedAnnotations: map[string]string{
+				"nginx.org/ssl-ciphers":               "HIGH:!aNULL:!MD5",
+				"nginx.org/ssl-prefer-server-ciphers": "true",
+				"nginx.org/proxy-connect-timeout":     "30s",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Make a copy of annotations to avoid modifying the test data
+			annotations := make(map[string]string)
+			for k, v := range tt.annotations {
+				annotations[k] = v
+			}
+
+			removedAnnotations := tt.filterFunc(annotations)
+
+			// Sort slices for comparison
+			sort.Strings(removedAnnotations)
+			sort.Strings(tt.expectedRemoved)
+
+			if !reflect.DeepEqual(removedAnnotations, tt.expectedRemoved) {
+				t.Errorf("Expected removed annotations %v, got %v", tt.expectedRemoved, removedAnnotations)
+			}
+
+			if !reflect.DeepEqual(annotations, tt.expectedAnnotations) {
+				t.Errorf("Expected remaining annotations %v, got %v", tt.expectedAnnotations, annotations)
+			}
+		})
+	}
+}
+
+// TestSSLCipherAnnotationBooleanValues tests both valid and invalid boolean values for ssl-prefer-server-ciphers
+func TestSSLCipherAnnotationBooleanValues(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		value    string
+		expected bool
+		isValid  bool
+	}{
+		// Valid boolean values
+		{"true", true, true},
+		{"TRUE", true, true},
+		{"True", true, true},
+		{"1", true, true},
+		{"false", false, true},
+		{"FALSE", false, true},
+		{"False", false, true},
+		{"0", false, true},
+		// Invalid boolean values (should default to false)
+		{"invalid", false, false},
+		{"yes", false, false},
+		{"no", false, false},
+		{"2", false, false},
+		{"", false, false},
+		{"maybe", false, false},
+		{"on", false, false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.value, func(t *testing.T) {
+			ingress := &networking.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-ingress",
+					Namespace: "default",
+					Annotations: map[string]string{
+						"nginx.org/ssl-prefer-server-ciphers": tc.value,
+					},
+				},
+			}
+
+			ingEx := &IngressEx{
+				Ingress: ingress,
+			}
+
+			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+
+			if result.ServerSSLPreferServerCiphers != tc.expected {
+				validityMsg := "valid"
+				if !tc.isValid {
+					validityMsg = "invalid"
+				}
+				t.Errorf("Expected ServerSSLPreferServerCiphers to be %v for %s value %q, got %v", tc.expected, validityMsg, tc.value, result.ServerSSLPreferServerCiphers)
+			}
+		})
+	}
+}

@@ -863,6 +863,44 @@ func TestExecuteVirtualServerTemplateWithOIDCAndPKCEPolicyNGINXPlus(t *testing.T
 	t.Log(string(got))
 }
 
+func TestExecuteVirtualServerTemplateWithNGINXDebugLevelDebug(t *testing.T) {
+	t.Parallel()
+
+	e := newTmplExecutorNGINXPlus(t)
+	got, err := e.ExecuteVirtualServerTemplate(&virtualServerCfgWithOIDCAndDebugTurnedOn)
+	if err != nil {
+		t.Error(err)
+	}
+
+	want := "set $oidc_debug true;"
+
+	if !bytes.Contains(got, []byte(want)) {
+		t.Errorf("want %q in generated template", want)
+	}
+
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
+}
+
+func TestExecuteVirtualServerTemplateWithNGINXDebugLevelNotDebug(t *testing.T) {
+	t.Parallel()
+
+	e := newTmplExecutorNGINXPlus(t)
+	got, err := e.ExecuteVirtualServerTemplate(&virtualServerCfgWithOIDCAndDebugTurnedOff)
+	if err != nil {
+		t.Error(err)
+	}
+
+	doNotWant := "set $oidc_debug true;"
+
+	if bytes.Contains(got, []byte(doNotWant)) {
+		t.Errorf("did not want %q in generated template", doNotWant)
+	}
+
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
+}
+
 func TestExecuteVirtualServerTemplateWithCachePolicyNGINXPlus(t *testing.T) {
 	t.Parallel()
 	executor := newTmplExecutorNGINXPlus(t)
@@ -2741,6 +2779,40 @@ var (
 			OIDC: &OIDC{
 				PKCEEnable: true,
 			},
+			Locations: []Location{
+				{
+					Path: "/",
+				},
+			},
+		},
+	}
+
+	virtualServerCfgWithOIDCAndDebugTurnedOn = VirtualServerConfig{
+		Server: Server{
+			ServerName:    "example.com",
+			StatusZone:    "example.com",
+			ProxyProtocol: true,
+			OIDC: &OIDC{
+				PKCEEnable: true,
+			},
+			NGINXDebugLevel: "debug",
+			Locations: []Location{
+				{
+					Path: "/",
+				},
+			},
+		},
+	}
+
+	virtualServerCfgWithOIDCAndDebugTurnedOff = VirtualServerConfig{
+		Server: Server{
+			ServerName:    "example.com",
+			StatusZone:    "example.com",
+			ProxyProtocol: true,
+			OIDC: &OIDC{
+				PKCEEnable: true,
+			},
+			NGINXDebugLevel: "error",
 			Locations: []Location{
 				{
 					Path: "/",
