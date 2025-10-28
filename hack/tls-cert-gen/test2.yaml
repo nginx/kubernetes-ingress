@@ -1,0 +1,8 @@
+Data:
+  tls.crt: d2VsbCBoZWxsbyB0aGVyZQ==
+  tls.key: Z2VuZXJhbCBrZW5vYmk=
+Immutable: null
+Type: kubernetes.io/tls
+apiVersion: v1
+kind: Secret
+name: core-secret-thing
