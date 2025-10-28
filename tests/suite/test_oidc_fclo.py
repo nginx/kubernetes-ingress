@@ -238,10 +238,9 @@ def run_oidc_fclo(browser_type, ip_address, port):
         # Log in to keycloak via fclo one
 
         page.goto("https://fclo-one.example.com")
-        page.wait_for_selector('input[name="username"]')
-        page.fill('input[name="username"]', username)
-        page.wait_for_selector('input[name="password"]', timeout=5000)
-        page.fill('input[name="password"]', password)
+
+        page.locator("input[name='username']").fill(username)
+        page.locator("input[name='password']").fill(password)
 
         page.locator('button[type="submit"]').click()
         page.wait_for_url("https://fclo-one.example.com")
