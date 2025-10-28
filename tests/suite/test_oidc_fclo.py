@@ -238,15 +238,14 @@ def run_oidc_fclo(browser_type, ip_address, port):
         # Log in to keycloak via fclo one
 
         page.goto("https://fclo-one.example.com")
-        page.wait_for_selector('input[name="username"]')
-        page.fill('input[name="username"]', username)
-        page.wait_for_selector('input[name="password"]', timeout=5000)
-        page.fill('input[name="password"]', password)
 
-        with page.expect_navigation():
-            page.click('button[type="submit"]')
-        page.wait_for_load_state("load")
-        page_text = page.text_content("body")
+        page.locator("input[name='username']").fill(username)
+        page.locator("input[name='password']").fill(password)
+
+        page.locator('button[type="submit"]').click()
+        page.wait_for_url("https://fclo-one.example.com")
+
+        page_text = page.locator("body").text_content()
         fields_to_check = [
             "Server address:",
             "Server name:",
@@ -259,7 +258,7 @@ def run_oidc_fclo(browser_type, ip_address, port):
         # Check that we're also logged in via fclo two
         page.goto("https://fclo-two.example.com")
         page.wait_for_load_state("load")
-        page_text = page.text_content("body")
+        page_text = page.locator("body").text_content()
 
         for field in fields_to_check:
             assert field in page_text, f"'{field}' not found in page text on fclo two"
@@ -267,7 +266,7 @@ def run_oidc_fclo(browser_type, ip_address, port):
         # Start the log out process, go to keycloak's logout page
         page.goto("https://keycloak.example.com/realms/master/protocol/openid-connect/logout")
         page.locator("#kc-logout").click()
-        page_text = page.text_content("body")
+        page_text = page.locator("body").text_content()
         fields_to_check = [
             "You are logging out from following apps",
             "fclo-one client name",
