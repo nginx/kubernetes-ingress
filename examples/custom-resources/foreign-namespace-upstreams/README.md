@@ -95,7 +95,7 @@ kubectl create -f namespaces.yaml
     ...
     ```
 
-    If your prefer tea:
+    If you prefer tea:
 
     ```console
     curl --resolve cafe.example.com:$IC_HTTPS_PORT:$IC_IP https://cafe.example.com:$IC_HTTPS_PORT/tea --insecure
