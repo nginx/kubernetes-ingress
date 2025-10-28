@@ -231,7 +231,7 @@ def run_oidc(browser_type, ip_address, port):
         page.locator('button[type="submit"]').click()
         page.wait_for_url("https://virtual-server-tls.example.com")
 
-        page_text = page.text_content("body")
+        page_text = page.locator("body").text_content()
         fields_to_check = [
             "Server address:",
             "Server name:",
