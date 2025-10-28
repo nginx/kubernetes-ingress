@@ -224,15 +224,14 @@ def run_oidc(browser_type, ip_address, port):
         page = context.new_page()
 
         page.goto("https://virtual-server-tls.example.com")
-        page.wait_for_selector('input[name="username"]')
-        page.fill('input[name="username"]', username)
-        page.wait_for_selector('input[name="password"]', timeout=5000)
-        page.fill('input[name="password"]', password)
 
-        with page.expect_navigation():
-            page.click('button[type="submit"]')
-        page.wait_for_load_state("load")
-        page_text = page.text_content("body")
+        page.locator("input[name='username']").fill(username)
+        page.locator("input[name='password']").fill(password)
+
+        page.locator('button[type="submit"]').click()
+        page.wait_for_url("https://virtual-server-tls.example.com")
+
+        page_text = page.locator("body").text_content()
         fields_to_check = [
             "Server address:",
             "Server name:",
