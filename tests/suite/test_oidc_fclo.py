@@ -243,9 +243,9 @@ def run_oidc_fclo(browser_type, ip_address, port):
         page.wait_for_selector('input[name="password"]', timeout=5000)
         page.fill('input[name="password"]', password)
 
-        with page.expect_navigation():
-            page.locator('button[type="submit"]').click()
-        page.wait_for_load_state("load")
+        page.locator('button[type="submit"]').click()
+        page.wait_for_url("https://fclo-one.example.com")
+
         page_text = page.text_content("body")
         fields_to_check = [
             "Server address:",
