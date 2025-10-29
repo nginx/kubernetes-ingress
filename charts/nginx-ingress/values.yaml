@@ -243,6 +243,8 @@ controller:
   autoscaling:
     ## Enables HorizontalPodAutoscaling.
     enabled: false
+    ## Create the HorizontalPodAutoscaler resource.  This can be set to false to manage the HPA externally.
+    create: true
     ## The annotations of the Ingress Controller HorizontalPodAutoscaler.
     annotations: {}
     ## Minimum number of replicas for the HPA.
