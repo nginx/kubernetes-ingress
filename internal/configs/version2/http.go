@@ -338,8 +338,9 @@ type Distribution struct {
 
 // InternalRedirectLocation defines a location for internally redirecting requests to named locations.
 type InternalRedirectLocation struct {
-	Path        string
-	Destination string
+	Path              string
+	Destination       string
+	ClientMaxBodySize string
 }
 
 // Map defines a map.
