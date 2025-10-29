@@ -621,7 +621,7 @@ func (vsv *VirtualServerValidator) validateUpstreams(upstreams []v1.Upstream, fi
 			allErrs = append(allErrs, validateLabels(u.Subselector, idxPath.Child("subselector"))...)
 		}
 
-		allErrs = append(allErrs, validateServiceName(u.Service, idxPath.Child("service"))...)
+		allErrs = append(allErrs, validateVirtualServerServiceName(u.Service, idxPath.Child("service"))...)
 		allErrs = append(allErrs, validateTime(u.ProxyConnectTimeout, idxPath.Child("connect-timeout"))...)
 		allErrs = append(allErrs, validateTime(u.ProxyReadTimeout, idxPath.Child("read-timeout"))...)
 		allErrs = append(allErrs, validateTime(u.ProxySendTimeout, idxPath.Child("send-timeout"))...)
@@ -735,6 +735,30 @@ func validateServiceName(name string, fieldPath *field.Path) field.ErrorList {
 	return validateDNS1035Label(name, fieldPath)
 }
 
+// validateVirtualServerServiceName checks if a namespaced service name is valid for VirtualServer upstreams.
+func validateVirtualServerServiceName(name string, fieldPath *field.Path) field.ErrorList {
+	if strings.Contains(name, "/") {
+		parts := strings.Split(name, "/")
+		if len(parts) != 2 {
+			return field.ErrorList{field.Invalid(fieldPath, name, " service reference must be in the format namespace/service-name")}
+		}
+
+		namespaceErrs := validateDNS1123Label(parts[0], fieldPath)
+		if len(namespaceErrs) > 0 {
+			return field.ErrorList{field.Invalid(fieldPath, name, "invalid namespace in service reference")}
+		}
+
+		serviceErrs := validateServiceName(parts[1], fieldPath)
+		if len(serviceErrs) > 0 {
+			return field.ErrorList{field.Invalid(fieldPath, name, "invalid service name in service reference")}
+		}
+
+		return field.ErrorList{}
+	}
+
+	return validateServiceName(name, fieldPath)
+}
+
 func validateDNS1035Label(name string, fieldPath *field.Path) field.ErrorList {
 	if name == "" {
 		return field.ErrorList{field.Required(fieldPath, "")}
@@ -742,6 +766,18 @@ func validateDNS1035Label(name string, fieldPath *field.Path) field.ErrorList {
 
 	allErrs := field.ErrorList{}
 	for _, msg := range validation.IsDNS1035Label(name) {
+		allErrs = append(allErrs, field.Invalid(fieldPath, name, msg))
+	}
+	return allErrs
+}
+
+func validateDNS1123Label(name string, fieldPath *field.Path) field.ErrorList {
+	if name == "" {
+		return field.ErrorList{field.Required(fieldPath, "")}
+	}
+
+	allErrs := field.ErrorList{}
+	for _, msg := range validation.IsDNS1123Label(name) {
 		allErrs = append(allErrs, field.Invalid(fieldPath, name, msg))
 	}
 	return allErrs

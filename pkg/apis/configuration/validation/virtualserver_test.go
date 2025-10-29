@@ -190,6 +190,20 @@ func TestValidateBackup(t *testing.T) {
 	}
 }
 
+func TestValidateBackupRejectsCrossNamespace(t *testing.T) {
+	t.Parallel()
+
+	vs := makeVirtualServer()
+	vs.Spec.Upstreams[1].Backup = "external-ns/backup-service"
+	vs.Spec.Upstreams[1].BackupPort = createPointerFromUInt16(8080)
+
+	vsv := &VirtualServerValidator{isPlus: true, isDosEnabled: true}
+	err := vsv.ValidateVirtualServer(&vs)
+	if err == nil {
+		t.Error("ValidateVirtualServer() returned no error for cross-namespace backup service, expected error")
+	}
+}
+
 func TestValidateHost(t *testing.T) {
 	t.Parallel()
 	validHosts := []string{
@@ -897,6 +911,36 @@ func TestValidateDNS1035Label(t *testing.T) {
 		allErrs := validateDNS1035Label(name, field.NewPath("name"))
 		if len(allErrs) == 0 {
 			t.Errorf("validateDNS1035Label(%q) returned no errors for invalid input", name)
+		}
+	}
+}
+
+func TestValidateDNS1123Label(t *testing.T) {
+	t.Parallel()
+	validNames := []string{
+		"my-namespace",
+		"namespace-123",
+		"123namespace",
+	}
+
+	for _, name := range validNames {
+		allErrs := validateDNS1123Label(name, field.NewPath("namespace"))
+		if len(allErrs) != 0 {
+			t.Errorf("validateDNS1123Label(%v) returned errors %v for valid input", name, allErrs)
+		}
+	}
+
+	invalidNames := []string{
+		"",
+		"UPPERCASE",
+		"Test",
+		"very-long-label-name-that-exceeds-the-maximum-allowed-length-of-63-characters",
+	}
+
+	for _, name := range invalidNames {
+		allErrs := validateDNS1123Label(name, field.NewPath("namespace"))
+		if len(allErrs) == 0 {
+			t.Errorf("validateDNS1123Label(%v) returned no errors for invalid input", name)
 		}
 	}
 }
@@ -4560,6 +4604,65 @@ func TestValidateErrorPageHeaderFails(t *testing.T) {
 		allErrs := vsv.validateErrorPageHeader(test, field.NewPath("header"))
 		if len(allErrs) == 0 {
 			t.Errorf("validateErrorPageHeader(%v) returned no errors for invalid input", test)
+		}
+	}
+}
+
+func TestValidateVirtualServerServiceName(t *testing.T) {
+	t.Parallel()
+
+	validTests := []string{
+		"coffee-svc",
+		"coffee/coffee-svc",
+	}
+
+	for _, test := range validTests {
+		allErrs := validateVirtualServerServiceName(test, field.NewPath("service"))
+		if len(allErrs) != 0 {
+			t.Errorf("validateVirtualServerServiceName(%v) returned errors %v for valid input", test, allErrs)
+		}
+	}
+
+	invalidTests := []string{
+		"",
+		"namespace/service/extra",
+		"namespace//service",
+		"/service",
+	}
+
+	for _, test := range invalidTests {
+		allErrs := validateVirtualServerServiceName(test, field.NewPath("service"))
+		if len(allErrs) == 0 {
+			t.Errorf("validateVirtualServerServiceName(%v) returned no errors for invalid input", test)
+		}
+	}
+}
+
+func TestValidateServiceName(t *testing.T) {
+	t.Parallel()
+
+	validTests := []string{
+		"my-service",
+		"service-name",
+		"service123",
+	}
+
+	for _, test := range validTests {
+		allErrs := validateServiceName(test, field.NewPath("service"))
+		if len(allErrs) != 0 {
+			t.Errorf("validateServiceName(%v) returned errors %v for valid input", test, allErrs)
+		}
+	}
+
+	invalidTests := []string{
+		"",
+		"123service",
+	}
+
+	for _, test := range invalidTests {
+		allErrs := validateServiceName(test, field.NewPath("service"))
+		if len(allErrs) == 0 {
+			t.Errorf("validateServiceName(%v) returned no errors for invalid input", test)
 		}
 	}
 }
