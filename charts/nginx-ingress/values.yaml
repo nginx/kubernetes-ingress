@@ -62,13 +62,15 @@ controller:
     # logLevel: fatal
 
     # Volumes for App Protect WAF v5
-    # Required volumes are: app-protect-bd-config, app-protect-config, and app-protect-bundles
+    # Required volumes are: app-protect-bd-config, app-protect-config, and app-protect-bundles.  app-protect-ipi-db is required for IP Intelligence when controller.appprotect.ipIntelligence.enable is true.
     volumes:
       - name: app-protect-bd-config
         emptyDir: {}
       - name: app-protect-config
         emptyDir: {}
       - name: app-protect-bundles
+        emptyDir: {}
+      - name: app-protect-ipi-db
         emptyDir: {}
 
     ## Configuration for App Protect WAF v5 Enforcer
@@ -106,6 +108,29 @@ controller:
         # digest: "sha256:CHANGEME"
 
         ## The pull policy for the App Protect WAF v5 Configuration Manager image.
+        pullPolicy: IfNotPresent
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsUser: 101 #nginx
+        runAsNonRoot: true
+        capabilities:
+          drop:
+            - all
+
+    ## Configuration for App Protect WAF v5 IP Intelligence
+    ipIntelligence:
+      enable: false
+      image:
+        ## The image repository of the App Protect WAF v5 IP Intelligence.
+        repository: private-registry.nginx.com/nap/waf-ip-intelligence
+
+        ## The tag of the App Protect WAF v5 IP Intelligence image.
+        tag: "5.9.0"
+        ## The digest of the App Protect WAF v5 IP Intelligence image.
+        ## If digest is specified it has precedence over tag and will be used instead
+        # digest: "sha256:CHANGEME"
+
+        ## The pull policy for the App Protect WAF v5 IP Intelligence image.
         pullPolicy: IfNotPresent
       securityContext:
         allowPrivilegeEscalation: false

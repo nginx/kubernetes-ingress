@@ -185,6 +185,10 @@ Expand image name.
 {{ include "nginx-ingress.image-digest-or-tag" (dict "image" .Values.controller.appprotect.configManager.image "default" .Chart.AppVersion ) }}
 {{- end -}}
 
+{{- define "nap-ip-intelligence.image" -}}
+{{ include "nginx-ingress.image-digest-or-tag" (dict "image" .Values.controller.appprotect.ipIntelligence.image "default" .Chart.AppVersion ) }}
+{{- end -}}
+
 {{/*
 Accepts an image struct like .Values.controller.image along with a default value to use
 if the digest or tag is not set. Can be called like:
@@ -514,6 +518,10 @@ volumeMounts:
   volumeMounts:
     - name: app-protect-bd-config
       mountPath: /opt/app_protect/bd_config
+{{- if .Values.controller.appprotect.ipIntelligence.enable }}
+    - name: app-protect-ipi-db
+      mountPath: /var/IpRep
+{{- end }}
 - name: waf-config-mgr
   image: {{ include "nap-config-manager.image" . }}
   imagePullPolicy: "{{ .Values.controller.appprotect.configManager.image.pullPolicy }}"
@@ -528,7 +536,24 @@ volumeMounts:
       mountPath: /opt/app_protect/config
     - name: app-protect-bundles
       mountPath: /etc/app_protect/bundles
-{{- end}}
+{{- end }}
+{{- if .Values.controller.appprotect.ipIntelligence.enable }}
+- name: waf-ip-intelligence
+  image: {{ include "nap-ip-intelligence.image" . }}
+  imagePullPolicy: "{{ .Values.controller.appprotect.ipIntelligence.image.pullPolicy }}"
+{{- if .Values.controller.appprotect.ipIntelligence.securityContext }}
+  securityContext:
+{{ toYaml .Values.controller.appprotect.ipIntelligence.securityContext | nindent 6 }}
+{{- end }}
+  volumeMounts:
+    - name: app-protect-ipi-db
+      mountPath: /var/IpRep
+    - name: app-protect-config
+      mountPath: /opt/app_protect/config
+    - name: app-protect-bundles
+      mountPath: /etc/app_protect/bundles
+{{- end }}
+{{- end }}
 {{- end -}}
 
 {{- define "nginx-ingress.agentConfiguration" -}}
