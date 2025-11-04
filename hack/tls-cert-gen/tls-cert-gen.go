@@ -24,11 +24,11 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-var tlsKeys = []yamlSecret{
+var yamlSecrets = []yamlSecret{
 	{
-		secretName: "a-test-secret",
+		secretName: "tls-secret",
 		fileName:   "a-test-secret.yaml",
-		hosts:      []string{"example.com", "example.test"},
+		hosts:      []string{"*.example.com"},
 	},
 }
 
@@ -36,10 +36,10 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	var err error
 
-	for _, tlsKey := range tlsKeys {
-		err = printYaml(tlsKey)
+	for _, secret := range yamlSecrets {
+		err = printYaml(secret)
 		if err != nil {
-			log.Fatalf(logger, "Failed to print tls key: %v: %v", tlsKey, err)
+			log.Fatalf(logger, "Failed to print tls key: %v: %v", secret, err)
 		}
 	}
 }
@@ -85,26 +85,35 @@ func printTLS(host string) (*JITTLSKey, error) {
 
 	template := x509.Certificate{
 		SerialNumber: serialNumber,
-		Subject: pkix.Name{
-			Organization: []string{"Acme Co"},
+		Issuer: pkix.Name{
+			Country:      []string{"GB"},
+			Organization: []string{"Internet Widgits Pty Ltd"},
 		},
-		NotBefore: validFrom,
-		NotAfter:  validUntil,
-
+		Subject: pkix.Name{
+			Country:            []string{"US"},
+			Organization:       []string{"Acme Co"},
+			OrganizationalUnit: []string{"Finance"},
+			Locality:           []string{"San Francisco"},
+			Province:           []string{"California"},
+			StreetAddress:      nil,
+			PostalCode:         nil,
+			SerialNumber:       "",
+			CommonName:         host,
+			Names:              nil,
+			ExtraNames:         nil,
+		},
+		NotBefore:             validFrom,
+		NotAfter:              validUntil,
 		KeyUsage:              x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
-
-		IsCA: true,
+		IsCA:                  true,
 	}
 
-	hosts := strings.Split(host, ",")
-	for _, h := range hosts {
-		if ip := net.ParseIP(h); ip != nil {
-			template.IPAddresses = append(template.IPAddresses, ip)
-		} else {
-			template.DNSNames = append(template.DNSNames, h)
-		}
+	if ip := net.ParseIP(host); ip != nil {
+		template.IPAddresses = append(template.IPAddresses, ip)
+	} else {
+		template.DNSNames = append(template.DNSNames, host)
 	}
 
 	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, publicKey(priv), priv)
@@ -164,7 +173,7 @@ func printYaml(secret yamlSecret) error {
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "v1-secret-thing",
+			Name: secret.secretName,
 		},
 		Data: map[string][]byte{
 			v1.TLSCertKey:       tlsKeys.cert,
