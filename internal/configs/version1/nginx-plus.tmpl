@@ -163,6 +163,7 @@ http {
     {{if .ResolverTimeout}}resolver_timeout {{.ResolverTimeout}};{{end}}
 
     {{- if .OIDC}}
+    keyval_zone zone=oidc_pkce:128K timeout=90s sync;
     include oidc/oidc_common.conf;
     {{- end}}
 

@@ -118,7 +118,7 @@ map $request_method $cache_purge_{{ replaceAll $l.Cache.ZoneName "-" "_" }} {
 {{- if $s.OIDC  }}
 keyval $idp_sid $client_sid              zone=oidc_sids;
 {{- if $s.OIDC.PKCEEnable }}
-include oidc/oidc_pkce_supplements.conf;
+keyval $pkce_id $pkce_code_verifier zone=oidc_pkce;
 {{- end }}
 {{- end }}
 

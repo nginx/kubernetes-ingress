@@ -848,7 +848,7 @@ func TestExecuteVirtualServerTemplateWithOIDCAndPKCEPolicyNGINXPlus(t *testing.T
 		t.Error(err)
 	}
 
-	want := "include oidc/oidc_pkce_supplements.conf"
+	want := "keyval $pkce_id $pkce_code_verifier zone=oidc_pkce;"
 	want2 := "include oidc/oidc.conf;"
 
 	if !bytes.Contains(got, []byte(want)) {
