@@ -202,6 +202,44 @@ func makeResolver(resolverAddresses []string, resolverValid string, resolverIPV6
 	return builder.String()
 }
 
+// makeRewritePattern takes a location and Ingress annotations and returns
+// a rewrite pattern that matches the location pattern used.
+// This ensures the rewrite regex matches the same requests as the location.
+func makeRewritePattern(loc *Location, ingressAnnotations map[string]string) string {
+	var regexType string
+	var hasRegex bool
+
+	// Check for path-regex annotation (same logic as makeLocationPath)
+	if loc.MinionIngress != nil {
+		ingressType, isMergeable := loc.MinionIngress.Annotations["nginx.org/mergeable-ingress-type"]
+		regexType, hasRegex = loc.MinionIngress.Annotations["nginx.org/path-regex"]
+		if !(isMergeable && ingressType == "minion" && hasRegex) {
+			hasRegex = false
+		}
+	}
+
+	if !hasRegex {
+		regexType, hasRegex = ingressAnnotations["nginx.org/path-regex"]
+	}
+
+	// If no path-regex annotation, return original path
+	if !hasRegex {
+		return loc.OriginalPath
+	}
+
+	// Generate rewrite pattern based on regex type
+	switch regexType {
+	case "case_sensitive":
+		return fmt.Sprintf("^%s", loc.OriginalPath)
+	case "case_insensitive":
+		return fmt.Sprintf("(?i)^%s", loc.OriginalPath)
+	case "exact":
+		return loc.OriginalPath // exact matches don't need anchors in rewrite
+	default:
+		return loc.OriginalPath
+	}
+}
+
 var helperFunctions = template.FuncMap{
 	"split":                   split,
 	"trim":                    trim,
@@ -212,6 +250,7 @@ var helperFunctions = template.FuncMap{
 	"toUpper":                 strings.ToUpper,
 	"replaceAll":              strings.ReplaceAll,
 	"makeLocationPath":        makeLocationPath,
+	"makeRewritePattern":      makeRewritePattern,
 	"makeSecretPath":          commonhelpers.MakeSecretPath,
 	"makeOnOffFromBool":       commonhelpers.MakeOnOffFromBool,
 	"generateProxySetHeaders": generateProxySetHeaders,

@@ -169,6 +169,7 @@ type LimitReq struct {
 type Location struct {
 	LocationSnippets     []string
 	Path                 string
+	OriginalPath         string
 	Upstream             Upstream
 	ProxyConnectTimeout  string
 	ProxyReadTimeout     string
@@ -177,6 +178,7 @@ type Location struct {
 	ClientMaxBodySize    string
 	Websocket            bool
 	Rewrite              string
+	RewriteTarget        string
 	SSL                  bool
 	GRPC                 bool
 	ProxyBuffering       bool
