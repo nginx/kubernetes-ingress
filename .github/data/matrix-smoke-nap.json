@@ -18,7 +18,7 @@
     },
     {
       "label": "AP_WAF 3/4",
-      "image": "alpine-plus-nap-fips",
+      "image": "debian-plus-nap",
       "type": "plus",
       "nap_modules": "waf",
       "marker": "'appprotect_waf_policies_grpc or otel'",

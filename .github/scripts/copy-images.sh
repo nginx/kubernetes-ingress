@@ -52,8 +52,8 @@ TARGET_NAP_WAF_DOS_IMAGE_PREFIX=${TARGET_NAP_WAF_DOS_IMAGE_PREFIX:-"nginx-ic-dos
 
 declare -a OSS_TAG_POSTFIX_LIST=("" "-ubi" "-alpine")
 declare -a PLUS_TAG_POSTFIX_LIST=("" "-ubi" "-alpine" "-alpine-fips")
-declare -a NAP_WAF_TAG_POSTFIX_LIST=("" "-ubi" "-alpine-fips")
-declare -a NAP_WAFV5_TAG_POSTFIX_LIST=("" "-ubi" "-alpine-fips")
+declare -a NAP_WAF_TAG_POSTFIX_LIST=("" "-ubi")
+declare -a NAP_WAFV5_TAG_POSTFIX_LIST=("" "-ubi")
 declare -a NAP_DOS_TAG_POSTFIX_LIST=("" "-ubi")
 declare -a NAP_WAF_DOS_TAG_POSTFIX_LIST=("" "-ubi")
 

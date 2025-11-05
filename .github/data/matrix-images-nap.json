@@ -45,18 +45,6 @@
       "nap_modules": "waf,dos"
     },
     {
-      "image": "alpine-plus-nap-fips",
-      "target": "goreleaser",
-      "platforms": "linux/amd64",
-      "nap_modules": "waf"
-    },
-    {
-      "image": "alpine-plus-nap-v5-fips",
-      "target": "goreleaser",
-      "platforms": "linux/amd64",
-      "nap_modules": "waf"
-    },
-    {
       "image": "debian-plus-nap-v5",
       "target": "goreleaser",
       "platforms": "linux/amd64",
