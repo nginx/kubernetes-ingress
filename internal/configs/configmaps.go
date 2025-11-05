@@ -704,7 +704,7 @@ func parseConfigMapOIDC(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *ConfigPar
 	if oidcPKCETimeout, exists := cfgm.Data["oidc-pkce-timeout"]; exists {
 		pkceTimeout, err := ParseTime(oidcPKCETimeout)
 		if err != nil {
-			errorText := fmt.Sprintf("ConfigMap %s/%s key %s contains invalid nginx time: %s, eg. 10s\",", cfgm.Namespace, cfgm.Name, "oidc-pkce-timeout", oidcPKCETimeout)
+			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'oidc-pkce-timeout': %q, must be a valid nginx time (e.g. '90s', '5m', '1h')", cfgm.Namespace, cfgm.Name, oidcPKCETimeout)
 			nl.Warn(l, errorText)
 			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
 			return err
@@ -714,7 +714,7 @@ func parseConfigMapOIDC(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *ConfigPar
 	if oidcIDTokensTimeout, exists := cfgm.Data["oidc-id-tokens-timeout"]; exists {
 		idTokensTimeout, err := ParseTime(oidcIDTokensTimeout)
 		if err != nil {
-			errorText := fmt.Sprintf("ConfigMap %s/%s key %s contains invalid nginx time: %s, eg. 10s\",", cfgm.Namespace, cfgm.Name, "oidc-id-tokens-timeout", oidcIDTokensTimeout)
+			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'oidc-id-tokens-timeout': %q, must be a valid nginx time (e.g. '1h', '30m', '2h')", cfgm.Namespace, cfgm.Name, oidcIDTokensTimeout)
 			nl.Warn(l, errorText)
 			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
 			return err
@@ -724,7 +724,7 @@ func parseConfigMapOIDC(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *ConfigPar
 	if oidcAccessTokensTimeout, exists := cfgm.Data["oidc-access-tokens-timeout"]; exists {
 		accessTokensTimeout, err := ParseTime(oidcAccessTokensTimeout)
 		if err != nil {
-			errorText := fmt.Sprintf("ConfigMap %s/%s key %s contains invalid nginx time: %s, eg. 10s\",", cfgm.Namespace, cfgm.Name, "oidc-access-tokens-timeout", oidcAccessTokensTimeout)
+			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'oidc-access-tokens-timeout': %q, must be a valid nginx time (e.g. '1h', '30m', '2h')", cfgm.Namespace, cfgm.Name, oidcAccessTokensTimeout)
 			nl.Warn(l, errorText)
 			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
 			return err
@@ -734,7 +734,7 @@ func parseConfigMapOIDC(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *ConfigPar
 	if oidcRefreshTokensTimeout, exists := cfgm.Data["oidc-refresh-tokens-timeout"]; exists {
 		refreshTokensTimeout, err := ParseTime(oidcRefreshTokensTimeout)
 		if err != nil {
-			errorText := fmt.Sprintf("ConfigMap %s/%s key %s contains invalid nginx time: %s, eg. 10s\",", cfgm.Namespace, cfgm.Name, "oidc-refresh-tokens-timeout", oidcRefreshTokensTimeout)
+			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'oidc-refresh-tokens-timeout': %q, must be a valid nginx time (e.g. '8h', '12h', '24h')", cfgm.Namespace, cfgm.Name, oidcRefreshTokensTimeout)
 			nl.Warn(l, errorText)
 			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
 			return err
@@ -744,7 +744,7 @@ func parseConfigMapOIDC(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *ConfigPar
 	if oidcSIDSTimeout, exists := cfgm.Data["oidc-sids-timeout"]; exists {
 		sidsTimeout, err := ParseTime(oidcSIDSTimeout)
 		if err != nil {
-			errorText := fmt.Sprintf("ConfigMap %s/%s key %s contains invalid nginx time: %s, eg. 10s\",", cfgm.Namespace, cfgm.Name, "oidc-sids-timeout", oidcSIDSTimeout)
+			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'oidc-sids-timeout': %q, must be a valid nginx time (e.g. '8h', '12h', '24h')", cfgm.Namespace, cfgm.Name, oidcSIDSTimeout)
 			nl.Warn(l, errorText)
 			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
 			return err
