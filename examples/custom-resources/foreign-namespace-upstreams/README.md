@@ -11,6 +11,8 @@ and services into multiple namespaces. Instead of one namespace, we now use thre
 - In the cafe namespace, we create the cafe secret with the TLS certificate and key and the load-balancing configuration
   for the cafe application. That configuration references the coffee and tea configurations.
 
+**Note:** When using upstreams in foreign namespaces, ensure that the NGINX Ingress Controller is configured to watch all the relevant namespaces. If you are using the `-watch-namespace` flag, make sure to include all namespaces that contain services referenced by your VirtualServer resources (in this case: `tea`, `coffee`, and `cafe`).
+
 ## Prerequisites
 
 1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
