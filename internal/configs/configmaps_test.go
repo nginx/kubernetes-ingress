@@ -298,6 +298,131 @@ func TestParseConfigMapAccessLogDefault(t *testing.T) {
 	}
 }
 
+func TestParseConfigMapOIDC(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap *v1.ConfigMap
+		want      *OIDC
+		msg       string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{},
+			},
+			want: &OIDC{
+				PKCETimeout:    "90s",
+				IDTokenTimeout: "1h",
+				AccessTimeout:  "1h",
+				RefreshTimeout: "8h",
+				SIDSTimeout:    "8h",
+			},
+			msg: "default OIDC values",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-pkce-timeout":           "5m",
+					"oidc-id-tokens-timeout":      "2h",
+					"oidc-access-tokens-timeout":  "3h",
+					"oidc-refresh-tokens-timeout": "48h",
+					"oidc-sids-timeout":           "72h",
+				},
+			},
+			want: &OIDC{
+				PKCETimeout:    "5m",
+				IDTokenTimeout: "2h",
+				AccessTimeout:  "3h",
+				RefreshTimeout: "48h",
+				SIDSTimeout:    "72h",
+			},
+			msg: "all timeout values custom",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-pkce-timeout": "15m",
+				},
+			},
+			want: &OIDC{
+				PKCETimeout: "15m",
+			},
+			msg: "custom PKCE timeout only",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-id-tokens-timeout": "90m",
+				},
+			},
+			want: &OIDC{
+				IDTokenTimeout: "90m",
+			},
+			msg: "custom ID token timeout only",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-access-tokens-timeout": "4h",
+				},
+			},
+			want: &OIDC{
+				AccessTimeout: "4h",
+			},
+			msg: "custom access token timeout only",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-refresh-tokens-timeout": "16h",
+				},
+			},
+			want: &OIDC{
+				RefreshTimeout: "16h",
+			},
+			msg: "custom refresh token timeout only",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-sids-timeout": "12h",
+				},
+			},
+			want: &OIDC{
+				SIDSTimeout: "12h",
+			},
+			msg: "custom SIDS timeout only",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			cfgParams := NewDefaultConfigParams(context.Background(), true)
+
+			err := parseConfigMapOIDC(nil, test.configMap, cfgParams, makeEventLogger())
+			if err != nil {
+				t.Errorf("parseConfigMapOIDC() returned unexpected error: %v", err)
+			}
+
+			// Check only the specific fields that are set in the test expectation
+			if test.want.PKCETimeout != "" {
+				assert.Equal(t, test.want.PKCETimeout, cfgParams.OIDC.PKCETimeout)
+			}
+			if test.want.IDTokenTimeout != "" {
+				assert.Equal(t, test.want.IDTokenTimeout, cfgParams.OIDC.IDTokenTimeout)
+			}
+			if test.want.AccessTimeout != "" {
+				assert.Equal(t, test.want.AccessTimeout, cfgParams.OIDC.AccessTimeout)
+			}
+			if test.want.RefreshTimeout != "" {
+				assert.Equal(t, test.want.RefreshTimeout, cfgParams.OIDC.RefreshTimeout)
+			}
+			if test.want.SIDSTimeout != "" {
+				assert.Equal(t, test.want.SIDSTimeout, cfgParams.OIDC.SIDSTimeout)
+			}
+		})
+	}
+}
+
 func TestParseMGMTConfigMapError(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

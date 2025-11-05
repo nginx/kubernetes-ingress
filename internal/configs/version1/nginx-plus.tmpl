@@ -162,8 +162,12 @@ http {
     {{ makeResolver .ResolverAddresses .ResolverValid $resolverIPV6HTTPBool }}
     {{if .ResolverTimeout}}resolver_timeout {{.ResolverTimeout}};{{end}}
 
-    {{- if .OIDC}}
-    keyval_zone zone=oidc_pkce:128K timeout=90s sync;
+    {{- if .OIDC.Enable}}
+    keyval_zone zone=oidc_pkce:128K        timeout={{.OIDC.PKCETimeout}}{{- if .ZoneSyncConfig.Enable }} sync{{end}};
+    keyval_zone zone=oidc_id_tokens:1M     timeout={{.OIDC.IDTokenTimeout}}{{- if .ZoneSyncConfig.Enable }} sync{{end}};
+    keyval_zone zone=oidc_access_tokens:1M timeout={{.OIDC.AccessTimeout}}{{- if .ZoneSyncConfig.Enable }} sync{{end}};
+    keyval_zone zone=refresh_tokens:1M     timeout={{.OIDC.RefreshTimeout}}{{- if .ZoneSyncConfig.Enable }} sync{{end}};
+    keyval_zone zone=oidc_sids:1M          timeout={{.OIDC.SIDSTimeout}}{{- if .ZoneSyncConfig.Enable }} sync{{end}};
     include oidc/oidc_common.conf;
     {{- end}}
 
