@@ -91,14 +91,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GOPATH: ${{ inputs.go-path }}
           GOPROXY: ${{ inputs.go-proxy }}
-          AWS_PRODUCT_CODE: ${{ secrets.AWS_PRODUCT_CODE }}
-          AWS_PUB_KEY: ${{ secrets.AWS_PUB_KEY }}
-          AWS_NAP_DOS_PRODUCT_CODE: ${{ secrets.AWS_NAP_DOS_PRODUCT_CODE }}
-          AWS_NAP_DOS_PUB_KEY: ${{ secrets.AWS_NAP_DOS_PUB_KEY }}
-          AWS_NAP_WAF_PRODUCT_CODE: ${{ secrets.AWS_NAP_WAF_PRODUCT_CODE }}
-          AWS_NAP_WAF_PUB_KEY: ${{ secrets.AWS_NAP_WAF_PUB_KEY }}
-          AWS_NAP_WAF_DOS_PRODUCT_CODE: ${{ secrets.AWS_NAP_WAF_DOS_PRODUCT_CODE }}
-          AWS_NAP_WAF_DOS_PUB_KEY: ${{ secrets.AWS_NAP_WAF_DOS_PUB_KEY }}
           GORELEASER_CURRENT_TAG: "v${{ inputs.ic-version }}"
         if: ${{ inputs.force }}
 
@@ -114,6 +106,10 @@ jobs:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ inputs.go-md5 }}
         if: ${{ inputs.force }}
+
+      - name: Cleanup netrc
+        run: rm -f $HOME/.netrc
+        if: ${{ always() }}
 
   # generate-assertion-doc:
   #   if: ${{ github.event_name != 'pull_request' }}
@@ -190,9 +186,9 @@ jobs:
   #       with:
   #         assertion-doc: ${{ steps.assertiondoc.outputs.assertion-document-path }}
 
-      - name: Cleanup netrc
-        run: rm -f $HOME/.netrc
-        if: ${{ always() }}
+  #     - name: Cleanup netrc
+  #       run: rm -f $HOME/.netrc
+  #       if: ${{ always() }}
 
   build-docker:
     name: Build Docker OSS
