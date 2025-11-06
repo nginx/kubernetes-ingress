@@ -802,6 +802,7 @@ func TestExecuteTemplate_ForMainForNGINXPlusWithOIDCTimeoutDefault(t *testing.T)
 	}
 
 	mainConf := buf.String()
+	t.Log(mainConf)
 
 	expectedDirectives := []string{
 		"keyval_zone zone=oidc_pkce:128K        timeout=90s sync;",
@@ -817,6 +818,7 @@ func TestExecuteTemplate_ForMainForNGINXPlusWithOIDCTimeoutDefault(t *testing.T)
 			t.Errorf("oidc timeout directive not found: %s", directive)
 		}
 	}
+	snaps.MatchSnapshot(t, buf.String())
 }
 
 func TestExecuteTemplate_ForMainForNGINXPlusWithOIDCTimeoutCustom(t *testing.T) {
@@ -831,6 +833,7 @@ func TestExecuteTemplate_ForMainForNGINXPlusWithOIDCTimeoutCustom(t *testing.T) 
 	}
 
 	mainConf := buf.String()
+	t.Log(mainConf)
 
 	expectedDirectives := []string{
 		"keyval_zone zone=oidc_pkce:128K        timeout=2m sync;",
@@ -846,6 +849,7 @@ func TestExecuteTemplate_ForMainForNGINXPlusWithOIDCTimeoutCustom(t *testing.T) 
 			t.Errorf("oidc timeout directive not found: %s", directive)
 		}
 	}
+	snaps.MatchSnapshot(t, buf.String())
 }
 
 func TestExecuteTemplate_ForMainForNGINXWithHTTP2On(t *testing.T) {
