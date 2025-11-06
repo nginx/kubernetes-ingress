@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
@@ -24,6 +25,7 @@ import (
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/tools/record"
 )
 
 func createPointerFromBool(b bool) *bool {
@@ -21963,6 +21965,105 @@ func TestGenerateTimeWithDefault(t *testing.T) {
 	}
 }
 
+// TestOIDCTimeoutInMainConfig verifies that OIDC timeout values from ConfigMap appear in generated nginx.conf
+func TestOIDCTimeoutInMainConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name               string
+		configMapData      map[string]string
+		expectedTimeouts   map[string]string
+		expectedDirectives []string
+	}{
+		{
+			name: "default timeouts",
+			configMapData: map[string]string{
+				"zone-sync": "true",
+			},
+			expectedTimeouts: map[string]string{
+				"PKCETimeout":    "90s",
+				"IDTokenTimeout": "1h",
+				"AccessTimeout":  "1h",
+				"RefreshTimeout": "8h",
+				"SIDSTimeout":    "8h",
+			},
+			expectedDirectives: []string{
+				"keyval_zone zone=oidc_pkce:128K        timeout=90s sync;",
+				"keyval_zone zone=oidc_id_tokens:1M     timeout=1h sync;",
+				"keyval_zone zone=oidc_access_tokens:1M timeout=1h sync;",
+				"keyval_zone zone=refresh_tokens:1M     timeout=8h sync;",
+				"keyval_zone zone=oidc_sids:1M          timeout=8h sync;",
+				"include oidc/oidc_common.conf;",
+			},
+		},
+		{
+			name: "custom timeouts",
+			configMapData: map[string]string{
+				"zone-sync":                   "true",
+				"oidc-pkce-timeout":           "2m",
+				"oidc-id-tokens-timeout":      "2h",
+				"oidc-access-tokens-timeout":  "30m",
+				"oidc-refresh-tokens-timeout": "1h",
+				"oidc-sids-timeout":           "120s",
+			},
+			expectedTimeouts: map[string]string{
+				"PKCETimeout":    "2m",
+				"IDTokenTimeout": "2h",
+				"AccessTimeout":  "30m",
+				"RefreshTimeout": "1h",
+				"SIDSTimeout":    "120s",
+			},
+			expectedDirectives: []string{
+				"keyval_zone zone=oidc_pkce:128K        timeout=2m sync;",
+				"keyval_zone zone=oidc_id_tokens:1M     timeout=2h sync;",
+				"keyval_zone zone=oidc_access_tokens:1M timeout=30m sync;",
+				"keyval_zone zone=refresh_tokens:1M     timeout=1h sync;",
+				"keyval_zone zone=oidc_sids:1M          timeout=120s sync;",
+				"include oidc/oidc_common.conf;",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Parse ConfigMap
+			configMap := &api_v1.ConfigMap{Data: test.configMapData}
+			configParams, configOk := ParseConfigMap(context.Background(), configMap, true, false, false, false, false, record.NewFakeRecorder(1024))
+			if !configOk {
+				t.Error("expected configOk true, got configOk false ")
+			}
+
+			vsc := newVirtualServerConfigurator(&baseCfgParams, false, false, &StaticConfigParams{}, false, &fakeBV)
+			_, warnings := vsc.GenerateVirtualServerConfig(&virtualServerExWithOIDCTimeout, nil, nil)
+			if len(warnings) != 0 {
+				t.Errorf("Unexpected warnings: %v", warnings)
+			}
+
+			mainConfig := GenerateNginxMainConfig(&StaticConfigParams{}, configParams, &MGMTConfigParams{})
+			mainConfig.OIDC.Enable = true
+
+			templateExecutor, err := version1.NewTemplateExecutor("version1/nginx-plus.tmpl", "version1/nginx-plus.ingress.tmpl")
+			if err != nil {
+				t.Fatalf("Failed to create template executor: %v", err)
+			}
+
+			nginxConfigContent, err := templateExecutor.ExecuteMainConfigTemplate(mainConfig)
+			if err != nil {
+				t.Fatalf("Failed to execute template: %v", err)
+			}
+
+			configString := string(nginxConfigContent)
+			t.Logf("Generated nginx.conf snippet:\n%s", configString)
+
+			for _, directive := range test.expectedDirectives {
+				if !strings.Contains(configString, directive) {
+					t.Errorf("Expected directive not found: %s", directive)
+				}
+			}
+		})
+	}
+}
+
 var (
 	l             = slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo}))
 	ctx           = nl.ContextWithLogger(context.Background(), l)
@@ -21975,6 +22076,73 @@ var (
 		SetRealIPFrom:   []string{"0.0.0.0/0"},
 		RealIPHeader:    "X-Real-IP",
 		RealIPRecursive: true,
+	}
+
+	virtualServerExWithOIDCTimeout = VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "oidc-app",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "app.example.com",
+				Upstreams: []conf_v1.Upstream{
+					{
+						Name:    "app",
+						Service: "app-svc",
+						Port:    80,
+					},
+				},
+				Routes: []conf_v1.Route{
+					{
+						Path: "/",
+						Policies: []conf_v1.PolicyReference{
+							{
+								Name:      "oidc-policy",
+								Namespace: "default",
+							},
+						},
+						Action: &conf_v1.Action{
+							Pass: "app",
+						},
+					},
+				},
+			},
+		},
+		Policies: map[string]*conf_v1.Policy{
+			"default/oidc-policy": {
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "oidc-policy",
+					Namespace: "default",
+				},
+				Spec: conf_v1.PolicySpec{
+					OIDC: &conf_v1.OIDC{
+						AuthEndpoint:          "https://auth.example.com/auth",
+						TokenEndpoint:         "https://auth.example.com/token",
+						JWKSURI:               "https://auth.example.com/jwks",
+						ClientID:              "test-client-id",
+						ClientSecret:          "oidc-secret",
+						Scope:                 "openid profile email",
+						RedirectURI:           "/redirect",
+						ZoneSyncLeeway:        createPointerFromInt(20),
+						AccessTokenEnable:     true,
+						EndSessionEndpoint:    "https://auth.example.com/logout",
+						PostLogoutRedirectURI: "/_logout",
+					},
+				},
+			},
+		},
+		SecretRefs: map[string]*secrets.SecretReference{
+			"default/oidc-secret": {
+				Secret: &api_v1.Secret{
+					Type: secrets.SecretTypeOIDC,
+					Data: map[string][]byte{
+						"client-secret": []byte("super-secret-value"),
+					},
+				},
+				Path: "/etc/nginx/secrets/default_oidc-secret",
+			},
+		},
 	}
 
 	virtualServerExWithGunzipOn = VirtualServerEx{
