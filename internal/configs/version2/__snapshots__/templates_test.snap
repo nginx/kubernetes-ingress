@@ -1471,7 +1471,7 @@ server {
 [TestExecuteVirtualServerTemplateWithNGINXDebugLevelDebug - 1]
 
 keyval $idp_sid $client_sid              zone=oidc_sids;
-include oidc/oidc_pkce_supplements.conf;
+keyval $pkce_id $pkce_code_verifier zone=oidc_pkce;
 
 server {
     listen 80 proxy_protocol;
@@ -1521,7 +1521,7 @@ server {
 [TestExecuteVirtualServerTemplateWithNGINXDebugLevelNotDebug - 1]
 
 keyval $idp_sid $client_sid              zone=oidc_sids;
-include oidc/oidc_pkce_supplements.conf;
+keyval $pkce_id $pkce_code_verifier zone=oidc_pkce;
 
 server {
     listen 80 proxy_protocol;
@@ -1570,7 +1570,7 @@ server {
 [TestExecuteVirtualServerTemplateWithOIDCAndPKCEPolicyNGINXPlus - 1]
 
 keyval $idp_sid $client_sid              zone=oidc_sids;
-include oidc/oidc_pkce_supplements.conf;
+keyval $pkce_id $pkce_code_verifier zone=oidc_pkce;
 
 server {
     listen 80 proxy_protocol;

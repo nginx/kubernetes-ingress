@@ -205,6 +205,16 @@ type ZoneSyncConfig struct {
 	ResolverIPV6  *bool
 }
 
+// OIDCConfig allows to configure OIDC parameters.
+type OIDCConfig struct {
+	Enable         bool
+	PKCETimeout    string
+	IDTokenTimeout string
+	AccessTimeout  string
+	RefreshTimeout string
+	SIDSTimeout    string
+}
+
 // MGMTConfig is tbe configuration for the MGMT block.
 type MGMTConfig struct {
 	SSLVerify            *bool
@@ -298,7 +308,7 @@ type MainConfig struct {
 	InternalRouteServerName            string
 	LatencyMetrics                     bool
 	ZoneSyncConfig                     ZoneSyncConfig
-	OIDC                               bool
+	OIDC                               OIDCConfig
 	DynamicSSLReloadEnabled            bool
 	StaticSSLPath                      string
 	NginxVersion                       nginx.Version

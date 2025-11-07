@@ -15,9 +15,17 @@
         "go"
       ],
       "matchDatasources": [
-        "go",
-        "golang-version"
+        "go"
       ]
+    },
+    {
+      "addLabels": [
+        "go"
+      ],
+      "matchDatasources": [
+        "golang-version"
+      ],
+      "rangeStrategy": "bump"
     },
     {
       "addLabels": [

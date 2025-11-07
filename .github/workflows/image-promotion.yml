@@ -312,7 +312,7 @@ jobs:
 
      - name: Docker meta
        id: meta
-       uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
+       uses: docker/metadata-action@318604b99e75e41977312d83839a89be02ca4893 # v5.9.0
        with:
          context: workflow
          images: |
@@ -356,7 +356,7 @@ jobs:
          summary: true
 
      - name: Upload Scan Results to Github Artifacts
-       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+       uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
        with:
          name: "${{ github.ref_name }}-${{ steps.directory.outputs.directory }}"
          path: "${{ steps.directory.outputs.directory }}/"
@@ -392,7 +392,7 @@ jobs:
 
      - name: Docker meta
        id: meta
-       uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
+       uses: docker/metadata-action@318604b99e75e41977312d83839a89be02ca4893 # v5.9.0
        with:
          context: workflow
          images: |
@@ -436,7 +436,7 @@ jobs:
          summary: true
 
      - name: Upload Scan Results to Github Artifacts
-       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+       uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
        with:
          name: "${{ github.ref_name }}-${{ steps.directory.outputs.directory }}"
          path: "${{ steps.directory.outputs.directory }}/"
@@ -479,7 +479,7 @@ jobs:
 
      - name: Docker meta
        id: meta
-       uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
+       uses: docker/metadata-action@318604b99e75e41977312d83839a89be02ca4893 # v5.9.0
        with:
          context: workflow
          images: |
@@ -523,7 +523,7 @@ jobs:
          summary: true
 
      - name: Upload Scan Results to Github Artifacts
-       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+       uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
        with:
          name: "${{ github.ref_name }}-${{ steps.directory.outputs.directory }}"
          path: "${{ steps.directory.outputs.directory }}/"
