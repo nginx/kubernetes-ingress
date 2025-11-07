@@ -257,7 +257,7 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 			ssl := isSSLEnabled(sslServices[path.Backend.Service.Name], cfgParams, p.staticParams)
 			proxySSLName := generateProxySSLName(path.Backend.Service.Name, p.ingEx.Ingress.Namespace)
 			loc := createLocation(pathOrDefault(path.Path), upstreams[upsName], &cfgParams, wsServices[path.Backend.Service.Name], rewrites[path.Backend.Service.Name],
-				ssl, grpcServices[path.Backend.Service.Name], proxySSLName, path.PathType, path.Backend.Service.Name, rewriteTarget, path.Path)
+				ssl, grpcServices[path.Backend.Service.Name], proxySSLName, path.PathType, path.Backend.Service.Name, rewriteTarget)
 
 			if p.isMinion && cfgParams.JWTKey != "" {
 				jwtAuth, redirectLoc, warnings := generateJWTConfig(p.ingEx.Ingress, p.ingEx.SecretRefs, &cfgParams, getNameForRedirectLocation(p.ingEx.Ingress))
@@ -322,7 +322,7 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 			pathtype := networking.PathTypePrefix
 
 			loc := createLocation(pathOrDefault("/"), upstreams[upsName], &cfgParams, wsServices[p.ingEx.Ingress.Spec.DefaultBackend.Service.Name], rewrites[p.ingEx.Ingress.Spec.DefaultBackend.Service.Name],
-				ssl, grpcServices[p.ingEx.Ingress.Spec.DefaultBackend.Service.Name], proxySSLName, &pathtype, p.ingEx.Ingress.Spec.DefaultBackend.Service.Name, rewriteTarget, "/")
+				ssl, grpcServices[p.ingEx.Ingress.Spec.DefaultBackend.Service.Name], proxySSLName, &pathtype, p.ingEx.Ingress.Spec.DefaultBackend.Service.Name, rewriteTarget)
 			locations = append(locations, loc)
 
 			if cfgParams.HealthCheckEnabled {
@@ -489,10 +489,9 @@ func generateIngressPath(path string, pathType *networking.PathType) string {
 	return path
 }
 
-func createLocation(path string, upstream version1.Upstream, cfg *ConfigParams, websocket bool, rewrite string, ssl bool, grpc bool, proxySSLName string, pathType *networking.PathType, serviceName string, rewriteTarget string, originalPath string) version1.Location {
+func createLocation(path string, upstream version1.Upstream, cfg *ConfigParams, websocket bool, rewrite string, ssl bool, grpc bool, proxySSLName string, pathType *networking.PathType, serviceName string, rewriteTarget string) version1.Location {
 	loc := version1.Location{
 		Path:                 generateIngressPath(path, pathType),
-		OriginalPath:         originalPath,
 		Upstream:             upstream,
 		ProxyConnectTimeout:  cfg.ProxyConnectTimeout,
 		ProxyReadTimeout:     cfg.ProxyReadTimeout,

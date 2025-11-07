@@ -596,7 +596,7 @@ func getRewrites(ctx context.Context, ingEx *IngressEx) map[string]string {
 func getRewriteTarget(ctx context.Context, ingEx *IngressEx) (string, Warnings) {
 	l := nl.LoggerFromContext(ctx)
 	warnings := newWarnings()
-	
+
 	// Check for mutual exclusivity
 	if _, hasRewrites := ingEx.Ingress.Annotations["nginx.org/rewrites"]; hasRewrites {
 		if _, hasRewriteTarget := ingEx.Ingress.Annotations[RewriteTargetAnnotation]; hasRewriteTarget {
@@ -606,7 +606,7 @@ func getRewriteTarget(ctx context.Context, ingEx *IngressEx) (string, Warnings) 
 			return "", warnings
 		}
 	}
-	
+
 	if value, exists := ingEx.Ingress.Annotations[RewriteTargetAnnotation]; exists {
 		return value, warnings
 	}

@@ -3244,6 +3244,142 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/use-cluster-ip annotation",
 		},
+
+		// nginx.org/rewrite-target annotation tests
+		{
+			annotations: map[string]string{
+				"nginx.org/rewrite-target": "/api/v1/$1",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/rewrite-target annotation",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/rewrite-target": "/newpath",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/rewrite-target annotation, simple path",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/rewrite-target": "/api/$1/$2/data",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/rewrite-target annotation, multiple capture groups",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/rewrite-target": "",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/rewrite-target: Required value`,
+			},
+			msg: "invalid nginx.org/rewrite-target annotation, empty value",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/rewrite-target": "http://example.com/path",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/rewrite-target: Invalid value: "http://example.com/path": absolute URLs not allowed in rewrite target`,
+			},
+			msg: "invalid nginx.org/rewrite-target annotation, absolute HTTP URL",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/rewrite-target": "https://example.com/path",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/rewrite-target: Invalid value: "https://example.com/path": absolute URLs not allowed in rewrite target`,
+			},
+			msg: "invalid nginx.org/rewrite-target annotation, absolute HTTPS URL",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/rewrite-target": "//example.com/path",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/rewrite-target: Invalid value: "//example.com/path": protocol-relative URLs not allowed in rewrite target`,
+			},
+			msg: "invalid nginx.org/rewrite-target annotation, protocol-relative URL",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/rewrite-target": "/api/../admin/users",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/rewrite-target: Invalid value: "/api/../admin/users": path traversal patterns not allowed in rewrite target`,
+			},
+			msg: "invalid nginx.org/rewrite-target annotation, path traversal with ../",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/rewrite-target": "/api/..\\admin/users",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/rewrite-target: Invalid value: "/api/..\\admin/users": path traversal patterns not allowed in rewrite target`,
+			},
+			msg: "invalid nginx.org/rewrite-target annotation, path traversal with ..\\ (Windows style)",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/rewrite-target": "api/users",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/rewrite-target: Invalid value: "api/users": rewrite target must start with /`,
+			},
+			msg: "invalid nginx.org/rewrite-target annotation, does not start with slash",
+		},
 	}
 
 	for _, test := range tests {

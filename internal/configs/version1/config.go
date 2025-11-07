@@ -169,7 +169,6 @@ type LimitReq struct {
 type Location struct {
 	LocationSnippets     []string
 	Path                 string
-	OriginalPath         string
 	Upstream             Upstream
 	ProxyConnectTimeout  string
 	ProxyReadTimeout     string
