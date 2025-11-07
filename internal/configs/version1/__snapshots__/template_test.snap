@@ -928,7 +928,7 @@ server {
     
 
     
-    location ~* "^~* "^/(latte|espresso)"" {
+    location ~* "^/(latte|espresso)" {
         set $service "";
         status_zone "";
         rewrite (?i)^/(latte|espresso) /drinks/$1 break;
@@ -975,7 +975,7 @@ server {
     
 
     
-    location ~ "^~ "^/(coffee|tea)"" {
+    location ~ "^/(coffee|tea)" {
         set $service "";
         status_zone "";
         rewrite ^/(coffee|tea) /beverages/$1 break;
@@ -1022,7 +1022,7 @@ server {
     
 
     
-    location ~ "^~ "^/menu/(hot|cold)/(coffee|tea)"" {
+    location ~ "^/menu/(hot|cold)/(coffee|tea)" {
         set $service "";
         status_zone "";
         rewrite ^/menu/(hot|cold)/(coffee|tea) /drinks/$1/$2 break;
@@ -1069,7 +1069,7 @@ server {
     
 
     
-    location = "= "/cappuccino"" {
+    location = "/cappuccino" {
         set $service "";
         status_zone "";
         rewrite /cappuccino /special/cappuccino break;
@@ -1163,7 +1163,7 @@ server {
     
 
     
-    location ~ "^~ "^/americano"" {
+    location ~ "^/americano" {
         set $service "";
         status_zone "";
         proxy_http_version 1.1;
@@ -2081,7 +2081,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
-    location ~* "^~* "^/(latte|espresso)"" {
+    location ~* "^/(latte|espresso)" {
         set $service "";
         rewrite (?i)^/(latte|espresso) /drinks/$1 break;
         proxy_http_version 1.1;
@@ -2118,7 +2118,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
-    location ~ "^~ "^/(coffee|tea)"" {
+    location ~ "^/(coffee|tea)" {
         set $service "";
         rewrite ^/(coffee|tea) /beverages/$1 break;
         proxy_http_version 1.1;
@@ -2155,7 +2155,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-menu-ingress";
     set $resource_namespace "default";
-    location ~ "^~ "^/menu/(hot|cold)/(coffee|tea)"" {
+    location ~ "^/menu/(hot|cold)/(coffee|tea)" {
         set $service "";
         rewrite ^/menu/(hot|cold)/(coffee|tea) /drinks/$1/$2 break;
         proxy_http_version 1.1;
@@ -2192,7 +2192,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
-    location = "= "/cappuccino"" {
+    location = "/cappuccino" {
         set $service "";
         rewrite /cappuccino /special/cappuccino break;
         proxy_http_version 1.1;
@@ -2266,7 +2266,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
-    location ~ "^~ "^/americano"" {
+    location ~ "^/americano" {
         set $service "";
         proxy_http_version 1.1;
         proxy_connect_timeout ;

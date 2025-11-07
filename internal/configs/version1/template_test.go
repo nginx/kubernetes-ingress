@@ -3791,7 +3791,7 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 						ServerTokens: "off",
 						Locations: []Location{
 							{
-								Path:          "~ \"^/(coffee|tea)\"",
+								Path:          "/(coffee|tea)",
 								RewriteTarget: "/beverages/$1",
 								Upstream:      testUpstream,
 							},
@@ -3823,7 +3823,7 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 						ServerTokens: "off",
 						Locations: []Location{
 							{
-								Path:          "~* \"^/(latte|espresso)\"",
+								Path:          "/(latte|espresso)",
 								RewriteTarget: "/drinks/$1",
 								Upstream:      testUpstream,
 							},
@@ -3855,7 +3855,7 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 						ServerTokens: "off",
 						Locations: []Location{
 							{
-								Path:          "= \"/cappuccino\"",
+								Path:          "/cappuccino",
 								RewriteTarget: "/special/cappuccino",
 								Upstream:      testUpstream,
 							},
@@ -3918,7 +3918,7 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 						ServerTokens: "off",
 						Locations: []Location{
 							{
-								Path:     "~ \"^/americano\"",
+								Path:     "/americano",
 								Upstream: testUpstream,
 								// RewriteTarget is empty - should not generate rewrite directive
 							},
@@ -3948,7 +3948,7 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 						ServerTokens: "off",
 						Locations: []Location{
 							{
-								Path:          "~ \"^/menu/(hot|cold)/(coffee|tea)\"",
+								Path:          "/menu/(hot|cold)/(coffee|tea)",
 								RewriteTarget: "/drinks/$1/$2",
 								Upstream:      testUpstream,
 							},
@@ -4027,7 +4027,7 @@ func TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget(t *testing.T) {
 						ServerTokens: "off",
 						Locations: []Location{
 							{
-								Path:          "~ \"^/(coffee|tea)\"",
+								Path:          "/(coffee|tea)",
 								RewriteTarget: "/beverages/$1",
 								Upstream:      testUpstream,
 							},
@@ -4059,7 +4059,7 @@ func TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget(t *testing.T) {
 						ServerTokens: "off",
 						Locations: []Location{
 							{
-								Path:          "~* \"^/(latte|espresso)\"",
+								Path:          "/(latte|espresso)",
 								RewriteTarget: "/drinks/$1",
 								Upstream:      testUpstream,
 							},
@@ -4091,7 +4091,7 @@ func TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget(t *testing.T) {
 						ServerTokens: "off",
 						Locations: []Location{
 							{
-								Path:          "= \"/cappuccino\"",
+								Path:          "/cappuccino",
 								RewriteTarget: "/special/cappuccino",
 								Upstream:      testUpstream,
 							},
@@ -4154,7 +4154,7 @@ func TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget(t *testing.T) {
 						ServerTokens: "off",
 						Locations: []Location{
 							{
-								Path:     "~ \"^/americano\"",
+								Path:     "/americano",
 								Upstream: testUpstream,
 								// RewriteTarget is empty - should not generate rewrite directive
 							},
@@ -4184,7 +4184,7 @@ func TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget(t *testing.T) {
 						ServerTokens: "off",
 						Locations: []Location{
 							{
-								Path:          "~ \"^/menu/(hot|cold)/(coffee|tea)\"",
+								Path:          "/menu/(hot|cold)/(coffee|tea)",
 								RewriteTarget: "/drinks/$1/$2",
 								Upstream:      testUpstream,
 							},
