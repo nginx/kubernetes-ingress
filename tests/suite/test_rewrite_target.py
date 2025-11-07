@@ -42,7 +42,9 @@ def rewrite_target_setup(
     ingress_controller,
     test_namespace,
 ) -> RewriteTargetSetup:
-    print("------------------------- Deploy Ingress with rewrite-target annotations -----------------------------------")
+    print(
+        "------------------------- Deploy Ingress with rewrite-target annotations -----------------------------------"
+    )
     src = f"{TEST_DATA}/rewrite-target/{request.param}.yaml"
     create_items_from_yaml(kube_apis, src, test_namespace)
     ingress_name = get_name_from_yaml(src)
@@ -82,12 +84,14 @@ class TestRewriteTarget:
         Test static rewrite target functionality.
         Request to /app should be rewritten to /backend.
         """
-        request_url = f"http://{rewrite_target_setup.public_endpoint.public_ip}:{rewrite_target_setup.public_endpoint.port}/app"
+        request_url = (
+            f"http://{rewrite_target_setup.public_endpoint.public_ip}:{rewrite_target_setup.public_endpoint.port}/app"
+        )
         resp = requests.get(
             request_url,
             headers={"host": rewrite_target_setup.ingress_host},
         )
-        
+
         assert resp.status_code == 200
         assert "URI: /backend" in resp.text
 
@@ -102,6 +106,6 @@ class TestRewriteTarget:
             request_url,
             headers={"host": rewrite_target_setup.ingress_host},
         )
-        
+
         assert resp.status_code == 200
         assert "URI: /api/users/123" in resp.text

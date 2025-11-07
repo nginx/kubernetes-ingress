@@ -109,4 +109,3 @@ The requests to `/menu/coffee/espresso` and `/menu/tea/green` are rewritten to `
    - Protocol-relative URLs (`//`)
    - Path traversal patterns (`../` or `..\\`)
    - Paths not starting with `/`
-
