@@ -8,6 +8,7 @@ from suite.utils.resources_utils import (
     delete_common_app,
     delete_items_from_yaml,
     ensure_connection_to_public_endpoint,
+    wait_before_test,
     wait_until_all_pods_are_ready,
 )
 from suite.utils.yaml_utils import get_first_ingress_host_from_yaml, get_name_from_yaml
@@ -87,6 +88,8 @@ class TestRewriteTarget:
         request_url = (
             f"http://{rewrite_target_setup.public_endpoint.public_ip}:{rewrite_target_setup.public_endpoint.port}/app"
         )
+
+        wait_before_test()
         resp = requests.get(
             request_url,
             headers={"host": rewrite_target_setup.ingress_host},
@@ -102,6 +105,8 @@ class TestRewriteTarget:
         Request to /v1/users/123 should be rewritten to /api/users/123.
         """
         request_url = f"http://{rewrite_target_setup.public_endpoint.public_ip}:{rewrite_target_setup.public_endpoint.port}/v1/users/123"
+
+        wait_before_test()
         resp = requests.get(
             request_url,
             headers={"host": rewrite_target_setup.ingress_host},
