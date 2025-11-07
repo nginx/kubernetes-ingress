@@ -46,6 +46,7 @@ permissions:
 
 jobs:
   setup-smoke:
+    environment: access
     permissions:
       contents: read # for docker/build-push-action to read repo content
       id-token: write # for OIDC login to GCR
@@ -60,6 +61,25 @@ jobs:
           echo "name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic${{ contains(inputs.nap-modules, 'dos') && '-dos' || '' }}${{ contains(inputs.nap-modules, 'waf') && '-nap' || '' }}${{ contains(inputs.image, 'v5') && '-v5' || '' }}/nginx${{ contains(inputs.image, 'plus') && '-plus' || '' }}-ingress" >> $GITHUB_OUTPUT
           echo "build_tag=${{ inputs.build-tag }}${{ contains(inputs.image, 'ubi-9') && '-ubi' || '' }}${{ contains(inputs.image, 'ubi-8') && '-ubi8' || '' }}${{ contains(inputs.image, 'alpine') && '-alpine' || '' }}${{ contains(inputs.target, 'aws') && '-mktpl' || '' }}${{ contains(inputs.image, 'fips') && '-fips' || ''}}" >> $GITHUB_OUTPUT
           echo "stable_tag=${{ inputs.stable-tag }}${{ contains(inputs.image, 'ubi-9') && '-ubi' || '' }}${{ contains(inputs.image, 'ubi-8') && '-ubi8' || '' }}${{ contains(inputs.image, 'alpine') && '-alpine' || '' }}${{ contains(inputs.target, 'aws') && '-mktpl' || '' }}${{ contains(inputs.image, 'fips') && '-fips' || ''}}" >> $GITHUB_OUTPUT
+
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
+        if: ${{ inputs.authenticated }}
+
+      - name: Setup secrets
+        id: secrets
+        run: |
+          echo "Setting secrets for authenticated build"
+          PLUS_CREDS=$(az keyvault secret show --name plus-cred --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$PLUS_CREDS"
+          PLUS_JWT=$(echo $PLUS_CREDS | jq -r '.jwt')
+          echo "::add-mask::$PLUS_JWT"
+          echo "PLUS_JWT=$PLUS_JWT" >> $GITHUB_OUTPUT
+        if: ${{ inputs.authenticated }}
 
       - name: Authenticate to Google Cloud
         id: auth
@@ -167,7 +187,7 @@ jobs:
           k8s-version: ${{ inputs.k8s-version }}
           registry-token: ${{ steps.auth.outputs.access_token }}
           test-image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') || 'latest' }}"
-          plus-jwt: ${{ secrets.PLUS_JWT }}
+          plus-jwt: ${{ steps.secrets.outputs.PLUS_JWT }}
         if: ${{ steps.stable_exists.outputs.exists != 'true'  }}
 
       - name: Upload Test Results
