@@ -345,7 +345,7 @@ jobs:
       - name: Setup secrets
         id: secrets
         run: |
-          echo "Setting PyAxis secrets for authenticated build"
+          echo "Setting secrets for job"
           PYAXIS_TOKEN=$(az keyvault secret show --name nic-pyaxis-token --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
           echo "::add-mask::$PYAXIS_TOKEN"
           echo "PYAXIS_TOKEN=$PYAXIS_TOKEN" >> $GITHUB_OUTPUT

@@ -168,7 +168,7 @@ jobs:
       - name: Setup secrets
         id: secrets
         run: |
-          echo "Setting secrets for authenticated build"
+          echo "Setting secrets for job"
           PLUS_CREDS=$(az keyvault secret show --name plus-cred --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
           echo "::add-mask::$PLUS_CREDS"
           PLUS_JWT=$(echo $PLUS_CREDS | jq -r '.jwt')
@@ -294,7 +294,7 @@ jobs:
       - name: Setup secrets
         id: secrets
         run: |
-          echo "Setting secrets for authenticated build"
+          echo "Setting secrets for job"
           PLUS_CREDS=$(az keyvault secret show --name plus-cred --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
           echo "::add-mask::$PLUS_CREDS"
           PLUS_JWT=$(echo $PLUS_CREDS | jq -r '.jwt')
