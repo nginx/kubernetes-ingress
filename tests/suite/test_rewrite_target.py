@@ -8,7 +8,6 @@ from suite.utils.resources_utils import (
     delete_common_app,
     delete_items_from_yaml,
     ensure_connection_to_public_endpoint,
-    wait_before_test,
     wait_until_all_pods_are_ready,
 )
 from suite.utils.yaml_utils import get_first_ingress_host_from_yaml, get_name_from_yaml
