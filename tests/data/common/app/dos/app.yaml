@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: dos-server
-        image: ghcr.io/nginxinc/kic-test-dos-server:0.2.1
+        image: ghcr.io/nginx/kic-test-dos-server:0.2.6
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000
