@@ -7,7 +7,7 @@ balancing for that application using the Ingress resource with rate-limiting con
 
 ## 1. Deploy the Ingress Controller
 
-1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/installing-nic/installation-with-manifests/)
+1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installmanifests/)
    instructions to deploy the Ingress Controller.
 
 2. Save the public IP address of the Ingress Controller into a shell variable:

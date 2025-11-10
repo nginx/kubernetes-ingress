@@ -8,7 +8,7 @@ The annotation is mutually exclusive with `nginx.org/rewrites`. If both are pres
 
 ## 1. Deploy the Ingress Controller
 
-1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/) instructions to deploy the Ingress Controller.
+1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/manifests) instructions to deploy the Ingress Controller.
 
 2. Save the public IP address of the Ingress Controller into a shell variable:
    ```console
