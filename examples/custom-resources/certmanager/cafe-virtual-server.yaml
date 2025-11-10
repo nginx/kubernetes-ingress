@@ -8,6 +8,10 @@ spec:
     secret: cafe-secret
     cert-manager:
       cluster-issuer: selfsigned-issuer
+    redirect:
+      enable: true
+      code: 301
+      basedOn: scheme
   upstreams:
   - name: tea
     service: tea-svc

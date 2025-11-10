@@ -412,6 +412,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	sslConfig := vsc.generateSSLConfig(vsEx.VirtualServer, vsEx.VirtualServer.Spec.TLS, vsEx.VirtualServer.Namespace, vsEx.SecretRefs, vsc.cfgParams)
 	tlsRedirectConfig := generateTLSRedirectConfig(vsEx.VirtualServer.Spec.TLS)
+	certManagerEnabled := vsEx.VirtualServer.Spec.TLS != nil && vsEx.VirtualServer.Spec.TLS.CertManager != nil
 
 	policyOpts := policyOptions{
 		tls:         sslConfig != nil,
@@ -874,6 +875,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			ReturnLocations:           returnLocations,
 			HealthChecks:              healthChecks,
 			TLSRedirect:               tlsRedirectConfig,
+			CertManagerEnabled:        certManagerEnabled,
 			ErrorPageLocations:        errorPageLocations,
 			TLSPassthrough:            vsc.isTLSPassthrough,
 			Allow:                     policiesCfg.Allow,

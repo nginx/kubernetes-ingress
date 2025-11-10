@@ -97,9 +97,25 @@ server {
     {{- end }}
 
     {{- with $s.TLSRedirect }}
+    {{- if $s.CertManagerEnabled }}
+    set $redirect 1;
+
+    if ({{ .BasedOn }} != 'http') {
+        set $redirect 0;
+    }
+
+    if ($uri ~ "^/.well-known/acme-challenge(.*)") {
+        set $redirect 0;
+    }
+
+    if ($redirect) {
+        return {{ .Code }} https://$host$request_uri;
+    }
+    {{- else }}
     if ({{ .BasedOn }} = 'http') {
         return {{ .Code }} https://$host$request_uri;
     }
+    {{- end }}
     {{- end }}
 
     server_tokens "{{ $s.ServerTokens }}";

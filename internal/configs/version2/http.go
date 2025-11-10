@@ -87,6 +87,7 @@ type Server struct {
 	ReturnLocations           []ReturnLocation
 	HealthChecks              []HealthCheck
 	TLSRedirect               *TLSRedirect
+	CertManagerEnabled        bool
 	TLSPassthrough            bool
 	Allow                     []string
 	Deny                      []string
