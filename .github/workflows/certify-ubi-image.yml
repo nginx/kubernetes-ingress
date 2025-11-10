@@ -53,19 +53,19 @@ jobs:
         id: secrets
         run: |
           echo "Setting secrets for job"
-          PYAXIS_TOKEN=$(az keyvault secret show --name nic-pyaxis-token --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$PYAXIS_TOKEN"
-          echo "PYAXIS_TOKEN=$PYAXIS_TOKEN" >> $GITHUB_OUTPUT
-          PYAXIS_CERTIFICATION_PROJECT_ID=$(az keyvault secret show --name nic-pyaxis-certification-pid --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$PYAXIS_CERTIFICATION_PROJECT_ID"
-          echo "PYAXIS_CERTIFICATION_PROJECT_ID=$PYAXIS_CERTIFICATION_PROJECT_ID" >> $GITHUB_OUTPUT
+          PYXIS_TOKEN=$(az keyvault secret show --name nic-pyxis-token --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$PYXIS_TOKEN"
+          echo "PYXIS_TOKEN=$PYXIS_TOKEN" >> $GITHUB_OUTPUT
+          PYXIS_CERTIFICATION_PROJECT_ID=$(az keyvault secret show --name nic-pyxis-certification-pid --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$PYXIS_CERTIFICATION_PROJECT_ID"
+          echo "PYXIS_CERTIFICATION_PROJECT_ID=$PYXIS_CERTIFICATION_PROJECT_ID" >> $GITHUB_OUTPUT
 
       - name: Certify UBI OSS images in quay
         uses: ./.github/actions/certify-openshift-image
         with:
           image: ${{ inputs.image }}
-          project_id: ${{ steps.secrets.outputs.PYAXIS_CERTIFICATION_PROJECT_ID }}
-          pyxis_token: ${{ steps.secrets.outputs.PYAXIS_TOKEN }}
+          project_id: ${{ steps.secrets.outputs.PYXIS_CERTIFICATION_PROJECT_ID }}
+          pyxis_token: ${{ steps.secrets.outputs.PYXIS_TOKEN }}
           preflight_version: ${{ inputs.preflight_version }}
           submit: ${{ inputs.submit || true }}
           platforms: ${{ inputs.platforms }}
