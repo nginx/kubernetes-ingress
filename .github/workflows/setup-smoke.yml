@@ -78,6 +78,9 @@ jobs:
           PLUS_JWT=$(echo $PLUS_CREDS | jq -r '.jwt')
           echo "::add-mask::$PLUS_JWT"
           echo "PLUS_JWT=$PLUS_JWT" >> $GITHUB_OUTPUT
+          echo $PLUS_CREDS | jq -r '.crt' > nginx-repo.crt
+          echo $PLUS_CREDS | jq -r '.key' > nginx-repo.key
+          az keyvault secret show --name rhel-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv > rhel_license
         if: ${{ inputs.authenticated }}
 
       - name: Authenticate to Google Cloud
@@ -163,10 +166,10 @@ jobs:
             IC_VERSION=CI
             ${{ contains(inputs.image, 'nap') && format('NAP_MODULES={0}', steps.nap_modules.outputs.modules) || '' }}
             ${{ contains(inputs.marker, 'appprotect') && 'DEBIAN_VERSION=buster-slim' || '' }}
-          secrets: |
-            ${{ contains(inputs.image, 'nap') && format('"nginx-repo.crt={0}"', secrets.NGINX_AP_CRT) || format('"nginx-repo.crt={0}"', secrets.NGINX_CRT) }}
-            ${{ contains(inputs.image, 'nap') && format('"nginx-repo.key={0}"', secrets.NGINX_AP_KEY) || format('"nginx-repo.key={0}"', secrets.NGINX_KEY) }}
-            ${{ contains(inputs.image, 'ubi') && format('"rhel_license={0}"', secrets.RHEL_LICENSE) || '' }}
+          secret-files: |
+            nginx-repo.crt=nginx-repo.crt
+            nginx-repo.key=nginx-repo.key
+            ${{ contains(inputs.image, 'ubi') && 'rhel_license=rhel_license' || '' }}
         if: ${{ !inputs.authenticated }}
 
       - name: Generate WAF v5 tgz from JSON
@@ -195,3 +198,8 @@ jobs:
           name: ${{ steps.smoke-tests.outputs.test-results-name }}
           path: ${{ steps.smoke-tests.outputs.test-results-path }}
         if: ${{ !cancelled() && steps.stable_exists.outputs.exists != 'true' }}
+
+      - name: Clean up secrets
+        run: |
+          rm -f nginx-repo.crt nginx-repo.key rhel_license
+        if: always()

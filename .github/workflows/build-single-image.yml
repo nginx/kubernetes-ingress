@@ -79,17 +79,23 @@ jobs:
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
 
-      - name: Setup plus credentials
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
+        if: ${{ contains(inputs.target, 'plus') }}
+
+      - name: Setup secrets
+        id: secrets
         run: |
-          printf '%s\n' "${CERT}" > nginx-repo.crt
-          printf '%s\n' "${KEY}" > nginx-repo.key
-          if [[ "${{ inputs.target }}" =~ ubi ]]; then
-            printf '%s\n' "${RHEL}" > rhel_license
-          fi
-        env:
-          CERT: ${{ secrets.NGINX_CRT }}
-          KEY: ${{ secrets.NGINX_KEY }}
-          RHEL: ${{ secrets.RHEL_LICENSE }}
+          echo "Setting secrets for job"
+          PLUS_CREDS=$(az keyvault secret show --name plus-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$PLUS_CREDS"
+          echo $PLUS_CREDS | jq -r '.crt' > nginx-repo.crt
+          echo $PLUS_CREDS | jq -r '.key' > nginx-repo.key
+          az keyvault secret show --name rhel-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv > rhel_license
         if: ${{ contains(inputs.target, 'plus') }}
 
       - name: Fetch Cached Binary Artifacts
@@ -134,3 +140,8 @@ jobs:
           REGISTRY: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev
           PREFIX: ${{ inputs.prefix }}
           TAG: ${{ inputs.tag }}
+
+      - name: Clean up secrets
+        run: |
+          rm -f nginx-repo.crt nginx-repo.key rhel_license
+        if: always()
