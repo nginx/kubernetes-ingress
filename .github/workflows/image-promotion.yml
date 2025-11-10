@@ -72,13 +72,31 @@ jobs:
           echo "image_matrix_nap=$(cat .github/data/matrix-images-nap.json | jq -c)" >> $GITHUB_OUTPUT
           REF=${{ github.ref_name }} ./.github/scripts/variables.sh additional_tag >> $GITHUB_OUTPUT
 
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
+
+      - name: Setup secrets
+        id: secrets
+        run: |
+          echo "Setting secrets for job"
+          GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$GCR_WORKLOAD_ID"
+          echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
+          GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$GCR_SERVICE_ACCOUNT"
+          echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
+
       - name: Authenticate to Google Cloud
         id: auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
-          workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
-          service_account: ${{ secrets.GCR_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
+          service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
@@ -178,392 +196,446 @@ jobs:
       pull-requests: write # for scout report
 
   tag-stable:
-   name: Tag build image as stable
-   needs: [checks, build-artifacts]
-   permissions:
-     contents: read # To checkout repository
-     id-token: write # To sign into Google Container Registry
-   uses: ./.github/workflows/retag-images.yml
-   with:
-     source_tag: ${{ needs.checks.outputs.build_tag }}
-     target_tag: ${{ needs.checks.outputs.stable_tag }}
-     dry_run: false
-   secrets: inherit
+    name: Tag build image as stable
+    needs: [checks, build-artifacts]
+    permissions:
+      contents: read # To checkout repository
+      id-token: write # To sign into Google Container Registry
+    uses: ./.github/workflows/retag-images.yml
+    with:
+      source_tag: ${{ needs.checks.outputs.build_tag }}
+      target_tag: ${{ needs.checks.outputs.stable_tag }}
+      dry_run: false
+    secrets: inherit
 
   tag-candidate:
-   # pushes edge or release images to gcr/dev
-   # for main: this keeps a copy of edge in gcr/dev
-   # for release-*: this stages a release candidate in gcr/dev which can be used for release promotion
-   name: Tag tested image as stable
-   needs:
-     - checks
-     - build-artifacts
-     - tag-stable
-   permissions:
-     contents: read # To checkout repository
-     id-token: write # To sign into Google Container Registry
-   uses: ./.github/workflows/retag-images.yml
-   with:
-     source_tag: ${{ needs.checks.outputs.stable_tag }}
-     target_tag: ${{ github.ref_name == github.event.repository.default_branch && 'edge' || needs.checks.outputs.additional_tag }}
-     dry_run: false
-   secrets: inherit
-   if: ${{ !cancelled() && !failure() }}
+    # pushes edge or release images to gcr/dev
+    # for main: this keeps a copy of edge in gcr/dev
+    # for release-*: this stages a release candidate in gcr/dev which can be used for release promotion
+    name: Tag tested image as stable
+    needs:
+      - checks
+      - build-artifacts
+      - tag-stable
+    permissions:
+      contents: read # To checkout repository
+      id-token: write # To sign into Google Container Registry
+    uses: ./.github/workflows/retag-images.yml
+    with:
+      source_tag: ${{ needs.checks.outputs.stable_tag }}
+      target_tag: ${{ github.ref_name == github.event.repository.default_branch && 'edge' || needs.checks.outputs.additional_tag }}
+      dry_run: false
+    secrets: inherit
+    if: ${{ !cancelled() && !failure() }}
 
   release-oss:
-   # pushes edge images to docker hub
-   if: ${{ !cancelled() && !failure() && github.ref_name == github.event.repository.default_branch }}
-   name: Release Docker OSS
-   needs: [checks, build-artifacts]
-   uses: ./.github/workflows/oss-release.yml
-   with:
-     gcr_release_registry: false
-     ecr_public_registry: true
-     dockerhub_public_registry: true
-     quay_public_registry: true
-     github_public_registry: true
-     source_tag: ${{ needs.checks.outputs.stable_tag }}
-     target_tag: "edge"
-     branch: ${{ github.ref_name }}
-     dry_run: false
-   permissions:
-     contents: read
-     id-token: write
-     packages: write
-   secrets: inherit
+    # pushes edge images to docker hub
+    if: ${{ !cancelled() && !failure() && github.ref_name == github.event.repository.default_branch }}
+    name: Release Docker OSS
+    needs: [checks, build-artifacts]
+    uses: ./.github/workflows/oss-release.yml
+    with:
+      gcr_release_registry: false
+      ecr_public_registry: true
+      dockerhub_public_registry: true
+      quay_public_registry: true
+      github_public_registry: true
+      source_tag: ${{ needs.checks.outputs.stable_tag }}
+      target_tag: "edge"
+      branch: ${{ github.ref_name }}
+      dry_run: false
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    secrets: inherit
 
   release-plus:
-   # pushes plus edge images to nginx registry
-   if: ${{ !cancelled() && !failure() && github.ref_name == github.event.repository.default_branch }}
-   name: Release Docker Plus
-   needs: [checks, build-artifacts]
-   uses: ./.github/workflows/plus-release.yml
-   with:
-     nginx_registry: true
-     gcr_release_registry: false
-     gcr_mktpl_registry: false
-     ecr_mktpl_registry: false
-     az_mktpl_registry: false
-     source_tag: ${{ needs.checks.outputs.stable_tag }}
-     target_tag: "edge"
-     branch: ${{ github.ref_name }}
-     dry_run: false
-   permissions:
-     contents: read
-     id-token: write
-   secrets: inherit
+    # pushes plus edge images to nginx registry
+    if: ${{ !cancelled() && !failure() && github.ref_name == github.event.repository.default_branch }}
+    name: Release Docker Plus
+    needs: [checks, build-artifacts]
+    uses: ./.github/workflows/plus-release.yml
+    with:
+      nginx_registry: true
+      gcr_release_registry: false
+      gcr_mktpl_registry: false
+      ecr_mktpl_registry: false
+      az_mktpl_registry: false
+      source_tag: ${{ needs.checks.outputs.stable_tag }}
+      target_tag: "edge"
+      branch: ${{ github.ref_name }}
+      dry_run: false
+    permissions:
+      contents: read
+      id-token: write
+    secrets: inherit
 
   publish-helm-chart:
-   if: ${{ !cancelled() && !failure() && github.ref_name == github.event.repository.default_branch }}
-   name: Publish Helm Chart
-   needs: [checks]
-   uses: ./.github/workflows/publish-helm.yml
-   with:
-     branch: ${{ github.ref_name }}
-     ic_version: edge
-     chart_version: 0.0.0-edge
-     nginx_helm_repo: false
-     runner: "ubuntu-24.04-amd64"
-   permissions:
-     contents: write # for pushing to Helm Charts repository
-     packages: write # for helm to push to GHCR
-   secrets: inherit
+    if: ${{ !cancelled() && !failure() && github.ref_name == github.event.repository.default_branch }}
+    name: Publish Helm Chart
+    needs: [checks]
+    uses: ./.github/workflows/publish-helm.yml
+    with:
+      branch: ${{ github.ref_name }}
+      ic_version: edge
+      chart_version: 0.0.0-edge
+      nginx_helm_repo: false
+      runner: "ubuntu-24.04-amd64"
+    permissions:
+      contents: write # for pushing to Helm Charts repository
+      packages: write # for helm to push to GHCR
+    secrets: inherit
 
   certify-openshift-images:
-   if: ${{ !cancelled() && !failure() && github.ref_name == github.event.repository.default_branch }}
-   name: Certify OpenShift UBI images
-   runs-on: ubuntu-24.04
-   needs: [release-oss]
-   steps:
-     - name: Checkout Repository
-       uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+    if: ${{ !cancelled() && !failure() && github.ref_name == github.event.repository.default_branch }}
+    name: Certify OpenShift UBI images
+    runs-on: ubuntu-24.04
+    needs: [release-oss]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
-     - name: Certify UBI OSS images in quay
-       uses: ./.github/actions/certify-openshift-image
-       continue-on-error: true
-       with:
-         image: quay.io/nginx/nginx-ingress:edge-ubi
-         project_id: ${{ secrets.CERTIFICATION_PROJECT_ID }}
-         pyxis_token: ${{ secrets.PYXIS_API_TOKEN }}
-         preflight_version: 1.14.1
+      - name: Certify UBI OSS images in quay
+        uses: ./.github/actions/certify-openshift-image
+        continue-on-error: true
+        with:
+          image: quay.io/nginx/nginx-ingress:edge-ubi
+          project_id: ${{ secrets.CERTIFICATION_PROJECT_ID }}
+          pyxis_token: ${{ secrets.PYXIS_API_TOKEN }}
+          preflight_version: 1.14.1
 
   scan-docker-oss:
-   name: Scan ${{ matrix.image }}
-   runs-on: ubuntu-24.04
-   needs: [checks, tag-candidate]
-   permissions:
-     contents: read
-     id-token: write
-     security-events: write
-   if: ${{ !cancelled() && !failure() }}
-   strategy:
-     fail-fast: false
-     matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_oss ) }}
-   steps:
-     - name: Checkout Repository
-       uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+    name: Scan ${{ matrix.image }}
+    runs-on: ubuntu-24.04
+    needs: [checks, tag-candidate]
+    permissions:
+      contents: read
+      id-token: write
+      security-events: write
+    if: ${{ !cancelled() && !failure() }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_oss ) }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
-     - name: Make directory for security scan results
-       id: directory
-       run: |
-         directory=${{ matrix.image }}-results
-         echo "directory=${directory}" >> $GITHUB_OUTPUT
-         mkdir -p "${directory}"
+      - name: Make directory for security scan results
+        id: directory
+        run: |
+          directory=${{ matrix.image }}-results
+          echo "directory=${directory}" >> $GITHUB_OUTPUT
+          mkdir -p "${directory}"
 
-     - name: Docker meta
-       id: meta
-       uses: docker/metadata-action@318604b99e75e41977312d83839a89be02ca4893 # v5.9.0
-       with:
-         context: workflow
-         images: |
-           name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress
-         flavor: |
-           suffix=${{ contains(matrix.image, 'ubi') && '-ubi' || '' }}${{ contains(matrix.image, 'alpine') && '-alpine' || '' }}
-         tags: |
-           type=raw,value=${{ github.ref_name == github.event.repository.default_branch && 'edge' || github.ref_name }}
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@318604b99e75e41977312d83839a89be02ca4893 # v5.9.0
+        with:
+          context: workflow
+          images: |
+            name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress
+          flavor: |
+            suffix=${{ contains(matrix.image, 'ubi') && '-ubi' || '' }}${{ contains(matrix.image, 'alpine') && '-alpine' || '' }}
+          tags: |
+            type=raw,value=${{ github.ref_name == github.event.repository.default_branch && 'edge' || github.ref_name }}
 
-     - name: Authenticate to Google Cloud
-       id: auth
-       uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-       with:
-         token_format: access_token
-         workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
-         service_account: ${{ secrets.GCR_SERVICE_ACCOUNT }}
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
 
-     - name: Login to GCR
-       uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
-       with:
-         registry: gcr.io
-         username: oauth2accesstoken
-         password: ${{ steps.auth.outputs.access_token }}
+      - name: Setup secrets
+        id: secrets
+        run: |
+          echo "Setting secrets for job"
+          GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$GCR_WORKLOAD_ID"
+          echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
+          GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$GCR_SERVICE_ACCOUNT"
+          echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
 
-     - name: DockerHub Login for Docker Scout
-       uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
-       with:
-         username: ${{ secrets.DOCKER_USERNAME }}
-         password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          token_format: access_token
+          workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
+          service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
 
-     - name: Run Docker Scout vulnerability scanner
-       id: docker-scout
-       uses: docker/scout-action@f8c776824083494ab0d56b8105ba2ca85c86e4de # v1.18.2
-       with:
-         command: cves
-         image: ${{ steps.meta.outputs.tags }}
-         ignore-base: true
-         sarif-file: "${{ steps.directory.outputs.directory }}/scout.sarif"
-         write-comment: false
-         github-token: ${{ secrets.GITHUB_TOKEN }} # to be able to write the comment
-         summary: true
+      - name: Login to GCR
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: gcr.io
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
 
-     - name: Upload Scan Results to Github Artifacts
-       uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
-       with:
-         name: "${{ github.ref_name }}-${{ steps.directory.outputs.directory }}"
-         path: "${{ steps.directory.outputs.directory }}/"
-         overwrite: true
+      - name: DockerHub Login for Docker Scout
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-     - name: Upload Scan results to GitHub Security tab
-       uses: github/codeql-action/upload-sarif@0499de31b99561a6d14a36a5f662c2a54f91beee # v4.31.2
-       with:
-         sarif_file: "${{ steps.directory.outputs.directory }}/"
+      - name: Run Docker Scout vulnerability scanner
+        id: docker-scout
+        uses: docker/scout-action@f8c776824083494ab0d56b8105ba2ca85c86e4de # v1.18.2
+        with:
+          command: cves
+          image: ${{ steps.meta.outputs.tags }}
+          ignore-base: true
+          sarif-file: "${{ steps.directory.outputs.directory }}/scout.sarif"
+          write-comment: false
+          github-token: ${{ secrets.GITHUB_TOKEN }} # to be able to write the comment
+          summary: true
+
+      - name: Upload Scan Results to Github Artifacts
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: "${{ github.ref_name }}-${{ steps.directory.outputs.directory }}"
+          path: "${{ steps.directory.outputs.directory }}/"
+          overwrite: true
+
+      - name: Upload Scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@0499de31b99561a6d14a36a5f662c2a54f91beee # v4.31.2
+        with:
+          sarif_file: "${{ steps.directory.outputs.directory }}/"
 
   scan-docker-plus:
-   name: Scan ${{ matrix.image }}-${{ matrix.target }}
-   runs-on: ubuntu-24.04
-   needs: [checks, tag-candidate]
-   permissions:
-     contents: read
-     id-token: write
-     security-events: write
-   if: ${{ !cancelled() && !failure() }}
-   strategy:
-     fail-fast: false
-     matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_plus ) }}
-   steps:
-     - name: Checkout Repository
-       uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+    name: Scan ${{ matrix.image }}-${{ matrix.target }}
+    runs-on: ubuntu-24.04
+    needs: [checks, tag-candidate]
+    permissions:
+      contents: read
+      id-token: write
+      security-events: write
+    if: ${{ !cancelled() && !failure() }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_plus ) }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
-     - name: Make directory for security scan results
-       id: directory
-       run: |
-         directory=${{ matrix.image }}-${{ matrix.target }}-results
-         echo "directory=${directory}" >> $GITHUB_OUTPUT
-         mkdir -p "${directory}"
+      - name: Make directory for security scan results
+        id: directory
+        run: |
+          directory=${{ matrix.image }}-${{ matrix.target }}-results
+          echo "directory=${directory}" >> $GITHUB_OUTPUT
+          mkdir -p "${directory}"
 
-     - name: Docker meta
-       id: meta
-       uses: docker/metadata-action@318604b99e75e41977312d83839a89be02ca4893 # v5.9.0
-       with:
-         context: workflow
-         images: |
-           name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress
-         flavor: |
-           suffix=${{ contains(matrix.image, 'ubi') && '-ubi' || '' }}${{ contains(matrix.image, 'alpine') && '-alpine' || '' }}${{ contains(matrix.target, 'aws') && '-mktpl' || '' }}${{ contains(matrix.image, 'fips') && '-fips' || ''}}
-         tags: |
-           type=raw,value=${{ github.ref_name == github.event.repository.default_branch && 'edge' || github.ref_name }}
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@318604b99e75e41977312d83839a89be02ca4893 # v5.9.0
+        with:
+          context: workflow
+          images: |
+            name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress
+          flavor: |
+            suffix=${{ contains(matrix.image, 'ubi') && '-ubi' || '' }}${{ contains(matrix.image, 'alpine') && '-alpine' || '' }}${{ contains(matrix.target, 'aws') && '-mktpl' || '' }}${{ contains(matrix.image, 'fips') && '-fips' || ''}}
+          tags: |
+            type=raw,value=${{ github.ref_name == github.event.repository.default_branch && 'edge' || github.ref_name }}
 
-     - name: Authenticate to Google Cloud
-       id: auth
-       uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-       with:
-         token_format: access_token
-         workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
-         service_account: ${{ secrets.GCR_SERVICE_ACCOUNT }}
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
 
-     - name: Login to GCR
-       uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
-       with:
-         registry: gcr.io
-         username: oauth2accesstoken
-         password: ${{ steps.auth.outputs.access_token }}
+      - name: Setup secrets
+        id: secrets
+        run: |
+          echo "Setting secrets for job"
+          GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$GCR_WORKLOAD_ID"
+          echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
+          GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$GCR_SERVICE_ACCOUNT"
+          echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
 
-     - name: DockerHub Login for Docker Scout
-       uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
-       with:
-         username: ${{ secrets.DOCKER_USERNAME }}
-         password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          token_format: access_token
+          workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
+          service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
 
-     - name: Run Docker Scout vulnerability scanner
-       id: docker-scout
-       uses: docker/scout-action@f8c776824083494ab0d56b8105ba2ca85c86e4de # v1.18.2
-       with:
-         command: cves
-         image: ${{ steps.meta.outputs.tags }}
-         ignore-base: true
-         sarif-file: "${{ steps.directory.outputs.directory }}/scout.sarif"
-         write-comment: false
-         github-token: ${{ secrets.GITHUB_TOKEN }} # to be able to write the comment
-         summary: true
+      - name: Login to GCR
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: gcr.io
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
 
-     - name: Upload Scan Results to Github Artifacts
-       uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
-       with:
-         name: "${{ github.ref_name }}-${{ steps.directory.outputs.directory }}"
-         path: "${{ steps.directory.outputs.directory }}/"
-         overwrite: true
+      - name: DockerHub Login for Docker Scout
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-     - name: Upload Scan results to GitHub Security tab
-       uses: github/codeql-action/upload-sarif@0499de31b99561a6d14a36a5f662c2a54f91beee # v4.31.2
-       with:
-         sarif_file: "${{ steps.directory.outputs.directory }}/"
+      - name: Run Docker Scout vulnerability scanner
+        id: docker-scout
+        uses: docker/scout-action@f8c776824083494ab0d56b8105ba2ca85c86e4de # v1.18.2
+        with:
+          command: cves
+          image: ${{ steps.meta.outputs.tags }}
+          ignore-base: true
+          sarif-file: "${{ steps.directory.outputs.directory }}/scout.sarif"
+          write-comment: false
+          github-token: ${{ secrets.GITHUB_TOKEN }} # to be able to write the comment
+          summary: true
+
+      - name: Upload Scan Results to Github Artifacts
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: "${{ github.ref_name }}-${{ steps.directory.outputs.directory }}"
+          path: "${{ steps.directory.outputs.directory }}/"
+          overwrite: true
+
+      - name: Upload Scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@0499de31b99561a6d14a36a5f662c2a54f91beee # v4.31.2
+        with:
+          sarif_file: "${{ steps.directory.outputs.directory }}/"
 
   scan-docker-nap:
-   name: Scan ${{ matrix.image }}-${{ matrix.target }}-${{ matrix.nap_modules }}
-   runs-on: ubuntu-24.04
-   needs: [checks, tag-candidate]
-   permissions:
-     contents: read
-     id-token: write
-     security-events: write
-   if: ${{ !cancelled() && !failure() }}
-   strategy:
-     fail-fast: false
-     matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_nap ) }}
-   steps:
-     - name: Checkout Repository
-       uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+    name: Scan ${{ matrix.image }}-${{ matrix.target }}-${{ matrix.nap_modules }}
+    runs-on: ubuntu-24.04
+    needs: [checks, tag-candidate]
+    permissions:
+      contents: read
+      id-token: write
+      security-events: write
+    if: ${{ !cancelled() && !failure() }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_nap ) }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
-     - name: NAP modules
-       id: nap_modules
-       run: |
-         [[ "${{ matrix.nap_modules }}" == "waf,dos" ]] && modules="waf-dos" || name="${{ matrix.nap_modules }}"
-         echo "name=${name}" >> $GITHUB_OUTPUT
-       if: ${{ matrix.nap_modules != '' }}
+      - name: NAP modules
+        id: nap_modules
+        run: |
+          [[ "${{ matrix.nap_modules }}" == "waf,dos" ]] && modules="waf-dos" || name="${{ matrix.nap_modules }}"
+          echo "name=${name}" >> $GITHUB_OUTPUT
+        if: ${{ matrix.nap_modules != '' }}
 
-     - name: Make directory for security scan results
-       id: directory
-       run: |
-         directory=${{ matrix.image }}-${{ matrix.target }}-${{ steps.nap_modules.outputs.name }}-results
-         echo "directory=${directory}" >> $GITHUB_OUTPUT
-         mkdir -p "${directory}"
+      - name: Make directory for security scan results
+        id: directory
+        run: |
+          directory=${{ matrix.image }}-${{ matrix.target }}-${{ steps.nap_modules.outputs.name }}-results
+          echo "directory=${directory}" >> $GITHUB_OUTPUT
+          mkdir -p "${directory}"
 
-     - name: Docker meta
-       id: meta
-       uses: docker/metadata-action@318604b99e75e41977312d83839a89be02ca4893 # v5.9.0
-       with:
-         context: workflow
-         images: |
-           name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic${{ contains(matrix.nap_modules, 'dos') && '-dos' || '' }}${{ contains(matrix.nap_modules, 'waf') && '-nap' || '' }}${{ contains(matrix.image, 'v5') && '-v5' || '' }}/nginx-plus-ingress
-         flavor: |
-           suffix=${{ contains(matrix.image, 'ubi') && '-ubi' || '' }}${{ contains(matrix.image, 'alpine') && '-alpine' || '' }}${{ contains(matrix.target, 'aws') && '-mktpl' || '' }}${{ contains(matrix.image, 'fips') && '-fips' || ''}}
-         tags: |
-           type=raw,value=${{ github.ref_name == github.event.repository.default_branch && 'edge' || github.ref_name }}
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@318604b99e75e41977312d83839a89be02ca4893 # v5.9.0
+        with:
+          context: workflow
+          images: |
+            name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic${{ contains(matrix.nap_modules, 'dos') && '-dos' || '' }}${{ contains(matrix.nap_modules, 'waf') && '-nap' || '' }}${{ contains(matrix.image, 'v5') && '-v5' || '' }}/nginx-plus-ingress
+          flavor: |
+            suffix=${{ contains(matrix.image, 'ubi') && '-ubi' || '' }}${{ contains(matrix.image, 'alpine') && '-alpine' || '' }}${{ contains(matrix.target, 'aws') && '-mktpl' || '' }}${{ contains(matrix.image, 'fips') && '-fips' || ''}}
+          tags: |
+            type=raw,value=${{ github.ref_name == github.event.repository.default_branch && 'edge' || github.ref_name }}
 
-     - name: Authenticate to Google Cloud
-       id: auth
-       uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-       with:
-         token_format: access_token
-         workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
-         service_account: ${{ secrets.GCR_SERVICE_ACCOUNT }}
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
 
-     - name: Login to GCR
-       uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
-       with:
-         registry: gcr.io
-         username: oauth2accesstoken
-         password: ${{ steps.auth.outputs.access_token }}
+      - name: Setup secrets
+        id: secrets
+        run: |
+          echo "Setting secrets for job"
+          GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$GCR_WORKLOAD_ID"
+          echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
+          GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$GCR_SERVICE_ACCOUNT"
+          echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
 
-     - name: DockerHub Login for Docker Scout
-       uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
-       with:
-         username: ${{ secrets.DOCKER_USERNAME }}
-         password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          token_format: access_token
+          workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
+          service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
 
-     - name: Run Docker Scout vulnerability scanner
-       id: docker-scout
-       uses: docker/scout-action@f8c776824083494ab0d56b8105ba2ca85c86e4de # v1.18.2
-       with:
-         command: cves
-         image: ${{ steps.meta.outputs.tags }}
-         ignore-base: true
-         sarif-file: "${{ steps.directory.outputs.directory }}/scout.sarif"
-         write-comment: false
-         github-token: ${{ secrets.GITHUB_TOKEN }} # to be able to write the comment
-         summary: true
+      - name: Login to GCR
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: gcr.io
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
 
-     - name: Upload Scan Results to Github Artifacts
-       uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
-       with:
-         name: "${{ github.ref_name }}-${{ steps.directory.outputs.directory }}"
-         path: "${{ steps.directory.outputs.directory }}/"
-         overwrite: true
+      - name: DockerHub Login for Docker Scout
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-     - name: Upload Scan results to GitHub Security tab
-       uses: github/codeql-action/upload-sarif@0499de31b99561a6d14a36a5f662c2a54f91beee # v4.31.2
-       with:
-         sarif_file: "${{ steps.directory.outputs.directory }}/"
-       continue-on-error: true
+      - name: Run Docker Scout vulnerability scanner
+        id: docker-scout
+        uses: docker/scout-action@f8c776824083494ab0d56b8105ba2ca85c86e4de # v1.18.2
+        with:
+          command: cves
+          image: ${{ steps.meta.outputs.tags }}
+          ignore-base: true
+          sarif-file: "${{ steps.directory.outputs.directory }}/scout.sarif"
+          write-comment: false
+          github-token: ${{ secrets.GITHUB_TOKEN }} # to be able to write the comment
+          summary: true
+
+      - name: Upload Scan Results to Github Artifacts
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: "${{ github.ref_name }}-${{ steps.directory.outputs.directory }}"
+          path: "${{ steps.directory.outputs.directory }}/"
+          overwrite: true
+
+      - name: Upload Scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@0499de31b99561a6d14a36a5f662c2a54f91beee # v4.31.2
+        with:
+          sarif_file: "${{ steps.directory.outputs.directory }}/"
+        continue-on-error: true
 
   update-release-draft:
-   name: Update Release Draft
-   runs-on: ubuntu-24.04
-   needs: [checks]
-   permissions:
-     contents: write
-   steps:
-     - name: Checkout Repository
-       uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+    name: Update Release Draft
+    runs-on: ubuntu-24.04
+    needs: [checks]
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
-     - name: Create/Update Draft
-       uses: lucacome/draft-release@45e4395a3d8463abdb1747b20445b9be16ef6409 # v2.0.1
-       id: release-notes
-       with:
-         minor-label: "enhancement"
-         major-label: "change"
-         publish: false
-         collapse-after: 50
-         variables: |
-           helm-chart=${{ needs.checks.outputs.chart_version }}
-         notes-footer: |
-           ## Upgrade
-           - For NGINX, use the {{version}} images from our [DockerHub](https://hub.docker.com/r/nginx/nginx-ingress/tags?page=1&ordering=last_updated&name={{version-number}}), [GitHub Container](https://github.com/nginx/kubernetes-ingress/pkgs/container/kubernetes-ingress), [Amazon ECR Public Gallery](https://gallery.ecr.aws/nginx/nginx-ingress) or [Quay.io](https://quay.io/repository/nginx/nginx-ingress).
-           - For NGINX Plus, use the {{version}} images from the F5 Container registry or build your own image using the {{version}} source code.
-           - For Helm, use version {{helm-chart}} of the chart.
+      - name: Create/Update Draft
+        uses: lucacome/draft-release@45e4395a3d8463abdb1747b20445b9be16ef6409 # v2.0.1
+        id: release-notes
+        with:
+          minor-label: "enhancement"
+          major-label: "change"
+          publish: false
+          collapse-after: 50
+          variables: |
+            helm-chart=${{ needs.checks.outputs.chart_version }}
+          notes-footer: |
+            ## Upgrade
+            - For NGINX, use the {{version}} images from our [DockerHub](https://hub.docker.com/r/nginx/nginx-ingress/tags?page=1&ordering=last_updated&name={{version-number}}), [GitHub Container](https://github.com/nginx/kubernetes-ingress/pkgs/container/kubernetes-ingress), [Amazon ECR Public Gallery](https://gallery.ecr.aws/nginx/nginx-ingress) or [Quay.io](https://quay.io/repository/nginx/nginx-ingress).
+            - For NGINX Plus, use the {{version}} images from the F5 Container registry or build your own image using the {{version}} source code.
+            - For Helm, use version {{helm-chart}} of the chart.
 
-           ## Resources
-           - Documentation -- https://docs.nginx.com/nginx-ingress-controller/
-           - Configuration examples -- https://github.com/nginx/kubernetes-ingress/tree/{{version}}/examples
-           - Helm Chart -- https://github.com/nginx/kubernetes-ingress/tree/{{version}}/deployments/helm-chart
-           - Operator -- https://github.com/nginx/nginx-ingress-helm-operator
-       if: ${{ github.event_name == 'push' && contains(github.ref_name, 'release-') }}
+            ## Resources
+            - Documentation -- https://docs.nginx.com/nginx-ingress-controller/
+            - Configuration examples -- https://github.com/nginx/kubernetes-ingress/tree/{{version}}/examples
+            - Helm Chart -- https://github.com/nginx/kubernetes-ingress/tree/{{version}}/deployments/helm-chart
+            - Operator -- https://github.com/nginx/nginx-ingress-helm-operator
+        if: ${{ github.event_name == 'push' && contains(github.ref_name, 'release-') }}
