@@ -12,16 +12,18 @@ MINIKUBE_KUBE_CONFIG_FOLDER = $(KUBE_CONFIG_FOLDER)/minikube
 DOCKERFILEPATH              := ${ROOT_DIR}/tests/Dockerfile
 PYTHON                      ?= python3
 IP_FAMILY                   = dual
-IC_TYPE                     ?= nginx-ingress ## The Ingress Controller type to use, "nginx-ingress" or "nginx-plus-ingress".  Defaults to "nginx-ingress"
+IC_TYPE                     ?= nginx-ingress ## The Ingress Controller type to use, "nginx-ingress" or "nginx-plus-ingress".  Defaults to "nginx-ingress"
 SHOW_IC_LOGS                ?= no ## Should the tests show the Ingress Controller logs on failure, "yes" or "no". Defaults to "no"
-TEST_TAG                    ?= latest ## The Tag to use for the test image. e.g. commitsha
+TEST_TAG                    ?= latest ## The Tag to use for the test image. e.g. commitsha
 REGISTRY                    ?= docker.io ## The registry where the image is located. For example, docker.io
 PREFIX                      ?= nginx/nginx-ingress ## The name of the image. For example, nginx/nginx-ingress
 TAG                         ?= edge ## The tag of the image. For example, edge
-K8S_CLUSTER_NAME            ?= local ## The name used when creating/using a Kind Kubernetes cluster
+K8S_CLUSTER_NAME            ?= local ## The name used when creating/using a Kind Kubernetes cluster
 # renovate: datasource=docker depName=kindest/node
 K8S_CLUSTER_VERSION         ?= v1.34.0
-K8S_TIMEOUT                 ?= 75s ## The timeout used when creating a Kind Kubernetes cluster
+K8S_TIMEOUT                 ?= 75s ## The timeout used when creating a Kind Kubernetes cluster
+AD_SECRET                   ?=
+K8S_TIMEOUT                 ?= 75s ## The timeout used when creating a Kind Kubernetes cluster
 PLUS_JWT                    ?=
 PYTEST_ARGS                 ?=
 ifeq (${REGISTRY},)
@@ -119,7 +121,7 @@ run-tests-in-kind: ## Run tests in Kind
 
 
 .PHONY: create-kind-cluster
-create-kind-cluster: $(KIND_KUBE_CONFIG_FOLDER) ## Create a Kind K8S cluster
+create-kind-cluster: $(KIND_KUBE_CONFIG_FOLDER) ## Create a Kind K8S cluster
 	@kind create cluster \
 		--name $(K8S_CLUSTER_NAME) \
 		--image=kindest/node:$(K8S_CLUSTER_VERSION) \
@@ -135,7 +137,7 @@ delete-kind-cluster: ## Delete a Kind K8S cluster
 
 
 .PHONY: image-load
-image-load: ## Load the image into the Kind K8S cluster
+image-load: ## Load the image into the Kind K8S cluster
 	@kind load docker-image $(BUILD_IMAGE) --name $(K8S_CLUSTER_NAME)
 
 
@@ -162,7 +164,7 @@ run-tests-in-minikube: ## Run tests in Minikube
 
 
 .PHONY: create-mini-cluster
-create-mini-cluster: $(MINIKUBE_KUBE_CONFIG_FOLDER) ## Create a Minikube K8S cluster
+create-mini-cluster: $(MINIKUBE_KUBE_CONFIG_FOLDER) ## Create a Minikube K8S cluster
 	@minikube start --kubernetes-version=$(K8S_CLUSTER_VERSION) \
 	&& KUBECONFIG=$(MINIKUBE_KUBE_CONFIG_FOLDER)/config minikube update-context \
 	&& KUBECONFIG=$(MINIKUBE_KUBE_CONFIG_FOLDER)/config kubectl config set-cluster minikube --server=https://minikube:8443
@@ -175,7 +177,7 @@ delete-mini-cluster: ## Delete a Minikube K8S cluster
 
 
 .PHONY: mini-image-load
-mini-image-load: ## Load the image into the Minikube K8S cluster
+mini-image-load: ## Load the image into the Minikube K8S cluster
 	@minikube image load $(BUILD_IMAGE)
 
 
