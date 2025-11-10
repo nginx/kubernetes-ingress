@@ -130,7 +130,6 @@ jobs:
   helm-tests:
     name: Helm Tests ${{ matrix.base-os }}
     runs-on: ubuntu-24.04
-    environment: access
     needs: [checks]
     strategy:
       fail-fast: false
@@ -264,7 +263,6 @@ jobs:
   regression-tests:
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} regression tests
     runs-on: ubuntu-24.04
-    environment: access
     needs: [checks, setup-regression-matrix]
     strategy:
       fail-fast: false

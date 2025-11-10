@@ -324,7 +324,6 @@ jobs:
     if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'certify-openshift-images') }}
     name: Certify OpenShift UBI images
     runs-on: ubuntu-24.04
-    environment: access
     permissions:
       contents: read
       id-token: write

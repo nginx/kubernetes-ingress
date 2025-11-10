@@ -46,7 +46,6 @@ permissions:
 
 jobs:
   setup-smoke:
-    environment: access
     permissions:
       contents: read # for docker/build-push-action to read repo content
       id-token: write # for OIDC login to GCR

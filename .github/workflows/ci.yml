@@ -431,7 +431,6 @@ jobs:
     if: ${{ needs.checks.outputs.docs_only != 'true' && (inputs.run_tests && inputs.run_tests || true) }}
     name: Helm Tests ${{ matrix.base-os }}
     runs-on: ubuntu-24.04
-    environment: access
     needs: [checks, build-artifacts]
     strategy:
       fail-fast: false
