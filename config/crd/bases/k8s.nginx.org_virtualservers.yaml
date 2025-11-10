@@ -1284,12 +1284,13 @@ spec:
                         ConfigMap key.
                       type: string
                     service:
-                      description: The name of a service. The service must belong
-                        to the same namespace as the resource. If the service doesn’t
-                        exist, NGINX will assume the service has zero endpoints and
-                        return a 502 response for requests for this upstream. For
-                        NGINX Plus only, services of type ExternalName are also supported
-                        .
+                      description: The name of a service. If the Service belongs to
+                        a different namespace than the VirtualServer or VirtualServerRoute,
+                        you need to include the namespace. For example, tea-namespace/tea.
+                        If the service doesn’t exist, NGINX will assume the service
+                        has zero endpoints and return a 502 response for requests
+                        for this upstream. For NGINX Plus only, services of type ExternalName
+                        are also supported in the same namespace.
                       type: string
                     sessionCookie:
                       description: The SessionCookie field configures session persistence

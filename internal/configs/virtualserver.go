@@ -145,6 +145,17 @@ func GenerateEndpointsKey(
 	return fmt.Sprintf("%s/%s:%d", serviceNamespace, serviceName, port)
 }
 
+// ParseServiceReference returns the namespace and name from a service reference.
+func ParseServiceReference(serviceRef, defaultNamespace string) (namespace, serviceName string) {
+	if strings.Contains(serviceRef, "/") {
+		parts := strings.Split(serviceRef, "/")
+		if len(parts) == 2 {
+			return parts[0], parts[1]
+		}
+	}
+	return defaultNamespace, serviceRef
+}
+
 type upstreamNamer struct {
 	prefix    string
 	namespace string
@@ -353,7 +364,8 @@ func (vsc *virtualServerConfigurator) generateEndpointsForUpstream(
 	upstream conf_v1.Upstream,
 	virtualServerEx *VirtualServerEx,
 ) []string {
-	endpointsKey := GenerateEndpointsKey(namespace, upstream.Service, upstream.Subselector, upstream.Port)
+	serviceNamespace, serviceName := ParseServiceReference(upstream.Service, namespace)
+	endpointsKey := GenerateEndpointsKey(serviceNamespace, serviceName, upstream.Subselector, upstream.Port)
 	externalNameSvcKey := GenerateExternalNameSvcKey(namespace, upstream.Service)
 	endpoints := virtualServerEx.Endpoints[endpointsKey]
 	if !vsc.isPlus && len(endpoints) == 0 {
@@ -659,7 +671,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			upstreamName := virtualServerUpstreamNamer.GetNameForUpstreamFromAction(r.Action)
 			upstream := crUpstreams[upstreamName]
 
-			proxySSLName := generateProxySSLName(upstream.Service, vsEx.VirtualServer.Namespace)
+			serviceNamespace, serviceName := ParseServiceReference(upstream.Service, vsEx.VirtualServer.Namespace)
+			proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
 
 			loc, returnLoc := generateLocation(r.Path, upstreamName, upstream, r.Action, vsc.cfgParams, errorPages, false,
 				proxySSLName, r.Path, vsLocSnippets, vsc.enableSnippets, len(returnLocations), isVSR, "", "", vsc.warnings)
@@ -812,7 +825,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			} else {
 				upstreamName := upstreamNamer.GetNameForUpstreamFromAction(r.Action)
 				upstream := crUpstreams[upstreamName]
-				proxySSLName := generateProxySSLName(upstream.Service, vsr.Namespace)
+				serviceNamespace, serviceName := ParseServiceReference(upstream.Service, vsr.Namespace)
+				proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
 
 				loc, returnLoc := generateLocation(r.Path, upstreamName, upstream, r.Action, vsc.cfgParams, errorPages, false,
 					proxySSLName, r.Path, locSnippets, vsc.enableSnippets, len(returnLocations), isVSR, vsr.Name, vsr.Namespace, vsc.warnings)
@@ -2535,8 +2549,10 @@ func generateLocation(path string, upstreamName string, upstream conf_v1.Upstrea
 
 	checkGrpcErrorPageCodes(errorPages, isGRPC(upstream.Type), upstream.Name, vscWarnings)
 
+	_, serviceName := ParseServiceReference(upstream.Service, "")
+
 	return generateLocationForProxying(path, upstreamName, upstream, cfgParams, errorPages.pages, internal,
-		errorPages.index, proxySSLName, action.Proxy, originalPath, locationSnippets, isVSR, vsrName, vsrNamespace), nil
+		errorPages.index, proxySSLName, action.Proxy, originalPath, locationSnippets, isVSR, vsrName, vsrNamespace, serviceName), nil
 }
 
 func generateProxySetHeaders(proxy *conf_v1.ActionProxy) []version2.Header {
@@ -2621,7 +2637,7 @@ func generateProxyAddHeaders(proxy *conf_v1.ActionProxy) []version2.AddHeader {
 
 func generateLocationForProxying(path string, upstreamName string, upstream conf_v1.Upstream,
 	cfgParams *ConfigParams, errorPages []conf_v1.ErrorPage, internal bool, errPageIndex int,
-	proxySSLName string, proxy *conf_v1.ActionProxy, originalPath string, locationSnippets []string, isVSR bool, vsrName string, vsrNamespace string,
+	proxySSLName string, proxy *conf_v1.ActionProxy, originalPath string, locationSnippets []string, isVSR bool, vsrName string, vsrNamespace string, serviceName string,
 ) version2.Location {
 	return version2.Location{
 		Path:                     generatePath(path),
@@ -2652,7 +2668,7 @@ func generateLocationForProxying(path string, upstreamName string, upstream conf
 		HasKeepalive:             upstreamHasKeepalive(upstream, cfgParams),
 		ErrorPages:               generateErrorPages(errPageIndex, errorPages),
 		ProxySSLName:             proxySSLName,
-		ServiceName:              upstream.Service,
+		ServiceName:              serviceName,
 		IsVSR:                    isVSR,
 		VSRName:                  vsrName,
 		VSRNamespace:             vsrNamespace,
@@ -2823,7 +2839,8 @@ func generateSplits(
 		path := fmt.Sprintf("/%vsplits_%d_split_%d", internalLocationPrefix, scIndex, i)
 		upstreamName := upstreamNamer.GetNameForUpstreamFromAction(s.Action)
 		upstream := crUpstreams[upstreamName]
-		proxySSLName := generateProxySSLName(upstream.Service, upstreamNamer.namespace)
+		serviceNamespace, serviceName := ParseServiceReference(upstream.Service, upstreamNamer.namespace)
+		proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
 		newRetLocIndex := retLocIndex + len(returnLocations)
 		loc, returnLoc := generateLocation(path, upstreamName, upstream, s.Action, cfgParams, errorPages, true,
 			proxySSLName, originalPath, locSnippets, enableSnippets, newRetLocIndex, isVSR, vsrName, vsrNamespace, vscWarnings)
@@ -3056,7 +3073,8 @@ func generateMatchesConfig(route conf_v1.Route, upstreamNamer *upstreamNamer, cr
 			path := fmt.Sprintf("/%vmatches_%d_match_%d", internalLocationPrefix, index, i)
 			upstreamName := upstreamNamer.GetNameForUpstreamFromAction(m.Action)
 			upstream := crUpstreams[upstreamName]
-			proxySSLName := generateProxySSLName(upstream.Service, upstreamNamer.namespace)
+			serviceNamespace, serviceName := ParseServiceReference(upstream.Service, upstreamNamer.namespace)
+			proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
 			newRetLocIndex := retLocIndex + len(returnLocations)
 			loc, returnLoc := generateLocation(path, upstreamName, upstream, m.Action, cfgParams, errorPages, true,
 				proxySSLName, route.Path, locSnippets, enableSnippets, newRetLocIndex, isVSR, vsrName, vsrNamespace, vscWarnings)
@@ -3099,7 +3117,8 @@ func generateMatchesConfig(route conf_v1.Route, upstreamNamer *upstreamNamer, cr
 		path := fmt.Sprintf("/%vmatches_%d_default", internalLocationPrefix, index)
 		upstreamName := upstreamNamer.GetNameForUpstreamFromAction(route.Action)
 		upstream := crUpstreams[upstreamName]
-		proxySSLName := generateProxySSLName(upstream.Service, upstreamNamer.namespace)
+		serviceNamespace, serviceName := ParseServiceReference(upstream.Service, upstreamNamer.namespace)
+		proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
 		newRetLocIndex := retLocIndex + len(returnLocations)
 		loc, returnLoc := generateLocation(path, upstreamName, upstream, route.Action, cfgParams, errorPages, true,
 			proxySSLName, route.Path, locSnippets, enableSnippets, newRetLocIndex, isVSR, vsrName, vsrNamespace, vscWarnings)
@@ -3288,9 +3307,9 @@ func createUpstreamsForPlus(
 		}
 
 		upstreamName := upstreamNamer.GetNameForUpstream(u.Name)
-		upstreamNamespace := virtualServerEx.VirtualServer.Namespace
+		upstreamNamespace, upstreamServiceName := ParseServiceReference(u.Service, virtualServerEx.VirtualServer.Namespace)
 
-		endpointsKey := GenerateEndpointsKey(upstreamNamespace, u.Service, u.Subselector, u.Port)
+		endpointsKey := GenerateEndpointsKey(upstreamNamespace, upstreamServiceName, u.Subselector, u.Port)
 		endpoints := virtualServerEx.Endpoints[endpointsKey]
 
 		backupEndpoints := []string{}
@@ -3312,15 +3331,15 @@ func createUpstreamsForPlus(
 			}
 
 			upstreamName := upstreamNamer.GetNameForUpstream(u.Name)
-			upstreamNamespace := vsr.Namespace
+			serviceNamespace, serviceName := ParseServiceReference(u.Service, vsr.Namespace)
 
-			endpointsKey := GenerateEndpointsKey(upstreamNamespace, u.Service, u.Subselector, u.Port)
+			endpointsKey := GenerateEndpointsKey(serviceNamespace, serviceName, u.Subselector, u.Port)
 			endpoints := virtualServerEx.Endpoints[endpointsKey]
 
 			// BackupService
 			backupEndpoints := []string{}
 			if u.Backup != "" {
-				backupEndpointsKey := GenerateEndpointsKey(upstreamNamespace, u.Backup, u.Subselector, *u.BackupPort)
+				backupEndpointsKey := GenerateEndpointsKey(vsr.Namespace, u.Backup, u.Subselector, *u.BackupPort)
 				backupEndpoints = virtualServerEx.Endpoints[backupEndpointsKey]
 			}
 			ups := vsc.generateUpstream(vsr, upstreamName, u, isExternalNameSvc, endpoints, backupEndpoints)

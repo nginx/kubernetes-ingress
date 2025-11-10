@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coffee
+  namespace: coffee
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: coffee
+  template:
+    metadata:
+      labels:
+        app: coffee
+    spec:
+      containers:
+      - name: coffee
+        image: nginxdemos/nginx-hello:plain-text
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: coffee-svc
+  namespace: coffee
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: coffee
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coffee
+  namespace: coffee2
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: coffee
+  template:
+    metadata:
+      labels:
+        app: coffee
+    spec:
+      containers:
+      - name: coffee
+        image: nginxdemos/nginx-hello:plain-text
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: coffee-svc
+  namespace: coffee2
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: coffee

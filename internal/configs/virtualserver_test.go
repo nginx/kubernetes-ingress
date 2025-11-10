@@ -100,12 +100,51 @@ func TestGenerateEndpointsKey(t *testing.T) {
 			subselector:      nil,
 			expected:         "default/backup-svc:8090",
 		},
+		{
+			serviceNamespace: "tea",
+			serviceName:      "tea-svc",
+			port:             8080,
+			subselector:      nil,
+			expected:         "tea/tea-svc:8080",
+		},
 	}
 
 	for _, test := range tests {
 		result := GenerateEndpointsKey(test.serviceNamespace, test.serviceName, test.subselector, test.port)
 		if result != test.expected {
 			t.Errorf("GenerateEndpointsKey() returned %q but expected %q", result, test.expected)
+		}
+	}
+}
+
+func TestParseServiceReference(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		serviceRef       string
+		defaultNamespace string
+		expectedNS       string
+		expectedSvc      string
+	}{
+		{
+			serviceRef:       "coffee-svc",
+			defaultNamespace: "coffee",
+			expectedNS:       "coffee",
+			expectedSvc:      "coffee-svc",
+		},
+		{
+			serviceRef:       "tea/tea-svc",
+			defaultNamespace: "cafe",
+			expectedNS:       "tea",
+			expectedSvc:      "tea-svc",
+		},
+	}
+
+	for _, test := range tests {
+		namespace, serviceName := ParseServiceReference(test.serviceRef, test.defaultNamespace)
+		if namespace != test.expectedNS || serviceName != test.expectedSvc {
+			t.Errorf("parseServiceReference(%q, %q) returned (%q, %q) but expected (%q, %q)",
+				test.serviceRef, test.defaultNamespace, namespace, serviceName, test.expectedNS, test.expectedSvc)
 		}
 	}
 }
@@ -16216,7 +16255,7 @@ func TestGenerateLocationForProxying(t *testing.T) {
 		VSRNamespace:             "",
 	}
 
-	result := generateLocationForProxying(path, upstreamName, conf_v1.Upstream{}, &cfgParams, nil, false, 0, "", nil, "", vsLocSnippets, false, "", "")
+	result := generateLocationForProxying(path, upstreamName, conf_v1.Upstream{}, &cfgParams, nil, false, 0, "", nil, "", vsLocSnippets, false, "", "", "")
 	if diff := cmp.Diff(expected, result); diff != "" {
 		t.Errorf("generateLocationForProxying() mismatch (-want +got):\n%s", diff)
 	}
@@ -16263,7 +16302,7 @@ func TestGenerateLocationForGrpcProxying(t *testing.T) {
 		GRPCPass:                 "grpc://test-upstream",
 	}
 
-	result := generateLocationForProxying(path, upstreamName, conf_v1.Upstream{Type: "grpc"}, &cfgParams, nil, false, 0, "", nil, "", vsLocSnippets, false, "", "")
+	result := generateLocationForProxying(path, upstreamName, conf_v1.Upstream{Type: "grpc"}, &cfgParams, nil, false, 0, "", nil, "", vsLocSnippets, false, "", "", "")
 	if diff := cmp.Diff(expected, result); diff != "" {
 		t.Errorf("generateLocationForForGrpcProxying() mismatch (-want +got):\n%s", diff)
 	}
@@ -22706,5 +22745,222 @@ func TestRFC1123ToSnake(t *testing.T) {
 				t.Error(cmp.Diff(rfc1123ToSnake(tt.input), tt.expected))
 			}
 		})
+	}
+}
+
+func TestGenerateVirtualServerConfigWithForeignNamespaceService(t *testing.T) {
+	t.Parallel()
+	virtualServerEx := VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "cafe.example.com",
+				Upstreams: []conf_v1.Upstream{
+					{
+						Name:    "coffee",
+						Service: "coffee/coffee-svc",
+						Port:    80,
+					},
+				},
+				Routes: []conf_v1.Route{
+					{
+						Path: "/coffee",
+						Action: &conf_v1.Action{
+							Pass: "coffee",
+						},
+					},
+				},
+			},
+		},
+		Endpoints: map[string][]string{
+			"coffee/coffee-svc:80": {
+				"10.0.0.20:80",
+			},
+		},
+		VirtualServerRoutes: []*conf_v1.VirtualServerRoute{},
+	}
+
+	vsc := newVirtualServerConfigurator(&baseCfgParams, false, false, &StaticConfigParams{}, false, nil)
+	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+	if len(warnings) != 0 {
+		t.Errorf("GenerateVirtualServerConfig returned warnings: %v", warnings)
+	}
+
+	expected := version2.VirtualServerConfig{
+		Upstreams: []version2.Upstream{
+			{
+				UpstreamLabels: version2.UpstreamLabels{
+					Service:           "coffee/coffee-svc",
+					ResourceType:      "virtualserver",
+					ResourceName:      "cafe",
+					ResourceNamespace: "default",
+				},
+				Name: "vs_default_cafe_coffee",
+				Servers: []version2.UpstreamServer{
+					{
+						Address: "10.0.0.20:80",
+					},
+				},
+				Keepalive: 16,
+			},
+		},
+		HTTPSnippets:  []string{},
+		LimitReqZones: []version2.LimitReqZone{},
+		Server: version2.Server{
+			ServerName:      "cafe.example.com",
+			StatusZone:      "cafe.example.com",
+			VSNamespace:     "default",
+			VSName:          "cafe",
+			ProxyProtocol:   true,
+			ServerTokens:    "off",
+			SetRealIPFrom:   []string{"0.0.0.0/0"},
+			RealIPHeader:    "X-Real-IP",
+			RealIPRecursive: true,
+			Snippets:        []string{"# server snippet"},
+			Locations: []version2.Location{
+				{
+					Path:                     "/coffee",
+					ProxyPass:                "http://vs_default_cafe_coffee",
+					ProxyNextUpstream:        "error timeout",
+					ProxyNextUpstreamTimeout: "0s",
+					ProxyPassRequestHeaders:  true,
+					ProxySetHeaders: []version2.Header{
+						{
+							Name:  "Host",
+							Value: "$host",
+						},
+					},
+					HasKeepalive: true,
+					ProxySSLName: "coffee-svc.coffee.svc",
+					ServiceName:  "coffee-svc",
+				},
+			},
+		},
+		SpiffeClientCerts: false,
+	}
+
+	if !cmp.Equal(expected, result) {
+		t.Error(cmp.Diff(expected, result))
+	}
+}
+
+func TestGenerateVirtualServerConfigWithForeignNamespaceServiceInVSR(t *testing.T) {
+	t.Parallel()
+	virtualServerEx := VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "cafe.example.com",
+				Routes: []conf_v1.Route{
+					{
+						Path:  "/tea",
+						Route: "default/tea",
+					},
+				},
+			},
+		},
+		Endpoints: map[string][]string{
+			"tea/tea-svc:80": {
+				"10.0.0.30:80",
+			},
+		},
+		VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
+			{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "tea",
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerRouteSpec{
+					Host: "cafe.example.com",
+					Upstreams: []conf_v1.Upstream{
+						{
+							Name:    "tea",
+							Service: "tea/tea-svc",
+							Port:    80,
+						},
+					},
+					Subroutes: []conf_v1.Route{
+						{
+							Path: "/tea",
+							Action: &conf_v1.Action{
+								Pass: "tea",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	vsc := newVirtualServerConfigurator(&baseCfgParams, false, false, &StaticConfigParams{}, false, nil)
+	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+	if len(warnings) != 0 {
+		t.Errorf("GenerateVirtualServerConfig returned warnings: %v", warnings)
+	}
+
+	expected := version2.VirtualServerConfig{
+		Upstreams: []version2.Upstream{
+			{
+				UpstreamLabels: version2.UpstreamLabels{
+					Service:           "tea/tea-svc",
+					ResourceType:      "virtualserverroute",
+					ResourceName:      "tea",
+					ResourceNamespace: "default",
+				},
+				Name: "vs_default_cafe_vsr_default_tea_tea",
+				Servers: []version2.UpstreamServer{
+					{
+						Address: "10.0.0.30:80",
+					},
+				},
+				Keepalive: 16,
+			},
+		},
+		HTTPSnippets:  []string{},
+		LimitReqZones: []version2.LimitReqZone{},
+		Server: version2.Server{
+			ServerName:      "cafe.example.com",
+			StatusZone:      "cafe.example.com",
+			VSNamespace:     "default",
+			VSName:          "cafe",
+			ProxyProtocol:   true,
+			ServerTokens:    "off",
+			SetRealIPFrom:   []string{"0.0.0.0/0"},
+			RealIPHeader:    "X-Real-IP",
+			RealIPRecursive: true,
+			Snippets:        []string{"# server snippet"},
+			Locations: []version2.Location{
+				{
+					Path:                     "/tea",
+					ProxyPass:                "http://vs_default_cafe_vsr_default_tea_tea",
+					ProxyNextUpstream:        "error timeout",
+					ProxyNextUpstreamTimeout: "0s",
+					ProxyPassRequestHeaders:  true,
+					ProxySetHeaders: []version2.Header{
+						{
+							Name:  "Host",
+							Value: "$host",
+						},
+					},
+					HasKeepalive: true,
+					ProxySSLName: "tea-svc.tea.svc",
+					ServiceName:  "tea-svc",
+					IsVSR:        true,
+					VSRName:      "tea",
+					VSRNamespace: "default",
+				},
+			},
+		},
+		SpiffeClientCerts: false,
+	}
+
+	if !cmp.Equal(expected, result) {
+		t.Error(cmp.Diff(expected, result))
 	}
 }
