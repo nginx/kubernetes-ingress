@@ -83,12 +83,30 @@ jobs:
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
     needs: [checks]
     steps:
       - name: Checkout Repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           ref: ${{ needs.checks.outputs.branch }}
+
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
+
+      - name: Setup secrets
+        id: secrets
+        run: |
+          echo "Setting secrets for job"
+          CODECOV_TOKEN=$(az keyvault secret show --name code-cov --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$CODECOV_TOKEN"
+          echo "CODECOV_TOKEN=$CODECOV_TOKEN" >> $GITHUB_OUTPUT
 
       - name: Setup Helm
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
@@ -107,7 +125,7 @@ jobs:
         uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # v5.5.1
         with:
           files: ./coverage.txt
-          token: ${{ secrets.CODECOV_TOKEN }} # required
+          token: ${{ steps.secrets.outputs.CODECOV_TOKEN }} # required
 
   helm-tests:
     name: Helm Tests ${{ matrix.base-os }}
