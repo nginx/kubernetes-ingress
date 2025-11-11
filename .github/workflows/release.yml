@@ -542,6 +542,19 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Setup secrets
+        id: secrets
+        run: |
+          echo "Setting secrets for job"
+          AZURE_STORAGE=$(az keyvault secret show --name azure-storage --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$AZURE_STORAGE"
+          AZURE_STORAGE_ACCOUNT=$(echo $AZURE_STORAGE | jq -r '.account')
+          echo "::add-mask::$AZURE_STORAGE_ACCOUNT"
+          echo "AZURE_STORAGE_ACCOUNT=$AZURE_STORAGE_ACCOUNT" >> $GITHUB_OUTPUT
+          AZURE_BUCKET_NAME=$(echo $AZURE_STORAGE | jq -r '.bucket')
+          echo "::add-mask::$AZURE_BUCKET_NAME"
+          echo "AZURE_BUCKET_NAME=$AZURE_BUCKET_NAME" >> $GITHUB_OUTPUT
+
       - name: Azure Upload Release Packages
         uses: azure/CLI@9f7ce6f37c31b777ec6c6b6d1dfe7db79f497956 # v2.2.0
         with:
@@ -549,8 +562,8 @@ jobs:
             for i in $(find tarballs -type f); do
               echo -n "Uploading ${i} to kubernetes-ingress/v${{ inputs.nic_version }}/${i##*/} ... "
               if ${{ ! inputs.dry_run}}; then
-                az storage blob upload --auth-mode=login -f "$i" -c ${{ secrets.AZURE_BUCKET_NAME }} \
-                  --account-name ${{ secrets.AZURE_STORAGE_ACCOUNT }} --overwrite -n kubernetes-ingress/v${{ inputs.nic_version }}/${i##*/}
+                az storage blob upload --auth-mode=login -f "$i" -c ${{ steps.secrets.outputs.AZURE_BUCKET_NAME }} \
+                  --account-name ${{ steps.secrets.outputs.AZURE_STORAGE_ACCOUNT }} --overwrite -n kubernetes-ingress/v${{ inputs.nic_version }}/${i##*/}
                 echo "done"
               else
                 echo "skipped, dry_run."
