@@ -128,19 +128,27 @@ func printYaml(secret yamlSecret, projectRoot string) error {
 	}
 
 	// This part takes care of writing the yaml file onto disk, and creating the
-	// symbolic links for them. The functions used, os.WriteFile, and os.SymLink
-	// will truncate the files first if they exist. The SymLink function will
-	// also work in case the existing file is a regular file: it will truncate
-	// that, and turn that into a SymLink. There is no need to manually remove
-	// leftover files.
+	// symbolic links for them. os.WriteFile will truncate the files first if
+	// they exist. The SymLink function needs the symlink target to not exist,
+	// so we need to walk and remove those beforehand.
 	realFilePath := filepath.Join(projectRoot, realSecretDirectory, secret.fileName)
 	err = os.WriteFile(realFilePath, fileContents, 0o600)
 	if err != nil {
 		return fmt.Errorf("write kubernetes secret to file %s: %w", secret.fileName, err)
 	}
 
-	// Create symlinks
+	// Remove and create symlinks
 	for _, symlinkTarget := range secret.symlinks {
+		absSymlinkTarget := filepath.Join(projectRoot, symlinkTarget)
+
+		if _, err = os.Stat(absSymlinkTarget); err == nil {
+			// symlink exists, delete it
+			err = os.Remove(absSymlinkTarget)
+			if err != nil {
+				return fmt.Errorf("symlink target remove %s: %w", absSymlinkTarget, err)
+			}
+		}
+
 		err = os.Symlink(realFilePath, filepath.Join(projectRoot, symlinkTarget))
 		if err != nil {
 			return fmt.Errorf("symlink %s to %s: %w", symlinkTarget, realFilePath, err)

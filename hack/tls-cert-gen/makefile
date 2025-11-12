@@ -1,6 +1,6 @@
 .PHONY: run
 run:
-	go run tls-cert-gen.go
+	go run ./...
 
 .PHONY: extract
 extract:
