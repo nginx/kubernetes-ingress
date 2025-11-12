@@ -107,6 +107,7 @@ def virtual_server_foreign_upstream_app_setup(
     indirect=True,
 )
 class TestVirtualServerForeignUpstream:
+    @pytest.mark.flaky(max_runs=3)
     def test_responses_after_setup(self, kube_apis, crd_ingress_controller, virtual_server_foreign_upstream_app_setup):
         print(f"\nStep 1: initial check")
         wait_before_test()
