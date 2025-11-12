@@ -318,6 +318,7 @@ jobs:
     permissions:
       contents: write # for pushing to Helm Charts repository
       packages: write # for helm to push to GHCR
+      id-token: write
     secrets: inherit
 
   certify-openshift-images:
