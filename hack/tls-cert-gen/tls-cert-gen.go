@@ -206,23 +206,37 @@ func printTLS(templateData templateData) (*JITTLSKey, error) {
 }
 
 func printYaml(secret yamlSecret, projectRoot string) error {
+	// This part creates the tls keys (certificate and key) based on the
+	// issuer, subject, and dnsnames data.
 	tlsKeys, err := printTLS(secret.templateData)
 	if err != nil {
 		return fmt.Errorf("failed generating TLS keys for hosts: (%s: %v): %w", secret.templateData.commonName, secret.templateData.dnsNames, err)
 	}
 
+	// This part takes the created certificate and key, still in bytes, and
+	// embeds them into a kubernetes tls secret yaml format. At this point the
+	// fileContents is still a byteslice waiting to be written to a file.
+	//
+	// If the incoming secret is not valid, then the created yaml file will have
+	// an empty tls.key value.
 	fileContents, err := createYamlSecret(secret, secret.valid, tlsKeys)
 	if err != nil {
 		return fmt.Errorf("writing valid file for %s: %w", secret.fileName, err)
 	}
 
-	// write actual file
+	// This part takes care of writing the yaml file onto disk, and creating the
+	// symbolic links for them. The functions used, os.WriteFile, and os.SymLink
+	// will truncate the files first if they exist. The SymLink function will
+	// also work in case the existing file is a regular file: it will truncate
+	// that, and turn that into a SymLink. There is no need to manually remove
+	// leftover files.
 	realFilePath := filepath.Join(projectRoot, realSecretDirectory, secret.fileName)
 	err = os.WriteFile(realFilePath, fileContents, 0o600)
 	if err != nil {
 		return fmt.Errorf("write kubernetes secret to file %s: %w", secret.fileName, err)
 	}
 
+	// Create symlinks
 	for _, symlinkTarget := range secret.symlinks {
 		err = os.Symlink(realFilePath, filepath.Join(projectRoot, symlinkTarget))
 		if err != nil {
