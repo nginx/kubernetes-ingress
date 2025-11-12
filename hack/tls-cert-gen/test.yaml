@@ -1,8 +1,0 @@
-apiVersion: v1
-data:
-  tls.crt: d2VsbCBoZWxsbyB0aGVyZQ==
-  tls.key: Z2VuZXJhbCBrZW5vYmk=
-kind: Secret
-metadata:
-  name: v1-secret-thing
-type: kubernetes.io/tls

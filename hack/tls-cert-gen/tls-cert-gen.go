@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"log/slog"
 	"math/big"
-	"net"
 	"os"
 	"strings"
 	"time"
@@ -24,12 +23,53 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+const (
+	secretShouldBeValid   = true
+	secretShouldBeInvalid = false
+)
+
 var yamlSecrets = []yamlSecret{
 	{
 		secretName: "tls-secret",
-		fileName:   "a-test-secret.yaml",
-		hosts:      []string{"*.example.com"},
+		fileName:   "tls-secret.yaml",
+		templateData: templateData{
+			country:            []string{"IE"},
+			organization:       []string{"F5 NGINX"},
+			organizationalUnit: []string{"NGINX Ingress Controller"},
+			locality:           []string{"Cork"},
+			province:           []string{"Cork"},
+			commonName:         "example.com",
+			dnsNames:           []string{"*.example.com"},
+		},
 	},
+}
+
+// JITTLSKey is a Just In Time TLS key representation. The only two parts that
+// we need here are the bytes for the cert and the key. These two will be
+// written as the data.tls.cert and data.tls.key properties of the kubernetes
+// core.Secret type.
+//
+// This does not hold the hosts information, because that's being assembled
+// elsewhere, but the data does actually contain the passed in hosts.
+type JITTLSKey struct {
+	cert []byte
+	key  []byte
+}
+
+type templateData struct {
+	country            []string
+	organization       []string
+	organizationalUnit []string
+	locality           []string
+	province           []string
+	commonName         string
+	dnsNames           []string
+}
+
+type yamlSecret struct {
+	secretName   string
+	fileName     string
+	templateData templateData
 }
 
 func main() {
@@ -68,14 +108,14 @@ func publicKey(priv any) any {
 //   - keys are always valid from "now" until 4 days in the future. Given the
 //     short usage window of the keys, this is enough
 //   - all keys are certificate authorities (isCA is set to true for all)
-func printTLS(host string) (*JITTLSKey, error) {
+func printTLS(templateData templateData) (*JITTLSKey, error) {
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate private key: %w", err)
 	}
 
 	validFrom := time.Now()
-	validUntil := validFrom.Add(4 * 24 * time.Hour)
+	validUntil := validFrom.Add(31 * 24 * time.Hour)
 
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
@@ -84,36 +124,26 @@ func printTLS(host string) (*JITTLSKey, error) {
 	}
 
 	template := x509.Certificate{
-		SerialNumber: serialNumber,
 		Issuer: pkix.Name{
-			Country:      []string{"GB"},
-			Organization: []string{"Internet Widgits Pty Ltd"},
+			Country:      templateData.country,
+			Organization: templateData.organization,
 		},
 		Subject: pkix.Name{
-			Country:            []string{"US"},
-			Organization:       []string{"Acme Co"},
-			OrganizationalUnit: []string{"Finance"},
-			Locality:           []string{"San Francisco"},
-			Province:           []string{"California"},
-			StreetAddress:      nil,
-			PostalCode:         nil,
-			SerialNumber:       "",
-			CommonName:         host,
-			Names:              nil,
-			ExtraNames:         nil,
+			Country:            templateData.country,
+			Organization:       templateData.organization,
+			OrganizationalUnit: templateData.organizationalUnit,
+			Locality:           templateData.locality,
+			Province:           templateData.province,
+			CommonName:         templateData.commonName,
 		},
+		DNSNames:              templateData.dnsNames,
+		SerialNumber:          serialNumber,
 		NotBefore:             validFrom,
 		NotAfter:              validUntil,
 		KeyUsage:              x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
-		IsCA:                  true,
-	}
-
-	if ip := net.ParseIP(host); ip != nil {
-		template.IPAddresses = append(template.IPAddresses, ip)
-	} else {
-		template.DNSNames = append(template.DNSNames, host)
+		IsCA:                  false,
 	}
 
 	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, publicKey(priv), priv)
@@ -143,30 +173,26 @@ func printTLS(host string) (*JITTLSKey, error) {
 	}, nil
 }
 
-// JITTLSKey is a Just In Time TLS key representation. The only two parts that
-// we need here are the bytes for the cert and the key. These two will be
-// written as the data.tls.cert and data.tls.key properties of the kubernetes
-// core.Secret type.
-//
-// This does not hold the hosts information, because that's being assembled
-// elsewhere, but the data does actually contain the passed in hosts.
-type JITTLSKey struct {
-	cert []byte
-	key  []byte
-}
-
-type yamlSecret struct {
-	secretName string
-	fileName   string
-	hosts      []string
-}
-
 func printYaml(secret yamlSecret) error {
-	tlsKeys, err := printTLS(strings.Join(secret.hosts, ","))
+	tlsKeys, err := printTLS(secret.templateData)
 	if err != nil {
-		return fmt.Errorf("failed generating TLS keys for hosts: %v: %w", secret.hosts, err)
+		return fmt.Errorf("failed generating TLS keys for hosts: (%s: %v): %w", secret.templateData.commonName, secret.templateData.dnsNames, err)
 	}
 
+	err = createYamlSecret(secret, secretShouldBeValid, tlsKeys)
+	if err != nil {
+		return fmt.Errorf("writing valid file for %s: %w", secret.fileName, err)
+	}
+
+	err = createYamlSecret(secret, secretShouldBeInvalid, tlsKeys)
+	if err != nil {
+		return fmt.Errorf("writing invalid file for %s: %w", secret.fileName, err)
+	}
+
+	return nil
+}
+
+func createYamlSecret(secret yamlSecret, isValid bool, tlsKeys *JITTLSKey) error {
 	s := v1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Secret",
@@ -182,14 +208,21 @@ func printYaml(secret yamlSecret) error {
 		Type: v1.SecretTypeTLS,
 	}
 
-	sb, err := yaml.Marshal(s)
-	if err != nil {
-		return fmt.Errorf("failed to marshal kubernetes secret: %w", err)
+	fileName := secret.fileName
+
+	if !isValid {
+		fileName = strings.ReplaceAll(secret.fileName, ".yaml", "-invalid.yaml")
+		s.Data[v1.TLSCertKey] = []byte(``)
 	}
 
-	err = os.WriteFile(secret.fileName, sb, 0o600)
+	sb, err := yaml.Marshal(s)
 	if err != nil {
-		return fmt.Errorf("failed to write kubernetes secret to file %s: %w", secret.fileName, err)
+		return fmt.Errorf("marshaling kubernetes secret into yaml %v: %w", s, err)
+	}
+
+	err = os.WriteFile(fileName, sb, 0o600)
+	if err != nil {
+		return fmt.Errorf("write kubernetes secret to file %s: %w", secret.fileName, err)
 	}
 
 	return nil
