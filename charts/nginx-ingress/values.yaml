@@ -666,6 +666,28 @@ controller:
   ## variable_hash_bucket_size, and variable_hash_max_size in the ConfigMap based on the number of two-way splits.
   enableWeightChangesDynamicReload: false
 
+  # Default values for nginx-ingress with optional NetworkPolicy
+  networkPolicy:
+    enabled: false
+    # If empty, the template will default to the controller selectorLabels
+    podSelector: {}
+    policyTypes:
+      - Ingress
+      - Egress
+    # Default examples (safe, minimal). Feel free to keep them commented out
+    ingress:
+      - from: []   # e.g. - namespaceSelector: { matchLabels: { name: ingress-allow } }
+        ports:
+          - protocol: TCP
+            port: 80
+          - protocol: TCP
+            port: 443
+    egress:
+      - to: []
+        ports:
+          - protocol: UDP
+            port: 53
+
 rbac:
   ## Configures RBAC.
   create: true
