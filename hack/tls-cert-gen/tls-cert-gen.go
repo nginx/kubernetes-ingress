@@ -29,45 +29,7 @@ const (
 	realSecretDirectory   = "examples/common-secrets/"
 )
 
-var (
-	projectRoot = "" // this will be redefined in main()
-	yamlSecrets = []yamlSecret{
-		{
-			secretName: "tls-secret",
-			fileName:   "tls-secret.yaml",
-			templateData: templateData{
-				country:            []string{"IE"},
-				organization:       []string{"F5 NGINX"},
-				organizationalUnit: []string{"NGINX Ingress Controller"},
-				locality:           []string{"Cork"},
-				province:           []string{"Cork"},
-				commonName:         "example.com",
-				dnsNames:           []string{"*.example.com"},
-			},
-			valid: secretShouldBeValid,
-			symlinks: []string{
-				"examples/custom-resources/oidc-fclo/tls-secret-symlinked.yaml",
-			},
-		},
-		{
-			secretName: "tls-secret",
-			fileName:   "tls-secret-invalid.yaml",
-			templateData: templateData{
-				country:            []string{"IE"},
-				organization:       []string{"F5 NGINX"},
-				organizationalUnit: []string{"NGINX Ingress Controller"},
-				locality:           []string{"Cork"},
-				province:           []string{"Cork"},
-				commonName:         "example.com",
-				dnsNames:           []string{"*.example.com"},
-			},
-			valid: secretShouldBeInvalid,
-			symlinks: []string{
-				"/tests/data/default-server/invalid-tls-secret.yaml",
-			},
-		},
-	}
-)
+var projectRoot = "" // this will be redefined in main()
 
 // JITTLSKey is a Just In Time TLS key representation. The only two parts that
 // we need here are the bytes for the cert and the key. These two will be
@@ -81,6 +43,13 @@ type JITTLSKey struct {
 	key  []byte
 }
 
+// templateData is a subset of the x509.Certificate info: it pulls in some of
+// the Issuer, Subject, and DNSNames properties from that struct. Motivation for
+// this is to provide a complete but limited struct we need to fill out for
+// every tls certificate we want to use for testing or examples.
+//
+// Making decisions on what data to leave out of the x509.Certificate struct is
+// therefore no longer a concern.
 type templateData struct {
 	country            []string
 	organization       []string
@@ -91,6 +60,14 @@ type templateData struct {
 	dnsNames           []string
 }
 
+// yamlSecret encapsulates all the data that we need to create the tls secrets
+// that kubernetes needs as tls files.
+//
+// secretName   - this is what virtualservers and other objects reference
+// fileName     - every secret needs to have an actual file on the disk. This is going to be the name of the file that's placed in the examples/common-secrets directory
+// symlinks     - a slice of paths that will symlink to the actual file. These paths are relative to the project root. For example: []string{"examples/custom-resources/oidc/tls-secret.yaml"}
+// valid        - whether the generated kubernetes secret file should be valid. An invalid secret will not have the data["tls.key"] property set in the yaml file.
+// templateData - has information about issuer, subject, common name (main domain), and dnsNames (subject alternate names).
 type yamlSecret struct {
 	secretName   string
 	fileName     string
@@ -127,6 +104,50 @@ func publicKey(priv any) any {
 	default:
 		return nil
 	}
+}
+
+// printYaml wraps creating the TLS certificate and key, and writes the actual
+// file, and any symbolic links to the disk.
+func printYaml(secret yamlSecret, projectRoot string) error {
+	// This part creates the tls keys (certificate and key) based on the
+	// issuer, subject, and dnsnames data.
+	tlsKeys, err := printTLS(secret.templateData)
+	if err != nil {
+		return fmt.Errorf("failed generating TLS keys for hosts: (%s: %v): %w", secret.templateData.commonName, secret.templateData.dnsNames, err)
+	}
+
+	// This part takes the created certificate and key, still in bytes, and
+	// embeds them into a kubernetes tls secret yaml format. At this point the
+	// fileContents is still a byteslice waiting to be written to a file.
+	//
+	// If the incoming secret is not valid, then the created yaml file will have
+	// an empty tls.key value.
+	fileContents, err := createYamlSecret(secret, secret.valid, tlsKeys)
+	if err != nil {
+		return fmt.Errorf("writing valid file for %s: %w", secret.fileName, err)
+	}
+
+	// This part takes care of writing the yaml file onto disk, and creating the
+	// symbolic links for them. The functions used, os.WriteFile, and os.SymLink
+	// will truncate the files first if they exist. The SymLink function will
+	// also work in case the existing file is a regular file: it will truncate
+	// that, and turn that into a SymLink. There is no need to manually remove
+	// leftover files.
+	realFilePath := filepath.Join(projectRoot, realSecretDirectory, secret.fileName)
+	err = os.WriteFile(realFilePath, fileContents, 0o600)
+	if err != nil {
+		return fmt.Errorf("write kubernetes secret to file %s: %w", secret.fileName, err)
+	}
+
+	// Create symlinks
+	for _, symlinkTarget := range secret.symlinks {
+		err = os.Symlink(realFilePath, filepath.Join(projectRoot, symlinkTarget))
+		if err != nil {
+			return fmt.Errorf("symlink %s to %s: %w", symlinkTarget, realFilePath, err)
+		}
+	}
+
+	return nil
 }
 
 // printTLS is roughly the same function as crypto/tls/generate_cert.go in the
@@ -205,48 +226,8 @@ func printTLS(templateData templateData) (*JITTLSKey, error) {
 	}, nil
 }
 
-func printYaml(secret yamlSecret, projectRoot string) error {
-	// This part creates the tls keys (certificate and key) based on the
-	// issuer, subject, and dnsnames data.
-	tlsKeys, err := printTLS(secret.templateData)
-	if err != nil {
-		return fmt.Errorf("failed generating TLS keys for hosts: (%s: %v): %w", secret.templateData.commonName, secret.templateData.dnsNames, err)
-	}
-
-	// This part takes the created certificate and key, still in bytes, and
-	// embeds them into a kubernetes tls secret yaml format. At this point the
-	// fileContents is still a byteslice waiting to be written to a file.
-	//
-	// If the incoming secret is not valid, then the created yaml file will have
-	// an empty tls.key value.
-	fileContents, err := createYamlSecret(secret, secret.valid, tlsKeys)
-	if err != nil {
-		return fmt.Errorf("writing valid file for %s: %w", secret.fileName, err)
-	}
-
-	// This part takes care of writing the yaml file onto disk, and creating the
-	// symbolic links for them. The functions used, os.WriteFile, and os.SymLink
-	// will truncate the files first if they exist. The SymLink function will
-	// also work in case the existing file is a regular file: it will truncate
-	// that, and turn that into a SymLink. There is no need to manually remove
-	// leftover files.
-	realFilePath := filepath.Join(projectRoot, realSecretDirectory, secret.fileName)
-	err = os.WriteFile(realFilePath, fileContents, 0o600)
-	if err != nil {
-		return fmt.Errorf("write kubernetes secret to file %s: %w", secret.fileName, err)
-	}
-
-	// Create symlinks
-	for _, symlinkTarget := range secret.symlinks {
-		err = os.Symlink(realFilePath, filepath.Join(projectRoot, symlinkTarget))
-		if err != nil {
-			return fmt.Errorf("symlink %s to %s: %w", symlinkTarget, realFilePath, err)
-		}
-	}
-
-	return nil
-}
-
+// createYamlSecret takes in the generated TLS key in printTLS, and marshals it
+// into a yaml file contents and returns that as a byteslice.
 func createYamlSecret(secret yamlSecret, isValid bool, tlsKeys *JITTLSKey) ([]byte, error) {
 	s := v1.Secret{
 		TypeMeta: metav1.TypeMeta{
