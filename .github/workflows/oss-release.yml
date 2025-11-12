@@ -243,6 +243,7 @@ jobs:
           QUAY_CREDS=$(az keyvault secret show --name quay-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
           echo "::add-mask::$QUAY_CREDS"
           QUAY_USERNAME=$(echo $QUAY_CREDS | jq -r '.username')
+          echo "::add-mask::$QUAY_USERNAME"
           echo "QUAY_USERNAME=$QUAY_USERNAME" >> $GITHUB_OUTPUT
           QUAY_ROBOT_TOKEN=$(echo $QUAY_CREDS | jq -r '.token')
           echo "::add-mask::$QUAY_ROBOT_TOKEN"
