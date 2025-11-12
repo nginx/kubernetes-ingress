@@ -622,6 +622,28 @@ controller:
   ## variable_hash_bucket_size, and variable_hash_max_size in the ConfigMap based on the number of two-way splits.
   enableWeightChangesDynamicReload: false
 
+  # Default values for nginx-ingress with optional NetworkPolicy
+  networkPolicy:
+    enabled: false
+    # If empty, the template will default to the controller selectorLabels
+    podSelector: {}
+    policyTypes:
+      - Ingress
+      - Egress
+    # Default examples (safe, minimal). Feel free to keep them commented out
+    ingress:
+      - from: []   # e.g. - namespaceSelector: { matchLabels: { name: ingress-allow } }
+        ports:
+          - protocol: TCP
+            port: 80
+          - protocol: TCP
+            port: 443
+    egress:
+      - to: []
+        ports:
+          - protocol: UDP
+            port: 53
+
 rbac:
   ## Configures RBAC.
   create: true
@@ -724,23 +746,3 @@ nginxAgent:
     processorBufferSize: 50000
   ## The name of a custom ConfigMap to use instead of the one provided by default
   customConfigMap: ""
-
-# Default values for nginx-ingress with optional NetworkPolicy
-networkPolicy:
-  enabled: false            # Set to true to enable the NetworkPolicy
-  policyTypes:             # Types of policy to create
-    - Ingress
-    - Egress
-  podSelector: {}           # Label selector for pods (defaults to ingress controller pods)
-  ingress:                  # Ingress rules
-    - from: []              # List of peer selectors (e.g. namespaces, pods)
-      ports:
-        - protocol: TCP
-          port: 80
-        - protocol: TCP
-          port: 443
-  egress:                   # Egress rules
-    - to: []                # List of peer selectors
-      ports:
-        - protocol: UDP
-          port: 53

@@ -1,23 +1,47 @@
-{{- if .Values.networkPolicy.enabled }}
+{{- /*
+NetworkPolicy for the controller.
+Uses only .Values.controller.networkPolicy.
+Defaults podSelector to controller selectorLabels when empty.
+*/ -}}
+{{- $np := .Values.controller.networkPolicy -}}
+{{- if and $np $np.enabled }}
+
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "nginx-ingress.fullname" . }}-network-policy
+  name: {{ include "nginx-ingress.fullname" . }}-controller-netpol
   labels:
     {{- include "nginx-ingress.labels" . | nindent 4 }}
 spec:
   podSelector:
-    {{- toYaml .Values.networkPolicy.podSelector | nindent 4 }}
+  {{- if $np.podSelector }}
+  {{- toYaml $np.podSelector | nindent 4 }}
+  {{- else }}
+    matchLabels:
+  {{- include "nginx-ingress.selectorLabels" . | nindent 6 }}
+  {{- end }}
+
+  {{- if $np.policyTypes }}
   policyTypes:
-    {{- toYaml .Values.networkPolicy.policyTypes | nindent 4 }}
+  {{- toYaml $np.policyTypes | nindent 2 }}
+  {{- end }}
 
-  {{- if has "Ingress" .Values.networkPolicy.policyTypes }}
+  {{- if and $np.policyTypes (has "Ingress" $np.policyTypes) }}
+  {{- if $np.ingress }}
   ingress:
-    {{- toYaml .Values.networkPolicy.ingress | nindent 4 }}
+  {{- toYaml $np.ingress | nindent 2 }}
+  {{- else }}
+  ingress: []
+  {{- end }}
   {{- end }}
 
-  {{- if has "Egress" .Values.networkPolicy.policyTypes }}
+  {{- if and $np.policyTypes (has "Egress" $np.policyTypes) }}
+  {{- if $np.egress }}
   egress:
-    {{- toYaml .Values.networkPolicy.egress | nindent 4 }}
+  {{- toYaml $np.egress | nindent 2 }}
+  {{- else }}
+  egress: []
   {{- end }}
+  {{- end }}
+
 {{- end }}

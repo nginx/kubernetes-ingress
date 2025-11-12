@@ -1922,6 +1922,69 @@
           "examples": [
             false
           ]
+        },
+        "networkPolicy": {
+          "type": "object",
+          "default": {},
+          "title": "Optional NetworkPolicy for the Ingress Controller pods",
+          "required": ["enabled"],
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false,
+              "title": "Create a NetworkPolicy that targets the controller pods"
+            },
+            "policyTypes": {
+              "type": "array",
+              "title": "List of policy types to apply",
+              "items": { "type": "string", "enum": ["Ingress", "Egress"] },
+              "default": ["Ingress", "Egress"]
+            },
+            "podSelector": {
+              "type": "object",
+              "default": {},
+              "title": "Override selector for targeted pods (empty -> controller selector)",
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.LabelSelector"
+            },
+            "ingress": {
+              "type": "array",
+              "default": [],
+              "title": "Ingress rules",
+              "items": {
+                "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.networking.v1.NetworkPolicyIngressRule"
+              }
+            },
+            "egress": {
+              "type": "array",
+              "default": [],
+              "title": "Egress rules",
+              "items": {
+                "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.networking.v1.NetworkPolicyEgressRule"
+              }
+            }
+          },
+          "examples": [
+            {
+              "enabled": true,
+              "policyTypes": ["Ingress", "Egress"],
+              "podSelector": {},
+              "ingress": [
+                {
+                  "ports": [
+                    { "protocol": "TCP", "port": 80 },
+                    { "protocol": "TCP", "port": 443 }
+                  ]
+                }
+              ],
+              "egress": [
+                {
+                  "ports": [
+                    { "protocol": "UDP", "port": 53 }
+                  ]
+                }
+              ]
+            }
+          ]
         }
       },
       "examples": [
