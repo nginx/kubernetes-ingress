@@ -89,6 +89,9 @@ jobs:
           DOCKER_PASSWORD=$(az keyvault secret show --name docker-password --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
           echo "::add-mask::$DOCKER_PASSWORD"
           echo "DOCKER_PASSWORD=$DOCKER_PASSWORD" >> $GITHUB_OUTPUT
+          NGINX_PAT=$(az keyvault secret show --name nginx-bot-pat --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$NGINX_PAT"
+          echo "NGINX_PAT=$NGINX_PAT" >> $GITHUB_OUTPUT
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
@@ -125,7 +128,7 @@ jobs:
         with:
           repository: nginxinc/helm-charts
           fetch-depth: 1
-          token: ${{ secrets.NGINX_PAT }}
+          token: ${{ steps.secrets.outputs.NGINX_PAT }}
           path: helm-charts
         if: ${{ inputs.nginx_helm_repo }}
 
