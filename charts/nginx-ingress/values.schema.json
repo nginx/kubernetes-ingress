@@ -1927,7 +1927,9 @@
           "type": "object",
           "default": {},
           "title": "Optional NetworkPolicy for the Ingress Controller pods",
-          "required": ["enabled"],
+          "required": [
+            "enabled"
+          ],
           "properties": {
             "enabled": {
               "type": "boolean",
@@ -1937,8 +1939,17 @@
             "policyTypes": {
               "type": "array",
               "title": "List of policy types to apply",
-              "items": { "type": "string", "enum": ["Ingress", "Egress"] },
-              "default": ["Ingress", "Egress"]
+              "items": {
+                "type": "string",
+                "enum": [
+                  "Ingress",
+                  "Egress"
+                ]
+              },
+              "default": [
+                "Ingress",
+                "Egress"
+              ]
             },
             "podSelector": {
               "type": "object",
@@ -1966,20 +1977,32 @@
           "examples": [
             {
               "enabled": true,
-              "policyTypes": ["Ingress", "Egress"],
+              "policyTypes": [
+                "Ingress",
+                "Egress"
+              ],
               "podSelector": {},
               "ingress": [
                 {
                   "ports": [
-                    { "protocol": "TCP", "port": 80 },
-                    { "protocol": "TCP", "port": 443 }
+                    {
+                      "protocol": "TCP",
+                      "port": 80
+                    },
+                    {
+                      "protocol": "TCP",
+                      "port": 443
+                    }
                   ]
                 }
               ],
               "egress": [
                 {
                   "ports": [
-                    { "protocol": "UDP", "port": 53 }
+                    {
+                      "protocol": "UDP",
+                      "port": 53
+                    }
                   ]
                 }
               ]
