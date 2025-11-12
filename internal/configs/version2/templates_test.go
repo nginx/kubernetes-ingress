@@ -910,7 +910,7 @@ func TestExecuteVirtualServerTemplateWithCachePolicyNGINXPlus(t *testing.T) {
 	}
 
 	// Check cache zone declaration
-	expectedCacheZone := "proxy_cache_path /var/cache/nginx/test_cache_full_advanced levels=2:2 keys_zone=test_cache_full_advanced:50m;"
+	expectedCacheZone := "proxy_cache_path /var/cache/nginx/test_cache_full_advanced levels=2:2 keys_zone=test_cache_full_advanced:50m use_temp_path=off;"
 	if !bytes.Contains(got, []byte(expectedCacheZone)) {
 		t.Errorf("Expected cache zone declaration: %s", expectedCacheZone)
 	}
@@ -970,7 +970,7 @@ func TestExecuteVirtualServerTemplateWithCachePolicyOSS(t *testing.T) {
 	}
 
 	// Check cache zone declaration
-	expectedCacheZone := "proxy_cache_path /var/cache/nginx/test_cache_basic_cache levels=1:2 keys_zone=test_cache_basic_cache:10m;"
+	expectedCacheZone := "proxy_cache_path /var/cache/nginx/test_cache_basic_cache levels=1:2 keys_zone=test_cache_basic_cache:10m use_temp_path=off;"
 	if !bytes.Contains(got, []byte(expectedCacheZone)) {
 		t.Errorf("Expected cache zone declaration: %s", expectedCacheZone)
 	}

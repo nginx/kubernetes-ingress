@@ -1990,6 +1990,14 @@ func generateCacheConfig(cache *conf_v1.Cache, vsNamespace, vsName, ownerNamespa
 		uniqueZoneName = fmt.Sprintf("%s_%s_%s_%s_%s", vsNamespace, vsName, ownerNamespace, ownerName, cache.CacheZoneName)
 	}
 
+	// Set cache key with default if not provided
+	var cacheKey string
+	if cache.CacheKey != "" {
+		cacheKey = cache.CacheKey
+	} else {
+		cacheKey = "${scheme}${proxy_host}${request_uri}"
+	}
+
 	cacheConfig := &version2.Cache{
 		ZoneName:              uniqueZoneName,
 		Time:                  cache.Time,
@@ -1999,6 +2007,35 @@ func generateCacheConfig(cache *conf_v1.Cache, vsNamespace, vsName, ownerNamespa
 		ZoneSize:              cache.CacheZoneSize,
 		OverrideUpstreamCache: cache.OverrideUpstreamCache,
 		Levels:                cache.Levels, // Pass Levels from Cache to CacheZone
+		Inactive:              cache.Inactive,
+		UseTempPath:           cache.UseTempPath,
+		MaxSize:               cache.MaxSize,
+		MinFree:               cache.MinFree,
+		CacheKey:              cacheKey,
+		CacheUseStale:         cache.CacheUseStale,
+		CacheRevalidate:       cache.CacheRevalidate,
+		CacheBackgroundUpdate: cache.CacheBackgroundUpdate,
+		CacheMinUses:          cache.CacheMinUses,
+	}
+
+	// Map lock fields
+	if cache.Lock != nil {
+		cacheConfig.CacheLock = cache.Lock.Enable
+		cacheConfig.CacheLockTimeout = cache.Lock.Timeout
+		cacheConfig.CacheLockAge = cache.Lock.Age
+	}
+
+	// Map manager fields
+	if cache.Manager != nil {
+		cacheConfig.ManagerFiles = cache.Manager.Files
+		cacheConfig.ManagerSleep = cache.Manager.Sleep
+		cacheConfig.ManagerThreshold = cache.Manager.Threshold
+	}
+
+	// Map conditions
+	if cache.Conditions != nil {
+		cacheConfig.NoCacheConditions = cache.Conditions.NoCache
+		cacheConfig.CacheBypassConditions = cache.Conditions.Bypass
 	}
 
 	// Convert allowed codes to proxy_cache_valid entries
@@ -2028,10 +2065,17 @@ func addCacheZone(cacheZones *[]version2.CacheZone, cache *version2.Cache) {
 	}
 
 	cacheZone := version2.CacheZone{
-		Name:   cache.ZoneName,
-		Size:   zoneSize,
-		Path:   fmt.Sprintf("/var/cache/nginx/%s", cache.ZoneName),
-		Levels: cache.Levels, // Pass Levels from Cache to CacheZone
+		Name:             cache.ZoneName,
+		Size:             zoneSize,
+		Path:             fmt.Sprintf("/var/cache/nginx/%s", cache.ZoneName),
+		Levels:           cache.Levels, // Pass Levels from Cache to CacheZone
+		Inactive:         cache.Inactive,
+		UseTempPath:      cache.UseTempPath,
+		MaxSize:          cache.MaxSize,
+		MinFree:          cache.MinFree,
+		ManagerFiles:     cache.ManagerFiles,
+		ManagerSleep:     cache.ManagerSleep,
+		ManagerThreshold: cache.ManagerThreshold,
 	}
 
 	// Check for duplicates

@@ -1171,6 +1171,7 @@ func validateActionProxyRewritePathForRegexp(rewritePath string, fieldPath *fiel
 	return allErrs
 }
 
+// TODO: what variable should be allowed for cache key and should this list be reused
 var actionProxyHeaderVariables = map[string]bool{
 	"request_uri":             true,
 	"request_method":          true,
@@ -1216,6 +1217,8 @@ var actionProxyHeaderVariables = map[string]bool{
 	"ssl_server_name":         true,
 	"ssl_session_id":          true,
 	"ssl_session_reused":      true,
+	"uri":                     true,
+	"proxy_host":              true,
 }
 
 var actionProxyHeaderSpecialVariables = []string{"arg_", "http_", "cookie_", "jwt_claim_", "jwt_header_"}
@@ -1276,6 +1279,7 @@ func (vsv *VirtualServerValidator) validateActionProxyResponseHeaders(responseHe
 	return allErrs
 }
 
+// TODO: should it be customisable for cache
 var validIgnoreHeaders = map[string]bool{
 	"X-Accel-Redirect":   true,
 	"X-Accel-Expires":    true,

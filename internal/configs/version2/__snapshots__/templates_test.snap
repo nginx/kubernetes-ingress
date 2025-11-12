@@ -1086,8 +1086,8 @@ upstream test-upstream {
     server 10.0.0.20:8001 max_fails=0 fail_timeout= max_conns=0;
 }
 
-proxy_cache_path /var/cache/nginx/test_cache_full_advanced levels=2:2 keys_zone=test_cache_full_advanced:50m;
-proxy_cache_path /var/cache/nginx/test_cache_location_location_cache keys_zone=test_cache_location_location_cache:20m;
+proxy_cache_path /var/cache/nginx/test_cache_full_advanced levels=2:2 keys_zone=test_cache_full_advanced:50m use_temp_path=off;
+proxy_cache_path /var/cache/nginx/test_cache_location_location_cache keys_zone=test_cache_location_location_cache:20m use_temp_path=off;
 geo $purge_allowed_test_cache_full_advanced {
     default 0;
     127.0.0.1 1;
@@ -1165,8 +1165,8 @@ upstream test-upstream {zone test-upstream ;
     server 10.0.0.20:8001 max_fails=0 fail_timeout= max_conns=0;
 }
 
-proxy_cache_path /var/cache/nginx/test_cache_basic_cache levels=1:2 keys_zone=test_cache_basic_cache:10m;
-proxy_cache_path /var/cache/nginx/test_cache_location_simple_cache keys_zone=test_cache_location_simple_cache:5m;
+proxy_cache_path /var/cache/nginx/test_cache_basic_cache levels=1:2 keys_zone=test_cache_basic_cache:10m use_temp_path=off;
+proxy_cache_path /var/cache/nginx/test_cache_location_simple_cache keys_zone=test_cache_location_simple_cache:5m use_temp_path=off;
 server {
     listen 80;
     listen [::]:80;

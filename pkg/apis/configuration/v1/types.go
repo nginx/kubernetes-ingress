@@ -1019,6 +1019,61 @@ type SuppliedIn struct {
 	Query []string `json:"query"`
 }
 
+// CacheManager defines cache manager process parameters for controlling the cache manager process behavior.
+// The cache manager monitors the maximum cache size and removes the least recently used data when the size is exceeded.
+type CacheManager struct {
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=2147483647
+	// Files sets the maximum number of files that will be deleted in one iteration by the cache manager.
+	// During one iteration no more than manager_files items are deleted (by default, 100).
+	Files *int `json:"files,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[0-9]+[mu]?s$`
+	// Sleep sets the pause between cache manager iterations.
+	// Between iterations, a pause configured by manager_sleep (by default, 50 milliseconds) is made.
+	Sleep string `json:"sleep,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[0-9]+[mu]?s$`
+	// Threshold sets the maximum duration of one cache manager iteration.
+	// The duration of one iteration is limited by manager_threshold (by default, 200 milliseconds).
+	Threshold string `json:"threshold,omitempty"`
+}
+
+// CacheLock defines cache locking parameters. When enabled, only one request at a time will be allowed to populate a new cache element.
+// Other requests of the same cache element will either wait for a response to appear in the cache or the cache lock for this element to be released.
+// +kubebuilder:validation:XValidation:rule="(!has(self.timeout) && !has(self.age)) || self.enable",message="timeout or age require enable=true"
+type CacheLock struct {
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	// Enable sets whether cache locking is enabled (proxy_cache_lock).
+	// When enabled, only one request at a time will be allowed to populate a new cache element according to the proxy_cache_key.
+	Enable bool `json:"enable,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[0-9]+[smhd]$`
+	// Timeout sets a timeout for proxy_cache_lock.
+	// When the time expires, the request will be passed to the proxied server, however, the response will not be cached.
+	Timeout string `json:"timeout,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[0-9]+[smhd]$`
+	// Age sets the maximum time a cache lock can be held (proxy_cache_lock_age).
+	// If the last request passed to the proxied server for populating a new cache element has not completed for the specified time, one more request may be passed.
+	Age string `json:"age,omitempty"`
+}
+
+// CacheConditions defines conditions for cache bypass and no-cache behavior.
+// These use NGINX variables to make dynamic caching decisions based on request characteristics.
+type CacheConditions struct {
+	// +kubebuilder:validation:Optional
+	// NoCache defines conditions under which the response will not be saved to a cache (proxy_no_cache).
+	// If at least one value of the string parameters is not empty and is not equal to "0" then the response will not be saved.
+	NoCache []string `json:"noCache,omitempty"`
+	// +kubebuilder:validation:Optional
+	// Bypass defines conditions under which the response will not be taken from a cache (proxy_cache_bypass).
+	// If at least one value of the string parameters is not empty and is not equal to "0" then the response will not be taken from the cache.
+	Bypass []string `json:"bypass,omitempty"`
+}
+
 // Cache defines a cache policy for proxy caching.
 // +kubebuilder:validation:XValidation:rule="!has(self.allowedCodes) || (has(self.allowedCodes) && has(self.time))",message="time is required when allowedCodes is specified"
 type Cache struct {
@@ -1029,7 +1084,7 @@ type Cache struct {
 	// Single lowercase letters are also allowed. Examples: "cache", "my_cache", "cache1".
 	CacheZoneName string `json:"cacheZoneName"`
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Pattern=`^[0-9]+[kmg]$`
+	// +kubebuilder:validation:Pattern=`^[0-9]+[kmgKMG]$`
 	// CacheZoneSize defines the size of the cache zone. Must be a number followed by a size unit:
 	// 'k' for kilobytes, 'm' for megabytes, or 'g' for gigabytes.
 	// Examples: "10m", "1g", "512k".
@@ -1079,4 +1134,58 @@ type Cache struct {
 	// Examples: "1:2", "2:2", "1:2:2".
 	// Invalid: "3:1", "1:3", "1:2:3".
 	Levels string `json:"levels,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[0-9]+[smhd]$`
+	// Inactive sets the time after which cached data that are not accessed get removed from the cache (inactive parameter).
+	// By default, inactive is set to 10 minutes.
+	Inactive string `json:"inactive,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	// UseTempPath controls whether temporary files and the cache are put on different file systems (use_temp_path parameter).
+	// If set to off, temporary files will be put directly in the cache directory.
+	UseTempPath bool `json:"useTempPath,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[0-9]+[kmgKMG]$`
+	// MaxSize sets the maximum cache size (max_size parameter).
+	// When the size is exceeded, the cache manager removes the least recently used data.
+	MaxSize string `json:"maxSize,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[0-9]+[kmgKMG]$`
+	// MinFree sets the minimum amount of free space required on the file system with cache (min_free parameter).
+	// When there is not enough free space, the cache manager removes the least recently used data.
+	MinFree string `json:"minFree,omitempty"`
+	// +kubebuilder:validation:Optional
+	// Manager configures the cache manager process parameters (manager_files, manager_sleep, manager_threshold).
+	Manager *CacheManager `json:"manager,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MaxLength=1024
+	// CacheKey defines a key for caching (proxy_cache_key).
+	// By default, close to "$scheme$proxy_host$uri$is_args$args".
+	CacheKey string `json:"cacheKey,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MaxItems=11
+	// CacheUseStale determines in which cases a stale cached response can be used (proxy_cache_use_stale).
+	// Valid parameters: error, timeout, invalid_header, updating, http_500, http_502, http_503, http_504, http_403, http_404, http_429, off.
+	CacheUseStale []string `json:"cacheUseStale,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	// CacheRevalidate enables revalidation of expired cache items using conditional requests (proxy_cache_revalidate).
+	// Uses "If-Modified-Since" and "If-None-Match" header fields.
+	CacheRevalidate bool `json:"cacheRevalidate,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	// CacheBackgroundUpdate allows starting a background subrequest to update an expired cache item (proxy_cache_background_update).
+	// A stale cached response is returned to the client while the cache is being updated.
+	CacheBackgroundUpdate bool `json:"cacheBackgroundUpdate,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=2147483647
+	// CacheMinUses sets the number of requests after which the response will be cached (proxy_cache_min_uses).
+	CacheMinUses *int `json:"cacheMinUses,omitempty"`
+	// +kubebuilder:validation:Optional
+	// Lock configures cache locking to prevent multiple identical requests from populating the same cache element simultaneously.
+	Lock *CacheLock `json:"lock,omitempty"`
+	// +kubebuilder:validation:Optional
+	// Conditions defines when responses should not be cached or taken from cache.
+	Conditions *CacheConditions `json:"conditions,omitempty"`
 }
