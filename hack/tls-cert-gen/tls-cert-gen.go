@@ -14,7 +14,7 @@ import (
 	"log/slog"
 	"math/big"
 	"os"
-	"strings"
+	"path/filepath"
 	"time"
 
 	log "github.com/nginx/kubernetes-ingress/internal/logger"
@@ -26,23 +26,48 @@ import (
 const (
 	secretShouldBeValid   = true
 	secretShouldBeInvalid = false
+	realSecretDirectory   = "examples/common-secrets/"
 )
 
-var yamlSecrets = []yamlSecret{
-	{
-		secretName: "tls-secret",
-		fileName:   "tls-secret.yaml",
-		templateData: templateData{
-			country:            []string{"IE"},
-			organization:       []string{"F5 NGINX"},
-			organizationalUnit: []string{"NGINX Ingress Controller"},
-			locality:           []string{"Cork"},
-			province:           []string{"Cork"},
-			commonName:         "example.com",
-			dnsNames:           []string{"*.example.com"},
+var (
+	projectRoot = "" // this will be redefined in main()
+	yamlSecrets = []yamlSecret{
+		{
+			secretName: "tls-secret",
+			fileName:   "tls-secret.yaml",
+			templateData: templateData{
+				country:            []string{"IE"},
+				organization:       []string{"F5 NGINX"},
+				organizationalUnit: []string{"NGINX Ingress Controller"},
+				locality:           []string{"Cork"},
+				province:           []string{"Cork"},
+				commonName:         "example.com",
+				dnsNames:           []string{"*.example.com"},
+			},
+			valid: secretShouldBeValid,
+			symlinks: []string{
+				"examples/custom-resources/oidc-fclo/tls-secret-symlinked.yaml",
+			},
 		},
-	},
-}
+		{
+			secretName: "tls-secret",
+			fileName:   "tls-secret-invalid.yaml",
+			templateData: templateData{
+				country:            []string{"IE"},
+				organization:       []string{"F5 NGINX"},
+				organizationalUnit: []string{"NGINX Ingress Controller"},
+				locality:           []string{"Cork"},
+				province:           []string{"Cork"},
+				commonName:         "example.com",
+				dnsNames:           []string{"*.example.com"},
+			},
+			valid: secretShouldBeInvalid,
+			symlinks: []string{
+				"/tests/data/default-server/invalid-tls-secret.yaml",
+			},
+		},
+	}
+)
 
 // JITTLSKey is a Just In Time TLS key representation. The only two parts that
 // we need here are the bytes for the cert and the key. These two will be
@@ -69,6 +94,8 @@ type templateData struct {
 type yamlSecret struct {
 	secretName   string
 	fileName     string
+	symlinks     []string
+	valid        bool
 	templateData templateData
 }
 
@@ -76,8 +103,13 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	var err error
 
+	projectRoot, err = filepath.Abs("../..")
+	if err != nil {
+		log.Fatalf(logger, "filepath.Abs: %v", err)
+	}
+
 	for _, secret := range yamlSecrets {
-		err = printYaml(secret)
+		err = printYaml(secret, projectRoot)
 		if err != nil {
 			log.Fatalf(logger, "Failed to print tls key: %v: %v", secret, err)
 		}
@@ -173,26 +205,35 @@ func printTLS(templateData templateData) (*JITTLSKey, error) {
 	}, nil
 }
 
-func printYaml(secret yamlSecret) error {
+func printYaml(secret yamlSecret, projectRoot string) error {
 	tlsKeys, err := printTLS(secret.templateData)
 	if err != nil {
 		return fmt.Errorf("failed generating TLS keys for hosts: (%s: %v): %w", secret.templateData.commonName, secret.templateData.dnsNames, err)
 	}
 
-	err = createYamlSecret(secret, secretShouldBeValid, tlsKeys)
+	fileContents, err := createYamlSecret(secret, secret.valid, tlsKeys)
 	if err != nil {
 		return fmt.Errorf("writing valid file for %s: %w", secret.fileName, err)
 	}
 
-	err = createYamlSecret(secret, secretShouldBeInvalid, tlsKeys)
+	// write actual file
+	realFilePath := filepath.Join(projectRoot, realSecretDirectory, secret.fileName)
+	err = os.WriteFile(realFilePath, fileContents, 0o600)
 	if err != nil {
-		return fmt.Errorf("writing invalid file for %s: %w", secret.fileName, err)
+		return fmt.Errorf("write kubernetes secret to file %s: %w", secret.fileName, err)
+	}
+
+	for _, symlinkTarget := range secret.symlinks {
+		err = os.Symlink(realFilePath, filepath.Join(projectRoot, symlinkTarget))
+		if err != nil {
+			return fmt.Errorf("symlink %s to %s: %w", symlinkTarget, realFilePath, err)
+		}
 	}
 
 	return nil
 }
 
-func createYamlSecret(secret yamlSecret, isValid bool, tlsKeys *JITTLSKey) error {
+func createYamlSecret(secret yamlSecret, isValid bool, tlsKeys *JITTLSKey) ([]byte, error) {
 	s := v1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Secret",
@@ -208,22 +249,14 @@ func createYamlSecret(secret yamlSecret, isValid bool, tlsKeys *JITTLSKey) error
 		Type: v1.SecretTypeTLS,
 	}
 
-	fileName := secret.fileName
-
 	if !isValid {
-		fileName = strings.ReplaceAll(secret.fileName, ".yaml", "-invalid.yaml")
 		s.Data[v1.TLSCertKey] = []byte(``)
 	}
 
 	sb, err := yaml.Marshal(s)
 	if err != nil {
-		return fmt.Errorf("marshaling kubernetes secret into yaml %v: %w", s, err)
+		return nil, fmt.Errorf("marshaling kubernetes secret into yaml %v: %w", s, err)
 	}
 
-	err = os.WriteFile(fileName, sb, 0o600)
-	if err != nil {
-		return fmt.Errorf("write kubernetes secret to file %s: %w", secret.fileName, err)
-	}
-
-	return nil
+	return sb, nil
 }
