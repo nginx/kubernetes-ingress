@@ -2474,7 +2474,7 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 		if u.UseClusterIP {
 			s, err := lbc.getServiceForUpstream(serviceNamespace, serviceName, u.Port)
 			if err != nil {
-				nl.Warnf(lbc.Logger, "Error getting Service for Upstream %v: %v", u.Service, err)
+				nl.Warnf(lbc.Logger, "Error getting Service for Upstream %v/%v: %v", serviceNamespace, u.Service, err)
 			} else {
 				endps = append(endps, ipv6SafeAddrPort(s.Spec.ClusterIP, int32(u.Port)))
 			}
@@ -2622,7 +2622,7 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 			if u.UseClusterIP {
 				s, err := lbc.getServiceForUpstream(serviceNamespace, serviceName, u.Port)
 				if err != nil {
-					nl.Warnf(lbc.Logger, "Error getting Service for Upstream %v: %v", u.Service, err)
+					nl.Warnf(lbc.Logger, "Error getting Service for Upstream %v/%v: %v", serviceNamespace, serviceName, err)
 				} else {
 					endps = append(endps, fmt.Sprintf("%s:%d", s.Spec.ClusterIP, u.Port))
 				}
@@ -2981,14 +2981,14 @@ func (lbc *LoadBalancerController) getEndpointsForSubselector(namespace string, 
 		if port.Port == int32(servicePort) {
 			targetPort, err = lbc.getTargetPort(port, svc)
 			if err != nil {
-				return nil, fmt.Errorf("error determining target port for port %v in service %v: %w", servicePort, svc.Name, err)
+				return nil, fmt.Errorf("error determining target port for port %v in service %v/%v: %w", servicePort, svc.Namespace, svc.Name, err)
 			}
 			break
 		}
 	}
 
 	if targetPort == 0 {
-		return nil, fmt.Errorf("no port %v in service %s", servicePort, svc.Name)
+		return nil, fmt.Errorf("no port %v in service %s/%s", servicePort, svc.Namespace, svc.Name)
 	}
 
 	endps, err = lbc.getEndpointsForServiceWithSubselector(targetPort, subselector, svc)
@@ -3010,7 +3010,7 @@ func (lbc *LoadBalancerController) getEndpointsForServiceWithSubselector(targetP
 	var svcEndpointSlices []discovery_v1.EndpointSlice
 	svcEndpointSlices, err = nsi.endpointSliceLister.GetServiceEndpointSlices(svc)
 	if err != nil {
-		nl.Debugf(lbc.Logger, "Error getting endpointslices for service %s from the cache: %v", svc.Name, err)
+		nl.Debugf(lbc.Logger, "Error getting endpointslices for service %s/%s from the cache: %v", svc.Namespace, svc.Name, err)
 		return nil, err
 	}
 
@@ -3164,13 +3164,13 @@ func (lbc *LoadBalancerController) getEndpointsForIngressBackend(backend *networ
 			result = lbc.getExternalEndpointsForIngressBackend(backend, svc)
 			return result, true, nil
 		}
-		nl.Debugf(lbc.Logger, "Error getting endpoints for service %s from the cache: %v", svc.Name, err)
+		nl.Debugf(lbc.Logger, "Error getting endpoints for service %s/%s from the cache: %v", svc.Namespace, svc.Name, err)
 		return nil, false, err
 	}
 
 	result, err = lbc.getEndpointsForPortFromEndpointSlices(endpointSlices, backend.Service.Port, svc)
 	if err != nil {
-		nl.Debugf(lbc.Logger, "Error getting endpointslices for service %s port %v: %v", svc.Name, configs.GetBackendPortAsString(backend.Service.Port), err)
+		nl.Debugf(lbc.Logger, "Error getting endpointslices for service %s/%s port %v: %v", svc.Namespace, svc.Name, configs.GetBackendPortAsString(backend.Service.Port), err)
 		return nil, false, err
 	}
 	return result, false, nil
@@ -3191,7 +3191,7 @@ func (lbc *LoadBalancerController) getEndpointsForPortFromEndpointSlices(endpoin
 	}
 
 	if targetPort == 0 {
-		return nil, fmt.Errorf("no port %v in service %s", backendPort, svc.Name)
+		return nil, fmt.Errorf("no port %v in service %s/%s", backendPort, svc.Namespace, svc.Name)
 	}
 
 	makePodEndpoints := func(port int32, epx []discovery_v1.Endpoint) []podEndpoint {
@@ -3281,7 +3281,7 @@ func (lbc *LoadBalancerController) getTargetPort(svcPort api_v1.ServicePort, svc
 	}
 
 	if len(pods) == 0 {
-		return 0, fmt.Errorf("no pods of service %s", svc.Name)
+		return 0, fmt.Errorf("no pods of service %s/%s", svc.Namespace, svc.Name)
 	}
 
 	pod := pods[0]
