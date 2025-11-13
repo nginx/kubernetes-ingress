@@ -2251,7 +2251,7 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 		}
 
 		if err != nil {
-			nl.Warnf(lbc.Logger, "Error retrieving endpoints for the service %v/%v: %v", ing.Namespace, ing.Spec.DefaultBackend.Service.Name, err)
+			nl.Warnf(lbc.Logger, "Error retrieving endpoints for the service %v: %v", ing.Spec.DefaultBackend.Service.Name, err)
 		}
 
 		if svc != nil && !external && hasUseClusterIP {
@@ -2963,7 +2963,7 @@ func (lbc *LoadBalancerController) getEndpointsForUpstream(namespace string, ups
 
 	endps, isExternal, err = lbc.getEndpointsForIngressBackend(backend, svc)
 	if err != nil {
-		return nil, false, fmt.Errorf("error retrieving endpoints for the service %v/%v: %w", namespace, upstreamService, err)
+		return nil, false, fmt.Errorf("error retrieving endpoints for the service %v: %w", upstreamService, err)
 	}
 
 	return endps, isExternal, err
@@ -2993,7 +2993,7 @@ func (lbc *LoadBalancerController) getEndpointsForSubselector(namespace string, 
 
 	endps, err = lbc.getEndpointsForServiceWithSubselector(targetPort, subselector, svc)
 	if err != nil {
-		return nil, fmt.Errorf("error retrieving endpoints for the service %v/%v: %w", namespace, serviceName, err)
+		return nil, fmt.Errorf("error retrieving endpoints for the service %v: %w", serviceName, err)
 	}
 
 	return endps, err
@@ -3217,7 +3217,7 @@ func (lbc *LoadBalancerController) getEndpointsForPortFromEndpointSlices(endpoin
 
 	endpoints := makePodEndpoints(targetPort, filterReadyEndpointsFrom(selectEndpointSlicesForPort(targetPort, endpointSlices)))
 	if len(endpoints) == 0 {
-		return nil, fmt.Errorf("no endpointslices for target port %v in service %s/%s", targetPort, svc.Namespace, svc.Name)
+		return nil, fmt.Errorf("no endpointslices for target port %v in service %s", targetPort, svc.Name)
 	}
 	return endpoints, nil
 }
