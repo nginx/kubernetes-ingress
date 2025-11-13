@@ -24,9 +24,9 @@ import (
 )
 
 const (
-	secretShouldBeValid   = true
-	secretShouldBeInvalid = false
-	realSecretDirectory   = "examples/common-secrets/"
+	secretShouldHaveValidTLSCrt   = true
+	secretShouldHaveInvalidTLSCrt = false
+	realSecretDirectory           = "examples/common-secrets/"
 )
 
 var projectRoot = "" // this will be redefined in main()
@@ -68,12 +68,14 @@ type templateData struct {
 // symlinks     - a slice of paths that will symlink to the actual file. These paths are relative to the project root. For example: []string{"examples/custom-resources/oidc/tls-secret.yaml"}
 // valid        - whether the generated kubernetes secret file should be valid. An invalid secret will not have the data["tls.key"] property set in the yaml file.
 // templateData - has information about issuer, subject, common name (main domain), and dnsNames (subject alternate names).
+// secretType   - if left empty, it will be the default v1.SecretTypeTLS value. The type is "k8s.io/api/core/v1".SecretType, which is an alias for strings.
 type yamlSecret struct {
 	secretName   string
 	fileName     string
 	symlinks     []string
 	valid        bool
 	templateData templateData
+	secretType   string
 }
 
 func main() {
@@ -140,6 +142,17 @@ func printYaml(secret yamlSecret, projectRoot string) error {
 	// Remove and create symlinks
 	for _, symlinkTarget := range secret.symlinks {
 		absSymlinkTarget := filepath.Join(projectRoot, symlinkTarget)
+		// relativeSymlinkTarget := filepath.Join(".", symlinkTarget)
+
+		// Figure out the relative path between the directories. Involving files
+		// will produce an inaccurate relative path here.
+		relativeDirectory, err := filepath.Rel(filepath.Dir(absSymlinkTarget), filepath.Dir(realFilePath))
+		if err != nil {
+			return fmt.Errorf("relative target path relative to %s: %w", absSymlinkTarget, err)
+		}
+
+		// Attach the real file to the end of the relative directory path.
+		relativeTarget := filepath.Join(relativeDirectory, filepath.Base(realFilePath))
 
 		if _, err = os.Stat(absSymlinkTarget); err == nil {
 			// symlink exists, delete it
@@ -149,7 +162,7 @@ func printYaml(secret yamlSecret, projectRoot string) error {
 			}
 		}
 
-		err = os.Symlink(realFilePath, filepath.Join(projectRoot, symlinkTarget))
+		err = os.Symlink(relativeTarget, absSymlinkTarget)
 		if err != nil {
 			return fmt.Errorf("symlink %s to %s: %w", symlinkTarget, realFilePath, err)
 		}
@@ -254,6 +267,10 @@ func createYamlSecret(secret yamlSecret, isValid bool, tlsKeys *JITTLSKey) ([]by
 
 	if !isValid {
 		s.Data[v1.TLSCertKey] = []byte(``)
+	}
+
+	if secret.secretType != "" {
+		s.Type = v1.SecretType(secret.secretType)
 	}
 
 	sb, err := yaml.Marshal(s)
