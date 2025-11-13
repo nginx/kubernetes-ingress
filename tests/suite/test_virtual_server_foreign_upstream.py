@@ -8,14 +8,14 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     delete_namespace,
     wait_before_test,
-    wait_until_all_pods_are_ready,
+    wait_until_all_pods_are_ready, get_first_pod_name,
 )
 from suite.utils.vs_vsr_resources_utils import (
     create_v_s_route_from_yaml,
     create_virtual_server_from_yaml,
     delete_v_s_route,
     delete_virtual_server,
-    patch_virtual_server_from_yaml,
+    patch_virtual_server_from_yaml, get_vs_nginx_template_conf,
 )
 from suite.utils.yaml_utils import (
     get_first_host_from_yaml,
@@ -58,14 +58,15 @@ def virtual_server_foreign_upstream_app_setup(
         else test_namespace
     )
     print("------------------------- Deploy Virtual Server Example -----------------------------------")
-    vs_name = create_virtual_server_from_yaml(kube_apis.custom_objects, vs_source, test_namespace)
-    vs_host = get_first_host_from_yaml(vs_source)
-    vs_paths = get_paths_from_vs_yaml(vs_source)
     create_items_from_yaml(kube_apis, f"{TEST_DATA}/common/app/{request.param['app_type']}/backend1.yaml", ns_1)
     create_items_from_yaml(kube_apis, f"{TEST_DATA}/common/app/{request.param['app_type']}/backend2.yaml", ns_2)
 
     wait_until_all_pods_are_ready(kube_apis.v1, ns_1)
     wait_until_all_pods_are_ready(kube_apis.v1, ns_2)
+    
+    vs_name = create_virtual_server_from_yaml(kube_apis.custom_objects, vs_source, test_namespace)
+    vs_host = get_first_host_from_yaml(vs_source)
+    vs_paths = get_paths_from_vs_yaml(vs_source)
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
@@ -107,8 +108,17 @@ def virtual_server_foreign_upstream_app_setup(
     indirect=True,
 )
 class TestVirtualServerForeignUpstream:
-    def test_responses_after_setup(self, kube_apis, crd_ingress_controller, virtual_server_foreign_upstream_app_setup):
+    def test_responses_after_setup(self, kube_apis,ingress_controller_prerequisites,  crd_ingress_controller, virtual_server_foreign_upstream_app_setup):
         print(f"\nStep 1: initial check")
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        # log VS conf
+        get_vs_nginx_template_conf(
+            kube_apis.v1,
+            virtual_server_foreign_upstream_app_setup.namespace,
+            virtual_server_foreign_upstream_app_setup.vs_name,
+            ic_pod_name,
+            ingress_controller_prerequisites.namespace,
+        )
         wait_before_test()
         wait_and_assert_status_code(
             200,
