@@ -77,9 +77,21 @@ jobs:
           echo "Setting secrets for job"
           PLUS_CREDS=$(az keyvault secret show --name plus-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
           echo "::add-mask::$PLUS_CREDS"
-          echo $PLUS_CREDS | jq -r '.crt' > nginx-repo.crt
-          echo $PLUS_CREDS | jq -r '.key' > nginx-repo.key
-          az keyvault secret show --name rhel-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv > rhel_license
+          CERT=$(echo $PLUS_CREDS | jq -r '.crt')
+          while read -r line; do
+            echo "::add-mask::${line}"
+          done <<< "${CERT}"
+          echo $CERT > nginx-repo.crt
+          KEY=$(echo $PLUS_CREDS | jq -r '.key')
+          while read -r line; do
+            echo "::add-mask::${line}"
+          done <<< "${KEY}"
+          echo $KEY > nginx-repo.key
+          RHEL_CREDS=$(az keyvault secret show --name rhel-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          while read -r line; do
+            echo "::add-mask::${line}"
+          done <<< "${RHEL_CREDS}"
+          echo $RHEL_CREDS > rhel_license
         if: ${{ inputs.authenticated }}
 
       - name: Authenticate to Google Cloud
