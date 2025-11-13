@@ -473,12 +473,12 @@ jobs:
           PLUS_JWT=$(echo $PLUS_CREDS | jq -r '.jwt')
           echo "::add-mask::$PLUS_JWT"
           echo "PLUS_JWT=$PLUS_JWT" >> $GITHUB_OUTPUT
-          CERT=$(echo $PLUS_CREDS | jq -r '.crt')
+          IFS=@ CERT=$(echo $PLUS_CREDS | jq -r '.crt')
           while read -r line; do
             echo "::add-mask::${line}"
           done <<< "${CERT}"
           echo $CERT > nginx-repo.crt
-          KEY=$(echo $PLUS_CREDS | jq -r '.key')
+          IFS=@ KEY=$(echo $PLUS_CREDS | jq -r '.key')
           while read -r line; do
             echo "::add-mask::${line}"
           done <<< "${KEY}"

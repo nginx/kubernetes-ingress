@@ -135,12 +135,12 @@ jobs:
           echo "Setting secrets for job"
           PLUS_CREDS=$(az keyvault secret show --name plus-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
           echo "::add-mask::$PLUS_CREDS"
-          CERT=$(echo $PLUS_CREDS | jq -r '.crt')
+          IFS=@ CERT=$(echo $PLUS_CREDS | jq -r '.crt')
           while read -r line; do
             echo "::add-mask::${line}"
           done <<< "${CERT}"
           echo $CERT > nginx-repo.crt
-          KEY=$(echo $PLUS_CREDS | jq -r '.key')
+          IFS=@ KEY=$(echo $PLUS_CREDS | jq -r '.key')
           while read -r line; do
             echo "::add-mask::${line}"
           done <<< "${KEY}"
@@ -232,17 +232,17 @@ jobs:
           echo "Setting secrets for job"
           PLUS_CREDS=$(az keyvault secret show --name plus-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
           echo "::add-mask::$PLUS_CREDS"
-          CERT=$(echo $PLUS_CREDS | jq -r '.crt')
+          IFS=@ CERT=$(echo $PLUS_CREDS | jq -r '.crt')
           while read -r line; do
             echo "::add-mask::${line}"
           done <<< "${CERT}"
           echo $CERT > nginx-repo.crt
-          KEY=$(echo $PLUS_CREDS | jq -r '.key')
+          IFS=@ KEY=$(echo $PLUS_CREDS | jq -r '.key')
           while read -r line; do
             echo "::add-mask::${line}"
           done <<< "${KEY}"
           echo $KEY > nginx-repo.key
-          RHEL_CREDS=$(az keyvault secret show --name rhel-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          IFS=@ RHEL_CREDS=$(az keyvault secret show --name rhel-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
           while read -r line; do
             echo "::add-mask::${line}"
           done <<< "${RHEL_CREDS}"
