@@ -7,15 +7,17 @@ from suite.utils.resources_utils import (
     create_namespace_with_name_from_yaml,
     delete_items_from_yaml,
     delete_namespace,
+    get_first_pod_name,
     wait_before_test,
-    wait_until_all_pods_are_ready, get_first_pod_name,
+    wait_until_all_pods_are_ready,
 )
 from suite.utils.vs_vsr_resources_utils import (
     create_v_s_route_from_yaml,
     create_virtual_server_from_yaml,
     delete_v_s_route,
     delete_virtual_server,
-    patch_virtual_server_from_yaml, get_vs_nginx_template_conf,
+    get_vs_nginx_template_conf,
+    patch_virtual_server_from_yaml,
 )
 from suite.utils.yaml_utils import (
     get_first_host_from_yaml,
@@ -63,7 +65,7 @@ def virtual_server_foreign_upstream_app_setup(
 
     wait_until_all_pods_are_ready(kube_apis.v1, ns_1)
     wait_until_all_pods_are_ready(kube_apis.v1, ns_2)
-    
+
     vs_name = create_virtual_server_from_yaml(kube_apis.custom_objects, vs_source, test_namespace)
     vs_host = get_first_host_from_yaml(vs_source)
     vs_paths = get_paths_from_vs_yaml(vs_source)
@@ -107,7 +109,13 @@ def virtual_server_foreign_upstream_app_setup(
     indirect=True,
 )
 class TestVirtualServerForeignUpstream:
-    def test_responses_after_setup(self, kube_apis,ingress_controller_prerequisites,  crd_ingress_controller, virtual_server_foreign_upstream_app_setup):
+    def test_responses_after_setup(
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        crd_ingress_controller,
+        virtual_server_foreign_upstream_app_setup,
+    ):
         print(f"\nStep 1: initial check")
         ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
         # log VS conf
