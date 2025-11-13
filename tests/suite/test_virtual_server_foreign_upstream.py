@@ -8,14 +8,14 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     delete_namespace,
     wait_before_test,
-    wait_until_all_pods_are_ready, get_first_pod_name,
+    wait_until_all_pods_are_ready,
 )
 from suite.utils.vs_vsr_resources_utils import (
     create_v_s_route_from_yaml,
     create_virtual_server_from_yaml,
     delete_v_s_route,
     delete_virtual_server,
-    patch_virtual_server_from_yaml, get_vs_nginx_template_conf,
+    patch_virtual_server_from_yaml,
 )
 from suite.utils.yaml_utils import (
     get_first_host_from_yaml,
@@ -108,17 +108,8 @@ def virtual_server_foreign_upstream_app_setup(
     indirect=True,
 )
 class TestVirtualServerForeignUpstream:
-    def test_responses_after_setup(self, kube_apis,ingress_controller_prerequisites,  crd_ingress_controller, virtual_server_foreign_upstream_app_setup):
+    def test_responses_after_setup(self, kube_apis, crd_ingress_controller, virtual_server_foreign_upstream_app_setup):
         print(f"\nStep 1: initial check")
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
-        # log VS conf
-        get_vs_nginx_template_conf(
-            kube_apis.v1,
-            virtual_server_foreign_upstream_app_setup.namespace,
-            virtual_server_foreign_upstream_app_setup.vs_name,
-            ic_pod_name,
-            ingress_controller_prerequisites.namespace,
-        )
         wait_before_test()
         wait_and_assert_status_code(
             200,
