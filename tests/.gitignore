@@ -21,3 +21,30 @@ __pycache__/
 
 # json artifacts
 json_files/*
+
+# kubernetes secrets
+# these are auto-generated: cd ../hack/tls-cert-gen && make run
+# see ../hack/certs.go
+data/ap-waf-grpc/tls-secret.yaml
+data/appprotect/appprotect-secret.yaml
+data/common/app/secure/secret/app-tls-secret.yaml
+data/common/default-server-secret.yaml
+data/default-server/invalid-tls-secret.yaml
+data/default-server/new-tls-secret.yaml
+data/dos/tls-secret.yaml
+data/egress-mtls/secret/tls-secret.yaml
+data/ingress-mtls/secret/tls-secret.yaml
+data/mgmt-configmap-keys/ssl-cert.yaml
+data/prometheus/secret.yaml
+data/service-insight/secret.yaml
+data/smoke/smoke-secret.yaml
+data/tls/tls-secret.yaml
+data/transport-server-tcp-load-balance/tcp-tls-secret.yaml
+data/upgrade-test-resources/secret.yaml
+data/virtual-server-certmanager/tls-secret.yaml
+data/virtual-server-grpc/tls-secret.yaml
+data/virtual-server-route-grpc/tls-secret.yaml
+data/virtual-server-tls/tls-secret.yaml
+data/watch-secret-namespace/tls-secret.yaml
+data/wildcard-tls-secret/gb-wildcard-tls-secret.yaml
+data/wildcard-tls-secret/wildcard-tls-secret.yaml
