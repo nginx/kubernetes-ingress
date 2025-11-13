@@ -1,0 +1,14 @@
+controller:
+  networkPolicy:
+    enabled: true
+    policyTypes: [Ingress]
+    podSelector:
+      matchLabels:
+        app.kubernetes.io/name: nginx-ingress
+        app.kubernetes.io/component: controller
+    ingress:
+      - from:
+          - namespaceSelector:
+              matchLabels: { name: ingress-allow }
+        ports:
+          - { protocol: TCP, port: 443 }

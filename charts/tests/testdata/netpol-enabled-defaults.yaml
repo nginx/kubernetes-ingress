@@ -1,0 +1,14 @@
+controller:
+  networkPolicy:
+    enabled: true
+    podSelector: {}
+    policyTypes: [Ingress, Egress]
+    ingress:
+      - from: []
+        ports:
+          - { protocol: TCP, port: 80 }
+          - { protocol: TCP, port: 443 }
+    egress:
+      - to: []
+        ports:
+          - { protocol: UDP, port: 53 }

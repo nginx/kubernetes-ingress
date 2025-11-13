@@ -136,6 +136,21 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "startupstatus",
 			namespace:   "default",
 		},
+         "netpol-disabled": {
+             valuesFile:  "testdata/netpol-disabled.yaml",
+             releaseName: "netpol-disabled",
+             namespace:   "default",
+         },
+        "netpol-enabled-defaults": {
+            valuesFile:  "testdata/netpol-enabled-defaults.yaml",
+            releaseName: "netpol-enabled-defaults",
+            namespace:   "default",
+        },
+        "netpol-enabled-custom": {
+            valuesFile:  "testdata/netpol-enabled-custom.yaml",
+            releaseName: "netpol-enabled-custom",
+            namespace:   "default",
+        },
 	}
 
 	// Path to the helm chart we will test

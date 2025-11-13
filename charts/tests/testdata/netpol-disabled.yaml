@@ -1,0 +1,3 @@
+controller:
+  networkPolicy:
+    enabled: false
