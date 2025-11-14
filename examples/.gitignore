@@ -10,6 +10,7 @@ custom-resources/custom-listeners/cafe-secret.yaml
 custom-resources/egress-mtls/egress-mtls-secret.yaml
 custom-resources/external-dns/cafe-secret.yaml
 custom-resources/externalname-services/transport-server/app-tls-secret.yaml
+custom-resources/foreign-namespace-upstreams/cafe-secret.yaml
 custom-resources/grpc-upstreams/greeter-secret.yaml
 custom-resources/ingress-mtls/tls-secret.yaml
 custom-resources/jwks/tls-secret.yaml
