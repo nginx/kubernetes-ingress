@@ -266,5 +266,5 @@ update-crd-docs: ## Update CRD markdown documentation from YAML definitions
 	@echo "CRD documentation updated successfully!"
 
 .PHONY: certs
-certs:
+certs: ## Create just in time TLS certificates needed for tests and examples
 	make -C hack/tls-cert-gen run

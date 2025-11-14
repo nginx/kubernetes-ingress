@@ -68,7 +68,7 @@ clean-venv:
 
 
 .PHONY: run-local-tests
-run-local-tests: ## Run tests
+run-local-tests: certs ## Run tests
 	source $(ROOT_DIR)/tests/venv/bin/activate \
 	&& pytest \
 		--image=$(BUILD_IMAGE) \
@@ -84,7 +84,7 @@ run-local-tests: ## Run tests
 
 
 .PHONY: run-tests
-run-tests: ## Run tests
+run-tests: certs ## Run tests
 	docker run --rm -v $(KUBE_CONFIG_FOLDER):/root/.kube \
 		$(TEST_PREFIX):$(TEST_TAG) \
 		--context=$(CONTEXT) \
@@ -100,7 +100,7 @@ run-tests: ## Run tests
 
 
 .PHONY: run-tests-in-kind
-run-tests-in-kind: ## Run tests in Kind
+run-tests-in-kind: certs ## Run tests in Kind
 	docker run --network=kind --rm \
 		-v $(KIND_KUBE_CONFIG_FOLDER):/root/.kube \
 		-v $(ROOT_DIR)/tests:/workspace/tests \
@@ -142,7 +142,7 @@ image-load: ## Load the image into the Kind K8S cluster
 
 
 .PHONY: run-tests-in-minikube
-run-tests-in-minikube: ## Run tests in Minikube
+run-tests-in-minikube: certs ## Run tests in Minikube
 	docker run --network=minikube --rm \
 		-v $(MINIKUBE_KUBE_CONFIG_FOLDER):/root/.kube \
 		-v $(ROOT_DIR)/tests:/workspace/tests \
@@ -192,3 +192,7 @@ upgrade-resources:
 ## Create and delete resources for upgrade tests e.g. `make upgrade-resources PYTEST_ARGS="create OR delete"`
 	pip install -r ../tests/requirements.txt --no-deps
 	pytest -v -s -m $(PYTEST_ARGS)
+
+.PHONY: certs
+certs: ## Create just in time TLS certificates needed for tests and examples
+	make -C $(ROOT_DIR) certs
