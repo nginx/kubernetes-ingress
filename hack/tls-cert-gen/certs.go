@@ -46,11 +46,9 @@ var yamlSecrets = []yamlSecret{
 			"/examples/ingress-resources/proxy-set-headers/standard-ingress/cafe-secret.yaml",
 			"/examples/ingress-resources/rate-limit/cafe-secret.yaml",
 			"/examples/ingress-resources/security-monitoring/cafe-secret.yaml",
-			"/examples/shared-examples/default-server-secret/default-server-secret.yaml",
 			"/tests/data/ap-waf-grpc/tls-secret.yaml",
 			"/tests/data/appprotect/appprotect-secret.yaml",
 			"/tests/data/common/app/secure/secret/app-tls-secret.yaml",
-			"/tests/data/common/default-server-secret.yaml",
 			"/tests/data/default-server/invalid-tls-secret.yaml",
 			"/tests/data/default-server/new-tls-secret.yaml",
 			"/tests/data/dos/tls-secret.yaml",
@@ -72,6 +70,26 @@ var yamlSecrets = []yamlSecret{
 			"/tests/data/wildcard-tls-secret/wildcard-tls-secret.yaml",
 		},
 	},
+
+	{
+		secretName: "default-server-secret",
+		fileName:   "tls-secret-default.yaml",
+		templateData: templateData{
+			country:            []string{"IE"},
+			organization:       []string{"F5 NGINX"},
+			organizationalUnit: []string{"NGINX Ingress Controller"},
+			locality:           []string{"Cork"},
+			province:           []string{"Cork"},
+			commonName:         "NGINXIngressController",
+			dnsNames:           []string{"*.example.com"},
+		},
+		valid: secretShouldHaveInvalidTLSCrt,
+		symlinks: []string{
+			"/examples/shared-examples/default-server-secret/default-server-secret.yaml",
+			"/tests/data/common/default-server-secret.yaml",
+		},
+	},
+
 	{
 		secretName: "tls-secret",
 		fileName:   "tls-secret-invalid.yaml",
