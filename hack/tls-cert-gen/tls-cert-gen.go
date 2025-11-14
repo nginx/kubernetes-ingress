@@ -142,7 +142,6 @@ func printYaml(secret yamlSecret, projectRoot string) error {
 	// Remove and create symlinks
 	for _, symlinkTarget := range secret.symlinks {
 		absSymlinkTarget := filepath.Join(projectRoot, symlinkTarget)
-		// relativeSymlinkTarget := filepath.Join(".", symlinkTarget)
 
 		// Figure out the relative path between the directories. Involving files
 		// will produce an inaccurate relative path here.
