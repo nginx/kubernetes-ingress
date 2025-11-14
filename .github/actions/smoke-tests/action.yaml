@@ -28,9 +28,6 @@ inputs:
   label:
     description: Label for test
     required: false
-  azure-ad-secret:
-    description: Azure Active Directory secret for JWKs
-    required: false
   registry-token:
     description: JWT token for accessing container registry
     required: false
@@ -103,7 +100,6 @@ runs:
         --self-contained-html \
         --durations=10 \
         --show-ic-logs=yes \
-        --ad-secret=${{ inputs.azure-ad-secret }} \
         --plus-jwt=${{ inputs.plus-jwt }} \
         -m ${{ inputs.marker != '' && inputs.marker || '""' }}
       working-directory: ./tests

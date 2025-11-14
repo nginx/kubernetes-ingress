@@ -18,6 +18,9 @@ const BasicAuthSecretAnnotation = "nginx.org/basic-auth-secret" // #nosec G101
 // PathRegexAnnotation is the annotation where the regex location (path) modifier is specified.
 const PathRegexAnnotation = "nginx.org/path-regex"
 
+// RewriteTargetAnnotation is the annotation where the regex-based rewrite target is specified.
+const RewriteTargetAnnotation = "nginx.org/rewrite-target"
+
 // SSLCiphersAnnotation is the annotation where SSL ciphers are specified.
 const SSLCiphersAnnotation = "nginx.org/ssl-ciphers"
 
@@ -588,6 +591,26 @@ func getRewrites(ctx context.Context, ingEx *IngressEx) map[string]string {
 		return rewrites
 	}
 	return nil
+}
+
+func getRewriteTarget(ctx context.Context, ingEx *IngressEx) (string, Warnings) {
+	l := nl.LoggerFromContext(ctx)
+	warnings := newWarnings()
+
+	// Check for mutual exclusivity
+	if _, hasRewrites := ingEx.Ingress.Annotations["nginx.org/rewrites"]; hasRewrites {
+		if _, hasRewriteTarget := ingEx.Ingress.Annotations[RewriteTargetAnnotation]; hasRewriteTarget {
+			warningMsg := "nginx.org/rewrites and nginx.org/rewrite-target annotations are mutually exclusive; nginx.org/rewrites will take precedence"
+			nl.Errorf(l, "Ingress %s/%s: %s", ingEx.Ingress.Namespace, ingEx.Ingress.Name, warningMsg)
+			warnings.AddWarning(ingEx.Ingress, warningMsg)
+			return "", warnings
+		}
+	}
+
+	if value, exists := ingEx.Ingress.Annotations[RewriteTargetAnnotation]; exists {
+		return value, warnings
+	}
+	return "", warnings
 }
 
 func getSSLServices(ingEx *IngressEx) map[string]bool {

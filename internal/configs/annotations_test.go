@@ -553,3 +553,205 @@ func TestSSLCipherAnnotationBooleanValues(t *testing.T) {
 		})
 	}
 }
+
+func TestGetRewriteTarget(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                string
+		annotations         map[string]string
+		expectedValue       string
+		expectedWarningMsgs []string
+		description         string
+	}{
+		{
+			name: "rewrite-target only",
+			annotations: map[string]string{
+				"nginx.org/rewrite-target": "/api/v1/$1",
+			},
+			expectedValue:       "/api/v1/$1",
+			expectedWarningMsgs: nil,
+			description:         "Should return rewrite-target value when only rewrite-target annotation is present",
+		},
+		{
+			name: "rewrites only",
+			annotations: map[string]string{
+				"nginx.org/rewrites": "serviceName=app-svc rewrite=/backend/",
+			},
+			expectedValue:       "",
+			expectedWarningMsgs: nil,
+			description:         "Should return empty string when only rewrites annotation is present",
+		},
+		{
+			name: "both annotations present - mutual exclusivity",
+			annotations: map[string]string{
+				"nginx.org/rewrite-target": "/api/v1/$1",
+				"nginx.org/rewrites":       "serviceName=app-svc rewrite=/backend/",
+			},
+			expectedValue:       "",
+			expectedWarningMsgs: []string{"nginx.org/rewrites and nginx.org/rewrite-target annotations are mutually exclusive; nginx.org/rewrites will take precedence"},
+			description:         "Should return empty string and warning when both annotations are present (rewrites takes precedence)",
+		},
+		{
+			name:                "no rewrite annotations",
+			annotations:         map[string]string{},
+			expectedValue:       "",
+			expectedWarningMsgs: nil,
+			description:         "Should return empty string when no rewrite annotations are present",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create test Ingress
+			ingress := &networking.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "test-ingress",
+					Namespace:   "default",
+					Annotations: tt.annotations,
+				},
+			}
+
+			ingEx := &IngressEx{
+				Ingress: ingress,
+			}
+
+			// Call getRewriteTarget
+			ctx := context.Background()
+			value, warnings := getRewriteTarget(ctx, ingEx)
+
+			// Verify return value
+			if value != tt.expectedValue {
+				t.Errorf("Test %q: expected value %q, got %q. %s", tt.name, tt.expectedValue, value, tt.description)
+			}
+
+			// Verify warnings
+			if len(tt.expectedWarningMsgs) == 0 {
+				if len(warnings) != 0 {
+					t.Errorf("Test %q: expected no warnings, got %d warnings. %s", tt.name, len(warnings), tt.description)
+				}
+			} else {
+				// Check that warnings contain our Ingress
+				ingressWarnings, exists := warnings[ingress]
+				if !exists {
+					t.Errorf("Test %q: expected warnings for ingress, but found none. %s", tt.name, tt.description)
+					return
+				}
+
+				// Check warning count
+				if len(ingressWarnings) != len(tt.expectedWarningMsgs) {
+					t.Errorf("Test %q: expected %d warnings, got %d. %s", tt.name, len(tt.expectedWarningMsgs), len(ingressWarnings), tt.description)
+				}
+
+				// Check warning messages
+				for i, expectedMsg := range tt.expectedWarningMsgs {
+					if i < len(ingressWarnings) {
+						if ingressWarnings[i] != expectedMsg {
+							t.Errorf("Test %q: expected warning message %q, got %q. %s", tt.name, expectedMsg, ingressWarnings[i], tt.description)
+						}
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestGetRewriteTargetMutualExclusivity(t *testing.T) {
+	t.Parallel()
+
+	// Test that when both annotations exist, rewrites takes precedence
+	ingress := &networking.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-ingress",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"nginx.org/rewrite-target": "/should/not/be/used/$1",
+				"nginx.org/rewrites":       "serviceName=coffee-svc rewrite=/coffee/beans/",
+			},
+		},
+	}
+
+	ingEx := &IngressEx{
+		Ingress: ingress,
+	}
+
+	ctx := context.Background()
+	value, warnings := getRewriteTarget(ctx, ingEx)
+
+	// Should return empty string (rewrite-target disabled)
+	if value != "" {
+		t.Errorf("Expected empty string when both annotations present, got %q", value)
+	}
+
+	// Should have warning about mutual exclusivity
+	ingressWarnings, exists := warnings[ingress]
+	if !exists || len(ingressWarnings) == 0 {
+		t.Error("Expected warning about mutual exclusivity")
+	}
+
+	expectedWarning := "nginx.org/rewrites and nginx.org/rewrite-target annotations are mutually exclusive; nginx.org/rewrites will take precedence"
+	if len(ingressWarnings) > 0 && ingressWarnings[0] != expectedWarning {
+		t.Errorf("Expected warning message %q, got %q", expectedWarning, ingressWarnings[0])
+	}
+}
+
+func TestGetRewriteTargetWithComplexValues(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		rewriteTarget string
+		expected      string
+	}{
+		{
+			name:          "simple path replacement",
+			rewriteTarget: "/api/$1",
+			expected:      "/api/$1",
+		},
+		{
+			name:          "multiple capture groups",
+			rewriteTarget: "/api/$1/$2/data",
+			expected:      "/api/$1/$2/data",
+		},
+		{
+			name:          "static path",
+			rewriteTarget: "/static/path",
+			expected:      "/static/path",
+		},
+		{
+			name:          "path with query parameters",
+			rewriteTarget: "/api/$1?version=v2",
+			expected:      "/api/$1?version=v2",
+		},
+		{
+			name:          "complex pattern",
+			rewriteTarget: "/v1/services/$1/endpoints/$2",
+			expected:      "/v1/services/$1/endpoints/$2",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ingress := &networking.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-ingress",
+					Namespace: "default",
+					Annotations: map[string]string{
+						"nginx.org/rewrite-target": tt.rewriteTarget,
+					},
+				},
+			}
+
+			ingEx := &IngressEx{
+				Ingress: ingress,
+			}
+
+			ctx := context.Background()
+			value, _ := getRewriteTarget(ctx, ingEx)
+
+			if value != tt.expected {
+				t.Errorf("Test %q: expected %q, got %q", tt.name, tt.expected, value)
+			}
+		})
+	}
+}

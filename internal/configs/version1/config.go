@@ -177,6 +177,7 @@ type Location struct {
 	ClientMaxBodySize    string
 	Websocket            bool
 	Rewrite              string
+	RewriteTarget        string
 	SSL                  bool
 	GRPC                 bool
 	ProxyBuffering       bool
@@ -202,6 +203,16 @@ type ZoneSyncConfig struct {
 	// Time the resolver is valid. Go time string format: "5s", "10s".
 	ResolverValid string
 	ResolverIPV6  *bool
+}
+
+// OIDCConfig allows to configure OIDC parameters.
+type OIDCConfig struct {
+	Enable         bool
+	PKCETimeout    string
+	IDTokenTimeout string
+	AccessTimeout  string
+	RefreshTimeout string
+	SIDSTimeout    string
 }
 
 // MGMTConfig is tbe configuration for the MGMT block.
@@ -297,7 +308,7 @@ type MainConfig struct {
 	InternalRouteServerName            string
 	LatencyMetrics                     bool
 	ZoneSyncConfig                     ZoneSyncConfig
-	OIDC                               bool
+	OIDC                               OIDCConfig
 	DynamicSSLReloadEnabled            bool
 	StaticSSLPath                      string
 	NginxVersion                       nginx.Version

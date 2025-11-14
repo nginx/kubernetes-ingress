@@ -202,6 +202,9 @@ server {
 		set $resource_name "{{$location.MinionIngress.Name}}";
 		set $resource_namespace "{{$location.MinionIngress.Namespace}}";
 		{{- end}}
+		{{- if $location.RewriteTarget}}
+		rewrite {{ makeRewritePattern $location $.Ingress.Annotations }} {{$location.RewriteTarget}} break;
+		{{- end}}
 		{{- if $location.GRPC}}
 		{{- if not $server.GRPCOnly}}
 		error_page 400 @grpcerror400;
