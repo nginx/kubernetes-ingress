@@ -27,6 +27,7 @@ var yamlSecrets = []yamlSecret{
 			"/examples/custom-resources/egress-mtls/egress-mtls-secret.yaml",
 			"/examples/custom-resources/external-dns/cafe-secret.yaml",
 			"/examples/custom-resources/externalname-services/transport-server/app-tls-secret.yaml",
+			"/examples/custom-resources/foreign-namespace-upstreams/cafe-secret.yaml",
 			"/examples/custom-resources/grpc-upstreams/greeter-secret.yaml",
 			"/examples/custom-resources/ingress-mtls/tls-secret.yaml",
 			"/examples/custom-resources/jwks/tls-secret.yaml",
