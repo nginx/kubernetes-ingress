@@ -83,7 +83,7 @@ var yamlSecrets = []yamlSecret{
 			commonName:         "NGINXIngressController",
 			dnsNames:           []string{"*.example.com"},
 		},
-		valid: secretShouldHaveInvalidTLSCrt,
+		valid: secretShouldHaveValidTLSCrt,
 		symlinks: []string{
 			"/examples/shared-examples/default-server-secret/default-server-secret.yaml",
 			"/tests/data/common/default-server-secret.yaml",
