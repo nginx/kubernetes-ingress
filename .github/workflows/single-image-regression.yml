@@ -120,7 +120,6 @@ jobs:
           marker: ${{ inputs.marker }}
           label: "${{ inputs.image }} regression"
           k8s-version: ${{ inputs.k8s-version }}
-          azure-ad-secret: ${{ secrets.AZURE_AD_AUTOMATION }}
           registry-token: ${{ steps.auth.outputs.access_token }}
           test-image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') }}"
           plus-jwt: ${{ secrets.PLUS_JWT }}

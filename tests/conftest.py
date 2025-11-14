@@ -121,12 +121,6 @@ def pytest_addoption(parser) -> None:
         help="Number for namespaces to deploy for use in test_multiple_ns_perf.py",
     )
     parser.addoption(
-        "--ad-secret",
-        action="store",
-        default=os.environ.get("AZURE_AD_AUTOMATION"),
-        help="Azure active directory secret for JWKs",
-    )
-    parser.addoption(
         "--num",
         action="store",
         default="1",
