@@ -26,7 +26,7 @@ import (
 const (
 	secretShouldHaveValidTLSCrt   = true
 	secretShouldHaveInvalidTLSCrt = false
-	realSecretDirectory           = "examples/common-secrets/"
+	realSecretDirectory           = "common-secrets/"
 )
 
 var projectRoot = "" // this will be redefined in main()
