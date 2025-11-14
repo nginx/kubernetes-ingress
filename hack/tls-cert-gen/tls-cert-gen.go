@@ -153,7 +153,7 @@ func printYaml(secret yamlSecret, projectRoot string) error {
 		// Attach the real file to the end of the relative directory path.
 		relativeTarget := filepath.Join(relativeDirectory, filepath.Base(realFilePath))
 
-		if _, err = os.Stat(absSymlinkTarget); err == nil {
+		if _, err = os.Lstat(absSymlinkTarget); err == nil {
 			// symlink exists, delete it
 			err = os.Remove(absSymlinkTarget)
 			if err != nil {
