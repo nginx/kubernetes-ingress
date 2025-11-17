@@ -64,7 +64,7 @@ type templateData struct {
 // that kubernetes needs as tls files.
 //
 // secretName   - this is what virtualservers and other objects reference
-// fileName     - every secret needs to have an actual file on the disk. This is going to be the name of the file that's placed in the examples/common-secrets directory
+// fileName     - every secret needs to have an actual file on the disk. This is going to be the name of the file that's placed in the ./common-secrets directory
 // symlinks     - a slice of paths that will symlink to the actual file. These paths are relative to the project root. For example: []string{"examples/custom-resources/oidc/tls-secret.yaml"}
 // valid        - whether the generated kubernetes secret file should be valid. An invalid secret will not have the data["tls.key"] property set in the yaml file.
 // templateData - has information about issuer, subject, common name (main domain), and dnsNames (subject alternate names).
