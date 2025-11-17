@@ -139,6 +139,8 @@ func printYaml(secret yamlSecret, projectRoot string) error {
 		return fmt.Errorf("write kubernetes secret to file %s: %w", secret.fileName, err)
 	}
 
+	fmt.Printf("Wrote real file: %s\n", realFilePath)
+
 	// Remove and create symlinks
 	for _, symlinkTarget := range secret.symlinks {
 		absSymlinkTarget := filepath.Join(projectRoot, symlinkTarget)
@@ -165,6 +167,10 @@ func printYaml(secret yamlSecret, projectRoot string) error {
 		if err != nil {
 			return fmt.Errorf("symlink %s to %s: %w", symlinkTarget, realFilePath, err)
 		}
+
+		fmt.Printf(""+
+			" - symlink target: %s\n"+
+			" - absolute file: %s\n\n", relativeTarget, absSymlinkTarget)
 	}
 
 	return nil
