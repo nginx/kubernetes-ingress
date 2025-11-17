@@ -64,7 +64,3 @@ package.json
 # kind kube-config
 kube-local
 venv/
-
-# generated certificates
-common-secrets/*
-!common-secrets/.gitkeep

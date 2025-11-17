@@ -1,3 +1,4 @@
+common-secrets/*.yaml
 custom-resources/api-key/cafe-secret.yaml
 custom-resources/backup-directive/transport-server/app-tls-secret.yaml
 custom-resources/backup-directive/virtual-server/cafe-secret.yaml
