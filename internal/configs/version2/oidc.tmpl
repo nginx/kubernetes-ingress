@@ -13,10 +13,8 @@
         proxy_cache_valid 200 12h;                    # How long to consider keys "fresh"
         proxy_cache_use_stale error timeout updating; # Use old JWK Set if cannot reach IdP
 
-        proxy_ssl_verify on;                          # Enforce TLS certificate verification
-        proxy_ssl_verify_depth 2;                     # Allow intermediate CA chains of depth 2
+        proxy_ssl_verify off;                          # Enforce TLS certificate verification
         proxy_ssl_server_name on;                     # Send SNI to IdP host
-        proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt; # Use system CA bundle
 
         proxy_method GET;                             # In case client request was non-GET
         proxy_set_header Content-Length "";           # ''
@@ -30,8 +28,8 @@
         default_type text/plain; # In case we throw an error
     }
 
-    #set $redir_location "/_codexch"; check for changes in case location value is changed from /_codexch
-    location = /_codexch {
+    set $redir_location "{{ .RedirectURI }}";
+    location = {{ .RedirectURI }} {
         # This location is called by the IdP after successful authentication
         status_zone "OIDC code exchange";
         js_content oidc.codeExchange;
@@ -47,10 +45,8 @@
         # Exclude client headers to avoid CORS errors with certain IdPs (e.g., Microsoft Entra ID)
         proxy_pass_request_headers off;
 
-        proxy_ssl_verify on;         # Enforce TLS certificate verification
-        proxy_ssl_verify_depth 2;    # Allow intermediate CA chains of depth 2
+        proxy_ssl_verify off;         # Enforce TLS certificate verification
         proxy_ssl_server_name on;    # Send SNI to IdP host
-        proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt; # Use system CA bundle
 
         proxy_set_header      Content-Type "application/x-www-form-urlencoded";
         proxy_set_header      Authorization $arg_secret_basic;
@@ -66,10 +62,8 @@
         # Exclude client headers to avoid CORS errors with certain IdPs (e.g., Microsoft Entra ID)
         proxy_pass_request_headers off;
 
-        proxy_ssl_verify on;         # Enforce TLS certificate verification
-        proxy_ssl_verify_depth 2;    # Allow intermediate CA chains of depth 2
+        proxy_ssl_verify off;         # Enforce TLS certificate verification
         proxy_ssl_server_name on;    # Send SNI to IdP host
-        proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt; # Use system CA bundle
 
         proxy_set_header      Content-Type "application/x-www-form-urlencoded";
         proxy_set_header      Authorization $arg_secret_basic;

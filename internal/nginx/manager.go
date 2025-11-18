@@ -75,6 +75,8 @@ type Manager interface {
 	CreateStreamConfig(name string, content []byte) bool
 	DeleteStreamConfig(name string)
 	CreateTLSPassthroughHostsConfig(content []byte) bool
+	CreateOIDCConfig(name string, content []byte) bool
+	DeleteOIDCConfig(name string)
 	CreateSecret(name string, content []byte, mode os.FileMode) string
 	DeleteSecret(name string)
 	CreateAppProtectResourceFile(name string, content []byte)
@@ -114,6 +116,7 @@ type LocalManager struct {
 	debug                        bool
 	dhparamFilename              string
 	tlsPassthroughHostsFilename  string
+	oidcConfPath                 string
 	verifyConfigGenerator        *verifyConfigGenerator
 	verifyClient                 *verifyClient
 	configVersion                int
@@ -147,6 +150,7 @@ func NewLocalManager(ctx context.Context, confPath string, debug bool, mc collec
 		mainConfFilename:            path.Join(confPath, "nginx.conf"),
 		configVersionFilename:       path.Join(confPath, "config-version.conf"),
 		tlsPassthroughHostsFilename: path.Join(confPath, "tls-passthrough-hosts.conf"),
+		oidcConfPath:                path.Join(confPath, "oidc-conf.d"),
 		debug:                       debug,
 		verifyConfigGenerator:       verifyConfigGenerator,
 		configVersion:               0,
@@ -179,6 +183,11 @@ func (lm *LocalManager) CreateConfig(name string, content []byte) bool {
 	return createConfig(lm.logger, lm.getFilenameForConfig(name), content)
 }
 
+// CreateOIDCConfig creates an OIDC configuration file. If the file already exists, it will be overridden.
+func (lm *LocalManager) CreateOIDCConfig(name string, content []byte) bool {
+	return createConfig(lm.logger, lm.getFilenameForOIDCConfig(name), content)
+}
+
 func createConfig(l *slog.Logger, filename string, content []byte) bool {
 	nl.Debugf(l, "Writing config to %v", filename)
 	nl.Debug(l, string(content))
@@ -196,6 +205,11 @@ func (lm *LocalManager) DeleteConfig(name string) {
 	deleteConfig(lm.logger, lm.getFilenameForConfig(name))
 }
 
+// DeleteOIDCConfig deletes the configuration file from the conf.d folder.
+func (lm *LocalManager) DeleteOIDCConfig(name string) {
+	deleteConfig(lm.logger, lm.getFilenameForOIDCConfig(name))
+}
+
 func deleteConfig(l *slog.Logger, filename string) {
 	nl.Infof(l, "Deleting config from %v", filename)
 
@@ -206,6 +220,10 @@ func deleteConfig(l *slog.Logger, filename string) {
 
 func (lm *LocalManager) getFilenameForConfig(name string) string {
 	return path.Join(lm.confdPath, name+".conf")
+}
+
+func (lm *LocalManager) getFilenameForOIDCConfig(name string) string {
+	return path.Join(lm.oidcConfPath, name+".conf")
 }
 
 // CreateStreamConfig creates a configuration file for stream module.

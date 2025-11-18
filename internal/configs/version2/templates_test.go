@@ -24,7 +24,7 @@ func createPointerFromInt(n int) *int {
 
 func newTmplExecutorNGINXPlus(t *testing.T) *TemplateExecutor {
 	t.Helper()
-	executor, err := NewTemplateExecutor("nginx-plus.virtualserver.tmpl", "nginx-plus.transportserver.tmpl")
+	executor, err := NewTemplateExecutor("nginx-plus.virtualserver.tmpl", "nginx-plus.transportserver.tmpl", "oidc.tmpl")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +33,7 @@ func newTmplExecutorNGINXPlus(t *testing.T) *TemplateExecutor {
 
 func newTmplExecutorNGINX(t *testing.T) *TemplateExecutor {
 	t.Helper()
-	executor, err := NewTemplateExecutor("nginx.virtualserver.tmpl", "nginx.transportserver.tmpl")
+	executor, err := NewTemplateExecutor("nginx.virtualserver.tmpl", "nginx.transportserver.tmpl", "oidc.tmpl")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -811,7 +811,7 @@ func TestExecuteVirtualServerTemplateWithAPIKeyPolicyNGINXPlus(t *testing.T) {
 func TestExecuteVirtualServerTemplate_WithCustomOIDCRedirectLocation(t *testing.T) {
 	t.Parallel()
 	executor := newTmplExecutorNGINXPlus(t)
-	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfg)
+	got, err := executor.ExecuteOIDCTemplate(virtualServerCfg.Server.OIDC)
 	if err != nil {
 		t.Error(err)
 	}
@@ -849,7 +849,7 @@ func TestExecuteVirtualServerTemplateWithOIDCAndPKCEPolicyNGINXPlus(t *testing.T
 	}
 
 	want := "keyval $pkce_id $pkce_code_verifier zone=oidc_pkce;"
-	want2 := "include oidc/oidc.conf;"
+	want2 := fmt.Sprintf("include oidc-conf.d/oidc_%s_%s.conf;", virtualServerCfgWithOIDCAndPKCETurnedOn.Server.VSNamespace, virtualServerCfgWithOIDCAndPKCETurnedOn.Server.VSName)
 
 	if !bytes.Contains(got, []byte(want)) {
 		t.Errorf("want %q in generated template", want)
