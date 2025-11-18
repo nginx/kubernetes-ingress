@@ -60,24 +60,6 @@ type templateData struct {
 	dnsNames           []string
 }
 
-// yamlSecret encapsulates all the data that we need to create the tls secrets
-// that kubernetes needs as tls files.
-//
-// secretName   - this is what virtualservers and other objects reference
-// fileName     - every secret needs to have an actual file on the disk. This is going to be the name of the file that's placed in the ./common-secrets directory
-// symlinks     - a slice of paths that will symlink to the actual file. These paths are relative to the project root. For example: []string{"examples/custom-resources/oidc/tls-secret.yaml"}
-// valid        - whether the generated kubernetes secret file should be valid. An invalid secret will not have the data["tls.key"] property set in the yaml file.
-// templateData - has information about issuer, subject, common name (main domain), and dnsNames (subject alternate names).
-// secretType   - if left empty, it will be the default v1.SecretTypeTLS value. The type is "k8s.io/api/core/v1".SecretType, which is an alias for strings.
-type yamlSecret struct {
-	secretName   string
-	fileName     string
-	symlinks     []string
-	valid        bool
-	templateData templateData
-	secretType   string
-}
-
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	var err error

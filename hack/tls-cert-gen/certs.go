@@ -1,5 +1,25 @@
 package main
 
+// yamlSecret encapsulates all the data that we need to create the tls secrets
+// that kubernetes needs as tls files.
+//
+// secretName   - this is what virtualservers and other objects reference
+// fileName     - every secret needs to have an actual file on the disk. This is going to be the name of the file that's placed in the ./common-secrets directory
+// symlinks     - a slice of paths that will symlink to the actual file. These paths are relative to the project root. For example: []string{"examples/custom-resources/oidc/tls-secret.yaml"}
+// valid        - whether the generated kubernetes secret file should be valid. An invalid secret will not have the data["tls.key"] property set in the yaml file.
+// templateData - has information about issuer, subject, common name (main domain), and dnsNames (subject alternate names).
+// secretType   - if left empty, it will be the default v1.SecretTypeTLS value. The type is "k8s.io/api/core/v1".SecretType, which is an alias for strings.
+// usedIn       - not used in the generation, it's only so we can keep track on which py tests used the specific certs
+type yamlSecret struct {
+	secretName   string
+	fileName     string
+	symlinks     []string
+	valid        bool
+	templateData templateData
+	secretType   string
+	usedIn       []string
+}
+
 var yamlSecrets = []yamlSecret{
 	{
 		secretName: "tls-secret",
@@ -70,6 +90,29 @@ var yamlSecrets = []yamlSecret{
 		},
 	},
 
+	// ==== the below ones are needed for specific pytests ===
+	{
+		secretName: "tls-secret",
+		fileName:   "tls-secret-gb.yaml",
+		templateData: templateData{
+			country:      []string{"GB"},
+			organization: []string{"nginx"},
+			locality:     []string{"Cork"},
+			province:     []string{"Cambridgeshire"},
+			commonName:   "cafe.example.com",
+			dnsNames:     []string{"example.com", "*.example.com"},
+		},
+		valid: secretShouldHaveValidTLSCrt,
+		symlinks: []string{
+			"/tests/data/tls/new-tls-secret.yaml",
+			"/tests/data/virtual-server-tls/new-tls-secret.yaml",
+		},
+		usedIn: []string{
+			"tests/suite/test_tls.py - needed for subject info and common name",
+			"tests/suite/test_virtual_server_tls.py - needed for subject info and common name",
+		},
+	},
+
 	{
 		secretName: "default-server-secret",
 		fileName:   "tls-secret-default.yaml",
@@ -86,6 +129,29 @@ var yamlSecrets = []yamlSecret{
 		symlinks: []string{
 			"/examples/shared-examples/default-server-secret/default-server-secret.yaml",
 			"/tests/data/common/default-server-secret.yaml",
+		},
+		usedIn: []string{
+			"tests/suite/test_default_server.py - needed for secret name and common name",
+		},
+	},
+
+	{
+		secretName: "default-server-secret",
+		fileName:   "tls-secret-default-gb.yaml",
+		templateData: templateData{
+			country:      []string{"GB"},
+			organization: []string{"nginx"},
+			locality:     []string{"Cork"},
+			province:     []string{"Cambridgeshire"},
+			commonName:   "cafe.example.com",
+			dnsNames:     []string{"example.com", "*.example.com"},
+		},
+		valid: secretShouldHaveValidTLSCrt,
+		symlinks: []string{
+			"/tests/data/default-server/new-tls-secret.yaml",
+		},
+		usedIn: []string{
+			"tests/suite/test_default_server.py - needed for secret name and common name",
 		},
 	},
 
@@ -105,41 +171,8 @@ var yamlSecrets = []yamlSecret{
 		symlinks: []string{
 			"/tests/data/default-server/invalid-tls-secret.yaml",
 		},
-	},
-
-	// ==== the below ones are needed for specific pytests ===
-	{
-		secretName: "tls-secret",
-		fileName:   "tls-secret-gb.yaml",
-		templateData: templateData{
-			country:      []string{"GB"},
-			organization: []string{"nginx"},
-			locality:     []string{"Cork"},
-			province:     []string{"Cambridgeshire"},
-			commonName:   "cafe.example.com",
-			dnsNames:     []string{"example.com", "*.example.com"},
-		},
-		valid: secretShouldHaveValidTLSCrt,
-		symlinks: []string{
-			"/tests/data/tls/new-tls-secret.yaml",
-			"/tests/data/virtual-server-tls/new-tls-secret.yaml",
-		},
-	},
-
-	{
-		secretName: "default-server-secret",
-		fileName:   "tls-secret-default-gb.yaml",
-		templateData: templateData{
-			country:      []string{"GB"},
-			organization: []string{"nginx"},
-			locality:     []string{"Cork"},
-			province:     []string{"Cambridgeshire"},
-			commonName:   "cafe.example.com",
-			dnsNames:     []string{"example.com", "*.example.com"},
-		},
-		valid: secretShouldHaveValidTLSCrt,
-		symlinks: []string{
-			"/tests/data/default-server/new-tls-secret.yaml",
+		usedIn: []string{
+			"tests/suite/test_default_server.py - needed for the secret name",
 		},
 	},
 
@@ -159,6 +192,10 @@ var yamlSecrets = []yamlSecret{
 			"/tests/data/tls/tls-secret.yaml",
 			"/tests/data/virtual-server-tls/tls-secret.yaml",
 		},
+		usedIn: []string{
+			"tests/suite/test_tls.py - needed for subject info and common name",
+			"tests/suite/test_virtual_server_tls.py - needed for subject info and common name",
+		},
 	},
 	{
 		secretName: "tls-secret",
@@ -177,5 +214,8 @@ var yamlSecrets = []yamlSecret{
 			"/tests/data/tls/invalid-tls-secret.yaml",
 		},
 		secretType: "some type",
+		usedIn: []string{
+			"tests/suite/test_tls.py - needed for the secretType",
+		},
 	},
 }
