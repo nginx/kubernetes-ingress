@@ -17,6 +17,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/nginx/kubernetes-ingress/internal/configs"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	log "github.com/nginx/kubernetes-ingress/internal/logger"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -252,12 +254,16 @@ func createYamlSecret(secret yamlSecret, isValid bool, tlsKeys *JITTLSKey) ([]by
 		Type: v1.SecretTypeTLS,
 	}
 
+	if secret.secretType == secrets.SecretTypeCA {
+		s.Data[configs.CACrlKey] = s.Data[v1.TLSCertKey]
+	}
+
 	if !isValid {
 		s.Data[v1.TLSCertKey] = []byte(``)
 	}
 
 	if secret.secretType != "" {
-		s.Type = v1.SecretType(secret.secretType)
+		s.Type = secret.secretType
 	}
 
 	sb, err := yaml.Marshal(s)

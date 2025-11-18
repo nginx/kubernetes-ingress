@@ -1,5 +1,9 @@
 package main
 
+import (
+	v1 "k8s.io/api/core/v1"
+)
+
 // yamlSecret encapsulates all the data that we need to create the tls secrets
 // that kubernetes needs as tls files.
 //
@@ -16,7 +20,7 @@ type yamlSecret struct {
 	symlinks     []string
 	valid        bool
 	templateData templateData
-	secretType   string
+	secretType   v1.SecretType
 	usedIn       []string
 }
 
@@ -235,5 +239,21 @@ var yamlSecrets = []yamlSecret{
 		usedIn: []string{
 			"tests/suite/test_wildcard_tls_secret.py - subject info",
 		},
+	},
+
+	{
+		secretName: "egress-tls-secret",
+		fileName:   "egress-tls-secret.yaml",
+		templateData: templateData{
+			country:            []string{"IE"},
+			organization:       []string{"F5 NGINX"},
+			organizationalUnit: []string{"NGINX Ingress Controller"},
+			locality:           []string{"Cork"},
+			province:           []string{"Cork"},
+			commonName:         "example.com",
+			dnsNames:           []string{"foo.bar.example.com", "*.example.com"},
+		},
+		valid:    secretShouldHaveValidTLSCrt,
+		symlinks: []string{},
 	},
 }
