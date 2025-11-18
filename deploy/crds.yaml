@@ -561,9 +561,28 @@ spec:
                       with a + sign, for example openid+profile+email, openid+email+userDefinedScope.
                       The default is openid.
                     type: string
+                  sslVerify:
+                    default: false
+                    description: Enables verification of the IDP server SSL certificate.
+                      Default is false.
+                    type: boolean
+                  sslVerifyDepth:
+                    default: 1
+                    description: Sets the verification depth in the IDP server certificates
+                      chain. The default is 1.
+                    minimum: 0
+                    type: integer
                   tokenEndpoint:
                     description: URL for the token endpoint provided by your OpenID
                       Connect provider.
+                    type: string
+                  trustedCertSecret:
+                    description: The name of the Kubernetes secret that stores the
+                      CA certificate for IDP server verification. It must be in the
+                      same namespace as the Policy resource. The secret must be of
+                      the type nginx.org/ca, and the certificate must be stored in
+                      the secret under the key ca.crt.
+                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                     type: string
                   zoneSyncLeeway:
                     description: Specifies the maximum timeout in milliseconds for

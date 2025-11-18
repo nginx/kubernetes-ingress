@@ -975,6 +975,16 @@ type OIDC struct {
 	AccessTokenEnable bool `json:"accessTokenEnable"`
 	// Switches Proof Key for Code Exchange on. The OpenID client needs to be in public mode. clientSecret is not used in this mode.
 	PKCEEnable bool `json:"pkceEnable"`
+	// Enables verification of the IDP server SSL certificate. Default is false.
+	// +kubebuilder:default:=false
+	SSLVerify bool `json:"sslVerify"`
+	// The name of the Kubernetes secret that stores the CA certificate for IDP server verification. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/ca, and the certificate must be stored in the secret under the key ca.crt.
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	TrustedCertSecret string `json:"trustedCertSecret"`
+	// Sets the verification depth in the IDP server certificates chain. The default is 1.
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:default:=1
+	SSLVerifyDepth *int `json:"sslVerifyDepth"`
 }
 
 // The WAF policy configures NGINX Plus to secure client requests using App Protect WAF policies.
