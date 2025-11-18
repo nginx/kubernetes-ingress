@@ -84,7 +84,6 @@ var yamlSecrets = []yamlSecret{
 			"/tests/data/virtual-server-route-grpc/tls-secret.yaml",
 			"/tests/data/watch-secret-namespace/tls-secret.yaml",
 			"/tests/data/wildcard-tls-secret/gb-wildcard-tls-secret.yaml",
-			"/tests/data/wildcard-tls-secret/wildcard-tls-secret.yaml",
 		},
 	},
 
@@ -214,6 +213,27 @@ var yamlSecrets = []yamlSecret{
 		secretType: "some type",
 		usedIn: []string{
 			"tests/suite/test_tls.py - needed for the secretType",
+		},
+	},
+
+	{
+		secretName: "wildcard-tls-secret",
+		fileName:   "wildcard-tls-secret.yaml",
+		templateData: templateData{
+			country:            []string{"ES"},
+			organization:       []string{"nginx"},
+			organizationalUnit: []string{"example.com"},
+			locality:           []string{"Cork"},
+			province:           []string{"CanaryIslands"},
+			commonName:         "example.com",
+			dnsNames:           []string{"*.example.com"},
+		},
+		valid: secretShouldHaveValidTLSCrt,
+		symlinks: []string{
+			"/tests/data/wildcard-tls-secret/wildcard-tls-secret.yaml",
+		},
+		usedIn: []string{
+			"tests/suite/test_wildcard_tls_secret.py - subject info",
 		},
 	},
 }
