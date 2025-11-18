@@ -194,7 +194,7 @@ type Location struct {
 	MinionIngress *Ingress
 }
 
-// ZoneSyncConfig is tbe configuration for the zone_sync directives for state sharing.
+// ZoneSyncConfig is the configuration for the zone_sync directives for state sharing.
 type ZoneSyncConfig struct {
 	Enable            bool
 	Port              int
@@ -215,7 +215,7 @@ type OIDCConfig struct {
 	SIDSTimeout    string
 }
 
-// MGMTConfig is tbe configuration for the MGMT block.
+// MGMTConfig is the configuration for the MGMT block.
 type MGMTConfig struct {
 	SSLVerify            *bool
 	EnforceInitialReport *bool
