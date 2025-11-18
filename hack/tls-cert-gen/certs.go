@@ -10,8 +10,8 @@ var yamlSecrets = []yamlSecret{
 			organizationalUnit: []string{"NGINX Ingress Controller"},
 			locality:           []string{"Cork"},
 			province:           []string{"Cork"},
-			commonName:         "example.com,*.example.com",
-			dnsNames:           []string{"foo.bar.example.com"},
+			commonName:         "example.com",
+			dnsNames:           []string{"foo.bar.example.com", "*.example.com"},
 		},
 		valid: secretShouldHaveValidTLSCrt,
 		symlinks: []string{
@@ -50,8 +50,6 @@ var yamlSecrets = []yamlSecret{
 			"/tests/data/ap-waf-grpc/tls-secret.yaml",
 			"/tests/data/appprotect/appprotect-secret.yaml",
 			"/tests/data/common/app/secure/secret/app-tls-secret.yaml",
-			"/tests/data/default-server/invalid-tls-secret.yaml",
-			"/tests/data/default-server/new-tls-secret.yaml",
 			"/tests/data/dos/tls-secret.yaml",
 			"/tests/data/egress-mtls/secret/tls-secret.yaml",
 			"/tests/data/ingress-mtls/secret/tls-secret.yaml",
@@ -92,7 +90,7 @@ var yamlSecrets = []yamlSecret{
 	},
 
 	{
-		secretName: "tls-secret",
+		secretName: "default-server-secret",
 		fileName:   "tls-secret-invalid.yaml",
 		templateData: templateData{
 			country:            []string{"IE"},
@@ -125,6 +123,23 @@ var yamlSecrets = []yamlSecret{
 		symlinks: []string{
 			"/tests/data/tls/new-tls-secret.yaml",
 			"/tests/data/virtual-server-tls/new-tls-secret.yaml",
+		},
+	},
+
+	{
+		secretName: "default-server-secret",
+		fileName:   "tls-secret-default-gb.yaml",
+		templateData: templateData{
+			country:      []string{"GB"},
+			organization: []string{"nginx"},
+			locality:     []string{"Cork"},
+			province:     []string{"Cambridgeshire"},
+			commonName:   "cafe.example.com",
+			dnsNames:     []string{"example.com", "*.example.com"},
+		},
+		valid: secretShouldHaveValidTLSCrt,
+		symlinks: []string{
+			"/tests/data/default-server/new-tls-secret.yaml",
 		},
 	},
 
