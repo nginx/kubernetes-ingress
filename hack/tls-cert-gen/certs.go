@@ -71,7 +71,6 @@ var yamlSecrets = []yamlSecret{
 			"/examples/ingress-resources/proxy-set-headers/standard-ingress/cafe-secret.yaml",
 			"/examples/ingress-resources/rate-limit/cafe-secret.yaml",
 			"/examples/ingress-resources/security-monitoring/cafe-secret.yaml",
-			"/tests/data/ap-waf-grpc/tls-secret.yaml",
 			"/tests/data/appprotect/appprotect-secret.yaml",
 			"/tests/data/common/app/secure/secret/app-tls-secret.yaml",
 			"/tests/data/dos/tls-secret.yaml",
@@ -255,5 +254,26 @@ var yamlSecrets = []yamlSecret{
 		},
 		valid:    secretShouldHaveValidTLSCrt,
 		symlinks: []string{},
+	},
+
+	{
+		secretName: "tls-secret",
+		fileName:   "tls-secret.yaml",
+		templateData: templateData{
+			country:            []string{"IE"},
+			organization:       []string{"F5 NGINX"},
+			organizationalUnit: []string{"NGINX Ingress Controller"},
+			locality:           []string{"Cork"},
+			province:           []string{"Cork"},
+			commonName:         "virtual-server.example.com",
+			dnsNames:           []string{"virtual-server.example.com"},
+		},
+		valid: secretShouldHaveValidTLSCrt,
+		symlinks: []string{
+			"/tests/data/ap-waf-grpc/tls-secret.yaml",
+		},
+		usedIn: []string{
+			"suite/test_app_protect_waf_policies_grpc.py::TestAppProtectVSGrpc - needed for the common name",
+		},
 	},
 }
