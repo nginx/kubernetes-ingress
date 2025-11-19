@@ -13,7 +13,11 @@
         proxy_cache_valid 200 12h;                    # How long to consider keys "fresh"
         proxy_cache_use_stale error timeout updating; # Use old JWK Set if cannot reach IdP
 
-        proxy_ssl_verify off;                          # Enforce TLS certificate verification
+        {{- if .TLSVerify }}
+        proxy_ssl_verify on;
+        proxy_ssl_verify_depth {{ .VerifyDepth }};
+        proxy_ssl_trusted_certificate {{ .CAFile }};
+        {{- end }}
         proxy_ssl_server_name on;                     # Send SNI to IdP host
 
         proxy_method GET;                             # In case client request was non-GET
@@ -45,7 +49,11 @@
         # Exclude client headers to avoid CORS errors with certain IdPs (e.g., Microsoft Entra ID)
         proxy_pass_request_headers off;
 
-        proxy_ssl_verify off;         # Enforce TLS certificate verification
+        {{- if .TLSVerify }}
+        proxy_ssl_verify on;
+        proxy_ssl_verify_depth {{ .VerifyDepth }};
+        proxy_ssl_trusted_certificate {{ .CAFile }};
+        {{- end }}
         proxy_ssl_server_name on;    # Send SNI to IdP host
 
         proxy_set_header      Content-Type "application/x-www-form-urlencoded";
@@ -62,8 +70,12 @@
         # Exclude client headers to avoid CORS errors with certain IdPs (e.g., Microsoft Entra ID)
         proxy_pass_request_headers off;
 
-        proxy_ssl_verify off;         # Enforce TLS certificate verification
-        proxy_ssl_server_name on;    # Send SNI to IdP host
+        {{- if .TLSVerify }}
+        proxy_ssl_verify on;
+        proxy_ssl_verify_depth {{ .VerifyDepth }};
+        proxy_ssl_trusted_certificate {{ .CAFile }};
+        {{- end }}
+        proxy_ssl_server_name on;                    # Send SNI to IdP host
 
         proxy_set_header      Content-Type "application/x-www-form-urlencoded";
         proxy_set_header      Authorization $arg_secret_basic;

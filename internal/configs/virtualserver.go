@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -1500,6 +1501,57 @@ func (p *policiesCfg) addOIDCConfig(
 			authExtraArgs = strings.Join(oidc.AuthExtraArgs, "&")
 		}
 
+		// Handle SSL verification for JWKS
+		var trustedCertPath string
+		if oidc.SSLVerify && oidc.TrustedCertSecret != "" {
+			trustedCertSecretKey := fmt.Sprintf("%s/%s", polNamespace, oidc.TrustedCertSecret)
+			trustedCertSecretRef := secretRefs[trustedCertSecretKey]
+
+			// Check if secret reference exists
+			if trustedCertSecretRef == nil {
+				res.addWarningf("OIDC policy %s references a non-existent trusted cert secret %s", polKey, trustedCertSecretKey)
+				res.isError = true
+				return res
+			}
+
+			var secretType api_v1.SecretType
+			if trustedCertSecretRef.Secret != nil {
+				secretType = trustedCertSecretRef.Secret.Type
+			}
+			if secretType != "" && secretType != secrets.SecretTypeCA {
+				res.addWarningf("OIDC policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, trustedCertSecretKey, secretType, secrets.SecretTypeCA)
+				res.isError = true
+				return res
+			} else if trustedCertSecretRef.Error != nil {
+				res.addWarningf("OIDC policy %s references an invalid trusted cert secret %s: %v", polKey, trustedCertSecretKey, trustedCertSecretRef.Error)
+				res.isError = true
+				return res
+			}
+
+			caFields := strings.Fields(trustedCertSecretRef.Path)
+			if len(caFields) > 0 {
+				trustedCertPath = caFields[0]
+			}
+		} else if oidc.SSLVerify && oidc.TrustedCertSecret == "" {
+			osr, err := readOSRelease()
+			if err != nil {
+				res.addWarningf("OIDC policy %s could not read OS release info to load CA bundle: %v", polKey, err)
+				res.isError = true
+				return res
+			}
+			trustedCertPath = getOSCABundlePath(string(osr))
+			if _, err := os.Stat(trustedCertPath); os.IsNotExist(err) {
+				res.addWarningf("OIDC policy %s could not load OS CA bundle: %v", polKey, err)
+				res.isError = true
+				return res
+			}
+		}
+
+		sslVerifyDepth := 1
+		if oidc.SSLVerifyDepth != nil {
+			sslVerifyDepth = *oidc.SSLVerifyDepth
+		}
+
 		oidcPolCfg.oidc = &version2.OIDC{
 			AuthEndpoint:          oidc.AuthEndpoint,
 			AuthExtraArgs:         authExtraArgs,
@@ -1514,6 +1566,9 @@ func (p *policiesCfg) addOIDCConfig(
 			ZoneSyncLeeway:        generateIntFromPointer(oidc.ZoneSyncLeeway, 200),
 			AccessTokenEnable:     oidc.AccessTokenEnable,
 			PKCEEnable:            oidc.PKCEEnable,
+			TLSVerify:             oidc.SSLVerify,
+			VerifyDepth:           sslVerifyDepth,
+			CAFile:                trustedCertPath,
 		}
 		oidcPolCfg.key = polKey
 	}
@@ -3512,4 +3567,23 @@ func generateDosCfg(dosResource *appProtectDosResource) *version2.Dos {
 	dos.ApDosSecurityLogEnable = dosResource.AppProtectDosLogEnable
 	dos.ApDosLogConf = dosResource.AppProtectDosLogConfFile
 	return dos
+}
+
+func readOSRelease() ([]byte, error) {
+	return os.ReadFile("/etc/os-release")
+}
+
+func getOSCABundlePath(s string) string {
+	alpineRegex := regexp.MustCompile(`ID=\"?alpine\"?`)
+	rhelRegex := regexp.MustCompile(`ID=\"?rhel\"?`)
+	// Logic to get the OS CA bundle path.
+	caFilePath := "/etc/ssl/certs/ca-certificates.crt" // Default for Debian, the default image base
+
+	if alpineRegex.MatchString(s) {
+		caFilePath = "/etc/ssl/cert.pem"
+	} else if rhelRegex.MatchString(s) {
+		caFilePath = "/etc/pki/tls/certs/ca-bundle.crt"
+	}
+
+	return caFilePath
 }

@@ -14764,6 +14764,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					PostLogoutRedirectURI: "/_logout",
 					ZoneSyncLeeway:        200,
 					AccessTokenEnable:     true,
+					VerifyDepth:           1,
 				},
 				"default/oidc-policy",
 			},
@@ -22962,5 +22963,120 @@ func TestGenerateVirtualServerConfigWithForeignNamespaceServiceInVSR(t *testing.
 
 	if !cmp.Equal(expected, result) {
 		t.Error(cmp.Diff(expected, result))
+	}
+}
+
+func TestGetOSCABundlePath(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "Debian default",
+			input: `
+PRETTY_NAME="Debian GNU/Linux 12 (bookworm)"
+NAME="Debian GNU/Linux"
+VERSION_ID="12"
+VERSION="12 (bookworm)"
+VERSION_CODENAME=bookworm
+ID=debian
+HOME_URL="https://www.debian.org/"
+SUPPORT_URL="https://www.debian.org/support"
+BUG_REPORT_URL="https://bugs.debian.org/"
+			`,
+			expected: "/etc/ssl/certs/ca-certificates.crt",
+		},
+		{
+			name: "Alpine with quotes",
+			input: `
+NAME="Alpine Linux"
+ID="alpine"
+VERSION_ID=3.22.2
+PRETTY_NAME="Alpine Linux v3.22"
+HOME_URL="https://alpinelinux.org/"
+BUG_REPORT_URL="https://gitlab.alpinelinux.org/alpine/aports/-/issues"
+			`,
+			expected: "/etc/ssl/cert.pem",
+		},
+		{
+			name: "Alpine without quotes",
+			input: `
+NAME="Alpine Linux"
+ID=alpine
+VERSION_ID=3.19.9
+PRETTY_NAME="Alpine Linux v3.19"
+HOME_URL="https://alpinelinux.org/"
+BUG_REPORT_URL="https://gitlab.alpinelinux.org/alpine/aports/-/issues"
+			`,
+			expected: "/etc/ssl/cert.pem",
+		},
+		{
+			name: "RHEL8 with quotes",
+			input: `
+NAME="Red Hat Enterprise Linux"
+VERSION="8.10 (Ootpa)"
+ID="rhel"
+ID_LIKE="fedora"
+VERSION_ID="8.10"
+PLATFORM_ID="platform:el8"
+PRETTY_NAME="Red Hat Enterprise Linux 8.10 (Ootpa)"
+ANSI_COLOR="0;31"
+CPE_NAME="cpe:/o:redhat:enterprise_linux:8::baseos"
+HOME_URL="https://www.redhat.com/"
+DOCUMENTATION_URL="https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8"
+BUG_REPORT_URL="https://issues.redhat.com/"
+
+REDHAT_BUGZILLA_PRODUCT="Red Hat Enterprise Linux 8"
+REDHAT_BUGZILLA_PRODUCT_VERSION=8.10
+REDHAT_SUPPORT_PRODUCT="Red Hat Enterprise Linux"
+REDHAT_SUPPORT_PRODUCT_VERSION="8.10"
+			`,
+			expected: "/etc/pki/tls/certs/ca-bundle.crt",
+		},
+		{
+			name: "RHEL9 with quotes",
+			input: `
+NAME="Red Hat Enterprise Linux"
+VERSION="9.7 (Plow)"
+ID="rhel"
+ID_LIKE="fedora"
+VERSION_ID="9.7"
+PLATFORM_ID="platform:el9"
+PRETTY_NAME="Red Hat Enterprise Linux 9.7 (Plow)"
+ANSI_COLOR="0;31"
+LOGO="fedora-logo-icon"
+CPE_NAME="cpe:/o:redhat:enterprise_linux:9::baseos"
+HOME_URL="https://www.redhat.com/"
+DOCUMENTATION_URL="https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/9"
+BUG_REPORT_URL="https://issues.redhat.com/"
+
+REDHAT_BUGZILLA_PRODUCT="Red Hat Enterprise Linux 9"
+REDHAT_BUGZILLA_PRODUCT_VERSION=9.7
+REDHAT_SUPPORT_PRODUCT="Red Hat Enterprise Linux"
+REDHAT_SUPPORT_PRODUCT_VERSION="9.7"
+			`,
+			expected: "/etc/pki/tls/certs/ca-bundle.crt",
+		},
+		{
+			name:     "Unknown OS",
+			input:    `ID="ubuntu"`,
+			expected: "/etc/ssl/certs/ca-certificates.crt",
+		},
+		{
+			name:     "Empty string",
+			input:    "",
+			expected: "/etc/ssl/certs/ca-certificates.crt",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getOSCABundlePath(tt.input)
+			if result != tt.expected {
+				t.Errorf("want %q, got %q", tt.expected, result)
+			}
+		})
 	}
 }
