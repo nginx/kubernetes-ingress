@@ -77,7 +77,6 @@ var yamlSecrets = []yamlSecret{
 			"/tests/data/ingress-mtls/secret/tls-secret.yaml",
 			"/tests/data/mgmt-configmap-keys/ssl-cert.yaml",
 			"/tests/data/smoke/smoke-secret.yaml",
-			"/tests/data/transport-server-tcp-load-balance/tcp-tls-secret.yaml",
 			"/tests/data/upgrade-test-resources/secret.yaml",
 			"/tests/data/virtual-server-certmanager/tls-secret.yaml",
 			"/tests/data/virtual-server-grpc/tls-secret.yaml",
@@ -189,12 +188,14 @@ var yamlSecrets = []yamlSecret{
 			"/tests/data/virtual-server-tls/tls-secret.yaml",
 			"/tests/data/prometheus/secret.yaml",
 			"/tests/data/service-insight/secret.yaml",
+			"/tests/data/transport-server-tcp-load-balance/new-tls-secret.yaml",
 		},
 		usedIn: []string{
 			"tests/suite/test_tls.py - needed for subject info and common name",
 			"tests/suite/test_virtual_server_tls.py - needed for subject info and common name",
 			"tests/suite/test_prometheus_metrics.py - needed for common name and subject info",
 			"tests/suite/test_transport_server_service_insight.py - needed for subject info and common name",
+			"tests/suite/test_transport_server_tcp_load_balance.py - needed for subject info and common name",
 		},
 	},
 	{
@@ -336,6 +337,27 @@ var yamlSecrets = []yamlSecret{
 		},
 		usedIn: []string{
 			"suite/test_transport_server_backup_service.py - needed for the common name and secret name",
+		},
+	},
+
+	{
+		secretName: "tls-secret",
+		fileName:   "kic-tls-secret.yaml",
+		templateData: templateData{
+			country:            []string{"IE"},
+			organization:       []string{"F5 NGINX"},
+			organizationalUnit: []string{"NGINX Ingress Controller"},
+			locality:           []string{"Cork"},
+			province:           []string{"Cork"},
+			commonName:         "kic.example.com",
+			dnsNames:           []string{"kic.example.com"},
+		},
+		valid: secretShouldHaveValidTLSCrt,
+		symlinks: []string{
+			"/tests/data/transport-server-tcp-load-balance/tcp-tls-secret.yaml",
+		},
+		usedIn: []string{
+			"tests/suite/test_transport_server_tcp_load_balance.py - needed for subject info and common name",
 		},
 	},
 }
