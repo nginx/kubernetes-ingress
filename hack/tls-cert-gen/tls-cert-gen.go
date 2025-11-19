@@ -80,6 +80,14 @@ func main() {
 
 		filenames[secret.fileName] = struct{}{}
 
+		for _, symlink := range secret.symlinks {
+			if _, ok := filenames[symlink]; ok {
+				log.Fatalf(logger, "secret contains duplicated symlink for file %s: %s", secret.fileName, symlink)
+			}
+
+			filenames[symlink] = struct{}{}
+		}
+
 		err = printYaml(secret, projectRoot)
 		if err != nil {
 			log.Fatalf(logger, "Failed to print tls key: %v: %v", secret, err)
