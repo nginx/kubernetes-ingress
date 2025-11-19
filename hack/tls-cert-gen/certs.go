@@ -76,7 +76,6 @@ var yamlSecrets = []yamlSecret{
 			"/tests/data/egress-mtls/secret/tls-secret.yaml",
 			"/tests/data/ingress-mtls/secret/tls-secret.yaml",
 			"/tests/data/mgmt-configmap-keys/ssl-cert.yaml",
-			"/tests/data/service-insight/secret.yaml",
 			"/tests/data/smoke/smoke-secret.yaml",
 			"/tests/data/transport-server-tcp-load-balance/tcp-tls-secret.yaml",
 			"/tests/data/upgrade-test-resources/secret.yaml",
@@ -189,11 +188,13 @@ var yamlSecrets = []yamlSecret{
 			"/tests/data/tls/tls-secret.yaml",
 			"/tests/data/virtual-server-tls/tls-secret.yaml",
 			"/tests/data/prometheus/secret.yaml",
+			"/tests/data/service-insight/secret.yaml",
 		},
 		usedIn: []string{
 			"tests/suite/test_tls.py - needed for subject info and common name",
 			"tests/suite/test_virtual_server_tls.py - needed for subject info and common name",
 			"tests/suite/test_prometheus_metrics.py - needed for common name and subject info",
+			"tests/suite/test_transport_server_service_insight.py - needed for subject info and common name",
 		},
 	},
 	{
