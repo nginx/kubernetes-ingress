@@ -63,7 +63,7 @@ def virtual_server_foreign_upstream_app_setup(
 
     wait_until_all_pods_are_ready(kube_apis.v1, ns_1)
     wait_until_all_pods_are_ready(kube_apis.v1, ns_2)
-    
+
     vs_name = create_virtual_server_from_yaml(kube_apis.custom_objects, vs_source, test_namespace)
     vs_host = get_first_host_from_yaml(vs_source)
     vs_paths = get_paths_from_vs_yaml(vs_source)
