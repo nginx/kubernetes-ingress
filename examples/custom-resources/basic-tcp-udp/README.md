@@ -6,13 +6,13 @@ server pods.
 
 ## Prerequisites
 
-1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
+1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
    instructions to deploy the Ingress Controller:
    - As part of Step 2 of those instructions, make sure to deploy the GlobalConfiguration resource and configure the
      Ingress Controller to use it.
    - Expose port 5353 of the Ingress Controller both for TCP and UDP traffic.
-     (Make use of [controller.customPorts](https://docs.nginx.com/nginx-ingress-controller/installation/installing-nic/installation-with-helm/#configuration)
-     and [controller.service.customPorts](https://docs.nginx.com/nginx-ingress-controller/installation/installing-nic/installation-with-helm/#configuration)
+     (Make use of [controller.customPorts](https://docs.nginx.com/nginx-ingress-controller/install/helm#configuration)
+     and [controller.service.customPorts](https://docs.nginx.com/nginx-ingress-controller/install/helm#configuration)
      for exposing Pod and LoadBalancer Port(s) respectively)
 
 1. Save the public IP address of the Ingress Controller into a shell variable:

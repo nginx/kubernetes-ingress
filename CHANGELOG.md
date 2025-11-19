@@ -122,8 +122,8 @@ UPGRADE:
     ```
 
   As part of the upgrade, make sure to create the `v1` policies CRD. See the corresponding instructions for the
-  [manifests](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/#create-custom-resources)
-  and [Helm](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-helm/#upgrading-the-crds)
+  [manifests](https://docs.nginx.com/nginx-ingress-controller/install/manifests#create-custom-resources)
+  and [Helm](https://docs.nginx.com/nginx-ingress-controller/install/helm#upgrading-the-crds)
   installations.
 
   Also note that all policies except for `accessControl` are still in preview. To enable them, run the Ingress
@@ -285,7 +285,7 @@ UPGRADE:
 - For Helm, use version 0.7.0 of the chart.
 
 For Kubernetes >= 1.18, when upgrading using the
-[manifests](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/), make sure to
+[manifests](https://docs.nginx.com/nginx-ingress-controller/install/manifests), make sure to
 update the [ClusterRole](deployments/rbac/rbac.yaml) and create the [IngressClass
 resource](deployments/common/ingress-class.yaml), which is required for Kubernetes >= 1.18. Otherwise, the Ingress
 Controller will fail to start. If you run multiple NGINX Ingress Controllers in the cluster, each Ingress Controller has
@@ -308,7 +308,7 @@ NOTES:
 
 - When using Kubernetes >= 1.18 the Ingress Controller will only process resources that belong to its class. See
   [IngressClass
-  doc](https://docs.nginx.com/nginx-ingress-controller/installation/running-multiple-ingress-controllers/#ingress-class)
+  doc](https://docs.nginx.com/nginx-ingress-controller/install/multiple-controllers#ingress-class)
   to learn more.
 - For Kubernetes >= 1.18, a dedicated IngressClass resource, which is configured by `controller.ingressClass`, is
   required per helm release. When upgrading or installing releases, ensure `controller.ingressClass` is not set to the
@@ -416,7 +416,7 @@ the cluster. Before upgrading, make sure to back up the custom resources. After 
 NOTES:
 
 - As part of installing a release, Helm will install the CRDs unless that step is disabled (see the [corresponding
-  doc](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-helm/)). The installed CRDs
+  doc](https://docs.nginx.com/nginx-ingress-controller/install/helm/). The installed CRDs
   include the CRDs for all Ingress Controller features, including the ones disabled by default (like App Protect with
   `aplogconfs.appprotect.f5.com` and `appolicies.appprotect.f5.com` CRDs).
 
@@ -536,7 +536,7 @@ UPGRADE:
 - For Helm, use version 0.5.0 of the chart.
 
 When upgrading using the
-[manifests](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/), make sure to
+[manifests](https://docs.nginx.com/nginx-ingress-controller/install/manifests), make sure to
 deploy the new TransportServer CRD (`common/ts-definition.yaml`), as it is required by the Ingress Controller.
 Otherwise, you will get error messages in the Ingress Controller logs.
 

@@ -26,7 +26,7 @@ The application in the `external-ns` namespace will respond to our requests when
    This ensures that NGINX Ingress Controller will treat our service in the `external-ns` namespace
    as an external service.
 
-2. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
+2. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
    instructions to deploy NGINX Ingress Controller.
 
 3. Save the public IP address of the F5 NGINX Ingress Controller into a shell variable:
