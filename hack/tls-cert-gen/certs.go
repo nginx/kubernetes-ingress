@@ -187,14 +187,12 @@ var yamlSecrets = []yamlSecret{
 			"/tests/data/tls/tls-secret.yaml",
 			"/tests/data/virtual-server-tls/tls-secret.yaml",
 			"/tests/data/prometheus/secret.yaml",
-			"/tests/data/transport-server-tcp-load-balance/new-tls-secret.yaml",
 		},
 		usedIn: []string{
 			"tests/suite/test_tls.py - needed for subject info and common name",
 			"tests/suite/test_virtual_server_tls.py - needed for subject info and common name",
 			"tests/suite/test_prometheus_metrics.py - needed for common name and subject info",
 			"tests/suite/test_transport_server_service_insight.py - needed for subject info and common name",
-			"tests/suite/test_transport_server_tcp_load_balance.py - needed for subject info and common name",
 		},
 	},
 	{
@@ -340,7 +338,28 @@ var yamlSecrets = []yamlSecret{
 	},
 
 	{
-		secretName: "tls-secret",
+		secretName: "transport-server-tls-secret",
+		fileName:   "tls-secret-tcp-lb-cafe.yaml",
+		templateData: templateData{
+			country:            []string{"IE"},
+			organization:       []string{"F5 NGINX"},
+			organizationalUnit: []string{"NGINX Ingress Controller"},
+			locality:           []string{"Cork"},
+			province:           []string{"Cork"},
+			commonName:         "cafe.example.com",
+			dnsNames:           []string{"cafe.example.com"},
+		},
+		valid: secretShouldHaveValidTLSCrt,
+		symlinks: []string{
+			"/tests/data/transport-server-tcp-load-balance/new-tls-secret.yaml",
+		},
+		usedIn: []string{
+			"tests/suite/test_transport_server_tcp_load_balance.py - needed for subject info and common name",
+		},
+	},
+
+	{
+		secretName: "transport-server-tls-secret",
 		fileName:   "kic-tls-secret.yaml",
 		templateData: templateData{
 			country:            []string{"IE"},
@@ -356,7 +375,7 @@ var yamlSecrets = []yamlSecret{
 			"/tests/data/transport-server-tcp-load-balance/tcp-tls-secret.yaml",
 		},
 		usedIn: []string{
-			"tests/suite/test_transport_server_tcp_load_balance.py - needed for subject info and common name",
+			"tests/suite/test_transport_server_tcp_load_balance.py - needed for secret name, subject info and common name",
 		},
 	},
 
