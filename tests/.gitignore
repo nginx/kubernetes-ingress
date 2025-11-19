@@ -52,3 +52,4 @@ data/watch-secret-namespace/tls-secret.yaml
 data/wildcard-tls-secret/gb-wildcard-tls-secret.yaml
 data/wildcard-tls-secret/wildcard-tls-secret.yaml
 data/wildcard-tls-secret/invalid-wildcard-tls-secret.yaml
+data/transport-server-tcp-load-balance/new-tls-secret.yaml
