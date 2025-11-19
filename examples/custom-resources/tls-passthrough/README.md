@@ -25,7 +25,7 @@ You can see how the Secure App is implemented in the `secure-app.yaml` file.
 
 ## Prerequisites
 
-1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
+1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
    instructions to deploy the Ingress Controller:
     - As part of Step 2 of those instructions, make sure to deploy the custom resource definition for the
       TransportServer resource.

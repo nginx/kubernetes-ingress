@@ -471,7 +471,7 @@ jobs:
   #           This is the official implementation of NGINX Ingress Controller (based on NGINX Plus) from NGINX.
   #         usage-instructions: |
   #           This container requires Kubernetes and can be deployed to EKS.
-  #           Review the installation instructions https://docs.nginx.com/nginx-ingress-controller/installation/ and utilize the deployment resources available https://github.com/nginx/kubernetes-ingress/tree/v${{ inputs.nic_version }}/deployments
+  #           Review the installation instructions https://docs.nginx.com/nginx-ingress-controller/install and utilize the deployment resources available https://github.com/nginx/kubernetes-ingress/tree/v${{ inputs.nic_version }}/deployments
   #           Use this image instead of building your own.
 
   binaries:
