@@ -86,7 +86,6 @@ var yamlSecrets = []yamlSecret{
 			"/tests/data/virtual-server-grpc/tls-secret.yaml",
 			"/tests/data/virtual-server-route-grpc/tls-secret.yaml",
 			"/tests/data/watch-secret-namespace/tls-secret.yaml",
-			"/tests/data/wildcard-tls-secret/gb-wildcard-tls-secret.yaml",
 		},
 	},
 
@@ -221,6 +220,28 @@ var yamlSecrets = []yamlSecret{
 
 	{
 		secretName: "wildcard-tls-secret",
+		fileName:   "tls-secret-invalid-type.yaml",
+		templateData: templateData{
+			country:            []string{"IE"},
+			organization:       []string{"F5 NGINX"},
+			organizationalUnit: []string{"NGINX Ingress Controller"},
+			locality:           []string{"Cork"},
+			province:           []string{"Cork"},
+			commonName:         "example.com",
+			dnsNames:           []string{"*.example.com"},
+		},
+		valid: secretShouldHaveValidTLSCrt,
+		symlinks: []string{
+			"/tests/data/wildcard-tls-secret/invalid-wildcard-tls-secret.yaml",
+		},
+		secretType: "broken",
+		usedIn: []string{
+			"tests/suite/test_wildcard_tls_secret.py - needed for the secret name and secret type",
+		},
+	},
+
+	{
+		secretName: "wildcard-tls-secret",
 		fileName:   "wildcard-tls-secret.yaml",
 		templateData: templateData{
 			country:            []string{"ES"},
@@ -234,6 +255,25 @@ var yamlSecrets = []yamlSecret{
 		valid: secretShouldHaveValidTLSCrt,
 		symlinks: []string{
 			"/tests/data/wildcard-tls-secret/wildcard-tls-secret.yaml",
+		},
+		usedIn: []string{
+			"tests/suite/test_wildcard_tls_secret.py - subject info",
+		},
+	},
+
+	{
+		secretName: "wildcard-tls-secret",
+		fileName:   "wildcard-tls-secret-gb.yaml",
+		templateData: templateData{
+			country:      []string{"GB"},
+			organization: []string{"nginx"},
+			province:     []string{"Cambridgeshire"},
+			commonName:   "example.com",
+			dnsNames:     []string{"*.example.com"},
+		},
+		valid: secretShouldHaveValidTLSCrt,
+		symlinks: []string{
+			"/tests/data/wildcard-tls-secret/gb-wildcard-tls-secret.yaml",
 		},
 		usedIn: []string{
 			"tests/suite/test_wildcard_tls_secret.py - subject info",
