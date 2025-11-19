@@ -100,6 +100,7 @@ type Manager interface {
 	AgentQuit()
 	AgentVersion() string
 	GetSecretsDir() string
+	GetOSCABundlePath() (string, error)
 	UpsertSplitClientsKeyVal(zoneName string, key string, value string)
 	DeleteKeyValStateFiles(virtualServerName string)
 }
@@ -766,4 +767,40 @@ func (lm *LocalManager) DeleteKeyValStateFiles(virtualServerName string) {
 			}
 		}
 	}
+}
+
+func readOSRelease() ([]byte, error) {
+	return os.ReadFile("/etc/os-release")
+}
+
+// GetOSCABundlePath returns the path to the OS CA bundle file based on the OS type.
+func (lm *LocalManager) GetOSCABundlePath() (string, error) {
+	sBytes, err := readOSRelease()
+	if err != nil {
+		// Default to Debian path if unable to read the file.
+		return "", err
+	}
+	s := string(sBytes)
+	caFilePath := getOSCABundlePath(s)
+
+	if _, err := os.Stat(caFilePath); os.IsNotExist(err) {
+		return "", fmt.Errorf("CA bundle file does not exist at path: %s", caFilePath)
+	}
+
+	return caFilePath, nil
+}
+
+func getOSCABundlePath(s string) string {
+	alpineRegex := regexp.MustCompile(`ID=\"?alpine\"?`)
+	rhelRegex := regexp.MustCompile(`ID=\"?rhel\"?`)
+	// Logic to get the OS CA bundle path.
+	caFilePath := "/etc/ssl/certs/ca-certificates.crt" // Default for Debian, the default image base
+
+	if alpineRegex.MatchString(s) {
+		caFilePath = "/etc/ssl/cert.pem"
+	} else if rhelRegex.MatchString(s) {
+		caFilePath = "/etc/pki/tls/certs/ca-bundle.crt"
+	}
+
+	return caFilePath
 }

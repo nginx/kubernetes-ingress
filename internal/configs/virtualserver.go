@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"os"
 	"path"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -304,6 +303,7 @@ type virtualServerConfigurator struct {
 	isIPV6Disabled             bool
 	DynamicSSLReloadEnabled    bool
 	StaticSSLPath              string
+	CABundlePath               string
 	DynamicWeightChangesReload bool
 	bundleValidator            bundleValidator
 	IngressControllerReplicas  int
@@ -354,6 +354,7 @@ func newVirtualServerConfigurator(
 		isIPV6Disabled:             staticParams.DisableIPV6,
 		DynamicSSLReloadEnabled:    staticParams.DynamicSSLReload,
 		StaticSSLPath:              staticParams.StaticSSLPath,
+		CABundlePath:               staticParams.DefaultCABundle,
 		DynamicWeightChangesReload: staticParams.DynamicWeightChangesReload,
 		bundleValidator:            bundleValidator,
 	}
@@ -427,10 +428,11 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	tlsRedirectConfig := generateTLSRedirectConfig(vsEx.VirtualServer.Spec.TLS)
 
 	policyOpts := policyOptions{
-		tls:         sslConfig != nil,
-		zoneSync:    vsEx.ZoneSync,
-		secretRefs:  vsEx.SecretRefs,
-		apResources: apResources,
+		tls:             sslConfig != nil,
+		zoneSync:        vsEx.ZoneSync,
+		secretRefs:      vsEx.SecretRefs,
+		apResources:     apResources,
+		defaultCABundle: vsc.CABundlePath,
 	}
 
 	ownerDetails := policyOwnerDetails{
@@ -1048,10 +1050,11 @@ type policyOwnerDetails struct {
 }
 
 type policyOptions struct {
-	tls         bool
-	zoneSync    bool
-	secretRefs  map[string]*secrets.SecretReference
-	apResources *appProtectResourcesForVS
+	tls             bool
+	zoneSync        bool
+	secretRefs      map[string]*secrets.SecretReference
+	apResources     *appProtectResourcesForVS
+	defaultCABundle string
 }
 
 type validationResults struct {
@@ -1431,9 +1434,10 @@ func (p *policiesCfg) addOIDCConfig(
 	oidc *conf_v1.OIDC,
 	polKey string,
 	polNamespace string,
-	secretRefs map[string]*secrets.SecretReference,
+	policyOpts policyOptions,
 	oidcPolCfg *oidcPolicyCfg,
 ) *validationResults {
+	secretRefs := policyOpts.secretRefs
 	res := newValidationResults()
 	if p.OIDC {
 		res.addWarningf(
@@ -1501,9 +1505,9 @@ func (p *policiesCfg) addOIDCConfig(
 			authExtraArgs = strings.Join(oidc.AuthExtraArgs, "&")
 		}
 
-		// Handle SSL verification for JWKS
-		var trustedCertPath string
+		trustedCertPath := policyOpts.defaultCABundle
 		if oidc.SSLVerify && oidc.TrustedCertSecret != "" {
+			// Override default CA bundle if trusted cert secret is provided
 			trustedCertSecretKey := fmt.Sprintf("%s/%s", polNamespace, oidc.TrustedCertSecret)
 			trustedCertSecretRef := secretRefs[trustedCertSecretKey]
 
@@ -1531,19 +1535,6 @@ func (p *policiesCfg) addOIDCConfig(
 			caFields := strings.Fields(trustedCertSecretRef.Path)
 			if len(caFields) > 0 {
 				trustedCertPath = caFields[0]
-			}
-		} else if oidc.SSLVerify && oidc.TrustedCertSecret == "" {
-			osr, err := readOSRelease()
-			if err != nil {
-				res.addWarningf("OIDC policy %s could not read OS release info to load CA bundle: %v", polKey, err)
-				res.isError = true
-				return res
-			}
-			trustedCertPath = getOSCABundlePath(string(osr))
-			if _, err := os.Stat(trustedCertPath); os.IsNotExist(err) {
-				res.addWarningf("OIDC policy %s could not load OS CA bundle: %v", polKey, err)
-				res.isError = true
-				return res
 			}
 		}
 
@@ -1866,7 +1857,7 @@ func (vsc *virtualServerConfigurator) generatePolicies(
 			case pol.Spec.EgressMTLS != nil:
 				res = config.addEgressMTLSConfig(pol.Spec.EgressMTLS, key, polNamespace, policyOpts.secretRefs)
 			case pol.Spec.OIDC != nil:
-				res = config.addOIDCConfig(pol.Spec.OIDC, key, polNamespace, policyOpts.secretRefs, vsc.oidcPolCfg)
+				res = config.addOIDCConfig(pol.Spec.OIDC, key, polNamespace, policyOpts, vsc.oidcPolCfg)
 			case pol.Spec.APIKey != nil:
 				res = config.addAPIKeyConfig(pol.Spec.APIKey, key, polNamespace, ownerDetails.vsNamespace,
 					ownerDetails.vsName, policyOpts.secretRefs)
@@ -3567,23 +3558,4 @@ func generateDosCfg(dosResource *appProtectDosResource) *version2.Dos {
 	dos.ApDosSecurityLogEnable = dosResource.AppProtectDosLogEnable
 	dos.ApDosLogConf = dosResource.AppProtectDosLogConfFile
 	return dos
-}
-
-func readOSRelease() ([]byte, error) {
-	return os.ReadFile("/etc/os-release")
-}
-
-func getOSCABundlePath(s string) string {
-	alpineRegex := regexp.MustCompile(`ID=\"?alpine\"?`)
-	rhelRegex := regexp.MustCompile(`ID=\"?rhel\"?`)
-	// Logic to get the OS CA bundle path.
-	caFilePath := "/etc/ssl/certs/ca-certificates.crt" // Default for Debian, the default image base
-
-	if alpineRegex.MatchString(s) {
-		caFilePath = "/etc/ssl/cert.pem"
-	} else if rhelRegex.MatchString(s) {
-		caFilePath = "/etc/pki/tls/certs/ca-bundle.crt"
-	}
-
-	return caFilePath
 }

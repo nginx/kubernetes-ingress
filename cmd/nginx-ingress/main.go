@@ -79,6 +79,7 @@ const (
 	socketPath               = "/var/lib/nginx"
 	fatalEventFlushTime      = 200 * time.Millisecond
 	secretErrorReason        = "SecretError"
+	fileErrorReason          = "FileError"
 	configMapErrorReason     = "ConfigMapError"
 )
 
@@ -191,6 +192,12 @@ func main() {
 	if err != nil {
 		logEventAndExit(ctx, eventRecorder, pod, secretErrorReason, err)
 	}
+
+	caBundlePath, err := nginxManager.GetOSCABundlePath()
+	if err != nil {
+		logEventAndExit(ctx, eventRecorder, pod, fileErrorReason, err)
+	}
+
 	globalConfigurationValidator := createGlobalConfigurationValidator()
 
 	mustProcessGlobalConfiguration(ctx)
@@ -226,6 +233,7 @@ func main() {
 		StaticSSLPath:                  staticSSLPath,
 		NginxVersion:                   nginxVersion,
 		AppProtectBundlePath:           appProtectBundlePath,
+		DefaultCABundle:                caBundlePath,
 	}
 
 	if *nginxPlus {

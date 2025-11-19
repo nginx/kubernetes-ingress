@@ -209,3 +209,9 @@ func (fm *FakeManager) UpsertSplitClientsKeyVal(_ string, _ string, _ string) {
 func (fm *FakeManager) DeleteKeyValStateFiles(_ string) {
 	nl.Debugf(fm.logger, "Deleting keyval state files")
 }
+
+// GetOSCABundlePath is a fake implementation of GetOSCABundlePath
+func (fm *FakeManager) GetOSCABundlePath() (string, error) {
+	nl.Debugf(fm.logger, "Getting OS CA Bundle Path")
+	return "/etc/ssl/certs/ca-certificates.crt", nil
+}

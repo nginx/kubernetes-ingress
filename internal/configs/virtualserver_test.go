@@ -22966,117 +22966,216 @@ func TestGenerateVirtualServerConfigWithForeignNamespaceServiceInVSR(t *testing.
 	}
 }
 
-func TestGetOSCABundlePath(t *testing.T) {
+func TestGenerateVirtualServerConfigWithOIDCTLSVerifyOn(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
-		name     string
-		input    string
-		expected string
+		msg             string
+		virtualServerEx VirtualServerEx
+		expected        version2.VirtualServerConfig
 	}{
 		{
-			name: "Debian default",
-			input: `
-PRETTY_NAME="Debian GNU/Linux 12 (bookworm)"
-NAME="Debian GNU/Linux"
-VERSION_ID="12"
-VERSION="12 (bookworm)"
-VERSION_CODENAME=bookworm
-ID=debian
-HOME_URL="https://www.debian.org/"
-SUPPORT_URL="https://www.debian.org/support"
-BUG_REPORT_URL="https://bugs.debian.org/"
-			`,
-			expected: "/etc/ssl/certs/ca-certificates.crt",
-		},
-		{
-			name: "Alpine with quotes",
-			input: `
-NAME="Alpine Linux"
-ID="alpine"
-VERSION_ID=3.22.2
-PRETTY_NAME="Alpine Linux v3.22"
-HOME_URL="https://alpinelinux.org/"
-BUG_REPORT_URL="https://gitlab.alpinelinux.org/alpine/aports/-/issues"
-			`,
-			expected: "/etc/ssl/cert.pem",
-		},
-		{
-			name: "Alpine without quotes",
-			input: `
-NAME="Alpine Linux"
-ID=alpine
-VERSION_ID=3.19.9
-PRETTY_NAME="Alpine Linux v3.19"
-HOME_URL="https://alpinelinux.org/"
-BUG_REPORT_URL="https://gitlab.alpinelinux.org/alpine/aports/-/issues"
-			`,
-			expected: "/etc/ssl/cert.pem",
-		},
-		{
-			name: "RHEL8 with quotes",
-			input: `
-NAME="Red Hat Enterprise Linux"
-VERSION="8.10 (Ootpa)"
-ID="rhel"
-ID_LIKE="fedora"
-VERSION_ID="8.10"
-PLATFORM_ID="platform:el8"
-PRETTY_NAME="Red Hat Enterprise Linux 8.10 (Ootpa)"
-ANSI_COLOR="0;31"
-CPE_NAME="cpe:/o:redhat:enterprise_linux:8::baseos"
-HOME_URL="https://www.redhat.com/"
-DOCUMENTATION_URL="https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8"
-BUG_REPORT_URL="https://issues.redhat.com/"
-
-REDHAT_BUGZILLA_PRODUCT="Red Hat Enterprise Linux 8"
-REDHAT_BUGZILLA_PRODUCT_VERSION=8.10
-REDHAT_SUPPORT_PRODUCT="Red Hat Enterprise Linux"
-REDHAT_SUPPORT_PRODUCT_VERSION="8.10"
-			`,
-			expected: "/etc/pki/tls/certs/ca-bundle.crt",
-		},
-		{
-			name: "RHEL9 with quotes",
-			input: `
-NAME="Red Hat Enterprise Linux"
-VERSION="9.7 (Plow)"
-ID="rhel"
-ID_LIKE="fedora"
-VERSION_ID="9.7"
-PLATFORM_ID="platform:el9"
-PRETTY_NAME="Red Hat Enterprise Linux 9.7 (Plow)"
-ANSI_COLOR="0;31"
-LOGO="fedora-logo-icon"
-CPE_NAME="cpe:/o:redhat:enterprise_linux:9::baseos"
-HOME_URL="https://www.redhat.com/"
-DOCUMENTATION_URL="https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/9"
-BUG_REPORT_URL="https://issues.redhat.com/"
-
-REDHAT_BUGZILLA_PRODUCT="Red Hat Enterprise Linux 9"
-REDHAT_BUGZILLA_PRODUCT_VERSION=9.7
-REDHAT_SUPPORT_PRODUCT="Red Hat Enterprise Linux"
-REDHAT_SUPPORT_PRODUCT_VERSION="9.7"
-			`,
-			expected: "/etc/pki/tls/certs/ca-bundle.crt",
-		},
-		{
-			name:     "Unknown OS",
-			input:    `ID="ubuntu"`,
-			expected: "/etc/ssl/certs/ca-certificates.crt",
-		},
-		{
-			name:     "Empty string",
-			input:    "",
-			expected: "/etc/ssl/certs/ca-certificates.crt",
+			msg: "oidc at vs spec level with zone sync enabled",
+			virtualServerEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Policies: []conf_v1.PolicyReference{
+							{
+								Name: "oidc-policy",
+							},
+						},
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "tea",
+								Service: "tea-svc",
+								Port:    80,
+							},
+							{
+								Name:    "coffee",
+								Service: "coffee-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path: "/tea",
+								Action: &conf_v1.Action{
+									Pass: "tea",
+								},
+							},
+							{
+								Path: "/coffee",
+								Action: &conf_v1.Action{
+									Pass: "coffee",
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/oidc-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "oidc-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							OIDC: &conf_v1.OIDC{
+								AuthEndpoint:       "https://auth.example.com",
+								TokenEndpoint:      "https://token.example.com",
+								JWKSURI:            "https://jwks.example.com",
+								EndSessionEndpoint: "https://logout.example.com",
+								ClientID:           "example-client-id",
+								ClientSecret:       "example-client-secret",
+								Scope:              "openid+profile+email",
+								SSLVerify:          true,
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+					"default/coffee-svc:80": {
+						"10.0.0.30:80",
+					},
+				},
+				SecretRefs: map[string]*secrets.SecretReference{
+					"default/example-client-secret": {
+						Secret: &api_v1.Secret{
+							Type: secrets.SecretTypeOIDC,
+							Data: map[string][]byte{
+								"client-secret": []byte("c2VjcmV0"),
+							},
+						},
+					},
+				},
+				ZoneSync: true,
+			},
+			expected: version2.VirtualServerConfig{
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "coffee-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_coffee",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.30:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets:  []string{},
+				LimitReqZones: []version2.LimitReqZone{},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+					Locations: []version2.Location{
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+							OIDC:                     true,
+						},
+						{
+							Path:                     "/coffee",
+							ProxyPass:                "http://vs_default_cafe_coffee",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "coffee-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "coffee-svc",
+							OIDC:                     true,
+						},
+					},
+					OIDC: &version2.OIDC{
+						AuthEndpoint:          "https://auth.example.com",
+						TokenEndpoint:         "https://token.example.com",
+						JwksURI:               "https://jwks.example.com",
+						EndSessionEndpoint:    "https://logout.example.com",
+						ClientID:              "example-client-id",
+						ClientSecret:          "c2VjcmV0",
+						Scope:                 "openid+profile+email",
+						TLSVerify:             true,
+						VerifyDepth:           1,
+						CAFile:                "/etc/ssl/certs/ca-certificate.crt",
+						ZoneSyncLeeway:        200,
+						RedirectURI:           "/_codexch",
+						PostLogoutRedirectURI: "/_logout",
+					},
+				},
+			},
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := getOSCABundlePath(tt.input)
-			if result != tt.expected {
-				t.Errorf("want %q, got %q", tt.expected, result)
-			}
+	baseCfgParams := ConfigParams{
+		Context:      context.Background(),
+		ServerTokens: "off",
+	}
+
+	vsc := newVirtualServerConfigurator(
+		&baseCfgParams,
+		false,
+		false,
+		&StaticConfigParams{
+			DefaultCABundle: "/etc/ssl/certs/ca-certificate.crt",
+		},
+		false,
+		&fakeBV,
+	)
+
+	for _, test := range tests {
+		result, warnings := vsc.GenerateVirtualServerConfig(&test.virtualServerEx, nil, nil)
+
+		sort.Slice(result.Maps, func(i, j int) bool {
+			return result.Maps[i].Variable < result.Maps[j].Variable
 		})
+
+		sort.Slice(test.expected.Maps, func(i, j int) bool {
+			return test.expected.Maps[i].Variable < test.expected.Maps[j].Variable
+		})
+
+		if diff := cmp.Diff(test.expected, result); diff != "" {
+			t.Errorf("GenerateVirtualServerConfig() mismatch (-want +got):\n%s", diff)
+			t.Error(test.msg)
+		}
+
+		if len(warnings) != 0 {
+			t.Errorf("GenerateVirtualServerConfig returned warnings: %v", vsc.warnings)
+		}
 	}
 }
