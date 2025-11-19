@@ -180,14 +180,13 @@ var yamlSecrets = []yamlSecret{
 			locality:     []string{"San Francisco"},
 			province:     []string{"CA"},
 			commonName:   "cafe.example.com",
-			dnsNames:     []string{"example.com", "*.example.com"},
+			dnsNames:     []string{"cafe.example.com"},
 		},
 		valid: secretShouldHaveValidTLSCrt,
 		symlinks: []string{
 			"/tests/data/tls/tls-secret.yaml",
 			"/tests/data/virtual-server-tls/tls-secret.yaml",
 			"/tests/data/prometheus/secret.yaml",
-			"/tests/data/service-insight/secret.yaml",
 			"/tests/data/transport-server-tcp-load-balance/new-tls-secret.yaml",
 		},
 		usedIn: []string{
@@ -358,6 +357,26 @@ var yamlSecrets = []yamlSecret{
 		},
 		usedIn: []string{
 			"tests/suite/test_transport_server_tcp_load_balance.py - needed for subject info and common name",
+		},
+	},
+
+	{
+		secretName: "test-secret",
+		fileName:   "tls-secret-test.yaml",
+		templateData: templateData{
+			country:      []string{"US"},
+			organization: []string{"Internet Widgits Pty Ltd"},
+			locality:     []string{"San Francisco"},
+			province:     []string{"CA"},
+			commonName:   "cafe.example.com",
+			dnsNames:     []string{"cafe.example.com"},
+		},
+		valid: secretShouldHaveValidTLSCrt,
+		symlinks: []string{
+			"/tests/data/service-insight/secret.yaml",
+		},
+		usedIn: []string{
+			"tests/suite/test_virtual_server_service_insight.py - secret name common name",
 		},
 	},
 }
