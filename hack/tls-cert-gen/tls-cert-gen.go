@@ -90,7 +90,7 @@ func main() {
 
 		err = printYaml(secret, projectRoot)
 		if err != nil {
-			log.Fatalf(logger, "Failed to print tls key: %v: %v", secret, err)
+			log.Fatalf(logger, "Failed to print tls key: %s %v", secret.fileName, err)
 		}
 	}
 }
