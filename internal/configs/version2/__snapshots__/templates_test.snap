@@ -2844,6 +2844,245 @@ server {
 
 ---
 
+[TestExecuteVirtualServerTemplate_WithCustomOIDCRedirectLocation - 1]
+    # Advanced configuration START
+    set $internal_error_message "NGINX / OpenID Connect login failure\n";
+    set $pkce_id "";
+    set $idp_sid "";
+    # resolver 8.8.8.8; # For DNS lookup of IdP endpoints;
+    subrequest_output_buffer_size 32k; # To fit a complete tokenset response
+    gunzip on; # Decompress IdP responses if necessary
+    # Advanced configuration END
+
+    location = /_jwks_uri {
+        internal;
+        proxy_cache jwk;                              # Cache the JWK Set received from IdP
+        proxy_cache_valid 200 12h;                    # How long to consider keys "fresh"
+        proxy_cache_use_stale error timeout updating; # Use old JWK Set if cannot reach IdP
+        proxy_ssl_server_name on;                     # Send SNI to IdP host
+
+        proxy_method GET;                             # In case client request was non-GET
+        proxy_set_header Content-Length "";           # ''
+        proxy_pass $oidc_jwt_keyfile;                 # Expecting to find a URI here
+        proxy_ignore_headers Cache-Control Expires Set-Cookie; # Does not influence caching
+    }
+
+    location @do_oidc_flow {
+        status_zone "OIDC start";
+        js_content oidc.auth;
+        default_type text/plain; # In case we throw an error
+    }
+
+    set $redir_location "/custom-location";
+    location = /custom-location {
+        # This location is called by the IdP after successful authentication
+        status_zone "OIDC code exchange";
+        js_content oidc.codeExchange;
+        error_page 500 502 504 @oidc_error;
+    }
+
+    location = /_token {
+        # This location is called by oidcCodeExchange(). We use the proxy_ directives
+        # to construct the OpenID Connect token request, as per:
+        #  http://openid.net/specs/openid-connect-core-1_0.html#TokenRequest
+        internal;
+
+        # Exclude client headers to avoid CORS errors with certain IdPs (e.g., Microsoft Entra ID)
+        proxy_pass_request_headers off;
+        proxy_ssl_server_name on;    # Send SNI to IdP host
+
+        proxy_set_header      Content-Type "application/x-www-form-urlencoded";
+        proxy_set_header      Authorization $arg_secret_basic;
+        proxy_pass            $oidc_token_endpoint;
+    }
+
+    location = /_refresh {
+        # This location is called by oidcAuth() when performing a token refresh. We
+        # use the proxy_ directives to construct the OpenID Connect token request, as per:
+        #  https://openid.net/specs/openid-connect-core-1_0.html#RefreshingAccessToken
+        internal;
+
+        # Exclude client headers to avoid CORS errors with certain IdPs (e.g., Microsoft Entra ID)
+        proxy_pass_request_headers off;
+        proxy_ssl_server_name on;                    # Send SNI to IdP host
+
+        proxy_set_header      Content-Type "application/x-www-form-urlencoded";
+        proxy_set_header      Authorization $arg_secret_basic;
+        proxy_pass            $oidc_token_endpoint;
+    }
+
+    location = /_token_validation {
+        # Internal location to verify any JWT (e.g., id_token, logout_token)
+        # using the auth_jwt module. Extracts the claims and returns them as JSON.
+        internal;
+        auth_jwt "" token=$arg_token;
+        js_content oidc.extractTokenClaims;
+        error_page 500 502 504 @oidc_error;
+    }
+
+    location = /logout {
+        status_zone "OIDC logout";
+        add_header Set-Cookie "auth_token=; $oidc_cookie_flags";
+        add_header Set-Cookie "auth_nonce=; $oidc_cookie_flags";
+        add_header Set-Cookie "auth_redir=; $oidc_cookie_flags";
+        js_content oidc.logout;
+    }
+
+    location = /front_channel_logout {
+        status_zone "OIDC logout";
+        add_header Cache-Control "no-store";
+        default_type text/plain;
+        js_content oidc.handleFrontChannelLogout;
+    }
+
+    location = /_logout {
+        # This location is the default value of $oidc_logout_redirect (in case it wasn't configured)
+        default_type text/plain;
+        return 200 "Logged out\n";
+    }
+
+    location @oidc_error {
+        # This location is called when oidcAuth() or oidcCodeExchange() returns an error
+        status_zone "OIDC error";
+        default_type text/plain;
+        return 500 $internal_error_message;
+    }
+
+    # location /api/ {
+    #     api write=on;
+    #     allow 127.0.0.1; # Only the NGINX host may call the NGINX Plus API
+    #     deny all;
+    #     access_log off;
+    # }
+
+# vim: syntax=nginx
+
+---
+
+[TestExecuteVirtualServerTemplate_WithOIDCTLSVerify - 1]
+    # Advanced configuration START
+    set $internal_error_message "NGINX / OpenID Connect login failure\n";
+    set $pkce_id "";
+    set $idp_sid "";
+    # resolver 8.8.8.8; # For DNS lookup of IdP endpoints;
+    subrequest_output_buffer_size 32k; # To fit a complete tokenset response
+    gunzip on; # Decompress IdP responses if necessary
+    # Advanced configuration END
+
+    location = /_jwks_uri {
+        internal;
+        proxy_cache jwk;                              # Cache the JWK Set received from IdP
+        proxy_cache_valid 200 12h;                    # How long to consider keys "fresh"
+        proxy_cache_use_stale error timeout updating; # Use old JWK Set if cannot reach IdP
+        proxy_ssl_verify on;
+        proxy_ssl_verify_depth 1;
+        proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificate.crt;
+        proxy_ssl_server_name on;                     # Send SNI to IdP host
+
+        proxy_method GET;                             # In case client request was non-GET
+        proxy_set_header Content-Length "";           # ''
+        proxy_pass $oidc_jwt_keyfile;                 # Expecting to find a URI here
+        proxy_ignore_headers Cache-Control Expires Set-Cookie; # Does not influence caching
+    }
+
+    location @do_oidc_flow {
+        status_zone "OIDC start";
+        js_content oidc.auth;
+        default_type text/plain; # In case we throw an error
+    }
+
+    set $redir_location "";
+    location =  {
+        # This location is called by the IdP after successful authentication
+        status_zone "OIDC code exchange";
+        js_content oidc.codeExchange;
+        error_page 500 502 504 @oidc_error;
+    }
+
+    location = /_token {
+        # This location is called by oidcCodeExchange(). We use the proxy_ directives
+        # to construct the OpenID Connect token request, as per:
+        #  http://openid.net/specs/openid-connect-core-1_0.html#TokenRequest
+        internal;
+
+        # Exclude client headers to avoid CORS errors with certain IdPs (e.g., Microsoft Entra ID)
+        proxy_pass_request_headers off;
+        proxy_ssl_verify on;
+        proxy_ssl_verify_depth 1;
+        proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificate.crt;
+        proxy_ssl_server_name on;    # Send SNI to IdP host
+
+        proxy_set_header      Content-Type "application/x-www-form-urlencoded";
+        proxy_set_header      Authorization $arg_secret_basic;
+        proxy_pass            $oidc_token_endpoint;
+    }
+
+    location = /_refresh {
+        # This location is called by oidcAuth() when performing a token refresh. We
+        # use the proxy_ directives to construct the OpenID Connect token request, as per:
+        #  https://openid.net/specs/openid-connect-core-1_0.html#RefreshingAccessToken
+        internal;
+
+        # Exclude client headers to avoid CORS errors with certain IdPs (e.g., Microsoft Entra ID)
+        proxy_pass_request_headers off;
+        proxy_ssl_verify on;
+        proxy_ssl_verify_depth 1;
+        proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificate.crt;
+        proxy_ssl_server_name on;                    # Send SNI to IdP host
+
+        proxy_set_header      Content-Type "application/x-www-form-urlencoded";
+        proxy_set_header      Authorization $arg_secret_basic;
+        proxy_pass            $oidc_token_endpoint;
+    }
+
+    location = /_token_validation {
+        # Internal location to verify any JWT (e.g., id_token, logout_token)
+        # using the auth_jwt module. Extracts the claims and returns them as JSON.
+        internal;
+        auth_jwt "" token=$arg_token;
+        js_content oidc.extractTokenClaims;
+        error_page 500 502 504 @oidc_error;
+    }
+
+    location = /logout {
+        status_zone "OIDC logout";
+        add_header Set-Cookie "auth_token=; $oidc_cookie_flags";
+        add_header Set-Cookie "auth_nonce=; $oidc_cookie_flags";
+        add_header Set-Cookie "auth_redir=; $oidc_cookie_flags";
+        js_content oidc.logout;
+    }
+
+    location = /front_channel_logout {
+        status_zone "OIDC logout";
+        add_header Cache-Control "no-store";
+        default_type text/plain;
+        js_content oidc.handleFrontChannelLogout;
+    }
+
+    location = /_logout {
+        # This location is the default value of $oidc_logout_redirect (in case it wasn't configured)
+        default_type text/plain;
+        return 200 "Logged out\n";
+    }
+
+    location @oidc_error {
+        # This location is called when oidcAuth() or oidcCodeExchange() returns an error
+        status_zone "OIDC error";
+        default_type text/plain;
+        return 500 $internal_error_message;
+    }
+
+    # location /api/ {
+    #     api write=on;
+    #     allow 127.0.0.1; # Only the NGINX host may call the NGINX Plus API
+    #     deny all;
+    #     access_log off;
+    # }
+
+# vim: syntax=nginx
+
+---
+
 [TestTLSPassthroughHosts - 1]
 # mapping between TLS Passthrough hosts and unix sockets
 

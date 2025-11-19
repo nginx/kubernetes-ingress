@@ -811,7 +811,7 @@ func TestExecuteVirtualServerTemplateWithAPIKeyPolicyNGINXPlus(t *testing.T) {
 func TestExecuteVirtualServerTemplate_WithCustomOIDCRedirectLocation(t *testing.T) {
 	t.Parallel()
 	executor := newTmplExecutorNGINXPlus(t)
-	got, err := executor.ExecuteOIDCTemplate(virtualServerCfg.Server.OIDC)
+	got, err := executor.ExecuteOIDCTemplate(virtualServerCfgWithOIDCAndCustomRedirectURI.Server.OIDC)
 	if err != nil {
 		t.Error(err)
 	}
@@ -837,6 +837,31 @@ func TestExecuteVirtualServerTemplate_WithCustomOIDCRedirectLocation(t *testing.
 	if !bytes.Contains(got, []byte(expectedRedirVar)) {
 		t.Errorf("Should set $redir_location to custom value: %s", expectedRedirVar)
 	}
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
+}
+
+func TestExecuteVirtualServerTemplate_WithOIDCTLSVerify(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteOIDCTemplate(virtualServerCfgWithOIDCAndTLSVerify.Server.OIDC)
+	if err != nil {
+		t.Error(err)
+	}
+
+	expectedDirectives := []string{
+		"proxy_ssl_verify on;",
+		"proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificate.crt;",
+		"proxy_ssl_verify_depth 1;",
+	}
+
+	for _, directive := range expectedDirectives {
+		if !bytes.Contains(got, []byte(directive)) {
+			t.Errorf("Should contain directive: %s", directive)
+		}
+	}
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
 }
 
 func TestExecuteVirtualServerTemplateWithOIDCAndPKCEPolicyNGINXPlus(t *testing.T) {
@@ -1523,7 +1548,6 @@ var (
 				JwksURI:               "https://idp.example.com/jwks",
 				TokenEndpoint:         "https://idp.example.com/token",
 				EndSessionEndpoint:    "https://idp.example.com/logout",
-				RedirectURI:           "/custom-location",
 				PostLogoutRedirectURI: "https://example.com/logout",
 				ZoneSyncLeeway:        0,
 				Scope:                 "openid+profile+email",
@@ -2811,6 +2835,42 @@ var (
 			ProxyProtocol: true,
 			OIDC: &OIDC{
 				PKCEEnable: true,
+			},
+			NGINXDebugLevel: "error",
+			Locations: []Location{
+				{
+					Path: "/",
+				},
+			},
+		},
+	}
+
+	virtualServerCfgWithOIDCAndCustomRedirectURI = VirtualServerConfig{
+		Server: Server{
+			ServerName:    "example.com",
+			StatusZone:    "example.com",
+			ProxyProtocol: true,
+			OIDC: &OIDC{
+				RedirectURI: "/custom-location",
+			},
+			NGINXDebugLevel: "error",
+			Locations: []Location{
+				{
+					Path: "/",
+				},
+			},
+		},
+	}
+
+	virtualServerCfgWithOIDCAndTLSVerify = VirtualServerConfig{
+		Server: Server{
+			ServerName:    "example.com",
+			StatusZone:    "example.com",
+			ProxyProtocol: true,
+			OIDC: &OIDC{
+				TLSVerify:   true,
+				VerifyDepth: 1,
+				CAFile:      "/etc/ssl/certs/ca-certificate.crt",
 			},
 			NGINXDebugLevel: "error",
 			Locations: []Location{
