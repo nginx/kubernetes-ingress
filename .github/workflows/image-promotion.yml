@@ -275,8 +275,8 @@ jobs:
    runs-on: ubuntu-24.04
    needs: [release-oss]
    steps:
-     - name: Checkout Repository
-       uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - name: Checkout Repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
       - name: Azure login
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
@@ -318,8 +318,8 @@ jobs:
      fail-fast: false
      matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_oss ) }}
    steps:
-     - name: Checkout Repository
-       uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - name: Checkout Repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
       - name: Make directory for security scan results
         id: directory
@@ -380,10 +380,10 @@ jobs:
           path: "${{ steps.directory.outputs.directory }}/"
           overwrite: true
 
-     - name: Upload Scan results to GitHub Security tab
-       uses: github/codeql-action/upload-sarif@e12f0178983d466f2f6028f5cc7a6d786fd97f4b # v4.31.4
-       with:
-         sarif_file: "${{ steps.directory.outputs.directory }}/"
+      - name: Upload Scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@e12f0178983d466f2f6028f5cc7a6d786fd97f4b # v4.31.4
+        with:
+          sarif_file: "${{ steps.directory.outputs.directory }}/"
 
   scan-docker-plus:
    name: Scan ${{ matrix.image }}-${{ matrix.target }}
@@ -398,8 +398,8 @@ jobs:
      fail-fast: false
      matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_plus ) }}
    steps:
-     - name: Checkout Repository
-       uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - name: Checkout Repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
       - name: Make directory for security scan results
         id: directory
@@ -460,10 +460,10 @@ jobs:
           path: "${{ steps.directory.outputs.directory }}/"
           overwrite: true
 
-     - name: Upload Scan results to GitHub Security tab
-       uses: github/codeql-action/upload-sarif@e12f0178983d466f2f6028f5cc7a6d786fd97f4b # v4.31.4
-       with:
-         sarif_file: "${{ steps.directory.outputs.directory }}/"
+      - name: Upload Scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@e12f0178983d466f2f6028f5cc7a6d786fd97f4b # v4.31.4
+        with:
+          sarif_file: "${{ steps.directory.outputs.directory }}/"
 
   scan-docker-nap:
    name: Scan ${{ matrix.image }}-${{ matrix.target }}-${{ matrix.nap_modules }}
@@ -478,8 +478,8 @@ jobs:
      fail-fast: false
      matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_nap ) }}
    steps:
-     - name: Checkout Repository
-       uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - name: Checkout Repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
       - name: NAP modules
         id: nap_modules
@@ -547,11 +547,11 @@ jobs:
           path: "${{ steps.directory.outputs.directory }}/"
           overwrite: true
 
-     - name: Upload Scan results to GitHub Security tab
-       uses: github/codeql-action/upload-sarif@e12f0178983d466f2f6028f5cc7a6d786fd97f4b # v4.31.4
-       with:
-         sarif_file: "${{ steps.directory.outputs.directory }}/"
-       continue-on-error: true
+      - name: Upload Scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@e12f0178983d466f2f6028f5cc7a6d786fd97f4b # v4.31.4
+        with:
+          sarif_file: "${{ steps.directory.outputs.directory }}/"
+        continue-on-error: true
 
   update-release-draft:
    name: Update Release Draft
@@ -560,8 +560,8 @@ jobs:
    permissions:
      contents: write
    steps:
-     - name: Checkout Repository
-       uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - name: Checkout Repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
       - name: Create/Update Draft
         uses: lucacome/draft-release@45e4395a3d8463abdb1747b20445b9be16ef6409 # v2.0.1
