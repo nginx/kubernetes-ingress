@@ -198,7 +198,7 @@ var yamlSecrets = []yamlSecret{
 	},
 	{
 		secretName: "tls-secret",
-		fileName:   "tls-secret-invalid-type.yaml",
+		fileName:   "tls-secret-invalid-type-some.yaml",
 		templateData: templateData{
 			country:            []string{"IE"},
 			organization:       []string{"F5 NGINX"},
@@ -220,7 +220,7 @@ var yamlSecrets = []yamlSecret{
 
 	{
 		secretName: "wildcard-tls-secret",
-		fileName:   "tls-secret-invalid-type.yaml",
+		fileName:   "tls-secret-invalid-type-broken.yaml",
 		templateData: templateData{
 			country:            []string{"IE"},
 			organization:       []string{"F5 NGINX"},
@@ -298,7 +298,7 @@ var yamlSecrets = []yamlSecret{
 
 	{
 		secretName: "tls-secret",
-		fileName:   "tls-secret.yaml",
+		fileName:   "vs-tls-secret.yaml",
 		templateData: templateData{
 			country:            []string{"IE"},
 			organization:       []string{"F5 NGINX"},

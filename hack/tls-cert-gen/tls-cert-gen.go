@@ -71,7 +71,15 @@ func main() {
 		log.Fatalf(logger, "filepath.Abs: %v", err)
 	}
 
+	filenames := make(map[string]struct{})
+
 	for _, secret := range yamlSecrets {
+		if _, ok := filenames[secret.fileName]; ok {
+			log.Fatalf(logger, "secret contains duplicated files: %v", secret.fileName)
+		}
+
+		filenames[secret.fileName] = struct{}{}
+
 		err = printYaml(secret, projectRoot)
 		if err != nil {
 			log.Fatalf(logger, "Failed to print tls key: %v: %v", secret, err)
