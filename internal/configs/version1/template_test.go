@@ -303,6 +303,47 @@ func TestExecuteTemplate_ForMergeableIngressWithOneMinionWithPathRegexAnnotation
 	snaps.MatchSnapshot(t, buf.String())
 }
 
+func TestExecuteTemplate_ForIngressWithClientBodyBufferSize(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	testCfg := ingressCfg
+	testCfg.Servers[0].Locations[0].ClientBodyBufferSize = "16k"
+
+	err := tmpl.Execute(buf, testCfg)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := "client_body_buffer_size 16k;"
+	if !strings.Contains(buf.String(), want) {
+		t.Errorf("want %q in generated config", want)
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForIngressWithoutClientBodyBufferSize(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfg)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := "client_body_buffer_size 8k"
+	if strings.Contains(buf.String(), want) {
+		t.Errorf("want %q in generated config when ClientBodyBufferSize is not set", want)
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
 func TestExecuteTemplate_ForMergeableIngressWithSecondMinionWithPathRegexAnnotation(t *testing.T) {
 	t.Parallel()
 

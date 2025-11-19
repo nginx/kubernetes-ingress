@@ -12,6 +12,7 @@ import (
 type ConfigParams struct {
 	Context                                context.Context
 	ClientMaxBodySize                      string
+	ClientBodyBufferSize                   string
 	DefaultServerAccessLogOff              bool
 	DefaultServerReturn                    string
 	FailTimeout                            string
@@ -52,6 +53,7 @@ type ConfigParams struct {
 	MainWorkerProcesses                    string
 	MainWorkerRlimitNofile                 string
 	MainWorkerShutdownTimeout              string
+	MainClientBodyBufferSize               string
 	MaxConns                               int
 	MaxFails                               int
 	AppProtectEnable                       string
@@ -247,6 +249,7 @@ func NewDefaultConfigParams(ctx context.Context, isPlus bool) *ConfigParams {
 		MainServerNamesHashMaxSize:    "1024",
 		MainMapHashBucketSize:         "256",
 		MainMapHashMaxSize:            "2048",
+		MainClientBodyBufferSize:      "8k",
 		ProxyBuffering:                true,
 		MainWorkerProcesses:           "auto",
 		MainWorkerConnections:         "1024",

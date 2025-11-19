@@ -34,6 +34,7 @@ const (
 	proxyPassHeadersAnnotation            = "nginx.org/proxy-pass-headers" // #nosec G101
 	proxySetHeadersAnnotation             = "nginx.org/proxy-set-headers"
 	clientMaxBodySizeAnnotation           = "nginx.org/client-max-body-size"
+	clientBodyBufferSizeAnnotation        = "nginx.org/client-body-buffer-size"
 	redirectToHTTPSAnnotation             = "nginx.org/redirect-to-https"
 	sslRedirectAnnotation                 = "ingress.kubernetes.io/ssl-redirect"
 	proxyBufferingAnnotation              = "nginx.org/proxy-buffering"
@@ -178,6 +179,10 @@ var (
 		clientMaxBodySizeAnnotation: {
 			validateRequiredAnnotation,
 			validateOffsetAnnotation,
+		},
+		clientBodyBufferSizeAnnotation: {
+			validateRequiredAnnotation,
+			validateSizeAnnotation,
 		},
 		redirectToHTTPSAnnotation: {
 			validateRequiredAnnotation,
