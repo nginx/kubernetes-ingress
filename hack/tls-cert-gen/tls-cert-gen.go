@@ -7,10 +7,10 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha1" //gosec:disable G505 -- A Certificate Revocation List needs a Subject Key Identifier, and per RFC5280, that needs to be an SHA1 hash https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.2
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"errors"
 	"fmt"
 	"log/slog"
 	"math/big"
@@ -20,6 +20,10 @@ import (
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
+
+	//
+	// "github.com/nginx/kubernetes-ingress/internal/configs"
+	// "github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	log "github.com/nginx/kubernetes-ingress/internal/logger"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -89,17 +93,46 @@ func main() {
 			filenames[symlink] = struct{}{}
 		}
 
-		switch secret.secretType {
-		case v1.SecretTypeTLS:
-			err = printKubernetesTLS(secret, projectRoot)
-		case secrets.SecretTypeCA:
-			err = printNGINXOrgCA(secret, projectRoot)
-		default:
-			log.Fatalf(logger, "unknown secret type for secret: %v", secret)
-		}
-
+		err = printKubernetesTLS(secret, projectRoot)
 		if err != nil {
 			log.Fatalf(logger, "Failed to print tls key: %s %v", secret.fileName, err)
+		}
+	}
+
+	// Create MTLS bundles rather than individual certificates
+	for _, bundle := range mtlsBundles {
+		// check duplicate file and symlinks for CA
+		if _, ok := filenames[bundle.ca.fileName]; ok {
+			log.Fatalf(logger, "bundle ca contains duplicated files: %v", bundle.ca.fileName)
+		}
+
+		filenames[bundle.ca.fileName] = struct{}{}
+
+		for _, symlink := range bundle.ca.symlinks {
+			if _, ok := filenames[symlink]; ok {
+				log.Fatalf(logger, "bundle ca contains duplicated symlink for file %s: %s", bundle.ca.fileName, symlink)
+			}
+
+			filenames[symlink] = struct{}{}
+		}
+
+		// check duplicate file and symlinks for bundle client
+		if _, ok := filenames[bundle.client.fileName]; ok {
+			log.Fatalf(logger, "bundle client contains duplicated files: %v", bundle.client.fileName)
+		}
+		filenames[bundle.client.fileName] = struct{}{}
+
+		for _, symlink := range bundle.client.symlinks {
+			if _, ok := filenames[symlink]; ok {
+				log.Fatalf(logger, "bundle client contains duplicated symlink for file %s: %s", bundle.client.fileName, symlink)
+			}
+
+			filenames[symlink] = struct{}{}
+		}
+
+		err = printMTLSBundle(bundle, projectRoot)
+		if err != nil {
+			log.Fatalf(logger, "printMTLSBundle: %v", err)
 		}
 	}
 }
@@ -117,22 +150,18 @@ func publicKey(priv any) any {
 	}
 }
 
-func printNGINXOrgCA(secret yamlSecret, projectRoot string) error {
-	fmt.Printf("future functionality for %v and %s with %t", secret, projectRoot, secret.hasCRL)
-
-	if secret.hasCRL {
-		return errors.New("this is a dummy")
-	}
-
-	return nil
-}
-
 // printKubernetesTLS wraps creating the TLS certificate and key, and writes the actual
 // file, and any symbolic links to the disk.
 func printKubernetesTLS(secret yamlSecret, projectRoot string) error {
 	// This part creates the tls keys (certificate and key) based on the
 	// issuer, subject, and dns names data.
-	tlsKeys, err := printTLS(secret.templateData)
+	td, err := renderX509Template(secret.templateData)
+	if err != nil {
+		return fmt.Errorf("printing x509.Certificate based on templatedata: %w", err)
+	}
+
+	// Pass in the same template to make it a self-signed certificate
+	tlsKeys, err := generateTLSKeyPair(td, td, nil)
 	if err != nil {
 		return fmt.Errorf("failed generating TLS keys for hosts: (%s: %v): %w", secret.templateData.commonName, secret.templateData.dnsNames, err)
 	}
@@ -206,7 +235,7 @@ func writeFiles(fileContents []byte, projectRoot, fileName string, symlinks []st
 	return nil
 }
 
-// printTLS is roughly the same function as crypto/tls/generate_cert.go in the
+// generateTLSKeyPair is roughly the same function as crypto/tls/generate_cert.go in the
 // go standard library. Notable differences:
 //   - this one returns the cert/key as bytes rather than writing them as files
 //   - this one does not take input as flags or anything other
@@ -217,45 +246,25 @@ func writeFiles(fileContents []byte, projectRoot, fileName string, symlinks []st
 //   - keys are always valid from "now" until 4 days in the future. Given the
 //     short usage window of the keys, this is enough
 //   - all keys are certificate authorities (isCA is set to true for all)
-func printTLS(templateData templateData) (*JITTLSKey, error) {
+func generateTLSKeyPair(template, parent x509.Certificate, parentPriv *ecdsa.PrivateKey) (*JITTLSKey, error) {
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate private key: %w", err)
 	}
 
-	validFrom := time.Now()
-	validUntil := validFrom.Add(31 * 24 * time.Hour)
-
-	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate serial number: %w", err)
+	if parentPriv == nil {
+		parentPriv = priv
 	}
 
-	template := x509.Certificate{
-		Issuer: pkix.Name{
-			Country:      templateData.country,
-			Organization: templateData.organization,
-		},
-		Subject: pkix.Name{
-			Country:            templateData.country,
-			Organization:       templateData.organization,
-			OrganizationalUnit: templateData.organizationalUnit,
-			Locality:           templateData.locality,
-			Province:           templateData.province,
-			CommonName:         templateData.commonName,
-		},
-		DNSNames:              templateData.dnsNames,
-		SerialNumber:          serialNumber,
-		NotBefore:             validFrom,
-		NotAfter:              validUntil,
-		KeyUsage:              x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		BasicConstraintsValid: true,
-		IsCA:                  false,
-	}
+	pub := publicKey(parentPriv)
 
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, publicKey(priv), priv)
+	// pub is crypto.PublicKey
+	pkBytes, _ := x509.MarshalPKIXPublicKey(pub)
+	ski := sha1.Sum(pkBytes) //gosec:disable G401 -- A Certificate Revocation List needs a Subject Key Identifier, and per RFC5280, that needs to be an SHA1 hash https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.2
+
+	template.SubjectKeyId = ski[:]
+
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &parent, pub, parentPriv)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create certificate: %w", err)
 	}
@@ -282,7 +291,41 @@ func printTLS(templateData templateData) (*JITTLSKey, error) {
 	}, nil
 }
 
-// createYamlSecret takes in the generated TLS key in printTLS, and marshals it
+func renderX509Template(td templateData) (x509.Certificate, error) {
+	validFrom := time.Now()
+	validUntil := validFrom.Add(31 * 24 * time.Hour)
+
+	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+	if err != nil {
+		return x509.Certificate{}, fmt.Errorf("failed to generate serial number: %w", err)
+	}
+
+	return x509.Certificate{
+		Issuer: pkix.Name{
+			Country:      td.country,
+			Organization: td.organization,
+		},
+		Subject: pkix.Name{
+			Country:            td.country,
+			Organization:       td.organization,
+			OrganizationalUnit: td.organizationalUnit,
+			Locality:           td.locality,
+			Province:           td.province,
+			CommonName:         td.commonName,
+		},
+		DNSNames:              td.dnsNames,
+		SerialNumber:          serialNumber,
+		NotBefore:             validFrom,
+		NotAfter:              validUntil,
+		KeyUsage:              x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		IsCA:                  false,
+	}, nil
+}
+
+// createYamlSecret takes in the generated TLS key in generateTLSKeyPair, and marshals it
 // into a yaml file contents and returns that as a byteslice.
 func createYamlSecret(secret yamlSecret, isValid bool, tlsKeys *JITTLSKey) ([]byte, error) {
 	s := v1.Secret{
@@ -300,8 +343,41 @@ func createYamlSecret(secret yamlSecret, isValid bool, tlsKeys *JITTLSKey) ([]by
 		Type: v1.SecretTypeTLS,
 	}
 
-	if secret.secretType == secrets.SecretTypeCA {
-		s.Data[configs.CACrlKey] = s.Data[v1.TLSCertKey]
+	if !isValid {
+		s.Data[v1.TLSCertKey] = []byte(``)
+	}
+
+	if secret.secretType != "" {
+		s.Type = secret.secretType
+	}
+
+	sb, err := yaml.Marshal(s)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling kubernetes secret into yaml %v: %w", s, err)
+	}
+
+	return sb, nil
+}
+
+// createYamlCA takes in the generated TLS key in generateTLSKeyPair, and marshals it
+// into a yaml file contents and returns that as a byteslice.
+func createYamlCA(secret yamlSecret, isValid bool, tlsKeys *JITTLSKey, crl []byte) ([]byte, error) {
+	s := v1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Secret",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: secret.secretName,
+		},
+		Data: map[string][]byte{
+			configs.CACrtKey: tlsKeys.cert,
+		},
+		Type: secrets.SecretTypeCA,
+	}
+
+	if crl != nil {
+		s.Data[configs.CACrlKey] = crl
 	}
 
 	if !isValid {
@@ -318,4 +394,150 @@ func createYamlSecret(secret yamlSecret, isValid bool, tlsKeys *JITTLSKey) ([]by
 	}
 
 	return sb, nil
+}
+
+//gocyclo:ignore
+func printMTLSBundle(bundle mtlsBundle, projectRoot string) error {
+	// Render the CA x509.Certificate template
+	caTemplate, err := renderX509Template(bundle.ca.templateData)
+	if err != nil {
+		return fmt.Errorf("rendering CA template for bundle: %w", err)
+	}
+
+	// as it is a CA certificate, we need to modify certain parts of it
+	caTemplate.KeyUsage |= x509.KeyUsageCertSign | x509.KeyUsageCRLSign // so we can sign another certificate and a CRL with it
+	caTemplate.IsCA = true                                              // because it is a CA
+
+	// the CA in the bundle is self-signed
+	ca, err := generateTLSKeyPair(caTemplate, caTemplate, nil)
+	if err != nil {
+		return fmt.Errorf("generating CA: %w", err)
+	}
+
+	// We need this because Subject Key Identifier is added in the
+	// generateTLSKeyPair function, so we need to pull it out from there.
+	caTemplateDecoded, _ := pem.Decode(ca.cert)
+	caWithSKI, err := x509.ParseCertificate(caTemplateDecoded.Bytes)
+	if err != nil {
+		return fmt.Errorf("parsing CA certificate: %w", err)
+	}
+
+	caPrivateKey, err := extractPrivateKey(ca.key)
+	if err != nil {
+		return fmt.Errorf("extracting CA private key: %w", err)
+	}
+
+	// Write the CA to disk
+	caContents, err := createYamlCA(bundle.ca, true, ca, nil)
+	if err != nil {
+		return fmt.Errorf("marshaling bundle CA %s to yaml: %w", bundle.ca.fileName, err)
+	}
+
+	err = writeFiles(caContents, projectRoot, bundle.ca.fileName, bundle.ca.symlinks)
+	if err != nil {
+		return fmt.Errorf("writing bundle CA %s to project root: %w", bundle.ca.fileName, err)
+	}
+
+	// =================== Client certificate ===================
+	clientTemplate, err := renderX509Template(bundle.client.templateData)
+	if err != nil {
+		return fmt.Errorf("generating client template for bundle: %w", err)
+	}
+
+	// because this is a client certificate, we need to swap out the issuer
+	clientTemplate.Issuer = caTemplate.Subject
+
+	client, err := generateTLSKeyPair(clientTemplate, *caWithSKI, caPrivateKey) // signed by the CA from above
+	if err != nil {
+		return fmt.Errorf("generating signed client cert for bundle: %w", err)
+	}
+
+	child, _ := pem.Decode(client.cert)
+	parsedChild, err := x509.ParseCertificate(child.Bytes)
+	if err != nil {
+		return fmt.Errorf("parsing client cert for bundle: %w", err)
+	}
+	parent, _ := pem.Decode(ca.cert)
+	parsedParent, err := x509.ParseCertificate(parent.Bytes)
+	if err != nil {
+		return fmt.Errorf("parsing client cert for bundle: %w", err)
+	}
+	err = parsedChild.CheckSignatureFrom(parsedParent)
+	if err != nil {
+		return fmt.Errorf("checking client is signed by parent: %w", err)
+	}
+	fmt.Printf("client is signed by parent\n")
+
+	// Write the signed client certificate to disk
+	clientContents, err := createYamlSecret(bundle.client, true, client)
+	if err != nil {
+		return fmt.Errorf("marshaling bundle client %s to yaml: %w", bundle.client.fileName, err)
+	}
+
+	err = writeFiles(clientContents, projectRoot, bundle.client.fileName, bundle.client.symlinks)
+	if err != nil {
+		return fmt.Errorf("writing bundle CA %s to project root: %w", bundle.ca.fileName, err)
+	}
+
+	// =================== Client Revocation List ===================
+	crlTemplate := x509.RevocationList{
+		Issuer: caTemplate.Subject,
+		RevokedCertificateEntries: []x509.RevocationListEntry{
+			{
+				SerialNumber:   clientTemplate.SerialNumber,
+				RevocationTime: time.Now(),
+			},
+		},
+		ThisUpdate: time.Now(),
+		NextUpdate: time.Now().Add(31 * 24 * time.Hour),
+		Number:     big.NewInt(1),
+	}
+
+	crlOut := bytes.Buffer{}
+
+	crl, err := x509.CreateRevocationList(rand.Reader, &crlTemplate, caWithSKI, caPrivateKey)
+	if err != nil {
+		return fmt.Errorf("creating revocation list: %w", err)
+	}
+	err = pem.Encode(&crlOut, &pem.Block{
+		Type:  "X509 CRL",
+		Bytes: crl,
+	})
+	if err != nil {
+		return fmt.Errorf("encoding revocation list: %w", err)
+	}
+
+	crlContents, err := createYamlCA(bundle.ca, true, ca, crlOut.Bytes())
+	if err != nil {
+		return fmt.Errorf("marshaling bundle CA with CRL %s to yaml: %w", bundle.ca.fileName, err)
+	}
+
+	crlFilename := filepath.Base(bundle.ca.fileName) + "-crl.yaml"
+	crlSymlinks := make([]string, len(bundle.ca.symlinks))
+	for i, s := range bundle.ca.symlinks {
+		crlSymlinks[i] = filepath.Base(s) + "-crl.yaml"
+	}
+
+	err = writeFiles(crlContents, projectRoot, crlFilename, crlSymlinks)
+	if err != nil {
+		return fmt.Errorf("writing bundle CRL %s to project root: %w", bundle.ca.fileName, err)
+	}
+
+	return nil
+}
+
+func extractPrivateKey(encodedPEM []byte) (*ecdsa.PrivateKey, error) {
+	cakey, _ := pem.Decode(encodedPEM)
+
+	key, err := x509.ParsePKCS8PrivateKey(cakey.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("parsing CA key: %w", err)
+	}
+
+	privateKey, ok := key.(*ecdsa.PrivateKey)
+	if !ok {
+		return nil, fmt.Errorf("expected ECDSA private key, got %T", key)
+	}
+
+	return privateKey, nil
 }
