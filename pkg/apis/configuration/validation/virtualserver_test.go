@@ -550,6 +550,7 @@ func TestValidateUpstreams(t *testing.T) {
 					ProxyNextUpstreamTries:   5,
 					MaxConns:                 createPointerFromInt(16),
 					Type:                     "grpc",
+					ClientBodyBufferSize:     "16k",
 				},
 				{
 					Name:                     "upstream2",
@@ -742,6 +743,20 @@ func TestValidateUpstreamsFails(t *testing.T) {
 				"upstream1": {},
 			},
 			msg: "invalid value for ClientMaxBodySize",
+		},
+		{
+			upstreams: []v1.Upstream{
+				{
+					Name:                 "upstream1",
+					Service:              "test-1",
+					Port:                 80,
+					ClientBodyBufferSize: "10hello",
+				},
+			},
+			expectedUpstreamNames: map[string]sets.Empty{
+				"upstream1": {},
+			},
+			msg: "invalid value for ClientBodyBufferSize",
 		},
 		{
 			upstreams: []v1.Upstream{
