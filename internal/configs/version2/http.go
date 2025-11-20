@@ -198,6 +198,7 @@ type Location struct {
 	ProxyReadTimeout         string
 	ProxySendTimeout         string
 	ClientMaxBodySize        string
+	ClientBodyBufferSize     string
 	ProxyMaxTempFileSize     string
 	ProxyBuffering           bool
 	ProxyBuffers             string

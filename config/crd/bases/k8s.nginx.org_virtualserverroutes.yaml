@@ -878,6 +878,10 @@ spec:
                         is enabled. The default is set in the proxy-busy-buffers-size
                         ConfigMap key.'
                       type: string
+                    client-body-buffer-size:
+                      description: Sets the size of the buffer used for reading the
+                        client request body.
+                      type: string
                     client-max-body-size:
                       description: Sets the maximum allowed size of the client request
                         body. The default is set in the client-max-body-size ConfigMap
