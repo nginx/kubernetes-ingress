@@ -78,6 +78,21 @@ jobs:
           PLUS_JWT=$(echo $PLUS_CREDS | jq -r '.jwt')
           echo "::add-mask::$PLUS_JWT"
           echo "PLUS_JWT=$PLUS_JWT" >> $GITHUB_OUTPUT
+          IFS=@ CERT=$(echo $PLUS_CREDS | jq -r '.crt')
+          while read -r line; do
+            echo "::add-mask::${line}"
+          done <<< "${CERT}"
+          echo $CERT > nginx-repo.crt
+          IFS=@ KEY=$(echo $PLUS_CREDS | jq -r '.key')
+          while read -r line; do
+            echo "::add-mask::${line}"
+          done <<< "${KEY}"
+          echo $KEY > nginx-repo.key
+          IFS=@ RHEL_CREDS=$(az keyvault secret show --name rhel-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          while read -r line; do
+            echo "::add-mask::${line}"
+          done <<< "${RHEL_CREDS}"
+          echo $RHEL_CREDS > rhel_license
         if: ${{ inputs.authenticated }}
 
       - name: Authenticate to Google Cloud
@@ -163,10 +178,10 @@ jobs:
             IC_VERSION=CI
             ${{ contains(inputs.image, 'nap') && format('NAP_MODULES={0}', steps.nap_modules.outputs.modules) || '' }}
             ${{ contains(inputs.marker, 'appprotect') && 'DEBIAN_VERSION=buster-slim' || '' }}
-          secrets: |
-            ${{ contains(inputs.image, 'nap') && format('"nginx-repo.crt={0}"', secrets.NGINX_AP_CRT) || format('"nginx-repo.crt={0}"', secrets.NGINX_CRT) }}
-            ${{ contains(inputs.image, 'nap') && format('"nginx-repo.key={0}"', secrets.NGINX_AP_KEY) || format('"nginx-repo.key={0}"', secrets.NGINX_KEY) }}
-            ${{ contains(inputs.image, 'ubi') && format('"rhel_license={0}"', secrets.RHEL_LICENSE) || '' }}
+          secret-files: |
+            nginx-repo.crt=nginx-repo.crt
+            nginx-repo.key=nginx-repo.key
+            ${{ contains(inputs.image, 'ubi') && 'rhel_license=rhel_license' || '' }}
         if: ${{ !inputs.authenticated }}
 
       - name: Generate WAF v5 tgz from JSON
@@ -195,3 +210,8 @@ jobs:
           name: ${{ steps.smoke-tests.outputs.test-results-name }}
           path: ${{ steps.smoke-tests.outputs.test-results-path }}
         if: ${{ !cancelled() && steps.stable_exists.outputs.exists != 'true' }}
+
+      - name: Clean up secrets
+        run: |
+          rm -f nginx-repo.crt nginx-repo.key rhel_license
+        if: always()
