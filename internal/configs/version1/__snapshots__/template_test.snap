@@ -1277,7 +1277,6 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
-        client_body_buffer_size 16k;
         
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
