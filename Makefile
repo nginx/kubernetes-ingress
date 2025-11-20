@@ -140,7 +140,7 @@ endif
 .PHONY: build-goreleaser
 build-goreleaser: ## Build Ingress Controller binary using GoReleaser
 	@goreleaser -v || (code=$$?; printf "\033[0;31mError\033[0m: there was a problem with GoReleaser. Follow the docs to install it https://goreleaser.com/install\n"; exit $$code)
-	GOOS=linux GOPATH=$(shell go env GOPATH) GOARCH=$(strip $(ARCH)) goreleaser build --clean --debug --snapshot --id kubernetes-ingress --single-target
+	GOOS=$(strip $(GOOS)) GOPATH=$(shell go env GOPATH) GOARCH=$(strip $(ARCH)) goreleaser build --clean --snapshot --id kubernetes-ingress --single-target
 
 .PHONY: debian-image
 debian-image: build ## Create Docker image for Ingress Controller (Debian)

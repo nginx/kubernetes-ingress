@@ -90,6 +90,11 @@ jobs:
           GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
           echo "::add-mask::$GCR_SERVICE_ACCOUNT"
           echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
+          PLUS_CREDS=$(az keyvault secret show --name plus-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$PLUS_CREDS"
+          PLUS_JWT=$(echo $PLUS_CREDS | jq -r '.jwt')
+          echo "::add-mask::$PLUS_JWT"
+          echo "PLUS_JWT=$PLUS_JWT" >> $GITHUB_OUTPUT
 
       - name: Authenticate to Google Cloud
         id: auth
@@ -140,4 +145,4 @@ jobs:
           k8s-version: ${{ inputs.k8s-version }}
           registry-token: ${{ steps.auth.outputs.access_token }}
           test-image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') }}"
-          plus-jwt: ${{ secrets.PLUS_JWT }}
+          plus-jwt: ${{ steps.secrets.outputs.PLUS_JWT }}

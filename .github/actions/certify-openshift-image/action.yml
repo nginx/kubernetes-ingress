@@ -20,7 +20,7 @@ inputs:
     required: false
     default: "amd64,arm64"
   submit:
-    description: Submit results to Redhat PYAXIS
+    description: Submit results to Redhat PYXIS
     required: false
     default: true
 

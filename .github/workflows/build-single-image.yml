@@ -97,17 +97,35 @@ jobs:
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
 
-      - name: Setup plus credentials
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
+        if: ${{ contains(inputs.target, 'plus') }}
+
+      - name: Setup secrets
+        id: secrets
         run: |
-          printf '%s\n' "${CERT}" > nginx-repo.crt
-          printf '%s\n' "${KEY}" > nginx-repo.key
-          if [[ "${{ inputs.target }}" =~ ubi ]]; then
-            printf '%s\n' "${RHEL}" > rhel_license
-          fi
-        env:
-          CERT: ${{ secrets.NGINX_CRT }}
-          KEY: ${{ secrets.NGINX_KEY }}
-          RHEL: ${{ secrets.RHEL_LICENSE }}
+          echo "Setting secrets for job"
+          PLUS_CREDS=$(az keyvault secret show --name plus-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$PLUS_CREDS"
+          IFS=@ CERT=$(echo $PLUS_CREDS | jq -r '.crt')
+          while read -r line; do
+            echo "::add-mask::${line}"
+          done <<< "${CERT}"
+          echo $CERT > nginx-repo.crt
+          IFS=@ KEY=$(echo $PLUS_CREDS | jq -r '.key')
+          while read -r line; do
+            echo "::add-mask::${line}"
+          done <<< "${KEY}"
+          echo $KEY > nginx-repo.key
+          IFS=@ RHEL_CREDS=$(az keyvault secret show --name rhel-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          while read -r line; do
+            echo "::add-mask::${line}"
+          done <<< "${RHEL_CREDS}"
+          echo $RHEL_CREDS > rhel_license
         if: ${{ contains(inputs.target, 'plus') }}
 
       - name: Fetch Cached Binary Artifacts
@@ -125,14 +143,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GOPATH: ${{ steps.vars.outputs.go_path }}
-          AWS_PRODUCT_CODE: ${{ secrets.AWS_PRODUCT_CODE }}
-          AWS_PUB_KEY: ${{ secrets.AWS_PUB_KEY }}
-          AWS_NAP_DOS_PRODUCT_CODE: ${{ secrets.AWS_NAP_DOS_PRODUCT_CODE }}
-          AWS_NAP_DOS_PUB_KEY: ${{ secrets.AWS_NAP_DOS_PUB_KEY }}
-          AWS_NAP_WAF_PRODUCT_CODE: ${{ secrets.AWS_NAP_WAF_PRODUCT_CODE }}
-          AWS_NAP_WAF_PUB_KEY: ${{ secrets.AWS_NAP_WAF_PUB_KEY }}
-          AWS_NAP_WAF_DOS_PRODUCT_CODE: ${{ secrets.AWS_NAP_WAF_DOS_PRODUCT_CODE }}
-          AWS_NAP_WAF_DOS_PUB_KEY: ${{ secrets.AWS_NAP_WAF_DOS_PUB_KEY }}
           GORELEASER_CURRENT_TAG: "v${{ steps.vars.outputs.ic_version }}"
         if: ${{ steps.binary-cache.outputs.binary_cache_hit != 'true' }}
 
@@ -160,3 +170,8 @@ jobs:
           REGISTRY: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev
           PREFIX: ${{ inputs.prefix }}
           TAG: ${{ inputs.tag }}
+
+      - name: Clean up secrets
+        run: |
+          rm -f nginx-repo.crt nginx-repo.key rhel_license
+        if: always()
