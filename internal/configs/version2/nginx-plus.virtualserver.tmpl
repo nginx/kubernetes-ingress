@@ -675,7 +675,7 @@ server {
         {{ $proxyOrGRPC }}_send_timeout {{ $l.ProxySendTimeout }};
         client_max_body_size {{ $l.ClientMaxBodySize }};
         {{- if $l.ClientBodyBufferSize }}
-        client_body_buffer_size {{ $l.ClientBodyBufferSize }}
+        client_body_buffer_size {{ $l.ClientBodyBufferSize }};
         {{- end }}
 
             {{- if $l.ProxyMaxTempFileSize }}
