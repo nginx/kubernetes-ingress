@@ -352,7 +352,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+      - image: nginx/nginx-ingress:5.3.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -413,7 +413,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -431,7 +431,6 @@ spec:
           - -enable-custom-resources=true
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -enable-tls-passthrough=false
           - -enable-cert-manager=false
           - -enable-oidc=false
@@ -442,7 +441,7 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
@@ -826,7 +825,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+      - image: nginx/nginx-ingress:5.3.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -882,7 +881,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -900,7 +899,6 @@ spec:
           - -enable-custom-resources=true
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -enable-tls-passthrough=false
           - -enable-cert-manager=false
           - -enable-oidc=false
@@ -911,7 +909,7 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
@@ -1354,7 +1352,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+      - image: nginx/nginx-ingress:5.3.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -1419,7 +1417,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -1437,7 +1435,6 @@ spec:
           - -enable-custom-resources=true
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -enable-tls-passthrough=false
           - -enable-cert-manager=false
           - -enable-oidc=false
@@ -1448,7 +1445,7 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
           - -agent=true
           - -agent-instance-group=app-protect-waf-agentv2-nginx-ingress-controller
@@ -1841,7 +1838,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+      - image: nginx/nginx-ingress:5.3.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -1907,7 +1904,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -1925,7 +1922,6 @@ spec:
           - -enable-custom-resources=true
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -enable-tls-passthrough=false
           - -enable-cert-manager=false
           - -enable-oidc=false
@@ -1936,7 +1932,7 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
       
       - name: waf-enforcer
@@ -2415,7 +2411,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+      - image: nginx/nginx-ingress:5.3.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -2489,7 +2485,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -2507,7 +2503,6 @@ spec:
           - -enable-custom-resources=true
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -enable-tls-passthrough=false
           - -enable-cert-manager=false
           - -enable-oidc=false
@@ -2518,7 +2513,7 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
           - -agent=true
           - -agent-instance-group=app-protect-wafv5-agentv2-nginx-ingress-controller
@@ -2887,7 +2882,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+      - image: nginx/nginx-ingress:5.3.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -2942,7 +2937,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -2960,12 +2955,11 @@ spec:
           - -enable-custom-resources=false
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
@@ -3326,7 +3320,7 @@ spec:
       dnsPolicy: ClusterFirst
       containers:
       - name: nginx-ingress
-        image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+        image: nginx/nginx-ingress:5.3.0
         imagePullPolicy: "IfNotPresent"
         ports:
         - name: http
@@ -3381,7 +3375,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -3399,7 +3393,6 @@ spec:
           - -enable-custom-resources=true
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -enable-tls-passthrough=false
           - -enable-cert-manager=false
           - -enable-oidc=false
@@ -3410,7 +3403,7 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
@@ -3782,7 +3775,7 @@ spec:
       dnsPolicy: ClusterFirst
       containers:
       - name: nginx-ingress
-        image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+        image: nginx/nginx-ingress:5.3.0
         imagePullPolicy: "IfNotPresent"
         ports:
         - name: http
@@ -3848,7 +3841,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -3866,7 +3859,6 @@ spec:
           - -enable-custom-resources=true
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -enable-tls-passthrough=false
           - -enable-cert-manager=false
           - -enable-oidc=false
@@ -3877,12 +3869,12 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
       
       initContainers:
       - name: init-nginx-ingress
-        image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+        image: nginx/nginx-ingress:5.3.0
         imagePullPolicy: "IfNotPresent"
         command: ['cp', '-vdR', '/etc/nginx/.', '/mnt/etc']
         resources:
@@ -4259,7 +4251,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+      - image: nginx/nginx-ingress:5.3.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -4314,7 +4306,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -4332,7 +4324,6 @@ spec:
           - -enable-custom-resources=true
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -enable-tls-passthrough=false
           - -enable-cert-manager=false
           - -enable-oidc=false
@@ -4343,7 +4334,7 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
@@ -4703,7 +4694,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+      - image: nginx/nginx-ingress:5.3.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -4758,7 +4749,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -4776,7 +4767,6 @@ spec:
           - -enable-custom-resources=true
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -enable-tls-passthrough=false
           - -enable-cert-manager=false
           - -enable-oidc=false
@@ -4787,7 +4777,7 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
 /-/-/-/
 # Source: nginx-ingress/templates/controller-hpa.yaml
@@ -5180,7 +5170,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+      - image: nginx/nginx-ingress:5.3.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -5235,7 +5225,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -5253,7 +5243,6 @@ spec:
           - -enable-custom-resources=true
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -enable-tls-passthrough=false
           - -enable-cert-manager=false
           - -enable-oidc=false
@@ -5264,7 +5253,7 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
@@ -5625,7 +5614,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+      - image: nginx/nginx-ingress:5.3.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -5680,7 +5669,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -5698,7 +5687,6 @@ spec:
           - -enable-custom-resources=true
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -enable-tls-passthrough=false
           - -enable-cert-manager=false
           - -enable-oidc=false
@@ -5710,7 +5698,7 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
@@ -6092,7 +6080,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+      - image: nginx/nginx-ingress:5.3.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -6147,7 +6135,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -6165,7 +6153,6 @@ spec:
           - -enable-custom-resources=true
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -enable-tls-passthrough=false
           - -enable-cert-manager=false
           - -enable-oidc=false
@@ -6177,7 +6164,7 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
@@ -6556,7 +6543,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+      - image: nginx/nginx-ingress:5.3.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -6611,7 +6598,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -6629,7 +6616,6 @@ spec:
           - -enable-custom-resources=true
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -enable-tls-passthrough=false
           - -enable-cert-manager=false
           - -enable-oidc=false
@@ -6640,7 +6626,7 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
@@ -7003,7 +6989,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+      - image: nginx/nginx-ingress:5.3.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -7058,7 +7044,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -7076,7 +7062,6 @@ spec:
           - -enable-custom-resources=true
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -enable-tls-passthrough=false
           - -enable-cert-manager=false
           - -enable-oidc=false
@@ -7087,7 +7072,7 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
@@ -7497,7 +7482,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+      - image: nginx/nginx-ingress:5.3.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -7558,7 +7543,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -7576,7 +7561,6 @@ spec:
           - -enable-custom-resources=true
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -enable-tls-passthrough=false
           - -enable-cert-manager=false
           - -enable-oidc=false
@@ -7587,7 +7571,7 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
           - -agent=true
 /-/-/-/
@@ -7962,7 +7946,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+      - image: nginx/nginx-ingress:5.3.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -8018,7 +8002,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -8036,7 +8020,6 @@ spec:
           - -enable-custom-resources=true
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -enable-tls-passthrough=false
           - -enable-cert-manager=false
           - -enable-oidc=false
@@ -8047,7 +8030,7 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
@@ -8421,7 +8404,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+      - image: nginx/nginx-ingress:5.3.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -8487,7 +8470,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -8505,7 +8488,6 @@ spec:
           - -enable-custom-resources=true
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -enable-tls-passthrough=false
           - -enable-cert-manager=false
           - -enable-oidc=false
@@ -8516,7 +8498,7 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
@@ -8900,7 +8882,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+      - image: nginx/nginx-ingress:5.3.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -8966,7 +8948,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -8984,7 +8966,6 @@ spec:
           - -enable-custom-resources=true
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -enable-tls-passthrough=false
           - -enable-cert-manager=false
           - -enable-oidc=false
@@ -8995,7 +8976,7 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
@@ -9370,7 +9351,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+      - image: nginx/nginx-ingress:5.3.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -9426,7 +9407,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -9444,7 +9425,6 @@ spec:
           - -enable-custom-resources=true
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -enable-tls-passthrough=false
           - -enable-cert-manager=false
           - -enable-oidc=false
@@ -9455,7 +9435,7 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
@@ -9830,7 +9810,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+      - image: nginx/nginx-ingress:5.3.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -9886,7 +9866,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -9904,7 +9884,6 @@ spec:
           - -enable-custom-resources=true
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -enable-tls-passthrough=false
           - -enable-cert-manager=false
           - -enable-oidc=false
@@ -9915,7 +9894,7 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
@@ -10290,7 +10269,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+      - image: nginx/nginx-ingress:5.3.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -10356,7 +10335,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -10374,7 +10353,6 @@ spec:
           - -enable-custom-resources=true
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -enable-tls-passthrough=false
           - -enable-cert-manager=false
           - -enable-oidc=false
@@ -10385,7 +10363,7 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
@@ -10807,7 +10785,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+      - image: nginx/nginx-ingress:5.3.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -10869,7 +10847,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -10887,7 +10865,6 @@ spec:
           - -enable-custom-resources=true
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -enable-tls-passthrough=false
           - -enable-cert-manager=false
           - -enable-oidc=false
@@ -10898,7 +10875,7 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
           - -agent=true
 /-/-/-/
@@ -11321,7 +11298,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+      - image: nginx/nginx-ingress:5.3.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -11383,7 +11360,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -11401,7 +11378,6 @@ spec:
           - -enable-custom-resources=true
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -enable-tls-passthrough=false
           - -enable-cert-manager=false
           - -enable-oidc=false
@@ -11412,7 +11388,7 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
           - -agent=true
 /-/-/-/
@@ -11771,7 +11747,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+      - image: nginx/nginx-ingress:5.3.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -11837,7 +11813,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -11855,7 +11831,6 @@ spec:
           - -enable-custom-resources=true
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -enable-tls-passthrough=false
           - -enable-cert-manager=false
           - -enable-oidc=false
@@ -11866,7 +11841,7 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
@@ -12228,7 +12203,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+      - image: nginx/nginx-ingress:5.3.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -12286,7 +12261,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -12304,7 +12279,6 @@ spec:
           - -enable-custom-resources=true
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -enable-tls-passthrough=false
           - -enable-cert-manager=false
           - -enable-oidc=false
@@ -12315,7 +12289,7 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
       
   podManagementPolicy: OrderedReady
@@ -12691,7 +12665,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+      - image: nginx/nginx-ingress:5.3.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -12749,7 +12723,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -12767,7 +12741,6 @@ spec:
           - -enable-custom-resources=true
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -enable-tls-passthrough=false
           - -enable-cert-manager=false
           - -enable-oidc=false
@@ -12778,7 +12751,7 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
       
   podManagementPolicy: Parallel
@@ -13155,7 +13128,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+      - image: nginx/nginx-ingress:5.3.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -13213,7 +13186,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -13231,7 +13204,6 @@ spec:
           - -enable-custom-resources=true
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -enable-tls-passthrough=false
           - -enable-cert-manager=false
           - -enable-oidc=false
@@ -13242,7 +13214,7 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
       
   podManagementPolicy: Parallel
@@ -13627,7 +13599,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+      - image: nginx/nginx-ingress:5.3.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -13693,7 +13665,7 @@ spec:
           - -health-status=false
           - -health-status-uri=/nginx-health
           - -nginx-debug=false
-          - -log-level=debug
+          - -log-level=info
           - -log-format=glog
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -13711,7 +13683,6 @@ spec:
           - -enable-custom-resources=true
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -enable-directive-autoadjust=true
           - -enable-tls-passthrough=false
           - -enable-cert-manager=false
           - -enable-oidc=false
@@ -13722,12 +13693,12 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
-          - -enable-telemetry-reporting=false
+          - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
       
       initContainers:
       - name: init-nginx-ingress
-        image: nginx/nginx-ingress:5.3.0-SNAPSHOT
+        image: nginx/nginx-ingress:5.3.0
         imagePullPolicy: "IfNotPresent"
         command: ['cp', '-vdR', '/etc/nginx/.', '/mnt/etc']
         resources:
