@@ -21,6 +21,7 @@ type yamlSecret struct {
 	valid        bool
 	templateData templateData
 	secretType   v1.SecretType
+	hasCRL       bool
 	usedIn       []string
 }
 

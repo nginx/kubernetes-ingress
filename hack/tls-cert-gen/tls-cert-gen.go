@@ -10,6 +10,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/big"
@@ -88,7 +89,15 @@ func main() {
 			filenames[symlink] = struct{}{}
 		}
 
-		err = printYaml(secret, projectRoot)
+		switch secret.secretType {
+		case v1.SecretTypeTLS:
+			err = printKubernetesTLS(secret, projectRoot)
+		case secrets.SecretTypeCA:
+			err = printNGINXOrgCA(secret, projectRoot)
+		default:
+			log.Fatalf(logger, "unknown secret type for secret: %v", secret)
+		}
+
 		if err != nil {
 			log.Fatalf(logger, "Failed to print tls key: %s %v", secret.fileName, err)
 		}
@@ -108,11 +117,21 @@ func publicKey(priv any) any {
 	}
 }
 
-// printYaml wraps creating the TLS certificate and key, and writes the actual
+func printNGINXOrgCA(secret yamlSecret, projectRoot string) error {
+	fmt.Printf("future functionality for %v and %s with %t", secret, projectRoot, secret.hasCRL)
+
+	if secret.hasCRL {
+		return errors.New("this is a dummy")
+	}
+
+	return nil
+}
+
+// printKubernetesTLS wraps creating the TLS certificate and key, and writes the actual
 // file, and any symbolic links to the disk.
-func printYaml(secret yamlSecret, projectRoot string) error {
+func printKubernetesTLS(secret yamlSecret, projectRoot string) error {
 	// This part creates the tls keys (certificate and key) based on the
-	// issuer, subject, and dnsnames data.
+	// issuer, subject, and dns names data.
 	tlsKeys, err := printTLS(secret.templateData)
 	if err != nil {
 		return fmt.Errorf("failed generating TLS keys for hosts: (%s: %v): %w", secret.templateData.commonName, secret.templateData.dnsNames, err)
@@ -120,7 +139,7 @@ func printYaml(secret yamlSecret, projectRoot string) error {
 
 	// This part takes the created certificate and key, still in bytes, and
 	// embeds them into a kubernetes tls secret yaml format. At this point the
-	// fileContents is still a byteslice waiting to be written to a file.
+	// fileContents is still a byte slice waiting to be written to a file.
 	//
 	// If the incoming secret is not valid, then the created yaml file will have
 	// an empty tls.key value.
@@ -129,20 +148,31 @@ func printYaml(secret yamlSecret, projectRoot string) error {
 		return fmt.Errorf("writing valid file for %s: %w", secret.fileName, err)
 	}
 
+	err = writeFiles(fileContents, projectRoot, secret.fileName, secret.symlinks)
+	if err != nil {
+		return fmt.Errorf("writing file for %s: %w", secret.fileName, err)
+	}
+
+	return nil
+}
+
+func writeFiles(fileContents []byte, projectRoot, fileName string, symlinks []string) error {
+	var err error
+
 	// This part takes care of writing the yaml file onto disk, and creating the
 	// symbolic links for them. os.WriteFile will truncate the files first if
 	// they exist. The SymLink function needs the symlink target to not exist,
 	// so we need to walk and remove those beforehand.
-	realFilePath := filepath.Join(projectRoot, realSecretDirectory, secret.fileName)
+	realFilePath := filepath.Join(projectRoot, realSecretDirectory, fileName)
 	err = os.WriteFile(realFilePath, fileContents, 0o600)
 	if err != nil {
-		return fmt.Errorf("write kubernetes secret to file %s: %w", secret.fileName, err)
+		return fmt.Errorf("write kubernetes secret to file %s: %w", fileName, err)
 	}
 
 	fmt.Printf("Wrote real file: %s\n", realFilePath)
 
 	// Remove and create symlinks
-	for _, symlinkTarget := range secret.symlinks {
+	for _, symlinkTarget := range symlinks {
 		absSymlinkTarget := filepath.Join(projectRoot, symlinkTarget)
 
 		// Figure out the relative path between the directories. Involving files
