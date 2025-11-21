@@ -422,6 +422,7 @@ var mtlsBundles = []mtlsBundle{
 				locality:           []string{"San Francisco"},
 				province:           []string{"CA"},
 				commonName:         "client",
+				dnsNames:           []string{"*.example.com", "example.com"},
 			},
 			valid: secretShouldHaveValidTLSCrt,
 			symlinks: []string{
