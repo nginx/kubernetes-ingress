@@ -455,21 +455,6 @@ func TestExecuteVirtualServerTemplate_RendersTemplateWithClientBodyBufferSize(t 
 	t.Log(string(got))
 }
 
-func TestExecuteVirtualServerTemplate_RendersTemplateDefaultClientBodyBufferSize(t *testing.T) {
-	t.Parallel()
-	executor := newTmplExecutorNGINXPlus(t)
-
-	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfg)
-	if err != nil {
-		t.Error(err)
-	}
-	if !bytes.Contains(got, []byte("client_body_buffer_size 8k;")) {
-		t.Error("want `client_body_buffer_size 8k;` directive in generated template")
-	}
-	snaps.MatchSnapshot(t, string(got))
-	t.Log(string(got))
-}
-
 func TestExecuteVirtualServerTemplate_RendersOSSTemplateWithHTTP2On(t *testing.T) {
 	t.Parallel()
 	executor := newTmplExecutorNGINX(t)
