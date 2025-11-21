@@ -12,6 +12,7 @@ import (
 type ConfigParams struct {
 	Context                                context.Context
 	ClientMaxBodySize                      string
+	ClientBodyBufferSize                   string
 	DefaultServerAccessLogOff              bool
 	DefaultServerReturn                    string
 	FailTimeout                            string
