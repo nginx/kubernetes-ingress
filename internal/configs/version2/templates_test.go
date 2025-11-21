@@ -33,7 +33,7 @@ func newTmplExecutorNGINXPlus(t *testing.T) *TemplateExecutor {
 
 func newTmplExecutorNGINX(t *testing.T) *TemplateExecutor {
 	t.Helper()
-	executor, err := NewTemplateExecutor("nginx.virtualserver.tmpl", "nginx.transportserver.tmpl", "oidc.tmpl")
+	executor, err := NewTemplateExecutor("nginx.virtualserver.tmpl", "nginx.transportserver.tmpl", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2816,6 +2816,8 @@ var (
 			ServerName:    "example.com",
 			StatusZone:    "example.com",
 			ProxyProtocol: true,
+			VSNamespace:   "default",
+			VSName:        "exampleVS",
 			OIDC: &OIDC{
 				PKCEEnable: true,
 			},
@@ -2833,6 +2835,8 @@ var (
 			ServerName:    "example.com",
 			StatusZone:    "example.com",
 			ProxyProtocol: true,
+			VSNamespace:   "default",
+			VSName:        "exampleVS",
 			OIDC: &OIDC{
 				PKCEEnable: true,
 			},

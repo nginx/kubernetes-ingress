@@ -1481,15 +1481,15 @@ server {
     server_name example.com;
     status_zone example.com;
     set $resource_type "virtualserver";
-    set $resource_name "";
-    set $resource_namespace "";
-    include oidc-conf.d/oidc__.conf;
+    set $resource_name "exampleVS";
+    set $resource_namespace "default";
+    include oidc-conf.d/oidc_default_exampleVS.conf;
     set $oidc_debug true;
 
     set $oidc_pkce_enable 1;
     set $oidc_client_auth_method "client_secret_post";
     set $oidc_logout_redirect "";
-    set $oidc_hmac_key "";
+    set $oidc_hmac_key "exampleVS";
     set $zone_sync_leeway 0;
 
     set $oidc_authz_endpoint "";
@@ -1530,14 +1530,14 @@ server {
     server_name example.com;
     status_zone example.com;
     set $resource_type "virtualserver";
-    set $resource_name "";
-    set $resource_namespace "";
-    include oidc-conf.d/oidc__.conf;
+    set $resource_name "exampleVS";
+    set $resource_namespace "default";
+    include oidc-conf.d/oidc_default_exampleVS.conf;
 
     set $oidc_pkce_enable 1;
     set $oidc_client_auth_method "client_secret_post";
     set $oidc_logout_redirect "";
-    set $oidc_hmac_key "";
+    set $oidc_hmac_key "exampleVS";
     set $zone_sync_leeway 0;
 
     set $oidc_authz_endpoint "";
