@@ -61,7 +61,7 @@ jobs:
           ref: ${{ inputs.branch }}
           fetch-depth: 0
 
-      - name: Azure login
+      - name: Azure login Common Vault
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
         with:
           client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
@@ -69,8 +69,8 @@ jobs:
           subscription-id: ${{ secrets.AZURE_COMMON_VAULT_SUBSCRIPTION_ID }}
         if: ${{ inputs.authenticated }}
 
-      - name: Setup secrets
-        id: secrets
+      - name: Setup secrets Common Vault
+        id: secrets-common
         run: |
           echo "Setting secrets for job"
           DOCKER_USERNAME=$(az keyvault secret show --name docker-username --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
@@ -101,8 +101,8 @@ jobs:
       - name: DockerHub Login
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
-          username: ${{ steps.secrets.outputs.DOCKER_USERNAME }}
-          password: ${{ steps.secrets.outputs.DOCKER_PASSWORD }}
+          username: ${{ steps.secrets-common.outputs.DOCKER_USERNAME }}
+          password: ${{ steps.secrets-common.outputs.DOCKER_PASSWORD }}
         if: ${{ inputs.authenticated }}
 
       - name: Docker meta
