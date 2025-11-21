@@ -73,6 +73,12 @@ jobs:
         id: secrets
         run: |
           echo "Setting secrets for job"
+          GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$GCR_WORKLOAD_ID"
+          echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
+          GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$GCR_SERVICE_ACCOUNT"
+          echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
           PLUS_CREDS=$(az keyvault secret show --name plus-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
           echo "::add-mask::$PLUS_CREDS"
           PLUS_JWT=$(echo $PLUS_CREDS | jq -r '.jwt')
@@ -100,8 +106,8 @@ jobs:
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
-          workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
-          service_account: ${{ secrets.GCR_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
+          service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
         if: ${{ inputs.authenticated }}
 
       - name: Login to GCR

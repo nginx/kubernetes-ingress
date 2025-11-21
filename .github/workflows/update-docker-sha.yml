@@ -45,6 +45,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      id-token: write
     runs-on: ubuntu-24.04
     needs: [vars]
     steps:
@@ -74,11 +75,26 @@ jobs:
           echo "docker_md5=${docker_md5:0:8}" >> $GITHUB_OUTPUT
           echo $GITHUB_OUTPUT
 
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_COMMON_VAULT_SUBSCRIPTION_ID }}
+
+      - name: Setup secrets
+        id: secrets
+        run: |
+          echo "Setting secrets for job"
+          NGINX_PAT=$(az keyvault secret show --name nginx-bot-pat --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$NGINX_PAT"
+          echo "NGINX_PAT=$NGINX_PAT" >> $GITHUB_OUTPUT
+
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
         id: pr
         with:
-          token: ${{ secrets.NGINX_PAT }}
+          token: ${{ steps.secrets.outputs.NGINX_PAT }}
           commit-message: Update docker images ${{ steps.update_images.outputs.docker_md5 }}
           title: Docker image update ${{ steps.update_images.outputs.docker_md5 }}
           branch: deps/image-update-${{ needs.vars.outputs.source_branch }}-${{ steps.update_images.outputs.docker_md5 }}
