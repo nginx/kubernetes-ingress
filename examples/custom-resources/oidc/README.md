@@ -129,7 +129,17 @@ Create a Secret containing the Keycloak CA, this used in the OIDC Policy to veri
 kubectl apply -f keycloak-ca-secret.yaml
 ```
 
-## Step 8 - Deploy the OIDC Policy
+## Step 8a - Deploy the OIDC Policy - PKCE
+
+**Note**: This step only applies if you have PKCE enabled in Keycloak.
+
+Create a policy with the name `oidc-policy` that references the secret from the previous step:
+
+```shell
+kubectl apply -f oidc-pkce.yaml
+```
+
+## Step 8b - Deploy the OIDC Policy - Client secret
 
 Create a policy with the name `oidc-policy` that references the secret from the previous step:
 
@@ -145,7 +155,7 @@ Create a VirtualServer resource for the web application:
 kubectl apply -f virtual-server.yaml
 ```
 
-Note that the VirtualServer references the policy `oidc-policy` created in Step 6.
+Note that the VirtualServer references the policy `oidc-policy` created in Step 8.
 
 ## Step 10 - Test the Configuration
 
