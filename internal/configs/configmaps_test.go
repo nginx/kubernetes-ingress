@@ -2529,10 +2529,10 @@ func TestParseConfigMapClientBodyBufferSizeValid(t *testing.T) {
 			description: "should accept valid size without suffix",
 		},
 		{
-			name:        "default when not set",
+			name:        "not set",
 			value:       "",
-			expected:    "8k", // default value from config_params.go
-			description: "should use default when not set",
+			expected:    "", // no default value anymore
+			description: "should use empty string when not set",
 		},
 	}
 
@@ -2542,9 +2542,8 @@ func TestParseConfigMapClientBodyBufferSizeValid(t *testing.T) {
 	hasTLSPassthrough := false
 	directiveAutoadjustEnabled := false
 
-	for _, test := range tests {
-		test := test // capture range variable
-		t.Run(test.name, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			cm := &v1.ConfigMap{
@@ -2554,9 +2553,9 @@ func TestParseConfigMapClientBodyBufferSizeValid(t *testing.T) {
 				},
 			}
 
-			if test.value != "" {
+			if tt.value != "" {
 				cm.Data = map[string]string{
-					"client-body-buffer-size": test.value,
+					"client-body-buffer-size": tt.value,
 				}
 			}
 
@@ -2573,12 +2572,12 @@ func TestParseConfigMapClientBodyBufferSizeValid(t *testing.T) {
 
 			// Should always pass validation for valid cases
 			if !configOk {
-				t.Errorf("ParseConfigMap() for %s should have passed validation but failed", test.description)
+				t.Errorf("ParseConfigMap() for %s should have passed validation but failed", tt.description)
 			}
 
-			if result.MainClientBodyBufferSize != test.expected {
+			if result.MainClientBodyBufferSize != tt.expected {
 				t.Errorf("ParseConfigMap() for %s returned MainClientBodyBufferSize=%q, expected %q",
-					test.description, result.MainClientBodyBufferSize, test.expected)
+					tt.description, result.MainClientBodyBufferSize, tt.expected)
 			}
 		})
 	}
@@ -2645,9 +2644,8 @@ func TestParseConfigMapClientBodyBufferSizeInvalid(t *testing.T) {
 	hasTLSPassthrough := false
 	directiveAutoadjustEnabled := false
 
-	for _, test := range tests {
-		test := test // capture range variable
-		t.Run(test.name, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			cm := &v1.ConfigMap{
@@ -2656,7 +2654,7 @@ func TestParseConfigMapClientBodyBufferSizeInvalid(t *testing.T) {
 					Namespace: "default",
 				},
 				Data: map[string]string{
-					"client-body-buffer-size": test.value,
+					"client-body-buffer-size": tt.value,
 				},
 			}
 
@@ -2673,14 +2671,12 @@ func TestParseConfigMapClientBodyBufferSizeInvalid(t *testing.T) {
 
 			// Should always fail validation for invalid cases
 			if configOk {
-				t.Errorf("ParseConfigMap() for %s should have failed validation but passed", test.description)
+				t.Errorf("%s should have failed validation but passed", tt.name)
 			}
 
-			// Should fall back to default value when validation fails
-			expectedDefault := "8k" // default from config_params.go
-			if result.MainClientBodyBufferSize != expectedDefault {
-				t.Errorf("ParseConfigMap() for %s returned MainClientBodyBufferSize=%q, expected default %q",
-					test.description, result.MainClientBodyBufferSize, expectedDefault)
+			if result.MainClientBodyBufferSize != "" {
+				t.Errorf(`%s returned MainClientBodyBufferSize=%q, expected ""`,
+					tt.name, result.MainClientBodyBufferSize)
 			}
 		})
 	}

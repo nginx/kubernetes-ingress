@@ -21,8 +21,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-    client_body_buffer_size ;
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -146,8 +144,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
-    client_body_buffer_size ;
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -303,8 +299,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-    client_body_buffer_size ;
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -443,8 +437,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
-    client_body_buffer_size ;
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -585,8 +577,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
-    client_body_buffer_size ;
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -900,6 +890,7 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
+        client_body_buffer_size 16k;
         
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -1277,6 +1268,7 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
+        client_body_buffer_size 16k;
         
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -2828,8 +2820,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-    client_body_buffer_size ;
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -2973,8 +2963,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
-    client_body_buffer_size ;
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -3120,8 +3108,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-    client_body_buffer_size ;
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -3266,8 +3252,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-    client_body_buffer_size ;
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -3411,8 +3395,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
-    client_body_buffer_size ;
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -3578,8 +3560,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-    client_body_buffer_size ;
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -3739,8 +3719,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-    client_body_buffer_size ;
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -3894,8 +3872,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-    client_body_buffer_size ;
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -4039,8 +4015,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
-    client_body_buffer_size ;
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -4190,8 +4164,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
-    client_body_buffer_size ;
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -4349,8 +4321,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
-    client_body_buffer_size ;
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -4512,8 +4482,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-    client_body_buffer_size ;
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -4633,8 +4601,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
-    client_body_buffer_size ;
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -4756,8 +4722,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-    client_body_buffer_size ;
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -4878,8 +4842,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-    client_body_buffer_size ;
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -4999,8 +4961,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
-    client_body_buffer_size ;
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -5141,8 +5101,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-    client_body_buffer_size ;
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -5262,8 +5220,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
-    client_body_buffer_size ;
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -5385,8 +5341,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
-    client_body_buffer_size ;
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -5535,8 +5489,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-    client_body_buffer_size ;
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -5681,8 +5633,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
-    client_body_buffer_size ;
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -5829,8 +5779,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-    client_body_buffer_size ;
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -5976,8 +5924,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-    client_body_buffer_size ;
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -6122,8 +6068,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
-    client_body_buffer_size ;
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -6271,8 +6215,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-    client_body_buffer_size ;
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -6392,8 +6334,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
-    client_body_buffer_size ;
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;

@@ -10,9 +10,11 @@ spec:
   - name: tea
     service: tea-svc
     port: 80
+    client-body-buffer-size: 123.ie
   - name: coffee
     service: coffee-svc
     port: 80
+    client-body-buffer-size: 12k
   routes:
   - path: /tea
     action:

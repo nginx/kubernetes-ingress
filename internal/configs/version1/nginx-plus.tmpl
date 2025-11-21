@@ -37,7 +37,9 @@ http {
     map_hash_max_size {{.MapHashMaxSize}};
     map_hash_bucket_size {{.MapHashBucketSize}};
 
+    {{- if .ClientBodyBufferSize }}
     client_body_buffer_size {{.ClientBodyBufferSize}};
+    {{- end }}
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;

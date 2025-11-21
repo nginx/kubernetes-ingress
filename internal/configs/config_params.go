@@ -249,7 +249,6 @@ func NewDefaultConfigParams(ctx context.Context, isPlus bool) *ConfigParams {
 		MainServerNamesHashMaxSize:    "1024",
 		MainMapHashBucketSize:         "256",
 		MainMapHashMaxSize:            "2048",
-		MainClientBodyBufferSize:      "8k",
 		ProxyBuffering:                true,
 		MainWorkerProcesses:           "auto",
 		MainWorkerConnections:         "1024",
