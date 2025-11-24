@@ -267,7 +267,7 @@ func generateTLSKeyPair(template, parent x509.Certificate, parentPriv *ecdsa.Pri
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal private key: %w", err)
 	}
-	if err = pem.Encode(keyOut, &pem.Block{Type: "PRIVATE KEY", Bytes: privBytes}); err != nil {
+	if err = pem.Encode(keyOut, &pem.Block{Type: "EC PRIVATE KEY", Bytes: privBytes}); err != nil {
 		return nil, fmt.Errorf("failed to write data to keybytes buffer: %w", err)
 	}
 
