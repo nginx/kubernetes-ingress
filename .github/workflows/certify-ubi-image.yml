@@ -34,16 +34,37 @@ jobs:
   certify-ubi-images:
     name: Certify OpenShift UBI images
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
+
+      - name: Setup secrets
+        id: secrets
+        run: |
+          echo "Setting secrets for job"
+          PYXIS_TOKEN=$(az keyvault secret show --name nic-pyxis-token --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$PYXIS_TOKEN"
+          echo "PYXIS_TOKEN=$PYXIS_TOKEN" >> $GITHUB_OUTPUT
+          PYXIS_CERTIFICATION_PROJECT_ID=$(az keyvault secret show --name nic-pyxis-certification-pid --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$PYXIS_CERTIFICATION_PROJECT_ID"
+          echo "PYXIS_CERTIFICATION_PROJECT_ID=$PYXIS_CERTIFICATION_PROJECT_ID" >> $GITHUB_OUTPUT
 
       - name: Certify UBI OSS images in quay
         uses: ./.github/actions/certify-openshift-image
         with:
           image: ${{ inputs.image }}
-          project_id: ${{ secrets.CERTIFICATION_PROJECT_ID }}
-          pyxis_token: ${{ secrets.PYXIS_API_TOKEN }}
+          project_id: ${{ steps.secrets.outputs.PYXIS_CERTIFICATION_PROJECT_ID }}
+          pyxis_token: ${{ steps.secrets.outputs.PYXIS_TOKEN }}
           preflight_version: ${{ inputs.preflight_version }}
           submit: ${{ inputs.submit || true }}
           platforms: ${{ inputs.platforms }}
