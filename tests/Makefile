@@ -191,6 +191,10 @@ upgrade-resources:
 	pip install -r ../tests/requirements.txt --no-deps
 	pytest -v -s -m $(PYTEST_ARGS)
 
+.PHONY: certs-clean
+certs-clean: ## Clean just in time TLS certificates needed for tests and examples
+	make -C $(ROOT_DIR) certs-clean
+
 .PHONY: certs
 certs: ## Create just in time TLS certificates needed for tests and examples
 	make -C $(ROOT_DIR) certs

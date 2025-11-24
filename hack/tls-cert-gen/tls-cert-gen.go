@@ -10,6 +10,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"flag"
 	"fmt"
 	"log/slog"
 	"math/big"
@@ -67,6 +68,9 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	var err error
 
+	cleanPtr := flag.Bool("clean", false, "only clean the generated files")
+	flag.Parse()
+
 	projectRoot, err = filepath.Abs("../..")
 	if err != nil {
 		log.Fatalf(logger, "filepath.Abs: %v", err)
@@ -89,48 +93,78 @@ func main() {
 			filenames[symlink] = struct{}{}
 		}
 
+		if *cleanPtr {
+			err = removeSecretFiles(logger, secret)
+			if err != nil {
+				log.Fatalf(logger, "Failed to remove secret files: %s %v", secret.fileName, err)
+			}
+			continue
+		}
 		err = printKubernetesTLS(secret, projectRoot)
 		if err != nil {
 			log.Fatalf(logger, "Failed to print tls key: %s %v", secret.fileName, err)
 		}
 	}
 
-	// Create MTLS bundles rather than individual certificates
-	for _, bundle := range mtlsBundles {
-		// check duplicate file and symlinks for CA
-		if _, ok := filenames[bundle.ca.fileName]; ok {
-			log.Fatalf(logger, "bundle ca contains duplicated files: %v", bundle.ca.fileName)
-		}
+	// // Create MTLS bundles rather than individual certificates
+	// for _, bundle := range mtlsBundles {
+	// 	// check duplicate file and symlinks for CA
+	// 	if _, ok := filenames[bundle.ca.fileName]; ok {
+	// 		log.Fatalf(logger, "bundle ca contains duplicated files: %v", bundle.ca.fileName)
+	// 	}
 
-		filenames[bundle.ca.fileName] = struct{}{}
+	// 	filenames[bundle.ca.fileName] = struct{}{}
 
-		for _, symlink := range bundle.ca.symlinks {
-			if _, ok := filenames[symlink]; ok {
-				log.Fatalf(logger, "bundle ca contains duplicated symlink for file %s: %s", bundle.ca.fileName, symlink)
-			}
+	// 	for _, symlink := range bundle.ca.symlinks {
+	// 		if _, ok := filenames[symlink]; ok {
+	// 			log.Fatalf(logger, "bundle ca contains duplicated symlink for file %s: %s", bundle.ca.fileName, symlink)
+	// 		}
 
-			filenames[symlink] = struct{}{}
-		}
+	// 		filenames[symlink] = struct{}{}
+	// 	}
 
-		// check duplicate file and symlinks for bundle client
-		if _, ok := filenames[bundle.client.fileName]; ok {
-			log.Fatalf(logger, "bundle client contains duplicated files: %v", bundle.client.fileName)
-		}
-		filenames[bundle.client.fileName] = struct{}{}
+	// 	// check duplicate file and symlinks for bundle client
+	// 	if _, ok := filenames[bundle.client.fileName]; ok {
+	// 		log.Fatalf(logger, "bundle client contains duplicated files: %v", bundle.client.fileName)
+	// 	}
+	// 	filenames[bundle.client.fileName] = struct{}{}
 
-		for _, symlink := range bundle.client.symlinks {
-			if _, ok := filenames[symlink]; ok {
-				log.Fatalf(logger, "bundle client contains duplicated symlink for file %s: %s", bundle.client.fileName, symlink)
-			}
+	// 	for _, symlink := range bundle.client.symlinks {
+	// 		if _, ok := filenames[symlink]; ok {
+	// 			log.Fatalf(logger, "bundle client contains duplicated symlink for file %s: %s", bundle.client.fileName, symlink)
+	// 		}
 
-			filenames[symlink] = struct{}{}
-		}
+	// 		filenames[symlink] = struct{}{}
+	// 	}
 
-		err = printMTLSBundle(bundle, projectRoot)
+	// 	err = printMTLSBundle(bundle, projectRoot)
+	// 	if err != nil {
+	// 		log.Fatalf(logger, "printMTLSBundle: %v", err)
+	// 	}
+	// }
+}
+
+func removeSecretFiles(logger *slog.Logger, secret yamlSecret) error {
+	filePath := filepath.Join(projectRoot, realSecretDirectory, secret.fileName)
+	log.Debugf(logger, "Removing file %s", filePath)
+	if _, err := os.Stat(filePath); !os.IsNotExist(err) {
+		err := os.Remove(filepath.Join(projectRoot, realSecretDirectory, secret.fileName))
 		if err != nil {
-			log.Fatalf(logger, "printMTLSBundle: %v", err)
+			return fmt.Errorf("Failed to remove file: %s %w", secret.fileName, err)
 		}
 	}
+
+	for _, symlink := range secret.symlinks {
+		log.Debugf(logger, "Removing symlink %s", symlink)
+		if _, err := os.Lstat(filepath.Join(projectRoot, symlink)); !os.IsNotExist(err) {
+			err = os.Remove(filepath.Join(projectRoot, symlink))
+			if err != nil {
+				return fmt.Errorf("Failed to remove symlink: %s %w", symlink, err)
+			}
+		}
+
+	}
+	return nil
 }
 
 func publicKey(priv any) any {
