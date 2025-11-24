@@ -28,9 +28,6 @@ inputs:
   label:
     description: Label for test
     required: false
-  azure-ad-secret:
-    description: Azure Active Directory secret for JWKs
-    required: false
   registry-token:
     description: JWT token for accessing container registry
     required: false
@@ -52,7 +49,7 @@ runs:
     - name: Deploy Kubernetes
       id: k8s
       run: |
-        make -f tests/Makefile create-kind-cluster K8S_CLUSTER_NAME=${{ github.run_id }} K8S_CLUSTER_VERSION=${{ inputs.k8s-version }} K8S_TIMEOUT=${{ inputs.k8s-timeout }}
+        make -f tests/Makefile create-kind-cluster K8S_CLUSTER_NAME=${{ github.run_id }} K8S_CLUSTER_VERSION=v${{ inputs.k8s-version }} K8S_TIMEOUT=${{ inputs.k8s-timeout }}
         make -f tests/Makefile image-load REGISTRY="" PREFIX=${{ inputs.image-name }} TAG=${{ inputs.tag }} K8S_CLUSTER_NAME=${{ github.run_id }}
         label="${{ inputs.label }}"
         nospaces="${label// /_}"
@@ -103,7 +100,6 @@ runs:
         --self-contained-html \
         --durations=10 \
         --show-ic-logs=yes \
-        --ad-secret=${{ inputs.azure-ad-secret }} \
         --plus-jwt=${{ inputs.plus-jwt }} \
         -m ${{ inputs.marker != '' && inputs.marker || '""' }}
       working-directory: ./tests

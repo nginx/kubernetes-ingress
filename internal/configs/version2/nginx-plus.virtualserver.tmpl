@@ -115,8 +115,11 @@ map $request_method $cache_purge_{{ replaceAll $l.Cache.ZoneName "-" "_" }} {
 {{- end }}
 {{- end }}
 
-{{- if and $s.OIDC $s.OIDC.PKCEEnable }}
-include oidc/oidc_pkce_supplements.conf;
+{{- if $s.OIDC  }}
+keyval $idp_sid $client_sid              zone=oidc_sids;
+{{- if $s.OIDC.PKCEEnable }}
+keyval $pkce_id $pkce_code_verifier zone=oidc_pkce;
+{{- end }}
 {{- end }}
 
 server {
@@ -133,6 +136,10 @@ server {
 
     {{- with $oidc := $s.OIDC }}
     include oidc/oidc.conf;
+
+    {{- if eq $s.NGINXDebugLevel "debug" }}
+    set $oidc_debug true;
+    {{- end }}
 
     set $oidc_pkce_enable {{ boolToInteger $oidc.PKCEEnable }};
     set $oidc_client_auth_method "client_secret_post";

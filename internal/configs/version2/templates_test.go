@@ -848,7 +848,7 @@ func TestExecuteVirtualServerTemplateWithOIDCAndPKCEPolicyNGINXPlus(t *testing.T
 		t.Error(err)
 	}
 
-	want := "include oidc/oidc_pkce_supplements.conf"
+	want := "keyval $pkce_id $pkce_code_verifier zone=oidc_pkce;"
 	want2 := "include oidc/oidc.conf;"
 
 	if !bytes.Contains(got, []byte(want)) {
@@ -857,6 +857,44 @@ func TestExecuteVirtualServerTemplateWithOIDCAndPKCEPolicyNGINXPlus(t *testing.T
 
 	if !bytes.Contains(got, []byte(want2)) {
 		t.Errorf("want %q in generated template", want2)
+	}
+
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
+}
+
+func TestExecuteVirtualServerTemplateWithNGINXDebugLevelDebug(t *testing.T) {
+	t.Parallel()
+
+	e := newTmplExecutorNGINXPlus(t)
+	got, err := e.ExecuteVirtualServerTemplate(&virtualServerCfgWithOIDCAndDebugTurnedOn)
+	if err != nil {
+		t.Error(err)
+	}
+
+	want := "set $oidc_debug true;"
+
+	if !bytes.Contains(got, []byte(want)) {
+		t.Errorf("want %q in generated template", want)
+	}
+
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
+}
+
+func TestExecuteVirtualServerTemplateWithNGINXDebugLevelNotDebug(t *testing.T) {
+	t.Parallel()
+
+	e := newTmplExecutorNGINXPlus(t)
+	got, err := e.ExecuteVirtualServerTemplate(&virtualServerCfgWithOIDCAndDebugTurnedOff)
+	if err != nil {
+		t.Error(err)
+	}
+
+	doNotWant := "set $oidc_debug true;"
+
+	if bytes.Contains(got, []byte(doNotWant)) {
+		t.Errorf("did not want %q in generated template", doNotWant)
 	}
 
 	snaps.MatchSnapshot(t, string(got))
@@ -2741,6 +2779,40 @@ var (
 			OIDC: &OIDC{
 				PKCEEnable: true,
 			},
+			Locations: []Location{
+				{
+					Path: "/",
+				},
+			},
+		},
+	}
+
+	virtualServerCfgWithOIDCAndDebugTurnedOn = VirtualServerConfig{
+		Server: Server{
+			ServerName:    "example.com",
+			StatusZone:    "example.com",
+			ProxyProtocol: true,
+			OIDC: &OIDC{
+				PKCEEnable: true,
+			},
+			NGINXDebugLevel: "debug",
+			Locations: []Location{
+				{
+					Path: "/",
+				},
+			},
+		},
+	}
+
+	virtualServerCfgWithOIDCAndDebugTurnedOff = VirtualServerConfig{
+		Server: Server{
+			ServerName:    "example.com",
+			StatusZone:    "example.com",
+			ProxyProtocol: true,
+			OIDC: &OIDC{
+				PKCEEnable: true,
+			},
+			NGINXDebugLevel: "error",
 			Locations: []Location{
 				{
 					Path: "/",

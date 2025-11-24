@@ -32,7 +32,7 @@ spec:
       securityContext:
       ...
       containers:
-      - image: nginx-plus-ingress:5.2.0
+      - image: nginx-plus-ingress:5.2.1
         imagePullPolicy: IfNotPresent
         name: nginx-plus-ingress
         ports:
@@ -68,7 +68,7 @@ spec:
 ## Deployment
 
 [Install NGINX Ingress
-Controller](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/), and uncomment
+Controller](https://docs.nginx.com/nginx-ingress-controller/install/manifests), and uncomment
 the `-enable-service-insight` option: this will allow Service Insight to interact with it.
 
 The examples below use the `nodeport` service.
@@ -199,7 +199,7 @@ Response:
 ## Transport Servers
 
 [Install NGINX Ingress
-Controller](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/), and uncomment
+Controller](https://docs.nginx.com/nginx-ingress-controller/install/manifests), and uncomment
 the `-enable-service-insight`, `-enable-custom-resources`, and `-enable-tls-passthrough` options.
 
 The examples below use the `nodeport` service.
@@ -321,7 +321,7 @@ spec:
       securityContext:
       ...
       containers:
-      - image: nginx-plus-ingress:5.2.0
+      - image: nginx-plus-ingress:5.2.1
         imagePullPolicy: IfNotPresent
         name: nginx-plus-ingress
         ports:

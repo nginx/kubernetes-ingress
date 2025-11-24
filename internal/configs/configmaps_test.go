@@ -2,11 +2,13 @@ package configs
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"reflect"
 	"testing"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
+	"github.com/stretchr/testify/assert"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -291,6 +293,246 @@ func TestParseConfigMapAccessLogDefault(t *testing.T) {
 			result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
 			if result.MainAccessLog != test.want {
 				t.Errorf("want %q, got %q", test.want, result.MainAccessLog)
+			}
+		})
+	}
+}
+
+func TestParseConfigMapOIDC(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap *v1.ConfigMap
+		want      *OIDC
+		msg       string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{},
+			},
+			want: &OIDC{
+				PKCETimeout:    "90s",
+				IDTokenTimeout: "1h",
+				AccessTimeout:  "1h",
+				RefreshTimeout: "8h",
+				SIDSTimeout:    "8h",
+			},
+			msg: "default OIDC values",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-pkce-timeout":           "5m",
+					"oidc-id-tokens-timeout":      "2h",
+					"oidc-access-tokens-timeout":  "3h",
+					"oidc-refresh-tokens-timeout": "48h",
+					"oidc-sids-timeout":           "72h",
+				},
+			},
+			want: &OIDC{
+				PKCETimeout:    "5m",
+				IDTokenTimeout: "2h",
+				AccessTimeout:  "3h",
+				RefreshTimeout: "48h",
+				SIDSTimeout:    "72h",
+			},
+			msg: "all timeout values custom",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-pkce-timeout": "15m",
+				},
+			},
+			want: &OIDC{
+				PKCETimeout: "15m",
+			},
+			msg: "custom PKCE timeout only",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-id-tokens-timeout": "90m",
+				},
+			},
+			want: &OIDC{
+				IDTokenTimeout: "90m",
+			},
+			msg: "custom ID token timeout only",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-access-tokens-timeout": "4h",
+				},
+			},
+			want: &OIDC{
+				AccessTimeout: "4h",
+			},
+			msg: "custom access token timeout only",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-refresh-tokens-timeout": "16h",
+				},
+			},
+			want: &OIDC{
+				RefreshTimeout: "16h",
+			},
+			msg: "custom refresh token timeout only",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-sids-timeout": "12h",
+				},
+			},
+			want: &OIDC{
+				SIDSTimeout: "12h",
+			},
+			msg: "custom SIDS timeout only",
+		},
+	}
+
+	nginxPlus := true
+	hasAppProtect := false
+	hasAppProtectDos := false
+	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+			if !configOk {
+				t.Error("want configOk true, got configOk false")
+			}
+
+			// Check only the specific fields that are set in the test expectation
+			if test.want.PKCETimeout != "" {
+				assert.Equal(t, test.want.PKCETimeout, result.OIDC.PKCETimeout)
+			}
+			if test.want.IDTokenTimeout != "" {
+				assert.Equal(t, test.want.IDTokenTimeout, result.OIDC.IDTokenTimeout)
+			}
+			if test.want.AccessTimeout != "" {
+				assert.Equal(t, test.want.AccessTimeout, result.OIDC.AccessTimeout)
+			}
+			if test.want.RefreshTimeout != "" {
+				assert.Equal(t, test.want.RefreshTimeout, result.OIDC.RefreshTimeout)
+			}
+			if test.want.SIDSTimeout != "" {
+				assert.Equal(t, test.want.SIDSTimeout, result.OIDC.SIDSTimeout)
+			}
+		})
+	}
+}
+
+func TestParseConfigMapOIDCErrors(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap   *v1.ConfigMap
+		expectedErr bool
+		msg         string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-pkce-timeout": "invalid-time",
+				},
+			},
+			expectedErr: true,
+			msg:         "invalid PKCE timeout format",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-id-tokens-timeout": "abc123",
+				},
+			},
+			expectedErr: true,
+			msg:         "invalid ID token timeout format",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-access-tokens-timeout": "5x",
+				},
+			},
+			expectedErr: true,
+			msg:         "invalid access token timeout format",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-refresh-tokens-timeout": "",
+				},
+			},
+			expectedErr: true,
+			msg:         "empty refresh token timeout",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-sids-timeout": "   ",
+				},
+			},
+			expectedErr: true,
+			msg:         "whitespace-only SIDS timeout",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-pkce-timeout": "-5m",
+				},
+			},
+			expectedErr: true,
+			msg:         "negative PKCE timeout",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-id-tokens-timeout": "1.5h",
+				},
+			},
+			expectedErr: true,
+			msg:         "decimal in ID token timeout",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-access-tokens-timeout": "5minutes",
+				},
+			},
+			expectedErr: true,
+			msg:         "invalid time unit format",
+		},
+
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-sids-timeout": "5s 10m",
+				},
+			},
+			expectedErr: true,
+			msg:         "multiple time values without proper format",
+		},
+	}
+
+	nginxPlus := true
+	hasAppProtect := false
+	hasAppProtectDos := false
+	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			_, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+
+			if test.expectedErr && configOk {
+				t.Errorf("want configOk false, got configOk true for %s", test.msg)
+			}
+			if !test.expectedErr && !configOk {
+				t.Errorf("want configOk true, got configOk false for %s", test.msg)
 			}
 		})
 	}
@@ -2245,6 +2487,36 @@ func TestParseProxyBuffersInvalidFormat(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestParseErrorLogLevelToVirtualServer(t *testing.T) {
+	t.Parallel()
+
+	testCases := []string{"debug", "error", "warning", "nonsense"}
+
+	for _, testLevel := range testCases {
+		t.Run(fmt.Sprintf("setting log level to %s", testLevel), func(t *testing.T) {
+			cm := &v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-configmap",
+					Namespace: "default",
+				},
+				Data: map[string]string{
+					"error-log-level": testLevel,
+				},
+			}
+
+			eventRecorder := makeEventLogger()
+
+			result, configOk := ParseConfigMap(context.Background(), cm, true, false, false, false, false, eventRecorder)
+
+			if !configOk {
+				t.Errorf("expected config map with error-log-level set to be %s to be valid", testLevel)
+			}
+
+			assert.Equal(t, testLevel, result.MainErrorLogLevel)
+		})
+	}
 }
 
 func makeEventLogger() record.EventRecorder {

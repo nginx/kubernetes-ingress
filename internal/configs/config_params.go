@@ -68,6 +68,7 @@ type ConfigParams struct {
 	MainAppProtectDosLogFormat             []string
 	MainAppProtectDosLogFormatEscaping     string
 	MainAppProtectDosArbFqdn               string
+	OIDC                                   OIDC
 	ProxyBuffering                         bool
 	ProxyBuffers                           string
 	ProxyBufferSize                        string
@@ -87,6 +88,8 @@ type ConfigParams struct {
 	ResolverValid                          string
 	ServerSnippets                         []string
 	ServerTokens                           string
+	ServerSSLCiphers                       string
+	ServerSSLPreferServerCiphers           bool
 	SlowStart                              string
 	SSLRedirect                            bool
 	UpstreamZoneSize                       string
@@ -190,6 +193,15 @@ type ZoneSync struct {
 	ResolverIPV6      *bool
 }
 
+// OIDC holds OIDC configuration parameters.
+type OIDC struct {
+	PKCETimeout    string
+	IDTokenTimeout string
+	AccessTimeout  string
+	RefreshTimeout string
+	SIDSTimeout    string
+}
+
 // MGMTSecrets holds mgmt block secret names
 type MGMTSecrets struct {
 	License     string
@@ -256,6 +268,13 @@ func NewDefaultConfigParams(ctx context.Context, isPlus bool) *ConfigParams {
 		LimitReqZoneSize:              "10m",
 		LimitReqLogLevel:              "error",
 		LimitReqRejectCode:            429,
+		OIDC: OIDC{
+			PKCETimeout:    "90s",
+			IDTokenTimeout: "1h",
+			AccessTimeout:  "1h",
+			RefreshTimeout: "8h",
+			SIDSTimeout:    "8h",
+		},
 	}
 }
 

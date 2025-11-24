@@ -78,27 +78,29 @@ type LimitReqZone struct {
 
 // Server describes an NGINX server.
 type Server struct {
-	ServerSnippets        []string
-	Name                  string
-	ServerTokens          string
-	Locations             []Location
-	SSL                   bool
-	SSLCertificate        string
-	SSLCertificateKey     string
-	SSLRejectHandshake    bool
-	TLSPassthrough        bool
-	GRPCOnly              bool
-	StatusZone            string
-	HTTP2                 bool
-	RedirectToHTTPS       bool
-	SSLRedirect           bool
-	ProxyProtocol         bool
-	HSTS                  bool
-	HSTSMaxAge            int64
-	HSTSIncludeSubdomains bool
-	HSTSBehindProxy       bool
-	ProxyHideHeaders      []string
-	ProxyPassHeaders      []string
+	ServerSnippets         []string
+	Name                   string
+	ServerTokens           string
+	Locations              []Location
+	SSL                    bool
+	SSLCertificate         string
+	SSLCertificateKey      string
+	SSLCiphers             string
+	SSLPreferServerCiphers bool
+	SSLRejectHandshake     bool
+	TLSPassthrough         bool
+	GRPCOnly               bool
+	StatusZone             string
+	HTTP2                  bool
+	RedirectToHTTPS        bool
+	SSLRedirect            bool
+	ProxyProtocol          bool
+	HSTS                   bool
+	HSTSMaxAge             int64
+	HSTSIncludeSubdomains  bool
+	HSTSBehindProxy        bool
+	ProxyHideHeaders       []string
+	ProxyPassHeaders       []string
 
 	HealthChecks map[string]HealthCheck
 
@@ -175,6 +177,7 @@ type Location struct {
 	ClientMaxBodySize    string
 	Websocket            bool
 	Rewrite              string
+	RewriteTarget        string
 	SSL                  bool
 	GRPC                 bool
 	ProxyBuffering       bool
@@ -200,6 +203,16 @@ type ZoneSyncConfig struct {
 	// Time the resolver is valid. Go time string format: "5s", "10s".
 	ResolverValid string
 	ResolverIPV6  *bool
+}
+
+// OIDCConfig allows to configure OIDC parameters.
+type OIDCConfig struct {
+	Enable         bool
+	PKCETimeout    string
+	IDTokenTimeout string
+	AccessTimeout  string
+	RefreshTimeout string
+	SIDSTimeout    string
 }
 
 // MGMTConfig is tbe configuration for the MGMT block.
@@ -295,7 +308,7 @@ type MainConfig struct {
 	InternalRouteServerName            string
 	LatencyMetrics                     bool
 	ZoneSyncConfig                     ZoneSyncConfig
-	OIDC                               bool
+	OIDC                               OIDCConfig
 	DynamicSSLReloadEnabled            bool
 	StaticSSLPath                      string
 	NginxVersion                       nginx.Version

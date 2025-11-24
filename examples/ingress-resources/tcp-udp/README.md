@@ -26,7 +26,7 @@ the DNS name frequently, so will update automatically when new pods are deployed
 
 ### 1. Deploy the Ingress Controller
 
-1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
+1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
 instructions to deploy the Ingress Controller. Make sure to expose port 5353 of the Ingress Controller both for TCP and
 UDP traffic.
 

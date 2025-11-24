@@ -459,6 +459,11 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		configOk = false
 	}
 
+	err = parseConfigMapOIDC(l, cfgm, cfgParams, eventLog)
+	if err != nil {
+		configOk = false
+	}
+
 	if upstreamZoneSize, exists := cfgm.Data["upstream-zone-size"]; exists {
 		cfgParams.UpstreamZoneSize = upstreamZoneSize
 	}
@@ -692,6 +697,61 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 	}
 
 	return cfgParams, configOk
+}
+
+// parseConfigMapOIDC parses OIDC timeout configuration from ConfigMap.
+func parseConfigMapOIDC(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *ConfigParams, eventLog record.EventRecorder) error {
+	if oidcPKCETimeout, exists := cfgm.Data["oidc-pkce-timeout"]; exists {
+		pkceTimeout, err := ParseTime(oidcPKCETimeout)
+		if err != nil {
+			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'oidc-pkce-timeout': %q, must be a valid nginx time (e.g. '90s', '5m', '1h')", cfgm.Namespace, cfgm.Name, oidcPKCETimeout)
+			nl.Warn(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			return err
+		}
+		cfgParams.OIDC.PKCETimeout = pkceTimeout
+	}
+	if oidcIDTokensTimeout, exists := cfgm.Data["oidc-id-tokens-timeout"]; exists {
+		idTokensTimeout, err := ParseTime(oidcIDTokensTimeout)
+		if err != nil {
+			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'oidc-id-tokens-timeout': %q, must be a valid nginx time (e.g. '1h', '30m', '2h')", cfgm.Namespace, cfgm.Name, oidcIDTokensTimeout)
+			nl.Warn(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			return err
+		}
+		cfgParams.OIDC.IDTokenTimeout = idTokensTimeout
+	}
+	if oidcAccessTokensTimeout, exists := cfgm.Data["oidc-access-tokens-timeout"]; exists {
+		accessTokensTimeout, err := ParseTime(oidcAccessTokensTimeout)
+		if err != nil {
+			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'oidc-access-tokens-timeout': %q, must be a valid nginx time (e.g. '1h', '30m', '2h')", cfgm.Namespace, cfgm.Name, oidcAccessTokensTimeout)
+			nl.Warn(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			return err
+		}
+		cfgParams.OIDC.AccessTimeout = accessTokensTimeout
+	}
+	if oidcRefreshTokensTimeout, exists := cfgm.Data["oidc-refresh-tokens-timeout"]; exists {
+		refreshTokensTimeout, err := ParseTime(oidcRefreshTokensTimeout)
+		if err != nil {
+			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'oidc-refresh-tokens-timeout': %q, must be a valid nginx time (e.g. '8h', '12h', '24h')", cfgm.Namespace, cfgm.Name, oidcRefreshTokensTimeout)
+			nl.Warn(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			return err
+		}
+		cfgParams.OIDC.RefreshTimeout = refreshTokensTimeout
+	}
+	if oidcSIDSTimeout, exists := cfgm.Data["oidc-sids-timeout"]; exists {
+		sidsTimeout, err := ParseTime(oidcSIDSTimeout)
+		if err != nil {
+			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'oidc-sids-timeout': %q, must be a valid nginx time (e.g. '8h', '12h', '24h')", cfgm.Namespace, cfgm.Name, oidcSIDSTimeout)
+			nl.Warn(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			return err
+		}
+		cfgParams.OIDC.SIDSTimeout = sidsTimeout
+	}
+	return nil
 }
 
 //nolint:gocyclo
@@ -1121,11 +1181,18 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		InternalRouteServer:                staticCfgParams.EnableInternalRoutes,
 		InternalRouteServerName:            staticCfgParams.InternalRouteServerName,
 		LatencyMetrics:                     staticCfgParams.EnableLatencyMetrics,
-		OIDC:                               staticCfgParams.EnableOIDC,
-		ZoneSyncConfig:                     zoneSyncConfig,
-		DynamicSSLReloadEnabled:            staticCfgParams.DynamicSSLReload,
-		StaticSSLPath:                      staticCfgParams.StaticSSLPath,
-		NginxVersion:                       staticCfgParams.NginxVersion,
+		OIDC: version1.OIDCConfig{
+			Enable:         staticCfgParams.EnableOIDC,
+			PKCETimeout:    config.OIDC.PKCETimeout,
+			IDTokenTimeout: config.OIDC.IDTokenTimeout,
+			AccessTimeout:  config.OIDC.AccessTimeout,
+			RefreshTimeout: config.OIDC.RefreshTimeout,
+			SIDSTimeout:    config.OIDC.SIDSTimeout,
+		},
+		ZoneSyncConfig:          zoneSyncConfig,
+		DynamicSSLReloadEnabled: staticCfgParams.DynamicSSLReload,
+		StaticSSLPath:           staticCfgParams.StaticSSLPath,
+		NginxVersion:            staticCfgParams.NginxVersion,
 	}
 	return nginxCfg
 }

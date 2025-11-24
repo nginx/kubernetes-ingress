@@ -22,7 +22,6 @@ K8S_CLUSTER_NAME            ?= local ## The name used when creating/using a Kin
 # renovate: datasource=docker depName=kindest/node
 K8S_CLUSTER_VERSION         ?= v1.34.0
 K8S_TIMEOUT                 ?= 75s ## The timeout used when creating a Kind Kubernetes cluster
-AD_SECRET                   ?=
 PLUS_JWT                    ?=
 PYTEST_ARGS                 ?=
 ifeq (${REGISTRY},)
@@ -123,7 +122,7 @@ run-tests-in-kind: ## Run tests in Kind
 create-kind-cluster: $(KIND_KUBE_CONFIG_FOLDER) ## Create a Kind K8S cluster
 	@kind create cluster \
 		--name $(K8S_CLUSTER_NAME) \
-		--image=kindest/node:v$(K8S_CLUSTER_VERSION) \
+		--image=kindest/node:$(K8S_CLUSTER_VERSION) \
 		--config=<(sed 's/dual/${IP_FAMILY}/' $(ROOT_DIR)/tests/ci-files/ci-kind-config.yaml) \
 		--wait $(K8S_TIMEOUT)
 	@kind get kubeconfig --name $(K8S_CLUSTER_NAME) --internal > $(KIND_KUBE_CONFIG_FOLDER)/config
@@ -164,7 +163,7 @@ run-tests-in-minikube: ## Run tests in Minikube
 
 .PHONY: create-mini-cluster
 create-mini-cluster: $(MINIKUBE_KUBE_CONFIG_FOLDER) ## Create a Minikube K8S cluster
-	@minikube start --kubernetes-version=v$(K8S_CLUSTER_VERSION) \
+	@minikube start --kubernetes-version=$(K8S_CLUSTER_VERSION) \
 	&& KUBECONFIG=$(MINIKUBE_KUBE_CONFIG_FOLDER)/config minikube update-context \
 	&& KUBECONFIG=$(MINIKUBE_KUBE_CONFIG_FOLDER)/config kubectl config set-cluster minikube --server=https://minikube:8443
 

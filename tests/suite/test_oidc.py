@@ -27,7 +27,6 @@ from suite.utils.vs_vsr_resources_utils import (
 
 username = "nginx-user-" + secrets.token_hex(4)
 password = secrets.token_hex(8)
-keycloak_src = f"{TEST_DATA}/oidc/keycloak.yaml"
 keycloak_vs_src = f"{TEST_DATA}/oidc/virtual-server-idp.yaml"
 oidc_secret_src = f"{TEST_DATA}/oidc/client-secret.yaml"
 oidc_pol_src = f"{TEST_DATA}/oidc/oidc.yaml"
@@ -225,15 +224,14 @@ def run_oidc(browser_type, ip_address, port):
         page = context.new_page()
 
         page.goto("https://virtual-server-tls.example.com")
-        page.wait_for_selector('input[name="username"]')
-        page.fill('input[name="username"]', username)
-        page.wait_for_selector('input[name="password"]', timeout=5000)
-        page.fill('input[name="password"]', password)
 
-        with page.expect_navigation():
-            page.click('input[type="submit"]')
-        page.wait_for_load_state("load")
-        page_text = page.text_content("body")
+        page.locator("input[name='username']").fill(username)
+        page.locator("input[name='password']").fill(password)
+
+        page.locator('button[type="submit"]').click()
+        page.wait_for_url("https://virtual-server-tls.example.com")
+
+        page_text = page.locator("body").text_content()
         fields_to_check = [
             "Server address:",
             "Server name:",

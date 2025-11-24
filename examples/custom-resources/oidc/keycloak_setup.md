@@ -7,7 +7,7 @@ This guide will help you configure KeyCloak using Keycloak's API:
 
 **Notes**:
 
-- This guide has been tested with keycloak 19.0.2 and later. If you modify `keycloak.yaml` to use an older version,
+- This guide has been tested with keycloak 26.4.0 and later. If you modify `keycloak.yaml` to use an older version,
   Keycloak may not start correctly or the commands in this guide may not work as expected. The Keycloak OpenID
   endpoints `oidc.yaml` might also be different in older versions of Keycloak.
 - if you changed the admin username and password for Keycloak in `keycloak.yaml`, modify the commands accordingly.

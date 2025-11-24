@@ -438,7 +438,7 @@ func TestAddIngressForMergeableIngresses(t *testing.T) {
 			Object:  invalidMinion1,
 			IsError: true,
 			Reason:  nl.EventReasonRejected,
-			Message: `[spec.rules[1].host: Duplicate value: "example.com", spec.rules: Too many: 2: must have at most 1 items]`,
+			Message: `[spec.rules[1].host: Duplicate value: "example.com", spec.rules: Too many: 2: must have at most 1 item]`,
 		},
 	}
 
