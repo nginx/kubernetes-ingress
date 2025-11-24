@@ -334,12 +334,5 @@ def run_oidc(browser_type, ip_address, port):
 
 
 def get_oidc_policy_file(keycloak_setup, oidcYaml):
-    if oidcYaml == "standard" and keycloak_setup.secure is False:
-        policy_file = oidc_pol_src["http"]
-    elif oidcYaml == "standard" and keycloak_setup.secure is True:
-        policy_file = oidc_pol_src["https"]
-    elif oidcYaml == "pkce" and keycloak_setup.secure is False:
-        policy_file = pkce_pol_src["http"]
-    else:
-        policy_file = pkce_pol_src["https"]
-    return policy_file
+    policy_src = oidc_pol_src if oidcYaml == "standard" else pkce_pol_src
+    return policy_src["https" if keycloak_setup.secure else "http"]
