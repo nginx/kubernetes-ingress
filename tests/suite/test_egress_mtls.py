@@ -37,8 +37,8 @@ def setup_policy(kube_apis, test_namespace, mtls_secret, tls_secret, policy):
 
 def teardown_policy(kube_apis, test_namespace, tls_secret, pol_name, mtls_secret):
     print("Delete policy and related secrets")
-    delete_secret(kube_apis.v1, tls_secret, test_namespace)
     delete_policy(kube_apis.custom_objects, pol_name, test_namespace)
+    delete_secret(kube_apis.v1, tls_secret, test_namespace)
     delete_secret(kube_apis.v1, mtls_secret, test_namespace)
 
 
@@ -152,7 +152,6 @@ class TestEgressMtlsPolicyVS:
         )
 
         vs_events = read_vs(kube_apis.custom_objects, test_namespace, virtual_server_setup.vs_name)
-        teardown_policy(kube_apis, test_namespace, tls_secret, pol_name, mtls_secret)
 
         patch_virtual_server_from_yaml(
             kube_apis.custom_objects,
@@ -160,6 +159,10 @@ class TestEgressMtlsPolicyVS:
             std_vs_src,
             virtual_server_setup.namespace,
         )
+
+        wait_before_test(600)
+
+        teardown_policy(kube_apis, test_namespace, tls_secret, pol_name, mtls_secret)
 
         assert (
             resp.status_code == expected_code

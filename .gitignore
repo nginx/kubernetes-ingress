@@ -68,3 +68,4 @@ venv/
 # generated tls certificates
 common-secrets/*
 !common-secrets/.gitkeep
+hack/cert-links
