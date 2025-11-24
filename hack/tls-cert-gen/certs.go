@@ -136,6 +136,27 @@ var yamlSecrets = []yamlSecret{
 	},
 
 	{
+		secretName: "grpc-secret",
+		fileName:   "tls-secret-grpc.yaml",
+		templateData: templateData{
+			country:            []string{"IE"},
+			organization:       []string{"F5 NGINX"},
+			organizationalUnit: []string{"NGINX Ingress Controller"},
+			locality:           []string{"Cork"},
+			province:           []string{"Cork"},
+			commonName:         "NGINXIngressController",
+			dnsNames:           []string{"*.example.com"},
+		},
+		valid: secretShouldHaveValidTLSCrt,
+		symlinks: []string{
+			"/tests/data/common/app/secure/secret/grpc-secret.yaml",
+		},
+		usedIn: []string{
+			"tests/suite/test_annotations.py.py - needed for secret name",
+		},
+	},
+
+	{
 		secretName: "default-server-secret",
 		fileName:   "tls-secret-default-gb.yaml",
 		templateData: templateData{
