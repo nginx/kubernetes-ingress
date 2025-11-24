@@ -2799,6 +2799,8 @@ var (
 		Server: Server{
 			ServerName:    "example.com",
 			StatusZone:    "example.com",
+			VSNamespace:   "default",
+			VSName:        "exampleVS",
 			ProxyProtocol: true,
 			OIDC: &OIDC{
 				PKCEEnable: true,
