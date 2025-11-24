@@ -50,6 +50,8 @@ const (
 	appProtectDosAgentInstallCmd    = "/usr/bin/adminstall"
 	appProtectDosAgentStartCmd      = "/usr/bin/admd -d --standalone"
 	appProtectDosAgentStartDebugCmd = "/usr/bin/admd -d --standalone --log debug"
+
+	defaultCAPath = "/etc/ssl/certs/ca-certificates.crt"
 )
 
 var (
@@ -777,8 +779,7 @@ func readOSRelease() ([]byte, error) {
 func (lm *LocalManager) GetOSCABundlePath() (string, error) {
 	sBytes, err := readOSRelease()
 	if err != nil {
-		// Default to Debian path if unable to read the file.
-		return "", err
+		nl.Warnf(lm.logger, "Failed to read /etc/os-release: %v, using default CA path %s", err, defaultCAPath)
 	}
 	s := string(sBytes)
 	caFilePath := getOSCABundlePath(s)
@@ -794,7 +795,7 @@ func getOSCABundlePath(s string) string {
 	alpineRegex := regexp.MustCompile(`ID=\"?alpine\"?`)
 	rhelRegex := regexp.MustCompile(`ID=\"?rhel\"?`)
 	// Logic to get the OS CA bundle path.
-	caFilePath := "/etc/ssl/certs/ca-certificates.crt" // Default for Debian, the default image base
+	caFilePath := defaultCAPath // Default for Debian, the default image base
 
 	if alpineRegex.MatchString(s) {
 		caFilePath = "/etc/ssl/cert.pem"
