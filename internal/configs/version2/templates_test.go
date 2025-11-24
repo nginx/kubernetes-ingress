@@ -2872,9 +2872,11 @@ var (
 			StatusZone:    "example.com",
 			ProxyProtocol: true,
 			OIDC: &OIDC{
-				TLSVerify:   true,
-				VerifyDepth: 1,
-				CAFile:      "/etc/ssl/certs/ca-certificate.crt",
+				TLSVerify:             true,
+				VerifyDepth:           1,
+				CAFile:                "/etc/ssl/certs/ca-certificate.crt",
+				RedirectURI:           "/_codexch",
+				PostLogoutRedirectURI: "/_logout",
 			},
 			NGINXDebugLevel: "error",
 			Locations: []Location{
