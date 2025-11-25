@@ -158,7 +158,7 @@ type Upstream struct {
 	// Sets the maximum allowed size of the client request body. The default is set in the client-max-body-size ConfigMap key.
 	ClientMaxBodySize string `json:"client-max-body-size"`
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Pattern=`^[0-9]+[kmg]$`
+	// +kubebuilder:validation:Pattern=`^\d+[kKmM]?$`
 	// ClientBodyBufferSize sets the size of the buffer used for reading the client request body. Must be specified as a number followed by:
 	// 'k' for kilobytes or 'm' for megabytes.
 	// Examples: "10m" or "512k".
