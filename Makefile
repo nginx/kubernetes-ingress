@@ -24,6 +24,10 @@ GOOS                          ?= linux ## The OS of the binary. For example linu
 TELEMETRY_ENDPOINT            ?= oss.edge.df.f5.com:443
 # renovate: datasource=docker depName=golangci/golangci-lint
 GOLANGCI_LINT_VERSION         ?= v2.6.2 ## The version of golangci-lint to use
+# renovate: datasource=go depName=golang.org/x/tools
+GOIMPORTS_VERSION             ?= v0.38.0 ## The version of goimports to use
+# renovate: datasource=go depName=mvdan.cc/gofumpt
+GOFUMPT_VERSION               ?= v0.4.0 ## The version of gofumpt to use
 
 # Additional flags added here can be accessed in main.go.
 # e.g. `main.version` maps to `var version` in main.go
@@ -68,10 +72,10 @@ lint-python: ## Run linter for python tests
 
 .PHONY: format
 format: ## Run goimports & gofmt
-	@go install golang.org/x/tools/cmd/goimports
-	@go install mvdan.cc/gofumpt@latest
-	@goimports -l -w .
-	@gofumpt -l -w .
+	go install golang.org/x/tools/cmd/goimports@$(GOIMPORTS_VERSION)
+	go install mvdan.cc/gofumpt@$(GOFUMPT_VERSION)
+	goimports -l -w .
+	gofumpt -l -w .
 
 .PHONY: staticcheck
 staticcheck: ## Run staticcheck linter
