@@ -2489,6 +2489,199 @@ func TestParseProxyBuffersInvalidFormat(t *testing.T) {
 	})
 }
 
+func TestParseConfigMapClientBodyBufferSizeValid(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		value       string
+		expected    string
+		description string
+	}{
+		{
+			name:        "valid size with k suffix",
+			value:       "12k",
+			expected:    "12k",
+			description: "should accept valid size with k suffix",
+		},
+		{
+			name:        "valid size with K suffix",
+			value:       "16K",
+			expected:    "16K",
+			description: "should accept valid size with K suffix",
+		},
+		{
+			name:        "valid size with m suffix",
+			value:       "6m",
+			expected:    "6m",
+			description: "should accept valid size with m suffix",
+		},
+		{
+			name:        "valid size with M suffix",
+			value:       "8M",
+			expected:    "8M",
+			description: "should accept valid size with M suffix",
+		},
+		{
+			name:        "valid size without suffix",
+			value:       "1024",
+			expected:    "1024",
+			description: "should accept valid size without suffix",
+		},
+		{
+			name:        "not set",
+			value:       "",
+			expected:    "", // no default value anymore
+			description: "should use empty string when not set",
+		},
+	}
+
+	nginxPlus := false
+	hasAppProtect := false
+	hasAppProtectDos := false
+	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cm := &v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-configmap",
+					Namespace: "default",
+				},
+			}
+
+			if tt.value != "" {
+				cm.Data = map[string]string{
+					"client-body-buffer-size": tt.value,
+				}
+			}
+
+			result, configOk := ParseConfigMap(
+				context.Background(),
+				cm,
+				nginxPlus,
+				hasAppProtect,
+				hasAppProtectDos,
+				hasTLSPassthrough,
+				directiveAutoadjustEnabled,
+				makeEventLogger(),
+			)
+
+			// Should always pass validation for valid cases
+			if !configOk {
+				t.Errorf("ParseConfigMap() for %s should have passed validation but failed", tt.description)
+			}
+
+			if result.MainClientBodyBufferSize != tt.expected {
+				t.Errorf("ParseConfigMap() for %s returned MainClientBodyBufferSize=%q, expected %q",
+					tt.description, result.MainClientBodyBufferSize, tt.expected)
+			}
+		})
+	}
+}
+
+func TestParseConfigMapClientBodyBufferSizeInvalid(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		value       string
+		description string
+	}{
+		{
+			name:        "invalid time unit h",
+			value:       "4h",
+			description: "should reject invalid time units",
+		},
+		{
+			name:        "invalid random string",
+			value:       "3cd2",
+			description: "should reject invalid strings",
+		},
+		{
+			name:        "invalid with g suffix",
+			value:       "2g",
+			description: "should reject unsupported g suffix",
+		},
+		{
+			name:        "invalid with G suffix",
+			value:       "1G",
+			description: "should reject unsupported G suffix",
+		},
+		{
+			name:        "invalid negative value",
+			value:       "-16k",
+			description: "should reject negative values",
+		},
+		{
+			name:        "invalid whitespace only",
+			value:       " ",
+			description: "should reject whitespace-only values",
+		},
+		{
+			name:        "invalid with text prefix",
+			value:       "abc16k",
+			description: "should reject values with text prefix",
+		},
+		{
+			name:        "invalid with special characters",
+			value:       "16@k",
+			description: "should reject values with special characters",
+		},
+		{
+			name:        "invalid decimal with unsupported suffix",
+			value:       "16.5g",
+			description: "should reject decimal values with unsupported suffix",
+		},
+	}
+
+	nginxPlus := false
+	hasAppProtect := false
+	hasAppProtectDos := false
+	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cm := &v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-configmap",
+					Namespace: "default",
+				},
+				Data: map[string]string{
+					"client-body-buffer-size": tt.value,
+				},
+			}
+
+			result, configOk := ParseConfigMap(
+				context.Background(),
+				cm,
+				nginxPlus,
+				hasAppProtect,
+				hasAppProtectDos,
+				hasTLSPassthrough,
+				directiveAutoadjustEnabled,
+				makeEventLogger(),
+			)
+
+			// Should always fail validation for invalid cases
+			if configOk {
+				t.Errorf("%s should have failed validation but passed", tt.name)
+			}
+
+			if result.MainClientBodyBufferSize != "" {
+				t.Errorf(`%s returned MainClientBodyBufferSize=%q, expected ""`,
+					tt.name, result.MainClientBodyBufferSize)
+			}
+		})
+	}
+}
+
 func TestParseErrorLogLevelToVirtualServer(t *testing.T) {
 	t.Parallel()
 

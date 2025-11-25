@@ -175,6 +175,7 @@ type Location struct {
 	ProxySendTimeout     string
 	ProxySetHeaders      []version2.Header
 	ClientMaxBodySize    string
+	ClientBodyBufferSize string
 	Websocket            bool
 	Rewrite              string
 	RewriteTarget        string
@@ -272,6 +273,7 @@ type MainConfig struct {
 	ServerNamesHashMaxSize             string
 	MapHashBucketSize                  string
 	MapHashMaxSize                     string
+	ClientBodyBufferSize               string
 	ServerTokens                       string
 	SSLRejectHandshake                 bool
 	SSLCiphers                         string
