@@ -53,6 +53,7 @@ type ConfigParams struct {
 	MainWorkerProcesses                    string
 	MainWorkerRlimitNofile                 string
 	MainWorkerShutdownTimeout              string
+	MainClientBodyBufferSize               string
 	MaxConns                               int
 	MaxFails                               int
 	AppProtectEnable                       string
