@@ -1609,7 +1609,6 @@ var (
 					ProxyReadTimeout:         "31s",
 					ProxySendTimeout:         "32s",
 					ClientMaxBodySize:        "1m",
-					ClientBodyBufferSize:     "8k",
 					ProxyBuffering:           true,
 					ProxyBuffers:             "8 4k",
 					ProxyBufferSize:          "4k",

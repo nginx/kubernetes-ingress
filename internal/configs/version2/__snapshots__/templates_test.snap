@@ -3102,7 +3102,6 @@ server {
         proxy_read_timeout 31s;
         proxy_send_timeout 32s;
         client_max_body_size 1m;
-        client_body_buffer_size 8k;
         proxy_max_temp_file_size 1024m;
 
         proxy_buffering on;
