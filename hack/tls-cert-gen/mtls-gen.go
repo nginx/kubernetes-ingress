@@ -35,18 +35,25 @@ func printMTLSBundle(bundle mtlsBundle, projectRoot string) error {
 		return fmt.Errorf("failed to generate private key: %w", err)
 	}
 
-	pub := publicKey(caPrivateKey)
+	caPubKey := publicKey(caPrivateKey)
 
 	// pub is crypto.PublicKey
-	pkBytes, _ := x509.MarshalPKIXPublicKey(pub)
-	ski := sha1.Sum(pkBytes) //gosec:disable G401 -- A Certificate Revocation List needs a Subject Key Identifier, and per RFC5280, that needs to be an SHA1 hash https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.2
+	caPkBytes, _ := x509.MarshalPKIXPublicKey(caPubKey)
+	caSki := sha1.Sum(caPkBytes) //gosec:disable G401 -- A Certificate Revocation List needs a Subject Key Identifier, and per RFC5280, that needs to be an SHA1 hash https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.2
 
-	caTemplate.SubjectKeyId = ski[:]
+	caTemplate.SubjectKeyId = caSki[:]
 
 	// the CA in the bundle is self-signed
 	ca, err := generateTLSKeyPair(caTemplate, caTemplate, caPrivateKey)
 	if err != nil {
 		return fmt.Errorf("generating CA: %w", err)
+	}
+
+	// This is needed for signing the client and server certs below
+	caCertBytes, _ := pem.Decode(ca.cert)
+	caCert, err := x509.ParseCertificate(caCertBytes.Bytes)
+	if err != nil {
+		return fmt.Errorf("parsing CA cert for bundle: %w", err)
 	}
 
 	// Write the CA to disk
@@ -67,9 +74,9 @@ func printMTLSBundle(bundle mtlsBundle, projectRoot string) error {
 	}
 
 	// because this is a client certificate, we need to swap out the issuer
-	clientTemplate.Issuer = caTemplate.Subject
+	clientTemplate.Issuer = caCert.Subject
 
-	client, err := generateTLSKeyPair(clientTemplate, caTemplate, caPrivateKey) // signed by the CA from above
+	client, err := generateTLSKeyPair(clientTemplate, *caCert, caPrivateKey) // signed by the CA from above
 	if err != nil {
 		return fmt.Errorf("generating signed client cert for bundle: %w", err)
 	}
@@ -79,24 +86,19 @@ func printMTLSBundle(bundle mtlsBundle, projectRoot string) error {
 		return fmt.Errorf("generated client certificate validation failed: %w", err)
 	}
 
-	child, _ := pem.Decode(client.cert)
-	parsedChild, err := x509.ParseCertificate(child.Bytes)
+	clientChild, _ := pem.Decode(client.cert)
+	clientCert, err := x509.ParseCertificate(clientChild.Bytes)
 	if err != nil {
 		return fmt.Errorf("parsing client cert for bundle: %w", err)
 	}
-	parent, _ := pem.Decode(ca.cert)
-	parsedParent, err := x509.ParseCertificate(parent.Bytes)
+	err = clientCert.CheckSignatureFrom(caCert)
 	if err != nil {
-		return fmt.Errorf("parsing client cert for bundle: %w", err)
+		return fmt.Errorf("checking client is signed by CA: %w", err)
 	}
-	err = parsedChild.CheckSignatureFrom(parsedParent)
-	if err != nil {
-		return fmt.Errorf("checking client is signed by parent: %w", err)
-	}
-	fmt.Printf("\nclient is signed by parent\n")
+	fmt.Printf("\nclient is signed by CA\n")
 
 	// Write the signed client certificate to disk
-	clientContents, err := createYamlSecret(bundle.client, true, client)
+	clientContents, err := createKubeTLSSecretYaml(bundle.client, true, client)
 	if err != nil {
 		return fmt.Errorf("marshaling bundle client %s to yaml: %w", bundle.client.fileName, err)
 	}
@@ -106,7 +108,48 @@ func printMTLSBundle(bundle mtlsBundle, projectRoot string) error {
 		return fmt.Errorf("writing bundle CA %s to project root: %w", bundle.ca.fileName, err)
 	}
 
-	// =================== Client Revocation List ===================
+	// =================== Server certificate ===================
+	serverTemplate, err := renderX509Template(bundle.server.templateData)
+	if err != nil {
+		return fmt.Errorf("generating server template for bundle: %w", err)
+	}
+
+	// because this is a server certificate, we need to swap out the issuer
+	serverTemplate.Issuer = caCert.Subject
+
+	server, err := generateTLSKeyPair(serverTemplate, *caCert, caPrivateKey) // signed by the CA from above
+	if err != nil {
+		return fmt.Errorf("generating signed server cert for bundle: %w", err)
+	}
+
+	_, err = tls.X509KeyPair(server.cert, server.key)
+	if err != nil {
+		return fmt.Errorf("generated server certificate validation failed: %w", err)
+	}
+
+	serverChild, _ := pem.Decode(server.cert)
+	serverCert, err := x509.ParseCertificate(serverChild.Bytes)
+	if err != nil {
+		return fmt.Errorf("parsing server cert for bundle: %w", err)
+	}
+	err = serverCert.CheckSignatureFrom(caCert)
+	if err != nil {
+		return fmt.Errorf("checking server is signed by CA: %w", err)
+	}
+	fmt.Printf("\nserver is signed by CA\n")
+
+	// Write the signed server certificate to disk
+	serverContents, err := createOpaqueSecretYaml(bundle.server, true, server, ca.cert)
+	if err != nil {
+		return fmt.Errorf("marshaling bundle server %s to yaml: %w", bundle.server.fileName, err)
+	}
+
+	err = writeFiles(serverContents, projectRoot, bundle.server.fileName, bundle.server.symlinks)
+	if err != nil {
+		return fmt.Errorf("writing bundle server %s to project root: %w", bundle.server.fileName, err)
+	}
+
+	// =================== CA Revocation List ===================
 	crlTemplate := x509.RevocationList{
 		Issuer: caTemplate.Subject,
 		RevokedCertificateEntries: []x509.RevocationListEntry{

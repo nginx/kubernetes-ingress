@@ -64,6 +64,7 @@ type templateData struct {
 	dnsNames           []string
 }
 
+// nolint:gocyclo
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	var err error
@@ -96,52 +97,67 @@ func main() {
 		if *cleanPtr {
 			err = removeSecretFiles(logger, secret)
 			if err != nil {
-				log.Fatalf(logger, "Failed to remove secret files: %s %v", secret.fileName, err)
+				log.Fatalf(logger, "failed to remove secret files: %s %v", secret.fileName, err)
 			}
 			continue
 		}
 		err = printKubernetesTLS(secret, projectRoot)
 		if err != nil {
-			log.Fatalf(logger, "Failed to print tls key: %s %v", secret.fileName, err)
+			log.Fatalf(logger, "failed to print tls key: %s %v", secret.fileName, err)
 		}
 	}
 
-	// // Create MTLS bundles rather than individual certificates
-	// for _, bundle := range mtlsBundles {
-	// 	// check duplicate file and symlinks for CA
-	// 	if _, ok := filenames[bundle.ca.fileName]; ok {
-	// 		log.Fatalf(logger, "bundle ca contains duplicated files: %v", bundle.ca.fileName)
-	// 	}
+	// Create MTLS bundles rather than individual certificates
+	for _, bundle := range mtlsBundles {
+		// generate bundle ca cert file and symlinks
+		if _, ok := filenames[bundle.ca.fileName]; ok {
+			log.Fatalf(logger, "bundle ca contains duplicated files: %v", bundle.ca.fileName)
+		}
 
-	// 	filenames[bundle.ca.fileName] = struct{}{}
+		filenames[bundle.ca.fileName] = struct{}{}
 
-	// 	for _, symlink := range bundle.ca.symlinks {
-	// 		if _, ok := filenames[symlink]; ok {
-	// 			log.Fatalf(logger, "bundle ca contains duplicated symlink for file %s: %s", bundle.ca.fileName, symlink)
-	// 		}
+		for _, symlink := range bundle.ca.symlinks {
+			if _, ok := filenames[symlink]; ok {
+				log.Fatalf(logger, "bundle ca contains duplicated symlink for file %s: %s", bundle.ca.fileName, symlink)
+			}
 
-	// 		filenames[symlink] = struct{}{}
-	// 	}
+			filenames[symlink] = struct{}{}
+		}
 
-	// 	// check duplicate file and symlinks for bundle client
-	// 	if _, ok := filenames[bundle.client.fileName]; ok {
-	// 		log.Fatalf(logger, "bundle client contains duplicated files: %v", bundle.client.fileName)
-	// 	}
-	// 	filenames[bundle.client.fileName] = struct{}{}
+		// generate bundle client cert file and symlinks
+		if _, ok := filenames[bundle.client.fileName]; ok {
+			log.Fatalf(logger, "bundle client contains duplicated files: %v", bundle.client.fileName)
+		}
+		filenames[bundle.client.fileName] = struct{}{}
 
-	// 	for _, symlink := range bundle.client.symlinks {
-	// 		if _, ok := filenames[symlink]; ok {
-	// 			log.Fatalf(logger, "bundle client contains duplicated symlink for file %s: %s", bundle.client.fileName, symlink)
-	// 		}
+		for _, symlink := range bundle.client.symlinks {
+			if _, ok := filenames[symlink]; ok {
+				log.Fatalf(logger, "bundle client contains duplicated symlink for file %s: %s", bundle.client.fileName, symlink)
+			}
 
-	// 		filenames[symlink] = struct{}{}
-	// 	}
+			filenames[symlink] = struct{}{}
+		}
 
-	// 	err = printMTLSBundle(bundle, projectRoot)
-	// 	if err != nil {
-	// 		log.Fatalf(logger, "printMTLSBundle: %v", err)
-	// 	}
-	// }
+		// generate bundle server cert file and symlinks
+		if _, ok := filenames[bundle.server.fileName]; ok {
+			log.Fatalf(logger, "bundle server contains duplicated files: %v", bundle.server.fileName)
+		}
+		filenames[bundle.server.fileName] = struct{}{}
+
+		for _, symlink := range bundle.server.symlinks {
+			if _, ok := filenames[symlink]; ok {
+				log.Fatalf(logger, "bundle server contains duplicated symlink for file %s: %s", bundle.server.fileName, symlink)
+			}
+
+			filenames[symlink] = struct{}{}
+		}
+
+		err = printMTLSBundle(bundle, projectRoot)
+		if err != nil {
+			log.Fatalf(logger, "printMTLSBundle: %v", err)
+		}
+
+	}
 }
 
 func removeSecretFiles(logger *slog.Logger, secret yamlSecret) error {
@@ -150,7 +166,7 @@ func removeSecretFiles(logger *slog.Logger, secret yamlSecret) error {
 	if _, err := os.Stat(filePath); !os.IsNotExist(err) {
 		err := os.Remove(filepath.Join(projectRoot, realSecretDirectory, secret.fileName))
 		if err != nil {
-			return fmt.Errorf("Failed to remove file: %s %w", secret.fileName, err)
+			return fmt.Errorf("failed to remove file: %s %w", secret.fileName, err)
 		}
 	}
 
@@ -159,7 +175,7 @@ func removeSecretFiles(logger *slog.Logger, secret yamlSecret) error {
 		if _, err := os.Lstat(filepath.Join(projectRoot, symlink)); !os.IsNotExist(err) {
 			err = os.Remove(filepath.Join(projectRoot, symlink))
 			if err != nil {
-				return fmt.Errorf("Failed to remove symlink: %s %w", symlink, err)
+				return fmt.Errorf("failed to remove symlink: %s %w", symlink, err)
 			}
 		}
 
@@ -202,7 +218,7 @@ func printKubernetesTLS(secret yamlSecret, projectRoot string) error {
 	//
 	// If the incoming secret is not valid, then the created yaml file will have
 	// an empty tls.key value.
-	fileContents, err := createYamlSecret(secret, secret.valid, tlsKeys)
+	fileContents, err := createKubeTLSSecretYaml(secret, secret.valid, tlsKeys)
 	if err != nil {
 		return fmt.Errorf("writing valid file for %s: %w", secret.fileName, err)
 	}
@@ -346,9 +362,9 @@ func renderX509Template(td templateData) (x509.Certificate, error) {
 	}, nil
 }
 
-// createYamlSecret takes in the generated TLS key in generateTLSKeyPair, and marshals it
+// createKubeTLSSecretYaml takes in the generated TLS key in generateTLSKeyPair, and marshals it
 // into a yaml file contents and returns that as a byteslice.
-func createYamlSecret(secret yamlSecret, isValid bool, tlsKeys *JITTLSKey) ([]byte, error) {
+func createKubeTLSSecretYaml(secret yamlSecret, isValid bool, tlsKeys *JITTLSKey) ([]byte, error) {
 	s := v1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Secret",
@@ -362,6 +378,41 @@ func createYamlSecret(secret yamlSecret, isValid bool, tlsKeys *JITTLSKey) ([]by
 			v1.TLSPrivateKeyKey: tlsKeys.key,
 		},
 		Type: v1.SecretTypeTLS,
+	}
+
+	if !isValid {
+		s.Data[v1.TLSCertKey] = []byte(``)
+	}
+
+	if secret.secretType != "" {
+		s.Type = secret.secretType
+	}
+
+	sb, err := yaml.Marshal(s)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling kubernetes secret into yaml %v: %w", s, err)
+	}
+
+	return sb, nil
+}
+
+// createOpaqueSecretYaml takes in the generated TLS key in generateTLSKeyPair, and marshals it
+// into a yaml file contents and returns that as a byteslice.
+func createOpaqueSecretYaml(secret yamlSecret, isValid bool, keyPair *JITTLSKey, caCert []byte) ([]byte, error) {
+	s := v1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Secret",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: secret.secretName,
+		},
+		Data: map[string][]byte{
+			v1.TLSCertKey:       keyPair.cert,
+			v1.TLSPrivateKeyKey: keyPair.key,
+			configs.CACrtKey:    caCert,
+		},
+		Type: v1.SecretTypeOpaque,
 	}
 
 	if !isValid {

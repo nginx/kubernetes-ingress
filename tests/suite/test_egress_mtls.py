@@ -160,8 +160,6 @@ class TestEgressMtlsPolicyVS:
             virtual_server_setup.namespace,
         )
 
-        wait_before_test(600)
-
         teardown_policy(kube_apis, test_namespace, tls_secret, pol_name, mtls_secret)
 
         assert (
