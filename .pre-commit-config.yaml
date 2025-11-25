@@ -44,13 +44,13 @@ repos:
         pass_filenames: false
 
   - repo: https://github.com/golangci/golangci-lint
-    rev: v2.6.1
+    rev: v2.6.2
     hooks:
       - id: golangci-lint
         args: [--new-from-patch=/tmp/diff.patch]
 
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.21.1
+    rev: v3.21.2
     hooks:
       - id: pyupgrade
 
@@ -77,7 +77,7 @@ repos:
           ]
 
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0.34.1
+    rev: 0.35.0
     hooks:
       - id: check-jsonschema
         name: "Check Helm Chart JSON Schema"
@@ -86,12 +86,12 @@ repos:
         args: ["--schemafile", "charts/nginx-ingress/values.schema.json"]
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.18.1
+    rev: v0.19.0
     hooks:
       - id: markdownlint-cli2
 
   - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.8
+    rev: v1.7.9
     hooks:
       - id: actionlint
         name: Lint GitHub Actions workflow files

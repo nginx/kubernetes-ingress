@@ -65,7 +65,7 @@ jobs:
       k8s_version: ${{ steps.vars.outputs.k8s_version }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           fetch-depth: 0
           ref: ${{ inputs.release_branch }}
@@ -130,7 +130,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout NIC repo
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           ref: ${{ inputs.release_branch }}
           fetch-depth: 0
@@ -318,26 +318,48 @@ jobs:
     permissions:
       contents: write # for pushing to Helm Charts repository
       packages: write # for helm to push to GHCR
+      id-token: write
     secrets: inherit
 
   certify-openshift-images:
     if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'certify-openshift-images') }}
     name: Certify OpenShift UBI images
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
     needs: [release-oss]
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           ref: ${{ inputs.release_branch }}
+
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
+
+      - name: Setup secrets
+        id: secrets
+        run: |
+          echo "Setting secrets for job"
+          PYXIS_TOKEN=$(az keyvault secret show --name nic-pyxis-token --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$PYXIS_TOKEN"
+          echo "PYXIS_TOKEN=$PYXIS_TOKEN" >> $GITHUB_OUTPUT
+          PYXIS_CERTIFICATION_PROJECT_ID=$(az keyvault secret show --name nic-pyxis-certification-pid --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$PYXIS_CERTIFICATION_PROJECT_ID"
+          echo "PYXIS_CERTIFICATION_PROJECT_ID=$PYXIS_CERTIFICATION_PROJECT_ID" >> $GITHUB_OUTPUT
 
       - name: Certify UBI OSS images in quay
         uses: ./.github/actions/certify-openshift-image
         continue-on-error: true
         with:
           image: quay.io/nginx/nginx-ingress:${{ inputs.nic_version }}-ubi
-          project_id: ${{ secrets.CERTIFICATION_PROJECT_ID }}
-          pyxis_token: ${{ secrets.PYXIS_API_TOKEN }}
+          project_id: ${{ steps.secrets.outputs.PYXIS_CERTIFICATION_PROJECT_ID }}
+          pyxis_token: ${{ steps.secrets.outputs.PYXIS_TOKEN }}
           preflight_version: 1.14.1
 
   operator:
@@ -345,11 +367,29 @@ jobs:
     name: Trigger PR for Operator
     runs-on: ubuntu-24.04
     needs: [variables,publish-helm-chart]
+    permissions:
+      contents: read
+      id-token: write
     steps:
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_COMMON_VAULT_SUBSCRIPTION_ID }}
+
+      - name: Setup secrets
+        id: secrets
+        run: |
+          echo "Setting secrets for job"
+          NGINX_PAT=$(az keyvault secret show --name nginx-bot-pat --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$NGINX_PAT"
+          echo "NGINX_PAT=$NGINX_PAT" >> $GITHUB_OUTPUT
+
       - name:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
-          github-token: ${{ secrets.NGINX_PAT }}
+          github-token: ${{ steps.secrets.outputs.NGINX_PAT }}
           script: |
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
@@ -370,11 +410,29 @@ jobs:
   #   name: Trigger PR for GCP Marketplace
   #   runs-on: ubuntu-24.04
   #   needs: [publish-helm-chart,release-plus-gcr-mktpl]
+  #   permissions:
+  #     contents: read
+  #     id-token: write
   #   steps:
+  #     - name: Azure login
+  #       uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+  #       with:
+  #         client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
+  #         tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
+  #         subscription-id: ${{ secrets.AZURE_COMMON_VAULT_SUBSCRIPTION_ID }}
+
+  #     - name: Setup secrets
+  #       id: secrets
+  #       run: |
+  #         echo "Setting secrets for job"
+  #         NGINX_PAT=$(az keyvault secret show --name nginx-bot-pat --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
+  #         echo "::add-mask::$NGINX_PAT"
+  #         echo "NGINX_PAT=$NGINX_PAT" >> $GITHUB_OUTPUT
+
   #     - name:
   #       uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
   #       with:
-  #         github-token: ${{ secrets.NGINX_PAT }}
+  #         github-token: ${{ steps.secrets.outputs.NGINX_PAT }}
   #         script: |
   #           await github.rest.actions.createWorkflowDispatch({
   #             owner: context.repo.owner,
@@ -391,12 +449,29 @@ jobs:
   #   if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'azure-marketplace') }}
   #   name: Trigger CNAB Build for Azure Marketplace
   #   runs-on: ubuntu-24.04
+  #   permissions:
+  #     contents: read
+  #     id-token: write
   #   needs: [publish-helm-chart,release-plus-azure-mktpl]
   #   steps:
+  #     - name: Azure login
+  #       uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+  #       with:
+  #         client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
+  #         tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
+  #         subscription-id: ${{ secrets.AZURE_COMMON_VAULT_SUBSCRIPTION_ID }}
+
+  #     - name: Setup secrets
+  #       id: secrets
+  #       run: |
+  #         echo "Setting secrets for job"
+  #         NGINX_PAT=$(az keyvault secret show --name nginx-bot-pat --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
+  #         echo "::add-mask::$NGINX_PAT"
+  #         echo "NGINX_PAT=$NGINX_PAT" >> $GITHUB_OUTPUT
   #     - name:
   #       uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
   #       with:
-  #         github-token: ${{ secrets.NGINX_PAT }}
+  #         github-token: ${{ steps.secrets.outputs.NGINX_PAT }}
   #         script: |
   #           await github.rest.actions.createWorkflowDispatch({
   #             owner: context.repo.owner,
@@ -437,11 +512,26 @@ jobs:
   #       with:
   #         ref: ${{ inputs.release_branch }}
 
+  #     - name: Azure login
+  #       uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+  #       with:
+  #         client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+  #         tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
+  #         subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
+
+  #     - name: Setup secrets
+  #       id: secrets
+  #       run: |
+  #         echo "Setting secrets for job"
+  #         AWS_ROLE_MARKETPLACE=$(az keyvault secret show --name aws-mktpl-role --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+  #         echo "::add-mask::$AWS_ROLE_MARKETPLACE"
+  #         echo "AWS_ROLE_MARKETPLACE=$AWS_ROLE_MARKETPLACE" >> $GITHUB_OUTPUT
+
   #     - name: Configure AWS Credentials
   #       uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df # v4.2.1
   #       with:
   #         aws-region: us-east-1
-  #         role-to-assume: ${{ secrets.AWS_ROLE_MARKETPLACE }}
+  #         role-to-assume: ${{ steps.secrets.outputs.AWS_ROLE_MARKETPLACE }}
 
   #     - name: Publish to AWS Marketplace
   #       uses: nginx/aws-marketplace-publish@accf7b4c725796b744f2ee27acc2488d76f63d32 # v1.0.8
@@ -456,7 +546,7 @@ jobs:
   #           This is the official implementation of NGINX Ingress Controller (based on NGINX Plus) from NGINX.
   #         usage-instructions: |
   #           This container requires Kubernetes and can be deployed to EKS.
-  #           Review the installation instructions https://docs.nginx.com/nginx-ingress-controller/installation/ and utilize the deployment resources available https://github.com/nginx/kubernetes-ingress/tree/v${{ inputs.nic_version }}/deployments
+  #           Review the installation instructions https://docs.nginx.com/nginx-ingress-controller/install and utilize the deployment resources available https://github.com/nginx/kubernetes-ingress/tree/v${{ inputs.nic_version }}/deployments
   #           Use this image instead of building your own.
 
   binaries:
@@ -468,7 +558,7 @@ jobs:
       id-token: write # for cosign to sign artifacts
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           ref: ${{ inputs.release_branch }}
 
@@ -480,7 +570,7 @@ jobs:
 
       - name: Download Syft
         id: syft
-        uses: anchore/sbom-action/download-syft@8e94d75ddd33f69f691467e42275782e4bfefe84 # v0.20.9
+        uses: anchore/sbom-action/download-syft@fbfd9c6c189226748411491745178e0c2017392d # v0.20.10
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
@@ -509,7 +599,7 @@ jobs:
     environment: release
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           ref: ${{ inputs.release_branch }}
 
@@ -527,6 +617,19 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Setup secrets
+        id: secrets
+        run: |
+          echo "Setting secrets for job"
+          AZURE_STORAGE=$(az keyvault secret show --name azure-storage --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$AZURE_STORAGE"
+          AZURE_STORAGE_ACCOUNT=$(echo $AZURE_STORAGE | jq -r '.account')
+          echo "::add-mask::$AZURE_STORAGE_ACCOUNT"
+          echo "AZURE_STORAGE_ACCOUNT=$AZURE_STORAGE_ACCOUNT" >> $GITHUB_OUTPUT
+          AZURE_BUCKET_NAME=$(echo $AZURE_STORAGE | jq -r '.bucket')
+          echo "::add-mask::$AZURE_BUCKET_NAME"
+          echo "AZURE_BUCKET_NAME=$AZURE_BUCKET_NAME" >> $GITHUB_OUTPUT
+
       - name: Azure Upload Release Packages
         uses: azure/CLI@9f7ce6f37c31b777ec6c6b6d1dfe7db79f497956 # v2.2.0
         with:
@@ -534,8 +637,8 @@ jobs:
             for i in $(find tarballs -type f); do
               echo -n "Uploading ${i} to kubernetes-ingress/v${{ inputs.nic_version }}/${i##*/} ... "
               if ${{ ! inputs.dry_run}}; then
-                az storage blob upload --auth-mode=login -f "$i" -c ${{ secrets.AZURE_BUCKET_NAME }} \
-                  --account-name ${{ secrets.AZURE_STORAGE_ACCOUNT }} --overwrite -n kubernetes-ingress/v${{ inputs.nic_version }}/${i##*/}
+                az storage blob upload --auth-mode=login -f "$i" -c ${{ steps.secrets.outputs.AZURE_BUCKET_NAME }} \
+                  --account-name ${{ steps.secrets.outputs.AZURE_STORAGE_ACCOUNT }} --overwrite -n kubernetes-ingress/v${{ inputs.nic_version }}/${i##*/}
                 echo "done"
               else
                 echo "skipped, dry_run."
@@ -553,7 +656,7 @@ jobs:
       actions: read # for slack notification
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           ref: ${{ inputs.release_branch }}
 
@@ -635,15 +738,31 @@ jobs:
     permissions:
       contents: read
       actions: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
         image: ["nginx/nginx-ingress:${{ inputs.nic_version }}", "nginx/nginx-ingress:${{ inputs.nic_version }}-ubi", "nginx/nginx-ingress:${{ inputs.nic_version }}-alpine"]
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           ref: ${{ inputs.release_branch }}
+
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
+
+      - name: Setup secrets
+        id: secrets
+        run: |
+          echo "Setting secrets for job"
+          SLACK_WEBHOOK=$(az keyvault secret show --name slack-pipeline-webhook --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$SLACK_WEBHOOK"
+          echo "SLACK_WEBHOOK=$SLACK_WEBHOOK" >> $GITHUB_OUTPUT
 
       - name: Get Image manifest digest
         id: digest
@@ -701,4 +820,4 @@ jobs:
               }]
             }
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_WEBHOOK_URL: ${{ steps.secrets.outputs.SLACK_WEBHOOK }}
