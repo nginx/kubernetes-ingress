@@ -29,7 +29,7 @@ data/ap-waf-grpc/tls-secret.yaml
 data/appprotect/appprotect-secret.yaml
 data/common/app/secure/secret/app-tls-secret.yaml
 data/common/app/secure/secret/grpc-secret.yaml
-data/common/app/secure-ca/secret/app-tls-secret.yaml
+data/common/app/secure-ca/app-tls-secret.yaml
 data/common/default-server-secret.yaml
 data/default-server/invalid-tls-secret.yaml
 data/default-server/new-tls-secret.yaml
@@ -46,11 +46,13 @@ data/tls/invalid-tls-secret.yaml
 data/tls/new-tls-secret.yaml
 data/tls/tls-secret.yaml
 data/transport-server-tcp-load-balance/tcp-tls-secret.yaml
+data/transport-server-with-host/cafe-secret.yaml
 data/upgrade-test-resources/secret.yaml
 data/virtual-server-certmanager/tls-secret.yaml
 data/virtual-server-grpc/tls-secret.yaml
 data/virtual-server-route-grpc/tls-secret.yaml
 data/virtual-server-tls/new-tls-secret.yaml
+data/virtual-server-tls/invalid-tls-secret.yaml
 data/virtual-server-tls/tls-secret.yaml
 data/watch-secret-namespace/tls-secret.yaml
 data/wildcard-tls-secret/gb-wildcard-tls-secret.yaml

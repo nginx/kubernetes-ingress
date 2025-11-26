@@ -12,6 +12,8 @@ type mtlsBundle struct {
 	crl    bool
 }
 
+var SecretTypeSomeType v1.SecretType = "some-type"
+
 // yamlSecret encapsulates all the data that we need to create the tls secrets
 // that kubernetes needs as tls files.
 //
@@ -43,7 +45,7 @@ var yamlSecrets = []yamlSecret{
 			locality:           []string{"Cork"},
 			province:           []string{"Cork"},
 			commonName:         "example.com",
-			dnsNames:           []string{"foo.bar.example.com", "appprotect.example.com", "*.example.com"},
+			dnsNames:           []string{"foo.bar.example.com", "cafe.example.com", "appprotect.example.com", "*.example.com"},
 		},
 		valid: secretShouldHaveValidTLSCrt,
 		symlinks: []string{
@@ -407,6 +409,47 @@ var yamlSecrets = []yamlSecret{
 		},
 		usedIn: []string{
 			"tests/suite/test_virtual_server_service_insight.py - secret name common name",
+		},
+	},
+
+	{
+		secretName: "tls-secret",
+		fileName:   "invalid-tls-secret-sometype.yaml",
+		templateData: templateData{
+			country:      []string{"US"},
+			organization: []string{"Internet Widgits Pty Ltd"},
+			locality:     []string{"San Francisco"},
+			province:     []string{"CA"},
+			commonName:   "cafe.example.com",
+			dnsNames:     []string{"cafe.example.com"},
+		},
+		valid:      secretShouldHaveValidTLSCrt,
+		secretType: SecretTypeSomeType,
+		symlinks: []string{
+			"/tests/data/virtual-server-tls/invalid-tls-secret.yaml",
+		},
+		usedIn: []string{
+			"tests/suite/test_virtual_server_tls.py - secret name common name",
+		},
+	},
+
+	{
+		secretName: "cafe-secret",
+		fileName:   "cafe-secret.yaml",
+		templateData: templateData{
+			country:      []string{"US"},
+			organization: []string{"Internet Widgits Pty Ltd"},
+			locality:     []string{"San Francisco"},
+			province:     []string{"CA"},
+			commonName:   "cafe.example.com",
+			dnsNames:     []string{"cafe.example.com"},
+		},
+		valid: secretShouldHaveValidTLSCrt,
+		symlinks: []string{
+			"/tests/data/transport-server-with-host/cafe-secret.yaml",
+		},
+		usedIn: []string{
+			"tests/suite/test_transport_server_with_host.py - secret name common name",
 		},
 	},
 }
