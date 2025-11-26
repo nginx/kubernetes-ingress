@@ -45,7 +45,9 @@ data/smoke/smoke-secret.yaml
 data/tls/invalid-tls-secret.yaml
 data/tls/new-tls-secret.yaml
 data/tls/tls-secret.yaml
+data/transport-server-backup-service/standard/secure-app-secret.yaml
 data/transport-server-tcp-load-balance/tcp-tls-secret.yaml
+data/transport-server-tls-passthrough/standard/secure-app-secret.yaml
 data/transport-server-with-host/cafe-secret.yaml
 data/upgrade-test-resources/secret.yaml
 data/virtual-server-certmanager/tls-secret.yaml

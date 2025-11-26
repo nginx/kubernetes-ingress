@@ -344,6 +344,8 @@ var yamlSecrets = []yamlSecret{
 		valid: secretShouldHaveValidTLSCrt,
 		symlinks: []string{
 			"/tests/data/common/app/secure/secret/app-tls-secret.yaml",
+			"/tests/data/transport-server-tls-passthrough/standard/secure-app-secret.yaml",
+			"/tests/data/transport-server-backup-service/standard/secure-app-secret.yaml",
 		},
 		usedIn: []string{
 			"suite/test_transport_server_backup_service.py - needed for the common name and secret name",
