@@ -121,11 +121,7 @@ server {
     {{- with $s.Cache }}
     # Server-level cache configuration
     proxy_cache {{ $s.Cache.ZoneName }};
-            {{- if $s.Cache.CacheKey }}
     proxy_cache_key {{ $s.Cache.CacheKey }};
-            {{- else }}
-    proxy_cache_key $scheme$proxy_host$request_uri;
-            {{- end }}
             {{- if $s.Cache.OverrideUpstreamCache }}
     proxy_ignore_headers Cache-Control Expires Set-Cookie Vary X-Accel-Expires;
             {{- end }}
@@ -480,11 +476,7 @@ server {
 
         {{- with $l.Cache }}
         proxy_cache {{ $l.Cache.ZoneName }};
-                {{- if $l.Cache.CacheKey }}
         proxy_cache_key {{ $l.Cache.CacheKey }};
-                {{- else }}
-        proxy_cache_key $scheme$proxy_host$request_uri;
-                {{- end }}
                 {{- if $l.Cache.OverrideUpstreamCache }}
         proxy_ignore_headers Cache-Control Expires Set-Cookie Vary X-Accel-Expires;
                 {{- end }}

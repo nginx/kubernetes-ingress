@@ -2948,6 +2948,7 @@ var (
 				CachePurgeAllow:       []string{"127.0.0.1", "10.0.0.0/8", "192.168.1.0/24"},
 				OverrideUpstreamCache: true,
 				Levels:                "2:2",
+				CacheKey:              "$scheme$proxy_host$request_uri",
 			},
 			Locations: []Location{
 				{
@@ -2963,6 +2964,7 @@ var (
 						CachePurgeAllow:       nil,
 						OverrideUpstreamCache: false,
 						Levels:                "",
+						CacheKey:              "$scheme$proxy_host$request_uri",
 					},
 				},
 			},
@@ -3008,6 +3010,7 @@ var (
 				CachePurgeAllow:       []string{"127.0.0.1"}, // This should be ignored for OSS
 				OverrideUpstreamCache: true,
 				Levels:                "1:2",
+				CacheKey:              "$scheme$proxy_host$request_uri",
 			},
 			Locations: []Location{
 				{
@@ -3023,6 +3026,7 @@ var (
 						CachePurgeAllow:       nil,
 						OverrideUpstreamCache: false,
 						Levels:                "",
+						CacheKey:              "$scheme$proxy_host$request_uri",
 					},
 				},
 			},

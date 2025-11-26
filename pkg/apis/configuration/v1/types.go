@@ -1070,16 +1070,12 @@ type CacheLock struct {
 // These use NGINX variables to make dynamic caching decisions based on request characteristics.
 type CacheConditions struct {
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:XValidation:rule="self.all(item, !item.contains('$(') && !item.contains('`') && !item.contains(';') && !item.contains('&&') && !item.contains('||'))",message="cache conditions must not contain command execution patterns: $(, `, ;, &&, ||"
 	// NoCache defines conditions under which the response will not be saved to a cache (proxy_no_cache).
 	// If at least one value of the string parameters is not empty and is not equal to "0" then the response will not be saved.
-	// Must not contain command execution patterns: $(, `, ;, &&, ||
 	NoCache []string `json:"noCache,omitempty"`
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:XValidation:rule="self.all(item, !item.contains('$(') && !item.contains('`') && !item.contains(';') && !item.contains('&&') && !item.contains('||'))",message="cache conditions must not contain command execution patterns: $(, `, ;, &&, ||"
 	// Bypass defines conditions under which the response will not be taken from a cache (proxy_cache_bypass).
 	// If at least one value of the string parameters is not empty and is not equal to "0" then the response will not be taken from the cache.
-	// Must not contain command execution patterns: $(, `, ;, &&, ||
 	Bypass []string `json:"bypass,omitempty"`
 }
 
