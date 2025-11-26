@@ -590,6 +590,9 @@ spec:
                       Controller pods. The default is 200.
                     type: integer
                 type: object
+                x-kubernetes-validations:
+                - message: trustedCertSecret can be set only if sslVerify is true
+                  rule: (self.sslVerify == true) || (self.sslVerify == false && !has(self.trustedCertSecret))
               rateLimit:
                 description: The rate limit policy controls the rate of processing
                   requests per a defined key.
