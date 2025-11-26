@@ -103,6 +103,17 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		cfgParams.ClientMaxBodySize = clientMaxBodySize
 	}
 
+	if clientBodyBufferSize, exists := cfgm.Data["client-body-buffer-size"]; exists {
+		if parsedClientBodyBufferSize, err := ParseSize(clientBodyBufferSize); err != nil {
+			wrappedError := fmt.Errorf("ConfigMap %s/%s: invalid value for 'client-body-buffer-size': %w", cfgm.GetNamespace(), cfgm.GetName(), err)
+			nl.Errorf(l, "%s", wrappedError.Error())
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, wrappedError.Error())
+			configOk = false
+		} else {
+			cfgParams.MainClientBodyBufferSize = parsedClientBodyBufferSize
+		}
+	}
+
 	if serverNamesHashBucketSize, exists := cfgm.Data["server-names-hash-bucket-size"]; exists {
 		cfgParams.MainServerNamesHashBucketSize = serverNamesHashBucketSize
 	}
@@ -1146,6 +1157,7 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		ServerNamesHashMaxSize:             config.MainServerNamesHashMaxSize,
 		MapHashBucketSize:                  config.MainMapHashBucketSize,
 		MapHashMaxSize:                     config.MainMapHashMaxSize,
+		ClientBodyBufferSize:               config.MainClientBodyBufferSize,
 		ServerTokens:                       config.ServerTokens,
 		SSLCiphers:                         config.MainServerSSLCiphers,
 		SSLDHParam:                         config.MainServerSSLDHParam,

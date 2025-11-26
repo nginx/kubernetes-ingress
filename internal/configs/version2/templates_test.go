@@ -440,6 +440,21 @@ func TestExecuteVirtualServerTemplate_RendersPlusTemplateWithHTTP2Off(t *testing
 	t.Log(string(got))
 }
 
+func TestExecuteVirtualServerTemplate_RendersTemplateWithClientBodyBufferSize(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithClientBodyBufferSize)
+	if err != nil {
+		t.Error(err)
+	}
+	if !bytes.Contains(got, []byte("client_body_buffer_size 16k;")) {
+		t.Error("want `client_body_buffer_size 16k;` directive in generated template")
+	}
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
+}
+
 func TestExecuteVirtualServerTemplate_RendersOSSTemplateWithHTTP2On(t *testing.T) {
 	t.Parallel()
 	executor := newTmplExecutorNGINX(t)
@@ -2166,6 +2181,20 @@ var (
 			Locations: []Location{
 				{
 					Path: "/",
+				},
+			},
+		},
+	}
+
+	virtualServerCfgWithClientBodyBufferSize = VirtualServerConfig{
+		Server: Server{
+			ServerName: "example.com",
+			StatusZone: "example.com",
+			Locations: []Location{
+				{
+					Path:                 "/",
+					ProxyPass:            "http://test-upstream",
+					ClientBodyBufferSize: "16k",
 				},
 			},
 		},
