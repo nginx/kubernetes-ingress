@@ -43,7 +43,7 @@ var yamlSecrets = []yamlSecret{
 			locality:           []string{"Cork"},
 			province:           []string{"Cork"},
 			commonName:         "example.com",
-			dnsNames:           []string{"foo.bar.example.com", "*.example.com"},
+			dnsNames:           []string{"foo.bar.example.com", "appprotect.example.com", "*.example.com"},
 		},
 		valid: secretShouldHaveValidTLSCrt,
 		symlinks: []string{
