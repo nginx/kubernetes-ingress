@@ -94,7 +94,10 @@ The `.spec` object supports the following fields:
 | `oidc.postLogoutRedirectURI` | `string` | URI to redirect to after the logout has been performed. Requires endSessionEndpoint. The default is /_logout. |
 | `oidc.redirectURI` | `string` | Allows overriding the default redirect URI. The default is /_codexch. |
 | `oidc.scope` | `string` | List of OpenID Connect scopes. The scope openid always needs to be present and others can be added concatenating them with a + sign, for example openid+profile+email, openid+email+userDefinedScope. The default is openid. |
+| `oidc.sslVerify` | `boolean` | Enables verification of the IDP server SSL certificate. Default is false. |
+| `oidc.sslVerifyDepth` | `integer` | Sets the verification depth in the IDP server certificates chain. The default is 1. |
 | `oidc.tokenEndpoint` | `string` | URL for the token endpoint provided by your OpenID Connect provider. |
+| `oidc.trustedCertSecret` | `string` | The name of the Kubernetes secret that stores the CA certificate for IDP server verification. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/ca, and the certificate must be stored in the secret under the key ca.crt. |
 | `oidc.zoneSyncLeeway` | `integer` | Specifies the maximum timeout in milliseconds for synchronizing ID/access tokens and shared values between Ingress Controller pods. The default is 200. |
 | `rateLimit` | `object` | The rate limit policy controls the rate of processing requests per a defined key. |
 | `rateLimit.burst` | `integer` | Excessive requests are delayed until their number exceeds the burst size, in which case the request is terminated with an error. |

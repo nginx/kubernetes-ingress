@@ -157,6 +157,9 @@ type OIDC struct {
 	AuthExtraArgs         string
 	AccessTokenEnable     bool
 	PKCEEnable            bool
+	TLSVerify             bool
+	VerifyDepth           int
+	CAFile                string
 }
 
 // APIKey holds API key configuration.

@@ -718,6 +718,11 @@ func (in *OIDC) DeepCopyInto(out *OIDC) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.SSLVerifyDepth != nil {
+		in, out := &in.SSLVerifyDepth, &out.SSLVerifyDepth
+		*out = new(int)
+		**out = **in
+	}
 	return
 }
 

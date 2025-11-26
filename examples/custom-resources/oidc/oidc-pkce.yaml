@@ -5,7 +5,7 @@ metadata:
 spec:
   oidc:
     clientID: nginx-plus
-    clientSecret: oidc-secret
+    pkceEnable: true
     authEndpoint: https://keycloak.example.com/realms/master/protocol/openid-connect/auth
     tokenEndpoint: https://keycloak.default.svc.cluster.local:8443/realms/master/protocol/openid-connect/token
     jwksURI: https://keycloak.default.svc.cluster.local:8443/realms/master/protocol/openid-connect/certs

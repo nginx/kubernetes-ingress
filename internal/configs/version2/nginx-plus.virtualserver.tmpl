@@ -135,7 +135,7 @@ server {
     set $resource_namespace "{{$s.VSNamespace}}";
 
     {{- with $oidc := $s.OIDC }}
-    include oidc/oidc.conf;
+    include oidc-conf.d/oidc_{{$s.VSNamespace}}_{{$s.VSName}}.conf;
 
     {{- if eq $s.NGINXDebugLevel "debug" }}
     set $oidc_debug true;
@@ -155,15 +155,6 @@ server {
     set $oidc_scopes "{{ $oidc.Scope }}";
     set $oidc_client "{{ $oidc.ClientID }}";
     set $oidc_client_secret "{{ $oidc.ClientSecret }}";
-    set $redir_location "{{ $oidc.RedirectURI }}";
-    {{- if and $oidc.RedirectURI (ne $oidc.RedirectURI "/_codexch") }}
-    # Custom OIDC redirect location based on policy redirectURI
-    location = {{ $oidc.RedirectURI }} {
-        status_zone "OIDC code exchange";
-        js_content oidc.codeExchange;
-        error_page 500 502 504 @oidc_error;
-    }
-    {{- end }}
     {{- end }}
 
     {{- with $ssl := $s.SSL }}

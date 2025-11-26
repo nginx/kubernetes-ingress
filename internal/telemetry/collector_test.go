@@ -2646,7 +2646,7 @@ func newConfigurator(t *testing.T) *configs.Configurator {
 		t.Fatal(err)
 	}
 
-	templateExecutorV2, err := version2.NewTemplateExecutor(virtualServerTemplatePath, transportServerTemplatePath)
+	templateExecutorV2, err := version2.NewTemplateExecutor(virtualServerTemplatePath, transportServerTemplatePath, oidcTemplatePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2712,6 +2712,7 @@ const (
 	ingressTemplatePath         = "../configs/version1/nginx-plus.ingress.tmpl"
 	virtualServerTemplatePath   = "../configs/version2/nginx-plus.virtualserver.tmpl"
 	transportServerTemplatePath = "../configs/version2/nginx-plus.transportserver.tmpl"
+	oidcTemplatePath            = "../configs/version2/oidc.tmpl"
 )
 
 // telemetryNICData holds static test data for telemetry tests.

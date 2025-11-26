@@ -19,7 +19,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: keycloak
-  namespace: default
   labels:
     app: keycloak
 spec:
@@ -34,7 +33,7 @@ spec:
     spec:
       containers:
         - name: keycloak
-          image: quay.io/keycloak/keycloak:26.4.5
+          image: quay.io/keycloak/keycloak:26.4
           args: ["start"]
           env:
             - name: KC_BOOTSTRAP_ADMIN_USERNAME
@@ -43,16 +42,16 @@ spec:
               value: "admin"
             - name: KC_HTTP_ENABLED
               value: "true"
+            - name: KC_HOSTNAME_STRICT
+              value: "false"
             - name: KC_PROXY_HEADERS
               value: "xforwarded"
             - name: KC_HTTPS_CERTIFICATE_FILE
               value: "/etc/x509/https/tls.crt"
             - name: KC_HTTPS_CERTIFICATE_KEY_FILE
               value: "/etc/x509/https/tls.key"
-            - name: KC_HOSTNAME_STRICT
-              value: "false"
           volumeMounts:
-            - name: tls-secret
+            - name: https-certs
               mountPath: /etc/x509/https
               readOnly: true
           ports:
@@ -65,6 +64,6 @@ spec:
               path: /realms/master
               port: 8080
       volumes:
-        - name: tls-secret
+        - name: https-certs
           secret:
-            secretName: keycloak-tls
+            secretName: keycloak-tls-secret
