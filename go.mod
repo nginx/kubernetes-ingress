@@ -10,7 +10,7 @@ require (
 	github.com/gkampitakis/go-snaps v0.5.16
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/go-cmp v0.7.0
-	github.com/gruntwork-io/terratest v0.52.0
+	github.com/gruntwork-io/terratest v0.54.0
 	github.com/jinzhu/copier v0.4.0
 	github.com/nginx/nginx-plus-go-client/v3 v3.0.1
 	github.com/nginx/nginx-prometheus-exporter v1.5.1
