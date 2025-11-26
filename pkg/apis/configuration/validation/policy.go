@@ -337,14 +337,6 @@ func validateOIDC(oidc *v1.OIDC, fieldPath *field.Path) field.ErrorList {
 		allErrs = append(allErrs, validateQueryString(strings.Join(oidc.AuthExtraArgs, "&"), fieldPath.Child("authExtraArgs"))...)
 	}
 
-	if oidc.TrustedCertSecret != "" {
-		allErrs = append(allErrs, validateSecretName(oidc.TrustedCertSecret, fieldPath.Child("trustedCertSecret"))...)
-		// If trustedCertSecret is set but sslVerify is false, warn user
-		if !oidc.SSLVerify {
-			allErrs = append(allErrs, field.Invalid(fieldPath.Child("sslVerify"), oidc.SSLVerify, "sslVerify should be enabled when trustedCertSecret is specified"))
-		}
-	}
-
 	allErrs = append(allErrs, validateURL(oidc.AuthEndpoint, fieldPath.Child("authEndpoint"))...)
 	allErrs = append(allErrs, validateURL(oidc.TokenEndpoint, fieldPath.Child("tokenEndpoint"))...)
 	allErrs = append(allErrs, validateURL(oidc.JWKSURI, fieldPath.Child("jwksURI"))...)
