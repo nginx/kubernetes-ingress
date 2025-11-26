@@ -1990,13 +1990,7 @@ func generateCacheConfig(cache *conf_v1.Cache, vsNamespace, vsName, ownerNamespa
 		uniqueZoneName = fmt.Sprintf("%s_%s_%s_%s_%s", vsNamespace, vsName, ownerNamespace, ownerName, cache.CacheZoneName)
 	}
 
-	// Set cache key with default if not provided
 	var cacheKey string
-	if cache.CacheKey != "" {
-		cacheKey = cache.CacheKey
-	} else {
-		cacheKey = "${scheme}${proxy_host}${request_uri}"
-	}
 
 	cacheConfig := &version2.Cache{
 		ZoneName:              uniqueZoneName,

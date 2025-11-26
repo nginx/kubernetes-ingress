@@ -23,8 +23,6 @@ spec:
 
     # Advanced cache behavior settings
     cacheKey: "${scheme}${request_method}${host}${request_uri}" # Optional - proxy_cache_key (custom cache key)
-#    TODO: non support variables
-#    cacheKey: " ${scheme}${proxy_host}${uri}?&{args}"
     cacheUseStale: [ "error", "timeout", "updating", "http_500" ] # Optional - proxy_cache_use_stale (serve stale conditions)
     cacheRevalidate: true                       # Optional, false by default - proxy_cache_revalidate
     cacheBackgroundUpdate: true                 # Optional, false by default - proxy_cache_background_update
