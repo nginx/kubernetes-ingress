@@ -16,6 +16,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
@@ -62,6 +63,9 @@ type templateData struct {
 	province           []string
 	commonName         string
 	dnsNames           []string
+	emailAddress       string
+	ca                 bool
+	client             bool
 }
 
 // nolint:gocyclo
@@ -152,6 +156,14 @@ func main() {
 			filenames[symlink] = struct{}{}
 		}
 
+		if *cleanPtr {
+			err = removeBundleFiles(logger, bundle)
+			if err != nil {
+				log.Fatalf(logger, "failed to remove bundle files: %v", err)
+			}
+			continue
+		}
+
 		err = printMTLSBundle(bundle, projectRoot)
 		if err != nil {
 			log.Fatalf(logger, "printMTLSBundle: %v", err)
@@ -178,7 +190,53 @@ func removeSecretFiles(logger *slog.Logger, secret yamlSecret) error {
 				return fmt.Errorf("failed to remove symlink: %s %w", symlink, err)
 			}
 		}
+	}
+	return nil
+}
 
+func removeBundleFiles(logger *slog.Logger, bundle mtlsBundle) error {
+	for _, secret := range []yamlSecret{bundle.ca, bundle.client, bundle.server} {
+		filePath := filepath.Join(projectRoot, realSecretDirectory, secret.fileName)
+		log.Debugf(logger, "Removing file %s", filePath)
+		if _, err := os.Stat(filePath); !os.IsNotExist(err) {
+			err := os.Remove(filepath.Join(projectRoot, realSecretDirectory, secret.fileName))
+			if err != nil {
+				return fmt.Errorf("failed to remove file: %s %w", secret.fileName, err)
+			}
+		}
+
+		if bundle.crl && secret.secretType == secrets.SecretTypeCA {
+			ext := filepath.Ext(bundle.ca.fileName)
+			crlFilename := strings.ReplaceAll(bundle.ca.fileName, ext, "-crl"+ext)
+			log.Debugf(logger, "Removing file %s", crlFilename)
+			if _, err := os.Stat(crlFilename); !os.IsNotExist(err) {
+				err := os.Remove(filepath.Join(projectRoot, realSecretDirectory, crlFilename))
+				if err != nil {
+					return fmt.Errorf("failed to remove file: %s %w", secret.fileName+"_crl", err)
+				}
+			}
+		}
+
+		for _, symlink := range secret.symlinks {
+			log.Debugf(logger, "Removing symlink %s", symlink)
+			if _, err := os.Lstat(filepath.Join(projectRoot, symlink)); !os.IsNotExist(err) {
+				err = os.Remove(filepath.Join(projectRoot, symlink))
+				if err != nil {
+					return fmt.Errorf("failed to remove symlink: %s %w", symlink, err)
+				}
+			}
+			if bundle.crl && secret.secretType == secrets.SecretTypeCA {
+				ext := filepath.Ext(symlink)
+				newSymlink := strings.ReplaceAll(symlink, ext, "-crl"+ext)
+				log.Debugf(logger, "Removing symlink %s", newSymlink)
+				if _, err := os.Lstat(filepath.Join(projectRoot, newSymlink)); !os.IsNotExist(err) {
+					err = os.Remove(filepath.Join(projectRoot, newSymlink))
+					if err != nil {
+						return fmt.Errorf("failed to remove symlink: %s %w", newSymlink, err)
+					}
+				}
+			}
+		}
 	}
 	return nil
 }
@@ -338,6 +396,12 @@ func renderX509Template(td templateData) (x509.Certificate, error) {
 		return x509.Certificate{}, fmt.Errorf("failed to generate serial number: %w", err)
 	}
 
+	var eku x509.ExtKeyUsage
+	eku = x509.ExtKeyUsageServerAuth
+
+	if td.client {
+		eku = x509.ExtKeyUsageClientAuth
+	}
 	return x509.Certificate{
 		Issuer: pkix.Name{
 			Country:      td.country,
@@ -356,9 +420,10 @@ func renderX509Template(td templateData) (x509.Certificate, error) {
 		NotBefore:             validFrom,
 		NotAfter:              validUntil,
 		KeyUsage:              x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		ExtKeyUsage:           []x509.ExtKeyUsage{eku, x509.ExtKeyUsageAny, x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
-		IsCA:                  false,
+		IsCA:                  td.ca,
+		EmailAddresses:        []string{td.emailAddress},
 	}, nil
 }
 

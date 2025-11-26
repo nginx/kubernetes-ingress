@@ -9,6 +9,8 @@ custom-resources/cross-namespace-configuration/cafe-secret.yaml
 custom-resources/custom-ip-listeners/virtualserver/cafe-secret.yaml
 custom-resources/custom-listeners/cafe-secret.yaml
 custom-resources/egress-mtls/egress-mtls-secret.yaml
+custom-resources/egress-mtls/egress-trusted-ca-secret.yaml
+custom-resources/egress-mtls/secure-app-tls-secret.yaml
 custom-resources/external-dns/cafe-secret.yaml
 custom-resources/externalname-services/transport-server/app-tls-secret.yaml
 custom-resources/foreign-namespace-upstreams/cafe-secret.yaml

@@ -8,7 +8,6 @@ import (
 	"crypto/sha1" //gosec:disable G505 -- A Certificate Revocation List needs a Subject Key Identifier, and per RFC5280, that needs to be an SHA1 hash https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.2
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
 	"math/big"
@@ -28,6 +27,7 @@ func printMTLSBundle(bundle mtlsBundle, projectRoot string) error {
 	// as it is a CA certificate, we need to modify certain parts of it
 	caTemplate.KeyUsage |= x509.KeyUsageCertSign | x509.KeyUsageCRLSign // so we can sign another certificate and a CRL with it
 	caTemplate.IsCA = true                                              // because it is a CA
+	caTemplate.ExtKeyUsage = nil                                        // CA certificates should not have ExtKeyUsage
 
 	// Need this here otherwise the certs go out of sync
 	caPrivateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -75,6 +75,8 @@ func printMTLSBundle(bundle mtlsBundle, projectRoot string) error {
 
 	// because this is a client certificate, we need to swap out the issuer
 	clientTemplate.Issuer = caCert.Subject
+	clientTemplate.KeyUsage |= x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
+	clientTemplate.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}
 
 	client, err := generateTLSKeyPair(clientTemplate, *caCert, caPrivateKey) // signed by the CA from above
 	if err != nil {
@@ -149,94 +151,57 @@ func printMTLSBundle(bundle mtlsBundle, projectRoot string) error {
 		return fmt.Errorf("writing bundle server %s to project root: %w", bundle.server.fileName, err)
 	}
 
-	// =================== CA Revocation List ===================
-	crlTemplate := x509.RevocationList{
-		Issuer: caTemplate.Subject,
-		RevokedCertificateEntries: []x509.RevocationListEntry{
-			{
-				SerialNumber:   big.NewInt(52),
-				RevocationTime: time.Now(),
+	if bundle.crl {
+		// =================== CA Revocation List ===================
+		crlTemplate := x509.RevocationList{
+			Issuer: caTemplate.Subject,
+			RevokedCertificateEntries: []x509.RevocationListEntry{
+				{
+					SerialNumber:   big.NewInt(52),
+					RevocationTime: time.Now(),
+				},
 			},
-		},
-		ThisUpdate: time.Now(),
-		NextUpdate: time.Now().Add(31 * 24 * time.Hour),
-		Number:     big.NewInt(1),
+			ThisUpdate: time.Now(),
+			NextUpdate: time.Now().Add(31 * 24 * time.Hour),
+			Number:     big.NewInt(1),
+		}
+
+		crlOut := bytes.Buffer{}
+		crl, err := x509.CreateRevocationList(rand.Reader, &crlTemplate, caCert, caPrivateKey)
+		if err != nil {
+			return fmt.Errorf("creating revocation list: %w", err)
+		}
+		err = pem.Encode(&crlOut, &pem.Block{
+			Type:  "X509 CRL",
+			Bytes: crl,
+		})
+		if err != nil {
+			return fmt.Errorf("encoding revocation list: %w", err)
+		}
+
+		crlContents, err := createYamlCA(bundle.ca.secretName, ca, crlOut.Bytes())
+		if err != nil {
+			return fmt.Errorf("marshaling bundle CA with CRL %s to yaml: %w", bundle.ca.fileName, err)
+		}
+
+		ext := filepath.Ext(bundle.ca.fileName)
+		crlFilename := strings.ReplaceAll(bundle.ca.fileName, ext, "-crl"+ext)
+		fmt.Printf("changing file name from %s to %s\n", bundle.ca.fileName, crlFilename)
+
+		crlSymlinks := make([]string, len(bundle.ca.symlinks))
+		for i, s := range bundle.ca.symlinks {
+			ext = filepath.Ext(s)
+			newSymlink := strings.ReplaceAll(s, ext, "-crl"+ext)
+
+			fmt.Printf("changing symlink from %s to %s\n", s, newSymlink)
+
+			crlSymlinks[i] = newSymlink
+		}
+
+		err = writeFiles(crlContents, projectRoot, crlFilename, crlSymlinks)
+		if err != nil {
+			return fmt.Errorf("writing bundle CRL %s to project root: %w", bundle.ca.fileName, err)
+		}
 	}
-
-	crlOut := bytes.Buffer{}
-
-	// Need this here otherwise the certs go out of sync
-	bogusPrivateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return fmt.Errorf("failed to generate private key: %w", err)
-	}
-
-	bogusPublicKey := publicKey(bogusPrivateKey)
-
-	// pub is crypto.PublicKey
-	bogusPkBytes, _ := x509.MarshalPKIXPublicKey(bogusPublicKey)
-	bogusSki := sha1.Sum(bogusPkBytes) //gosec:disable G401 -- A Certificate Revocation List needs a Subject Key Identifier, and per RFC5280, that needs to be an SHA1 hash https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.2
-
-	bogusCATemplate := x509.Certificate{
-		PublicKey: bogusPublicKey,
-		Issuer: pkix.Name{
-			Country:      []string{"ES"},
-			Organization: []string{"Acme"},
-			Locality:     []string{"Baltimore"},
-			Province:     []string{"MD"},
-			CommonName:   "Test CA, emailAddress=test@example.com",
-		},
-		Subject: pkix.Name{
-			Country:      []string{"ES"},
-			Organization: []string{"Acme"},
-			Locality:     []string{"Baltimore"},
-			Province:     []string{"MD"},
-			CommonName:   "Test CA, emailAddress=test@example.com",
-		},
-		NotBefore:    time.Now(),
-		NotAfter:     time.Now().Add(31 * 24 * time.Hour),
-		KeyUsage:     x509.KeyUsageCRLSign | x509.KeyUsageCertSign,
-		IsCA:         true,
-		SubjectKeyId: bogusSki[:],
-	}
-
-	crl, err := x509.CreateRevocationList(rand.Reader, &crlTemplate, &bogusCATemplate, bogusPrivateKey)
-	if err != nil {
-		return fmt.Errorf("creating revocation list: %w", err)
-	}
-	err = pem.Encode(&crlOut, &pem.Block{
-		Type:  "X509 CRL",
-		Bytes: crl,
-	})
-	if err != nil {
-		return fmt.Errorf("encoding revocation list: %w", err)
-	}
-
-	crlContents, err := createYamlCA(bundle.ca.secretName, ca, crlOut.Bytes())
-	if err != nil {
-		return fmt.Errorf("marshaling bundle CA with CRL %s to yaml: %w", bundle.ca.fileName, err)
-	}
-
-	ext := filepath.Ext(bundle.ca.fileName)
-	fmt.Printf("what is the ext: >%s<\n", ext)
-	crlFilename := strings.ReplaceAll(bundle.ca.fileName, ext, "-crl"+ext)
-	fmt.Printf("changing file name from %s to %s\n", bundle.ca.fileName, crlFilename)
-
-	crlSymlinks := make([]string, len(bundle.ca.symlinks))
-	for i, s := range bundle.ca.symlinks {
-		ext = filepath.Ext(s)
-		newSymlink := strings.ReplaceAll(s, ext, "-crl"+ext)
-
-		fmt.Printf("changing symlink from %s to %s\n", s, newSymlink)
-
-		crlSymlinks[i] = newSymlink
-
-	}
-
-	err = writeFiles(crlContents, projectRoot, crlFilename, crlSymlinks)
-	if err != nil {
-		return fmt.Errorf("writing bundle CRL %s to project root: %w", bundle.ca.fileName, err)
-	}
-
 	return nil
 }

@@ -9,6 +9,7 @@ type mtlsBundle struct {
 	ca     yamlSecret
 	client yamlSecret
 	server yamlSecret
+	crl    bool
 }
 
 // yamlSecret encapsulates all the data that we need to create the tls secrets
@@ -414,7 +415,7 @@ var mtlsBundles = []mtlsBundle{
 	{
 		ca: yamlSecret{
 			secretName: "egress-mtls-secret",
-			fileName:   "egress-mtls-secret.yaml",
+			fileName:   "test-egress-mtls-secret.yaml",
 			templateData: templateData{
 				country:            []string{"US"},
 				organization:       []string{"NGINX"},
@@ -427,7 +428,6 @@ var mtlsBundles = []mtlsBundle{
 			valid:      secretShouldHaveValidTLSCrt,
 			symlinks: []string{
 				"/tests/data/egress-mtls/secret/egress-mtls-secret.yaml",
-				"/examples/custom-resources/egress-mtls/egress-trusted-ca-secret.yaml",
 			},
 
 			usedIn: []string{
@@ -436,7 +436,7 @@ var mtlsBundles = []mtlsBundle{
 		},
 		client: yamlSecret{
 			secretName: "egress-tls-secret",
-			fileName:   "egress-tls-client-secret.yaml",
+			fileName:   "test-egress-tls-client-secret.yaml",
 			templateData: templateData{
 				country:            []string{"US"},
 				organization:       []string{"NGINX"},
@@ -444,11 +444,12 @@ var mtlsBundles = []mtlsBundle{
 				locality:           []string{"San Francisco"},
 				province:           []string{"CA"},
 				commonName:         "client",
+				client:             true,
+				emailAddress:       "client@example.com",
 			},
 			valid: secretShouldHaveValidTLSCrt,
 			symlinks: []string{
 				"/tests/data/egress-mtls/secret/tls-secret.yaml",
-				"/examples/custom-resources/egress-mtls/egress-mtls-secret.yaml",
 			},
 			usedIn: []string{
 				"tests/suite/test_egress_mtls.py - client k8s tls cert, this is signed by egress-mtls-secret",
@@ -456,7 +457,7 @@ var mtlsBundles = []mtlsBundle{
 		},
 		server: yamlSecret{
 			secretName: "app-tls-secret",
-			fileName:   "secure-app-tls-secret.yaml",
+			fileName:   "test-secure-app-tls-secret.yaml",
 			templateData: templateData{
 				country:            []string{"US"},
 				organization:       []string{"NGINX"},
@@ -469,11 +470,76 @@ var mtlsBundles = []mtlsBundle{
 			secretType: v1.SecretTypeOpaque,
 			symlinks: []string{
 				"/tests/data/common/app/secure-ca/app-tls-secret.yaml",
-				"/examples/custom-resources/egress-mtls/secure-app-tls-secret.yaml",
 			},
 			usedIn: []string{
 				"tests/suite/test_egress_mtls.py - server k8s tls cert, this is signed by egress-mtls-secret",
 			},
 		},
+		crl: true,
+	},
+	{
+		ca: yamlSecret{
+			secretName: "egress-trusted-ca-secret",
+			fileName:   "example-egress-trusted-ca-secret.yaml",
+			templateData: templateData{
+				country:            []string{"US"},
+				organization:       []string{"NGINX"},
+				organizationalUnit: []string{"KIC"},
+				locality:           []string{"San Francisco"},
+				province:           []string{"CA"},
+				commonName:         "example.com",
+			},
+			secretType: secrets.SecretTypeCA,
+			valid:      secretShouldHaveValidTLSCrt,
+			symlinks: []string{
+				"/examples/custom-resources/egress-mtls/egress-trusted-ca-secret.yaml",
+			},
+
+			usedIn: []string{
+				"examples/custom-resources/egress-mtls",
+			},
+		},
+		client: yamlSecret{
+			secretName: "egress-mtls-secret",
+			fileName:   "example-egress-mtls-client-secret.yaml",
+			templateData: templateData{
+				country:            []string{"US"},
+				organization:       []string{"NGINX"},
+				organizationalUnit: []string{"KIC"},
+				locality:           []string{"San Francisco"},
+				province:           []string{"CA"},
+				commonName:         "client",
+				client:             true,
+				emailAddress:       "client@example.com",
+			},
+			valid: secretShouldHaveValidTLSCrt,
+			symlinks: []string{
+				"/examples/custom-resources/egress-mtls/egress-mtls-secret.yaml",
+			},
+			usedIn: []string{
+				"examples/custom-resources/egress-mtls",
+			},
+		},
+		server: yamlSecret{
+			secretName: "app-tls-secret",
+			fileName:   "example-secure-app-tls-secret.yaml",
+			templateData: templateData{
+				country:            []string{"US"},
+				organization:       []string{"NGINX"},
+				organizationalUnit: []string{"KIC"},
+				locality:           []string{"San Francisco"},
+				province:           []string{"CA"},
+				commonName:         "secure-app.example.com",
+			},
+			valid:      secretShouldHaveValidTLSCrt,
+			secretType: v1.SecretTypeOpaque,
+			symlinks: []string{
+				"/examples/custom-resources/egress-mtls/secure-app-tls-secret.yaml",
+			},
+			usedIn: []string{
+				"examples/custom-resources/egress-mtls",
+			},
+		},
+		crl: false,
 	},
 }

@@ -28,11 +28,14 @@ json_files/*
 data/ap-waf-grpc/tls-secret.yaml
 data/appprotect/appprotect-secret.yaml
 data/common/app/secure/secret/app-tls-secret.yaml
+data/common/app/secure/secret/grpc-secret.yaml
 data/common/app/secure-ca/secret/app-tls-secret.yaml
 data/common/default-server-secret.yaml
 data/default-server/invalid-tls-secret.yaml
 data/default-server/new-tls-secret.yaml
 data/dos/tls-secret.yaml
+data/egress-mtls/secret/egress-mtls-secret.yaml
+data/egress-mtls/secret/egress-mtls-secret-crl.yaml
 data/egress-mtls/secret/tls-secret.yaml
 data/ingress-mtls/secret/tls-secret.yaml
 data/mgmt-configmap-keys/ssl-cert.yaml
