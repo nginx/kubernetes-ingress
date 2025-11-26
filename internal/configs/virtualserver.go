@@ -2693,6 +2693,7 @@ func generateLocationForProxying(path string, upstreamName string, upstream conf
 		ProxyReadTimeout:         generateTimeWithDefault(upstream.ProxyReadTimeout, cfgParams.ProxyReadTimeout),
 		ProxySendTimeout:         generateTimeWithDefault(upstream.ProxySendTimeout, cfgParams.ProxySendTimeout),
 		ClientMaxBodySize:        generateString(upstream.ClientMaxBodySize, cfgParams.ClientMaxBodySize),
+		ClientBodyBufferSize:     generateString(upstream.ClientBodyBufferSize, cfgParams.ClientBodyBufferSize),
 		ProxyMaxTempFileSize:     cfgParams.ProxyMaxTempFileSize,
 		ProxyBuffering:           generateBool(upstream.ProxyBuffering, cfgParams.ProxyBuffering),
 		ProxyBuffers:             generateBuffers(upstream.ProxyBuffers, cfgParams.ProxyBuffers),
