@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1.19
 FROM python:3.14-trixie@sha256:49abbd353ed1b33760614f952e03737c9f1870a79a0c66e82849f5ebf73e2044
 
+
 RUN apt-get update \
 	&& apt-get install -y curl git apache2-utils \
 	&& rm -rf /var/lib/apt/lists/*
