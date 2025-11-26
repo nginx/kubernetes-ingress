@@ -1278,7 +1278,6 @@ func (vsv *VirtualServerValidator) validateActionProxyResponseHeaders(responseHe
 	return allErrs
 }
 
-// TODO: should it be customisable for cache
 var validIgnoreHeaders = map[string]bool{
 	"X-Accel-Redirect":   true,
 	"X-Accel-Expires":    true,

@@ -2753,16 +2753,27 @@ func TestValidatePolicy_IsNotValidCachePolicy(t *testing.T) {
 			},
 			isPlus: false,
 		},
-		// Note: Command execution pattern validation has been moved to CRD level in types.go
-		// These test cases are no longer valid as the validation happens at Kubernetes API level
 		{
-			name: "cache key with unmatched braces",
+			name: "cache policy with invalid cacheUseStale parameter",
 			policy: &v1.Policy{
 				Spec: v1.PolicySpec{
 					Cache: &v1.Cache{
-						CacheZoneName: "braces",
+						CacheZoneName: "invalidstaleparameter",
 						CacheZoneSize: "10m",
-						CacheKey:      "${request_uri{malformed",
+						CacheUseStale: []string{"error", "invalid_param", "timeout"},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with duplicate cacheUseStale parameters",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "duplicatestale",
+						CacheZoneSize: "10m",
+						CacheUseStale: []string{"error", "timeout", "error"},
 					},
 				},
 			},
@@ -2987,6 +2998,58 @@ func TestValidatePolicy_IsValidCachePolicy(t *testing.T) {
 						},
 						CacheBackgroundUpdate: true,
 						CacheRevalidate:       true,
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with valid cacheUseStale parameters",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "validstale",
+						CacheZoneSize: "10m",
+						CacheUseStale: []string{"error", "timeout", "http_502"},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with updating parameter (cache specific)",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "staleupdate",
+						CacheZoneSize: "10m",
+						CacheUseStale: []string{"error", "timeout", "updating"},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with all valid cacheUseStale parameters",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "stallall",
+						CacheZoneSize: "10m",
+						CacheUseStale: []string{"error", "timeout", "invalid_header", "updating", "http_500", "http_502", "http_503", "http_504"},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with empty cacheUseStale (should be valid)",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "emptystale",
+						CacheZoneSize: "10m",
+						CacheUseStale: []string{},
 					},
 				},
 			},
