@@ -169,6 +169,7 @@ The `.spec` object supports the following fields:
 | `upstreams[].buffers.number` | `integer` | Configures the number of buffers. The default is set in the proxy-buffers ConfigMap key. |
 | `upstreams[].buffers.size` | `string` | Configures the size of a buffer. The default is set in the proxy-buffers ConfigMap key. |
 | `upstreams[].busy-buffers-size` | `string` | Sets the size of the buffers used for reading a response from the upstream server when the proxy_buffering is enabled. The default is set in the proxy-busy-buffers-size ConfigMap key.' |
+| `upstreams[].client-body-buffer-size` | `string` | ClientBodyBufferSize sets the size of the buffer used for reading the client request body. Must be specified as a number followed by: 'k' for kilobytes or 'm' for megabytes. Examples: "10m" or "512k". |
 | `upstreams[].client-max-body-size` | `string` | Sets the maximum allowed size of the client request body. The default is set in the client-max-body-size ConfigMap key. |
 | `upstreams[].connect-timeout` | `string` | The timeout for establishing a connection with an upstream server. The default is specified in the proxy-connect-timeout ConfigMap key. |
 | `upstreams[].fail-timeout` | `string` | The time during which the specified number of unsuccessful attempts to communicate with an upstream server should happen to consider the server unavailable. The default is set in the fail-timeout ConfigMap key. |

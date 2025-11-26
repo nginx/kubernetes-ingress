@@ -705,6 +705,9 @@ server {
         {{ $proxyOrGRPC }}_read_timeout {{ $l.ProxyReadTimeout }};
         {{ $proxyOrGRPC }}_send_timeout {{ $l.ProxySendTimeout }};
         client_max_body_size {{ $l.ClientMaxBodySize }};
+        {{- if $l.ClientBodyBufferSize }}
+        client_body_buffer_size {{ $l.ClientBodyBufferSize }};
+        {{- end }}
 
             {{- if $l.ProxyMaxTempFileSize }}
         proxy_max_temp_file_size {{ $l.ProxyMaxTempFileSize }};

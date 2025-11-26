@@ -2046,6 +2046,13 @@ spec:
                         is enabled. The default is set in the proxy-busy-buffers-size
                         ConfigMap key.'
                       type: string
+                    client-body-buffer-size:
+                      description: |-
+                        ClientBodyBufferSize sets the size of the buffer used for reading the client request body. Must be specified as a number followed by:
+                        'k' for kilobytes or 'm' for megabytes.
+                        Examples: "10m" or "512k".
+                      pattern: ^\d+[kKmM]?$
+                      type: string
                     client-max-body-size:
                       description: Sets the maximum allowed size of the client request
                         body. The default is set in the client-max-body-size ConfigMap
@@ -3464,6 +3471,13 @@ spec:
                         response from the upstream server when the proxy_buffering
                         is enabled. The default is set in the proxy-busy-buffers-size
                         ConfigMap key.'
+                      type: string
+                    client-body-buffer-size:
+                      description: |-
+                        ClientBodyBufferSize sets the size of the buffer used for reading the client request body. Must be specified as a number followed by:
+                        'k' for kilobytes or 'm' for megabytes.
+                        Examples: "10m" or "512k".
+                      pattern: ^\d+[kKmM]?$
                       type: string
                     client-max-body-size:
                       description: Sets the maximum allowed size of the client request

@@ -157,6 +157,12 @@ type Upstream struct {
 	ProxyBusyBuffersSize string `json:"busy-buffers-size"`
 	// Sets the maximum allowed size of the client request body. The default is set in the client-max-body-size ConfigMap key.
 	ClientMaxBodySize string `json:"client-max-body-size"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^\d+[kKmM]?$`
+	// ClientBodyBufferSize sets the size of the buffer used for reading the client request body. Must be specified as a number followed by:
+	// 'k' for kilobytes or 'm' for megabytes.
+	// Examples: "10m" or "512k".
+	ClientBodyBufferSize string `json:"client-body-buffer-size"`
 	// The TLS configuration for the Upstream.
 	TLS UpstreamTLS `json:"tls"`
 	// The health check configuration for the Upstream. Note: this feature is supported only in NGINX Plus.
