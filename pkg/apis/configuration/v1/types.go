@@ -1024,7 +1024,6 @@ type SuppliedIn struct {
 type CacheManager struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:validation:Maximum=2147483647
 	// Files sets the maximum number of files that will be deleted in one iteration by the cache manager.
 	// During one iteration no more than manager_files items are deleted (by default, 100).
 	Files *int `json:"files,omitempty"`
@@ -1065,12 +1064,16 @@ type CacheLock struct {
 // These use NGINX variables to make dynamic caching decisions based on request characteristics.
 type CacheConditions struct {
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:XValidation:rule="self.all(item, !item.contains('$(') && !item.contains('`') && !item.contains(';') && !item.contains('&&') && !item.contains('||'))",message="cache conditions must not contain command execution patterns: $(, `, ;, &&, ||"
 	// NoCache defines conditions under which the response will not be saved to a cache (proxy_no_cache).
 	// If at least one value of the string parameters is not empty and is not equal to "0" then the response will not be saved.
+	// Must not contain command execution patterns: $(, `, ;, &&, ||
 	NoCache []string `json:"noCache,omitempty"`
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:XValidation:rule="self.all(item, !item.contains('$(') && !item.contains('`') && !item.contains(';') && !item.contains('&&') && !item.contains('||'))",message="cache conditions must not contain command execution patterns: $(, `, ;, &&, ||"
 	// Bypass defines conditions under which the response will not be taken from a cache (proxy_cache_bypass).
 	// If at least one value of the string parameters is not empty and is not equal to "0" then the response will not be taken from the cache.
+	// Must not contain command execution patterns: $(, `, ;, &&, ||
 	Bypass []string `json:"bypass,omitempty"`
 }
 
@@ -1142,7 +1145,8 @@ type Cache struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=false
 	// UseTempPath controls whether temporary files and the cache are put on different file systems (use_temp_path parameter).
-	// If set to off, temporary files will be put directly in the cache directory.
+	// If set to false, temporary files will be put directly in the cache directory (use_temp_path=off).
+	// Default: false (use_temp_path=off, which puts temp files directly in cache directory for better performance).
 	UseTempPath bool `json:"useTempPath,omitempty"`
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^[0-9]+[kmgKMG]$`
@@ -1159,8 +1163,10 @@ type Cache struct {
 	Manager *CacheManager `json:"manager,omitempty"`
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:MaxLength=1024
+	// +kubebuilder:validation:XValidation:rule="!self.contains('$(') && !self.contains('`') && !self.contains(';') && !self.contains('&&') && !self.contains('||')",message="cache key must not contain command execution patterns: $(, `, ;, &&, ||"
 	// CacheKey defines a key for caching (proxy_cache_key).
 	// By default, close to "$scheme$proxy_host$uri$is_args$args".
+	// Must not contain command execution patterns: $(, `, ;, &&, ||
 	CacheKey string `json:"cacheKey,omitempty"`
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:MaxItems=11
@@ -1179,7 +1185,6 @@ type Cache struct {
 	CacheBackgroundUpdate bool `json:"cacheBackgroundUpdate,omitempty"`
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:validation:Maximum=2147483647
 	// CacheMinUses sets the number of requests after which the response will be cached (proxy_cache_min_uses).
 	CacheMinUses *int `json:"cacheMinUses,omitempty"`
 	// +kubebuilder:validation:Optional

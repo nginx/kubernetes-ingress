@@ -12092,6 +12092,167 @@ func TestGenerateVirtualServerConfigCache(t *testing.T) {
 				},
 			},
 		},
+		{
+			msg: "cache policy with extended fields",
+			virtualServerEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "extended-cache",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cache.example.com",
+						Policies: []conf_v1.PolicyReference{
+							{
+								Name: "extended-cache-policy",
+							},
+						},
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "backend",
+								Service: "backend-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path: "/api",
+								Action: &conf_v1.Action{
+									Pass: "backend",
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/extended-cache-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "extended-cache-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							Cache: &conf_v1.Cache{
+								CacheZoneName: "extended-cache",
+								CacheZoneSize: "100m",
+								CacheKey:      "$scheme$host$request_uri$args",
+								CacheMinUses:  createPointerFromInt(3),
+								UseTempPath:   false,
+								MaxSize:       "2g",
+								Inactive:      "7d",
+								Manager: &conf_v1.CacheManager{
+									Files:     createPointerFromInt(500),
+									Sleep:     "200ms",
+									Threshold: "1s",
+								},
+								Lock: &conf_v1.CacheLock{
+									Enable:  true,
+									Timeout: "60s",
+								},
+								Conditions: &conf_v1.CacheConditions{
+									NoCache: []string{"$cookie_admin"},
+									Bypass:  []string{"$http_cache_control"},
+								},
+								AllowedCodes: []intstr.IntOrString{
+									intstr.FromString("200"),
+									intstr.FromString("404"),
+									intstr.FromString("any"),
+								},
+								Time:                  "1h",
+								CacheBackgroundUpdate: true,
+								CacheRevalidate:       true,
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/backend-svc:80": {
+						"10.0.0.40:80",
+					},
+				},
+			},
+			expected: version2.VirtualServerConfig{
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "backend-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "extended-cache",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_extended-cache_backend",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.40:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets:  []string{},
+				LimitReqZones: []version2.LimitReqZone{},
+				CacheZones: []version2.CacheZone{
+					{
+						Name:             "default_extended-cache_extended-cache",
+						Size:             "100m",
+						Path:             "/var/cache/nginx/default_extended-cache_extended-cache",
+						Levels:           "",
+						Inactive:         "7d",
+						UseTempPath:      false,
+						MaxSize:          "2g",
+						MinFree:          "",
+						ManagerFiles:     createPointerFromInt(500),
+						ManagerSleep:     "200ms",
+						ManagerThreshold: "1s",
+					},
+				},
+				Server: version2.Server{
+					ServerName:   "cache.example.com",
+					StatusZone:   "cache.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "extended-cache",
+					Cache: &version2.Cache{
+						ZoneName:              "default_extended-cache_extended-cache",
+						ZoneSize:              "100m",
+						Levels:                "",
+						Inactive:              "7d",
+						UseTempPath:           false,
+						MaxSize:               "2g",
+						MinFree:               "",
+						ManagerFiles:          createPointerFromInt(500),
+						ManagerSleep:          "200ms",
+						ManagerThreshold:      "1s",
+						CacheKey:              "$scheme$host$request_uri$args",
+						OverrideUpstreamCache: false,
+						Time:                  "1h",
+						Valid:                 map[string]string{"200": "1h", "404": "1h", "any": "1h"},
+						AllowedMethods:        nil,
+						CacheUseStale:         nil,
+						CacheRevalidate:       true,
+						CacheBackgroundUpdate: true,
+						CacheMinUses:          createPointerFromInt(3),
+						CachePurgeAllow:       nil,
+						CacheLock:             true,
+						CacheLockTimeout:      "60s",
+						CacheLockAge:          "",
+						NoCacheConditions:     []string{"$cookie_admin"},
+						CacheBypassConditions: []string{"$http_cache_control"},
+					},
+					Locations: []version2.Location{
+						{
+							Path:                     "/api",
+							ProxyPass:                "http://vs_default_extended-cache_backend",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "backend-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "backend-svc",
+						},
+					},
+				},
+			},
+		},
 	}
 
 	baseCfgParams := ConfigParams{

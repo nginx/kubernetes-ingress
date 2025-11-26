@@ -1171,7 +1171,6 @@ func validateActionProxyRewritePathForRegexp(rewritePath string, fieldPath *fiel
 	return allErrs
 }
 
-// TODO: what variable should be allowed for cache key and should this list be reused
 var actionProxyHeaderVariables = map[string]bool{
 	"request_uri":             true,
 	"request_method":          true,

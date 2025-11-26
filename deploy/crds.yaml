@@ -321,12 +321,17 @@ spec:
                     description: |-
                       CacheKey defines a key for caching (proxy_cache_key).
                       By default, close to "$scheme$proxy_host$uri$is_args$args".
+                      Must not contain command execution patterns: $(, `, ;, &&, ||
                     maxLength: 1024
                     type: string
+                    x-kubernetes-validations:
+                    - message: 'cache key must not contain command execution patterns:
+                        $(, `, ;, &&, ||'
+                      rule: '!self.contains(''$('') && !self.contains(''`'') && !self.contains('';'')
+                        && !self.contains(''&&'') && !self.contains(''||'')'
                   cacheMinUses:
                     description: CacheMinUses sets the number of requests after which
                       the response will be cached (proxy_cache_min_uses).
-                    maximum: 2147483647
                     minimum: 1
                     type: integer
                   cachePurgeAllow:
@@ -434,7 +439,6 @@ spec:
                         description: |-
                           Files sets the maximum number of files that will be deleted in one iteration by the cache manager.
                           During one iteration no more than manager_files items are deleted (by default, 100).
-                        maximum: 2147483647
                         minimum: 1
                         type: integer
                       sleep:
@@ -482,7 +486,8 @@ spec:
                     default: false
                     description: |-
                       UseTempPath controls whether temporary files and the cache are put on different file systems (use_temp_path parameter).
-                      If set to off, temporary files will be put directly in the cache directory.
+                      If set to false, temporary files will be put directly in the cache directory (use_temp_path=off).
+                      Default: false (use_temp_path=off, which puts temp files directly in cache directory for better performance).
                     type: boolean
                 required:
                 - cacheZoneName

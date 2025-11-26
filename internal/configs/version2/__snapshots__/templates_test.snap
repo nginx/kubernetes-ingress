@@ -3734,3 +3734,72 @@ server {
 }
 
 ---
+
+[TestExecuteVirtualServerTemplateWithExtendedCachePolicy - 1]
+
+upstream extended-upstream {
+    zone extended-upstream ;
+    server 10.0.0.50:8001 max_fails=0 fail_timeout= max_conns=0;
+}
+
+proxy_cache_path /var/cache/nginx/extended_cache_zone levels=2:2 keys_zone=extended_cache_zone:100m inactive=7d max_size=2g manager_files=500 manager_sleep=200ms manager_threshold=1s use_temp_path=off;
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name extended.example.com;
+    status_zone extended.example.com;
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+
+    server_tokens "off";
+    # Server-level cache configuration
+    proxy_cache extended_cache_zone;
+    proxy_cache_key $scheme$host$request_uri$args;
+    proxy_cache_valid 200 1h;
+    proxy_cache_valid 404 10m;
+    proxy_cache_valid any 5m;
+    proxy_cache_use_stale error timeout updating;
+    proxy_cache_revalidate on;
+    proxy_cache_background_update on;
+    proxy_cache_min_uses 3;
+    proxy_cache_lock on;
+    proxy_cache_lock_timeout 60s;
+    proxy_no_cache $cookie_admin;
+    proxy_cache_bypass $http_cache_control;
+
+    
+
+    
+    location /api {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://extended-upstream;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+}
+
+---
