@@ -202,7 +202,7 @@ class TestCachePoliciesVSR:
                 cache_status_1 in ["MISS", "EXPIRED", None],
                 cache_status_2 == "HIT",  # Second GET should be cache hit
                 cache_status_3 in ["MISS", "EXPIRED", None],  # First POST should be cache miss
-                cache_status_4 == "HIT",  # HEAD should be cache hit 
+                cache_status_4 == "HIT",  # HEAD should be cache hit
             ]
         )
 
