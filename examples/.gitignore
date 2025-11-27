@@ -26,6 +26,7 @@ custom-resources/transport-server-sni/cafe-secret.yaml
 custom-resources/transport-server-sni/mongo-secret.yaml
 ingress-resources/app-protect-dos/webapp-secret.yaml
 ingress-resources/app-protect-waf/cafe-secret.yaml
+ingress-resources/basic-auth/cafe-passwd.yaml
 ingress-resources/basic-auth/cafe-secret.yaml
 ingress-resources/complete-example/cafe-secret.yaml
 ingress-resources/mergeable-ingress-types/cafe-secret.yaml

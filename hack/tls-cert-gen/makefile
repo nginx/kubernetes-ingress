@@ -1,7 +1,9 @@
+SECRETS := ../secrets.json
+
 .PHONY: run
 run: ## Create just in time TLS certificates needed for tests and examples
-	go run ./...
+	go run ./... -secrets-path $(SECRETS)
 
 .PHONY: clean
 clean: ## Clean just in time TLS certificates needed for tests and examples
-	go run ./... -clean
+	go run ./... -clean -secrets-path $(SECRETS)

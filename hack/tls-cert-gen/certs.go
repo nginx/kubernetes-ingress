@@ -1,18 +1,19 @@
 package main
 
 import (
-	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
+	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"fmt"
+	"math/big"
+	"time"
+
 	v1 "k8s.io/api/core/v1"
 )
-
-type mtlsBundle struct {
-	ca     yamlSecret
-	client yamlSecret
-	server yamlSecret
-	crl    bool
-}
-
-var SecretTypeSomeType v1.SecretType = "some-type"
 
 // yamlSecret encapsulates all the data that we need to create the tls secrets
 // that kubernetes needs as tls files.
@@ -25,570 +26,133 @@ var SecretTypeSomeType v1.SecretType = "some-type"
 // secretType   - if left empty, it will be the default v1.SecretTypeTLS value. The type is "k8s.io/api/core/v1".SecretType, which is an alias for strings.
 // usedIn       - not used in the generation, it's only so we can keep track on which py tests used the specific certs
 type yamlSecret struct {
-	secretName   string
-	namespace    string
-	fileName     string
-	symlinks     []string
-	valid        bool
-	templateData templateData
-	secretType   v1.SecretType
-	usedIn       []string
+	SecretName   string        `json:"secretName"`
+	Namespace    string        `json:"namespace,omitempty"`
+	FileName     string        `json:"filename"`
+	Symlinks     []string      `json:"symlinks,omitempty"`
+	Valid        bool          `json:"valid,omitempty"`
+	TemplateData templateData  `json:"templateData"`
+	SecretType   v1.SecretType `json:"secretType,omitempty"`
+	UsedIn       []string      `json:"usedIn,omitempty"`
 }
 
-var yamlSecrets = []yamlSecret{
-	{
-		secretName: "tls-secret",
-		fileName:   "tls-secret.yaml",
-		templateData: templateData{
-			country:            []string{"IE"},
-			organization:       []string{"F5 NGINX"},
-			organizationalUnit: []string{"NGINX Ingress Controller"},
-			locality:           []string{"Cork"},
-			province:           []string{"Cork"},
-			commonName:         "example.com",
-			dnsNames:           []string{"foo.bar.example.com", "cafe.example.com", "appprotect.example.com", "*.example.com"},
-		},
-		valid: secretShouldHaveValidTLSCrt,
-		symlinks: []string{
-			"/examples/custom-resources/api-key/cafe-secret.yaml",
-			"/examples/custom-resources/backup-directive/transport-server/app-tls-secret.yaml",
-			"/examples/custom-resources/backup-directive/virtual-server/cafe-secret.yaml",
-			"/examples/custom-resources/basic-auth/cafe-secret.yaml",
-			"/examples/custom-resources/basic-configuration/cafe-secret.yaml",
-			"/examples/custom-resources/cache-policy/cafe-secret.yaml",
-			"/examples/custom-resources/cross-namespace-configuration/cafe-secret.yaml",
-			"/examples/custom-resources/custom-ip-listeners/virtualserver/cafe-secret.yaml",
-			"/examples/custom-resources/custom-listeners/cafe-secret.yaml",
-			"/examples/custom-resources/external-dns/cafe-secret.yaml",
-			"/examples/custom-resources/externalname-services/transport-server/app-tls-secret.yaml",
-			"/examples/custom-resources/foreign-namespace-upstreams/cafe-secret.yaml",
-			"/examples/custom-resources/grpc-upstreams/greeter-secret.yaml",
-			"/examples/custom-resources/ingress-mtls/tls-secret.yaml",
-			"/examples/custom-resources/jwks/tls-secret.yaml",
-			"/examples/custom-resources/oidc-fclo/tls-secret.yaml",
-			"/examples/custom-resources/oidc/tls-secret.yaml",
-			"/examples/custom-resources/rate-limit-tiered-jwt-claim/cafe-secret.yaml",
-			"/examples/custom-resources/service-insight/service-insight-secret.yaml",
-			"/examples/custom-resources/tls-passthrough/app-tls-secret.yaml",
-			"/examples/custom-resources/transport-server-sni/cafe-secret.yaml",
-			"/examples/custom-resources/transport-server-sni/mongo-secret.yaml",
-			"/examples/ingress-resources/app-protect-dos/webapp-secret.yaml",
-			"/examples/ingress-resources/app-protect-waf/cafe-secret.yaml",
-			"/examples/ingress-resources/basic-auth/cafe-secret.yaml",
-			"/examples/ingress-resources/complete-example/cafe-secret.yaml",
-			"/examples/ingress-resources/mergeable-ingress-types/cafe-secret.yaml",
-			"/examples/ingress-resources/proxy-set-headers/mergeable-ingress/cafe-secret.yaml",
-			"/examples/ingress-resources/proxy-set-headers/standard-ingress/cafe-secret.yaml",
-			"/examples/ingress-resources/rate-limit/cafe-secret.yaml",
-			"/examples/ingress-resources/security-monitoring/cafe-secret.yaml",
-			"/tests/data/appprotect/appprotect-secret.yaml",
-			"/tests/data/dos/tls-secret.yaml",
-			"/tests/data/hsts/standard-tls/tls-secret.yaml",
-			"/tests/data/hsts/mergeable-tls/tls-secret.yaml",
-			"/tests/data/ingress-mtls/secret/tls-secret.yaml",
-			"/tests/data/mgmt-configmap-keys/ssl-cert.yaml",
-			"/tests/data/smoke/smoke-secret.yaml",
-			"/tests/data/upgrade-test-resources/secret.yaml",
-			"/tests/data/virtual-server-certmanager/tls-secret.yaml",
-			"/tests/data/virtual-server-grpc/tls-secret.yaml",
-			"/tests/data/virtual-server-route-grpc/tls-secret.yaml",
-			"/tests/data/watch-secret-namespace/tls-secret.yaml",
-		},
-	},
-
-	// ==== the below ones are needed for specific pytests ===
-	{
-		secretName: "tls-secret",
-		fileName:   "tls-secret-gb.yaml",
-		templateData: templateData{
-			country:      []string{"GB"},
-			organization: []string{"nginx"},
-			locality:     []string{"Cork"},
-			province:     []string{"Cambridgeshire"},
-			commonName:   "cafe.example.com",
-			dnsNames:     []string{"example.com", "*.example.com"},
-		},
-		valid: secretShouldHaveValidTLSCrt,
-		symlinks: []string{
-			"/tests/data/tls/new-tls-secret.yaml",
-			"/tests/data/virtual-server-tls/new-tls-secret.yaml",
-		},
-		usedIn: []string{
-			"tests/suite/test_tls.py - needed for subject info and common name",
-			"tests/suite/test_virtual_server_tls.py - needed for subject info and common name",
-		},
-	},
-
-	{
-		secretName: "default-server-secret",
-		fileName:   "tls-secret-default.yaml",
-		templateData: templateData{
-			country:            []string{"IE"},
-			organization:       []string{"F5 NGINX"},
-			organizationalUnit: []string{"NGINX Ingress Controller"},
-			locality:           []string{"Cork"},
-			province:           []string{"Cork"},
-			commonName:         "NGINXIngressController",
-			dnsNames:           []string{"*.example.com"},
-		},
-		valid: secretShouldHaveValidTLSCrt,
-		symlinks: []string{
-			"/examples/shared-examples/default-server-secret/default-server-secret.yaml",
-			"/tests/data/common/default-server-secret.yaml",
-		},
-		usedIn: []string{
-			"tests/suite/test_default_server.py - needed for secret name and common name",
-		},
-	},
-
-	{
-		secretName: "grpc-secret",
-		fileName:   "tls-secret-grpc.yaml",
-		templateData: templateData{
-			country:            []string{"IE"},
-			organization:       []string{"F5 NGINX"},
-			organizationalUnit: []string{"NGINX Ingress Controller"},
-			locality:           []string{"Cork"},
-			province:           []string{"Cork"},
-			commonName:         "NGINXIngressController",
-			dnsNames:           []string{"*.example.com"},
-		},
-		valid: secretShouldHaveValidTLSCrt,
-		symlinks: []string{
-			"/tests/data/common/app/secure/secret/grpc-secret.yaml",
-		},
-		usedIn: []string{
-			"tests/suite/test_annotations.py.py - needed for secret name",
-		},
-	},
-
-	{
-		secretName: "default-server-secret",
-		fileName:   "tls-secret-default-gb.yaml",
-		templateData: templateData{
-			country:      []string{"GB"},
-			organization: []string{"nginx"},
-			locality:     []string{"Cork"},
-			province:     []string{"Cambridgeshire"},
-			commonName:   "cafe.example.com",
-			dnsNames:     []string{"example.com", "*.example.com"},
-		},
-		valid: secretShouldHaveValidTLSCrt,
-		symlinks: []string{
-			"/tests/data/default-server/new-tls-secret.yaml",
-		},
-		usedIn: []string{
-			"tests/suite/test_default_server.py - needed for secret name and common name",
-		},
-	},
-
-	{
-		secretName: "default-server-secret",
-		fileName:   "tls-secret-invalid.yaml",
-		templateData: templateData{
-			country:            []string{"IE"},
-			organization:       []string{"F5 NGINX"},
-			organizationalUnit: []string{"NGINX Ingress Controller"},
-			locality:           []string{"Cork"},
-			province:           []string{"Cork"},
-			commonName:         "example.com",
-			dnsNames:           []string{"*.example.com"},
-		},
-		valid: secretShouldHaveInvalidTLSCrt,
-		symlinks: []string{
-			"/tests/data/default-server/invalid-tls-secret.yaml",
-		},
-		usedIn: []string{
-			"tests/suite/test_default_server.py - needed for the secret name",
-		},
-	},
-
-	{
-		secretName: "tls-secret",
-		fileName:   "tls-secret-us.yaml",
-		templateData: templateData{
-			country:      []string{"US"},
-			organization: []string{"Internet Widgits Pty Ltd"},
-			locality:     []string{"San Francisco"},
-			province:     []string{"CA"},
-			commonName:   "cafe.example.com",
-			dnsNames:     []string{"cafe.example.com"},
-		},
-		valid: secretShouldHaveValidTLSCrt,
-		symlinks: []string{
-			"/tests/data/tls/tls-secret.yaml",
-			"/tests/data/virtual-server-tls/tls-secret.yaml",
-			"/tests/data/prometheus/secret.yaml",
-		},
-		usedIn: []string{
-			"tests/suite/test_tls.py - needed for subject info and common name",
-			"tests/suite/test_virtual_server_tls.py - needed for subject info and common name",
-			"tests/suite/test_prometheus_metrics.py - needed for common name and subject info",
-			"tests/suite/test_transport_server_service_insight.py - needed for subject info and common name",
-		},
-	},
-
-	{
-		secretName: "tls-secret",
-		fileName:   "tls-secret-invalid-type-some.yaml",
-		templateData: templateData{
-			country:            []string{"IE"},
-			organization:       []string{"F5 NGINX"},
-			organizationalUnit: []string{"NGINX Ingress Controller"},
-			locality:           []string{"Cork"},
-			province:           []string{"Cork"},
-			commonName:         "example.com",
-			dnsNames:           []string{"*.example.com"},
-		},
-		valid: secretShouldHaveValidTLSCrt,
-		symlinks: []string{
-			"/tests/data/tls/invalid-tls-secret.yaml",
-		},
-		secretType: "some type",
-		usedIn: []string{
-			"tests/suite/test_tls.py - needed for the secretType",
-		},
-	},
-
-	{
-		secretName: "wildcard-tls-secret",
-		fileName:   "tls-secret-invalid-type-broken.yaml",
-		templateData: templateData{
-			country:            []string{"IE"},
-			organization:       []string{"F5 NGINX"},
-			organizationalUnit: []string{"NGINX Ingress Controller"},
-			locality:           []string{"Cork"},
-			province:           []string{"Cork"},
-			commonName:         "example.com",
-			dnsNames:           []string{"*.example.com"},
-		},
-		valid: secretShouldHaveValidTLSCrt,
-		symlinks: []string{
-			"/tests/data/wildcard-tls-secret/invalid-wildcard-tls-secret.yaml",
-		},
-		secretType: "broken",
-		usedIn: []string{
-			"tests/suite/test_wildcard_tls_secret.py - needed for the secret name and secret type",
-		},
-	},
-
-	{
-		secretName: "wildcard-tls-secret",
-		fileName:   "wildcard-tls-secret.yaml",
-		templateData: templateData{
-			country:            []string{"ES"},
-			organization:       []string{"nginx"},
-			organizationalUnit: []string{"example.com"},
-			locality:           []string{"Cork"},
-			province:           []string{"CanaryIslands"},
-			commonName:         "example.com",
-			dnsNames:           []string{"*.example.com"},
-		},
-		valid: secretShouldHaveValidTLSCrt,
-		symlinks: []string{
-			"/tests/data/wildcard-tls-secret/wildcard-tls-secret.yaml",
-		},
-		usedIn: []string{
-			"tests/suite/test_wildcard_tls_secret.py - subject info",
-		},
-	},
-
-	{
-		secretName: "wildcard-tls-secret",
-		fileName:   "wildcard-tls-secret-gb.yaml",
-		templateData: templateData{
-			country:      []string{"GB"},
-			organization: []string{"nginx"},
-			province:     []string{"Cambridgeshire"},
-			commonName:   "example.com",
-			dnsNames:     []string{"*.example.com"},
-		},
-		valid: secretShouldHaveValidTLSCrt,
-		symlinks: []string{
-			"/tests/data/wildcard-tls-secret/gb-wildcard-tls-secret.yaml",
-		},
-		usedIn: []string{
-			"tests/suite/test_wildcard_tls_secret.py - subject info",
-		},
-	},
-
-	{
-		secretName: "tls-secret",
-		fileName:   "vs-tls-secret.yaml",
-		templateData: templateData{
-			country:            []string{"IE"},
-			organization:       []string{"F5 NGINX"},
-			organizationalUnit: []string{"NGINX Ingress Controller"},
-			locality:           []string{"Cork"},
-			province:           []string{"Cork"},
-			commonName:         "virtual-server.example.com",
-			dnsNames:           []string{"virtual-server.example.com"},
-		},
-		valid: secretShouldHaveValidTLSCrt,
-		symlinks: []string{
-			"/tests/data/ap-waf-grpc/tls-secret.yaml",
-		},
-		usedIn: []string{
-			"suite/test_app_protect_waf_policies_grpc.py::TestAppProtectVSGrpc - needed for the common name",
-		},
-	},
-
-	{
-		secretName: "app-tls-secret",
-		fileName:   "app-tls-secret.yaml",
-		templateData: templateData{
-			country:            []string{"IE"},
-			organization:       []string{"F5 NGINX"},
-			organizationalUnit: []string{"NGINX Ingress Controller"},
-			locality:           []string{"Cork"},
-			province:           []string{"Cork"},
-			commonName:         "app.example.com",
-			dnsNames:           []string{"app.example.com"},
-		},
-		valid: secretShouldHaveValidTLSCrt,
-		symlinks: []string{
-			"/tests/data/common/app/secure/secret/app-tls-secret.yaml",
-			"/tests/data/transport-server-tls-passthrough/standard/secure-app-secret.yaml",
-			"/tests/data/transport-server-backup-service/standard/secure-app-secret.yaml",
-		},
-		usedIn: []string{
-			"suite/test_transport_server_backup_service.py - needed for the common name and secret name",
-		},
-	},
-
-	{
-		secretName: "transport-server-tls-secret",
-		fileName:   "tls-secret-tcp-lb-cafe.yaml",
-		templateData: templateData{
-			country:            []string{"IE"},
-			organization:       []string{"F5 NGINX"},
-			organizationalUnit: []string{"NGINX Ingress Controller"},
-			locality:           []string{"Cork"},
-			province:           []string{"Cork"},
-			commonName:         "cafe.example.com",
-			dnsNames:           []string{"cafe.example.com"},
-		},
-		valid: secretShouldHaveValidTLSCrt,
-		symlinks: []string{
-			"/tests/data/transport-server-tcp-load-balance/new-tls-secret.yaml",
-		},
-		usedIn: []string{
-			"tests/suite/test_transport_server_tcp_load_balance.py - needed for subject info and common name",
-		},
-	},
-
-	{
-		secretName: "transport-server-tls-secret",
-		fileName:   "kic-tls-secret.yaml",
-		templateData: templateData{
-			country:            []string{"IE"},
-			organization:       []string{"F5 NGINX"},
-			organizationalUnit: []string{"NGINX Ingress Controller"},
-			locality:           []string{"Cork"},
-			province:           []string{"Cork"},
-			commonName:         "kic.example.com",
-			dnsNames:           []string{"kic.example.com"},
-		},
-		valid: secretShouldHaveValidTLSCrt,
-		symlinks: []string{
-			"/tests/data/transport-server-tcp-load-balance/tcp-tls-secret.yaml",
-		},
-		usedIn: []string{
-			"tests/suite/test_transport_server_tcp_load_balance.py - needed for secret name, subject info and common name",
-		},
-	},
-
-	{
-		secretName: "test-secret",
-		fileName:   "tls-secret-test.yaml",
-		templateData: templateData{
-			country:      []string{"US"},
-			organization: []string{"Internet Widgits Pty Ltd"},
-			locality:     []string{"San Francisco"},
-			province:     []string{"CA"},
-			commonName:   "cafe.example.com",
-			dnsNames:     []string{"cafe.example.com"},
-		},
-		valid: secretShouldHaveValidTLSCrt,
-		symlinks: []string{
-			"/tests/data/service-insight/secret.yaml",
-		},
-		usedIn: []string{
-			"tests/suite/test_virtual_server_service_insight.py - secret name common name",
-		},
-	},
-
-	{
-		secretName: "tls-secret",
-		fileName:   "invalid-tls-secret-sometype.yaml",
-		templateData: templateData{
-			country:      []string{"US"},
-			organization: []string{"Internet Widgits Pty Ltd"},
-			locality:     []string{"San Francisco"},
-			province:     []string{"CA"},
-			commonName:   "cafe.example.com",
-			dnsNames:     []string{"cafe.example.com"},
-		},
-		valid:      secretShouldHaveValidTLSCrt,
-		secretType: SecretTypeSomeType,
-		symlinks: []string{
-			"/tests/data/virtual-server-tls/invalid-tls-secret.yaml",
-		},
-		usedIn: []string{
-			"tests/suite/test_virtual_server_tls.py - secret name common name",
-		},
-	},
-
-	{
-		secretName: "cafe-secret",
-		fileName:   "cafe-secret.yaml",
-		templateData: templateData{
-			country:      []string{"US"},
-			organization: []string{"Internet Widgits Pty Ltd"},
-			locality:     []string{"San Francisco"},
-			province:     []string{"CA"},
-			commonName:   "cafe.example.com",
-			dnsNames:     []string{"cafe.example.com"},
-		},
-		valid: secretShouldHaveValidTLSCrt,
-		symlinks: []string{
-			"/tests/data/transport-server-with-host/cafe-secret.yaml",
-		},
-		usedIn: []string{
-			"tests/suite/test_transport_server_with_host.py - secret name common name",
-		},
-	},
+// templateData is a subset of the x509.Certificate info: it pulls in some of
+// the Issuer, Subject, and DNSNames properties from that struct. Motivation for
+// this is to provide a complete but limited struct we need to fill out for
+// every tls certificate we want to use for testing or examples.
+//
+// Making decisions on what data to leave out of the x509.Certificate struct is
+// therefore no longer a concern.
+type templateData struct {
+	country            []string
+	organization       []string
+	organizationalUnit []string
+	locality           []string
+	province           []string
+	commonName         string
+	dnsNames           []string
+	emailAddress       string
+	ca                 bool
+	client             bool
 }
 
-var mtlsBundles = []mtlsBundle{
-	{
-		ca: yamlSecret{
-			secretName: "egress-mtls-secret",
-			fileName:   "test-egress-mtls-secret.yaml",
-			templateData: templateData{
-				country:            []string{"US"},
-				organization:       []string{"NGINX"},
-				organizationalUnit: []string{"KIC"},
-				locality:           []string{"San Francisco"},
-				province:           []string{"CA"},
-				commonName:         "example.com",
-			},
-			secretType: secrets.SecretTypeCA,
-			valid:      secretShouldHaveValidTLSCrt,
-			symlinks: []string{
-				"/tests/data/egress-mtls/secret/egress-mtls-secret.yaml",
-			},
+// JITTLSKey is a Just In Time TLS key representation. The only two parts that
+// we need here are the bytes for the cert and the key. These two will be
+// written as the data.tls.cert and data.tls.key properties of the kubernetes
+// core.Secret type.
+//
+// This does not hold the hosts information, because that's being assembled
+// elsewhere, but the data does actually contain the passed in hosts.
+type JITTLSKey struct {
+	cert       []byte
+	key        []byte
+	privateKey *ecdsa.PrivateKey
+}
 
-			usedIn: []string{
-				"tests/suite/test_egress_mtls.py - needed for the different secret type",
-			},
-		},
-		client: yamlSecret{
-			secretName: "egress-tls-secret",
-			fileName:   "test-egress-tls-client-secret.yaml",
-			templateData: templateData{
-				country:            []string{"US"},
-				organization:       []string{"NGINX"},
-				organizationalUnit: []string{"KIC"},
-				locality:           []string{"San Francisco"},
-				province:           []string{"CA"},
-				commonName:         "client",
-				client:             true,
-				emailAddress:       "client@example.com",
-			},
-			valid: secretShouldHaveValidTLSCrt,
-			symlinks: []string{
-				"/tests/data/egress-mtls/secret/tls-secret.yaml",
-			},
-			usedIn: []string{
-				"tests/suite/test_egress_mtls.py - client k8s tls cert, this is signed by egress-mtls-secret",
-			},
-		},
-		server: yamlSecret{
-			secretName: "app-tls-secret",
-			fileName:   "test-secure-app-tls-secret.yaml",
-			templateData: templateData{
-				country:            []string{"US"},
-				organization:       []string{"NGINX"},
-				organizationalUnit: []string{"KIC"},
-				locality:           []string{"San Francisco"},
-				province:           []string{"CA"},
-				commonName:         "secure-app.example.com",
-			},
-			valid:      secretShouldHaveValidTLSCrt,
-			secretType: v1.SecretTypeOpaque,
-			symlinks: []string{
-				"/tests/data/common/app/secure-ca/app-tls-secret.yaml",
-			},
-			usedIn: []string{
-				"tests/suite/test_egress_mtls.py - server k8s tls cert, this is signed by egress-mtls-secret",
-			},
-		},
-		crl: true,
-	},
-	{
-		ca: yamlSecret{
-			secretName: "egress-trusted-ca-secret",
-			fileName:   "example-egress-trusted-ca-secret.yaml",
-			templateData: templateData{
-				country:            []string{"US"},
-				organization:       []string{"NGINX"},
-				organizationalUnit: []string{"KIC"},
-				locality:           []string{"San Francisco"},
-				province:           []string{"CA"},
-				commonName:         "example.com",
-			},
-			secretType: secrets.SecretTypeCA,
-			valid:      secretShouldHaveValidTLSCrt,
-			symlinks: []string{
-				"/examples/custom-resources/egress-mtls/egress-trusted-ca-secret.yaml",
-			},
+// generateTLSKeyPair is roughly the same function as crypto/tls/generate_cert.go in the
+// go standard library. Notable differences:
+//   - this one returns the cert/key as bytes rather than writing them as files
+//   - takes two templates (x509.Certificate). If they are the same, it's going
+//     to be a self-signed certificate
+//   - keys are always valid from "now" until 4 days in the future. Given the
+//     short usage window of the keys, this is enough
+func generateTLSKeyPair(template, parent x509.Certificate, parentPriv *ecdsa.PrivateKey) (*JITTLSKey, error) {
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate private key: %w", err)
+	}
 
-			usedIn: []string{
-				"examples/custom-resources/egress-mtls",
-			},
+	if parentPriv == nil {
+		parentPriv = priv
+	}
+
+	pub := publicKey(parentPriv)
+
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &parent, pub, parentPriv)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create certificate: %w", err)
+	}
+
+	certOut := &bytes.Buffer{}
+
+	if err = pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
+		return nil, fmt.Errorf("failed to write data to cert bytes buffer: %w", err)
+	}
+
+	keyOut := &bytes.Buffer{}
+
+	privBytes, err := x509.MarshalPKCS8PrivateKey(parentPriv)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal private key: %w", err)
+	}
+	if err = pem.Encode(keyOut, &pem.Block{Type: "EC PRIVATE KEY", Bytes: privBytes}); err != nil {
+		return nil, fmt.Errorf("failed to write data to keybytes buffer: %w", err)
+	}
+
+	return &JITTLSKey{
+		cert:       certOut.Bytes(),
+		key:        keyOut.Bytes(),
+		privateKey: parentPriv,
+	}, nil
+}
+
+func renderX509Template(td templateData) (x509.Certificate, error) {
+	validFrom := time.Now()
+	validUntil := validFrom.Add(31 * 24 * time.Hour)
+
+	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+	if err != nil {
+		return x509.Certificate{}, fmt.Errorf("failed to generate serial number: %w", err)
+	}
+
+	var eku x509.ExtKeyUsage
+	eku = x509.ExtKeyUsageServerAuth
+
+	if td.client {
+		eku = x509.ExtKeyUsageClientAuth
+	}
+	return x509.Certificate{
+		Issuer: pkix.Name{
+			Country:      td.country,
+			Organization: td.organization,
 		},
-		client: yamlSecret{
-			secretName: "egress-mtls-secret",
-			fileName:   "example-egress-mtls-client-secret.yaml",
-			templateData: templateData{
-				country:            []string{"US"},
-				organization:       []string{"NGINX"},
-				organizationalUnit: []string{"KIC"},
-				locality:           []string{"San Francisco"},
-				province:           []string{"CA"},
-				commonName:         "client",
-				client:             true,
-				emailAddress:       "client@example.com",
-			},
-			valid: secretShouldHaveValidTLSCrt,
-			symlinks: []string{
-				"/examples/custom-resources/egress-mtls/egress-mtls-secret.yaml",
-			},
-			usedIn: []string{
-				"examples/custom-resources/egress-mtls",
-			},
+		Subject: pkix.Name{
+			Country:            td.country,
+			Organization:       td.organization,
+			OrganizationalUnit: td.organizationalUnit,
+			Locality:           td.locality,
+			Province:           td.province,
+			CommonName:         td.commonName,
 		},
-		server: yamlSecret{
-			secretName: "app-tls-secret",
-			fileName:   "example-secure-app-tls-secret.yaml",
-			templateData: templateData{
-				country:            []string{"US"},
-				organization:       []string{"NGINX"},
-				organizationalUnit: []string{"KIC"},
-				locality:           []string{"San Francisco"},
-				province:           []string{"CA"},
-				commonName:         "secure-app.example.com",
-			},
-			valid:      secretShouldHaveValidTLSCrt,
-			secretType: v1.SecretTypeOpaque,
-			symlinks: []string{
-				"/examples/custom-resources/egress-mtls/secure-app-tls-secret.yaml",
-			},
-			usedIn: []string{
-				"examples/custom-resources/egress-mtls",
-			},
-		},
-		crl: false,
-	},
+		DNSNames:              td.dnsNames,
+		SerialNumber:          serialNumber,
+		NotBefore:             validFrom,
+		NotAfter:              validUntil,
+		KeyUsage:              x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{eku, x509.ExtKeyUsageAny, x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		IsCA:                  td.ca,
+		EmailAddresses:        []string{td.emailAddress},
+	}, nil
 }
