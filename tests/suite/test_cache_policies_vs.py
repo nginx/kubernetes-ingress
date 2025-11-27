@@ -179,11 +179,12 @@ class TestCachePolicies:
                 "Request ID:" in resp_1.text,
                 "Request ID:" in resp_2.text,
                 "Request ID:" in resp_3.text,
-                req_id_1.group(1) == req_id_2.group(1) == req_id_3.group(1),
+                req_id_1.group(1) == req_id_2.group(1),  # GET requests should share cache
+                req_id_1.group(1) != req_id_3.group(1),  # POST has different cache key due to $request_method
                 cache_status_1 in ["MISS", "EXPIRED", None],
-                cache_status_2 == "HIT",
-                cache_status_3 == "HIT",
-                cache_status_4 == "HIT",
+                cache_status_2 == "HIT",  # Second GET should be cache hit
+                cache_status_3 in ["MISS", "EXPIRED", None],  # First POST should be cache miss (different key)
+                cache_status_4 == "HIT",  # HEAD should be cache hit (shares key with GET)
             ]
         )
 
