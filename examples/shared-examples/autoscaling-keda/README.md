@@ -4,7 +4,7 @@ This example is based on the Keda [example](https://keda.sh/docs/2.18/scalers/cr
 
 ## 1. Deploy the Ingress Controller
 
-1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
+1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
    instructions to deploy the Ingress Controller.
 
 ## 2. Deploy Keda

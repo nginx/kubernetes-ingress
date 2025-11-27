@@ -157,6 +157,12 @@ type Upstream struct {
 	ProxyBusyBuffersSize string `json:"busy-buffers-size"`
 	// Sets the maximum allowed size of the client request body. The default is set in the client-max-body-size ConfigMap key.
 	ClientMaxBodySize string `json:"client-max-body-size"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^\d+[kKmM]?$`
+	// ClientBodyBufferSize sets the size of the buffer used for reading the client request body. Must be specified as a number followed by:
+	// 'k' for kilobytes or 'm' for megabytes.
+	// Examples: "10m" or "512k".
+	ClientBodyBufferSize string `json:"client-body-buffer-size"`
 	// The TLS configuration for the Upstream.
 	TLS UpstreamTLS `json:"tls"`
 	// The health check configuration for the Upstream. Note: this feature is supported only in NGINX Plus.
@@ -786,6 +792,7 @@ type PolicySpec struct {
 	// The EgressMTLS policy configures upstreams authentication and certificate verification.
 	EgressMTLS *EgressMTLS `json:"egressMTLS"`
 	// The OpenID Connect policy configures NGINX to authenticate client requests by validating a JWT token against an OAuth2/OIDC token provider, such as Auth0 or Keycloak.
+	// +kubebuilder:validation:XValidation:rule="(self.sslVerify == true) || (self.sslVerify == false && !has(self.trustedCertSecret))",message="trustedCertSecret can be set only if sslVerify is true"
 	OIDC *OIDC `json:"oidc"`
 	// The WAF policy configures WAF and log configuration policies for NGINX AppProtect
 	WAF *WAF `json:"waf"`
@@ -975,6 +982,16 @@ type OIDC struct {
 	AccessTokenEnable bool `json:"accessTokenEnable"`
 	// Switches Proof Key for Code Exchange on. The OpenID client needs to be in public mode. clientSecret is not used in this mode.
 	PKCEEnable bool `json:"pkceEnable"`
+	// Enables verification of the IDP server SSL certificate. Default is false.
+	// +kubebuilder:default:=false
+	SSLVerify bool `json:"sslVerify"`
+	// The name of the Kubernetes secret that stores the CA certificate for IDP server verification. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/ca, and the certificate must be stored in the secret under the key ca.crt.
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	TrustedCertSecret string `json:"trustedCertSecret"`
+	// Sets the verification depth in the IDP server certificates chain. The default is 1.
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:default:=1
+	SSLVerifyDepth *int `json:"sslVerifyDepth"`
 }
 
 // The WAF policy configures NGINX Plus to secure client requests using App Protect WAF policies.

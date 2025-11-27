@@ -19,7 +19,7 @@ kubectl config set-context --namespace default --current
 
 ## Prerequisites
 
-1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
+1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
    instructions to deploy NGINX Ingress Controller. This example requires that the HTTPS port of the Ingress
    Controller is `443`.
 2. Save the public IP address of the Ingress Controller into `/etc/hosts` of your machine:
@@ -53,13 +53,19 @@ kubectl apply -f webapp.yaml
 
 ## Step 3 - Deploy Keycloak
 
-1. Create the Keycloak deployment and service:
+1. Setup the secret required for Keycloak to run with https:
+
+    ```shell
+    kubectl apply -f keycloak-tls-secret.yaml
+    ```
+
+2. Create the Keycloak deployment and service:
 
     ```shell
     kubectl apply -f keycloak.yaml
     ```
 
-2. Create a VirtualServer resource for Keycloak:
+3. Create a VirtualServer resource for Keycloak:
 
     ```shell
     kubectl apply -f virtual-server-idp.yaml
@@ -115,7 +121,25 @@ Steps:
     kubectl apply -f nginx-config.yaml
     ```
 
-## Step 7 - Deploy the OIDC Policy
+## Step 7 - Setup the Keycloak CA certificate
+
+Create a Secret containing the Keycloak CA, this used in the OIDC Policy to verify the Keycloak TLS certificate
+
+```shell
+kubectl apply -f keycloak-ca-secret.yaml
+```
+
+## Step 8a - Deploy the OIDC Policy - PKCE
+
+**Note**: This step only applies if you have PKCE enabled in Keycloak.
+
+Create a policy with the name `oidc-policy` that references the secret from the previous step:
+
+```shell
+kubectl apply -f oidc-pkce.yaml
+```
+
+## Step 8b - Deploy the OIDC Policy - Client secret
 
 Create a policy with the name `oidc-policy` that references the secret from the previous step:
 
@@ -123,7 +147,7 @@ Create a policy with the name `oidc-policy` that references the secret from the 
 kubectl apply -f oidc.yaml
 ```
 
-## Step 8 - Configure Load Balancing
+## Step 9 - Configure Load Balancing
 
 Create a VirtualServer resource for the web application:
 
@@ -131,9 +155,9 @@ Create a VirtualServer resource for the web application:
 kubectl apply -f virtual-server.yaml
 ```
 
-Note that the VirtualServer references the policy `oidc-policy` created in Step 6.
+Note that the VirtualServer references the policy `oidc-policy` created in Step 8.
 
-## Step 9 - Test the Configuration
+## Step 10 - Test the Configuration
 
 1. Open a web browser and navigate to the URL of the web application: `https://webapp.example.com`. You will be
    redirected to Keycloak.
@@ -142,7 +166,7 @@ Note that the VirtualServer references the policy `oidc-policy` created in Step 
 3. Once logged in, you will be redirected to the web application and get a response from it. Notice the field `User ID`
 in the response, this will match the ID for your user in Keycloak. ![webapp](./webapp.png)
 
-## Step 10 - Log Out
+## Step 11 - Log Out
 
 1. To log out, navigate to `https://webapp.example.com/logout`. Your session will be terminated, and you will be
    redirected to the default post logout URI `https://webapp.example.com/_logout`.

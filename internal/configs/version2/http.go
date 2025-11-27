@@ -157,6 +157,9 @@ type OIDC struct {
 	AuthExtraArgs         string
 	AccessTokenEnable     bool
 	PKCEEnable            bool
+	TLSVerify             bool
+	VerifyDepth           int
+	CAFile                string
 }
 
 // APIKey holds API key configuration.
@@ -198,6 +201,7 @@ type Location struct {
 	ProxyReadTimeout         string
 	ProxySendTimeout         string
 	ClientMaxBodySize        string
+	ClientBodyBufferSize     string
 	ProxyMaxTempFileSize     string
 	ProxyBuffering           bool
 	ProxyBuffers             string

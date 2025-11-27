@@ -12,6 +12,7 @@ import (
 type ConfigParams struct {
 	Context                                context.Context
 	ClientMaxBodySize                      string
+	ClientBodyBufferSize                   string
 	DefaultServerAccessLogOff              bool
 	DefaultServerReturn                    string
 	FailTimeout                            string
@@ -52,6 +53,7 @@ type ConfigParams struct {
 	MainWorkerProcesses                    string
 	MainWorkerRlimitNofile                 string
 	MainWorkerShutdownTimeout              string
+	MainClientBodyBufferSize               string
 	MaxConns                               int
 	MaxFails                               int
 	AppProtectEnable                       string
@@ -169,6 +171,7 @@ type StaticConfigParams struct {
 	IsDirectiveAutoadjustEnabled   bool
 	NginxVersion                   nginx.Version
 	AppProtectBundlePath           string
+	DefaultCABundle                string
 }
 
 // GlobalConfigParams holds global configuration parameters. For now, it only holds listeners.

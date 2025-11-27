@@ -755,3 +755,175 @@ func TestGetRewriteTargetWithComplexValues(t *testing.T) {
 		})
 	}
 }
+
+func TestClientBodyBufferSizeAnnotationValid(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                 string
+		clientBodyBufferSize string
+		expected             string
+	}{
+		{
+			name:                 "valid size with k",
+			clientBodyBufferSize: "16k",
+			expected:             "16k",
+		},
+		{
+			name:                 "valid size with M",
+			clientBodyBufferSize: "4M",
+			expected:             "4M",
+		},
+		{
+			name:                 "valid size without suffix",
+			clientBodyBufferSize: "8192",
+			expected:             "8192",
+		},
+		{
+			name:                 "single digit",
+			clientBodyBufferSize: "1k",
+			expected:             "1k",
+		},
+		{
+			name:                 "zero value",
+			clientBodyBufferSize: "0",
+			expected:             "0",
+		},
+		{
+			name:                 "large buffer size",
+			clientBodyBufferSize: "512K",
+			expected:             "512K",
+		},
+		{
+			name:                 "megabyte buffer size",
+			clientBodyBufferSize: "64M",
+			expected:             "64M",
+		},
+		{
+			name:                 "empty annotation",
+			clientBodyBufferSize: "",
+			expected:             "",
+		},
+		{
+			name:                 "very large number",
+			clientBodyBufferSize: "999999999",
+			expected:             "999999999",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ingress := &networking.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-ingress",
+					Namespace: "default",
+					Annotations: map[string]string{
+						"nginx.org/client-body-buffer-size": tt.clientBodyBufferSize,
+					},
+				},
+			}
+
+			ingEx := &IngressEx{
+				Ingress: ingress,
+			}
+
+			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+
+			if result.ClientBodyBufferSize != tt.expected {
+				t.Errorf("Test %q: expected ClientBodyBufferSize %q, got %q", tt.name, tt.expected, result.ClientBodyBufferSize)
+			}
+
+			result2 := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+			if result2.ClientBodyBufferSize != tt.expected {
+				t.Errorf("Test %q with other annotations: expected ClientBodyBufferSize %q, got %q", tt.name, tt.expected, result2.ClientBodyBufferSize)
+			}
+		})
+	}
+}
+
+func TestClientBodyBufferSizeAnnotationInvalid(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+	}{
+		{
+			name: "annotation name case sensitivity",
+			annotations: map[string]string{
+				"nginx.org/Client-Body-Buffer-Size": "16k", // capital letters
+			},
+		},
+		{
+			name: "invalid time unit h",
+			annotations: map[string]string{
+				"nginx.org/client-body-buffer-size": "4h",
+			},
+		},
+		{
+			name: "invalid random string",
+			annotations: map[string]string{
+				"nginx.org/client-body-buffer-size": "3cd2", // wrong format, too many chars
+			},
+		},
+		{
+			name: "invalid with g suffix",
+			annotations: map[string]string{
+				"nginx.org/client-body-buffer-size": "2g",
+			},
+		},
+
+		{
+			name: "invalid negative value",
+			annotations: map[string]string{
+				"nginx.org/client-body-buffer-size": "-16k",
+			},
+		},
+		{
+			name: "invalid with text prefix",
+			annotations: map[string]string{
+				"nginx.org/client-body-buffer-size": "abc16k",
+			},
+		},
+		{
+			name: "invalid with special characters",
+			annotations: map[string]string{
+				"nginx.org/client-body-buffer-size": "16@k",
+			},
+		},
+		{
+			name: "invalid with letters",
+			annotations: map[string]string{
+				"nginx.org/client-body-buffer-size": "abcdef",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ingress := &networking.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "test-ingress",
+					Namespace:   "default",
+					Annotations: tt.annotations,
+				},
+			}
+
+			ingEx := &IngressEx{
+				Ingress: ingress,
+			}
+
+			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+
+			if result.ClientBodyBufferSize != "" {
+				t.Errorf(`Test %q: expected ClientBodyBufferSize %q, got ""`, tt.name, result.ClientBodyBufferSize)
+			}
+		})
+	}
+}

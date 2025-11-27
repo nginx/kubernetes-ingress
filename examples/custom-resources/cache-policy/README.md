@@ -5,7 +5,7 @@ policy to improve performance by caching responses.
 
 ## Prerequisites
 
-1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/) instructions to deploy the Ingress Controller.
+1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/) instructions to deploy the Ingress Controller.
 1. Make sure the snippets are enabled (this is only required for this example as we can see the `X-Cache-Status` header in the response, not required for functionality).
 1. Save the public IP address of the Ingress Controller into a shell variable:
 

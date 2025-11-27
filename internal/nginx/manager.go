@@ -50,6 +50,8 @@ const (
 	appProtectDosAgentInstallCmd    = "/usr/bin/adminstall"
 	appProtectDosAgentStartCmd      = "/usr/bin/admd -d --standalone"
 	appProtectDosAgentStartDebugCmd = "/usr/bin/admd -d --standalone --log debug"
+
+	defaultCAPath = "/etc/ssl/certs/ca-certificates.crt"
 )
 
 var (
@@ -75,6 +77,8 @@ type Manager interface {
 	CreateStreamConfig(name string, content []byte) bool
 	DeleteStreamConfig(name string)
 	CreateTLSPassthroughHostsConfig(content []byte) bool
+	CreateOIDCConfig(name string, content []byte) bool
+	DeleteOIDCConfig(name string)
 	CreateSecret(name string, content []byte, mode os.FileMode) string
 	DeleteSecret(name string)
 	CreateAppProtectResourceFile(name string, content []byte)
@@ -98,6 +102,7 @@ type Manager interface {
 	AgentQuit()
 	AgentVersion() string
 	GetSecretsDir() string
+	GetOSCABundlePath() (string, error)
 	UpsertSplitClientsKeyVal(zoneName string, key string, value string)
 	DeleteKeyValStateFiles(virtualServerName string)
 }
@@ -114,6 +119,7 @@ type LocalManager struct {
 	debug                        bool
 	dhparamFilename              string
 	tlsPassthroughHostsFilename  string
+	oidcConfPath                 string
 	verifyConfigGenerator        *verifyConfigGenerator
 	verifyClient                 *verifyClient
 	configVersion                int
@@ -147,6 +153,7 @@ func NewLocalManager(ctx context.Context, confPath string, debug bool, mc collec
 		mainConfFilename:            path.Join(confPath, "nginx.conf"),
 		configVersionFilename:       path.Join(confPath, "config-version.conf"),
 		tlsPassthroughHostsFilename: path.Join(confPath, "tls-passthrough-hosts.conf"),
+		oidcConfPath:                path.Join(confPath, "oidc-conf.d"),
 		debug:                       debug,
 		verifyConfigGenerator:       verifyConfigGenerator,
 		configVersion:               0,
@@ -179,6 +186,11 @@ func (lm *LocalManager) CreateConfig(name string, content []byte) bool {
 	return createConfig(lm.logger, lm.getFilenameForConfig(name), content)
 }
 
+// CreateOIDCConfig creates an OIDC configuration file. If the file already exists, it will be overridden.
+func (lm *LocalManager) CreateOIDCConfig(name string, content []byte) bool {
+	return createConfig(lm.logger, lm.getFilenameForOIDCConfig(name), content)
+}
+
 func createConfig(l *slog.Logger, filename string, content []byte) bool {
 	nl.Debugf(l, "Writing config to %v", filename)
 	nl.Debug(l, string(content))
@@ -196,6 +208,11 @@ func (lm *LocalManager) DeleteConfig(name string) {
 	deleteConfig(lm.logger, lm.getFilenameForConfig(name))
 }
 
+// DeleteOIDCConfig deletes the configuration file from the conf.d folder.
+func (lm *LocalManager) DeleteOIDCConfig(name string) {
+	deleteConfig(lm.logger, lm.getFilenameForOIDCConfig(name))
+}
+
 func deleteConfig(l *slog.Logger, filename string) {
 	nl.Infof(l, "Deleting config from %v", filename)
 
@@ -206,6 +223,10 @@ func deleteConfig(l *slog.Logger, filename string) {
 
 func (lm *LocalManager) getFilenameForConfig(name string) string {
 	return path.Join(lm.confdPath, name+".conf")
+}
+
+func (lm *LocalManager) getFilenameForOIDCConfig(name string) string {
+	return path.Join(lm.oidcConfPath, name+".conf")
 }
 
 // CreateStreamConfig creates a configuration file for stream module.
@@ -748,4 +769,39 @@ func (lm *LocalManager) DeleteKeyValStateFiles(virtualServerName string) {
 			}
 		}
 	}
+}
+
+func readOSRelease() ([]byte, error) {
+	return os.ReadFile("/etc/os-release")
+}
+
+// GetOSCABundlePath returns the path to the OS CA bundle file based on the OS type.
+func (lm *LocalManager) GetOSCABundlePath() (string, error) {
+	sBytes, err := readOSRelease()
+	if err != nil {
+		nl.Warnf(lm.logger, "Failed to read /etc/os-release: %v, using default CA path %s", err, defaultCAPath)
+	}
+	s := string(sBytes)
+	caFilePath := getOSCABundlePath(s)
+
+	if _, err := os.Stat(caFilePath); os.IsNotExist(err) {
+		return "", fmt.Errorf("CA bundle file does not exist at path: %s", caFilePath)
+	}
+
+	return caFilePath, nil
+}
+
+func getOSCABundlePath(s string) string {
+	alpineRegex := regexp.MustCompile(`ID=\"?alpine\"?`)
+	rhelRegex := regexp.MustCompile(`ID=\"?rhel\"?`)
+	// Logic to get the OS CA bundle path.
+	caFilePath := defaultCAPath // Default for Debian, the default image base
+
+	if alpineRegex.MatchString(s) {
+		caFilePath = "/etc/ssl/cert.pem"
+	} else if rhelRegex.MatchString(s) {
+		caFilePath = "/etc/pki/tls/certs/ca-bundle.crt"
+	}
+
+	return caFilePath
 }

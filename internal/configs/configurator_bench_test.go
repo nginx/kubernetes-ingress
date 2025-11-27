@@ -18,7 +18,7 @@ func createTestConfiguratorBench() (*Configurator, error) {
 		return nil, err
 	}
 
-	templateExecutorV2, err := version2.NewTemplateExecutor("version2/nginx-plus.virtualserver.tmpl", "version2/nginx-plus.transportserver.tmpl")
+	templateExecutorV2, err := version2.NewTemplateExecutor("version2/nginx-plus.virtualserver.tmpl", "version2/nginx-plus.transportserver.tmpl", "version2/oidc.tmpl")
 	if err != nil {
 		return nil, err
 	}
