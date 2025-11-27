@@ -83,6 +83,8 @@ var yamlSecrets = []yamlSecret{
 			"/examples/ingress-resources/security-monitoring/cafe-secret.yaml",
 			"/tests/data/appprotect/appprotect-secret.yaml",
 			"/tests/data/dos/tls-secret.yaml",
+			"/tests/data/hsts/standard-tls/tls-secret.yaml",
+			"/tests/data/hsts/mergeable-tls/tls-secret.yaml",
 			"/tests/data/ingress-mtls/secret/tls-secret.yaml",
 			"/tests/data/mgmt-configmap-keys/ssl-cert.yaml",
 			"/tests/data/smoke/smoke-secret.yaml",
