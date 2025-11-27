@@ -12191,6 +12191,7 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 		},
+		defaultCABundle: "/etc/ssl/certs/ca-certificate.crt",
 		apResources: &appProtectResourcesForVS{
 			Policies: map[string]string{
 				"default/dataguard-alarm": "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
@@ -14764,6 +14765,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					PostLogoutRedirectURI: "/_logout",
 					ZoneSyncLeeway:        200,
 					AccessTokenEnable:     true,
+					VerifyDepth:           1,
 				},
 				"default/oidc-policy",
 			},
@@ -22966,5 +22968,443 @@ func TestGenerateVirtualServerConfigWithForeignNamespaceServiceInVSR(t *testing.
 
 	if !cmp.Equal(expected, result) {
 		t.Error(cmp.Diff(expected, result))
+	}
+}
+
+func TestGenerateVirtualServerConfigWithOIDCTLSVerifyOn(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		msg             string
+		virtualServerEx VirtualServerEx
+		expected        version2.VirtualServerConfig
+	}{
+		{
+			msg: "oidc at vs spec level with TLSVerify & zone sync enabled",
+			virtualServerEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Policies: []conf_v1.PolicyReference{
+							{
+								Name: "oidc-policy",
+							},
+						},
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "tea",
+								Service: "tea-svc",
+								Port:    80,
+							},
+							{
+								Name:    "coffee",
+								Service: "coffee-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path: "/tea",
+								Action: &conf_v1.Action{
+									Pass: "tea",
+								},
+							},
+							{
+								Path: "/coffee",
+								Action: &conf_v1.Action{
+									Pass: "coffee",
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/oidc-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "oidc-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							OIDC: &conf_v1.OIDC{
+								AuthEndpoint:       "https://auth.example.com",
+								TokenEndpoint:      "https://token.example.com",
+								JWKSURI:            "https://jwks.example.com",
+								EndSessionEndpoint: "https://logout.example.com",
+								ClientID:           "example-client-id",
+								ClientSecret:       "example-client-secret",
+								Scope:              "openid+profile+email",
+								SSLVerify:          true,
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+					"default/coffee-svc:80": {
+						"10.0.0.30:80",
+					},
+				},
+				SecretRefs: map[string]*secrets.SecretReference{
+					"default/example-client-secret": {
+						Secret: &api_v1.Secret{
+							Type: secrets.SecretTypeOIDC,
+							Data: map[string][]byte{
+								"client-secret": []byte("c2VjcmV0"),
+							},
+						},
+					},
+				},
+				ZoneSync: true,
+			},
+			expected: version2.VirtualServerConfig{
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "coffee-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_coffee",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.30:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets:  []string{},
+				LimitReqZones: []version2.LimitReqZone{},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+					Locations: []version2.Location{
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+							OIDC:                     true,
+						},
+						{
+							Path:                     "/coffee",
+							ProxyPass:                "http://vs_default_cafe_coffee",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "coffee-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "coffee-svc",
+							OIDC:                     true,
+						},
+					},
+					OIDC: &version2.OIDC{
+						AuthEndpoint:          "https://auth.example.com",
+						TokenEndpoint:         "https://token.example.com",
+						JwksURI:               "https://jwks.example.com",
+						EndSessionEndpoint:    "https://logout.example.com",
+						ClientID:              "example-client-id",
+						ClientSecret:          "c2VjcmV0",
+						Scope:                 "openid+profile+email",
+						TLSVerify:             true,
+						VerifyDepth:           1,
+						CAFile:                "/etc/ssl/certs/ca-certificate.crt",
+						ZoneSyncLeeway:        200,
+						RedirectURI:           "/_codexch",
+						PostLogoutRedirectURI: "/_logout",
+					},
+				},
+			},
+		},
+	}
+
+	baseCfgParams := ConfigParams{
+		Context:      context.Background(),
+		ServerTokens: "off",
+	}
+
+	vsc := newVirtualServerConfigurator(
+		&baseCfgParams,
+		false,
+		false,
+		&StaticConfigParams{
+			DefaultCABundle: "/etc/ssl/certs/ca-certificate.crt",
+		},
+		false,
+		&fakeBV,
+	)
+
+	for _, test := range tests {
+		result, warnings := vsc.GenerateVirtualServerConfig(&test.virtualServerEx, nil, nil)
+
+		sort.Slice(result.Maps, func(i, j int) bool {
+			return result.Maps[i].Variable < result.Maps[j].Variable
+		})
+
+		sort.Slice(test.expected.Maps, func(i, j int) bool {
+			return test.expected.Maps[i].Variable < test.expected.Maps[j].Variable
+		})
+
+		if diff := cmp.Diff(test.expected, result); diff != "" {
+			t.Errorf("GenerateVirtualServerConfig() mismatch (-want +got):\n%s", diff)
+			t.Error(test.msg)
+		}
+
+		if len(warnings) != 0 {
+			t.Errorf("GenerateVirtualServerConfig returned warnings: %v", vsc.warnings)
+		}
+	}
+}
+
+func TestGenerateVirtualServerConfigWithOIDCTLSCASecret(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		msg             string
+		virtualServerEx VirtualServerEx
+		expected        version2.VirtualServerConfig
+	}{
+		{
+			msg: "oidc at vs spec level with TLSVerify, custom ca cert & zone sync enabled",
+			virtualServerEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Policies: []conf_v1.PolicyReference{
+							{
+								Name: "oidc-policy",
+							},
+						},
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "tea",
+								Service: "tea-svc",
+								Port:    80,
+							},
+							{
+								Name:    "coffee",
+								Service: "coffee-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path: "/tea",
+								Action: &conf_v1.Action{
+									Pass: "tea",
+								},
+							},
+							{
+								Path: "/coffee",
+								Action: &conf_v1.Action{
+									Pass: "coffee",
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/oidc-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "oidc-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							OIDC: &conf_v1.OIDC{
+								AuthEndpoint:       "https://auth.example.com",
+								TokenEndpoint:      "https://token.example.com",
+								JWKSURI:            "https://jwks.example.com",
+								EndSessionEndpoint: "https://logout.example.com",
+								ClientID:           "example-client-id",
+								ClientSecret:       "example-client-secret",
+								Scope:              "openid+profile+email",
+								SSLVerify:          true,
+								TrustedCertSecret:  "example-ca-secret",
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+					"default/coffee-svc:80": {
+						"10.0.0.30:80",
+					},
+				},
+				SecretRefs: map[string]*secrets.SecretReference{
+					"default/example-client-secret": {
+						Secret: &api_v1.Secret{
+							Type: secrets.SecretTypeOIDC,
+							Data: map[string][]byte{
+								"client-secret": []byte("c2VjcmV0"),
+							},
+						},
+					},
+					"default/example-ca-secret": {
+						Secret: &api_v1.Secret{
+							Type: secrets.SecretTypeCA,
+							Data: map[string][]byte{
+								"ca.crt": []byte("ca-certificate-data"),
+							},
+						},
+						Path: "/etc/nginx/secrets/default-example-ca-secret-ca.crt",
+					},
+				},
+				ZoneSync: true,
+			},
+			expected: version2.VirtualServerConfig{
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "coffee-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_coffee",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.30:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets:  []string{},
+				LimitReqZones: []version2.LimitReqZone{},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+					Locations: []version2.Location{
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+							OIDC:                     true,
+						},
+						{
+							Path:                     "/coffee",
+							ProxyPass:                "http://vs_default_cafe_coffee",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "coffee-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "coffee-svc",
+							OIDC:                     true,
+						},
+					},
+					OIDC: &version2.OIDC{
+						AuthEndpoint:          "https://auth.example.com",
+						TokenEndpoint:         "https://token.example.com",
+						JwksURI:               "https://jwks.example.com",
+						EndSessionEndpoint:    "https://logout.example.com",
+						ClientID:              "example-client-id",
+						ClientSecret:          "c2VjcmV0",
+						Scope:                 "openid+profile+email",
+						TLSVerify:             true,
+						VerifyDepth:           1,
+						CAFile:                "/etc/nginx/secrets/default-example-ca-secret-ca.crt",
+						ZoneSyncLeeway:        200,
+						RedirectURI:           "/_codexch",
+						PostLogoutRedirectURI: "/_logout",
+					},
+				},
+			},
+		},
+	}
+
+	baseCfgParams := ConfigParams{
+		Context:      context.Background(),
+		ServerTokens: "off",
+	}
+
+	vsc := newVirtualServerConfigurator(
+		&baseCfgParams,
+		false,
+		false,
+		&StaticConfigParams{
+			DefaultCABundle: "/etc/ssl/certs/ca-certificate.crt",
+		},
+		false,
+		&fakeBV,
+	)
+
+	for _, test := range tests {
+		result, warnings := vsc.GenerateVirtualServerConfig(&test.virtualServerEx, nil, nil)
+
+		sort.Slice(result.Maps, func(i, j int) bool {
+			return result.Maps[i].Variable < result.Maps[j].Variable
+		})
+
+		sort.Slice(test.expected.Maps, func(i, j int) bool {
+			return test.expected.Maps[i].Variable < test.expected.Maps[j].Variable
+		})
+
+		if diff := cmp.Diff(test.expected, result); diff != "" {
+			t.Errorf("GenerateVirtualServerConfig() mismatch (-want +got):\n%s", diff)
+			t.Error(test.msg)
+		}
+
+		if len(warnings) != 0 {
+			t.Errorf("GenerateVirtualServerConfig returned warnings: %v", vsc.warnings)
+		}
 	}
 }

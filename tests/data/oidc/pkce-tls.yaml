@@ -4,13 +4,13 @@ metadata:
   name: oidc-policy
 spec:
   oidc:
-    clientID: nginx-plus
-    clientSecret: oidc-secret
+    clientID: nginx-plus-pkce
     authEndpoint: https://keycloak.example.com/realms/master/protocol/openid-connect/auth
-    tokenEndpoint: https://keycloak.default.svc.cluster.local:8443/realms/master/protocol/openid-connect/token
-    jwksURI: https://keycloak.default.svc.cluster.local:8443/realms/master/protocol/openid-connect/certs
+    tokenEndpoint: http://keycloak.default.svc.cluster.local:8080/realms/master/protocol/openid-connect/token
+    jwksURI: http://keycloak.default.svc.cluster.local:8080/realms/master/protocol/openid-connect/certs
     endSessionEndpoint: https://keycloak.example.com/realms/master/protocol/openid-connect/logout
     scope: openid+profile+email
     accessTokenEnable: true
+    pkceEnable: true
     sslVerify: true
-    trustedCertSecret: keycloak-ca
+    trustedCertSecret: keycloak-ca-secret

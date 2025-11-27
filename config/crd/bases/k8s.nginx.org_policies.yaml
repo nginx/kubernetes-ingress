@@ -390,9 +390,28 @@ spec:
                       with a + sign, for example openid+profile+email, openid+email+userDefinedScope.
                       The default is openid.
                     type: string
+                  sslVerify:
+                    default: false
+                    description: Enables verification of the IDP server SSL certificate.
+                      Default is false.
+                    type: boolean
+                  sslVerifyDepth:
+                    default: 1
+                    description: Sets the verification depth in the IDP server certificates
+                      chain. The default is 1.
+                    minimum: 0
+                    type: integer
                   tokenEndpoint:
                     description: URL for the token endpoint provided by your OpenID
                       Connect provider.
+                    type: string
+                  trustedCertSecret:
+                    description: The name of the Kubernetes secret that stores the
+                      CA certificate for IDP server verification. It must be in the
+                      same namespace as the Policy resource. The secret must be of
+                      the type nginx.org/ca, and the certificate must be stored in
+                      the secret under the key ca.crt.
+                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                     type: string
                   zoneSyncLeeway:
                     description: Specifies the maximum timeout in milliseconds for
@@ -400,6 +419,9 @@ spec:
                       Controller pods. The default is 200.
                     type: integer
                 type: object
+                x-kubernetes-validations:
+                - message: trustedCertSecret can be set only if sslVerify is true
+                  rule: (self.sslVerify == true) || (self.sslVerify == false && !has(self.trustedCertSecret))
               rateLimit:
                 description: The rate limit policy controls the rate of processing
                   requests per a defined key.

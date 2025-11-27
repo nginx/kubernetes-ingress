@@ -171,6 +171,7 @@ type StaticConfigParams struct {
 	IsDirectiveAutoadjustEnabled   bool
 	NginxVersion                   nginx.Version
 	AppProtectBundlePath           string
+	DefaultCABundle                string
 }
 
 // GlobalConfigParams holds global configuration parameters. For now, it only holds listeners.
