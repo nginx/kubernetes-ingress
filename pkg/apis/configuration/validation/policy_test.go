@@ -2775,6 +2775,19 @@ func TestValidatePolicy_IsNotValidCachePolicy(t *testing.T) {
 			},
 			isPlus: false,
 		},
+		{
+			name: "cache policy with invalid cache key ending with $",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "invalidkey",
+						CacheZoneSize: "10m",
+						CacheKey:      "$scheme$host$request_uri$", // Invalid: ends with $
+					},
+				},
+			},
+			isPlus: false,
+		},
 	}
 
 	for _, tc := range tt {
@@ -3046,6 +3059,34 @@ func TestValidatePolicy_IsValidCachePolicy(t *testing.T) {
 						CacheZoneName: "emptystale",
 						CacheZoneSize: "10m",
 						CacheUseStale: []string{},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with unbraced cache key variables",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "unbraced",
+						CacheZoneSize: "10m",
+						CacheKey:      "$scheme$host$request_uri", // Test unbraced NGINX variable format
+						Time:          "15m",
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with mixed braced and unbraced cache key variables",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "mixed",
+						CacheZoneSize: "10m",
+						CacheKey:      "$scheme${host}$request_uri", // Test mixed format
+						Time:          "20m",
 					},
 				},
 			},

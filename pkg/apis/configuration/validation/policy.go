@@ -491,8 +491,11 @@ func validateCache(cache *v1.Cache, fieldPath *field.Path, isPlus bool) field.Er
 		if err := ValidateEscapedString(cache.CacheKey); err != nil {
 			allErrs = append(allErrs, field.Invalid(fieldPath.Child("cacheKey"), cache.CacheKey, err.Error()))
 		}
-		// Validate that cache key contains valid NGINX variables
-		allErrs = append(allErrs, validateStringWithVariables(cache.CacheKey, fieldPath.Child("cacheKey"), actionProxyHeaderSpecialVariables, actionProxyHeaderVariables, false)...)
+		// Cache keys support both ${var} and $var NGINX syntax, so we skip variable braces validation
+		// but still validate basic syntax rules like not ending with $
+		if strings.HasSuffix(cache.CacheKey, "$") {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("cacheKey"), cache.CacheKey, "must not end with $"))
+		}
 	}
 
 	// Validate conditions
