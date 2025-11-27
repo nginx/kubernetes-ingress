@@ -26,6 +26,7 @@ var SecretTypeSomeType v1.SecretType = "some-type"
 // usedIn       - not used in the generation, it's only so we can keep track on which py tests used the specific certs
 type yamlSecret struct {
 	secretName   string
+	namespace    string
 	fileName     string
 	symlinks     []string
 	valid        bool
@@ -224,6 +225,7 @@ var yamlSecrets = []yamlSecret{
 			"tests/suite/test_transport_server_service_insight.py - needed for subject info and common name",
 		},
 	},
+
 	{
 		secretName: "tls-secret",
 		fileName:   "tls-secret-invalid-type-some.yaml",

@@ -453,6 +453,10 @@ func createKubeTLSSecretYaml(secret yamlSecret, isValid bool, tlsKeys *JITTLSKey
 		s.Type = secret.secretType
 	}
 
+	if secret.namespace != "" {
+		s.Namespace = secret.namespace
+	}
+
 	sb, err := yaml.Marshal(s)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling kubernetes secret into yaml %v: %w", s, err)
