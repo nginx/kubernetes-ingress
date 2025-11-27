@@ -2643,8 +2643,6 @@ func TestValidatePolicy_IsNotValidCachePolicy(t *testing.T) {
 			},
 			isPlus: false,
 		},
-		// Note: Command execution pattern validation has been moved to CRD level in types.go
-		// This test case is no longer valid as the validation happens at Kubernetes API level
 		{
 			name: "cache policy with invalid minUses (zero)",
 			policy: &v1.Policy{
@@ -2725,8 +2723,6 @@ func TestValidatePolicy_IsNotValidCachePolicy(t *testing.T) {
 			},
 			isPlus: false,
 		},
-		// Note: Command execution pattern validation has been moved to CRD level in types.go
-		// This test case is no longer valid as the validation happens at Kubernetes API level
 		{
 			name: "cache policy with invalid inactive format",
 			policy: &v1.Policy{

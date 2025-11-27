@@ -1216,8 +1216,6 @@ var actionProxyHeaderVariables = map[string]bool{
 	"ssl_server_name":         true,
 	"ssl_session_id":          true,
 	"ssl_session_reused":      true,
-	"uri":                     true,
-	"proxy_host":              true,
 }
 
 var actionProxyHeaderSpecialVariables = []string{"arg_", "http_", "cookie_", "jwt_claim_", "jwt_header_"}
