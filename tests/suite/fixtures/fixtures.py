@@ -20,6 +20,7 @@ from settings import ALLOWED_DEPLOYMENT_TYPES, ALLOWED_IC_TYPES, ALLOWED_SERVICE
 from suite.utils.custom_resources_utils import create_crd_from_yaml, delete_crd
 from suite.utils.kube_config_utils import ensure_context_in_config, get_current_context_name
 from suite.utils.resources_utils import (
+    are_all_pods_in_ready_state,
     cleanup_rbac,
     configure_rbac,
     create_configmap_from_yaml,
@@ -454,14 +455,28 @@ def create_certmanager(request):
     :param request: pytest fixture
     """
     issuer_name = request.param.get("issuer_name")
+    has_issuer_secret = False
+    if issuer_name == "ca-issuer":
+        has_issuer_secret = True
     cm_yaml = f"{TEST_DATA}/virtual-server-certmanager/certmanager.yaml"
+    with open(cm_yaml) as f:
+        cm_yaml_content = yaml.load_all(f, Loader=yaml.SafeLoader)
+        print("------------------------- Deploy CertManager in the cluster -----------------------------------")
+        create_generic_from_yaml(cm_yaml, request)
+        for doc in cm_yaml_content:
+            if doc["kind"] == "Deployment":
+                replicas = doc["spec"].get("replicas", 1)
+                ns = doc["metadata"]["namespace"]
+                name = doc["metadata"]["name"]
+                print(f"Wait until Cert-manager deployment {name} in namespace {ns} has {replicas} ready replicas")
+                count = 0
+                while (not are_all_pods_in_ready_state(request.getfixturevalue("kube_apis").v1, ns)) and count < 10:
+                    count += 1
+                    wait_before_test()
+        create_issuer(issuer_name, has_issuer_secret, request)
 
-    create_generic_from_yaml(cm_yaml, request)
-    wait_before_test(120)
-    create_issuer(issuer_name, request)
 
-
-def create_issuer(issuer_name, request):
+def create_issuer(issuer_name, has_secret, request):
     """
     Create Cert-manager.
 
@@ -470,9 +485,12 @@ def create_issuer(issuer_name, request):
     :param request: pytest fixture
     """
     issuer_yaml = f"{TEST_DATA}/virtual-server-certmanager/{issuer_name}.yaml"
+    issuer_secret_yaml = f"{TEST_DATA}/virtual-server-certmanager/issuer-secret.yaml"
 
-    print("------------------------- Deploy CertManager in the cluster -----------------------------------")
+    print(f"Create issuer {issuer_name}")
     create_generic_from_yaml(issuer_yaml, request)
+    if has_secret is True:
+        create_generic_from_yaml(issuer_secret_yaml, request)
 
 
 def create_generic_from_yaml(file_path, request):
