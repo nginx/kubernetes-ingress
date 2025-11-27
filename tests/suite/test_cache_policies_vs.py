@@ -157,11 +157,11 @@ class TestCachePolicies:
         resp_2 = requests.get(virtual_server_setup.backend_1_url, headers={"host": virtual_server_setup.vs_host})
         cache_status_2 = resp_2.headers.get("X-Cache-Status")
 
-        # Test cache behavior for POST requests
+        # Test cache behavior for POST requests (cached separately due to $request_method in cache key)
         resp_3 = requests.post(virtual_server_setup.backend_1_url, headers={"host": virtual_server_setup.vs_host})
         cache_status_3 = resp_3.headers.get("X-Cache-Status")
 
-        # Test cache behavior for HEAD requests
+        # Test cache behavior for HEAD requests (cached separately due to $request_method in cache key)
         resp_4 = requests.head(virtual_server_setup.backend_1_url, headers={"host": virtual_server_setup.vs_host})
         cache_status_4 = resp_4.headers.get("X-Cache-Status")
 
@@ -180,11 +180,11 @@ class TestCachePolicies:
                 "Request ID:" in resp_2.text,
                 "Request ID:" in resp_3.text,
                 req_id_1.group(1) == req_id_2.group(1),  # GET requests should share cache
-                req_id_1.group(1) != req_id_3.group(1),  # POST has different cache key due to $request_method
+                req_id_1.group(1) != req_id_3.group(1),  # POST should NOT share cache with GET due to $request_method in cacheKey
                 cache_status_1 in ["MISS", "EXPIRED", None],
                 cache_status_2 == "HIT",  # Second GET should be cache hit
                 cache_status_3 in ["MISS", "EXPIRED", None],  # First POST should be cache miss (different key)
-                cache_status_4 == "HIT",  # HEAD should be cache hit (shares key with GET)
+                cache_status_4 in ["MISS", "EXPIRED", None],  # HEAD should also be cache miss (different method)
             ]
         )
 
