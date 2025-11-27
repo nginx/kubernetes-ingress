@@ -1102,7 +1102,7 @@ type Cache struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^[0-9]+[kmgKMG]$`
 	// CacheZoneSize defines the size of the cache zone. Must be a number followed by a size unit:
-	// 'k' for kilobytes, 'm' for megabytes, or 'g' for gigabytes.
+	// 'k' or 'K' for kilobytes, 'm' or 'M' for megabytes, or 'g' or 'G' for gigabytes.
 	// Examples: "10m", "1g", "512k".
 	CacheZoneSize string `json:"cacheZoneSize"`
 	// +kubebuilder:validation:Optional

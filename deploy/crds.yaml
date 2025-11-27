@@ -367,7 +367,7 @@ spec:
                   cacheZoneSize:
                     description: |-
                       CacheZoneSize defines the size of the cache zone. Must be a number followed by a size unit:
-                      'k' for kilobytes, 'm' for megabytes, or 'g' for gigabytes.
+                      'k' or 'K' for kilobytes, 'm' or 'M' for megabytes, or 'g' or 'G' for gigabytes.
                       Examples: "10m", "1g", "512k".
                     pattern: ^[0-9]+[kmgKMG]$
                     type: string
