@@ -13518,14 +13518,15 @@ func TestGeneratePolicies(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.msg, func(t *testing.T) {
-			result := vsc.generatePolicies(ownerDetails, tc.policyRefs, tc.policies, tc.context, tc.path, policyOpts)
+			result, warnings := generatePolicies(ctx, ownerDetails, tc.policyRefs, tc.policies, tc.context, tc.path, policyOpts, vsc.IngressControllerReplicas, vsc.bundleValidator, &oidcPolicyCfg{})
+
 			result.BundleValidator = nil
 
 			if !reflect.DeepEqual(tc.expected, result) {
 				t.Error(cmp.Diff(tc.expected, result, cmpopts.IgnoreFields(policiesCfg{}, "Context")))
 			}
-			if len(vsc.warnings) > 0 {
-				t.Errorf("generatePolicies() returned unexpected warnings %v for the case of %s", vsc.warnings, tc.msg)
+			if len(warnings) > 0 {
+				t.Errorf("generatePolicies() returned unexpected warnings %v for the case of %s", warnings, tc.msg)
 			}
 		})
 	}
@@ -13615,11 +13616,13 @@ func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			vsc := newVirtualServerConfigurator(&ConfigParams{Context: ctx}, false, false, &StaticConfigParams{}, false, &fakeBV)
-			res := vsc.generatePolicies(ownerDetails, tc.policyRefs, tc.policies, tc.context, tc.path, policyOptions{apResources: &appProtectResourcesForVS{}})
+			res, warnings := generatePolicies(ctx, ownerDetails, tc.policyRefs, tc.policies, tc.context, tc.path, policyOptions{apResources: &appProtectResourcesForVS{}}, 1, &fakeBV, &oidcPolicyCfg{})
 			res.BundleValidator = nil
 			if !reflect.DeepEqual(tc.want, res) {
 				t.Error(cmp.Diff(tc.want, res))
+			}
+			if len(warnings) > 0 {
+				t.Errorf("generatePolicies() returned unexpected warnings %v for the case of %s", warnings, tc.name)
 			}
 		})
 	}
@@ -15371,16 +15374,16 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				vsc.oidcPolCfg = test.oidcPolCfg
 			}
 
-			result := vsc.generatePolicies(ownerDetails, test.policyRefs, test.policies, test.context, test.path, test.policyOpts)
+			result, warnings := generatePolicies(ctx, ownerDetails, test.policyRefs, test.policies, test.context, test.path, test.policyOpts, 1, &fakeBV, vsc.oidcPolCfg)
 			result.BundleValidator = nil
 
 			if !reflect.DeepEqual(test.expected, result) {
 				t.Errorf("generatePolicies() '%v' mismatch (-want +got):\n%s", test.msg, cmp.Diff(test.expected, result))
 			}
-			if !reflect.DeepEqual(vsc.warnings, test.expectedWarnings) {
+			if !reflect.DeepEqual(warnings, test.expectedWarnings) {
 				t.Errorf(
 					"generatePolicies() returned warnings of \n%v but expected \n%v for the case of %s",
-					vsc.warnings,
+					warnings,
 					test.expectedWarnings,
 					test.msg,
 				)

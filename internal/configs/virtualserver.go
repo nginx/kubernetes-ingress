@@ -442,8 +442,12 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		vsNamespace:    vsEx.VirtualServer.Namespace,
 		vsName:         vsEx.VirtualServer.Name,
 	}
-	policiesCfg := vsc.generatePolicies(ownerDetails, vsEx.VirtualServer.Spec.Policies, vsEx.Policies, specContext, "/", policyOpts)
-
+	policiesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, vsEx.VirtualServer.Spec.Policies, vsEx.Policies, specContext, "/", policyOpts, vsc.IngressControllerReplicas, vsc.bundleValidator, vsc.oidcPolCfg)
+	if len(warnings) > 0 {
+		for obj, msgs := range warnings {
+			vsc.addWarnings(obj, msgs)
+		}
+	}
 	if policiesCfg.JWTAuth.JWKSEnabled {
 		jwtAuthKey := policiesCfg.JWTAuth.Auth.Key
 		policiesCfg.JWTAuth.List = make(map[string]*version2.JWTAuth)
@@ -583,7 +587,12 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			vsNamespace:    vsEx.VirtualServer.Namespace,
 			vsName:         vsEx.VirtualServer.Name,
 		}
-		routePoliciesCfg := vsc.generatePolicies(ownerDetails, r.Policies, vsEx.Policies, routeContext, r.Path, policyOpts)
+		routePoliciesCfg, routeWarnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, r.Policies, vsEx.Policies, routeContext, r.Path, policyOpts, vsc.IngressControllerReplicas, vsc.bundleValidator, vsc.oidcPolCfg)
+		if len(routeWarnings) > 0 {
+			for obj, msgs := range routeWarnings {
+				vsc.addWarnings(obj, msgs)
+			}
+		}
 		if policiesCfg.OIDC {
 			routePoliciesCfg.OIDC = policiesCfg.OIDC
 		}
@@ -736,7 +745,12 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				policyRefs = r.Policies
 				context = subRouteContext
 			}
-			routePoliciesCfg := vsc.generatePolicies(ownerDetails, policyRefs, vsEx.Policies, context, r.Path, policyOpts)
+			routePoliciesCfg, routeWarnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, policyRefs, vsEx.Policies, context, r.Path, policyOpts, vsc.IngressControllerReplicas, vsc.bundleValidator, vsc.oidcPolCfg)
+			if len(routeWarnings) > 0 {
+				for obj, msgs := range routeWarnings {
+					vsc.addWarnings(obj, msgs)
+				}
+			}
 			if policiesCfg.OIDC {
 				routePoliciesCfg.OIDC = policiesCfg.OIDC
 			}
@@ -1808,16 +1822,22 @@ func (p *policiesCfg) addCacheConfig(
 	return res
 }
 
-func (vsc *virtualServerConfigurator) generatePolicies(
+// nolint:gocyclo
+func generatePolicies(
+	context context.Context,
 	ownerDetails policyOwnerDetails,
 	policyRefs []conf_v1.PolicyReference,
 	policies map[string]*conf_v1.Policy,
-	context string,
+	pathContext string,
 	path string,
 	policyOpts policyOptions,
-) policiesCfg {
-	config := newPoliciesConfig(vsc.bundleValidator)
-	config.Context = vsc.cfgParams.Context
+	replicas int,
+	bundleValidator bundleValidator,
+	oidcPolCfg *oidcPolicyCfg,
+) (policiesCfg, Warnings) {
+	warnings := Warnings{}
+	config := newPoliciesConfig(bundleValidator)
+	config.Context = context
 
 	for _, p := range policyRefs {
 		polNamespace := p.Namespace
@@ -1836,9 +1856,9 @@ func (vsc *virtualServerConfigurator) generatePolicies(
 				res = config.addRateLimitConfig(
 					pol,
 					ownerDetails,
-					vsc.IngressControllerReplicas,
+					replicas,
 					policyOpts.zoneSync,
-					context,
+					pathContext,
 					path,
 				)
 			case pol.Spec.JWTAuth != nil:
@@ -1850,51 +1870,53 @@ func (vsc *virtualServerConfigurator) generatePolicies(
 					pol.Spec.IngressMTLS,
 					key,
 					polNamespace,
-					context,
+					pathContext,
 					policyOpts.tls,
 					policyOpts.secretRefs,
 				)
 			case pol.Spec.EgressMTLS != nil:
 				res = config.addEgressMTLSConfig(pol.Spec.EgressMTLS, key, polNamespace, policyOpts.secretRefs)
 			case pol.Spec.OIDC != nil:
-				res = config.addOIDCConfig(pol.Spec.OIDC, key, polNamespace, policyOpts, vsc.oidcPolCfg)
+				res = config.addOIDCConfig(pol.Spec.OIDC, key, polNamespace, policyOpts, oidcPolCfg)
 			case pol.Spec.APIKey != nil:
 				res = config.addAPIKeyConfig(pol.Spec.APIKey, key, polNamespace, ownerDetails.vsNamespace,
 					ownerDetails.vsName, policyOpts.secretRefs)
 			case pol.Spec.WAF != nil:
-				res = config.addWAFConfig(vsc.cfgParams.Context, pol.Spec.WAF, key, polNamespace, policyOpts.apResources)
+				res = config.addWAFConfig(context, pol.Spec.WAF, key, polNamespace, policyOpts.apResources)
 			case pol.Spec.Cache != nil:
 				res = config.addCacheConfig(pol.Spec.Cache, key, ownerDetails.vsNamespace, ownerDetails.vsName, ownerDetails.ownerNamespace, ownerDetails.ownerName)
 			default:
 				res = newValidationResults()
 			}
-			vsc.addWarnings(ownerDetails.owner, res.warnings)
+			for _, msg := range res.warnings {
+				warnings.AddWarning(ownerDetails.owner, msg)
+			}
 			if res.isError {
 				return policiesCfg{
 					ErrorReturn: &version2.Return{Code: 500},
-				}
+				}, warnings
 			}
 		} else {
-			vsc.addWarningf(ownerDetails.owner, "Policy %s is missing or invalid", key)
+			warnings.AddWarningf(ownerDetails.owner, "Policy %s is missing or invalid", key)
 			return policiesCfg{
 				ErrorReturn: &version2.Return{Code: 500},
-			}
+			}, warnings
 		}
 	}
 
 	if len(config.RateLimit.PolicyGroupMaps) > 0 {
 		for _, v := range generateLRZGroupMaps(config.RateLimit.Zones) {
 			if hasDuplicateMapDefaults(v) {
-				vsc.addWarningf(ownerDetails.owner, "Tiered rate-limit Policies on [%v/%v] contain conflicting default values", ownerDetails.ownerNamespace, ownerDetails.ownerName)
+				warnings.AddWarningf(ownerDetails.owner, "Tiered rate-limit Policies on [%v/%v] contain conflicting default values", ownerDetails.ownerNamespace, ownerDetails.ownerName)
 				return policiesCfg{
 					ErrorReturn: &version2.Return{Code: 500},
-				}
+				}, warnings
 			}
 			config.RateLimit.GroupMaps = append(config.RateLimit.GroupMaps, *v)
 		}
 	}
 
-	return *config
+	return *config, warnings
 }
 
 func generateLimitReq(zoneName string, rateLimitPol *conf_v1.RateLimit) version2.LimitReq {
