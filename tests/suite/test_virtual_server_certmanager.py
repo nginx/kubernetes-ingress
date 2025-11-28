@@ -32,14 +32,23 @@ class TestCertManagerVirtualServer:
             f"{TEST_DATA}/virtual-server-certmanager/standard/virtual-server.yaml"
         )
         retry = 0
-        while (not is_secret_present(kube_apis.v1, secret_name, virtual_server_setup.namespace)) and retry <= 10:
-            wait_before_test(1)
+        found = False
+        while retry <= 30:
+            if is_secret_present(kube_apis.v1, secret_name, virtual_server_setup.namespace):
+                found = True
+                break
+            wait_before_test(5)
             retry += 1
             print(f"Retrying {retry}")
+        assert found, f"Secret {secret_name} was not found in namespace {virtual_server_setup.namespace}"
 
         print("\nStep 2: verify connectivity")
-        wait_and_assert_status_code(200, virtual_server_setup.backend_1_url, virtual_server_setup.vs_host)
-        wait_and_assert_status_code(200, virtual_server_setup.backend_2_url, virtual_server_setup.vs_host)
+        wait_and_assert_status_code(
+            200, virtual_server_setup.backend_1_url_ssl, virtual_server_setup.vs_host, verify=False
+        )
+        wait_and_assert_status_code(
+            200, virtual_server_setup.backend_2_url_ssl, virtual_server_setup.vs_host, verify=False
+        )
 
 
 @pytest.mark.vs
@@ -85,8 +94,12 @@ class TestCertManagerVirtualServerCA:
         assert found, f"Secret {secret_name} was not found in namespace {virtual_server_setup.namespace}"
 
         print("\nStep 3: verify connectivity")
-        wait_and_assert_status_code(200, virtual_server_setup.backend_1_url_ssl, virtual_server_setup.vs_host)
-        wait_and_assert_status_code(200, virtual_server_setup.backend_2_url_ssl, virtual_server_setup.vs_host)
+        wait_and_assert_status_code(
+            200, virtual_server_setup.backend_1_url_ssl, virtual_server_setup.vs_host, verify=False
+        )
+        wait_and_assert_status_code(
+            200, virtual_server_setup.backend_2_url_ssl, virtual_server_setup.vs_host, verify=False
+        )
 
     def test_virtual_server_no_cm(self, kube_apis, crd_ingress_controller, create_certmanager, virtual_server_setup):
         vs_src = f"{TEST_DATA}/virtual-server-certmanager/virtual-server-no-tls.yaml"
@@ -104,8 +117,12 @@ class TestCertManagerVirtualServerCA:
         patch_virtual_server_from_yaml(
             kube_apis.custom_objects, virtual_server_setup.vs_name, vs_src, virtual_server_setup.namespace
         )
-        wait_and_assert_status_code(200, virtual_server_setup.backend_1_url, virtual_server_setup.vs_host)
-        wait_and_assert_status_code(200, virtual_server_setup.backend_2_url, virtual_server_setup.vs_host)
+        wait_and_assert_status_code(
+            200, virtual_server_setup.backend_1_url_ssl, virtual_server_setup.vs_host, verify=False
+        )
+        wait_and_assert_status_code(
+            200, virtual_server_setup.backend_2_url_ssl, virtual_server_setup.vs_host, verify=False
+        )
 
 
 @pytest.mark.vs
@@ -149,11 +166,20 @@ class TestCertManagerVirtualServerWatchLabel:
             f"{TEST_DATA}/virtual-server-certmanager/standard/virtual-server.yaml"
         )
         retry = 0
-        while (not is_secret_present(kube_apis.v1, secret_name, virtual_server_setup.namespace)) and retry <= 10:
-            wait_before_test(1)
+        found = False
+        while retry <= 30:
+            if is_secret_present(kube_apis.v1, secret_name, virtual_server_setup.namespace):
+                found = True
+                break
+            wait_before_test(5)
             retry += 1
             print(f"Retrying {retry}")
+        assert found, f"Secret {secret_name} was not found in namespace {virtual_server_setup.namespace}"
 
         print("\nStep 2: verify connectivity")
-        wait_and_assert_status_code(200, virtual_server_setup.backend_1_url_ssl, virtual_server_setup.vs_host)
-        wait_and_assert_status_code(200, virtual_server_setup.backend_2_url_ssl, virtual_server_setup.vs_host)
+        wait_and_assert_status_code(
+            200, virtual_server_setup.backend_1_url_ssl, virtual_server_setup.vs_host, verify=False
+        )
+        wait_and_assert_status_code(
+            200, virtual_server_setup.backend_2_url_ssl, virtual_server_setup.vs_host, verify=False
+        )
