@@ -9,5 +9,5 @@ If you are upgrading from a version of the chart that uses older Custom Resource
 To update to the latest version of the CRDs:
   $ kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v{{ .Chart.AppVersion }}/deploy/crds.yaml
 
-Fore more details on upgrading the CRDs, see: https://docs.nginx.com/nginx-ingress-controller/install/upgrade/#upgrade-nginx-ingress-controller-crds
+For more details on upgrading the CRDs, see: https://docs.nginx.com/nginx-ingress-controller/install/upgrade/#upgrade-nginx-ingress-controller-crds
 {{- end -}}
