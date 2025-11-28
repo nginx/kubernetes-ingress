@@ -950,7 +950,7 @@ func TestExecuteVirtualServerTemplateWithCachePolicyNGINXPlus(t *testing.T) {
 	}
 
 	// Check cache zone declaration
-	expectedCacheZone := "proxy_cache_path /var/cache/nginx/test_cache_full_advanced levels=2:2 keys_zone=test_cache_full_advanced:50m;"
+	expectedCacheZone := "proxy_cache_path /var/cache/nginx/test_cache_full_advanced levels=2:2 keys_zone=test_cache_full_advanced:50m use_temp_path=off;"
 	if !bytes.Contains(got, []byte(expectedCacheZone)) {
 		t.Errorf("Expected cache zone declaration: %s", expectedCacheZone)
 	}
@@ -1001,6 +1001,65 @@ func TestExecuteVirtualServerTemplateWithCachePolicyNGINXPlus(t *testing.T) {
 	t.Log(string(got))
 }
 
+func TestExecuteVirtualServerTemplateWithExtendedCachePolicy(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithExtendedCachePolicy)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Check extended cache zone declaration with new fields
+	expectedCacheZone := "proxy_cache_path /var/cache/nginx/extended_cache_zone levels=2:2 keys_zone=extended_cache_zone:100m inactive=7d max_size=2g manager_files=500 manager_sleep=200ms manager_threshold=1s use_temp_path=off;"
+	if !bytes.Contains(got, []byte(expectedCacheZone)) {
+		t.Errorf("Expected extended cache zone declaration: %s", expectedCacheZone)
+	}
+
+	// Check cache lock configuration
+	expectedCacheLock := "proxy_cache_lock on;"
+	if !bytes.Contains(got, []byte(expectedCacheLock)) {
+		t.Errorf("Expected cache lock directive: %s", expectedCacheLock)
+	}
+
+	expectedCacheLockTimeout := "proxy_cache_lock_timeout 60s;"
+	if !bytes.Contains(got, []byte(expectedCacheLockTimeout)) {
+		t.Errorf("Expected cache lock timeout directive: %s", expectedCacheLockTimeout)
+	}
+
+	// Check cache conditions
+	expectedNoCache := "proxy_no_cache $cookie_admin;"
+	if !bytes.Contains(got, []byte(expectedNoCache)) {
+		t.Errorf("Expected no-cache condition directive: %s", expectedNoCache)
+	}
+
+	expectedCacheBypass := "proxy_cache_bypass $http_cache_control;"
+	if !bytes.Contains(got, []byte(expectedCacheBypass)) {
+		t.Errorf("Expected cache bypass condition directive: %s", expectedCacheBypass)
+	}
+
+	// Check extended cache directives
+	expectedCacheDirectives := []string{
+		"proxy_cache extended_cache_zone;",
+		"proxy_cache_key $scheme$host$request_uri$args;",
+		"proxy_cache_min_uses 3;",
+		"proxy_cache_valid 200 1h;",
+		"proxy_cache_valid 404 10m;",
+		"proxy_cache_valid any 5m;",
+		"proxy_cache_background_update on;",
+		"proxy_cache_use_stale error timeout updating;",
+		"proxy_cache_revalidate on;",
+	}
+
+	for _, directive := range expectedCacheDirectives {
+		if !bytes.Contains(got, []byte(directive)) {
+			t.Errorf("Expected cache directive: %s", directive)
+		}
+	}
+
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
+}
+
 func TestExecuteVirtualServerTemplateWithCachePolicyOSS(t *testing.T) {
 	t.Parallel()
 	executor := newTmplExecutorNGINX(t)
@@ -1010,7 +1069,7 @@ func TestExecuteVirtualServerTemplateWithCachePolicyOSS(t *testing.T) {
 	}
 
 	// Check cache zone declaration
-	expectedCacheZone := "proxy_cache_path /var/cache/nginx/test_cache_basic_cache levels=1:2 keys_zone=test_cache_basic_cache:10m;"
+	expectedCacheZone := "proxy_cache_path /var/cache/nginx/test_cache_basic_cache levels=1:2 keys_zone=test_cache_basic_cache:10m use_temp_path=off;"
 	if !bytes.Contains(got, []byte(expectedCacheZone)) {
 		t.Errorf("Expected cache zone declaration: %s", expectedCacheZone)
 	}
@@ -2957,6 +3016,7 @@ var (
 				CachePurgeAllow:       []string{"127.0.0.1", "10.0.0.0/8", "192.168.1.0/24"},
 				OverrideUpstreamCache: true,
 				Levels:                "2:2",
+				CacheKey:              "$scheme$proxy_host$request_uri",
 			},
 			Locations: []Location{
 				{
@@ -2972,6 +3032,7 @@ var (
 						CachePurgeAllow:       nil,
 						OverrideUpstreamCache: false,
 						Levels:                "",
+						CacheKey:              "$scheme$proxy_host$request_uri",
 					},
 				},
 			},
@@ -3017,6 +3078,7 @@ var (
 				CachePurgeAllow:       []string{"127.0.0.1"}, // This should be ignored for OSS
 				OverrideUpstreamCache: true,
 				Levels:                "1:2",
+				CacheKey:              "$scheme$proxy_host$request_uri",
 			},
 			Locations: []Location{
 				{
@@ -3032,7 +3094,71 @@ var (
 						CachePurgeAllow:       nil,
 						OverrideUpstreamCache: false,
 						Levels:                "",
+						CacheKey:              "$scheme$proxy_host$request_uri",
 					},
+				},
+			},
+		},
+	}
+
+	virtualServerCfgWithExtendedCachePolicy = VirtualServerConfig{
+		CacheZones: []CacheZone{
+			{
+				Name:             "extended_cache_zone",
+				Size:             "100m",
+				Path:             "/var/cache/nginx/extended_cache_zone",
+				Levels:           "2:2",
+				UseTempPath:      false,
+				MaxSize:          "2g",
+				Inactive:         "7d",
+				ManagerFiles:     createPointerFromInt(500),
+				ManagerSleep:     "200ms",
+				ManagerThreshold: "1s",
+			},
+		},
+		Upstreams: []Upstream{
+			{
+				Name: "extended-upstream",
+				Servers: []UpstreamServer{
+					{
+						Address: "10.0.0.50:8001",
+					},
+				},
+			},
+		},
+		Server: Server{
+			ServerName:   "extended.example.com",
+			StatusZone:   "extended.example.com",
+			ServerTokens: "off",
+			// Server-level cache policy with all extended options
+			Cache: &Cache{
+				ZoneName:              "extended_cache_zone",
+				ZoneSize:              "100m",
+				Levels:                "2:2",
+				Inactive:              "7d",
+				UseTempPath:           false,
+				MaxSize:               "2g",
+				ManagerFiles:          createPointerFromInt(500),
+				ManagerSleep:          "200ms",
+				ManagerThreshold:      "1s",
+				CacheKey:              "$scheme$host$request_uri$args",
+				OverrideUpstreamCache: false,
+				Valid:                 map[string]string{"200": "1h", "404": "10m", "any": "5m"},
+				AllowedMethods:        nil,
+				CacheUseStale:         []string{"error", "timeout", "updating"},
+				CacheRevalidate:       true,
+				CacheBackgroundUpdate: true,
+				CacheMinUses:          createPointerFromInt(3),
+				CachePurgeAllow:       nil,
+				CacheLock:             true,
+				CacheLockTimeout:      "60s",
+				NoCacheConditions:     []string{"$cookie_admin"},
+				CacheBypassConditions: []string{"$http_cache_control"},
+			},
+			Locations: []Location{
+				{
+					Path:      "/api",
+					ProxyPass: "http://extended-upstream",
 				},
 			},
 		},
