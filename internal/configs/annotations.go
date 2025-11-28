@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	"github.com/nginx/kubernetes-ingress/internal/validation"
+	networking "k8s.io/api/networking/v1"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 )
 
 // JWTKeyAnnotation is the annotation where the Secret with a JWK is specified.
@@ -681,4 +684,54 @@ func mergeMasterAnnotationsIntoMinion(minionAnnotations map[string]string, maste
 			}
 		}
 	}
+}
+
+const policyAnnotation = "nginx.org/policy"
+
+// GetPolicyNamesFromAnnotation parses the nginx.org/policy annotation and returns a list of policy names.
+// Supports both same-namespace ("policy1,policy2") and cross-namespace ("ns1/policy1,policy2,ns2/policy3") formats.
+func GetPolicyNamesFromAnnotation(ing *networking.Ingress) []string {
+	if ing.Annotations == nil {
+		return nil
+	}
+	val, ok := ing.Annotations[policyAnnotation]
+	if !ok || val == "" {
+		return nil
+	}
+	// comma or space separated
+	parts := strings.Split(val, ",")
+	var out []string
+	for _, p := range parts {
+		name := strings.TrimSpace(p)
+		if name != "" {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+// ConvertToPolicyReferences converts policy names to PolicyReference objects.
+func ConvertToPolicyReferences(ing *networking.Ingress, policyNames []string) []conf_v1.PolicyReference {
+	var policyRefs []conf_v1.PolicyReference
+	for _, name := range policyNames {
+		// Check if the policy name contains a namespace prefix (namespace/name format)
+		if strings.Contains(name, "/") {
+			parts := strings.SplitN(name, "/", 2)
+			if len(parts) == 2 && parts[0] != "" && parts[1] != "" {
+				// Cross-namespace reference: "namespace/policy-name"
+				policyRefs = append(policyRefs, conf_v1.PolicyReference{
+					Name:      parts[1],
+					Namespace: parts[0],
+				})
+			}
+			// Skip invalid formats (e.g., "/policy" or "namespace/")
+		} else {
+			// Same-namespace reference: "policy-name"
+			policyRefs = append(policyRefs, conf_v1.PolicyReference{
+				Name:      name,
+				Namespace: ing.Namespace,
+			})
+		}
+	}
+	return policyRefs
 }

@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cafe-ingress
+  annotations:
+    nginx.org/policy: "ns1/access-control"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - cafe.example.com
+    secretName: cafe-secret
+  rules:
+  - host: cafe.example.com
+    http:
+      paths:
+      - path: /tea
+        pathType: Prefix
+        backend:
+          service:
+            name: tea-svc
+            port:
+              number: 80
+      - path: /coffee
+        pathType: Prefix
+        backend:
+          service:
+            name: coffee-svc
+            port:
+              number: 80

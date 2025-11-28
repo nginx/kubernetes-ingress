@@ -192,11 +192,25 @@ func newPolicyReferenceChecker() *policyReferenceChecker {
 	return &policyReferenceChecker{}
 }
 
-func (rc *policyReferenceChecker) IsReferencedByIngress(_ string, _ string, _ *networking.Ingress) bool {
+func (rc *policyReferenceChecker) IsReferencedByIngress(policyNamespace string, policyName string, ing *networking.Ingress) bool {
+	// Check for nginx.org/policy annotation on regular Ingress
+	policyNames := configs.GetPolicyNamesFromAnnotation(ing)
+	for _, name := range policyNames {
+		if name == policyNamespace+"/"+policyName || (policyNamespace == ing.Namespace && name == policyName) {
+			return true
+		}
+	}
 	return false
 }
 
-func (rc *policyReferenceChecker) IsReferencedByMinion(_ string, _ string, _ *networking.Ingress) bool {
+func (rc *policyReferenceChecker) IsReferencedByMinion(policyNamespace string, policyName string, ing *networking.Ingress) bool {
+	// Check for nginx.org/policy annotation on minion Ingress
+	policyNames := configs.GetPolicyNamesFromAnnotation(ing)
+	for _, name := range policyNames {
+		if name == policyNamespace+"/"+policyName || (policyNamespace == ing.Namespace && name == policyName) {
+			return true
+		}
+	}
 	return false
 }
 

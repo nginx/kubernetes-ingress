@@ -2154,6 +2154,7 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 		Ingress:          ing,
 		ValidHosts:       validHosts,
 		ValidMinionPaths: validMinionPaths,
+		Policies:         make(map[string]*conf_v1.Policy),
 	}
 
 	ingEx.SecretRefs = make(map[string]*secrets.SecretReference)
@@ -2356,6 +2357,33 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 				}
 			}
 		}
+	}
+
+	// Handle nginx.org/policy annotation - fetch policies if present
+	if policyNames := configs.GetPolicyNamesFromAnnotation(ing); len(policyNames) > 0 {
+		nl.Debugf(lbc.Logger, "Ingress %s/%s: Fetching policies from annotation: %v", 
+			ing.Namespace, ing.Name, policyNames)
+			
+		// Convert policy names to PolicyReference objects
+		policyRefs := configs.ConvertToPolicyReferences(ing, policyNames)
+		
+		// Fetch the Policy objects from the cluster
+		policies, errors := lbc.getPolicies(policyRefs, ing.Namespace)
+		
+		nl.Debugf(lbc.Logger, "Ingress %s/%s: getPolicies returned %d policies, %d errors", 
+			ing.Namespace, ing.Name, len(policies), len(errors))
+		
+		// Report any errors fetching policies
+		for _, err := range errors {
+			nl.Warnf(lbc.Logger, "Ingress %s/%s: Failed to fetch policy: %v", 
+				ing.Namespace, ing.Name, err)
+		}
+		
+		// Store policies in the map (similar to VirtualServer pattern)
+		ingEx.Policies = createPolicyMap(policies)
+		
+		nl.Debugf(lbc.Logger, "Ingress %s/%s: Final policy map has %d policies", 
+			ing.Namespace, ing.Name, len(ingEx.Policies))
 	}
 
 	return ingEx
@@ -2709,6 +2737,12 @@ func (lbc *LoadBalancerController) getAllPolicies() []*conf_v1.Policy {
 	}
 
 	return policies
+}
+
+// GetPolicies returns policies for the given policy references. This is a public wrapper around getPolicies
+// for use by the Ingress policy annotation feature.
+func (lbc *LoadBalancerController) GetPolicies(policies []conf_v1.PolicyReference, ownerNamespace string) ([]*conf_v1.Policy, []error) {
+	return lbc.getPolicies(policies, ownerNamespace)
 }
 
 func (lbc *LoadBalancerController) getPolicies(policies []conf_v1.PolicyReference, ownerNamespace string) ([]*conf_v1.Policy, []error) {

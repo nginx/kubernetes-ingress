@@ -131,6 +131,9 @@ type Server struct {
 
 	SpiffeCerts bool
 
+	Allow       []string
+	Deny        []string
+
 	DisableIPV6 bool
 }
 

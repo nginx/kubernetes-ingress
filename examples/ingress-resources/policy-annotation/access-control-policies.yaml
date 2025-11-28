@@ -1,0 +1,10 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: access-control
+  namespace: ns1
+spec:
+  ingressClassName: nginx
+  accessControl:
+    allow:
+    - 109.148.184.126

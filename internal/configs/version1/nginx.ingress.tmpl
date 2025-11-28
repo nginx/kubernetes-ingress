@@ -113,6 +113,18 @@ server {
 	auth_basic_user_file {{ .Secret }};
 	{{- end }}
 
+	{{- range $allow := $server.Allow }}
+	allow {{ $allow }};
+	{{- end }}
+	{{- range $deny := $server.Deny }}
+	deny {{ $deny }};
+	{{- end }}
+	{{- if gt (len $server.Allow) 0 }}
+	{{- if eq (len $server.Deny) 0 }}
+	deny all;
+	{{- end }}
+	{{- end }}
+
 	{{- range $value := $server.ServerSnippets}}
 	{{$value}}{{- end}}
 
