@@ -8,8 +8,8 @@ import (
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	"github.com/nginx/kubernetes-ingress/internal/validation"
-	networking "k8s.io/api/networking/v1"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	networking "k8s.io/api/networking/v1"
 )
 
 // JWTKeyAnnotation is the annotation where the Secret with a JWK is specified.
@@ -47,6 +47,12 @@ const AppProtectDosProtectedAnnotation = "appprotectdos.f5.com/app-protect-dos-r
 
 // nginxMeshInternalRoute specifies if the ingress resource is an internal route.
 const nginxMeshInternalRouteAnnotation = "nsm.nginx.com/internal-route"
+
+// AccessControlPolicyAnnotation is where the Access Control Policy is specified
+const AccessControlPolicyAnnotation = "nginx.org/access-control-policy"
+
+// JWTPolicyAnnotation is where the JWT Policy is specified
+const JWTPolicyAnnotation = "nginx.com/jwt-policy"
 
 var masterDenylist = map[string]bool{
 	"nginx.org/rewrites":                      true,

@@ -41,6 +41,7 @@ type IngressEx struct {
 	Endpoints        map[string][]string
 	HealthChecks     map[string]*api_v1.Probe
 	ExternalNameSvcs map[string]bool
+	Policies         map[string]*conf_v1.Policy
 	PodsByIP         map[string]PodInfo
 	ValidHosts       map[string]bool
 	ValidMinionPaths map[string]bool
@@ -48,7 +49,6 @@ type IngressEx struct {
 	AppProtectLogs   []AppProtectLog
 	DosEx            *DosEx
 	SecretRefs       map[string]*secrets.SecretReference
-	Policies         map[string]*conf_v1.Policy
 	ZoneSync         bool
 }
 
@@ -221,8 +221,8 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 		}
 
 		// Handle nginx.org/policy annotation for policy processing
-		if policyNames := GetPolicyNamesFromAnnotation(p.ingEx.Ingress); len(policyNames) > 0 {
-			policyWarnings := applyPoliciesFromAnnotation(p.ingEx, policyNames, &server, p.BaseCfgParams.Context)
+		if policyNames := GetPolicyNamesFromAnnotation(p.ingEx.Ingress); len(policyNames) > 0 || len(p.ingEx.Policies) > 0 {
+			policyWarnings := applyPoliciesFromAnnotation(p.BaseCfgParams.Context, p.ingEx, policyNames, &server)
 			allWarnings.Add(policyWarnings)
 		}
 
@@ -821,26 +821,29 @@ func scaleRatelimit(ratelimit string, replicas int) string {
 
 // applyPoliciesFromAnnotation processes the nginx.org/policy annotation
 // This function reuses VirtualServer policy processing functions
-func applyPoliciesFromAnnotation(ingEx *IngressEx, policyNames []string, server *version1.Server, ctx context.Context) Warnings {
+func applyPoliciesFromAnnotation(ctx context.Context, ingEx *IngressEx, policyNames []string, server *version1.Server) Warnings {
 	l := nl.LoggerFromContext(ctx)
 	warnings := newWarnings()
-	
-	if len(ingEx.Policies) == 0 {
+
+	if len(ingEx.Policies) == 0 && len(policyNames) > 0 {
 		warnings.AddWarningf(ingEx.Ingress, "No policies found for policy annotation with policies: %v", policyNames)
 		return warnings
 	}
-	
-	nl.Debugf(l, "Ingress %s/%s: Processing policy annotation with policies: %v", 
-		ingEx.Ingress.Namespace, ingEx.Ingress.Name, policyNames)
-	
+
+	if len(policyNames) > 0 {
+		nl.Debugf(l, "Ingress %s/%s: Processing policy annotation with policies: %v",
+			ingEx.Ingress.Namespace, ingEx.Ingress.Name, policyNames)
+	}
+
 	// Create a temporary policiesCfg to reuse VirtualServer's exact addAccessControlConfig function
 	policyCfg := &policiesCfg{
 		Allow:   []string{},
 		Deny:    []string{},
 		Context: ctx,
 	}
-	
-	for _, policyName := range policyNames {
+
+	for _, policy := range ingEx.Policies {
+		policyName := policy.Name
 		// For cross-namespace policies, policyName is already in "namespace/name" format
 		// For same-namespace policies, we need to add the ingress namespace
 		var policyKey string
@@ -851,39 +854,39 @@ func applyPoliciesFromAnnotation(ingEx *IngressEx, policyNames []string, server 
 			// Same-namespace: construct "namespace/name"
 			policyKey = fmt.Sprintf("%s/%s", ingEx.Ingress.Namespace, policyName)
 		}
-		
+
 		policy, exists := ingEx.Policies[policyKey]
 		if !exists {
 			warnings.AddWarningf(ingEx.Ingress, "Policy %s not found", policyName)
 			nl.Debugf(l, "Policy %s not found in policies map", policyKey)
 			continue
 		}
-		
+
 		// Process AccessControl policy - reuse VirtualServer's exact addAccessControlConfig function
 		if policy.Spec.AccessControl != nil {
 			nl.Debugf(l, "Processing AccessControl policy %s", policyKey)
-			
+
 			// Call VirtualServer's actual addAccessControlConfig function - true function reuse!
 			validationResults := policyCfg.addAccessControlConfig(policy.Spec.AccessControl)
-			
+
 			// Add any warnings from VirtualServer's validation
 			for _, warning := range validationResults.warnings {
 				warnings.AddWarning(ingEx.Ingress, warning)
 			}
 		} else {
-			warnings.AddWarningf(ingEx.Ingress, "Policy %s/%s does not contain AccessControl configuration, skipping", 
+			warnings.AddWarningf(ingEx.Ingress, "Policy %s/%s does not contain AccessControl configuration, skipping",
 				policy.Namespace, policy.Name)
 		}
 	}
-	
+
 	// Apply access control configuration to the server from VirtualServer's processed results
 	if len(policyCfg.Allow) > 0 || len(policyCfg.Deny) > 0 {
 		server.Allow = policyCfg.Allow
 		server.Deny = policyCfg.Deny
-		
-		nl.Debugf(l, "Applied access control to Ingress %s/%s: Allow rules: %v, Deny rules: %v", 
+
+		nl.Debugf(l, "Applied access control to Ingress %s/%s: Allow rules: %v, Deny rules: %v",
 			ingEx.Ingress.Namespace, ingEx.Ingress.Name, policyCfg.Allow, policyCfg.Deny)
 	}
-	
+
 	return warnings
 }

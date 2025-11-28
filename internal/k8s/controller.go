@@ -18,6 +18,7 @@ package k8s
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -91,6 +92,15 @@ var (
 		Group:   "cis.f5.com",
 		Version: "v1",
 		Kind:    "IngressLink",
+	}
+	policyAnnotations = []struct {
+		AnnotationKey string
+		PolicyField   string
+		UnmarshalType string
+	}{
+		{configs.AccessControlPolicyAnnotation, "AccessControl", "AccessControl"},
+		{configs.JWTPolicyAnnotation, "JWTAuth", "JWTAuth"},
+		// Add more policy types here as needed
 	}
 )
 
@@ -2148,6 +2158,53 @@ func (lbc *LoadBalancerController) createMergeableIngresses(ingConfig *IngressCo
 	}
 }
 
+func (lbc *LoadBalancerController) getSkeletonPolicy() *conf_v1.Policy {
+	return &conf_v1.Policy{
+		TypeMeta: meta_v1.TypeMeta{
+			Kind:       "Policy",
+			APIVersion: "k8s.nginx.org/v1",
+		},
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "dummy-policy",
+			Namespace: "default",
+		},
+	}
+}
+
+// addPolicyFromAnnotation dynamically creates and adds a policy to ingEx.Policies based on annotation info
+func (lbc *LoadBalancerController) addPolicyFromAnnotation(ingEx *configs.IngressEx, pa struct{ AnnotationKey, PolicyField, UnmarshalType string }, policyData, namespace, name string) {
+	policy := lbc.getSkeletonPolicy()
+	policy.Name = fmt.Sprintf("%s-%s-%s", pa.PolicyField, namespace, name)
+	var err error
+	switch pa.UnmarshalType {
+	case "AccessControl":
+		var obj *conf_v1.AccessControl
+		err = json.Unmarshal([]byte(policyData), &obj)
+		if err == nil {
+			policy.Namespace = namespace
+			policy.Spec.AccessControl = obj
+		}
+	case "JWTAuth":
+		var obj *conf_v1.JWTAuth
+		err = json.Unmarshal([]byte(policyData), &obj)
+		if err == nil {
+			policy.Namespace = namespace
+			policy.Spec.JWTAuth = obj
+		}
+		// Add more cases for other types
+	}
+	if err != nil {
+		nl.Warnf(lbc.Logger, "Error unmarshaling %s policy for Ingress %v/%v: %v", pa.PolicyField, namespace, name, err)
+	}
+	err = validation.ValidatePolicy(policy, lbc.isNginxPlus, lbc.enableOIDC, lbc.appProtectEnabled)
+	if err != nil {
+		nl.Warnf(lbc.Logger, "Skipping invalid Policy %s/%s: %v", ingEx.Ingress.Namespace, policy.Name, err)
+	}
+	polKey := getResourceKey(&policy.ObjectMeta)
+	nl.Debugf(lbc.Logger, "Adding policy %s for Ingress %v/%v from annotation %s", policy.Name, namespace, name, pa.AnnotationKey)
+	ingEx.Policies[polKey] = policy
+}
+
 func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, validHosts map[string]bool, validMinionPaths map[string]bool) *configs.IngressEx {
 	var endps []string
 	ingEx := &configs.IngressEx{
@@ -2361,29 +2418,36 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 
 	// Handle nginx.org/policy annotation - fetch policies if present
 	if policyNames := configs.GetPolicyNamesFromAnnotation(ing); len(policyNames) > 0 {
-		nl.Debugf(lbc.Logger, "Ingress %s/%s: Fetching policies from annotation: %v", 
+		nl.Debugf(lbc.Logger, "Ingress %s/%s: Fetching policies from annotation: %v",
 			ing.Namespace, ing.Name, policyNames)
-			
+
 		// Convert policy names to PolicyReference objects
 		policyRefs := configs.ConvertToPolicyReferences(ing, policyNames)
-		
+
 		// Fetch the Policy objects from the cluster
 		policies, errors := lbc.getPolicies(policyRefs, ing.Namespace)
-		
-		nl.Debugf(lbc.Logger, "Ingress %s/%s: getPolicies returned %d policies, %d errors", 
+
+		nl.Debugf(lbc.Logger, "Ingress %s/%s: getPolicies returned %d policies, %d errors",
 			ing.Namespace, ing.Name, len(policies), len(errors))
-		
+
 		// Report any errors fetching policies
 		for _, err := range errors {
-			nl.Warnf(lbc.Logger, "Ingress %s/%s: Failed to fetch policy: %v", 
+			nl.Warnf(lbc.Logger, "Ingress %s/%s: Failed to fetch policy: %v",
 				ing.Namespace, ing.Name, err)
 		}
-		
+
 		// Store policies in the map (similar to VirtualServer pattern)
 		ingEx.Policies = createPolicyMap(policies)
-		
-		nl.Debugf(lbc.Logger, "Ingress %s/%s: Final policy map has %d policies", 
+
+		nl.Debugf(lbc.Logger, "Ingress %s/%s: Final policy map has %d policies",
 			ing.Namespace, ing.Name, len(ingEx.Policies))
+	}
+
+	// Map annotation keys to their corresponding spec field and type
+	for _, pa := range policyAnnotations {
+		if policyData, exists := ingEx.Ingress.Annotations[pa.AnnotationKey]; exists {
+			lbc.addPolicyFromAnnotation(ingEx, pa, policyData, ing.Namespace, ing.Name)
+		}
 	}
 
 	return ingEx
