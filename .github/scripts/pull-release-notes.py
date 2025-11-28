@@ -150,9 +150,10 @@ for title, changes in sections.items():
     catagories[title] = parsed_changes
 
 # Add grouped dependencies to the Dependencies category
-catagories[dependencies_title].append(format_pr_groups(docker_dependencies, "Bump Docker dependencies"))
-catagories[dependencies_title].append(format_pr_groups(go_dependencies, "Bump Go dependencies"))
-catagories[dependencies_title].reverse()
+if dependencies_title:
+    catagories[dependencies_title].append(format_pr_groups(docker_dependencies, "Bump Docker dependencies"))
+    catagories[dependencies_title].append(format_pr_groups(go_dependencies, "Bump Go dependencies"))
+    catagories[dependencies_title].reverse()
 
 # Populates the data needed for rendering the template
 # The data will be passed to the Jinja2 template for rendering
