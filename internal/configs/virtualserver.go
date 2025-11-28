@@ -2037,11 +2037,9 @@ func generateCacheConfig(cache *conf_v1.Cache, vsNamespace, vsName, ownerNamespa
 	}
 
 	// Set cache key with default if not provided
-	var cacheKey string
+	cacheKey := "$scheme$proxy_host$request_uri"
 	if cache.CacheKey != "" {
 		cacheKey = cache.CacheKey
-	} else {
-		cacheKey = "$scheme$proxy_host$request_uri"
 	}
 
 	cacheConfig := &version2.Cache{
