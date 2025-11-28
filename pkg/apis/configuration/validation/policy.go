@@ -448,7 +448,6 @@ func validateCache(cache *v1.Cache, fieldPath *field.Path, isPlus bool) field.Er
 	}
 
 	// Validate size fields
-	// TODO: validate size with g|G properly
 	if cache.MaxSize != "" {
 		allErrs = append(allErrs, validateOffset(cache.MaxSize, fieldPath.Child("maxSize"))...)
 	}
