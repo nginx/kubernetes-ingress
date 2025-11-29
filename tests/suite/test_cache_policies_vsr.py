@@ -169,14 +169,14 @@ class TestCachePoliciesVSR:
         cache_status_2 = resp_2.headers.get("X-Cache-Status")
         print(f"Cache status for second GET request: {cache_status_2}")
 
-        # Test cache behavior for POST requests (should be cached with advanced policy)
+        # Test cache behavior for POST requests (cached separately due to $request_method in cache key)
         resp_3 = requests.post(
             f"{req_url}{v_s_route_setup.route_m.paths[0]}", headers={"host": v_s_route_setup.vs_host}
         )
         cache_status_3 = resp_3.headers.get("X-Cache-Status")
         print(f"Cache status for first POST request: {cache_status_3}")
 
-        # Test cache behavior for HEAD requests
+        # Test cache behavior for HEAD requests (cached separately due to $request_method in cache key)
         resp_4 = requests.head(
             f"{req_url}{v_s_route_setup.route_m.paths[0]}", headers={"host": v_s_route_setup.vs_host}
         )
@@ -197,11 +197,12 @@ class TestCachePoliciesVSR:
                 "Request ID:" in resp_1.text,
                 "Request ID:" in resp_2.text,
                 "Request ID:" in resp_3.text,
-                req_id_1.group(1) == req_id_2.group(1) == req_id_3.group(1),
+                req_id_1.group(1) == req_id_2.group(1),  # GET requests should share cache
+                req_id_1.group(1) != req_id_3.group(1),  # POST has different cache key due to $request_method
                 cache_status_1 in ["MISS", "EXPIRED", None],
-                cache_status_2 == "HIT",
-                cache_status_3 == "HIT",
-                cache_status_4 == "HIT",
+                cache_status_2 == "HIT",  # Second GET should be cache hit
+                cache_status_3 in ["MISS", "EXPIRED", None],  # First POST should be cache miss
+                cache_status_4 in ["MISS", "EXPIRED", None],  # HEAD should also be cache miss (different method)
             ]
         )
 
