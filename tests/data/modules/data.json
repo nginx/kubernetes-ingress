@@ -6,19 +6,19 @@
       "packages": [
         {
           "name": "nginx",
-          "version": "1.29.1"
+          "version": "1.29.3"
         },
         {
           "name": "nginx-module-njs",
-          "version": "1.29.1"
+          "version": "1.29.3"
         },
         {
           "name": "nginx-module-otel",
-          "version": "1.29.1"
+          "version": "1.29.3"
         },
         {
           "name": "nginx-agent",
-          "version": "3.3"
+          "version": "3.5"
         }
       ],
       "system": "debian",
@@ -49,7 +49,7 @@
         },
         {
           "name": "nginx-agent",
-          "version": "3.3"
+          "version": "3.5"
         }
       ],
       "system": "debian",
@@ -240,19 +240,19 @@
       "packages": [
         {
           "name": "nginx",
-          "version": "1.29.1"
+          "version": "1.29.3"
         },
         {
           "name": "nginx-module-njs",
-          "version": "1.29.1"
+          "version": "1.29.3"
         },
         {
           "name": "nginx-module-otel",
-          "version": "1.29.1"
+          "version": "1.29.3"
         },
         {
           "name": "nginx-agent",
-          "version": "3.3"
+          "version": "3.5"
         }
       ],
       "system": "alpine",
@@ -283,7 +283,7 @@
         },
         {
           "name": "nginx-agent",
-          "version": "3.3"
+          "version": "3.5"
         }
       ],
       "system": "alpine",
@@ -314,7 +314,7 @@
         },
         {
           "name": "nginx-agent",
-          "version": "3.3"
+          "version": "3.5"
         }
       ],
       "system": "alpine",
@@ -417,19 +417,19 @@
       "packages": [
         {
           "name": "nginx",
-          "version": "1.29.1"
+          "version": "1.29.3"
         },
         {
           "name": "nginx-module-njs",
-          "version": "1.29.1"
+          "version": "1.29.3"
         },
         {
           "name": "nginx-module-otel",
-          "version": "1.29.1"
+          "version": "1.29.3"
         },
         {
           "name": "nginx-agent",
-          "version": "3.3"
+          "version": "3.5"
         }
       ],
       "system": "ubi",
@@ -460,7 +460,7 @@
         },
         {
           "name": "nginx-agent",
-          "version": "3.3"
+          "version": "3.5"
         }
       ],
       "system": "ubi",
