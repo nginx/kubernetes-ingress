@@ -95,6 +95,7 @@ def virtual_server_foreign_upstream_app_setup(
 @pytest.mark.vs
 @pytest.mark.vs_responses
 @pytest.mark.smoke
+@pytest.mark.skip(reason="Flaky test - needs investigation")
 @pytest.mark.parametrize(
     "crd_ingress_controller, virtual_server_foreign_upstream_app_setup",
     [

@@ -62,12 +62,12 @@ jobs:
       json: ${{ steps.nic_binaries.outputs.json }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
         with:
           ref: ${{ inputs.branch }}
 
       - name: Setup Golang Environment
-        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
         with:
           go-version-file: go.mod
         if: ${{ inputs.force }}
@@ -91,14 +91,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GOPATH: ${{ inputs.go-path }}
           GOPROXY: ${{ inputs.go-proxy }}
-          AWS_PRODUCT_CODE: ${{ secrets.AWS_PRODUCT_CODE }}
-          AWS_PUB_KEY: ${{ secrets.AWS_PUB_KEY }}
-          AWS_NAP_DOS_PRODUCT_CODE: ${{ secrets.AWS_NAP_DOS_PRODUCT_CODE }}
-          AWS_NAP_DOS_PUB_KEY: ${{ secrets.AWS_NAP_DOS_PUB_KEY }}
-          AWS_NAP_WAF_PRODUCT_CODE: ${{ secrets.AWS_NAP_WAF_PRODUCT_CODE }}
-          AWS_NAP_WAF_PUB_KEY: ${{ secrets.AWS_NAP_WAF_PUB_KEY }}
-          AWS_NAP_WAF_DOS_PRODUCT_CODE: ${{ secrets.AWS_NAP_WAF_DOS_PRODUCT_CODE }}
-          AWS_NAP_WAF_DOS_PUB_KEY: ${{ secrets.AWS_NAP_WAF_DOS_PUB_KEY }}
           GORELEASER_CURRENT_TAG: "v${{ inputs.ic-version }}"
         if: ${{ inputs.force }}
 
@@ -114,6 +106,10 @@ jobs:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ inputs.go-md5 }}
         if: ${{ inputs.force }}
+
+      - name: Cleanup netrc
+        run: rm -f $HOME/.netrc
+        if: ${{ always() }}
 
   # generate-assertion-doc:
   #   if: ${{ github.event_name != 'pull_request' }}
@@ -190,9 +186,9 @@ jobs:
   #       with:
   #         assertion-doc: ${{ steps.assertiondoc.outputs.assertion-document-path }}
 
-      - name: Cleanup netrc
-        run: rm -f $HOME/.netrc
-        if: ${{ always() }}
+  #     - name: Cleanup netrc
+  #       run: rm -f $HOME/.netrc
+  #       if: ${{ always() }}
 
   build-docker:
     name: Build Docker OSS

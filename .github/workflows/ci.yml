@@ -59,7 +59,7 @@ jobs:
       docker_build: ${{ steps.docker_build.outputs.docker_build }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
         with:
           fetch-depth: 0
 
@@ -80,7 +80,7 @@ jobs:
         shell: bash --noprofile --norc -o pipefail {0}
 
       - name: Setup Golang Environment
-        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
         with:
           go-version-file: go.mod
 
@@ -127,13 +127,33 @@ jobs:
           key: nginx-ingress-${{ steps.vars.outputs.go_code_md5 }}
           lookup-only: true
 
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
+        if: ${{ steps.vars.outputs.forked_workflow == 'false' }}
+
+      - name: Setup secrets
+        id: secrets
+        run: |
+          echo "Setting secrets for job"
+          GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$GCR_WORKLOAD_ID"
+          echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
+          GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$GCR_SERVICE_ACCOUNT"
+          echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
+        if: ${{ steps.vars.outputs.forked_workflow == 'false' }}
+
       - name: Authenticate to Google Cloud
         id: auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
-          workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
-          service_account: ${{ secrets.GCR_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
+          service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
         if: ${{ steps.vars.outputs.forked_workflow == 'false' }}
 
       - name: Login to GCR
@@ -198,10 +218,10 @@ jobs:
       GOPROXY: ${{ needs.checks.outputs.go_proxy }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
 
       - name: Setup Golang Environment
-        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
         with:
           go-version-file: go.mod
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
@@ -256,7 +276,7 @@ jobs:
       GOPROXY: ${{ needs.checks.outputs.go_proxy }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
 
       - name: Setup Helm
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
@@ -281,7 +301,7 @@ jobs:
         if: ${{ inputs.force || (needs.checks.outputs.binary_cache_hit != 'true' && needs.checks.outputs.forked_workflow != 'true') }}
 
       - name: Setup Golang Environment
-        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
         with:
           go-version-file: go.mod
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' && (inputs.run_tests && inputs.run_tests || true) }}
@@ -378,7 +398,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
 
       - name: Setup QEMU
         uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
@@ -386,13 +406,33 @@ jobs:
           platforms: arm64
         if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
 
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+
+      - name: Setup secrets
+        id: secrets
+        run: |
+          echo "Setting secrets for job"
+          GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$GCR_WORKLOAD_ID"
+          echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
+          GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$GCR_SERVICE_ACCOUNT"
+          echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+
       - name: Authenticate to Google Cloud
         id: auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
-          workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
-          service_account: ${{ secrets.GCR_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
+          service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
         if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
 
       - name: Login to GCR
@@ -449,20 +489,55 @@ jobs:
       id-token: write
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
 
       - name: Setup Helm
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
         with:
           version: 'v3.18.6'
 
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
+        if: ${{ needs.checks.outputs.forked_workflow != 'true' }}
+
+      - name: Setup secrets
+        id: secrets
+        run: |
+          echo "Setting secrets for job"
+          GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$GCR_WORKLOAD_ID"
+          echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
+          GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$GCR_SERVICE_ACCOUNT"
+          echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
+          PLUS_CREDS=$(az keyvault secret show --name plus-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$PLUS_CREDS"
+          PLUS_JWT=$(echo $PLUS_CREDS | jq -r '.jwt')
+          echo "::add-mask::$PLUS_JWT"
+          echo "PLUS_JWT=$PLUS_JWT" >> $GITHUB_OUTPUT
+          IFS=@ CERT=$(echo $PLUS_CREDS | jq -r '.crt')
+          while read -r line; do
+            echo "::add-mask::${line}"
+          done <<< "${CERT}"
+          echo $CERT > nginx-repo.crt
+          IFS=@ KEY=$(echo $PLUS_CREDS | jq -r '.key')
+          while read -r line; do
+            echo "::add-mask::${line}"
+          done <<< "${KEY}"
+          echo $KEY > nginx-repo.key
+        if: ${{ needs.checks.outputs.forked_workflow != 'true' }}
+
       - name: Authenticate to Google Cloud
         id: auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
-          workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
-          service_account: ${{ secrets.GCR_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
+          service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
         if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
 
       - name: Login to GCR
@@ -510,9 +585,9 @@ jobs:
           build-args: |
             BUILD_OS=${{ matrix.base-os }}
             IC_VERSION=CI
-          secrets: |
-            ${{ matrix.type == 'plus' && format('"nginx-repo.crt={0}"', secrets.NGINX_CRT) || '' }}
-            ${{ matrix.type == 'plus' && format('"nginx-repo.key={0}"', secrets.NGINX_KEY) || '' }}
+          secret-files: |
+            ${{ matrix.type == 'plus' && 'nginx-repo.crt=nginx-repo.crt' || '' }}
+            ${{ matrix.type == 'plus' && 'nginx-repo.key=nginx-repo.key' || '' }}
         if: ${{ needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false' }}
 
       - name: Deploy Kubernetes
@@ -525,7 +600,7 @@ jobs:
         if: ${{ steps.stable_exists.outputs.exists != 'true' && needs.checks.outputs.docs_only == 'false' }}
 
       - name: Create Plus Secret
-        run: kubectl create secret generic license-token --from-literal=license.jwt="${{ secrets.PLUS_JWT }}" --type="nginx.com/license"
+        run: kubectl create secret generic license-token --from-literal=license.jwt="${{ steps.secrets.outputs.PLUS_JWT }}" --type="nginx.com/license"
         if: ${{ matrix.type == 'plus' && steps.stable_exists.outputs.exists != 'true' && needs.checks.outputs.docs_only == 'false' }}
 
       - name: Install Chart
@@ -571,6 +646,11 @@ jobs:
           done
         if: ${{ steps.stable_exists.outputs.exists != 'true' && needs.checks.outputs.docs_only == 'false' }}
 
+      - name: Clean up secrets
+        run: |
+          rm -f nginx-repo.crt nginx-repo.key
+        if: always()
+
   setup-matrix:
     if: ${{ inputs.force || (inputs.run_tests && inputs.run_tests || true) || needs.checks.outputs.docs_only != 'true' }}
     name: Setup Matrix for Smoke Tests
@@ -585,7 +665,7 @@ jobs:
       matrix_nap: ${{ steps.set-matrix.outputs.matrix_nap }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
 
       - id: set-matrix
         run: |
@@ -596,13 +676,33 @@ jobs:
       - name: Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
 
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+
+      - name: Setup secrets
+        id: secrets
+        run: |
+          echo "Setting secrets for job"
+          GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$GCR_WORKLOAD_ID"
+          echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
+          GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$GCR_SERVICE_ACCOUNT"
+          echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+
       - name: Authenticate to Google Cloud
         id: auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
-          workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
-          service_account: ${{ secrets.GCR_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
+          service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
         if: ${{ needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.docs_only == 'false' }}
 
       - name: Login to GCR

@@ -79,6 +79,7 @@ const (
 	socketPath               = "/var/lib/nginx"
 	fatalEventFlushTime      = 200 * time.Millisecond
 	secretErrorReason        = "SecretError"
+	fileErrorReason          = "FileError"
 	configMapErrorReason     = "ConfigMapError"
 )
 
@@ -191,6 +192,12 @@ func main() {
 	if err != nil {
 		logEventAndExit(ctx, eventRecorder, pod, secretErrorReason, err)
 	}
+
+	caBundlePath, err := nginxManager.GetOSCABundlePath()
+	if err != nil {
+		logEventAndExit(ctx, eventRecorder, pod, fileErrorReason, err)
+	}
+
 	globalConfigurationValidator := createGlobalConfigurationValidator()
 
 	mustProcessGlobalConfiguration(ctx)
@@ -226,6 +233,7 @@ func main() {
 		StaticSSLPath:                  staticSSLPath,
 		NginxVersion:                   nginxVersion,
 		AppProtectBundlePath:           appProtectBundlePath,
+		DefaultCABundle:                caBundlePath,
 	}
 
 	if *nginxPlus {
@@ -541,11 +549,13 @@ func createTemplateExecutors(ctx context.Context) (*version1.TemplateExecutor, *
 	nginxIngressTemplatePath := "nginx.ingress.tmpl"
 	nginxVirtualServerTemplatePath := "nginx.virtualserver.tmpl"
 	nginxTransportServerTemplatePath := "nginx.transportserver.tmpl"
+	nginxOIDCConfTemplatePath := ""
 	if *nginxPlus {
 		nginxConfTemplatePath = "nginx-plus.tmpl"
 		nginxIngressTemplatePath = "nginx-plus.ingress.tmpl"
 		nginxVirtualServerTemplatePath = "nginx-plus.virtualserver.tmpl"
 		nginxTransportServerTemplatePath = "nginx-plus.transportserver.tmpl"
+		nginxOIDCConfTemplatePath = "oidc.tmpl"
 	}
 
 	if *mainTemplatePath != "" {
@@ -566,7 +576,7 @@ func createTemplateExecutors(ctx context.Context) (*version1.TemplateExecutor, *
 		nl.Fatalf(l, "Error creating TemplateExecutor: %v", err)
 	}
 
-	templateExecutorV2, err := version2.NewTemplateExecutor(nginxVirtualServerTemplatePath, nginxTransportServerTemplatePath)
+	templateExecutorV2, err := version2.NewTemplateExecutor(nginxVirtualServerTemplatePath, nginxTransportServerTemplatePath, nginxOIDCConfTemplatePath)
 	if err != nil {
 		nl.Fatalf(l, "Error creating TemplateExecutorV2: %v", err)
 	}

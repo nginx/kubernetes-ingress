@@ -21,7 +21,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -2698,6 +2697,103 @@ server {
 
 ---
 
+[TestExecuteTemplate_ForIngressWithClientBodyBufferSize - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
+}
+
+
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    app_protect_enable on;
+    app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
+    app_protect_security_log_enable on;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf syslog:server=127.0.0.1:514;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf2;
+    
+    app_protect_dos_enable on;
+    app_protect_dos_policy_file /test/policy.json;
+    app_protect_dos_security_log_enable on;
+    app_protect_dos_security_log /test/logConf.json;
+    set $loggable '0';
+    # app-protect-dos module will set it to '1'  if a request doesn't pass the rate limit
+    access_log /var/log/dos log_dos if=$loggable;
+    app_protect_dos_monitor uri=/path/to/monitor protocol=http1 timeout=30;
+    app_protect_dos_name "testdos";
+    app_protect_dos_access_file "/etc/nginx/dos/allowlist/default_test.example.com";
+
+    
+    if ($scheme = http) {
+        return 301 https://$host:443$request_uri;
+    }
+
+    
+    auth_jwt_key_file /etc/nginx/secrets/key.jwk;
+    auth_jwt "closed site" token=$cookie_auth_token;
+    error_page 401 @login_url-default-cafe-ingress;
+    
+    location @hc-test {
+        proxy_set_header Test-Header "test-header-value";
+        proxy_connect_timeout 0s;
+        proxy_read_timeout 0s;
+        proxy_send_timeout 0s;
+        proxy_pass ://test;
+        health_check uri= interval=1s fails=1 passes=1;
+    }
+    
+    location @login_url-default-cafe-ingress {
+        internal;
+        return 302 https://test.example.com/login;
+    }
+    
+    location /tea {
+        set $service "";
+        status_zone "";
+        # location for minion default/tea-minion
+        set $resource_name "tea-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        auth_jwt_key_file /etc/nginx/secrets/location-key.jwk;
+        auth_jwt "closed site" token=$cookie_auth_token;
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        client_body_buffer_size 16k;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+
+        
+    }
+    
+}
+
+---
+
 [TestExecuteTemplate_ForMainForNGINXPlusTLSPassthroughPortDisabled - 1]
 worker_processes  auto;
 worker_rlimit_nofile 65536;
@@ -4384,7 +4480,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -4504,7 +4599,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -4626,7 +4720,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -4747,7 +4840,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -4867,7 +4959,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -5008,7 +5099,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -5128,7 +5218,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -6124,7 +6213,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -6244,7 +6332,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;

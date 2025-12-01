@@ -52,7 +52,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
 
       - name: Generate TLS certificates
         run: |
@@ -65,13 +65,53 @@ jobs:
           echo "build_tag=${{ inputs.build-tag }}${{ contains(inputs.image, 'ubi-9') && '-ubi' || '' }}${{ contains(inputs.image, 'ubi-8') && '-ubi8' || '' }}${{ contains(inputs.image, 'alpine') && '-alpine' || '' }}${{ contains(inputs.target, 'aws') && '-mktpl' || '' }}${{ contains(inputs.image, 'fips') && '-fips' || ''}}" >> $GITHUB_OUTPUT
           echo "stable_tag=${{ inputs.stable-tag }}${{ contains(inputs.image, 'ubi-9') && '-ubi' || '' }}${{ contains(inputs.image, 'ubi-8') && '-ubi8' || '' }}${{ contains(inputs.image, 'alpine') && '-alpine' || '' }}${{ contains(inputs.target, 'aws') && '-mktpl' || '' }}${{ contains(inputs.image, 'fips') && '-fips' || ''}}" >> $GITHUB_OUTPUT
 
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
+        if: ${{ inputs.authenticated }}
+
+      - name: Setup secrets
+        id: secrets
+        run: |
+          echo "Setting secrets for job"
+          GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$GCR_WORKLOAD_ID"
+          echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
+          GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$GCR_SERVICE_ACCOUNT"
+          echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
+          PLUS_CREDS=$(az keyvault secret show --name plus-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$PLUS_CREDS"
+          PLUS_JWT=$(echo $PLUS_CREDS | jq -r '.jwt')
+          echo "::add-mask::$PLUS_JWT"
+          echo "PLUS_JWT=$PLUS_JWT" >> $GITHUB_OUTPUT
+          IFS=@ CERT=$(echo $PLUS_CREDS | jq -r '.crt')
+          while read -r line; do
+            echo "::add-mask::${line}"
+          done <<< "${CERT}"
+          echo $CERT > nginx-repo.crt
+          IFS=@ KEY=$(echo $PLUS_CREDS | jq -r '.key')
+          while read -r line; do
+            echo "::add-mask::${line}"
+          done <<< "${KEY}"
+          echo $KEY > nginx-repo.key
+          IFS=@ RHEL_CREDS=$(az keyvault secret show --name rhel-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          while read -r line; do
+            echo "::add-mask::${line}"
+          done <<< "${RHEL_CREDS}"
+          echo $RHEL_CREDS > rhel_license
+        if: ${{ inputs.authenticated }}
+
       - name: Authenticate to Google Cloud
         id: auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
-          workload_identity_provider: ${{ secrets.GCR_WORKLOAD_IDENTITY }}
-          service_account: ${{ secrets.GCR_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
+          service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
         if: ${{ inputs.authenticated }}
 
       - name: Login to GCR
@@ -148,10 +188,10 @@ jobs:
             IC_VERSION=CI
             ${{ contains(inputs.image, 'nap') && format('NAP_MODULES={0}', steps.nap_modules.outputs.modules) || '' }}
             ${{ contains(inputs.marker, 'appprotect') && 'DEBIAN_VERSION=buster-slim' || '' }}
-          secrets: |
-            ${{ contains(inputs.image, 'nap') && format('"nginx-repo.crt={0}"', secrets.NGINX_AP_CRT) || format('"nginx-repo.crt={0}"', secrets.NGINX_CRT) }}
-            ${{ contains(inputs.image, 'nap') && format('"nginx-repo.key={0}"', secrets.NGINX_AP_KEY) || format('"nginx-repo.key={0}"', secrets.NGINX_KEY) }}
-            ${{ contains(inputs.image, 'ubi') && format('"rhel_license={0}"', secrets.RHEL_LICENSE) || '' }}
+          secret-files: |
+            nginx-repo.crt=nginx-repo.crt
+            nginx-repo.key=nginx-repo.key
+            ${{ contains(inputs.image, 'ubi') && 'rhel_license=rhel_license' || '' }}
         if: ${{ !inputs.authenticated }}
 
       - name: Generate WAF v5 tgz from JSON
@@ -171,7 +211,7 @@ jobs:
           k8s-version: ${{ inputs.k8s-version }}
           registry-token: ${{ steps.auth.outputs.access_token }}
           test-image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') || 'latest' }}"
-          plus-jwt: ${{ secrets.PLUS_JWT }}
+          plus-jwt: ${{ steps.secrets.outputs.PLUS_JWT }}
         if: ${{ steps.stable_exists.outputs.exists != 'true'  }}
 
       - name: Upload Test Results
@@ -180,3 +220,8 @@ jobs:
           name: ${{ steps.smoke-tests.outputs.test-results-name }}
           path: ${{ steps.smoke-tests.outputs.test-results-path }}
         if: ${{ !cancelled() && steps.stable_exists.outputs.exists != 'true' }}
+
+      - name: Clean up secrets
+        run: |
+          rm -f nginx-repo.crt nginx-repo.key rhel_license
+        if: always()
