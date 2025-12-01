@@ -47,7 +47,7 @@ func createTestConfigurator(t *testing.T) *Configurator {
 		t.Fatal(err)
 	}
 
-	manager := nginx.NewFakeManager("/etc/nginx")
+	manager := nginx.NewFakeManager(context.Background(), "/etc/nginx")
 	cnf := NewConfigurator(ConfiguratorParams{
 		NginxManager:            manager,
 		StaticCfgParams:         createTestStaticConfigParams(),
@@ -79,7 +79,7 @@ func createTestConfiguratorInvalidIngressTemplate(t *testing.T) *Configurator {
 		t.Fatal(err)
 	}
 
-	manager := nginx.NewFakeManager("/etc/nginx")
+	manager := nginx.NewFakeManager(context.Background(), "/etc/nginx")
 	cnf := NewConfigurator(ConfiguratorParams{
 		NginxManager:            manager,
 		StaticCfgParams:         createTestStaticConfigParams(),
