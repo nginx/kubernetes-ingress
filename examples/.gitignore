@@ -18,6 +18,7 @@ custom-resources/foreign-namespace-upstreams/cafe-secret.yaml
 custom-resources/grpc-upstreams/greeter-secret.yaml
 custom-resources/ingress-mtls/tls-secret.yaml
 custom-resources/jwks/tls-secret.yaml
+custom-resources/jwt/jwk-secret.yaml
 custom-resources/oidc-fclo/tls-secret.yaml
 custom-resources/oidc/tls-secret.yaml
 custom-resources/rate-limit-tiered-jwt-claim/cafe-secret.yaml

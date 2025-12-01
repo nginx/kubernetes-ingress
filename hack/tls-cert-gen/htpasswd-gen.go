@@ -89,12 +89,7 @@ func createKubeHTPasswdSecretYaml(secret htpasswdSecret, data []byte) ([]byte, e
 		s.Namespace = secret.Namespace
 	}
 
-	sb, err := yaml.Marshal(s)
-	if err != nil {
-		return nil, fmt.Errorf("marshaling kubernetes secret into yaml %v: %w", s, err)
-	}
-
-	return sb, nil
+	return yaml.Marshal(s)
 }
 
 func removeHtpasswdFiles(logger *slog.Logger, secret htpasswdSecret) error {

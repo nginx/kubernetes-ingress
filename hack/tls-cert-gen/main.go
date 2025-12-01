@@ -28,6 +28,7 @@ type secretsTypes struct {
 	Certs     []yamlSecret     `json:"certs,omitempty"`
 	Mtls      []mtlsBundle     `json:"mtls,omitempty"`
 	Htpasswds []htpasswdSecret `json:"htpasswds,omitempty"`
+	Jwks      []jwkSecret      `json:"jwks,omitempty"`
 }
 
 var secretsTypesData secretsTypes
@@ -67,10 +68,46 @@ func main() {
 		log.Fatalf(logger, "generateMTLSBundles: %v", err)
 	}
 
-	_, err = generateHtpasswdFiles(logger, secretsTypesData.Htpasswds, filenames, cleanPtr)
+	filenames, err = generateHtpasswdFiles(logger, secretsTypesData.Htpasswds, filenames, cleanPtr)
 	if err != nil {
 		log.Fatalf(logger, "generateHtpasswdFiles: %v", err)
 	}
+
+	_, err = generateJwksFiles(logger, secretsTypesData.Jwks, filenames, cleanPtr)
+	if err != nil {
+		log.Fatalf(logger, "generateJwksFiles: %v", err)
+	}
+}
+
+func generateJwksFiles(logger *slog.Logger, secrets []jwkSecret, filenames map[string]struct{}, cleanPtr *bool) (map[string]struct{}, error) {
+	for _, secret := range secrets {
+		if _, ok := filenames[secret.FileName]; ok {
+			return nil, fmt.Errorf("secret contains duplicated files: %v", secret.FileName)
+		}
+
+		filenames[secret.FileName] = struct{}{}
+
+		for _, symlink := range secret.Symlinks {
+			if _, ok := filenames[symlink]; ok {
+				return nil, fmt.Errorf("secret contains duplicated symlink for file %s: %s", secret.FileName, symlink)
+			}
+
+			filenames[symlink] = struct{}{}
+		}
+
+		if *cleanPtr {
+			err := removeJwksFiles(logger, secret)
+			if err != nil {
+				return nil, fmt.Errorf("failed to remove secret files: %s %w", secret.FileName, err)
+			}
+			continue
+		}
+		err := generateJwksFile(secret, projectRoot)
+		if err != nil {
+			return nil, fmt.Errorf("failed to print JWKS file: %s %w", secret.FileName, err)
+		}
+	}
+	return filenames, nil
 }
 
 func generateHtpasswdFiles(logger *slog.Logger, secrets []htpasswdSecret, filenames map[string]struct{}, cleanPtr *bool) (map[string]struct{}, error) {
