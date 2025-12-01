@@ -1335,7 +1335,7 @@
             "loadBalancerClass": {
               "default": "",
               "title": "The loadBalancerClass",
-              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.33.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/loadBalancerClass"
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.34.0/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/loadBalancerClass"
             },
             "externalIPs": {
               "default": [],
