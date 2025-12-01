@@ -244,12 +244,11 @@ EOF
     else
         # No releases found, extract most of the file (excluding footer)
         head -n $(($(wc -l < "${TMPDIR}/temp_index.md") - 3)) "${TMPDIR}/temp_index.md"
-    fi | sed "s/${current_year}/${release_year}/g" | awk -v year="${current_year}" '
+    fi | sed "s/${current_year}/${release_year}/g" | awk -v archived_year="${current_year}" '
     # Add the archived year to the "previous years" link list
-    # Find the last year reference (eg [2024]) and insert the new year before it
     /For older releases, check the changelogs for previous years:/ {
-        # Match any year in brackets and insert the archived year before it
-        gsub(/\[([0-9]{4})\]/, "[" year "]({{< ref \"/nic/changelog/" year ".md\" >}}), [\\1]")
+        # Insert the archived year at the beginning
+        sub(/For older releases, check the changelogs for previous years: /, "For older releases, check the changelogs for previous years: [" archived_year "]({{< ref \"/nic/changelog/" archived_year ".md\" >}}), ")
     }
     { print }
     ' > "${TMPDIR}/new_header.md"
