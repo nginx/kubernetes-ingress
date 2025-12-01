@@ -23,7 +23,7 @@ func createTestConfiguratorBench() (*Configurator, error) {
 		return nil, err
 	}
 
-	manager := nginx.NewFakeManager("/etc/nginx")
+	manager := nginx.NewFakeManager(context.Background(), "/etc/nginx")
 	cnf := NewConfigurator(ConfiguratorParams{
 		NginxManager:            manager,
 		StaticCfgParams:         createTestStaticConfigParams(),
