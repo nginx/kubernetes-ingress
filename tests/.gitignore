@@ -27,6 +27,16 @@ json_files/*
 # see ../hack/certs.go
 data/ap-waf-grpc/tls-secret.yaml
 data/appprotect/appprotect-secret.yaml
+data/auth-basic-auth-mergeable/auth-basic-master-secret.yaml
+data/auth-basic-auth-mergeable/auth-basic-master-secret-updated.yaml
+data/auth-basic-auth-mergeable/auth-basic-minion-secret.yaml
+data/auth-basic-auth-mergeable/auth-basic-minion-secret-updated.yaml
+data/auth-basic-policy/secret/htpasswd-secret-invalid.yaml
+data/auth-basic-policy/secret/htpasswd-secret-valid.yaml
+data/auth-basic-policy/secret/htpasswd-secret-valid-empty.yaml
+data/auth-basic-secrets/auth-basic-secret.yaml
+data/auth-basic-secrets/auth-basic-secret-invalid.yaml
+data/auth-basic-secrets/auth-basic-secret-updated.yaml
 data/common/app/secure/secret/app-tls-secret.yaml
 data/common/app/secure/secret/grpc-secret.yaml
 data/common/app/secure-ca/app-tls-secret.yaml
