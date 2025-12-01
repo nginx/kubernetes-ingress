@@ -30,7 +30,6 @@ type jwkSecret struct {
 type JWK struct {
 	Kty string `json:"kty"`
 	Kid string `json:"kid"`
-	Alg string `json:"alg"`
 	K   string `json:"k,omitempty"`
 }
 
@@ -61,9 +60,8 @@ func generateJwks(kid, kty, key string) ([]byte, error) {
 	jwks := JWKS{
 		Keys: []JWK{
 			{
-				Kty: "Oct",   // key type
-				Kid: "0001",  // any unique identifier
-				Alg: "HS256", // signing algorithm
+				Kty: "Oct",  // key type
+				Kid: "0001", // any unique identifier
 				K:   base64.StdEncoding.EncodeToString([]byte(key)),
 			},
 		},
@@ -92,7 +90,7 @@ func createKubeJwksSecretYaml(secret jwkSecret, data []byte) ([]byte, error) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: secret.SecretName,
 		},
-		Type: "nginx.org/jwks",
+		Type: "nginx.org/jwk",
 		Data: map[string][]byte{
 			key: data,
 		},
