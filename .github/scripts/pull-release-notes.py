@@ -116,7 +116,7 @@ sections = parse_sections(release_body or "")
 # We will create a dictionary with the categories and their changes
 # Also, we will handle dependencies separately for Go and Docker images
 # and format them accordingly
-catagories = {}
+categories = {}
 dependencies_title = ""
 for title, changes in sections.items():
     if any(x in title for x in ["Other Changes", "Documentation", "Maintenance", "Tests"]):
@@ -147,20 +147,20 @@ for title, changes in sections.items():
         else:
             parsed_changes.append(f"{pr['details']} {pr['title']}")
 
-    catagories[title] = parsed_changes
+    categories[title] = parsed_changes
 
 # Add grouped dependencies to the Dependencies category
 if dependencies_title:
-    catagories[dependencies_title].append(format_pr_groups(docker_dependencies, "Bump Docker dependencies"))
-    catagories[dependencies_title].append(format_pr_groups(go_dependencies, "Bump Go dependencies"))
-    catagories[dependencies_title].reverse()
+    categories[dependencies_title].append(format_pr_groups(docker_dependencies, "Bump Docker dependencies"))
+    categories[dependencies_title].append(format_pr_groups(go_dependencies, "Bump Go dependencies"))
+    categories[dependencies_title].reverse()
 
 # Populates the data needed for rendering the template
 # The data will be passed to the Jinja2 template for rendering
 data = {
     "version": NIC_VERSION,
     "release_date": RELEASE_DATE,
-    "sections": catagories,
+    "sections": categories,
     "HELM_CHART_VERSION": HELM_CHART_VERSION,
     "K8S_VERSIONS": K8S_VERSIONS,
 }
