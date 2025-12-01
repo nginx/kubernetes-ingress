@@ -20,13 +20,14 @@ type htpasswdEntry struct {
 }
 
 type htpasswdSecret struct {
-	SecretName string          `json:"secretName"`
-	Namespace  string          `json:"namespace,omitempty"`
-	FileName   string          `json:"filename"`
-	Symlinks   []string        `json:"symlinks,omitempty"`
-	UsedIn     []string        `json:"usedIn,omitempty"`
-	Entries    []htpasswdEntry `json:"entries"`
-	SecretType v1.SecretType   `json:"secretType,omitempty"`
+	SecretName  string          `json:"secretName"`
+	Namespace   string          `json:"namespace,omitempty"`
+	FileName    string          `json:"filename"`
+	Symlinks    []string        `json:"symlinks,omitempty"`
+	UsedIn      []string        `json:"usedIn,omitempty"`
+	Entries     []htpasswdEntry `json:"entries"`
+	SecretType  v1.SecretType   `json:"secretType,omitempty"`
+	HtpasswdKey string          `json:"htpasswdKey,omitempty"`
 }
 
 func generateHtpasswdFile(secret htpasswdSecret, projectRoot string) error {
@@ -62,6 +63,10 @@ func hashPassword(password string) (string, error) {
 }
 
 func createKubeHTPasswdSecretYaml(secret htpasswdSecret, data []byte) ([]byte, error) {
+	key := "htpasswd"
+	if secret.HtpasswdKey != "" {
+		key = secret.HtpasswdKey
+	}
 	s := v1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Secret",
@@ -71,7 +76,7 @@ func createKubeHTPasswdSecretYaml(secret htpasswdSecret, data []byte) ([]byte, e
 			Name: secret.SecretName,
 		},
 		StringData: map[string]string{
-			"htpasswd": string(data),
+			key: string(data),
 		},
 		Type: "nginx.org/htpasswd",
 	}
