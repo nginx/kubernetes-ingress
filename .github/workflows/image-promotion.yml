@@ -48,7 +48,7 @@ jobs:
       additional_tag: ${{ steps.vars.outputs.additional_tag }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
 
       - name: Setup Golang Environment
         uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
@@ -127,7 +127,7 @@ jobs:
       GOPROXY: ${{ needs.checks.outputs.go_proxy }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
 
       - name: Setup Golang Environment
         uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
@@ -295,7 +295,7 @@ jobs:
     needs: [release-oss]
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
 
       - name: Azure login
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
@@ -338,7 +338,7 @@ jobs:
       matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_oss ) }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
 
       - name: Make directory for security scan results
         id: directory
@@ -454,7 +454,7 @@ jobs:
       matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_plus ) }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
 
       - name: Make directory for security scan results
         id: directory
@@ -570,7 +570,7 @@ jobs:
       matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_nap ) }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
 
       - name: NAP modules
         id: nap_modules
@@ -688,7 +688,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
 
       - name: Create/Update Draft
         uses: lucacome/draft-release@0ebb400b90474a1b791602046abf8394e9f5402d # v2.0.2
