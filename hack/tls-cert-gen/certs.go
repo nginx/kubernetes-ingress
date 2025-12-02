@@ -101,7 +101,7 @@ func generateTLSKeyPair(template, parent x509.Certificate, parentPriv *ecdsa.Pri
 
 	keyOut := &bytes.Buffer{}
 
-	privBytes, err := x509.MarshalPKCS8PrivateKey(parentPriv)
+	privBytes, err := x509.MarshalECPrivateKey(parentPriv)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal private key: %w", err)
 	}
