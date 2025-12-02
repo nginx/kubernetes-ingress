@@ -105,8 +105,8 @@ jobs:
             "${{ inputs.k8s_versions }}" \
             "${{ inputs.release_date }}"
         env:
-          GITHUB_USERNAME: ${{ github.actor }}
-          GITHUB_EMAIL: ${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com
+          GITHUB_USERNAME: nginx-bot
+          GITHUB_EMAIL: integrations@nginx.com
           GITHUB_TOKEN: ${{ steps.secrets.outputs.NGINX_PAT }}
           DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
           DEBUG: ${{ inputs.debug && 'true' || 'false' }}
@@ -118,6 +118,7 @@ jobs:
           commit-message: Release ${{ github.event.inputs.new_version }}
           title: Release ${{ github.event.inputs.new_version }}
           branch: docs/release-${{ github.event.inputs.new_version }}
+          author: nginx-bot <integrations@nginx.com>
           body: |
             This automated PR updates the docs for ${{ github.event.inputs.new_version }} release.
         if: ${{ ! inputs.dry_run }}
