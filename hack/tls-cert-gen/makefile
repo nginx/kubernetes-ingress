@@ -7,3 +7,7 @@ run: ## Create just in time TLS certificates needed for tests and examples
 .PHONY: clean
 clean: ## Clean just in time TLS certificates needed for tests and examples
 	go run ./... -clean -secrets-path $(SECRETS)
+
+.PHONY: ignore
+ignore:
+	go run ./... -gitignore -secrets-path $(SECRETS)
