@@ -7,7 +7,6 @@ TMPDIR=/tmp
 DEBUG=${DEBUG:-"false"}
 DRY_RUN=${DRY_RUN:-"false"}
 TIDY=${TIDY:-"true"}
-CLEANUP=${CLEANUP:-"true"} # local test to check changed docs
 DOCS_REPO=${DOCS_REPO:-"nginx/documentation"}
 GITHUB_USERNAME=${GITHUB_USERNAME:-""}
 GITHUB_EMAIL=${GITHUB_EMAIL:-""}
@@ -340,11 +339,11 @@ if [ "${DEBUG}" != "false" ]; then
 fi
 cd - > /dev/null 2>&1
 
-if [ "${CLEANUP}" == "true" ] && [ "${TIDY}" == "true" ]; then
+if [ "${TIDY}" == "true" ]; then
     echo "INFO: Clean up"
     rm -rf "${TMPDIR}/temp_index.md" "${TMPDIR}/final_index.md" "${TMPDIR}/current_index.md" "${TMPDIR}/new_header.md" "${DOCS_FOLDER}"
 else
-    echo "INFO: Skipping cleanup (CLEANUP=${CLEANUP}, docs folder: ${DOCS_FOLDER})"
+    echo "INFO: Skipping tidy (docs folder: ${DOCS_FOLDER})"
 fi
 
 exit 0
