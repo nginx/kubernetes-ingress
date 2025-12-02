@@ -53,6 +53,7 @@ func writeGitIgnoreFile(filenames []string) error {
 			lines = append(lines, "")
 		}
 		lines = append(lines, newSection...)
+		lines = append(lines, "\n")
 	}
 
 	// Write back
