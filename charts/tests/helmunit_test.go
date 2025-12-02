@@ -176,6 +176,11 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "startupstatus",
 			namespace:   "default",
 		},
+		"loadBalancerClass": {
+			valuesFile:  "testdata/service-loadbalancerclass.yaml",
+			releaseName: "loadbalancerclass",
+			namespace:   "default",
+		},
 	}
 
 	// Path to the helm chart we will test
