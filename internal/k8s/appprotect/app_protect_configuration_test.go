@@ -6,8 +6,9 @@ import (
 	"testing"
 	"time"
 
-	nic_glog "github.com/nginxinc/kubernetes-ingress/internal/logger/glog"
-	"github.com/nginxinc/kubernetes-ingress/internal/logger/levels"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	nic_glog "github.com/nginx/kubernetes-ingress/internal/logger/glog"
+	"github.com/nginx/kubernetes-ingress/internal/logger/levels"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -577,7 +578,7 @@ func TestAddOrUpdatePolicy(t *testing.T) {
 			expectedProblems: []Problem{
 				{
 					Object:  invalidTestPolicy,
-					Reason:  "Rejected",
+					Reason:  nl.EventReasonRejected,
 					Message: "Error validating policy : error validating App Protect Policy : required field map[] not found",
 				},
 			},
@@ -606,7 +607,7 @@ func TestAddOrUpdatePolicy(t *testing.T) {
 			expectedProblems: []Problem{
 				{
 					Object:  testPolicyUnsatisfied,
-					Reason:  "Rejected",
+					Reason:  nl.EventReasonRejected,
 					Message: "policy has unsatisfied signature requirements",
 				},
 			},
@@ -686,7 +687,7 @@ func TestAddOrUpdateLogConf(t *testing.T) {
 			expectedProblems: []Problem{
 				{
 					Object:  invalidLogConf,
-					Reason:  "Rejected",
+					Reason:  nl.EventReasonRejected,
 					Message: "error validating App Protect Log Configuration testlogconf: required field map[] not found",
 				},
 			},
@@ -846,7 +847,7 @@ func TestAddOrUpdateUserSig(t *testing.T) {
 			expectedProblems: []Problem{
 				{
 					Object:  invalidTestUserSig2,
-					Reason:  "Rejected",
+					Reason:  nl.EventReasonRejected,
 					Message: "validation failed",
 				},
 			},
@@ -863,7 +864,7 @@ func TestAddOrUpdateUserSig(t *testing.T) {
 				{
 					Object:  testUserSigDupTag,
 					Message: "duplicate tag set",
-					Reason:  "Rejected",
+					Reason:  nl.EventReasonRejected,
 				},
 			},
 			msg: "Duplicate tags",
@@ -879,7 +880,7 @@ func TestAddOrUpdateUserSig(t *testing.T) {
 				{
 					Object:  testUserSig1Invalid,
 					Message: "validation failed",
-					Reason:  "Rejected",
+					Reason:  nl.EventReasonRejected,
 				},
 			},
 			msg: "UserSig becomes valid after previous tag holder became invalid",
@@ -1071,7 +1072,7 @@ func TestDeleteUserSig(t *testing.T) {
 			},
 			expectedProblems: []Problem{
 				{
-					Reason:  "Rejected",
+					Reason:  nl.EventReasonRejected,
 					Message: "policy has unsatisfied signature requirements",
 					Object: &unstructured.Unstructured{
 						Object: map[string]interface{}{},

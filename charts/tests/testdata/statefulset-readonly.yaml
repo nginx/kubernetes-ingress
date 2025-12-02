@@ -1,0 +1,12 @@
+controller:
+  kind: statefulset
+  securityContext:
+   allowPrivilegeEscalation: true
+   readOnlyRootFilesystem: true
+   runAsUser: 101 #nginx
+   runAsNonRoot: true
+   capabilities:
+     drop:
+     - ALL
+     add:
+     - NET_BIND_SERVICE

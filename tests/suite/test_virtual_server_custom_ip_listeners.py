@@ -38,6 +38,7 @@ def restore_default_vs(kube_apis, virtual_server_setup) -> None:
 
 
 @pytest.mark.vs
+@pytest.mark.vs_listeners
 @pytest.mark.parametrize(
     "crd_ingress_controller, virtual_server_setup",
     [

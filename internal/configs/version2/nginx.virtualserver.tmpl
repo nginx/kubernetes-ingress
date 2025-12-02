@@ -1,4 +1,4 @@
-{{- /*gotype: github.com/nginxinc/kubernetes-ingress/internal/configs/version2.VirtualServerConfig*/ -}}
+{{- /*gotype: github.com/nginx/kubernetes-ingress/internal/configs/version2.VirtualServerConfig*/ -}}
 {{ range $u := .Upstreams }}
 upstream {{ $u.Name }} {
     {{- if ne $u.UpstreamZoneSize "0" }}zone {{ $u.Name }} {{ $u.UpstreamZoneSize }};{{ end }}
@@ -40,9 +40,15 @@ map {{ $m.Source }} {{ $m.Variable }} {
 limit_req_zone {{ $z.Key }} zone={{ $z.ZoneName }}:{{ $z.ZoneSize }} rate={{ $z.Rate }};
 {{- end }}
 
+{{- range $c := .CacheZones }}
+proxy_cache_path {{ $c.Path }}{{ if $c.Levels }} levels={{ $c.Levels }}{{ end }} keys_zone={{ $c.Name }}:{{ $c.Size }}{{ if $c.Inactive }} inactive={{ $c.Inactive }}{{ end }}{{ if $c.MaxSize }} max_size={{ $c.MaxSize }}{{ end }}{{ if $c.MinFree }} min_free={{ $c.MinFree }}{{ end }}{{ if $c.ManagerFiles }} manager_files={{ $c.ManagerFiles }}{{ end }}{{ if $c.ManagerSleep }} manager_sleep={{ $c.ManagerSleep }}{{ end }}{{ if $c.ManagerThreshold }} manager_threshold={{ $c.ManagerThreshold }}{{ end }}{{ if not $c.UseTempPath }} use_temp_path=off{{ end }};
+{{- end }}
+
 {{- $s := .Server }}
 server {
-    {{- if $s.Gunzip }}gunzip on;{{end}}
+    {{- if $s.Gunzip }}
+    gunzip on;
+    {{- end }}
     {{ makeHTTPListener $s | printf }}
 
     server_name {{ $s.ServerName }};
@@ -112,6 +118,51 @@ server {
     return {{ .Code }};
     {{- end }}
 
+    {{- with $s.Cache }}
+    # Server-level cache configuration
+    proxy_cache {{ $s.Cache.ZoneName }};
+    proxy_cache_key {{ $s.Cache.CacheKey }};
+            {{- if $s.Cache.OverrideUpstreamCache }}
+    proxy_ignore_headers Cache-Control Expires Set-Cookie Vary X-Accel-Expires;
+            {{- end }}
+            {{- if and $s.Cache.Time (eq (len $s.Cache.Valid) 0) }}
+    proxy_cache_valid {{ $s.Cache.Time }};
+            {{- end }}
+            {{- range $code, $time := $s.Cache.Valid }}
+    proxy_cache_valid {{ $code }} {{ $time }};
+            {{- end }}
+            {{- if $s.Cache.AllowedMethods }}
+    proxy_cache_methods{{ range $s.Cache.AllowedMethods }} {{ . }}{{ end }};
+            {{- end }}
+            {{- if $s.Cache.CacheUseStale }}
+    proxy_cache_use_stale{{ range $s.Cache.CacheUseStale }} {{ . }}{{ end }};
+            {{- end }}
+            {{- if $s.Cache.CacheRevalidate }}
+    proxy_cache_revalidate on;
+            {{- end }}
+            {{- if $s.Cache.CacheBackgroundUpdate }}
+    proxy_cache_background_update on;
+            {{- end }}
+            {{- if $s.Cache.CacheMinUses }}
+    proxy_cache_min_uses {{ $s.Cache.CacheMinUses }};
+            {{- end }}
+            {{- if $s.Cache.CacheLock }}
+    proxy_cache_lock on;
+            {{- end }}
+            {{- if $s.Cache.CacheLockTimeout }}
+    proxy_cache_lock_timeout {{ $s.Cache.CacheLockTimeout }};
+            {{- end }}
+            {{- if $s.Cache.CacheLockAge }}
+    proxy_cache_lock_age {{ $s.Cache.CacheLockAge }};
+            {{- end }}
+            {{- if $s.Cache.NoCacheConditions }}
+    proxy_no_cache{{ range $s.Cache.NoCacheConditions }} {{ . }}{{ end }};
+            {{- end }}
+            {{- if $s.Cache.CacheBypassConditions }}
+    proxy_cache_bypass{{ range $s.Cache.CacheBypassConditions }} {{ . }}{{ end }};
+            {{- end }}
+    {{- end }}
+
     {{- range $allow := $s.Allow }}
     allow {{ $allow }};
     {{- end }}
@@ -140,7 +191,7 @@ server {
 
     {{- range $rl := $s.LimitReqs }}
     limit_req zone={{ $rl.ZoneName }}{{ if $rl.Burst }} burst={{ $rl.Burst }}{{ end }}
-        {{ if $rl.Delay }} delay={{ $rl.Delay }}{{ end }}{{ if $rl.NoDelay }} nodelay{{ end }};
+        {{- if $rl.Delay }} delay={{ $rl.Delay }}{{ end }}{{ if $rl.NoDelay }} nodelay{{ end }};
     {{- end }}
 
     {{- if $s.APIKeyEnabled}}
@@ -160,6 +211,7 @@ server {
     js_var $apikey_auth_local_map "{{ .MapName}}";
     js_var $apikey_auth_token $apikey_auth_hash;
     auth_request /_validate_apikey_njs;
+    js_var $apikey_client_name ${{ .MapName }};
     {{- end }}
 
     {{- with $s.EgressMTLS }}
@@ -261,7 +313,7 @@ server {
 
         {{- range $rl := $l.LimitReqs }}
         limit_req zone={{ $rl.ZoneName }}{{ if $rl.Burst }} burst={{ $rl.Burst }}{{ end }}
-            {{ if $rl.Delay }} delay={{ $rl.Delay }}{{ end }}{{ if $rl.NoDelay }} nodelay{{ end }};
+            {{- if $rl.Delay }} delay={{ $rl.Delay }}{{ end }}{{ if $rl.NoDelay }} nodelay{{ end }};
         {{- end }}
 
         {{- with $l.BasicAuth }}
@@ -274,6 +326,7 @@ server {
         set $header_query_value {{ makeHeaderQueryValue $l.APIKey | printf }};
         set $apikey_auth_token $apikey_auth_hash;
         auth_request /_validate_apikey_njs;
+        set $apikey_client_name ${{ .MapName }};
 
         {{- else }}
         {{- with $s.APIKey }}
@@ -342,17 +395,29 @@ server {
         {{ $proxyOrGRPC }}_read_timeout {{ $l.ProxyReadTimeout }};
         {{ $proxyOrGRPC }}_send_timeout {{ $l.ProxySendTimeout }};
         client_max_body_size {{ $l.ClientMaxBodySize }};
+        {{- if $l.ClientBodyBufferSize }}
+        client_body_buffer_size {{ $l.ClientBodyBufferSize }};
+        {{- end }}
 
             {{- if $l.ProxyMaxTempFileSize }}
         proxy_max_temp_file_size {{ $l.ProxyMaxTempFileSize }};
             {{- end }}
 
         proxy_buffering {{ if $l.ProxyBuffering }}on{{ else }}off{{ end }};
-            {{- if $l.ProxyBuffers }}
-        proxy_buffers {{ $l.ProxyBuffers }};
-            {{- end }}
-            {{- if $l.ProxyBufferSize }}
-        {{ $proxyOrGRPC }}_buffer_size {{ $l.ProxyBufferSize }};
+            {{- if not $l.GRPCPass }}
+                {{- if $l.ProxyBuffers}}
+        proxy_buffers {{$l.ProxyBuffers}};
+                {{- end}}
+                {{- if $l.ProxyBufferSize}}
+        proxy_buffer_size {{$l.ProxyBufferSize}};
+                {{- end}}
+                {{- if $l.ProxyBusyBuffersSize}}
+        proxy_busy_buffers_size {{$l.ProxyBusyBuffersSize}};
+                {{- end}}
+            {{- else }}
+                {{- if $l.ProxyBufferSize }}
+        grpc_buffer_size {{ $l.ProxyBufferSize }};
+                {{- end }}
             {{- end }}
             {{- if not $l.GRPCPass }}
         proxy_http_version 1.1;
@@ -408,6 +473,51 @@ server {
         {{ $proxyOrGRPC }}_ssl_verify_depth 25;
         {{ $proxyOrGRPC }}_ssl_name {{ $l.ProxySSLName }};
             {{- end }}
+
+        {{- with $l.Cache }}
+        proxy_cache {{ $l.Cache.ZoneName }};
+        proxy_cache_key {{ $l.Cache.CacheKey }};
+                {{- if $l.Cache.OverrideUpstreamCache }}
+        proxy_ignore_headers Cache-Control Expires Set-Cookie Vary X-Accel-Expires;
+                {{- end }}
+                {{- if and $l.Cache.Time (eq (len $l.Cache.Valid) 0) }}
+        proxy_cache_valid {{ $l.Cache.Time }};
+                {{- end }}
+                {{- range $code, $time := $l.Cache.Valid }}
+        proxy_cache_valid {{ $code }} {{ $time }};
+                {{- end }}
+                {{- if $l.Cache.AllowedMethods }}
+        proxy_cache_methods{{ range $l.Cache.AllowedMethods }} {{ . }}{{ end }};
+                {{- end }}
+                {{- if $l.Cache.CacheUseStale }}
+        proxy_cache_use_stale{{ range $l.Cache.CacheUseStale }} {{ . }}{{ end }};
+                {{- end }}
+                {{- if $l.Cache.CacheRevalidate }}
+        proxy_cache_revalidate on;
+                {{- end }}
+                {{- if $l.Cache.CacheBackgroundUpdate }}
+        proxy_cache_background_update on;
+                {{- end }}
+                {{- if $l.Cache.CacheMinUses }}
+        proxy_cache_min_uses {{ $l.Cache.CacheMinUses }};
+                {{- end }}
+                {{- if $l.Cache.CacheLock }}
+        proxy_cache_lock on;
+                {{- end }}
+                {{- if $l.Cache.CacheLockTimeout }}
+        proxy_cache_lock_timeout {{ $l.Cache.CacheLockTimeout }};
+                {{- end }}
+                {{- if $l.Cache.CacheLockAge }}
+        proxy_cache_lock_age {{ $l.Cache.CacheLockAge }};
+                {{- end }}
+                {{- if $l.Cache.NoCacheConditions }}
+        proxy_no_cache{{ range $l.Cache.NoCacheConditions }} {{ . }}{{ end }};
+                {{- end }}
+                {{- if $l.Cache.CacheBypassConditions }}
+        proxy_cache_bypass{{ range $l.Cache.CacheBypassConditions }} {{ . }}{{ end }};
+                {{- end }}
+        {{- end }}
+
             {{-  if $l.GRPCPass }}
         grpc_pass {{ $l.GRPCPass }};
             {{- else }}
@@ -422,7 +532,7 @@ server {
 
     {{- with $ssl := $s.SSL }}
         {{ if $ssl.HTTP2 }}
-	location @grpc_deadline_exceeded {
+    location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
         add_header grpc-status 4;
@@ -478,6 +588,6 @@ server {
         return 204;
     }
 
-	    {{ end }}
+    {{ end }}
     {{ end }}
 }

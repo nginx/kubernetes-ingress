@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: appprotect-dos-arb
-        image: docker-registry.nginx.com/nap-dos/app_protect_dos_arb:1.1.1
+        image: docker-registry.nginx.com/nap-dos/app_protect_dos_arb:1.2.0
         imagePullPolicy: IfNotPresent
         resources:
           limits:

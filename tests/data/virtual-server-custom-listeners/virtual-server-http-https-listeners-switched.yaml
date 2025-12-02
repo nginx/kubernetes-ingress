@@ -8,7 +8,7 @@ spec:
     https: http-8085
   host: virtual-server-status.example.com
   tls:
-    secret: virtual-server-tls-secret
+    secret: tls-secret
   upstreams:
   - name: backend2
     service: backend2-svc

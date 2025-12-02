@@ -3,10 +3,10 @@
 package v1
 
 import (
-	v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/listers"
-	"k8s.io/client-go/tools/cache"
+	configurationv1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // PolicyLister helps list Policies.
@@ -14,7 +14,7 @@ import (
 type PolicyLister interface {
 	// List lists all Policies in the indexer.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1.Policy, err error)
+	List(selector labels.Selector) (ret []*configurationv1.Policy, err error)
 	// Policies returns an object that can list and get Policies.
 	Policies(namespace string) PolicyNamespaceLister
 	PolicyListerExpansion
@@ -22,17 +22,17 @@ type PolicyLister interface {
 
 // policyLister implements the PolicyLister interface.
 type policyLister struct {
-	listers.ResourceIndexer[*v1.Policy]
+	listers.ResourceIndexer[*configurationv1.Policy]
 }
 
 // NewPolicyLister returns a new PolicyLister.
 func NewPolicyLister(indexer cache.Indexer) PolicyLister {
-	return &policyLister{listers.New[*v1.Policy](indexer, v1.Resource("policy"))}
+	return &policyLister{listers.New[*configurationv1.Policy](indexer, configurationv1.Resource("policy"))}
 }
 
 // Policies returns an object that can list and get Policies.
 func (s *policyLister) Policies(namespace string) PolicyNamespaceLister {
-	return policyNamespaceLister{listers.NewNamespaced[*v1.Policy](s.ResourceIndexer, namespace)}
+	return policyNamespaceLister{listers.NewNamespaced[*configurationv1.Policy](s.ResourceIndexer, namespace)}
 }
 
 // PolicyNamespaceLister helps list and get Policies.
@@ -40,15 +40,15 @@ func (s *policyLister) Policies(namespace string) PolicyNamespaceLister {
 type PolicyNamespaceLister interface {
 	// List lists all Policies in the indexer for a given namespace.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1.Policy, err error)
+	List(selector labels.Selector) (ret []*configurationv1.Policy, err error)
 	// Get retrieves the Policy from the indexer for a given namespace and name.
 	// Objects returned here must be treated as read-only.
-	Get(name string) (*v1.Policy, error)
+	Get(name string) (*configurationv1.Policy, error)
 	PolicyNamespaceListerExpansion
 }
 
 // policyNamespaceLister implements the PolicyNamespaceLister
 // interface.
 type policyNamespaceLister struct {
-	listers.ResourceIndexer[*v1.Policy]
+	listers.ResourceIndexer[*configurationv1.Policy]
 }

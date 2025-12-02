@@ -25,7 +25,7 @@ You can see how the Secure App is implemented in the `secure-app.yaml` file.
 
 ## Prerequisites
 
-1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
+1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
    instructions to deploy the Ingress Controller:
     - As part of Step 2 of those instructions, make sure to deploy the custom resource definition for the
       TransportServer resource.
@@ -61,6 +61,7 @@ IC_HTTPS_PORT=<port number>
 Create the secure app deployment and service:
 
 ```console
+kubectl apply -f app-tls-secret.yaml
 kubectl apply -f secure-app.yaml
 ```
 

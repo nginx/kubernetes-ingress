@@ -3,10 +3,10 @@
 package v1
 
 import (
-	"context"
+	context "context"
 
-	v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
-	scheme "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned/scheme"
+	configurationv1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	scheme "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -21,33 +21,34 @@ type VirtualServersGetter interface {
 
 // VirtualServerInterface has methods to work with VirtualServer resources.
 type VirtualServerInterface interface {
-	Create(ctx context.Context, virtualServer *v1.VirtualServer, opts metav1.CreateOptions) (*v1.VirtualServer, error)
-	Update(ctx context.Context, virtualServer *v1.VirtualServer, opts metav1.UpdateOptions) (*v1.VirtualServer, error)
+	Create(ctx context.Context, virtualServer *configurationv1.VirtualServer, opts metav1.CreateOptions) (*configurationv1.VirtualServer, error)
+	Update(ctx context.Context, virtualServer *configurationv1.VirtualServer, opts metav1.UpdateOptions) (*configurationv1.VirtualServer, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, virtualServer *v1.VirtualServer, opts metav1.UpdateOptions) (*v1.VirtualServer, error)
+	UpdateStatus(ctx context.Context, virtualServer *configurationv1.VirtualServer, opts metav1.UpdateOptions) (*configurationv1.VirtualServer, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.VirtualServer, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.VirtualServerList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*configurationv1.VirtualServer, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*configurationv1.VirtualServerList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.VirtualServer, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *configurationv1.VirtualServer, err error)
 	VirtualServerExpansion
 }
 
 // virtualServers implements VirtualServerInterface
 type virtualServers struct {
-	*gentype.ClientWithList[*v1.VirtualServer, *v1.VirtualServerList]
+	*gentype.ClientWithList[*configurationv1.VirtualServer, *configurationv1.VirtualServerList]
 }
 
 // newVirtualServers returns a VirtualServers
 func newVirtualServers(c *K8sV1Client, namespace string) *virtualServers {
 	return &virtualServers{
-		gentype.NewClientWithList[*v1.VirtualServer, *v1.VirtualServerList](
+		gentype.NewClientWithList[*configurationv1.VirtualServer, *configurationv1.VirtualServerList](
 			"virtualservers",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1.VirtualServer { return &v1.VirtualServer{} },
-			func() *v1.VirtualServerList { return &v1.VirtualServerList{} }),
+			func() *configurationv1.VirtualServer { return &configurationv1.VirtualServer{} },
+			func() *configurationv1.VirtualServerList { return &configurationv1.VirtualServerList{} },
+		),
 	}
 }

@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"testing"
 
-	nic_glog "github.com/nginxinc/kubernetes-ingress/internal/logger/glog"
-	"github.com/nginxinc/kubernetes-ingress/internal/logger/levels"
+	nic_glog "github.com/nginx/kubernetes-ingress/internal/logger/glog"
+	"github.com/nginx/kubernetes-ingress/internal/logger/levels"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )

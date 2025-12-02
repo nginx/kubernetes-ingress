@@ -28,7 +28,7 @@ import (
 	cmapi "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	vsapi "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
+	vsapi "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 )
 
 var (

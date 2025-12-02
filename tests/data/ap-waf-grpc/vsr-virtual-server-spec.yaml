@@ -5,7 +5,7 @@ metadata:
 spec:
   host: virtual-server.example.com
   tls:
-    secret: virtual-server-tls-grpc-secret
+    secret: tls-secret
   routes:
   - path: "~* /helloworld.greeter/"
     route: helloworld.greeter

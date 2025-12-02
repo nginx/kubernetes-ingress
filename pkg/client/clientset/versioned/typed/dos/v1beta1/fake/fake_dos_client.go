@@ -3,7 +3,7 @@
 package fake
 
 import (
-	v1beta1 "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned/typed/dos/v1beta1"
+	v1beta1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/typed/dos/v1beta1"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )
@@ -13,7 +13,7 @@ type FakeAppprotectdosV1beta1 struct {
 }
 
 func (c *FakeAppprotectdosV1beta1) DosProtectedResources(namespace string) v1beta1.DosProtectedResourceInterface {
-	return &FakeDosProtectedResources{c, namespace}
+	return newFakeDosProtectedResources(c, namespace)
 }
 
 // RESTClient returns a RESTClient that is used to communicate

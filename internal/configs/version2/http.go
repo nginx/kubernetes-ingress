@@ -1,6 +1,9 @@
 package version2
 
-import "fmt"
+import (
+	"bytes"
+	"fmt"
+)
 
 // UpstreamLabels describes the Prometheus labels for an NGINX upstream.
 type UpstreamLabels struct {
@@ -18,6 +21,8 @@ type VirtualServerConfig struct {
 	KeyVals                 []KeyVal
 	LimitReqZones           []LimitReqZone
 	Maps                    []Map
+	AuthJWTClaimSets        []AuthJWTClaimSet
+	CacheZones              []CacheZone
 	Server                  Server
 	SpiffeCerts             bool
 	SpiffeClientCerts       bool
@@ -26,6 +31,12 @@ type VirtualServerConfig struct {
 	Upstreams               []Upstream
 	DynamicSSLReloadEnabled bool
 	StaticSSLPath           string
+}
+
+// AuthJWTClaimSet defines the values for the `auth_jwt_claim_set` directive
+type AuthJWTClaimSet struct {
+	Variable string
+	Claim    string
 }
 
 // Upstream defines an upstream.
@@ -92,11 +103,13 @@ type Server struct {
 	APIKeyEnabled             bool
 	WAF                       *WAF
 	Dos                       *Dos
+	Cache                     *Cache
 	PoliciesErrorReturn       *Return
 	VSNamespace               string
 	VSName                    string
 	DisableIPV6               bool
 	Gunzip                    bool
+	NGINXDebugLevel           string
 }
 
 // SSL defines SSL configuration for a server.
@@ -143,6 +156,10 @@ type OIDC struct {
 	ZoneSyncLeeway        int
 	AuthExtraArgs         string
 	AccessTokenEnable     bool
+	PKCEEnable            bool
+	TLSVerify             bool
+	VerifyDepth           int
+	CAFile                string
 }
 
 // APIKey holds API key configuration.
@@ -184,10 +201,12 @@ type Location struct {
 	ProxyReadTimeout         string
 	ProxySendTimeout         string
 	ClientMaxBodySize        string
+	ClientBodyBufferSize     string
 	ProxyMaxTempFileSize     string
 	ProxyBuffering           bool
 	ProxyBuffers             string
 	ProxyBufferSize          string
+	ProxyBusyBuffersSize     string
 	ProxyPass                string
 	ProxyNextUpstream        string
 	ProxyNextUpstreamTimeout string
@@ -217,6 +236,7 @@ type Location struct {
 	WAF                      *WAF
 	Dos                      *Dos
 	PoliciesErrorReturn      *Return
+	Cache                    *Cache
 	ServiceName              string
 	IsVSR                    bool
 	VSRName                  string
@@ -333,6 +353,16 @@ type Map struct {
 	Parameters []Parameter
 }
 
+func (m *Map) String() string {
+	buf := &bytes.Buffer{}
+	fmt.Fprintf(buf, "Source: %s\n", m.Source)
+	fmt.Fprintf(buf, "Variable: %s\n", m.Variable)
+	for _, v := range m.Parameters {
+		fmt.Fprintf(buf, "\t%s: %s\n", v.Value, v.Result)
+	}
+	return buf.String()
+}
+
 // Parameter defines a Parameter in a Map.
 type Parameter struct {
 	Value  string
@@ -353,14 +383,33 @@ type Queue struct {
 
 // LimitReqZone defines a rate limit shared memory zone.
 type LimitReqZone struct {
-	Key      string
-	ZoneName string
-	ZoneSize string
-	Rate     string
+	Key           string
+	ZoneName      string
+	ZoneSize      string
+	Rate          string
+	GroupValue    string
+	GroupVariable string
+	PolicyValue   string
+	PolicyResult  string
+	GroupDefault  bool
+	GroupSource   string
+	Sync          bool
 }
 
 func (rlz LimitReqZone) String() string {
-	return fmt.Sprintf("{Key %q, ZoneName %q, ZoneSize %v, Rate %q}", rlz.Key, rlz.ZoneName, rlz.ZoneSize, rlz.Rate)
+	return fmt.Sprintf("{Key %q, ZoneName %q, ZoneSize %v, Rate %q, GroupValue %q, PolicyValue %q, GroupVariable %q, PolicyResult %q, GroupDefault %t, GroupSource %q, Sync %t}",
+		rlz.Key,
+		rlz.ZoneName,
+		rlz.ZoneSize,
+		rlz.Rate,
+		rlz.GroupValue,
+		rlz.PolicyValue,
+		rlz.GroupVariable,
+		rlz.PolicyResult,
+		rlz.GroupDefault,
+		rlz.GroupSource,
+		rlz.Sync,
+	)
 }
 
 // LimitReq defines a rate limit.
@@ -398,10 +447,15 @@ type JWTAuth struct {
 
 // JwksURI defines the components of a JwksURI
 type JwksURI struct {
-	JwksScheme string
-	JwksHost   string
-	JwksPort   string
-	JwksPath   string
+	JwksScheme     string
+	JwksHost       string
+	JwksPort       string
+	JwksPath       string
+	JwksSNIName    string
+	JwksSNIEnabled bool
+	SSLVerify      bool
+	TrustedCert    string
+	SSLVerifyDepth int
 }
 
 // BasicAuth refers to basic HTTP authentication mechanism options
@@ -437,4 +491,75 @@ type TwoWaySplitClients struct {
 type Variable struct {
 	Name  string
 	Value string
+}
+
+// CacheZone defines a proxy cache zone configuration.
+type CacheZone struct {
+	Name             string
+	Size             string
+	Path             string
+	Levels           string // Optional. Directory hierarchy for cache files (e.g., "1:2", "2:2", "1:2:2")
+	Inactive         string // Optional. Time after which inactive cached data is removed
+	UseTempPath      bool   // Optional. Whether to use temporary path (use_temp_path=off when false)
+	MaxSize          string // Optional. Maximum size of the cache
+	MinFree          string // Optional. Minimum free space required
+	ManagerFiles     *int
+	ManagerSleep     string
+	ManagerThreshold string
+}
+
+// Cache defines cache configuration for locations.
+type Cache struct {
+	// proxy_cache directive
+	ZoneName string // Required. The name of the cache zone
+	ZoneSize string // Required. The size of the cache zone
+
+	// proxy_cache_path directive
+	Levels           string // Optional. Directory hierarchy for cache files (e.g., "1:2", "2:2", "1:2:2")
+	Inactive         string // Optional. Time after which inactive cached data is removed
+	UseTempPath      bool   // Optional. Whether to use temporary path (use_temp_path=off when false)
+	MaxSize          string // Optional. Maximum size of the cache
+	MinFree          string // Optional. Minimum free space required
+	ManagerFiles     *int   // Optional. Number of files manager can handle
+	ManagerSleep     string // Optional. Sleep time between manager runs
+	ManagerThreshold string // Optional. Manager threshold for cache operations
+
+	// proxy_cache_key directive
+	CacheKey string // Optional. Custom cache key
+
+	// proxy_ignore_headers directive
+	OverrideUpstreamCache bool // Controls whether to override upstream cache headers
+
+	// proxy_cache_valid directive
+	Time  string            // Optional. Default cache validity time
+	Valid map[string]string // Optional. Cache validity map for codes to time
+
+	// proxy_cache_methods directive
+	AllowedMethods []string // Optional. HTTP methods to cache
+
+	// proxy_cache_use_stale directive
+	CacheUseStale []string // Optional. Conditions under which stale cached responses may be served
+
+	// proxy_cache_revalidate directive
+	CacheRevalidate bool // Optional. Enables revalidation of expired cache items
+
+	// proxy_cache_background_update directive
+	CacheBackgroundUpdate bool // Optional. Enables background updating of expired items while serving stale content
+
+	// proxy_cache_min_uses directive
+	CacheMinUses *int // Optional. Minimum number of uses before a response is cached
+
+	// proxy_cache_purge directive
+	CachePurgeAllow []string // Optional. IPs/CIDRs allowed to purge cache (Plus only)
+
+	// proxy_cache_lock directive
+	CacheLock        bool   // Optional. Whether to enable cache locking
+	CacheLockTimeout string // Optional. Timeout for cache lock
+	CacheLockAge     string // Optional. Age for cache lock
+
+	// proxy_no_cache directive
+	NoCacheConditions []string // Optional. Conditions under which responses should not be cached
+
+	// proxy_cache_bypass directive
+	CacheBypassConditions []string // Optional. Conditions under which cache should be bypassed for requests
 }

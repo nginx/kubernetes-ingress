@@ -113,6 +113,28 @@ Expand the name of the configmap used for NGINX Agent.
 {{- end -}}
 
 {{/*
+Expand the name of the mgmt configmap.
+*/}}
+{{- define "nginx-ingress.mgmtConfigName" -}}
+{{- if .Values.controller.mgmt.configMapName -}}
+{{ .Values.controller.mgmt.configMapName }}
+{{- else -}}
+{{- default (printf "%s-mgmt" (include "nginx-ingress.fullname" .)) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Expand license token secret name.
+*/}}
+{{- define "nginx-ingress.licenseTokenSecretName" -}}
+{{- if hasKey .Values.controller.mgmt "licenseTokenSecretName" -}}
+{{- .Values.controller.mgmt.licenseTokenSecretName -}}
+{{- else }}
+{{- fail "Error: When using Nginx Plus, 'controller.mgmt.licenseTokenSecretName' must be set." }}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Expand leader election lock name.
 */}}
 {{- define "nginx-ingress.leaderElectionName" -}}
@@ -192,6 +214,40 @@ false
 {{- end -}}
 
 {{/*
+Validate the globalConfiguration.customName value format.
+Ensures exactly one '/' separator for proper namespace/name parsing.
+*/}}
+{{- define "nginx-ingress.globalConfiguration.validateCustomName" -}}
+{{- if .Values.controller.globalConfiguration.customName }}
+{{- $parts := splitList "/" .Values.controller.globalConfiguration.customName }}
+{{- if ne (len $parts) 2 }}
+{{- fail "globalConfiguration.customName must contain exactly one '/' separator in namespace/name format (e.g., \"my-namespace/my-global-config\")" }}
+{{- end }}
+{{- if or (eq (index $parts 0) "") (eq (index $parts 1) "") }}
+{{- fail "globalConfiguration.customName namespace and name parts cannot be empty (e.g., \"my-namespace/my-global-config\")" }}
+{{- end }}
+{{- end }}
+{{- end -}}
+
+{{/*
+Create the global configuration custom name from the globalConfiguration.customName value.
+*/}}
+{{- define "nginx-ingress.globalConfiguration.customName" -}}
+{{- include "nginx-ingress.globalConfiguration.validateCustomName" . -}}
+{{- $parts := splitList "/" .Values.controller.globalConfiguration.customName -}}
+{{- index $parts 1 -}}
+{{- end -}}
+
+{{/*
+Create the global configuration custom namespace from the globalConfiguration.customName value.
+*/}}
+{{- define "nginx-ingress.globalConfiguration.customNamespace" -}}
+{{- include "nginx-ingress.globalConfiguration.validateCustomName" . -}}
+{{- $parts := splitList "/" .Values.controller.globalConfiguration.customName -}}
+{{- index $parts 0 -}}
+{{- end -}}
+
+{{/*
 Build the args for the service binary.
 */}}
 {{- define "nginx-ingress.args" -}}
@@ -208,7 +264,7 @@ Build the args for the service binary.
 - --continue
 {{- end }}
 - --
-{{- end -}}
+{{- end }}
 - -nginx-plus={{ .Values.controller.nginxplus }}
 - -nginx-reload-timeout={{ .Values.controller.nginxReloadTimeout }}
 - -enable-app-protect={{ .Values.controller.appprotect.enable }}
@@ -226,6 +282,9 @@ Build the args for the service binary.
 - -app-protect-dos-memory={{ .Values.controller.appprotectdos.memory }}
 {{ end }}
 - -nginx-configmaps=$(POD_NAMESPACE)/{{ include "nginx-ingress.configName" . }}
+{{- if .Values.controller.nginxplus }}
+- -mgmt-configmap=$(POD_NAMESPACE)/{{ include "nginx-ingress.mgmtConfigName" . }}
+{{- end }}
 {{- if .Values.controller.defaultTLS.secret }}
 - -default-server-tls-secret={{ .Values.controller.defaultTLS.secret }}
 {{ else if and (.Values.controller.defaultTLS.cert) (.Values.controller.defaultTLS.key) }}
@@ -279,6 +338,9 @@ Build the args for the service binary.
 - -enable-custom-resources={{ .Values.controller.enableCustomResources }}
 - -enable-snippets={{ .Values.controller.enableSnippets }}
 - -disable-ipv6={{ .Values.controller.disableIPV6 }}
+{{- if .Values.controller.directiveAutoAdjust }}
+- -enable-directive-autoadjust={{ .Values.controller.directiveAutoAdjust }}
+{{- end }}
 {{- if .Values.controller.enableCustomResources }}
 - -enable-tls-passthrough={{ .Values.controller.enableTLSPassthrough }}
 {{- if .Values.controller.enableTLSPassthrough }}
@@ -289,8 +351,10 @@ Build the args for the service binary.
 - -enable-external-dns={{ .Values.controller.enableExternalDNS }}
 - -default-http-listener-port={{ .Values.controller.defaultHTTPListenerPort}}
 - -default-https-listener-port={{ .Values.controller.defaultHTTPSListenerPort}}
-{{- if .Values.controller.globalConfiguration.create }}
+{{- if and .Values.controller.globalConfiguration.create (not .Values.controller.globalConfiguration.customName) }}
 - -global-configuration=$(POD_NAMESPACE)/{{ include "nginx-ingress.controller.fullname" . }}
+{{- else if .Values.controller.globalConfiguration.customName }}
+- -global-configuration={{ .Values.controller.globalConfiguration.customName }}
 {{- end }}
 {{- end }}
 - -ready-status={{ .Values.controller.readyStatus.enable }}
@@ -301,7 +365,9 @@ Build the args for the service binary.
 - -weight-changes-dynamic-reload={{ .Values.controller.enableWeightChangesDynamicReload}}
 {{- if .Values.nginxAgent.enable }}
 - -agent=true
+{{- if eq .Values.nginxAgent.dataplaneKeySecretName "" }}
 - -agent-instance-group={{ default (include "nginx-ingress.controller.fullname" .) .Values.nginxAgent.instanceGroup }}
+{{- end }}
 {{- end }}
 {{- end -}}
 
@@ -325,12 +391,17 @@ List of volumes for controller.
 {{- if eq (include "nginx-ingress.readOnlyRootFilesystem" .) "true" }}
 - name: nginx-etc
   emptyDir: {}
-- name: nginx-cache
-  emptyDir: {}
 - name: nginx-lib
+  emptyDir: {}
+- name: nginx-state
   emptyDir: {}
 - name: nginx-log
   emptyDir: {}
+{{- /* For StatefulSet, nginx-cache volume is always provided via volumeClaimTemplates */ -}}
+{{- if ne .Values.controller.kind "statefulset" }}
+- name: nginx-cache
+  emptyDir: {}
+{{- end }}
 {{- end }}
 {{- if .Values.controller.appprotect.v5 }}
 {{ toYaml .Values.controller.appprotect.volumes }}
@@ -342,8 +413,14 @@ List of volumes for controller.
 - name: agent-conf
   configMap:
     name: {{ include "nginx-ingress.agentConfigName" . }}
+{{- if ne .Values.nginxAgent.dataplaneKeySecretName "" }}
+- name: dataplane-key
+  secret:
+    secretName: {{ .Values.nginxAgent.dataplaneKeySecretName }}
+{{- else }}
 - name: agent-dynamic
   emptyDir: {}
+{{- end }}
 {{- if and .Values.nginxAgent.instanceManager.tls (or (ne (.Values.nginxAgent.instanceManager.tls.secret | default "") "") (ne (.Values.nginxAgent.instanceManager.tls.caSecret | default "") "")) }}
 - name: nginx-agent-tls
   projected:
@@ -372,7 +449,6 @@ volumeMounts:
 {{ include "nginx-ingress.volumeMountEntries" . }}
 {{- end -}}
 {{- end -}}
-
 {{- define "nginx-ingress.volumeMountEntries" -}}
 {{- if eq (include "nginx-ingress.readOnlyRootFilesystem" .) "true" }}
 - mountPath: /etc/nginx
@@ -381,8 +457,13 @@ volumeMounts:
   name: nginx-cache
 - mountPath: /var/lib/nginx
   name: nginx-lib
+- mountPath: /var/lib/nginx/state
+  name: nginx-state
 - mountPath: /var/log/nginx
   name: nginx-log
+{{- else if eq .Values.controller.kind "statefulset" }}
+- mountPath: /var/cache/nginx
+  name: nginx-cache
 {{- end }}
 {{- if .Values.controller.appprotect.v5 }}
 - name: app-protect-bd-config
@@ -401,8 +482,13 @@ volumeMounts:
 - name: agent-conf
   mountPath: /etc/nginx-agent/nginx-agent.conf
   subPath: nginx-agent.conf
+{{- if ne .Values.nginxAgent.dataplaneKeySecretName "" }}
+- name: dataplane-key
+  mountPath: /etc/nginx-agent/secrets
+{{- else }}
 - name: agent-dynamic
   mountPath: /var/lib/nginx-agent
+{{- end }}
 {{- if and .Values.nginxAgent.instanceManager.tls (or (ne (.Values.nginxAgent.instanceManager.tls.secret | default "") "") (ne (.Values.nginxAgent.instanceManager.tls.caSecret | default "") "")) }}
 - name: nginx-agent-tls
   mountPath: /etc/ssl/nms
@@ -423,6 +509,8 @@ volumeMounts:
   env:
     - name: ENFORCER_PORT
       value: "{{ .Values.controller.appprotect.enforcer.port | default 50000 }}"
+    - name: ENFORCER_CONFIG_TIMEOUT
+      value: "0"
   volumeMounts:
     - name: app-protect-bd-config
       mountPath: /opt/app_protect/bd_config
@@ -444,6 +532,34 @@ volumeMounts:
 {{- end -}}
 
 {{- define "nginx-ingress.agentConfiguration" -}}
+{{- if ne .Values.nginxAgent.dataplaneKeySecretName "" }}
+log:
+  # set log level (error, info, debug; default "info")
+  level: {{ .Values.nginxAgent.logLevel }}
+  # set log path. if empty, don't log to file.
+  path: ""
+
+allowed_directories:
+  - /etc/nginx
+  - /usr/lib/nginx/modules
+
+features:
+  - certificates
+  - connection
+  - metrics
+  - file-watcher
+
+## command server settings
+command:
+  server:
+    host: {{ .Values.nginxAgent.endpointHost }}
+    port: {{ .Values.nginxAgent.endpointPort }}
+  auth:
+    tokenpath: "/etc/nginx-agent/secrets/dataplane.key"
+  tls:
+    skip_verify: {{ .Values.nginxAgent.tlsSkipVerify | default false }}
+
+{{- else }}
 log:
   level: {{ .Values.nginxAgent.logLevel }}
   path: ""
@@ -469,7 +585,7 @@ tls:
 features:
   - registration
   - nginx-counting
-  - metrics-sender
+  - metrics
   - dataplane-status
 extensions:
   - nginx-app-protect
@@ -483,4 +599,5 @@ nap_monitoring:
   syslog_ip: {{ .Values.nginxAgent.syslog.host }}
   syslog_port: {{ .Values.nginxAgent.syslog.port }}
 
-{{ end -}}
+{{- end }}
+{{ end }}

@@ -14,3 +14,4 @@ coverage:
 ignore:
   - "pkg/client"
   - "**/*generated*.go"
+  - "hack"

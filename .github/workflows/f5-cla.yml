@@ -19,7 +19,7 @@ permissions:
 jobs:
   f5-cla:
     name: F5 CLA
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     permissions:
       actions: write
       contents: read
@@ -43,7 +43,7 @@ jobs:
           remote-repository-name: "f5-cla-data"
           path-to-signatures: "signatures/beta/signatures.json"
           # Comma separated list of usernames for maintainers or any other individuals who should not be prompted for a CLA.
-          allowlist: bot*
+          allowlist: bot*,renovate,mend
           # Do not lock PRs after a merge.
           lock-pullrequest-aftermerge: false
         env:

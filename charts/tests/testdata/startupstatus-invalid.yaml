@@ -1,0 +1,4 @@
+controller:
+  startupStatus:
+    enable: true
+    # All other required values missing

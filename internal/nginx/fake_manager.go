@@ -6,10 +6,10 @@ import (
 	"os"
 	"path"
 
-	nl "github.com/nginxinc/kubernetes-ingress/internal/logger"
-	nic_glog "github.com/nginxinc/kubernetes-ingress/internal/logger/glog"
-	"github.com/nginxinc/kubernetes-ingress/internal/logger/levels"
-	"github.com/nginxinc/nginx-plus-go-client/client"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	nic_glog "github.com/nginx/kubernetes-ingress/internal/logger/glog"
+	"github.com/nginx/kubernetes-ingress/internal/logger/levels"
+	"github.com/nginx/nginx-plus-go-client/v3/client"
 )
 
 // FakeManager provides a fake implementation of the Manager interface.
@@ -44,6 +44,13 @@ func (fm *FakeManager) CreateConfig(name string, content []byte) bool {
 	return true
 }
 
+// CreateOIDCConfig provides a fake implementation of CreateOIDCConfig.
+func (fm *FakeManager) CreateOIDCConfig(name string, content []byte) bool {
+	nl.Debugf(fm.logger, "Writing OIDC config %v", name)
+	nl.Debug(fm.logger, string(content))
+	return true
+}
+
 // CreateAppProtectResourceFile provides a fake implementation of CreateAppProtectResourceFile
 func (fm *FakeManager) CreateAppProtectResourceFile(name string, content []byte) {
 	nl.Debugf(fm.logger, "Writing Ap Resource File %v", name)
@@ -63,6 +70,11 @@ func (fm *FakeManager) ClearAppProtectFolder(name string) {
 // DeleteConfig provides a fake implementation of DeleteConfig.
 func (fm *FakeManager) DeleteConfig(name string) {
 	nl.Debugf(fm.logger, "Deleting config %v", name)
+}
+
+// DeleteOIDCConfig provides a fake implementation of DeleteOIDCConfig.
+func (fm *FakeManager) DeleteOIDCConfig(name string) {
+	nl.Debugf(fm.logger, "Deleting OIDC config %v", name)
 }
 
 // CreateStreamConfig provides a fake implementation of CreateStreamConfig.
@@ -128,7 +140,7 @@ func (fm *FakeManager) Quit() {
 }
 
 // UpdateConfigVersionFile provides a fake implementation of UpdateConfigVersionFile.
-func (fm *FakeManager) UpdateConfigVersionFile(_ bool) {
+func (fm *FakeManager) UpdateConfigVersionFile() {
 	nl.Debugf(fm.logger, "Writing config version")
 }
 
@@ -146,17 +158,6 @@ func (fm *FakeManager) UpdateServersInPlus(upstream string, servers []string, _ 
 func (fm *FakeManager) UpdateStreamServersInPlus(upstream string, servers []string) error {
 	nl.Debugf(fm.logger, "Updating stream servers of %v: %v", upstream, servers)
 	return nil
-}
-
-// CreateOpenTracingTracerConfig creates a fake implementation of CreateOpenTracingTracerConfig.
-func (fm *FakeManager) CreateOpenTracingTracerConfig(_ string) error {
-	nl.Debugf(fm.logger, "Writing OpenTracing tracer config file")
-
-	return nil
-}
-
-// SetOpenTracing creates a fake implementation of SetOpenTracing.
-func (*FakeManager) SetOpenTracing(_ bool) {
 }
 
 // AppProtectPluginStart is a fake implementation AppProtectPluginStart
@@ -207,4 +208,10 @@ func (fm *FakeManager) UpsertSplitClientsKeyVal(_ string, _ string, _ string) {
 // DeleteKeyValStateFiles is a fake implementation of DeleteKeyValStateFiles
 func (fm *FakeManager) DeleteKeyValStateFiles(_ string) {
 	nl.Debugf(fm.logger, "Deleting keyval state files")
+}
+
+// GetOSCABundlePath is a fake implementation of GetOSCABundlePath
+func (fm *FakeManager) GetOSCABundlePath() (string, error) {
+	nl.Debugf(fm.logger, "Getting OS CA Bundle Path")
+	return "/etc/ssl/certs/ca-certificates.crt", nil
 }

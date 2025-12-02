@@ -7,7 +7,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/nginxinc/kubernetes-ingress/internal/configs/commonhelpers"
+	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
 )
 
 func split(s string, delim string) []string {
@@ -182,6 +182,96 @@ func generateProxySetHeaders(loc *Location, ingressAnnotations map[string]string
 	return combinedHeaders, nil
 }
 
+func makeResolver(resolverAddresses []string, resolverValid string, resolverIPV6 *bool) string {
+	var builder strings.Builder
+	if len(resolverAddresses) > 0 {
+		builder.WriteString("resolver")
+		for _, address := range resolverAddresses {
+			builder.WriteString(" ")
+			builder.WriteString(address)
+		}
+		if resolverValid != "" {
+			builder.WriteString(" valid=")
+			builder.WriteString(resolverValid)
+		}
+		if resolverIPV6 != nil && !*resolverIPV6 {
+			builder.WriteString(" ipv6=off")
+		}
+		builder.WriteString(";")
+	}
+	return builder.String()
+}
+
+// makeRewritePattern takes a location and Ingress annotations and returns
+// a rewrite pattern that matches the location pattern used.
+// This ensures the rewrite regex matches the same requests as the location.
+func makeRewritePattern(loc *Location, ingressAnnotations map[string]string) string {
+	var regexType string
+	var hasRegex bool
+
+	// Check for path-regex annotation (same logic as makeLocationPath)
+	if loc.MinionIngress != nil {
+		ingressType, isMergeable := loc.MinionIngress.Annotations["nginx.org/mergeable-ingress-type"]
+		regexType, hasRegex = loc.MinionIngress.Annotations["nginx.org/path-regex"]
+		if !isMergeable || ingressType != "minion" || !hasRegex {
+			hasRegex = false
+		}
+	}
+
+	if !hasRegex {
+		regexType, hasRegex = ingressAnnotations["nginx.org/path-regex"]
+	}
+
+	// Extract original path from the processed Path field
+	originalPath := extractOriginalPath(loc.Path)
+
+	// If no path-regex annotation, return original path
+	if !hasRegex {
+		return originalPath
+	}
+
+	// Generate rewrite pattern based on regex type
+	switch regexType {
+	case "case_sensitive":
+		return fmt.Sprintf("^%s", originalPath)
+	case "case_insensitive":
+		return fmt.Sprintf("(?i)^%s", originalPath)
+	case "exact":
+		return originalPath // exact matches don't need anchors in rewrite
+	default:
+		return originalPath
+	}
+}
+
+// extractOriginalPath extracts the original path from a processed nginx location path
+func extractOriginalPath(processedPath string) string {
+	// Handle different nginx location formats:
+	// ~ "^/path"     -> /path
+	// ~* "^/path"    -> /path
+	// = "/path"      -> /path
+	// /path          -> /path
+
+	processedPath = strings.TrimSpace(processedPath)
+
+	// Case-sensitive regex: ~ "^/path"
+	if strings.HasPrefix(processedPath, "~ \"^") && strings.HasSuffix(processedPath, "\"") {
+		return processedPath[4 : len(processedPath)-1] // Remove ~ "^ and "
+	}
+
+	// Case-insensitive regex: ~* "^/path"
+	if strings.HasPrefix(processedPath, "~* \"^") && strings.HasSuffix(processedPath, "\"") {
+		return processedPath[5 : len(processedPath)-1] // Remove ~* "^ and "
+	}
+
+	// Exact match: = "/path"
+	if strings.HasPrefix(processedPath, "= \"") && strings.HasSuffix(processedPath, "\"") {
+		return processedPath[3 : len(processedPath)-1] // Remove = " and "
+	}
+
+	// Plain path: /path (no quotes)
+	return processedPath
+}
+
 var helperFunctions = template.FuncMap{
 	"split":                   split,
 	"trim":                    trim,
@@ -192,6 +282,10 @@ var helperFunctions = template.FuncMap{
 	"toUpper":                 strings.ToUpper,
 	"replaceAll":              strings.ReplaceAll,
 	"makeLocationPath":        makeLocationPath,
+	"makeRewritePattern":      makeRewritePattern,
 	"makeSecretPath":          commonhelpers.MakeSecretPath,
+	"makeOnOffFromBool":       commonhelpers.MakeOnOffFromBool,
 	"generateProxySetHeaders": generateProxySetHeaders,
+	"boolToPointerBool":       commonhelpers.BoolToPointerBool,
+	"makeResolver":            makeResolver,
 }

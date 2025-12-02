@@ -3,13 +3,13 @@
 package v1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	configurationv1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
-	versioned "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned"
-	internalinterfaces "github.com/nginxinc/kubernetes-ingress/pkg/client/informers/externalversions/internalinterfaces"
-	v1 "github.com/nginxinc/kubernetes-ingress/pkg/client/listers/configuration/v1"
+	apisconfigurationv1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	versioned "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned"
+	internalinterfaces "github.com/nginx/kubernetes-ingress/pkg/client/informers/externalversions/internalinterfaces"
+	configurationv1 "github.com/nginx/kubernetes-ingress/pkg/client/listers/configuration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -20,7 +20,7 @@ import (
 // VirtualServerRoutes.
 type VirtualServerRouteInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.VirtualServerRouteLister
+	Lister() configurationv1.VirtualServerRouteLister
 }
 
 type virtualServerRouteInformer struct {
@@ -46,16 +46,28 @@ func NewFilteredVirtualServerRouteInformer(client versioned.Interface, namespace
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.K8sV1().VirtualServerRoutes(namespace).List(context.TODO(), options)
+				return client.K8sV1().VirtualServerRoutes(namespace).List(context.Background(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.K8sV1().VirtualServerRoutes(namespace).Watch(context.TODO(), options)
+				return client.K8sV1().VirtualServerRoutes(namespace).Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.K8sV1().VirtualServerRoutes(namespace).List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.K8sV1().VirtualServerRoutes(namespace).Watch(ctx, options)
 			},
 		},
-		&configurationv1.VirtualServerRoute{},
+		&apisconfigurationv1.VirtualServerRoute{},
 		resyncPeriod,
 		indexers,
 	)
@@ -66,9 +78,9 @@ func (f *virtualServerRouteInformer) defaultInformer(client versioned.Interface,
 }
 
 func (f *virtualServerRouteInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&configurationv1.VirtualServerRoute{}, f.defaultInformer)
+	return f.factory.InformerFor(&apisconfigurationv1.VirtualServerRoute{}, f.defaultInformer)
 }
 
-func (f *virtualServerRouteInformer) Lister() v1.VirtualServerRouteLister {
-	return v1.NewVirtualServerRouteLister(f.Informer().GetIndexer())
+func (f *virtualServerRouteInformer) Lister() configurationv1.VirtualServerRouteLister {
+	return configurationv1.NewVirtualServerRouteLister(f.Informer().GetIndexer())
 }

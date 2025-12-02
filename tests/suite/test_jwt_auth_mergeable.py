@@ -195,6 +195,7 @@ step_5_expected_results = [
 
 
 @pytest.mark.ingresses
+@pytest.mark.ingresses_jwt
 @pytest.mark.skip_for_nginx_oss
 class TestJWTAuthMergeableMinions:
     def test_jwt_auth_response_codes_and_location(self, kube_apis, jwt_auth_setup, test_namespace):

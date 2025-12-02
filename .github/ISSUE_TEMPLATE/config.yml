@@ -4,5 +4,5 @@ contact_links:
     url: https://docs.nginx.com/nginx-ingress-controller
     about: Check out our documentation.
   - name: General inquiries
-    url: https://github.com/nginxinc/kubernetes-ingress/discussions
+    url: https://github.com/nginx/kubernetes-ingress/discussions
     about: Please use Discussions for all other questions.

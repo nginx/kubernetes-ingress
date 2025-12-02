@@ -5,7 +5,7 @@ metadata:
 spec:
   host: virtual-server-tls.example.com
   tls:
-    secret: virtual-server-tls-secret
+    secret: tls-secret
     redirect:
       enable: True
       code: 308

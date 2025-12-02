@@ -73,6 +73,7 @@ def smoke_setup(request, kube_apis, ingress_controller_endpoint, ingress_control
 
 @pytest.mark.smoke
 @pytest.mark.ingresses
+@pytest.mark.ingresses_smoke
 class TestSmoke:
     @pytest.mark.parametrize(
         "ingress_controller",

@@ -7,7 +7,7 @@ This is a generated file. DO NOT EDIT.
 import (
 	"go.opentelemetry.io/otel/attribute"
 
-	ngxTelemetry "github.com/nginxinc/telemetry-exporter/pkg/telemetry"
+	ngxTelemetry "github.com/nginx/telemetry-exporter/pkg/telemetry"
 )
 
 func (d *NICResourceCounts) Attributes() []attribute.KeyValue {
@@ -40,6 +40,11 @@ func (d *NICResourceCounts) Attributes() []attribute.KeyValue {
 	attrs = append(attrs, attribute.Bool("IsPlus", d.IsPlus))
 	attrs = append(attrs, attribute.StringSlice("InstallationFlags", d.InstallationFlags))
 	attrs = append(attrs, attribute.String("BuildOS", d.BuildOS))
+	attrs = append(attrs, attribute.StringSlice("ConfigMapKeys", d.ConfigMapKeys))
+	attrs = append(attrs, attribute.StringSlice("MGMTConfigMapKeys", d.MGMTConfigMapKeys))
+	attrs = append(attrs, attribute.Int64("JWTRateLimitPolicies", d.JWTRateLimitPolicies))
+	attrs = append(attrs, attribute.Int64("VariablesRateLimitPolicies", d.VariablesRateLimitPolicies))
+	attrs = append(attrs, attribute.Int64("CachePolicies", d.CachePolicies))
 
 	return attrs
 }

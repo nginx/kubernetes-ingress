@@ -29,7 +29,7 @@ fi
 
 source "${CODEGEN_PKG}/kube_codegen.sh"
 
-THIS_PKG="github.com/nginxinc/kubernetes-ingress"
+THIS_PKG="github.com/nginx/kubernetes-ingress"
 
 kube::codegen::gen_helpers \
     --boilerplate "${SCRIPT_ROOT}/hack/boilerplate.go.txt" \

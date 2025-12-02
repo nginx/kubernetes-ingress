@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"net"
 
-	nl "github.com/nginxinc/kubernetes-ingress/internal/logger"
-	"github.com/nginxinc/kubernetes-ingress/internal/metrics/collectors"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	"github.com/nginx/kubernetes-ingress/internal/metrics/collectors"
 )
 
 // SyslogListener is an interface for syslog metrics listener

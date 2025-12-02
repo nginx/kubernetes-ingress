@@ -1,6 +1,7 @@
 package healthcheck_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -9,12 +10,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	nic_glog "github.com/nginxinc/kubernetes-ingress/internal/logger/glog"
-	"github.com/nginxinc/kubernetes-ingress/internal/logger/levels"
+	nic_glog "github.com/nginx/kubernetes-ingress/internal/logger/glog"
+	"github.com/nginx/kubernetes-ingress/internal/logger/levels"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/nginxinc/kubernetes-ingress/internal/healthcheck"
-	"github.com/nginxinc/nginx-plus-go-client/client"
+	"github.com/nginx/kubernetes-ingress/internal/healthcheck"
+	"github.com/nginx/nginx-plus-go-client/v3/client"
 )
 
 // testHandler creates http handler for testing HealthServer.
@@ -356,7 +357,7 @@ func getUpstreamsForHost(host string) []string {
 // Upstreams retrieved using NGINX API client:
 // foo.tea.com -> upstream1, upstream2
 // bar.tea.com -> upstream2
-func getUpstreamsFromNGINXAllUp() (*client.Upstreams, error) {
+func getUpstreamsFromNGINXAllUp(_ context.Context) (*client.Upstreams, error) {
 	ups := client.Upstreams{
 		"upstream1": client.Upstream{
 			Peers: []client.Peer{
@@ -390,7 +391,7 @@ func getUpstreamsFromNGINXAllUp() (*client.Upstreams, error) {
 // Upstreams retrieved using NGINX API client:
 // foo.tea.com -> upstream1, upstream2
 // bar.tea.com -> upstream2
-func getUpstreamsFromNGINXAllUnhealthy() (*client.Upstreams, error) {
+func getUpstreamsFromNGINXAllUnhealthy(_ context.Context) (*client.Upstreams, error) {
 	ups := client.Upstreams{
 		"upstream1": client.Upstream{
 			Peers: []client.Peer{
@@ -425,7 +426,7 @@ func getUpstreamsFromNGINXAllUnhealthy() (*client.Upstreams, error) {
 // Upstreams retrieved using NGINX API client
 // foo.tea.com -> upstream1, upstream2
 // bar.tea.com -> upstream2
-func getUpstreamsFromNGINXPartiallyUp() (*client.Upstreams, error) {
+func getUpstreamsFromNGINXPartiallyUp(_ context.Context) (*client.Upstreams, error) {
 	ups := client.Upstreams{
 		"upstream1": client.Upstream{
 			Peers: []client.Peer{
@@ -455,14 +456,14 @@ func getUpstreamsFromNGINXPartiallyUp() (*client.Upstreams, error) {
 // getUpstreamsFromNGINXNotExistingHost is a helper func used
 // for faking response data from NGINX API. It responds
 // with empty upstreams on a request for not existing host.
-func getUpstreamsFromNGINXNotExistingHost() (*client.Upstreams, error) {
+func getUpstreamsFromNGINXNotExistingHost(_ context.Context) (*client.Upstreams, error) {
 	ups := client.Upstreams{}
 	return &ups, nil
 }
 
 // getUpstreamsFromNGINXErrorFromAPI is a helper func used
 // for faking err response from NGINX API client.
-func getUpstreamsFromNGINXErrorFromAPI() (*client.Upstreams, error) {
+func getUpstreamsFromNGINXErrorFromAPI(_ context.Context) (*client.Upstreams, error) {
 	return nil, errors.New("nginx api error")
 }
 
@@ -483,7 +484,7 @@ func streamUpstreamsForName(name string) []string {
 // for faking response from NGINX Plus client.
 //
 //nolint:unparam
-func streamUpstreamsFromNGINXAllUp() (*client.StreamUpstreams, error) {
+func streamUpstreamsFromNGINXAllUp(_ context.Context) (*client.StreamUpstreams, error) {
 	streamUpstreams := client.StreamUpstreams{
 		"streamUpstream1": client.StreamUpstream{
 			Peers: []client.StreamPeer{
@@ -507,7 +508,7 @@ func streamUpstreamsFromNGINXAllUp() (*client.StreamUpstreams, error) {
 // for faking response from NGINX Plus client.
 //
 //nolint:unparam
-func streamUpstreamsFromNGINXPartiallyUp() (*client.StreamUpstreams, error) {
+func streamUpstreamsFromNGINXPartiallyUp(_ context.Context) (*client.StreamUpstreams, error) {
 	streamUpstreams := client.StreamUpstreams{
 		"streamUpstream1": client.StreamUpstream{
 			Peers: []client.StreamPeer{
@@ -531,7 +532,7 @@ func streamUpstreamsFromNGINXPartiallyUp() (*client.StreamUpstreams, error) {
 // for faking response from NGINX Plus client.
 //
 //nolint:unparam
-func streamUpstreamsFromNGINXAllPeersDown() (*client.StreamUpstreams, error) {
+func streamUpstreamsFromNGINXAllPeersDown(_ context.Context) (*client.StreamUpstreams, error) {
 	streamUpstreams := client.StreamUpstreams{
 		"streamUpstream1": client.StreamUpstream{
 			Peers: []client.StreamPeer{

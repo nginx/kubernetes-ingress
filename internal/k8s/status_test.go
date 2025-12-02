@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	nic_glog "github.com/nginxinc/kubernetes-ingress/internal/logger/glog"
-	"github.com/nginxinc/kubernetes-ingress/internal/logger/levels"
-	conf_v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
-	fake_v1alpha1 "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned/fake"
+	nic_glog "github.com/nginx/kubernetes-ingress/internal/logger/glog"
+	"github.com/nginx/kubernetes-ingress/internal/logger/levels"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	fake_v1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/fake"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,7 +36,7 @@ func TestUpdateTransportServerStatus(t *testing.T) {
 		},
 	}
 
-	fakeClient := fake_v1alpha1.NewSimpleClientset(
+	fakeClient := fake_v1.NewSimpleClientset(
 		&conf_v1.TransportServerList{
 			Items: []conf_v1.TransportServer{
 				*ts,
@@ -88,7 +88,7 @@ func TestUpdateTransportServerStatusIgnoreNoChange(t *testing.T) {
 		},
 	}
 
-	fakeClient := fake_v1alpha1.NewSimpleClientset(
+	fakeClient := fake_v1.NewSimpleClientset(
 		&conf_v1.TransportServerList{
 			Items: []conf_v1.TransportServer{
 				*ts,
@@ -154,7 +154,7 @@ func TestUpdateTransportServerStatusMissingTransportServer(t *testing.T) {
 		},
 	}
 
-	fakeClient := fake_v1alpha1.NewSimpleClientset(
+	fakeClient := fake_v1.NewSimpleClientset(
 		&conf_v1.TransportServerList{
 			Items: []conf_v1.TransportServer{},
 		})
@@ -490,47 +490,132 @@ func TestHasVsStatusChanged(t *testing.T) {
 	reason := "AddedOrUpdated"
 	msg := "Configuration was added or updated"
 
+	// Create a statusUpdater with some external endpoints
+	su := &statusUpdater{
+		externalEndpoints: []conf_v1.ExternalEndpoint{
+			{
+				IP:    "1.2.3.4",
+				Ports: "80,443",
+			},
+		},
+	}
+
 	tests := []struct {
 		expected bool
 		vs       conf_v1.VirtualServer
+		desc     string
 	}{
 		{
 			expected: false,
+			desc:     "no change in status or external endpoints",
 			vs: conf_v1.VirtualServer{
 				Status: conf_v1.VirtualServerStatus{
 					State:   state,
 					Reason:  reason,
 					Message: msg,
+					ExternalEndpoints: []conf_v1.ExternalEndpoint{
+						{
+							IP:    "1.2.3.4",
+							Ports: "80,443",
+						},
+					},
 				},
 			},
 		},
 		{
 			expected: true,
+			desc:     "different state",
 			vs: conf_v1.VirtualServer{
 				Status: conf_v1.VirtualServerStatus{
-					State:   "DifferentState",
+					State:   "Invalid",
 					Reason:  reason,
 					Message: msg,
+					ExternalEndpoints: []conf_v1.ExternalEndpoint{
+						{
+							IP:    "1.2.3.4",
+							Ports: "80,443",
+						},
+					},
 				},
 			},
 		},
 		{
 			expected: true,
+			desc:     "different reason",
 			vs: conf_v1.VirtualServer{
 				Status: conf_v1.VirtualServerStatus{
 					State:   state,
 					Reason:  "DifferentReason",
 					Message: msg,
+					ExternalEndpoints: []conf_v1.ExternalEndpoint{
+						{
+							IP:    "1.2.3.4",
+							Ports: "80,443",
+						},
+					},
 				},
 			},
 		},
 		{
 			expected: true,
+			desc:     "different message",
 			vs: conf_v1.VirtualServer{
 				Status: conf_v1.VirtualServerStatus{
 					State:   state,
 					Reason:  reason,
 					Message: "DifferentMessage",
+					ExternalEndpoints: []conf_v1.ExternalEndpoint{
+						{
+							IP:    "1.2.3.4",
+							Ports: "80,443",
+						},
+					},
+				},
+			},
+		},
+		{
+			expected: true,
+			desc:     "different external endpoints - different IP",
+			vs: conf_v1.VirtualServer{
+				Status: conf_v1.VirtualServerStatus{
+					State:   state,
+					Reason:  reason,
+					Message: msg,
+					ExternalEndpoints: []conf_v1.ExternalEndpoint{
+						{
+							IP:    "5.6.7.8",
+							Ports: "80,443",
+						},
+					},
+				},
+			},
+		},
+		{
+			expected: true,
+			desc:     "different external endpoints - different ports",
+			vs: conf_v1.VirtualServer{
+				Status: conf_v1.VirtualServerStatus{
+					State:   state,
+					Reason:  reason,
+					Message: msg,
+					ExternalEndpoints: []conf_v1.ExternalEndpoint{
+						{
+							IP:    "1.2.3.4",
+							Ports: "8080,8443",
+						},
+					},
+				},
+			},
+		},
+		{
+			expected: true,
+			desc:     "missing external endpoints in VS",
+			vs: conf_v1.VirtualServer{
+				Status: conf_v1.VirtualServerStatus{
+					State:   state,
+					Reason:  reason,
+					Message: msg,
+					// No ExternalEndpoints
 				},
 			},
 		},
@@ -538,11 +623,13 @@ func TestHasVsStatusChanged(t *testing.T) {
 
 	for _, test := range tests {
 		test := test // address gosec G601
-		changed := hasVsStatusChanged(&test.vs, state, reason, msg)
+		t.Run(test.desc, func(t *testing.T) {
+			changed := su.hasVsStatusChanged(&test.vs, state, reason, msg)
 
-		if changed != test.expected {
-			t.Errorf("hasVsStatusChanged(%v, %v, %v, %v) returned %v but expected %v.", test.vs, state, reason, msg, changed, test.expected)
-		}
+			if changed != test.expected {
+				t.Errorf("hasVsStatusChanged(%v, %v, %v, %v) returned %v but expected %v for test: %s", test.vs, state, reason, msg, changed, test.expected, test.desc)
+			}
+		})
 	}
 }
 
@@ -553,62 +640,139 @@ func TestHasVsrStatusChanged(t *testing.T) {
 	reason := "AddedOrUpdated"
 	msg := "Configuration was added or updated"
 
+	// Create a statusUpdater with some external endpoints
+	su := &statusUpdater{
+		externalEndpoints: []conf_v1.ExternalEndpoint{
+			{
+				IP:    "1.2.3.4",
+				Ports: "80,443",
+			},
+		},
+	}
+
 	tests := []struct {
 		expected bool
 		vsr      conf_v1.VirtualServerRoute
+		desc     string
 	}{
 		{
 			expected: false,
+			desc:     "no change in status or external endpoints",
 			vsr: conf_v1.VirtualServerRoute{
 				Status: conf_v1.VirtualServerRouteStatus{
 					State:        state,
 					Reason:       reason,
 					Message:      msg,
 					ReferencedBy: referencedBy,
+					ExternalEndpoints: []conf_v1.ExternalEndpoint{
+						{
+							IP:    "1.2.3.4",
+							Ports: "80,443",
+						},
+					},
 				},
 			},
 		},
 		{
 			expected: true,
+			desc:     "different state",
 			vsr: conf_v1.VirtualServerRoute{
 				Status: conf_v1.VirtualServerRouteStatus{
-					State:        "DifferentState",
+					State:        "Invalid",
 					Reason:       reason,
 					Message:      msg,
 					ReferencedBy: referencedBy,
+					ExternalEndpoints: []conf_v1.ExternalEndpoint{
+						{
+							IP:    "1.2.3.4",
+							Ports: "80,443",
+						},
+					},
 				},
 			},
 		},
 		{
 			expected: true,
+			desc:     "different reason",
 			vsr: conf_v1.VirtualServerRoute{
 				Status: conf_v1.VirtualServerRouteStatus{
 					State:        state,
 					Reason:       "DifferentReason",
 					Message:      msg,
 					ReferencedBy: referencedBy,
+					ExternalEndpoints: []conf_v1.ExternalEndpoint{
+						{
+							IP:    "1.2.3.4",
+							Ports: "80,443",
+						},
+					},
 				},
 			},
 		},
 		{
 			expected: true,
+			desc:     "different message",
 			vsr: conf_v1.VirtualServerRoute{
 				Status: conf_v1.VirtualServerRouteStatus{
 					State:        state,
 					Reason:       reason,
 					Message:      "DifferentMessage",
 					ReferencedBy: referencedBy,
+					ExternalEndpoints: []conf_v1.ExternalEndpoint{
+						{
+							IP:    "1.2.3.4",
+							Ports: "80,443",
+						},
+					},
 				},
 			},
 		},
 		{
 			expected: true,
+			desc:     "different referenced by",
 			vsr: conf_v1.VirtualServerRoute{
 				Status: conf_v1.VirtualServerRouteStatus{
 					State:        state,
 					Reason:       reason,
 					Message:      msg,
 					ReferencedBy: "DifferentReferencedBy",
+					ExternalEndpoints: []conf_v1.ExternalEndpoint{
+						{
+							IP:    "1.2.3.4",
+							Ports: "80,443",
+						},
+					},
+				},
+			},
+		},
+		{
+			expected: true,
+			desc:     "different external endpoints - different IP",
+			vsr: conf_v1.VirtualServerRoute{
+				Status: conf_v1.VirtualServerRouteStatus{
+					State:        state,
+					Reason:       reason,
+					Message:      msg,
+					ReferencedBy: referencedBy,
+					ExternalEndpoints: []conf_v1.ExternalEndpoint{
+						{
+							IP:    "5.6.7.8",
+							Ports: "80,443",
+						},
+					},
+				},
+			},
+		},
+		{
+			expected: true,
+			desc:     "missing external endpoints in VSR",
+			vsr: conf_v1.VirtualServerRoute{
+				Status: conf_v1.VirtualServerRouteStatus{
+					State:        state,
+					Reason:       reason,
+					Message:      msg,
+					ReferencedBy: referencedBy,
+					// No ExternalEndpoints
 				},
 			},
 		},
@@ -616,11 +780,13 @@ func TestHasVsrStatusChanged(t *testing.T) {
 
 	for _, test := range tests {
 		test := test // address gosec G601
-		changed := hasVsrStatusChanged(&test.vsr, state, reason, msg, referencedBy)
+		t.Run(test.desc, func(t *testing.T) {
+			changed := su.hasVsrStatusChanged(&test.vsr, state, reason, msg, referencedBy)
 
-		if changed != test.expected {
-			t.Errorf("hasVsrStatusChanged(%v, %v, %v, %v) returned %v but expected %v.", test.vsr, state, reason, msg, changed, test.expected)
-		}
+			if changed != test.expected {
+				t.Errorf("hasVsrStatusChanged(%v, %v, %v, %v) returned %v but expected %v for test: %s", test.vsr, state, reason, msg, changed, test.expected, test.desc)
+			}
+		})
 	}
 }
 

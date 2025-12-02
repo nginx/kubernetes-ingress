@@ -1,4 +1,4 @@
-{{- /*gotype: github.com/nginxinc/kubernetes-ingress/internal/configs/version1.MainConfig*/ -}}
+{{- /*gotype: github.com/nginx/kubernetes-ingress/internal/configs/version1.MainConfig*/ -}}
 worker_processes  {{.WorkerProcesses}};
 {{- if .WorkerRlimitNofile}}
 worker_rlimit_nofile {{.WorkerRlimitNofile}};{{end}}
@@ -12,8 +12,8 @@ daemon off;
 error_log  stderr {{.ErrorLogLevel}};
 pid        /var/lib/nginx/nginx.pid;
 
-{{- if .OpenTracingLoadModule}}
-load_module modules/ngx_http_opentracing_module.so;
+{{- if .MainOtelLoadModule}}
+load_module modules/ngx_otel_module.so;
 {{- end}}
 {{- if .AppProtectLoadModule}}
 load_module modules/ngx_http_app_protect_module.so;
@@ -22,10 +22,8 @@ load_module modules/ngx_http_app_protect_module.so;
 load_module modules/ngx_http_app_protect_dos_module.so;
 {{- end}}
 load_module modules/ngx_fips_check_module.so;
-{{- if .MainSnippets}}
-{{range $value := .MainSnippets}}
-{{$value}}{{end}}
-{{- end}}
+{{- range $value := .MainSnippets}}
+{{$value}}{{- end}}
 
 load_module modules/ngx_http_js_module.so;
 
@@ -39,13 +37,15 @@ http {
     map_hash_max_size {{.MapHashMaxSize}};
     map_hash_bucket_size {{.MapHashBucketSize}};
 
+    {{- if .ClientBodyBufferSize }}
+    client_body_buffer_size {{.ClientBodyBufferSize}};
+    {{- end }}
+
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
-    {{- if .HTTPSnippets}}
-    {{range $value := .HTTPSnippets}}
-    {{$value}}{{end}}
-    {{- end}}
+    {{- range $value := .HTTPSnippets}}
+    {{$value}}{{- end}}
 
     {{if .LogFormat -}}
     log_format  main {{if .LogFormatEscaping}}escape={{ .LogFormatEscaping }} {{end}}
@@ -146,19 +146,32 @@ http {
     ssl_dhparam {{.SSLDHParam}};
     {{- end}}
 
-    {{- if .OpenTracingEnabled}}
-    opentracing on;
+    {{- if .MainOtelLoadModule }}
+    otel_exporter {
+        endpoint {{ .MainOtelExporterEndpoint }};
+        {{- if and .MainOtelExporterHeaderName .MainOtelExporterHeaderValue }}
+        header {{ .MainOtelExporterHeaderName }} "{{ .MainOtelExporterHeaderValue }}";
+        {{- end }}
+    }
+
+    {{ if .MainOtelServiceName}}
+    otel_service_name {{ .MainOtelServiceName }};
+    {{- end }}
+    {{ if .MainOtelGlobalTraceEnabled }}
+    otel_trace on;
     {{- end}}
-    {{- if .OpenTracingLoadModule}}
-    opentracing_load_tracer {{ .OpenTracingTracer }} /var/lib/nginx/tracer-config.json;
     {{- end}}
 
-    {{- if .ResolverAddresses}}
-    resolver {{range $resolver := .ResolverAddresses}}{{$resolver}}{{end}}{{if .ResolverValid}} valid={{.ResolverValid}}{{end}}{{if not .ResolverIPV6}} ipv6=off{{end}};
-    {{- if .ResolverTimeout}}resolver_timeout {{.ResolverTimeout}};{{end}}
-    {{- end}}
+    {{ $resolverIPV6HTTPBool := boolToPointerBool .ResolverIPV6 -}}
+    {{ makeResolver .ResolverAddresses .ResolverValid $resolverIPV6HTTPBool }}
+    {{if .ResolverTimeout}}resolver_timeout {{.ResolverTimeout}};{{end}}
 
-    {{- if .OIDC}}
+    {{- if .OIDC.Enable}}
+    keyval_zone zone=oidc_pkce:128K        timeout={{.OIDC.PKCETimeout}} sync;
+    keyval_zone zone=oidc_id_tokens:1M     timeout={{.OIDC.IDTokenTimeout}} sync;
+    keyval_zone zone=oidc_access_tokens:1M timeout={{.OIDC.AccessTimeout}} sync;
+    keyval_zone zone=refresh_tokens:1M     timeout={{.OIDC.RefreshTimeout}} sync;
+    keyval_zone zone=oidc_sids:1M          timeout={{.OIDC.SIDSTimeout}} sync;
     include oidc/oidc_common.conf;
     {{- end}}
 
@@ -204,10 +217,6 @@ http {
         access_log off;
         {{end -}}
 
-        {{- if .OpenTracingEnabled}}
-        opentracing off;
-        {{- end}}
-
         {{- if .HealthStatus}}
         location {{.HealthStatusURI}} {
             default_type text/plain;
@@ -229,10 +238,6 @@ http {
         root /usr/share/nginx/html;
 
         access_log off;
-
-        {{if .OpenTracingEnabled}}
-        opentracing off;
-        {{end}}
 
         location  = /dashboard.html {
         }
@@ -258,10 +263,6 @@ http {
         listen unix:/var/lib/nginx/nginx-plus-api.sock;
         access_log off;
 
-        {{- if .OpenTracingEnabled}}
-        opentracing off;
-        {{- end}}
-
         # $config_version_mismatch is defined in /etc/nginx/config-version.conf
         location /configVersionCheck {
             if ($config_version_mismatch) {
@@ -281,10 +282,6 @@ http {
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
         access_log off;
-
-        {{- if .OpenTracingEnabled}}
-        opentracing off;
-        {{- end -}}
 
         return 418;
     }
@@ -318,11 +315,9 @@ stream {
 
     {{- range $value := .StreamSnippets}}
     {{$value}}{{end}}
-
-    {{- if .ResolverAddresses}}
-    resolver {{range $resolver := .ResolverAddresses}}{{$resolver}}{{end}}{{if .ResolverValid}} valid={{.ResolverValid}}{{end}}{{if not .ResolverIPV6}} ipv6=off{{end}};
+    {{ $resolverIPV6StreamBool := boolToPointerBool .ResolverIPV6 -}}
+    {{ makeResolver .ResolverAddresses .ResolverValid $resolverIPV6StreamBool }}
     {{if .ResolverTimeout}}resolver_timeout {{.ResolverTimeout}};{{end}}
-    {{- end}}
 
     map_hash_max_size {{.MapHashMaxSize}};
     {{if .MapHashBucketSize}}map_hash_bucket_size {{.MapHashBucketSize}};{{end}}
@@ -355,18 +350,49 @@ stream {
     }
     {{end}}
 
+    {{- if .ZoneSyncConfig.Enable }}
+    server {
+        listen {{ .ZoneSyncConfig.Port }};
+        {{ if not .DisableIPV6}}listen [::]:{{ .ZoneSyncConfig.Port }}{{end}};
+        {{ makeResolver .ZoneSyncConfig.ResolverAddresses .ZoneSyncConfig.ResolverValid .ZoneSyncConfig.ResolverIPV6 }}
+        zone_sync;
+        zone_sync_server {{ .ZoneSyncConfig.Domain }}:{{ .ZoneSyncConfig.Port }} resolve;
+    }
+    {{- end }}
     include /etc/nginx/stream-conf.d/*.conf;
 }
 
-{{- if .NginxVersion.PlusGreaterThanOrEqualTo "nginx-plus-r33" }}
 mgmt {
-    usage_report endpoint=product.connect.nginx.com interval=1h;
-    uuid_file /var/lib/nginx/nginx.id;
-    license_token conf/license.jwt;
+    {{- if or (ne .MGMTConfig.Endpoint "") (ne .MGMTConfig.Interval "") }}
+    usage_report
+    {{- if ne .MGMTConfig.Endpoint "" }} endpoint={{ .MGMTConfig.Endpoint }} {{- end }} {{- if ne .MGMTConfig.Interval "" }} interval={{ .MGMTConfig.Interval }} {{- end }};
+    {{- end }}
+    {{- if ne .MGMTConfig.ProxyHost "" }}
+    proxy {{ .MGMTConfig.ProxyHost }};
+    {{- end }}
+    {{- if ne .MGMTConfig.ProxyUser "" }}
+    proxy_username {{ .MGMTConfig.ProxyUser }};
+    {{- end }}
+    {{- if ne .MGMTConfig.ProxyPass "" }}
+    proxy_password {{ .MGMTConfig.ProxyPass }};
+    {{- end }}
+    license_token {{ printf "%s/license.jwt" .StaticSSLPath }};
+    enforce_initial_report {{ makeOnOffFromBool .MGMTConfig.EnforceInitialReport}};
+    {{ if .MGMTConfig.SSLVerify -}}
+    ssl_verify {{ makeOnOffFromBool .MGMTConfig.SSLVerify }};
+    {{ end -}}
+    {{ if .MGMTConfig.ResolverAddresses -}}
+    {{ makeResolver .MGMTConfig.ResolverAddresses .MGMTConfig.ResolverValid .MGMTConfig.ResolverIPV6 }}
+    {{ end -}}
+    {{ if .MGMTConfig.TrustedCert -}}
+    ssl_trusted_certificate {{ printf "%s/mgmt/ca.crt" .StaticSSLPath }};
+    {{ end -}}
+    {{ if .MGMTConfig.TrustedCRL -}}
+    ssl_crl {{ printf "%s/mgmt/ca.crl" .StaticSSLPath }};
+    {{ end -}}
+    {{ if .MGMTConfig.ClientAuth -}}
+    ssl_certificate {{ printf "%s/mgmt/client" .StaticSSLPath }};
+    ssl_certificate_key {{ printf "%s/mgmt/client" .StaticSSLPath }};
+    {{ end -}}
     deployment_context /etc/nginx/reporting/tracking.info;
 }
-{{- else if .NginxVersion.PlusGreaterThanOrEqualTo "nginx-plus-r31" }}
-mgmt {
-    usage_report interval=0s;
-}
-{{- end }}

@@ -2,7 +2,7 @@
 
 In this example we deploy a web application, configure load balancing with a VirtualServer, and apply a JWT policy.
 Instead of using a local secret to verify the client request such as in the
-[jwt](https://github.com/nginxinc/kubernetes-ingress/tree/main/examples/custom-resources/jwt) example, we will define an
+[jwt](https://github.com/nginx/kubernetes-ingress/tree/main/examples/custom-resources/jwt) example, we will define an
 external Identity Provider (IdP) using the `JwksURI` field.
 
 We will be using a deployment of [KeyCloak](https://www.keycloak.org/) to work as our IdP in this example. In this
@@ -10,7 +10,7 @@ example, KeyCloak is deployed as a single container for the purpose of exposing 
 
 ## Prerequisites
 
-1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
+1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
    instructions to deploy the Ingress Controller.
 
 2. Save the public IP address of the Ingress Controller into `/etc/hosts` of your machine:
@@ -66,7 +66,7 @@ To set up Keycloak:
 
 3. Create a new Client called `jwks-client`. This can be done by selecting the `Client`s tab on the left and then
    selecting `Create client`.
-   - When creating the Client, ensure both `Client authentication` and `Authorization` are enabled.
+   - When creating the Client, ensure both `Client authentication`, `Authorization` & `Direct access grants` are enabled.
 
 4. Once the client is created, navigate to the `Credentials` tab for that client and copy the client secret.
    - This can be saved in the `SECRET` shell variable for later:
@@ -75,7 +75,7 @@ To set up Keycloak:
       export SECRET=<client secret>
       ```
 
-5. Create a new User called `jwks-user` by selecting the Users tab on the left and then selecting Create client.
+5. Create a new User called `jwks-user` by selecting the Users tab on the left and then selecting Create client.  Ensure an email, first & last name are set.
 
 6. Once the user is created, navigate to the `Credentials` tab for that user and select `Set password`. For this example
    the password can be whatever you want.

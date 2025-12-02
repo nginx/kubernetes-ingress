@@ -1,0 +1,13 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: rate-limit-jwt-claim-sub-premium
+spec:
+  rateLimit:
+    rate: 5r/s
+    key: ${jwt_claim_sub}
+    zoneSize: 10M
+    condition:
+      jwt:
+        match: Premium
+        claim: user_details.level

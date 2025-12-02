@@ -5,7 +5,7 @@ This will allow IPv4 and/or IPv6 address using HTTP and/or HTTPS based requests 
 
 ## Prerequisites
 
-1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
+1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
    instructions to deploy the Ingress Controller with custom resources enabled.
 2. Ensure the Ingress Controller is configured with the `-global-configuration` argument:
 

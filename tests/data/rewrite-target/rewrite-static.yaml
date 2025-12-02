@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rewrite-static-ingress
+  annotations:
+    nginx.org/rewrite-target: "/backend"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: rewrite.example.com
+    http:
+      paths:
+      - path: /app
+        pathType: Prefix
+        backend:
+          service:
+            name: backend1-svc
+            port:
+              number: 80

@@ -5,7 +5,7 @@ metadata:
 spec:
   host: virtual-server.example.com
   tls:
-    secret: virtual-server-route-tls-grpc-secret
+    secret: tls-secret
   routes:
   - path: "/grpcs"
     route: grpcs

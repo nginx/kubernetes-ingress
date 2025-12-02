@@ -1,0 +1,11 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: nginx-config
+  namespace: nginx-ingress
+data:
+  zone-sync: "false"
+  zone-sync-port: "34100"
+  zone-sync-resolver-valid: "5s"
+  zone-sync-resolver-ipv6: "true"
+  zone-sync-resolver-addresses: "kube-dns.kube-system.svc.cluster.local"

@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/nginxinc/kubernetes-ingress/internal/configs"
+	"github.com/nginx/kubernetes-ingress/internal/configs"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
@@ -94,6 +94,8 @@ func validateSpecialVariable(nVar string, fieldPath *field.Path, isPlus bool) fi
 		} else {
 			addErrors(isValidSpecialHeaderLikeVariable(value))
 		}
+	case "apikey":
+		addErrors(isValidSpecialHeaderLikeVariable(value))
 	default:
 		allErrs = append(allErrs, field.Invalid(fieldPath, nVar, "unknown special variable"))
 	}
@@ -167,6 +169,11 @@ func validateOffset(offset string, fieldPath *field.Path) field.ErrorList {
 
 // http://nginx.org/en/docs/syntax.html
 const sizeErrMsg = "must consist of numeric characters followed by a valid size suffix. 'k|K|m|M"
+
+// ValidateSize is a wrapper for validateSize to be used in other packages
+func ValidateSize(size string, fieldPath *field.Path) field.ErrorList {
+	return validateSize(size, fieldPath)
+}
 
 func validateSize(size string, fieldPath *field.Path) field.ErrorList {
 	if size == "" {

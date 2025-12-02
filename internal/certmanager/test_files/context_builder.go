@@ -38,9 +38,9 @@ import (
 	cmfake "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned/fake"
 	informers "github.com/cert-manager/cert-manager/pkg/client/informers/externalversions"
 	"github.com/cert-manager/cert-manager/pkg/util"
-	k8s_nginx "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned"
-	vsfake "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned/fake"
-	vsinformers "github.com/nginxinc/kubernetes-ingress/pkg/client/informers/externalversions"
+	k8s_nginx "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned"
+	vsfake "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/fake"
+	vsinformers "github.com/nginx/kubernetes-ingress/pkg/client/informers/externalversions"
 )
 
 // Builder is a structure used to construct new Contexts for use during tests.
@@ -158,10 +158,10 @@ func (b *Builder) EnsureReactorCalled(testName string, fn coretesting.ReactionFu
 	return func(action coretesting.Action) (handled bool, ret runtime.Object, err error) {
 		handled, ret, err = fn(action)
 		if !handled {
-			return
+			return handled, ret, err
 		}
 		b.requiredReactors[testName] = true
-		return
+		return handled, ret, err
 	}
 }
 

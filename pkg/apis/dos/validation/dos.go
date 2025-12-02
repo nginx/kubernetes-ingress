@@ -8,8 +8,9 @@ import (
 	"strconv"
 	"strings"
 
-	validation2 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/validation"
-	"github.com/nginxinc/kubernetes-ingress/pkg/apis/dos/v1beta1"
+	internalValidation "github.com/nginx/kubernetes-ingress/internal/validation"
+	validation2 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
+	"github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -128,24 +129,17 @@ func validateAppProtectDosLogDest(dstAntn string) error {
 	}
 	if validIPRegex.MatchString(dstAntn) || validDNSRegex.MatchString(dstAntn) || validLocalhostRegex.MatchString(dstAntn) {
 		chunks := strings.Split(dstAntn, ":")
-		err := validatePort(chunks[1])
+		port, err := strconv.Atoi(chunks[1])
+		if err != nil {
+			return err
+		}
+		err = internalValidation.ValidatePort(port)
 		if err != nil {
 			return fmt.Errorf("invalid log destination: %w", err)
 		}
 		return nil
 	}
 	return fmt.Errorf("invalid log destination: %s, must follow format: <ip-address | localhost | dns name>:<port> or stderr", dstAntn)
-}
-
-func validatePort(value string) error {
-	port, err := strconv.Atoi(value)
-	if err != nil {
-		return fmt.Errorf("error parsing port number: %w", err)
-	}
-	if port > 65535 || port < 1 {
-		return fmt.Errorf("error parsing port: %v not a valid port number", port)
-	}
-	return nil
 }
 
 func validateAppProtectDosName(name string) error {

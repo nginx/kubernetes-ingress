@@ -1,8 +1,8 @@
 package version1
 
 import (
-	"github.com/nginxinc/kubernetes-ingress/internal/configs/version2"
-	"github.com/nginxinc/kubernetes-ingress/internal/nginx"
+	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
+	"github.com/nginx/kubernetes-ingress/internal/nginx"
 )
 
 // UpstreamLabels describes the Prometheus labels for an NGINX upstream.
@@ -73,31 +73,34 @@ type LimitReqZone struct {
 	Key  string
 	Size string
 	Rate string
+	Sync bool
 }
 
 // Server describes an NGINX server.
 type Server struct {
-	ServerSnippets        []string
-	Name                  string
-	ServerTokens          string
-	Locations             []Location
-	SSL                   bool
-	SSLCertificate        string
-	SSLCertificateKey     string
-	SSLRejectHandshake    bool
-	TLSPassthrough        bool
-	GRPCOnly              bool
-	StatusZone            string
-	HTTP2                 bool
-	RedirectToHTTPS       bool
-	SSLRedirect           bool
-	ProxyProtocol         bool
-	HSTS                  bool
-	HSTSMaxAge            int64
-	HSTSIncludeSubdomains bool
-	HSTSBehindProxy       bool
-	ProxyHideHeaders      []string
-	ProxyPassHeaders      []string
+	ServerSnippets         []string
+	Name                   string
+	ServerTokens           string
+	Locations              []Location
+	SSL                    bool
+	SSLCertificate         string
+	SSLCertificateKey      string
+	SSLCiphers             string
+	SSLPreferServerCiphers bool
+	SSLRejectHandshake     bool
+	TLSPassthrough         bool
+	GRPCOnly               bool
+	StatusZone             string
+	HTTP2                  bool
+	RedirectToHTTPS        bool
+	SSLRedirect            bool
+	ProxyProtocol          bool
+	HSTS                   bool
+	HSTSMaxAge             int64
+	HSTSIncludeSubdomains  bool
+	HSTSBehindProxy        bool
+	ProxyHideHeaders       []string
+	ProxyPassHeaders       []string
 
 	HealthChecks map[string]HealthCheck
 
@@ -172,13 +175,16 @@ type Location struct {
 	ProxySendTimeout     string
 	ProxySetHeaders      []version2.Header
 	ClientMaxBodySize    string
+	ClientBodyBufferSize string
 	Websocket            bool
 	Rewrite              string
+	RewriteTarget        string
 	SSL                  bool
 	GRPC                 bool
 	ProxyBuffering       bool
 	ProxyBuffers         string
 	ProxyBufferSize      string
+	ProxyBusyBuffersSize string
 	ProxyMaxTempFileSize string
 	ProxySSLName         string
 	JWTAuth              *JWTAuth
@@ -187,6 +193,44 @@ type Location struct {
 	LimitReq             *LimitReq
 
 	MinionIngress *Ingress
+}
+
+// ZoneSyncConfig is tbe configuration for the zone_sync directives for state sharing.
+type ZoneSyncConfig struct {
+	Enable            bool
+	Port              int
+	Domain            string
+	ResolverAddresses []string
+	// Time the resolver is valid. Go time string format: "5s", "10s".
+	ResolverValid string
+	ResolverIPV6  *bool
+}
+
+// OIDCConfig allows to configure OIDC parameters.
+type OIDCConfig struct {
+	Enable         bool
+	PKCETimeout    string
+	IDTokenTimeout string
+	AccessTimeout  string
+	RefreshTimeout string
+	SIDSTimeout    string
+}
+
+// MGMTConfig is tbe configuration for the MGMT block.
+type MGMTConfig struct {
+	SSLVerify            *bool
+	EnforceInitialReport *bool
+	Endpoint             string
+	Interval             string
+	TrustedCert          bool
+	TrustedCRL           bool
+	ClientAuth           bool
+	ResolverAddresses    []string
+	ResolverIPV6         *bool
+	ResolverValid        string
+	ProxyHost            string
+	ProxyUser            string
+	ProxyPass            string
 }
 
 // MainConfig describe the main NGINX configuration file.
@@ -207,13 +251,16 @@ type MainConfig struct {
 	LogFormat                          []string
 	LogFormatEscaping                  string
 	MainSnippets                       []string
+	MGMTConfig                         MGMTConfig
 	NginxStatus                        bool
 	NginxStatusAllowCIDRs              []string
 	NginxStatusPort                    int
-	OpenTracingEnabled                 bool
-	OpenTracingLoadModule              bool
-	OpenTracingTracer                  string
-	OpenTracingTracerConfig            string
+	MainOtelLoadModule                 bool
+	MainOtelGlobalTraceEnabled         bool
+	MainOtelExporterEndpoint           string
+	MainOtelExporterHeaderName         string
+	MainOtelExporterHeaderValue        string
+	MainOtelServiceName                string
 	ProxyProtocol                      bool
 	ResolverAddresses                  []string
 	ResolverIPV6                       bool
@@ -226,6 +273,7 @@ type MainConfig struct {
 	ServerNamesHashMaxSize             string
 	MapHashBucketSize                  string
 	MapHashMaxSize                     string
+	ClientBodyBufferSize               string
 	ServerTokens                       string
 	SSLRejectHandshake                 bool
 	SSLCiphers                         string
@@ -261,7 +309,8 @@ type MainConfig struct {
 	InternalRouteServer                bool
 	InternalRouteServerName            string
 	LatencyMetrics                     bool
-	OIDC                               bool
+	ZoneSyncConfig                     ZoneSyncConfig
+	OIDC                               OIDCConfig
 	DynamicSSLReloadEnabled            bool
 	StaticSSLPath                      string
 	NginxVersion                       nginx.Version

@@ -111,7 +111,7 @@ func newTestTemplateExecutor(t *testing.T) *TemplateExecutor {
 
 // custom Main Template represents a main-template passed via ConfigMap
 var customMainTemplate = `# TEST NEW MAIN TEMPLATE
-{{- /*gotype: github.com/nginxinc/kubernetes-ingress/internal/configs/version1.MainConfig*/ -}}
+{{- /*gotype: github.com/nginx/kubernetes-ingress/internal/configs/version1.MainConfig*/ -}}
 worker_processes  {{.WorkerProcesses}};
 {{- if .WorkerRlimitNofile}}
 worker_rlimit_nofile {{.WorkerRlimitNofile}};{{end}}
@@ -125,9 +125,6 @@ daemon off;
 error_log  stderr {{.ErrorLogLevel}};
 pid        /var/lib/nginx/nginx.pid;
 
-{{- if .OpenTracingLoadModule}}
-load_module modules/ngx_http_opentracing_module.so;
-{{- end}}
 {{- if .AppProtectLoadModule}}
 load_module modules/ngx_http_app_protect_module.so;
 {{- end}}
@@ -259,13 +256,6 @@ http {
     ssl_dhparam {{.SSLDHParam}};
     {{- end}}
 
-    {{- if .OpenTracingEnabled}}
-    opentracing on;
-    {{- end}}
-    {{- if .OpenTracingLoadModule}}
-    opentracing_load_tracer {{ .OpenTracingTracer }} /var/lib/nginx/tracer-config.json;
-    {{- end}}
-
     {{- if .ResolverAddresses}}
     resolver {{range $resolver := .ResolverAddresses}}{{$resolver}}{{end}}{{if .ResolverValid}} valid={{.ResolverValid}}{{end}}{{if not .ResolverIPV6}} ipv6=off{{end}};
     {{- if .ResolverTimeout}}resolver_timeout {{.ResolverTimeout}};{{end}}
@@ -317,10 +307,6 @@ http {
         access_log off;
         {{end -}}
 
-        {{- if .OpenTracingEnabled}}
-        opentracing off;
-        {{- end}}
-
         {{- if .HealthStatus}}
         location {{.HealthStatusURI}} {
             default_type text/plain;
@@ -342,10 +328,6 @@ http {
         root /usr/share/nginx/html;
 
         access_log off;
-
-        {{if .OpenTracingEnabled}}
-        opentracing off;
-        {{end}}
 
         location  = /dashboard.html {
         }
@@ -371,10 +353,6 @@ http {
         listen unix:/var/lib/nginx/nginx-plus-api.sock;
         access_log off;
 
-        {{- if .OpenTracingEnabled}}
-        opentracing off;
-        {{- end}}
-
         # $config_version_mismatch is defined in /etc/nginx/config-version.conf
         location /configVersionCheck {
             if ($config_version_mismatch) {
@@ -394,10 +372,6 @@ http {
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
         access_log off;
-
-        {{- if .OpenTracingEnabled}}
-        opentracing off;
-        {{- end -}}
 
         return 418;
     }
@@ -480,7 +454,7 @@ mgmt {
 
 // custom Ingress Template represents an ingress-template passed via ConfigMap
 var customIngressTemplate = `# TEST NEW CUSTOM INGRESS TEMPLATE
-{{- /*gotype: github.com/nginxinc/kubernetes-ingress/internal/configs/version1.IngressNginxConfig*/ -}}
+{{- /*gotype: github.com/nginx/kubernetes-ingress/internal/configs/version1.IngressNginxConfig*/ -}}
 # configuration for {{.Ingress.Namespace}}/{{.Ingress.Name}}
 {{- range $upstream := .Upstreams}}
 upstream {{$upstream.Name}} {

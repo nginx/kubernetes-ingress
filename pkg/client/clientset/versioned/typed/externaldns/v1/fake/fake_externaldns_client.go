@@ -3,7 +3,7 @@
 package fake
 
 import (
-	v1 "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned/typed/externaldns/v1"
+	v1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/typed/externaldns/v1"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )
@@ -13,7 +13,7 @@ type FakeExternaldnsV1 struct {
 }
 
 func (c *FakeExternaldnsV1) DNSEndpoints(namespace string) v1.DNSEndpointInterface {
-	return &FakeDNSEndpoints{c, namespace}
+	return newFakeDNSEndpoints(c, namespace)
 }
 
 // RESTClient returns a RESTClient that is used to communicate

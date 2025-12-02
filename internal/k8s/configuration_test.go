@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	nic_logger "github.com/nginxinc/kubernetes-ingress/internal/logger"
-	conf_v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
-	"github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/validation"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	"github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
 	networking "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -16,7 +16,7 @@ import (
 func createTestConfiguration() *Configuration {
 	lbc := LoadBalancerController{
 		ingressClass: "nginx",
-		Logger:       nic_logger.LoggerFromContext(context.Background()),
+		Logger:       nl.LoggerFromContext(context.Background()),
 	}
 	isPlus := false
 	appProtectEnabled := false
@@ -26,8 +26,8 @@ func createTestConfiguration() *Configuration {
 	certManagerEnabled := true
 	snippetsEnabled := true
 	isIPV6Disabled := false
+	isDirectiveAutoadjustEnabled := false
 	return NewConfiguration(
-		lbc.Logger,
 		lbc.HasCorrectIngressClass,
 		isPlus,
 		appProtectEnabled,
@@ -43,6 +43,7 @@ func createTestConfiguration() *Configuration {
 		snippetsEnabled,
 		certManagerEnabled,
 		isIPV6Disabled,
+		isDirectiveAutoadjustEnabled,
 	)
 }
 
@@ -229,7 +230,7 @@ func TestAddInvalidIngress(t *testing.T) {
 		{
 			Object:  ing,
 			IsError: true,
-			Reason:  "Rejected",
+			Reason:  nl.EventReasonRejected,
 			Message: `spec.rules[1].host: Duplicate value: "foo.example.com"`,
 		},
 	}
@@ -268,7 +269,7 @@ func TestAddIngressForMergeableIngresses(t *testing.T) {
 	expectedProblems := []ConfigurationProblem{
 		{
 			Object:  minion1,
-			Reason:  "NoIngressMasterFound",
+			Reason:  nl.EventReasonNoIngressMasterFound,
 			Message: "Ingress master is invalid or doesn't exist",
 		},
 	}
@@ -436,8 +437,8 @@ func TestAddIngressForMergeableIngresses(t *testing.T) {
 		{
 			Object:  invalidMinion1,
 			IsError: true,
-			Reason:  "Rejected",
-			Message: `[spec.rules[1].host: Duplicate value: "example.com", spec.rules: Too many: 2: must have at most 1 items]`,
+			Reason:  nl.EventReasonRejected,
+			Message: `[spec.rules[1].host: Duplicate value: "example.com", spec.rules: Too many: 2: must have at most 1 item]`,
 		},
 	}
 
@@ -518,7 +519,7 @@ func TestAddIngressForMergeableIngresses(t *testing.T) {
 	expectedProblems = []ConfigurationProblem{
 		{
 			Object:  updatedMinion2,
-			Reason:  "NoIngressMasterFound",
+			Reason:  nl.EventReasonNoIngressMasterFound,
 			Message: "Ingress master is invalid or doesn't exist",
 		},
 	}
@@ -561,7 +562,7 @@ func TestAddIngressForMergeableIngresses(t *testing.T) {
 	expectedProblems = []ConfigurationProblem{
 		{
 			Object:  updatedMinion1,
-			Reason:  "NoIngressMasterFound",
+			Reason:  nl.EventReasonNoIngressMasterFound,
 			Message: "Ingress master is invalid or doesn't exist",
 		},
 	}
@@ -599,7 +600,7 @@ func TestAddIngressForMergeableIngresses(t *testing.T) {
 	expectedProblems = []ConfigurationProblem{
 		{
 			Object:  updatedMinion2,
-			Reason:  "NoIngressMasterFound",
+			Reason:  nl.EventReasonNoIngressMasterFound,
 			Message: "Ingress master is invalid or doesn't exist",
 		},
 	}
@@ -710,7 +711,7 @@ func TestAddIngressForMergeableIngresses(t *testing.T) {
 	expectedProblems = []ConfigurationProblem{
 		{
 			Object:  minion2,
-			Reason:  "NoIngressMasterFound",
+			Reason:  nl.EventReasonNoIngressMasterFound,
 			Message: "Ingress master is invalid or doesn't exist",
 		},
 	}
@@ -1090,7 +1091,7 @@ func TestAddInvalidVirtualServer(t *testing.T) {
 		{
 			Object:  vs,
 			IsError: true,
-			Reason:  "Rejected",
+			Reason:  nl.EventReasonRejected,
 			Message: "VirtualServer default/virtualserver was rejected with error: spec.host: Required value",
 		},
 	}
@@ -1183,19 +1184,17 @@ func TestDeleteNonExistingVirtualServer(t *testing.T) {
 	}
 }
 
-// TODO: vsr route selector test
 func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 	configuration := createTestConfiguration()
 
 	// Add VirtualServerRoute-1
 
-	labels := make(map[string]string)
-	vsr1 := createTestVirtualServerRoute("virtualserverroute-1", "foo.example.com", "/first", labels)
+	vsr1 := createTestVirtualServerRoute("virtualserverroute-1", "foo.example.com", "/first")
 	var expectedChanges []ResourceChange
 	expectedProblems := []ConfigurationProblem{
 		{
 			Object:  vsr1,
-			Reason:  "NoVirtualServerFound",
+			Reason:  nl.EventReasonNoVirtualServerFound,
 			Message: "VirtualServer is invalid or doesn't exist",
 		},
 	}
@@ -1222,10 +1221,6 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 				Path:  "/second",
 				Route: "virtualserverroute-2",
 			},
-			{
-				Path:          "/",
-				RouteSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "route"}},
-			},
 		})
 	expectedChanges = []ResourceChange{
 		{
@@ -1247,9 +1242,9 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 		t.Errorf("AddOrUpdateVirtualServer() returned unexpected result (-want +got):\n%s", diff)
 	}
 
-	// Add VirtualServerRoute-2
+	vsr2 := createTestVirtualServerRoute("virtualserverroute-2", "foo.example.com", "/second")
 
-	vsr2 := createTestVirtualServerRoute("virtualserverroute-2", "foo.example.com", "/second", nil)
+	// Add VirtualServerRoute-2
 
 	expectedChanges = []ResourceChange{
 		{
@@ -1294,29 +1289,6 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 		t.Errorf("AddOrUpdateVirtualServerRoute() returned unexpected result (-want +got):\n%s", diff)
 	}
 
-	// Add VirtualServerRoute-3 and VirtualServerRoute-4 with selectors
-
-	vsr3 := createTestVirtualServerRoute("virtualserverroute-3", "foo.example.com", "/third", map[string]string{"app": "route"})
-	expectedChanges = []ResourceChange{
-		{
-			Op: AddOrUpdate,
-			Resource: &VirtualServerConfiguration{
-				VirtualServer:               vs,
-				VirtualServerRoutes:         []*conf_v1.VirtualServerRoute{updatedVSR1, vsr2, vsr3},
-				VirtualServerRouteSelectors: map[string][]string{"app=route": {"default/virtualserverroute-3"}},
-			},
-		},
-	}
-	expectedProblems = nil
-
-	changes, problems = configuration.AddOrUpdateVirtualServerRoute(vsr3)
-	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
-		t.Errorf("AddOrUpdateVirtualServerRoute() returned unexpected result (-want +got):\n%s", diff)
-	}
-	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
-		t.Errorf("AddOrUpdateVirtualServerRoute() returned unexpected result (-want +got):\n%s", diff)
-	}
-
 	// Make VirtualServerRoute-1 invalid
 
 	invalidVSR1 := updatedVSR1.DeepCopy()
@@ -1327,7 +1299,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
 				VirtualServer:       vs,
-				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr2, vsr3},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr2},
 				Warnings:            []string{"VirtualServerRoute default/virtualserverroute-1 doesn't exist or invalid"},
 			},
 		},
@@ -1336,7 +1308,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 		{
 			Object:  invalidVSR1,
 			IsError: true,
-			Reason:  "Rejected",
+			Reason:  nl.EventReasonRejected,
 			Message: "VirtualServerRoute default/virtualserverroute-1 was rejected with error: spec.host: Required value",
 		},
 	}
@@ -1356,7 +1328,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
 				VirtualServer:       vs,
-				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr1, vsr2, vsr3},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr1, vsr2},
 			},
 		},
 	}
@@ -1380,7 +1352,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
 				VirtualServer:       vs,
-				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr2, vsr3},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr2},
 				Warnings:            []string{"VirtualServerRoute default/virtualserverroute-1 is invalid: spec.subroutes[0]: Invalid value: \"/\": must start with '/first'"},
 			},
 		},
@@ -1388,7 +1360,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 	expectedProblems = []ConfigurationProblem{
 		{
 			Object:  invalidForVSVSR1,
-			Reason:  "Ignored",
+			Reason:  nl.EventReasonIgnored,
 			Message: "VirtualServer default/virtualserver ignores VirtualServerRoute",
 		},
 	}
@@ -1408,7 +1380,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
 				VirtualServer:       vs,
-				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr1, vsr2, vsr3},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr1, vsr2},
 			},
 		},
 	}
@@ -1432,7 +1404,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
 				VirtualServer:       vs,
-				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr1, vsr3},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr1},
 				Warnings:            []string{"VirtualServerRoute default/virtualserverroute-2 is invalid: spec.host: Invalid value: \"bar.example.com\": must be equal to 'foo.example.com'"},
 			},
 		},
@@ -1440,7 +1412,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 	expectedProblems = []ConfigurationProblem{
 		{
 			Object:  updatedVSR2,
-			Reason:  "NoVirtualServerFound",
+			Reason:  nl.EventReasonNoVirtualServerFound,
 			Message: "VirtualServer is invalid or doesn't exist",
 		},
 	}
@@ -1471,7 +1443,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 	expectedProblems = []ConfigurationProblem{
 		{
 			Object:  vsr1,
-			Reason:  "NoVirtualServerFound",
+			Reason:  nl.EventReasonNoVirtualServerFound,
 			Message: "VirtualServer is invalid or doesn't exist",
 		},
 	}
@@ -1491,7 +1463,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
 				VirtualServer:       vs,
-				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr1, vsr3},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr1},
 				Warnings:            []string{"VirtualServerRoute default/virtualserverroute-2 is invalid: spec.host: Invalid value: \"bar.example.com\": must be equal to 'foo.example.com'"},
 			},
 		},
@@ -1499,7 +1471,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 	expectedProblems = []ConfigurationProblem{
 		{
 			Object:  updatedVSR2,
-			Reason:  "NoVirtualServerFound",
+			Reason:  nl.EventReasonNoVirtualServerFound,
 			Message: "VirtualServer is invalid or doesn't exist",
 		},
 	}
@@ -1519,7 +1491,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
 				VirtualServer:       vs,
-				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr1, vsr2, vsr3},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr1, vsr2},
 			},
 		},
 	}
@@ -1540,7 +1512,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
 				VirtualServer:       vs,
-				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr2, vsr3},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr2},
 				Warnings:            []string{"VirtualServerRoute default/virtualserverroute-1 doesn't exist or invalid"},
 			},
 		},
@@ -1570,7 +1542,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 	expectedProblems = []ConfigurationProblem{
 		{
 			Object:  vsr2,
-			Reason:  "NoVirtualServerFound",
+			Reason:  nl.EventReasonNoVirtualServerFound,
 			Message: "VirtualServer is invalid or doesn't exist",
 		},
 	}
@@ -1600,14 +1572,14 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 func TestAddInvalidVirtualServerRoute(t *testing.T) {
 	configuration := createTestConfiguration()
 
-	vsr := createTestVirtualServerRoute("virtualserverroute", "", "/", nil)
+	vsr := createTestVirtualServerRoute("virtualserverroute", "", "/")
 
 	var expectedChanges []ResourceChange
 	expectedProblems := []ConfigurationProblem{
 		{
 			Object:  vsr,
 			IsError: true,
-			Reason:  "Rejected",
+			Reason:  nl.EventReasonRejected,
 			Message: "VirtualServerRoute default/virtualserverroute was rejected with error: spec.host: Required value",
 		},
 	}
@@ -1624,8 +1596,7 @@ func TestAddInvalidVirtualServerRoute(t *testing.T) {
 func TestAddVirtualServerWithIncorrectClass(t *testing.T) {
 	configuration := createTestConfiguration()
 
-	labels := make(map[string]string)
-	vsr := createTestVirtualServerRoute("virtualserver", "foo.example.com", "/", labels)
+	vsr := createTestVirtualServerRoute("virtualserver", "foo.example.com", "/")
 	vsr.Spec.IngressClass = "someproxy"
 
 	var expectedChanges []ResourceChange
@@ -1709,7 +1680,7 @@ func TestHostCollisions(t *testing.T) {
 		{
 			Object:  ts,
 			IsError: false,
-			Reason:  "Rejected",
+			Reason:  nl.EventReasonRejected,
 			Message: "Host is taken by another resource",
 		},
 	}
@@ -1745,7 +1716,7 @@ func TestHostCollisions(t *testing.T) {
 		{
 			Object:  vs,
 			IsError: false,
-			Reason:  "Rejected",
+			Reason:  nl.EventReasonRejected,
 			Message: "Host is taken by another resource",
 		},
 	}
@@ -1797,7 +1768,7 @@ func TestHostCollisions(t *testing.T) {
 		{
 			Object:  regularIng2,
 			IsError: false,
-			Reason:  "Rejected",
+			Reason:  nl.EventReasonRejected,
 			Message: "All hosts are taken by other resources",
 		},
 	}
@@ -1906,6 +1877,543 @@ func TestHostCollisions(t *testing.T) {
 	}
 	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
 		t.Errorf("DeleteIngress() returned unexpected result (-want +got):\n%s", diff)
+	}
+}
+
+func TestAddTransportServer(t *testing.T) {
+	configuration := createTestConfiguration()
+
+	listeners := []conf_v1.Listener{
+		{
+			Name:     "tcp-7777",
+			Port:     7777,
+			Protocol: "TCP",
+		},
+	}
+
+	addOrUpdateGlobalConfiguration(t, configuration, listeners, noChanges, noProblems)
+
+	ts := createTestTransportServer("transportserver", "tcp-7777", "TCP")
+
+	// no problems are expected for all cases
+	var expectedProblems []ConfigurationProblem
+	var expectedChanges []ResourceChange
+
+	// Add TransportServer
+
+	expectedChanges = []ResourceChange{
+		{
+			Op: AddOrUpdate,
+			Resource: &TransportServerConfiguration{
+				ListenerPort:    7777,
+				TransportServer: ts,
+			},
+		},
+	}
+
+	changes, problems := configuration.AddOrUpdateTransportServer(ts)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+
+	// Update TransportServer
+
+	updatedTS := ts.DeepCopy()
+	updatedTS.Generation++
+
+	expectedChanges = []ResourceChange{
+		{
+			Op: AddOrUpdate,
+			Resource: &TransportServerConfiguration{
+				ListenerPort:    7777,
+				TransportServer: updatedTS,
+			},
+		},
+	}
+
+	changes, problems = configuration.AddOrUpdateTransportServer(updatedTS)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+
+	// Make TransportServer invalid
+
+	invalidTS := updatedTS.DeepCopy()
+	invalidTS.Generation++
+	invalidTS.Spec.Upstreams = nil
+
+	expectedChanges = []ResourceChange{
+		{
+			Op: Delete,
+			Resource: &TransportServerConfiguration{
+				ListenerPort:    7777,
+				TransportServer: updatedTS,
+			},
+			Error: `spec.action.pass: Not found: "myapp"`,
+		},
+	}
+
+	changes, problems = configuration.AddOrUpdateTransportServer(invalidTS)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+
+	// Restore TransportServer
+
+	expectedChanges = []ResourceChange{
+		{
+			Op: AddOrUpdate,
+			Resource: &TransportServerConfiguration{
+				ListenerPort:    7777,
+				TransportServer: updatedTS,
+			},
+		},
+	}
+
+	changes, problems = configuration.AddOrUpdateTransportServer(updatedTS)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+
+	// Delete TransportServer
+
+	expectedChanges = []ResourceChange{
+		{
+			Op: Delete,
+			Resource: &TransportServerConfiguration{
+				ListenerPort:    7777,
+				TransportServer: updatedTS,
+			},
+		},
+	}
+
+	changes, problems = configuration.DeleteTransportServer("default/transportserver")
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("DeleteTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("DeleteTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+}
+
+func TestAddTransportServerWithHost(t *testing.T) {
+	configuration := createTestConfiguration()
+
+	listeners := []conf_v1.Listener{
+		{
+			Name:     "tcp-7777",
+			Port:     7777,
+			Protocol: "TCP",
+		},
+	}
+
+	addOrUpdateGlobalConfiguration(t, configuration, listeners, noChanges, noProblems)
+
+	secretName := "echo-secret"
+
+	ts := createTestTransportServerWithHost("transportserver", "echo.example.com", "tcp-7777", secretName)
+
+	// no problems are expected for all cases
+	var expectedProblems []ConfigurationProblem
+	var expectedChanges []ResourceChange
+
+	// Add TransportServer
+
+	expectedChanges = []ResourceChange{
+		{
+			Op: AddOrUpdate,
+			Resource: &TransportServerConfiguration{
+				ListenerPort:    7777,
+				TransportServer: ts,
+			},
+		},
+	}
+
+	changes, problems := configuration.AddOrUpdateTransportServer(ts)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+
+	// Update TransportServer
+
+	updatedTS := ts.DeepCopy()
+	updatedTS.Generation++
+
+	expectedChanges = []ResourceChange{
+		{
+			Op: AddOrUpdate,
+			Resource: &TransportServerConfiguration{
+				ListenerPort:    7777,
+				TransportServer: updatedTS,
+			},
+		},
+	}
+
+	changes, problems = configuration.AddOrUpdateTransportServer(updatedTS)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+
+	// Make TransportServer invalid
+
+	invalidTS := updatedTS.DeepCopy()
+	invalidTS.Generation++
+	invalidTS.Spec.Upstreams = nil
+
+	expectedChanges = []ResourceChange{
+		{
+			Op: Delete,
+			Resource: &TransportServerConfiguration{
+				ListenerPort:    7777,
+				TransportServer: updatedTS,
+			},
+			Error: `spec.action.pass: Not found: "myapp"`,
+		},
+	}
+
+	changes, problems = configuration.AddOrUpdateTransportServer(invalidTS)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+
+	// Restore TransportServer
+
+	expectedChanges = []ResourceChange{
+		{
+			Op: AddOrUpdate,
+			Resource: &TransportServerConfiguration{
+				ListenerPort:    7777,
+				TransportServer: updatedTS,
+			},
+		},
+	}
+
+	changes, problems = configuration.AddOrUpdateTransportServer(updatedTS)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+
+	// Delete TransportServer
+
+	expectedChanges = []ResourceChange{
+		{
+			Op: Delete,
+			Resource: &TransportServerConfiguration{
+				ListenerPort:    7777,
+				TransportServer: updatedTS,
+			},
+		},
+	}
+
+	changes, problems = configuration.DeleteTransportServer("default/transportserver")
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("DeleteTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("DeleteTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+}
+
+func TestAddTransportServerForTLSPassthrough(t *testing.T) {
+	configuration := createTestConfiguration()
+
+	ts := createTestTLSPassthroughTransportServer("transportserver", "foo.example.com")
+
+	// no problems are expected for all cases
+	var expectedProblems []ConfigurationProblem
+
+	// Add TransportServer
+
+	expectedChanges := []ResourceChange{
+		{
+			Op: AddOrUpdate,
+			Resource: &TransportServerConfiguration{
+				ListenerPort:    0,
+				TransportServer: ts,
+			},
+		},
+	}
+
+	changes, problems := configuration.AddOrUpdateTransportServer(ts)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+
+	// DeleteTransportServer
+
+	expectedChanges = []ResourceChange{
+		{
+			Op: Delete,
+			Resource: &TransportServerConfiguration{
+				ListenerPort:    0,
+				TransportServer: ts,
+			},
+		},
+	}
+
+	changes, problems = configuration.DeleteTransportServer("default/transportserver")
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("DeleteTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("DeleteTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+}
+
+func TestListenerFlip(t *testing.T) {
+	configuration := createTestConfiguration()
+
+	listeners := []conf_v1.Listener{
+		{
+			Name:     "tcp-7777",
+			Port:     7777,
+			Protocol: "TCP",
+		},
+		{
+			Name:     "tcp-8888",
+			Port:     8888,
+			Protocol: "TCP",
+		},
+	}
+	addOrUpdateGlobalConfiguration(t, configuration, listeners, noChanges, noProblems)
+
+	ts := createTestTransportServer("transportserver", "tcp-7777", "TCP")
+
+	// no problems are expected for all cases
+	var expectedProblems []ConfigurationProblem
+	var expectedChanges []ResourceChange
+
+	// Add TransportServer
+
+	expectedChanges = []ResourceChange{
+		{
+			Op: AddOrUpdate,
+			Resource: &TransportServerConfiguration{
+				ListenerPort:    7777,
+				TransportServer: ts,
+			},
+		},
+	}
+
+	changes, problems := configuration.AddOrUpdateTransportServer(ts)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+
+	// Update TransportServer listener
+
+	updatedListenerTS := ts.DeepCopy()
+	updatedListenerTS.Generation++
+	updatedListenerTS.Spec.Listener.Name = "tcp-8888"
+
+	expectedChanges = []ResourceChange{
+		{
+			Op: AddOrUpdate,
+			Resource: &TransportServerConfiguration{
+				ListenerPort:    8888,
+				TransportServer: updatedListenerTS,
+			},
+		},
+	}
+
+	changes, problems = configuration.AddOrUpdateTransportServer(updatedListenerTS)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+
+	// Update TransportSever listener to TLS Passthrough
+
+	updatedWithPassthroughTS := updatedListenerTS.DeepCopy()
+	updatedWithPassthroughTS.Generation++
+	updatedWithPassthroughTS.Spec.Listener.Name = "tls-passthrough"
+	updatedWithPassthroughTS.Spec.Listener.Protocol = "TLS_PASSTHROUGH"
+	updatedWithPassthroughTS.Spec.Host = "example.com"
+
+	expectedChanges = []ResourceChange{
+		{
+			Op: Delete,
+			Resource: &TransportServerConfiguration{
+				ListenerPort:    8888,
+				TransportServer: updatedListenerTS,
+			},
+		},
+		{
+			Op: AddOrUpdate,
+			Resource: &TransportServerConfiguration{
+				ListenerPort:    0,
+				TransportServer: updatedWithPassthroughTS,
+			},
+		},
+	}
+
+	changes, problems = configuration.AddOrUpdateTransportServer(updatedWithPassthroughTS)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+}
+
+func TestAddInvalidTransportServer(t *testing.T) {
+	configuration := createTestConfiguration()
+
+	ts := createTestTransportServer("transportserver", "", "TCP")
+
+	expectedProblems := []ConfigurationProblem{
+		{
+			Object:  ts,
+			IsError: true,
+			Reason:  nl.EventReasonRejected,
+			Message: "TransportServer default/transportserver was rejected with error: spec.listener.name: Required value",
+		},
+	}
+	var expectedChanges []ResourceChange
+
+	changes, problems := configuration.AddOrUpdateTransportServer(ts)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+}
+
+func TestAddTransportServerWithIncorrectClass(t *testing.T) {
+	configuration := createTestConfiguration()
+
+	// Add TransportServer with incorrect class
+
+	ts := createTestTLSPassthroughTransportServer("transportserver", "foo.example.com")
+	ts.Spec.IngressClass = "someproxy"
+
+	var expectedProblems []ConfigurationProblem
+	var expectedChanges []ResourceChange
+
+	changes, problems := configuration.AddOrUpdateTransportServer(ts)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+
+	// Make the class correct
+
+	updatedTS := ts.DeepCopy()
+	updatedTS.Generation++
+	updatedTS.Spec.IngressClass = "nginx"
+
+	expectedChanges = []ResourceChange{
+		{
+			Op: AddOrUpdate,
+			Resource: &TransportServerConfiguration{
+				TransportServer: updatedTS,
+			},
+		},
+	}
+	expectedProblems = nil
+
+	changes, problems = configuration.AddOrUpdateTransportServer(updatedTS)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+
+	// Make the class incorrect
+
+	expectedChanges = []ResourceChange{
+		{
+			Op: Delete,
+			Resource: &TransportServerConfiguration{
+				TransportServer: updatedTS,
+			},
+		},
+	}
+	expectedProblems = nil
+
+	changes, problems = configuration.AddOrUpdateTransportServer(ts)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+}
+
+func TestAddTransportServerWithNonExistingListener(t *testing.T) {
+	configuration := createTestConfiguration()
+
+	addOrUpdateGlobalConfiguration(t, configuration, []conf_v1.Listener{}, noChanges, noProblems)
+
+	ts := createTestTransportServer("transportserver", "tcp-7777", "TCP")
+
+	expectedProblems := []ConfigurationProblem{
+		{
+			Object:  ts,
+			IsError: false,
+			Reason:  nl.EventReasonRejected,
+			Message: `Listener tcp-7777 doesn't exist`,
+		},
+	}
+	var expectedChanges []ResourceChange
+
+	changes, problems := configuration.AddOrUpdateTransportServer(ts)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+}
+
+func TestDeleteNonExistingTransportServer(t *testing.T) {
+	configuration := createTestConfiguration()
+
+	var expectedChanges []ResourceChange
+	var expectedProblems []ConfigurationProblem
+
+	changes, problems := configuration.DeleteTransportServer("default/transportserver")
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("DeleteTransportServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("DeleteTransportServer() returned unexpected result (-want +got):\n%s", diff)
 	}
 }
 
@@ -2112,7 +2620,7 @@ func TestAddOrUpdateGlobalConfigurationThenAddTransportServer(t *testing.T) {
 		{
 			Object:  ts1,
 			IsError: false,
-			Reason:  "Rejected",
+			Reason:  nl.EventReasonRejected,
 			Message: "Listener tcp-7777 doesn't exist",
 		},
 	}
@@ -2185,13 +2693,13 @@ func TestAddOrUpdateGlobalConfigurationThenAddTransportServer(t *testing.T) {
 		{
 			Object:  ts1,
 			IsError: false,
-			Reason:  "Rejected",
+			Reason:  nl.EventReasonRejected,
 			Message: "Listener tcp-7777 doesn't exist",
 		},
 		{
 			Object:  ts2,
 			IsError: false,
-			Reason:  "Rejected",
+			Reason:  nl.EventReasonRejected,
 			Message: "Listener tcp-8888 doesn't exist",
 		},
 	}
@@ -2906,7 +3414,7 @@ func TestPortCollisions(t *testing.T) {
 		{
 			Object:  ts2,
 			IsError: false,
-			Reason:  "Rejected",
+			Reason:  nl.EventReasonRejected,
 			Message: "Listener tcp-7777 with host empty host is taken by another resource",
 		},
 	}
@@ -2926,7 +3434,7 @@ func TestPortCollisions(t *testing.T) {
 		{
 			Object:  ts3,
 			IsError: false,
-			Reason:  "Rejected",
+			Reason:  nl.EventReasonRejected,
 			Message: "Listener tcp-7777 with host empty host is taken by another resource",
 		},
 	}
@@ -3017,7 +3525,7 @@ func TestChallengeIngressToVSR(t *testing.T) {
 		{
 			Object:  ing,
 			IsError: true,
-			Reason:  "Rejected",
+			Reason:  nl.EventReasonRejected,
 			Message: "spec.rules: Forbidden: challenge Ingress must have exactly 1 rule defined",
 		},
 	}
@@ -3036,7 +3544,7 @@ func TestChallengeIngressToVSR(t *testing.T) {
 		{
 			Object:  ing,
 			IsError: true,
-			Reason:  "Rejected",
+			Reason:  nl.EventReasonRejected,
 			Message: "spec.rules.HTTP.Paths: Forbidden: challenge Ingress must have exactly 1 path defined",
 		},
 	}
@@ -3057,9 +3565,7 @@ func TestChallengeIngressNoVSR(t *testing.T) {
 
 	vs := createTestVirtualServer("virtualserver", "bar.example.com")
 	ing := createTestChallengeIngress("challenge", "foo.example.com", "/.well-known/acme-challenge/test", "cm-acme-http-solver-test")
-
-	changes, problems := configuration.AddOrUpdateVirtualServer(vs)
-
+	configuration.AddOrUpdateVirtualServer(vs)
 	expectedChanges := []ResourceChange{
 		{
 			Op: AddOrUpdate,
@@ -3073,13 +3579,12 @@ func TestChallengeIngressNoVSR(t *testing.T) {
 		},
 	}
 
-	changes, problems = configuration.AddOrUpdateIngress(ing)
-
+	changes, problems := configuration.AddOrUpdateIngress(ing)
 	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
-		t.Errorf("AddOrUpdateIngress() returned unexpected changes (-want +got):\n%s", diff)
+		t.Errorf("AddOrUpdateIngress() returned unexpected result (-want +got):\n%s", diff)
 	}
 	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
-		t.Errorf("AddOrUpdateIngress() returned unexpected problems (-want +got):\n%s", diff)
+		t.Errorf("AddOrUpdateIngress() returned unexpected result (-want +got):\n%s", diff)
 	}
 }
 
@@ -3260,12 +3765,11 @@ func createTestVirtualServerWithRoutes(name string, host string, routes []conf_v
 	return vs
 }
 
-func createTestVirtualServerRoute(name string, host string, path string, labels map[string]string) *conf_v1.VirtualServerRoute {
+func createTestVirtualServerRoute(name string, host string, path string) *conf_v1.VirtualServerRoute {
 	return &conf_v1.VirtualServerRoute{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "default",
 			Name:      name,
-			Labels:    labels,
 		},
 		Spec: conf_v1.VirtualServerRouteSpec{
 			IngressClass: "nginx",
@@ -3309,6 +3813,48 @@ func createTestChallengeVirtualServerRoute(name string, host string, path string
 			},
 		},
 	}
+}
+
+func createTestTransportServer(name string, listenerName string, listenerProtocol string) *conf_v1.TransportServer {
+	return &conf_v1.TransportServer{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              name,
+			Namespace:         "default",
+			CreationTimestamp: metav1.Now(),
+			Generation:        1,
+		},
+		Spec: conf_v1.TransportServerSpec{
+			Listener: conf_v1.TransportServerListener{
+				Name:     listenerName,
+				Protocol: listenerProtocol,
+			},
+			Upstreams: []conf_v1.TransportServerUpstream{
+				{
+					Name:    "myapp",
+					Service: "myapp-svc",
+					Port:    1234,
+				},
+			},
+			Action: &conf_v1.TransportServerAction{
+				Pass: "myapp",
+			},
+		},
+	}
+}
+
+func createTestTransportServerWithHost(name string, host string, listenerName string, secretName string) *conf_v1.TransportServer {
+	ts := createTestTransportServer(name, listenerName, "TCP")
+	ts.Spec.Host = host
+	ts.Spec.TLS = &conf_v1.TransportServerTLS{Secret: secretName}
+
+	return ts
+}
+
+func createTestTLSPassthroughTransportServer(name string, host string) *conf_v1.TransportServer {
+	ts := createTestTransportServer(name, conf_v1.TLSPassthroughListenerName, conf_v1.TLSPassthroughListenerProtocol)
+	ts.Spec.Host = host
+
+	return ts
 }
 
 func createTestGlobalConfiguration(listeners []conf_v1.Listener) *conf_v1.GlobalConfiguration {
@@ -3579,7 +4125,7 @@ func TestFindResourcesForResourceReference(t *testing.T) {
 				Route: "virtualserverroute",
 			},
 		})
-	vsr := createTestVirtualServerRoute("virtualserverroute", "asd.example.com", "/", nil)
+	vsr := createTestVirtualServerRoute("virtualserverroute", "asd.example.com", "/")
 	tsPassthrough := createTestTLSPassthroughTransportServer("transportserver-passthrough", "ts.example.com")
 	listeners := []conf_v1.Listener{
 		{
@@ -3756,6 +4302,105 @@ func TestGetResources(t *testing.T) {
 	}
 }
 
+func TestGetTransportServerMetrics(t *testing.T) {
+	t.Parallel()
+	tsPass := createTestTLSPassthroughTransportServer("transportserver", "abc.example.com")
+	tsTCP := createTestTransportServer("transportserver-tcp", "tcp-7777", "TCP")
+	tsUDP := createTestTransportServer("transportserver-udp", "udp-7777", "UDP")
+
+	tests := []struct {
+		tses     []*conf_v1.TransportServer
+		expected *TransportServerMetrics
+		msg      string
+	}{
+		{
+			tses: nil,
+			expected: &TransportServerMetrics{
+				TotalTLSPassthrough: 0,
+				TotalTCP:            0,
+				TotalUDP:            0,
+			},
+			msg: "no TransportServers",
+		},
+		{
+			tses: []*conf_v1.TransportServer{
+				tsPass,
+			},
+			expected: &TransportServerMetrics{
+				TotalTLSPassthrough: 1,
+				TotalTCP:            0,
+				TotalUDP:            0,
+			},
+			msg: "one TLSPassthrough TransportServer",
+		},
+		{
+			tses: []*conf_v1.TransportServer{
+				tsTCP,
+			},
+			expected: &TransportServerMetrics{
+				TotalTLSPassthrough: 0,
+				TotalTCP:            1,
+				TotalUDP:            0,
+			},
+			msg: "one TCP TransportServer",
+		},
+		{
+			tses: []*conf_v1.TransportServer{
+				tsUDP,
+			},
+			expected: &TransportServerMetrics{
+				TotalTLSPassthrough: 0,
+				TotalTCP:            0,
+				TotalUDP:            1,
+			},
+			msg: "one UDP TransportServer",
+		},
+		{
+			tses: []*conf_v1.TransportServer{
+				tsPass, tsTCP, tsUDP,
+			},
+			expected: &TransportServerMetrics{
+				TotalTLSPassthrough: 1,
+				TotalTCP:            1,
+				TotalUDP:            1,
+			},
+			msg: "TLSPassthrough, TCP and UDP TransportServers",
+		},
+	}
+
+	listeners := []conf_v1.Listener{
+		{
+			Name:     "tcp-7777",
+			Port:     7777,
+			Protocol: "TCP",
+		},
+		{
+			Name:     "udp-7777",
+			Port:     7777,
+			Protocol: "UDP",
+		},
+	}
+	gc := createTestGlobalConfiguration(listeners)
+
+	for _, test := range tests {
+		configuration := createTestConfiguration()
+
+		_, _, err := configuration.AddOrUpdateGlobalConfiguration(gc)
+		if err != nil {
+			t.Fatalf("AddOrUpdateGlobalConfiguration() returned unexpected error %v", err)
+		}
+
+		for _, ts := range test.tses {
+			configuration.AddOrUpdateTransportServer(ts)
+		}
+
+		result := configuration.GetTransportServerMetrics()
+		if diff := cmp.Diff(test.expected, result); diff != "" {
+			t.Errorf("GetTransportServerMetrics() returned unexpected result for the case of %s (-want +got):\n%s", test.msg, diff)
+		}
+	}
+}
+
 func TestIsEqualForIngressConfigurations(t *testing.T) {
 	t.Parallel()
 	regularIng := createTestIngress("regular-ingress", "foo.example.com")
@@ -3851,7 +4496,6 @@ func TestIsEqualForIngressConfigurations(t *testing.T) {
 	}
 }
 
-// TODO: vsr route selector test
 func TestIsEqualForVirtualServers(t *testing.T) {
 	t.Parallel()
 	vs := createTestVirtualServerWithRoutes(
@@ -3863,7 +4507,7 @@ func TestIsEqualForVirtualServers(t *testing.T) {
 				Route: "virtualserverroute",
 			},
 		})
-	vsr := createTestVirtualServerRoute("virtualserverroute", "foo.example.com", "/", nil)
+	vsr := createTestVirtualServerRoute("virtualserverroute", "foo.example.com", "/")
 
 	vsWithUpdatedGen := vs.DeepCopy()
 	vsWithUpdatedGen.Generation++
@@ -3878,26 +4522,26 @@ func TestIsEqualForVirtualServers(t *testing.T) {
 		msg       string
 	}{
 		{
-			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
-			vsConfig2: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
+			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, []string{}),
+			vsConfig2: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, []string{}),
 			expected:  true,
 			msg:       "equal virtual servers",
 		},
 		{
-			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
-			vsConfig2: NewVirtualServerConfiguration(vsWithUpdatedGen, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
+			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, []string{}),
+			vsConfig2: NewVirtualServerConfiguration(vsWithUpdatedGen, []*conf_v1.VirtualServerRoute{vsr}, []string{}),
 			expected:  false,
 			msg:       "virtual servers with different generation",
 		},
 		{
-			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
-			vsConfig2: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{}, nil, []string{}),
+			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, []string{}),
+			vsConfig2: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{}, []string{}),
 			expected:  false,
 			msg:       "virtual servers with different number of virtual server routes",
 		},
 		{
-			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
-			vsConfig2: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsrWithUpdatedGen}, nil, []string{}),
+			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, []string{}),
+			vsConfig2: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsrWithUpdatedGen}, []string{}),
 			expected:  false,
 			msg:       "virtual servers with virtual server routes with different generation",
 		},
@@ -3914,7 +4558,7 @@ func TestIsEqualForVirtualServers(t *testing.T) {
 func TestIsEqualForDifferentResources(t *testing.T) {
 	t.Parallel()
 	ingConfig := NewRegularIngressConfiguration(createTestIngress("ingress", "foo.example.com"))
-	vsConfig := NewVirtualServerConfiguration(createTestVirtualServer("virtualserver", "bar.example.com"), []*conf_v1.VirtualServerRoute{}, nil, []string{})
+	vsConfig := NewVirtualServerConfiguration(createTestVirtualServer("virtualserver", "bar.example.com"), []*conf_v1.VirtualServerRoute{}, []string{})
 
 	result := ingConfig.IsEqual(vsConfig)
 	if result != false {
@@ -4112,3 +4756,141 @@ var (
 		},
 	}
 )
+
+func TestTransportServerListenerHostCollisions(t *testing.T) {
+	configuration := createTestConfiguration()
+
+	listeners := []conf_v1.Listener{
+		{
+			Name:     "tcp-7777",
+			Port:     7777,
+			Protocol: "TCP",
+		},
+		{
+			Name:     "tcp-8888",
+			Port:     8888,
+			Protocol: "TCP",
+		},
+	}
+
+	addOrUpdateGlobalConfiguration(t, configuration, listeners, noChanges, noProblems)
+
+	// Create TransportServers with the same listener and host
+	ts1 := createTestTransportServerWithHost("ts1", "example.com", "tcp-7777", "secret1")
+	ts2 := createTestTransportServerWithHost("ts2", "example.com", "tcp-7777", "secret2") // same listener and host
+	ts3 := createTestTransportServerWithHost("ts3", "example.org", "tcp-7777", "secret3") // different host
+	ts4 := createTestTransportServer("ts4", "tcp-7777", "TCP")                            // No host same listener
+	ts5 := createTestTransportServer("ts5", "tcp-7777", "TCP")                            // same as ts4 to induce error with empty host twice
+	ts6 := createTestTransportServerWithHost("ts6", "example.com", "tcp-8888", "secret4") // different listener
+
+	// Add ts1 to the configuration
+	expectedChanges := []ResourceChange{
+		{
+			Op: AddOrUpdate,
+			Resource: &TransportServerConfiguration{
+				ListenerPort:    7777,
+				TransportServer: ts1,
+			},
+		},
+	}
+	changes, problems := configuration.AddOrUpdateTransportServer(ts1)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer(ts1) returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(problems) != 0 {
+		t.Errorf("AddOrUpdateTransportServer(ts1) returned problems %v", problems)
+	}
+
+	// Try to add ts2, should be rejected due to conflict
+	changes, problems = configuration.AddOrUpdateTransportServer(ts2)
+	expectedChanges = nil // No changes expected
+	expectedProblems := []ConfigurationProblem{
+		{
+			Object:  ts2,
+			IsError: false,
+			Reason:  nl.EventReasonRejected,
+			Message: "Listener tcp-7777 with host example.com is taken by another resource",
+		},
+	}
+
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer(ts2) returned unexpected changes (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer(ts2) returned unexpected problems (-want +got):\n%s", diff)
+	}
+
+	// Add ts3 with a different host, should be accepted
+	expectedChanges = []ResourceChange{
+		{
+			Op: AddOrUpdate,
+			Resource: &TransportServerConfiguration{
+				ListenerPort:    7777,
+				TransportServer: ts3,
+			},
+		},
+	}
+	changes, problems = configuration.AddOrUpdateTransportServer(ts3)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer(ts3) returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(problems) != 0 {
+		t.Errorf("AddOrUpdateTransportServer(ts3) returned problems %v", problems)
+	}
+
+	// Add ts4 with no host, should be accepted
+	expectedChanges = []ResourceChange{
+		{
+			Op: AddOrUpdate,
+			Resource: &TransportServerConfiguration{
+				ListenerPort:    7777,
+				TransportServer: ts4,
+			},
+		},
+	}
+	changes, problems = configuration.AddOrUpdateTransportServer(ts4)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer(ts4) returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(problems) != 0 {
+		t.Errorf("AddOrUpdateTransportServer(ts4) returned problems %v", problems)
+	}
+
+	// Try to add ts5 with no host, should be rejected due to conflict
+	changes, problems = configuration.AddOrUpdateTransportServer(ts5)
+	expectedChanges = nil
+	expectedProblems = []ConfigurationProblem{
+		{
+			Object:  ts5,
+			IsError: false,
+			Reason:  nl.EventReasonRejected,
+			Message: "Listener tcp-7777 with host empty host is taken by another resource",
+		},
+	}
+
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer(ts5) returned unexpected changes (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer(ts5) returned unexpected problems (-want +got):\n%s", diff)
+	}
+
+	// Try to add ts6 with different listener, but same domain as initial ts, should be fine as different listener
+	changes, problems = configuration.AddOrUpdateTransportServer(ts6)
+	expectedChanges = []ResourceChange{
+		{
+			Op: AddOrUpdate,
+			Resource: &TransportServerConfiguration{
+				ListenerPort:    8888,
+				TransportServer: ts6,
+			},
+		},
+	}
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateTransportServer(ts6) returned unexpected changes (-want +got):\n%s", diff)
+	}
+
+	if len(problems) != 0 {
+		t.Errorf("AddOrUpdateTransportServer(ts6) returned problems %v", problems)
+	}
+}

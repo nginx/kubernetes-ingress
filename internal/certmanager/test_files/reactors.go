@@ -44,7 +44,7 @@ func ObjectCreatedReactor(t *testing.T, b *Builder, expectedObj runtime.Object) 
 	return func(action coretesting.Action) (handled bool, ret runtime.Object, err error) {
 		createAction, ok := action.(coretesting.CreateAction)
 		if !ok {
-			return
+			return handled, ret, err
 		}
 		obj := createAction.GetObject()
 		if !reflect.DeepEqual(obj, expectedObj) {
@@ -60,7 +60,7 @@ func ObjectDeletedReactor(t *testing.T, b *Builder, obj runtime.Object) coretest
 	return func(action coretesting.Action) (handled bool, ret runtime.Object, err error) {
 		delAction, ok := action.(coretesting.DeleteAction)
 		if !ok {
-			return
+			return handled, ret, err
 		}
 
 		namespace, name := delAction.GetNamespace(), delAction.GetName()

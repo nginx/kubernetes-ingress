@@ -1,0 +1,14 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: rate-limit-apikey-bronze
+spec:
+  rateLimit:
+    rate: 5r/s
+    key: ${apikey_client_name}
+    zoneSize: 10M
+    condition:
+      variables:
+        - match: "~^.*-bronze$"
+          name: $apikey_client_name
+      default: true

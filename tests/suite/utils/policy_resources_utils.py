@@ -6,7 +6,7 @@ import yaml
 from kubernetes.client import CustomObjectsApi
 from kubernetes.client.rest import ApiException
 from suite.utils.custom_resources_utils import read_custom_resource
-from suite.utils.resources_utils import ensure_item_removal
+from suite.utils.resources_utils import ensure_item_removal, wait_before_test
 
 
 def read_policy(custom_objects: CustomObjectsApi, namespace, name) -> object:
@@ -58,3 +58,18 @@ def delete_policy(custom_objects: CustomObjectsApi, name, namespace) -> None:
         name,
     )
     print(f"Policy was removed with name '{name}'")
+
+
+def apply_and_assert_valid_policy(kube_apis, namespace, policy_yaml, debug=False) -> str:
+    pol_name = create_policy_from_yaml(kube_apis.custom_objects, policy_yaml, namespace)
+    wait_before_test(1)
+    policy_info = read_custom_resource(kube_apis.custom_objects, namespace, "policies", pol_name)
+    if debug:
+        print(f"Policy '{pol_name}' info: {policy_info}")
+    assert (
+        "status" in policy_info
+        and policy_info["status"]["reason"] == "AddedOrUpdated"
+        and policy_info["status"]["state"] == "Valid"
+    )
+
+    return pol_name

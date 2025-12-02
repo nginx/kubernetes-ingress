@@ -1,0 +1,17 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: cafe
+spec:
+  host: cafe.example.com
+  upstreams:
+  - name: coffee
+    service: coffee-svc
+    port: 80
+  policies:
+  - name: rate-limit-request-method-get-head
+  - name: rate-limit-request-method-put-post-patch-delete
+  routes:
+  - path: /coffee
+    action:
+      pass: coffee

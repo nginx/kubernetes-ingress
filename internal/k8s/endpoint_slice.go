@@ -3,7 +3,7 @@ package k8s
 import (
 	"reflect"
 
-	nl "github.com/nginxinc/kubernetes-ingress/internal/logger"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	discovery_v1 "k8s.io/api/discovery/v1"
 	"k8s.io/client-go/tools/cache"
 )

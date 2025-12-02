@@ -25,7 +25,7 @@ import (
 	cmapi "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	cmclient "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned"
 	controllerpkg "github.com/cert-manager/cert-manager/pkg/controller"
-	testpkg "github.com/nginxinc/kubernetes-ingress/internal/certmanager/test_files"
+	testpkg "github.com/nginx/kubernetes-ingress/internal/certmanager/test_files"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,8 +33,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
 
-	vsapi "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
-	k8s_nginx "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned"
+	vsapi "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	k8s_nginx "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned"
 )
 
 func Test_controller_Register(t *testing.T) {

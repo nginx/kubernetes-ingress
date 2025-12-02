@@ -3,10 +3,10 @@
 package v1
 
 import (
-	"context"
+	context "context"
 
-	v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/externaldns/v1"
-	scheme "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned/scheme"
+	externaldnsv1 "github.com/nginx/kubernetes-ingress/pkg/apis/externaldns/v1"
+	scheme "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -21,33 +21,34 @@ type DNSEndpointsGetter interface {
 
 // DNSEndpointInterface has methods to work with DNSEndpoint resources.
 type DNSEndpointInterface interface {
-	Create(ctx context.Context, dNSEndpoint *v1.DNSEndpoint, opts metav1.CreateOptions) (*v1.DNSEndpoint, error)
-	Update(ctx context.Context, dNSEndpoint *v1.DNSEndpoint, opts metav1.UpdateOptions) (*v1.DNSEndpoint, error)
+	Create(ctx context.Context, dNSEndpoint *externaldnsv1.DNSEndpoint, opts metav1.CreateOptions) (*externaldnsv1.DNSEndpoint, error)
+	Update(ctx context.Context, dNSEndpoint *externaldnsv1.DNSEndpoint, opts metav1.UpdateOptions) (*externaldnsv1.DNSEndpoint, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, dNSEndpoint *v1.DNSEndpoint, opts metav1.UpdateOptions) (*v1.DNSEndpoint, error)
+	UpdateStatus(ctx context.Context, dNSEndpoint *externaldnsv1.DNSEndpoint, opts metav1.UpdateOptions) (*externaldnsv1.DNSEndpoint, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.DNSEndpoint, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.DNSEndpointList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*externaldnsv1.DNSEndpoint, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*externaldnsv1.DNSEndpointList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.DNSEndpoint, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *externaldnsv1.DNSEndpoint, err error)
 	DNSEndpointExpansion
 }
 
 // dNSEndpoints implements DNSEndpointInterface
 type dNSEndpoints struct {
-	*gentype.ClientWithList[*v1.DNSEndpoint, *v1.DNSEndpointList]
+	*gentype.ClientWithList[*externaldnsv1.DNSEndpoint, *externaldnsv1.DNSEndpointList]
 }
 
 // newDNSEndpoints returns a DNSEndpoints
 func newDNSEndpoints(c *ExternaldnsV1Client, namespace string) *dNSEndpoints {
 	return &dNSEndpoints{
-		gentype.NewClientWithList[*v1.DNSEndpoint, *v1.DNSEndpointList](
+		gentype.NewClientWithList[*externaldnsv1.DNSEndpoint, *externaldnsv1.DNSEndpointList](
 			"dnsendpoints",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1.DNSEndpoint { return &v1.DNSEndpoint{} },
-			func() *v1.DNSEndpointList { return &v1.DNSEndpointList{} }),
+			func() *externaldnsv1.DNSEndpoint { return &externaldnsv1.DNSEndpoint{} },
+			func() *externaldnsv1.DNSEndpointList { return &externaldnsv1.DNSEndpointList{} },
+		),
 	}
 }

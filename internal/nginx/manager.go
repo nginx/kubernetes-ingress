@@ -14,11 +14,13 @@ import (
 	"strings"
 	"time"
 
-	license_reporting "github.com/nginxinc/kubernetes-ingress/internal/license_reporting"
-	nl "github.com/nginxinc/kubernetes-ingress/internal/logger"
-	"github.com/nginxinc/kubernetes-ingress/internal/metrics/collectors"
+	"github.com/nginx/kubernetes-ingress/internal/metadata"
 
-	"github.com/nginxinc/nginx-plus-go-client/client"
+	license_reporting "github.com/nginx/kubernetes-ingress/internal/license_reporting"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	"github.com/nginx/kubernetes-ingress/internal/metrics/collectors"
+
+	"github.com/nginx/nginx-plus-go-client/v3/client"
 )
 
 const (
@@ -26,17 +28,16 @@ const (
 	ReloadForEndpointsUpdate = true
 	// ReloadForOtherUpdate means that a reload is caused by an update for a resource(s) other than endpoints.
 	ReloadForOtherUpdate = false
-	// TLSSecretFileMode defines the default filemode for files with TLS Secrets.
-	TLSSecretFileMode = 0o600
+	// ReadWriteOnlyFileMode defines the default filemode for files with Secrets.
+	ReadWriteOnlyFileMode = 0o600
 	// JWKSecretFileMode defines the default filemode for files with JWK Secrets.
 	JWKSecretFileMode = 0o644
 	// HtpasswdSecretFileMode defines the default filemode for HTTP basic auth user files.
 	HtpasswdSecretFileMode = 0o644
 
-	configFileMode               = 0o644
-	jsonFileForOpenTracingTracer = "/var/lib/nginx/tracer-config.json"
-	nginxBinaryPath              = "/usr/sbin/nginx"
-	nginxBinaryPathDebug         = "/usr/sbin/nginx-debug"
+	configFileMode       = 0o644
+	nginxBinaryPath      = "/usr/sbin/nginx"
+	nginxBinaryPathDebug = "/usr/sbin/nginx-debug"
 
 	appProtectPluginStartCmd = "/usr/share/ts/bin/bd-socket-plugin"
 	appProtectLogLevelCmd    = "/opt/app_protect/bin/set_log_level"
@@ -49,11 +50,14 @@ const (
 	appProtectDosAgentInstallCmd    = "/usr/bin/adminstall"
 	appProtectDosAgentStartCmd      = "/usr/bin/admd -d --standalone"
 	appProtectDosAgentStartDebugCmd = "/usr/bin/admd -d --standalone --log debug"
+
+	defaultCAPath = "/etc/ssl/certs/ca-certificates.crt"
 )
 
 var (
-	ossre  = regexp.MustCompile(`(?P<name>\S+)/(?P<version>\S+)`)
-	plusre = regexp.MustCompile(`(?P<name>\S+)/(?P<version>\S+).\((?P<plus>\S+plus\S+)\)`)
+	ossre   = regexp.MustCompile(`(?P<name>\S+)/(?P<version>\S+)`)
+	plusre  = regexp.MustCompile(`(?P<name>\S+)/(?P<version>\S+).\((?P<plus>\S+plus\S+)\)`)
+	agentre = regexp.MustCompile(`^v(?P<major>\d+)\.?(?P<minor>\d+)?\.?(?P<patch>\d+)?(-.+)?$`)
 )
 
 // ServerConfig holds the config data for an upstream server in NGINX Plus.
@@ -73,6 +77,8 @@ type Manager interface {
 	CreateStreamConfig(name string, content []byte) bool
 	DeleteStreamConfig(name string)
 	CreateTLSPassthroughHostsConfig(content []byte) bool
+	CreateOIDCConfig(name string, content []byte) bool
+	DeleteOIDCConfig(name string)
 	CreateSecret(name string, content []byte, mode os.FileMode) string
 	DeleteSecret(name string)
 	CreateAppProtectResourceFile(name string, content []byte)
@@ -80,16 +86,14 @@ type Manager interface {
 	ClearAppProtectFolder(name string)
 	GetFilenameForSecret(name string) string
 	CreateDHParam(content string) (string, error)
-	CreateOpenTracingTracerConfig(content string) error
 	Start(done chan error)
 	Version() Version
 	Reload(isEndpointsUpdate bool) error
 	Quit()
-	UpdateConfigVersionFile(openTracing bool)
+	UpdateConfigVersionFile()
 	SetPlusClients(plusClient *client.NginxClient, plusConfigVersionCheckClient *http.Client)
 	UpdateServersInPlus(upstream string, servers []string, config ServerConfig) error
 	UpdateStreamServersInPlus(upstream string, servers []string) error
-	SetOpenTracing(openTracing bool)
 	AppProtectPluginStart(appDone chan error, logLevel string)
 	AppProtectPluginQuit()
 	AppProtectDosAgentStart(apdaDone chan error, debug bool, maxDaemon int, maxWorkers int, memory int)
@@ -98,11 +102,12 @@ type Manager interface {
 	AgentQuit()
 	AgentVersion() string
 	GetSecretsDir() string
+	GetOSCABundlePath() (string, error)
 	UpsertSplitClientsKeyVal(zoneName string, key string, value string)
 	DeleteKeyValStateFiles(virtualServerName string)
 }
 
-// LocalManager updates NGINX configuration, starts, reloads and quits NGINX, updates License Reporting file
+// LocalManager updates NGINX configuration, starts, reloads and quits NGINX, updates License Reporting and the Deployment Metadata file
 // updates NGINX Plus upstream servers. It assumes that NGINX is running in the same container.
 type LocalManager struct {
 	confdPath                    string
@@ -114,6 +119,7 @@ type LocalManager struct {
 	debug                        bool
 	dhparamFilename              string
 	tlsPassthroughHostsFilename  string
+	oidcConfPath                 string
 	verifyConfigGenerator        *verifyConfigGenerator
 	verifyClient                 *verifyClient
 	configVersion                int
@@ -122,7 +128,7 @@ type LocalManager struct {
 	metricsCollector             collectors.ManagerCollector
 	licenseReporter              *license_reporting.LicenseReporter
 	licenseReporterCancel        context.CancelFunc
-	OpenTracing                  bool
+	deploymentMetadata           *metadata.Metadata
 	appProtectPluginPid          int
 	appProtectDosAgentPid        int
 	agentPid                     int
@@ -131,7 +137,7 @@ type LocalManager struct {
 }
 
 // NewLocalManager creates a LocalManager.
-func NewLocalManager(ctx context.Context, confPath string, debug bool, mc collectors.ManagerCollector, lr *license_reporting.LicenseReporter, timeout time.Duration, nginxPlus bool) *LocalManager {
+func NewLocalManager(ctx context.Context, confPath string, debug bool, mc collectors.ManagerCollector, lr *license_reporting.LicenseReporter, metadata *metadata.Metadata, timeout time.Duration, nginxPlus bool) *LocalManager {
 	l := nl.LoggerFromContext(ctx)
 	verifyConfigGenerator, err := newVerifyConfigGenerator()
 	if err != nil {
@@ -147,12 +153,14 @@ func NewLocalManager(ctx context.Context, confPath string, debug bool, mc collec
 		mainConfFilename:            path.Join(confPath, "nginx.conf"),
 		configVersionFilename:       path.Join(confPath, "config-version.conf"),
 		tlsPassthroughHostsFilename: path.Join(confPath, "tls-passthrough-hosts.conf"),
+		oidcConfPath:                path.Join(confPath, "oidc-conf.d"),
 		debug:                       debug,
 		verifyConfigGenerator:       verifyConfigGenerator,
 		configVersion:               0,
 		verifyClient:                newVerifyClient(timeout),
 		metricsCollector:            mc,
 		licenseReporter:             lr,
+		deploymentMetadata:          metadata,
 		nginxPlus:                   nginxPlus,
 		logger:                      l,
 	}
@@ -178,6 +186,11 @@ func (lm *LocalManager) CreateConfig(name string, content []byte) bool {
 	return createConfig(lm.logger, lm.getFilenameForConfig(name), content)
 }
 
+// CreateOIDCConfig creates an OIDC configuration file. If the file already exists, it will be overridden.
+func (lm *LocalManager) CreateOIDCConfig(name string, content []byte) bool {
+	return createConfig(lm.logger, lm.getFilenameForOIDCConfig(name), content)
+}
+
 func createConfig(l *slog.Logger, filename string, content []byte) bool {
 	nl.Debugf(l, "Writing config to %v", filename)
 	nl.Debug(l, string(content))
@@ -195,6 +208,11 @@ func (lm *LocalManager) DeleteConfig(name string) {
 	deleteConfig(lm.logger, lm.getFilenameForConfig(name))
 }
 
+// DeleteOIDCConfig deletes the configuration file from the conf.d folder.
+func (lm *LocalManager) DeleteOIDCConfig(name string) {
+	deleteConfig(lm.logger, lm.getFilenameForOIDCConfig(name))
+}
+
 func deleteConfig(l *slog.Logger, filename string) {
 	nl.Infof(l, "Deleting config from %v", filename)
 
@@ -205,6 +223,10 @@ func deleteConfig(l *slog.Logger, filename string) {
 
 func (lm *LocalManager) getFilenameForConfig(name string) string {
 	return path.Join(lm.confdPath, name+".conf")
+}
+
+func (lm *LocalManager) getFilenameForOIDCConfig(name string) string {
+	return path.Join(lm.oidcConfPath, name+".conf")
 }
 
 // CreateStreamConfig creates a configuration file for stream module.
@@ -303,16 +325,9 @@ func (lm *LocalManager) ClearAppProtectFolder(name string) {
 // Start starts NGINX.
 func (lm *LocalManager) Start(done chan error) {
 	if lm.nginxPlus {
-		isR33OrGreater, versionErr := lm.Version().PlusGreaterThanOrEqualTo("nginx-plus-r33")
-		if versionErr != nil {
-			nl.Errorf(lm.logger, "Error determining whether nginx version is >= r33: %v", versionErr)
-		}
-		if isR33OrGreater {
-			ctx, cancel := context.WithCancel(context.Background())
-			nl.ContextWithLogger(ctx, lm.logger)
-			go lm.licenseReporter.Start(ctx)
-			lm.licenseReporterCancel = cancel
-		}
+		ctx, cancel := context.WithCancel(context.Background())
+		go lm.licenseReporter.Start(nl.ContextWithLogger(ctx, lm.logger))
+		lm.licenseReporterCancel = cancel
 	}
 
 	nl.Debug(lm.logger, "Starting nginx")
@@ -338,7 +353,7 @@ func (lm *LocalManager) Start(done chan error) {
 func (lm *LocalManager) Reload(isEndpointsUpdate bool) error {
 	// write a new config version
 	lm.configVersion++
-	lm.UpdateConfigVersionFile(lm.OpenTracing)
+	lm.UpdateConfigVersionFile()
 
 	nl.Debugf(lm.logger, "Reloading nginx with configVersion: %v", lm.configVersion)
 
@@ -393,8 +408,8 @@ func (lm *LocalManager) Version() Version {
 }
 
 // UpdateConfigVersionFile writes the config version file.
-func (lm *LocalManager) UpdateConfigVersionFile(openTracing bool) {
-	cfg, err := lm.verifyConfigGenerator.GenerateVersionConfig(lm.configVersion, openTracing)
+func (lm *LocalManager) UpdateConfigVersionFile() {
+	cfg, err := lm.verifyConfigGenerator.GenerateVersionConfig(lm.configVersion)
 	if err != nil {
 		nl.Fatalf(lm.logger, "Error generating config version content: %v", err)
 	}
@@ -432,7 +447,7 @@ func (lm *LocalManager) UpdateServersInPlus(upstream string, servers []string, c
 		})
 	}
 
-	added, removed, updated, err := lm.plusClient.UpdateHTTPServers(upstream, upsServers)
+	added, removed, updated, err := lm.plusClient.UpdateHTTPServers(context.Background(), upstream, upsServers)
 	if err != nil {
 		nl.Debugf(lm.logger, "Couldn't update servers of %v upstream: %v", upstream, err)
 		return fmt.Errorf("error updating servers of %v upstream: %w", upstream, err)
@@ -487,24 +502,13 @@ func (lm *LocalManager) UpdateStreamServersInPlus(upstream string, servers []str
 		})
 	}
 
-	added, removed, updated, err := lm.plusClient.UpdateStreamServers(upstream, upsServers)
+	added, removed, updated, err := lm.plusClient.UpdateStreamServers(context.Background(), upstream, upsServers)
 	if err != nil {
 		nl.Debugf(lm.logger, "Couldn't update stream servers of %v upstream: %v", upstream, err)
 		return fmt.Errorf("error updating stream servers of %v upstream: %w", upstream, err)
 	}
 
 	nl.Debugf(lm.logger, "Updated stream servers of %v; Added: %v, Removed: %v, Updated: %v", upstream, added, removed, updated)
-
-	return nil
-}
-
-// CreateOpenTracingTracerConfig creates a json configuration file for the OpenTracing tracer with the content of the string.
-func (lm *LocalManager) CreateOpenTracingTracerConfig(content string) error {
-	nl.Debugf(lm.logger, "Writing OpenTracing tracer config file to %v", jsonFileForOpenTracingTracer)
-	err := createFileAndWrite(jsonFileForOpenTracingTracer, []byte(content))
-	if err != nil {
-		return fmt.Errorf("failed to write config file: %w", err)
-	}
 
 	return nil
 }
@@ -537,11 +541,6 @@ func verifyConfigVersion(httpClient *http.Client, configVersion int, timeout tim
 	}
 
 	return err
-}
-
-// SetOpenTracing sets the value of OpenTracing for the Manager
-func (lm *LocalManager) SetOpenTracing(openTracing bool) {
-	lm.OpenTracing = openTracing
 }
 
 // AppProtectPluginStart starts the AppProtect plugin and sets AppProtect log level.
@@ -632,12 +631,39 @@ func (lm *LocalManager) AppProtectDosAgentStart(apdaDone chan error, debug bool,
 	}()
 }
 
-// AgentStart starts the AppProtect plugin and sets AppProtect log level.
+// AgentStart starts the NGINX Agent and sets the log level.
 func (lm *LocalManager) AgentStart(agentDone chan error, instanceGroup string) {
+	ctx := nl.ContextWithLogger(context.Background(), lm.logger)
 	nl.Debugf(lm.logger, "Starting Agent")
 	args := []string{}
-	if len(instanceGroup) > 0 {
-		args = append(args, "--instance-group", instanceGroup)
+	nl.Debug(lm.logger, lm.AgentVersion())
+	major, _, _, err := ExtractAgentVersionValues(lm.AgentVersion())
+	if err != nil {
+		nl.Fatalf(lm.logger, "Failed to extract Agent version: %v", err)
+	}
+	if major <= 2 {
+		if len(instanceGroup) > 0 {
+			args = append(args, "--instance-group", instanceGroup)
+		}
+	}
+	if major >= 3 {
+		metadataInfo, err := lm.deploymentMetadata.CollectAndWrite(ctx)
+		if err != nil {
+			nl.Fatalf(lm.logger, "Failed to start NGINX Agent: %v", err)
+		}
+		labels := []string{
+			fmt.Sprintf("product-type=%s", metadataInfo.ProductType),
+			fmt.Sprintf("product-version=%s", metadataInfo.ProductVersion),
+			fmt.Sprintf("cluster-id=%s", metadataInfo.ClusterID),
+			fmt.Sprintf("installation-id=%s", metadataInfo.InstallationID),
+			fmt.Sprintf("installation-name=%s", metadataInfo.InstallationName),
+			fmt.Sprintf("installation-namespace=%s", metadataInfo.InstallationNamespace),
+			fmt.Sprintf("control-id=%s", metadataInfo.InstallationID),               // control-id is required but is the same as installation-id
+			fmt.Sprintf("control-name=%s", metadataInfo.InstallationName),           // control-name is required but is the same as installation-name
+			fmt.Sprintf("control-namespace=%s", metadataInfo.InstallationNamespace), // control-namespace is required but is the same as installation-namespace
+		}
+		metadataLabels := "--labels=" + strings.Join(labels, ",")
+		args = append(args, metadataLabels)
 	}
 	cmd := exec.Command(agentPath, args...) // #nosec G204
 
@@ -699,7 +725,7 @@ func (lm *LocalManager) UpsertSplitClientsKeyVal(zoneName, key, value string) {
 	key = strings.Trim(key, "\"")
 	value = strings.Trim(value, "\"")
 
-	keyValPairs, err := lm.plusClient.GetKeyValPairs(zoneName)
+	keyValPairs, err := lm.plusClient.GetKeyValPairs(context.Background(), zoneName)
 	if err != nil {
 		lm.tryAddKeyValPair(zoneName, key, value)
 		return
@@ -713,7 +739,7 @@ func (lm *LocalManager) UpsertSplitClientsKeyVal(zoneName, key, value string) {
 }
 
 func (lm *LocalManager) tryAddKeyValPair(zoneName, key, value string) {
-	err := lm.plusClient.AddKeyValPair(zoneName, key, value)
+	err := lm.plusClient.AddKeyValPair(context.Background(), zoneName, key, value)
 	if err != nil {
 		nl.Warnf(lm.logger, "Failed to add key value pair: %v", err)
 	} else {
@@ -722,7 +748,7 @@ func (lm *LocalManager) tryAddKeyValPair(zoneName, key, value string) {
 }
 
 func (lm *LocalManager) tryModifyKeyValPair(zoneName, key, value string) {
-	err := lm.plusClient.ModifyKeyValPair(zoneName, key, value)
+	err := lm.plusClient.ModifyKeyValPair(context.Background(), zoneName, key, value)
 	if err != nil {
 		nl.Warnf(lm.logger, "Failed to modify key value pair: %v", err)
 	} else {
@@ -743,4 +769,39 @@ func (lm *LocalManager) DeleteKeyValStateFiles(virtualServerName string) {
 			}
 		}
 	}
+}
+
+func readOSRelease() ([]byte, error) {
+	return os.ReadFile("/etc/os-release")
+}
+
+// GetOSCABundlePath returns the path to the OS CA bundle file based on the OS type.
+func (lm *LocalManager) GetOSCABundlePath() (string, error) {
+	sBytes, err := readOSRelease()
+	if err != nil {
+		nl.Warnf(lm.logger, "Failed to read /etc/os-release: %v, using default CA path %s", err, defaultCAPath)
+	}
+	s := string(sBytes)
+	caFilePath := getOSCABundlePath(s)
+
+	if _, err := os.Stat(caFilePath); os.IsNotExist(err) {
+		return "", fmt.Errorf("CA bundle file does not exist at path: %s", caFilePath)
+	}
+
+	return caFilePath, nil
+}
+
+func getOSCABundlePath(s string) string {
+	alpineRegex := regexp.MustCompile(`ID=\"?alpine\"?`)
+	rhelRegex := regexp.MustCompile(`ID=\"?rhel\"?`)
+	// Logic to get the OS CA bundle path.
+	caFilePath := defaultCAPath // Default for Debian, the default image base
+
+	if alpineRegex.MatchString(s) {
+		caFilePath = "/etc/ssl/cert.pem"
+	} else if rhelRegex.MatchString(s) {
+		caFilePath = "/etc/pki/tls/certs/ca-bundle.crt"
+	}
+
+	return caFilePath
 }

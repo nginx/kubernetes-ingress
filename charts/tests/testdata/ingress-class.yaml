@@ -1,0 +1,5 @@
+controller:
+  ingressClass:
+    name: changed
+    create: true
+    setAsDefaultIngress: true

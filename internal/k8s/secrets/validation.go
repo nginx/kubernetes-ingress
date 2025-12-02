@@ -37,6 +37,9 @@ const SecretTypeHtpasswd api_v1.SecretType = "nginx.org/htpasswd" // #nosec G101
 // SecretTypeAPIKey contains a list of client ID and key for API key authorization.. #nosec G101
 const SecretTypeAPIKey api_v1.SecretType = "nginx.org/apikey" // #nosec G101
 
+// SecretTypeLicense contains the license.jwt required for NGINX Plus. #nosec G101
+const SecretTypeLicense api_v1.SecretType = "nginx.com/license" // #nosec G101
+
 // ValidateTLSSecret validates the secret. If it is valid, the function returns nil.
 func ValidateTLSSecret(secret *api_v1.Secret) error {
 	if secret.Type != api_v1.SecretTypeTLS {
@@ -145,6 +148,19 @@ func ValidateHtpasswdSecret(secret *api_v1.Secret) error {
 	return nil
 }
 
+// ValidateLicenseSecret validates the secret. If it is valid, the function returns nil.
+func ValidateLicenseSecret(secret *api_v1.Secret) error {
+	if secret.Type != SecretTypeLicense {
+		return fmt.Errorf("license secret must be of the type %v", SecretTypeLicense)
+	}
+
+	if _, exists := secret.Data["license.jwt"]; !exists {
+		return fmt.Errorf("license secret must have the data field %v", "license.jwt")
+	}
+
+	return nil
+}
+
 // IsSupportedSecretType checks if the secret type is supported.
 func IsSupportedSecretType(secretType api_v1.SecretType) bool {
 	return secretType == api_v1.SecretTypeTLS ||
@@ -152,7 +168,8 @@ func IsSupportedSecretType(secretType api_v1.SecretType) bool {
 		secretType == SecretTypeJWK ||
 		secretType == SecretTypeOIDC ||
 		secretType == SecretTypeHtpasswd ||
-		secretType == SecretTypeAPIKey
+		secretType == SecretTypeAPIKey ||
+		secretType == SecretTypeLicense
 }
 
 // ValidateSecret validates the secret. If it is valid, the function returns nil.
@@ -170,6 +187,8 @@ func ValidateSecret(secret *api_v1.Secret) error {
 		return ValidateHtpasswdSecret(secret)
 	case SecretTypeAPIKey:
 		return ValidateAPIKeySecret(secret)
+	case SecretTypeLicense:
+		return ValidateLicenseSecret(secret)
 	}
 
 	return fmt.Errorf("secret is of the unsupported type %v", secret.Type)

@@ -106,7 +106,7 @@ def dos_setup(
     )
 
     print("------------------------- Deploy Secret -----------------------------")
-    src_sec_yaml = f"{TEST_DATA}/dos/dos-secret.yaml"
+    src_sec_yaml = f"{TEST_DATA}/dos/tls-secret.yaml"
     create_items_from_yaml(kube_apis, src_sec_yaml, test_namespace)
 
     print("------------------------- Deploy logconf -----------------------------")

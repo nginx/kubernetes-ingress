@@ -5,7 +5,6 @@ on:
     branches:
       - main
     paths-ignore:
-      - "site/**"
       - "examples/**"
       - "**.md"
 
@@ -23,9 +22,9 @@ jobs:
     if: ${{ github.event.repository.fork == false }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
 
       - name: Scan
-        uses: fossas/fossa-action@09bcf127dc0ccb4b5a023f6f906728878e8610ba # v1.4.0
+        uses: fossas/fossa-action@3ebcea1862c6ffbd5cf1b4d0bd6b3fe7bd6f2cac # v1.7.0
         with:
           api-key: ${{ secrets.FOSSA_TOKEN }}

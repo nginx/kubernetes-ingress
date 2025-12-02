@@ -5,7 +5,7 @@ metadata:
 spec:
   host: virtual-server.example.com
   tls:
-    secret: virtual-server-secret
+    secret: tls-secret
     cert-manager:
       cluster-issuer: selfsigned-issuer
   upstreams:

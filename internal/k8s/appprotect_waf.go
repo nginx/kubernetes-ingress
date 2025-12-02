@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/nginxinc/kubernetes-ingress/internal/configs"
-	"github.com/nginxinc/kubernetes-ingress/internal/k8s/appprotect"
-	"github.com/nginxinc/kubernetes-ingress/internal/k8s/appprotectcommon"
-	nl "github.com/nginxinc/kubernetes-ingress/internal/logger"
-	conf_v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
+	"github.com/nginx/kubernetes-ingress/internal/configs"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotect"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotectcommon"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	api_v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -371,7 +371,7 @@ func (lbc *LoadBalancerController) processAppProtectChanges(changes []appprotect
 
 				warnings, updateErr := lbc.configurator.AddOrUpdateAppProtectResource(impl.Obj, resourceExes.IngressExes, resourceExes.MergeableIngresses, resourceExes.VirtualServerExes)
 				lbc.updateResourcesStatusAndEvents(resources, warnings, updateErr)
-				lbc.recorder.Eventf(impl.Obj, api_v1.EventTypeNormal, "AddedOrUpdated", "AppProtectPolicy %v was added or updated", namespace+"/"+name)
+				lbc.recorder.Eventf(impl.Obj, api_v1.EventTypeNormal, nl.EventReasonAddedOrUpdated, "AppProtectPolicy %v was added or updated", namespace+"/"+name)
 			case *appprotect.LogConfEx:
 				namespace := impl.Obj.GetNamespace()
 				name := impl.Obj.GetName()
@@ -385,7 +385,7 @@ func (lbc *LoadBalancerController) processAppProtectChanges(changes []appprotect
 
 				warnings, updateErr := lbc.configurator.AddOrUpdateAppProtectResource(impl.Obj, resourceExes.IngressExes, resourceExes.MergeableIngresses, resourceExes.VirtualServerExes)
 				lbc.updateResourcesStatusAndEvents(resources, warnings, updateErr)
-				lbc.recorder.Eventf(impl.Obj, api_v1.EventTypeNormal, "AddedOrUpdated", "AppProtectLogConfig %v was added or updated", namespace+"/"+name)
+				lbc.recorder.Eventf(impl.Obj, api_v1.EventTypeNormal, nl.EventReasonAddedOrUpdated, "AppProtectLogConfig %v was added or updated", namespace+"/"+name)
 			}
 		} else if c.Op == appprotect.Delete {
 			switch impl := c.Resource.(type) {

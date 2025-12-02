@@ -95,7 +95,7 @@ func TestTemplateExecutorUsesOriginalTStemplate(t *testing.T) {
 
 func newTestTemplateExecutor(t *testing.T) *TemplateExecutor {
 	t.Helper()
-	te, err := NewTemplateExecutor("nginx-plus.virtualserver.tmpl", "nginx-plus.transportserver.tmpl")
+	te, err := NewTemplateExecutor("nginx-plus.virtualserver.tmpl", "nginx-plus.transportserver.tmpl", "oidc.tmpl")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func newTestTemplateExecutor(t *testing.T) *TemplateExecutor {
 
 // custom VStemplate represents the virtualserver template passed via ConfigMap
 var customTestVStemplate = `# TEST CUSTOM VIRTUALSERVER TEMPLATE
-{{- /*gotype: github.com/nginxinc/kubernetes-ingress/internal/configs/version2.VirtualServerConfig*/ -}}
+{{- /*gotype: github.com/nginx/kubernetes-ingress/internal/configs/version2.VirtualServerConfig*/ -}}
 {{ range $u := .Upstreams }}
 upstream {{ $u.Name }} {
     zone {{ $u.Name }} {{ if ne $u.UpstreamZoneSize "0" }}{{ $u.UpstreamZoneSize }}{{ else }}512k{{ end }};
@@ -134,7 +134,9 @@ upstream {{ $u.Name }} {
         {{- end }}
     {{- end }}
 
-    {{ if $u.NTLM }}ntlm;{{ end }}
+    {{- if $u.NTLM }}
+    ntlm;
+    {{- end }}
 }
 {{ end }}
 
@@ -183,7 +185,9 @@ proxy_cache_path /var/cache/nginx/jwks_uri_{{$s.VSName}} levels=1 keys_zone=jwks
 {{- end }}
 
 server {
-    {{- if $s.Gunzip }}gunzip on;{{end}}
+    {{- if $s.Gunzip }}
+    gunzip on;
+    {{- end }}
     {{ makeHTTPListener $s | printf }}
 
     server_name {{ $s.ServerName }};
@@ -823,7 +827,7 @@ server {
 
 // custom TStemplate represents the transportserver template passed via ConfigMap
 var customTestTStemplate = `# TEST CUSTOM TRANSPORTSERVER TEMPLATE
-{{- /*gotype: github.com/nginxinc/kubernetes-ingress/internal/configs/version2.TransportServerConfig*/ -}}
+{{- /*gotype: github.com/nginx/kubernetes-ingress/internal/configs/version2.TransportServerConfig*/ -}}
 {{- range $u := .Upstreams }}
 upstream {{ $u.Name }} {
     zone {{ $u.Name }} 512k;

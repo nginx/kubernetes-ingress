@@ -3,10 +3,10 @@
 package v1
 
 import (
-	"context"
+	context "context"
 
-	v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
-	scheme "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned/scheme"
+	configurationv1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	scheme "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -21,33 +21,34 @@ type VirtualServerRoutesGetter interface {
 
 // VirtualServerRouteInterface has methods to work with VirtualServerRoute resources.
 type VirtualServerRouteInterface interface {
-	Create(ctx context.Context, virtualServerRoute *v1.VirtualServerRoute, opts metav1.CreateOptions) (*v1.VirtualServerRoute, error)
-	Update(ctx context.Context, virtualServerRoute *v1.VirtualServerRoute, opts metav1.UpdateOptions) (*v1.VirtualServerRoute, error)
+	Create(ctx context.Context, virtualServerRoute *configurationv1.VirtualServerRoute, opts metav1.CreateOptions) (*configurationv1.VirtualServerRoute, error)
+	Update(ctx context.Context, virtualServerRoute *configurationv1.VirtualServerRoute, opts metav1.UpdateOptions) (*configurationv1.VirtualServerRoute, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, virtualServerRoute *v1.VirtualServerRoute, opts metav1.UpdateOptions) (*v1.VirtualServerRoute, error)
+	UpdateStatus(ctx context.Context, virtualServerRoute *configurationv1.VirtualServerRoute, opts metav1.UpdateOptions) (*configurationv1.VirtualServerRoute, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.VirtualServerRoute, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.VirtualServerRouteList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*configurationv1.VirtualServerRoute, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*configurationv1.VirtualServerRouteList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.VirtualServerRoute, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *configurationv1.VirtualServerRoute, err error)
 	VirtualServerRouteExpansion
 }
 
 // virtualServerRoutes implements VirtualServerRouteInterface
 type virtualServerRoutes struct {
-	*gentype.ClientWithList[*v1.VirtualServerRoute, *v1.VirtualServerRouteList]
+	*gentype.ClientWithList[*configurationv1.VirtualServerRoute, *configurationv1.VirtualServerRouteList]
 }
 
 // newVirtualServerRoutes returns a VirtualServerRoutes
 func newVirtualServerRoutes(c *K8sV1Client, namespace string) *virtualServerRoutes {
 	return &virtualServerRoutes{
-		gentype.NewClientWithList[*v1.VirtualServerRoute, *v1.VirtualServerRouteList](
+		gentype.NewClientWithList[*configurationv1.VirtualServerRoute, *configurationv1.VirtualServerRouteList](
 			"virtualserverroutes",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1.VirtualServerRoute { return &v1.VirtualServerRoute{} },
-			func() *v1.VirtualServerRouteList { return &v1.VirtualServerRouteList{} }),
+			func() *configurationv1.VirtualServerRoute { return &configurationv1.VirtualServerRoute{} },
+			func() *configurationv1.VirtualServerRouteList { return &configurationv1.VirtualServerRouteList{} },
+		),
 	}
 }

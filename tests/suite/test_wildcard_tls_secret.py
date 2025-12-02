@@ -185,7 +185,7 @@ class TestTLSWildcardSecrets:
         )
         assert subject_dict[b"C"] == b"GB"
         assert subject_dict[b"ST"] == b"Cambridgeshire"
-        assert subject_dict[b"CN"] == b"cafe.example.com"
+        assert subject_dict[b"CN"] == b"example.com"
 
     def test_response_and_subject_remains_after_secret_delete(
         self,
@@ -211,4 +211,4 @@ class TestTLSWildcardSecrets:
         )
         assert subject_dict[b"C"] == b"GB"
         assert subject_dict[b"ST"] == b"Cambridgeshire"
-        assert subject_dict[b"CN"] == b"cafe.example.com"
+        assert subject_dict[b"CN"] == b"example.com"

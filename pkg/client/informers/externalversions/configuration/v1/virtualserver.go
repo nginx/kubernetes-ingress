@@ -3,13 +3,13 @@
 package v1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	configurationv1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
-	versioned "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned"
-	internalinterfaces "github.com/nginxinc/kubernetes-ingress/pkg/client/informers/externalversions/internalinterfaces"
-	v1 "github.com/nginxinc/kubernetes-ingress/pkg/client/listers/configuration/v1"
+	apisconfigurationv1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	versioned "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned"
+	internalinterfaces "github.com/nginx/kubernetes-ingress/pkg/client/informers/externalversions/internalinterfaces"
+	configurationv1 "github.com/nginx/kubernetes-ingress/pkg/client/listers/configuration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -20,7 +20,7 @@ import (
 // VirtualServers.
 type VirtualServerInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.VirtualServerLister
+	Lister() configurationv1.VirtualServerLister
 }
 
 type virtualServerInformer struct {
@@ -46,16 +46,28 @@ func NewFilteredVirtualServerInformer(client versioned.Interface, namespace stri
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.K8sV1().VirtualServers(namespace).List(context.TODO(), options)
+				return client.K8sV1().VirtualServers(namespace).List(context.Background(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.K8sV1().VirtualServers(namespace).Watch(context.TODO(), options)
+				return client.K8sV1().VirtualServers(namespace).Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.K8sV1().VirtualServers(namespace).List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.K8sV1().VirtualServers(namespace).Watch(ctx, options)
 			},
 		},
-		&configurationv1.VirtualServer{},
+		&apisconfigurationv1.VirtualServer{},
 		resyncPeriod,
 		indexers,
 	)
@@ -66,9 +78,9 @@ func (f *virtualServerInformer) defaultInformer(client versioned.Interface, resy
 }
 
 func (f *virtualServerInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&configurationv1.VirtualServer{}, f.defaultInformer)
+	return f.factory.InformerFor(&apisconfigurationv1.VirtualServer{}, f.defaultInformer)
 }
 
-func (f *virtualServerInformer) Lister() v1.VirtualServerLister {
-	return v1.NewVirtualServerLister(f.Informer().GetIndexer())
+func (f *virtualServerInformer) Lister() configurationv1.VirtualServerLister {
+	return configurationv1.NewVirtualServerLister(f.Informer().GetIndexer())
 }

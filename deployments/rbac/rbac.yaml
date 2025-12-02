@@ -16,6 +16,7 @@ rules:
   resources:
   - replicasets
   - daemonsets
+  - statefulsets
   verbs:
   - get
 - apiGroups:
@@ -26,6 +27,10 @@ rules:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
   - ""
   resources:

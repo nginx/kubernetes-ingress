@@ -6,9 +6,9 @@ import (
 	"os"
 	"time"
 
-	nl "github.com/nginxinc/kubernetes-ingress/internal/logger"
-	conf_v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
-	"github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/validation"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	"github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -109,7 +109,7 @@ func createLeaderHandler(lbc *LoadBalancerController) leaderelection.LeaderCallb
 // addLeaderHandler adds the handler for leader election to the controller
 func (lbc *LoadBalancerController) addLeaderHandler(leaderHandler leaderelection.LeaderCallbacks) {
 	var err error
-	lbc.leaderElector, err = newLeaderElector(lbc.client, leaderHandler, lbc.controllerNamespace, lbc.leaderElectionLockName)
+	lbc.leaderElector, err = newLeaderElector(lbc.client, leaderHandler, lbc.metadata.namespace, lbc.leaderElectionLockName)
 	if err != nil {
 		nl.Debugf(lbc.Logger, "Error starting LeaderElection: %v", err)
 	}

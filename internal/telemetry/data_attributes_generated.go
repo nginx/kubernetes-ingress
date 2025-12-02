@@ -7,7 +7,7 @@ This is a generated file. DO NOT EDIT.
 import (
 	"go.opentelemetry.io/otel/attribute"
 
-	ngxTelemetry "github.com/nginxinc/telemetry-exporter/pkg/telemetry"
+	ngxTelemetry "github.com/nginx/telemetry-exporter/pkg/telemetry"
 )
 
 func (d *Data) Attributes() []attribute.KeyValue {

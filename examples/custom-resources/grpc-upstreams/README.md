@@ -11,7 +11,7 @@ grpc** field to an upstream. The protocol defaults to http if left unset.
 
 3. A working [`grpcurl`](https://github.com/fullstorydev/grpcurl) installation.
 
-4. [Install NGINX Ingress Controller using Manifests](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
+4. [Install NGINX Ingress Controller using Manifests](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
 
 5. Save the public IP address of NGINX Ingress Controller into a shell variable:
 

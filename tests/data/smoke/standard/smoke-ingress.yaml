@@ -8,7 +8,7 @@ spec:
   tls:
   - hosts:
     - smoke.example.com
-    secretName: smoke-secret
+    secretName: tls-secret
   rules:
   - host: smoke.example.com
     http:

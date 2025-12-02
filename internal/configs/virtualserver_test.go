@@ -4,19 +4,26 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/nginxinc/kubernetes-ingress/internal/configs/version2"
-	"github.com/nginxinc/kubernetes-ingress/internal/k8s/secrets"
-	"github.com/nginxinc/kubernetes-ingress/internal/nginx"
-	conf_v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	nic_glog "github.com/nginx/kubernetes-ingress/internal/logger/glog"
+	"github.com/nginx/kubernetes-ingress/internal/logger/levels"
+	"github.com/nginx/kubernetes-ingress/internal/nginx"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	api_v1 "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 func createPointerFromBool(b bool) *bool {
@@ -93,12 +100,51 @@ func TestGenerateEndpointsKey(t *testing.T) {
 			subselector:      nil,
 			expected:         "default/backup-svc:8090",
 		},
+		{
+			serviceNamespace: "tea",
+			serviceName:      "tea-svc",
+			port:             8080,
+			subselector:      nil,
+			expected:         "tea/tea-svc:8080",
+		},
 	}
 
 	for _, test := range tests {
 		result := GenerateEndpointsKey(test.serviceNamespace, test.serviceName, test.subselector, test.port)
 		if result != test.expected {
 			t.Errorf("GenerateEndpointsKey() returned %q but expected %q", result, test.expected)
+		}
+	}
+}
+
+func TestParseServiceReference(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		serviceRef       string
+		defaultNamespace string
+		expectedNS       string
+		expectedSvc      string
+	}{
+		{
+			serviceRef:       "coffee-svc",
+			defaultNamespace: "coffee",
+			expectedNS:       "coffee",
+			expectedSvc:      "coffee-svc",
+		},
+		{
+			serviceRef:       "tea/tea-svc",
+			defaultNamespace: "cafe",
+			expectedNS:       "tea",
+			expectedSvc:      "tea-svc",
+		},
+	}
+
+	for _, test := range tests {
+		namespace, serviceName := ParseServiceReference(test.serviceRef, test.defaultNamespace)
+		if namespace != test.expectedNS || serviceName != test.expectedSvc {
+			t.Errorf("parseServiceReference(%q, %q) returned (%q, %q) but expected (%q, %q)",
+				test.serviceRef, test.defaultNamespace, namespace, serviceName, test.expectedNS, test.expectedSvc)
 		}
 	}
 }
@@ -5636,9 +5682,11 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 				},
 				Spec: conf_v1.PolicySpec{
 					JWTAuth: &conf_v1.JWTAuth{
-						Realm:    "Spec Realm API",
-						JwksURI:  "https://idp.spec.example.com:443/spec-keys",
-						KeyCache: "1h",
+						Realm:      "Spec Realm API",
+						JwksURI:    "https://idp.spec.example.com:443/spec-keys",
+						KeyCache:   "1h",
+						SNIEnabled: true,
+						SNIName:    "idp.spec.example.com",
 					},
 				},
 			},
@@ -5708,10 +5756,15 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 					Realm:    "Spec Realm API",
 					KeyCache: "1h",
 					JwksURI: version2.JwksURI{
-						JwksScheme: "https",
-						JwksHost:   "idp.spec.example.com",
-						JwksPort:   "443",
-						JwksPath:   "/spec-keys",
+						JwksScheme:     "https",
+						JwksHost:       "idp.spec.example.com",
+						JwksPort:       "443",
+						JwksPath:       "/spec-keys",
+						JwksSNIEnabled: true,
+						JwksSNIName:    "idp.spec.example.com",
+						SSLVerify:      false,
+						TrustedCert:    "",
+						SSLVerifyDepth: 1,
 					},
 				},
 				"default/jwt-policy-route": {
@@ -5719,10 +5772,13 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 					Realm:    "Route Realm API",
 					KeyCache: "1h",
 					JwksURI: version2.JwksURI{
-						JwksScheme: "http",
-						JwksHost:   "idp.route.example.com",
-						JwksPort:   "80",
-						JwksPath:   "/route-keys",
+						JwksScheme:     "http",
+						JwksHost:       "idp.route.example.com",
+						JwksPort:       "80",
+						JwksPath:       "/route-keys",
+						SSLVerify:      false,
+						TrustedCert:    "",
+						SSLVerifyDepth: 1,
 					},
 				},
 			},
@@ -5731,10 +5787,15 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 				Realm:    "Spec Realm API",
 				KeyCache: "1h",
 				JwksURI: version2.JwksURI{
-					JwksScheme: "https",
-					JwksHost:   "idp.spec.example.com",
-					JwksPort:   "443",
-					JwksPath:   "/spec-keys",
+					JwksScheme:     "https",
+					JwksHost:       "idp.spec.example.com",
+					JwksPort:       "443",
+					JwksPath:       "/spec-keys",
+					JwksSNIName:    "idp.spec.example.com",
+					JwksSNIEnabled: true,
+					SSLVerify:      false,
+					TrustedCert:    "",
+					SSLVerifyDepth: 1,
 				},
 			},
 			JWKSAuthEnabled: true,
@@ -5766,10 +5827,13 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 						Realm:    "Route Realm API",
 						KeyCache: "1h",
 						JwksURI: version2.JwksURI{
-							JwksScheme: "http",
-							JwksHost:   "idp.route.example.com",
-							JwksPort:   "80",
-							JwksPath:   "/route-keys",
+							JwksScheme:     "http",
+							JwksHost:       "idp.route.example.com",
+							JwksPort:       "80",
+							JwksPath:       "/route-keys",
+							SSLVerify:      false,
+							TrustedCert:    "",
+							SSLVerifyDepth: 1,
 						},
 					},
 				},
@@ -5789,10 +5853,13 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 						Realm:    "Route Realm API",
 						KeyCache: "1h",
 						JwksURI: version2.JwksURI{
-							JwksScheme: "http",
-							JwksHost:   "idp.route.example.com",
-							JwksPort:   "80",
-							JwksPath:   "/route-keys",
+							JwksScheme:     "http",
+							JwksHost:       "idp.route.example.com",
+							JwksPort:       "80",
+							JwksPath:       "/route-keys",
+							SSLVerify:      false,
+							TrustedCert:    "",
+							SSLVerifyDepth: 1,
 						},
 					},
 				},
@@ -5828,6 +5895,183 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 
 	if len(warnings) != 0 {
 		t.Errorf("GenerateVirtualServerConfig returned warnings: %v", vsc.warnings)
+	}
+}
+
+func TestGenerateVirtualServerConfigJWTSSLVerifyDepth(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		sslVerifyDepth *int
+		expectedDepth  int
+		description    string
+	}{
+		{
+			name:           "default_depth",
+			sslVerifyDepth: nil, // Not specified - should default to 1
+			expectedDepth:  1,
+			description:    "When SSLVerifyDepth is not specified, it should default to 1",
+		},
+		{
+			name:           "explicit_depth",
+			sslVerifyDepth: createPointerFromInt(3), // Explicitly set to 3
+			expectedDepth:  3,
+			description:    "When SSLVerifyDepth is explicitly set, it should respect that value",
+		},
+		{
+			name:           "explicit_zero_depth",
+			sslVerifyDepth: createPointerFromInt(0), // Explicitly set to 0
+			expectedDepth:  0,
+			description:    "When SSLVerifyDepth is explicitly set to 0, it should respect that value",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			virtualServerEx := VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Policies: []conf_v1.PolicyReference{
+							{
+								Name: "jwt-ssl-policy",
+							},
+						},
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "tea",
+								Service: "tea-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path: "/tea",
+								Action: &conf_v1.Action{
+									Pass: "tea",
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/jwt-ssl-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "jwt-ssl-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							JWTAuth: &conf_v1.JWTAuth{
+								Realm:          "SSL Test API",
+								JwksURI:        "https://idp.example.com/keys",
+								SSLVerify:      true,
+								SSLVerifyDepth: tt.sslVerifyDepth,
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+				},
+			}
+
+			expected := version2.VirtualServerConfig{
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+						Keepalive: 16,
+					},
+				},
+				HTTPSnippets:  []string{},
+				LimitReqZones: []version2.LimitReqZone{},
+				Server: version2.Server{
+					JWTAuthList: map[string]*version2.JWTAuth{
+						"default/jwt-ssl-policy": {
+							Key:   "default/jwt-ssl-policy",
+							Realm: "SSL Test API",
+							JwksURI: version2.JwksURI{
+								JwksScheme:     "https",
+								JwksHost:       "idp.example.com",
+								JwksPath:       "/keys",
+								SSLVerify:      true,
+								SSLVerifyDepth: tt.expectedDepth,
+							},
+						},
+					},
+					JWTAuth: &version2.JWTAuth{
+						Key:   "default/jwt-ssl-policy",
+						Realm: "SSL Test API",
+						JwksURI: version2.JwksURI{
+							JwksScheme:     "https",
+							JwksHost:       "idp.example.com",
+							JwksPath:       "/keys",
+							SSLVerify:      true,
+							SSLVerifyDepth: tt.expectedDepth,
+						},
+					},
+					JWKSAuthEnabled: true,
+					ServerName:      "cafe.example.com",
+					StatusZone:      "cafe.example.com",
+					ProxyProtocol:   true,
+					ServerTokens:    "off",
+					RealIPHeader:    "X-Real-IP",
+					SetRealIPFrom:   []string{"0.0.0.0/0"},
+					RealIPRecursive: true,
+					Snippets:        []string{"# server snippet"},
+					VSNamespace:     "default",
+					VSName:          "cafe",
+					Locations: []version2.Location{
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							HasKeepalive:             true,
+							ProxySSLName:             "tea-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+						},
+					},
+				},
+			}
+
+			isPlus := false
+			isResolverConfigured := false
+			isWildcardEnabled := false
+			vsc := newVirtualServerConfigurator(&baseCfgParams, isPlus, isResolverConfigured, &StaticConfigParams{}, isWildcardEnabled, &fakeBV)
+
+			result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+
+			if diff := cmp.Diff(expected, result); diff != "" {
+				t.Errorf("%s: GenerateVirtualServerConfig() mismatch (-want +got):\n%s", tt.description, diff)
+			}
+
+			if len(warnings) != 0 {
+				t.Errorf("%s: GenerateVirtualServerConfig returned warnings: %v", tt.description, vsc.warnings)
+			}
+		})
 	}
 }
 
@@ -6395,19 +6639,5666 @@ func TestGenerateVirtualServerConfigAPIKeyClientMaps(t *testing.T) {
 	}
 }
 
+func TestGenerateVirtualServerConfigRateLimit(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		msg             string
+		virtualServerEx VirtualServerEx
+		expected        version2.VirtualServerConfig
+	}{
+		{
+			msg: "rate limits at vs spec level with zone sync enabled",
+			virtualServerEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Policies: []conf_v1.PolicyReference{
+							{
+								Name: "rate-limit-policy",
+							},
+						},
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "tea",
+								Service: "tea-svc",
+								Port:    80,
+							},
+							{
+								Name:    "coffee",
+								Service: "coffee-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path: "/tea",
+								Action: &conf_v1.Action{
+									Pass: "tea",
+								},
+							},
+							{
+								Path: "/coffee",
+								Action: &conf_v1.Action{
+									Pass: "coffee",
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$binary_remote_addr",
+								ZoneSize: "10M",
+								Rate:     "10r/s",
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+					"default/coffee-svc:80": {
+						"10.0.0.30:80",
+					},
+				},
+				ZoneSync: true,
+			},
+			expected: version2.VirtualServerConfig{
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "coffee-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_coffee",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.30:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets: []string{},
+				LimitReqZones: []version2.LimitReqZone{
+					{
+						Key:      "$binary_remote_addr",
+						ZoneName: "pol_rl_default_rate_limit_policy_default_cafe_sync",
+						ZoneSize: "10M",
+						Rate:     "10r/s",
+						Sync:     true,
+					},
+				},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+					LimitReqs: []version2.LimitReq{
+						{ZoneName: "pol_rl_default_rate_limit_policy_default_cafe_sync", Burst: 0, NoDelay: false, Delay: 0},
+					},
+					LimitReqOptions: version2.LimitReqOptions{
+						DryRun:     false,
+						LogLevel:   "error",
+						RejectCode: 503,
+					},
+					Locations: []version2.Location{
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+						},
+						{
+							Path:                     "/coffee",
+							ProxyPass:                "http://vs_default_cafe_coffee",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "coffee-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "coffee-svc",
+						},
+					},
+				},
+			},
+		},
+		{
+			msg: "rate limits at vs spec level without zone sync",
+			virtualServerEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Policies: []conf_v1.PolicyReference{
+							{
+								Name: "rate-limit-policy",
+							},
+						},
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "tea",
+								Service: "tea-svc",
+								Port:    80,
+							},
+							{
+								Name:    "coffee",
+								Service: "coffee-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path: "/tea",
+								Action: &conf_v1.Action{
+									Pass: "tea",
+								},
+							},
+							{
+								Path: "/coffee",
+								Action: &conf_v1.Action{
+									Pass: "coffee",
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$binary_remote_addr",
+								ZoneSize: "10M",
+								Rate:     "10r/s",
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+					"default/coffee-svc:80": {
+						"10.0.0.30:80",
+					},
+				},
+			},
+			expected: version2.VirtualServerConfig{
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "coffee-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_coffee",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.30:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets: []string{},
+				LimitReqZones: []version2.LimitReqZone{
+					{
+						Key:      "$binary_remote_addr",
+						ZoneName: "pol_rl_default_rate_limit_policy_default_cafe",
+						ZoneSize: "10M",
+						Rate:     "10r/s",
+						Sync:     false,
+					},
+				},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+					LimitReqs: []version2.LimitReq{
+						{ZoneName: "pol_rl_default_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+					},
+					LimitReqOptions: version2.LimitReqOptions{
+						DryRun:     false,
+						LogLevel:   "error",
+						RejectCode: 503,
+					},
+					Locations: []version2.Location{
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+						},
+						{
+							Path:                     "/coffee",
+							ProxyPass:                "http://vs_default_cafe_coffee",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "coffee-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "coffee-svc",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	baseCfgParams := ConfigParams{
+		Context:      context.Background(),
+		ServerTokens: "off",
+	}
+
+	vsc := newVirtualServerConfigurator(
+		&baseCfgParams,
+		false,
+		false,
+		&StaticConfigParams{},
+		false,
+		&fakeBV,
+	)
+
+	for _, test := range tests {
+		result, warnings := vsc.GenerateVirtualServerConfig(&test.virtualServerEx, nil, nil)
+
+		sort.Slice(result.Maps, func(i, j int) bool {
+			return result.Maps[i].Variable < result.Maps[j].Variable
+		})
+
+		sort.Slice(test.expected.Maps, func(i, j int) bool {
+			return test.expected.Maps[i].Variable < test.expected.Maps[j].Variable
+		})
+
+		if diff := cmp.Diff(test.expected, result); diff != "" {
+			t.Errorf("GenerateVirtualServerConfig() mismatch (-want +got):\n%s", diff)
+			t.Error(test.msg)
+		}
+
+		if len(warnings) != 0 {
+			t.Errorf("GenerateVirtualServerConfig returned warnings: %v", vsc.warnings)
+		}
+	}
+}
+
+func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		msg             string
+		virtualServerEx VirtualServerEx
+		expected        version2.VirtualServerConfig
+	}{
+		{
+			msg: "jwt claim rate limits at vs spec level, no default with zonesync enabled",
+			virtualServerEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Policies: []conf_v1.PolicyReference{
+							{
+								Name: "premium-rate-limit-policy",
+							},
+							{
+								Name: "basic-rate-limit-policy",
+							},
+						},
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "tea",
+								Service: "tea-svc",
+								Port:    80,
+							},
+							{
+								Name:    "coffee",
+								Service: "coffee-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path: "/tea",
+								Action: &conf_v1.Action{
+									Pass: "tea",
+								},
+							},
+							{
+								Path: "/coffee",
+								Action: &conf_v1.Action{
+									Pass: "coffee",
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/premium-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$jwt_claim_sub",
+								ZoneSize: "10M",
+								Rate:     "10r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									JWT: &conf_v1.JWTCondition{
+										Claim: "user_type.tier",
+										Match: "premium",
+									},
+								},
+							},
+						},
+					},
+					"default/basic-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$jwt_claim_sub",
+								ZoneSize: "20M",
+								Rate:     "20r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									JWT: &conf_v1.JWTCondition{
+										Claim: "user_type.tier",
+										Match: "basic",
+									},
+								},
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+					"default/coffee-svc:80": {
+						"10.0.0.30:80",
+					},
+				},
+				ZoneSync: true,
+			},
+			expected: version2.VirtualServerConfig{
+				Maps: []version2.Map{
+					{
+						Source:   "$jwt_default_cafe_user_type_tier",
+						Variable: "$rl_default_cafe_group_user_type_tier_spec_Lw",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "basic",
+								Result: "rl_default_cafe_match_basic",
+							},
+							{
+								Value:  "premium",
+								Result: "rl_default_cafe_match_premium",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_group_user_type_tier_spec_Lw",
+						Variable: "$pol_rl_default_premium_rate_limit_policy_default_cafe_sync",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_premium",
+								Result: "Val$jwt_claim_sub",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_group_user_type_tier_spec_Lw",
+						Variable: "$pol_rl_default_basic_rate_limit_policy_default_cafe_sync",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_basic",
+								Result: "Val$jwt_claim_sub",
+							},
+						},
+					},
+				},
+				AuthJWTClaimSets: []version2.AuthJWTClaimSet{{Variable: "$jwt_default_cafe_user_type_tier", Claim: "user_type tier"}},
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "coffee-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_coffee",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.30:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets: []string{},
+				LimitReqZones: []version2.LimitReqZone{
+					{
+						Key:           "$pol_rl_default_premium_rate_limit_policy_default_cafe_sync",
+						ZoneName:      "pol_rl_default_premium_rate_limit_policy_default_cafe_sync",
+						ZoneSize:      "10M",
+						Rate:          "10r/s",
+						PolicyResult:  "$jwt_claim_sub",
+						GroupVariable: "$rl_default_cafe_group_user_type_tier_spec_Lw",
+						PolicyValue:   "rl_default_cafe_match_premium",
+						GroupValue:    "premium",
+						GroupSource:   "$jwt_default_cafe_user_type_tier",
+						Sync:          true,
+					},
+					{
+						Key:           "$pol_rl_default_basic_rate_limit_policy_default_cafe_sync",
+						ZoneName:      "pol_rl_default_basic_rate_limit_policy_default_cafe_sync",
+						ZoneSize:      "20M",
+						Rate:          "20r/s",
+						PolicyResult:  "$jwt_claim_sub",
+						GroupVariable: "$rl_default_cafe_group_user_type_tier_spec_Lw",
+						PolicyValue:   "rl_default_cafe_match_basic",
+						GroupValue:    "basic",
+						GroupSource:   "$jwt_default_cafe_user_type_tier",
+						Sync:          true,
+					},
+				},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+					LimitReqs: []version2.LimitReq{
+						{ZoneName: "pol_rl_default_premium_rate_limit_policy_default_cafe_sync", Burst: 0, NoDelay: false, Delay: 0},
+						{ZoneName: "pol_rl_default_basic_rate_limit_policy_default_cafe_sync", Burst: 0, NoDelay: false, Delay: 0},
+					},
+					LimitReqOptions: version2.LimitReqOptions{
+						DryRun:     false,
+						LogLevel:   "error",
+						RejectCode: 503,
+					},
+					Locations: []version2.Location{
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+						},
+						{
+							Path:                     "/coffee",
+							ProxyPass:                "http://vs_default_cafe_coffee",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "coffee-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "coffee-svc",
+						},
+					},
+				},
+			},
+		},
+		{
+			msg: "jwt claim rate limits at vs spec level, no default",
+			virtualServerEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Policies: []conf_v1.PolicyReference{
+							{
+								Name: "premium-rate-limit-policy",
+							},
+							{
+								Name: "basic-rate-limit-policy",
+							},
+						},
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "tea",
+								Service: "tea-svc",
+								Port:    80,
+							},
+							{
+								Name:    "coffee",
+								Service: "coffee-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path: "/tea",
+								Action: &conf_v1.Action{
+									Pass: "tea",
+								},
+							},
+							{
+								Path: "/coffee",
+								Action: &conf_v1.Action{
+									Pass: "coffee",
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/premium-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$jwt_claim_sub",
+								ZoneSize: "10M",
+								Rate:     "10r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									JWT: &conf_v1.JWTCondition{
+										Claim: "user_type.tier",
+										Match: "premium",
+									},
+								},
+							},
+						},
+					},
+					"default/basic-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$jwt_claim_sub",
+								ZoneSize: "20M",
+								Rate:     "20r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									JWT: &conf_v1.JWTCondition{
+										Claim: "user_type.tier",
+										Match: "basic",
+									},
+								},
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+					"default/coffee-svc:80": {
+						"10.0.0.30:80",
+					},
+				},
+			},
+			expected: version2.VirtualServerConfig{
+				Maps: []version2.Map{
+					{
+						Source:   "$jwt_default_cafe_user_type_tier",
+						Variable: "$rl_default_cafe_group_user_type_tier_spec_Lw",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "basic",
+								Result: "rl_default_cafe_match_basic",
+							},
+							{
+								Value:  "premium",
+								Result: "rl_default_cafe_match_premium",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_group_user_type_tier_spec_Lw",
+						Variable: "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_premium",
+								Result: "Val$jwt_claim_sub",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_group_user_type_tier_spec_Lw",
+						Variable: "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_basic",
+								Result: "Val$jwt_claim_sub",
+							},
+						},
+					},
+				},
+				AuthJWTClaimSets: []version2.AuthJWTClaimSet{{Variable: "$jwt_default_cafe_user_type_tier", Claim: "user_type tier"}},
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "coffee-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_coffee",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.30:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets: []string{},
+				LimitReqZones: []version2.LimitReqZone{
+					{
+						Key:           "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						ZoneName:      "pol_rl_default_premium_rate_limit_policy_default_cafe",
+						ZoneSize:      "10M",
+						Rate:          "10r/s",
+						PolicyResult:  "$jwt_claim_sub",
+						GroupVariable: "$rl_default_cafe_group_user_type_tier_spec_Lw",
+						PolicyValue:   "rl_default_cafe_match_premium",
+						GroupValue:    "premium",
+						GroupSource:   "$jwt_default_cafe_user_type_tier",
+					},
+					{
+						Key:           "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						ZoneName:      "pol_rl_default_basic_rate_limit_policy_default_cafe",
+						ZoneSize:      "20M",
+						Rate:          "20r/s",
+						PolicyResult:  "$jwt_claim_sub",
+						GroupVariable: "$rl_default_cafe_group_user_type_tier_spec_Lw",
+						PolicyValue:   "rl_default_cafe_match_basic",
+						GroupValue:    "basic",
+						GroupSource:   "$jwt_default_cafe_user_type_tier",
+					},
+				},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+					LimitReqs: []version2.LimitReq{
+						{ZoneName: "pol_rl_default_premium_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+						{ZoneName: "pol_rl_default_basic_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+					},
+					LimitReqOptions: version2.LimitReqOptions{
+						DryRun:     false,
+						LogLevel:   "error",
+						RejectCode: 503,
+					},
+					Locations: []version2.Location{
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+						},
+						{
+							Path:                     "/coffee",
+							ProxyPass:                "http://vs_default_cafe_coffee",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "coffee-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "coffee-svc",
+						},
+					},
+				},
+			},
+		},
+		{
+			msg: "jwt claim rate limits at vs spec level, with default",
+			virtualServerEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Policies: []conf_v1.PolicyReference{
+							{
+								Name: "premium-rate-limit-policy",
+							},
+							{
+								Name: "basic-rate-limit-policy",
+							},
+						},
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "tea",
+								Service: "tea-svc",
+								Port:    80,
+							},
+							{
+								Name:    "coffee",
+								Service: "coffee-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path: "/tea",
+								Action: &conf_v1.Action{
+									Pass: "tea",
+								},
+							},
+							{
+								Path: "/coffee",
+								Action: &conf_v1.Action{
+									Pass: "coffee",
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/premium-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$jwt_claim_sub",
+								ZoneSize: "10M",
+								Rate:     "10r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									JWT: &conf_v1.JWTCondition{
+										Claim: "user_type.tier",
+										Match: "premium",
+									},
+								},
+							},
+						},
+					},
+					"default/basic-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$jwt_claim_sub",
+								ZoneSize: "20M",
+								Rate:     "20r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									JWT: &conf_v1.JWTCondition{
+										Claim: "user_type.tier",
+										Match: "basic",
+									},
+									Default: true,
+								},
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+					"default/coffee-svc:80": {
+						"10.0.0.30:80",
+					},
+				},
+			},
+			expected: version2.VirtualServerConfig{
+				Maps: []version2.Map{
+					{
+						Source:   "$jwt_default_cafe_user_type_tier",
+						Variable: "$rl_default_cafe_group_user_type_tier_spec_Lw",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "basic",
+								Result: "rl_default_cafe_match_basic",
+							},
+							{
+								Value:  "default",
+								Result: "rl_default_cafe_match_basic",
+							},
+							{
+								Value:  "premium",
+								Result: "rl_default_cafe_match_premium",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_group_user_type_tier_spec_Lw",
+						Variable: "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_premium",
+								Result: "Val$jwt_claim_sub",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_group_user_type_tier_spec_Lw",
+						Variable: "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_basic",
+								Result: "Val$jwt_claim_sub",
+							},
+						},
+					},
+				},
+				AuthJWTClaimSets: []version2.AuthJWTClaimSet{{Variable: "$jwt_default_cafe_user_type_tier", Claim: "user_type tier"}},
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "coffee-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_coffee",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.30:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets: []string{},
+				LimitReqZones: []version2.LimitReqZone{
+					{
+						Key:           "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						ZoneName:      "pol_rl_default_premium_rate_limit_policy_default_cafe",
+						ZoneSize:      "10M",
+						Rate:          "10r/s",
+						PolicyResult:  "$jwt_claim_sub",
+						GroupVariable: "$rl_default_cafe_group_user_type_tier_spec_Lw",
+						PolicyValue:   "rl_default_cafe_match_premium",
+						GroupValue:    "premium",
+						GroupSource:   "$jwt_default_cafe_user_type_tier",
+					},
+					{
+						Key:           "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						ZoneName:      "pol_rl_default_basic_rate_limit_policy_default_cafe",
+						ZoneSize:      "20M",
+						Rate:          "20r/s",
+						PolicyResult:  "$jwt_claim_sub",
+						GroupVariable: "$rl_default_cafe_group_user_type_tier_spec_Lw",
+						PolicyValue:   "rl_default_cafe_match_basic",
+						GroupValue:    "basic",
+						GroupDefault:  true,
+						GroupSource:   "$jwt_default_cafe_user_type_tier",
+					},
+				},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+					LimitReqs: []version2.LimitReq{
+						{ZoneName: "pol_rl_default_premium_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+						{ZoneName: "pol_rl_default_basic_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+					},
+					LimitReqOptions: version2.LimitReqOptions{
+						DryRun:     false,
+						LogLevel:   "error",
+						RejectCode: 503,
+					},
+					Locations: []version2.Location{
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+						},
+						{
+							Path:                     "/coffee",
+							ProxyPass:                "http://vs_default_cafe_coffee",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "coffee-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "coffee-svc",
+						},
+					},
+				},
+			},
+		},
+		{
+			msg: "jwt claim rate limits at vs route level, with default",
+			virtualServerEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "tea",
+								Service: "tea-svc",
+								Port:    80,
+							},
+							{
+								Name:    "coffee",
+								Service: "coffee-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path: "/tea",
+								Action: &conf_v1.Action{
+									Pass: "tea",
+								},
+								Policies: []conf_v1.PolicyReference{
+									{
+										Name: "premium-rate-limit-policy",
+									},
+									{
+										Name: "basic-rate-limit-policy",
+									},
+								},
+							},
+							{
+								Path: "/coffee",
+								Action: &conf_v1.Action{
+									Pass: "coffee",
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/premium-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$jwt_claim_sub",
+								ZoneSize: "10M",
+								Rate:     "10r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									JWT: &conf_v1.JWTCondition{
+										Claim: "user_type.tier",
+										Match: "premium",
+									},
+								},
+							},
+						},
+					},
+					"default/basic-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$jwt_claim_sub",
+								ZoneSize: "20M",
+								Rate:     "20r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									JWT: &conf_v1.JWTCondition{
+										Claim: "user_type.tier",
+										Match: "basic",
+									},
+									Default: true,
+								},
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+					"default/coffee-svc:80": {
+						"10.0.0.30:80",
+					},
+				},
+			},
+			expected: version2.VirtualServerConfig{
+				Maps: []version2.Map{
+					{
+						Source:   "$jwt_default_cafe_user_type_tier",
+						Variable: "$rl_default_cafe_group_user_type_tier_route_L3RlYQ",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "basic",
+								Result: "rl_default_cafe_match_basic",
+							},
+							{
+								Value:  "default",
+								Result: "rl_default_cafe_match_basic",
+							},
+							{
+								Value:  "premium",
+								Result: "rl_default_cafe_match_premium",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_group_user_type_tier_route_L3RlYQ",
+						Variable: "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_premium",
+								Result: "Val$jwt_claim_sub",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_group_user_type_tier_route_L3RlYQ",
+						Variable: "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_basic",
+								Result: "Val$jwt_claim_sub",
+							},
+						},
+					},
+				},
+				AuthJWTClaimSets: []version2.AuthJWTClaimSet{{Variable: "$jwt_default_cafe_user_type_tier", Claim: "user_type tier"}},
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "coffee-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_coffee",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.30:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets: []string{},
+				LimitReqZones: []version2.LimitReqZone{
+					{
+						Key:           "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						ZoneName:      "pol_rl_default_premium_rate_limit_policy_default_cafe",
+						ZoneSize:      "10M",
+						Rate:          "10r/s",
+						PolicyResult:  "$jwt_claim_sub",
+						GroupVariable: "$rl_default_cafe_group_user_type_tier_route_L3RlYQ",
+						PolicyValue:   "rl_default_cafe_match_premium",
+						GroupValue:    "premium",
+						GroupSource:   "$jwt_default_cafe_user_type_tier",
+					},
+					{
+						Key:           "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						ZoneName:      "pol_rl_default_basic_rate_limit_policy_default_cafe",
+						ZoneSize:      "20M",
+						Rate:          "20r/s",
+						PolicyResult:  "$jwt_claim_sub",
+						GroupVariable: "$rl_default_cafe_group_user_type_tier_route_L3RlYQ",
+						PolicyValue:   "rl_default_cafe_match_basic",
+						GroupValue:    "basic",
+						GroupDefault:  true,
+						GroupSource:   "$jwt_default_cafe_user_type_tier",
+					},
+				},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+					Locations: []version2.Location{
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+							LimitReqs: []version2.LimitReq{
+								{ZoneName: "pol_rl_default_premium_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+								{ZoneName: "pol_rl_default_basic_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+							},
+							LimitReqOptions: version2.LimitReqOptions{
+								DryRun:     false,
+								LogLevel:   "error",
+								RejectCode: 503,
+							},
+						},
+						{
+							Path:                     "/coffee",
+							ProxyPass:                "http://vs_default_cafe_coffee",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "coffee-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "coffee-svc",
+						},
+					},
+				},
+			},
+		},
+		{
+			msg: "jwt claim rate limits at two different vs route levels, with defaults",
+			virtualServerEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "tea",
+								Service: "tea-svc",
+								Port:    80,
+							},
+							{
+								Name:    "coffee",
+								Service: "coffee-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path: "/tea",
+								Action: &conf_v1.Action{
+									Pass: "tea",
+								},
+								Policies: []conf_v1.PolicyReference{
+									{
+										Name: "premium-rate-limit-policy",
+									},
+									{
+										Name: "basic-rate-limit-policy",
+									},
+								},
+							},
+							{
+								Path: "/coffee",
+								Action: &conf_v1.Action{
+									Pass: "coffee",
+								},
+								Policies: []conf_v1.PolicyReference{
+									{
+										Name: "premium-rate-limit-policy",
+									},
+									{
+										Name: "basic-rate-limit-policy",
+									},
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/premium-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$jwt_claim_sub",
+								ZoneSize: "10M",
+								Rate:     "10r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									JWT: &conf_v1.JWTCondition{
+										Claim: "user_type.tier",
+										Match: "premium",
+									},
+								},
+							},
+						},
+					},
+					"default/basic-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$jwt_claim_sub",
+								ZoneSize: "20M",
+								Rate:     "20r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									JWT: &conf_v1.JWTCondition{
+										Claim: "user_type.tier",
+										Match: "basic",
+									},
+									Default: true,
+								},
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+					"default/coffee-svc:80": {
+						"10.0.0.30:80",
+					},
+				},
+			},
+			expected: version2.VirtualServerConfig{
+				Maps: []version2.Map{
+					{
+						Source:   "$jwt_default_cafe_user_type_tier",
+						Variable: "$rl_default_cafe_group_user_type_tier_route_L3RlYQ",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "basic",
+								Result: "rl_default_cafe_match_basic",
+							},
+							{
+								Value:  "default",
+								Result: "rl_default_cafe_match_basic",
+							},
+							{
+								Value:  "premium",
+								Result: "rl_default_cafe_match_premium",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_group_user_type_tier_route_L3RlYQ",
+						Variable: "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_premium",
+								Result: "Val$jwt_claim_sub",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_group_user_type_tier_route_L3RlYQ",
+						Variable: "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_basic",
+								Result: "Val$jwt_claim_sub",
+							},
+						},
+					},
+					{
+						Source:   "$jwt_default_cafe_user_type_tier",
+						Variable: "$rl_default_cafe_group_user_type_tier_route_L2NvZmZlZQ",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "basic",
+								Result: "rl_default_cafe_match_basic",
+							},
+							{
+								Value:  "default",
+								Result: "rl_default_cafe_match_basic",
+							},
+							{
+								Value:  "premium",
+								Result: "rl_default_cafe_match_premium",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_group_user_type_tier_route_L2NvZmZlZQ",
+						Variable: "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_premium",
+								Result: "Val$jwt_claim_sub",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_group_user_type_tier_route_L2NvZmZlZQ",
+						Variable: "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_basic",
+								Result: "Val$jwt_claim_sub",
+							},
+						},
+					},
+				},
+				AuthJWTClaimSets: []version2.AuthJWTClaimSet{{Variable: "$jwt_default_cafe_user_type_tier", Claim: "user_type tier"}},
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "coffee-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_coffee",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.30:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets: []string{},
+				LimitReqZones: []version2.LimitReqZone{
+					{
+						Key:           "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						ZoneName:      "pol_rl_default_premium_rate_limit_policy_default_cafe",
+						ZoneSize:      "10M",
+						Rate:          "10r/s",
+						PolicyResult:  "$jwt_claim_sub",
+						GroupVariable: "$rl_default_cafe_group_user_type_tier_route_L3RlYQ",
+						PolicyValue:   "rl_default_cafe_match_premium",
+						GroupValue:    "premium",
+						GroupSource:   "$jwt_default_cafe_user_type_tier",
+					},
+					{
+						Key:           "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						ZoneName:      "pol_rl_default_basic_rate_limit_policy_default_cafe",
+						ZoneSize:      "20M",
+						Rate:          "20r/s",
+						PolicyResult:  "$jwt_claim_sub",
+						GroupVariable: "$rl_default_cafe_group_user_type_tier_route_L3RlYQ",
+						PolicyValue:   "rl_default_cafe_match_basic",
+						GroupValue:    "basic",
+						GroupDefault:  true,
+						GroupSource:   "$jwt_default_cafe_user_type_tier",
+					},
+				},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+					Locations: []version2.Location{
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+							LimitReqs: []version2.LimitReq{
+								{ZoneName: "pol_rl_default_premium_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+								{ZoneName: "pol_rl_default_basic_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+							},
+							LimitReqOptions: version2.LimitReqOptions{
+								DryRun:     false,
+								LogLevel:   "error",
+								RejectCode: 503,
+							},
+						},
+						{
+							Path:                     "/coffee",
+							ProxyPass:                "http://vs_default_cafe_coffee",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "coffee-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "coffee-svc",
+							LimitReqs: []version2.LimitReq{
+								{ZoneName: "pol_rl_default_premium_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+								{ZoneName: "pol_rl_default_basic_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+							},
+							LimitReqOptions: version2.LimitReqOptions{
+								DryRun:     false,
+								LogLevel:   "error",
+								RejectCode: 503,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			msg: "jwt claim rate limits at vsr /tea level, with default",
+			virtualServerEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "coffee",
+								Service: "coffee-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path:  "/tea",
+								Route: "default/tea",
+							},
+							{
+								Path: "/coffee",
+								Action: &conf_v1.Action{
+									Pass: "coffee",
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/premium-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$jwt_claim_sub",
+								ZoneSize: "10M",
+								Rate:     "10r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									JWT: &conf_v1.JWTCondition{
+										Claim: "user_type.tier",
+										Match: "premium",
+									},
+								},
+							},
+						},
+					},
+					"default/basic-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$jwt_claim_sub",
+								ZoneSize: "20M",
+								Rate:     "20r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									JWT: &conf_v1.JWTCondition{
+										Claim: "user_type.tier",
+										Match: "basic",
+									},
+									Default: true,
+								},
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+					"default/coffee-svc:80": {
+						"10.0.0.30:80",
+					},
+				},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
+					{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "tea",
+							Namespace: "default",
+						},
+						Spec: conf_v1.VirtualServerRouteSpec{
+							Host: "cafe.example.com",
+							Upstreams: []conf_v1.Upstream{
+								{
+									Name:    "tea",
+									Service: "tea-svc",
+									Port:    80,
+								},
+							},
+							Subroutes: []conf_v1.Route{
+								{
+									Path: "/tea",
+									Action: &conf_v1.Action{
+										Pass: "tea",
+									},
+									Policies: []conf_v1.PolicyReference{
+										{
+											Name: "premium-rate-limit-policy",
+										},
+										{
+											Name: "basic-rate-limit-policy",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: version2.VirtualServerConfig{
+				Maps: []version2.Map{
+					{
+						Source:   "$jwt_default_cafe_user_type_tier",
+						Variable: "$rl_default_cafe_group_user_type_tier_subroute_L3RlYQ",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "basic",
+								Result: "rl_default_cafe_match_basic",
+							},
+							{
+								Value:  "default",
+								Result: "rl_default_cafe_match_basic",
+							},
+							{
+								Value:  "premium",
+								Result: "rl_default_cafe_match_premium",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_group_user_type_tier_subroute_L3RlYQ",
+						Variable: "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_premium",
+								Result: "Val$jwt_claim_sub",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_group_user_type_tier_subroute_L3RlYQ",
+						Variable: "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_basic",
+								Result: "Val$jwt_claim_sub",
+							},
+						},
+					},
+				},
+				AuthJWTClaimSets: []version2.AuthJWTClaimSet{{Variable: "$jwt_default_cafe_user_type_tier", Claim: "user_type tier"}},
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "coffee-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_coffee",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.30:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserverroute",
+							ResourceName:      "tea",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_vsr_default_tea_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets: []string{},
+				LimitReqZones: []version2.LimitReqZone{
+					{
+						Key:           "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						ZoneName:      "pol_rl_default_premium_rate_limit_policy_default_cafe",
+						ZoneSize:      "10M",
+						Rate:          "10r/s",
+						PolicyResult:  "$jwt_claim_sub",
+						GroupVariable: "$rl_default_cafe_group_user_type_tier_subroute_L3RlYQ",
+						PolicyValue:   "rl_default_cafe_match_premium",
+						GroupValue:    "premium",
+						GroupSource:   "$jwt_default_cafe_user_type_tier",
+					},
+					{
+						Key:           "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						ZoneName:      "pol_rl_default_basic_rate_limit_policy_default_cafe",
+						ZoneSize:      "20M",
+						Rate:          "20r/s",
+						PolicyResult:  "$jwt_claim_sub",
+						GroupVariable: "$rl_default_cafe_group_user_type_tier_subroute_L3RlYQ",
+						PolicyValue:   "rl_default_cafe_match_basic",
+						GroupValue:    "basic",
+						GroupDefault:  true,
+						GroupSource:   "$jwt_default_cafe_user_type_tier",
+					},
+				},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+					Locations: []version2.Location{
+						{
+							Path:                     "/coffee",
+							ProxyPass:                "http://vs_default_cafe_coffee",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "coffee-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "coffee-svc",
+						},
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_vsr_default_tea_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+							IsVSR:                    true,
+							VSRName:                  "tea",
+							VSRNamespace:             "default",
+							LimitReqs: []version2.LimitReq{
+								{ZoneName: "pol_rl_default_premium_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+								{ZoneName: "pol_rl_default_basic_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+							},
+							LimitReqOptions: version2.LimitReqOptions{
+								DryRun:     false,
+								LogLevel:   "error",
+								RejectCode: 503,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			msg: "jwt claim rate limits at vsr /tea level & at vs spec level, with default",
+			virtualServerEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "coffee",
+								Service: "coffee-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path:  "/tea",
+								Route: "default/tea",
+							},
+							{
+								Path: "/coffee",
+								Action: &conf_v1.Action{
+									Pass: "coffee",
+								},
+							},
+						},
+						Policies: []conf_v1.PolicyReference{
+							{
+								Name: "premium-rate-limit-policy",
+							},
+							{
+								Name: "basic-rate-limit-policy",
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/premium-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$jwt_claim_sub",
+								ZoneSize: "10M",
+								Rate:     "10r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									JWT: &conf_v1.JWTCondition{
+										Claim: "user_type.tier",
+										Match: "premium",
+									},
+								},
+							},
+						},
+					},
+					"default/basic-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$jwt_claim_sub",
+								ZoneSize: "20M",
+								Rate:     "20r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									JWT: &conf_v1.JWTCondition{
+										Claim: "user_type.tier",
+										Match: "basic",
+									},
+									Default: true,
+								},
+							},
+						},
+					},
+					"default/gold-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "gold-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$jwt_claim_sub",
+								ZoneSize: "10M",
+								Rate:     "100r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									JWT: &conf_v1.JWTCondition{
+										Claim: "user_type.tier",
+										Match: "gold",
+									},
+								},
+							},
+						},
+					},
+					"default/silver-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "silver-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$jwt_claim_sub",
+								ZoneSize: "10M",
+								Rate:     "50r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									JWT: &conf_v1.JWTCondition{
+										Claim: "user_type.tier",
+										Match: "silver",
+									},
+								},
+							},
+						},
+					},
+					"default/bronze-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "bronze-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$jwt_claim_sub",
+								ZoneSize: "10M",
+								Rate:     "10r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									JWT: &conf_v1.JWTCondition{
+										Claim: "user_type.tier",
+										Match: "bronze",
+									},
+									Default: true,
+								},
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+					"default/coffee-svc:80": {
+						"10.0.0.30:80",
+					},
+				},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
+					{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "tea",
+							Namespace: "default",
+						},
+						Spec: conf_v1.VirtualServerRouteSpec{
+							Host: "cafe.example.com",
+							Upstreams: []conf_v1.Upstream{
+								{
+									Name:    "tea",
+									Service: "tea-svc",
+									Port:    80,
+								},
+							},
+							Subroutes: []conf_v1.Route{
+								{
+									Path: "/tea",
+									Action: &conf_v1.Action{
+										Pass: "tea",
+									},
+									Policies: []conf_v1.PolicyReference{
+										{
+											Name: "gold-rate-limit-policy",
+										},
+										{
+											Name: "silver-rate-limit-policy",
+										},
+										{
+											Name: "bronze-rate-limit-policy",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: version2.VirtualServerConfig{
+				Maps: []version2.Map{
+					{
+						Source:   "$jwt_default_cafe_user_type_tier",
+						Variable: "$rl_default_cafe_group_user_type_tier_spec_Lw",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "basic",
+								Result: "rl_default_cafe_match_basic",
+							},
+							{
+								Value:  "default",
+								Result: "rl_default_cafe_match_basic",
+							},
+							{
+								Value:  "premium",
+								Result: "rl_default_cafe_match_premium",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_group_user_type_tier_spec_Lw",
+						Variable: "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_premium",
+								Result: "Val$jwt_claim_sub",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_group_user_type_tier_spec_Lw",
+						Variable: "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_basic",
+								Result: "Val$jwt_claim_sub",
+							},
+						},
+					},
+					{
+						Source:   "$jwt_default_cafe_user_type_tier",
+						Variable: "$rl_default_cafe_group_user_type_tier_subroute_L3RlYQ",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "bronze",
+								Result: "rl_default_cafe_match_bronze",
+							},
+							{
+								Value:  "default",
+								Result: "rl_default_cafe_match_bronze",
+							},
+							{
+								Value:  "silver",
+								Result: "rl_default_cafe_match_silver",
+							},
+							{
+								Value:  "gold",
+								Result: "rl_default_cafe_match_gold",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_group_user_type_tier_subroute_L3RlYQ",
+						Variable: "$pol_rl_default_gold_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_gold",
+								Result: "Val$jwt_claim_sub",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_group_user_type_tier_subroute_L3RlYQ",
+						Variable: "$pol_rl_default_silver_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_silver",
+								Result: "Val$jwt_claim_sub",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_group_user_type_tier_subroute_L3RlYQ",
+						Variable: "$pol_rl_default_bronze_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_bronze",
+								Result: "Val$jwt_claim_sub",
+							},
+						},
+					},
+				},
+				AuthJWTClaimSets: []version2.AuthJWTClaimSet{{Variable: "$jwt_default_cafe_user_type_tier", Claim: "user_type tier"}},
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "coffee-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_coffee",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.30:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserverroute",
+							ResourceName:      "tea",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_vsr_default_tea_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets: []string{},
+				LimitReqZones: []version2.LimitReqZone{
+					{
+						Key:           "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						ZoneName:      "pol_rl_default_premium_rate_limit_policy_default_cafe",
+						ZoneSize:      "10M",
+						Rate:          "10r/s",
+						PolicyResult:  "$jwt_claim_sub",
+						GroupVariable: "$rl_default_cafe_group_user_type_tier_spec_Lw",
+						PolicyValue:   "rl_default_cafe_match_premium",
+						GroupValue:    "premium",
+						GroupSource:   "$jwt_default_cafe_user_type_tier",
+					},
+					{
+						Key:           "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						ZoneName:      "pol_rl_default_basic_rate_limit_policy_default_cafe",
+						ZoneSize:      "20M",
+						Rate:          "20r/s",
+						PolicyResult:  "$jwt_claim_sub",
+						GroupVariable: "$rl_default_cafe_group_user_type_tier_spec_Lw",
+						PolicyValue:   "rl_default_cafe_match_basic",
+						GroupValue:    "basic",
+						GroupDefault:  true,
+						GroupSource:   "$jwt_default_cafe_user_type_tier",
+					},
+					{
+						Key:           "$pol_rl_default_gold_rate_limit_policy_default_cafe",
+						ZoneName:      "pol_rl_default_gold_rate_limit_policy_default_cafe",
+						ZoneSize:      "10M",
+						Rate:          "100r/s",
+						PolicyResult:  "$jwt_claim_sub",
+						GroupVariable: "$rl_default_cafe_group_user_type_tier_subroute_L3RlYQ",
+						PolicyValue:   "rl_default_cafe_match_gold",
+						GroupValue:    "gold",
+						GroupSource:   "$jwt_default_cafe_user_type_tier",
+					},
+					{
+						Key:           "$pol_rl_default_silver_rate_limit_policy_default_cafe",
+						ZoneName:      "pol_rl_default_silver_rate_limit_policy_default_cafe",
+						ZoneSize:      "10M",
+						Rate:          "50r/s",
+						PolicyResult:  "$jwt_claim_sub",
+						GroupVariable: "$rl_default_cafe_group_user_type_tier_subroute_L3RlYQ",
+						PolicyValue:   "rl_default_cafe_match_silver",
+						GroupValue:    "silver",
+						GroupSource:   "$jwt_default_cafe_user_type_tier",
+					},
+					{
+						Key:           "$pol_rl_default_bronze_rate_limit_policy_default_cafe",
+						ZoneName:      "pol_rl_default_bronze_rate_limit_policy_default_cafe",
+						ZoneSize:      "10M",
+						Rate:          "10r/s",
+						PolicyResult:  "$jwt_claim_sub",
+						GroupVariable: "$rl_default_cafe_group_user_type_tier_subroute_L3RlYQ",
+						PolicyValue:   "rl_default_cafe_match_bronze",
+						GroupValue:    "bronze",
+						GroupSource:   "$jwt_default_cafe_user_type_tier",
+						GroupDefault:  true,
+					},
+				},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+					LimitReqs: []version2.LimitReq{
+						{ZoneName: "pol_rl_default_premium_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+						{ZoneName: "pol_rl_default_basic_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+					},
+					LimitReqOptions: version2.LimitReqOptions{
+						DryRun:     false,
+						LogLevel:   "error",
+						RejectCode: 503,
+					},
+					Locations: []version2.Location{
+						{
+							Path:                     "/coffee",
+							ProxyPass:                "http://vs_default_cafe_coffee",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "coffee-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "coffee-svc",
+						},
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_vsr_default_tea_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+							IsVSR:                    true,
+							VSRName:                  "tea",
+							VSRNamespace:             "default",
+							LimitReqs: []version2.LimitReq{
+								{ZoneName: "pol_rl_default_gold_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+								{ZoneName: "pol_rl_default_silver_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+								{ZoneName: "pol_rl_default_bronze_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+							},
+							LimitReqOptions: version2.LimitReqOptions{
+								DryRun:     false,
+								LogLevel:   "error",
+								RejectCode: 503,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			msg: "apikey claim rate limits at vs spec level, no default with zonesync enabled",
+			virtualServerEx: VirtualServerEx{
+				SecretRefs: map[string]*secrets.SecretReference{
+					"default/api-key-secret-spec": {
+						Secret: &api_v1.Secret{
+							Type: secrets.SecretTypeAPIKey,
+							Data: map[string][]byte{
+								"premium": []byte("premiumpassword"),
+								"basic":   []byte("basicpassword"),
+							},
+						},
+					},
+				},
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Policies: []conf_v1.PolicyReference{
+							{
+								Name: "premium-rate-limit-policy",
+							},
+							{
+								Name: "basic-rate-limit-policy",
+							},
+							{
+								Name: "api-key-policy",
+							},
+						},
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "tea",
+								Service: "tea-svc",
+								Port:    80,
+							},
+							{
+								Name:    "coffee",
+								Service: "coffee-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path: "/tea",
+								Action: &conf_v1.Action{
+									Pass: "tea",
+								},
+							},
+							{
+								Path: "/coffee",
+								Action: &conf_v1.Action{
+									Pass: "coffee",
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/premium-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$apikey_client_name",
+								ZoneSize: "10M",
+								Rate:     "10r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									Variables: &[]conf_v1.VariableCondition{
+										{
+											Match: "premium",
+											Name:  "$apikey_client_name",
+										},
+									},
+								},
+							},
+						},
+					},
+					"default/basic-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$apikey_client_name",
+								ZoneSize: "20M",
+								Rate:     "20r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									Variables: &[]conf_v1.VariableCondition{
+										{
+											Match: "basic",
+											Name:  "$apikey_client_name",
+										},
+									},
+								},
+							},
+						},
+					},
+					"default/api-key-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "api-key-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							APIKey: &conf_v1.APIKey{
+								ClientSecret: "api-key-secret-spec",
+								SuppliedIn: &conf_v1.SuppliedIn{
+									Header: []string{"X-API-Key"},
+									Query:  []string{"api-key"},
+								},
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+					"default/coffee-svc:80": {
+						"10.0.0.30:80",
+					},
+				},
+				ZoneSync: true,
+			},
+			expected: version2.VirtualServerConfig{
+				Maps: []version2.Map{
+					{
+						Source:   "$apikey_client_name",
+						Variable: "$rl_default_cafe_variable_apikey_client_name_spec_Lw",
+						Parameters: []version2.Parameter{
+							{
+								Value:  `"basic"`,
+								Result: "rl_default_cafe_match_basic_rate_limit_policy",
+							},
+							{
+								Value:  `"premium"`,
+								Result: "rl_default_cafe_match_premium_rate_limit_policy",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_variable_apikey_client_name_spec_Lw",
+						Variable: "$pol_rl_default_premium_rate_limit_policy_default_cafe_sync",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_premium_rate_limit_policy",
+								Result: "Val$apikey_client_name",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_variable_apikey_client_name_spec_Lw",
+						Variable: "$pol_rl_default_basic_rate_limit_policy_default_cafe_sync",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_basic_rate_limit_policy",
+								Result: "Val$apikey_client_name",
+							},
+						},
+					},
+					{
+						Source:   "$apikey_auth_token",
+						Variable: "$apikey_auth_client_name_default_cafe_api_key_policy",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: `""`,
+							},
+							{
+								Value:  `"e96ac3dd8ef94a6c4bb88f216231c1968e1700add139d722fe406cd0cae73074"`,
+								Result: `"premium"`,
+							},
+							{
+								Value:  `"e1e1a4f93c814d938254e6fd7da12f096c9948eae7bc4137656202a413a0f3f4"`,
+								Result: `"basic"`,
+							},
+						},
+					},
+				},
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "coffee-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_coffee",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.30:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets: []string{},
+				LimitReqZones: []version2.LimitReqZone{
+					{
+						Key:           "$pol_rl_default_premium_rate_limit_policy_default_cafe_sync",
+						ZoneName:      "pol_rl_default_premium_rate_limit_policy_default_cafe_sync",
+						ZoneSize:      "10M",
+						Rate:          "10r/s",
+						PolicyResult:  "$apikey_client_name",
+						GroupVariable: "$rl_default_cafe_variable_apikey_client_name_spec_Lw",
+						PolicyValue:   "rl_default_cafe_match_premium_rate_limit_policy",
+						GroupValue:    `"premium"`,
+						GroupSource:   "$apikey_client_name",
+						Sync:          true,
+					},
+					{
+						Key:           "$pol_rl_default_basic_rate_limit_policy_default_cafe_sync",
+						ZoneName:      "pol_rl_default_basic_rate_limit_policy_default_cafe_sync",
+						ZoneSize:      "20M",
+						Rate:          "20r/s",
+						PolicyResult:  "$apikey_client_name",
+						GroupVariable: "$rl_default_cafe_variable_apikey_client_name_spec_Lw",
+						PolicyValue:   "rl_default_cafe_match_basic_rate_limit_policy",
+						GroupValue:    `"basic"`,
+						GroupSource:   "$apikey_client_name",
+						Sync:          true,
+					},
+				},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+					LimitReqs: []version2.LimitReq{
+						{ZoneName: "pol_rl_default_premium_rate_limit_policy_default_cafe_sync", Burst: 0, NoDelay: false, Delay: 0},
+						{ZoneName: "pol_rl_default_basic_rate_limit_policy_default_cafe_sync", Burst: 0, NoDelay: false, Delay: 0},
+					},
+					LimitReqOptions: version2.LimitReqOptions{
+						DryRun:     false,
+						LogLevel:   "error",
+						RejectCode: 503,
+					},
+					Locations: []version2.Location{
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+						},
+						{
+							Path:                     "/coffee",
+							ProxyPass:                "http://vs_default_cafe_coffee",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "coffee-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "coffee-svc",
+						},
+					},
+					APIKeyEnabled: true,
+					APIKey: &version2.APIKey{
+						Header:  []string{"X-API-Key"},
+						Query:   []string{"api-key"},
+						MapName: "apikey_auth_client_name_default_cafe_api_key_policy",
+					},
+				},
+			},
+		},
+		{
+			msg: "apikey claim rate limits at vs spec level, no default",
+			virtualServerEx: VirtualServerEx{
+				SecretRefs: map[string]*secrets.SecretReference{
+					"default/api-key-secret-spec": {
+						Secret: &api_v1.Secret{
+							Type: secrets.SecretTypeAPIKey,
+							Data: map[string][]byte{
+								"premium": []byte("premiumpassword"),
+								"basic":   []byte("basicpassword"),
+							},
+						},
+					},
+				},
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Policies: []conf_v1.PolicyReference{
+							{
+								Name: "premium-rate-limit-policy",
+							},
+							{
+								Name: "basic-rate-limit-policy",
+							},
+							{
+								Name: "api-key-policy",
+							},
+						},
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "tea",
+								Service: "tea-svc",
+								Port:    80,
+							},
+							{
+								Name:    "coffee",
+								Service: "coffee-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path: "/tea",
+								Action: &conf_v1.Action{
+									Pass: "tea",
+								},
+							},
+							{
+								Path: "/coffee",
+								Action: &conf_v1.Action{
+									Pass: "coffee",
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/premium-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$apikey_client_name",
+								ZoneSize: "10M",
+								Rate:     "10r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									Variables: &[]conf_v1.VariableCondition{
+										{
+											Match: "premium",
+											Name:  "$apikey_client_name",
+										},
+									},
+								},
+							},
+						},
+					},
+					"default/basic-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$apikey_client_name",
+								ZoneSize: "20M",
+								Rate:     "20r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									Variables: &[]conf_v1.VariableCondition{
+										{
+											Match: "basic",
+											Name:  "$apikey_client_name",
+										},
+									},
+								},
+							},
+						},
+					},
+					"default/api-key-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "api-key-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							APIKey: &conf_v1.APIKey{
+								ClientSecret: "api-key-secret-spec",
+								SuppliedIn: &conf_v1.SuppliedIn{
+									Header: []string{"X-API-Key"},
+									Query:  []string{"api-key"},
+								},
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+					"default/coffee-svc:80": {
+						"10.0.0.30:80",
+					},
+				},
+			},
+			expected: version2.VirtualServerConfig{
+				Maps: []version2.Map{
+					{
+						Source:   "$apikey_client_name",
+						Variable: "$rl_default_cafe_variable_apikey_client_name_spec_Lw",
+						Parameters: []version2.Parameter{
+							{
+								Value:  `"basic"`,
+								Result: "rl_default_cafe_match_basic_rate_limit_policy",
+							},
+							{
+								Value:  `"premium"`,
+								Result: "rl_default_cafe_match_premium_rate_limit_policy",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_variable_apikey_client_name_spec_Lw",
+						Variable: "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_premium_rate_limit_policy",
+								Result: "Val$apikey_client_name",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_variable_apikey_client_name_spec_Lw",
+						Variable: "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_basic_rate_limit_policy",
+								Result: "Val$apikey_client_name",
+							},
+						},
+					},
+					{
+						Source:   "$apikey_auth_token",
+						Variable: "$apikey_auth_client_name_default_cafe_api_key_policy",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: `""`,
+							},
+							{
+								Value:  `"e96ac3dd8ef94a6c4bb88f216231c1968e1700add139d722fe406cd0cae73074"`,
+								Result: `"premium"`,
+							},
+							{
+								Value:  `"e1e1a4f93c814d938254e6fd7da12f096c9948eae7bc4137656202a413a0f3f4"`,
+								Result: `"basic"`,
+							},
+						},
+					},
+				},
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "coffee-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_coffee",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.30:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets: []string{},
+				LimitReqZones: []version2.LimitReqZone{
+					{
+						Key:           "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						ZoneName:      "pol_rl_default_premium_rate_limit_policy_default_cafe",
+						ZoneSize:      "10M",
+						Rate:          "10r/s",
+						PolicyResult:  "$apikey_client_name",
+						GroupVariable: "$rl_default_cafe_variable_apikey_client_name_spec_Lw",
+						PolicyValue:   "rl_default_cafe_match_premium_rate_limit_policy",
+						GroupValue:    `"premium"`,
+						GroupSource:   "$apikey_client_name",
+					},
+					{
+						Key:           "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						ZoneName:      "pol_rl_default_basic_rate_limit_policy_default_cafe",
+						ZoneSize:      "20M",
+						Rate:          "20r/s",
+						PolicyResult:  "$apikey_client_name",
+						GroupVariable: "$rl_default_cafe_variable_apikey_client_name_spec_Lw",
+						PolicyValue:   "rl_default_cafe_match_basic_rate_limit_policy",
+						GroupValue:    `"basic"`,
+						GroupSource:   "$apikey_client_name",
+					},
+				},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+					LimitReqs: []version2.LimitReq{
+						{ZoneName: "pol_rl_default_premium_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+						{ZoneName: "pol_rl_default_basic_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+					},
+					LimitReqOptions: version2.LimitReqOptions{
+						DryRun:     false,
+						LogLevel:   "error",
+						RejectCode: 503,
+					},
+					Locations: []version2.Location{
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+						},
+						{
+							Path:                     "/coffee",
+							ProxyPass:                "http://vs_default_cafe_coffee",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "coffee-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "coffee-svc",
+						},
+					},
+					APIKeyEnabled: true,
+					APIKey: &version2.APIKey{
+						Header:  []string{"X-API-Key"},
+						Query:   []string{"api-key"},
+						MapName: "apikey_auth_client_name_default_cafe_api_key_policy",
+					},
+				},
+			},
+		},
+		{
+			msg: "apikey claim rate limits at vs spec level, with default",
+			virtualServerEx: VirtualServerEx{
+				SecretRefs: map[string]*secrets.SecretReference{
+					"default/api-key-secret-spec": {
+						Secret: &api_v1.Secret{
+							Type: secrets.SecretTypeAPIKey,
+							Data: map[string][]byte{
+								"premium": []byte("premiumpassword"),
+								"basic":   []byte("basicpassword"),
+							},
+						},
+					},
+				},
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Policies: []conf_v1.PolicyReference{
+							{
+								Name: "premium-rate-limit-policy",
+							},
+							{
+								Name: "basic-rate-limit-policy",
+							},
+							{
+								Name: "api-key-policy",
+							},
+						},
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "tea",
+								Service: "tea-svc",
+								Port:    80,
+							},
+							{
+								Name:    "coffee",
+								Service: "coffee-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path: "/tea",
+								Action: &conf_v1.Action{
+									Pass: "tea",
+								},
+							},
+							{
+								Path: "/coffee",
+								Action: &conf_v1.Action{
+									Pass: "coffee",
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/premium-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$apikey_client_name",
+								ZoneSize: "10M",
+								Rate:     "10r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									Variables: &[]conf_v1.VariableCondition{
+										{
+											Match: "premium",
+											Name:  "$apikey_client_name",
+										},
+									},
+								},
+							},
+						},
+					},
+					"default/basic-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$apikey_client_name",
+								ZoneSize: "20M",
+								Rate:     "20r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									Variables: &[]conf_v1.VariableCondition{
+										{
+											Match: "basic",
+											Name:  "$apikey_client_name",
+										},
+									},
+									Default: true,
+								},
+							},
+						},
+					},
+					"default/api-key-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "api-key-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							APIKey: &conf_v1.APIKey{
+								ClientSecret: "api-key-secret-spec",
+								SuppliedIn: &conf_v1.SuppliedIn{
+									Header: []string{"X-API-Key"},
+									Query:  []string{"api-key"},
+								},
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+					"default/coffee-svc:80": {
+						"10.0.0.30:80",
+					},
+				},
+			},
+			expected: version2.VirtualServerConfig{
+				Maps: []version2.Map{
+					{
+						Source:   "$apikey_client_name",
+						Variable: "$rl_default_cafe_variable_apikey_client_name_spec_Lw",
+						Parameters: []version2.Parameter{
+							{
+								Value:  `"basic"`,
+								Result: "rl_default_cafe_match_basic_rate_limit_policy",
+							},
+							{
+								Value:  "default",
+								Result: "rl_default_cafe_match_basic_rate_limit_policy",
+							},
+							{
+								Value:  `"premium"`,
+								Result: "rl_default_cafe_match_premium_rate_limit_policy",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_variable_apikey_client_name_spec_Lw",
+						Variable: "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_premium_rate_limit_policy",
+								Result: "Val$apikey_client_name",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_variable_apikey_client_name_spec_Lw",
+						Variable: "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_basic_rate_limit_policy",
+								Result: "Val$apikey_client_name",
+							},
+						},
+					},
+					{
+						Source:   "$apikey_auth_token",
+						Variable: "$apikey_auth_client_name_default_cafe_api_key_policy",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: `""`,
+							},
+							{
+								Value:  `"e1e1a4f93c814d938254e6fd7da12f096c9948eae7bc4137656202a413a0f3f4"`,
+								Result: `"basic"`,
+							},
+							{
+								Value:  `"e96ac3dd8ef94a6c4bb88f216231c1968e1700add139d722fe406cd0cae73074"`,
+								Result: `"premium"`,
+							},
+						},
+					},
+				},
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "coffee-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_coffee",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.30:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets: []string{},
+				LimitReqZones: []version2.LimitReqZone{
+					{
+						Key:           "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						ZoneName:      "pol_rl_default_premium_rate_limit_policy_default_cafe",
+						ZoneSize:      "10M",
+						Rate:          "10r/s",
+						PolicyResult:  "$apikey_client_name",
+						GroupVariable: "$rl_default_cafe_variable_apikey_client_name_spec_Lw",
+						PolicyValue:   "rl_default_cafe_match_premium_rate_limit_policy",
+						GroupValue:    `"premium"`,
+						GroupSource:   "$apikey_client_name",
+					},
+					{
+						Key:           "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						ZoneName:      "pol_rl_default_basic_rate_limit_policy_default_cafe",
+						ZoneSize:      "20M",
+						Rate:          "20r/s",
+						PolicyResult:  "$apikey_client_name",
+						GroupVariable: "$rl_default_cafe_variable_apikey_client_name_spec_Lw",
+						PolicyValue:   "rl_default_cafe_match_basic_rate_limit_policy",
+						GroupValue:    `"basic"`,
+						GroupSource:   "$apikey_client_name",
+						GroupDefault:  true,
+					},
+				},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+					LimitReqs: []version2.LimitReq{
+						{ZoneName: "pol_rl_default_premium_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+						{ZoneName: "pol_rl_default_basic_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+					},
+					LimitReqOptions: version2.LimitReqOptions{
+						DryRun:     false,
+						LogLevel:   "error",
+						RejectCode: 503,
+					},
+					Locations: []version2.Location{
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+						},
+						{
+							Path:                     "/coffee",
+							ProxyPass:                "http://vs_default_cafe_coffee",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "coffee-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "coffee-svc",
+						},
+					},
+					APIKeyEnabled: true,
+					APIKey: &version2.APIKey{
+						Header:  []string{"X-API-Key"},
+						Query:   []string{"api-key"},
+						MapName: "apikey_auth_client_name_default_cafe_api_key_policy",
+					},
+				},
+			},
+		},
+		{
+			msg: "apikey claim rate limits at vs route level, with default",
+			virtualServerEx: VirtualServerEx{
+				SecretRefs: map[string]*secrets.SecretReference{
+					"default/api-key-secret-spec": {
+						Secret: &api_v1.Secret{
+							Type: secrets.SecretTypeAPIKey,
+							Data: map[string][]byte{
+								"premium": []byte("premiumpassword"),
+								"basic":   []byte("basicpassword"),
+							},
+						},
+					},
+				},
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Policies: []conf_v1.PolicyReference{
+							{
+								Name: "api-key-policy",
+							},
+						},
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "tea",
+								Service: "tea-svc",
+								Port:    80,
+							},
+							{
+								Name:    "coffee",
+								Service: "coffee-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path: "/tea",
+								Action: &conf_v1.Action{
+									Pass: "tea",
+								},
+								Policies: []conf_v1.PolicyReference{
+									{
+										Name: "premium-rate-limit-policy",
+									},
+									{
+										Name: "basic-rate-limit-policy",
+									},
+								},
+							},
+							{
+								Path: "/coffee",
+								Action: &conf_v1.Action{
+									Pass: "coffee",
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/premium-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$apikey_client_name",
+								ZoneSize: "10M",
+								Rate:     "10r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									Variables: &[]conf_v1.VariableCondition{
+										{
+											Match: "premium",
+											Name:  "$apikey_client_name",
+										},
+									},
+								},
+							},
+						},
+					},
+					"default/basic-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$apikey_client_name",
+								ZoneSize: "20M",
+								Rate:     "20r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									Variables: &[]conf_v1.VariableCondition{
+										{
+											Match: "basic",
+											Name:  "$apikey_client_name",
+										},
+									},
+									Default: true,
+								},
+							},
+						},
+					},
+					"default/api-key-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "api-key-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							APIKey: &conf_v1.APIKey{
+								ClientSecret: "api-key-secret-spec",
+								SuppliedIn: &conf_v1.SuppliedIn{
+									Header: []string{"X-API-Key"},
+									Query:  []string{"api-key"},
+								},
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+					"default/coffee-svc:80": {
+						"10.0.0.30:80",
+					},
+				},
+			},
+			expected: version2.VirtualServerConfig{
+				Maps: []version2.Map{
+					{
+						Source:   "$apikey_client_name",
+						Variable: "$rl_default_cafe_variable_apikey_client_name_route_L3RlYQ",
+						Parameters: []version2.Parameter{
+							{
+								Value:  `"basic"`,
+								Result: "rl_default_cafe_match_basic_rate_limit_policy",
+							},
+							{
+								Value:  "default",
+								Result: "rl_default_cafe_match_basic_rate_limit_policy",
+							},
+							{
+								Value:  `"premium"`,
+								Result: "rl_default_cafe_match_premium_rate_limit_policy",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_variable_apikey_client_name_route_L3RlYQ",
+						Variable: "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_premium_rate_limit_policy",
+								Result: "Val$apikey_client_name",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_variable_apikey_client_name_route_L3RlYQ",
+						Variable: "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_basic_rate_limit_policy",
+								Result: "Val$apikey_client_name",
+							},
+						},
+					},
+					{
+						Source:   "$apikey_auth_token",
+						Variable: "$apikey_auth_client_name_default_cafe_api_key_policy",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: `""`,
+							},
+							{
+								Value:  `"e96ac3dd8ef94a6c4bb88f216231c1968e1700add139d722fe406cd0cae73074"`,
+								Result: `"premium"`,
+							},
+							{
+								Value:  `"e1e1a4f93c814d938254e6fd7da12f096c9948eae7bc4137656202a413a0f3f4"`,
+								Result: `"basic"`,
+							},
+						},
+					},
+				},
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "coffee-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_coffee",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.30:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets: []string{},
+				LimitReqZones: []version2.LimitReqZone{
+					{
+						Key:           "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						ZoneName:      "pol_rl_default_premium_rate_limit_policy_default_cafe",
+						ZoneSize:      "10M",
+						Rate:          "10r/s",
+						PolicyResult:  "$apikey_client_name",
+						GroupVariable: "$rl_default_cafe_variable_apikey_client_name_route_L3RlYQ",
+						PolicyValue:   "rl_default_cafe_match_premium_rate_limit_policy",
+						GroupValue:    `"premium"`,
+						GroupSource:   "$apikey_client_name",
+					},
+					{
+						Key:           "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						ZoneName:      "pol_rl_default_basic_rate_limit_policy_default_cafe",
+						ZoneSize:      "20M",
+						Rate:          "20r/s",
+						PolicyResult:  "$apikey_client_name",
+						GroupVariable: "$rl_default_cafe_variable_apikey_client_name_route_L3RlYQ",
+						PolicyValue:   "rl_default_cafe_match_basic_rate_limit_policy",
+						GroupValue:    `"basic"`,
+						GroupSource:   "$apikey_client_name",
+						GroupDefault:  true,
+					},
+				},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+
+					Locations: []version2.Location{
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+							LimitReqs: []version2.LimitReq{
+								{ZoneName: "pol_rl_default_premium_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+								{ZoneName: "pol_rl_default_basic_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+							},
+							LimitReqOptions: version2.LimitReqOptions{
+								DryRun:     false,
+								LogLevel:   "error",
+								RejectCode: 503,
+							},
+						},
+						{
+							Path:                     "/coffee",
+							ProxyPass:                "http://vs_default_cafe_coffee",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "coffee-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "coffee-svc",
+						},
+					},
+					APIKeyEnabled: true,
+					APIKey: &version2.APIKey{
+						Header:  []string{"X-API-Key"},
+						Query:   []string{"api-key"},
+						MapName: "apikey_auth_client_name_default_cafe_api_key_policy",
+					},
+				},
+			},
+		},
+		{
+			msg: "apikey claim rate limits at two different vs route levels, with default",
+			virtualServerEx: VirtualServerEx{
+				SecretRefs: map[string]*secrets.SecretReference{
+					"default/api-key-secret-spec": {
+						Secret: &api_v1.Secret{
+							Type: secrets.SecretTypeAPIKey,
+							Data: map[string][]byte{
+								"premium": []byte("premiumpassword"),
+								"basic":   []byte("basicpassword"),
+							},
+						},
+					},
+				},
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Policies: []conf_v1.PolicyReference{
+							{
+								Name: "api-key-policy",
+							},
+						},
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "tea",
+								Service: "tea-svc",
+								Port:    80,
+							},
+							{
+								Name:    "coffee",
+								Service: "coffee-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path: "/tea",
+								Action: &conf_v1.Action{
+									Pass: "tea",
+								},
+								Policies: []conf_v1.PolicyReference{
+									{
+										Name: "premium-rate-limit-policy",
+									},
+									{
+										Name: "basic-rate-limit-policy",
+									},
+								},
+							},
+							{
+								Path: "/coffee",
+								Action: &conf_v1.Action{
+									Pass: "coffee",
+								},
+								Policies: []conf_v1.PolicyReference{
+									{
+										Name: "premium-rate-limit-policy",
+									},
+									{
+										Name: "basic-rate-limit-policy",
+									},
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/premium-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$apikey_client_name",
+								ZoneSize: "10M",
+								Rate:     "10r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									Variables: &[]conf_v1.VariableCondition{
+										{
+											Match: "premium",
+											Name:  "$apikey_client_name",
+										},
+									},
+								},
+							},
+						},
+					},
+					"default/basic-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$apikey_client_name",
+								ZoneSize: "20M",
+								Rate:     "20r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									Variables: &[]conf_v1.VariableCondition{
+										{
+											Match: "basic",
+											Name:  "$apikey_client_name",
+										},
+									},
+									Default: true,
+								},
+							},
+						},
+					},
+					"default/api-key-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "api-key-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							APIKey: &conf_v1.APIKey{
+								ClientSecret: "api-key-secret-spec",
+								SuppliedIn: &conf_v1.SuppliedIn{
+									Header: []string{"X-API-Key"},
+									Query:  []string{"api-key"},
+								},
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+					"default/coffee-svc:80": {
+						"10.0.0.30:80",
+					},
+				},
+			},
+			expected: version2.VirtualServerConfig{
+				Maps: []version2.Map{
+					{
+						Source:   "$apikey_auth_token",
+						Variable: "$apikey_auth_client_name_default_cafe_api_key_policy",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: `""`,
+							},
+							{
+								Value:  `"e96ac3dd8ef94a6c4bb88f216231c1968e1700add139d722fe406cd0cae73074"`,
+								Result: `"premium"`,
+							},
+							{
+								Value:  `"e1e1a4f93c814d938254e6fd7da12f096c9948eae7bc4137656202a413a0f3f4"`,
+								Result: `"basic"`,
+							},
+						},
+					},
+					{
+						Source:   "$apikey_client_name",
+						Variable: "$rl_default_cafe_variable_apikey_client_name_route_L3RlYQ",
+						Parameters: []version2.Parameter{
+							{
+								Value:  `"basic"`,
+								Result: "rl_default_cafe_match_basic_rate_limit_policy",
+							},
+							{
+								Value:  "default",
+								Result: "rl_default_cafe_match_basic_rate_limit_policy",
+							},
+							{
+								Value:  `"premium"`,
+								Result: "rl_default_cafe_match_premium_rate_limit_policy",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_variable_apikey_client_name_route_L3RlYQ",
+						Variable: "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_premium_rate_limit_policy",
+								Result: "Val$apikey_client_name",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_variable_apikey_client_name_route_L3RlYQ",
+						Variable: "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_basic_rate_limit_policy",
+								Result: "Val$apikey_client_name",
+							},
+						},
+					},
+					{
+						Source:   "$apikey_client_name",
+						Variable: "$rl_default_cafe_variable_apikey_client_name_route_L2NvZmZlZQ",
+						Parameters: []version2.Parameter{
+							{
+								Value:  `"basic"`,
+								Result: "rl_default_cafe_match_basic_rate_limit_policy",
+							},
+							{
+								Value:  "default",
+								Result: "rl_default_cafe_match_basic_rate_limit_policy",
+							},
+							{
+								Value:  `"premium"`,
+								Result: "rl_default_cafe_match_premium_rate_limit_policy",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_variable_apikey_client_name_route_L2NvZmZlZQ",
+						Variable: "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_premium_rate_limit_policy",
+								Result: "Val$apikey_client_name",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_variable_apikey_client_name_route_L2NvZmZlZQ",
+						Variable: "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_basic_rate_limit_policy",
+								Result: "Val$apikey_client_name",
+							},
+						},
+					},
+				},
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "coffee-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_coffee",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.30:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets: []string{},
+				LimitReqZones: []version2.LimitReqZone{
+					{
+						Key:           "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						ZoneName:      "pol_rl_default_premium_rate_limit_policy_default_cafe",
+						ZoneSize:      "10M",
+						Rate:          "10r/s",
+						PolicyResult:  "$apikey_client_name",
+						GroupVariable: "$rl_default_cafe_variable_apikey_client_name_route_L3RlYQ",
+						PolicyValue:   "rl_default_cafe_match_premium_rate_limit_policy",
+						GroupValue:    `"premium"`,
+						GroupSource:   "$apikey_client_name",
+					},
+					{
+						Key:           "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						ZoneName:      "pol_rl_default_basic_rate_limit_policy_default_cafe",
+						ZoneSize:      "20M",
+						Rate:          "20r/s",
+						PolicyResult:  "$apikey_client_name",
+						GroupVariable: "$rl_default_cafe_variable_apikey_client_name_route_L3RlYQ",
+						PolicyValue:   "rl_default_cafe_match_basic_rate_limit_policy",
+						GroupValue:    `"basic"`,
+						GroupSource:   "$apikey_client_name",
+						GroupDefault:  true,
+					},
+				},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+
+					Locations: []version2.Location{
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+							LimitReqs: []version2.LimitReq{
+								{ZoneName: "pol_rl_default_premium_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+								{ZoneName: "pol_rl_default_basic_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+							},
+							LimitReqOptions: version2.LimitReqOptions{
+								DryRun:     false,
+								LogLevel:   "error",
+								RejectCode: 503,
+							},
+						},
+						{
+							Path:                     "/coffee",
+							ProxyPass:                "http://vs_default_cafe_coffee",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "coffee-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "coffee-svc",
+							LimitReqs: []version2.LimitReq{
+								{ZoneName: "pol_rl_default_premium_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+								{ZoneName: "pol_rl_default_basic_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+							},
+							LimitReqOptions: version2.LimitReqOptions{
+								DryRun:     false,
+								LogLevel:   "error",
+								RejectCode: 503,
+							},
+						},
+					},
+					APIKeyEnabled: true,
+					APIKey: &version2.APIKey{
+						Header:  []string{"X-API-Key"},
+						Query:   []string{"api-key"},
+						MapName: "apikey_auth_client_name_default_cafe_api_key_policy",
+					},
+				},
+			},
+		},
+		{
+			msg: "apikey rate limits at vsr /tea level, with default",
+			virtualServerEx: VirtualServerEx{
+				SecretRefs: map[string]*secrets.SecretReference{
+					"default/api-key-secret-spec": {
+						Secret: &api_v1.Secret{
+							Type: secrets.SecretTypeAPIKey,
+							Data: map[string][]byte{
+								"premium": []byte("premiumpassword"),
+								"basic":   []byte("basicpassword"),
+							},
+						},
+					},
+				},
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Policies: []conf_v1.PolicyReference{
+							{
+								Name: "api-key-policy",
+							},
+						},
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "coffee",
+								Service: "coffee-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path:  "/tea",
+								Route: "default/tea",
+							},
+							{
+								Path: "/coffee",
+								Action: &conf_v1.Action{
+									Pass: "coffee",
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/premium-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$apikey_client_name",
+								ZoneSize: "10M",
+								Rate:     "10r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									Variables: &[]conf_v1.VariableCondition{
+										{
+											Match: "premium",
+											Name:  "$apikey_client_name",
+										},
+									},
+								},
+							},
+						},
+					},
+					"default/basic-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$apikey_client_name",
+								ZoneSize: "20M",
+								Rate:     "20r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									Variables: &[]conf_v1.VariableCondition{
+										{
+											Match: "basic",
+											Name:  "$apikey_client_name",
+										},
+									},
+									Default: true,
+								},
+							},
+						},
+					},
+					"default/api-key-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "api-key-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							APIKey: &conf_v1.APIKey{
+								ClientSecret: "api-key-secret-spec",
+								SuppliedIn: &conf_v1.SuppliedIn{
+									Header: []string{"X-API-Key"},
+									Query:  []string{"api-key"},
+								},
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+					"default/coffee-svc:80": {
+						"10.0.0.30:80",
+					},
+				},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
+					{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "tea",
+							Namespace: "default",
+						},
+						Spec: conf_v1.VirtualServerRouteSpec{
+							Host: "cafe.example.com",
+							Upstreams: []conf_v1.Upstream{
+								{
+									Name:    "tea",
+									Service: "tea-svc",
+									Port:    80,
+								},
+							},
+							Subroutes: []conf_v1.Route{
+								{
+									Path: "/tea",
+									Action: &conf_v1.Action{
+										Pass: "tea",
+									},
+									Policies: []conf_v1.PolicyReference{
+										{
+											Name: "premium-rate-limit-policy",
+										},
+										{
+											Name: "basic-rate-limit-policy",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: version2.VirtualServerConfig{
+				Maps: []version2.Map{
+					{
+						Source:   "$apikey_auth_token",
+						Variable: "$apikey_auth_client_name_default_cafe_api_key_policy",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: `""`,
+							},
+							{
+								Value:  `"e96ac3dd8ef94a6c4bb88f216231c1968e1700add139d722fe406cd0cae73074"`,
+								Result: `"premium"`,
+							},
+							{
+								Value:  `"e1e1a4f93c814d938254e6fd7da12f096c9948eae7bc4137656202a413a0f3f4"`,
+								Result: `"basic"`,
+							},
+						},
+					},
+					{
+						Source:   "$apikey_client_name",
+						Variable: "$rl_default_cafe_variable_apikey_client_name_subroute_L3RlYQ",
+						Parameters: []version2.Parameter{
+							{
+								Value:  `"basic"`,
+								Result: "rl_default_cafe_match_basic_rate_limit_policy",
+							},
+							{
+								Value:  "default",
+								Result: "rl_default_cafe_match_basic_rate_limit_policy",
+							},
+							{
+								Value:  `"premium"`,
+								Result: "rl_default_cafe_match_premium_rate_limit_policy",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_variable_apikey_client_name_subroute_L3RlYQ",
+						Variable: "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_premium_rate_limit_policy",
+								Result: "Val$apikey_client_name",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_variable_apikey_client_name_subroute_L3RlYQ",
+						Variable: "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_basic_rate_limit_policy",
+								Result: "Val$apikey_client_name",
+							},
+						},
+					},
+				},
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "coffee-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_coffee",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.30:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserverroute",
+							ResourceName:      "tea",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_vsr_default_tea_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets: []string{},
+				LimitReqZones: []version2.LimitReqZone{
+					{
+						Key:           "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						ZoneName:      "pol_rl_default_premium_rate_limit_policy_default_cafe",
+						ZoneSize:      "10M",
+						Rate:          "10r/s",
+						PolicyResult:  "$apikey_client_name",
+						GroupVariable: "$rl_default_cafe_variable_apikey_client_name_subroute_L3RlYQ",
+						PolicyValue:   "rl_default_cafe_match_premium_rate_limit_policy",
+						GroupValue:    `"premium"`,
+						GroupSource:   "$apikey_client_name",
+					},
+					{
+						Key:           "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						ZoneName:      "pol_rl_default_basic_rate_limit_policy_default_cafe",
+						ZoneSize:      "20M",
+						Rate:          "20r/s",
+						PolicyResult:  "$apikey_client_name",
+						GroupVariable: "$rl_default_cafe_variable_apikey_client_name_subroute_L3RlYQ",
+						PolicyValue:   "rl_default_cafe_match_basic_rate_limit_policy",
+						GroupValue:    `"basic"`,
+						GroupSource:   "$apikey_client_name",
+						GroupDefault:  true,
+					},
+				},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+
+					Locations: []version2.Location{
+						{
+							Path:                     "/coffee",
+							ProxyPass:                "http://vs_default_cafe_coffee",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "coffee-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "coffee-svc",
+						},
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_vsr_default_tea_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+							LimitReqs: []version2.LimitReq{
+								{ZoneName: "pol_rl_default_premium_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+								{ZoneName: "pol_rl_default_basic_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+							},
+							LimitReqOptions: version2.LimitReqOptions{
+								DryRun:     false,
+								LogLevel:   "error",
+								RejectCode: 503,
+							},
+							IsVSR:        true,
+							VSRName:      "tea",
+							VSRNamespace: "default",
+						},
+					},
+					APIKeyEnabled: true,
+					APIKey: &version2.APIKey{
+						Header:  []string{"X-API-Key"},
+						Query:   []string{"api-key"},
+						MapName: "apikey_auth_client_name_default_cafe_api_key_policy",
+					},
+				},
+			},
+		},
+		{
+			msg: "apikey rate limits at vsr /tea level & at vs spec level, with default",
+			virtualServerEx: VirtualServerEx{
+				SecretRefs: map[string]*secrets.SecretReference{
+					"default/api-key-secret-spec": {
+						Secret: &api_v1.Secret{
+							Type: secrets.SecretTypeAPIKey,
+							Data: map[string][]byte{
+								"premium": []byte("premiumpassword"),
+								"basic":   []byte("basicpassword"),
+							},
+						},
+					},
+				},
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Policies: []conf_v1.PolicyReference{
+							{
+								Name: "api-key-policy",
+							},
+						},
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "coffee",
+								Service: "coffee-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path:  "/tea",
+								Route: "default/tea",
+							},
+							{
+								Path: "/coffee",
+								Action: &conf_v1.Action{
+									Pass: "coffee",
+								},
+								Policies: []conf_v1.PolicyReference{
+									{
+										Name: "premium-rate-limit-policy",
+									},
+									{
+										Name: "basic-rate-limit-policy",
+									},
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/premium-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "premium-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$apikey_client_name",
+								ZoneSize: "10M",
+								Rate:     "10r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									Variables: &[]conf_v1.VariableCondition{
+										{
+											Match: "premium",
+											Name:  "$apikey_client_name",
+										},
+									},
+								},
+							},
+						},
+					},
+					"default/basic-rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "basic-rate-limit-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$apikey_client_name",
+								ZoneSize: "20M",
+								Rate:     "20r/s",
+								Condition: &conf_v1.RateLimitCondition{
+									Variables: &[]conf_v1.VariableCondition{
+										{
+											Match: "basic",
+											Name:  "$apikey_client_name",
+										},
+									},
+									Default: true,
+								},
+							},
+						},
+					},
+					"default/api-key-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "api-key-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							APIKey: &conf_v1.APIKey{
+								ClientSecret: "api-key-secret-spec",
+								SuppliedIn: &conf_v1.SuppliedIn{
+									Header: []string{"X-API-Key"},
+									Query:  []string{"api-key"},
+								},
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+					"default/coffee-svc:80": {
+						"10.0.0.30:80",
+					},
+				},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
+					{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "tea",
+							Namespace: "default",
+						},
+						Spec: conf_v1.VirtualServerRouteSpec{
+							Host: "cafe.example.com",
+							Upstreams: []conf_v1.Upstream{
+								{
+									Name:    "tea",
+									Service: "tea-svc",
+									Port:    80,
+								},
+							},
+							Subroutes: []conf_v1.Route{
+								{
+									Path: "/tea",
+									Action: &conf_v1.Action{
+										Pass: "tea",
+									},
+									Policies: []conf_v1.PolicyReference{
+										{
+											Name: "premium-rate-limit-policy",
+										},
+										{
+											Name: "basic-rate-limit-policy",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: version2.VirtualServerConfig{
+				Maps: []version2.Map{
+					{
+						Source:   "$apikey_auth_token",
+						Variable: "$apikey_auth_client_name_default_cafe_api_key_policy",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: `""`,
+							},
+							{
+								Value:  `"e96ac3dd8ef94a6c4bb88f216231c1968e1700add139d722fe406cd0cae73074"`,
+								Result: `"premium"`,
+							},
+							{
+								Value:  `"e1e1a4f93c814d938254e6fd7da12f096c9948eae7bc4137656202a413a0f3f4"`,
+								Result: `"basic"`,
+							},
+						},
+					},
+					{
+						Source:   "$apikey_client_name",
+						Variable: "$rl_default_cafe_variable_apikey_client_name_route_L2NvZmZlZQ",
+						Parameters: []version2.Parameter{
+							{
+								Value:  `"basic"`,
+								Result: "rl_default_cafe_match_basic_rate_limit_policy",
+							},
+							{
+								Value:  "default",
+								Result: "rl_default_cafe_match_basic_rate_limit_policy",
+							},
+							{
+								Value:  `"premium"`,
+								Result: "rl_default_cafe_match_premium_rate_limit_policy",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_variable_apikey_client_name_route_L2NvZmZlZQ",
+						Variable: "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_premium_rate_limit_policy",
+								Result: "Val$apikey_client_name",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_variable_apikey_client_name_route_L2NvZmZlZQ",
+						Variable: "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_basic_rate_limit_policy",
+								Result: "Val$apikey_client_name",
+							},
+						},
+					},
+					{
+						Source:   "$apikey_client_name",
+						Variable: "$rl_default_cafe_variable_apikey_client_name_subroute_L3RlYQ",
+						Parameters: []version2.Parameter{
+							{
+								Value:  `"basic"`,
+								Result: "rl_default_cafe_match_basic_rate_limit_policy",
+							},
+							{
+								Value:  "default",
+								Result: "rl_default_cafe_match_basic_rate_limit_policy",
+							},
+							{
+								Value:  `"premium"`,
+								Result: "rl_default_cafe_match_premium_rate_limit_policy",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_variable_apikey_client_name_subroute_L3RlYQ",
+						Variable: "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_premium_rate_limit_policy",
+								Result: "Val$apikey_client_name",
+							},
+						},
+					},
+					{
+						Source:   "$rl_default_cafe_variable_apikey_client_name_subroute_L3RlYQ",
+						Variable: "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: "''",
+							},
+							{
+								Value:  "rl_default_cafe_match_basic_rate_limit_policy",
+								Result: "Val$apikey_client_name",
+							},
+						},
+					},
+				},
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "coffee-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_coffee",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.30:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserverroute",
+							ResourceName:      "tea",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_vsr_default_tea_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets: []string{},
+				LimitReqZones: []version2.LimitReqZone{
+					{
+						Key:           "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+						ZoneName:      "pol_rl_default_premium_rate_limit_policy_default_cafe",
+						ZoneSize:      "10M",
+						Rate:          "10r/s",
+						PolicyResult:  "$apikey_client_name",
+						GroupVariable: "$rl_default_cafe_variable_apikey_client_name_route_L2NvZmZlZQ",
+						PolicyValue:   "rl_default_cafe_match_premium_rate_limit_policy",
+						GroupValue:    `"premium"`,
+						GroupSource:   "$apikey_client_name",
+					},
+					{
+						Key:           "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+						ZoneName:      "pol_rl_default_basic_rate_limit_policy_default_cafe",
+						ZoneSize:      "20M",
+						Rate:          "20r/s",
+						PolicyResult:  "$apikey_client_name",
+						GroupVariable: "$rl_default_cafe_variable_apikey_client_name_route_L2NvZmZlZQ",
+						PolicyValue:   "rl_default_cafe_match_basic_rate_limit_policy",
+						GroupValue:    `"basic"`,
+						GroupSource:   "$apikey_client_name",
+						GroupDefault:  true,
+					},
+				},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+
+					Locations: []version2.Location{
+						{
+							Path:                     "/coffee",
+							ProxyPass:                "http://vs_default_cafe_coffee",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "coffee-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "coffee-svc",
+							LimitReqs: []version2.LimitReq{
+								{ZoneName: "pol_rl_default_premium_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+								{ZoneName: "pol_rl_default_basic_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+							},
+							LimitReqOptions: version2.LimitReqOptions{
+								DryRun:     false,
+								LogLevel:   "error",
+								RejectCode: 503,
+							},
+						},
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_vsr_default_tea_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+							LimitReqs: []version2.LimitReq{
+								{ZoneName: "pol_rl_default_premium_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+								{ZoneName: "pol_rl_default_basic_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+							},
+							LimitReqOptions: version2.LimitReqOptions{
+								DryRun:     false,
+								LogLevel:   "error",
+								RejectCode: 503,
+							},
+							IsVSR:        true,
+							VSRName:      "tea",
+							VSRNamespace: "default",
+						},
+					},
+					APIKeyEnabled: true,
+					APIKey: &version2.APIKey{
+						Header:  []string{"X-API-Key"},
+						Query:   []string{"api-key"},
+						MapName: "apikey_auth_client_name_default_cafe_api_key_policy",
+					},
+				},
+			},
+		},
+	}
+
+	baseCfgParams := ConfigParams{
+		Context:      context.Background(),
+		ServerTokens: "off",
+	}
+
+	vsc := newVirtualServerConfigurator(
+		&baseCfgParams,
+		false,
+		false,
+		&StaticConfigParams{},
+		false,
+		&fakeBV,
+	)
+
+	for _, test := range tests {
+		result, warnings := vsc.GenerateVirtualServerConfig(&test.virtualServerEx, nil, nil)
+
+		for i, m := range result.Maps {
+			sort.Slice(m.Parameters, func(i, j int) bool {
+				return m.Parameters[i].Value < m.Parameters[j].Value
+			})
+			result.Maps[i] = m
+		}
+
+		sort.Slice(result.Maps, func(i, j int) bool {
+			return result.Maps[i].Variable < result.Maps[j].Variable && result.Maps[i].Source < result.Maps[j].Source
+		})
+
+		for i, m := range test.expected.Maps {
+			sort.Slice(m.Parameters, func(i, j int) bool {
+				return m.Parameters[i].Value < m.Parameters[j].Value
+			})
+			test.expected.Maps[i] = m
+		}
+
+		sort.Slice(test.expected.Maps, func(i, j int) bool {
+			return test.expected.Maps[i].Variable < test.expected.Maps[j].Variable && test.expected.Maps[i].Source < test.expected.Maps[j].Source
+		})
+
+		if diff := cmp.Diff(test.expected, result); diff != "" {
+			t.Errorf("GenerateVirtualServerConfig() mismatch (-want +got):\n%s", diff)
+			t.Error(test.msg)
+		}
+
+		if len(warnings) != 0 {
+			t.Errorf("GenerateVirtualServerConfig returned warnings: %v", vsc.warnings)
+		}
+	}
+}
+
+func TestGenerateVirtualServerConfigWithRateLimitGroupsWarning(t *testing.T) {
+	t.Parallel()
+
+	virtualServerEx := VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "cafe.example.com",
+				Policies: []conf_v1.PolicyReference{
+					{
+						Name: "premium-rate-limit-policy",
+					},
+					{
+						Name: "basic-rate-limit-policy",
+					},
+				},
+				Upstreams: []conf_v1.Upstream{
+					{
+						Name:    "tea",
+						Service: "tea-svc",
+						Port:    80,
+					},
+					{
+						Name:    "coffee",
+						Service: "coffee-svc",
+						Port:    80,
+					},
+				},
+				Routes: []conf_v1.Route{
+					{
+						Path: "/tea",
+						Action: &conf_v1.Action{
+							Pass: "tea",
+						},
+					},
+					{
+						Path: "/coffee",
+						Action: &conf_v1.Action{
+							Pass: "coffee",
+						},
+					},
+				},
+			},
+		},
+		Policies: map[string]*conf_v1.Policy{
+			"default/premium-rate-limit-policy": {
+				Spec: conf_v1.PolicySpec{
+					RateLimit: &conf_v1.RateLimit{
+						Key:      "$jwt_claim_sub",
+						ZoneSize: "10M",
+						Rate:     "10r/s",
+						Condition: &conf_v1.RateLimitCondition{
+							JWT: &conf_v1.JWTCondition{
+								Claim: "user_type.tier",
+								Match: "premium",
+							},
+							Default: true,
+						},
+					},
+				},
+			},
+			"default/basic-rate-limit-policy": {
+				Spec: conf_v1.PolicySpec{
+					RateLimit: &conf_v1.RateLimit{
+						Key:      "$jwt_claim_sub",
+						ZoneSize: "20M",
+						Rate:     "20r/s",
+						Condition: &conf_v1.RateLimitCondition{
+							JWT: &conf_v1.JWTCondition{
+								Claim: "user_type.tier",
+								Match: "basic",
+							},
+							Default: true,
+						},
+					},
+				},
+			},
+		},
+		Endpoints: map[string][]string{
+			"default/tea-svc:80": {
+				"10.0.0.20:80",
+			},
+			"default/coffee-svc:80": {
+				"10.0.0.30:80",
+			},
+		},
+	}
+	expected := version2.VirtualServerConfig{
+		Maps: []version2.Map{
+			{
+				Source:   "$rl_default_cafe_group_user_type_tier",
+				Variable: "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+				Parameters: []version2.Parameter{
+					{
+						Value:  "default",
+						Result: "''",
+					},
+					{
+						Value:  "rl_default_cafe_match_basic",
+						Result: "Val$jwt_claim_sub",
+					},
+				},
+			},
+			{
+				Source:   "$rl_default_cafe_group_user_type_tier",
+				Variable: "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+				Parameters: []version2.Parameter{
+					{
+						Value:  "default",
+						Result: "''",
+					},
+					{
+						Value:  "rl_default_cafe_match_premium",
+						Result: "Val$jwt_claim_sub",
+					},
+				},
+			},
+			{
+				Source:   "$jwt_default_cafe_user_type_tier",
+				Variable: "$rl_default_cafe_group_user_type_tier",
+				Parameters: []version2.Parameter{
+					{
+						Value:  "basic",
+						Result: "rl_default_cafe_match_basic",
+					},
+					{
+						Value:  "premium",
+						Result: "rl_default_cafe_match_premium",
+					},
+				},
+			},
+		},
+		AuthJWTClaimSets: []version2.AuthJWTClaimSet{{Variable: "$jwt_default_cafe_user_type_tier", Claim: "user_type tier"}},
+		Upstreams: []version2.Upstream{
+			{
+				UpstreamLabels: version2.UpstreamLabels{
+					Service:           "coffee-svc",
+					ResourceType:      "virtualserver",
+					ResourceName:      "cafe",
+					ResourceNamespace: "default",
+				},
+				Name: "vs_default_cafe_coffee",
+				Servers: []version2.UpstreamServer{
+					{
+						Address: "10.0.0.30:80",
+					},
+				},
+			},
+			{
+				UpstreamLabels: version2.UpstreamLabels{
+					Service:           "tea-svc",
+					ResourceType:      "virtualserver",
+					ResourceName:      "cafe",
+					ResourceNamespace: "default",
+				},
+				Name: "vs_default_cafe_tea",
+				Servers: []version2.UpstreamServer{
+					{
+						Address: "10.0.0.20:80",
+					},
+				},
+			},
+		},
+		HTTPSnippets: []string{},
+		LimitReqZones: []version2.LimitReqZone{
+			{
+				Key:           "$pol_rl_default_premium_rate_limit_policy_default_cafe",
+				ZoneName:      "pol_rl_default_premium-rate-limit-policy_default_cafe",
+				ZoneSize:      "10M",
+				Rate:          "10r/s",
+				PolicyResult:  "$jwt_claim_sub",
+				GroupVariable: "$rl_default_cafe_group_user_type_tier",
+				PolicyValue:   "rl_default_cafe_match_premium",
+				GroupValue:    "premium",
+				GroupSource:   "$jwt_default_cafe_user_type_tier",
+			},
+			{
+				Key:           "$pol_rl_default_basic_rate_limit_policy_default_cafe",
+				ZoneName:      "pol_rl_default_basic_rate_limit_policy_default_cafe",
+				ZoneSize:      "20M",
+				Rate:          "20r/s",
+				PolicyResult:  "$jwt_claim_sub",
+				GroupVariable: "$rl_default_cafe_group_user_type_tier",
+				PolicyValue:   "rl_default_cafe_match_basic",
+				GroupValue:    "basic",
+				GroupSource:   "$jwt_default_cafe_user_type_tier",
+			},
+		},
+		Server: version2.Server{
+			ServerName:   "cafe.example.com",
+			StatusZone:   "cafe.example.com",
+			ServerTokens: "off",
+			VSNamespace:  "default",
+			VSName:       "cafe",
+			LimitReqs: []version2.LimitReq{
+				{ZoneName: "pol_rl_default_premium_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+				{ZoneName: "pol_rl_default_basic_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+			},
+			LimitReqOptions: version2.LimitReqOptions{
+				DryRun:     false,
+				LogLevel:   "error",
+				RejectCode: 503,
+			},
+			Locations: []version2.Location{
+				{
+					Path:                     "/tea",
+					ProxyPass:                "http://vs_default_cafe_tea",
+					ProxyNextUpstream:        "error timeout",
+					ProxyNextUpstreamTimeout: "0s",
+					ProxyNextUpstreamTries:   0,
+					ProxySSLName:             "tea-svc.default.svc",
+					ProxyPassRequestHeaders:  true,
+					ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+					ServiceName:              "tea-svc",
+				},
+				{
+					Path:                     "/coffee",
+					ProxyPass:                "http://vs_default_cafe_coffee",
+					ProxyNextUpstream:        "error timeout",
+					ProxyNextUpstreamTimeout: "0s",
+					ProxyNextUpstreamTries:   0,
+					ProxySSLName:             "coffee-svc.default.svc",
+					ProxyPassRequestHeaders:  true,
+					ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+					ServiceName:              "coffee-svc",
+				},
+			},
+		},
+	}
+
+	baseCfgParams := ConfigParams{
+		Context:         context.Background(),
+		ServerTokens:    "off",
+		Keepalive:       16,
+		ServerSnippets:  []string{"# server snippet"},
+		ProxyProtocol:   true,
+		SetRealIPFrom:   []string{"0.0.0.0/0"},
+		RealIPHeader:    "X-Real-IP",
+		RealIPRecursive: true,
+	}
+
+	isPlus := true
+	isResolverConfigured := false
+	staticConfigParams := &StaticConfigParams{TLSPassthrough: true, NginxServiceMesh: true, EnableInternalRoutes: false}
+	isWildcardEnabled := false
+	vsc := newVirtualServerConfigurator(&baseCfgParams, isPlus, isResolverConfigured, staticConfigParams, isWildcardEnabled, &fakeBV)
+
+	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+	if diff := cmp.Diff(expected, result); diff == "" {
+		t.Errorf("GenerateVirtualServerConfig() should not configure internal route")
+	}
+
+	if len(warnings) != 1 {
+		t.Errorf("GenerateVirtualServerConfig should return warning about tiered rate limits with duplicate defaults")
+	}
+}
+
+func TestGenerateVirtualServerConfigCache(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		msg             string
+		virtualServerEx VirtualServerEx
+		expected        version2.VirtualServerConfig
+	}{
+		{
+			msg: "cache policy at vs spec level",
+			virtualServerEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Policies: []conf_v1.PolicyReference{
+							{
+								Name: "cache-policy",
+							},
+						},
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "tea",
+								Service: "tea-svc",
+								Port:    80,
+							},
+							{
+								Name:    "coffee",
+								Service: "coffee-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path: "/tea",
+								Action: &conf_v1.Action{
+									Pass: "tea",
+								},
+							},
+							{
+								Path: "/coffee",
+								Action: &conf_v1.Action{
+									Pass: "coffee",
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/cache-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "cache-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							Cache: &conf_v1.Cache{
+								CacheZoneName: "my-cache",
+								CacheZoneSize: "10m",
+								Time:          "1h",
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+					"default/coffee-svc:80": {
+						"10.0.0.30:80",
+					},
+				},
+			},
+			expected: version2.VirtualServerConfig{
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "coffee-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_coffee",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.30:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets:  []string{},
+				LimitReqZones: []version2.LimitReqZone{},
+				CacheZones: []version2.CacheZone{
+					{
+						Name:   "default_cafe_my-cache",
+						Size:   "10m",
+						Path:   "/var/cache/nginx/default_cafe_my-cache",
+						Levels: "",
+					},
+				},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+					Cache: &version2.Cache{
+						ZoneName:              "default_cafe_my-cache",
+						ZoneSize:              "10m",
+						Time:                  "1h",
+						Valid:                 map[string]string{},
+						AllowedMethods:        nil,
+						CachePurgeAllow:       nil,
+						OverrideUpstreamCache: false,
+						Levels:                "",
+						CacheKey:              "$scheme$proxy_host$request_uri",
+					},
+					Locations: []version2.Location{
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+						},
+						{
+							Path:                     "/coffee",
+							ProxyPass:                "http://vs_default_cafe_coffee",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "coffee-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "coffee-svc",
+						},
+					},
+				},
+			},
+		},
+		{
+			msg: "cache policy at route level",
+			virtualServerEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "tea",
+								Service: "tea-svc",
+								Port:    80,
+							},
+							{
+								Name:    "coffee",
+								Service: "coffee-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path: "/tea",
+								Policies: []conf_v1.PolicyReference{
+									{
+										Name: "route-cache-policy",
+									},
+								},
+								Action: &conf_v1.Action{
+									Pass: "tea",
+								},
+							},
+							{
+								Path: "/coffee",
+								Action: &conf_v1.Action{
+									Pass: "coffee",
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/route-cache-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "route-cache-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							Cache: &conf_v1.Cache{
+								CacheZoneName: "route-cache",
+								CacheZoneSize: "5m",
+								Time:          "30m",
+								AllowedCodes: []intstr.IntOrString{
+									intstr.FromInt(200),
+									intstr.FromInt(404),
+								},
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+					"default/coffee-svc:80": {
+						"10.0.0.30:80",
+					},
+				},
+			},
+			expected: version2.VirtualServerConfig{
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "coffee-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_coffee",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.30:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets:  []string{},
+				LimitReqZones: []version2.LimitReqZone{},
+				CacheZones: []version2.CacheZone{
+					{
+						Name:   "default_cafe_route-cache",
+						Size:   "5m",
+						Path:   "/var/cache/nginx/default_cafe_route-cache",
+						Levels: "",
+					},
+				},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+					Locations: []version2.Location{
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+							Cache: &version2.Cache{
+								ZoneName:              "default_cafe_route-cache",
+								ZoneSize:              "5m",
+								Time:                  "30m",
+								Valid:                 map[string]string{"200": "30m", "404": "30m"},
+								AllowedMethods:        nil,
+								CachePurgeAllow:       nil,
+								OverrideUpstreamCache: false,
+								Levels:                "",
+								CacheKey:              "$scheme$proxy_host$request_uri",
+							},
+						},
+						{
+							Path:                     "/coffee",
+							ProxyPass:                "http://vs_default_cafe_coffee",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "coffee-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "coffee-svc",
+						},
+					},
+				},
+			},
+		},
+		{
+			msg: "cache policy at VSR subroute level",
+			virtualServerEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "tea",
+								Service: "tea-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path:  "/tea",
+								Route: "default/tea-vsr",
+							},
+						},
+					},
+				},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
+					{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "tea-vsr",
+							Namespace: "default",
+						},
+						Spec: conf_v1.VirtualServerRouteSpec{
+							Host: "cafe.example.com",
+							Upstreams: []conf_v1.Upstream{
+								{
+									Name:    "tea-v1",
+									Service: "tea-v1-svc",
+									Port:    80,
+								},
+								{
+									Name:    "tea-v2",
+									Service: "tea-v2-svc",
+									Port:    80,
+								},
+							},
+							Subroutes: []conf_v1.Route{
+								{
+									Path: "/tea/v1",
+									Policies: []conf_v1.PolicyReference{
+										{
+											Name: "vsr-cache-policy",
+										},
+									},
+									Action: &conf_v1.Action{
+										Pass: "tea-v1",
+									},
+								},
+								{
+									Path: "/tea/v2",
+									Action: &conf_v1.Action{
+										Pass: "tea-v2",
+									},
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/vsr-cache-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "vsr-cache-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							Cache: &conf_v1.Cache{
+								CacheZoneName:         "vsr-cache",
+								CacheZoneSize:         "20m",
+								Time:                  "2h",
+								OverrideUpstreamCache: true,
+								CachePurgeAllow:       []string{"127.0.0.1"},
+								CacheKey:              "$scheme$proxy_host$request_uri$is_args$args",
+								CacheBackgroundUpdate: true,
+								CacheUseStale:         []string{"error", "timeout", "http_503"},
+								Levels:                "2:2",
+								MinFree:               "100m",
+								Conditions: &conf_v1.CacheConditions{
+									NoCache: []string{"$http_pragma", "$http_authorization"},
+									Bypass:  []string{"$cookie_nocache", "$arg_nocache"},
+								},
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+					"default/tea-v1-svc:80": {
+						"10.0.0.21:80",
+					},
+					"default/tea-v2-svc:80": {
+						"10.0.0.22:80",
+					},
+				},
+			},
+			expected: version2.VirtualServerConfig{
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-v1-svc",
+							ResourceType:      "virtualserverroute",
+							ResourceName:      "tea-vsr",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_vsr_default_tea-vsr_tea-v1",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.21:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-v2-svc",
+							ResourceType:      "virtualserverroute",
+							ResourceName:      "tea-vsr",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_vsr_default_tea-vsr_tea-v2",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.22:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets:  []string{},
+				LimitReqZones: []version2.LimitReqZone{},
+				CacheZones: []version2.CacheZone{
+					{
+						Name:    "default_cafe_default_tea-vsr_vsr-cache",
+						Size:    "20m",
+						Path:    "/var/cache/nginx/default_cafe_default_tea-vsr_vsr-cache",
+						Levels:  "2:2",
+						MinFree: "100m",
+					},
+				},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+					Locations: []version2.Location{
+						{
+							Path:                     "/tea/v1",
+							ProxyPass:                "http://vs_default_cafe_vsr_default_tea-vsr_tea-v1",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-v1-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-v1-svc",
+							IsVSR:                    true,
+							VSRName:                  "tea-vsr",
+							VSRNamespace:             "default",
+							Cache: &version2.Cache{
+								ZoneName:              "default_cafe_default_tea-vsr_vsr-cache",
+								ZoneSize:              "20m",
+								Time:                  "2h",
+								Valid:                 map[string]string{},
+								AllowedMethods:        nil,
+								CachePurgeAllow:       []string{"127.0.0.1"},
+								OverrideUpstreamCache: true,
+								Levels:                "2:2",
+								MinFree:               "100m",
+								CacheKey:              "$scheme$proxy_host$request_uri$is_args$args",
+								CacheBackgroundUpdate: true,
+								CacheUseStale:         []string{"error", "timeout", "http_503"},
+								NoCacheConditions:     []string{"$http_pragma", "$http_authorization"},
+								CacheBypassConditions: []string{"$cookie_nocache", "$arg_nocache"},
+							},
+						},
+						{
+							Path:                     "/tea/v2",
+							ProxyPass:                "http://vs_default_cafe_vsr_default_tea-vsr_tea-v2",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-v2-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-v2-svc",
+							IsVSR:                    true,
+							VSRName:                  "tea-vsr",
+							VSRNamespace:             "default",
+						},
+					},
+				},
+			},
+		},
+		{
+			msg: "cache policy with extended fields",
+			virtualServerEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "extended-cache",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cache.example.com",
+						Policies: []conf_v1.PolicyReference{
+							{
+								Name: "extended-cache-policy",
+							},
+						},
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "backend",
+								Service: "backend-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path: "/api",
+								Action: &conf_v1.Action{
+									Pass: "backend",
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/extended-cache-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "extended-cache-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							Cache: &conf_v1.Cache{
+								CacheZoneName: "extended-cache",
+								CacheZoneSize: "100m",
+								CacheKey:      "$scheme$host$request_uri$args",
+								CacheMinUses:  createPointerFromInt(3),
+								UseTempPath:   false,
+								MaxSize:       "2g",
+								Inactive:      "7d",
+								Manager: &conf_v1.CacheManager{
+									Files:     createPointerFromInt(500),
+									Sleep:     "200ms",
+									Threshold: "1s",
+								},
+								Lock: &conf_v1.CacheLock{
+									Enable:  true,
+									Timeout: "60s",
+								},
+								Conditions: &conf_v1.CacheConditions{
+									NoCache: []string{"$cookie_admin"},
+									Bypass:  []string{"$http_cache_control"},
+								},
+								AllowedCodes: []intstr.IntOrString{
+									intstr.FromString("200"),
+									intstr.FromString("404"),
+									intstr.FromString("any"),
+								},
+								Time:                  "1h",
+								CacheBackgroundUpdate: true,
+								CacheRevalidate:       true,
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/backend-svc:80": {
+						"10.0.0.40:80",
+					},
+				},
+			},
+			expected: version2.VirtualServerConfig{
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "backend-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "extended-cache",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_extended-cache_backend",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.40:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets:  []string{},
+				LimitReqZones: []version2.LimitReqZone{},
+				CacheZones: []version2.CacheZone{
+					{
+						Name:             "default_extended-cache_extended-cache",
+						Size:             "100m",
+						Path:             "/var/cache/nginx/default_extended-cache_extended-cache",
+						Levels:           "",
+						Inactive:         "7d",
+						UseTempPath:      false,
+						MaxSize:          "2g",
+						MinFree:          "",
+						ManagerFiles:     createPointerFromInt(500),
+						ManagerSleep:     "200ms",
+						ManagerThreshold: "1s",
+					},
+				},
+				Server: version2.Server{
+					ServerName:   "cache.example.com",
+					StatusZone:   "cache.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "extended-cache",
+					Cache: &version2.Cache{
+						ZoneName:              "default_extended-cache_extended-cache",
+						ZoneSize:              "100m",
+						Levels:                "",
+						Inactive:              "7d",
+						UseTempPath:           false,
+						MaxSize:               "2g",
+						MinFree:               "",
+						ManagerFiles:          createPointerFromInt(500),
+						ManagerSleep:          "200ms",
+						ManagerThreshold:      "1s",
+						CacheKey:              "$scheme$host$request_uri$args",
+						OverrideUpstreamCache: false,
+						Time:                  "1h",
+						Valid:                 map[string]string{"200": "1h", "404": "1h", "any": "1h"},
+						AllowedMethods:        nil,
+						CacheUseStale:         nil,
+						CacheRevalidate:       true,
+						CacheBackgroundUpdate: true,
+						CacheMinUses:          createPointerFromInt(3),
+						CachePurgeAllow:       nil,
+						CacheLock:             true,
+						CacheLockTimeout:      "60s",
+						CacheLockAge:          "",
+						NoCacheConditions:     []string{"$cookie_admin"},
+						CacheBypassConditions: []string{"$http_cache_control"},
+					},
+					Locations: []version2.Location{
+						{
+							Path:                     "/api",
+							ProxyPass:                "http://vs_default_extended-cache_backend",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "backend-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "backend-svc",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	baseCfgParams := ConfigParams{
+		Context:      context.Background(),
+		ServerTokens: "off",
+	}
+
+	vsc := newVirtualServerConfigurator(
+		&baseCfgParams,
+		false,
+		false,
+		&StaticConfigParams{},
+		false,
+		&fakeBV,
+	)
+
+	for _, test := range tests {
+		result, warnings := vsc.GenerateVirtualServerConfig(&test.virtualServerEx, nil, nil)
+
+		if diff := cmp.Diff(test.expected, result); diff != "" {
+			t.Errorf("GenerateVirtualServerConfig() mismatch (-want +got):\n%s", diff)
+			t.Error(test.msg)
+		}
+
+		if len(warnings) != 0 {
+			t.Errorf("GenerateVirtualServerConfig returned warnings: %v", warnings)
+		}
+	}
+}
+
 func TestGeneratePolicies(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 	ownerDetails := policyOwnerDetails{
 		owner:          nil, // nil is OK for the unit test
 		ownerNamespace: "default",
 		vsNamespace:    "default",
 		vsName:         "test",
+		ownerName:      "test",
 	}
 	mTLSCertPath := "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crt"
 	mTLSCrlPath := "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crl"
 	mTLSCertAndCrlPath := fmt.Sprintf("%s %s", mTLSCertPath, mTLSCrlPath)
 	policyOpts := policyOptions{
-		tls: true,
+		tls:      true,
+		zoneSync: false,
 		secretRefs: map[string]*secrets.SecretReference{
 			"default/ingress-mtls-secret": {
 				Secret: &api_v1.Secret{
@@ -6479,6 +12370,7 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 		},
+		defaultCABundle: "/etc/ssl/certs/ca-certificate.crt",
 		apResources: &appProtectResourcesForVS{
 			Policies: map[string]string{
 				"default/dataguard-alarm": "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
@@ -6493,6 +12385,7 @@ func TestGeneratePolicies(t *testing.T) {
 		policyRefs []conf_v1.PolicyReference
 		policies   map[string]*conf_v1.Policy
 		context    string
+		path       string
 		expected   policiesCfg
 		msg        string
 	}{
@@ -6513,7 +12406,8 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
-				Allow: []string{"127.0.0.1"},
+				Allow:   []string{"127.0.0.1"},
+				Context: ctx,
 			},
 			msg: "explicit reference",
 		},
@@ -6533,7 +12427,8 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
-				Allow: []string{"127.0.0.1"},
+				Allow:   []string{"127.0.0.1"},
+				Context: ctx,
 			},
 			msg: "implicit reference",
 		},
@@ -6563,7 +12458,8 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
-				Allow: []string{"127.0.0.1", "127.0.0.2"},
+				Allow:   []string{"127.0.0.1", "127.0.0.2"},
+				Context: ctx,
 			},
 			msg: "merging",
 		},
@@ -6576,6 +12472,10 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 			policies: map[string]*conf_v1.Policy{
 				"default/rateLimit-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy",
+						Namespace: "default",
+					},
 					Spec: conf_v1.PolicySpec{
 						RateLimit: &conf_v1.RateLimit{
 							Key:      "test",
@@ -6587,21 +12487,24 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
-				LimitReqZones: []version2.LimitReqZone{
-					{
-						Key:      "test",
-						ZoneSize: "10M",
-						Rate:     "10r/s",
-						ZoneName: "pol_rl_default_rateLimit-policy_default_test",
+				Context: ctx,
+				RateLimit: rateLimit{
+					Reqs: []version2.LimitReq{
+						{
+							ZoneName: "pol_rl_default_rateLimit_policy_default_test",
+						},
 					},
-				},
-				LimitReqOptions: version2.LimitReqOptions{
-					LogLevel:   "notice",
-					RejectCode: 503,
-				},
-				LimitReqs: []version2.LimitReq{
-					{
-						ZoneName: "pol_rl_default_rateLimit-policy_default_test",
+					Zones: []version2.LimitReqZone{
+						{
+							Key:      "test",
+							ZoneSize: "10M",
+							Rate:     "10r/s",
+							ZoneName: "pol_rl_default_rateLimit_policy_default_test",
+						},
+					},
+					Options: version2.LimitReqOptions{
+						LogLevel:   "notice",
+						RejectCode: 503,
 					},
 				},
 			},
@@ -6620,6 +12523,10 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 			policies: map[string]*conf_v1.Policy{
 				"default/rateLimit-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy",
+						Namespace: "default",
+					},
 					Spec: conf_v1.PolicySpec{
 						RateLimit: &conf_v1.RateLimit{
 							Key:      "test",
@@ -6629,6 +12536,10 @@ func TestGeneratePolicies(t *testing.T) {
 					},
 				},
 				"default/rateLimit-policy2": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy2",
+						Namespace: "default",
+					},
 					Spec: conf_v1.PolicySpec{
 						RateLimit: &conf_v1.RateLimit{
 							Key:      "test2",
@@ -6639,30 +12550,33 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
-				LimitReqZones: []version2.LimitReqZone{
-					{
-						Key:      "test",
-						ZoneSize: "10M",
-						Rate:     "10r/s",
-						ZoneName: "pol_rl_default_rateLimit-policy_default_test",
+				Context: ctx,
+				RateLimit: rateLimit{
+					Zones: []version2.LimitReqZone{
+						{
+							Key:      "test",
+							ZoneSize: "10M",
+							Rate:     "10r/s",
+							ZoneName: "pol_rl_default_rateLimit_policy_default_test",
+						},
+						{
+							Key:      "test2",
+							ZoneSize: "20M",
+							Rate:     "20r/s",
+							ZoneName: "pol_rl_default_rateLimit_policy2_default_test",
+						},
 					},
-					{
-						Key:      "test2",
-						ZoneSize: "20M",
-						Rate:     "20r/s",
-						ZoneName: "pol_rl_default_rateLimit-policy2_default_test",
+					Options: version2.LimitReqOptions{
+						LogLevel:   "error",
+						RejectCode: 503,
 					},
-				},
-				LimitReqOptions: version2.LimitReqOptions{
-					LogLevel:   "error",
-					RejectCode: 503,
-				},
-				LimitReqs: []version2.LimitReq{
-					{
-						ZoneName: "pol_rl_default_rateLimit-policy_default_test",
-					},
-					{
-						ZoneName: "pol_rl_default_rateLimit-policy2_default_test",
+					Reqs: []version2.LimitReq{
+						{
+							ZoneName: "pol_rl_default_rateLimit_policy_default_test",
+						},
+						{
+							ZoneName: "pol_rl_default_rateLimit_policy2_default_test",
+						},
 					},
 				},
 			},
@@ -6677,6 +12591,10 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 			policies: map[string]*conf_v1.Policy{
 				"default/rateLimitScale-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimitScale-policy",
+						Namespace: "default",
+					},
 					Spec: conf_v1.PolicySpec{
 						RateLimit: &conf_v1.RateLimit{
 							Key:      "test",
@@ -6689,25 +12607,161 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
-				LimitReqZones: []version2.LimitReqZone{
-					{
-						Key:      "test",
-						ZoneSize: "10M",
-						Rate:     "5r/s",
-						ZoneName: "pol_rl_default_rateLimitScale-policy_default_test",
+				Context: ctx,
+				RateLimit: rateLimit{
+					Zones: []version2.LimitReqZone{
+						{
+							Key:      "test",
+							ZoneSize: "10M",
+							Rate:     "5r/s",
+							ZoneName: "pol_rl_default_rateLimitScale_policy_default_test",
+						},
 					},
-				},
-				LimitReqOptions: version2.LimitReqOptions{
-					LogLevel:   "notice",
-					RejectCode: 503,
-				},
-				LimitReqs: []version2.LimitReq{
-					{
-						ZoneName: "pol_rl_default_rateLimitScale-policy_default_test",
+					Options: version2.LimitReqOptions{
+						LogLevel:   "notice",
+						RejectCode: 503,
+					},
+					Reqs: []version2.LimitReq{
+						{
+							ZoneName: "pol_rl_default_rateLimitScale_policy_default_test",
+						},
 					},
 				},
 			},
 			msg: "rate limit reference with scale",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "rateLimit-basic-policy",
+					Namespace: "default",
+				},
+				{
+					Name:      "rateLimit-premium-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/rateLimit-basic-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-basic-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						RateLimit: &conf_v1.RateLimit{
+							Key:      "$apikey_client_name",
+							ZoneSize: "10M",
+							Rate:     "10r/s",
+							LogLevel: "notice",
+							Condition: &conf_v1.RateLimitCondition{
+								Variables: &[]conf_v1.VariableCondition{
+									{
+										Name:  "$apikey_client_name",
+										Match: "basic",
+									},
+								},
+								Default: true,
+							},
+						},
+					},
+				},
+				"default/rateLimit-premium-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-premium-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						RateLimit: &conf_v1.RateLimit{
+							Key:      "$apikey_client_name",
+							ZoneSize: "10M",
+							Rate:     "100r/s",
+							LogLevel: "notice",
+							Condition: &conf_v1.RateLimitCondition{
+								Variables: &[]conf_v1.VariableCondition{
+									{
+										Name:  "$apikey_client_name",
+										Match: "premium",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			context: "route",
+			path:    "/coffee",
+			expected: policiesCfg{
+				Context: ctx,
+				RateLimit: rateLimit{
+					Zones: []version2.LimitReqZone{
+						{
+							Key:           "$pol_rl_default_rateLimit_basic_policy_default_test",
+							ZoneSize:      "10M",
+							Rate:          "10r/s",
+							ZoneName:      "pol_rl_default_rateLimit_basic_policy_default_test",
+							GroupValue:    `"basic"`,
+							GroupVariable: "$rl_default_test_variable_apikey_client_name_route_L2NvZmZlZQ",
+							PolicyValue:   "rl_default_test_match_ratelimit_basic_policy",
+							PolicyResult:  "$apikey_client_name",
+							GroupSource:   "$apikey_client_name",
+							GroupDefault:  true,
+						},
+						{
+							Key:           "$pol_rl_default_rateLimit_premium_policy_default_test",
+							ZoneSize:      "10M",
+							Rate:          "100r/s",
+							ZoneName:      "pol_rl_default_rateLimit_premium_policy_default_test",
+							GroupValue:    `"premium"`,
+							GroupVariable: "$rl_default_test_variable_apikey_client_name_route_L2NvZmZlZQ",
+							PolicyValue:   "rl_default_test_match_ratelimit_premium_policy",
+							PolicyResult:  "$apikey_client_name",
+							GroupSource:   "$apikey_client_name",
+						},
+					},
+					Options: version2.LimitReqOptions{
+						LogLevel:   "notice",
+						RejectCode: 503,
+					},
+					Reqs: []version2.LimitReq{
+						{
+							ZoneName: "pol_rl_default_rateLimit_basic_policy_default_test",
+						},
+						{
+							ZoneName: "pol_rl_default_rateLimit_premium_policy_default_test",
+						},
+					},
+					GroupMaps: []version2.Map{
+						{
+							Source:   "$apikey_client_name",
+							Variable: "$rl_default_test_variable_apikey_client_name_route_L2NvZmZlZQ",
+							Parameters: []version2.Parameter{
+								{Value: `"premium"`, Result: "rl_default_test_match_ratelimit_premium_policy"},
+								{Value: `"basic"`, Result: "rl_default_test_match_ratelimit_basic_policy"},
+								{Value: "default", Result: "rl_default_test_match_ratelimit_basic_policy"},
+							},
+						},
+					},
+					PolicyGroupMaps: []version2.Map{
+						{
+							Source:   "$rl_default_test_variable_apikey_client_name_route_L2NvZmZlZQ",
+							Variable: "$pol_rl_default_rateLimit_basic_policy_default_test",
+							Parameters: []version2.Parameter{
+								{Value: "default", Result: "''"},
+								{Value: "rl_default_test_match_ratelimit_basic_policy", Result: "Val$apikey_client_name"},
+							},
+						},
+						{
+							Source:   "$rl_default_test_variable_apikey_client_name_route_L2NvZmZlZQ",
+							Variable: "$pol_rl_default_rateLimit_premium_policy_default_test",
+							Parameters: []version2.Parameter{
+								{Value: "default", Result: "''"},
+								{Value: "rl_default_test_match_ratelimit_premium_policy", Result: "Val$apikey_client_name"},
+							},
+						},
+					},
+				},
+			},
+			msg: "tiered rate limits",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -6731,11 +12785,14 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
-				JWTAuth: &version2.JWTAuth{
-					Secret: "/etc/nginx/secrets/default-jwt-secret",
-					Realm:  "My Test API",
+				Context: ctx,
+				JWTAuth: jwtAuth{
+					Auth: &version2.JWTAuth{
+						Secret: "/etc/nginx/secrets/default-jwt-secret",
+						Realm:  "My Test API",
+					},
+					JWKSEnabled: false,
 				},
-				JWKSAuthEnabled: false,
 			},
 			msg: "jwt reference",
 		},
@@ -6762,18 +12819,26 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
-				JWTAuth: &version2.JWTAuth{
-					Key:   "default/jwt-policy-2",
-					Realm: "My Test API",
-					JwksURI: version2.JwksURI{
-						JwksScheme: "https",
-						JwksHost:   "idp.example.com",
-						JwksPort:   "443",
-						JwksPath:   "/keys",
+				Context: ctx,
+				JWTAuth: jwtAuth{
+					Auth: &version2.JWTAuth{
+						Key:   "default/jwt-policy-2",
+						Realm: "My Test API",
+						JwksURI: version2.JwksURI{
+							JwksScheme:     "https",
+							JwksHost:       "idp.example.com",
+							JwksPort:       "443",
+							JwksPath:       "/keys",
+							JwksSNIName:    "",
+							JwksSNIEnabled: false,
+							SSLVerify:      false,
+							TrustedCert:    "",
+							SSLVerifyDepth: 1,
+						},
+						KeyCache: "1h",
 					},
-					KeyCache: "1h",
+					JWKSEnabled: true,
 				},
-				JWKSAuthEnabled: true,
 			},
 			msg: "Basic jwks example",
 		},
@@ -6800,18 +12865,26 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
-				JWTAuth: &version2.JWTAuth{
-					Key:   "default/jwt-policy-2",
-					Realm: "My Test API",
-					JwksURI: version2.JwksURI{
-						JwksScheme: "https",
-						JwksHost:   "idp.example.com",
-						JwksPort:   "",
-						JwksPath:   "/keys",
+				Context: ctx,
+				JWTAuth: jwtAuth{
+					Auth: &version2.JWTAuth{
+						Key:   "default/jwt-policy-2",
+						Realm: "My Test API",
+						JwksURI: version2.JwksURI{
+							JwksScheme:     "https",
+							JwksHost:       "idp.example.com",
+							JwksPort:       "",
+							JwksPath:       "/keys",
+							JwksSNIName:    "",
+							JwksSNIEnabled: false,
+							SSLVerify:      false,
+							TrustedCert:    "",
+							SSLVerifyDepth: 1,
+						},
+						KeyCache: "1h",
 					},
-					KeyCache: "1h",
+					JWKSEnabled: true,
 				},
-				JWKSAuthEnabled: true,
 			},
 			msg: "Basic jwks example, no port in JwksURI",
 		},
@@ -6837,6 +12910,7 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
+				Context: ctx,
 				BasicAuth: &version2.BasicAuth{
 					Secret: "/etc/nginx/secrets/default-htpasswd-secret",
 					Realm:  "My Test API",
@@ -6867,6 +12941,7 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 			context: "spec",
 			expected: policiesCfg{
+				Context: ctx,
 				IngressMTLS: &version2.IngressMTLS{
 					ClientCert:   mTLSCertPath,
 					VerifyClient: "off",
@@ -6898,6 +12973,7 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 			context: "spec",
 			expected: policiesCfg{
+				Context: ctx,
 				IngressMTLS: &version2.IngressMTLS{
 					ClientCert:   mTLSCertPath,
 					ClientCrl:    mTLSCrlPath,
@@ -6931,6 +13007,7 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 			context: "spec",
 			expected: policiesCfg{
+				Context: ctx,
 				IngressMTLS: &version2.IngressMTLS{
 					ClientCert:   mTLSCertPath,
 					ClientCrl:    mTLSCrlPath,
@@ -6961,6 +13038,7 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 			context: "route",
 			expected: policiesCfg{
+				Context: ctx,
 				EgressMTLS: &version2.EgressMTLS{
 					Certificate:    "/etc/nginx/secrets/default-egress-mtls-secret",
 					CertificateKey: "/etc/nginx/secrets/default-egress-mtls-secret",
@@ -6997,6 +13075,7 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 			context: "route",
 			expected: policiesCfg{
+				Context: ctx,
 				EgressMTLS: &version2.EgressMTLS{
 					Certificate:    "/etc/nginx/secrets/default-egress-mtls-secret",
 					CertificateKey: "/etc/nginx/secrets/default-egress-mtls-secret",
@@ -7043,7 +13122,8 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
-				OIDC: true,
+				Context: ctx,
+				OIDC:    true,
 			},
 			msg: "oidc reference",
 		},
@@ -7072,17 +13152,20 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
-				APIKey: &version2.APIKey{
-					Header:  []string{"X-API-Key"},
-					Query:   []string{"api-key"},
-					MapName: "apikey_auth_client_name_default_test_api_key_policy",
-				},
-				APIKeyEnabled:   true,
-				APIKeyClientMap: nil,
-				APIKeyClients: []apiKeyClient{
-					{
-						ClientID:  "client1",
-						HashedKey: "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
+				Context: ctx,
+				APIKey: apiKeyAuth{
+					Key: &version2.APIKey{
+						Header:  []string{"X-API-Key"},
+						Query:   []string{"api-key"},
+						MapName: "apikey_auth_client_name_default_test_api_key_policy",
+					},
+					Enabled:   true,
+					ClientMap: nil,
+					Clients: []apiKeyClient{
+						{
+							ClientID:  "client1",
+							HashedKey: "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
+						},
 					},
 				},
 			},
@@ -7113,17 +13196,20 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
-				APIKey: &version2.APIKey{
-					Header:  []string{"X-API-Key"},
-					Query:   []string{"api-key"},
-					MapName: "apikey_auth_client_name_default_test_api_key_policy",
-				},
-				APIKeyEnabled:   true,
-				APIKeyClientMap: nil,
-				APIKeyClients: []apiKeyClient{
-					{
-						ClientID:  "client1",
-						HashedKey: "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
+				Context: ctx,
+				APIKey: apiKeyAuth{
+					Key: &version2.APIKey{
+						Header:  []string{"X-API-Key"},
+						Query:   []string{"api-key"},
+						MapName: "apikey_auth_client_name_default_test_api_key_policy",
+					},
+					Enabled:   true,
+					ClientMap: nil,
+					Clients: []apiKeyClient{
+						{
+							ClientID:  "client1",
+							HashedKey: "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
+						},
 					},
 				},
 			},
@@ -7152,7 +13238,9 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			context: "route",
+			path:    "/coffee",
 			expected: policiesCfg{
+				Context: ctx,
 				WAF: &version2.WAF{
 					Enable:              "on",
 					ApPolicy:            "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
@@ -7162,19 +13250,279 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 			msg: "WAF reference",
 		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "cache-policy-basic",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/cache-policy-basic": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cache-policy-basic",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						Cache: &conf_v1.Cache{
+							CacheZoneName: "basic-cache",
+							CacheZoneSize: "10m",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				Cache: &version2.Cache{
+					ZoneName: "default_test_basic-cache",
+					ZoneSize: "10m",
+					Valid:    map[string]string{},
+					CacheKey: "$scheme$proxy_host$request_uri",
+				},
+			},
+			msg: "basic cache policy reference",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "cache-policy-full",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/cache-policy-full": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cache-policy-full",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						Cache: &conf_v1.Cache{
+							CacheZoneName:         "full-cache",
+							CacheZoneSize:         "100m",
+							AllowedCodes:          []intstr.IntOrString{intstr.FromString("any")},
+							AllowedMethods:        []string{"GET", "HEAD", "POST"},
+							Time:                  "1h",
+							OverrideUpstreamCache: true,
+							Levels:                "1:2",
+							Inactive:              "2d",
+							UseTempPath:           false,
+							MaxSize:               "5g",
+							MinFree:               "500m",
+							Manager: &conf_v1.CacheManager{
+								Files:     &[]int{1000}[0],
+								Sleep:     "50ms",
+								Threshold: "150ms",
+							},
+							CacheKey:              "$scheme$proxy_host$request_uri$is_args$args",
+							CacheUseStale:         []string{"error", "timeout", "invalid_header", "updating", "http_500", "http_502", "http_503"},
+							CacheRevalidate:       true,
+							CacheBackgroundUpdate: true,
+							CacheMinUses:          &[]int{3}[0],
+							Lock: &conf_v1.CacheLock{
+								Enable:  true,
+								Timeout: "10s",
+								Age:     "30s",
+							},
+							CachePurgeAllow: []string{"127.0.0.1", "10.0.0.0/8"},
+							Conditions: &conf_v1.CacheConditions{
+								NoCache: []string{"$http_pragma", "$http_authorization"},
+								Bypass:  []string{"$cookie_nocache", "$arg_nocache", "$arg_comment"},
+							},
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				Cache: &version2.Cache{
+					ZoneName:              "default_test_full-cache",
+					ZoneSize:              "100m",
+					Time:                  "1h",
+					Valid:                 map[string]string{"any": "1h"},
+					AllowedMethods:        []string{"GET", "HEAD", "POST"},
+					OverrideUpstreamCache: true,
+					Levels:                "1:2",
+					Inactive:              "2d",
+					UseTempPath:           false,
+					MaxSize:               "5g",
+					MinFree:               "500m",
+					ManagerFiles:          &[]int{1000}[0],
+					ManagerSleep:          "50ms",
+					ManagerThreshold:      "150ms",
+					CacheKey:              "$scheme$proxy_host$request_uri$is_args$args",
+					CacheUseStale:         []string{"error", "timeout", "invalid_header", "updating", "http_500", "http_502", "http_503"},
+					CacheRevalidate:       true,
+					CacheBackgroundUpdate: true,
+					CacheMinUses:          &[]int{3}[0],
+					CacheLock:             true,
+					CacheLockTimeout:      "10s",
+					CacheLockAge:          "30s",
+					CachePurgeAllow:       []string{"127.0.0.1", "10.0.0.0/8"},
+					NoCacheConditions:     []string{"$http_pragma", "$http_authorization"},
+					CacheBypassConditions: []string{"$cookie_nocache", "$arg_nocache", "$arg_comment"},
+				},
+			},
+			msg: "full cache policy with all options",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "cache-policy-status-codes",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/cache-policy-status-codes": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cache-policy-status-codes",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						Cache: &conf_v1.Cache{
+							CacheZoneName: "status-cache",
+							CacheZoneSize: "50m",
+							AllowedCodes: []intstr.IntOrString{
+								intstr.FromInt(200),
+								intstr.FromInt(301),
+								intstr.FromInt(404),
+							},
+							Time: "30m",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				Cache: &version2.Cache{
+					ZoneName: "default_test_status-cache",
+					ZoneSize: "50m",
+					Time:     "30m",
+					Valid: map[string]string{
+						"200": "30m",
+						"301": "30m",
+						"404": "30m",
+					},
+					CacheKey: "$scheme$proxy_host$request_uri",
+				},
+			},
+			msg: "cache policy with specific status codes",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "cache-policy-methods",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/cache-policy-methods": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cache-policy-methods",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						Cache: &conf_v1.Cache{
+							CacheZoneName:  "methods-cache",
+							CacheZoneSize:  "25m",
+							AllowedMethods: []string{"GET", "HEAD"},
+							Levels:         "2:2",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				Cache: &version2.Cache{
+					ZoneName:       "default_test_methods-cache",
+					ZoneSize:       "25m",
+					Valid:          map[string]string{},
+					AllowedMethods: []string{"GET", "HEAD"},
+					Levels:         "2:2",
+					CacheKey:       "$scheme$proxy_host$request_uri",
+				},
+			},
+			msg: "cache policy with allowed methods and levels",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "cache-policy-purge",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/cache-policy-purge": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cache-policy-purge",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						Cache: &conf_v1.Cache{
+							CacheZoneName:   "purge-cache",
+							CacheZoneSize:   "75m",
+							CachePurgeAllow: []string{"192.168.1.0/24", "10.0.0.1"},
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				Cache: &version2.Cache{
+					ZoneName:        "default_test_purge-cache",
+					ZoneSize:        "75m",
+					Valid:           map[string]string{},
+					CachePurgeAllow: []string{"192.168.1.0/24", "10.0.0.1"},
+					CacheKey:        "$scheme$proxy_host$request_uri",
+				},
+			},
+			msg: "cache policy with purge allow IPs",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name: "cache-policy-implicit",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/cache-policy-implicit": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cache-policy-implicit",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						Cache: &conf_v1.Cache{
+							CacheZoneName: "implicit-cache",
+							CacheZoneSize: "15m",
+							Time:          "45m",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				Cache: &version2.Cache{
+					ZoneName: "default_test_implicit-cache",
+					ZoneSize: "15m",
+					Time:     "45m",
+					Valid:    map[string]string{},
+					CacheKey: "$scheme$proxy_host$request_uri",
+				},
+			},
+			msg: "implicit cache policy reference",
+		},
 	}
 
-	vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background()}, false, false, &StaticConfigParams{}, false, &fakeBV)
+	vsc := newVirtualServerConfigurator(&ConfigParams{Context: ctx}, false, false, &StaticConfigParams{}, false, &fakeBV)
 	// required to test the scaling of the ratelimit
 	vsc.IngressControllerReplicas = 2
 
 	for _, tc := range tests {
 		t.Run(tc.msg, func(t *testing.T) {
-			result := vsc.generatePolicies(ownerDetails, tc.policyRefs, tc.policies, tc.context, policyOpts)
+			result := vsc.generatePolicies(ownerDetails, tc.policyRefs, tc.policies, tc.context, tc.path, policyOpts)
 			result.BundleValidator = nil
 
-			if !cmp.Equal(tc.expected, result) {
-				t.Error(cmp.Diff(tc.expected, result))
+			if !reflect.DeepEqual(tc.expected, result) {
+				t.Error(cmp.Diff(tc.expected, result, cmpopts.IgnoreFields(policiesCfg{}, "Context")))
 			}
 			if len(vsc.warnings) > 0 {
 				t.Errorf("generatePolicies() returned unexpected warnings %v for the case of %s", vsc.warnings, tc.msg)
@@ -7199,6 +13547,7 @@ func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 		policies   map[string]*conf_v1.Policy
 		policyOpts policyOptions
 		context    string
+		path       string
 		want       policiesCfg
 	}{
 		{
@@ -7221,6 +13570,7 @@ func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 			},
 			context: "route",
 			want: policiesCfg{
+				Context: ctx,
 				WAF: &version2.WAF{
 					Enable:   "on",
 					ApBundle: "/fake/bundle/path/testWAFPolicyBundle.tgz",
@@ -7253,6 +13603,7 @@ func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 			},
 			context: "route",
 			want: policiesCfg{
+				Context: ctx,
 				WAF: &version2.WAF{
 					Enable:              "on",
 					ApBundle:            "/fake/bundle/path/testWAFPolicyBundle.tgz",
@@ -7264,10 +13615,10 @@ func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background()}, false, false, &StaticConfigParams{}, false, &fakeBV)
-			res := vsc.generatePolicies(ownerDetails, tc.policyRefs, tc.policies, tc.context, policyOptions{apResources: &appProtectResourcesForVS{}})
+			vsc := newVirtualServerConfigurator(&ConfigParams{Context: ctx}, false, false, &StaticConfigParams{}, false, &fakeBV)
+			res := vsc.generatePolicies(ownerDetails, tc.policyRefs, tc.policies, tc.context, tc.path, policyOptions{apResources: &appProtectResourcesForVS{}})
 			res.BundleValidator = nil
-			if !cmp.Equal(tc.want, res) {
+			if !reflect.DeepEqual(tc.want, res) {
 				t.Error(cmp.Diff(tc.want, res))
 			}
 		})
@@ -7278,6 +13629,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 	t.Parallel()
 	ownerDetails := policyOwnerDetails{
 		owner:          nil, // nil is OK for the unit test
+		ownerName:      "test",
 		ownerNamespace: "default",
 		vsNamespace:    "default",
 		vsName:         "test",
@@ -7295,6 +13647,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 		policyOpts        policyOptions
 		trustedCAFileName string
 		context           string
+		path              string
 		oidcPolCfg        *oidcPolicyCfg
 		expected          policiesCfg
 		expectedWarnings  Warnings
@@ -7350,8 +13703,9 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			policyOpts: policyOptions{},
 			expected: policiesCfg{
-				Allow: []string{"127.0.0.1"},
-				Deny:  []string{"127.0.0.2"},
+				Context: ctx,
+				Allow:   []string{"127.0.0.1"},
+				Deny:    []string{"127.0.0.2"},
 			},
 			expectedWarnings: Warnings{
 				nil: {
@@ -7374,6 +13728,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			policies: map[string]*conf_v1.Policy{
 				"default/rateLimit-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy",
+						Namespace: "default",
+					},
 					Spec: conf_v1.PolicySpec{
 						RateLimit: &conf_v1.RateLimit{
 							Key:      "test",
@@ -7383,6 +13741,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					},
 				},
 				"default/rateLimit-policy2": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy2",
+						Namespace: "default",
+					},
 					Spec: conf_v1.PolicySpec{
 						RateLimit: &conf_v1.RateLimit{
 							Key:        "test2",
@@ -7397,30 +13759,33 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			policyOpts: policyOptions{},
 			expected: policiesCfg{
-				LimitReqZones: []version2.LimitReqZone{
-					{
-						Key:      "test",
-						ZoneSize: "10M",
-						Rate:     "10r/s",
-						ZoneName: "pol_rl_default_rateLimit-policy_default_test",
+				Context: ctx,
+				RateLimit: rateLimit{
+					Zones: []version2.LimitReqZone{
+						{
+							Key:      "test",
+							ZoneSize: "10M",
+							Rate:     "10r/s",
+							ZoneName: "pol_rl_default_rateLimit_policy_default_test",
+						},
+						{
+							Key:      "test2",
+							ZoneSize: "20M",
+							Rate:     "20r/s",
+							ZoneName: "pol_rl_default_rateLimit_policy2_default_test",
+						},
 					},
-					{
-						Key:      "test2",
-						ZoneSize: "20M",
-						Rate:     "20r/s",
-						ZoneName: "pol_rl_default_rateLimit-policy2_default_test",
+					Options: version2.LimitReqOptions{
+						LogLevel:   "error",
+						RejectCode: 503,
 					},
-				},
-				LimitReqOptions: version2.LimitReqOptions{
-					LogLevel:   "error",
-					RejectCode: 503,
-				},
-				LimitReqs: []version2.LimitReq{
-					{
-						ZoneName: "pol_rl_default_rateLimit-policy_default_test",
-					},
-					{
-						ZoneName: "pol_rl_default_rateLimit-policy2_default_test",
+					Reqs: []version2.LimitReq{
+						{
+							ZoneName: "pol_rl_default_rateLimit_policy_default_test",
+						},
+						{
+							ZoneName: "pol_rl_default_rateLimit_policy2_default_test",
+						},
 					},
 				},
 			},
@@ -7433,6 +13798,73 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			expectedOidc: &oidcPolicyCfg{},
 			msg:          "rate limit policy limit request option override",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "rateLimit-policy",
+					Namespace: "default",
+				},
+				{
+					Name:      "rateLimit-policy2",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/rateLimit-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						RateLimit: &conf_v1.RateLimit{
+							Key:      "test",
+							ZoneSize: "10M",
+							Rate:     "10r/s",
+							Condition: &conf_v1.RateLimitCondition{
+								JWT: &conf_v1.JWTCondition{
+									Match: "Basic",
+									Claim: "user_details.level",
+								},
+								Default: true,
+							},
+						},
+					},
+				},
+				"default/rateLimit-policy2": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy2",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						RateLimit: &conf_v1.RateLimit{
+							Key:      "test2",
+							ZoneSize: "20M",
+							Rate:     "20r/s",
+							Condition: &conf_v1.RateLimitCondition{
+								JWT: &conf_v1.JWTCondition{
+									Match: "Premium",
+									Claim: "user_details.level",
+								},
+								Default: true,
+							},
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{},
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`Tiered rate-limit Policies on [default/test] contain conflicting default values`,
+				},
+			},
+			expectedOidc: &oidcPolicyCfg{},
+			msg:          "tiered rate limit policy with duplicate defaults",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -7575,9 +14007,12 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
-				JWTAuth: &version2.JWTAuth{
-					Secret: "/etc/nginx/secrets/default-jwt-secret",
-					Realm:  "test",
+				Context: ctx,
+				JWTAuth: jwtAuth{
+					Auth: &version2.JWTAuth{
+						Secret: "/etc/nginx/secrets/default-jwt-secret",
+						Realm:  "test",
+					},
 				},
 			},
 			expectedWarnings: Warnings{
@@ -7729,6 +14164,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			expected: policiesCfg{
+				Context: ctx,
 				BasicAuth: &version2.BasicAuth{
 					Secret: "/etc/nginx/secrets/default-htpasswd-secret",
 					Realm:  "test",
@@ -7872,6 +14308,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			context: "spec",
 			expected: policiesCfg{
+				Context: ctx,
 				IngressMTLS: &version2.IngressMTLS{
 					ClientCert:   ingressMTLSCertPath,
 					VerifyClient: "on",
@@ -8013,6 +14450,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			context: "spec",
 			expected: policiesCfg{
+				Context: ctx,
 				IngressMTLS: &version2.IngressMTLS{
 					ClientCert:   ingressMTLSCertPath,
 					ClientCrl:    ingressMTLSCrlPath,
@@ -8076,6 +14514,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			context: "route",
 			expected: policiesCfg{
+				Context: ctx,
 				EgressMTLS: &version2.EgressMTLS{
 					Certificate:    "/etc/nginx/secrets/default-egress-mtls-secret",
 					CertificateKey: "/etc/nginx/secrets/default-egress-mtls-secret",
@@ -8339,6 +14778,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 							EndSessionEndpoint:    "http://foo.com/bar",
 							PostLogoutRedirectURI: "/_logout",
 							AccessTokenEnable:     true,
+							PKCEEnable:            true,
 						},
 					},
 				},
@@ -8530,7 +14970,8 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			context: "route",
 			expected: policiesCfg{
-				OIDC: true,
+				Context: ctx,
+				OIDC:    true,
 			},
 			expectedWarnings: Warnings{
 				nil: {
@@ -8550,6 +14991,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					PostLogoutRedirectURI: "/_logout",
 					ZoneSyncLeeway:        200,
 					AccessTokenEnable:     true,
+					VerifyDepth:           1,
 				},
 				"default/oidc-policy",
 			},
@@ -8810,6 +15252,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			context: "route",
 			expected: policiesCfg{
+				Context: ctx,
 				WAF: &version2.WAF{
 					Enable:   "on",
 					ApPolicy: "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
@@ -8823,20 +15266,116 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			expectedOidc: &oidcPolicyCfg{},
 			msg:          "multi waf",
 		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "oidc-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/oidc-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "oidc-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						OIDC: &conf_v1.OIDC{
+							ClientSecret:          "oidc-secret",
+							AuthEndpoint:          "https://foo.com/auth",
+							TokenEndpoint:         "https://foo.com/token",
+							JWKSURI:               "https://foo.com/certs",
+							EndSessionEndpoint:    "https://foo.com/logout",
+							PostLogoutRedirectURI: "/_logout",
+							ClientID:              "foo",
+							AccessTokenEnable:     true,
+							PKCEEnable:            true,
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{
+				secretRefs: map[string]*secrets.SecretReference{
+					"default/oidc-secret": {
+						Secret: &api_v1.Secret{
+							Type: secrets.SecretTypeOIDC,
+							Data: map[string][]byte{
+								"client-secret": []byte("super_secret_123"),
+							},
+						},
+					},
+				},
+			},
+			context: "route",
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`OIDC policy default/oidc-policy has a secret and PKCE enabled. Secrets can't be used with PKCE`,
+				},
+			},
+			expectedOidc: &oidcPolicyCfg{},
+			msg:          "oidc pkce yes secret yes",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "oidc-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/oidc-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "oidc-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						OIDC: &conf_v1.OIDC{
+							AuthEndpoint:          "https://foo.com/auth",
+							TokenEndpoint:         "https://foo.com/token",
+							JWKSURI:               "https://foo.com/certs",
+							EndSessionEndpoint:    "https://foo.com/logout",
+							PostLogoutRedirectURI: "/_logout",
+							ClientID:              "foo",
+							AccessTokenEnable:     true,
+							PKCEEnable:            false,
+						},
+					},
+				},
+			},
+			context: "route",
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`Client secret is required for OIDC policy default/oidc-policy when not using PKCE`,
+				},
+			},
+			expectedOidc: &oidcPolicyCfg{},
+			msg:          "oidc pkce no secret no",
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
-			vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background()}, false, false, &StaticConfigParams{}, false, &fakeBV)
+			vsc := newVirtualServerConfigurator(&ConfigParams{Context: ctx}, false, false, &StaticConfigParams{}, false, &fakeBV)
 
 			if test.oidcPolCfg != nil {
 				vsc.oidcPolCfg = test.oidcPolCfg
 			}
 
-			result := vsc.generatePolicies(ownerDetails, test.policyRefs, test.policies, test.context, test.policyOpts)
+			result := vsc.generatePolicies(ownerDetails, test.policyRefs, test.policies, test.context, test.path, test.policyOpts)
 			result.BundleValidator = nil
-			if diff := cmp.Diff(test.expected, result); diff != "" {
-				t.Errorf("generatePolicies() '%v' mismatch (-want +got):\n%s", test.msg, diff)
+
+			if !reflect.DeepEqual(test.expected, result) {
+				t.Errorf("generatePolicies() '%v' mismatch (-want +got):\n%s", test.msg, cmp.Diff(test.expected, result))
 			}
 			if !reflect.DeepEqual(vsc.warnings, test.expectedWarnings) {
 				t.Errorf(
@@ -8846,17 +15385,17 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					test.msg,
 				)
 			}
-			if diff := cmp.Diff(test.expectedOidc.oidc, vsc.oidcPolCfg.oidc); diff != "" {
-				t.Errorf("generatePolicies() '%v' mismatch (-want +got):\n%s", test.msg, diff)
+			if !reflect.DeepEqual(test.expectedOidc.oidc, vsc.oidcPolCfg.oidc) {
+				t.Errorf("generatePolicies() '%v' mismatch (-want +got):\n%s", test.msg, cmp.Diff(test.expectedOidc.oidc, vsc.oidcPolCfg.oidc))
 			}
-			if diff := cmp.Diff(test.expectedOidc.key, vsc.oidcPolCfg.key); diff != "" {
-				t.Errorf("generatePolicies() '%v' mismatch (-want +got):\n%s", test.msg, diff)
+			if !reflect.DeepEqual(test.expectedOidc.key, vsc.oidcPolCfg.key) {
+				t.Errorf("generatePolicies() '%v' mismatch (-want +got):\n%s", test.msg, cmp.Diff(test.expectedOidc.key, vsc.oidcPolCfg.key))
 			}
 		})
 	}
 }
 
-func TestRemoveDuplicates(t *testing.T) {
+func TestRemoveDuplicateLimitReqZones(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		rlz      []version2.LimitReqZone
@@ -8895,6 +15434,474 @@ func TestRemoveDuplicates(t *testing.T) {
 		if !reflect.DeepEqual(result, test.expected) {
 			t.Errorf("removeDuplicateLimitReqZones() returned \n%v, but expected \n%v", result, test.expected)
 		}
+	}
+}
+
+func TestRemoveDuplicateMaps(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		maps     []version2.Map
+		expected []version2.Map
+	}{
+		{
+			maps: []version2.Map{
+				{Source: "test", Variable: "test"},
+				{Source: "test", Variable: "test"},
+				{Source: "test2", Variable: "test2"},
+				{Source: "test3", Variable: "test3"},
+			},
+			expected: []version2.Map{
+				{Source: "test", Variable: "test"},
+				{Source: "test2", Variable: "test2"},
+				{Source: "test3", Variable: "test3"},
+			},
+		},
+		{
+			maps: []version2.Map{
+				{Source: "test", Variable: "test"},
+				{Source: "test", Variable: "test"},
+				{Source: "test2", Variable: "test2"},
+				{Source: "test3", Variable: "test3"},
+				{Source: "test3", Variable: "test3"},
+			},
+			expected: []version2.Map{
+				{Source: "test", Variable: "test"},
+				{Source: "test2", Variable: "test2"},
+				{Source: "test3", Variable: "test3"},
+			},
+		},
+		{
+			maps: []version2.Map{
+				{Source: "test", Variable: "no"},
+				{Source: "test", Variable: "test"},
+				{Source: "test2", Variable: "test2"},
+				{Source: "test3", Variable: "test3"},
+				{Source: "test3", Variable: "test3"},
+			},
+			expected: []version2.Map{
+				{Source: "test", Variable: "no"},
+				{Source: "test", Variable: "test"},
+				{Source: "test2", Variable: "test2"},
+				{Source: "test3", Variable: "test3"},
+			},
+		},
+	}
+	for _, test := range tests {
+		result := removeDuplicateMaps(test.maps)
+		if !reflect.DeepEqual(result, test.expected) {
+			t.Errorf("removeDuplicateMaps() returned \n%v, but expected \n%v", result, test.expected)
+		}
+	}
+}
+
+func TestRemoveDuplicateAuthJWTClaimSets(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		ajcs     []version2.AuthJWTClaimSet
+		expected []version2.AuthJWTClaimSet
+	}{
+		{
+			ajcs: []version2.AuthJWTClaimSet{
+				{
+					Variable: "$jwt_default_webapp_consumer_group_type",
+				},
+			},
+			expected: []version2.AuthJWTClaimSet{
+				{
+					Variable: "$jwt_default_webapp_consumer_group_type",
+				},
+			},
+		},
+		{
+			ajcs: []version2.AuthJWTClaimSet{
+				{
+					Variable: "$jwt_default_webapp_consumer_group_type",
+				},
+				{
+					Variable: "$jwt_default_webapp_consumer_group_type",
+				},
+				{
+					Variable: "$jwt_default_webapp_consumer_group_type",
+				},
+			},
+			expected: []version2.AuthJWTClaimSet{
+				{
+					Variable: "$jwt_default_webapp_consumer_group_type",
+				},
+			},
+		},
+		{
+			ajcs: []version2.AuthJWTClaimSet{
+				{
+					Variable: "$jwt_default_webapp_consumer_group_type",
+				},
+				{
+					Variable: "$jwt_default_webapp_consumer_group_type",
+				},
+				{
+					Variable: "$jwt_default_webapp_user_group_type",
+				},
+			},
+			expected: []version2.AuthJWTClaimSet{
+				{
+					Variable: "$jwt_default_webapp_consumer_group_type",
+				},
+				{
+					Variable: "$jwt_default_webapp_user_group_type",
+				},
+			},
+		},
+	}
+	for _, test := range tests {
+		result := removeDuplicateAuthJWTClaimSets(test.ajcs)
+		if !reflect.DeepEqual(result, test.expected) {
+			t.Errorf("removeDuplicateAuthJWTClaimSets() returned \n%v, but expected \n%v", result, test.expected)
+		}
+	}
+}
+
+func TestGenerateLRZPolicyGroupMap(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		lrz      version2.LimitReqZone
+		expected *version2.Map
+	}{
+		{
+			lrz: version2.LimitReqZone{
+				ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+				Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+				PolicyValue:   "rl_vsnamespace_vsname_match_gold",
+				GroupVariable: "$rl_vsnamespace_vsname_group_sub_spec",
+				PolicyResult:  "$jwt_claim_sub",
+			},
+			expected: &version2.Map{
+				Source:   "$rl_vsnamespace_vsname_group_sub_spec",
+				Variable: "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+				Parameters: []version2.Parameter{
+					{
+						Value:  "default",
+						Result: "''",
+					},
+					{
+						Value:  "rl_vsnamespace_vsname_match_gold",
+						Result: "Val$jwt_claim_sub",
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		result := generateLRZPolicyGroupMap(test.lrz)
+		if !reflect.DeepEqual(result, test.expected) {
+			t.Errorf("generateLRZPolicyGroupMap() returned \n%v, but expected \n%v", result, test.expected)
+		}
+	}
+}
+
+func TestGenerateLRZGroupMaps(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		lrzs     []version2.LimitReqZone
+		expected map[string]*version2.Map
+	}{
+		{
+			lrzs: []version2.LimitReqZone{
+				{
+					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupValue:    "Gold",
+					GroupVariable: "$rl_vsnamespace_vsname_group_sub_spec",
+					PolicyValue:   "rl_vsnamespace_vsname_match_gold",
+					PolicyResult:  "$jwt_claim_sub",
+					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+				},
+				{
+					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupValue:    "Silver",
+					GroupVariable: "$rl_vsnamespace_vsname_group_sub_spec",
+					PolicyValue:   "rl_vsnamespace_vsname_match_silver",
+					PolicyResult:  "$jwt_claim_sub",
+					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+				},
+				{
+					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupValue:    "Bronze",
+					GroupVariable: "$rl_vsnamespace_vsname_group_sub_spec",
+					PolicyValue:   "rl_vsnamespace_vsname_match_bronze",
+					PolicyResult:  "$jwt_claim_sub",
+					GroupDefault:  true,
+					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+				},
+			},
+			expected: map[string]*version2.Map{
+				"$rl_vsnamespace_vsname_group_sub_spec": {
+					Source:   "$jwt_vsnamespace_vsname_sub",
+					Variable: "$rl_vsnamespace_vsname_group_sub_spec",
+					Parameters: []version2.Parameter{
+						{
+							Value:  "default",
+							Result: "rl_vsnamespace_vsname_match_bronze",
+						},
+						{
+							Value:  "Gold",
+							Result: "rl_vsnamespace_vsname_match_gold",
+						},
+						{
+							Value:  "Silver",
+							Result: "rl_vsnamespace_vsname_match_silver",
+						},
+						{
+							Value:  "Bronze",
+							Result: "rl_vsnamespace_vsname_match_bronze",
+						},
+					},
+				},
+			},
+		},
+		{
+			lrzs: []version2.LimitReqZone{
+				{
+					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupValue:    "Gold",
+					GroupVariable: "$rl_vsnamespace_vsname_group_sub_spec",
+					PolicyValue:   "rl_vsnamespace_vsname_match_gold",
+					PolicyResult:  "$jwt_claim_sub",
+					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+				},
+				{
+					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupValue:    "Silver",
+					GroupVariable: "$rl_vsnamespace_vsname_group_sub_spec",
+					PolicyValue:   "rl_vsnamespace_vsname_match_silver",
+					PolicyResult:  "$jwt_claim_sub",
+					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+				},
+				{
+					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupValue:    "Bronze",
+					GroupVariable: "$rl_vsnamespace_vsname_group_sub_spec",
+					PolicyValue:   "rl_vsnamespace_vsname_match_bronze",
+					PolicyResult:  "$jwt_claim_sub",
+					GroupDefault:  true,
+					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+				},
+				{
+					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupValue:    "Gold",
+					GroupVariable: "$rl_vsnamespace_vsname_group_sub_subroute",
+					PolicyValue:   "rl_vsnamespace_vsname_match_gold",
+					PolicyResult:  "$jwt_claim_sub",
+					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+				},
+				{
+					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupValue:    "Silver",
+					GroupVariable: "$rl_vsnamespace_vsname_group_sub_subroute",
+					PolicyValue:   "rl_vsnamespace_vsname_match_silver",
+					PolicyResult:  "$jwt_claim_sub",
+					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+				},
+				{
+					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupValue:    "Bronze",
+					GroupVariable: "$rl_vsnamespace_vsname_group_sub_subroute",
+					PolicyValue:   "rl_vsnamespace_vsname_match_bronze",
+					PolicyResult:  "$jwt_claim_sub",
+					GroupDefault:  true,
+					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+				},
+			},
+			expected: map[string]*version2.Map{
+				"$rl_vsnamespace_vsname_group_sub_spec": {
+					Source:   "$jwt_vsnamespace_vsname_sub",
+					Variable: "$rl_vsnamespace_vsname_group_sub_spec",
+					Parameters: []version2.Parameter{
+						{
+							Value:  "default",
+							Result: "rl_vsnamespace_vsname_match_bronze",
+						},
+						{
+							Value:  "Gold",
+							Result: "rl_vsnamespace_vsname_match_gold",
+						},
+						{
+							Value:  "Silver",
+							Result: "rl_vsnamespace_vsname_match_silver",
+						},
+						{
+							Value:  "Bronze",
+							Result: "rl_vsnamespace_vsname_match_bronze",
+						},
+					},
+				},
+				"$rl_vsnamespace_vsname_group_sub_subroute": {
+					Source:   "$jwt_vsnamespace_vsname_sub",
+					Variable: "$rl_vsnamespace_vsname_group_sub_subroute",
+					Parameters: []version2.Parameter{
+						{
+							Value:  "default",
+							Result: "rl_vsnamespace_vsname_match_bronze",
+						},
+						{
+							Value:  "Gold",
+							Result: "rl_vsnamespace_vsname_match_gold",
+						},
+						{
+							Value:  "Silver",
+							Result: "rl_vsnamespace_vsname_match_silver",
+						},
+						{
+							Value:  "Bronze",
+							Result: "rl_vsnamespace_vsname_match_bronze",
+						},
+					},
+				},
+			},
+		},
+		{
+			lrzs: []version2.LimitReqZone{
+				{
+					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupValue:    "Premium",
+					GroupVariable: "$rl_vsnamespace_vsname_group_sub_route",
+					PolicyValue:   "rl_vsnamespace_vsname_match_premium",
+					PolicyResult:  "$jwt_claim_sub",
+					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+				},
+				{
+					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupValue:    "Basic",
+					GroupVariable: "$rl_vsnamespace_vsname_group_sub_route",
+					PolicyValue:   "rl_vsnamespace_vsname_match_basic",
+					PolicyResult:  "$jwt_claim_sub",
+					GroupDefault:  true,
+					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+				},
+			},
+			expected: map[string]*version2.Map{
+				"$rl_vsnamespace_vsname_group_sub_route": {
+					Source:   "$jwt_vsnamespace_vsname_sub",
+					Variable: "$rl_vsnamespace_vsname_group_sub_route",
+					Parameters: []version2.Parameter{
+						{
+							Value:  "default",
+							Result: "rl_vsnamespace_vsname_match_basic",
+						},
+						{
+							Value:  "Premium",
+							Result: "rl_vsnamespace_vsname_match_premium",
+						},
+						{
+							Value:  "Basic",
+							Result: "rl_vsnamespace_vsname_match_basic",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		result := generateLRZGroupMaps(test.lrzs)
+		for k, v := range test.expected {
+			sort.Slice(v.Parameters, func(i, j int) bool { return v.Parameters[i].Value < v.Parameters[j].Value })
+			sort.Slice(result[k].Parameters, func(i, j int) bool { return result[k].Parameters[i].Value < result[k].Parameters[j].Value })
+			if !reflect.DeepEqual(result[k], v) {
+				t.Errorf("generateLRZGroupMaps() returned \n%v, but expected \n%v", result, test.expected)
+			}
+		}
+	}
+}
+
+func TestHasDuplicateMapDefaults(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		m        version2.Map
+		msg      string
+		expected bool
+	}{
+		{
+			m: version2.Map{
+				Source:   "$my_source_var",
+				Variable: "$my_targetvar",
+				Parameters: []version2.Parameter{
+					{
+						Value:  "default",
+						Result: "my_result1",
+					},
+					{
+						Value:  "default",
+						Result: "my_result2",
+					},
+					{
+						Value:  "other_value",
+						Result: "different_value",
+					},
+				},
+			},
+			msg:      "has duplicate defaults",
+			expected: true,
+		},
+		{
+			m: version2.Map{
+				Source:   "$my_source_var",
+				Variable: "$my_targetvar",
+				Parameters: []version2.Parameter{
+					{
+						Value:  "default",
+						Result: "my_result1",
+					},
+					{
+						Value:  "other_value",
+						Result: "different_value",
+					},
+				},
+			},
+			msg:      "doesn't have duplicate defaults",
+			expected: false,
+		},
+		{
+			m: version2.Map{
+				Source:   "$my_source_var",
+				Variable: "$my_targetvar",
+				Parameters: []version2.Parameter{
+					{
+						Value:  "default",
+						Result: "my_result1",
+					},
+					{
+						Value:  "other_value",
+						Result: "duplicate_value",
+					},
+					{
+						Value:  "other_value",
+						Result: "duplicate_value",
+					},
+				},
+			},
+			msg:      "has other duplicate values",
+			expected: false,
+		},
+	}
+
+	for _, test := range tests {
+		result := hasDuplicateMapDefaults(&test.m)
+
+		if result != test.expected {
+			t.Errorf("hasDuplicateMapDefaults() returned \n%t, but expected \n%t for the case of %v", result, test.expected, test.msg)
+		}
+
 	}
 }
 
@@ -9301,6 +16308,74 @@ func TestGenerateString(t *testing.T) {
 	}
 }
 
+func TestGenerateAuthJwtClaimSetVariable(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		claim       string
+		vsNamespace string
+		vsName      string
+		expected    string
+	}{
+		{
+			claim:       "consumer_group.type",
+			vsNamespace: "default",
+			vsName:      "webapp",
+			expected:    "$jwt_default_webapp_consumer_group_type",
+		},
+		{
+			claim:       "type",
+			vsNamespace: "default",
+			vsName:      "webapp",
+			expected:    "$jwt_default_webapp_type",
+		},
+		{
+			claim:       "a.b.c",
+			vsNamespace: "default",
+			vsName:      "webapp",
+			expected:    "$jwt_default_webapp_a_b_c",
+		},
+	}
+
+	for _, test := range tests {
+		result := generateAuthJwtClaimSetVariable(test.claim, test.vsNamespace, test.vsName)
+		if result != test.expected {
+			t.Errorf("generateAuthJwtClaimSetVariable() return %v but expected %v", result, test.expected)
+		}
+	}
+}
+
+func TestGenerateAuthJwtClaimSetClaim(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		claim    string
+		expected string
+	}{
+		{
+			claim:    "consumer_group.type",
+			expected: "consumer_group type",
+		},
+		{
+			claim:    "consumer_group.type",
+			expected: "consumer_group type",
+		},
+		{
+			claim:    "type",
+			expected: "type",
+		},
+		{
+			claim:    "a.b.c",
+			expected: "a b c",
+		},
+	}
+
+	for _, test := range tests {
+		result := generateAuthJwtClaimSetClaim(test.claim)
+		if result != test.expected {
+			t.Errorf("generateAuthJwtClaimSetClaim() return %v but expected %v", result, test.expected)
+		}
+	}
+}
+
 func TestGenerateSnippets(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -9374,11 +16449,12 @@ func TestGenerateLocationForProxying(t *testing.T) {
 		ProxyReadTimeout:     "31s",
 		ProxySendTimeout:     "32s",
 		ClientMaxBodySize:    "1m",
+		ClientBodyBufferSize: "16k",
 		ProxyMaxTempFileSize: "1024m",
 		ProxyBuffering:       true,
 		ProxyBuffers:         "8 4k",
 		ProxyBufferSize:      "4k",
-		LocationSnippets:     []string{"# location snippet"},
+		ProxyBusyBuffersSize: "8k", LocationSnippets: []string{"# location snippet"},
 	}
 	path := "/"
 	upstreamName := "test-upstream"
@@ -9391,10 +16467,12 @@ func TestGenerateLocationForProxying(t *testing.T) {
 		ProxyReadTimeout:         "31s",
 		ProxySendTimeout:         "32s",
 		ClientMaxBodySize:        "1m",
+		ClientBodyBufferSize:     "16k",
 		ProxyMaxTempFileSize:     "1024m",
 		ProxyBuffering:           true,
 		ProxyBuffers:             "8 4k",
 		ProxyBufferSize:          "4k",
+		ProxyBusyBuffersSize:     "8k",
 		ProxyPass:                "http://test-upstream",
 		ProxyNextUpstream:        "error timeout",
 		ProxyNextUpstreamTimeout: "0s",
@@ -9407,7 +16485,7 @@ func TestGenerateLocationForProxying(t *testing.T) {
 		VSRNamespace:             "",
 	}
 
-	result := generateLocationForProxying(path, upstreamName, conf_v1.Upstream{}, &cfgParams, nil, false, 0, "", nil, "", vsLocSnippets, false, "", "")
+	result := generateLocationForProxying(path, upstreamName, conf_v1.Upstream{}, &cfgParams, nil, false, 0, "", nil, "", vsLocSnippets, false, "", "", "")
 	if diff := cmp.Diff(expected, result); diff != "" {
 		t.Errorf("generateLocationForProxying() mismatch (-want +got):\n%s", diff)
 	}
@@ -9421,10 +16499,12 @@ func TestGenerateLocationForGrpcProxying(t *testing.T) {
 		ProxyReadTimeout:     "31s",
 		ProxySendTimeout:     "32s",
 		ClientMaxBodySize:    "1m",
+		ClientBodyBufferSize: "16k",
 		ProxyMaxTempFileSize: "1024m",
 		ProxyBuffering:       true,
 		ProxyBuffers:         "8 4k",
 		ProxyBufferSize:      "4k",
+		ProxyBusyBuffersSize: "8k",
 		LocationSnippets:     []string{"# location snippet"},
 		HTTP2:                true,
 	}
@@ -9439,10 +16519,12 @@ func TestGenerateLocationForGrpcProxying(t *testing.T) {
 		ProxyReadTimeout:         "31s",
 		ProxySendTimeout:         "32s",
 		ClientMaxBodySize:        "1m",
+		ClientBodyBufferSize:     "16k",
 		ProxyMaxTempFileSize:     "1024m",
 		ProxyBuffering:           true,
 		ProxyBuffers:             "8 4k",
 		ProxyBufferSize:          "4k",
+		ProxyBusyBuffersSize:     "8k",
 		ProxyPass:                "http://test-upstream",
 		ProxyNextUpstream:        "error timeout",
 		ProxyNextUpstreamTimeout: "0s",
@@ -9452,7 +16534,7 @@ func TestGenerateLocationForGrpcProxying(t *testing.T) {
 		GRPCPass:                 "grpc://test-upstream",
 	}
 
-	result := generateLocationForProxying(path, upstreamName, conf_v1.Upstream{Type: "grpc"}, &cfgParams, nil, false, 0, "", nil, "", vsLocSnippets, false, "", "")
+	result := generateLocationForProxying(path, upstreamName, conf_v1.Upstream{Type: "grpc"}, &cfgParams, nil, false, 0, "", nil, "", vsLocSnippets, false, "", "", "")
 	if diff := cmp.Diff(expected, result); diff != "" {
 		t.Errorf("generateLocationForForGrpcProxying() mismatch (-want +got):\n%s", diff)
 	}
@@ -14180,6 +21262,75 @@ func TestGenerateErrorPageLocations(t *testing.T) {
 	}
 }
 
+func TestGenerateErrorPageDetails(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		errorPages     []conf_v1.ErrorPage
+		errorLocations []version2.ErrorPageLocation
+		owner          runtime.Object
+		expected       errorPageDetails
+	}{
+		{}, // empty
+		{
+			errorPages: []conf_v1.ErrorPage{
+				{
+					Codes: []int{404, 405, 500, 502},
+					Return: &conf_v1.ErrorPageReturn{
+						ActionReturn: conf_v1.ActionReturn{
+							Code:    200,
+							Headers: nil,
+						},
+					},
+					Redirect: nil,
+				},
+			},
+			errorLocations: []version2.ErrorPageLocation{
+				{
+					Name:        "@error_page_0_0",
+					DefaultType: "text/plain",
+					Return: &version2.Return{
+						Text: "All Good",
+					},
+				},
+			},
+			owner: &conf_v1.VirtualServer{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Namespace: "namespace",
+					Name:      "name",
+				},
+			},
+			expected: errorPageDetails{
+				pages: []conf_v1.ErrorPage{
+					{
+						Codes: []int{404, 405, 500, 502},
+						Return: &conf_v1.ErrorPageReturn{
+							ActionReturn: conf_v1.ActionReturn{
+								Code:    200,
+								Headers: nil,
+							},
+						},
+						Redirect: nil,
+					},
+				},
+				index: 1,
+				owner: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Namespace: "namespace",
+						Name:      "name",
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		result := generateErrorPageDetails(test.errorPages, test.errorLocations, test.owner)
+		if !reflect.DeepEqual(result, test.expected) {
+			t.Errorf("generateErrorPageDetails() returned %v but expected %v", result, test.expected)
+		}
+	}
+}
+
 func TestGenerateProxySSLName(t *testing.T) {
 	t.Parallel()
 	result := generateProxySSLName("coffee-v1", "default")
@@ -15084,7 +22235,10 @@ func TestGenerateTimeWithDefault(t *testing.T) {
 }
 
 var (
+	l             = slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo}))
+	ctx           = nl.ContextWithLogger(context.Background(), l)
 	baseCfgParams = ConfigParams{
+		Context:         ctx,
 		ServerTokens:    "off",
 		Keepalive:       16,
 		ServerSnippets:  []string{"# server snippet"},
@@ -15823,5 +22977,660 @@ func TestRFC1123ToSnake(t *testing.T) {
 				t.Error(cmp.Diff(rfc1123ToSnake(tt.input), tt.expected))
 			}
 		})
+	}
+}
+
+func TestGenerateVirtualServerConfigWithForeignNamespaceService(t *testing.T) {
+	t.Parallel()
+	virtualServerEx := VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "cafe.example.com",
+				Upstreams: []conf_v1.Upstream{
+					{
+						Name:    "coffee",
+						Service: "coffee/coffee-svc",
+						Port:    80,
+					},
+				},
+				Routes: []conf_v1.Route{
+					{
+						Path: "/coffee",
+						Action: &conf_v1.Action{
+							Pass: "coffee",
+						},
+					},
+				},
+			},
+		},
+		Endpoints: map[string][]string{
+			"coffee/coffee-svc:80": {
+				"10.0.0.20:80",
+			},
+		},
+		VirtualServerRoutes: []*conf_v1.VirtualServerRoute{},
+	}
+
+	vsc := newVirtualServerConfigurator(&baseCfgParams, false, false, &StaticConfigParams{}, false, nil)
+	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+	if len(warnings) != 0 {
+		t.Errorf("GenerateVirtualServerConfig returned warnings: %v", warnings)
+	}
+
+	expected := version2.VirtualServerConfig{
+		Upstreams: []version2.Upstream{
+			{
+				UpstreamLabels: version2.UpstreamLabels{
+					Service:           "coffee/coffee-svc",
+					ResourceType:      "virtualserver",
+					ResourceName:      "cafe",
+					ResourceNamespace: "default",
+				},
+				Name: "vs_default_cafe_coffee",
+				Servers: []version2.UpstreamServer{
+					{
+						Address: "10.0.0.20:80",
+					},
+				},
+				Keepalive: 16,
+			},
+		},
+		HTTPSnippets:  []string{},
+		LimitReqZones: []version2.LimitReqZone{},
+		Server: version2.Server{
+			ServerName:      "cafe.example.com",
+			StatusZone:      "cafe.example.com",
+			VSNamespace:     "default",
+			VSName:          "cafe",
+			ProxyProtocol:   true,
+			ServerTokens:    "off",
+			SetRealIPFrom:   []string{"0.0.0.0/0"},
+			RealIPHeader:    "X-Real-IP",
+			RealIPRecursive: true,
+			Snippets:        []string{"# server snippet"},
+			Locations: []version2.Location{
+				{
+					Path:                     "/coffee",
+					ProxyPass:                "http://vs_default_cafe_coffee",
+					ProxyNextUpstream:        "error timeout",
+					ProxyNextUpstreamTimeout: "0s",
+					ProxyPassRequestHeaders:  true,
+					ProxySetHeaders: []version2.Header{
+						{
+							Name:  "Host",
+							Value: "$host",
+						},
+					},
+					HasKeepalive: true,
+					ProxySSLName: "coffee-svc.coffee.svc",
+					ServiceName:  "coffee-svc",
+				},
+			},
+		},
+		SpiffeClientCerts: false,
+	}
+
+	if !cmp.Equal(expected, result) {
+		t.Error(cmp.Diff(expected, result))
+	}
+}
+
+func TestGenerateVirtualServerConfigWithForeignNamespaceServiceInVSR(t *testing.T) {
+	t.Parallel()
+	virtualServerEx := VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "cafe.example.com",
+				Routes: []conf_v1.Route{
+					{
+						Path:  "/tea",
+						Route: "default/tea",
+					},
+				},
+			},
+		},
+		Endpoints: map[string][]string{
+			"tea/tea-svc:80": {
+				"10.0.0.30:80",
+			},
+		},
+		VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
+			{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "tea",
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerRouteSpec{
+					Host: "cafe.example.com",
+					Upstreams: []conf_v1.Upstream{
+						{
+							Name:    "tea",
+							Service: "tea/tea-svc",
+							Port:    80,
+						},
+					},
+					Subroutes: []conf_v1.Route{
+						{
+							Path: "/tea",
+							Action: &conf_v1.Action{
+								Pass: "tea",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	vsc := newVirtualServerConfigurator(&baseCfgParams, false, false, &StaticConfigParams{}, false, nil)
+	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+	if len(warnings) != 0 {
+		t.Errorf("GenerateVirtualServerConfig returned warnings: %v", warnings)
+	}
+
+	expected := version2.VirtualServerConfig{
+		Upstreams: []version2.Upstream{
+			{
+				UpstreamLabels: version2.UpstreamLabels{
+					Service:           "tea/tea-svc",
+					ResourceType:      "virtualserverroute",
+					ResourceName:      "tea",
+					ResourceNamespace: "default",
+				},
+				Name: "vs_default_cafe_vsr_default_tea_tea",
+				Servers: []version2.UpstreamServer{
+					{
+						Address: "10.0.0.30:80",
+					},
+				},
+				Keepalive: 16,
+			},
+		},
+		HTTPSnippets:  []string{},
+		LimitReqZones: []version2.LimitReqZone{},
+		Server: version2.Server{
+			ServerName:      "cafe.example.com",
+			StatusZone:      "cafe.example.com",
+			VSNamespace:     "default",
+			VSName:          "cafe",
+			ProxyProtocol:   true,
+			ServerTokens:    "off",
+			SetRealIPFrom:   []string{"0.0.0.0/0"},
+			RealIPHeader:    "X-Real-IP",
+			RealIPRecursive: true,
+			Snippets:        []string{"# server snippet"},
+			Locations: []version2.Location{
+				{
+					Path:                     "/tea",
+					ProxyPass:                "http://vs_default_cafe_vsr_default_tea_tea",
+					ProxyNextUpstream:        "error timeout",
+					ProxyNextUpstreamTimeout: "0s",
+					ProxyPassRequestHeaders:  true,
+					ProxySetHeaders: []version2.Header{
+						{
+							Name:  "Host",
+							Value: "$host",
+						},
+					},
+					HasKeepalive: true,
+					ProxySSLName: "tea-svc.tea.svc",
+					ServiceName:  "tea-svc",
+					IsVSR:        true,
+					VSRName:      "tea",
+					VSRNamespace: "default",
+				},
+			},
+		},
+		SpiffeClientCerts: false,
+	}
+
+	if !cmp.Equal(expected, result) {
+		t.Error(cmp.Diff(expected, result))
+	}
+}
+
+func TestGenerateVirtualServerConfigWithOIDCTLSVerifyOn(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		msg             string
+		virtualServerEx VirtualServerEx
+		expected        version2.VirtualServerConfig
+	}{
+		{
+			msg: "oidc at vs spec level with TLSVerify & zone sync enabled",
+			virtualServerEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Policies: []conf_v1.PolicyReference{
+							{
+								Name: "oidc-policy",
+							},
+						},
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "tea",
+								Service: "tea-svc",
+								Port:    80,
+							},
+							{
+								Name:    "coffee",
+								Service: "coffee-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path: "/tea",
+								Action: &conf_v1.Action{
+									Pass: "tea",
+								},
+							},
+							{
+								Path: "/coffee",
+								Action: &conf_v1.Action{
+									Pass: "coffee",
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/oidc-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "oidc-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							OIDC: &conf_v1.OIDC{
+								AuthEndpoint:       "https://auth.example.com",
+								TokenEndpoint:      "https://token.example.com",
+								JWKSURI:            "https://jwks.example.com",
+								EndSessionEndpoint: "https://logout.example.com",
+								ClientID:           "example-client-id",
+								ClientSecret:       "example-client-secret",
+								Scope:              "openid+profile+email",
+								SSLVerify:          true,
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+					"default/coffee-svc:80": {
+						"10.0.0.30:80",
+					},
+				},
+				SecretRefs: map[string]*secrets.SecretReference{
+					"default/example-client-secret": {
+						Secret: &api_v1.Secret{
+							Type: secrets.SecretTypeOIDC,
+							Data: map[string][]byte{
+								"client-secret": []byte("c2VjcmV0"),
+							},
+						},
+					},
+				},
+				ZoneSync: true,
+			},
+			expected: version2.VirtualServerConfig{
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "coffee-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_coffee",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.30:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets:  []string{},
+				LimitReqZones: []version2.LimitReqZone{},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+					Locations: []version2.Location{
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+							OIDC:                     true,
+						},
+						{
+							Path:                     "/coffee",
+							ProxyPass:                "http://vs_default_cafe_coffee",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "coffee-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "coffee-svc",
+							OIDC:                     true,
+						},
+					},
+					OIDC: &version2.OIDC{
+						AuthEndpoint:          "https://auth.example.com",
+						TokenEndpoint:         "https://token.example.com",
+						JwksURI:               "https://jwks.example.com",
+						EndSessionEndpoint:    "https://logout.example.com",
+						ClientID:              "example-client-id",
+						ClientSecret:          "c2VjcmV0",
+						Scope:                 "openid+profile+email",
+						TLSVerify:             true,
+						VerifyDepth:           1,
+						CAFile:                "/etc/ssl/certs/ca-certificate.crt",
+						ZoneSyncLeeway:        200,
+						RedirectURI:           "/_codexch",
+						PostLogoutRedirectURI: "/_logout",
+					},
+				},
+			},
+		},
+	}
+
+	baseCfgParams := ConfigParams{
+		Context:      context.Background(),
+		ServerTokens: "off",
+	}
+
+	vsc := newVirtualServerConfigurator(
+		&baseCfgParams,
+		false,
+		false,
+		&StaticConfigParams{
+			DefaultCABundle: "/etc/ssl/certs/ca-certificate.crt",
+		},
+		false,
+		&fakeBV,
+	)
+
+	for _, test := range tests {
+		result, warnings := vsc.GenerateVirtualServerConfig(&test.virtualServerEx, nil, nil)
+
+		sort.Slice(result.Maps, func(i, j int) bool {
+			return result.Maps[i].Variable < result.Maps[j].Variable
+		})
+
+		sort.Slice(test.expected.Maps, func(i, j int) bool {
+			return test.expected.Maps[i].Variable < test.expected.Maps[j].Variable
+		})
+
+		if diff := cmp.Diff(test.expected, result); diff != "" {
+			t.Errorf("GenerateVirtualServerConfig() mismatch (-want +got):\n%s", diff)
+			t.Error(test.msg)
+		}
+
+		if len(warnings) != 0 {
+			t.Errorf("GenerateVirtualServerConfig returned warnings: %v", vsc.warnings)
+		}
+	}
+}
+
+func TestGenerateVirtualServerConfigWithOIDCTLSCASecret(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		msg             string
+		virtualServerEx VirtualServerEx
+		expected        version2.VirtualServerConfig
+	}{
+		{
+			msg: "oidc at vs spec level with TLSVerify, custom ca cert & zone sync enabled",
+			virtualServerEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Policies: []conf_v1.PolicyReference{
+							{
+								Name: "oidc-policy",
+							},
+						},
+						Upstreams: []conf_v1.Upstream{
+							{
+								Name:    "tea",
+								Service: "tea-svc",
+								Port:    80,
+							},
+							{
+								Name:    "coffee",
+								Service: "coffee-svc",
+								Port:    80,
+							},
+						},
+						Routes: []conf_v1.Route{
+							{
+								Path: "/tea",
+								Action: &conf_v1.Action{
+									Pass: "tea",
+								},
+							},
+							{
+								Path: "/coffee",
+								Action: &conf_v1.Action{
+									Pass: "coffee",
+								},
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/oidc-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "oidc-policy",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							OIDC: &conf_v1.OIDC{
+								AuthEndpoint:       "https://auth.example.com",
+								TokenEndpoint:      "https://token.example.com",
+								JWKSURI:            "https://jwks.example.com",
+								EndSessionEndpoint: "https://logout.example.com",
+								ClientID:           "example-client-id",
+								ClientSecret:       "example-client-secret",
+								Scope:              "openid+profile+email",
+								SSLVerify:          true,
+								TrustedCertSecret:  "example-ca-secret",
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+					"default/coffee-svc:80": {
+						"10.0.0.30:80",
+					},
+				},
+				SecretRefs: map[string]*secrets.SecretReference{
+					"default/example-client-secret": {
+						Secret: &api_v1.Secret{
+							Type: secrets.SecretTypeOIDC,
+							Data: map[string][]byte{
+								"client-secret": []byte("c2VjcmV0"),
+							},
+						},
+					},
+					"default/example-ca-secret": {
+						Secret: &api_v1.Secret{
+							Type: secrets.SecretTypeCA,
+							Data: map[string][]byte{
+								"ca.crt": []byte("ca-certificate-data"),
+							},
+						},
+						Path: "/etc/nginx/secrets/default-example-ca-secret-ca.crt",
+					},
+				},
+				ZoneSync: true,
+			},
+			expected: version2.VirtualServerConfig{
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "coffee-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_coffee",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.30:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserver",
+							ResourceName:      "cafe",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets:  []string{},
+				LimitReqZones: []version2.LimitReqZone{},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+					Locations: []version2.Location{
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+							OIDC:                     true,
+						},
+						{
+							Path:                     "/coffee",
+							ProxyPass:                "http://vs_default_cafe_coffee",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "coffee-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "coffee-svc",
+							OIDC:                     true,
+						},
+					},
+					OIDC: &version2.OIDC{
+						AuthEndpoint:          "https://auth.example.com",
+						TokenEndpoint:         "https://token.example.com",
+						JwksURI:               "https://jwks.example.com",
+						EndSessionEndpoint:    "https://logout.example.com",
+						ClientID:              "example-client-id",
+						ClientSecret:          "c2VjcmV0",
+						Scope:                 "openid+profile+email",
+						TLSVerify:             true,
+						VerifyDepth:           1,
+						CAFile:                "/etc/nginx/secrets/default-example-ca-secret-ca.crt",
+						ZoneSyncLeeway:        200,
+						RedirectURI:           "/_codexch",
+						PostLogoutRedirectURI: "/_logout",
+					},
+				},
+			},
+		},
+	}
+
+	baseCfgParams := ConfigParams{
+		Context:      context.Background(),
+		ServerTokens: "off",
+	}
+
+	vsc := newVirtualServerConfigurator(
+		&baseCfgParams,
+		false,
+		false,
+		&StaticConfigParams{
+			DefaultCABundle: "/etc/ssl/certs/ca-certificate.crt",
+		},
+		false,
+		&fakeBV,
+	)
+
+	for _, test := range tests {
+		result, warnings := vsc.GenerateVirtualServerConfig(&test.virtualServerEx, nil, nil)
+
+		sort.Slice(result.Maps, func(i, j int) bool {
+			return result.Maps[i].Variable < result.Maps[j].Variable
+		})
+
+		sort.Slice(test.expected.Maps, func(i, j int) bool {
+			return test.expected.Maps[i].Variable < test.expected.Maps[j].Variable
+		})
+
+		if diff := cmp.Diff(test.expected, result); diff != "" {
+			t.Errorf("GenerateVirtualServerConfig() mismatch (-want +got):\n%s", diff)
+			t.Error(test.msg)
+		}
+
+		if len(warnings) != 0 {
+			t.Errorf("GenerateVirtualServerConfig returned warnings: %v", vsc.warnings)
+		}
 	}
 }

@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	nic_glog "github.com/nginxinc/kubernetes-ingress/internal/logger/glog"
-	"github.com/nginxinc/kubernetes-ingress/internal/logger/levels"
+	nic_glog "github.com/nginx/kubernetes-ingress/internal/logger/glog"
+	"github.com/nginx/kubernetes-ingress/internal/logger/levels"
 )
 
 type Transport struct{}
@@ -63,14 +63,11 @@ func TestConfigWriter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error instantiating ConfigWriter: %v", err)
 	}
-	config, err := cw.GenerateVersionConfig(1, true)
+	config, err := cw.GenerateVersionConfig(1)
 	if err != nil {
 		t.Errorf("error generating version config: %v", err)
 	}
 	if !strings.Contains(string(config), "configVersion") {
 		t.Errorf("configVersion endpoint not set. config contents: %v", string(config))
-	}
-	if !strings.Contains(string(config), "opentracing off") {
-		t.Errorf("opentracing directive missing when is enabled. config contents: %v", string(config))
 	}
 }

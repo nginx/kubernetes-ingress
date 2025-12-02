@@ -3,10 +3,10 @@
 package v1
 
 import (
-	"context"
+	context "context"
 
-	v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
-	scheme "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned/scheme"
+	configurationv1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	scheme "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -21,33 +21,34 @@ type TransportServersGetter interface {
 
 // TransportServerInterface has methods to work with TransportServer resources.
 type TransportServerInterface interface {
-	Create(ctx context.Context, transportServer *v1.TransportServer, opts metav1.CreateOptions) (*v1.TransportServer, error)
-	Update(ctx context.Context, transportServer *v1.TransportServer, opts metav1.UpdateOptions) (*v1.TransportServer, error)
+	Create(ctx context.Context, transportServer *configurationv1.TransportServer, opts metav1.CreateOptions) (*configurationv1.TransportServer, error)
+	Update(ctx context.Context, transportServer *configurationv1.TransportServer, opts metav1.UpdateOptions) (*configurationv1.TransportServer, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, transportServer *v1.TransportServer, opts metav1.UpdateOptions) (*v1.TransportServer, error)
+	UpdateStatus(ctx context.Context, transportServer *configurationv1.TransportServer, opts metav1.UpdateOptions) (*configurationv1.TransportServer, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.TransportServer, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.TransportServerList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*configurationv1.TransportServer, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*configurationv1.TransportServerList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.TransportServer, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *configurationv1.TransportServer, err error)
 	TransportServerExpansion
 }
 
 // transportServers implements TransportServerInterface
 type transportServers struct {
-	*gentype.ClientWithList[*v1.TransportServer, *v1.TransportServerList]
+	*gentype.ClientWithList[*configurationv1.TransportServer, *configurationv1.TransportServerList]
 }
 
 // newTransportServers returns a TransportServers
 func newTransportServers(c *K8sV1Client, namespace string) *transportServers {
 	return &transportServers{
-		gentype.NewClientWithList[*v1.TransportServer, *v1.TransportServerList](
+		gentype.NewClientWithList[*configurationv1.TransportServer, *configurationv1.TransportServerList](
 			"transportservers",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1.TransportServer { return &v1.TransportServer{} },
-			func() *v1.TransportServerList { return &v1.TransportServerList{} }),
+			func() *configurationv1.TransportServer { return &configurationv1.TransportServer{} },
+			func() *configurationv1.TransportServerList { return &configurationv1.TransportServerList{} },
+		),
 	}
 }

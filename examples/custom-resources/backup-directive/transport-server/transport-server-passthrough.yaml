@@ -1,4 +1,4 @@
-apiVersion: k8s.nginx.org/v1alpha1
+apiVersion: k8s.nginx.org/v1
 kind: TransportServer
 metadata:
   name: secure-app

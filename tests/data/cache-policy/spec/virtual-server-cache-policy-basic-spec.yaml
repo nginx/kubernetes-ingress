@@ -1,0 +1,24 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: virtual-server
+spec:
+  server-snippets: |
+    add_header X-Cache-Status $upstream_cache_status;
+  host: virtual-server.example.com
+  policies:
+  - name: cache-policy-basic
+  upstreams:
+  - name: backend2
+    service: backend2-svc
+    port: 80
+  - name: backend1
+    service: backend1-svc
+    port: 80
+  routes:
+  - path: "/backend1"
+    action:
+      pass: backend1
+  - path: "/backend2"
+    action:
+      pass: backend2

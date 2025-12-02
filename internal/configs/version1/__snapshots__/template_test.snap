@@ -21,7 +21,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -92,14 +91,14 @@ http {
         listen unix:/var/lib/nginx/nginx-502-server.sock;
         access_log off;
 
-        
-
         return 502;
     }
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -200,7 +199,9 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
-    resolver example.com127.0.0.1 valid=10s ipv6=off;resolver_timeout 15s;
+
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
 
     server {
         # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
@@ -247,7 +248,9 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -259,22 +262,24 @@ stream {
 
     access_log  /dev/stdout  stream-main;
     # comment
-    resolver example.com127.0.0.1 valid=10s ipv6=off;
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
 
     map_hash_max_size ;
     
-
     include /etc/nginx/stream-conf.d/*.conf;
+}
+
+mgmt {
+    license_token /etc/nginx/secrets/license.jwt;
+    enforce_initial_report off;
+    deployment_context /etc/nginx/reporting/tracking.info;
 }
 
 ---
 
-[TestExecuteMainTemplateForNGINXPlusR31 - 1]
-worker_processes  auto;
-worker_rlimit_nofile 65536;
-worker_cpu_affinity auto;
-worker_shutdown_timeout 1m;
+[TestExecuteMainTemplateForNGINXPlusMGMTProxyHost - 1]
+worker_processes  ;
 
 daemon off;
 
@@ -285,7 +290,7 @@ load_module modules/ngx_fips_check_module.so;
 load_module modules/ngx_http_js_module.so;
 
 events {
-    worker_connections  1024;
+    worker_connections  ;
 }
 
 http {
@@ -297,32 +302,30 @@ http {
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
-    log_format  main escape=default 
-                     '$remote_addr'
-                     ' $remote_user'
-                     ;
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
 
     map $upstream_trailer_grpc_status $grpc_status {
         default $upstream_trailer_grpc_status;
         '' $sent_http_grpc_status;
     }
-    app_protect_enforcer_address enforcer.svc.local;
 
-    access_log /dev/stdout main;
+    access_log ;
 
     sendfile        on;
     #tcp_nopush     on;
 
-    keepalive_timeout 65s;
-    keepalive_requests 100;
+    keepalive_timeout ;
+    keepalive_requests 0;
 
     #gzip  on;
 
-    server_names_hash_max_size 512;
+    server_names_hash_max_size ;
     
 
-    variables_hash_bucket_size 256;
-    variables_hash_max_size 1024;
+    variables_hash_bucket_size 0;
+    variables_hash_max_size 0;
 
     map $request_uri $request_uri_no_args {
         "~^(?P<path>[^?]*)(\?.*)?$" $path;
@@ -336,7 +339,9 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
-    resolver example.com127.0.0.1 valid=10s ipv6=off;resolver_timeout 15s;
+
+    
+    
 
     server {
         # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
@@ -346,14 +351,14 @@ http {
         set $resource_namespace "";
         set $service "";
 
-        listen 80 default_server;listen [::]:80 default_server;
-        listen 443 ssl default_server;
-        listen [::]:443 ssl default_server;
+        listen 0 default_server;listen [::]:0 default_server;
+        listen 0 ssl default_server;
+        listen [::]:0 ssl default_server;
         ssl_certificate /etc/nginx/secrets/default;
         ssl_certificate_key /etc/nginx/secrets/default;
 
         server_name _;
-        server_tokens "off";
+        server_tokens "";
 
         location / {
             return ;
@@ -383,28 +388,312 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
 stream {
-    log_format  stream-main escape=none 
-                            '$remote_addr'
-                            ' $remote_user'
-                            ;
+    log_format  stream-main  '$remote_addr [$time_local] '
+                      '$protocol $status $bytes_sent $bytes_received '
+                      '$session_time "$ssl_preread_server_name"';
 
     access_log  /dev/stdout  stream-main;
-    # comment
-    resolver example.com127.0.0.1 valid=10s ipv6=off;
-    resolver_timeout 15s;
+    
+    
 
     map_hash_max_size ;
     
-
     include /etc/nginx/stream-conf.d/*.conf;
 }
+
 mgmt {
-    usage_report interval=0s;
+    proxy proxy.example.com;
+    license_token /etc/nginx/secrets/license.jwt;
+    enforce_initial_report off;
+    deployment_context /etc/nginx/reporting/tracking.info;
+}
+
+---
+
+[TestExecuteMainTemplateForNGINXPlusMGMTProxyUser - 1]
+worker_processes  ;
+
+daemon off;
+
+error_log  stderr ;
+pid        /var/lib/nginx/nginx.pid;
+load_module modules/ngx_fips_check_module.so;
+
+load_module modules/ngx_http_js_module.so;
+
+events {
+    worker_connections  ;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    map_hash_max_size ;
+    map_hash_bucket_size ;
+
+    js_import /etc/nginx/njs/apikey_auth.js;
+    js_set $apikey_auth_hash apikey_auth.hash;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    map $upstream_trailer_grpc_status $grpc_status {
+        default $upstream_trailer_grpc_status;
+        '' $sent_http_grpc_status;
+    }
+
+    access_log ;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    keepalive_timeout ;
+    keepalive_requests 0;
+
+    #gzip  on;
+
+    server_names_hash_max_size ;
+    
+
+    variables_hash_bucket_size 0;
+    variables_hash_max_size 0;
+
+    map $request_uri $request_uri_no_args {
+        "~^(?P<path>[^?]*)(\?.*)?$" $path;
+    }
+
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+    map $http_upgrade $vs_connection_header {
+        default upgrade;
+        ''      $default_connection_header;
+    }
+
+    
+    
+
+    server {
+        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
+        set $default_connection_header "";
+        set $resource_type "";
+        set $resource_name "";
+        set $resource_namespace "";
+        set $service "";
+
+        listen 0 default_server;listen [::]:0 default_server;
+        listen 0 ssl default_server;
+        listen [::]:0 ssl default_server;
+        ssl_certificate /etc/nginx/secrets/default;
+        ssl_certificate_key /etc/nginx/secrets/default;
+
+        server_name _;
+        server_tokens "";
+
+        location / {
+            return ;
+        }
+    }
+
+    # NGINX Plus API over unix socket
+    server {
+        listen unix:/var/lib/nginx/nginx-plus-api.sock;
+        access_log off;
+
+        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
+        location /configVersionCheck {
+            if ($config_version_mismatch) {
+                return 503;
+            }
+            return 200;
+        }
+
+        location /api {
+            api write=on;
+        }
+    }
+
+    include /etc/nginx/config-version.conf;
+    include /etc/nginx/conf.d/*.conf;
+
+    server {
+        listen unix:/var/lib/nginx/nginx-418-server.sock;
+        access_log off;
+
+        return 418;
+    }
+}
+
+stream {
+    log_format  stream-main  '$remote_addr [$time_local] '
+                      '$protocol $status $bytes_sent $bytes_received '
+                      '$session_time "$ssl_preread_server_name"';
+
+    access_log  /dev/stdout  stream-main;
+    
+    
+
+    map_hash_max_size ;
+    
+    include /etc/nginx/stream-conf.d/*.conf;
+}
+
+mgmt {
+    proxy proxy.example.com;
+    proxy_username user;
+    license_token /etc/nginx/secrets/license.jwt;
+    enforce_initial_report off;
+    deployment_context /etc/nginx/reporting/tracking.info;
+}
+
+---
+
+[TestExecuteMainTemplateForNGINXPlusMGMTProxyUserAndPass - 1]
+worker_processes  ;
+
+daemon off;
+
+error_log  stderr ;
+pid        /var/lib/nginx/nginx.pid;
+load_module modules/ngx_fips_check_module.so;
+
+load_module modules/ngx_http_js_module.so;
+
+events {
+    worker_connections  ;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    map_hash_max_size ;
+    map_hash_bucket_size ;
+
+    js_import /etc/nginx/njs/apikey_auth.js;
+    js_set $apikey_auth_hash apikey_auth.hash;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    map $upstream_trailer_grpc_status $grpc_status {
+        default $upstream_trailer_grpc_status;
+        '' $sent_http_grpc_status;
+    }
+
+    access_log ;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    keepalive_timeout ;
+    keepalive_requests 0;
+
+    #gzip  on;
+
+    server_names_hash_max_size ;
+    
+
+    variables_hash_bucket_size 0;
+    variables_hash_max_size 0;
+
+    map $request_uri $request_uri_no_args {
+        "~^(?P<path>[^?]*)(\?.*)?$" $path;
+    }
+
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+    map $http_upgrade $vs_connection_header {
+        default upgrade;
+        ''      $default_connection_header;
+    }
+
+    
+    
+
+    server {
+        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
+        set $default_connection_header "";
+        set $resource_type "";
+        set $resource_name "";
+        set $resource_namespace "";
+        set $service "";
+
+        listen 0 default_server;listen [::]:0 default_server;
+        listen 0 ssl default_server;
+        listen [::]:0 ssl default_server;
+        ssl_certificate /etc/nginx/secrets/default;
+        ssl_certificate_key /etc/nginx/secrets/default;
+
+        server_name _;
+        server_tokens "";
+
+        location / {
+            return ;
+        }
+    }
+
+    # NGINX Plus API over unix socket
+    server {
+        listen unix:/var/lib/nginx/nginx-plus-api.sock;
+        access_log off;
+
+        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
+        location /configVersionCheck {
+            if ($config_version_mismatch) {
+                return 503;
+            }
+            return 200;
+        }
+
+        location /api {
+            api write=on;
+        }
+    }
+
+    include /etc/nginx/config-version.conf;
+    include /etc/nginx/conf.d/*.conf;
+
+    server {
+        listen unix:/var/lib/nginx/nginx-418-server.sock;
+        access_log off;
+
+        return 418;
+    }
+}
+
+stream {
+    log_format  stream-main  '$remote_addr [$time_local] '
+                      '$protocol $status $bytes_sent $bytes_received '
+                      '$session_time "$ssl_preread_server_name"';
+
+    access_log  /dev/stdout  stream-main;
+    
+    
+
+    map_hash_max_size ;
+    
+    include /etc/nginx/stream-conf.d/*.conf;
+}
+
+mgmt {
+    proxy proxy.example.com;
+    proxy_username user;
+    proxy_password pass;
+    license_token /etc/nginx/secrets/license.jwt;
+    enforce_initial_report off;
+    deployment_context /etc/nginx/reporting/tracking.info;
 }
 
 ---
@@ -601,6 +890,287 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget/case_insensitive_regex_rewrite - 1]
+# configuration for default/cafe-ingress
+
+
+
+
+server {
+
+    server_tokens "off";
+
+    server_name cafe.example.com;
+
+    status_zone ;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+
+    
+
+    
+    location ~* "^/(latte|espresso)" {
+        set $service "";
+        status_zone "";
+        rewrite (?i)^/(latte|espresso) /drinks/$1 break;
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget/case_sensitive_regex_rewrite - 1]
+# configuration for default/cafe-ingress
+
+
+
+
+server {
+
+    server_tokens "off";
+
+    server_name cafe.example.com;
+
+    status_zone ;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+
+    
+
+    
+    location ~ "^/(coffee|tea)" {
+        set $service "";
+        status_zone "";
+        rewrite ^/(coffee|tea) /beverages/$1 break;
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget/complex_regex_pattern - 1]
+# configuration for default/cafe-menu-ingress
+
+
+
+
+server {
+
+    server_tokens "off";
+
+    server_name cafe.example.com;
+
+    status_zone ;
+    set $resource_type "ingress";
+    set $resource_name "cafe-menu-ingress";
+    set $resource_namespace "default";
+
+    
+
+    
+    location ~ "^/menu/(hot|cold)/(coffee|tea)" {
+        set $service "";
+        status_zone "";
+        rewrite ^/menu/(hot|cold)/(coffee|tea) /drinks/$1/$2 break;
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget/exact_match_rewrite - 1]
+# configuration for default/cafe-ingress
+
+
+
+
+server {
+
+    server_tokens "off";
+
+    server_name cafe.example.com;
+
+    status_zone ;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+
+    
+
+    
+    location = "/cappuccino" {
+        set $service "";
+        status_zone "";
+        rewrite /cappuccino /special/cappuccino break;
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget/no_path_regex_annotation - 1]
+# configuration for default/cafe-ingress
+
+
+
+
+server {
+
+    server_tokens "off";
+
+    server_name cafe.example.com;
+
+    status_zone ;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+
+    
+
+    
+    location /mocha {
+        set $service "";
+        status_zone "";
+        rewrite /mocha /hot-drinks/mocha break;
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget/no_rewrite_target - 1]
+# configuration for default/cafe-ingress
+
+
+
+
+server {
+
+    server_tokens "off";
+
+    server_name cafe.example.com;
+
+    status_zone ;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+
+    
+
+    
+    location ~ "^/americano" {
+        set $service "";
+        status_zone "";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
         
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -1346,6 +1916,378 @@ server {
 
 ---
 
+[TestExecuteTemplate_ForIngressForNGINXPlusWithRequestRateLimitZoneSync - 1]
+# configuration for default/myingress
+
+
+limit_req_zone ${binary_remote_addr} zone=default/zone1_sync:10m rate=200r/s sync;
+
+
+
+server {
+
+    server_tokens "";
+
+    server_name test.example.com;
+
+    status_zone ;
+    set $resource_type "ingress";
+    set $resource_name "myingress";
+    set $resource_namespace "default";
+
+    
+
+    
+    location / {
+        set $service "";
+        status_zone "";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+
+        
+        limit_req zone=default/myingress_sync burst=100;
+        
+        
+        limit_req_status 429;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusWithSSLCiphers - 1]
+# configuration for default/test-ingress
+
+
+
+
+server {
+    ssl_certificate ;
+    ssl_certificate_key ;
+    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256;
+    ssl_prefer_server_ciphers on;
+
+    server_tokens "";
+
+    server_name test.example.com;
+
+    status_zone ;
+    set $resource_type "ingress";
+    set $resource_name "test-ingress";
+    set $resource_namespace "default";
+
+    
+
+    
+    location / {
+        set $service "";
+        status_zone "";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusWithSSLCiphersDisabled - 1]
+# configuration for default/test-ingress
+
+
+
+
+server {
+    ssl_certificate ;
+    ssl_certificate_key ;
+
+    server_tokens "";
+
+    server_name test.example.com;
+
+    status_zone ;
+    set $resource_type "ingress";
+    set $resource_name "test-ingress";
+    set $resource_namespace "default";
+
+    
+
+    
+    location / {
+        set $service "";
+        status_zone "";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXRewriteTarget/case_insensitive_regex_rewrite - 1]
+# configuration for default/cafe-ingress
+
+
+server {
+
+    server_tokens off;
+
+    server_name cafe.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    location ~* "^/(latte|espresso)" {
+        set $service "";
+        rewrite (?i)^/(latte|espresso) /drinks/$1 break;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXRewriteTarget/case_sensitive_regex_rewrite - 1]
+# configuration for default/cafe-ingress
+
+
+server {
+
+    server_tokens off;
+
+    server_name cafe.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    location ~ "^/(coffee|tea)" {
+        set $service "";
+        rewrite ^/(coffee|tea) /beverages/$1 break;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXRewriteTarget/complex_regex_pattern - 1]
+# configuration for default/cafe-menu-ingress
+
+
+server {
+
+    server_tokens off;
+
+    server_name cafe.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-menu-ingress";
+    set $resource_namespace "default";
+    location ~ "^/menu/(hot|cold)/(coffee|tea)" {
+        set $service "";
+        rewrite ^/menu/(hot|cold)/(coffee|tea) /drinks/$1/$2 break;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXRewriteTarget/exact_match_rewrite - 1]
+# configuration for default/cafe-ingress
+
+
+server {
+
+    server_tokens off;
+
+    server_name cafe.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    location = "/cappuccino" {
+        set $service "";
+        rewrite /cappuccino /special/cappuccino break;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXRewriteTarget/no_path_regex_annotation - 1]
+# configuration for default/cafe-ingress
+
+
+server {
+
+    server_tokens off;
+
+    server_name cafe.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    location /mocha {
+        set $service "";
+        rewrite /mocha /hot-drinks/mocha break;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXRewriteTarget/no_rewrite_target - 1]
+# configuration for default/cafe-ingress
+
+
+server {
+
+    server_tokens off;
+
+    server_name cafe.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    location ~ "^/americano" {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+
+        
+    }
+    
+}
+
+---
+
 [TestExecuteTemplate_ForIngressForNGINXWithHTTP2Off - 1]
 # configuration for default/cafe-ingress
 upstream test {zone test 256k;
@@ -1677,6 +2619,181 @@ server {
 
 ---
 
+[TestExecuteTemplate_ForIngressForNGINXWithSSLCiphers - 1]
+# configuration for default/test-ingress
+
+
+server {
+    ssl_certificate ;
+    ssl_certificate_key ;
+    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256;
+    ssl_prefer_server_ciphers on;
+
+    server_tokens ;
+
+    server_name test.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "test-ingress";
+    set $resource_namespace "default";
+    location / {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXWithSSLCiphersDisabled - 1]
+# configuration for default/test-ingress
+
+
+server {
+    ssl_certificate ;
+    ssl_certificate_key ;
+
+    server_tokens ;
+
+    server_name test.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "test-ingress";
+    set $resource_namespace "default";
+    location / {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressWithClientBodyBufferSize - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
+}
+
+
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    app_protect_enable on;
+    app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
+    app_protect_security_log_enable on;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf syslog:server=127.0.0.1:514;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf2;
+    
+    app_protect_dos_enable on;
+    app_protect_dos_policy_file /test/policy.json;
+    app_protect_dos_security_log_enable on;
+    app_protect_dos_security_log /test/logConf.json;
+    set $loggable '0';
+    # app-protect-dos module will set it to '1'  if a request doesn't pass the rate limit
+    access_log /var/log/dos log_dos if=$loggable;
+    app_protect_dos_monitor uri=/path/to/monitor protocol=http1 timeout=30;
+    app_protect_dos_name "testdos";
+    app_protect_dos_access_file "/etc/nginx/dos/allowlist/default_test.example.com";
+
+    
+    if ($scheme = http) {
+        return 301 https://$host:443$request_uri;
+    }
+
+    
+    auth_jwt_key_file /etc/nginx/secrets/key.jwk;
+    auth_jwt "closed site" token=$cookie_auth_token;
+    error_page 401 @login_url-default-cafe-ingress;
+    
+    location @hc-test {
+        proxy_set_header Test-Header "test-header-value";
+        proxy_connect_timeout 0s;
+        proxy_read_timeout 0s;
+        proxy_send_timeout 0s;
+        proxy_pass ://test;
+        health_check uri= interval=1s fails=1 passes=1;
+    }
+    
+    location @login_url-default-cafe-ingress {
+        internal;
+        return 302 https://test.example.com/login;
+    }
+    
+    location /tea {
+        set $service "";
+        status_zone "";
+        # location for minion default/tea-minion
+        set $resource_name "tea-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        auth_jwt_key_file /etc/nginx/secrets/location-key.jwk;
+        auth_jwt "closed site" token=$cookie_auth_token;
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        client_body_buffer_size 16k;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+
+        
+    }
+    
+}
+
+---
+
 [TestExecuteTemplate_ForMainForNGINXPlusTLSPassthroughPortDisabled - 1]
 worker_processes  auto;
 worker_rlimit_nofile 65536;
@@ -1742,7 +2859,9 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
-    resolver example.com127.0.0.1 valid=10s ipv6=off;resolver_timeout 15s;
+
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
 
     server {
         # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
@@ -1789,7 +2908,9 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -1801,16 +2922,18 @@ stream {
 
     access_log  /dev/stdout  stream-main;
     # comment
-    resolver example.com127.0.0.1 valid=10s ipv6=off;
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
 
     map_hash_max_size ;
     
-
     include /etc/nginx/stream-conf.d/*.conf;
 }
+
 mgmt {
-    usage_report interval=0s;
+    license_token /etc/nginx/secrets/license.jwt;
+    enforce_initial_report off;
+    deployment_context /etc/nginx/reporting/tracking.info;
 }
 
 ---
@@ -1880,7 +3003,9 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
-    resolver example.com127.0.0.1 valid=10s ipv6=off;resolver_timeout 15s;
+
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
 
     server {
         # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
@@ -1927,7 +3052,9 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -1939,16 +3066,18 @@ stream {
 
     access_log  /dev/stdout  stream-main;
     # comment
-    resolver example.com127.0.0.1 valid=10s ipv6=off;
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
 
     map_hash_max_size ;
     
-
     include /etc/nginx/stream-conf.d/*.conf;
 }
+
 mgmt {
-    usage_report interval=0s;
+    license_token /etc/nginx/secrets/license.jwt;
+    enforce_initial_report off;
+    deployment_context /etc/nginx/reporting/tracking.info;
 }
 
 ---
@@ -2018,7 +3147,9 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
-    resolver example.com127.0.0.1 valid=10s ipv6=off;resolver_timeout 15s;
+
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
 
     server {
         # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
@@ -2065,7 +3196,9 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -2077,16 +3210,18 @@ stream {
 
     access_log  /dev/stdout  stream-main;
     # comment
-    resolver example.com127.0.0.1 valid=10s ipv6=off;
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
 
     map_hash_max_size ;
     
-
     include /etc/nginx/stream-conf.d/*.conf;
 }
+
 mgmt {
-    usage_report interval=0s;
+    license_token /etc/nginx/secrets/license.jwt;
+    enforce_initial_report off;
+    deployment_context /etc/nginx/reporting/tracking.info;
 }
 
 ---
@@ -2156,7 +3291,9 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
-    resolver example.com127.0.0.1 valid=10s ipv6=off;resolver_timeout 15s;
+
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
 
     server {
         # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
@@ -2203,7 +3340,9 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -2215,16 +3354,18 @@ stream {
 
     access_log  /dev/stdout  stream-main;
     # comment
-    resolver example.com127.0.0.1 valid=10s ipv6=off;
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
 
     map_hash_max_size ;
     
-
     include /etc/nginx/stream-conf.d/*.conf;
 }
+
 mgmt {
-    usage_report interval=0s;
+    license_token /etc/nginx/secrets/license.jwt;
+    enforce_initial_report off;
+    deployment_context /etc/nginx/reporting/tracking.info;
 }
 
 ---
@@ -2294,7 +3435,9 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
-    resolver example.com127.0.0.1 valid=10s ipv6=off;resolver_timeout 15s;
+
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
 
     server {
         # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
@@ -2342,7 +3485,9 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -2354,7 +3499,7 @@ stream {
 
     access_log  /dev/stdout  stream-main;
     # comment
-    resolver example.com127.0.0.1 valid=10s ipv6=off;
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
 
     map_hash_max_size ;
@@ -2376,11 +3521,13 @@ stream {
         proxy_pass $dest_internal_passthrough;
     }
     
-
     include /etc/nginx/stream-conf.d/*.conf;
 }
+
 mgmt {
-    usage_report interval=0s;
+    license_token /etc/nginx/secrets/license.jwt;
+    enforce_initial_report off;
+    deployment_context /etc/nginx/reporting/tracking.info;
 }
 
 ---
@@ -2465,7 +3612,9 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
-    resolver example.com127.0.0.1 valid=10s ipv6=off;resolver_timeout 15s;
+
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
 
     server {
         # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
@@ -2512,7 +3661,9 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -2524,13 +3675,18 @@ stream {
 
     access_log  /dev/stdout  stream-main;
     # comment
-    resolver example.com127.0.0.1 valid=10s ipv6=off;
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
 
     map_hash_max_size ;
     
-
     include /etc/nginx/stream-conf.d/*.conf;
+}
+
+mgmt {
+    license_token /etc/nginx/secrets/license.jwt;
+    enforce_initial_report off;
+    deployment_context /etc/nginx/reporting/tracking.info;
 }
 
 ---
@@ -2613,7 +3769,9 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
-    resolver example.com127.0.0.1 valid=10s ipv6=off;resolver_timeout 15s;
+
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
 
     server {
         # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
@@ -2661,7 +3819,9 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -2673,16 +3833,306 @@ stream {
 
     access_log  /dev/stdout  stream-main;
     # comment
-    resolver example.com127.0.0.1 valid=10s ipv6=off;
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
 
     map_hash_max_size ;
     
-
     include /etc/nginx/stream-conf.d/*.conf;
 }
+
 mgmt {
-    usage_report interval=0s;
+    license_token /etc/nginx/secrets/license.jwt;
+    enforce_initial_report off;
+    deployment_context /etc/nginx/reporting/tracking.info;
+}
+
+---
+
+[TestExecuteTemplate_ForMainForNGINXPlusWithOIDCTimeoutCustom - 1]
+worker_processes  ;
+
+daemon off;
+
+error_log  stderr ;
+pid        /var/lib/nginx/nginx.pid;
+load_module modules/ngx_fips_check_module.so;
+
+load_module modules/ngx_http_js_module.so;
+
+events {
+    worker_connections  ;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    map_hash_max_size ;
+    map_hash_bucket_size ;
+
+    js_import /etc/nginx/njs/apikey_auth.js;
+    js_set $apikey_auth_hash apikey_auth.hash;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    map $upstream_trailer_grpc_status $grpc_status {
+        default $upstream_trailer_grpc_status;
+        '' $sent_http_grpc_status;
+    }
+
+    access_log ;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    keepalive_timeout ;
+    keepalive_requests 0;
+
+    #gzip  on;
+
+    server_names_hash_max_size ;
+    
+
+    variables_hash_bucket_size 0;
+    variables_hash_max_size 0;
+
+    map $request_uri $request_uri_no_args {
+        "~^(?P<path>[^?]*)(\?.*)?$" $path;
+    }
+
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+    map $http_upgrade $vs_connection_header {
+        default upgrade;
+        ''      $default_connection_header;
+    }
+
+    
+    
+    keyval_zone zone=oidc_pkce:128K        timeout=2m sync;
+    keyval_zone zone=oidc_id_tokens:1M     timeout=2h sync;
+    keyval_zone zone=oidc_access_tokens:1M timeout=30m sync;
+    keyval_zone zone=refresh_tokens:1M     timeout=1h sync;
+    keyval_zone zone=oidc_sids:1M          timeout=120s sync;
+    include oidc/oidc_common.conf;
+
+    server {
+        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
+        set $default_connection_header "";
+        set $resource_type "";
+        set $resource_name "";
+        set $resource_namespace "";
+        set $service "";
+
+        listen 0 default_server;listen [::]:0 default_server;
+        listen 0 ssl default_server;
+        listen [::]:0 ssl default_server;
+        ssl_certificate /etc/nginx/secrets/default;
+        ssl_certificate_key /etc/nginx/secrets/default;
+
+        server_name _;
+        server_tokens "";
+
+        location / {
+            return ;
+        }
+    }
+
+    # NGINX Plus API over unix socket
+    server {
+        listen unix:/var/lib/nginx/nginx-plus-api.sock;
+        access_log off;
+
+        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
+        location /configVersionCheck {
+            if ($config_version_mismatch) {
+                return 503;
+            }
+            return 200;
+        }
+
+        location /api {
+            api write=on;
+        }
+    }
+
+    include /etc/nginx/config-version.conf;
+    include /etc/nginx/conf.d/*.conf;
+
+    server {
+        listen unix:/var/lib/nginx/nginx-418-server.sock;
+        access_log off;
+
+        return 418;
+    }
+}
+
+stream {
+    log_format  stream-main  '$remote_addr [$time_local] '
+                      '$protocol $status $bytes_sent $bytes_received '
+                      '$session_time "$ssl_preread_server_name"';
+
+    access_log  /dev/stdout  stream-main;
+    
+    
+
+    map_hash_max_size ;
+    
+    include /etc/nginx/stream-conf.d/*.conf;
+}
+
+mgmt {
+    license_token /license.jwt;
+    enforce_initial_report off;
+    deployment_context /etc/nginx/reporting/tracking.info;
+}
+
+---
+
+[TestExecuteTemplate_ForMainForNGINXPlusWithOIDCTimeoutDefault - 1]
+worker_processes  ;
+
+daemon off;
+
+error_log  stderr ;
+pid        /var/lib/nginx/nginx.pid;
+load_module modules/ngx_fips_check_module.so;
+
+load_module modules/ngx_http_js_module.so;
+
+events {
+    worker_connections  ;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    map_hash_max_size ;
+    map_hash_bucket_size ;
+
+    js_import /etc/nginx/njs/apikey_auth.js;
+    js_set $apikey_auth_hash apikey_auth.hash;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    map $upstream_trailer_grpc_status $grpc_status {
+        default $upstream_trailer_grpc_status;
+        '' $sent_http_grpc_status;
+    }
+
+    access_log ;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    keepalive_timeout ;
+    keepalive_requests 0;
+
+    #gzip  on;
+
+    server_names_hash_max_size ;
+    
+
+    variables_hash_bucket_size 0;
+    variables_hash_max_size 0;
+
+    map $request_uri $request_uri_no_args {
+        "~^(?P<path>[^?]*)(\?.*)?$" $path;
+    }
+
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+    map $http_upgrade $vs_connection_header {
+        default upgrade;
+        ''      $default_connection_header;
+    }
+
+    
+    
+    keyval_zone zone=oidc_pkce:128K        timeout=90s sync;
+    keyval_zone zone=oidc_id_tokens:1M     timeout=1h sync;
+    keyval_zone zone=oidc_access_tokens:1M timeout=1h sync;
+    keyval_zone zone=refresh_tokens:1M     timeout=8h sync;
+    keyval_zone zone=oidc_sids:1M          timeout=8h sync;
+    include oidc/oidc_common.conf;
+
+    server {
+        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
+        set $default_connection_header "";
+        set $resource_type "";
+        set $resource_name "";
+        set $resource_namespace "";
+        set $service "";
+
+        listen 0 default_server;listen [::]:0 default_server;
+        listen 0 ssl default_server;
+        listen [::]:0 ssl default_server;
+        ssl_certificate /etc/nginx/secrets/default;
+        ssl_certificate_key /etc/nginx/secrets/default;
+
+        server_name _;
+        server_tokens "";
+
+        location / {
+            return ;
+        }
+    }
+
+    # NGINX Plus API over unix socket
+    server {
+        listen unix:/var/lib/nginx/nginx-plus-api.sock;
+        access_log off;
+
+        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
+        location /configVersionCheck {
+            if ($config_version_mismatch) {
+                return 503;
+            }
+            return 200;
+        }
+
+        location /api {
+            api write=on;
+        }
+    }
+
+    include /etc/nginx/config-version.conf;
+    include /etc/nginx/conf.d/*.conf;
+
+    server {
+        listen unix:/var/lib/nginx/nginx-418-server.sock;
+        access_log off;
+
+        return 418;
+    }
+}
+
+stream {
+    log_format  stream-main  '$remote_addr [$time_local] '
+                      '$protocol $status $bytes_sent $bytes_received '
+                      '$session_time "$ssl_preread_server_name"';
+
+    access_log  /dev/stdout  stream-main;
+    
+    
+
+    map_hash_max_size ;
+    
+    include /etc/nginx/stream-conf.d/*.conf;
+}
+
+mgmt {
+    license_token /license.jwt;
+    enforce_initial_report off;
+    deployment_context /etc/nginx/reporting/tracking.info;
 }
 
 ---
@@ -2767,7 +4217,9 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
-    resolver example.com127.0.0.1 valid=10s ipv6=off;resolver_timeout 15s;
+
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
 
     server {
         # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
@@ -2814,7 +4266,9 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -2826,13 +4280,18 @@ stream {
 
     access_log  /dev/stdout  stream-main;
     # comment
-    resolver example.com127.0.0.1 valid=10s ipv6=off;
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
 
     map_hash_max_size ;
     
-
     include /etc/nginx/stream-conf.d/*.conf;
+}
+
+mgmt {
+    license_token /etc/nginx/secrets/license.jwt;
+    enforce_initial_report off;
+    deployment_context /etc/nginx/reporting/tracking.info;
 }
 
 ---
@@ -2902,7 +4361,9 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
-    resolver example.com127.0.0.1 valid=10s ipv6=off;resolver_timeout 15s;
+
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
 
     server {
         # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
@@ -2950,7 +4411,9 @@ http {
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -2962,7 +4425,7 @@ stream {
 
     access_log  /dev/stdout  stream-main;
     # comment
-    resolver example.com127.0.0.1 valid=10s ipv6=off;
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
 
     map_hash_max_size ;
@@ -2984,11 +4447,13 @@ stream {
         proxy_pass $dest_internal_passthrough;
     }
     
-
     include /etc/nginx/stream-conf.d/*.conf;
 }
+
 mgmt {
-    usage_report interval=0s;
+    license_token /etc/nginx/secrets/license.jwt;
+    enforce_initial_report off;
+    deployment_context /etc/nginx/reporting/tracking.info;
 }
 
 ---
@@ -3014,7 +4479,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -3086,14 +4550,14 @@ http {
         listen unix:/var/lib/nginx/nginx-502-server.sock;
         access_log off;
 
-        
-
         return 502;
     }
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -3135,7 +4599,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -3207,14 +4670,14 @@ http {
         listen unix:/var/lib/nginx/nginx-502-server.sock;
         access_log off;
 
-        
-
         return 502;
     }
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -3256,7 +4719,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -3328,14 +4790,14 @@ http {
         listen unix:/var/lib/nginx/nginx-502-server.sock;
         access_log off;
 
-        
-
         return 502;
     }
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -3377,7 +4839,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -3449,14 +4910,14 @@ http {
         listen unix:/var/lib/nginx/nginx-502-server.sock;
         access_log off;
 
-        
-
         return 502;
     }
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -3498,7 +4959,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -3571,14 +5031,14 @@ http {
         listen unix:/var/lib/nginx/nginx-502-server.sock;
         access_log off;
 
-        
-
         return 502;
     }
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -3638,7 +5098,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -3710,14 +5169,14 @@ http {
         listen unix:/var/lib/nginx/nginx-502-server.sock;
         access_log off;
 
-        
-
         return 502;
     }
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -3759,7 +5218,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -3832,14 +5290,14 @@ http {
         listen unix:/var/lib/nginx/nginx-502-server.sock;
         access_log off;
 
-        
-
         return 502;
     }
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -3856,6 +5314,879 @@ stream {
     
 
     include /etc/nginx/stream-conf.d/*.conf;
+}
+
+---
+
+[TestExecuteTemplate_ForMainForNGINXWithOtel - 1]
+worker_processes  ;
+
+daemon off;
+
+error_log  stderr ;
+pid        /var/lib/nginx/nginx.pid;
+load_module modules/ngx_otel_module.so;
+load_module modules/ngx_fips_check_module.so;
+
+load_module modules/ngx_http_js_module.so;
+
+events {
+    worker_connections  ;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    map_hash_max_size ;
+    map_hash_bucket_size ;
+
+    js_import /etc/nginx/njs/apikey_auth.js;
+    js_set $apikey_auth_hash apikey_auth.hash;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    map $upstream_trailer_grpc_status $grpc_status {
+        default $upstream_trailer_grpc_status;
+        '' $sent_http_grpc_status;
+    }
+
+    access_log ;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    keepalive_timeout ;
+    keepalive_requests 0;
+
+    #gzip  on;
+
+    server_names_hash_max_size ;
+    
+
+    variables_hash_bucket_size 0;
+    variables_hash_max_size 0;
+
+    map $request_uri $request_uri_no_args {
+        "~^(?P<path>[^?]*)(\?.*)?$" $path;
+    }
+
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+    map $http_upgrade $vs_connection_header {
+        default upgrade;
+        ''      $default_connection_header;
+    }
+    otel_exporter {
+        endpoint https://otel-collector:4317;
+        header X-Custom-Header "custom-value";
+    }
+
+    
+    otel_service_name nginx-ingress-controller:nginx;
+    
+    otel_trace on;
+
+    
+    
+
+    server {
+        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
+        set $default_connection_header "";
+        set $resource_type "";
+        set $resource_name "";
+        set $resource_namespace "";
+        set $service "";
+
+        listen 0 default_server;listen [::]:0 default_server;
+        listen 0 ssl default_server;
+        listen [::]:0 ssl default_server;
+        ssl_certificate /etc/nginx/secrets/default;
+        ssl_certificate_key /etc/nginx/secrets/default;
+
+        server_name _;
+        server_tokens "";
+
+        location / {
+            return ;
+        }
+    }
+
+    # NGINX Plus API over unix socket
+    server {
+        listen unix:/var/lib/nginx/nginx-plus-api.sock;
+        access_log off;
+
+        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
+        location /configVersionCheck {
+            if ($config_version_mismatch) {
+                return 503;
+            }
+            return 200;
+        }
+
+        location /api {
+            api write=on;
+        }
+    }
+
+    include /etc/nginx/config-version.conf;
+    include /etc/nginx/conf.d/*.conf;
+
+    server {
+        listen unix:/var/lib/nginx/nginx-418-server.sock;
+        access_log off;
+
+        return 418;
+    }
+}
+
+stream {
+    log_format  stream-main  '$remote_addr [$time_local] '
+                      '$protocol $status $bytes_sent $bytes_received '
+                      '$session_time "$ssl_preread_server_name"';
+
+    access_log  /dev/stdout  stream-main;
+    
+    
+
+    map_hash_max_size ;
+    
+    include /etc/nginx/stream-conf.d/*.conf;
+}
+
+mgmt {
+    license_token /license.jwt;
+    enforce_initial_report off;
+    deployment_context /etc/nginx/reporting/tracking.info;
+}
+
+---
+
+[TestExecuteTemplate_ForMainForNGINXWithZoneSyncEnabledCustomPort - 1]
+worker_processes  ;
+
+daemon off;
+
+error_log  stderr ;
+pid        /var/lib/nginx/nginx.pid;
+load_module modules/ngx_fips_check_module.so;
+
+load_module modules/ngx_http_js_module.so;
+
+events {
+    worker_connections  ;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    map_hash_max_size ;
+    map_hash_bucket_size ;
+
+    js_import /etc/nginx/njs/apikey_auth.js;
+    js_set $apikey_auth_hash apikey_auth.hash;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    map $upstream_trailer_grpc_status $grpc_status {
+        default $upstream_trailer_grpc_status;
+        '' $sent_http_grpc_status;
+    }
+
+    access_log ;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    keepalive_timeout ;
+    keepalive_requests 0;
+
+    #gzip  on;
+
+    server_names_hash_max_size ;
+    
+
+    variables_hash_bucket_size 0;
+    variables_hash_max_size 0;
+
+    map $request_uri $request_uri_no_args {
+        "~^(?P<path>[^?]*)(\?.*)?$" $path;
+    }
+
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+    map $http_upgrade $vs_connection_header {
+        default upgrade;
+        ''      $default_connection_header;
+    }
+
+    
+    
+
+    server {
+        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
+        set $default_connection_header "";
+        set $resource_type "";
+        set $resource_name "";
+        set $resource_namespace "";
+        set $service "";
+
+        listen 0 default_server;listen [::]:0 default_server;
+        listen 0 ssl default_server;
+        listen [::]:0 ssl default_server;
+        ssl_certificate /etc/nginx/secrets/default;
+        ssl_certificate_key /etc/nginx/secrets/default;
+
+        server_name _;
+        server_tokens "";
+
+        location / {
+            return ;
+        }
+    }
+
+    # NGINX Plus API over unix socket
+    server {
+        listen unix:/var/lib/nginx/nginx-plus-api.sock;
+        access_log off;
+
+        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
+        location /configVersionCheck {
+            if ($config_version_mismatch) {
+                return 503;
+            }
+            return 200;
+        }
+
+        location /api {
+            api write=on;
+        }
+    }
+
+    include /etc/nginx/config-version.conf;
+    include /etc/nginx/conf.d/*.conf;
+
+    server {
+        listen unix:/var/lib/nginx/nginx-418-server.sock;
+        access_log off;
+
+        return 418;
+    }
+}
+
+stream {
+    log_format  stream-main  '$remote_addr [$time_local] '
+                      '$protocol $status $bytes_sent $bytes_received '
+                      '$session_time "$ssl_preread_server_name"';
+
+    access_log  /dev/stdout  stream-main;
+    
+    
+
+    map_hash_max_size ;
+    
+    server {
+        listen 1337;
+        listen [::]:1337;
+        
+        zone_sync;
+        zone_sync_server nginx-ingress-headless.nginx-ingress.svc.cluster.local:1337 resolve;
+    }
+    include /etc/nginx/stream-conf.d/*.conf;
+}
+
+mgmt {
+    license_token /license.jwt;
+    enforce_initial_report off;
+    deployment_context /etc/nginx/reporting/tracking.info;
+}
+
+---
+
+[TestExecuteTemplate_ForMainForNGINXWithZoneSyncEnabledCustomResolverAddress - 1]
+worker_processes  ;
+
+daemon off;
+
+error_log  stderr ;
+pid        /var/lib/nginx/nginx.pid;
+load_module modules/ngx_fips_check_module.so;
+
+load_module modules/ngx_http_js_module.so;
+
+events {
+    worker_connections  ;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    map_hash_max_size ;
+    map_hash_bucket_size ;
+
+    js_import /etc/nginx/njs/apikey_auth.js;
+    js_set $apikey_auth_hash apikey_auth.hash;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    map $upstream_trailer_grpc_status $grpc_status {
+        default $upstream_trailer_grpc_status;
+        '' $sent_http_grpc_status;
+    }
+
+    access_log ;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    keepalive_timeout ;
+    keepalive_requests 0;
+
+    #gzip  on;
+
+    server_names_hash_max_size ;
+    
+
+    variables_hash_bucket_size 0;
+    variables_hash_max_size 0;
+
+    map $request_uri $request_uri_no_args {
+        "~^(?P<path>[^?]*)(\?.*)?$" $path;
+    }
+
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+    map $http_upgrade $vs_connection_header {
+        default upgrade;
+        ''      $default_connection_header;
+    }
+
+    
+    
+
+    server {
+        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
+        set $default_connection_header "";
+        set $resource_type "";
+        set $resource_name "";
+        set $resource_namespace "";
+        set $service "";
+
+        listen 0 default_server;listen [::]:0 default_server;
+        listen 0 ssl default_server;
+        listen [::]:0 ssl default_server;
+        ssl_certificate /etc/nginx/secrets/default;
+        ssl_certificate_key /etc/nginx/secrets/default;
+
+        server_name _;
+        server_tokens "";
+
+        location / {
+            return ;
+        }
+    }
+
+    # NGINX Plus API over unix socket
+    server {
+        listen unix:/var/lib/nginx/nginx-plus-api.sock;
+        access_log off;
+
+        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
+        location /configVersionCheck {
+            if ($config_version_mismatch) {
+                return 503;
+            }
+            return 200;
+        }
+
+        location /api {
+            api write=on;
+        }
+    }
+
+    include /etc/nginx/config-version.conf;
+    include /etc/nginx/conf.d/*.conf;
+
+    server {
+        listen unix:/var/lib/nginx/nginx-418-server.sock;
+        access_log off;
+
+        return 418;
+    }
+}
+
+stream {
+    log_format  stream-main  '$remote_addr [$time_local] '
+                      '$protocol $status $bytes_sent $bytes_received '
+                      '$session_time "$ssl_preread_server_name"';
+
+    access_log  /dev/stdout  stream-main;
+    
+    
+
+    map_hash_max_size ;
+    
+    server {
+        listen 12345;
+        listen [::]:12345;
+        resolver example.com;
+        zone_sync;
+        zone_sync_server nginx-ingress-headless.nginx-ingress.svc.cluster.local:12345 resolve;
+    }
+    include /etc/nginx/stream-conf.d/*.conf;
+}
+
+mgmt {
+    license_token /license.jwt;
+    enforce_initial_report off;
+    deployment_context /etc/nginx/reporting/tracking.info;
+}
+
+---
+
+[TestExecuteTemplate_ForMainForNGINXWithZoneSyncEnabledCustomResolverAddressAndValid - 1]
+worker_processes  ;
+
+daemon off;
+
+error_log  stderr ;
+pid        /var/lib/nginx/nginx.pid;
+load_module modules/ngx_fips_check_module.so;
+
+load_module modules/ngx_http_js_module.so;
+
+events {
+    worker_connections  ;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    map_hash_max_size ;
+    map_hash_bucket_size ;
+
+    js_import /etc/nginx/njs/apikey_auth.js;
+    js_set $apikey_auth_hash apikey_auth.hash;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    map $upstream_trailer_grpc_status $grpc_status {
+        default $upstream_trailer_grpc_status;
+        '' $sent_http_grpc_status;
+    }
+
+    access_log ;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    keepalive_timeout ;
+    keepalive_requests 0;
+
+    #gzip  on;
+
+    server_names_hash_max_size ;
+    
+
+    variables_hash_bucket_size 0;
+    variables_hash_max_size 0;
+
+    map $request_uri $request_uri_no_args {
+        "~^(?P<path>[^?]*)(\?.*)?$" $path;
+    }
+
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+    map $http_upgrade $vs_connection_header {
+        default upgrade;
+        ''      $default_connection_header;
+    }
+
+    
+    
+
+    server {
+        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
+        set $default_connection_header "";
+        set $resource_type "";
+        set $resource_name "";
+        set $resource_namespace "";
+        set $service "";
+
+        listen 0 default_server;listen [::]:0 default_server;
+        listen 0 ssl default_server;
+        listen [::]:0 ssl default_server;
+        ssl_certificate /etc/nginx/secrets/default;
+        ssl_certificate_key /etc/nginx/secrets/default;
+
+        server_name _;
+        server_tokens "";
+
+        location / {
+            return ;
+        }
+    }
+
+    # NGINX Plus API over unix socket
+    server {
+        listen unix:/var/lib/nginx/nginx-plus-api.sock;
+        access_log off;
+
+        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
+        location /configVersionCheck {
+            if ($config_version_mismatch) {
+                return 503;
+            }
+            return 200;
+        }
+
+        location /api {
+            api write=on;
+        }
+    }
+
+    include /etc/nginx/config-version.conf;
+    include /etc/nginx/conf.d/*.conf;
+
+    server {
+        listen unix:/var/lib/nginx/nginx-418-server.sock;
+        access_log off;
+
+        return 418;
+    }
+}
+
+stream {
+    log_format  stream-main  '$remote_addr [$time_local] '
+                      '$protocol $status $bytes_sent $bytes_received '
+                      '$session_time "$ssl_preread_server_name"';
+
+    access_log  /dev/stdout  stream-main;
+    
+    
+
+    map_hash_max_size ;
+    
+    server {
+        listen 1223;
+        listen [::]:1223;
+        resolver example.com valid=20s;
+        zone_sync;
+        zone_sync_server nginx-ingress-headless.nginx-ingress.svc.cluster.local:1223 resolve;
+    }
+    include /etc/nginx/stream-conf.d/*.conf;
+}
+
+mgmt {
+    license_token /license.jwt;
+    enforce_initial_report off;
+    deployment_context /etc/nginx/reporting/tracking.info;
+}
+
+---
+
+[TestExecuteTemplate_ForMainForNGINXWithZoneSyncEnabledCustomResolverAddressAndValidAndIPV6Off - 1]
+worker_processes  ;
+
+daemon off;
+
+error_log  stderr ;
+pid        /var/lib/nginx/nginx.pid;
+load_module modules/ngx_fips_check_module.so;
+
+load_module modules/ngx_http_js_module.so;
+
+events {
+    worker_connections  ;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    map_hash_max_size ;
+    map_hash_bucket_size ;
+
+    js_import /etc/nginx/njs/apikey_auth.js;
+    js_set $apikey_auth_hash apikey_auth.hash;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    map $upstream_trailer_grpc_status $grpc_status {
+        default $upstream_trailer_grpc_status;
+        '' $sent_http_grpc_status;
+    }
+
+    access_log ;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    keepalive_timeout ;
+    keepalive_requests 0;
+
+    #gzip  on;
+
+    server_names_hash_max_size ;
+    
+
+    variables_hash_bucket_size 0;
+    variables_hash_max_size 0;
+
+    map $request_uri $request_uri_no_args {
+        "~^(?P<path>[^?]*)(\?.*)?$" $path;
+    }
+
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+    map $http_upgrade $vs_connection_header {
+        default upgrade;
+        ''      $default_connection_header;
+    }
+
+    
+    
+
+    server {
+        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
+        set $default_connection_header "";
+        set $resource_type "";
+        set $resource_name "";
+        set $resource_namespace "";
+        set $service "";
+
+        listen 0 default_server;listen [::]:0 default_server;
+        listen 0 ssl default_server;
+        listen [::]:0 ssl default_server;
+        ssl_certificate /etc/nginx/secrets/default;
+        ssl_certificate_key /etc/nginx/secrets/default;
+
+        server_name _;
+        server_tokens "";
+
+        location / {
+            return ;
+        }
+    }
+
+    # NGINX Plus API over unix socket
+    server {
+        listen unix:/var/lib/nginx/nginx-plus-api.sock;
+        access_log off;
+
+        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
+        location /configVersionCheck {
+            if ($config_version_mismatch) {
+                return 503;
+            }
+            return 200;
+        }
+
+        location /api {
+            api write=on;
+        }
+    }
+
+    include /etc/nginx/config-version.conf;
+    include /etc/nginx/conf.d/*.conf;
+
+    server {
+        listen unix:/var/lib/nginx/nginx-418-server.sock;
+        access_log off;
+
+        return 418;
+    }
+}
+
+stream {
+    log_format  stream-main  '$remote_addr [$time_local] '
+                      '$protocol $status $bytes_sent $bytes_received '
+                      '$session_time "$ssl_preread_server_name"';
+
+    access_log  /dev/stdout  stream-main;
+    
+    
+
+    map_hash_max_size ;
+    
+    server {
+        listen 1223;
+        listen [::]:1223;
+        resolver example.com valid=20s ipv6=off;
+        zone_sync;
+        zone_sync_server nginx-ingress-headless.nginx-ingress.svc.cluster.local:1223 resolve;
+    }
+    include /etc/nginx/stream-conf.d/*.conf;
+}
+
+mgmt {
+    license_token /license.jwt;
+    enforce_initial_report off;
+    deployment_context /etc/nginx/reporting/tracking.info;
+}
+
+---
+
+[TestExecuteTemplate_ForMainForNGINXWithZoneSyncEnabledDefaultPort - 1]
+worker_processes  ;
+
+daemon off;
+
+error_log  stderr ;
+pid        /var/lib/nginx/nginx.pid;
+load_module modules/ngx_fips_check_module.so;
+
+load_module modules/ngx_http_js_module.so;
+
+events {
+    worker_connections  ;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    map_hash_max_size ;
+    map_hash_bucket_size ;
+
+    js_import /etc/nginx/njs/apikey_auth.js;
+    js_set $apikey_auth_hash apikey_auth.hash;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    map $upstream_trailer_grpc_status $grpc_status {
+        default $upstream_trailer_grpc_status;
+        '' $sent_http_grpc_status;
+    }
+
+    access_log ;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    keepalive_timeout ;
+    keepalive_requests 0;
+
+    #gzip  on;
+
+    server_names_hash_max_size ;
+    
+
+    variables_hash_bucket_size 0;
+    variables_hash_max_size 0;
+
+    map $request_uri $request_uri_no_args {
+        "~^(?P<path>[^?]*)(\?.*)?$" $path;
+    }
+
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+    map $http_upgrade $vs_connection_header {
+        default upgrade;
+        ''      $default_connection_header;
+    }
+
+    
+    
+
+    server {
+        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
+        set $default_connection_header "";
+        set $resource_type "";
+        set $resource_name "";
+        set $resource_namespace "";
+        set $service "";
+
+        listen 0 default_server;listen [::]:0 default_server;
+        listen 0 ssl default_server;
+        listen [::]:0 ssl default_server;
+        ssl_certificate /etc/nginx/secrets/default;
+        ssl_certificate_key /etc/nginx/secrets/default;
+
+        server_name _;
+        server_tokens "";
+
+        location / {
+            return ;
+        }
+    }
+
+    # NGINX Plus API over unix socket
+    server {
+        listen unix:/var/lib/nginx/nginx-plus-api.sock;
+        access_log off;
+
+        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
+        location /configVersionCheck {
+            if ($config_version_mismatch) {
+                return 503;
+            }
+            return 200;
+        }
+
+        location /api {
+            api write=on;
+        }
+    }
+
+    include /etc/nginx/config-version.conf;
+    include /etc/nginx/conf.d/*.conf;
+
+    server {
+        listen unix:/var/lib/nginx/nginx-418-server.sock;
+        access_log off;
+
+        return 418;
+    }
+}
+
+stream {
+    log_format  stream-main  '$remote_addr [$time_local] '
+                      '$protocol $status $bytes_sent $bytes_received '
+                      '$session_time "$ssl_preread_server_name"';
+
+    access_log  /dev/stdout  stream-main;
+    
+    
+
+    map_hash_max_size ;
+    
+    server {
+        listen 12345;
+        listen [::]:12345;
+        
+        zone_sync;
+        zone_sync_server nginx-ingress-headless.nginx-ingress.svc.cluster.local:12345 resolve;
+    }
+    include /etc/nginx/stream-conf.d/*.conf;
+}
+
+mgmt {
+    license_token /license.jwt;
+    enforce_initial_report off;
+    deployment_context /etc/nginx/reporting/tracking.info;
 }
 
 ---
@@ -3881,7 +6212,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -3953,14 +6283,14 @@ http {
         listen unix:/var/lib/nginx/nginx-502-server.sock;
         access_log off;
 
-        
-
         return 502;
     }
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 
@@ -4002,7 +6332,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -4075,14 +6404,14 @@ http {
         listen unix:/var/lib/nginx/nginx-502-server.sock;
         access_log off;
 
-        
-
         return 502;
     }
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;return 418;
+        access_log off;
+
+        return 418;
     }
 }
 

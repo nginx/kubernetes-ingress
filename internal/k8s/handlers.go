@@ -7,13 +7,13 @@ import (
 
 	"github.com/jinzhu/copier"
 
-	"github.com/nginxinc/kubernetes-ingress/internal/k8s/secrets"
-	nl "github.com/nginxinc/kubernetes-ingress/internal/logger"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	"k8s.io/client-go/tools/cache"
 
-	conf_v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
