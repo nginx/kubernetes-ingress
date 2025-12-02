@@ -19,6 +19,7 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	api_v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -571,6 +572,41 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			// store route policies for the referenced VirtualServerRoute in case they don't define their own
 			if len(r.Policies) > 0 {
 				vsrPoliciesFromVs[name] = r.Policies
+			}
+
+			continue
+		} else if r.RouteSelector != nil {
+
+			// get vsr name
+
+			selector := &metav1.LabelSelector{
+				MatchLabels: r.RouteSelector.MatchLabels,
+			}
+			sel, _ := metav1.LabelSelectorAsSelector(selector)
+
+			selectorKey := sel.String()
+			vsrKeys := vsEx.VirtualServerSelectorRoutes[selectorKey]
+
+			// store route location snippet for the referenced VirtualServerRoute in case they don't define their own
+			if r.LocationSnippets != "" {
+				for _, name := range vsrKeys {
+					vsrLocationSnippetsFromVs[name] = r.LocationSnippets
+				}
+			}
+
+			// store route error pages and route index for the referenced VirtualServerRoute in case they don't define their own
+			if len(r.ErrorPages) > 0 {
+				for _, name := range vsrKeys {
+					vsrErrorPagesFromVs[name] = errorPages.pages
+					vsrErrorPagesRouteIndex[name] = errorPages.index
+				}
+			}
+
+			// store route policies for the referenced VirtualServerRoute in case they don't define their own
+			if len(r.Policies) > 0 {
+				for _, name := range vsrKeys {
+					vsrPoliciesFromVs[name] = r.Policies
+				}
 			}
 
 			continue
