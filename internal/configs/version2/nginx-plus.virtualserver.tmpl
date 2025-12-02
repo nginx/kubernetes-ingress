@@ -71,7 +71,7 @@ limit_req_zone {{ $z.Key }} zone={{ $z.ZoneName }}:{{ $z.ZoneSize }} rate={{ $z.
 {{- end }}
 
 {{- range $c := .CacheZones }}
-proxy_cache_path {{ $c.Path }}{{ if $c.Levels }} levels={{ $c.Levels }}{{ end }} keys_zone={{ $c.Name }}:{{ $c.Size }};
+proxy_cache_path {{ $c.Path }}{{ if $c.Levels }} levels={{ $c.Levels }}{{ end }} keys_zone={{ $c.Name }}:{{ $c.Size }}{{ if $c.Inactive }} inactive={{ $c.Inactive }}{{ end }}{{ if $c.MaxSize }} max_size={{ $c.MaxSize }}{{ end }}{{ if $c.MinFree }} min_free={{ $c.MinFree }}{{ end }}{{ if $c.ManagerFiles }} manager_files={{ $c.ManagerFiles }}{{ end }}{{ if $c.ManagerSleep }} manager_sleep={{ $c.ManagerSleep }}{{ end }}{{ if $c.ManagerThreshold }} manager_threshold={{ $c.ManagerThreshold }}{{ end }}{{ if not $c.UseTempPath }} use_temp_path=off{{ end }};
 {{- end }}
 
 {{- range $m := .StatusMatches }}
@@ -115,8 +115,11 @@ map $request_method $cache_purge_{{ replaceAll $l.Cache.ZoneName "-" "_" }} {
 {{- end }}
 {{- end }}
 
-{{- if and $s.OIDC $s.OIDC.PKCEEnable }}
-include oidc/oidc_pkce_supplements.conf;
+{{- if $s.OIDC  }}
+keyval $idp_sid $client_sid              zone=oidc_sids;
+{{- if $s.OIDC.PKCEEnable }}
+keyval $pkce_id $pkce_code_verifier zone=oidc_pkce;
+{{- end }}
 {{- end }}
 
 server {
@@ -132,7 +135,11 @@ server {
     set $resource_namespace "{{$s.VSNamespace}}";
 
     {{- with $oidc := $s.OIDC }}
-    include oidc/oidc.conf;
+    include oidc-conf.d/oidc_{{$s.VSNamespace}}_{{$s.VSName}}.conf;
+
+    {{- if eq $s.NGINXDebugLevel "debug" }}
+    set $oidc_debug true;
+    {{- end }}
 
     set $oidc_pkce_enable {{ boolToInteger $oidc.PKCEEnable }};
     set $oidc_client_auth_method "client_secret_post";
@@ -148,15 +155,6 @@ server {
     set $oidc_scopes "{{ $oidc.Scope }}";
     set $oidc_client "{{ $oidc.ClientID }}";
     set $oidc_client_secret "{{ $oidc.ClientSecret }}";
-    set $redir_location "{{ $oidc.RedirectURI }}";
-    {{- if and $oidc.RedirectURI (ne $oidc.RedirectURI "/_codexch") }}
-    # Custom OIDC redirect location based on policy redirectURI
-    location = {{ $oidc.RedirectURI }} {
-        status_zone "OIDC code exchange";
-        js_content oidc.codeExchange;
-        error_page 500 502 504 @oidc_error;
-    }
-    {{- end }}
     {{- end }}
 
     {{- with $ssl := $s.SSL }}
@@ -223,7 +221,7 @@ server {
     {{- with $s.Cache }}
     # Server-level cache configuration
     proxy_cache {{ $s.Cache.ZoneName }};
-    proxy_cache_key $scheme$proxy_host$request_uri;
+    proxy_cache_key {{ $s.Cache.CacheKey }};
             {{- if $s.Cache.OverrideUpstreamCache }}
     proxy_ignore_headers Cache-Control Expires Set-Cookie Vary X-Accel-Expires;
             {{- end }}
@@ -235,6 +233,33 @@ server {
             {{- end }}
             {{- if $s.Cache.AllowedMethods }}
     proxy_cache_methods{{ range $s.Cache.AllowedMethods }} {{ . }}{{ end }};
+            {{- end }}
+            {{- if $s.Cache.CacheUseStale }}
+    proxy_cache_use_stale{{ range $s.Cache.CacheUseStale }} {{ . }}{{ end }};
+            {{- end }}
+            {{- if $s.Cache.CacheRevalidate }}
+    proxy_cache_revalidate on;
+            {{- end }}
+            {{- if $s.Cache.CacheBackgroundUpdate }}
+    proxy_cache_background_update on;
+            {{- end }}
+            {{- if $s.Cache.CacheMinUses }}
+    proxy_cache_min_uses {{ $s.Cache.CacheMinUses }};
+            {{- end }}
+            {{- if $s.Cache.CacheLock }}
+    proxy_cache_lock on;
+            {{- end }}
+            {{- if $s.Cache.CacheLockTimeout }}
+    proxy_cache_lock_timeout {{ $s.Cache.CacheLockTimeout }};
+            {{- end }}
+            {{- if $s.Cache.CacheLockAge }}
+    proxy_cache_lock_age {{ $s.Cache.CacheLockAge }};
+            {{- end }}
+            {{- if $s.Cache.NoCacheConditions }}
+    proxy_no_cache{{ range $s.Cache.NoCacheConditions }} {{ . }}{{ end }};
+            {{- end }}
+            {{- if $s.Cache.CacheBypassConditions }}
+    proxy_cache_bypass{{ range $s.Cache.CacheBypassConditions }} {{ . }}{{ end }};
             {{- end }}
             {{- if gt (len $s.Cache.CachePurgeAllow) 0 }}
     proxy_cache_purge $cache_purge_{{ replaceAll $s.Cache.ZoneName "-" "_" }};
@@ -292,6 +317,17 @@ server {
         {{- if .JwksSNIName }}
         proxy_ssl_name {{ .JwksSNIName }};
         {{- end }}
+        {{- end }}
+        {{- if .SSLVerify }}
+        proxy_ssl_verify on;
+        proxy_ssl_verify_depth {{ .SSLVerifyDepth }};
+        {{- if .TrustedCert }}
+        proxy_ssl_trusted_certificate {{ .TrustedCert }};
+        {{- else }}
+        proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+        {{- end }}
+        {{- else }}
+        proxy_ssl_verify off;
         {{- end }}
         proxy_pass_request_headers off;
         proxy_pass_request_body off;
@@ -656,6 +692,9 @@ server {
         {{ $proxyOrGRPC }}_read_timeout {{ $l.ProxyReadTimeout }};
         {{ $proxyOrGRPC }}_send_timeout {{ $l.ProxySendTimeout }};
         client_max_body_size {{ $l.ClientMaxBodySize }};
+        {{- if $l.ClientBodyBufferSize }}
+        client_body_buffer_size {{ $l.ClientBodyBufferSize }};
+        {{- end }}
 
             {{- if $l.ProxyMaxTempFileSize }}
         proxy_max_temp_file_size {{ $l.ProxyMaxTempFileSize }};
@@ -734,7 +773,7 @@ server {
 
         {{- with $l.Cache }}
         proxy_cache {{ $l.Cache.ZoneName }};
-        proxy_cache_key $scheme$proxy_host$request_uri;
+        proxy_cache_key {{ $l.Cache.CacheKey }};
                 {{- if $l.Cache.OverrideUpstreamCache }}
         proxy_ignore_headers Cache-Control Expires Set-Cookie Vary X-Accel-Expires;
                 {{- end }}
@@ -746,6 +785,33 @@ server {
                 {{- end }}
                 {{- if $l.Cache.AllowedMethods }}
         proxy_cache_methods{{ range $l.Cache.AllowedMethods }} {{ . }}{{ end }};
+                {{- end }}
+                {{- if $l.Cache.CacheUseStale }}
+        proxy_cache_use_stale{{ range $l.Cache.CacheUseStale }} {{ . }}{{ end }};
+                {{- end }}
+                {{- if $l.Cache.CacheRevalidate }}
+        proxy_cache_revalidate on;
+                {{- end }}
+                {{- if $l.Cache.CacheBackgroundUpdate }}
+        proxy_cache_background_update on;
+                {{- end }}
+                {{- if $l.Cache.CacheMinUses }}
+        proxy_cache_min_uses {{ $l.Cache.CacheMinUses }};
+                {{- end }}
+                {{- if $l.Cache.CacheLock }}
+        proxy_cache_lock on;
+                {{- end }}
+                {{- if $l.Cache.CacheLockTimeout }}
+        proxy_cache_lock_timeout {{ $l.Cache.CacheLockTimeout }};
+                {{- end }}
+                {{- if $l.Cache.CacheLockAge }}
+        proxy_cache_lock_age {{ $l.Cache.CacheLockAge }};
+                {{- end }}
+                {{- if $l.Cache.NoCacheConditions }}
+        proxy_no_cache{{ range $l.Cache.NoCacheConditions }} {{ . }}{{ end }};
+                {{- end }}
+                {{- if $l.Cache.CacheBypassConditions }}
+        proxy_cache_bypass{{ range $l.Cache.CacheBypassConditions }} {{ . }}{{ end }};
                 {{- end }}
                 {{- if gt (len $l.Cache.CachePurgeAllow) 0 }}
         proxy_cache_purge $cache_purge_{{ replaceAll $l.Cache.ZoneName "-" "_" }};

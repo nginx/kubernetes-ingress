@@ -34,6 +34,7 @@ const (
 	proxyPassHeadersAnnotation            = "nginx.org/proxy-pass-headers" // #nosec G101
 	proxySetHeadersAnnotation             = "nginx.org/proxy-set-headers"
 	clientMaxBodySizeAnnotation           = "nginx.org/client-max-body-size"
+	clientBodyBufferSizeAnnotation        = "nginx.org/client-body-buffer-size"
 	redirectToHTTPSAnnotation             = "nginx.org/redirect-to-https"
 	sslRedirectAnnotation                 = "ingress.kubernetes.io/ssl-redirect"
 	proxyBufferingAnnotation              = "nginx.org/proxy-buffering"
@@ -69,6 +70,7 @@ const (
 	sslServicesAnnotation                 = "nginx.org/ssl-services"
 	grpcServicesAnnotation                = "nginx.org/grpc-services"
 	rewritesAnnotation                    = "nginx.org/rewrites"
+	rewriteTargetAnnotation               = "nginx.org/rewrite-target"
 	stickyCookieServicesAnnotation        = "nginx.com/sticky-cookie-services"
 	pathRegexAnnotation                   = "nginx.org/path-regex"
 	useClusterIPAnnotation                = "nginx.org/use-cluster-ip"
@@ -177,6 +179,10 @@ var (
 		clientMaxBodySizeAnnotation: {
 			validateRequiredAnnotation,
 			validateOffsetAnnotation,
+		},
+		clientBodyBufferSizeAnnotation: {
+			validateRequiredAnnotation,
+			validateSizeAnnotation,
 		},
 		redirectToHTTPSAnnotation: {
 			validateRequiredAnnotation,
@@ -333,6 +339,10 @@ var (
 		rewritesAnnotation: {
 			validateRequiredAnnotation,
 			validateRewriteListAnnotation,
+		},
+		rewriteTargetAnnotation: {
+			validateRequiredAnnotation,
+			validateRewriteTargetAnnotation,
 		},
 		stickyCookieServicesAnnotation: {
 			validatePlusOnlyAnnotation,
@@ -768,6 +778,32 @@ func validateRewriteListAnnotation(context *annotationValidationContext) field.E
 		)
 		return field.ErrorList{field.Invalid(context.fieldPath, context.value, errorMsg)}
 	}
+	return nil
+}
+
+func validateRewriteTargetAnnotation(context *annotationValidationContext) field.ErrorList {
+	target := context.value
+
+	// Prevent absolute URLs (http://, https://)
+	if strings.HasPrefix(target, "http://") || strings.HasPrefix(target, "https://") {
+		return field.ErrorList{field.Invalid(context.fieldPath, target, "absolute URLs not allowed in rewrite target")}
+	}
+
+	// Prevent protocol-relative URLs (//)
+	if strings.HasPrefix(target, "//") {
+		return field.ErrorList{field.Invalid(context.fieldPath, target, "protocol-relative URLs not allowed in rewrite target")}
+	}
+
+	// Prevent path traversal patterns
+	if strings.Contains(target, "../") || strings.Contains(target, "..\\") {
+		return field.ErrorList{field.Invalid(context.fieldPath, target, "path traversal patterns not allowed in rewrite target")}
+	}
+
+	// Must start with / (relative path)
+	if !strings.HasPrefix(target, "/") {
+		return field.ErrorList{field.Invalid(context.fieldPath, target, "rewrite target must start with /")}
+	}
+
 	return nil
 }
 

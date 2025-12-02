@@ -13,12 +13,13 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      id-token: write
     runs-on: ubuntu-24.04
     name: Cherry pick into release branch
-    if: ${{ (contains(github.event.pull_request.labels.*.name, 'dependencies') || contains(github.event.pull_request.labels.*.name, 'needs cherry pick')) && github.event.pull_request.merged == true }}
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'needs cherry pick') && github.event.pull_request.merged == true }}
     steps:
       - name: Checkout
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -31,9 +32,25 @@ jobs:
           echo "branch=${release_branch}" >> $GITHUB_OUTPUT
           cat $GITHUB_OUTPUT
 
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_COMMON_VAULT_SUBSCRIPTION_ID }}
+
+      - name: Setup secrets
+        id: secrets
+        run: |
+          echo "Setting secrets for job"
+          NGINX_PAT=$(az keyvault secret show --name nginx-bot-pat --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$NGINX_PAT"
+          echo "NGINX_PAT=$NGINX_PAT" >> $GITHUB_OUTPUT
+
       - name: Cherry pick into ${{ steps.branch.outputs.branch }}
         uses: carloscastrojumo/github-cherry-pick-action@503773289f4a459069c832dc628826685b75b4b3 # v1.0.10
         with:
           branch: ${{ steps.branch.outputs.branch }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.secrets.outputs.NGINX_PAT }}
+          author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
           title: "[cherry-pick] {old_title}"

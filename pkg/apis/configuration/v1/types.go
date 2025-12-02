@@ -119,7 +119,7 @@ type PolicyReference struct {
 type Upstream struct {
 	// The name of the upstream. Must be a valid DNS label as defined in RFC 1035. For example, hello and upstream-123 are valid. The name must be unique among all upstreams of the resource.
 	Name string `json:"name"`
-	// The name of a service. The service must belong to the same namespace as the resource. If the service doesn’t exist, NGINX will assume the service has zero endpoints and return a 502 response for requests for this upstream. For NGINX Plus only, services of type ExternalName are also supported .
+	// The name of a service. If the Service belongs to a different namespace than the VirtualServer or VirtualServerRoute, you need to include the namespace. For example, tea-namespace/tea. If the service doesn’t exist, NGINX will assume the service has zero endpoints and return a 502 response for requests for this upstream. For NGINX Plus only, services of type ExternalName are also supported in the same namespace.
 	Service string `json:"service"`
 	// Selects the pods within the service using label keys and values. By default, all pods of the service are selected. Note: the specified labels are expected to be present in the pods when they are created. If the pod labels are updated, NGINX Ingress Controller will not see that change until the number of the pods is changed.
 	Subselector map[string]string `json:"subselector"`
@@ -157,6 +157,12 @@ type Upstream struct {
 	ProxyBusyBuffersSize string `json:"busy-buffers-size"`
 	// Sets the maximum allowed size of the client request body. The default is set in the client-max-body-size ConfigMap key.
 	ClientMaxBodySize string `json:"client-max-body-size"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^\d+[kKmM]?$`
+	// ClientBodyBufferSize sets the size of the buffer used for reading the client request body. Must be specified as a number followed by:
+	// 'k' for kilobytes or 'm' for megabytes.
+	// Examples: "10m" or "512k".
+	ClientBodyBufferSize string `json:"client-body-buffer-size"`
 	// The TLS configuration for the Upstream.
 	TLS UpstreamTLS `json:"tls"`
 	// The health check configuration for the Upstream. Note: this feature is supported only in NGINX Plus.
@@ -786,6 +792,7 @@ type PolicySpec struct {
 	// The EgressMTLS policy configures upstreams authentication and certificate verification.
 	EgressMTLS *EgressMTLS `json:"egressMTLS"`
 	// The OpenID Connect policy configures NGINX to authenticate client requests by validating a JWT token against an OAuth2/OIDC token provider, such as Auth0 or Keycloak.
+	// +kubebuilder:validation:XValidation:rule="(self.sslVerify == true) || (self.sslVerify == false && !has(self.trustedCertSecret))",message="trustedCertSecret can be set only if sslVerify is true"
 	OIDC *OIDC `json:"oidc"`
 	// The WAF policy configures WAF and log configuration policies for NGINX AppProtect
 	WAF *WAF `json:"waf"`
@@ -893,6 +900,16 @@ type JWTAuth struct {
 	SNIEnabled bool `json:"sniEnabled"`
 	// The SNI name to use when connecting to the remote server. If not set, the hostname from the ``jwksURI`` will be used.
 	SNIName string `json:"sniName"`
+	// Enables verification of the JWKS server SSL certificate. Default is false.
+	// +kubebuilder:default:=false
+	SSLVerify bool `json:"sslVerify"`
+	// The name of the Kubernetes secret that stores the CA certificate for JWKS server verification. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/ca, and the certificate must be stored in the secret under the key ca.crt.
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	TrustedCertSecret string `json:"trustedCertSecret"`
+	// Sets the verification depth in the JWKS server certificates chain. The default is 1.
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:default:=1
+	SSLVerifyDepth *int `json:"sslVerifyDepth"`
 }
 
 // BasicAuth holds HTTP Basic authentication configuration
@@ -965,6 +982,16 @@ type OIDC struct {
 	AccessTokenEnable bool `json:"accessTokenEnable"`
 	// Switches Proof Key for Code Exchange on. The OpenID client needs to be in public mode. clientSecret is not used in this mode.
 	PKCEEnable bool `json:"pkceEnable"`
+	// Enables verification of the IDP server SSL certificate. Default is false.
+	// +kubebuilder:default:=false
+	SSLVerify bool `json:"sslVerify"`
+	// The name of the Kubernetes secret that stores the CA certificate for IDP server verification. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/ca, and the certificate must be stored in the secret under the key ca.crt.
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	TrustedCertSecret string `json:"trustedCertSecret"`
+	// Sets the verification depth in the IDP server certificates chain. The default is 1.
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:default:=1
+	SSLVerifyDepth *int `json:"sslVerifyDepth"`
 }
 
 // The WAF policy configures NGINX Plus to secure client requests using App Protect WAF policies.
@@ -1009,6 +1036,60 @@ type SuppliedIn struct {
 	Query []string `json:"query"`
 }
 
+// CacheManager defines cache manager process parameters for controlling the cache manager process behavior.
+// The cache manager monitors the maximum cache size and removes the least recently used data when the size is exceeded.
+type CacheManager struct {
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Minimum=1
+	// Files sets the maximum number of files that will be deleted in one iteration by the cache manager.
+	// During one iteration no more than manager_files items are deleted (by default, 100).
+	Files *int `json:"files,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[0-9]+[mu]?s$`
+	// Sleep sets the pause between cache manager iterations.
+	// Between iterations, a pause configured by manager_sleep (by default, 50 milliseconds) is made.
+	Sleep string `json:"sleep,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[0-9]+[mu]?s$`
+	// Threshold sets the maximum duration of one cache manager iteration.
+	// The duration of one iteration is limited by manager_threshold (by default, 200 milliseconds).
+	Threshold string `json:"threshold,omitempty"`
+}
+
+// CacheLock defines cache locking parameters. When enabled, only one request at a time will be allowed to populate a new cache element.
+// Other requests of the same cache element will either wait for a response to appear in the cache or the cache lock for this element to be released.
+// +kubebuilder:validation:XValidation:rule="(!has(self.timeout) && !has(self.age)) || self.enable",message="timeout or age require enable=true"
+type CacheLock struct {
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	// Enable sets whether cache locking is enabled (proxy_cache_lock).
+	// When enabled, only one request at a time will be allowed to populate a new cache element according to the proxy_cache_key.
+	Enable bool `json:"enable,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[0-9]+[smhd]$`
+	// Timeout sets a timeout for proxy_cache_lock.
+	// When the time expires, the request will be passed to the proxied server, however, the response will not be cached.
+	Timeout string `json:"timeout,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[0-9]+[smhd]$`
+	// Age sets the maximum time a cache lock can be held (proxy_cache_lock_age).
+	// If the last request passed to the proxied server for populating a new cache element has not completed for the specified time, one more request may be passed.
+	Age string `json:"age,omitempty"`
+}
+
+// CacheConditions defines conditions for cache bypass and no-cache behavior.
+// These use NGINX variables to make dynamic caching decisions based on request characteristics.
+type CacheConditions struct {
+	// +kubebuilder:validation:Optional
+	// NoCache defines conditions under which the response will not be saved to a cache (proxy_no_cache).
+	// If at least one value of the string parameters is not empty and is not equal to "0" then the response will not be saved.
+	NoCache []string `json:"noCache,omitempty"`
+	// +kubebuilder:validation:Optional
+	// Bypass defines conditions under which the response will not be taken from a cache (proxy_cache_bypass).
+	// If at least one value of the string parameters is not empty and is not equal to "0" then the response will not be taken from the cache.
+	Bypass []string `json:"bypass,omitempty"`
+}
+
 // Cache defines a cache policy for proxy caching.
 // +kubebuilder:validation:XValidation:rule="!has(self.allowedCodes) || (has(self.allowedCodes) && has(self.time))",message="time is required when allowedCodes is specified"
 type Cache struct {
@@ -1019,9 +1100,9 @@ type Cache struct {
 	// Single lowercase letters are also allowed. Examples: "cache", "my_cache", "cache1".
 	CacheZoneName string `json:"cacheZoneName"`
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Pattern=`^[0-9]+[kmg]$`
+	// +kubebuilder:validation:Pattern=`^[0-9]+[kmgKMG]$`
 	// CacheZoneSize defines the size of the cache zone. Must be a number followed by a size unit:
-	// 'k' for kilobytes, 'm' for megabytes, or 'g' for gigabytes.
+	// 'k' or 'K' for kilobytes, 'm' or 'M' for megabytes, or 'g' or 'G' for gigabytes.
 	// Examples: "10m", "1g", "512k".
 	CacheZoneSize string `json:"cacheZoneSize"`
 	// +kubebuilder:validation:Optional
@@ -1069,4 +1150,60 @@ type Cache struct {
 	// Examples: "1:2", "2:2", "1:2:2".
 	// Invalid: "3:1", "1:3", "1:2:3".
 	Levels string `json:"levels,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[0-9]+[smhd]$`
+	// Inactive sets the time after which cached data that are not accessed get removed from the cache (inactive parameter).
+	// By default, inactive is set to 10 minutes.
+	Inactive string `json:"inactive,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	// UseTempPath controls whether temporary files and the cache are put on different file systems (use_temp_path parameter).
+	// If set to false, temporary files will be put directly in the cache directory (use_temp_path=off).
+	// Default: false (use_temp_path=off, which puts temp files directly in cache directory for better performance).
+	UseTempPath bool `json:"useTempPath,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[0-9]+[kmgKMG]$`
+	// MaxSize sets the maximum cache size (max_size parameter).
+	// When the size is exceeded, the cache manager removes the least recently used data.
+	MaxSize string `json:"maxSize,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[0-9]+[kmgKMG]$`
+	// MinFree sets the minimum amount of free space required on the file system with cache (min_free parameter).
+	// When there is not enough free space, the cache manager removes the least recently used data.
+	MinFree string `json:"minFree,omitempty"`
+	// +kubebuilder:validation:Optional
+	// Manager configures the cache manager process parameters (manager_files, manager_sleep, manager_threshold).
+	Manager *CacheManager `json:"manager,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MaxLength=1024
+	// +kubebuilder:validation:XValidation:rule="!self.contains('$(') && !self.contains('`') && !self.contains(';') && !self.contains('&&') && !self.contains('||')",message="cache key must not contain command execution patterns: $(, `, ;, &&, ||"
+	// CacheKey defines a key for caching (proxy_cache_key).
+	// By default, close to "$scheme$proxy_host$uri$is_args$args".
+	// Must not contain command execution patterns: $(, `, ;, &&, ||
+	CacheKey string `json:"cacheKey,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MaxItems=11
+	// CacheUseStale determines in which cases a stale cached response can be used (proxy_cache_use_stale).
+	// Valid parameters: error, timeout, invalid_header, updating, http_500, http_502, http_503, http_504, http_403, http_404, http_429, off.
+	CacheUseStale []string `json:"cacheUseStale,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	// CacheRevalidate enables revalidation of expired cache items using conditional requests (proxy_cache_revalidate).
+	// Uses "If-Modified-Since" and "If-None-Match" header fields.
+	CacheRevalidate bool `json:"cacheRevalidate,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	// CacheBackgroundUpdate allows starting a background subrequest to update an expired cache item (proxy_cache_background_update).
+	// A stale cached response is returned to the client while the cache is being updated.
+	CacheBackgroundUpdate bool `json:"cacheBackgroundUpdate,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Minimum=1
+	// CacheMinUses sets the number of requests after which the response will be cached (proxy_cache_min_uses).
+	CacheMinUses *int `json:"cacheMinUses,omitempty"`
+	// +kubebuilder:validation:Optional
+	// Lock configures cache locking to prevent multiple identical requests from populating the same cache element simultaneously.
+	Lock *CacheLock `json:"lock,omitempty"`
+	// +kubebuilder:validation:Optional
+	// Conditions defines when responses should not be cached or taken from cache.
+	Conditions *CacheConditions `json:"conditions,omitempty"`
 }

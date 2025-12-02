@@ -145,6 +145,17 @@ func GenerateEndpointsKey(
 	return fmt.Sprintf("%s/%s:%d", serviceNamespace, serviceName, port)
 }
 
+// ParseServiceReference returns the namespace and name from a service reference.
+func ParseServiceReference(serviceRef, defaultNamespace string) (namespace, serviceName string) {
+	if strings.Contains(serviceRef, "/") {
+		parts := strings.Split(serviceRef, "/")
+		if len(parts) == 2 {
+			return parts[0], parts[1]
+		}
+	}
+	return defaultNamespace, serviceRef
+}
+
 type upstreamNamer struct {
 	prefix    string
 	namespace string
@@ -292,6 +303,7 @@ type virtualServerConfigurator struct {
 	isIPV6Disabled             bool
 	DynamicSSLReloadEnabled    bool
 	StaticSSLPath              string
+	CABundlePath               string
 	DynamicWeightChangesReload bool
 	bundleValidator            bundleValidator
 	IngressControllerReplicas  int
@@ -342,6 +354,7 @@ func newVirtualServerConfigurator(
 		isIPV6Disabled:             staticParams.DisableIPV6,
 		DynamicSSLReloadEnabled:    staticParams.DynamicSSLReload,
 		StaticSSLPath:              staticParams.StaticSSLPath,
+		CABundlePath:               staticParams.DefaultCABundle,
 		DynamicWeightChangesReload: staticParams.DynamicWeightChangesReload,
 		bundleValidator:            bundleValidator,
 	}
@@ -353,7 +366,8 @@ func (vsc *virtualServerConfigurator) generateEndpointsForUpstream(
 	upstream conf_v1.Upstream,
 	virtualServerEx *VirtualServerEx,
 ) []string {
-	endpointsKey := GenerateEndpointsKey(namespace, upstream.Service, upstream.Subselector, upstream.Port)
+	serviceNamespace, serviceName := ParseServiceReference(upstream.Service, namespace)
+	endpointsKey := GenerateEndpointsKey(serviceNamespace, serviceName, upstream.Subselector, upstream.Port)
 	externalNameSvcKey := GenerateExternalNameSvcKey(namespace, upstream.Service)
 	endpoints := virtualServerEx.Endpoints[endpointsKey]
 	if !vsc.isPlus && len(endpoints) == 0 {
@@ -414,10 +428,11 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	tlsRedirectConfig := generateTLSRedirectConfig(vsEx.VirtualServer.Spec.TLS)
 
 	policyOpts := policyOptions{
-		tls:         sslConfig != nil,
-		zoneSync:    vsEx.ZoneSync,
-		secretRefs:  vsEx.SecretRefs,
-		apResources: apResources,
+		tls:             sslConfig != nil,
+		zoneSync:        vsEx.ZoneSync,
+		secretRefs:      vsEx.SecretRefs,
+		apResources:     apResources,
+		defaultCABundle: vsc.CABundlePath,
 	}
 
 	ownerDetails := policyOwnerDetails{
@@ -659,7 +674,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			upstreamName := virtualServerUpstreamNamer.GetNameForUpstreamFromAction(r.Action)
 			upstream := crUpstreams[upstreamName]
 
-			proxySSLName := generateProxySSLName(upstream.Service, vsEx.VirtualServer.Namespace)
+			serviceNamespace, serviceName := ParseServiceReference(upstream.Service, vsEx.VirtualServer.Namespace)
+			proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
 
 			loc, returnLoc := generateLocation(r.Path, upstreamName, upstream, r.Action, vsc.cfgParams, errorPages, false,
 				proxySSLName, r.Path, vsLocSnippets, vsc.enableSnippets, len(returnLocations), isVSR, "", "", vsc.warnings)
@@ -812,7 +828,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			} else {
 				upstreamName := upstreamNamer.GetNameForUpstreamFromAction(r.Action)
 				upstream := crUpstreams[upstreamName]
-				proxySSLName := generateProxySSLName(upstream.Service, vsr.Namespace)
+				serviceNamespace, serviceName := ParseServiceReference(upstream.Service, vsr.Namespace)
+				proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
 
 				loc, returnLoc := generateLocation(r.Path, upstreamName, upstream, r.Action, vsc.cfgParams, errorPages, false,
 					proxySSLName, r.Path, locSnippets, vsc.enableSnippets, len(returnLocations), isVSR, vsr.Name, vsr.Namespace, vsc.warnings)
@@ -896,6 +913,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			VSNamespace:               vsEx.VirtualServer.Namespace,
 			VSName:                    vsEx.VirtualServer.Name,
 			DisableIPV6:               vsc.isIPV6Disabled,
+			NGINXDebugLevel:           vsc.cfgParams.MainErrorLogLevel,
 		},
 		SpiffeCerts:             enabledInternalRoutes,
 		SpiffeClientCerts:       vsc.spiffeCerts && !enabledInternalRoutes,
@@ -1032,10 +1050,11 @@ type policyOwnerDetails struct {
 }
 
 type policyOptions struct {
-	tls         bool
-	zoneSync    bool
-	secretRefs  map[string]*secrets.SecretReference
-	apResources *appProtectResourcesForVS
+	tls             bool
+	zoneSync        bool
+	secretRefs      map[string]*secrets.SecretReference
+	apResources     *appProtectResourcesForVS
+	defaultCABundle string
 }
 
 type validationResults struct {
@@ -1188,6 +1207,44 @@ func (p *policiesCfg) addJWTAuthConfig(
 	} else if jwtAuth.JwksURI != "" {
 		uri, _ := url.Parse(jwtAuth.JwksURI)
 
+		// Handle SSL verification for JWKS
+		var trustedCertPath string
+		if jwtAuth.SSLVerify && jwtAuth.TrustedCertSecret != "" {
+			trustedCertSecretKey := fmt.Sprintf("%s/%s", polNamespace, jwtAuth.TrustedCertSecret)
+			trustedCertSecretRef := secretRefs[trustedCertSecretKey]
+
+			// Check if secret reference exists
+			if trustedCertSecretRef == nil {
+				res.addWarningf("JWT policy %s references a non-existent trusted cert secret %s", polKey, trustedCertSecretKey)
+				res.isError = true
+				return res
+			}
+
+			var secretType api_v1.SecretType
+			if trustedCertSecretRef.Secret != nil {
+				secretType = trustedCertSecretRef.Secret.Type
+			}
+			if secretType != "" && secretType != secrets.SecretTypeCA {
+				res.addWarningf("JWT policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, trustedCertSecretKey, secretType, secrets.SecretTypeCA)
+				res.isError = true
+				return res
+			} else if trustedCertSecretRef.Error != nil {
+				res.addWarningf("JWT policy %s references an invalid trusted cert secret %s: %v", polKey, trustedCertSecretKey, trustedCertSecretRef.Error)
+				res.isError = true
+				return res
+			}
+
+			caFields := strings.Fields(trustedCertSecretRef.Path)
+			if len(caFields) > 0 {
+				trustedCertPath = caFields[0]
+			}
+		}
+
+		sslVerifyDepth := 1
+		if jwtAuth.SSLVerifyDepth != nil {
+			sslVerifyDepth = *jwtAuth.SSLVerifyDepth
+		}
+
 		JwksURI := &version2.JwksURI{
 			JwksScheme:     uri.Scheme,
 			JwksHost:       uri.Hostname(),
@@ -1195,6 +1252,9 @@ func (p *policiesCfg) addJWTAuthConfig(
 			JwksPath:       uri.Path,
 			JwksSNIName:    jwtAuth.SNIName,
 			JwksSNIEnabled: jwtAuth.SNIEnabled,
+			SSLVerify:      jwtAuth.SSLVerify,
+			TrustedCert:    trustedCertPath,
+			SSLVerifyDepth: sslVerifyDepth,
 		}
 
 		p.JWTAuth.Auth = &version2.JWTAuth{
@@ -1374,9 +1434,10 @@ func (p *policiesCfg) addOIDCConfig(
 	oidc *conf_v1.OIDC,
 	polKey string,
 	polNamespace string,
-	secretRefs map[string]*secrets.SecretReference,
+	policyOpts policyOptions,
 	oidcPolCfg *oidcPolicyCfg,
 ) *validationResults {
+	secretRefs := policyOpts.secretRefs
 	res := newValidationResults()
 	if p.OIDC {
 		res.addWarningf(
@@ -1444,6 +1505,44 @@ func (p *policiesCfg) addOIDCConfig(
 			authExtraArgs = strings.Join(oidc.AuthExtraArgs, "&")
 		}
 
+		trustedCertPath := policyOpts.defaultCABundle
+		if oidc.SSLVerify && oidc.TrustedCertSecret != "" {
+			// Override default CA bundle if trusted cert secret is provided
+			trustedCertSecretKey := fmt.Sprintf("%s/%s", polNamespace, oidc.TrustedCertSecret)
+			trustedCertSecretRef := secretRefs[trustedCertSecretKey]
+
+			// Check if secret reference exists
+			if trustedCertSecretRef == nil {
+				res.addWarningf("OIDC policy %s references a non-existent trusted cert secret %s", polKey, trustedCertSecretKey)
+				res.isError = true
+				return res
+			}
+
+			var secretType api_v1.SecretType
+			if trustedCertSecretRef.Secret != nil {
+				secretType = trustedCertSecretRef.Secret.Type
+			}
+			if secretType != "" && secretType != secrets.SecretTypeCA {
+				res.addWarningf("OIDC policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, trustedCertSecretKey, secretType, secrets.SecretTypeCA)
+				res.isError = true
+				return res
+			} else if trustedCertSecretRef.Error != nil {
+				res.addWarningf("OIDC policy %s references an invalid trusted cert secret %s: %v", polKey, trustedCertSecretKey, trustedCertSecretRef.Error)
+				res.isError = true
+				return res
+			}
+
+			caFields := strings.Fields(trustedCertSecretRef.Path)
+			if len(caFields) > 0 {
+				trustedCertPath = caFields[0]
+			}
+		}
+
+		sslVerifyDepth := 1
+		if oidc.SSLVerifyDepth != nil {
+			sslVerifyDepth = *oidc.SSLVerifyDepth
+		}
+
 		oidcPolCfg.oidc = &version2.OIDC{
 			AuthEndpoint:          oidc.AuthEndpoint,
 			AuthExtraArgs:         authExtraArgs,
@@ -1458,6 +1557,9 @@ func (p *policiesCfg) addOIDCConfig(
 			ZoneSyncLeeway:        generateIntFromPointer(oidc.ZoneSyncLeeway, 200),
 			AccessTokenEnable:     oidc.AccessTokenEnable,
 			PKCEEnable:            oidc.PKCEEnable,
+			TLSVerify:             oidc.SSLVerify,
+			VerifyDepth:           sslVerifyDepth,
+			CAFile:                trustedCertPath,
 		}
 		oidcPolCfg.key = polKey
 	}
@@ -1755,7 +1857,7 @@ func (vsc *virtualServerConfigurator) generatePolicies(
 			case pol.Spec.EgressMTLS != nil:
 				res = config.addEgressMTLSConfig(pol.Spec.EgressMTLS, key, polNamespace, policyOpts.secretRefs)
 			case pol.Spec.OIDC != nil:
-				res = config.addOIDCConfig(pol.Spec.OIDC, key, polNamespace, policyOpts.secretRefs, vsc.oidcPolCfg)
+				res = config.addOIDCConfig(pol.Spec.OIDC, key, polNamespace, policyOpts, vsc.oidcPolCfg)
 			case pol.Spec.APIKey != nil:
 				res = config.addAPIKeyConfig(pol.Spec.APIKey, key, polNamespace, ownerDetails.vsNamespace,
 					ownerDetails.vsName, policyOpts.secretRefs)
@@ -1934,6 +2036,12 @@ func generateCacheConfig(cache *conf_v1.Cache, vsNamespace, vsName, ownerNamespa
 		uniqueZoneName = fmt.Sprintf("%s_%s_%s_%s_%s", vsNamespace, vsName, ownerNamespace, ownerName, cache.CacheZoneName)
 	}
 
+	// Set cache key with default if not provided
+	cacheKey := "$scheme$proxy_host$request_uri"
+	if cache.CacheKey != "" {
+		cacheKey = cache.CacheKey
+	}
+
 	cacheConfig := &version2.Cache{
 		ZoneName:              uniqueZoneName,
 		Time:                  cache.Time,
@@ -1943,6 +2051,35 @@ func generateCacheConfig(cache *conf_v1.Cache, vsNamespace, vsName, ownerNamespa
 		ZoneSize:              cache.CacheZoneSize,
 		OverrideUpstreamCache: cache.OverrideUpstreamCache,
 		Levels:                cache.Levels, // Pass Levels from Cache to CacheZone
+		Inactive:              cache.Inactive,
+		UseTempPath:           cache.UseTempPath,
+		MaxSize:               cache.MaxSize,
+		MinFree:               cache.MinFree,
+		CacheKey:              cacheKey,
+		CacheUseStale:         cache.CacheUseStale,
+		CacheRevalidate:       cache.CacheRevalidate,
+		CacheBackgroundUpdate: cache.CacheBackgroundUpdate,
+		CacheMinUses:          cache.CacheMinUses,
+	}
+
+	// Map lock fields
+	if cache.Lock != nil {
+		cacheConfig.CacheLock = cache.Lock.Enable
+		cacheConfig.CacheLockTimeout = cache.Lock.Timeout
+		cacheConfig.CacheLockAge = cache.Lock.Age
+	}
+
+	// Map manager fields
+	if cache.Manager != nil {
+		cacheConfig.ManagerFiles = cache.Manager.Files
+		cacheConfig.ManagerSleep = cache.Manager.Sleep
+		cacheConfig.ManagerThreshold = cache.Manager.Threshold
+	}
+
+	// Map conditions
+	if cache.Conditions != nil {
+		cacheConfig.NoCacheConditions = cache.Conditions.NoCache
+		cacheConfig.CacheBypassConditions = cache.Conditions.Bypass
 	}
 
 	// Convert allowed codes to proxy_cache_valid entries
@@ -1972,10 +2109,17 @@ func addCacheZone(cacheZones *[]version2.CacheZone, cache *version2.Cache) {
 	}
 
 	cacheZone := version2.CacheZone{
-		Name:   cache.ZoneName,
-		Size:   zoneSize,
-		Path:   fmt.Sprintf("/var/cache/nginx/%s", cache.ZoneName),
-		Levels: cache.Levels, // Pass Levels from Cache to CacheZone
+		Name:             cache.ZoneName,
+		Size:             zoneSize,
+		Path:             fmt.Sprintf("/var/cache/nginx/%s", cache.ZoneName),
+		Levels:           cache.Levels, // Pass Levels from Cache to CacheZone
+		Inactive:         cache.Inactive,
+		UseTempPath:      cache.UseTempPath,
+		MaxSize:          cache.MaxSize,
+		MinFree:          cache.MinFree,
+		ManagerFiles:     cache.ManagerFiles,
+		ManagerSleep:     cache.ManagerSleep,
+		ManagerThreshold: cache.ManagerThreshold,
 	}
 
 	// Check for duplicates
@@ -2493,8 +2637,10 @@ func generateLocation(path string, upstreamName string, upstream conf_v1.Upstrea
 
 	checkGrpcErrorPageCodes(errorPages, isGRPC(upstream.Type), upstream.Name, vscWarnings)
 
+	_, serviceName := ParseServiceReference(upstream.Service, "")
+
 	return generateLocationForProxying(path, upstreamName, upstream, cfgParams, errorPages.pages, internal,
-		errorPages.index, proxySSLName, action.Proxy, originalPath, locationSnippets, isVSR, vsrName, vsrNamespace), nil
+		errorPages.index, proxySSLName, action.Proxy, originalPath, locationSnippets, isVSR, vsrName, vsrNamespace, serviceName), nil
 }
 
 func generateProxySetHeaders(proxy *conf_v1.ActionProxy) []version2.Header {
@@ -2579,7 +2725,7 @@ func generateProxyAddHeaders(proxy *conf_v1.ActionProxy) []version2.AddHeader {
 
 func generateLocationForProxying(path string, upstreamName string, upstream conf_v1.Upstream,
 	cfgParams *ConfigParams, errorPages []conf_v1.ErrorPage, internal bool, errPageIndex int,
-	proxySSLName string, proxy *conf_v1.ActionProxy, originalPath string, locationSnippets []string, isVSR bool, vsrName string, vsrNamespace string,
+	proxySSLName string, proxy *conf_v1.ActionProxy, originalPath string, locationSnippets []string, isVSR bool, vsrName string, vsrNamespace string, serviceName string,
 ) version2.Location {
 	return version2.Location{
 		Path:                     generatePath(path),
@@ -2589,6 +2735,7 @@ func generateLocationForProxying(path string, upstreamName string, upstream conf
 		ProxyReadTimeout:         generateTimeWithDefault(upstream.ProxyReadTimeout, cfgParams.ProxyReadTimeout),
 		ProxySendTimeout:         generateTimeWithDefault(upstream.ProxySendTimeout, cfgParams.ProxySendTimeout),
 		ClientMaxBodySize:        generateString(upstream.ClientMaxBodySize, cfgParams.ClientMaxBodySize),
+		ClientBodyBufferSize:     generateString(upstream.ClientBodyBufferSize, cfgParams.ClientBodyBufferSize),
 		ProxyMaxTempFileSize:     cfgParams.ProxyMaxTempFileSize,
 		ProxyBuffering:           generateBool(upstream.ProxyBuffering, cfgParams.ProxyBuffering),
 		ProxyBuffers:             generateBuffers(upstream.ProxyBuffers, cfgParams.ProxyBuffers),
@@ -2610,7 +2757,7 @@ func generateLocationForProxying(path string, upstreamName string, upstream conf
 		HasKeepalive:             upstreamHasKeepalive(upstream, cfgParams),
 		ErrorPages:               generateErrorPages(errPageIndex, errorPages),
 		ProxySSLName:             proxySSLName,
-		ServiceName:              upstream.Service,
+		ServiceName:              serviceName,
 		IsVSR:                    isVSR,
 		VSRName:                  vsrName,
 		VSRNamespace:             vsrNamespace,
@@ -2781,7 +2928,8 @@ func generateSplits(
 		path := fmt.Sprintf("/%vsplits_%d_split_%d", internalLocationPrefix, scIndex, i)
 		upstreamName := upstreamNamer.GetNameForUpstreamFromAction(s.Action)
 		upstream := crUpstreams[upstreamName]
-		proxySSLName := generateProxySSLName(upstream.Service, upstreamNamer.namespace)
+		serviceNamespace, serviceName := ParseServiceReference(upstream.Service, upstreamNamer.namespace)
+		proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
 		newRetLocIndex := retLocIndex + len(returnLocations)
 		loc, returnLoc := generateLocation(path, upstreamName, upstream, s.Action, cfgParams, errorPages, true,
 			proxySSLName, originalPath, locSnippets, enableSnippets, newRetLocIndex, isVSR, vsrName, vsrNamespace, vscWarnings)
@@ -3014,7 +3162,8 @@ func generateMatchesConfig(route conf_v1.Route, upstreamNamer *upstreamNamer, cr
 			path := fmt.Sprintf("/%vmatches_%d_match_%d", internalLocationPrefix, index, i)
 			upstreamName := upstreamNamer.GetNameForUpstreamFromAction(m.Action)
 			upstream := crUpstreams[upstreamName]
-			proxySSLName := generateProxySSLName(upstream.Service, upstreamNamer.namespace)
+			serviceNamespace, serviceName := ParseServiceReference(upstream.Service, upstreamNamer.namespace)
+			proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
 			newRetLocIndex := retLocIndex + len(returnLocations)
 			loc, returnLoc := generateLocation(path, upstreamName, upstream, m.Action, cfgParams, errorPages, true,
 				proxySSLName, route.Path, locSnippets, enableSnippets, newRetLocIndex, isVSR, vsrName, vsrNamespace, vscWarnings)
@@ -3057,7 +3206,8 @@ func generateMatchesConfig(route conf_v1.Route, upstreamNamer *upstreamNamer, cr
 		path := fmt.Sprintf("/%vmatches_%d_default", internalLocationPrefix, index)
 		upstreamName := upstreamNamer.GetNameForUpstreamFromAction(route.Action)
 		upstream := crUpstreams[upstreamName]
-		proxySSLName := generateProxySSLName(upstream.Service, upstreamNamer.namespace)
+		serviceNamespace, serviceName := ParseServiceReference(upstream.Service, upstreamNamer.namespace)
+		proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
 		newRetLocIndex := retLocIndex + len(returnLocations)
 		loc, returnLoc := generateLocation(path, upstreamName, upstream, route.Action, cfgParams, errorPages, true,
 			proxySSLName, route.Path, locSnippets, enableSnippets, newRetLocIndex, isVSR, vsrName, vsrNamespace, vscWarnings)
@@ -3246,9 +3396,9 @@ func createUpstreamsForPlus(
 		}
 
 		upstreamName := upstreamNamer.GetNameForUpstream(u.Name)
-		upstreamNamespace := virtualServerEx.VirtualServer.Namespace
+		upstreamNamespace, upstreamServiceName := ParseServiceReference(u.Service, virtualServerEx.VirtualServer.Namespace)
 
-		endpointsKey := GenerateEndpointsKey(upstreamNamespace, u.Service, u.Subselector, u.Port)
+		endpointsKey := GenerateEndpointsKey(upstreamNamespace, upstreamServiceName, u.Subselector, u.Port)
 		endpoints := virtualServerEx.Endpoints[endpointsKey]
 
 		backupEndpoints := []string{}
@@ -3270,15 +3420,15 @@ func createUpstreamsForPlus(
 			}
 
 			upstreamName := upstreamNamer.GetNameForUpstream(u.Name)
-			upstreamNamespace := vsr.Namespace
+			serviceNamespace, serviceName := ParseServiceReference(u.Service, vsr.Namespace)
 
-			endpointsKey := GenerateEndpointsKey(upstreamNamespace, u.Service, u.Subselector, u.Port)
+			endpointsKey := GenerateEndpointsKey(serviceNamespace, serviceName, u.Subselector, u.Port)
 			endpoints := virtualServerEx.Endpoints[endpointsKey]
 
 			// BackupService
 			backupEndpoints := []string{}
 			if u.Backup != "" {
-				backupEndpointsKey := GenerateEndpointsKey(upstreamNamespace, u.Backup, u.Subselector, *u.BackupPort)
+				backupEndpointsKey := GenerateEndpointsKey(vsr.Namespace, u.Backup, u.Subselector, *u.BackupPort)
 				backupEndpoints = virtualServerEx.Endpoints[backupEndpointsKey]
 			}
 			ups := vsc.generateUpstream(vsr, upstreamName, u, isExternalNameSvc, endpoints, backupEndpoints)

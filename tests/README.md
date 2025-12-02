@@ -98,7 +98,6 @@ The tests will use the NGINX Ingress Controller with the default `nginx/nginx-in
 
 The test suite includes several additional make targets for cluster management and cleanup:
 
-
 - `make create-mini-cluster` - Create a Minikube K8S cluster
 - `make delete-mini-cluster` - Delete a Minikube K8S cluster  
 - `make run-tests-in-minikube` - Run tests in Minikube
@@ -121,8 +120,8 @@ The table below shows various configuration options for the tests. If you use Py
 | `--image-pull-policy` | `PULL_POLICY` | The pull policy of the Ingress Controller image. | `IfNotPresent` |
 | `--deployment-type` | `DEPLOYMENT_TYPE` | The type of the IC deployment: deployment, daemon-set or stateful-set. | `deployment` |
 | `--ic-type` | `IC_TYPE` | The type of the Ingress Controller: nginx-ingress or nginx-plus-ingress. | `nginx-ingress` |
-| `--service` | `SERVICE`, not supported by `run-tests-in-kind` target.  | The type of the Ingress Controller service: nodeport or loadbalancer. | `nodeport` |
-| `--node-ip` | `NODE_IP`, not supported by `run-tests-in-kind` target.  | The public IP of a cluster node. Not required if you use the loadbalancer service (see --service argument). | `""` |
+| `--service` | `SERVICE`, not supported by `run-tests-in-kind` target. | The type of the Ingress Controller service: nodeport or loadbalancer. | `nodeport` |
+| `--node-ip` | `NODE_IP`, not supported by `run-tests-in-kind` target. | The public IP of a cluster node. Not required if you use the loadbalancer service (see --service argument). | `""` |
 | `--kubeconfig` | `N/A` | An absolute path to a kubeconfig file. | `~/.kube/config` or the value of the `KUBECONFIG` env variable |
 | `N/A` | `KUBE_CONFIG_FOLDER`, not supported by `run-tests-in-kind` target. | A path to a folder with a kubeconfig file. | `~/.kube/` |
 | `--show-ic-logs` | `SHOW_IC_LOGS` | A flag to control accumulating IC logs in stdout. | `no` |

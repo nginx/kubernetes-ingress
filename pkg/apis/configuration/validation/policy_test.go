@@ -8,6 +8,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
+func intPtr(n int) *int {
+	return &n
+}
+
 func TestValidatePolicy_JWTIsNotValidOn(t *testing.T) {
 	t.Parallel()
 
@@ -188,6 +192,62 @@ func TestValidatePolicy_JWTIsNotValidOn(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "SSL verification enabled but no trusted cert secret",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:     "My Product API",
+						JwksURI:   "https://myjwksuri.com",
+						KeyCache:  "1h",
+						SSLVerify: true,
+					},
+				},
+			},
+		},
+		{
+			name: "Trusted cert secret provided but SSL verification disabled",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:             "My Product API",
+						JwksURI:           "https://myjwksuri.com",
+						KeyCache:          "1h",
+						SSLVerify:         false,
+						TrustedCertSecret: "my-ca-secret",
+					},
+				},
+			},
+		},
+		{
+			name: "Invalid SSL verify depth",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:             "My Product API",
+						JwksURI:           "https://myjwksuri.com",
+						KeyCache:          "1h",
+						SSLVerify:         true,
+						TrustedCertSecret: "my-ca-secret",
+						SSLVerifyDepth:    intPtr(0),
+					},
+				},
+			},
+		},
+		{
+			name: "Invalid trusted cert secret name with special characters",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:             "My Product API",
+						JwksURI:           "https://myjwksuri.com",
+						KeyCache:          "1h",
+						SSLVerify:         true,
+						TrustedCertSecret: "my-ca-secret.invalid!",
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range tt {
@@ -280,6 +340,51 @@ func TestValidatePolicy_IsValidOnJWTPolicy(t *testing.T) {
 						JwksURI:    "https://login.mydomain.com/keys",
 						SNIEnabled: true,
 						SNIName:    "https://example.org",
+					},
+				},
+			},
+		},
+		{
+			name: "with SSL verification and trusted cert secret",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:             "My Product API",
+						KeyCache:          "1h",
+						JwksURI:           "https://login.mydomain.com/keys",
+						SSLVerify:         true,
+						TrustedCertSecret: "my-ca-secret",
+					},
+				},
+			},
+		},
+		{
+			name: "with SSL verification and custom verify depth",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:             "My Product API",
+						KeyCache:          "1h",
+						JwksURI:           "https://login.mydomain.com/keys",
+						SSLVerify:         true,
+						TrustedCertSecret: "my-ca-secret",
+						SSLVerifyDepth:    intPtr(2),
+					},
+				},
+			},
+		},
+		{
+			name: "with SSL verification and SNI",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:             "My Product API",
+						KeyCache:          "1h",
+						JwksURI:           "https://login.mydomain.com/keys",
+						SSLVerify:         true,
+						TrustedCertSecret: "my-ca-secret",
+						SNIEnabled:        true,
+						SNIName:           "login.mydomain.com",
 					},
 				},
 			},
@@ -2538,6 +2643,151 @@ func TestValidatePolicy_IsNotValidCachePolicy(t *testing.T) {
 			},
 			isPlus: false,
 		},
+		{
+			name: "cache policy with invalid minUses (zero)",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "minuses",
+						CacheZoneSize: "10m",
+						CacheMinUses:  intPtr(0),
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with invalid manager files (zero)",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "managerbad",
+						CacheZoneSize: "10m",
+						Manager: &v1.CacheManager{
+							Files:     intPtr(0),
+							Sleep:     "100ms",
+							Threshold: "500ms",
+						},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with invalid manager sleep format",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "managersleep",
+						CacheZoneSize: "10m",
+						Manager: &v1.CacheManager{
+							Files:     intPtr(100),
+							Sleep:     "invalid",
+							Threshold: "500ms",
+						},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with invalid manager threshold format",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "managerthreshold",
+						CacheZoneSize: "10m",
+						Manager: &v1.CacheManager{
+							Files:     intPtr(100),
+							Sleep:     "100ms",
+							Threshold: "bad-time",
+						},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with invalid lock timeout format",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "locktimeout",
+						CacheZoneSize: "10m",
+						Lock: &v1.CacheLock{
+							Enable:  true,
+							Timeout: "invalid-timeout",
+						},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with invalid inactive format",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "inactive",
+						CacheZoneSize: "10m",
+						Inactive:      "bad-duration",
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with invalid max size format",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "maxsize",
+						CacheZoneSize: "10m",
+						MaxSize:       "invalid-size",
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with invalid cacheUseStale parameter",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "invalidstaleparameter",
+						CacheZoneSize: "10m",
+						CacheUseStale: []string{"error", "invalid_param", "timeout"},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with duplicate cacheUseStale parameters",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "duplicatestale",
+						CacheZoneSize: "10m",
+						CacheUseStale: []string{"error", "timeout", "error"},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with invalid cache key ending with $",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "invalidkey",
+						CacheZoneSize: "10m",
+						CacheKey:      "$scheme$host$request_uri$", // Invalid: ends with $
+					},
+				},
+			},
+			isPlus: false,
+		},
 	}
 
 	for _, tc := range tt {
@@ -2662,6 +2912,181 @@ func TestValidatePolicy_IsValidCachePolicy(t *testing.T) {
 						CacheZoneName: "emptycode",
 						CacheZoneSize: "10m",
 						AllowedCodes:  []intstr.IntOrString{},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with extended cache key configuration",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "extended",
+						CacheZoneSize: "20m",
+						CacheKey:      "${scheme}${host}${request_uri}${args}",
+						CacheMinUses:  intPtr(5),
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with full manager configuration",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "managercache",
+						CacheZoneSize: "30m",
+						Manager: &v1.CacheManager{
+							Files:     intPtr(200),
+							Sleep:     "100ms",
+							Threshold: "500ms",
+						},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with lock configuration",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "lockcache",
+						CacheZoneSize: "15m",
+						Lock: &v1.CacheLock{
+							Enable:  true,
+							Timeout: "30s",
+						},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with conditions configuration",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "conditioncache",
+						CacheZoneSize: "25m",
+						Conditions: &v1.CacheConditions{
+							NoCache: []string{"$cookie_nocache", "$arg_nocache"},
+							Bypass:  []string{"$http_pragma", "$http_authorization"},
+						},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with all extended fields",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "fullextended",
+						CacheZoneSize: "100m",
+						CacheKey:      "${scheme}${host}${request_uri}",
+						CacheMinUses:  intPtr(3),
+						UseTempPath:   false,
+						MaxSize:       "2g",
+						Inactive:      "7d",
+						Manager: &v1.CacheManager{
+							Files:     intPtr(500),
+							Sleep:     "200ms",
+							Threshold: "1s",
+						},
+						Lock: &v1.CacheLock{
+							Enable:  true,
+							Timeout: "60s",
+						},
+						Conditions: &v1.CacheConditions{
+							NoCache: []string{"$cookie_admin"},
+							Bypass:  []string{"$http_cache_control"},
+						},
+						CacheBackgroundUpdate: true,
+						CacheRevalidate:       true,
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with valid cacheUseStale parameters",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "validstale",
+						CacheZoneSize: "10m",
+						CacheUseStale: []string{"error", "timeout", "http_502"},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with updating parameter (cache specific)",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "staleupdate",
+						CacheZoneSize: "10m",
+						CacheUseStale: []string{"error", "timeout", "updating"},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with all valid cacheUseStale parameters",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "stallall",
+						CacheZoneSize: "10m",
+						CacheUseStale: []string{"error", "timeout", "invalid_header", "updating", "http_500", "http_502", "http_503", "http_504"},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with empty cacheUseStale (should be valid)",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "emptystale",
+						CacheZoneSize: "10m",
+						CacheUseStale: []string{},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with unbraced cache key variables",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "unbraced",
+						CacheZoneSize: "10m",
+						CacheKey:      "$scheme$host$request_uri", // Test unbraced NGINX variable format
+						Time:          "15m",
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with mixed braced and unbraced cache key variables",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "mixed",
+						CacheZoneSize: "10m",
+						CacheKey:      "$scheme${host}$request_uri", // Test mixed format
+						Time:          "20m",
 					},
 				},
 			},

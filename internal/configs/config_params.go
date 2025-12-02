@@ -12,6 +12,7 @@ import (
 type ConfigParams struct {
 	Context                                context.Context
 	ClientMaxBodySize                      string
+	ClientBodyBufferSize                   string
 	DefaultServerAccessLogOff              bool
 	DefaultServerReturn                    string
 	FailTimeout                            string
@@ -52,6 +53,7 @@ type ConfigParams struct {
 	MainWorkerProcesses                    string
 	MainWorkerRlimitNofile                 string
 	MainWorkerShutdownTimeout              string
+	MainClientBodyBufferSize               string
 	MaxConns                               int
 	MaxFails                               int
 	AppProtectEnable                       string
@@ -68,6 +70,7 @@ type ConfigParams struct {
 	MainAppProtectDosLogFormat             []string
 	MainAppProtectDosLogFormatEscaping     string
 	MainAppProtectDosArbFqdn               string
+	OIDC                                   OIDC
 	ProxyBuffering                         bool
 	ProxyBuffers                           string
 	ProxyBufferSize                        string
@@ -87,6 +90,8 @@ type ConfigParams struct {
 	ResolverValid                          string
 	ServerSnippets                         []string
 	ServerTokens                           string
+	ServerSSLCiphers                       string
+	ServerSSLPreferServerCiphers           bool
 	SlowStart                              string
 	SSLRedirect                            bool
 	UpstreamZoneSize                       string
@@ -166,6 +171,7 @@ type StaticConfigParams struct {
 	IsDirectiveAutoadjustEnabled   bool
 	NginxVersion                   nginx.Version
 	AppProtectBundlePath           string
+	DefaultCABundle                string
 }
 
 // GlobalConfigParams holds global configuration parameters. For now, it only holds listeners.
@@ -188,6 +194,15 @@ type ZoneSync struct {
 	ResolverAddresses []string
 	ResolverValid     string
 	ResolverIPV6      *bool
+}
+
+// OIDC holds OIDC configuration parameters.
+type OIDC struct {
+	PKCETimeout    string
+	IDTokenTimeout string
+	AccessTimeout  string
+	RefreshTimeout string
+	SIDSTimeout    string
 }
 
 // MGMTSecrets holds mgmt block secret names
@@ -256,6 +271,13 @@ func NewDefaultConfigParams(ctx context.Context, isPlus bool) *ConfigParams {
 		LimitReqZoneSize:              "10m",
 		LimitReqLogLevel:              "error",
 		LimitReqRejectCode:            429,
+		OIDC: OIDC{
+			PKCETimeout:    "90s",
+			IDTokenTimeout: "1h",
+			AccessTimeout:  "1h",
+			RefreshTimeout: "8h",
+			SIDSTimeout:    "8h",
+		},
 	}
 }
 

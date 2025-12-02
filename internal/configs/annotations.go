@@ -18,6 +18,15 @@ const BasicAuthSecretAnnotation = "nginx.org/basic-auth-secret" // #nosec G101
 // PathRegexAnnotation is the annotation where the regex location (path) modifier is specified.
 const PathRegexAnnotation = "nginx.org/path-regex"
 
+// RewriteTargetAnnotation is the annotation where the regex-based rewrite target is specified.
+const RewriteTargetAnnotation = "nginx.org/rewrite-target"
+
+// SSLCiphersAnnotation is the annotation where SSL ciphers are specified.
+const SSLCiphersAnnotation = "nginx.org/ssl-ciphers"
+
+// SSLPreferServerCiphersAnnotation is the annotation where SSL prefer server ciphers is specified.
+const SSLPreferServerCiphersAnnotation = "nginx.org/ssl-prefer-server-ciphers"
+
 // UseClusterIPAnnotation is the annotation where the use-cluster-ip boolean is specified.
 const UseClusterIPAnnotation = "nginx.org/use-cluster-ip"
 
@@ -60,6 +69,8 @@ var minionDenylist = map[string]bool{
 	"nginx.org/listen-ports":                            true,
 	"nginx.org/listen-ports-ssl":                        true,
 	"nginx.org/server-snippets":                         true,
+	"nginx.org/ssl-ciphers":                             true,
+	"nginx.org/ssl-prefer-server-ciphers":               true,
 	"appprotect.f5.com/app_protect_enable":              true,
 	"appprotect.f5.com/app_protect_policy":              true,
 	"appprotect.f5.com/app_protect_security_log_enable": true,
@@ -236,6 +247,14 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		cfgParams.ClientMaxBodySize = clientMaxBodySize
 	}
 
+	if clientBodyBufferSize, exists := ingEx.Ingress.Annotations["nginx.org/client-body-buffer-size"]; exists {
+		size, err := ParseSize(clientBodyBufferSize)
+		if err != nil {
+			nl.Errorf(l, "Ingress %s/%s: Invalid value nginx.org/client-body-buffer-size: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), clientBodyBufferSize, err)
+		}
+		cfgParams.ClientBodyBufferSize = size
+	}
+
 	if redirectToHTTPS, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/redirect-to-https", ingEx.Ingress); exists {
 		if err != nil {
 			nl.Error(l, err)
@@ -249,6 +268,18 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 			nl.Error(l, err)
 		} else {
 			cfgParams.SSLRedirect = sslRedirect
+		}
+	}
+
+	if sslCiphers, exists := ingEx.Ingress.Annotations[SSLCiphersAnnotation]; exists {
+		cfgParams.ServerSSLCiphers = sslCiphers
+	}
+
+	if sslPreferServerCiphers, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, SSLPreferServerCiphersAnnotation, ingEx.Ingress); exists {
+		if err != nil {
+			nl.Error(l, err)
+		} else {
+			cfgParams.ServerSSLPreferServerCiphers = sslPreferServerCiphers
 		}
 	}
 
@@ -568,6 +599,26 @@ func getRewrites(ctx context.Context, ingEx *IngressEx) map[string]string {
 		return rewrites
 	}
 	return nil
+}
+
+func getRewriteTarget(ctx context.Context, ingEx *IngressEx) (string, Warnings) {
+	l := nl.LoggerFromContext(ctx)
+	warnings := newWarnings()
+
+	// Check for mutual exclusivity
+	if _, hasRewrites := ingEx.Ingress.Annotations["nginx.org/rewrites"]; hasRewrites {
+		if _, hasRewriteTarget := ingEx.Ingress.Annotations[RewriteTargetAnnotation]; hasRewriteTarget {
+			warningMsg := "nginx.org/rewrites and nginx.org/rewrite-target annotations are mutually exclusive; nginx.org/rewrites will take precedence"
+			nl.Errorf(l, "Ingress %s/%s: %s", ingEx.Ingress.Namespace, ingEx.Ingress.Name, warningMsg)
+			warnings.AddWarning(ingEx.Ingress, warningMsg)
+			return "", warnings
+		}
+	}
+
+	if value, exists := ingEx.Ingress.Annotations[RewriteTargetAnnotation]; exists {
+		return value, warnings
+	}
+	return "", warnings
 }
 
 func getSSLServices(ingEx *IngressEx) map[string]bool {

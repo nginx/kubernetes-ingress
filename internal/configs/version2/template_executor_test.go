@@ -95,7 +95,7 @@ func TestTemplateExecutorUsesOriginalTStemplate(t *testing.T) {
 
 func newTestTemplateExecutor(t *testing.T) *TemplateExecutor {
 	t.Helper()
-	te, err := NewTemplateExecutor("nginx-plus.virtualserver.tmpl", "nginx-plus.transportserver.tmpl")
+	te, err := NewTemplateExecutor("nginx-plus.virtualserver.tmpl", "nginx-plus.transportserver.tmpl", "oidc.tmpl")
 	if err != nil {
 		t.Fatal(err)
 	}

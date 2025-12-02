@@ -12,6 +12,7 @@ import (
 	validation2 "github.com/nginx/kubernetes-ingress/internal/validation"
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
@@ -246,6 +247,14 @@ func validateJWT(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
 				allErrs = append(allErrs, field.Invalid(fieldPath.Child("sniServerName"), jwt.SNIName, "sniServerName is not a valid URI"))
 			}
 		}
+
+		if jwt.TrustedCertSecret != "" {
+			allErrs = append(allErrs, validateSecretName(jwt.TrustedCertSecret, fieldPath.Child("trustedCertSecret"))...)
+			// If trustedCertSecret is set but sslVerify is false, warn user
+			if !jwt.SSLVerify {
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("sslVerify"), jwt.SSLVerify, "sslVerify should be enabled when trustedCertSecret is specified"))
+			}
+		}
 	}
 	return allErrs
 }
@@ -430,7 +439,85 @@ func validateCache(cache *v1.Cache, fieldPath *field.Path, isPlus bool) field.Er
 
 	allErrs = append(allErrs, validateCacheAllowedCodes(cache, fieldPath)...)
 
+	// Validate NGINX Plus features
 	allErrs = append(allErrs, validateCachePlusFeatures(cache, fieldPath, isPlus)...)
+
+	// Validate time fields
+	if cache.Inactive != "" {
+		allErrs = append(allErrs, validateTime(cache.Inactive, fieldPath.Child("inactive"))...)
+	}
+
+	// Validate size fields
+	if cache.MaxSize != "" {
+		allErrs = append(allErrs, validateOffset(cache.MaxSize, fieldPath.Child("maxSize"))...)
+	}
+	if cache.MinFree != "" {
+		allErrs = append(allErrs, validateOffset(cache.MinFree, fieldPath.Child("minFree"))...)
+	}
+
+	// Validate manager fields
+	if cache.Manager != nil {
+		managerPath := fieldPath.Child("manager")
+		if cache.Manager.Files != nil && *cache.Manager.Files <= 0 {
+			allErrs = append(allErrs, field.Invalid(managerPath.Child("files"), *cache.Manager.Files, "must be a positive integer"))
+		}
+		if cache.Manager.Sleep != "" {
+			allErrs = append(allErrs, validateTime(cache.Manager.Sleep, managerPath.Child("sleep"))...)
+		}
+		if cache.Manager.Threshold != "" {
+			allErrs = append(allErrs, validateTime(cache.Manager.Threshold, managerPath.Child("threshold"))...)
+		}
+	}
+
+	// Validate cache min uses
+	if cache.CacheMinUses != nil && *cache.CacheMinUses <= 0 {
+		allErrs = append(allErrs, field.Invalid(fieldPath.Child("cacheMinUses"), *cache.CacheMinUses, "must be a positive integer"))
+	}
+
+	// Validate lock fields
+	if cache.Lock != nil {
+		lockPath := fieldPath.Child("lock")
+		if cache.Lock.Timeout != "" {
+			allErrs = append(allErrs, validateTime(cache.Lock.Timeout, lockPath.Child("timeout"))...)
+		}
+		if cache.Lock.Age != "" {
+			allErrs = append(allErrs, validateTime(cache.Lock.Age, lockPath.Child("age"))...)
+		}
+	}
+
+	// Validate cache key
+	if cache.CacheKey != "" {
+		if err := ValidateEscapedString(cache.CacheKey); err != nil {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("cacheKey"), cache.CacheKey, err.Error()))
+		}
+		// Cache keys support both ${var} and $var NGINX syntax, so we skip variable braces validation
+		// but still validate basic syntax rules like not ending with $
+		if strings.HasSuffix(cache.CacheKey, "$") {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("cacheKey"), cache.CacheKey, "must not end with $"))
+		}
+	}
+
+	// Validate conditions
+	if cache.Conditions != nil {
+		conditionsPath := fieldPath.Child("conditions")
+		for i, condition := range cache.Conditions.NoCache {
+			if condition != "" {
+				if err := ValidateEscapedString(condition); err != nil {
+					allErrs = append(allErrs, field.Invalid(conditionsPath.Child("noCache").Index(i), condition, err.Error()))
+				}
+			}
+		}
+		for i, condition := range cache.Conditions.Bypass {
+			if condition != "" {
+				if err := ValidateEscapedString(condition); err != nil {
+					allErrs = append(allErrs, field.Invalid(conditionsPath.Child("bypass").Index(i), condition, err.Error()))
+				}
+			}
+		}
+	}
+
+	// Validate use stale
+	allErrs = append(allErrs, validateCacheUseStale(cache, fieldPath)...)
 
 	return allErrs
 }
@@ -501,6 +588,30 @@ func validateCachePlusFeatures(cache *v1.Cache, fieldPath *field.Path, isPlus bo
 		}
 	}
 
+	return allErrs
+}
+
+// validateCacheUseStale validates the cacheUseStale field values
+// The directive's parameters match the parameters of the proxy_next_upstream directive plus "updating"
+func validateCacheUseStale(cache *v1.Cache, fieldPath *field.Path) field.ErrorList {
+	if len(cache.CacheUseStale) == 0 {
+		return nil
+	}
+
+	allErrs := field.ErrorList{}
+	allParams := sets.Set[string]{}
+
+	for _, para := range cache.CacheUseStale {
+		// Check if parameter is valid (either from validNextUpstreamParams or "updating" which is specific to cache)
+		if !validNextUpstreamParams[para] && para != "updating" {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("cacheUseStale"), para, "not a valid parameter"))
+		}
+		if allParams.Has(para) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("cacheUseStale"), para, "can not have duplicate parameters"))
+		} else {
+			allParams.Insert(para)
+		}
+	}
 	return allErrs
 }
 
