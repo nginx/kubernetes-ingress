@@ -31,15 +31,15 @@ type secretsTypes struct {
 	Jwks      []jwkSecret      `json:"jwks,omitempty"`
 }
 
-var secretsTypesData secretsTypes
-
 // nolint:gocyclo
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	var err error
+	var secretsTypesData secretsTypes
 
 	cleanPtr := flag.Bool("clean", false, "only clean the generated files")
 	secretsPathPtr := flag.String("secrets-path", "../secrets.json", "path to the secrets.json file")
+	gitignorePtr := flag.Bool("gitignore", false, "generate gitignore file")
 	flag.Parse()
 
 	rawSecretsData, err := os.ReadFile(*secretsPathPtr)
@@ -68,7 +68,7 @@ func main() {
 		log.Fatalf(logger, "generateMTLSBundles: %v", err)
 	}
 
-	filenames, err = generateHtpasswdFiles(logger, secretsTypesData.Htpasswds, filenames, cleanPtr)
+	_, err = generateHtpasswdFiles(logger, secretsTypesData.Htpasswds, filenames, cleanPtr)
 	if err != nil {
 		log.Fatalf(logger, "generateHtpasswdFiles: %v", err)
 	}
@@ -76,6 +76,11 @@ func main() {
 	_, err = generateJwksFiles(logger, secretsTypesData.Jwks, filenames, cleanPtr)
 	if err != nil {
 		log.Fatalf(logger, "generateJwksFiles: %v", err)
+	}
+
+	err = generateGitignore(secretsTypesData, gitignorePtr)
+	if err != nil {
+		log.Fatalf(logger, "generateGitignore: %v", err)
 	}
 }
 

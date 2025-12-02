@@ -22,7 +22,7 @@ import (
 // fileName     - every secret needs to have an actual file on the disk. This is going to be the name of the file that's placed in the ./common-secrets directory
 // symlinks     - a slice of paths that will symlink to the actual file. These paths are relative to the project root. For example: []string{"examples/custom-resources/oidc/tls-secret.yaml"}
 // valid        - whether the generated kubernetes secret file should be valid. An invalid secret will not have the data["tls.key"] property set in the yaml file.
-// templateData - has information about issuer, subject, common name (main domain), and dnsNames (subject alternate names).
+// TemplateData - has information about issuer, subject, common name (main domain), and dnsNames (subject alternate names).
 // secretType   - if left empty, it will be the default v1.SecretTypeTLS value. The type is "k8s.io/api/core/v1".SecretType, which is an alias for strings.
 // usedIn       - not used in the generation, it's only so we can keep track on which py tests used the specific certs
 type yamlSecret struct {
@@ -31,29 +31,29 @@ type yamlSecret struct {
 	FileName     string        `json:"filename"`
 	Symlinks     []string      `json:"symlinks,omitempty"`
 	Valid        bool          `json:"valid,omitempty"`
-	TemplateData templateData  `json:"templateData"`
+	TemplateData TemplateData  `json:"TemplateData"`
 	SecretType   v1.SecretType `json:"secretType,omitempty"`
 	UsedIn       []string      `json:"usedIn,omitempty"`
 }
 
-// templateData is a subset of the x509.Certificate info: it pulls in some of
+// TemplateData is a subset of the x509.Certificate info: it pulls in some of
 // the Issuer, Subject, and DNSNames properties from that struct. Motivation for
 // this is to provide a complete but limited struct we need to fill out for
 // every tls certificate we want to use for testing or examples.
 //
 // Making decisions on what data to leave out of the x509.Certificate struct is
 // therefore no longer a concern.
-type templateData struct {
-	country            []string
-	organization       []string
-	organizationalUnit []string
-	locality           []string
-	province           []string
-	commonName         string
-	dnsNames           []string
-	emailAddress       string
-	ca                 bool
-	client             bool
+type TemplateData struct {
+	Country            []string `json:"country,omitempty"`
+	Organization       []string `json:"organization,omitempty"`
+	OrganizationalUnit []string `json:"organizationalUnit,omitempty"`
+	Locality           []string `json:"locality,omitempty"`
+	Province           []string `json:"province,omitempty"`
+	CommonName         string   `json:"commonName,omitempty"`
+	DNSNames           []string `json:"dnsNames,omitempty"`
+	EmailAddress       string   `json:"emailAddress,omitempty"`
+	CA                 bool     `json:"ca,omitempty"`
+	Client             bool     `json:"client,omitempty"`
 }
 
 // JITTLSKey is a Just In Time TLS key representation. The only two parts that
@@ -101,7 +101,7 @@ func generateTLSKeyPair(template, parent x509.Certificate, parentPriv *ecdsa.Pri
 
 	keyOut := &bytes.Buffer{}
 
-	privBytes, err := x509.MarshalPKCS8PrivateKey(parentPriv)
+	privBytes, err := x509.MarshalECPrivateKey(parentPriv)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal private key: %w", err)
 	}
@@ -116,7 +116,7 @@ func generateTLSKeyPair(template, parent x509.Certificate, parentPriv *ecdsa.Pri
 	}, nil
 }
 
-func renderX509Template(td templateData) (x509.Certificate, error) {
+func renderX509Template(td TemplateData) (x509.Certificate, error) {
 	validFrom := time.Now()
 	validUntil := validFrom.Add(31 * 24 * time.Hour)
 
@@ -129,30 +129,30 @@ func renderX509Template(td templateData) (x509.Certificate, error) {
 	var eku x509.ExtKeyUsage
 	eku = x509.ExtKeyUsageServerAuth
 
-	if td.client {
+	if td.Client {
 		eku = x509.ExtKeyUsageClientAuth
 	}
 	return x509.Certificate{
 		Issuer: pkix.Name{
-			Country:      td.country,
-			Organization: td.organization,
+			Country:      td.Country,
+			Organization: td.Organization,
 		},
 		Subject: pkix.Name{
-			Country:            td.country,
-			Organization:       td.organization,
-			OrganizationalUnit: td.organizationalUnit,
-			Locality:           td.locality,
-			Province:           td.province,
-			CommonName:         td.commonName,
+			Country:            td.Country,
+			Organization:       td.Organization,
+			OrganizationalUnit: td.OrganizationalUnit,
+			Locality:           td.Locality,
+			Province:           td.Province,
+			CommonName:         td.CommonName,
 		},
-		DNSNames:              td.dnsNames,
+		DNSNames:              td.DNSNames,
 		SerialNumber:          serialNumber,
 		NotBefore:             validFrom,
 		NotAfter:              validUntil,
 		KeyUsage:              x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{eku, x509.ExtKeyUsageAny, x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
-		IsCA:                  td.ca,
-		EmailAddresses:        []string{td.emailAddress},
+		IsCA:                  td.CA,
+		EmailAddresses:        []string{td.EmailAddress},
 	}, nil
 }
