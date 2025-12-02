@@ -196,6 +196,34 @@ common-secrets/auth-basic-policy-htpasswd-secret-empty.yaml
 tests/data/auth-basic-policy/secret/htpasswd-secret-valid-empty.yaml
 common-secrets/auth-basic-policy-htpasswd-secret-valid.yaml
 tests/data/auth-basic-policy/secret/htpasswd-secret-valid.yaml
+common-secrets/auth-basic-secrets-htpasswd-secret.yaml
+tests/data/auth-basic-secrets/auth-basic-secret.yaml
+common-secrets/auth-basic-secrets-htpasswd-secret-updated.yaml
+tests/data/auth-basic-secrets/auth-basic-secret-updated.yaml
+common-secrets/auth-basic-secrets-htpasswd-secret-invalid.yaml
+tests/data/auth-basic-secrets/auth-basic-secret-invalid.yaml
+
+#Jwks secrets
+common-secrets/example-jwt-jwks-secret.yaml
+examples/custom-resources/jwt/jwk-secret.yaml
+common-secrets/tests-jwt-master-jwk.yaml
+tests/data/jwt-auth-mergeable/jwt-master-secret.yaml
+common-secrets/tests-jwt-master-jwk-updated.yaml
+tests/data/jwt-auth-mergeable/jwt-master-secret-updated.yaml
+common-secrets/tests-jwt-minion-jwk.yaml
+tests/data/jwt-auth-mergeable/jwt-minion-secret.yaml
+common-secrets/tests-jwt-minion-jwk-updated.yaml
+tests/data/jwt-auth-mergeable/jwt-minion-secret-updated.yaml
+common-secrets/tests-jwt-policy-invalid-jwk.yaml
+tests/data/jwt-policy/secret/jwk-secret-invalid.yaml
+common-secrets/tests-jwt-policy-valid-jwk.yaml
+tests/data/jwt-policy/secret/jwk-secret-valid.yaml
+common-secrets/tests-jwt-secret-invalid-jwk.yaml
+tests/data/jwt-secrets/jwt-secret-invalid.yaml
+common-secrets/tests-jwt-secret-valid-jwk.yaml
+tests/data/jwt-secrets/jwt-secret.yaml
+common-secrets/tests-jwt-secret-updated-jwk.yaml
+tests/data/jwt-secrets/jwt-secret-updated.yaml
 
 
 # END CERTGEN SECTION. YOU MAY EDIT BELOW
