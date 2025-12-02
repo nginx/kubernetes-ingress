@@ -274,7 +274,7 @@ certs: ## Create just in time TLS certificates needed for tests and examples
 ifeq (, $(shell command -v go))
 	docker run --rm -v .:/workspace/kubernetes-ingress -w /workspace/kubernetes-ingress golang:1.25.4-trixie make certs
 else
-	make -C hack/tls-cert-gen run
+	make -C hack/tls-cert-gen ignore
 endif
 
 .PHONY: certs-clean

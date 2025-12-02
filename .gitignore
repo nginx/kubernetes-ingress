@@ -177,6 +177,16 @@ examples/custom-resources/egress-mtls/egress-trusted-ca-secret.yaml
 examples/custom-resources/egress-mtls/egress-trusted-ca-secret-crl.yaml
 examples/custom-resources/egress-mtls/egress-mtls-secret.yaml
 examples/custom-resources/egress-mtls/secure-app-tls-secret.yaml
+common-secrets/keycloak-ca-secret.yaml
+common-secrets
+common-secrets/keycloak-tls-secret.yaml
+common-secrets/keycloak-ca-secret-crl.yaml
+examples/custom-resources/oidc/keycloak-ca-secret.yaml
+examples/custom-resources/oidc/keycloak-ca-secret-crl.yaml
+tests/data/oidc/keycloak-ca-secret.yaml
+tests/data/oidc/keycloak-ca-secret-crl.yaml
+examples/custom-resources/oidc/keycloak-tls-secret.yaml
+tests/data/oidc/keycloak-tls-secret.yaml
 
 #TLS Certificate secrets
 common-secrets/cafe-passwd-basic-auth-secret.yaml
