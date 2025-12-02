@@ -349,11 +349,11 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36.5.527"
+          "version": "36.5.550"
         },
         {
           "name": "app-protect",
-          "version": "36.5.527"
+          "version": "36.5.550"
         },
         {
           "name": "app-protect-attack-signatures",
@@ -395,11 +395,11 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36.5.527"
+          "version": "36.5.550"
         },
         {
           "name": "app-protect-module-plus",
-          "version": "36.5.527"
+          "version": "36.5.550"
         },
         {
           "name": "app-protect-plugin",
