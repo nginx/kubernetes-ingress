@@ -218,8 +218,12 @@ func generateMTLSBundleFiles(bundle mtlsBundle, projectRoot string) error {
 	return nil
 }
 
+// nolint cyclo:ignore
 func removeBundleFiles(logger *slog.Logger, bundle mtlsBundle) error {
 	for _, secret := range []yamlSecret{bundle.Ca, bundle.Client, bundle.Server} {
+		if secret.FileName == "" {
+			continue
+		}
 		filePath := filepath.Join(projectRoot, realSecretDirectory, secret.FileName)
 		log.Debugf(logger, "Removing file %s", filePath)
 		if _, err := os.Stat(filePath); !os.IsNotExist(err) {

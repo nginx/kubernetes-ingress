@@ -348,9 +348,12 @@ func createOpaqueSecretYaml(secret yamlSecret, isValid bool, keyPair *JITTLSKey,
 		Data: map[string][]byte{
 			v1.TLSCertKey:       keyPair.cert,
 			v1.TLSPrivateKeyKey: keyPair.key,
-			configs.CACrtKey:    caCert,
 		},
 		Type: v1.SecretTypeOpaque,
+	}
+
+	if caCert != nil {
+		s.Data[configs.CACrtKey] = caCert
 	}
 
 	if !isValid {

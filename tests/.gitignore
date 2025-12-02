@@ -50,10 +50,10 @@ data/egress-mtls/secret/tls-secret.yaml
 data/hsts/standard-tls/tls-secret.yaml
 data/hsts/mergeable-tls/tls-secret.yaml
 data/ingress-mtls/secret/tls-secret.yaml
-data/jwt-auth-mergeable/jwt-auth-master-secret.yaml
-data/jwt-auth-mergeable/jwt-auth-master-secret-updated.yaml
-data/jwt-auth-mergeable/jwt-auth-minion-secret.yaml
-data/jwt-auth-mergeable/jwt-auth-minion-secret-updated.yaml
+data/jwt-auth-mergeable/jwt-master-secret.yaml
+data/jwt-auth-mergeable/jwt-master-secret-updated.yaml
+data/jwt-auth-mergeable/jwt-minion-secret.yaml
+data/jwt-auth-mergeable/jwt-minion-secret-updated.yaml
 data/jwt-policy/secret/jwk-secret-invalid.yaml
 data/jwt-policy/secret/jwk-secret-valid.yaml
 data/jwt-secrets/jwt-secret-invalid.yaml
