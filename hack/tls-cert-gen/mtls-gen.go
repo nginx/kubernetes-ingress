@@ -80,89 +80,89 @@ func generateMTLSBundleFiles(bundle mtlsBundle, projectRoot string) error {
 	}
 
 	// =================== Client certificate ===================
-	clientTemplate, err := renderX509Template(bundle.Client.TemplateData)
-	if err != nil {
-		return fmt.Errorf("generating client template for bundle: %w", err)
-	}
+	if bundle.Client.FileName != "" {
+		clientTemplate, err := renderX509Template(bundle.Client.TemplateData)
+		if err != nil {
+			return fmt.Errorf("generating client template for bundle: %w", err)
+		}
 
-	// because this is a client certificate, we need to swap out the issuer
-	clientTemplate.Issuer = caCert.Subject
-	clientTemplate.KeyUsage |= x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
-	clientTemplate.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}
+		// because this is a client certificate, we need to swap out the issuer
+		clientTemplate.Issuer = caCert.Subject
+		clientTemplate.KeyUsage |= x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
+		clientTemplate.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}
 
-	client, err := generateTLSKeyPair(clientTemplate, *caCert, caPrivateKey) // signed by the CA from above
-	if err != nil {
-		return fmt.Errorf("generating signed client cert for bundle: %w", err)
-	}
+		client, err := generateTLSKeyPair(clientTemplate, *caCert, caPrivateKey) // signed by the CA from above
+		if err != nil {
+			return fmt.Errorf("generating signed client cert for bundle: %w", err)
+		}
 
-	_, err = tls.X509KeyPair(client.cert, client.key)
-	if err != nil {
-		return fmt.Errorf("generated client certificate validation failed: %w", err)
-	}
+		_, err = tls.X509KeyPair(client.cert, client.key)
+		if err != nil {
+			return fmt.Errorf("generated client certificate validation failed: %w", err)
+		}
 
-	clientChild, _ := pem.Decode(client.cert)
-	clientCert, err := x509.ParseCertificate(clientChild.Bytes)
-	if err != nil {
-		return fmt.Errorf("parsing client cert for bundle: %w", err)
-	}
-	err = clientCert.CheckSignatureFrom(caCert)
-	if err != nil {
-		return fmt.Errorf("checking client is signed by CA: %w", err)
-	}
-	fmt.Printf("\nclient is signed by CA\n")
+		clientChild, _ := pem.Decode(client.cert)
+		clientCert, err := x509.ParseCertificate(clientChild.Bytes)
+		if err != nil {
+			return fmt.Errorf("parsing client cert for bundle: %w", err)
+		}
+		err = clientCert.CheckSignatureFrom(caCert)
+		if err != nil {
+			return fmt.Errorf("checking client is signed by CA: %w", err)
+		}
 
-	// Write the signed client certificate to disk
-	clientContents, err := createKubeTLSSecretYaml(bundle.Client, true, client)
-	if err != nil {
-		return fmt.Errorf("marshaling bundle client %s to yaml: %w", bundle.Client.FileName, err)
-	}
+		// Write the signed client certificate to disk
+		clientContents, err := createKubeTLSSecretYaml(bundle.Client, true, client)
+		if err != nil {
+			return fmt.Errorf("marshaling bundle client %s to yaml: %w", bundle.Client.FileName, err)
+		}
 
-	err = writeFiles(clientContents, projectRoot, bundle.Client.FileName, bundle.Client.Symlinks)
-	if err != nil {
-		return fmt.Errorf("writing bundle CA %s to project root: %w", bundle.Ca.FileName, err)
+		err = writeFiles(clientContents, projectRoot, bundle.Client.FileName, bundle.Client.Symlinks)
+		if err != nil {
+			return fmt.Errorf("writing bundle client %s to project root: %w", bundle.Client.FileName, err)
+		}
 	}
-
 	// =================== Server certificate ===================
-	serverTemplate, err := renderX509Template(bundle.Server.TemplateData)
-	if err != nil {
-		return fmt.Errorf("generating server template for bundle: %w", err)
-	}
+	if bundle.Server.FileName != "" {
+		serverTemplate, err := renderX509Template(bundle.Server.TemplateData)
+		if err != nil {
+			return fmt.Errorf("generating server template for bundle: %w", err)
+		}
 
-	// because this is a server certificate, we need to swap out the issuer
-	serverTemplate.Issuer = caCert.Subject
+		// because this is a server certificate, we need to swap out the issuer
+		serverTemplate.Issuer = caCert.Subject
 
-	server, err := generateTLSKeyPair(serverTemplate, *caCert, caPrivateKey) // signed by the CA from above
-	if err != nil {
-		return fmt.Errorf("generating signed server cert for bundle: %w", err)
-	}
+		server, err := generateTLSKeyPair(serverTemplate, *caCert, caPrivateKey) // signed by the CA from above
+		if err != nil {
+			return fmt.Errorf("generating signed server cert for bundle: %w", err)
+		}
 
-	_, err = tls.X509KeyPair(server.cert, server.key)
-	if err != nil {
-		return fmt.Errorf("generated server certificate validation failed: %w", err)
-	}
+		_, err = tls.X509KeyPair(server.cert, server.key)
+		if err != nil {
+			return fmt.Errorf("generated server certificate validation failed: %w", err)
+		}
 
-	serverChild, _ := pem.Decode(server.cert)
-	serverCert, err := x509.ParseCertificate(serverChild.Bytes)
-	if err != nil {
-		return fmt.Errorf("parsing server cert for bundle: %w", err)
-	}
-	err = serverCert.CheckSignatureFrom(caCert)
-	if err != nil {
-		return fmt.Errorf("checking server is signed by CA: %w", err)
-	}
-	fmt.Printf("\nserver is signed by CA\n")
+		serverChild, _ := pem.Decode(server.cert)
+		serverCert, err := x509.ParseCertificate(serverChild.Bytes)
+		if err != nil {
+			return fmt.Errorf("parsing server cert for bundle: %w", err)
+		}
+		err = serverCert.CheckSignatureFrom(caCert)
+		if err != nil {
+			return fmt.Errorf("checking server is signed by CA: %w", err)
+		}
 
-	// Write the signed server certificate to disk
-	serverContents, err := createOpaqueSecretYaml(bundle.Server, true, server, ca.cert)
-	if err != nil {
-		return fmt.Errorf("marshaling bundle server %s to yaml: %w", bundle.Server.FileName, err)
-	}
+		// Write the signed server certificate to disk
+		serverContents, err := createOpaqueSecretYaml(bundle.Server, true, server, ca.cert)
+		if err != nil {
+			return fmt.Errorf("marshaling bundle server %s to yaml: %w", bundle.Server.FileName, err)
+		}
 
-	err = writeFiles(serverContents, projectRoot, bundle.Server.FileName, bundle.Server.Symlinks)
-	if err != nil {
-		return fmt.Errorf("writing bundle server %s to project root: %w", bundle.Server.FileName, err)
+		err = writeFiles(serverContents, projectRoot, bundle.Server.FileName, bundle.Server.Symlinks)
+		if err != nil {
+			return fmt.Errorf("writing bundle server %s to project root: %w", bundle.Server.FileName, err)
+		}
 	}
-
 	if bundle.Crl {
 		// =================== CA Revocation List ===================
 		crlTemplate := x509.RevocationList{
