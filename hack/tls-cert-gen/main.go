@@ -31,12 +31,11 @@ type secretsTypes struct {
 	Jwks      []jwkSecret      `json:"jwks,omitempty"`
 }
 
-var secretsTypesData secretsTypes
-
 // nolint:gocyclo
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	var err error
+	var secretsTypesData secretsTypes
 
 	cleanPtr := flag.Bool("clean", false, "only clean the generated files")
 	secretsPathPtr := flag.String("secrets-path", "../secrets.json", "path to the secrets.json file")

@@ -22,7 +22,7 @@ func generateTLSSecretFiles(secret yamlSecret, projectRoot string) error {
 	// Pass in the same template to make it a self-signed certificate
 	tlsKeys, err := generateTLSKeyPair(td, td, nil)
 	if err != nil {
-		return fmt.Errorf("failed generating TLS keys for hosts: (%s: %v): %w", secret.TemplateData.commonName, secret.TemplateData.dnsNames, err)
+		return fmt.Errorf("failed generating TLS keys for hosts: (%s: %v): %w", secret.TemplateData.CommonName, secret.TemplateData.DNSNames, err)
 	}
 
 	// This part takes the created certificate and key, still in bytes, and
