@@ -273,6 +273,34 @@ func (vsc *VirtualServerConfiguration) IsEqual(resource Resource) bool {
 		}
 	}
 
+	// Check VirtualServerRouteSelectors maps for equality
+	if len(vsc.VirtualServerRouteSelectors) != len(vsConfig.VirtualServerRouteSelectors) {
+		return false
+	}
+
+	for selector, routes := range vsc.VirtualServerRouteSelectors {
+		otherRoutes, exists := vsConfig.VirtualServerRouteSelectors[selector]
+		if !exists {
+			return false
+		}
+
+		if len(routes) != len(otherRoutes) {
+			return false
+		}
+
+		// Create maps for O(1) lookup to compare route slices
+		routeSet := make(map[string]bool)
+		for _, route := range routes {
+			routeSet[route] = true
+		}
+
+		for _, otherRoute := range otherRoutes {
+			if !routeSet[otherRoute] {
+				return false
+			}
+		}
+	}
+
 	return true
 }
 
@@ -1691,7 +1719,6 @@ func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*
 				MatchLabels: r.RouteSelector.MatchLabels,
 			}
 			sel, err := metav1.LabelSelectorAsSelector(selector)
-
 			if err != nil {
 				warning := fmt.Sprintf("VirtualServerRoute LabelSelector %s is invalid: %v", selector, err)
 				warnings = append(warnings, warning)
@@ -1705,7 +1732,7 @@ func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*
 			}
 
 			for vsrKey, vsr := range c.virtualServerRoutes {
-				if sel.Matches(labels.Set(vsr.ObjectMeta.Labels)) {
+				if sel.Matches(labels.Set(vsr.Labels)) {
 					err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(vsr, vs.Spec.Host, r.Path)
 					if err != nil {
 						warning := fmt.Sprintf("VirtualServerRoute %s is invalid: %v", vsrKey, err)
