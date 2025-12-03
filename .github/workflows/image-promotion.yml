@@ -292,6 +292,9 @@ jobs:
     if: ${{ !cancelled() && !failure() && github.ref_name == github.event.repository.default_branch }}
     name: Certify OpenShift UBI images
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
     needs: [release-oss]
     steps:
       - name: Checkout Repository
