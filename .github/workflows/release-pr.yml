@@ -140,7 +140,7 @@ jobs:
           echo "::add-mask::$NGINX_PAT"
           echo "NGINX_PAT=$NGINX_PAT" >> $GITHUB_OUTPUT
 
-      - name: Replace
+      - name: Update Documentation Versions
         run: |
           pip install --require-hashes -r .github/scripts/requirements.txt --no-deps
           .github/scripts/release-docs.sh \
