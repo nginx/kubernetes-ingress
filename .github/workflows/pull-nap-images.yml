@@ -83,7 +83,6 @@ jobs:
           username: ${{ steps.idtoken.outputs.id_token }}
           password: ${{ github.actor }}
 
-      - name: Output Variables
-        id: vars
+      - name: Sync NAP Images
         run: |
           ./.github/scripts/pull-nap-images.sh "${{ inputs.version }}" "${{ inputs.dry_run }}"
