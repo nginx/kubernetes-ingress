@@ -38,6 +38,7 @@ jobs:
 
       - name: Replace Versions
         run: |
+          helm version
           yq -i e '.version = env(CHART_VERSION) | .appVersion = env(IC_VERSION)' charts/nginx-ingress/Chart.yaml
           cat charts/nginx-ingress/Chart.yaml
           cat > .github/data/version.txt << EOF
