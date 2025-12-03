@@ -75,7 +75,6 @@ if [ "${DEBUG}" != "false" ]; then
 fi
 
 echo "INFO: Generating release notes from github draft release"
-# shellcheck disable=SC2086
 release_notes_content=$("${ROOTDIR}"/.github/scripts/pull-release-notes.py "${ic_version}" "${helm_chart_version}" "${k8s_versions}" "${release_date}")
 if [ $? -ne 0 ]; then
     echo "ERROR: failed to fetch release notes from GitHub draft release for version ${ic_version}"
