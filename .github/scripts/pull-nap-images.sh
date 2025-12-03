@@ -15,7 +15,7 @@ docker tag "${NGINX_REPO}"/waf-config-mgr:"${VERSION}" "${DEV_REPO}"/waf-config-
 docker tag "${NGINX_REPO}"/waf-enforcer:"${VERSION}" "${DEV_REPO}"/waf-enforcer:"${VERSION}"
 docker tag "${NGINX_REPO}"/waf-compiler:"${VERSION}" "${DEV_REPO}"/waf-compiler:"${VERSION}"
 
-if [ "${DRY_RUN}" = true ]; then
+if [ "${DRY_RUN}" = "true" ]; then
     echo "Dry run enabled, not pushing images"
     exit 0
 fi
