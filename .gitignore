@@ -235,5 +235,9 @@ tests/data/jwt-secrets/jwt-secret.yaml
 common-secrets/tests-jwt-secret-updated-jwk.yaml
 tests/data/jwt-secrets/jwt-secret-updated.yaml
 
+#Jwt secrets
+common-secrets/example-jwt-token
+examples/custom-resources/jwt/token.jwt
+
 
 # END CERTGEN SECTION. YOU MAY EDIT BELOW

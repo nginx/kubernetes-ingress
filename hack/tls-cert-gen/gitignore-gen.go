@@ -81,6 +81,8 @@ func generateGitignore(secrets secretsTypes, gitignorePtr *bool) error {
 
 	ignoredFilesAndLines = append(ignoredFilesAndLines, generateJwksIgnores(secrets.Jwks)...)
 
+	ignoredFilesAndLines = append(ignoredFilesAndLines, generateJwtIgnores(secrets.Jwt)...)
+
 	err := writeGitIgnoreFile(ignoredFilesAndLines)
 	if err != nil {
 		return fmt.Errorf("writeGitIgnoreFile: %w", err)
@@ -166,6 +168,22 @@ func generateJwksIgnores(jwks []jwkSecret) []string {
 		filesToIgnore = append(filesToIgnore, path.Join(realSecretDirectory, jwk.FileName))
 
 		for _, symlink := range jwk.Symlinks {
+			filesToIgnore = append(filesToIgnore, strings.TrimPrefix(symlink, "/"))
+		}
+	}
+
+	return filesToIgnore
+}
+
+func generateJwtIgnores(jwts []jwtSecret) []string {
+	filesToIgnore := make([]string, 0)
+
+	filesToIgnore = append(filesToIgnore, "\n#Jwt secrets")
+
+	for _, jwt := range jwts {
+		filesToIgnore = append(filesToIgnore, path.Join(realSecretDirectory, jwt.FileName))
+
+		for _, symlink := range jwt.Symlinks {
 			filesToIgnore = append(filesToIgnore, strings.TrimPrefix(symlink, "/"))
 		}
 	}

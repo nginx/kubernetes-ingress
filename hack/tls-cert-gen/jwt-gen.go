@@ -22,7 +22,7 @@ type jwtSecret struct {
 }
 
 func generateJwtFile(secret jwtSecret, projectRoot string) error {
-	jwt, err := generateJwt(secret.Claims, secret.Key, secret.Kid, secret.Issuer, secret.Subject)
+	jwt, err := generateJwt(secret.Claims, secret.Key, secret.Kid)
 	if err != nil {
 		return fmt.Errorf("generating JWT for secret %s: %w", secret.FileName, err)
 	}
@@ -35,9 +35,7 @@ func generateJwtFile(secret jwtSecret, projectRoot string) error {
 	return nil
 }
 
-func generateJwt(claims map[string]interface{}, key, kid, issuer, subject string) (string, error) {
-	claims["iss"] = issuer
-	claims["sub"] = subject
+func generateJwt(claims map[string]interface{}, key, kid string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims(claims))
 	token.Header["kid"] = kid
 	return token.SignedString([]byte(key))
