@@ -1218,6 +1218,28 @@ func initLogger(logFormat string, level slog.Level, out io.Writer) context.Conte
 					a.Value = slog.AnyValue(src)
 				}
 			}
+			// Handle custom timestamp formatting
+			if a.Key == slog.TimeKey {
+				if t, ok := a.Value.Any().(time.Time); ok {
+					switch logFormat {
+					case "json-unix", "text-unix":
+						// Unix timestamp in seconds
+						return slog.Attr{
+							Key:   slog.TimeKey,
+							Value: slog.Int64Value(t.Unix()),
+						}
+					case "json-unix-ms", "text-unix-ms":
+						// Unix timestamp with milliseconds
+						return slog.Attr{
+							Key:   slog.TimeKey,
+							Value: slog.Int64Value(t.UnixMilli()),
+						}
+					default:
+						// Default timestamp format (keep original time key and format eg. RFC3339)
+						return a
+					}
+				}
+			}
 			return a
 		},
 	}
@@ -1225,9 +1247,9 @@ func initLogger(logFormat string, level slog.Level, out io.Writer) context.Conte
 	switch {
 	case logFormat == "glog":
 		h = nic_glog.New(out, &nic_glog.Options{Level: programLevel})
-	case logFormat == "json":
+	case strings.HasPrefix(logFormat, "json"):
 		h = slog.NewJSONHandler(out, opts)
-	case logFormat == "text":
+	case strings.HasPrefix(logFormat, "text"):
 		h = slog.NewTextHandler(out, opts)
 	default:
 		h = nic_glog.New(out, &nic_glog.Options{Level: programLevel})
