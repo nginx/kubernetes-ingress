@@ -3,11 +3,11 @@ package appprotectdos
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotectcommon"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	internalValidation "github.com/nginx/kubernetes-ingress/internal/validation"
 	"github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
 	"github.com/nginx/kubernetes-ingress/pkg/apis/dos/validation"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -169,7 +169,7 @@ func (ci *Configuration) AddOrUpdateDosProtectedResource(protectedConf *v1beta1.
 	if protectedEx.Obj.Spec.ApDosPolicy != "" {
 		policyReference := protectedEx.Obj.Spec.ApDosPolicy
 		// if the policy reference does not have a namespace, use the dos protected' namespace
-		if !strings.Contains(policyReference, "/") {
+		if !internalValidation.HasNamespace(policyReference) {
 			policyReference = protectedEx.Obj.Namespace + "/" + policyReference
 		}
 		_, err := ci.getPolicy(policyReference)
@@ -181,7 +181,7 @@ func (ci *Configuration) AddOrUpdateDosProtectedResource(protectedConf *v1beta1.
 	if protectedEx.Obj.Spec.DosSecurityLog != nil && protectedEx.Obj.Spec.DosSecurityLog.ApDosLogConf != "" {
 		logConfReference := protectedEx.Obj.Spec.DosSecurityLog.ApDosLogConf
 		// if the log conf reference does not have a namespace, use the dos protected' namespace
-		if !strings.Contains(logConfReference, "/") {
+		if !internalValidation.HasNamespace(logConfReference) {
 			logConfReference = protectedEx.Obj.Namespace + "/" + logConfReference
 		}
 		_, err := ci.getLogConf(logConfReference)
@@ -243,7 +243,7 @@ func (ci *Configuration) GetValidDosEx(parentNamespace string, nsName string) (*
 	if protectedEx.Obj.Spec.ApDosPolicy != "" {
 		policyReference := protectedEx.Obj.Spec.ApDosPolicy
 		// if the policy reference does not have a namespace, use the dos protected' namespace
-		if !strings.Contains(policyReference, "/") {
+		if !internalValidation.HasNamespace(policyReference) {
 			policyReference = protectedEx.Obj.Namespace + "/" + policyReference
 		}
 		pol, err := ci.getPolicy(policyReference)
@@ -255,7 +255,7 @@ func (ci *Configuration) GetValidDosEx(parentNamespace string, nsName string) (*
 	if protectedEx.Obj.Spec.DosSecurityLog != nil && protectedEx.Obj.Spec.DosSecurityLog.ApDosLogConf != "" {
 		logConfReference := protectedEx.Obj.Spec.DosSecurityLog.ApDosLogConf
 		// if the log conf reference does not have a namespace, use the dos protected' namespace
-		if !strings.Contains(logConfReference, "/") {
+		if !internalValidation.HasNamespace(logConfReference) {
 			logConfReference = protectedEx.Obj.Namespace + "/" + logConfReference
 		}
 		log, err := ci.getLogConf(logConfReference)
@@ -268,7 +268,7 @@ func (ci *Configuration) GetValidDosEx(parentNamespace string, nsName string) (*
 }
 
 func getNsName(defaultNamespace string, name string) string {
-	if !strings.Contains(name, "/") {
+	if !internalValidation.HasNamespace(name) {
 		return defaultNamespace + "/" + name
 	}
 	return name
