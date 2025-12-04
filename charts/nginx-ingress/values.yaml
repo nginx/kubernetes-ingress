@@ -768,3 +768,35 @@ nginxAgent:
     processorBufferSize: 50000
   ## The name of a custom ConfigMap to use instead of the one provided by default
   customConfigMap: ""
+
+## Configure Kubernetes NetworkPolicy for the ingress controller pods
+networkPolicy:
+  ## Enable creation of a NetworkPolicy resource for the ingress controller pods
+  enabled: false
+
+  ## List of NetworkPolicy types to apply (Ingress, Egress, or both)
+  policyTypes:
+    - Ingress
+    - Egress
+
+  ## Label selector for pods the NetworkPolicy applies to (defaults to all pods in the same namespace)
+  podSelector: {}
+  ##  matchLabels:
+  ##    app.kubernetes.io/name: nginx-ingress
+  ##    app.kubernetes.io/instance: nginx-ingress
+
+  ## List of ingress rules for allowed sources and ports
+  ingress:
+    - from: []
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+
+  ## List of egress rules for allowed destinations and ports
+  egress:
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53

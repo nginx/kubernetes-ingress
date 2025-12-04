@@ -176,6 +176,11 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "startupstatus",
 			namespace:   "default",
 		},
+		"networkPolicy": {
+			valuesFile:  "testdata/network-policy.yaml",
+			releaseName: "network-policy",
+			namespace:   "default",
+		},
 	}
 
 	// Path to the helm chart we will test
