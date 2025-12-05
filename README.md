@@ -23,22 +23,22 @@ This repo provides an implementation of an Ingress Controller for NGINX and NGIN
 
 We value community input and would love to see you at the next community call. At these calls, we discuss PRs by community members as well as issues, discussions and feature requests.
 
-**Microsoft Teams Link**: [NIC - GitHub Issues Triage](https://teams.microsoft.com/l/meetup-join/19%3ameeting_OTRhZjFhMDMtZTQwOC00NDA4LWJiOGItZjhhMmE5NzgyMDY0%40thread.v2/0?context=%7b%22Tid%22%3a%22dd3dfd2f-6a3b-40d1-9be0-bf8327d81c50%22%2c%22Oid%22%3a%22ea616cee-2e02-45f5-8e4c-c24967346491%22%7d)
+**Zoom**: [NGINX Ingress Controller - Community Call](https://f5.zoom.us/j/98544055687?pwd=q4sGaaeWM0DawJTePBGbCngtfLJxgq.1&from=addon)
 
-**Meeting ID:** `298 140 979 789`
+**Meeting ID:** `985 4405 5687`
 
-**Passcode:** `jpx5TM`
+**Passcode:** `982193`
 
-**When**: 16:00 Irish Time / [Convert to your timezone](https://dateful.com/convert/irish-summer-time-ist?t=16), every other Monday.
+**When**: 16:00 GMT / [Convert to your timezone](https://dateful.com/convert/gmt?t=16), every other Monday.
 
 | **Community Call Dates** |
 | ------------------------ |
-| **2025-10-06**           |
-| **2025-10-20**           |
-| **2025-11-03**           |
-| **2025-11-17**           |
-| **2025-12-01**           |
 | **2025-12-15**           |
+| **2026-01-12**           |
+| **2026-01-26**           |
+| **2026-02-09**           |
+| **2026-02-23**           |
+
 
 You can also join the [NGINX Community Forum](https://community.nginx.org) to chat about the NGINX Ingress Controller.
 
