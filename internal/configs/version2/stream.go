@@ -72,12 +72,21 @@ type StreamSSL struct {
 type StreamHealthCheck struct {
 	Enabled  bool
 	Interval string
-	Port     int
+	Port     int64
 	Passes   int
 	Jitter   string
 	Fails    int
 	Timeout  string
+	Matches  []string
 	Match    string
+}
+
+type StreamHealthCheckV2 struct {
+	EnabledV2 bool
+	PortV2    int64
+	Match     string
+	Failed    bool
+	Passed    bool
 }
 
 // Match defines a match block for a health check
