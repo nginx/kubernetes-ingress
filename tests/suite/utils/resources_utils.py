@@ -1109,6 +1109,8 @@ def create_example_app(kube_apis, app_type, namespace) -> None:
     :param namespace: namespace name
     :return:
     """
+    if app_type in ["secure", "secure-ca"]:
+        create_secret_from_yaml(kube_apis.v1, namespace, f"{TEST_DATA}/common/app/{app_type}/app-tls-secret.yaml")
     create_items_from_yaml(kube_apis, f"{TEST_DATA}/common/app/{app_type}/app.yaml", namespace)
 
 

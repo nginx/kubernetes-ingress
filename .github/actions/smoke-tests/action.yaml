@@ -82,7 +82,7 @@ runs:
         -v "/var/run/docker.sock:/var/run/docker.sock" \
         -v ~/.docker:/root/.docker \
         -v ${{ github.workspace }}/tests:/workspace/tests \
-        -v ${{ github.workspace }}/examples/common-secrets:/workspace/examples/common-secrets \
+        -v ${{ github.workspace }}/common-secrets:/workspace/common-secrets \
         -v ${{ github.workspace }}/deployments:/workspace/deployments \
         -v ${{ github.workspace }}/charts:/workspace/charts \
         -v ${{ github.workspace }}/config:/workspace/config \

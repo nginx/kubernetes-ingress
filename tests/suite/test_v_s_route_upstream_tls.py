@@ -40,6 +40,9 @@ def v_s_route_secure_app_setup(request, kube_apis, v_s_route_setup) -> None:
     )
 
     create_items_from_yaml(
+        kube_apis, f"{TEST_DATA}/common/app/secure/secret/app-tls-secret.yaml", v_s_route_setup.route_s.namespace
+    )
+    create_items_from_yaml(
         kube_apis, f"{TEST_DATA}/common/app/vsr/secure/single.yaml", v_s_route_setup.route_s.namespace
     )
 
@@ -51,6 +54,11 @@ def v_s_route_secure_app_setup(request, kube_apis, v_s_route_setup) -> None:
             print("Clean up the Application:")
             delete_items_from_yaml(
                 kube_apis, f"{TEST_DATA}/common/app/vsr/secure/multiple.yaml", v_s_route_setup.route_m.namespace
+            )
+            delete_items_from_yaml(
+                kube_apis,
+                f"{TEST_DATA}/common/app/secure/secret/app-tls-secret.yaml",
+                v_s_route_setup.route_s.namespace,
             )
             delete_items_from_yaml(
                 kube_apis, f"{TEST_DATA}/common/app/vsr/secure/single.yaml", v_s_route_setup.route_s.namespace
