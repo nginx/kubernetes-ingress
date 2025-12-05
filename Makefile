@@ -79,8 +79,13 @@ format: ## Run goimports & gofmt
 
 .PHONY: staticcheck
 staticcheck: ## Run staticcheck linter
-	@staticcheck -version >/dev/null 2>&1 || go install honnef.co/go/tools/cmd/staticcheck@2022.1.3;
+	@staticcheck -version >/dev/null 2>&1 || go install honnef.co/go/tools/cmd/staticcheck@2025.1.1;
 	staticcheck ./...
+
+.PHONY: govulncheck
+govulncheck:
+	@govulncheck -version >/dev/null 2>&1 || go install golang.org/x/vuln/cmd/govulncheck@v1.1.4;
+	govulncheck ./...
 
 .PHONY: test
 test: ## Run GoLang tests
@@ -235,7 +240,11 @@ ubi-image-nap-dos-plus: build ## Create Docker image for Ingress Controller (UBI
 		--build-arg NAP_MODULES=waf,dos --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg NAP_AGENT_VERSION=$(NAP_AGENT_VERSION)
 
 .PHONY: all-images ## Create all the Docker images for Ingress Controller
-all-images: alpine-image alpine-image-plus alpine-image-plus-fips alpine-image-nap-plus-fips debian-image debian-image-plus debian-image-nap-plus debian-image-dos-plus debian-image-nap-dos-plus ubi-image ubi-image-plus ubi-image-nap-plus ubi-image-dos-plus ubi-image-nap-dos-plus
+all-images:
+	images="alpine-image alpine-image-plus alpine-image-plus-fips alpine-image-nap-plus-fips debian-image debian-image-plus debian-image-nap-plus debian-image-dos-plus debian-image-nap-dos-plus ubi-image ubi-image-plus ubi-image-nap-plus ubi-image-dos-plus ubi-image-nap-dos-plus"; \
+	for img in $$images; do \
+		TAG="$(strip $(TAG))-$$img" make $$img; \
+	done
 
 .PHONY: patch-os
 patch-os: ## Patch supplied image
