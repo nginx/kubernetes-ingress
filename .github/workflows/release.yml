@@ -89,7 +89,7 @@ jobs:
           ./.github/scripts/variables.sh go_code_md5 >> $GITHUB_OUTPUT
           date=$(date "+%Y%m%d")
           echo "date=${date}" >> $GITHUB_OUTPUT
-          k8s_version=$(grep kindest tests/Dockerfile | cut -d ':' -f 2 | cut -d '@' -f 1)
+          k8s_version=$(grep "^K8S_CLUSTER_VERSION" tests/Makefile | cut -d '?' -f 2 | tr -d ' =')
           echo "k8s_version=${k8s_version}" >> $GITHUB_OUTPUT
           cat $GITHUB_OUTPUT
 
