@@ -133,6 +133,7 @@ jobs:
         uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
         with:
           go-version-file: go.mod
+          cache: false
 
       - name: Setup netrc
         run: |
@@ -146,6 +147,7 @@ jobs:
       - name: govulncheck
         uses: golang/govulncheck-action@b625fbe08f3bccbe446d94fbf87fcc875a4f50ee # v1.0.4
         with:
+          repo-checkout: false
           output-format: sarif
           output-file: govulncheck.sarif
 
