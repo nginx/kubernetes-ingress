@@ -29,6 +29,9 @@ spec:
   {{- if .Values.controller.service.loadBalancerIP }}
   loadBalancerIP: {{ .Values.controller.service.loadBalancerIP }}
   {{- end }}
+  {{- if .Values.controller.service.loadBalancerClass }}
+  loadBalancerClass: {{ .Values.controller.service.loadBalancerClass }}
+  {{- end }}
   {{- if .Values.controller.service.loadBalancerSourceRanges }}
   loadBalancerSourceRanges:
 {{ toYaml .Values.controller.service.loadBalancerSourceRanges | indent 4 }}
