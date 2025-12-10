@@ -116,6 +116,7 @@ class TestPrometheusExporter:
         ingress_controller,
         expected_metrics,
         ingress_setup,
+        cli_arguments,
     ):
         ensure_connection(ingress_setup.req_url, 200, {"host": ingress_setup.ingress_host})
         resp = requests.get(ingress_setup.req_url, headers={"host": ingress_setup.ingress_host}, verify=False)
@@ -126,6 +127,10 @@ class TestPrometheusExporter:
         assert resp.status_code == 200, f"Expected 200 code for /metrics but got {resp.status_code}"
         resp_content = resp.content.decode("utf-8")
         for item in expected_metrics:
+            # Only assert NGINX OSS stub_status metrics for OSS builds
+            if ("nginx_ingress_nginx_connections" in item and 
+                cli_arguments["ic-type"] != "nginx-ingress"):
+                continue
             assert item in resp_content
 
     @pytest.mark.parametrize(
