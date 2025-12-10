@@ -132,7 +132,7 @@ func renderX509Template(td TemplateData) (x509.Certificate, error) {
 	if td.Client {
 		eku = x509.ExtKeyUsageClientAuth
 	}
-	return x509.Certificate{
+	x509Cert := x509.Certificate{
 		Issuer: pkix.Name{
 			Country:      td.Country,
 			Organization: td.Organization,
@@ -154,5 +154,11 @@ func renderX509Template(td TemplateData) (x509.Certificate, error) {
 		BasicConstraintsValid: true,
 		IsCA:                  td.CA,
 		EmailAddresses:        []string{td.EmailAddress},
-	}, nil
+	}
+	if td.CA {
+		x509Cert.KeyUsage |= x509.KeyUsageCertSign | x509.KeyUsageCRLSign // so we can sign another certificate and a CRL with it
+		x509Cert.IsCA = true                                              // because it is a CA
+		x509Cert.ExtKeyUsage = nil                                        // CA certificates should not have ExtKeyUsage
+	}
+	return x509Cert, nil
 }

@@ -183,6 +183,7 @@ func generateHtpasswdFiles(logger *slog.Logger, secrets []htpasswdSecret, filena
 	return filenames, nil
 }
 
+// nolint:gocyclo
 func generateMTLSBundles(logger *slog.Logger, secrets []mtlsBundle, filenames map[string]struct{}, cleanPtr *bool) (map[string]struct{}, error) {
 	for _, bundle := range secrets {
 		// generate bundle ca cert file and symlinks
@@ -204,7 +205,9 @@ func generateMTLSBundles(logger *slog.Logger, secrets []mtlsBundle, filenames ma
 		if _, ok := filenames[bundle.Client.FileName]; ok {
 			return nil, fmt.Errorf("bundle client contains duplicated files: %v", bundle.Client.FileName)
 		}
-		filenames[bundle.Client.FileName] = struct{}{}
+		if bundle.Client.FileName != "" {
+			filenames[bundle.Client.FileName] = struct{}{}
+		}
 
 		for _, symlink := range bundle.Client.Symlinks {
 			if _, ok := filenames[symlink]; ok {
@@ -218,7 +221,9 @@ func generateMTLSBundles(logger *slog.Logger, secrets []mtlsBundle, filenames ma
 		if _, ok := filenames[bundle.Server.FileName]; ok {
 			return nil, fmt.Errorf("bundle server contains duplicated files: %v", bundle.Server.FileName)
 		}
-		filenames[bundle.Server.FileName] = struct{}{}
+		if bundle.Server.FileName != "" {
+			filenames[bundle.Server.FileName] = struct{}{}
+		}
 
 		for _, symlink := range bundle.Server.Symlinks {
 			if _, ok := filenames[symlink]; ok {
