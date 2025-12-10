@@ -102,6 +102,9 @@ class TestPrometheusExporter:
                     'nginx_ingress_controller_workqueue_queue_duration_seconds_bucket{class="nginx",name="taskQueue",le=',
                     'nginx_ingress_controller_workqueue_queue_duration_seconds_sum{class="nginx",name="taskQueue"}',
                     'nginx_ingress_controller_workqueue_queue_duration_seconds_count{class="nginx",name="taskQueue"}',
+                    'nginx_ingress_nginx_connections_accepted{class="nginx"}',
+                    'nginx_ingress_nginx_connections_active{class="nginx"}',
+                    'nginx_ingress_nginx_connections_handled{class="nginx"}',
                 ],
             )
         ],
