@@ -183,7 +183,7 @@ func generateHtpasswdFiles(logger *slog.Logger, secrets []htpasswdSecret, filena
 	return filenames, nil
 }
 
-// nolint:gocyclo
+//gocyclo:ignore
 func generateMTLSBundles(logger *slog.Logger, secrets []mtlsBundle, filenames map[string]struct{}, cleanPtr *bool) (map[string]struct{}, error) {
 	for _, bundle := range secrets {
 		// generate bundle ca cert file and symlinks
