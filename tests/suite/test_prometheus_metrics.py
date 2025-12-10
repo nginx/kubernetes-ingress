@@ -128,8 +128,7 @@ class TestPrometheusExporter:
         resp_content = resp.content.decode("utf-8")
         for item in expected_metrics:
             # Only assert NGINX OSS stub_status metrics for OSS builds
-            if ("nginx_ingress_nginx_connections" in item and 
-                cli_arguments["ic-type"] != "nginx-ingress"):
+            if "nginx_ingress_nginx_connections" in item and cli_arguments["ic-type"] != "nginx-ingress":
                 continue
             assert item in resp_content
 
