@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
 	log "github.com/nginx/kubernetes-ingress/internal/logger"
@@ -19,12 +20,18 @@ type jwtSecret struct {
 	Subject  string                 `json:"subject"`
 	Claims   map[string]interface{} `json:"claims"`
 	Key      string                 `json:"key"`
+	Invalid  bool                   `json:"invalid,omitempty"`
 }
 
 func generateJwtFile(secret jwtSecret, projectRoot string) error {
 	jwt, err := generateJwt(secret.Claims, secret.Key, secret.Kid)
 	if err != nil {
 		return fmt.Errorf("generating JWT for secret %s: %w", secret.FileName, err)
+	}
+	if secret.Invalid {
+		// Make the JWT invalid by removing the payload part
+		parts := strings.Split(jwt, ".")
+		jwt = parts[0] + ".." + parts[2]
 	}
 	fileContents := []byte(jwt)
 	err = writeFiles(fileContents, projectRoot, secret.FileName, secret.Symlinks)

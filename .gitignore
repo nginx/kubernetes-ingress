@@ -236,8 +236,23 @@ common-secrets/tests-jwt-secret-updated-jwk.yaml
 tests/data/jwt-secrets/jwt-secret-updated.yaml
 
 #Jwt secrets
-common-secrets/example-jwt-token
+common-secrets/fantastic-jwt-token
 examples/custom-resources/jwt/token.jwt
+examples/custom-resources/rate-limit-jwt-claim/token.jwt
+examples/ingress-resources/jwt-secret-policy/token.jwt
+tests/data/jwt-auth-mergeable/tokens/jwt-auth-master-token.jwt
+tests/data/jwt-policy/token.jwt
+tests/data/jwt-secrets/tokens/jwt-secrets-token.jwt
+common-secrets/awesome-jwt-token
+tests/data/jwt-auth-mergeable/tokens/jwt-auth-minion-token.jwt
+common-secrets/invalid-jwt-token
+tests/data/jwt-policy/invalid-token.jwt
+common-secrets/basic-jwt-token
+examples/custom-resources/rate-limit-tiered-jwt-claim/basic-token.jwt
+common-secrets/premium-jwt-token
+examples/custom-resources/rate-limit-tiered-jwt-claim/premium-token.jwt
+common-secrets/default-jwt-token
+examples/custom-resources/rate-limit-tiered-jwt-claim/default-token.jwt
 
 
 # END CERTGEN SECTION. YOU MAY EDIT BELOW
