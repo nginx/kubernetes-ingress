@@ -206,7 +206,7 @@
   "automergeStrategy": "squash",
   "baseBranchPatterns": [
     "main",
-    "release-5.2"
+    "release-5.3"
   ],
   "commitBodyTable": true,
   "configMigration": true,

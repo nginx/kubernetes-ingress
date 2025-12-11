@@ -1503,11 +1503,6 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 			Reason:  nl.EventReasonNoVirtualServerFound,
 			Message: "VirtualServer is invalid or doesn't exist",
 		},
-		{
-			Object:  vsr3,
-			Reason:  nl.EventReasonNoVirtualServerFound,
-			Message: "VirtualServer is invalid or doesn't exist",
-		},
 	}
 
 	changes, problems = configuration.AddOrUpdateVirtualServer(updatedVS)
@@ -1608,11 +1603,6 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 	expectedProblems = []ConfigurationProblem{
 		{
 			Object:  vsr2,
-			Reason:  nl.EventReasonNoVirtualServerFound,
-			Message: "VirtualServer is invalid or doesn't exist",
-		},
-		{
-			Object:  vsr3,
 			Reason:  nl.EventReasonNoVirtualServerFound,
 			Message: "VirtualServer is invalid or doesn't exist",
 		},
