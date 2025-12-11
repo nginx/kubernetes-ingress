@@ -1,6 +1,7 @@
 package secrets
 
 import (
+	"encoding/base64"
 	"testing"
 
 	v1 "k8s.io/api/core/v1"
@@ -453,6 +454,64 @@ func TestValidateOIDCSecretFails(t *testing.T) {
 		err := ValidateOIDCSecret(test.secret)
 		if err == nil {
 			t.Errorf("ValidateOIDCSecret() returned no error for the case of %s", test.msg)
+		}
+	}
+}
+
+func TestValidateLicenseSecret(t *testing.T) {
+	t.Parallel()
+	secret := &v1.Secret{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "license-token",
+			Namespace: "default",
+		},
+		Type: SecretTypeLicense,
+		Data: map[string][]byte{
+			"license.jwt": []byte(base64.StdEncoding.EncodeToString([]byte("license-token"))),
+		},
+	}
+
+	err := ValidateLicenseSecret(secret)
+	if err != nil {
+		t.Errorf("ValidateLicenseSecret() returned error %v", err)
+	}
+}
+
+func TestValidateLicenseSecretFails(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		secret *v1.Secret
+		msg    string
+	}{
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "license-token",
+					Namespace: "default",
+				},
+				Type: "some-type",
+				Data: map[string][]byte{
+					"license.jwt": []byte(base64.StdEncoding.EncodeToString([]byte("license-token"))),
+				},
+			},
+			msg: "Incorrect type for license secret",
+		},
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "license-token",
+					Namespace: "default",
+				},
+				Type: SecretTypeLicense,
+			},
+			msg: "Missing license.jwt for license secret",
+		},
+	}
+
+	for _, test := range tests {
+		err := ValidateLicenseSecret(test.secret)
+		if err == nil {
+			t.Errorf("ValidateLicenseSecret() returned no error for the case of %s", test.msg)
 		}
 	}
 }

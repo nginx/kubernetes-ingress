@@ -5,7 +5,7 @@ metadata:
 spec:
   host: virtual-server-route.example.com
   tls:
-    secret: virtual-server-tls-secret
+    secret: tls-secret
   routes:
   - path: "/backends"
     route: backends # implicit namespace

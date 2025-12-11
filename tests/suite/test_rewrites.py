@@ -97,7 +97,7 @@ test_data = [
 ]
 
 
-@pytest.mark.parametrize("crd_ingress_controller", [({"type": "complete"})], indirect=True)
+@pytest.mark.parametrize("crd_ingress_controller", [{"type": "complete"}], indirect=True)
 class TestRewrites:
     @pytest.mark.vs
     @pytest.mark.vs_rewrite

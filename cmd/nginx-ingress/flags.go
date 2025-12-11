@@ -9,11 +9,12 @@ import (
 	"regexp"
 	"strings"
 
+	internalValidation "github.com/nginx/kubernetes-ingress/internal/validation"
 	api_v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/validation"
 
-	nl "github.com/nginxinc/kubernetes-ingress/internal/logger"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 )
 
 const (
@@ -51,6 +52,11 @@ var (
 		`Configures the Ingress Controller to watch only those namespaces with label foo=bar. By default the Ingress Controller watches all namespaces. Mutually exclusive with "watch-namespace". `)
 
 	nginxConfigMaps = flag.String("nginx-configmaps", "",
+		`A ConfigMap resource for customizing NGINX configuration. If a ConfigMap is set,
+	but the Ingress Controller is not able to fetch it from Kubernetes API, the Ingress Controller will fail to start.
+	Format: <namespace>/<name>`)
+
+	mgmtConfigMap = flag.String("mgmt-configmap", "",
 		`A ConfigMap resource for customizing NGINX configuration. If a ConfigMap is set,
 	but the Ingress Controller is not able to fetch it from Kubernetes API, the Ingress Controller will fail to start.
 	Format: <namespace>/<name>`)
@@ -219,6 +225,8 @@ var (
 
 	enableDynamicWeightChangesReload = flag.Bool(dynamicWeightChangesParam, false, "Enable changing weights of split clients without reloading NGINX. Requires -nginx-plus")
 
+	enableDirectiveAutoadjust = flag.Bool("enable-directive-autoadjust", false, "Enable automatic adjustment of NGINX directives to avoid conflicting NGINX configuration. Results may vary and might not be ideal in all cases.")
+
 	startupCheckFn func() error
 )
 
@@ -256,6 +264,11 @@ func initValidate(ctx context.Context) {
 	if *enableDynamicWeightChangesReload && !*nginxPlus {
 		nl.Warn(l, "weight-changes-dynamic-reload flag support is for NGINX Plus, Dynamic Weight Changes will not be enabled")
 		*enableDynamicWeightChangesReload = false
+	}
+
+	if *mgmtConfigMap != "" && !*nginxPlus {
+		nl.Warn(l, "mgmt-configmap flag requires -nginx-plus, mgmt configmap will not be used")
+		*mgmtConfigMap = ""
 	}
 
 	mustValidateInitialChecks(ctx)
@@ -335,22 +348,22 @@ func mustValidateFlags(ctx context.Context) {
 		nl.Fatalf(l, "Invalid value for leader-election-lock-name: %v", statusLockNameValidationError)
 	}
 
-	statusPortValidationError := validatePort(*nginxStatusPort)
+	statusPortValidationError := internalValidation.ValidateUnprivilegedPort(*nginxStatusPort)
 	if statusPortValidationError != nil {
 		nl.Fatalf(l, "Invalid value for nginx-status-port: %v", statusPortValidationError)
 	}
 
-	metricsPortValidationError := validatePort(*prometheusMetricsListenPort)
+	metricsPortValidationError := internalValidation.ValidateUnprivilegedPort(*prometheusMetricsListenPort)
 	if metricsPortValidationError != nil {
 		nl.Fatalf(l, "Invalid value for prometheus-metrics-listen-port: %v", metricsPortValidationError)
 	}
 
-	readyStatusPortValidationError := validatePort(*readyStatusPort)
+	readyStatusPortValidationError := internalValidation.ValidateUnprivilegedPort(*readyStatusPort)
 	if readyStatusPortValidationError != nil {
 		nl.Fatalf(l, "Invalid value for ready-status-port: %v", readyStatusPortValidationError)
 	}
 
-	healthProbePortValidationError := validatePort(*serviceInsightListenPort)
+	healthProbePortValidationError := internalValidation.ValidateUnprivilegedPort(*serviceInsightListenPort)
 	if healthProbePortValidationError != nil {
 		nl.Fatalf(l, "Invalid value for service-insight-listen-port: %v", metricsPortValidationError)
 	}
@@ -416,8 +429,8 @@ func mustValidateFlags(ctx context.Context) {
 		nl.Fatal(l, "ingresslink and external-service cannot both be set")
 	}
 
-	if *agent && !*appProtect {
-		nl.Fatal(l, "NGINX Agent is used to enable the Security Monitoring dashboard and requires NGINX App Protect to be enabled")
+	if *nginxPlus && *mgmtConfigMap == "" {
+		nl.Fatal(l, "NGINX Plus requires a mgmt ConfigMap to be set")
 	}
 }
 
@@ -446,14 +459,6 @@ func validateResourceName(name string) error {
 	allErrs := validation.IsDNS1123Subdomain(name)
 	if len(allErrs) > 0 {
 		return fmt.Errorf("invalid resource name %v: %v", name, allErrs)
-	}
-	return nil
-}
-
-// validatePort makes sure a given port is inside the valid port range for its usage
-func validatePort(port int) error {
-	if port < 1024 || port > 65535 {
-		return fmt.Errorf("port outside of valid port range [1024 - 65535]: %v", port)
 	}
 	return nil
 }

@@ -3,15 +3,14 @@
 package fake
 
 import (
-	clientset "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned"
-	k8sv1 "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned/typed/configuration/v1"
-	fakek8sv1 "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned/typed/configuration/v1/fake"
-	k8sv1alpha1 "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned/typed/configuration/v1alpha1"
-	fakek8sv1alpha1 "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned/typed/configuration/v1alpha1/fake"
-	appprotectdosv1beta1 "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned/typed/dos/v1beta1"
-	fakeappprotectdosv1beta1 "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned/typed/dos/v1beta1/fake"
-	externaldnsv1 "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned/typed/externaldns/v1"
-	fakeexternaldnsv1 "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned/typed/externaldns/v1/fake"
+	clientset "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned"
+	k8sv1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/typed/configuration/v1"
+	fakek8sv1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/typed/configuration/v1/fake"
+	appprotectdosv1beta1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/typed/dos/v1beta1"
+	fakeappprotectdosv1beta1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/typed/dos/v1beta1/fake"
+	externaldnsv1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/typed/externaldns/v1"
+	fakeexternaldnsv1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/typed/externaldns/v1/fake"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -39,9 +38,13 @@ func NewSimpleClientset(objects ...runtime.Object) *Clientset {
 	cs.discovery = &fakediscovery.FakeDiscovery{Fake: &cs.Fake}
 	cs.AddReactor("*", "*", testing.ObjectReaction(o))
 	cs.AddWatchReactor("*", func(action testing.Action) (handled bool, ret watch.Interface, err error) {
+		var opts metav1.ListOptions
+		if watchActcion, ok := action.(testing.WatchActionImpl); ok {
+			opts = watchActcion.ListOptions
+		}
 		gvr := action.GetResource()
 		ns := action.GetNamespace()
-		watch, err := o.Watch(gvr, ns)
+		watch, err := o.Watch(gvr, ns, opts)
 		if err != nil {
 			return false, nil, err
 		}
@@ -76,11 +79,6 @@ var (
 // K8sV1 retrieves the K8sV1Client
 func (c *Clientset) K8sV1() k8sv1.K8sV1Interface {
 	return &fakek8sv1.FakeK8sV1{Fake: &c.Fake}
-}
-
-// K8sV1alpha1 retrieves the K8sV1alpha1Client
-func (c *Clientset) K8sV1alpha1() k8sv1alpha1.K8sV1alpha1Interface {
-	return &fakek8sv1alpha1.FakeK8sV1alpha1{Fake: &c.Fake}
 }
 
 // AppprotectdosV1beta1 retrieves the AppprotectdosV1beta1Client

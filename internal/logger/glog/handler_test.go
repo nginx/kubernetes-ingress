@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/nginxinc/kubernetes-ingress/internal/logger/levels"
+	"github.com/nginx/kubernetes-ingress/internal/logger/levels"
 )
 
 func TestGlogFormat(t *testing.T) {

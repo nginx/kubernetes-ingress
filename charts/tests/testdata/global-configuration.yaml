@@ -1,0 +1,11 @@
+controller:
+  globalConfiguration:
+    create: true
+    spec:
+      listeners:
+      - name: dns-udp
+        port: 5353
+        protocol: UDP
+      - name: dns-tcp
+        port: 5353
+        protocol: TCP

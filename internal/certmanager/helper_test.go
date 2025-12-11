@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	vsapi "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
+	vsapi "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 )
 
 func Test_translateVsSpec(t *testing.T) {

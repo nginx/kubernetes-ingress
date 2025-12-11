@@ -1,4 +1,4 @@
-{{- /*gotype: github.com/nginxinc/kubernetes-ingress/internal/configs/version1.MainConfig*/ -}}
+{{- /*gotype: github.com/nginx/kubernetes-ingress/internal/configs/version1.MainConfig*/ -}}
 worker_processes  {{.WorkerProcesses}};
 {{- if .WorkerRlimitNofile}}
 worker_rlimit_nofile {{.WorkerRlimitNofile}};{{end}}
@@ -11,14 +11,12 @@ daemon off;
 error_log  stderr {{.ErrorLogLevel}};
 pid        /var/lib/nginx/nginx.pid;
 
-{{- if .OpenTracingLoadModule}}
-load_module modules/ngx_http_opentracing_module.so;
+{{- if .MainOtelLoadModule}}
+load_module modules/ngx_otel_module.so;
 {{- end}}
 
-{{- if .MainSnippets}}
-{{range $value := .MainSnippets}}
-{{$value}}{{end}}
-{{- end}}
+{{- range $value := .MainSnippets}}
+{{$value}}{{- end}}
 
 load_module modules/ngx_http_js_module.so;
 
@@ -32,14 +30,15 @@ http {
     map_hash_max_size {{.MapHashMaxSize}};
     map_hash_bucket_size {{.MapHashBucketSize}};
 
+    {{- if .ClientBodyBufferSize }}
+    client_body_buffer_size {{.ClientBodyBufferSize}};
+    {{- end }}
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
-    {{- if .HTTPSnippets}}
-    {{range $value := .HTTPSnippets}}
-    {{$value}}{{end}}
-    {{- end}}
+    {{- range $value := .HTTPSnippets}}
+    {{$value}}{{- end}}
 
     {{if .LogFormat -}}
     log_format  main {{if .LogFormatEscaping}}escape={{ .LogFormatEscaping }} {{end}}
@@ -108,11 +107,20 @@ http {
     ssl_dhparam {{.SSLDHParam}};
     {{- end}}
 
-    {{- if .OpenTracingEnabled}}
-    opentracing on;
+    {{- if .MainOtelLoadModule }}
+    otel_exporter {
+        endpoint {{ .MainOtelExporterEndpoint }};
+        {{- if and .MainOtelExporterHeaderName .MainOtelExporterHeaderValue }}
+        header {{ .MainOtelExporterHeaderName }} "{{ .MainOtelExporterHeaderValue }}";
+        {{- end }}
+    }
+
+    {{- if .MainOtelServiceName}}
+    otel_service_name {{ .MainOtelServiceName }};
+    {{- end }}
+    {{- if .MainOtelGlobalTraceEnabled }}
+    otel_trace on;
     {{- end}}
-    {{- if .OpenTracingLoadModule}}
-    opentracing_load_tracer {{ .OpenTracingTracer }} /var/lib/nginx/tracer-config.json;
     {{- end}}
 
     server {
@@ -157,10 +165,6 @@ http {
         access_log off;
         {{end -}}
 
-        {{- if .OpenTracingEnabled}}
-        opentracing off;
-        {{- end}}
-
         {{- if .HealthStatus}}
         location {{.HealthStatusURI}} {
             default_type text/plain;
@@ -183,9 +187,6 @@ http {
         allow {{$value}};{{end}}
 
         deny all;
-        {{if .OpenTracingEnabled}}
-        opentracing off;
-        {{end}}
         location /stub_status {
             stub_status;
         }
@@ -196,10 +197,6 @@ http {
     server {
         listen unix:/var/lib/nginx/nginx-status.sock;
         access_log off;
-
-        {{- if .OpenTracingEnabled}}
-        opentracing off;
-        {{- end}}
 
         location /stub_status {
             stub_status;
@@ -214,20 +211,12 @@ http {
         listen unix:/var/lib/nginx/nginx-502-server.sock;
         access_log off;
 
-        {{if .OpenTracingEnabled}}
-        opentracing off;
-        {{end}}
-
         return 502;
     }
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
         access_log off;
-
-        {{- if .OpenTracingEnabled}}
-        opentracing off;
-        {{- end -}}
 
         return 418;
     }

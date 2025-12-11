@@ -1,5 +1,5 @@
 export TARGET_REGISTRY=ghcr.io
-export TARGET_OSS_IMAGE_PREFIX="nginxinc/kubernetes-ingress"
+export TARGET_OSS_IMAGE_PREFIX="nginx/kubernetes-ingress"
 export PUBLISH_PLUS=false
 export PUBLISH_WAF=false
 export PUBLISH_DOS=false

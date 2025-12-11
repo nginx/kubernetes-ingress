@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
-	nl "github.com/nginxinc/kubernetes-ingress/internal/logger"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/nginxinc/kubernetes-ingress/internal/configs"
-	"github.com/nginxinc/nginx-plus-go-client/client"
+	"github.com/nginx/kubernetes-ingress/internal/configs"
+	"github.com/nginx/nginx-plus-go-client/v3/client"
 	"k8s.io/utils/strings/slices"
 )
 
@@ -40,9 +40,9 @@ type HealthServer struct {
 	Server                 *http.Server
 	URL                    string
 	UpstreamsForHost       func(host string) []string
-	NginxUpstreams         func() (*client.Upstreams, error)
+	NginxUpstreams         func(ctx context.Context) (*client.Upstreams, error)
 	StreamUpstreamsForName func(host string) []string
-	NginxStreamUpstreams   func() (*client.StreamUpstreams, error)
+	NginxStreamUpstreams   func(ctx context.Context) (*client.StreamUpstreams, error)
 	Logger                 *slog.Logger
 }
 
@@ -106,7 +106,7 @@ func (hs *HealthServer) UpstreamStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	upstreams, err := hs.NginxUpstreams()
+	upstreams, err := hs.NginxUpstreams(context.Background())
 	if err != nil {
 		nl.Errorf(hs.Logger, "error retrieving upstreams for requested hostname: %s", host)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -144,7 +144,7 @@ func (hs *HealthServer) StreamStats(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	streams, err := hs.NginxStreamUpstreams()
+	streams, err := hs.NginxStreamUpstreams(context.Background())
 	if err != nil {
 		nl.Errorf(hs.Logger, "error retrieving stream upstreams for requested name: %s", n)
 		w.WriteHeader(http.StatusInternalServerError)

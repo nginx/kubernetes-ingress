@@ -3,8 +3,8 @@
 package dos
 
 import (
-	v1beta1 "github.com/nginxinc/kubernetes-ingress/pkg/client/informers/externalversions/dos/v1beta1"
-	internalinterfaces "github.com/nginxinc/kubernetes-ingress/pkg/client/informers/externalversions/internalinterfaces"
+	v1beta1 "github.com/nginx/kubernetes-ingress/pkg/client/informers/externalversions/dos/v1beta1"
+	internalinterfaces "github.com/nginx/kubernetes-ingress/pkg/client/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to each of this group's versions.

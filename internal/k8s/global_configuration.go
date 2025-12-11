@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/nginxinc/kubernetes-ingress/internal/configs"
-	nl "github.com/nginxinc/kubernetes-ingress/internal/logger"
-	conf_v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
+	"github.com/nginx/kubernetes-ingress/internal/configs"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	api_v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
@@ -87,18 +87,18 @@ func (lbc *LoadBalancerController) syncGlobalConfiguration(task task) {
 	updateErr := lbc.processChangesFromGlobalConfiguration(changes)
 
 	if gcExists {
-		eventTitle := "Updated"
+		eventTitle := nl.EventReasonUpdated
 		eventType := api_v1.EventTypeNormal
 		eventMessage := fmt.Sprintf("GlobalConfiguration %s was added or updated", key)
 
 		if validationErr != nil {
-			eventTitle = "AddedOrUpdatedWithError"
+			eventTitle = nl.EventReasonAddedOrUpdatedWithError
 			eventType = api_v1.EventTypeWarning
 			eventMessage = fmt.Sprintf("GlobalConfiguration %s is updated with errors: %v", key, validationErr)
 		}
 
 		if updateErr != nil {
-			eventTitle += "WithError"
+			eventTitle += nl.EventReasonUpdatedWithError
 			eventType = api_v1.EventTypeWarning
 			eventMessage = fmt.Sprintf("%s; with reload error: %v", eventMessage, updateErr)
 		}

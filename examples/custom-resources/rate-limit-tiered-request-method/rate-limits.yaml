@@ -1,0 +1,30 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: rate-limit-request-method-get-head
+spec:
+  rateLimit:
+    rate: 5r/s
+    key: ${request_method}
+    zoneSize: 10M
+    condition:
+      variables:
+      - match: "~GET|HEAD"
+        name: $request_method
+    rejectCode: 429
+---
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: rate-limit-request-method-put-post-patch-delete
+spec:
+  rateLimit:
+    rate: 1r/s
+    key: ${request_method}
+    zoneSize: 10M
+    condition:
+      variables:
+      - match: "~PUT|POST|PATCH|DELETE"
+        name: $request_method
+      default: true
+    rejectCode: 429

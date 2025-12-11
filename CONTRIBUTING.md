@@ -20,19 +20,19 @@ considering contributing!
 
 ## Ask a Question
 
-To ask a question please use [Github Discussions](https://github.com/nginxinc/kubernetes-ingress/discussions).
+To ask a question please use [Github Discussions](https://github.com/nginx/kubernetes-ingress/discussions).
 
-You can also join our [Community Slack](https://community.nginx.org/joinslack) which has a wider NGINX audience.
+You can also get help through the [NGINX Community Forum](https://community.nginx.org/).
 
 Please reserve GitHub issues for feature requests and bugs rather than general questions.
 
 ## Getting Started
 
-Follow our [Installation Guide](https://docs.nginx.com/nginx-ingress-controller/installation/) to
+Follow our [Installation Guide](https://docs.nginx.com/nginx-ingress-controller/install/) to
 get NGINX Ingress Controller up and running.
 
-Read the [documentation](https://github.com/nginxinc/kubernetes-ingress/tree/main/site) and
-[configuration](https://github.com/nginxinc/kubernetes-ingress/tree/main/examples) examples
+Read the [documentation](https://docs.nginx.com/nginx-ingress-controller) and
+[configuration](https://github.com/nginx/kubernetes-ingress/tree/main/examples) examples
 
 ### Project Structure
 
@@ -76,7 +76,7 @@ fill in the template as provided.
 
 ### F5 Contributor License Agreement (CLA)
 
-F5 requires all external contributors to agree to the terms of the F5 CLA (available [here](https://github.com/f5/.github/blob/main/CLA/cla-markdown.md))
+F5 requires all external contributors to agree to [the terms of the F5 CLA](https://github.com/f5/.github/blob/main/CLA/cla-markdown.md))
 before any of their changes can be incorporated into an F5 Open Source repository.
 
 If you have not yet agreed to the F5 CLA terms and submit a PR to this repository, a bot will prompt you to view and

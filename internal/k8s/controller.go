@@ -20,22 +20,22 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/nginxinc/kubernetes-ingress/internal/telemetry"
-	"golang.org/x/exp/maps"
-
-	"github.com/nginxinc/kubernetes-ingress/internal/k8s/appprotect"
-	"github.com/nginxinc/kubernetes-ingress/internal/k8s/appprotectdos"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotect"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotectdos"
+	"github.com/nginx/kubernetes-ingress/internal/telemetry"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/rest"
 
-	"github.com/nginxinc/kubernetes-ingress/internal/k8s/secrets"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	"github.com/nginxinc/nginx-service-mesh/pkg/spiffe"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 
@@ -44,28 +44,26 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/scheme"
-	core_v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/record"
 
-	cm_controller "github.com/nginxinc/kubernetes-ingress/internal/certmanager"
-	"github.com/nginxinc/kubernetes-ingress/internal/configs"
-	ed_controller "github.com/nginxinc/kubernetes-ingress/internal/externaldns"
-	"github.com/nginxinc/kubernetes-ingress/internal/metrics/collectors"
+	cm_controller "github.com/nginx/kubernetes-ingress/internal/certmanager"
+	"github.com/nginx/kubernetes-ingress/internal/configs"
+	ed_controller "github.com/nginx/kubernetes-ingress/internal/externaldns"
+	"github.com/nginx/kubernetes-ingress/internal/metrics/collectors"
 
 	api_v1 "k8s.io/api/core/v1"
 	discovery_v1 "k8s.io/api/discovery/v1"
 	networking "k8s.io/api/networking/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	conf_v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
-	"github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/validation"
-	k8s_nginx "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned"
-	k8s_nginx_informers "github.com/nginxinc/kubernetes-ingress/pkg/client/informers/externalversions"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	"github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
+	k8s_nginx "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned"
+	k8s_nginx_informers "github.com/nginx/kubernetes-ingress/pkg/client/informers/externalversions"
 
-	nl "github.com/nginxinc/kubernetes-ingress/internal/logger"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -103,6 +101,19 @@ type podEndpoint struct {
 	configs.MeshPodOwner
 }
 
+type specialSecrets struct {
+	defaultServerSecret string
+	wildcardTLSSecret   string
+	licenseSecret       string
+	clientAuthSecret    string
+	trustedCertSecret   string
+}
+
+type controllerMetadata struct {
+	namespace string
+	pod       *api_v1.Pod
+}
+
 // LoadBalancerController watches Kubernetes API and
 // reconfigures NGINX via NginxController when needed
 type LoadBalancerController struct {
@@ -113,9 +124,11 @@ type LoadBalancerController struct {
 	cacheSyncs                    []cache.InformerSynced
 	namespacedInformers           map[string]*namespacedInformer
 	configMapController           cache.Controller
+	mgmtConfigMapController       cache.Controller
 	globalConfigurationController cache.Controller
 	ingressLinkInformer           cache.SharedIndexInformer
 	configMapLister               storeToConfigMapLister
+	mgmtConfigMapLister           storeToConfigMapLister
 	globalConfigurationLister     cache.Store
 	ingressLinkLister             cache.Store
 	namespaceLabeledLister        cache.Store
@@ -125,13 +138,14 @@ type LoadBalancerController struct {
 	cancel                        context.CancelFunc
 	configurator                  *configs.Configurator
 	watchNginxConfigMaps          bool
+	watchMGMTConfigMap            bool
 	watchGlobalConfiguration      bool
 	watchIngressLink              bool
 	isNginxPlus                   bool
 	appProtectEnabled             bool
 	appProtectDosEnabled          bool
 	recorder                      record.EventRecorder
-	defaultServerSecret           string
+	specialSecrets                specialSecrets
 	ingressClass                  string
 	statusUpdater                 *statusUpdater
 	leaderElector                 *leaderelection.LeaderElector
@@ -141,8 +155,7 @@ type LoadBalancerController struct {
 	resync                        time.Duration
 	namespaceList                 []string
 	secretNamespaceList           []string
-	controllerNamespace           string
-	wildcardTLSSecret             string
+	metadata                      controllerMetadata
 	areCustomResourcesEnabled     bool
 	enableOIDC                    bool
 	metricsCollector              collectors.ControllerCollector
@@ -159,6 +172,7 @@ type LoadBalancerController struct {
 	appProtectConfiguration       appprotect.Configuration
 	dosConfiguration              *appprotectdos.Configuration
 	configMap                     *api_v1.ConfigMap
+	mgmtConfigMap                 *api_v1.ConfigMap
 	certManagerController         *cm_controller.CmController
 	externalDNSController         *ed_controller.ExtDNSController
 	batchSyncEnabled              bool
@@ -169,6 +183,9 @@ type LoadBalancerController struct {
 	telemetryCollector            *telemetry.Collector
 	telemetryChan                 chan struct{}
 	weightChangesDynamicReload    bool
+	nginxConfigMapName            string
+	mgmtConfigMapName             string
+	ShuttingDown                  bool
 }
 
 var keyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
@@ -179,6 +196,7 @@ type NewLoadBalancerControllerInput struct {
 	ConfClient                   k8s_nginx.Interface
 	DynClient                    dynamic.Interface
 	RestConfig                   *rest.Config
+	Recorder                     record.EventRecorder
 	ResyncPeriod                 time.Duration
 	LoggerContext                context.Context
 	Namespace                    []string
@@ -193,11 +211,13 @@ type NewLoadBalancerControllerInput struct {
 	ExternalServiceName          string
 	IngressLink                  string
 	ControllerNamespace          string
+	Pod                          *api_v1.Pod
 	ReportIngressStatus          bool
 	IsLeaderElectionEnabled      bool
 	LeaderElectionLockName       string
 	WildcardTLSSecret            string
 	ConfigMaps                   string
+	MGMTConfigMap                string
 	GlobalConfiguration          string
 	AreCustomResourcesEnabled    bool
 	EnableOIDC                   bool
@@ -215,6 +235,7 @@ type NewLoadBalancerControllerInput struct {
 	CertManagerEnabled           bool
 	ExternalDNSEnabled           bool
 	IsIPV6Disabled               bool
+	IsDirectiveAutoadjustEnabled bool
 	WatchNamespaceLabel          string
 	EnableTelemetryReporting     bool
 	TelemetryReportingEndpoint   string
@@ -222,18 +243,29 @@ type NewLoadBalancerControllerInput struct {
 	NICVersion                   string
 	DynamicWeightChangesReload   bool
 	InstallationFlags            []string
+	ShuttingDown                 bool
 }
 
 // NewLoadBalancerController creates a controller
 func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalancerController {
+	specialSecrets := specialSecrets{
+		defaultServerSecret: input.DefaultServerSecret,
+		wildcardTLSSecret:   input.WildcardTLSSecret,
+	}
+	if input.IsNginxPlus {
+		specialSecrets.licenseSecret = fmt.Sprintf("%s/%s", input.ControllerNamespace, input.NginxConfigurator.MgmtCfgParams.Secrets.License)
+		specialSecrets.clientAuthSecret = fmt.Sprintf("%s/%s", input.ControllerNamespace, input.NginxConfigurator.MgmtCfgParams.Secrets.ClientAuth)
+		specialSecrets.trustedCertSecret = fmt.Sprintf("%s/%s", input.ControllerNamespace, input.NginxConfigurator.MgmtCfgParams.Secrets.TrustedCert)
+	}
 	lbc := &LoadBalancerController{
 		client:                       input.KubeClient,
 		confClient:                   input.ConfClient,
 		dynClient:                    input.DynClient,
 		restConfig:                   input.RestConfig,
+		recorder:                     input.Recorder,
 		Logger:                       nl.LoggerFromContext(input.LoggerContext),
 		configurator:                 input.NginxConfigurator,
-		defaultServerSecret:          input.DefaultServerSecret,
+		specialSecrets:               specialSecrets,
 		appProtectEnabled:            input.AppProtectEnabled,
 		appProtectDosEnabled:         input.AppProtectDosEnabled,
 		isNginxPlus:                  input.IsNginxPlus,
@@ -244,8 +276,7 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		resync:                       input.ResyncPeriod,
 		namespaceList:                input.Namespace,
 		secretNamespaceList:          input.SecretNamespace,
-		controllerNamespace:          input.ControllerNamespace,
-		wildcardTLSSecret:            input.WildcardTLSSecret,
+		metadata:                     controllerMetadata{namespace: input.ControllerNamespace, pod: input.Pod},
 		areCustomResourcesEnabled:    input.AreCustomResourcesEnabled,
 		enableOIDC:                   input.EnableOIDC,
 		metricsCollector:             input.MetricsCollector,
@@ -256,16 +287,10 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		isLatencyMetricsEnabled:      input.IsLatencyMetricsEnabled,
 		isIPV6Disabled:               input.IsIPV6Disabled,
 		weightChangesDynamicReload:   input.DynamicWeightChangesReload,
+		nginxConfigMapName:           input.ConfigMaps,
+		mgmtConfigMapName:            input.MGMTConfigMap,
+		ShuttingDown:                 input.ShuttingDown,
 	}
-	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(func(format string, args ...interface{}) {
-		nl.Infof(lbc.Logger, format, args...)
-	})
-	eventBroadcaster.StartRecordingToSink(&core_v1.EventSinkImpl{
-		Interface: core_v1.New(input.KubeClient.CoreV1().RESTClient()).Events(""),
-	})
-	lbc.recorder = eventBroadcaster.NewRecorder(scheme.Scheme,
-		api_v1.EventSource{Component: "nginx-ingress-controller"})
 
 	lbc.syncQueue = newTaskQueue(lbc.Logger, lbc.sync)
 	var err error
@@ -319,6 +344,16 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		}
 	}
 
+	if input.MGMTConfigMap != "" {
+		mgmtConfigMapNS, mgmtConfigMapName, err := ParseNamespaceName(input.MGMTConfigMap)
+		if err != nil {
+			nl.Warn(lbc.Logger, err)
+		} else {
+			lbc.watchMGMTConfigMap = true
+			lbc.addMGMTConfigMapHandler(createConfigMapHandlers(lbc, mgmtConfigMapName), mgmtConfigMapNS)
+		}
+	}
+
 	if input.IngressLink != "" {
 		lbc.watchIngressLink = true
 		lbc.addIngressLinkHandler(createIngressLinkHandlers(lbc), input.IngressLink)
@@ -340,7 +375,6 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 	}
 
 	lbc.configuration = NewConfiguration(
-		lbc.Logger,
 		lbc.HasCorrectIngressClass,
 		input.IsNginxPlus,
 		input.AppProtectEnabled,
@@ -353,6 +387,7 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		input.SnippetsEnabled,
 		input.CertManagerEnabled,
 		input.IsIPV6Disabled,
+		input.IsDirectiveAutoadjustEnabled,
 	)
 
 	lbc.appProtectConfiguration = appprotect.NewConfiguration(lbc.Logger)
@@ -390,6 +425,10 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 			},
 			Policies:               lbc.getAllPolicies,
 			IsPlus:                 lbc.isNginxPlus,
+			MainConfigMap:          lbc.configMap,
+			MainConfigMapName:      lbc.nginxConfigMapName,
+			MGMTConfigMap:          lbc.mgmtConfigMap,
+			MGMTConfigMapName:      lbc.mgmtConfigMapName,
 			CustomResourcesEnabled: lbc.areCustomResourcesEnabled,
 		}
 		collector, err := telemetry.NewCollector(
@@ -613,6 +652,10 @@ func (lbc *LoadBalancerController) Run() {
 
 	if lbc.watchNginxConfigMaps {
 		go lbc.configMapController.Run(lbc.ctx.Done())
+	}
+
+	if lbc.watchMGMTConfigMap {
+		go lbc.mgmtConfigMapController.Run(lbc.ctx.Done())
 	}
 
 	if lbc.watchGlobalConfiguration {
@@ -844,25 +887,69 @@ func (lbc *LoadBalancerController) createExtendedResources(resources []Resource)
 func (lbc *LoadBalancerController) updateAllConfigs() {
 	ctx := nl.ContextWithLogger(context.Background(), lbc.Logger)
 	cfgParams := configs.NewDefaultConfigParams(ctx, lbc.isNginxPlus)
+	mgmtCfgParams := configs.NewDefaultMGMTConfigParams(ctx)
+	var isNGINXConfigValid bool
+	var mgmtConfigHasWarnings bool
+	var mgmtErr error
+	var reloadNginx bool
 
 	if lbc.configMap != nil {
-		cfgParams = configs.ParseConfigMap(ctx, lbc.configMap, lbc.isNginxPlus, lbc.appProtectEnabled, lbc.appProtectDosEnabled, lbc.configuration.isTLSPassthroughEnabled)
+		cfgParams, isNGINXConfigValid = configs.ParseConfigMap(ctx, lbc.configMap, lbc.isNginxPlus, lbc.appProtectEnabled, lbc.appProtectDosEnabled, lbc.configuration.isTLSPassthroughEnabled, lbc.configuration.isDirectiveAutoadjustEnabled, lbc.recorder)
+	}
+	if lbc.mgmtConfigMap != nil && lbc.isNginxPlus {
+		mgmtCfgParams, mgmtConfigHasWarnings, mgmtErr = configs.ParseMGMTConfigMap(ctx, lbc.mgmtConfigMap, lbc.recorder)
+		if mgmtErr != nil {
+			nl.Errorf(lbc.Logger, "configmap %s/%s: %v", lbc.mgmtConfigMap.GetNamespace(), lbc.mgmtConfigMap.GetName(), mgmtErr)
+		}
 	}
 
+	lbc.configurator.CfgParams = cfgParams
+	lbc.configurator.MgmtCfgParams = mgmtCfgParams
+	cfgParams.ZoneSync.Domain = lbc.createCombinedDeploymentHeadlessServiceName()
+
+	// update special license secret in mgmtConfigParams
+	if lbc.mgmtConfigMap != nil && lbc.isNginxPlus {
+		if mgmtCfgParams.Secrets.License != "" {
+			secret, err := lbc.client.CoreV1().Secrets(lbc.metadata.namespace).Get(context.TODO(), mgmtCfgParams.Secrets.License, meta_v1.GetOptions{})
+			if err != nil {
+				nl.Errorf(lbc.Logger, "secret %s/%s: %v", lbc.metadata.namespace, mgmtCfgParams.Secrets.License, err)
+			}
+			lbc.specialSecrets.licenseSecret = fmt.Sprintf("%s/%s", secret.Namespace, secret.Name)
+			lbc.handleSpecialSecretUpdate(secret, reloadNginx)
+		}
+		// update special CA secret in mgmtConfigParams
+		if mgmtCfgParams.Secrets.TrustedCert != "" {
+			secret, err := lbc.client.CoreV1().Secrets(lbc.metadata.namespace).Get(context.TODO(), mgmtCfgParams.Secrets.TrustedCert, meta_v1.GetOptions{})
+			if err != nil {
+				nl.Errorf(lbc.Logger, "secret %s/%s: %v", lbc.metadata.namespace, mgmtCfgParams.Secrets.TrustedCert, err)
+			}
+			if _, hasCRL := secret.Data[configs.CACrlKey]; hasCRL {
+				lbc.configurator.MgmtCfgParams.Secrets.TrustedCRL = secret.Name
+			}
+			lbc.specialSecrets.trustedCertSecret = fmt.Sprintf("%s/%s", secret.Namespace, secret.Name)
+			lbc.handleSpecialSecretUpdate(secret, reloadNginx)
+		}
+		// update special ClientAuth secret in mgmtConfigParams
+		if mgmtCfgParams.Secrets.ClientAuth != "" {
+			secret, err := lbc.client.CoreV1().Secrets(lbc.metadata.namespace).Get(context.TODO(), mgmtCfgParams.Secrets.ClientAuth, meta_v1.GetOptions{})
+			if err != nil {
+				nl.Errorf(lbc.Logger, "secret %s/%s: %v", lbc.metadata.namespace, mgmtCfgParams.Secrets.ClientAuth, err)
+			}
+			lbc.specialSecrets.clientAuthSecret = fmt.Sprintf("%s/%s", secret.Namespace, secret.Name)
+			lbc.handleSpecialSecretUpdate(secret, reloadNginx)
+		}
+	}
 	resources := lbc.configuration.GetResources()
-
 	nl.Debugf(lbc.Logger, "Updating %v resources", len(resources))
-
 	resourceExes := lbc.createExtendedResources(resources)
+	warnings, updateErr := lbc.configurator.UpdateConfig(resourceExes)
 
-	warnings, updateErr := lbc.configurator.UpdateConfig(cfgParams, resourceExes)
-
-	eventTitle := "Updated"
+	eventTitle := nl.EventReasonUpdated
 	eventType := api_v1.EventTypeNormal
 	eventWarningMessage := ""
 
 	if updateErr != nil {
-		eventTitle = "UpdatedWithError"
+		eventTitle = nl.EventReasonUpdatedWithError
 		eventType = api_v1.EventTypeWarning
 		eventWarningMessage = fmt.Sprintf("but was not applied: %v", updateErr)
 	}
@@ -872,8 +959,19 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 	}
 
 	if lbc.configMap != nil {
-		key := getResourceKey(&lbc.configMap.ObjectMeta)
-		lbc.recorder.Eventf(lbc.configMap, eventType, eventTitle, "Configuration from %v was updated %s", key, eventWarningMessage)
+		if isNGINXConfigValid {
+			lbc.recorder.Event(lbc.configMap, api_v1.EventTypeNormal, nl.EventReasonUpdated, fmt.Sprintf("ConfigMap %s/%s updated without error", lbc.configMap.GetNamespace(), lbc.configMap.GetName()))
+		} else {
+			lbc.recorder.Event(lbc.configMap, api_v1.EventTypeWarning, nl.EventReasonUpdatedWithError, fmt.Sprintf("ConfigMap %s/%s updated with errors. Ignoring invalid values", lbc.configMap.GetNamespace(), lbc.configMap.GetName()))
+		}
+	}
+
+	if lbc.mgmtConfigMap != nil {
+		if !mgmtConfigHasWarnings {
+			lbc.recorder.Event(lbc.mgmtConfigMap, api_v1.EventTypeNormal, nl.EventReasonUpdated, fmt.Sprintf("MGMT ConfigMap %s/%s updated without error", lbc.mgmtConfigMap.GetNamespace(), lbc.mgmtConfigMap.GetName()))
+		} else {
+			lbc.recorder.Event(lbc.mgmtConfigMap, api_v1.EventTypeWarning, nl.EventReasonUpdatedWithError, fmt.Sprintf("MGMT ConfigMap %s/%s updated with errors. Ignoring invalid values", lbc.mgmtConfigMap.GetNamespace(), lbc.mgmtConfigMap.GetName()))
+		}
 	}
 
 	gc := lbc.configuration.GetGlobalConfiguration()
@@ -890,7 +988,7 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 // If we don't add Secrets, there is a chance that during the IC start
 // syncing an Ingress or other resource that references a Secret will happen before that Secret was synced.
 // As a result, the IC will generate configuration for that resource assuming that the Secret is missing and
-// it will report warnings. (See https://github.com/nginxinc/kubernetes-ingress/issues/1448 )
+// it will report warnings. (See https://github.com/nginx/kubernetes-ingress/issues/1448 )
 func (lbc *LoadBalancerController) preSyncSecrets() {
 	for _, ni := range lbc.namespacedInformers {
 		if !ni.isSecretsEnabledNamespace {
@@ -981,6 +1079,15 @@ func (lbc *LoadBalancerController) sync(task task) {
 		lbc.syncDosProtectedResource(task)
 	case ingressLink:
 		lbc.syncIngressLink(task)
+	}
+
+	if lbc.isNginxPlus && lbc.isNginxReady {
+		if task.Kind == configMap || task.Kind == service {
+			err := lbc.syncZoneSyncHeadlessService(fmt.Sprintf("%s-hl", lbc.configurator.CfgParams.ZoneSync.Domain))
+			if err != nil {
+				nl.Errorf(lbc.Logger, "error syncing zone sync headless service: %v", err)
+			}
+		}
 	}
 
 	if !lbc.isNginxReady && lbc.syncQueue.Len() == 0 {
@@ -1268,7 +1375,7 @@ func (lbc *LoadBalancerController) processChanges(changes []ResourceChange) {
 // UpdateVirtualServerStatusAndEventsOnDelete updates the virtual server status and events
 func (lbc *LoadBalancerController) UpdateVirtualServerStatusAndEventsOnDelete(vsConfig *VirtualServerConfiguration, changeError string, deleteErr error) {
 	eventType := api_v1.EventTypeWarning
-	eventTitle := "Rejected"
+	eventTitle := nl.EventReasonRejected
 	eventWarningMessage := ""
 	state := ""
 
@@ -1287,7 +1394,7 @@ func (lbc *LoadBalancerController) UpdateVirtualServerStatusAndEventsOnDelete(vs
 	if eventWarningMessage != "" {
 		if deleteErr != nil {
 			eventType = api_v1.EventTypeWarning
-			eventTitle = "RejectedWithError"
+			eventTitle = nl.EventReasonRejectedWithError
 			eventWarningMessage = fmt.Sprintf("%s; but was not applied: %v", eventWarningMessage, deleteErr)
 			state = conf_v1.StateInvalid
 		}
@@ -1309,7 +1416,7 @@ func (lbc *LoadBalancerController) UpdateVirtualServerStatusAndEventsOnDelete(vs
 
 // UpdateIngressStatusAndEventsOnDelete updates the ingress status and events.
 func (lbc *LoadBalancerController) UpdateIngressStatusAndEventsOnDelete(ingConfig *IngressConfiguration, changeError string, deleteErr error) {
-	eventTitle := "Rejected"
+	eventTitle := nl.EventReasonRejected
 	eventWarningMessage := ""
 
 	// Ingress either became invalid or lost all its hosts
@@ -1324,7 +1431,7 @@ func (lbc *LoadBalancerController) UpdateIngressStatusAndEventsOnDelete(ingConfi
 	// (some other Ingress Controller will handle it)
 	if eventWarningMessage != "" {
 		if deleteErr != nil {
-			eventTitle = "RejectedWithError"
+			eventTitle = nl.EventReasonRejectedWithError
 			eventWarningMessage = fmt.Sprintf("%s; but was not applied: %v", eventWarningMessage, deleteErr)
 		}
 
@@ -1360,27 +1467,27 @@ func (lbc *LoadBalancerController) updateResourcesStatusAndEvents(resources []Re
 
 func (lbc *LoadBalancerController) updateMergeableIngressStatusAndEvents(ingConfig *IngressConfiguration, warnings configs.Warnings, operationErr error) {
 	eventType := api_v1.EventTypeNormal
-	eventTitle := "AddedOrUpdated"
+	eventTitle := nl.EventReasonAddedOrUpdated
 	eventWarningMessage := ""
 	eventWarningSuffix := ""
 
 	if len(ingConfig.Warnings) > 0 {
 		eventType = api_v1.EventTypeWarning
-		eventTitle = "AddedOrUpdatedWithWarning"
+		eventTitle = nl.EventReasonAddedOrUpdatedWithWarning
 		eventWarningMessage = fmt.Sprintf("with warning(s): %s", formatWarningMessages(ingConfig.Warnings))
 		eventWarningSuffix = "; "
 	}
 
 	if messages, ok := warnings[ingConfig.Ingress]; ok {
 		eventType = api_v1.EventTypeWarning
-		eventTitle = "AddedOrUpdatedWithWarning"
+		eventTitle = nl.EventReasonAddedOrUpdatedWithWarning
 		eventWarningMessage = fmt.Sprintf("%s%swith warning(s): %v", eventWarningMessage, eventWarningSuffix, formatWarningMessages(messages))
 		eventWarningSuffix = "; "
 	}
 
 	if operationErr != nil {
 		eventType = api_v1.EventTypeWarning
-		eventTitle = "AddedOrUpdatedWithError"
+		eventTitle = nl.EventReasonAddedOrUpdatedWithError
 		eventWarningMessage = fmt.Sprintf("%s%sbut was not applied: %v", eventWarningMessage, eventWarningSuffix, operationErr)
 	}
 
@@ -1394,7 +1501,7 @@ func (lbc *LoadBalancerController) updateMergeableIngressStatusAndEvents(ingConf
 
 	for _, fm := range ingConfig.Minions {
 		minionEventType := api_v1.EventTypeNormal
-		minionEventTitle := "AddedOrUpdated"
+		minionEventTitle := nl.EventReasonAddedOrUpdated
 		minionEventWarningMessage := ""
 		minionEventWarningSuffix := ""
 
@@ -1402,21 +1509,21 @@ func (lbc *LoadBalancerController) updateMergeableIngressStatusAndEvents(ingConf
 
 		if len(minionChangeWarnings) > 0 {
 			minionEventType = api_v1.EventTypeWarning
-			minionEventTitle = "AddedOrUpdatedWithWarning"
+			minionEventTitle = nl.EventReasonAddedOrUpdatedWithWarning
 			minionEventWarningMessage = fmt.Sprintf("with warning(s): %s", formatWarningMessages(minionChangeWarnings))
 			minionEventWarningSuffix = "; "
 		}
 
 		if messages, ok := warnings[fm.Ingress]; ok {
 			minionEventType = api_v1.EventTypeWarning
-			minionEventTitle = "AddedOrUpdatedWithWarning"
+			minionEventTitle = nl.EventReasonAddedOrUpdatedWithWarning
 			minionEventWarningMessage = fmt.Sprintf("%s%swith warning(s): %v", minionEventWarningMessage, minionEventWarningSuffix, formatWarningMessages(messages))
 			minionEventWarningSuffix = "; "
 		}
 
 		if operationErr != nil {
 			minionEventType = api_v1.EventTypeWarning
-			minionEventTitle = "AddedOrUpdatedWithError"
+			minionEventTitle = nl.EventReasonAddedOrUpdatedWithError
 			minionEventWarningMessage = fmt.Sprintf("%s%s; but was not applied: %v", minionEventWarningMessage, minionEventWarningSuffix, operationErr)
 			minionEventWarningSuffix = "; "
 		}
@@ -1445,24 +1552,24 @@ func (lbc *LoadBalancerController) updateMergeableIngressStatusAndEvents(ingConf
 
 func (lbc *LoadBalancerController) updateRegularIngressStatusAndEvents(ingConfig *IngressConfiguration, warnings configs.Warnings, operationErr error) {
 	eventType := api_v1.EventTypeNormal
-	eventTitle := "AddedOrUpdated"
+	eventTitle := nl.EventReasonAddedOrUpdated
 	eventWarningMessage := ""
 
 	if len(ingConfig.Warnings) > 0 {
 		eventType = api_v1.EventTypeWarning
-		eventTitle = "AddedOrUpdatedWithWarning"
+		eventTitle = nl.EventReasonAddedOrUpdatedWithWarning
 		eventWarningMessage = fmt.Sprintf("with warning(s): %s", formatWarningMessages(ingConfig.Warnings))
 	}
 
 	if messages, ok := warnings[ingConfig.Ingress]; ok {
 		eventType = api_v1.EventTypeWarning
-		eventTitle = "AddedOrUpdatedWithWarning"
+		eventTitle = nl.EventReasonAddedOrUpdatedWithWarning
 		eventWarningMessage = fmt.Sprintf("%s; with warning(s): %v", eventWarningMessage, formatWarningMessages(messages))
 	}
 
 	if operationErr != nil {
 		eventType = api_v1.EventTypeWarning
-		eventTitle = "AddedOrUpdatedWithError"
+		eventTitle = nl.EventReasonAddedOrUpdatedWithError
 		eventWarningMessage = fmt.Sprintf("%s; but was not applied: %v", eventWarningMessage, operationErr)
 	}
 
@@ -1479,27 +1586,27 @@ func (lbc *LoadBalancerController) updateRegularIngressStatusAndEvents(ingConfig
 
 func (lbc *LoadBalancerController) updateVirtualServerStatusAndEvents(vsConfig *VirtualServerConfiguration, warnings configs.Warnings, operationErr error) {
 	eventType := api_v1.EventTypeNormal
-	eventTitle := "AddedOrUpdated"
+	eventTitle := nl.EventReasonAddedOrUpdated
 	eventWarningMessage := ""
 	state := conf_v1.StateValid
 
 	if len(vsConfig.Warnings) > 0 {
 		eventType = api_v1.EventTypeWarning
-		eventTitle = "AddedOrUpdatedWithWarning"
+		eventTitle = nl.EventReasonAddedOrUpdatedWithWarning
 		eventWarningMessage = fmt.Sprintf("with warning(s): %s", formatWarningMessages(vsConfig.Warnings))
 		state = conf_v1.StateWarning
 	}
 
 	if messages, ok := warnings[vsConfig.VirtualServer]; ok {
 		eventType = api_v1.EventTypeWarning
-		eventTitle = "AddedOrUpdatedWithWarning"
+		eventTitle = nl.EventReasonAddedOrUpdatedWithWarning
 		eventWarningMessage = fmt.Sprintf("%s; with warning(s): %v", eventWarningMessage, formatWarningMessages(messages))
 		state = conf_v1.StateWarning
 	}
 
 	if operationErr != nil {
 		eventType = api_v1.EventTypeWarning
-		eventTitle = "AddedOrUpdatedWithError"
+		eventTitle = nl.EventReasonAddedOrUpdatedWithError
 		eventWarningMessage = fmt.Sprintf("%s; but was not applied: %v", eventWarningMessage, operationErr)
 		state = conf_v1.StateInvalid
 	}
@@ -1516,20 +1623,20 @@ func (lbc *LoadBalancerController) updateVirtualServerStatusAndEvents(vsConfig *
 
 	for _, vsr := range vsConfig.VirtualServerRoutes {
 		vsrEventType := api_v1.EventTypeNormal
-		vsrEventTitle := "AddedOrUpdated"
+		vsrEventTitle := nl.EventReasonAddedOrUpdated
 		vsrEventWarningMessage := ""
 		vsrState := conf_v1.StateValid
 
 		if messages, ok := warnings[vsr]; ok {
 			vsrEventType = api_v1.EventTypeWarning
-			vsrEventTitle = "AddedOrUpdatedWithWarning"
+			vsrEventTitle = nl.EventReasonAddedOrUpdatedWithWarning
 			vsrEventWarningMessage = fmt.Sprintf(" with warning(s): %v", formatWarningMessages(messages))
 			vsrState = conf_v1.StateWarning
 		}
 
 		if operationErr != nil {
 			vsrEventType = api_v1.EventTypeWarning
-			vsrEventTitle = "AddedOrUpdatedWithError"
+			vsrEventTitle = nl.EventReasonAddedOrUpdatedWithError
 			vsrEventWarningMessage = fmt.Sprintf(" %s; but was not applied:%v", vsrEventWarningMessage, operationErr)
 			vsrState = conf_v1.StateInvalid
 		}
@@ -1655,7 +1762,7 @@ func (lbc *LoadBalancerController) reportCustomResourceStatusEnabled() bool {
 func (lbc *LoadBalancerController) syncSecret(task task) {
 	key := task.Key
 	var obj interface{}
-	var secrExists bool
+	var secretWatched bool
 	var err error
 
 	namespace, name, err := ParseNamespaceName(key)
@@ -1663,7 +1770,7 @@ func (lbc *LoadBalancerController) syncSecret(task task) {
 		nl.Warnf(lbc.Logger, "Secret key %v is invalid: %v", key, err)
 		return
 	}
-	obj, secrExists, err = lbc.getNamespacedInformer(namespace).secretLister.GetByKey(key)
+	obj, secretWatched, err = lbc.getNamespacedInformer(namespace).secretLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
 		return
@@ -1682,7 +1789,7 @@ func (lbc *LoadBalancerController) syncSecret(task task) {
 
 	nl.Debugf(lbc.Logger, "Found %v Resources with Secret %v", len(resources), key)
 
-	if !secrExists {
+	if !secretWatched {
 		lbc.secretStore.DeleteSecret(key)
 
 		nl.Debugf(lbc.Logger, "Deleting Secret: %v", key)
@@ -1691,7 +1798,8 @@ func (lbc *LoadBalancerController) syncSecret(task task) {
 			lbc.handleRegularSecretDeletion(resources)
 		}
 		if lbc.isSpecialSecret(key) {
-			nl.Warnf(lbc.Logger, "A special TLS Secret %v was removed. Retaining the Secret.", key)
+			lbc.recorder.Eventf(lbc.metadata.pod, api_v1.EventTypeWarning, nl.EventReasonSecretDeleted, "A special secret [%s] was deleted.  Retaining the secret on this pod but this will affect new pods.", key)
+			nl.Warnf(lbc.Logger, "A special Secret %v was removed. Retaining the Secret.", key)
 		}
 		return
 	}
@@ -1703,7 +1811,8 @@ func (lbc *LoadBalancerController) syncSecret(task task) {
 	lbc.secretStore.AddOrUpdateSecret(secret)
 
 	if lbc.isSpecialSecret(key) {
-		lbc.handleSpecialSecretUpdate(secret)
+		reloadNginx := true
+		lbc.handleSpecialSecretUpdate(secret, reloadNginx)
 		// we don't return here in case the special secret is also used in resources.
 	}
 
@@ -1727,7 +1836,20 @@ func removeDuplicateResources(resources []Resource) []Resource {
 }
 
 func (lbc *LoadBalancerController) isSpecialSecret(secretName string) bool {
-	return secretName == lbc.defaultServerSecret || secretName == lbc.wildcardTLSSecret
+	switch secretName {
+	case lbc.specialSecrets.defaultServerSecret:
+		return true
+	case lbc.specialSecrets.wildcardTLSSecret:
+		return true
+	case lbc.specialSecrets.licenseSecret:
+		return true
+	case lbc.specialSecrets.clientAuthSecret:
+		return true
+	case lbc.specialSecrets.trustedCertSecret:
+		return true
+	default:
+		return false
+	}
 }
 
 func (lbc *LoadBalancerController) handleRegularSecretDeletion(resources []Resource) {
@@ -1739,7 +1861,7 @@ func (lbc *LoadBalancerController) handleRegularSecretDeletion(resources []Resou
 }
 
 func (lbc *LoadBalancerController) handleSecretUpdate(secret *api_v1.Secret, resources []Resource) {
-	secretNsName := secret.Namespace + "/" + secret.Name
+	secretNsName := generateSecretNSName(secret)
 
 	var warnings configs.Warnings
 	var addOrUpdateErr error
@@ -1749,37 +1871,156 @@ func (lbc *LoadBalancerController) handleSecretUpdate(secret *api_v1.Secret, res
 	warnings, addOrUpdateErr = lbc.configurator.AddOrUpdateResources(resourceExes, !lbc.configurator.DynamicSSLReloadEnabled())
 	if addOrUpdateErr != nil {
 		nl.Errorf(lbc.Logger, "Error when updating Secret %v: %v", secretNsName, addOrUpdateErr)
-		lbc.recorder.Eventf(secret, api_v1.EventTypeWarning, "UpdatedWithError", "%v was updated, but not applied: %v", secretNsName, addOrUpdateErr)
+		lbc.recorder.Eventf(lbc.metadata.pod, api_v1.EventTypeWarning, nl.EventReasonUpdatedWithError, "%v was updated, but not applied: %v", secretNsName, addOrUpdateErr)
 	}
 
 	lbc.updateResourcesStatusAndEvents(resources, warnings, addOrUpdateErr)
 }
 
-func (lbc *LoadBalancerController) handleSpecialSecretUpdate(secret *api_v1.Secret) {
-	var specialSecretsToUpdate []string
-	secretNsName := secret.Namespace + "/" + secret.Name
+func (lbc *LoadBalancerController) validationTLSSpecialSecret(secret *api_v1.Secret, secretName string, secretList *[]string) error {
 	err := secrets.ValidateTLSSecret(secret)
 	if err != nil {
-		nl.Errorf(lbc.Logger, "Couldn't validate the special Secret %v: %v", secretNsName, err)
-		lbc.recorder.Eventf(secret, api_v1.EventTypeWarning, "Rejected", "the special Secret %v was rejected, using the previous version: %v", secretNsName, err)
+		return err
+	}
+	*secretList = append(*secretList, secretName)
+	return nil
+}
+
+func (lbc *LoadBalancerController) handleSpecialSecretUpdate(secret *api_v1.Secret, reload bool) {
+	var specialTLSSecretsToUpdate []string
+	secretNsName := generateSecretNSName(secret)
+
+	if ok := lbc.specialSecretValidation(secretNsName, secret, &specialTLSSecretsToUpdate); !ok {
+		// if not ok bail early
 		return
 	}
 
-	if secretNsName == lbc.defaultServerSecret {
-		specialSecretsToUpdate = append(specialSecretsToUpdate, configs.DefaultServerSecretName)
-	}
-	if secretNsName == lbc.wildcardTLSSecret {
-		specialSecretsToUpdate = append(specialSecretsToUpdate, configs.WildcardSecretName)
-	}
-
-	err = lbc.configurator.AddOrUpdateSpecialTLSSecrets(secret, specialSecretsToUpdate)
-	if err != nil {
-		nl.Errorf(lbc.Logger, "Error when updating the special Secret %v: %v", secretNsName, err)
-		lbc.recorder.Eventf(secret, api_v1.EventTypeWarning, "UpdatedWithError", "the special Secret %v was updated, but not applied: %v", secretNsName, err)
+	if ok := lbc.writeSpecialSecrets(secret, specialTLSSecretsToUpdate); !ok {
+		// if not ok bail early
 		return
 	}
 
-	lbc.recorder.Eventf(secret, api_v1.EventTypeNormal, "Updated", "the special Secret %v was updated", secretNsName)
+	// When the MGMT Configmap updates, we don't need to reload here, we are reloading in updateAllConfigs().
+	if !reload {
+		lbc.recorder.Eventf(lbc.metadata.pod, api_v1.EventTypeNormal, nl.EventReasonSecretUpdated, "the special Secret %v was updated", secretNsName)
+		return
+	}
+
+	// reload nginx when the TLS special secrets are updated
+	switch secretNsName {
+	case lbc.specialSecrets.licenseSecret:
+		if ok := lbc.performNGINXReload(secret); !ok {
+			return
+		}
+	case lbc.specialSecrets.defaultServerSecret, lbc.specialSecrets.wildcardTLSSecret:
+		if ok := lbc.performDynamicSSLReload(secret); !ok {
+			return
+		}
+	case lbc.specialSecrets.clientAuthSecret:
+		if ok := lbc.performNGINXReload(secret); !ok {
+			return
+		}
+	case lbc.specialSecrets.trustedCertSecret:
+		lbc.updateAllConfigs()
+		if ok := lbc.performNGINXReload(secret); !ok {
+			return
+		}
+	}
+
+	lbc.recorder.Eventf(lbc.metadata.pod, api_v1.EventTypeNormal, nl.EventReasonSecretUpdated, "the special Secret %v was updated", secretNsName)
+}
+
+// writeSpecialSecrets generates content and writes the secret to disk
+func (lbc *LoadBalancerController) writeSpecialSecrets(secret *api_v1.Secret, specialTLSSecretsToUpdate []string) bool {
+	secretNsName := generateSecretNSName(secret)
+	var mgmtClientAuthNamespaceName string
+	if lbc.configurator.MgmtCfgParams != nil {
+		mgmtClientAuthNamespaceName = fmt.Sprintf("%s/%s", lbc.metadata.pod.Namespace, lbc.configurator.MgmtCfgParams.Secrets.ClientAuth)
+	}
+	switch secret.Type {
+	case secrets.SecretTypeLicense:
+		err := lbc.configurator.AddOrUpdateLicenseSecret(secret)
+		if err != nil {
+			nl.Error(lbc.Logger, err)
+			lbc.recorder.Eventf(lbc.metadata.pod, api_v1.EventTypeWarning, nl.EventReasonUpdatedWithError, "the license Secret %v was updated, but not applied: %v", secretNsName, err)
+			return false
+		}
+	case secrets.SecretTypeCA:
+		lbc.configurator.AddOrUpdateCASecret(secret, fmt.Sprintf("mgmt/%s", configs.CACrtKey), fmt.Sprintf("mgmt/%s", configs.CACrlKey))
+	case api_v1.SecretTypeTLS:
+		// if the secret name matches the specified
+		if secretNsName == mgmtClientAuthNamespaceName {
+			lbc.configurator.AddOrUpdateMGMTClientAuthSecret(secret)
+		} else {
+			lbc.configurator.AddOrUpdateSpecialTLSSecrets(secret, specialTLSSecretsToUpdate)
+		}
+	}
+	return true
+}
+
+func (lbc *LoadBalancerController) specialSecretValidation(secretNsName string, secret *api_v1.Secret, specialTLSSecretsToUpdate *[]string) bool {
+	if secretNsName == lbc.specialSecrets.defaultServerSecret {
+		err := lbc.validationTLSSpecialSecret(secret, configs.DefaultServerSecretFileName, specialTLSSecretsToUpdate)
+		if err != nil {
+			nl.Errorf(lbc.Logger, "Couldn't validate the special Secret %v: %v", secretNsName, err)
+			lbc.recorder.Eventf(lbc.metadata.pod, api_v1.EventTypeWarning, nl.EventReasonRejected, "the special Secret %v was rejected, using the previous version: %v", secretNsName, err)
+			return false
+		}
+	}
+	if secretNsName == lbc.specialSecrets.wildcardTLSSecret {
+		err := lbc.validationTLSSpecialSecret(secret, configs.WildcardSecretFileName, specialTLSSecretsToUpdate)
+		if err != nil {
+			nl.Errorf(lbc.Logger, "Couldn't validate the special Secret %v: %v", secretNsName, err)
+			lbc.recorder.Eventf(lbc.metadata.pod, api_v1.EventTypeWarning, nl.EventReasonRejected, "the special Secret %v was rejected, using the previous version: %v", secretNsName, err)
+			return false
+		}
+	}
+	if secretNsName == lbc.specialSecrets.licenseSecret {
+		err := secrets.ValidateLicenseSecret(secret)
+		if err != nil {
+			nl.Errorf(lbc.Logger, "Couldn't validate the special Secret %v: %v", secretNsName, err)
+			lbc.recorder.Eventf(lbc.metadata.pod, api_v1.EventTypeWarning, nl.EventReasonRejected, "the special Secret %v was rejected, using the previous version: %v", secretNsName, err)
+			return false
+		}
+	}
+	if secretNsName == lbc.specialSecrets.trustedCertSecret {
+		err := secrets.ValidateCASecret(secret)
+		if err != nil {
+			nl.Errorf(lbc.Logger, "Couldn't validate the special Secret %v: %v", secretNsName, err)
+			lbc.recorder.Eventf(lbc.metadata.pod, api_v1.EventTypeWarning, nl.EventReasonRejected, "the special Secret %v was rejected, using the previous version: %v", secretNsName, err)
+			return false
+		}
+	}
+	if secretNsName == lbc.specialSecrets.clientAuthSecret {
+		err := secrets.ValidateTLSSecret(secret)
+		if err != nil {
+			nl.Errorf(lbc.Logger, "Couldn't validate the special Secret %v: %v", secretNsName, err)
+			lbc.recorder.Eventf(lbc.metadata.pod, api_v1.EventTypeWarning, nl.EventReasonRejected, "the special Secret %v was rejected, using the previous version: %v", secretNsName, err)
+			return false
+		}
+	}
+	return true
+}
+
+func (lbc *LoadBalancerController) performDynamicSSLReload(secret *api_v1.Secret) bool {
+	if !lbc.configurator.DynamicSSLReloadEnabled() {
+		return lbc.performNGINXReload(secret)
+	}
+	return true
+}
+
+func (lbc *LoadBalancerController) performNGINXReload(secret *api_v1.Secret) bool {
+	secretNsName := generateSecretNSName(secret)
+	if err := lbc.configurator.Reload(false); err != nil {
+		nl.Errorf(lbc.Logger, "error when reloading NGINX when updating the special Secrets: %v", err)
+		lbc.recorder.Eventf(lbc.metadata.pod, api_v1.EventTypeWarning, nl.EventReasonUpdatedWithError, "the special Secret %v was updated, but not applied: %v", secretNsName, err)
+		return false
+	}
+	return true
+}
+
+func generateSecretNSName(secret *api_v1.Secret) string {
+	return secret.Namespace + "/" + secret.Name
 }
 
 func getStatusFromEventTitle(eventTitle string) string {
@@ -1984,6 +2225,10 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 				}
 			}
 		}
+
+		if lbc.configurator != nil && lbc.configurator.CfgParams != nil {
+			ingEx.ZoneSync = lbc.configurator.CfgParams.ZoneSync.Enable
+		}
 	}
 
 	ingEx.Endpoints = make(map[string][]string)
@@ -2125,6 +2370,9 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 		LogConfRefs:                 make(map[string]*unstructured.Unstructured),
 		DosProtectedEx:              make(map[string]*configs.DosEx),
 	}
+	if lbc.configurator != nil && lbc.configurator.CfgParams != nil {
+		virtualServerEx.ZoneSync = lbc.configurator.CfgParams.ZoneSync.Enable
+	}
 
 	resource := lbc.configuration.hosts[virtualServer.Spec.Host]
 	if vsc, ok := resource.(*VirtualServerConfiguration); ok {
@@ -2167,6 +2415,10 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 	err = lbc.addEgressMTLSSecretRefs(virtualServerEx.SecretRefs, policies)
 	if err != nil {
 		nl.Warnf(lbc.Logger, "Error getting EgressMTLS secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
+	}
+	err = lbc.addJWTTrustedCertSecretRefs(virtualServerEx.SecretRefs, policies)
+	if err != nil {
+		nl.Warnf(lbc.Logger, "Error getting JWT trusted cert secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
 	}
 	err = lbc.addOIDCSecretRefs(virtualServerEx.SecretRefs, policies)
 	if err != nil {
@@ -2216,11 +2468,12 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 	}
 
 	for _, u := range virtualServer.Spec.Upstreams {
-		endpointsKey := configs.GenerateEndpointsKey(virtualServer.Namespace, u.Service, u.Subselector, u.Port)
+		serviceNamespace, serviceName := configs.ParseServiceReference(u.Service, virtualServer.Namespace)
+		endpointsKey := configs.GenerateEndpointsKey(serviceNamespace, serviceName, u.Subselector, u.Port)
 
 		var endps []string
 		if u.UseClusterIP {
-			s, err := lbc.getServiceForUpstream(virtualServer.Namespace, u.Service, u.Port)
+			s, err := lbc.getServiceForUpstream(serviceNamespace, serviceName, u.Port)
 			if err != nil {
 				nl.Warnf(lbc.Logger, "Error getting Service for Upstream %v: %v", u.Service, err)
 			} else {
@@ -2232,13 +2485,13 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 			var err error
 
 			if len(u.Subselector) > 0 {
-				podEndps, err = lbc.getEndpointsForSubselector(virtualServer.Namespace, u)
+				podEndps, err = lbc.getEndpointsForSubselector(serviceNamespace, serviceName, u.Port, u.Subselector)
 			} else {
 				var external bool
-				podEndps, external, err = lbc.getEndpointsForUpstream(virtualServer.Namespace, u.Service, u.Port)
+				podEndps, external, err = lbc.getEndpointsForUpstream(serviceNamespace, serviceName, u.Port)
 
 				if err == nil && external && lbc.isNginxPlus {
-					externalNameSvcs[configs.GenerateExternalNameSvcKey(virtualServer.Namespace, u.Service)] = true
+					externalNameSvcs[configs.GenerateExternalNameSvcKey(serviceNamespace, serviceName)] = true
 				}
 			}
 
@@ -2281,6 +2534,10 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 		if err != nil {
 			nl.Warnf(lbc.Logger, "Error getting EgressMTLS secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
 		}
+		err = lbc.addJWTTrustedCertSecretRefs(virtualServerEx.SecretRefs, vsRoutePolicies)
+		if err != nil {
+			nl.Warnf(lbc.Logger, "Error getting JWT trusted cert secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
+		}
 
 		err = lbc.addWAFPolicyRefs(virtualServerEx.ApPolRefs, virtualServerEx.LogConfRefs, vsRoutePolicies)
 		if err != nil {
@@ -2298,6 +2555,11 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 		err = lbc.addOIDCSecretRefs(virtualServerEx.SecretRefs, vsRoutePolicies)
 		if err != nil {
 			nl.Warnf(lbc.Logger, "Error getting OIDC secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
+		}
+
+		err = lbc.addOIDCTrustedCertSecretRefs(virtualServerEx.SecretRefs, vsRoutePolicies)
+		if err != nil {
+			nl.Warnf(lbc.Logger, "Error getting OIDC trusted cert secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
 		}
 
 		err = lbc.addAPIKeySecretRefs(virtualServerEx.SecretRefs, vsRoutePolicies)
@@ -2329,10 +2591,19 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 			if err != nil {
 				nl.Warnf(lbc.Logger, "Error getting EgressMTLS secrets for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
 			}
+			err = lbc.addJWTTrustedCertSecretRefs(virtualServerEx.SecretRefs, vsrSubroutePolicies)
+			if err != nil {
+				nl.Warnf(lbc.Logger, "Error getting JWT trusted cert secrets for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
+			}
 
 			err = lbc.addOIDCSecretRefs(virtualServerEx.SecretRefs, vsrSubroutePolicies)
 			if err != nil {
 				nl.Warnf(lbc.Logger, "Error getting OIDC secrets for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
+			}
+
+			err = lbc.addOIDCTrustedCertSecretRefs(virtualServerEx.SecretRefs, vsrSubroutePolicies)
+			if err != nil {
+				nl.Warnf(lbc.Logger, "Error getting OIDC trusted cert secrets for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
 			}
 
 			err = lbc.addAPIKeySecretRefs(virtualServerEx.SecretRefs, vsrSubroutePolicies)
@@ -2355,11 +2626,12 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 		}
 
 		for _, u := range vsr.Spec.Upstreams {
-			endpointsKey := configs.GenerateEndpointsKey(vsr.Namespace, u.Service, u.Subselector, u.Port)
+			serviceNamespace, serviceName := configs.ParseServiceReference(u.Service, vsr.Namespace)
+			endpointsKey := configs.GenerateEndpointsKey(serviceNamespace, serviceName, u.Subselector, u.Port)
 
 			var endps []string
 			if u.UseClusterIP {
-				s, err := lbc.getServiceForUpstream(vsr.Namespace, u.Service, u.Port)
+				s, err := lbc.getServiceForUpstream(serviceNamespace, serviceName, u.Port)
 				if err != nil {
 					nl.Warnf(lbc.Logger, "Error getting Service for Upstream %v: %v", u.Service, err)
 				} else {
@@ -2370,13 +2642,13 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 				var podEndps []podEndpoint
 				var err error
 				if len(u.Subselector) > 0 {
-					podEndps, err = lbc.getEndpointsForSubselector(vsr.Namespace, u)
+					podEndps, err = lbc.getEndpointsForSubselector(serviceNamespace, serviceName, u.Port, u.Subselector)
 				} else {
 					var external bool
-					podEndps, external, err = lbc.getEndpointsForUpstream(vsr.Namespace, u.Service, u.Port)
+					podEndps, external, err = lbc.getEndpointsForUpstream(serviceNamespace, serviceName, u.Port)
 
 					if err == nil && external && lbc.isNginxPlus {
-						externalNameSvcs[configs.GenerateExternalNameSvcKey(vsr.Namespace, u.Service)] = true
+						externalNameSvcs[configs.GenerateExternalNameSvcKey(serviceNamespace, serviceName)] = true
 					}
 				}
 				if err != nil {
@@ -2581,9 +2853,33 @@ func (lbc *LoadBalancerController) addEgressMTLSSecretRefs(secretRefs map[string
 	return nil
 }
 
+func (lbc *LoadBalancerController) addJWTTrustedCertSecretRefs(secretRefs map[string]*secrets.SecretReference, policies []*conf_v1.Policy) error {
+	for _, pol := range policies {
+		if pol.Spec.JWTAuth == nil {
+			continue
+		}
+		if pol.Spec.JWTAuth.TrustedCertSecret != "" {
+			secretKey := fmt.Sprintf("%v/%v", pol.Namespace, pol.Spec.JWTAuth.TrustedCertSecret)
+			secretRef := lbc.secretStore.GetSecret(secretKey)
+
+			secretRefs[secretKey] = secretRef
+
+			if secretRef.Error != nil {
+				return secretRef.Error
+			}
+		}
+	}
+
+	return nil
+}
+
 func (lbc *LoadBalancerController) addOIDCSecretRefs(secretRefs map[string]*secrets.SecretReference, policies []*conf_v1.Policy) error {
 	for _, pol := range policies {
 		if pol.Spec.OIDC == nil {
+			continue
+		}
+
+		if pol.Spec.OIDC.PKCEEnable {
 			continue
 		}
 
@@ -2596,6 +2892,26 @@ func (lbc *LoadBalancerController) addOIDCSecretRefs(secretRefs map[string]*secr
 			return secretRef.Error
 		}
 	}
+	return nil
+}
+
+func (lbc *LoadBalancerController) addOIDCTrustedCertSecretRefs(secretRefs map[string]*secrets.SecretReference, policies []*conf_v1.Policy) error {
+	for _, pol := range policies {
+		if pol.Spec.OIDC == nil {
+			continue
+		}
+		if pol.Spec.OIDC.TrustedCertSecret != "" {
+			secretKey := fmt.Sprintf("%v/%v", pol.Namespace, pol.Spec.OIDC.TrustedCertSecret)
+			secretRef := lbc.secretStore.GetSecret(secretKey)
+
+			secretRefs[secretKey] = secretRef
+
+			if secretRef.Error != nil {
+				return secretRef.Error
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -2630,6 +2946,8 @@ func findPoliciesForSecret(policies []*conf_v1.Policy, secretNamespace string, s
 			res = append(res, pol)
 		} else if pol.Spec.JWTAuth != nil && pol.Spec.JWTAuth.Secret == secretName && pol.Namespace == secretNamespace {
 			res = append(res, pol)
+		} else if pol.Spec.JWTAuth != nil && pol.Spec.JWTAuth.TrustedCertSecret == secretName && pol.Namespace == secretNamespace {
+			res = append(res, pol)
 		} else if pol.Spec.BasicAuth != nil && pol.Spec.BasicAuth.Secret == secretName && pol.Namespace == secretNamespace {
 			res = append(res, pol)
 		} else if pol.Spec.EgressMTLS != nil && pol.Spec.EgressMTLS.TLSSecret == secretName && pol.Namespace == secretNamespace {
@@ -2637,6 +2955,8 @@ func findPoliciesForSecret(policies []*conf_v1.Policy, secretNamespace string, s
 		} else if pol.Spec.EgressMTLS != nil && pol.Spec.EgressMTLS.TrustedCertSecret == secretName && pol.Namespace == secretNamespace {
 			res = append(res, pol)
 		} else if pol.Spec.OIDC != nil && pol.Spec.OIDC.ClientSecret == secretName && pol.Namespace == secretNamespace {
+			res = append(res, pol)
+		} else if pol.Spec.OIDC != nil && pol.Spec.OIDC.TrustedCertSecret == secretName && pol.Namespace == secretNamespace {
 			res = append(res, pol)
 		} else if pol.Spec.APIKey != nil && pol.Spec.APIKey.ClientSecret == secretName && pol.Namespace == secretNamespace {
 			res = append(res, pol)
@@ -2682,31 +3002,31 @@ func (lbc *LoadBalancerController) getEndpointsForUpstream(namespace string, ups
 	return endps, isExternal, err
 }
 
-func (lbc *LoadBalancerController) getEndpointsForSubselector(namespace string, upstream conf_v1.Upstream) (endps []podEndpoint, err error) {
-	svc, err := lbc.getServiceForUpstream(namespace, upstream.Service, upstream.Port)
+func (lbc *LoadBalancerController) getEndpointsForSubselector(namespace string, serviceName string, servicePort uint16, subselector map[string]string) (endps []podEndpoint, err error) {
+	svc, err := lbc.getServiceForUpstream(namespace, serviceName, servicePort)
 	if err != nil {
-		return nil, fmt.Errorf("error getting service %v: %w", upstream.Service, err)
+		return nil, fmt.Errorf("error getting service %v: %w", serviceName, err)
 	}
 
 	var targetPort int32
 
 	for _, port := range svc.Spec.Ports {
-		if port.Port == int32(upstream.Port) {
+		if port.Port == int32(servicePort) {
 			targetPort, err = lbc.getTargetPort(port, svc)
 			if err != nil {
-				return nil, fmt.Errorf("error determining target port for port %v in service %v: %w", upstream.Port, svc.Name, err)
+				return nil, fmt.Errorf("error determining target port for port %v in service %v: %w", servicePort, svc.Name, err)
 			}
 			break
 		}
 	}
 
 	if targetPort == 0 {
-		return nil, fmt.Errorf("no port %v in service %s", upstream.Port, svc.Name)
+		return nil, fmt.Errorf("no port %v in service %s", servicePort, svc.Name)
 	}
 
-	endps, err = lbc.getEndpointsForServiceWithSubselector(targetPort, upstream.Subselector, svc)
+	endps, err = lbc.getEndpointsForServiceWithSubselector(targetPort, subselector, svc)
 	if err != nil {
-		return nil, fmt.Errorf("error retrieving endpoints for the service %v: %w", upstream.Service, err)
+		return nil, fmt.Errorf("error retrieving endpoints for the service %v: %w", serviceName, err)
 	}
 
 	return endps, err
@@ -2787,7 +3107,7 @@ func getEndpointsFromEndpointSlicesForSubselectedPods(targetPort int32, pods []*
 				}
 			}
 		}
-		return maps.Keys(endpointSet)
+		return slices.Collect(maps.Keys(endpointSet))
 	}
 
 	return makePodEndpoints(pods, filterReadyEndpointsFrom(selectEndpointSlicesForPort(targetPort, svcEndpointSlices)))
@@ -2925,7 +3245,7 @@ func (lbc *LoadBalancerController) getEndpointsForPortFromEndpointSlices(endpoin
 				endpointSet[podEndpoint] = struct{}{}
 			}
 		}
-		return maps.Keys(endpointSet)
+		return slices.Collect(maps.Keys(endpointSet))
 	}
 
 	endpoints := makePodEndpoints(targetPort, filterReadyEndpointsFrom(selectEndpointSlicesForPort(targetPort, endpointSlices)))
@@ -3291,7 +3611,7 @@ func (lbc *LoadBalancerController) haltIfVSConfigInvalid(vsNew *conf_v1.VirtualS
 		p := ConfigurationProblem{
 			Object:  vsNew,
 			IsError: true,
-			Reason:  "Rejected",
+			Reason:  nl.EventReasonRejected,
 			Message: fmt.Sprintf("VirtualServer %s was rejected with error: %s", getResourceKey(&vsNew.ObjectMeta), validationError.Error()),
 		}
 		problems = append(problems, p)
@@ -3393,5 +3713,34 @@ func (lbc *LoadBalancerController) vsrHasWeightChanges(vsrOld *conf_v1.VirtualSe
 			return true
 		}
 	}
+	return false
+}
+
+func (lbc *LoadBalancerController) createCombinedDeploymentHeadlessServiceName() string {
+	owner := lbc.metadata.pod.ObjectMeta.OwnerReferences[0]
+	name := owner.Name
+	if strings.ToLower(owner.Kind) == "replicaset" {
+		if dash := strings.LastIndex(name, "-"); dash != -1 {
+			name = name[:dash] // Remove hash
+		}
+	}
+	combinedDeployment := fmt.Sprintf("%s-%s", name, strings.ToLower(owner.Kind))
+	return combinedDeployment
+}
+
+func (lbc *LoadBalancerController) isPodMarkedForDeletion() bool {
+	// Check if the controller is shutting down
+	if lbc.ShuttingDown {
+		nl.Debugf(lbc.Logger, "SIGTERM already received, controller is shutting down")
+		return true
+	}
+	podName := lbc.metadata.pod.Name
+	podNamespace := lbc.metadata.pod.Namespace
+	pod, err := lbc.client.CoreV1().Pods(podNamespace).Get(context.Background(), podName, meta_v1.GetOptions{})
+	if err == nil && pod.DeletionTimestamp != nil {
+		nl.Debugf(lbc.Logger, "Pod %s/%s is marked for deletion", podNamespace, podName)
+		return true
+	}
+
 	return false
 }

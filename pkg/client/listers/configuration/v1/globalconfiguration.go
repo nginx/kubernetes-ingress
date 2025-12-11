@@ -3,10 +3,10 @@
 package v1
 
 import (
-	v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/listers"
-	"k8s.io/client-go/tools/cache"
+	configurationv1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // GlobalConfigurationLister helps list GlobalConfigurations.
@@ -14,7 +14,7 @@ import (
 type GlobalConfigurationLister interface {
 	// List lists all GlobalConfigurations in the indexer.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1.GlobalConfiguration, err error)
+	List(selector labels.Selector) (ret []*configurationv1.GlobalConfiguration, err error)
 	// GlobalConfigurations returns an object that can list and get GlobalConfigurations.
 	GlobalConfigurations(namespace string) GlobalConfigurationNamespaceLister
 	GlobalConfigurationListerExpansion
@@ -22,17 +22,17 @@ type GlobalConfigurationLister interface {
 
 // globalConfigurationLister implements the GlobalConfigurationLister interface.
 type globalConfigurationLister struct {
-	listers.ResourceIndexer[*v1.GlobalConfiguration]
+	listers.ResourceIndexer[*configurationv1.GlobalConfiguration]
 }
 
 // NewGlobalConfigurationLister returns a new GlobalConfigurationLister.
 func NewGlobalConfigurationLister(indexer cache.Indexer) GlobalConfigurationLister {
-	return &globalConfigurationLister{listers.New[*v1.GlobalConfiguration](indexer, v1.Resource("globalconfiguration"))}
+	return &globalConfigurationLister{listers.New[*configurationv1.GlobalConfiguration](indexer, configurationv1.Resource("globalconfiguration"))}
 }
 
 // GlobalConfigurations returns an object that can list and get GlobalConfigurations.
 func (s *globalConfigurationLister) GlobalConfigurations(namespace string) GlobalConfigurationNamespaceLister {
-	return globalConfigurationNamespaceLister{listers.NewNamespaced[*v1.GlobalConfiguration](s.ResourceIndexer, namespace)}
+	return globalConfigurationNamespaceLister{listers.NewNamespaced[*configurationv1.GlobalConfiguration](s.ResourceIndexer, namespace)}
 }
 
 // GlobalConfigurationNamespaceLister helps list and get GlobalConfigurations.
@@ -40,15 +40,15 @@ func (s *globalConfigurationLister) GlobalConfigurations(namespace string) Globa
 type GlobalConfigurationNamespaceLister interface {
 	// List lists all GlobalConfigurations in the indexer for a given namespace.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1.GlobalConfiguration, err error)
+	List(selector labels.Selector) (ret []*configurationv1.GlobalConfiguration, err error)
 	// Get retrieves the GlobalConfiguration from the indexer for a given namespace and name.
 	// Objects returned here must be treated as read-only.
-	Get(name string) (*v1.GlobalConfiguration, error)
+	Get(name string) (*configurationv1.GlobalConfiguration, error)
 	GlobalConfigurationNamespaceListerExpansion
 }
 
 // globalConfigurationNamespaceLister implements the GlobalConfigurationNamespaceLister
 // interface.
 type globalConfigurationNamespaceLister struct {
-	listers.ResourceIndexer[*v1.GlobalConfiguration]
+	listers.ResourceIndexer[*configurationv1.GlobalConfiguration]
 }

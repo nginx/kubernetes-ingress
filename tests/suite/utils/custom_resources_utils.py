@@ -120,7 +120,7 @@ def create_resource_from_manifest(custom_objects: CustomObjectsApi, body, namesp
         raise ex
 
 
-def read_custom_resource_v1alpha1(custom_objects: CustomObjectsApi, namespace, plural, name) -> object:
+def read_custom_resource_v1(custom_objects: CustomObjectsApi, namespace, plural, name) -> object:
     """
     Get CRD information (kubectl describe output)
 

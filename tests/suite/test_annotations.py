@@ -451,14 +451,12 @@ class TestAnnotations:
     @pytest.mark.parametrize(
         "annotations",
         [
-            (
-                {
-                    "nginx.org/proxy-send-timeout": "invalid",
-                    "nginx.org/max-conns": "-10",
-                    "nginx.org/upstream-zone-size": "-10I'm S±!@£$%^&*()invalid",
-                    "nginx.org/proxy-set-headers": "abc!123",
-                }
-            )
+            {
+                "nginx.org/proxy-send-timeout": "invalid",
+                "nginx.org/max-conns": "-10",
+                "nginx.org/upstream-zone-size": "-10I'm S±!@£$%^&*()invalid",
+                "nginx.org/proxy-set-headers": "abc!123",
+            }
         ],
     )
     def test_validation(self, kube_apis, annotations_setup, ingress_controller_prerequisites, annotations):

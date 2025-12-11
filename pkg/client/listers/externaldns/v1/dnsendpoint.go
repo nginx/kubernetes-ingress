@@ -3,10 +3,10 @@
 package v1
 
 import (
-	v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/externaldns/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/listers"
-	"k8s.io/client-go/tools/cache"
+	externaldnsv1 "github.com/nginx/kubernetes-ingress/pkg/apis/externaldns/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // DNSEndpointLister helps list DNSEndpoints.
@@ -14,7 +14,7 @@ import (
 type DNSEndpointLister interface {
 	// List lists all DNSEndpoints in the indexer.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1.DNSEndpoint, err error)
+	List(selector labels.Selector) (ret []*externaldnsv1.DNSEndpoint, err error)
 	// DNSEndpoints returns an object that can list and get DNSEndpoints.
 	DNSEndpoints(namespace string) DNSEndpointNamespaceLister
 	DNSEndpointListerExpansion
@@ -22,17 +22,17 @@ type DNSEndpointLister interface {
 
 // dNSEndpointLister implements the DNSEndpointLister interface.
 type dNSEndpointLister struct {
-	listers.ResourceIndexer[*v1.DNSEndpoint]
+	listers.ResourceIndexer[*externaldnsv1.DNSEndpoint]
 }
 
 // NewDNSEndpointLister returns a new DNSEndpointLister.
 func NewDNSEndpointLister(indexer cache.Indexer) DNSEndpointLister {
-	return &dNSEndpointLister{listers.New[*v1.DNSEndpoint](indexer, v1.Resource("dnsendpoint"))}
+	return &dNSEndpointLister{listers.New[*externaldnsv1.DNSEndpoint](indexer, externaldnsv1.Resource("dnsendpoint"))}
 }
 
 // DNSEndpoints returns an object that can list and get DNSEndpoints.
 func (s *dNSEndpointLister) DNSEndpoints(namespace string) DNSEndpointNamespaceLister {
-	return dNSEndpointNamespaceLister{listers.NewNamespaced[*v1.DNSEndpoint](s.ResourceIndexer, namespace)}
+	return dNSEndpointNamespaceLister{listers.NewNamespaced[*externaldnsv1.DNSEndpoint](s.ResourceIndexer, namespace)}
 }
 
 // DNSEndpointNamespaceLister helps list and get DNSEndpoints.
@@ -40,15 +40,15 @@ func (s *dNSEndpointLister) DNSEndpoints(namespace string) DNSEndpointNamespaceL
 type DNSEndpointNamespaceLister interface {
 	// List lists all DNSEndpoints in the indexer for a given namespace.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1.DNSEndpoint, err error)
+	List(selector labels.Selector) (ret []*externaldnsv1.DNSEndpoint, err error)
 	// Get retrieves the DNSEndpoint from the indexer for a given namespace and name.
 	// Objects returned here must be treated as read-only.
-	Get(name string) (*v1.DNSEndpoint, error)
+	Get(name string) (*externaldnsv1.DNSEndpoint, error)
 	DNSEndpointNamespaceListerExpansion
 }
 
 // dNSEndpointNamespaceLister implements the DNSEndpointNamespaceLister
 // interface.
 type dNSEndpointNamespaceLister struct {
-	listers.ResourceIndexer[*v1.DNSEndpoint]
+	listers.ResourceIndexer[*externaldnsv1.DNSEndpoint]
 }

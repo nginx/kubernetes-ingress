@@ -37,11 +37,11 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 
-	nl "github.com/nginxinc/kubernetes-ingress/internal/logger"
-	conf_v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
-	k8s_nginx "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned"
-	vsinformers "github.com/nginxinc/kubernetes-ingress/pkg/client/informers/externalversions"
-	listers_v1 "github.com/nginxinc/kubernetes-ingress/pkg/client/listers/configuration/v1"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	k8s_nginx "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned"
+	vsinformers "github.com/nginx/kubernetes-ingress/pkg/client/informers/externalversions"
+	listers_v1 "github.com/nginx/kubernetes-ingress/pkg/client/listers/configuration/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 

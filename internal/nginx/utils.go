@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"path"
 
-	nl "github.com/nginxinc/kubernetes-ingress/internal/logger"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 )
 
 func shellOut(l *slog.Logger, cmd string) (err error) {

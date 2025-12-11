@@ -16,7 +16,7 @@ ALLOWED_IC_TYPES = ["nginx-ingress", "nginx-plus-ingress"]
 DEFAULT_SERVICE = "nodeport"
 ALLOWED_SERVICE_TYPES = ["nodeport", "loadbalancer"]
 DEFAULT_DEPLOYMENT_TYPE = "deployment"
-ALLOWED_DEPLOYMENT_TYPES = ["deployment", "daemon-set"]
+ALLOWED_DEPLOYMENT_TYPES = ["deployment", "daemon-set", "stateful-set"]
 # Time in seconds to ensure reconfiguration changes in cluster
 RECONFIGURATION_DELAY = 3
 NGINX_API_VERSION = 4
@@ -33,4 +33,4 @@ NS_COUNT = 0
 # Nginx registry address to pull waf components from
 NGX_REG = "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr"
 # WAF component version to pull from above registry
-WAF_V5_VERSION = "5.3.0"
+WAF_V5_VERSION = "5.9.0"

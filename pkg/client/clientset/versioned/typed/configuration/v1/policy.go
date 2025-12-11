@@ -3,10 +3,10 @@
 package v1
 
 import (
-	"context"
+	context "context"
 
-	v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
-	scheme "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned/scheme"
+	configurationv1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	scheme "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -21,33 +21,34 @@ type PoliciesGetter interface {
 
 // PolicyInterface has methods to work with Policy resources.
 type PolicyInterface interface {
-	Create(ctx context.Context, policy *v1.Policy, opts metav1.CreateOptions) (*v1.Policy, error)
-	Update(ctx context.Context, policy *v1.Policy, opts metav1.UpdateOptions) (*v1.Policy, error)
+	Create(ctx context.Context, policy *configurationv1.Policy, opts metav1.CreateOptions) (*configurationv1.Policy, error)
+	Update(ctx context.Context, policy *configurationv1.Policy, opts metav1.UpdateOptions) (*configurationv1.Policy, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, policy *v1.Policy, opts metav1.UpdateOptions) (*v1.Policy, error)
+	UpdateStatus(ctx context.Context, policy *configurationv1.Policy, opts metav1.UpdateOptions) (*configurationv1.Policy, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.Policy, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.PolicyList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*configurationv1.Policy, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*configurationv1.PolicyList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.Policy, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *configurationv1.Policy, err error)
 	PolicyExpansion
 }
 
 // policies implements PolicyInterface
 type policies struct {
-	*gentype.ClientWithList[*v1.Policy, *v1.PolicyList]
+	*gentype.ClientWithList[*configurationv1.Policy, *configurationv1.PolicyList]
 }
 
 // newPolicies returns a Policies
 func newPolicies(c *K8sV1Client, namespace string) *policies {
 	return &policies{
-		gentype.NewClientWithList[*v1.Policy, *v1.PolicyList](
+		gentype.NewClientWithList[*configurationv1.Policy, *configurationv1.PolicyList](
 			"policies",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1.Policy { return &v1.Policy{} },
-			func() *v1.PolicyList { return &v1.PolicyList{} }),
+			func() *configurationv1.Policy { return &configurationv1.Policy{} },
+			func() *configurationv1.PolicyList { return &configurationv1.PolicyList{} },
+		),
 	}
 }

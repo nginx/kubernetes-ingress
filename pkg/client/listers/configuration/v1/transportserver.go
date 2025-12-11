@@ -3,10 +3,10 @@
 package v1
 
 import (
-	v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/listers"
-	"k8s.io/client-go/tools/cache"
+	configurationv1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // TransportServerLister helps list TransportServers.
@@ -14,7 +14,7 @@ import (
 type TransportServerLister interface {
 	// List lists all TransportServers in the indexer.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1.TransportServer, err error)
+	List(selector labels.Selector) (ret []*configurationv1.TransportServer, err error)
 	// TransportServers returns an object that can list and get TransportServers.
 	TransportServers(namespace string) TransportServerNamespaceLister
 	TransportServerListerExpansion
@@ -22,17 +22,17 @@ type TransportServerLister interface {
 
 // transportServerLister implements the TransportServerLister interface.
 type transportServerLister struct {
-	listers.ResourceIndexer[*v1.TransportServer]
+	listers.ResourceIndexer[*configurationv1.TransportServer]
 }
 
 // NewTransportServerLister returns a new TransportServerLister.
 func NewTransportServerLister(indexer cache.Indexer) TransportServerLister {
-	return &transportServerLister{listers.New[*v1.TransportServer](indexer, v1.Resource("transportserver"))}
+	return &transportServerLister{listers.New[*configurationv1.TransportServer](indexer, configurationv1.Resource("transportserver"))}
 }
 
 // TransportServers returns an object that can list and get TransportServers.
 func (s *transportServerLister) TransportServers(namespace string) TransportServerNamespaceLister {
-	return transportServerNamespaceLister{listers.NewNamespaced[*v1.TransportServer](s.ResourceIndexer, namespace)}
+	return transportServerNamespaceLister{listers.NewNamespaced[*configurationv1.TransportServer](s.ResourceIndexer, namespace)}
 }
 
 // TransportServerNamespaceLister helps list and get TransportServers.
@@ -40,15 +40,15 @@ func (s *transportServerLister) TransportServers(namespace string) TransportServ
 type TransportServerNamespaceLister interface {
 	// List lists all TransportServers in the indexer for a given namespace.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1.TransportServer, err error)
+	List(selector labels.Selector) (ret []*configurationv1.TransportServer, err error)
 	// Get retrieves the TransportServer from the indexer for a given namespace and name.
 	// Objects returned here must be treated as read-only.
-	Get(name string) (*v1.TransportServer, error)
+	Get(name string) (*configurationv1.TransportServer, error)
 	TransportServerNamespaceListerExpansion
 }
 
 // transportServerNamespaceLister implements the TransportServerNamespaceLister
 // interface.
 type transportServerNamespaceLister struct {
-	listers.ResourceIndexer[*v1.TransportServer]
+	listers.ResourceIndexer[*configurationv1.TransportServer]
 }

@@ -1,4 +1,4 @@
-{{- /*gotype: github.com/nginxinc/kubernetes-ingress/internal/configs/version1.IngressNginxConfig*/ -}}
+{{- /*gotype: github.com/nginx/kubernetes-ingress/internal/configs/version1.IngressNginxConfig*/ -}}
 # configuration for {{.Ingress.Namespace}}/{{.Ingress.Name}}
 {{- range $upstream := .Upstreams}}
 upstream {{$upstream.Name}} {
@@ -22,7 +22,7 @@ upstream {{$upstream.Name}} {
 {{- end}}
 
 {{range $limitReqZone := .LimitReqZones}}
-limit_req_zone {{ $limitReqZone.Key }} zone={{ $limitReqZone.Name }}:{{$limitReqZone.Size}} rate={{$limitReqZone.Rate}};
+limit_req_zone {{ $limitReqZone.Key }} zone={{ $limitReqZone.Name }}:{{$limitReqZone.Size}} rate={{$limitReqZone.Rate}}{{- if $limitReqZone.Sync }} sync{{- end }};
 {{end}}
 
 {{range $server := .Servers}}
@@ -59,6 +59,12 @@ server {
 	{{- else}}
 	ssl_certificate {{ makeSecretPath $server.SSLCertificate $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
 	ssl_certificate_key {{ makeSecretPath $server.SSLCertificateKey $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+	{{- if $server.SSLCiphers}}
+	ssl_ciphers {{$server.SSLCiphers}};
+	{{- end}}
+	{{- if $server.SSLPreferServerCiphers}}
+	ssl_prefer_server_ciphers on;
+	{{- end}}
 	{{- end}}
 	{{- end}}
 	{{- end}}
@@ -196,6 +202,9 @@ server {
 		set $resource_name "{{$location.MinionIngress.Name}}";
 		set $resource_namespace "{{$location.MinionIngress.Namespace}}";
 		{{- end}}
+		{{- if $location.RewriteTarget}}
+		rewrite {{ makeRewritePattern $location $.Ingress.Annotations }} {{$location.RewriteTarget}} break;
+		{{- end}}
 		{{- if $location.GRPC}}
 		{{- if not $server.GRPCOnly}}
 		error_page 400 @grpcerror400;
@@ -213,10 +222,8 @@ server {
 		error_page 504 @grpcerror504;
 		{{- end}}
 
-		{{- if $location.LocationSnippets}}
 		{{- range $value := $location.LocationSnippets}}
 		{{$value}}{{end}}
-		{{- end}}
 
 		{{- with $jwt := $location.JWTAuth}}
 		auth_jwt_key_file {{$jwt.Key}};
@@ -264,10 +271,8 @@ server {
 		{{- if $.Keepalive}}
 		proxy_set_header Connection "";{{end}}
 		{{- end}}
-		{{- if $location.LocationSnippets}}
-		{{range $value := $location.LocationSnippets}}
-		{{$value}}{{end}}
-		{{- end}}
+		{{- range $value := $location.LocationSnippets}}
+		{{$value}}{{- end}}
 
 		{{- with $jwt := $location.JWTAuth }}
 		auth_jwt_key_file {{$jwt.Key}};
@@ -286,6 +291,9 @@ server {
 		proxy_read_timeout {{$location.ProxyReadTimeout}};
 		proxy_send_timeout {{$location.ProxySendTimeout}};
 		client_max_body_size {{$location.ClientMaxBodySize}};
+		{{- if $location.ClientBodyBufferSize }}
+		client_body_buffer_size {{$location.ClientBodyBufferSize}};
+		{{- end}}
 		{{- $proxySetHeaders := generateProxySetHeaders $location $.Ingress.Annotations }}
 		{{$proxySetHeaders}}
 		proxy_set_header Host $host;
@@ -300,6 +308,9 @@ server {
 		{{- end}}
 		{{- if $location.ProxyBufferSize}}
 		proxy_buffer_size {{$location.ProxyBufferSize}};
+		{{- end}}
+		{{- if $location.ProxyBusyBuffersSize}}
+		proxy_busy_buffers_size {{$location.ProxyBusyBuffersSize}};
 		{{- end}}
 		{{- if $location.ProxyMaxTempFileSize}}
 		proxy_max_temp_file_size {{$location.ProxyMaxTempFileSize}};
@@ -321,7 +332,7 @@ server {
 		{{- end}}
 
 		{{with $location.LimitReq}}
-		limit_req zone={{ $location.LimitReq.Zone }} {{if $location.LimitReq.Burst}}burst={{$location.LimitReq.Burst}}{{end}} {{if $location.LimitReq.NoDelay}}nodelay{{else if $location.LimitReq.Delay}}delay={{$location.LimitReq.Delay}}{{end}};
+		limit_req zone={{ $location.LimitReq.Zone }}{{- if $location.LimitReq.Burst }} burst={{$location.LimitReq.Burst}}{{- end }}{{- if $location.LimitReq.NoDelay }} nodelay{{- else if $location.LimitReq.Delay }} delay={{$location.LimitReq.Delay}}{{- end }};
 		{{if $location.LimitReq.DryRun}}limit_req_dry_run on;{{end}}
 		{{if $location.LimitReq.LogLevel}}limit_req_log_level {{$location.LimitReq.LogLevel}};{{end}}
 		{{if $location.LimitReq.RejectCode}}limit_req_status {{$location.LimitReq.RejectCode}};{{end}}

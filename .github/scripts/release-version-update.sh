@@ -9,7 +9,6 @@ DEPLOYMENT_PATH="${ROOTDIR}/deployments"
 EXAMPLES_PATH="${ROOTDIR}/examples"
 DEBUG=${DEBUG:-"false"}
 
-DOCS_TO_UPDATE_FOLDER=${ROOTDIR}/site/content
 FILES_TO_UPDATE_IC_VERSION=(
     "${ROOTDIR}/.github/data/version.txt"
     "${ROOTDIR}/README.md"
@@ -17,6 +16,8 @@ FILES_TO_UPDATE_IC_VERSION=(
     "${DEPLOYMENT_PATH}/daemon-set/nginx-plus-ingress.yaml"
     "${DEPLOYMENT_PATH}/deployment/nginx-ingress.yaml"
     "${DEPLOYMENT_PATH}/deployment/nginx-plus-ingress.yaml"
+    "${DEPLOYMENT_PATH}/stateful-set/nginx-ingress.yaml"
+    "${DEPLOYMENT_PATH}/stateful-set/nginx-plus-ingress.yaml"
     "${HELM_CHART_PATH}/Chart.yaml"
     "${HELM_CHART_PATH}/values-icp.yaml"
     "${HELM_CHART_PATH}/values-nsm.yaml"
@@ -120,11 +121,6 @@ for i in "${FILE_TO_UPDATE_HELM_CHART_VERSION[@]}"; do
     fi
 done
 
-# update docs with new versions
-echo -n "${new_ic_version}" > ./site/layouts/shortcodes/nic-version.html
-echo -n "${new_helm_chart_version}" > ./site/layouts/shortcodes/nic-helm-version.html
-echo -n "${new_operator_version}" > ./site/layouts/shortcodes/nic-operator-version.html
-
 # update examples with new versions
 example_files=$(find "${EXAMPLES_PATH}" -type f -name "*.md")
 for i in ${example_files}; do
@@ -140,3 +136,5 @@ for i in ${example_files}; do
         exit 2
     fi
 done
+
+make test-update-snaps

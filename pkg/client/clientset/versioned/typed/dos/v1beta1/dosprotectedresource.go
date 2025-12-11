@@ -3,10 +3,10 @@
 package v1beta1
 
 import (
-	"context"
+	context "context"
 
-	v1beta1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/dos/v1beta1"
-	scheme "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned/scheme"
+	dosv1beta1 "github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
+	scheme "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -21,31 +21,32 @@ type DosProtectedResourcesGetter interface {
 
 // DosProtectedResourceInterface has methods to work with DosProtectedResource resources.
 type DosProtectedResourceInterface interface {
-	Create(ctx context.Context, dosProtectedResource *v1beta1.DosProtectedResource, opts v1.CreateOptions) (*v1beta1.DosProtectedResource, error)
-	Update(ctx context.Context, dosProtectedResource *v1beta1.DosProtectedResource, opts v1.UpdateOptions) (*v1beta1.DosProtectedResource, error)
+	Create(ctx context.Context, dosProtectedResource *dosv1beta1.DosProtectedResource, opts v1.CreateOptions) (*dosv1beta1.DosProtectedResource, error)
+	Update(ctx context.Context, dosProtectedResource *dosv1beta1.DosProtectedResource, opts v1.UpdateOptions) (*dosv1beta1.DosProtectedResource, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
-	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1beta1.DosProtectedResource, error)
-	List(ctx context.Context, opts v1.ListOptions) (*v1beta1.DosProtectedResourceList, error)
+	Get(ctx context.Context, name string, opts v1.GetOptions) (*dosv1beta1.DosProtectedResource, error)
+	List(ctx context.Context, opts v1.ListOptions) (*dosv1beta1.DosProtectedResourceList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.DosProtectedResource, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *dosv1beta1.DosProtectedResource, err error)
 	DosProtectedResourceExpansion
 }
 
 // dosProtectedResources implements DosProtectedResourceInterface
 type dosProtectedResources struct {
-	*gentype.ClientWithList[*v1beta1.DosProtectedResource, *v1beta1.DosProtectedResourceList]
+	*gentype.ClientWithList[*dosv1beta1.DosProtectedResource, *dosv1beta1.DosProtectedResourceList]
 }
 
 // newDosProtectedResources returns a DosProtectedResources
 func newDosProtectedResources(c *AppprotectdosV1beta1Client, namespace string) *dosProtectedResources {
 	return &dosProtectedResources{
-		gentype.NewClientWithList[*v1beta1.DosProtectedResource, *v1beta1.DosProtectedResourceList](
+		gentype.NewClientWithList[*dosv1beta1.DosProtectedResource, *dosv1beta1.DosProtectedResourceList](
 			"dosprotectedresources",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1beta1.DosProtectedResource { return &v1beta1.DosProtectedResource{} },
-			func() *v1beta1.DosProtectedResourceList { return &v1beta1.DosProtectedResourceList{} }),
+			func() *dosv1beta1.DosProtectedResource { return &dosv1beta1.DosProtectedResource{} },
+			func() *dosv1beta1.DosProtectedResourceList { return &dosv1beta1.DosProtectedResourceList{} },
+		),
 	}
 }

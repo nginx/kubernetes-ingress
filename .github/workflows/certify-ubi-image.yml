@@ -1,0 +1,70 @@
+name: Certify UBI image
+run-name: Certify UBI image ${{ inputs.image }} by @${{ github.actor }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: "Image to certify"
+        required: true
+        type: string
+      submit:
+        description: "Submit results to Redhat"
+        required: false
+        type: boolean
+        default: false
+      preflight_version:
+        description: "Preflight version to use"
+        required: false
+        type: string
+        default: "1.14.1"
+      platforms:
+        description: A comma separated list of architectures in the image manifest to certify
+        required: false
+        default: "amd64,arm64"
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+jobs:
+  certify-ubi-images:
+    name: Certify OpenShift UBI images
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
+
+      - name: Setup secrets
+        id: secrets
+        run: |
+          echo "Setting secrets for job"
+          PYXIS_TOKEN=$(az keyvault secret show --name nic-pyxis-token --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$PYXIS_TOKEN"
+          echo "PYXIS_TOKEN=$PYXIS_TOKEN" >> $GITHUB_OUTPUT
+          PYXIS_CERTIFICATION_PROJECT_ID=$(az keyvault secret show --name nic-pyxis-certification-pid --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$PYXIS_CERTIFICATION_PROJECT_ID"
+          echo "PYXIS_CERTIFICATION_PROJECT_ID=$PYXIS_CERTIFICATION_PROJECT_ID" >> $GITHUB_OUTPUT
+
+      - name: Certify UBI OSS images in quay
+        uses: ./.github/actions/certify-openshift-image
+        with:
+          image: ${{ inputs.image }}
+          project_id: ${{ steps.secrets.outputs.PYXIS_CERTIFICATION_PROJECT_ID }}
+          pyxis_token: ${{ steps.secrets.outputs.PYXIS_TOKEN }}
+          preflight_version: ${{ inputs.preflight_version }}
+          submit: ${{ inputs.submit || true }}
+          platforms: ${{ inputs.platforms }}

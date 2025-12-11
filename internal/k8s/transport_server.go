@@ -6,10 +6,10 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/nginxinc/kubernetes-ingress/internal/configs"
-	"github.com/nginxinc/kubernetes-ingress/internal/k8s/secrets"
-	nl "github.com/nginxinc/kubernetes-ingress/internal/logger"
-	conf_v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
+	"github.com/nginx/kubernetes-ingress/internal/configs"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	api_v1 "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
@@ -88,7 +88,7 @@ func (lbc *LoadBalancerController) syncTransportServer(task task) {
 
 func (lbc *LoadBalancerController) updateTransportServerStatusAndEventsOnDelete(tsConfig *TransportServerConfiguration, changeError string, deleteErr error) {
 	eventType := api_v1.EventTypeWarning
-	eventTitle := "Rejected"
+	eventTitle := nl.EventReasonRejected
 	eventWarningMessage := ""
 	var state string
 
@@ -108,7 +108,7 @@ func (lbc *LoadBalancerController) updateTransportServerStatusAndEventsOnDelete(
 	if eventWarningMessage != "" {
 		if deleteErr != nil {
 			eventType = api_v1.EventTypeWarning
-			eventTitle = "RejectedWithError"
+			eventTitle = nl.EventReasonRejectedWithError
 			eventWarningMessage = fmt.Sprintf("%s; but was not applied: %v", eventWarningMessage, deleteErr)
 			state = conf_v1.StateInvalid
 		}
@@ -126,28 +126,28 @@ func (lbc *LoadBalancerController) updateTransportServerStatusAndEventsOnDelete(
 }
 
 func (lbc *LoadBalancerController) updateTransportServerStatusAndEvents(tsConfig *TransportServerConfiguration, warnings configs.Warnings, operationErr error) {
-	eventTitle := "AddedOrUpdated"
+	eventTitle := nl.EventReasonAddedOrUpdated
 	eventType := api_v1.EventTypeNormal
 	eventWarningMessage := ""
 	state := conf_v1.StateValid
 
 	if len(tsConfig.Warnings) > 0 {
 		eventType = api_v1.EventTypeWarning
-		eventTitle = "AddedOrUpdatedWithWarning"
+		eventTitle = nl.EventReasonAddedOrUpdatedWithWarning
 		eventWarningMessage = fmt.Sprintf("with warning(s): %s", formatWarningMessages(tsConfig.Warnings))
 		state = conf_v1.StateWarning
 	}
 
 	if messages, ok := warnings[tsConfig.TransportServer]; ok {
 		eventType = api_v1.EventTypeWarning
-		eventTitle = "AddedOrUpdatedWithWarning"
+		eventTitle = nl.EventReasonAddedOrUpdatedWithWarning
 		eventWarningMessage = fmt.Sprintf("with warning(s): %s", formatWarningMessages(messages))
 		state = conf_v1.StateWarning
 	}
 
 	if operationErr != nil {
 		eventType = api_v1.EventTypeWarning
-		eventTitle = "AddedOrUpdatedWithError"
+		eventTitle = nl.EventReasonAddedOrUpdatedWithError
 		eventWarningMessage = fmt.Sprintf("%s; but was not applied: %v", eventWarningMessage, operationErr)
 		state = conf_v1.StateInvalid
 	}

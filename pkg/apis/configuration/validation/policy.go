@@ -9,7 +9,10 @@ import (
 	"strings"
 	"unicode"
 
-	v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
+	validation2 "github.com/nginx/kubernetes-ingress/internal/validation"
+	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
@@ -90,8 +93,13 @@ func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, isPlus, enab
 		fieldCount++
 	}
 
+	if spec.Cache != nil {
+		allErrs = append(allErrs, validateCache(spec.Cache, fieldPath.Child("cache"), isPlus)...)
+		fieldCount++
+	}
+
 	if fieldCount != 1 {
-		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`"
+		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`"
 		if isPlus {
 			msg = fmt.Sprint(msg, ", `jwt`, `oidc`, `waf`")
 		}
@@ -151,6 +159,18 @@ func validateRateLimit(rateLimit *v1.RateLimit, fieldPath *field.Path, isPlus bo
 		}
 	}
 
+	if rateLimit.Condition != nil && (rateLimit.Condition.JWT == nil && rateLimit.Condition.Variables == nil) {
+		allErrs = append(allErrs, field.Required(fieldPath.Child("condition"), "must specify either jwt or variable conditions"))
+	}
+
+	if rateLimit.Condition != nil && rateLimit.Condition.JWT != nil && rateLimit.Condition.Variables != nil {
+		allErrs = append(allErrs, field.Required(fieldPath.Child("condition"), "only one condition, jwt or variables is allowed"))
+	}
+
+	if rateLimit.Condition != nil && rateLimit.Condition.JWT != nil && !isPlus {
+		allErrs = append(allErrs, field.Forbidden(fieldPath.Child("condition.jwt"), "is only supported in NGINX Plus"))
+	}
+
 	return allErrs
 }
 
@@ -186,6 +206,16 @@ func validateJWT(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
 		if jwt.KeyCache != "" {
 			allErrs = append(allErrs, field.Forbidden(fieldPath.Child("keyCache"), "key cache must not be used when using Secret"))
 		}
+
+		// If JwksURI is not set, then none of the SNI fields should be set.
+		if jwt.SNIEnabled {
+			return append(allErrs, field.Forbidden(fieldPath.Child("sniEnabled"), "sniEnabled can only be set when JwksURI is set"))
+		}
+
+		if jwt.SNIName != "" {
+			return append(allErrs, field.Forbidden(fieldPath.Child("sniName"), "sniName can only be set when JwksURI is set"))
+		}
+
 		return allErrs
 	}
 
@@ -201,7 +231,30 @@ func validateJWT(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
 		if jwt.KeyCache == "" {
 			allErrs = append(allErrs, field.Required(fieldPath.Child("keyCache"), "key cache must be set, example value: 1h"))
 		}
-		return allErrs
+
+		// if SNI server name is provided, but SNI is not enabled, return an error
+		if jwt.SNIName != "" && !jwt.SNIEnabled {
+			allErrs = append(allErrs, field.Forbidden(fieldPath.Child("sniServerName"), "sniServerName can only be set when sniEnabled is true"))
+		}
+
+		// if SNI is enabled and SNI server name is provided, make sure it's a valid URI
+		if jwt.SNIEnabled && jwt.SNIName != "" {
+			err := validation2.ValidateURI(jwt.SNIName,
+				validation2.WithAllowedSchemes("https"),
+				validation2.WithUserAllowed(false),
+				validation2.WithDefaultScheme("https"))
+			if err != nil {
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("sniServerName"), jwt.SNIName, "sniServerName is not a valid URI"))
+			}
+		}
+
+		if jwt.TrustedCertSecret != "" {
+			allErrs = append(allErrs, validateSecretName(jwt.TrustedCertSecret, fieldPath.Child("trustedCertSecret"))...)
+			// If trustedCertSecret is set but sslVerify is false, warn user
+			if !jwt.SSLVerify {
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("sslVerify"), jwt.SSLVerify, "sslVerify should be enabled when trustedCertSecret is specified"))
+			}
+		}
 	}
 	return allErrs
 }
@@ -257,15 +310,15 @@ func validateOIDC(oidc *v1.OIDC, fieldPath *field.Path) field.ErrorList {
 	if oidc.ClientID == "" {
 		return field.ErrorList{field.Required(fieldPath.Child("clientID"), "")}
 	}
-	if oidc.ClientSecret == "" {
-		return field.ErrorList{field.Required(fieldPath.Child("clientSecret"), "")}
-	}
 	if oidc.EndSessionEndpoint == "" && oidc.PostLogoutRedirectURI != "" {
 		msg := "postLogoutRedirectURI can only be set when endSessionEndpoint is set"
 		return field.ErrorList{field.Forbidden(fieldPath.Child("postLogoutRedirectURI"), msg)}
 	}
 
 	allErrs := field.ErrorList{}
+
+	allErrs = append(allErrs, validatePKCE(oidc.PKCEEnable, oidc.ClientSecret, fieldPath.Child("clientSecret"))...)
+
 	if oidc.Scope != "" {
 		allErrs = append(allErrs, validateOIDCScope(oidc.Scope, fieldPath.Child("scope"))...)
 	}
@@ -380,6 +433,188 @@ func validateLogConfs(logs []*v1.SecurityLog, fieldPath *field.Path, bundleMode 
 	return allErrs
 }
 
+// validateCache validates a cache policy
+func validateCache(cache *v1.Cache, fieldPath *field.Path, isPlus bool) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	allErrs = append(allErrs, validateCacheAllowedCodes(cache, fieldPath)...)
+
+	// Validate NGINX Plus features
+	allErrs = append(allErrs, validateCachePlusFeatures(cache, fieldPath, isPlus)...)
+
+	// Validate time fields
+	if cache.Inactive != "" {
+		allErrs = append(allErrs, validateTime(cache.Inactive, fieldPath.Child("inactive"))...)
+	}
+
+	// Validate size fields
+	if cache.MaxSize != "" {
+		allErrs = append(allErrs, validateOffset(cache.MaxSize, fieldPath.Child("maxSize"))...)
+	}
+	if cache.MinFree != "" {
+		allErrs = append(allErrs, validateOffset(cache.MinFree, fieldPath.Child("minFree"))...)
+	}
+
+	// Validate manager fields
+	if cache.Manager != nil {
+		managerPath := fieldPath.Child("manager")
+		if cache.Manager.Files != nil && *cache.Manager.Files <= 0 {
+			allErrs = append(allErrs, field.Invalid(managerPath.Child("files"), *cache.Manager.Files, "must be a positive integer"))
+		}
+		if cache.Manager.Sleep != "" {
+			allErrs = append(allErrs, validateTime(cache.Manager.Sleep, managerPath.Child("sleep"))...)
+		}
+		if cache.Manager.Threshold != "" {
+			allErrs = append(allErrs, validateTime(cache.Manager.Threshold, managerPath.Child("threshold"))...)
+		}
+	}
+
+	// Validate cache min uses
+	if cache.CacheMinUses != nil && *cache.CacheMinUses <= 0 {
+		allErrs = append(allErrs, field.Invalid(fieldPath.Child("cacheMinUses"), *cache.CacheMinUses, "must be a positive integer"))
+	}
+
+	// Validate lock fields
+	if cache.Lock != nil {
+		lockPath := fieldPath.Child("lock")
+		if cache.Lock.Timeout != "" {
+			allErrs = append(allErrs, validateTime(cache.Lock.Timeout, lockPath.Child("timeout"))...)
+		}
+		if cache.Lock.Age != "" {
+			allErrs = append(allErrs, validateTime(cache.Lock.Age, lockPath.Child("age"))...)
+		}
+	}
+
+	// Validate cache key
+	if cache.CacheKey != "" {
+		if err := ValidateEscapedString(cache.CacheKey); err != nil {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("cacheKey"), cache.CacheKey, err.Error()))
+		}
+		// Cache keys support both ${var} and $var NGINX syntax, so we skip variable braces validation
+		// but still validate basic syntax rules like not ending with $
+		if strings.HasSuffix(cache.CacheKey, "$") {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("cacheKey"), cache.CacheKey, "must not end with $"))
+		}
+	}
+
+	// Validate conditions
+	if cache.Conditions != nil {
+		conditionsPath := fieldPath.Child("conditions")
+		for i, condition := range cache.Conditions.NoCache {
+			if condition != "" {
+				if err := ValidateEscapedString(condition); err != nil {
+					allErrs = append(allErrs, field.Invalid(conditionsPath.Child("noCache").Index(i), condition, err.Error()))
+				}
+			}
+		}
+		for i, condition := range cache.Conditions.Bypass {
+			if condition != "" {
+				if err := ValidateEscapedString(condition); err != nil {
+					allErrs = append(allErrs, field.Invalid(conditionsPath.Child("bypass").Index(i), condition, err.Error()))
+				}
+			}
+		}
+	}
+
+	// Validate use stale
+	allErrs = append(allErrs, validateCacheUseStale(cache, fieldPath)...)
+
+	return allErrs
+}
+
+// validateCacheAllowedCodes validates the allowedCodes field
+func validateCacheAllowedCodes(cache *v1.Cache, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if len(cache.AllowedCodes) == 0 {
+		return allErrs // No validation needed for empty slice
+	}
+
+	// Check if it's the special case: single element "any"
+	if len(cache.AllowedCodes) == 1 && cache.AllowedCodes[0].Type == intstr.String && cache.AllowedCodes[0].StrVal == "any" {
+		return allErrs // Valid: single "any" string
+	}
+
+	// Check if it contains "any" mixed with other codes (invalid)
+	hasAny := false
+	for i, code := range cache.AllowedCodes {
+		if code.Type == intstr.String && code.StrVal == "any" {
+			hasAny = true
+			if len(cache.AllowedCodes) > 1 {
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("allowedCodes").Index(i), code.StrVal, "the string 'any' cannot be mixed with other codes"))
+			}
+		}
+	}
+
+	// If we have "any" mixed with others, we already reported the error above
+	if hasAny {
+		return allErrs
+	}
+
+	// Validate all elements are integers in the range 100-599
+	for i, code := range cache.AllowedCodes {
+		if code.Type == intstr.String { // String type
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("allowedCodes").Index(i), code.StrVal, "must be an integer HTTP status code (100-599) or the single string 'any'"))
+		} else { // Integer type
+			intVal := int(code.IntVal)
+			if intVal < 100 || intVal > 599 {
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("allowedCodes").Index(i), intVal, "HTTP status code must be between 100 and 599"))
+			}
+		}
+	}
+
+	return allErrs
+}
+
+// validateCachePlusFeatures validates NGINX Plus specific features, such as cache purge allow IPs
+func validateCachePlusFeatures(cache *v1.Cache, fieldPath *field.Path, isPlus bool) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	// Validate cache purge allow IPs if provided
+	if len(cache.CachePurgeAllow) > 0 {
+		// Check if NGINX Plus is required for cache purge
+		if !isPlus {
+			allErrs = append(allErrs, field.Forbidden(fieldPath.Child("cachePurgeAllow"), "cache purge is only supported in NGINX Plus"))
+		} else {
+			// Validate IP addresses/CIDRs if NGINX Plus is available
+			for i, ip := range cache.CachePurgeAllow {
+				if net.ParseIP(ip) == nil {
+					// Try parsing as CIDR
+					if _, _, err := net.ParseCIDR(ip); err != nil {
+						allErrs = append(allErrs, field.Invalid(fieldPath.Child("cachePurgeAllow").Index(i), ip, "must be a valid IP address or CIDR"))
+					}
+				}
+			}
+		}
+	}
+
+	return allErrs
+}
+
+// validateCacheUseStale validates the cacheUseStale field values
+// The directive's parameters match the parameters of the proxy_next_upstream directive plus "updating"
+func validateCacheUseStale(cache *v1.Cache, fieldPath *field.Path) field.ErrorList {
+	if len(cache.CacheUseStale) == 0 {
+		return nil
+	}
+
+	allErrs := field.ErrorList{}
+	allParams := sets.Set[string]{}
+
+	for _, para := range cache.CacheUseStale {
+		// Check if parameter is valid (either from validNextUpstreamParams or "updating" which is specific to cache)
+		if !validNextUpstreamParams[para] && para != "updating" {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("cacheUseStale"), para, "not a valid parameter"))
+		}
+		if allParams.Has(para) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("cacheUseStale"), para, "can not have duplicate parameters"))
+		} else {
+			allParams.Insert(para)
+		}
+	}
+	return allErrs
+}
+
 func validateLogConf(logConf *v1.SecurityLog, fieldPath *field.Path, bundleMode bool) field.ErrorList {
 	allErrs := field.ErrorList{}
 
@@ -459,6 +694,26 @@ func validateOIDCScope(scope string, fieldPath *field.Path) field.ErrorList {
 			}
 		}
 	}
+	return nil
+}
+
+// validatePKCE checks for the duo of PKCEEnable and clientSecret settings.
+//
+//   - yes PKCE and not empty client secret is bad, because PKCE does not use
+//     client secret
+//   - no PKCE and empty client secret is bad because standard OIDC uses client
+//     secrets
+func validatePKCE(PKCEEnable bool, clientSecret string,
+	clientSecretPath *field.Path,
+) field.ErrorList {
+	if !PKCEEnable && clientSecret == "" {
+		return field.ErrorList{field.Required(clientSecretPath, "clientSecret is required when PKCE is not used")}
+	}
+
+	if PKCEEnable && clientSecret != "" {
+		return field.ErrorList{field.Forbidden(clientSecretPath, "clientSecret cannot be used when PKCE is used")}
+	}
+
 	return nil
 }
 
@@ -569,7 +824,7 @@ func validateRateLimitZoneSize(zoneSize string, fieldPath *field.Path) field.Err
 	return allErrs
 }
 
-var rateLimitKeySpecialVariables = []string{"arg_", "http_", "cookie_"}
+var rateLimitKeySpecialVariables = []string{"arg_", "http_", "cookie_", "jwt_claim_", "apikey_"}
 
 // rateLimitKeyVariables includes NGINX variables allowed to be used in a rateLimit policy key.
 var rateLimitKeyVariables = map[string]bool{
@@ -577,6 +832,7 @@ var rateLimitKeyVariables = map[string]bool{
 	"request_uri":        true,
 	"uri":                true,
 	"args":               true,
+	"request_method":     true,
 }
 
 func validateRateLimitKey(key string, fieldPath *field.Path, isPlus bool) field.ErrorList {

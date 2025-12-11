@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/nginxinc/kubernetes-ingress/internal/k8s/appprotectdos"
-	nl "github.com/nginxinc/kubernetes-ingress/internal/logger"
-	"github.com/nginxinc/kubernetes-ingress/pkg/apis/dos/v1beta1"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotectdos"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	"github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
 	api_v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/tools/cache"
@@ -216,17 +216,17 @@ func (lbc *LoadBalancerController) processAppProtectDosChanges(changes []appprot
 				warnings, err := lbc.configurator.AddOrUpdateResourcesThatUseDosProtected(resourceExes.IngressExes, resourceExes.MergeableIngresses, resourceExes.VirtualServerExes)
 				lbc.updateResourcesStatusAndEvents(resources, warnings, err)
 				msg := fmt.Sprintf("Configuration for %s/%s was added or updated", impl.Obj.Namespace, impl.Obj.Name)
-				lbc.recorder.Event(impl.Obj, api_v1.EventTypeNormal, "AddedOrUpdated", msg)
+				lbc.recorder.Event(impl.Obj, api_v1.EventTypeNormal, nl.EventReasonAddedOrUpdated, msg)
 			case *appprotectdos.DosPolicyEx:
 				msg := "Configuration was added or updated"
-				lbc.recorder.Event(impl.Obj, api_v1.EventTypeNormal, "AddedOrUpdated", msg)
+				lbc.recorder.Event(impl.Obj, api_v1.EventTypeNormal, nl.EventReasonAddedOrUpdated, msg)
 			case *appprotectdos.DosLogConfEx:
 				eventType := api_v1.EventTypeNormal
-				eventTitle := "AddedOrUpdated"
+				eventTitle := nl.EventReasonAddedOrUpdated
 				msg := "Configuration was added or updated"
 				if impl.ErrorMsg != "" {
 					msg += fmt.Sprintf(" ; with warning(s): %s", impl.ErrorMsg)
-					eventTitle = "AddedOrUpdatedWithWarning"
+					eventTitle = nl.EventReasonAddedOrUpdatedWithWarning
 					eventType = api_v1.EventTypeWarning
 				}
 				lbc.recorder.Event(impl.Obj, eventType, eventTitle, msg)

@@ -6,5 +6,5 @@ spec:
   jwt:
     realm: MyProductAPI
     token: $http_token
-    jwksURI: https://login.microsoftonline.com/dd3dfd2f-6a3b-40d1-9be0-bf8327d81c50/discovery/v2.0/keys
+    jwksURI: http://keycloak.default.svc.cluster.local:8080/realms/jwks-example/protocol/openid-connect/certs
     keyCache: 1h

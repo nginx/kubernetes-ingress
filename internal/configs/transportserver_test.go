@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/nginxinc/kubernetes-ingress/internal/configs/version2"
-	"github.com/nginxinc/kubernetes-ingress/internal/k8s/secrets"
-	conf_v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
+	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	api_v1 "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

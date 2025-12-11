@@ -10,7 +10,16 @@ from unittest import mock
 import pytest
 import requests
 import yaml
-from kubernetes.client import AppsV1Api, CoreV1Api, NetworkingV1Api, RbacAuthorizationV1Api, V1Service
+from kubernetes.client import (
+    AppsV1Api,
+    CoreV1Api,
+    NetworkingV1Api,
+    RbacAuthorizationV1Api,
+    V1Ingress,
+    V1ObjectMeta,
+    V1Secret,
+    V1Service,
+)
 from kubernetes.client.rest import ApiException
 from kubernetes.stream import stream
 from more_itertools import first
@@ -271,6 +280,21 @@ def create_daemon_set(apps_v1_api: AppsV1Api, namespace, body) -> str:
     print("Create a daemon-set:")
     apps_v1_api.create_namespaced_daemon_set(namespace, body)
     print(f"Daemon-Set created with name '{body['metadata']['name']}'")
+    return body["metadata"]["name"]
+
+
+def create_stateful_set(apps_v1_api, namespace, body) -> str:
+    """
+    Create a stateful-set based on a dict.
+
+    :param apps_v1_api: AppsV1Api
+    :param namespace: namespace name
+    :param body: dict
+    :return: str
+    """
+    print("Create a statefulset:")
+    apps_v1_api.create_namespaced_stateful_set(namespace, body)
+    print(f"StatefulSet created with name '{body['metadata']['name']}'")
     return body["metadata"]["name"]
 
 
@@ -554,6 +578,15 @@ def create_secret(v1: CoreV1Api, namespace, body) -> str:
     v1.create_namespaced_secret(namespace, body)
     print(f"Secret created: {body['metadata']['name']}")
     return body["metadata"]["name"]
+
+
+def create_license(v1: CoreV1Api, namespace, jwt, license_token_name="license-token") -> str:
+    sec = V1Secret()
+    sec.type = "nginx.com/license"
+    sec.metadata = V1ObjectMeta(name=license_token_name)
+    sec.data = {"license.jwt": base64.b64encode(jwt.encode("ascii")).decode()}
+    v1.create_namespaced_secret(namespace=namespace, body=sec)
+    return license_token_name
 
 
 def replace_secret(v1: CoreV1Api, name, namespace, yaml_manifest) -> str:
@@ -993,7 +1026,7 @@ def clear_file_contents(v1: CoreV1Api, file_path, pod_name, pod_namespace):
     )
 
 
-def get_nginx_template_conf(v1: CoreV1Api, ingress_namespace, ic_pod_name=None) -> str:
+def get_nginx_template_conf(v1: CoreV1Api, ingress_namespace, ic_pod_name=None, print_log=True) -> str:
     """
     Get contents of /etc/nginx/nginx.conf in the pod
     :param v1: CoreV1Api
@@ -1004,7 +1037,7 @@ def get_nginx_template_conf(v1: CoreV1Api, ingress_namespace, ic_pod_name=None) 
     if ic_pod_name is None:
         ic_pod_name = get_first_pod_name(v1, ingress_namespace)
     file_path = "/etc/nginx/nginx.conf"
-    return get_file_contents(v1, file_path, ic_pod_name, ingress_namespace)
+    return get_file_contents(v1, file_path, ic_pod_name, ingress_namespace, print_log)
 
 
 def get_ingress_nginx_template_conf(v1: CoreV1Api, ingress_namespace, ingress_name, pod_name, pod_namespace) -> str:
@@ -1050,6 +1083,19 @@ def get_ts_nginx_template_conf(v1: CoreV1Api, resource_namespace, resource_name,
     """
     file_path = f"/etc/nginx/stream-conf.d/ts_{resource_namespace}_{resource_name}.conf"
     return get_file_contents(v1, file_path, pod_name, pod_namespace)
+
+
+def extract_block(nginx_config, block_name):
+    """
+    Extract a block of configuration from the nginx config file.
+
+    :param nginx_config: The nginx config file content as a string.
+    :param block_name: The name of the block to extract.
+    :return: The extracted block as a string.
+    """
+    start = nginx_config.find(block_name)
+    end = nginx_config.find("}", start) + 1
+    return nginx_config[start:end]
 
 
 def create_example_app(kube_apis, app_type, namespace) -> None:
@@ -1131,6 +1177,25 @@ def delete_daemon_set(apps_v1_api: AppsV1Api, name, namespace) -> None:
     print(f"Daemon-set was removed with name '{name}'")
 
 
+def delete_stateful_set(apps_v1_api: AppsV1Api, name, namespace) -> None:
+    """
+    Delete a stateful-set.
+
+    :param apps_v1_api: AppsV1Api
+    :param name:
+    :param namespace:
+    :return:
+    """
+    delete_options = {
+        "grace_period_seconds": 0,
+        "propagation_policy": "Foreground",
+    }
+    print(f"Delete a statefulset: {name}")
+    apps_v1_api.delete_namespaced_stateful_set(name, namespace, **delete_options)
+    ensure_item_removal(apps_v1_api.read_namespaced_stateful_set_status, name, namespace)
+    print(f"StatefulSet was removed with name '{name}'")
+
+
 def wait_before_test(delay=RECONFIGURATION_DELAY) -> None:
     """
     Wait for a time in seconds.
@@ -1195,8 +1260,12 @@ def create_ingress_controller(v1: CoreV1Api, apps_v1_api: AppsV1Api, cli_argumen
         dep["spec"]["template"]["spec"]["containers"][0]["args"].extend(args)
     if cli_arguments["deployment-type"] == "deployment":
         name = create_deployment(apps_v1_api, namespace, dep)
-    else:
+    elif cli_arguments["deployment-type"] == "daemon-set":
         name = create_daemon_set(apps_v1_api, namespace, dep)
+    elif cli_arguments["deployment-type"] == "stateful-set":
+        name = create_stateful_set(apps_v1_api, namespace, dep)
+    else:
+        raise ValueError(f"Unknown deployment-type: {cli_arguments['deployment-type']}")
     before = time.time()
     wait_until_all_pods_are_ready(v1, namespace)
     after = time.time()
@@ -1276,6 +1345,7 @@ def create_ingress_controller_wafv5(
                 {"name": "nginx-log", "emptyDir": {}},
                 {"name": "nginx-cache", "emptyDir": {}},
                 {"name": "nginx-lib", "emptyDir": {}},
+                {"name": "nginx-lib-state", "emptyDir": {}},
             ]
         )
     else:
@@ -1319,6 +1389,7 @@ def create_ingress_controller_wafv5(
                 {"name": "nginx-log", "mountPath": "/var/log/nginx"},
                 {"name": "nginx-cache", "mountPath": "/var/cache/nginx"},
                 {"name": "nginx-lib", "mountPath": "/var/lib/nginx"},
+                {"name": "nginx-lib-state", "mountPath": "/var/lib/nginx/state"},
             ]
         )
     else:
@@ -1379,7 +1450,10 @@ def create_ingress_controller_wafv5(
             "capabilities": {"drop": ["all"]},
             "readOnlyRootFilesystem": rorfs,
         },
-        "env": [{"name": "ENFORCER_PORT", "value": "50000"}],
+        "env": [
+            {"name": "ENFORCER_PORT", "value": "50000"},
+            {"name": "ENFORCER_CONFIG_TIMEOUT", "value": "0"},
+        ],
         "volumeMounts": [
             {
                 "name": "app-protect-bd-config",
@@ -1395,8 +1469,12 @@ def create_ingress_controller_wafv5(
         dep["spec"]["template"]["spec"]["containers"][0]["args"].extend(args)
     if cli_arguments["deployment-type"] == "deployment":
         name = create_deployment(apps_v1_api, namespace, dep)
-    else:
+    elif cli_arguments["deployment-type"] == "daemon-set":
         name = create_daemon_set(apps_v1_api, namespace, dep)
+    elif cli_arguments["deployment-type"] == "stateful-set":
+        name = create_stateful_set(apps_v1_api, namespace, dep)
+    else:
+        raise ValueError(f"Unknown deployment-type: {cli_arguments['deployment-type']}")
     before = time.time()
     wait_until_all_pods_are_ready(v1, namespace)
     after = time.time()
@@ -1419,6 +1497,10 @@ def delete_ingress_controller(apps_v1_api: AppsV1Api, name, dep_type, namespace)
         delete_deployment(apps_v1_api, name, namespace)
     elif dep_type == "daemon-set":
         delete_daemon_set(apps_v1_api, name, namespace)
+    elif dep_type == "stateful-set":
+        delete_stateful_set(apps_v1_api, name, namespace)
+    else:
+        raise ValueError(f"Unknown deployment-type: {dep_type}")
 
 
 def create_dos_arbitrator(
@@ -1518,6 +1600,8 @@ def create_items_from_yaml(kube_apis, yaml_manifest, namespace) -> {}:
                     res["Deployment"] = create_deployment(kube_apis.apps_v1_api, namespace, doc)
                 elif doc["kind"] == "DaemonSet":
                     res["DaemonSet"] = create_daemon_set(kube_apis.apps_v1_api, namespace, doc)
+                elif doc["kind"] == "StatefulSet":
+                    res["StatefulSet"] = create_stateful_set(kube_apis.apps_v1_api, namespace, doc)
                 elif doc["kind"] == "Namespace":
                     res["Namespace"] = create_namespace(kube_apis.v1, doc)
 
@@ -1722,6 +1806,28 @@ def get_events(v1: CoreV1Api, namespace) -> []:
     print(f"Get the events in the namespace: {namespace}")
     res = v1.list_namespaced_event(namespace)
     return res.items
+
+
+def wait_for_event(v1: CoreV1Api, text, namespace, retry=30, interval=1) -> None:
+    """
+    Wait for an event on an object in a namespace.
+
+    :param v1: CoreV1Api
+    :param text: event text
+    :param namespace: object namespace
+    :param retry:
+    :param interval:
+    :return:
+    """
+    c = 0
+    while c < retry:
+        events = get_events(v1, namespace)
+        for i in range(len(events) - 1, -1, -1):
+            if text in events[i].message:
+                return True
+        wait_before_test(interval)
+        c += 1
+    return False
 
 
 def ensure_response_from_backend(req_url, host, additional_headers=None, check404=False, sni=False) -> None:
@@ -1991,3 +2097,38 @@ def get_apikey_policy_details_from_yaml(yaml_manifest) -> dict:
                 details["queries"] = data["spec"]["apiKey"]["suppliedIn"]["query"]
 
     return details
+
+
+def read_ingress(v1: NetworkingV1Api, name, namespace) -> V1Ingress:
+    """
+    Get details of an Ingress.
+
+    :param v1: NetworkingV1Api
+    :param name: ingress name
+    :param namespace: namespace name
+    :return: V1Ingress
+    """
+    print(f"Read an ingress named '{name}'")
+    return v1.read_namespaced_ingress(name, namespace)
+
+
+def pod_restart(v1: CoreV1Api, namespace):
+    """
+    Restart all pods in a deployment.
+    """
+    try:
+        pods = v1.list_namespaced_pod(namespace=namespace)
+
+        print(f"Found {len(pods.items)} pods to restart")
+
+        # Delete all pods (they will be recreated by deployment)
+        for pod in pods.items:
+            print(f"Deleting pod {pod.metadata.name}")
+            v1.delete_namespaced_pod(name=pod.metadata.name, namespace=namespace)
+
+        wait_until_all_pods_are_ready(v1, namespace)
+        print("Pod restart complete")
+
+    except Exception as e:
+        print(f"Error in pod restart: {e}")
+        raise e

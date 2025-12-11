@@ -6,17 +6,17 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/nginxinc/kubernetes-ingress/pkg/apis/dos/v1beta1"
+	"github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
 
-	"github.com/nginxinc/kubernetes-ingress/internal/k8s/secrets"
-	nl "github.com/nginxinc/kubernetes-ingress/internal/logger"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	api_v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/nginxinc/kubernetes-ingress/internal/configs/version1"
+	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
 )
 
 const emptyHost = ""
@@ -46,6 +46,7 @@ type IngressEx struct {
 	AppProtectLogs   []AppProtectLog
 	DosEx            *DosEx
 	SecretRefs       map[string]*secrets.SecretReference
+	ZoneSync         bool
 }
 
 // DosEx holds a DosProtectedResource and the dos policy and log confs it references.
@@ -97,11 +98,12 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 	hasAppProtect := p.staticParams.MainAppProtectLoadModule
 	hasAppProtectDos := p.staticParams.MainAppProtectDosLoadModule
 
-	cfgParams := parseAnnotations(p.ingEx, p.BaseCfgParams, p.isPlus, hasAppProtect, hasAppProtectDos, p.staticParams.EnableInternalRoutes)
+	cfgParams := parseAnnotations(p.ingEx, p.BaseCfgParams, p.isPlus, hasAppProtect, hasAppProtectDos, p.staticParams.EnableInternalRoutes, p.staticParams.IsDirectiveAutoadjustEnabled)
 
 	wsServices := getWebsocketServices(p.ingEx)
 	spServices := getSessionPersistenceServices(p.BaseCfgParams.Context, p.ingEx)
 	rewrites := getRewrites(p.BaseCfgParams.Context, p.ingEx)
+	rewriteTarget, rewriteTargetWarnings := getRewriteTarget(p.BaseCfgParams.Context, p.ingEx)
 	sslServices := getSSLServices(p.ingEx)
 	grpcServices := getGrpcServices(p.ingEx)
 
@@ -128,6 +130,7 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 	}
 
 	allWarnings := newWarnings()
+	allWarnings.Add(rewriteTargetWarnings)
 
 	var servers []version1.Server
 	var limitReqZones []version1.LimitReqZone
@@ -150,30 +153,32 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 		statusZone := rule.Host
 
 		server := version1.Server{
-			Name:                  serverName,
-			ServerTokens:          cfgParams.ServerTokens,
-			HTTP2:                 cfgParams.HTTP2,
-			RedirectToHTTPS:       cfgParams.RedirectToHTTPS,
-			SSLRedirect:           cfgParams.SSLRedirect,
-			ProxyProtocol:         cfgParams.ProxyProtocol,
-			HSTS:                  cfgParams.HSTS,
-			HSTSMaxAge:            cfgParams.HSTSMaxAge,
-			HSTSIncludeSubdomains: cfgParams.HSTSIncludeSubdomains,
-			HSTSBehindProxy:       cfgParams.HSTSBehindProxy,
-			StatusZone:            statusZone,
-			RealIPHeader:          cfgParams.RealIPHeader,
-			SetRealIPFrom:         cfgParams.SetRealIPFrom,
-			RealIPRecursive:       cfgParams.RealIPRecursive,
-			ProxyHideHeaders:      cfgParams.ProxyHideHeaders,
-			ProxyPassHeaders:      cfgParams.ProxyPassHeaders,
-			ServerSnippets:        cfgParams.ServerSnippets,
-			Ports:                 cfgParams.Ports,
-			SSLPorts:              cfgParams.SSLPorts,
-			TLSPassthrough:        p.staticParams.TLSPassthrough,
-			AppProtectEnable:      cfgParams.AppProtectEnable,
-			AppProtectLogEnable:   cfgParams.AppProtectLogEnable,
-			SpiffeCerts:           cfgParams.SpiffeServerCerts,
-			DisableIPV6:           p.staticParams.DisableIPV6,
+			Name:                   serverName,
+			ServerTokens:           cfgParams.ServerTokens,
+			HTTP2:                  cfgParams.HTTP2,
+			RedirectToHTTPS:        cfgParams.RedirectToHTTPS,
+			SSLRedirect:            cfgParams.SSLRedirect,
+			SSLCiphers:             cfgParams.ServerSSLCiphers,
+			SSLPreferServerCiphers: cfgParams.ServerSSLPreferServerCiphers,
+			ProxyProtocol:          cfgParams.ProxyProtocol,
+			HSTS:                   cfgParams.HSTS,
+			HSTSMaxAge:             cfgParams.HSTSMaxAge,
+			HSTSIncludeSubdomains:  cfgParams.HSTSIncludeSubdomains,
+			HSTSBehindProxy:        cfgParams.HSTSBehindProxy,
+			StatusZone:             statusZone,
+			RealIPHeader:           cfgParams.RealIPHeader,
+			SetRealIPFrom:          cfgParams.SetRealIPFrom,
+			RealIPRecursive:        cfgParams.RealIPRecursive,
+			ProxyHideHeaders:       cfgParams.ProxyHideHeaders,
+			ProxyPassHeaders:       cfgParams.ProxyPassHeaders,
+			ServerSnippets:         cfgParams.ServerSnippets,
+			Ports:                  cfgParams.Ports,
+			SSLPorts:               cfgParams.SSLPorts,
+			TLSPassthrough:         p.staticParams.TLSPassthrough,
+			AppProtectEnable:       cfgParams.AppProtectEnable,
+			AppProtectLogEnable:    cfgParams.AppProtectLogEnable,
+			SpiffeCerts:            cfgParams.SpiffeServerCerts,
+			DisableIPV6:            p.staticParams.DisableIPV6,
 		}
 
 		warnings := addSSLConfig(&server, p.ingEx.Ingress, rule.Host, p.ingEx.Ingress.Spec.TLS, p.ingEx.SecretRefs, p.isWildcardEnabled)
@@ -252,7 +257,7 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 			ssl := isSSLEnabled(sslServices[path.Backend.Service.Name], cfgParams, p.staticParams)
 			proxySSLName := generateProxySSLName(path.Backend.Service.Name, p.ingEx.Ingress.Namespace)
 			loc := createLocation(pathOrDefault(path.Path), upstreams[upsName], &cfgParams, wsServices[path.Backend.Service.Name], rewrites[path.Backend.Service.Name],
-				ssl, grpcServices[path.Backend.Service.Name], proxySSLName, path.PathType, path.Backend.Service.Name)
+				ssl, grpcServices[path.Backend.Service.Name], proxySSLName, path.PathType, path.Backend.Service.Name, rewriteTarget)
 
 			if p.isMinion && cfgParams.JWTKey != "" {
 				jwtAuth, redirectLoc, warnings := generateJWTConfig(p.ingEx.Ingress, p.ingEx.SecretRefs, &cfgParams, getNameForRedirectLocation(p.ingEx.Ingress))
@@ -271,6 +276,9 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 
 			if cfgParams.LimitReqRate != "" {
 				zoneName := p.ingEx.Ingress.Namespace + "/" + p.ingEx.Ingress.Name
+				if p.ingEx.ZoneSync {
+					zoneName = fmt.Sprintf("%v_sync", zoneName)
+				}
 				loc.LimitReq = &version1.LimitReq{
 					Zone:       zoneName,
 					Burst:      cfgParams.LimitReqBurst,
@@ -283,13 +291,19 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 				if !limitReqZoneExists(limitReqZones, zoneName) {
 					rate := cfgParams.LimitReqRate
 					if cfgParams.LimitReqScale && p.ingressControllerReplicas > 0 {
-						rate = scaleRatelimit(rate, p.ingressControllerReplicas)
+						if p.ingEx.ZoneSync {
+							warningText := fmt.Sprintf("Ingress %s/%s: both zone sync and rate limit scale are enabled, the rate limit scale value will not be used.", p.ingEx.Ingress.Namespace, p.ingEx.Ingress.Name)
+							nl.Warn(l, warningText)
+						} else {
+							rate = scaleRatelimit(rate, p.ingressControllerReplicas)
+						}
 					}
 					limitReqZones = append(limitReqZones, version1.LimitReqZone{
 						Name: zoneName,
 						Key:  cfgParams.LimitReqKey,
 						Size: cfgParams.LimitReqZoneSize,
 						Rate: rate,
+						Sync: p.ingEx.ZoneSync,
 					})
 				}
 			}
@@ -308,7 +322,7 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 			pathtype := networking.PathTypePrefix
 
 			loc := createLocation(pathOrDefault("/"), upstreams[upsName], &cfgParams, wsServices[p.ingEx.Ingress.Spec.DefaultBackend.Service.Name], rewrites[p.ingEx.Ingress.Spec.DefaultBackend.Service.Name],
-				ssl, grpcServices[p.ingEx.Ingress.Spec.DefaultBackend.Service.Name], proxySSLName, &pathtype, p.ingEx.Ingress.Spec.DefaultBackend.Service.Name)
+				ssl, grpcServices[p.ingEx.Ingress.Spec.DefaultBackend.Service.Name], proxySSLName, &pathtype, p.ingEx.Ingress.Spec.DefaultBackend.Service.Name, rewriteTarget)
 			locations = append(locations, loc)
 
 			if cfgParams.HealthCheckEnabled {
@@ -475,7 +489,7 @@ func generateIngressPath(path string, pathType *networking.PathType) string {
 	return path
 }
 
-func createLocation(path string, upstream version1.Upstream, cfg *ConfigParams, websocket bool, rewrite string, ssl bool, grpc bool, proxySSLName string, pathType *networking.PathType, serviceName string) version1.Location {
+func createLocation(path string, upstream version1.Upstream, cfg *ConfigParams, websocket bool, rewrite string, ssl bool, grpc bool, proxySSLName string, pathType *networking.PathType, serviceName string, rewriteTarget string) version1.Location {
 	loc := version1.Location{
 		Path:                 generateIngressPath(path, pathType),
 		Upstream:             upstream,
@@ -484,13 +498,16 @@ func createLocation(path string, upstream version1.Upstream, cfg *ConfigParams, 
 		ProxySendTimeout:     cfg.ProxySendTimeout,
 		ProxySetHeaders:      cfg.ProxySetHeaders,
 		ClientMaxBodySize:    cfg.ClientMaxBodySize,
+		ClientBodyBufferSize: cfg.ClientBodyBufferSize,
 		Websocket:            websocket,
 		Rewrite:              rewrite,
+		RewriteTarget:        rewriteTarget,
 		SSL:                  ssl,
 		GRPC:                 grpc,
 		ProxyBuffering:       cfg.ProxyBuffering,
 		ProxyBuffers:         cfg.ProxyBuffers,
 		ProxyBufferSize:      cfg.ProxyBufferSize,
+		ProxyBusyBuffersSize: cfg.ProxyBusyBuffersSize,
 		ProxyMaxTempFileSize: cfg.ProxyMaxTempFileSize,
 		ProxySSLName:         proxySSLName,
 		LocationSnippets:     cfg.LocationSnippets,

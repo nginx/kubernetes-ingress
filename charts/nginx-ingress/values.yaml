@@ -1,8 +1,8 @@
 controller:
-  ## The name of the Ingress Controller daemonset or deployment.
+  ## The name of the Ingress Controller daemonset, deployment, or statefulset.
   name: controller
 
-  ## The kind of the Ingress Controller installation - deployment or daemonset.
+  ## The kind of the Ingress Controller installation - deployment, daemonset, or statefulset.
   kind: deployment
 
   ## The selectorLabels used to override the default values.
@@ -13,6 +13,41 @@ controller:
 
   ## Deploys the Ingress Controller for NGINX Plus.
   nginxplus: false
+
+  ## Configures NGINX mgmt block for NGINX Plus
+  mgmt:
+    ## Secret name of license token for NGINX Plus
+    licenseTokenSecretName: "license-token" # required for NGINX Plus
+
+    ## Enables the 180-day grace period for sending the initial usage report
+    # enforceInitialReport: false
+
+    # usageReport:
+    #   endpoint: "product.connect.nginx.com" # Endpoint for usage report
+    #   interval: 1h # Interval for usage report, must be between 60s and 24h,
+    #   proxyHost: "proxy.example.com:3138" # Proxy server for usage report, with optional port
+    #   proxyCredentialsSecretName: "proxy-credentials" # Secret containing proxy credentials, must contain a `username` and `password` field
+
+    ## Configures the ssl_verify directive in the mgmt block
+    # sslVerify: true
+
+    ## Configures the resolver directive in the mgmt block
+    # resolver:
+    #   ipv6: true
+    #   valid: 1s
+    #   addresses:
+    #     - kube-dns.kube-system.svc.cluster.local
+
+    ## Secret containing TLS client certificate
+    # sslCertificateSecretName: ssl-certificate # kubernetes.io/tls secret type
+
+    ## Secret containing trusted CA certificate
+    # sslTrustedCertificateSecretName: ssl-trusted-cert
+
+    # configMapName allows changing the name of the MGMT config map
+    # the name should not include a namespace
+    # configMapName: ""
+
 
   ## Timeout in milliseconds which the Ingress Controller will wait for a successful NGINX reload after a change or at the initial start.
   nginxReloadTimeout: 60000
@@ -49,7 +84,7 @@ controller:
         repository: private-registry.nginx.com/nap/waf-enforcer
 
         ## The tag of the App Protect WAF v5 Enforcer image.
-        tag: "5.3.0"
+        tag: "5.9.0"
         ## The digest of the App Protect WAF v5 Enforcer image.
         ## If digest is specified it has precedence over tag and will be used instead
         # digest: "sha256:CHANGEME"
@@ -65,7 +100,7 @@ controller:
         repository: private-registry.nginx.com/nap/waf-config-mgr
 
         ## The tag of the App Protect WAF v5 Configuration Manager image.
-        tag: "5.3.0"
+        tag: "5.9.0"
         ## The digest of the App Protect WAF v5 Configuration Manager image.
         ## If digest is specified it has precedence over tag and will be used instead
         # digest: "sha256:CHANGEME"
@@ -129,6 +164,10 @@ controller:
   ## Sets the log format of Ingress Controller. Options include: glog, json, text
   logFormat: glog
 
+  ## Enables auto adjusting some of the NGINX directives to help with safe configuration and prevent NGINX misconfigurations.
+  ## See https://docs.nginx.com/nginx-ingress-controller/configuration/proxy-buffers-configuration/  for more details of which configuration options are affected
+  directiveAutoAdjust: false
+
   ## A list of custom ports to expose on the NGINX Ingress Controller pod. Follows the conventional Kubernetes yaml syntax for container ports.
   customPorts: []
 
@@ -137,7 +176,7 @@ controller:
     repository: nginx/nginx-ingress
 
     ## The tag of the Ingress Controller image. If not specified the appVersion from Chart.yaml is used as a tag.
-    # tag: "3.7.0"
+    # tag: "5.2.1"
     ## The digest of the Ingress Controller image.
     ## If digest is specified it has precedence over tag and will be used instead
     # digest: "sha256:CHANGEME"
@@ -204,6 +243,8 @@ controller:
   autoscaling:
     ## Enables HorizontalPodAutoscaling.
     enabled: false
+    ## Create the HorizontalPodAutoscaler resource.  This can be set to false to manage the HPA externally.
+    create: true
     ## The annotations of the Ingress Controller HorizontalPodAutoscaler.
     annotations: {}
     ## Minimum number of replicas for the HPA.
@@ -305,6 +346,30 @@ controller:
     ## Strategy used to replace old Pods by new ones. .spec.strategy.type can be "Recreate" or "RollingUpdate" for Deployments, and "OnDelete" or "RollingUpdate" for Daemonsets. "RollingUpdate" is the default value.
   strategy: {}
 
+  ## StatefulSet-specific configuration (only used when kind is "statefulset")
+  statefulset:
+    ## Pod management policy for StatefulSet. Can be "OrderedReady" or "Parallel".
+    ## OrderedReady will start pods one at a time in order, Parallel will start all pods at once.
+    podManagementPolicy: "OrderedReady"
+
+    ## PersistentVolumeClaim retention policy for StatefulSet
+    ## Determines when to delete PVCs when the StatefulSet is deleted or scaled down
+    persistentVolumeClaimRetentionPolicy:
+      ## When to delete PVCs when the StatefulSet is deleted. Can be "Retain" or "Delete".
+      whenDeleted: "Retain"
+      ## When to delete PVCs when the StatefulSet is scaled down. Can be "Retain" or "Delete".
+      whenScaled: "Retain"
+
+    ##  Configuration for StatefulSet nginx-cache PVC
+    nginxCachePVC:
+      ## Storage size for the nginx-cache volume
+      size: "256Mi"
+      ## Storage class for the nginx-cache volume. If empty, uses the cluster default.
+      storageClass: ""
+      ## Access modes for the nginx-cache volume
+      accessModes:
+      - "ReadWriteOnce"
+
   ## Extra containers for the Ingress Controller pods.
   extraContainers: []
   # - name: container
@@ -361,6 +426,11 @@ controller:
   globalConfiguration:
     ## Creates the GlobalConfiguration custom resource. Requires controller.enableCustomResources.
     create: false
+
+    ## customName: "the-namespace/the-name-of-the-global-configuration-custom-resource"
+    ## The name of the GlobalConfiguration custom resource to use instead of the one provided by default.
+    ## Make sure the namespace is watched when watchNamespace or watchNamespaceLabel parameters are in use.
+    customName: ""
 
     ## The spec of the GlobalConfiguration for defining the global configuration parameters of the Ingress Controller.
     spec: {} ## Ensure both curly brackets are removed when adding listeners in YAML format.
@@ -445,6 +515,9 @@ controller:
       ## The HTTP port on the POD where the Ingress Controller service is running.
       targetPort: 80
 
+      ## The name of the HTTP port.
+      name: "http"
+
     httpsPort:
       ## Enables the HTTPS port for the Ingress Controller service.
       enable: true
@@ -458,8 +531,20 @@ controller:
       ## The HTTPS port on the POD where the Ingress Controller service is running.
       targetPort: 443
 
+      ## The name of the HTTPS port.
+      name: "https"
+
     ## A list of custom ports to expose through the Ingress Controller service. Follows the conventional Kubernetes yaml syntax for service ports.
     customPorts: []
+
+    ## Session affinity configuration for the Ingress Controller service, ensures requests from the same client IP go to the same pod
+    sessionAffinity:
+      ## Enable session affinity. Valid values: None, ClientIP
+      enable: false
+      ## Session affinity type. Currently only ClientIP is supported.
+      type: ClientIP
+      ## Session affinity timeout in seconds (default: 3600 = 1 hour)
+      timeoutSeconds: 3600
 
   serviceAccount:
     ## The annotations of the service account of the Ingress Controller pods.
@@ -502,7 +587,7 @@ controller:
     ## The default is autogenerated.
     leaderElectionLockName: ""
 
-    ## The annotations of the leader election configmap.
+    ## The annotations of the leader election Lease.
     annotations: {}
 
   pod:
@@ -524,6 +609,32 @@ controller:
 
     ## The number of seconds after the Ingress Controller pod has started before readiness probes are initiated.
     initialDelaySeconds: 0
+
+  startupStatus:
+
+    ## Enable the startup probe.
+    enable: false
+
+    # ## Set the port where the startup endpoint is exposed. This is a required value if startupStatus.enable is true.
+    # port: 9999
+
+    # ## path to the startup endpoint. This is a required value if startupStatus.enable is true.
+    # path: /
+
+    # ## The number of seconds after the Ingress Controller pod has started before startup probes are initiated.
+    # initialDelaySeconds: 5
+
+    # ## The number of seconds between each startup probe.
+    # periodSeconds: 1
+
+    # ## The number of seconds after which the startup probe times out.
+    # timeoutSeconds: 1
+
+    # ## The number of seconds after which the startup probe is considered successful.
+    # successThreshold: 1
+
+    # ## The number of seconds after which the startup probe is considered failed.
+    # failureThreshold: 30
 
   ## Enable collection of latency metrics for upstreams. Requires prometheus.create.
   enableLatencyMetrics: false
@@ -624,21 +735,22 @@ nginxServiceMesh:
 nginxAgent:
   ## Enables NGINX Agent.
   enable: false
+  logLevel: "info"
+
+  # Agent V3 configuration
+  # Dataplane key is required to authenticate NGINX Agent with NGINX One Console
+  dataplaneKeySecretName: ""
+  endpointHost: "agent.connect.nginx.com"
+  endpointPort: 443
+  tlsSkipVerify: false
+
+  # Agent V2 configuration
   ## If nginxAgent.instanceGroup is not set the value of nginx-ingress.controller.fullname will be used
   instanceGroup: ""
-  logLevel: "error"
-  ## Syslog listener which NGINX Agent uses to accept messages from App Protect WAF
-  syslog:
-    host: "127.0.0.1"
-    port: 1514
-  napMonitoring:
-    collectorBufferSize: 50000
-    processorBufferSize: 50000
   instanceManager:
     # FQDN or IP for connecting to NGINX Instance Manager, e.g. nim.example.com
     host: ""
     grpcPort: 443
-    sni: ""
     tls:
       enabled: true
       skipVerify: false
@@ -646,5 +758,13 @@ nginxAgent:
       secret: ""
       ## nginx.org/ca secret for verification of Instance Manager TLS
       caSecret: ""
+    sni: ""
+  ## Syslog listener which NGINX Agent uses to accept messages from App Protect WAF
+  syslog:
+    host: "127.0.0.1"
+    port: 1514
+  napMonitoring:
+    collectorBufferSize: 50000
+    processorBufferSize: 50000
   ## The name of a custom ConfigMap to use instead of the one provided by default
   customConfigMap: ""

@@ -5,12 +5,12 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/nginxinc/kubernetes-ingress/pkg/apis/dos/v1beta1"
+	"github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
 
-	"github.com/nginxinc/kubernetes-ingress/internal/k8s/appprotect"
-	"github.com/nginxinc/kubernetes-ingress/internal/k8s/appprotectdos"
-	nl "github.com/nginxinc/kubernetes-ingress/internal/logger"
-	conf_v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotect"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotectdos"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	v1 "k8s.io/api/core/v1"
 	discovery_v1 "k8s.io/api/discovery/v1"
 	networking "k8s.io/api/networking/v1"

@@ -7,24 +7,6 @@ import (
 	"testing"
 )
 
-func TestValidatePort(t *testing.T) {
-	badPorts := []int{80, 443, 1, 1023, 65536}
-	for _, badPort := range badPorts {
-		err := validatePort(badPort)
-		if err == nil {
-			t.Errorf("Expected error for port %v\n", badPort)
-		}
-	}
-
-	goodPorts := []int{8080, 8081, 8082, 1024, 65535}
-	for _, goodPort := range goodPorts {
-		err := validatePort(goodPort)
-		if err != nil {
-			t.Errorf("Error for valid port:  %v err: %v\n", goodPort, err)
-		}
-	}
-}
-
 func TestParseNginxStatusAllowCIDRs(t *testing.T) {
 	badCIDRs := []struct {
 		input         string

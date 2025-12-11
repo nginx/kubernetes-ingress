@@ -4,11 +4,13 @@ set -e
 
 PLUS=""
 if [ -z "${BUILD_OS##*plus*}" ]; then
-    mkdir -p /etc/nginx/oidc/
+    mkdir -p /etc/nginx/oidc/ /etc/nginx/oidc-conf.d/
     cp -a /code/internal/configs/oidc/* /etc/nginx/oidc/
     mkdir -p /etc/nginx/state_files/
     mkdir -p /etc/nginx/reporting/
+    mkdir -p /etc/nginx/secrets/mgmt/
     PLUS=-plus
+    cp -a /code/internal/configs/version2/oidc.tmpl /
 fi
 
 mkdir -p /etc/nginx/njs/ && cp -a /code/internal/configs/njs/* /etc/nginx/njs/

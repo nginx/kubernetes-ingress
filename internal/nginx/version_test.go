@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/nginxinc/kubernetes-ingress/internal/nginx"
+	"github.com/nginx/kubernetes-ingress/internal/nginx"
 )
 
 func TestNginxVersionParsing(t *testing.T) {
@@ -193,6 +193,85 @@ func TestNginxNewVersionHandlesRawString(t *testing.T) {
 			got := nginx.NewVersion(tc.input)
 			if !cmp.Equal(tc.want, got) {
 				t.Error(cmp.Diff(tc.want, got))
+			}
+		})
+	}
+}
+
+func TestExtractAgentVersionValues(t *testing.T) {
+	t.Parallel()
+	tt := []struct {
+		name  string
+		input string
+		major int
+		minor int
+		patch int
+		err   bool
+	}{
+		{
+			name:  "empty string",
+			input: "",
+			major: 0,
+			minor: 0,
+			patch: 0,
+			err:   true,
+		},
+		{
+			name:  "v2 semver 1",
+			input: "v2.3.0",
+			major: 2,
+			minor: 3,
+			patch: 0,
+			err:   false,
+		},
+		{
+			name:  "v2 semver 2",
+			input: "v2.40.15",
+			major: 2,
+			minor: 40,
+			patch: 15,
+			err:   false,
+		},
+		{
+			name:  "v3 semver",
+			input: "v3.0.0-hash",
+			major: 3,
+			minor: 0,
+			patch: 0,
+			err:   false,
+		},
+		{
+			name:  "v3 major only",
+			input: "v3",
+			major: 3,
+			minor: 0,
+			patch: 0,
+			err:   true,
+		},
+		{
+			name:  "v3 major & minor only",
+			input: "v3.2",
+			major: 3,
+			minor: 2,
+			patch: 0,
+			err:   true,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			major, minor, patch, err := nginx.ExtractAgentVersionValues(tc.input)
+			if err != nil && !tc.err {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if !cmp.Equal(tc.major, major) {
+				t.Errorf("wanted %d, got %d", tc.major, major)
+			}
+			if !cmp.Equal(tc.minor, minor) {
+				t.Errorf("wanted %d, got %d", tc.minor, minor)
+			}
+			if !cmp.Equal(tc.patch, patch) {
+				t.Errorf("wanted %d, got %d", tc.patch, patch)
 			}
 		})
 	}

@@ -18,7 +18,7 @@ from tests.suite.utils.custom_assertions import wait_and_assert_status_code
 from tests.suite.utils.vs_vsr_resources_utils import (
     create_v_s_route_from_yaml,
     create_virtual_server_from_yaml,
-    patch_v_s_route_from_yaml,
+    delete_and_create_v_s_route_from_yaml,
 )
 
 
@@ -163,7 +163,7 @@ class TestVSRWeightChangesDynamicReloadManySplits:
         assert "backend1" in resp.text
 
         print("Step 2: Apply a configuration that swaps the weights (0 100) to (100 0).")
-        patch_v_s_route_from_yaml(
+        delete_and_create_v_s_route_from_yaml(
             kube_apis.custom_objects,
             vsr_weight_changes_dynamic_reload_many_splits_setup.route.name,
             swap_weights_config,
@@ -173,9 +173,19 @@ class TestVSRWeightChangesDynamicReloadManySplits:
         print("Step 3: Verify hitting the other backend.")
         ensure_response_from_backend(backends32_url, vsr_weight_changes_dynamic_reload_many_splits_setup.vs_host)
         wait_and_assert_status_code(200, backends32_url, vsr_weight_changes_dynamic_reload_many_splits_setup.vs_host)
-        wait_before_test(1)
-        resp = requests.get(
-            backends32_url,
-            headers={"host": vsr_weight_changes_dynamic_reload_many_splits_setup.vs_host},
-        )
-        assert "backend2" in resp.text
+        retry_count = 0
+        backend2_detected = False
+
+        while retry_count < 10 and not backend2_detected:
+            resp = requests.get(
+                backends32_url,
+                headers={"host": vsr_weight_changes_dynamic_reload_many_splits_setup.vs_host},
+            )
+            if "backend2" in resp.text:
+                backend2_detected = True
+                print(f"Successfully detected backend2 after {retry_count + 1} attempts")
+            else:
+                retry_count += 1
+                print(f"Attempt {retry_count}/10: Expected backend2, got: {resp.text}")
+                wait_before_test()
+        assert backend2_detected, f"Failed to get response from backend2 after 10 attempts"

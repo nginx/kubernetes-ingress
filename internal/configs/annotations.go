@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"slices"
 
-	nl "github.com/nginxinc/kubernetes-ingress/internal/logger"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	"github.com/nginx/kubernetes-ingress/internal/validation"
 )
 
 // JWTKeyAnnotation is the annotation where the Secret with a JWK is specified.
@@ -16,6 +17,15 @@ const BasicAuthSecretAnnotation = "nginx.org/basic-auth-secret" // #nosec G101
 
 // PathRegexAnnotation is the annotation where the regex location (path) modifier is specified.
 const PathRegexAnnotation = "nginx.org/path-regex"
+
+// RewriteTargetAnnotation is the annotation where the regex-based rewrite target is specified.
+const RewriteTargetAnnotation = "nginx.org/rewrite-target"
+
+// SSLCiphersAnnotation is the annotation where SSL ciphers are specified.
+const SSLCiphersAnnotation = "nginx.org/ssl-ciphers"
+
+// SSLPreferServerCiphersAnnotation is the annotation where SSL prefer server ciphers is specified.
+const SSLPreferServerCiphersAnnotation = "nginx.org/ssl-prefer-server-ciphers"
 
 // UseClusterIPAnnotation is the annotation where the use-cluster-ip boolean is specified.
 const UseClusterIPAnnotation = "nginx.org/use-cluster-ip"
@@ -59,6 +69,8 @@ var minionDenylist = map[string]bool{
 	"nginx.org/listen-ports":                            true,
 	"nginx.org/listen-ports-ssl":                        true,
 	"nginx.org/server-snippets":                         true,
+	"nginx.org/ssl-ciphers":                             true,
+	"nginx.org/ssl-prefer-server-ciphers":               true,
 	"appprotect.f5.com/app_protect_enable":              true,
 	"appprotect.f5.com/app_protect_policy":              true,
 	"appprotect.f5.com/app_protect_security_log_enable": true,
@@ -74,6 +86,7 @@ var minionInheritanceList = map[string]bool{
 	"nginx.org/proxy-buffering":          true,
 	"nginx.org/proxy-buffers":            true,
 	"nginx.org/proxy-buffer-size":        true,
+	"nginx.org/proxy-busy-buffers-size":  true,
 	"nginx.org/proxy-max-temp-file-size": true,
 	"nginx.org/upstream-zone-size":       true,
 	"nginx.org/location-snippets":        true,
@@ -108,7 +121,8 @@ var allowedAnnotationKeys = []string{
 	"ingress.kubernetes.io/ssl-redirect",
 }
 
-func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool, hasAppProtect bool, hasAppProtectDos bool, enableInternalRoutes bool) ConfigParams {
+// nolint: gocyclo
+func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool, hasAppProtect bool, hasAppProtectDos bool, enableInternalRoutes bool, enableDirectiveAutoadjust bool) ConfigParams {
 	l := nl.LoggerFromContext(baseCfgParams.Context)
 	cfgParams := *baseCfgParams
 
@@ -233,6 +247,14 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		cfgParams.ClientMaxBodySize = clientMaxBodySize
 	}
 
+	if clientBodyBufferSize, exists := ingEx.Ingress.Annotations["nginx.org/client-body-buffer-size"]; exists {
+		size, err := ParseSize(clientBodyBufferSize)
+		if err != nil {
+			nl.Errorf(l, "Ingress %s/%s: Invalid value nginx.org/client-body-buffer-size: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), clientBodyBufferSize, err)
+		}
+		cfgParams.ClientBodyBufferSize = size
+	}
+
 	if redirectToHTTPS, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/redirect-to-https", ingEx.Ingress); exists {
 		if err != nil {
 			nl.Error(l, err)
@@ -246,6 +268,18 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 			nl.Error(l, err)
 		} else {
 			cfgParams.SSLRedirect = sslRedirect
+		}
+	}
+
+	if sslCiphers, exists := ingEx.Ingress.Annotations[SSLCiphersAnnotation]; exists {
+		cfgParams.ServerSSLCiphers = sslCiphers
+	}
+
+	if sslPreferServerCiphers, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, SSLPreferServerCiphersAnnotation, ingEx.Ingress); exists {
+		if err != nil {
+			nl.Error(l, err)
+		} else {
+			cfgParams.ServerSSLPreferServerCiphers = sslPreferServerCiphers
 		}
 	}
 
@@ -296,12 +330,37 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		}
 	}
 
+	// proxyBuffers gets validated in k8s/validation.go in annotationValidations
 	if proxyBuffers, exists := ingEx.Ingress.Annotations["nginx.org/proxy-buffers"]; exists {
 		cfgParams.ProxyBuffers = proxyBuffers
 	}
 
+	// proxyBufferSize gets validated in k8s/validation.go in annotationValidations
 	if proxyBufferSize, exists := ingEx.Ingress.Annotations["nginx.org/proxy-buffer-size"]; exists {
 		cfgParams.ProxyBufferSize = proxyBufferSize
+	}
+
+	// proxyBusyBuffersSize gets validated in k8s/validation.go in annotationValidations
+	if proxyBusyBuffersSize, exists := ingEx.Ingress.Annotations["nginx.org/proxy-busy-buffers-size"]; exists {
+		cfgParams.ProxyBusyBuffersSize = proxyBusyBuffersSize
+	}
+
+	// Only run balance validation if auto-adjust is enabled
+	if enableDirectiveAutoadjust {
+		balancedProxyBuffers, balancedProxyBufferSize, balancedProxyBusyBufferSize, modifications, err := validation.BalanceProxyValues(cfgParams.ProxyBuffers, cfgParams.ProxyBufferSize, cfgParams.ProxyBusyBuffersSize, enableDirectiveAutoadjust)
+		if err != nil {
+			nl.Errorf(l, "error reconciling proxy_buffers, proxy_buffer_size, and proxy_busy_buffers_size values: %s", err.Error())
+		} else {
+			cfgParams.ProxyBuffers = balancedProxyBuffers
+			cfgParams.ProxyBufferSize = balancedProxyBufferSize
+			cfgParams.ProxyBusyBuffersSize = balancedProxyBusyBufferSize
+
+			if len(modifications) > 0 {
+				for _, modification := range modifications {
+					nl.Infof(l, "Changes made to proxy values: %s", modification)
+				}
+			}
+		}
 	}
 
 	if upstreamZoneSize, exists := ingEx.Ingress.Annotations["nginx.org/upstream-zone-size"]; exists {
@@ -540,6 +599,26 @@ func getRewrites(ctx context.Context, ingEx *IngressEx) map[string]string {
 		return rewrites
 	}
 	return nil
+}
+
+func getRewriteTarget(ctx context.Context, ingEx *IngressEx) (string, Warnings) {
+	l := nl.LoggerFromContext(ctx)
+	warnings := newWarnings()
+
+	// Check for mutual exclusivity
+	if _, hasRewrites := ingEx.Ingress.Annotations["nginx.org/rewrites"]; hasRewrites {
+		if _, hasRewriteTarget := ingEx.Ingress.Annotations[RewriteTargetAnnotation]; hasRewriteTarget {
+			warningMsg := "nginx.org/rewrites and nginx.org/rewrite-target annotations are mutually exclusive; nginx.org/rewrites will take precedence"
+			nl.Errorf(l, "Ingress %s/%s: %s", ingEx.Ingress.Namespace, ingEx.Ingress.Name, warningMsg)
+			warnings.AddWarning(ingEx.Ingress, warningMsg)
+			return "", warnings
+		}
+	}
+
+	if value, exists := ingEx.Ingress.Annotations[RewriteTargetAnnotation]; exists {
+		return value, warnings
+	}
+	return "", warnings
 }
 
 func getSSLServices(ingEx *IngressEx) map[string]bool {

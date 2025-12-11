@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"time"
 
-	nl "github.com/nginxinc/kubernetes-ingress/internal/logger"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 )
 
 // verifyClient is a client for verifying the config version.
@@ -99,10 +99,6 @@ const configVersionTemplateString = `server {
     listen unix:/var/lib/nginx/nginx-config-version.sock;
 	access_log off;
 
-	{{if .OpenTracingLoadModule}}
-	opentracing off;
-	{{end}}
-
     location /configVersion {
         return 200 {{.ConfigVersion}};
     }
@@ -129,14 +125,12 @@ func newVerifyConfigGenerator() (*verifyConfigGenerator, error) {
 }
 
 // GenerateVersionConfig generates the config version file.
-func (c *verifyConfigGenerator) GenerateVersionConfig(configVersion int, openTracing bool) ([]byte, error) {
+func (c *verifyConfigGenerator) GenerateVersionConfig(configVersion int) ([]byte, error) {
 	var configBuffer bytes.Buffer
 	templateValues := struct {
-		ConfigVersion         int
-		OpenTracingLoadModule bool
+		ConfigVersion int
 	}{
 		configVersion,
-		openTracing,
 	}
 	err := c.configVersionTemplate.Execute(&configBuffer, templateValues)
 	if err != nil {

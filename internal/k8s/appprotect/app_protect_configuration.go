@@ -7,9 +7,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/validation"
-
-	"github.com/nginxinc/kubernetes-ingress/internal/k8s/appprotectcommon"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotectcommon"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	"github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -354,7 +354,7 @@ func (ci *ConfigurationImpl) AddOrUpdatePolicy(policyObj *unstructured.Unstructu
 	if err != nil {
 		ci.Policies[resNsName] = policy
 		return append(changes, Change{Op: Delete, Resource: policy}),
-			append(problems, Problem{Object: policyObj, Reason: "Rejected", Message: err.Error()})
+			append(problems, Problem{Object: policyObj, Reason: nl.EventReasonRejected, Message: err.Error()})
 	}
 	if ci.verifyPolicyAgainstUserSigs(policy) {
 		ci.Policies[resNsName] = policy
@@ -364,7 +364,7 @@ func (ci *ConfigurationImpl) AddOrUpdatePolicy(policyObj *unstructured.Unstructu
 	policy.ErrorMsg = missingUserSigErrorMsg
 	ci.Policies[resNsName] = policy
 	return append(changes, Change{Op: Delete, Resource: policy}),
-		append(problems, Problem{Object: policyObj, Reason: "Rejected", Message: missingUserSigErrorMsg})
+		append(problems, Problem{Object: policyObj, Reason: nl.EventReasonRejected, Message: missingUserSigErrorMsg})
 }
 
 // AddOrUpdateLogConf adds or updates App Protect Log Configuration to App Protect Configuration
@@ -374,7 +374,7 @@ func (ci *ConfigurationImpl) AddOrUpdateLogConf(logconfObj *unstructured.Unstruc
 	ci.LogConfs[resNsName] = logConf
 	if err != nil {
 		return append(changes, Change{Op: Delete, Resource: logConf}),
-			append(problems, Problem{Object: logconfObj, Reason: "Rejected", Message: err.Error()})
+			append(problems, Problem{Object: logconfObj, Reason: nl.EventReasonRejected, Message: err.Error()})
 	}
 	return append(changes, Change{Op: AddOrUpdate, Resource: logConf}), problems
 }
@@ -385,7 +385,7 @@ func (ci *ConfigurationImpl) AddOrUpdateUserSig(userSigObj *unstructured.Unstruc
 	userSig, err := createAppProtectUserSigEx(userSigObj)
 	ci.UserSigs[resNsName] = userSig
 	if err != nil {
-		problems = append(problems, Problem{Object: userSigObj, Reason: "Rejected", Message: err.Error()})
+		problems = append(problems, Problem{Object: userSigObj, Reason: nl.EventReasonRejected, Message: err.Error()})
 	}
 	change.UserSigs = append(change.UserSigs, userSigObj)
 	ci.buildUserSigChangeAndProblems(&problems, &change)
@@ -401,7 +401,7 @@ func (ci *ConfigurationImpl) GetAppResource(kind, key string) (*unstructured.Uns
 			if obj.IsValid {
 				return obj.Obj, nil
 			}
-			return nil, fmt.Errorf(obj.ErrorMsg)
+			return nil, errors.New(obj.ErrorMsg)
 		}
 		return nil, fmt.Errorf("app protect Policy %s not found", key)
 	case LogConfGVK.Kind:
@@ -409,7 +409,7 @@ func (ci *ConfigurationImpl) GetAppResource(kind, key string) (*unstructured.Uns
 			if obj.IsValid {
 				return obj.Obj, nil
 			}
-			return nil, fmt.Errorf(obj.ErrorMsg)
+			return nil, errors.New(obj.ErrorMsg)
 		}
 		return nil, fmt.Errorf("app protect LogConf %s not found", key)
 	case UserSigGVK.Kind:
@@ -417,7 +417,7 @@ func (ci *ConfigurationImpl) GetAppResource(kind, key string) (*unstructured.Uns
 			if obj.IsValid {
 				return obj.Obj, nil
 			}
-			return nil, fmt.Errorf(obj.ErrorMsg)
+			return nil, errors.New(obj.ErrorMsg)
 		}
 		return nil, fmt.Errorf("app protect UserSig %s not found", key)
 	}
@@ -489,7 +489,7 @@ func (ci *ConfigurationImpl) reconcileUserSigs() (changes []Change, problems []P
 		for _, sig := range sigs[1:] {
 			if sig.IsValid {
 				sig.setInvalid(duplicatedTagsErrorMsg)
-				looserProblem := Problem{Object: sig.Obj, Reason: "Rejected", Message: duplicatedTagsErrorMsg}
+				looserProblem := Problem{Object: sig.Obj, Reason: nl.EventReasonRejected, Message: duplicatedTagsErrorMsg}
 				looserChange := Change{Op: Delete, Resource: sig}
 				changes = append(changes, looserChange)
 				problems = append(problems, looserProblem)
@@ -511,7 +511,7 @@ func (ci *ConfigurationImpl) verifyPolicies() (changes []Change, problems []Prob
 		if pol.IsValid {
 			if !ci.verifyPolicyAgainstUserSigs(pol) {
 				pol.setInvalid(missingUserSigErrorMsg)
-				polProb := Problem{Object: pol.Obj, Reason: "Rejected", Message: missingUserSigErrorMsg}
+				polProb := Problem{Object: pol.Obj, Reason: nl.EventReasonRejected, Message: missingUserSigErrorMsg}
 				polCh := Change{Op: Delete, Resource: pol}
 				changes = append(changes, polCh)
 				problems = append(problems, polProb)

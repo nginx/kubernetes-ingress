@@ -12,7 +12,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/nginxinc/kubernetes-ingress/internal/logger/levels"
+	"github.com/nginx/kubernetes-ingress/internal/logger/levels"
 )
 
 // Handler holds all the parameters for the handler

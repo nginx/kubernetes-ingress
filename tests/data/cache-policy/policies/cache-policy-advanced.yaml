@@ -1,0 +1,36 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: cache-policy-advanced
+spec:
+  cache:
+    cacheZoneName: "advancedcache"
+    cacheZoneSize: "20m"
+    allowedCodes: [200, 404, 301]
+    allowedMethods: ["GET", "HEAD", "POST"]
+    time: "2h"
+    overrideUpstreamCache: true
+    levels: "2:2"
+    inactive: "60m"
+    useTempPath: false
+    maxSize: "10g"
+    minFree: "1g"
+    manager:
+      files: 100
+      sleep: "50ms"
+      threshold: "200ms"
+
+    cacheKey: "$scheme$host$request_uri$request_method"
+    cacheUseStale: [ "error", "timeout", "updating", "http_500" ]
+    cacheRevalidate: true
+    cacheBackgroundUpdate: true
+    cacheMinUses: 1
+
+    lock:
+      enable: true
+      timeout: "5s"
+      age: "30s"
+
+    conditions:
+      noCache: [ "$cookie_nocache", "$arg_nocache" ]
+      bypass: [ "$http_authorization" ]

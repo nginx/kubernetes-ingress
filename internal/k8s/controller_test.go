@@ -10,19 +10,19 @@ import (
 	"testing"
 	"time"
 
-	nl "github.com/nginxinc/kubernetes-ingress/internal/logger"
-	"github.com/nginxinc/kubernetes-ingress/internal/telemetry"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	"github.com/nginx/kubernetes-ingress/internal/telemetry"
 
 	discovery_v1 "k8s.io/api/discovery/v1"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/nginxinc/kubernetes-ingress/internal/configs"
-	"github.com/nginxinc/kubernetes-ingress/internal/configs/version1"
-	"github.com/nginxinc/kubernetes-ingress/internal/configs/version2"
-	"github.com/nginxinc/kubernetes-ingress/internal/k8s/secrets"
-	"github.com/nginxinc/kubernetes-ingress/internal/metrics/collectors"
-	"github.com/nginxinc/kubernetes-ingress/internal/nginx"
-	conf_v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
+	"github.com/nginx/kubernetes-ingress/internal/configs"
+	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
+	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
+	"github.com/nginx/kubernetes-ingress/internal/metrics/collectors"
+	"github.com/nginx/kubernetes-ingress/internal/nginx"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	api_v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1227,7 +1227,7 @@ func TestGetEndpointSlicesBySubselectedPods_GetsEndpointsOnNilValues(t *testing.
 		{
 			desc:       "no endpoints selected on nil endpoint port",
 			targetPort: 8080,
-			want:       []podEndpoint{},
+			want:       nil,
 			pods: []*api_v1.Pod{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{
@@ -1267,7 +1267,7 @@ func TestGetEndpointSlicesBySubselectedPods_GetsEndpointsOnNilValues(t *testing.
 		{
 			desc:       "no endpoints selected on nil endpoint condition",
 			targetPort: 8080,
-			want:       []podEndpoint{},
+			want:       nil,
 			pods: []*api_v1.Pod{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{
@@ -2109,7 +2109,7 @@ func TestGetPoliciesGlobalWatch(t *testing.T) {
 
 	expectedPolicies := []*conf_v1.Policy{validPolicy}
 	expectedErrors := []error{
-		errors.New("policy default/invalid-policy is invalid: spec: Invalid value: \"\": must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `jwt`, `oidc`, `waf`"),
+		errors.New("policy default/invalid-policy is invalid: spec: Invalid value: \"\": must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `jwt`, `oidc`, `waf`"),
 		errors.New("policy nginx-ingress/valid-policy doesn't exist"),
 		errors.New("failed to get policy nginx-ingress/some-policy: GetByKey error"),
 		errors.New("referenced policy default/valid-policy-ingress-class has incorrect ingress class: test-class (controller ingress class: )"),
@@ -2207,7 +2207,7 @@ func TestGetPoliciesNamespacedWatch(t *testing.T) {
 
 	expectedPolicies := []*conf_v1.Policy{validPolicy}
 	expectedErrors := []error{
-		errors.New("policy default/invalid-policy is invalid: spec: Invalid value: \"\": must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `jwt`, `oidc`, `waf`"),
+		errors.New("policy default/invalid-policy is invalid: spec: Invalid value: \"\": must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `jwt`, `oidc`, `waf`"),
 		errors.New("failed to get namespace nginx-ingress"),
 		errors.New("referenced policy default/valid-policy-ingress-class has incorrect ingress class: test-class (controller ingress class: )"),
 	}
@@ -3503,5 +3503,222 @@ func TestNewTelemetryCollector(t *testing.T) {
 		if reflect.DeepEqual(tc.expectedCollector, lbc.telemetryCollector) {
 			t.Fatalf("Expected %v, but got %v", tc.expectedCollector, lbc.telemetryCollector)
 		}
+	}
+}
+
+func TestGenerateSecretNSName(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name     string
+		secret   *api_v1.Secret
+		expected string
+	}{
+		{
+			name: "Valid secret",
+			secret: &api_v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Namespace: "testns",
+					Name:      "test-secret",
+				},
+			},
+			expected: "testns/test-secret",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := generateSecretNSName(tc.secret)
+			if result != tc.expected {
+				t.Fatalf("Expected %v, but got %v", tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestCreateVirtualServerExWithZoneSync(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		testCase string
+		input    NewLoadBalancerControllerInput
+		vs       conf_v1.VirtualServer
+		vsr      []*conf_v1.VirtualServerRoute
+		expected configs.VirtualServerEx
+	}{
+		{
+			testCase: "VirtualServerEx without Zone sync",
+			input: NewLoadBalancerControllerInput{
+				KubeClient:               fake.NewSimpleClientset(),
+				EnableTelemetryReporting: false,
+				LoggerContext:            context.Background(),
+			},
+			vs:  conf_v1.VirtualServer{},
+			vsr: []*conf_v1.VirtualServerRoute{{}},
+			expected: configs.VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
+					{},
+				},
+			},
+		},
+		{
+			testCase: "VirtualServerEx with Zone sync",
+			input: NewLoadBalancerControllerInput{
+				KubeClient:               fake.NewSimpleClientset(),
+				EnableTelemetryReporting: false,
+				LoggerContext:            context.Background(),
+				NginxConfigurator: &configs.Configurator{
+					CfgParams: &configs.ConfigParams{
+						ZoneSync: configs.ZoneSync{
+							Enable: true,
+						},
+					},
+				},
+			},
+			vs:  conf_v1.VirtualServer{},
+			vsr: []*conf_v1.VirtualServerRoute{{}},
+			expected: configs.VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
+					{},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		lbc := NewLoadBalancerController(tc.input)
+		vsEx := lbc.createVirtualServerEx(&tc.vs, tc.vsr, nil)
+		if reflect.DeepEqual(vsEx, tc.expected) {
+			t.Fatalf("Expected %v, but got %v", tc.expected, vsEx)
+		}
+	}
+}
+
+func TestCreateIngressExWithZoneSync(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		testCase string
+		input    NewLoadBalancerControllerInput
+		ingress  *networking.Ingress
+		expected configs.IngressEx
+	}{
+		{
+			testCase: "IngressEx without Zone sync",
+			input: NewLoadBalancerControllerInput{
+				KubeClient:               fake.NewSimpleClientset(),
+				EnableTelemetryReporting: false,
+				LoggerContext:            context.Background(),
+			},
+			ingress: &networking.Ingress{},
+			expected: configs.IngressEx{
+				Ingress: &networking.Ingress{},
+			},
+		},
+		{
+			testCase: "IngressEx with Zone sync",
+			input: NewLoadBalancerControllerInput{
+				KubeClient:               fake.NewSimpleClientset(),
+				EnableTelemetryReporting: false,
+				LoggerContext:            context.Background(),
+			},
+			ingress: &networking.Ingress{},
+			expected: configs.IngressEx{
+				Ingress:  &networking.Ingress{},
+				ZoneSync: true,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		lbc := NewLoadBalancerController(tc.input)
+		ingressEx := lbc.createIngressEx(tc.ingress, nil, nil)
+		if reflect.DeepEqual(ingressEx, tc.expected) {
+			t.Fatalf("Expected %v, but got %v", tc.expected, ingressEx)
+		}
+	}
+}
+
+func TestIsPodMarkedForDeletion(t *testing.T) {
+	t.Parallel()
+
+	logger := nl.LoggerFromContext(context.Background())
+
+	tests := []struct {
+		name            string
+		shutdownFlag    bool
+		envPodName      string
+		envPodNamespace string
+		podExists       bool
+		podHasTimestamp bool
+		expectedResult  bool
+	}{
+		{
+			name:           "controller is shutting down",
+			shutdownFlag:   true,
+			expectedResult: true,
+		},
+		{
+			name:            "pod exists with deletion timestamp",
+			envPodName:      "test-pod",
+			envPodNamespace: "test-namespace",
+			podExists:       true,
+			podHasTimestamp: true,
+			expectedResult:  true,
+		},
+		{
+			name:            "pod exists without deletion timestamp",
+			envPodName:      "test-pod",
+			envPodNamespace: "test-namespace",
+			podExists:       true,
+			podHasTimestamp: false,
+			expectedResult:  false,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			client := fake.NewSimpleClientset()
+			if test.podExists {
+				pod := &api_v1.Pod{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      test.envPodName,
+						Namespace: test.envPodNamespace,
+					},
+				}
+
+				if test.podHasTimestamp {
+					now := meta_v1.Now()
+					pod.DeletionTimestamp = &now
+				}
+
+				_, err := client.CoreV1().Pods(test.envPodNamespace).Create(context.Background(), pod, meta_v1.CreateOptions{})
+				if err != nil {
+					t.Fatalf("Error creating pod: %v", err)
+				}
+			}
+
+			lbc := &LoadBalancerController{
+				client: client,
+				metadata: controllerMetadata{
+					pod: &api_v1.Pod{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      test.envPodName,
+							Namespace: test.envPodNamespace,
+						},
+					},
+				},
+				ShuttingDown: test.shutdownFlag,
+				Logger:       logger,
+			}
+
+			// Call the function and verify result
+			result := lbc.isPodMarkedForDeletion()
+			if result != test.expectedResult {
+				t.Errorf("Returned %v but expected %v", result, test.expectedResult)
+			}
+		})
 	}
 }

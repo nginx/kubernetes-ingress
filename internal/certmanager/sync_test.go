@@ -30,8 +30,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	coretesting "k8s.io/client-go/testing"
 
-	testpkg "github.com/nginxinc/kubernetes-ingress/internal/certmanager/test_files"
-	vsapi "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
+	testpkg "github.com/nginx/kubernetes-ingress/internal/certmanager/test_files"
+	vsapi "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 )
 
 func TestSync(t *testing.T) {

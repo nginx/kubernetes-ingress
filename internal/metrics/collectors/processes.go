@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	nl "github.com/nginxinc/kubernetes-ingress/internal/logger"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

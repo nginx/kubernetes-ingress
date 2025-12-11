@@ -5,8 +5,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/nginxinc/kubernetes-ingress/internal/configs"
-	"github.com/nginxinc/kubernetes-ingress/pkg/apis/dos/v1beta1"
+	"github.com/nginx/kubernetes-ingress/internal/configs"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	"github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -191,7 +192,7 @@ func TestAddOrUpdateDosProtected(t *testing.T) {
 			expectedProblems: []Problem{
 				{
 					Object:  invalidResource,
-					Reason:  "Rejected",
+					Reason:  nl.EventReasonRejected,
 					Message: "error validating DosProtectedResource: invalidResource missing value for field: name",
 				},
 			},
@@ -295,7 +296,7 @@ func TestAddOrUpdateDosPolicy(t *testing.T) {
 			expectedProblems: []Problem{
 				{
 					Object:  invalidTestPolicy,
-					Reason:  "Rejected",
+					Reason:  nl.EventReasonRejected,
 					Message: "error validating DosPolicy : required field map[] not found",
 				},
 			},
@@ -400,7 +401,7 @@ func TestAddOrUpdateDosLogConf(t *testing.T) {
 			expectedProblems: []Problem{
 				{
 					Object:  invalidLogConf,
-					Reason:  "Rejected",
+					Reason:  nl.EventReasonRejected,
 					Message: "error validating App Protect Dos Log Configuration invalid-logconf: required field map[] not found",
 				},
 			},

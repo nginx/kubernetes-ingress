@@ -2,9 +2,17 @@ package configs
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"reflect"
 	"testing"
 
+	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
+	"github.com/stretchr/testify/assert"
+
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/record"
 )
 
 func TestParseConfigMapWithAppProtectCompressedRequestsAction(t *testing.T) {
@@ -39,13 +47,14 @@ func TestParseConfigMapWithAppProtectCompressedRequestsAction(t *testing.T) {
 	hasAppProtect := true
 	hasAppProtectDos := false
 	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
 	for _, test := range tests {
 		cm := &v1.ConfigMap{
 			Data: map[string]string{
 				"app-protect-compressed-requests-action": test.action,
 			},
 		}
-		result := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough)
+		result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
 		if result.MainAppProtectCompressedRequestsAction != test.expect {
 			t.Errorf("ParseConfigMap() returned %q but expected %q for the case %s", result.MainAppProtectCompressedRequestsAction, test.expect, test.msg)
 		}
@@ -108,13 +117,14 @@ func TestParseConfigMapWithAppProtectReconnectPeriod(t *testing.T) {
 	hasAppProtect := true
 	hasAppProtectDos := false
 	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
 	for _, test := range tests {
 		cm := &v1.ConfigMap{
 			Data: map[string]string{
 				"app-protect-reconnect-period-seconds": test.period,
 			},
 		}
-		result := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough)
+		result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
 		if result.MainAppProtectReconnectPeriod != test.expect {
 			t.Errorf("ParseConfigMap() returned %q but expected %q for the case %s", result.MainAppProtectReconnectPeriod, test.expect, test.msg)
 		}
@@ -148,6 +158,7 @@ func TestParseConfigMapWithTLSPassthroughProxyProtocol(t *testing.T) {
 	hasAppProtect := true
 	hasAppProtectDos := false
 	hasTLSPassthrough := true
+	directiveAutoadjustEnabled := false
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
 			cm := &v1.ConfigMap{
@@ -155,7 +166,7 @@ func TestParseConfigMapWithTLSPassthroughProxyProtocol(t *testing.T) {
 					"real-ip-header": test.realIPheader,
 				},
 			}
-			result := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough)
+			result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
 			if result.RealIPHeader != test.want {
 				t.Errorf("want %q, got %q", test.want, result.RealIPHeader)
 			}
@@ -190,6 +201,7 @@ func TestParseConfigMapWithoutTLSPassthroughProxyProtocol(t *testing.T) {
 	hasAppProtect := true
 	hasAppProtectDos := false
 	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
 			cm := &v1.ConfigMap{
@@ -197,7 +209,7 @@ func TestParseConfigMapWithoutTLSPassthroughProxyProtocol(t *testing.T) {
 					"real-ip-header": test.realIPheader,
 				},
 			}
-			result := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough)
+			result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
 			if result.RealIPHeader != test.want {
 				t.Errorf("want %q, got %q", test.want, result.RealIPHeader)
 			}
@@ -236,6 +248,7 @@ func TestParseConfigMapAccessLog(t *testing.T) {
 	hasAppProtect := false
 	hasAppProtectDos := false
 	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
 			cm := &v1.ConfigMap{
@@ -244,7 +257,7 @@ func TestParseConfigMapAccessLog(t *testing.T) {
 					"access-log-off": test.accessLogOff,
 				},
 			}
-			result := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough)
+			result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
 			if result.MainAccessLog != test.want {
 				t.Errorf("want %q, got %q", test.want, result.MainAccessLog)
 			}
@@ -269,6 +282,7 @@ func TestParseConfigMapAccessLogDefault(t *testing.T) {
 	hasAppProtect := false
 	hasAppProtectDos := false
 	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
 			cm := &v1.ConfigMap{
@@ -276,10 +290,2428 @@ func TestParseConfigMapAccessLogDefault(t *testing.T) {
 					"access-log-off": "False",
 				},
 			}
-			result := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough)
+			result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
 			if result.MainAccessLog != test.want {
 				t.Errorf("want %q, got %q", test.want, result.MainAccessLog)
 			}
 		})
 	}
+}
+
+func TestParseConfigMapOIDC(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap *v1.ConfigMap
+		want      *OIDC
+		msg       string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{},
+			},
+			want: &OIDC{
+				PKCETimeout:    "90s",
+				IDTokenTimeout: "1h",
+				AccessTimeout:  "1h",
+				RefreshTimeout: "8h",
+				SIDSTimeout:    "8h",
+			},
+			msg: "default OIDC values",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-pkce-timeout":           "5m",
+					"oidc-id-tokens-timeout":      "2h",
+					"oidc-access-tokens-timeout":  "3h",
+					"oidc-refresh-tokens-timeout": "48h",
+					"oidc-sids-timeout":           "72h",
+				},
+			},
+			want: &OIDC{
+				PKCETimeout:    "5m",
+				IDTokenTimeout: "2h",
+				AccessTimeout:  "3h",
+				RefreshTimeout: "48h",
+				SIDSTimeout:    "72h",
+			},
+			msg: "all timeout values custom",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-pkce-timeout": "15m",
+				},
+			},
+			want: &OIDC{
+				PKCETimeout: "15m",
+			},
+			msg: "custom PKCE timeout only",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-id-tokens-timeout": "90m",
+				},
+			},
+			want: &OIDC{
+				IDTokenTimeout: "90m",
+			},
+			msg: "custom ID token timeout only",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-access-tokens-timeout": "4h",
+				},
+			},
+			want: &OIDC{
+				AccessTimeout: "4h",
+			},
+			msg: "custom access token timeout only",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-refresh-tokens-timeout": "16h",
+				},
+			},
+			want: &OIDC{
+				RefreshTimeout: "16h",
+			},
+			msg: "custom refresh token timeout only",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-sids-timeout": "12h",
+				},
+			},
+			want: &OIDC{
+				SIDSTimeout: "12h",
+			},
+			msg: "custom SIDS timeout only",
+		},
+	}
+
+	nginxPlus := true
+	hasAppProtect := false
+	hasAppProtectDos := false
+	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+			if !configOk {
+				t.Error("want configOk true, got configOk false")
+			}
+
+			// Check only the specific fields that are set in the test expectation
+			if test.want.PKCETimeout != "" {
+				assert.Equal(t, test.want.PKCETimeout, result.OIDC.PKCETimeout)
+			}
+			if test.want.IDTokenTimeout != "" {
+				assert.Equal(t, test.want.IDTokenTimeout, result.OIDC.IDTokenTimeout)
+			}
+			if test.want.AccessTimeout != "" {
+				assert.Equal(t, test.want.AccessTimeout, result.OIDC.AccessTimeout)
+			}
+			if test.want.RefreshTimeout != "" {
+				assert.Equal(t, test.want.RefreshTimeout, result.OIDC.RefreshTimeout)
+			}
+			if test.want.SIDSTimeout != "" {
+				assert.Equal(t, test.want.SIDSTimeout, result.OIDC.SIDSTimeout)
+			}
+		})
+	}
+}
+
+func TestParseConfigMapOIDCErrors(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap   *v1.ConfigMap
+		expectedErr bool
+		msg         string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-pkce-timeout": "invalid-time",
+				},
+			},
+			expectedErr: true,
+			msg:         "invalid PKCE timeout format",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-id-tokens-timeout": "abc123",
+				},
+			},
+			expectedErr: true,
+			msg:         "invalid ID token timeout format",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-access-tokens-timeout": "5x",
+				},
+			},
+			expectedErr: true,
+			msg:         "invalid access token timeout format",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-refresh-tokens-timeout": "",
+				},
+			},
+			expectedErr: true,
+			msg:         "empty refresh token timeout",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-sids-timeout": "   ",
+				},
+			},
+			expectedErr: true,
+			msg:         "whitespace-only SIDS timeout",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-pkce-timeout": "-5m",
+				},
+			},
+			expectedErr: true,
+			msg:         "negative PKCE timeout",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-id-tokens-timeout": "1.5h",
+				},
+			},
+			expectedErr: true,
+			msg:         "decimal in ID token timeout",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-access-tokens-timeout": "5minutes",
+				},
+			},
+			expectedErr: true,
+			msg:         "invalid time unit format",
+		},
+
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-sids-timeout": "5s 10m",
+				},
+			},
+			expectedErr: true,
+			msg:         "multiple time values without proper format",
+		},
+	}
+
+	nginxPlus := true
+	hasAppProtect := false
+	hasAppProtectDos := false
+	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			_, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+
+			if test.expectedErr && configOk {
+				t.Errorf("want configOk false, got configOk true for %s", test.msg)
+			}
+			if !test.expectedErr && !configOk {
+				t.Errorf("want configOk true, got configOk false for %s", test.msg)
+			}
+		})
+	}
+}
+
+func TestParseMGMTConfigMapError(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap *v1.ConfigMap
+		msg       string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "",
+				},
+			},
+			msg: "Must have license-token-secret-name",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{},
+			},
+			msg: "Must have license-token-secret-name key",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			_, _, err := ParseMGMTConfigMap(context.Background(), test.configMap, makeEventLogger())
+
+			if err == nil {
+				t.Errorf("Expected error, got nil")
+			}
+		})
+	}
+}
+
+func TestParseMGMTConfigMapWarnings(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap *v1.ConfigMap
+		msg       string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"enforce-initial-report":    "7",
+				},
+			},
+			msg: "enforce-initial-report is invalid",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"enforce-initial-report":    "",
+				},
+			},
+			msg: "enforce-initial-report set empty",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "",
+				},
+			},
+			msg: "usage-report-interval set empty",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "1s",
+				},
+			},
+			msg: "usage-report-interval set below allowed value",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "1s",
+				},
+			},
+			msg: "usage-report-interval set below allowed value",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"ssl-verify":                "10",
+				},
+			},
+			msg: "ssl-verify set to an invalid int",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"ssl-verify":                "test",
+				},
+			},
+			msg: "ssl-verify set to an invalid value",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"ssl-verify":                "",
+				},
+			},
+			msg: "ssl-verify set to an empty string",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"resolver-ipv6":             "",
+				},
+			},
+			msg: "resolver-ipv6 set to an empty string",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"resolver-ipv6":             "10",
+				},
+			},
+			msg: "resolver-ipv6 set to an invalid int",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-proxy-host":   "10",
+				},
+			},
+			msg: "usage-report-proxy-host set to an invalid host",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			_, configWarnings, err := ParseMGMTConfigMap(context.Background(), test.configMap, makeEventLogger())
+			if err != nil {
+				t.Errorf("expected nil, got err: %v", err)
+			}
+			if !configWarnings {
+				t.Fatal("Expected warnings, got none")
+			}
+		})
+	}
+}
+
+func TestParseMGMTConfigMapLicense(t *testing.T) {
+	t.Parallel()
+	test := struct {
+		configMap *v1.ConfigMap
+		want      *MGMTConfigParams
+		msg       string
+	}{
+		configMap: &v1.ConfigMap{
+			Data: map[string]string{
+				"license-token-secret-name": "license-token",
+			},
+		},
+		want: &MGMTConfigParams{
+			Secrets: MGMTSecrets{
+				License: "license-token",
+			},
+		},
+		msg: "Has only license-token-secret-name",
+	}
+
+	t.Run(test.msg, func(t *testing.T) {
+		result, warnings, err := ParseMGMTConfigMap(context.Background(), test.configMap, makeEventLogger())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if warnings {
+			t.Fatal("Unexpected warnings")
+		}
+		if result.Secrets.License != test.want.Secrets.License {
+			t.Errorf("LicenseTokenSecretNane: want %q, got %q", test.want.Secrets.License, result.Secrets.License)
+		}
+	})
+}
+
+func TestParseMGMTConfigMapEnforceInitialReport(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap *v1.ConfigMap
+		want      *MGMTConfigParams
+		msg       string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"enforce-initial-report":    "false",
+				},
+			},
+			want: &MGMTConfigParams{
+				EnforceInitialReport: commonhelpers.BoolToPointerBool(false),
+				Secrets: MGMTSecrets{
+					License: "license-token",
+				},
+			},
+			msg: "enforce-initial-report set to false",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"enforce-initial-report":    "true",
+				},
+			},
+			want: &MGMTConfigParams{
+				EnforceInitialReport: commonhelpers.BoolToPointerBool(true),
+				Secrets: MGMTSecrets{
+					License: "license-token",
+				},
+			},
+			msg: "enforce-initial-report set to true",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, warnings, err := ParseMGMTConfigMap(context.Background(), test.configMap, makeEventLogger())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if warnings {
+				t.Error("Unexpected warnings")
+			}
+
+			if result.EnforceInitialReport == nil {
+				t.Errorf("EnforceInitialReport: want %v, got nil", *test.want.EnforceInitialReport)
+			}
+			if *result.EnforceInitialReport != *test.want.EnforceInitialReport {
+				t.Errorf("EnforceInitialReport: want %v, got %v", *test.want.EnforceInitialReport, *result.EnforceInitialReport)
+			}
+		})
+	}
+}
+
+func TestParseMGMTConfigMapSSLVerify(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap *v1.ConfigMap
+		want      *MGMTConfigParams
+		msg       string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"ssl-verify":                "false",
+				},
+			},
+			want: &MGMTConfigParams{
+				SSLVerify: commonhelpers.BoolToPointerBool(false),
+				Secrets: MGMTSecrets{
+					License: "license-token",
+				},
+			},
+			msg: "ssl-verify set to false",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"ssl-verify":                "true",
+				},
+			},
+			want: &MGMTConfigParams{
+				SSLVerify: commonhelpers.BoolToPointerBool(true),
+				Secrets: MGMTSecrets{
+					License: "license-token",
+				},
+			},
+			msg: "ssl-verify set to true",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, warnings, err := ParseMGMTConfigMap(context.Background(), test.configMap, makeEventLogger())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if warnings {
+				t.Error("Unexpected warnings")
+			}
+
+			if result.SSLVerify == nil {
+				t.Errorf("ssl-verify: want %v, got nil", *test.want.SSLVerify)
+			}
+			if *result.SSLVerify != *test.want.SSLVerify {
+				t.Errorf("ssl-verify: want %v, got %v", *test.want.SSLVerify, *result.SSLVerify)
+			}
+		})
+	}
+}
+
+func TestParseMGMTConfigMapUsageReportInterval(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap *v1.ConfigMap
+		want      *MGMTConfigParams
+		msg       string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "120s",
+				},
+			},
+			want: &MGMTConfigParams{
+				Interval: "120s",
+				Secrets: MGMTSecrets{
+					License: "license-token",
+				},
+			},
+			msg: "usage report interval set to 120s",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "20m",
+				},
+			},
+			want: &MGMTConfigParams{
+				Interval: "20m",
+				Secrets: MGMTSecrets{
+					License: "license-token",
+				},
+			},
+			msg: "usage report interval set to 20m",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "1h",
+				},
+			},
+			want: &MGMTConfigParams{
+				Interval: "1h",
+				Secrets: MGMTSecrets{
+					License: "license-token",
+				},
+			},
+			msg: "usage report interval set to 1h",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "24h",
+				},
+			},
+			want: &MGMTConfigParams{
+				Interval: "24h",
+				Secrets: MGMTSecrets{
+					License: "license-token",
+				},
+			},
+			msg: "usage report interval set to 24h",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, warnings, err := ParseMGMTConfigMap(context.Background(), test.configMap, makeEventLogger())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if warnings {
+				t.Error("Unexpected warnings")
+			}
+
+			if result.Interval == "" {
+				t.Errorf("UsageReportInterval: want %s, got empty string", test.want.Interval)
+			}
+			if result.Interval != test.want.Interval {
+				t.Errorf("UsageReportInterval: want %v, got %v", test.want.Interval, result.Interval)
+			}
+		})
+	}
+}
+
+func TestParseMGMTConfigMapUsageReportIntervalMaximum(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap      *v1.ConfigMap
+		expectWarnings bool
+		expectInterval string
+		msg            string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "24h",
+				},
+			},
+			expectWarnings: false,
+			expectInterval: "24h",
+			msg:            "24h should be accepted (maximum allowed)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "25h",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "25h should be rejected (exceeds maximum)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "1440m",
+				},
+			},
+			expectWarnings: false,
+			expectInterval: "1440m",
+			msg:            "1440m (24h) should be accepted",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "1441m",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "1441m (>24h) should be rejected",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, warnings, err := ParseMGMTConfigMap(context.Background(), test.configMap, makeEventLogger())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if warnings != test.expectWarnings {
+				t.Errorf("Expected warnings=%v, got warnings=%v", test.expectWarnings, warnings)
+			}
+
+			if result.Interval != test.expectInterval {
+				t.Errorf("Expected interval=%q, got interval=%q", test.expectInterval, result.Interval)
+			}
+		})
+	}
+}
+
+func TestParseMGMTConfigMapUsageReportIntervalEdgeCases(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap      *v1.ConfigMap
+		expectWarnings bool
+		expectInterval string
+		msg            string
+	}{
+		// Test milliseconds (should be rejected due to unsupported unit)
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "1000ms",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "1000ms should be rejected (ms unit not allowed)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "60000ms",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "60000ms should be rejected (ms unit not allowed)",
+		},
+		// Test that large ms values are also rejected for unit, not value
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "3600000ms",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "3600000ms (1h) should be rejected (ms unit not allowed)",
+		},
+		// Test days (should be rejected by Go's ParseDuration)
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "1d",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "1d should be rejected (Go doesn't support 'd' unit)",
+		},
+		// Test values > 24h (valid in Go but should be rejected by max check)
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "25h",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "25h should be rejected (exceeds 24h maximum)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "48h",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "48h should be rejected (exceeds 24h maximum)",
+		},
+		// exactly 86400 seconds (24h)
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "86400s",
+				},
+			},
+			expectWarnings: false,
+			expectInterval: "86400s",
+			msg:            "86400s (24h) should be accepted",
+		},
+		// 86401 seconds (24h + 1s)
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-interval":     "86401s",
+				},
+			},
+			expectWarnings: true,
+			expectInterval: "",
+			msg:            "86401s (>24h) should be rejected",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, warnings, err := ParseMGMTConfigMap(context.Background(), test.configMap, makeEventLogger())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if warnings != test.expectWarnings {
+				t.Errorf("Expected warnings=%v, got warnings=%v", test.expectWarnings, warnings)
+			}
+
+			if result.Interval != test.expectInterval {
+				t.Errorf("Expected interval=%q, got interval=%q", test.expectInterval, result.Interval)
+			}
+		})
+	}
+}
+
+func TestParseMGMTConfigMapResolverIPV6(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap *v1.ConfigMap
+		want      *MGMTConfigParams
+		msg       string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"resolver-ipv6":             "false",
+				},
+			},
+			want: &MGMTConfigParams{
+				ResolverIPV6: commonhelpers.BoolToPointerBool(false),
+				Secrets: MGMTSecrets{
+					License: "license-token",
+				},
+			},
+			msg: "resolver-ipv6 set to false",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"resolver-ipv6":             "true",
+				},
+			},
+			want: &MGMTConfigParams{
+				ResolverIPV6: commonhelpers.BoolToPointerBool(true),
+				Secrets: MGMTSecrets{
+					License: "license-token",
+				},
+			},
+			msg: "resolver-ipv6 set to true",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, warnings, err := ParseMGMTConfigMap(context.Background(), test.configMap, makeEventLogger())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if warnings {
+				t.Error("Unexpected warnings")
+			}
+
+			if result.ResolverIPV6 == nil {
+				t.Errorf("resolver-ipv6: want %v, got nil", *test.want.ResolverIPV6)
+			}
+			if *result.ResolverIPV6 != *test.want.ResolverIPV6 {
+				t.Errorf("resolver-ipv6: want %v, got %v", *test.want.ResolverIPV6, *result.ResolverIPV6)
+			}
+		})
+	}
+}
+
+func TestParseMGMTConfigMapUsageReportEndpoint(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap *v1.ConfigMap
+		want      *MGMTConfigParams
+		msg       string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-endpoint":     "product.connect.nginx.com",
+				},
+			},
+			want: &MGMTConfigParams{
+				Endpoint: "product.connect.nginx.com",
+				Secrets: MGMTSecrets{
+					License: "license-token",
+				},
+			},
+			msg: "usage report endpoint set to product.connect.nginx.com",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-endpoint":     "product.connect.nginx.com:80",
+				},
+			},
+			want: &MGMTConfigParams{
+				Endpoint: "product.connect.nginx.com:80",
+				Secrets: MGMTSecrets{
+					License: "license-token",
+				},
+			},
+			msg: "usage report endpoint set to product.connect.nginx.com with port 80",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, warnings, err := ParseMGMTConfigMap(context.Background(), test.configMap, makeEventLogger())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if warnings {
+				t.Error("Unexpected warnings")
+			}
+
+			if result.Endpoint == "" {
+				t.Errorf("UsageReportEndpoint: want %s, got empty string", test.want.Endpoint)
+			}
+			if result.Endpoint != test.want.Endpoint {
+				t.Errorf("UsageReportEndpoint: want %v, got %v", test.want.Endpoint, result.Endpoint)
+			}
+		})
+	}
+}
+
+func TestParseMGMTConfigMapUsageReportProxyHost(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap *v1.ConfigMap
+		want      *MGMTConfigParams
+		msg       string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-proxy-host":   "proxy.example.com",
+				},
+			},
+			want: &MGMTConfigParams{
+				Endpoint: "product.connect.nginx.com",
+				Secrets: MGMTSecrets{
+					License: "license-token",
+				},
+				ProxyHost: "proxy.example.com",
+			},
+			msg: "usage report proxy-host set to proxy.example.com",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-proxy-host":   "proxy.example.com:3128",
+				},
+			},
+			want: &MGMTConfigParams{
+				Endpoint: "product.connect.nginx.com",
+				Secrets: MGMTSecrets{
+					License: "license-token",
+				},
+				ProxyHost: "proxy.example.com:3128",
+			},
+			msg: "usage report proxy-host set to proxy.example.com with port 3128",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-proxy-host":   "proxy",
+				},
+			},
+			want: &MGMTConfigParams{
+				Endpoint: "product.connect.nginx.com",
+				Secrets: MGMTSecrets{
+					License: "license-token",
+				},
+				ProxyHost: "proxy",
+			},
+			msg: "usage report proxy-host set to proxy",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-proxy-host":   "proxy:3128",
+				},
+			},
+			want: &MGMTConfigParams{
+				Endpoint: "product.connect.nginx.com",
+				Secrets: MGMTSecrets{
+					License: "license-token",
+				},
+				ProxyHost: "proxy:3128",
+			},
+			msg: "usage report proxy-host set to proxy with port 3128",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-proxy-host":   "192.168.1.254",
+				},
+			},
+			want: &MGMTConfigParams{
+				Endpoint: "product.connect.nginx.com",
+				Secrets: MGMTSecrets{
+					License: "license-token",
+				},
+				ProxyHost: "192.168.1.254",
+			},
+			msg: "usage report proxy-host set to 192.168.1.254",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-proxy-host":   "192.168.1.254:3128",
+				},
+			},
+			want: &MGMTConfigParams{
+				Endpoint: "product.connect.nginx.com",
+				Secrets: MGMTSecrets{
+					License: "license-token",
+				},
+				ProxyHost: "192.168.1.254:3128",
+			},
+			msg: "usage report proxy-host set to 192.168.1.254 with port 3128",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, warnings, err := ParseMGMTConfigMap(context.Background(), test.configMap, makeEventLogger())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if warnings {
+				t.Error("Unexpected warnings")
+			}
+
+			if result.ProxyHost == "" {
+				t.Errorf("UsageReportProxyHost: want %s, got empty string", test.want.ProxyHost)
+			}
+			if result.ProxyHost != test.want.ProxyHost {
+				t.Errorf("UsageReportProxyHost: want %v, got %v", test.want.ProxyHost, result.ProxyHost)
+			}
+		})
+	}
+}
+
+func TestParseMGMTConfigMapUsageReportProxyCredentials(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap *v1.ConfigMap
+		user      string
+		pass      string
+		want      *MGMTConfigParams
+		msg       string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-proxy-host":   "proxy.example.com:3128",
+				},
+			},
+			user: "user",
+			pass: "pass",
+			want: &MGMTConfigParams{
+				Context: context.Background(),
+				Secrets: MGMTSecrets{
+					License: "license-token",
+				},
+				ProxyHost: "proxy.example.com:3128",
+				ProxyUser: "user",
+				ProxyPass: "pass",
+			},
+			msg: "usage report proxy user and pass set",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"license-token-secret-name": "license-token",
+					"usage-report-proxy-host":   "proxy.example.com:3128",
+				},
+			},
+			user: "user",
+			pass: "",
+			want: &MGMTConfigParams{
+				Context: context.Background(),
+				Secrets: MGMTSecrets{
+					License: "license-token",
+				},
+				ProxyHost: "proxy.example.com:3128",
+				ProxyUser: "user",
+				ProxyPass: "",
+			},
+			msg: "usage report proxy user set with no pass",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			err := os.Setenv("PROXY_USER", test.user)
+			if err != nil {
+				t.Error(err)
+			}
+
+			err = os.Setenv("PROXY_PASS", test.pass)
+			if err != nil {
+				t.Error(err)
+			}
+
+			result, warnings, err := ParseMGMTConfigMap(context.Background(), test.configMap, makeEventLogger())
+			if err != nil {
+				t.Error(err)
+			}
+			if warnings {
+				t.Error("Unexpected warnings")
+			}
+
+			if !reflect.DeepEqual(result, test.want) {
+				t.Errorf("got %v, want %v", result, test.want)
+			}
+		})
+	}
+}
+
+func TestParseZoneSync(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap *v1.ConfigMap
+		want      *ZoneSync
+		msg       string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync": "true",
+				},
+			},
+			want: &ZoneSync{
+				Enable: true,
+				Port:   12345,
+			},
+			msg: "zone-sync set to true",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync": "false",
+				},
+			},
+			want: &ZoneSync{
+				Enable: false,
+				Port:   0,
+			},
+			msg: "zone-sync set to false",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, _ := ParseConfigMap(context.Background(), test.configMap, true, false, false, false, true, makeEventLogger())
+			if result.ZoneSync.Enable != test.want.Enable {
+				t.Errorf("Enable: want %v, got %v", test.want.Enable, result.ZoneSync)
+			}
+		})
+	}
+}
+
+func TestParseZoneSyncForOSS(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap *v1.ConfigMap
+		want      *ZoneSync
+		msg       string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync": "true",
+				},
+			},
+			want: &ZoneSync{
+				Enable: true,
+				Port:   12345,
+			},
+			msg: "zone-sync set to true",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync": "false",
+				},
+			},
+			want: &ZoneSync{
+				Enable: false,
+				Port:   0,
+			},
+			msg: "zone-sync set to false",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			_, configOk := ParseConfigMap(context.Background(), test.configMap, false, false, false, false, true, makeEventLogger())
+			if configOk {
+				t.Errorf("Expected config not valid, got valid")
+			}
+		})
+	}
+}
+
+func TestParseZoneSyncPort(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap *v1.ConfigMap
+		want      *ZoneSync
+		msg       string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync":      "true",
+					"zone-sync-port": "1234",
+				},
+			},
+			want: &ZoneSync{
+				Enable:            true,
+				Port:              1234,
+				Domain:            "",
+				ResolverAddresses: []string{"add default one"},
+				ResolverValid:     "5s",
+			},
+			msg: "zone-sync-port set to 1234",
+		},
+	}
+
+	nginxPlus := true
+	hasAppProtect := true
+	hasAppProtectDos := false
+	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, _ := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+			if result.ZoneSync.Port != test.want.Port {
+				t.Errorf("Port: want %v, got %v", test.want.Port, result.ZoneSync.Port)
+			}
+		})
+	}
+}
+
+func TestZoneSyncPortSetToDefaultOnZoneSyncEnabledAndPortNotProvided(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap *v1.ConfigMap
+		want      *ZoneSync
+		msg       string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync": "true",
+				},
+			},
+			want: &ZoneSync{
+				Enable: true,
+				Port:   12345,
+			},
+			msg: "zone-sync-port set to default value 12345",
+		},
+	}
+	nginxPlus := true
+	hasAppProtect := false
+	hasAppProtectDos := false
+	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+			if !configOk {
+				t.Error("zone-sync: want configOk true, got configOk false ")
+			}
+			if result.ZoneSync.Port != test.want.Port {
+				t.Errorf("Port: want %v, got %v", test.want.Port, result.ZoneSync.Port)
+			}
+		})
+	}
+}
+
+func TestParseZoneSyncPortErrors(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap *v1.ConfigMap
+		msg       string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync":      "true",
+					"zone-sync-port": "0",
+				},
+			},
+			msg: "port out of range (0)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync":      "true",
+					"zone-sync-port": "-1",
+				},
+			},
+			msg: "port out of range (negative)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync":      "true",
+					"zone-sync-port": "65536",
+				},
+			},
+			msg: "port out of range (greater than 65535)",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync":      "true",
+					"zone-sync-port": "not-a-number",
+				},
+			},
+			msg: "invalid non-numeric port",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync":      "true",
+					"zone-sync-port": "",
+				},
+			},
+			msg: "empty string port",
+		},
+	}
+
+	nginxPlus := true
+	hasAppProtect := true
+	hasAppProtectDos := false
+	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			_, ok := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+			if ok {
+				t.Error("Expected config not valid, got valid")
+			}
+		})
+	}
+}
+
+func TestParseZoneSyncResolverErrors(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap *v1.ConfigMap
+		msg       string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync":                    "true",
+					"zone-sync-resolver-addresses": "nginx",
+				},
+			},
+			msg: "invalid resolver address",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync":                    "true",
+					"zone-sync-resolver-addresses": "nginx, example.com",
+				},
+			},
+			msg: "one valid and one invalid resolver addresses",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync":                "true",
+					"zone-sync-resolver-valid": "10x",
+				},
+			},
+			msg: "invalid resolver valid 10x",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync":                "true",
+					"zone-sync-resolver-valid": "nginx",
+				},
+			},
+			msg: "invalid resolver valid string",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync": "nginx",
+				},
+			},
+			msg: "zone-sync = nginx",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync":               "true",
+					"zone-sync-resolver-ipv6": "nginx",
+				},
+			},
+			msg: "invalid resolver ipv6 string",
+		},
+	}
+
+	nginxPlus := false
+	hasAppProtect := true
+	hasAppProtectDos := false
+	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			_, ok := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+			if ok {
+				t.Error("Expected config not valid, got valid")
+			}
+		})
+	}
+}
+
+func TestParseZoneSyncResolverIPV6MapResolverIPV6(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap *v1.ConfigMap
+		want      *ZoneSync
+		msg       string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync":                    "true",
+					"zone-sync-resolver-ipv6":      "true",
+					"zone-sync-resolver-addresses": "example.com",
+				},
+			},
+			want: &ZoneSync{
+				Enable:            true,
+				Port:              12345,
+				ResolverIPV6:      commonhelpers.BoolToPointerBool(true),
+				ResolverAddresses: []string{"example.com"},
+			},
+			msg: "zone-sync-resolver-ipv6 set to true",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"zone-sync-port":               "12345",
+					"zone-sync":                    "true",
+					"zone-sync-resolver-ipv6":      "false",
+					"zone-sync-resolver-addresses": "example.com",
+				},
+			},
+			want: &ZoneSync{
+				Enable:            true,
+				Port:              12345,
+				ResolverIPV6:      commonhelpers.BoolToPointerBool(false),
+				ResolverAddresses: []string{"example.com"},
+			},
+			msg: "zone-sync-resolver-ipv6 set to false",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			nginxPlus := true
+			hasAppProtect := false
+			hasAppProtectDos := false
+			hasTLSPassthrough := false
+			directiveAutoadjustEnabled := false
+
+			result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+
+			if !configOk {
+				t.Errorf("zone-sync-resolver-ipv6: want configOk true, got configOk %v  ", configOk)
+			}
+
+			if result.ZoneSync.ResolverIPV6 == nil {
+				t.Errorf("zone-sync-resolver-ipv6: want %v, got nil", *test.want.ResolverIPV6)
+			}
+
+			if *result.ZoneSync.ResolverIPV6 != *test.want.ResolverIPV6 {
+				t.Errorf("zone-sync-resolver-ipv6: want %v, got %v", *test.want.ResolverIPV6, *result.ZoneSync.ResolverIPV6)
+			}
+		})
+	}
+}
+
+func TestOpenTelemetryConfigurationSuccess(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap                   *v1.ConfigMap
+		expectedLoadModule          bool
+		expectedExporterEndpoint    string
+		expectedExporterHeaderName  string
+		expectedExporterHeaderValue string
+		expectedServiceName         string
+		expectedTraceInHTTP         bool
+		msg                         string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "https://otel-collector:4317",
+					"otel-service-name":      "nginx-ingress-controller:nginx",
+				},
+			},
+			expectedLoadModule:          true,
+			expectedExporterEndpoint:    "https://otel-collector:4317",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "nginx-ingress-controller:nginx",
+			msg:                         "endpoint set, minimal config",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "subdomain.goes.on.and.on.and.on.and.on.example.com",
+				},
+			},
+			expectedLoadModule:          true,
+			expectedExporterEndpoint:    "subdomain.goes.on.and.on.and.on.and.on.example.com",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "endpoint set, complicated long subdomain",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "localhost:9933",
+				},
+			},
+			expectedLoadModule:          true,
+			expectedExporterEndpoint:    "localhost:9933",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "endpoint set, hostname and port no scheme",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint":     "https://otel-collector:4317",
+					"otel-exporter-trusted-ca":   "otel-ca-secret",
+					"otel-exporter-header-name":  "X-Custom-Header",
+					"otel-exporter-header-value": "custom-value",
+					"otel-service-name":          "nginx-ingress-controller:nginx",
+					"otel-trace-in-http":         "true",
+				},
+			},
+			expectedLoadModule:          true,
+			expectedExporterEndpoint:    "https://otel-collector:4317",
+			expectedExporterHeaderName:  "X-Custom-Header",
+			expectedExporterHeaderValue: "custom-value",
+			expectedServiceName:         "nginx-ingress-controller:nginx",
+			expectedTraceInHTTP:         true,
+			msg:                         "endpoint set, full config",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{},
+			},
+			expectedLoadModule:          false,
+			expectedExporterEndpoint:    "",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "no config",
+		},
+	}
+
+	isPlus := true
+	hasAppProtect := false
+	hasAppProtectDos := false
+	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
+	expectedConfigOk := true
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, configOk := ParseConfigMap(context.Background(), test.configMap, isPlus,
+				hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+			if configOk != expectedConfigOk {
+				t.Errorf("configOk: want %v, got %v", expectedConfigOk, configOk)
+			}
+			if result.MainOtelLoadModule != test.expectedLoadModule {
+				t.Errorf("MainOtelLoadModule: want %v, got %v", test.expectedLoadModule, result.MainOtelLoadModule)
+			}
+			if result.MainOtelExporterEndpoint != test.expectedExporterEndpoint {
+				t.Errorf("MainOtelExporterEndpoint: want %q, got %q", test.expectedExporterEndpoint, result.MainOtelExporterEndpoint)
+			}
+			if result.MainOtelExporterHeaderName != test.expectedExporterHeaderName {
+				t.Errorf("MainOtelExporterHeaderName: want %q, got %q", test.expectedExporterHeaderName, result.MainOtelExporterHeaderName)
+			}
+			if result.MainOtelExporterHeaderValue != test.expectedExporterHeaderValue {
+				t.Errorf("MainOtelExporterHeaderValue: want %q, got %q", test.expectedExporterHeaderValue, result.MainOtelExporterHeaderValue)
+			}
+			if result.MainOtelServiceName != test.expectedServiceName {
+				t.Errorf("MainOtelServiceName: want %q, got %q", test.expectedServiceName, result.MainOtelServiceName)
+			}
+			if result.MainOtelTraceInHTTP != test.expectedTraceInHTTP {
+				t.Errorf("MainOtelTraceInHTTP: want %v, got %v", test.expectedTraceInHTTP, result.MainOtelTraceInHTTP)
+			}
+		})
+	}
+}
+
+func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		configMap                   *v1.ConfigMap
+		expectedLoadModule          bool
+		expectedExporterEndpoint    string
+		expectedExporterHeaderName  string
+		expectedExporterHeaderValue string
+		expectedServiceName         string
+		expectedTraceInHTTP         bool
+		msg                         string
+	}{
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "",
+					"otel-service-name":      "nginx-ingress-controller:nginx",
+				},
+			},
+			expectedLoadModule:          false,
+			expectedExporterEndpoint:    "",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "invalid, endpoint missing, service name set",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-header-name":  "X-Custom-Header",
+					"otel-exporter-header-value": "custom-value",
+				},
+			},
+			expectedLoadModule:          false,
+			expectedExporterEndpoint:    "",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "invalid, endpoint missing, header name and value set",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint":    "https://otel-collector:4317",
+					"otel-exporter-header-name": "X-Custom-Header",
+					"otel-service-name":         "nginx-ingress-controller:nginx",
+				},
+			},
+			expectedLoadModule:          true,
+			expectedExporterEndpoint:    "https://otel-collector:4317",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "nginx-ingress-controller:nginx",
+			expectedTraceInHTTP:         false,
+			msg:                         "partially invalid, header value missing",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint":     "https://otel-collector:4317",
+					"otel-exporter-header-value": "custom-value",
+					"otel-service-name":          "nginx-ingress-controller:nginx",
+				},
+			},
+			expectedLoadModule:          true,
+			expectedExporterEndpoint:    "https://otel-collector:4317",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "nginx-ingress-controller:nginx",
+			expectedTraceInHTTP:         false,
+			msg:                         "partially invalid, header name missing",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint":     "https://otel-collector:4317",
+					"otel-exporter-header-name":  "X-Custom-H$eader",
+					"otel-exporter-header-value": "custom-value",
+					"otel-service-name":          "nginx-ingress-controller:nginx",
+				},
+			},
+			expectedLoadModule:          true,
+			expectedExporterEndpoint:    "https://otel-collector:4317",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "nginx-ingress-controller:nginx",
+			expectedTraceInHTTP:         false,
+			msg:                         "partially invalid, header value invalid",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "https://otel-collector:4317",
+					"otel-service-name":      "nginx-ingress-controller:nginx",
+					"otel-trace-in-http":     "invalid",
+				},
+			},
+			expectedLoadModule:          true,
+			expectedExporterEndpoint:    "https://otel-collector:4317",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "nginx-ingress-controller:nginx",
+			expectedTraceInHTTP:         false,
+			msg:                         "partially invalid, trace flag invalid",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint":     "https://otel-collector:4317",
+					"otel-exporter-header-value": "custom-value",
+					"otel-service-name":          "nginx-ingress-controller:nginx",
+					"otel-trace-in-http":         "true",
+				},
+			},
+			expectedLoadModule:          true,
+			expectedExporterEndpoint:    "https://otel-collector:4317",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "nginx-ingress-controller:nginx",
+			expectedTraceInHTTP:         true,
+			msg:                         "partially invalid, header name missing, trace in http set",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "something%invalid*30here",
+				},
+			},
+			expectedLoadModule:          false,
+			expectedExporterEndpoint:    "",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "invalid, endpoint does not look like a host",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "localhost:0",
+				},
+			},
+			expectedLoadModule:          false,
+			expectedExporterEndpoint:    "",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "invalid, port is outside of range down",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "localhost:99999",
+				},
+			},
+			expectedLoadModule:          false,
+			expectedExporterEndpoint:    "",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "invalid, port is outside of range up",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "fe80::1",
+				},
+			},
+			expectedLoadModule:          false,
+			expectedExporterEndpoint:    "",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "invalid, endpoint is an ipv6 address",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "thisisaverylongsubdomainthatexceedsatotalofsixtythreecharactersz.example.com",
+				},
+			},
+			expectedLoadModule:          false,
+			expectedExporterEndpoint:    "",
+			expectedExporterHeaderName:  "",
+			expectedExporterHeaderValue: "",
+			expectedServiceName:         "",
+			expectedTraceInHTTP:         false,
+			msg:                         "invalid, subdomain is more than 63 characters long",
+		},
+	}
+
+	isPlus := false
+	hasAppProtect := false
+	hasAppProtectDos := false
+	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
+	expectedConfigOk := false
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			result, configOk := ParseConfigMap(context.Background(), test.configMap, isPlus,
+				hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+			if configOk != expectedConfigOk {
+				t.Errorf("configOk: want %v, got %v", expectedConfigOk, configOk)
+			}
+			if result.MainOtelLoadModule != test.expectedLoadModule {
+				t.Errorf("MainOtelLoadModule: want %v, got %v", test.expectedLoadModule, result.MainOtelLoadModule)
+			}
+			if result.MainOtelExporterEndpoint != test.expectedExporterEndpoint {
+				t.Errorf("MainOtelExporterEndpoint: want %q, got %q", test.expectedExporterEndpoint, result.MainOtelExporterEndpoint)
+			}
+			if result.MainOtelExporterHeaderName != test.expectedExporterHeaderName {
+				t.Errorf("MainOtelExporterHeaderName: want %q, got %q", test.expectedExporterHeaderName, result.MainOtelExporterHeaderName)
+			}
+			if result.MainOtelExporterHeaderValue != test.expectedExporterHeaderValue {
+				t.Errorf("MainOtelExporterHeaderValue: want %q, got %q", test.expectedExporterHeaderValue, result.MainOtelExporterHeaderValue)
+			}
+			if result.MainOtelServiceName != test.expectedServiceName {
+				t.Errorf("MainOtelServiceName: want %q, got %q", test.expectedServiceName, result.MainOtelServiceName)
+			}
+			if result.MainOtelTraceInHTTP != test.expectedTraceInHTTP {
+				t.Errorf("MainOtelTraceInHTTP: want %v, got %v", test.expectedTraceInHTTP, result.MainOtelTraceInHTTP)
+			}
+		})
+	}
+}
+
+func TestParseProxyBuffers(t *testing.T) {
+	t.Parallel()
+
+	// Test with auto-adjust enabled - should use validation functions
+	t.Run("with auto-adjust enabled", func(t *testing.T) {
+		tests := []struct {
+			name                         string
+			configMap                    *v1.ConfigMap
+			expectedProxyBuffers         string
+			expectedProxyBufferSize      string
+			expectedProxyBusyBuffersSize string
+			description                  string
+		}{
+			{
+				name: "all proxy buffer settings provided",
+				configMap: &v1.ConfigMap{
+					Data: map[string]string{
+						"proxy-buffers":           "8 4k",
+						"proxy-buffer-size":       "8k",
+						"proxy-busy-buffers-size": "16k",
+					},
+				},
+				expectedProxyBuffers:         "8 4k",
+				expectedProxyBufferSize:      "8k",
+				expectedProxyBusyBuffersSize: "16k",
+				description:                  "should parse all proxy buffer settings correctly",
+			},
+			{
+				name: "case insensitive units get normalized",
+				configMap: &v1.ConfigMap{
+					Data: map[string]string{
+						"proxy-buffers":           "8 4K",
+						"proxy-buffer-size":       "8K",
+						"proxy-busy-buffers-size": "16K",
+					},
+				},
+				expectedProxyBuffers:         "8 4k",
+				expectedProxyBufferSize:      "8k",
+				expectedProxyBusyBuffersSize: "16k",
+				description:                  "should normalize case insensitive units",
+			},
+		}
+
+		nginxPlus := true
+		hasAppProtect := false
+		hasAppProtectDos := false
+		hasTLSPassthrough := false
+		directiveAutoadjustEnabled := true
+
+		for _, test := range tests {
+			test := test // capture range variable
+
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				eventRecorder := makeEventLogger()
+				result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, eventRecorder)
+
+				if !configOk {
+					t.Errorf("%s: expected config to be valid but got invalid", test.description)
+				}
+
+				if result.ProxyBuffers != test.expectedProxyBuffers {
+					t.Errorf("%s: ProxyBuffers = %q, want %q", test.description, result.ProxyBuffers, test.expectedProxyBuffers)
+				}
+
+				if result.ProxyBufferSize != test.expectedProxyBufferSize {
+					t.Errorf("%s: ProxyBufferSize = %q, want %q", test.description, result.ProxyBufferSize, test.expectedProxyBufferSize)
+				}
+
+				if result.ProxyBusyBuffersSize != test.expectedProxyBusyBuffersSize {
+					t.Errorf("%s: ProxyBusyBuffersSize = %q, want %q", test.description, result.ProxyBusyBuffersSize, test.expectedProxyBusyBuffersSize)
+				}
+
+				fakeRecorder := eventRecorder.(*record.FakeRecorder)
+				if len(fakeRecorder.Events) > 0 {
+					t.Errorf("%s: unexpected warnings generated: %d events", test.description, len(fakeRecorder.Events))
+				}
+			})
+		}
+	})
+
+	// Test with auto-adjust disabled - should preserve original strings
+	t.Run("with auto-adjust disabled", func(t *testing.T) {
+		tests := []struct {
+			name                         string
+			configMap                    *v1.ConfigMap
+			expectedProxyBuffers         string
+			expectedProxyBufferSize      string
+			expectedProxyBusyBuffersSize string
+			description                  string
+		}{
+			{
+				name: "preserves original values exactly",
+				configMap: &v1.ConfigMap{
+					Data: map[string]string{
+						"proxy-buffers":           "8 4K",
+						"proxy-buffer-size":       "8K",
+						"proxy-busy-buffers-size": "16K",
+					},
+				},
+				expectedProxyBuffers:         "8 4K", // Original case preserved
+				expectedProxyBufferSize:      "8K",   // Original case preserved
+				expectedProxyBusyBuffersSize: "16K",  // Original case preserved
+				description:                  "should preserve original case and format",
+			},
+			{
+				name: "preserves unusual but valid formats",
+				configMap: &v1.ConfigMap{
+					Data: map[string]string{
+						"proxy-buffers":           "16 8k",
+						"proxy-buffer-size":       "16k",
+						"proxy-busy-buffers-size": "32k",
+					},
+				},
+				expectedProxyBuffers:         "16 8k",
+				expectedProxyBufferSize:      "16k",
+				expectedProxyBusyBuffersSize: "32k",
+				description:                  "should preserve user's exact input",
+			},
+		}
+
+		nginxPlus := true
+		hasAppProtect := false
+		hasAppProtectDos := false
+		hasTLSPassthrough := false
+		directiveAutoadjustEnabled := false
+
+		for _, test := range tests {
+			test := test // capture range variable
+
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				eventRecorder := makeEventLogger()
+				result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, eventRecorder)
+
+				if !configOk {
+					t.Errorf("%s: expected config to be valid but got invalid", test.description)
+				}
+
+				if result.ProxyBuffers != test.expectedProxyBuffers {
+					t.Errorf("%s: ProxyBuffers = %q, want %q", test.description, result.ProxyBuffers, test.expectedProxyBuffers)
+				}
+
+				if result.ProxyBufferSize != test.expectedProxyBufferSize {
+					t.Errorf("%s: ProxyBufferSize = %q, want %q", test.description, result.ProxyBufferSize, test.expectedProxyBufferSize)
+				}
+
+				if result.ProxyBusyBuffersSize != test.expectedProxyBusyBuffersSize {
+					t.Errorf("%s: ProxyBusyBuffersSize = %q, want %q", test.description, result.ProxyBusyBuffersSize, test.expectedProxyBusyBuffersSize)
+				}
+
+				fakeRecorder := eventRecorder.(*record.FakeRecorder)
+				if len(fakeRecorder.Events) > 0 {
+					t.Errorf("%s: unexpected warnings generated: %d events", test.description, len(fakeRecorder.Events))
+				}
+			})
+		}
+	})
+}
+
+func TestParseProxyBuffersInvalidFormat(t *testing.T) {
+	t.Parallel()
+
+	// Test with auto-adjust enabled - should validate and potentially reject invalid formats
+	t.Run("with auto-adjust enabled", func(t *testing.T) {
+		tests := []struct {
+			name         string
+			proxyBuffers string
+			expectValid  bool
+			description  string
+		}{
+			{
+				name:         "valid format",
+				proxyBuffers: "4 8k",
+				expectValid:  true,
+				description:  "should accept valid 'count size' format",
+			},
+			{
+				name:         "invalid - only size",
+				proxyBuffers: "1k",
+				expectValid:  false,
+				description:  "should reject format with only size",
+			},
+			{
+				name:         "invalid - only count",
+				proxyBuffers: "4",
+				expectValid:  false,
+				description:  "should reject format with only count",
+			},
+			{
+				name:         "invalid - three parts",
+				proxyBuffers: "4 8k extra",
+				expectValid:  false,
+				description:  "should reject format with too many parts",
+			},
+			{
+				name:         "empty string",
+				proxyBuffers: "",
+				expectValid:  false,
+				description:  "should not accept empty string",
+			},
+		}
+
+		nginxPlus := true
+		hasAppProtect := false
+		hasAppProtectDos := false
+		hasTLSPassthrough := false
+		directiveAutoadjustEnabled := true
+
+		for _, test := range tests {
+			test := test // capture range variable
+
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				cm := &v1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-configmap",
+						Namespace: "default",
+					},
+					Data: map[string]string{
+						"proxy-buffers": test.proxyBuffers,
+					},
+				}
+
+				eventRecorder := makeEventLogger()
+				result, configOk := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, eventRecorder)
+
+				if configOk != test.expectValid {
+					t.Errorf("%s: expected configOk=%v, got configOk=%v", test.description, test.expectValid, configOk)
+				}
+
+				if test.expectValid {
+					// For valid configs, proxy buffers should be set or empty
+					if test.proxyBuffers != "" && result.ProxyBuffers == "" {
+						t.Errorf("%s: expected ProxyBuffers to be set, got empty", test.description)
+					}
+				} else {
+					// For invalid configs, should have error events
+					fakeRecorder := eventRecorder.(*record.FakeRecorder)
+					if len(fakeRecorder.Events) == 0 {
+						t.Errorf("%s: expected error event to be generated for invalid config", test.description)
+					}
+				}
+			})
+		}
+	})
+
+	// Test with auto-adjust disabled - should preserve original strings without validation
+	t.Run("with auto-adjust disabled", func(t *testing.T) {
+		tests := []struct {
+			name         string
+			proxyBuffers string
+			description  string
+		}{
+			{
+				name:         "valid format preserved",
+				proxyBuffers: "4 8k",
+				description:  "should preserve valid format exactly",
+			},
+		}
+
+		nginxPlus := true
+		hasAppProtect := false
+		hasAppProtectDos := false
+		hasTLSPassthrough := false
+		directiveAutoadjustEnabled := false
+
+		for _, test := range tests {
+			test := test // capture range variable
+
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				cm := &v1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-configmap",
+						Namespace: "default",
+					},
+					Data: map[string]string{
+						"proxy-buffers": test.proxyBuffers,
+					},
+				}
+
+				eventRecorder := makeEventLogger()
+				result, configOk := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, eventRecorder)
+
+				// When auto-adjust is disabled, config should always be valid since no validation occurs
+				if !configOk {
+					t.Errorf("%s: expected config to be valid with auto-adjust disabled, got invalid", test.description)
+				}
+
+				// Should preserve exact original value
+				if result.ProxyBuffers != test.proxyBuffers {
+					t.Errorf("%s: expected ProxyBuffers=%q, got %q", test.description, test.proxyBuffers, result.ProxyBuffers)
+				}
+
+				// Should not generate any events when auto-adjust is disabled
+				fakeRecorder := eventRecorder.(*record.FakeRecorder)
+				if len(fakeRecorder.Events) > 0 {
+					t.Errorf("%s: unexpected events generated with auto-adjust disabled: %d events", test.description, len(fakeRecorder.Events))
+				}
+			})
+		}
+	})
+}
+
+func TestParseConfigMapClientBodyBufferSizeValid(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		value       string
+		expected    string
+		description string
+	}{
+		{
+			name:        "valid size with k suffix",
+			value:       "12k",
+			expected:    "12k",
+			description: "should accept valid size with k suffix",
+		},
+		{
+			name:        "valid size with K suffix",
+			value:       "16K",
+			expected:    "16K",
+			description: "should accept valid size with K suffix",
+		},
+		{
+			name:        "valid size with m suffix",
+			value:       "6m",
+			expected:    "6m",
+			description: "should accept valid size with m suffix",
+		},
+		{
+			name:        "valid size with M suffix",
+			value:       "8M",
+			expected:    "8M",
+			description: "should accept valid size with M suffix",
+		},
+		{
+			name:        "valid size without suffix",
+			value:       "1024",
+			expected:    "1024",
+			description: "should accept valid size without suffix",
+		},
+		{
+			name:        "not set",
+			value:       "",
+			expected:    "", // no default value anymore
+			description: "should use empty string when not set",
+		},
+	}
+
+	nginxPlus := false
+	hasAppProtect := false
+	hasAppProtectDos := false
+	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cm := &v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-configmap",
+					Namespace: "default",
+				},
+			}
+
+			if tt.value != "" {
+				cm.Data = map[string]string{
+					"client-body-buffer-size": tt.value,
+				}
+			}
+
+			result, configOk := ParseConfigMap(
+				context.Background(),
+				cm,
+				nginxPlus,
+				hasAppProtect,
+				hasAppProtectDos,
+				hasTLSPassthrough,
+				directiveAutoadjustEnabled,
+				makeEventLogger(),
+			)
+
+			// Should always pass validation for valid cases
+			if !configOk {
+				t.Errorf("ParseConfigMap() for %s should have passed validation but failed", tt.description)
+			}
+
+			if result.MainClientBodyBufferSize != tt.expected {
+				t.Errorf("ParseConfigMap() for %s returned MainClientBodyBufferSize=%q, expected %q",
+					tt.description, result.MainClientBodyBufferSize, tt.expected)
+			}
+		})
+	}
+}
+
+func TestParseConfigMapClientBodyBufferSizeInvalid(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		value       string
+		description string
+	}{
+		{
+			name:        "invalid time unit h",
+			value:       "4h",
+			description: "should reject invalid time units",
+		},
+		{
+			name:        "invalid random string",
+			value:       "3cd2",
+			description: "should reject invalid strings",
+		},
+		{
+			name:        "invalid with g suffix",
+			value:       "2g",
+			description: "should reject unsupported g suffix",
+		},
+		{
+			name:        "invalid with G suffix",
+			value:       "1G",
+			description: "should reject unsupported G suffix",
+		},
+		{
+			name:        "invalid negative value",
+			value:       "-16k",
+			description: "should reject negative values",
+		},
+		{
+			name:        "invalid whitespace only",
+			value:       " ",
+			description: "should reject whitespace-only values",
+		},
+		{
+			name:        "invalid with text prefix",
+			value:       "abc16k",
+			description: "should reject values with text prefix",
+		},
+		{
+			name:        "invalid with special characters",
+			value:       "16@k",
+			description: "should reject values with special characters",
+		},
+		{
+			name:        "invalid decimal with unsupported suffix",
+			value:       "16.5g",
+			description: "should reject decimal values with unsupported suffix",
+		},
+	}
+
+	nginxPlus := false
+	hasAppProtect := false
+	hasAppProtectDos := false
+	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cm := &v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-configmap",
+					Namespace: "default",
+				},
+				Data: map[string]string{
+					"client-body-buffer-size": tt.value,
+				},
+			}
+
+			result, configOk := ParseConfigMap(
+				context.Background(),
+				cm,
+				nginxPlus,
+				hasAppProtect,
+				hasAppProtectDos,
+				hasTLSPassthrough,
+				directiveAutoadjustEnabled,
+				makeEventLogger(),
+			)
+
+			// Should always fail validation for invalid cases
+			if configOk {
+				t.Errorf("%s should have failed validation but passed", tt.name)
+			}
+
+			if result.MainClientBodyBufferSize != "" {
+				t.Errorf(`%s returned MainClientBodyBufferSize=%q, expected ""`,
+					tt.name, result.MainClientBodyBufferSize)
+			}
+		})
+	}
+}
+
+func TestParseErrorLogLevelToVirtualServer(t *testing.T) {
+	t.Parallel()
+
+	testCases := []string{"debug", "error", "warning", "nonsense"}
+
+	for _, testLevel := range testCases {
+		t.Run(fmt.Sprintf("setting log level to %s", testLevel), func(t *testing.T) {
+			cm := &v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-configmap",
+					Namespace: "default",
+				},
+				Data: map[string]string{
+					"error-log-level": testLevel,
+				},
+			}
+
+			eventRecorder := makeEventLogger()
+
+			result, configOk := ParseConfigMap(context.Background(), cm, true, false, false, false, false, eventRecorder)
+
+			if !configOk {
+				t.Errorf("expected config map with error-log-level set to be %s to be valid", testLevel)
+			}
+
+			assert.Equal(t, testLevel, result.MainErrorLogLevel)
+		})
+	}
+}
+
+func makeEventLogger() record.EventRecorder {
+	return record.NewFakeRecorder(1024)
 }

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	nl "github.com/nginxinc/kubernetes-ingress/internal/logger"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -190,8 +190,8 @@ func (l *LatencyMetricsCollector) RecordLatency(syslogMsg string) {
 	// Upstream for gRPC service is not implemented yet.
 	// This is a temp solution to avoid spamming error logs.
 	// Ref:
-	// https://github.com/nginxinc/kubernetes-ingress/issues/5010
-	// https://github.com/nginxinc/kubernetes-ingress/issues/6124
+	// https://github.com/nginx/kubernetes-ingress/issues/5010
+	// https://github.com/nginx/kubernetes-ingress/issues/6124
 	if lm.Upstream == "-" {
 		nl.Debugf(l.logger, "latency metrics for gRPC upstreams: %v", lm)
 		return

@@ -5,7 +5,7 @@ This will allow HTTP and/or HTTPs based requests to be made on non-default ports
 
 ## Prerequisites
 
-1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
+1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
    instructions to deploy the Ingress Controller with custom resources enabled.
 2. Ensure the Ingress Controller is configured with the `-global-configuration` argument:
 
@@ -50,7 +50,7 @@ Similar to how listeners are configured in our [basic-tcp-udp](../../examples/cu
 here we deploy a GlobalConfiguration resource with the listeners we want to use in our VirtualServer.
 
    ```yaml
-   apiVersion: k8s.nginx.org/v1alpha1
+   apiVersion: k8s.nginx.org/v1
    kind: GlobalConfiguration
    metadata:
      name: nginx-configuration

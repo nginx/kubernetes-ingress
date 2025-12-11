@@ -1,0 +1,14 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: oidc-policy
+spec:
+  oidc:
+    clientID: nginx-plus
+    clientSecret: oidc-secret
+    authEndpoint: https://keycloak.example.com/realms/master/protocol/openid-connect/auth
+    tokenEndpoint: http://keycloak.default.svc.cluster.local:8080/realms/master/protocol/openid-connect/token
+    jwksURI: http://keycloak.default.svc.cluster.local:8080/realms/master/protocol/openid-connect/certs
+    endSessionEndpoint: https://keycloak.example.com/realms/master/protocol/openid-connect/logout
+    scope: openid+profile+email
+    accessTokenEnable: true

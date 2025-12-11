@@ -16,8 +16,6 @@ on:
       dry_run:
         type: boolean
         default: false
-  schedule:
-    - cron: "0 1 * * 1-5" # 01:00 UTC Mon-Fri
 
 defaults:
   run:
@@ -46,11 +44,13 @@ jobs:
   update-docker-sha:
     permissions:
       contents: write
+      pull-requests: write
+      id-token: write
     runs-on: ubuntu-24.04
     needs: [vars]
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
         with:
           ref: ${{ needs.vars.outputs.source_branch }}
 
@@ -62,7 +62,8 @@ jobs:
             ARGS="--exclude ${{ github.event.inputs.excludes }}"
           fi
           .github/scripts/docker-updater.sh ./build/Dockerfile $ARGS
-          .github/scripts/docker-updater.sh ./build/dependencies/Dockerfile.ubi-ppc64le $ARGS
+          .github/scripts/docker-updater.sh ./build/dependencies/Dockerfile.ubi8 $ARGS
+          .github/scripts/docker-updater.sh ./build/dependencies/Dockerfile.ubi9 $ARGS
           .github/scripts/docker-updater.sh ./tests/Dockerfile $ARGS
           files=$(git diff --name-only)
           if [[ $files == *"Dockerfile"* ]]; then
@@ -74,11 +75,26 @@ jobs:
           echo "docker_md5=${docker_md5:0:8}" >> $GITHUB_OUTPUT
           echo $GITHUB_OUTPUT
 
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_COMMON_VAULT_SUBSCRIPTION_ID }}
+
+      - name: Setup secrets
+        id: secrets
+        run: |
+          echo "Setting secrets for job"
+          NGINX_PAT=$(az keyvault secret show --name nginx-bot-pat --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$NGINX_PAT"
+          echo "NGINX_PAT=$NGINX_PAT" >> $GITHUB_OUTPUT
+
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@5e914681df9dc83aa4e4905692ca88beb2f9e91f # v7.0.5
+        uses: peter-evans/create-pull-request@84ae59a2cdc2258d6fa0732dd66352dddae2a412 # v7.0.9
         id: pr
         with:
-          token: ${{ secrets.NGINX_PAT }}
+          token: ${{ steps.secrets.outputs.NGINX_PAT }}
           commit-message: Update docker images ${{ steps.update_images.outputs.docker_md5 }}
           title: Docker image update ${{ steps.update_images.outputs.docker_md5 }}
           branch: deps/image-update-${{ needs.vars.outputs.source_branch }}-${{ steps.update_images.outputs.docker_md5 }}
@@ -95,5 +111,5 @@ jobs:
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ steps.pr.outputs.pull-request-url }}
-          GITHUB_TOKEN: ${{ secrets.NGINX_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         if: ${{ !inputs.dry_run && steps.update_images.outputs.change_detected == 'true' }}

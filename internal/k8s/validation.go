@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/dlclark/regexp2"
-	"github.com/nginxinc/kubernetes-ingress/internal/configs"
-	ap_validation "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/validation"
+	"github.com/nginx/kubernetes-ingress/internal/configs"
+	ap_validation "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
 	networking "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -34,6 +34,7 @@ const (
 	proxyPassHeadersAnnotation            = "nginx.org/proxy-pass-headers" // #nosec G101
 	proxySetHeadersAnnotation             = "nginx.org/proxy-set-headers"
 	clientMaxBodySizeAnnotation           = "nginx.org/client-max-body-size"
+	clientBodyBufferSizeAnnotation        = "nginx.org/client-body-buffer-size"
 	redirectToHTTPSAnnotation             = "nginx.org/redirect-to-https"
 	sslRedirectAnnotation                 = "ingress.kubernetes.io/ssl-redirect"
 	proxyBufferingAnnotation              = "nginx.org/proxy-buffering"
@@ -43,6 +44,7 @@ const (
 	hstsBehindProxyAnnotation             = "nginx.org/hsts-behind-proxy"
 	proxyBuffersAnnotation                = "nginx.org/proxy-buffers"
 	proxyBufferSizeAnnotation             = "nginx.org/proxy-buffer-size"
+	proxyBusyBuffersSizeAnnotation        = "nginx.org/proxy-busy-buffers-size"
 	proxyMaxTempFileSizeAnnotation        = "nginx.org/proxy-max-temp-file-size"
 	upstreamZoneSizeAnnotation            = "nginx.org/upstream-zone-size"
 	basicAuthSecretAnnotation             = "nginx.org/basic-auth-secret" // #nosec G101
@@ -68,6 +70,7 @@ const (
 	sslServicesAnnotation                 = "nginx.org/ssl-services"
 	grpcServicesAnnotation                = "nginx.org/grpc-services"
 	rewritesAnnotation                    = "nginx.org/rewrites"
+	rewriteTargetAnnotation               = "nginx.org/rewrite-target"
 	stickyCookieServicesAnnotation        = "nginx.com/sticky-cookie-services"
 	pathRegexAnnotation                   = "nginx.org/path-regex"
 	useClusterIPAnnotation                = "nginx.org/use-cluster-ip"
@@ -100,6 +103,7 @@ type annotationValidationContext struct {
 	internalRoutesEnabled bool
 	fieldPath             *field.Path
 	snippetsEnabled       bool
+	directiveAutoadjust   bool
 }
 
 type (
@@ -176,6 +180,10 @@ var (
 			validateRequiredAnnotation,
 			validateOffsetAnnotation,
 		},
+		clientBodyBufferSizeAnnotation: {
+			validateRequiredAnnotation,
+			validateSizeAnnotation,
+		},
 		redirectToHTTPSAnnotation: {
 			validateRequiredAnnotation,
 			validateBoolAnnotation,
@@ -213,6 +221,9 @@ var (
 		},
 		proxyBufferSizeAnnotation: {
 			validateRequiredAnnotation,
+			validateSizeAnnotation,
+		},
+		proxyBusyBuffersSizeAnnotation: {
 			validateSizeAnnotation,
 		},
 		proxyMaxTempFileSizeAnnotation: {
@@ -328,6 +339,10 @@ var (
 		rewritesAnnotation: {
 			validateRequiredAnnotation,
 			validateRewriteListAnnotation,
+		},
+		rewriteTargetAnnotation: {
+			validateRequiredAnnotation,
+			validateRewriteTargetAnnotation,
 		},
 		stickyCookieServicesAnnotation: {
 			validatePlusOnlyAnnotation,
@@ -472,6 +487,7 @@ func validateIngress(
 	appProtectDosEnabled bool,
 	internalRoutesEnabled bool,
 	snippetsEnabled bool,
+	directiveAutoadjust bool,
 ) field.ErrorList {
 	allErrs := validateIngressAnnotations(
 		ing.Annotations,
@@ -482,6 +498,7 @@ func validateIngress(
 		internalRoutesEnabled,
 		field.NewPath("annotations"),
 		snippetsEnabled,
+		directiveAutoadjust,
 	)
 
 	allErrs = append(allErrs, validateIngressSpec(&ing.Spec, field.NewPath("spec"))...)
@@ -531,6 +548,7 @@ func validateIngressAnnotations(
 	internalRoutesEnabled bool,
 	fieldPath *field.Path,
 	snippetsEnabled bool,
+	directiveAutoadjust bool,
 ) field.ErrorList {
 	allErrs := field.ErrorList{}
 
@@ -547,6 +565,7 @@ func validateIngressAnnotations(
 				internalRoutesEnabled: internalRoutesEnabled,
 				fieldPath:             fieldPath.Child(name),
 				snippetsEnabled:       snippetsEnabled,
+				directiveAutoadjust:   directiveAutoadjust,
 			}
 			allErrs = append(allErrs, validateIngressAnnotation(context)...)
 		}
@@ -678,10 +697,7 @@ func validateOffsetAnnotation(context *annotationValidationContext) field.ErrorL
 }
 
 func validateSizeAnnotation(context *annotationValidationContext) field.ErrorList {
-	if _, err := configs.ParseSize(context.value); err != nil {
-		return field.ErrorList{field.Invalid(context.fieldPath, context.value, "must be a size")}
-	}
-	return nil
+	return ap_validation.ValidateSize(context.value, context.fieldPath)
 }
 
 func validateProxyBuffersAnnotation(context *annotationValidationContext) field.ErrorList {
@@ -762,6 +778,32 @@ func validateRewriteListAnnotation(context *annotationValidationContext) field.E
 		)
 		return field.ErrorList{field.Invalid(context.fieldPath, context.value, errorMsg)}
 	}
+	return nil
+}
+
+func validateRewriteTargetAnnotation(context *annotationValidationContext) field.ErrorList {
+	target := context.value
+
+	// Prevent absolute URLs (http://, https://)
+	if strings.HasPrefix(target, "http://") || strings.HasPrefix(target, "https://") {
+		return field.ErrorList{field.Invalid(context.fieldPath, target, "absolute URLs not allowed in rewrite target")}
+	}
+
+	// Prevent protocol-relative URLs (//)
+	if strings.HasPrefix(target, "//") {
+		return field.ErrorList{field.Invalid(context.fieldPath, target, "protocol-relative URLs not allowed in rewrite target")}
+	}
+
+	// Prevent path traversal patterns
+	if strings.Contains(target, "../") || strings.Contains(target, "..\\") {
+		return field.ErrorList{field.Invalid(context.fieldPath, target, "path traversal patterns not allowed in rewrite target")}
+	}
+
+	// Must start with / (relative path)
+	if !strings.HasPrefix(target, "/") {
+		return field.ErrorList{field.Invalid(context.fieldPath, target, "rewrite target must start with /")}
+	}
+
 	return nil
 }
 

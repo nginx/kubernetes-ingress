@@ -1,0 +1,18 @@
+controller:
+  nginxplus: true
+  mgmt:
+    licenseTokenSecretName: "license"
+    enforceInitialReport: true
+    usageReport:
+      endpoint: "11.22.33.44"
+      interval: 7h
+      proxyHost: "44.55.66.77:88"
+      proxyCredentialsSecretName: "proxy-credentials"
+    sslVerify: false
+    resolver:
+      ipv6: false
+      valid: 15s
+      addresses:
+        - example.com
+    sslCertificateSecretName: ssl-cert
+    sslTrustedCertificateSecretName: ssl-trusted

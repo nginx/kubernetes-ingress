@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config-mgmt
+  namespace: nginx-ingress
+data:
+  license-token-secret-name: "license-token-changed"

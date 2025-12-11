@@ -47,13 +47,19 @@ def pytest_addoption(parser) -> None:
         "--deployment-type",
         action="store",
         default=DEFAULT_DEPLOYMENT_TYPE,
-        help="The type of the IC deployment: deployment or daemon-set.",
+        help="The type of the IC deployment: deployment, daemon-set, or stateful-set.",
     )
     parser.addoption(
         "--ic-type",
         action="store",
         default=DEFAULT_IC_TYPE,
         help="The type of the Ingress Controller: nginx-ingress or nginx-plus-ingress.",
+    )
+    parser.addoption(
+        "--plus-jwt",
+        action="store",
+        help="The plus jwt for the Ingress Controller image.",
+        default=os.environ.get("PLUS_JWT"),
     )
     parser.addoption(
         "--service",
@@ -115,12 +121,6 @@ def pytest_addoption(parser) -> None:
         help="Number for namespaces to deploy for use in test_multiple_ns_perf.py",
     )
     parser.addoption(
-        "--ad-secret",
-        action="store",
-        default=os.environ.get("AZURE_AD_AUTOMATION"),
-        help="Azure active directory secret for JWKs",
-    )
-    parser.addoption(
         "--num",
         action="store",
         default="1",
@@ -142,6 +142,13 @@ def pytest_addoption(parser) -> None:
 
 # import fixtures into pytest global namespace
 pytest_plugins = ["suite.fixtures.fixtures", "suite.fixtures.ic_fixtures", "suite.fixtures.custom_resource_fixtures"]
+
+
+def pytest_configure(config):
+    if config.getoption("--ic-type") == "nginx-plus-ingress" and (
+        config.getoption("--plus-jwt") == "" or config.getoption("--plus-jwt") is None
+    ):
+        pytest.exit("Please provide the plus jwt for the Nginx Ingress Controller")
 
 
 def pytest_collection_modifyitems(config, items) -> None:

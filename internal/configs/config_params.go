@@ -3,9 +3,8 @@ package configs
 import (
 	"context"
 
-	"github.com/nginxinc/kubernetes-ingress/internal/configs/version2"
-	"github.com/nginxinc/kubernetes-ingress/internal/nginx"
-	conf_v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
+	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
+	"github.com/nginx/kubernetes-ingress/internal/nginx"
 )
 
 // ConfigParams holds NGINX configuration parameters that affect the main NGINX config
@@ -13,6 +12,7 @@ import (
 type ConfigParams struct {
 	Context                                context.Context
 	ClientMaxBodySize                      string
+	ClientBodyBufferSize                   string
 	DefaultServerAccessLogOff              bool
 	DefaultServerReturn                    string
 	FailTimeout                            string
@@ -35,10 +35,12 @@ type ConfigParams struct {
 	MainLogFormat                          []string
 	MainLogFormatEscaping                  string
 	MainMainSnippets                       []string
-	MainOpenTracingEnabled                 bool
-	MainOpenTracingLoadModule              bool
-	MainOpenTracingTracer                  string
-	MainOpenTracingTracerConfig            string
+	MainOtelLoadModule                     bool
+	MainOtelTraceInHTTP                    bool
+	MainOtelExporterEndpoint               string
+	MainOtelExporterHeaderName             string
+	MainOtelExporterHeaderValue            string
+	MainOtelServiceName                    string
 	MainServerNamesHashBucketSize          string
 	MainServerNamesHashMaxSize             string
 	MainStreamLogFormat                    []string
@@ -51,6 +53,7 @@ type ConfigParams struct {
 	MainWorkerProcesses                    string
 	MainWorkerRlimitNofile                 string
 	MainWorkerShutdownTimeout              string
+	MainClientBodyBufferSize               string
 	MaxConns                               int
 	MaxFails                               int
 	AppProtectEnable                       string
@@ -67,9 +70,11 @@ type ConfigParams struct {
 	MainAppProtectDosLogFormat             []string
 	MainAppProtectDosLogFormatEscaping     string
 	MainAppProtectDosArbFqdn               string
+	OIDC                                   OIDC
 	ProxyBuffering                         bool
 	ProxyBuffers                           string
 	ProxyBufferSize                        string
+	ProxyBusyBuffersSize                   string
 	ProxyConnectTimeout                    string
 	ProxyHideHeaders                       []string
 	ProxyMaxTempFileSize                   string
@@ -85,12 +90,15 @@ type ConfigParams struct {
 	ResolverValid                          string
 	ServerSnippets                         []string
 	ServerTokens                           string
+	ServerSSLCiphers                       string
+	ServerSSLPreferServerCiphers           bool
 	SlowStart                              string
 	SSLRedirect                            bool
 	UpstreamZoneSize                       string
 	UseClusterIP                           bool
 	VariablesHashBucketSize                uint64
 	VariablesHashMaxSize                   uint64
+	ZoneSync                               ZoneSync
 
 	RealIPHeader    string
 	RealIPRecursive bool
@@ -160,8 +168,10 @@ type StaticConfigParams struct {
 	DynamicSSLReload               bool
 	StaticSSLPath                  string
 	DynamicWeightChangesReload     bool
+	IsDirectiveAutoadjustEnabled   bool
 	NginxVersion                   nginx.Version
 	AppProtectBundlePath           string
+	DefaultCABundle                string
 }
 
 // GlobalConfigParams holds global configuration parameters. For now, it only holds listeners.
@@ -174,6 +184,49 @@ type GlobalConfigParams struct {
 type Listener struct {
 	Port     int
 	Protocol string
+}
+
+// ZoneSync holds zone sync values for state sharing.
+type ZoneSync struct {
+	Enable            bool
+	Port              int
+	Domain            string
+	ResolverAddresses []string
+	ResolverValid     string
+	ResolverIPV6      *bool
+}
+
+// OIDC holds OIDC configuration parameters.
+type OIDC struct {
+	PKCETimeout    string
+	IDTokenTimeout string
+	AccessTimeout  string
+	RefreshTimeout string
+	SIDSTimeout    string
+}
+
+// MGMTSecrets holds mgmt block secret names
+type MGMTSecrets struct {
+	License     string
+	ClientAuth  string
+	TrustedCert string
+	TrustedCRL  string
+}
+
+// MGMTConfigParams holds mgmt block parameters.
+type MGMTConfigParams struct {
+	Context              context.Context
+	SSLVerify            *bool
+	ResolverAddresses    []string
+	ResolverIPV6         *bool
+	ResolverValid        string
+	EnforceInitialReport *bool
+	Endpoint             string
+	Interval             string
+	Secrets              MGMTSecrets
+	ProxyHost            string
+	ProxyUser            string
+	ProxyPass            string
 }
 
 // NewDefaultConfigParams creates a ConfigParams with default values.
@@ -218,21 +271,22 @@ func NewDefaultConfigParams(ctx context.Context, isPlus bool) *ConfigParams {
 		LimitReqZoneSize:              "10m",
 		LimitReqLogLevel:              "error",
 		LimitReqRejectCode:            429,
+		OIDC: OIDC{
+			PKCETimeout:    "90s",
+			IDTokenTimeout: "1h",
+			AccessTimeout:  "1h",
+			RefreshTimeout: "8h",
+			SIDSTimeout:    "8h",
+		},
 	}
 }
 
-// NewDefaultGlobalConfigParams creates a GlobalConfigParams with default values.
-func NewDefaultGlobalConfigParams() *GlobalConfigParams {
-	return &GlobalConfigParams{Listeners: map[string]Listener{}}
-}
-
-// NewGlobalConfigParamsWithTLSPassthrough creates new GlobalConfigParams with enabled TLS Passthrough listener.
-func NewGlobalConfigParamsWithTLSPassthrough() *GlobalConfigParams {
-	return &GlobalConfigParams{
-		Listeners: map[string]Listener{
-			conf_v1.TLSPassthroughListenerName: {
-				Protocol: conf_v1.TLSPassthroughListenerProtocol,
-			},
-		},
+// NewDefaultMGMTConfigParams creates a ConfigParams with mgmt values.
+func NewDefaultMGMTConfigParams(ctx context.Context) *MGMTConfigParams {
+	return &MGMTConfigParams{
+		Context:              ctx,
+		SSLVerify:            nil,
+		EnforceInitialReport: nil,
+		Secrets:              MGMTSecrets{},
 	}
 }

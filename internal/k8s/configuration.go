@@ -2,22 +2,21 @@ package k8s
 
 import (
 	"fmt"
-	"log/slog"
 	"reflect"
 	"sort"
 	"strings"
 	"sync"
 
-	nl "github.com/nginxinc/kubernetes-ingress/internal/logger"
-	"k8s.io/apimachinery/pkg/labels"
-
-	"github.com/nginxinc/kubernetes-ingress/internal/configs"
-	conf_v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
-	"github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/validation"
+	"github.com/nginx/kubernetes-ingress/internal/configs"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	internalValidation "github.com/nginx/kubernetes-ingress/internal/validation"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	"github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
 	networking "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 const (
@@ -222,11 +221,11 @@ type VirtualServerConfiguration struct {
 }
 
 // NewVirtualServerConfiguration creates a VirtualServerConfiguration.
-func NewVirtualServerConfiguration(vs *conf_v1.VirtualServer, vsrs []*conf_v1.VirtualServerRoute, routeSelectors map[string][]string, warnings []string) *VirtualServerConfiguration {
+func NewVirtualServerConfiguration(vs *conf_v1.VirtualServer, vsrs []*conf_v1.VirtualServerRoute, vsrSelectors map[string][]string, warnings []string) *VirtualServerConfiguration {
 	return &VirtualServerConfiguration{
 		VirtualServer:               vs,
 		VirtualServerRoutes:         vsrs,
-		VirtualServerRouteSelectors: routeSelectors,
+		VirtualServerRouteSelectors: vsrSelectors,
 		Warnings:                    warnings,
 	}
 }
@@ -274,8 +273,35 @@ func (vsc *VirtualServerConfiguration) IsEqual(resource Resource) bool {
 		}
 	}
 
-	// TODO: check all values of the map
-	return len(vsc.VirtualServerRouteSelectors) != len(vsConfig.VirtualServerRouteSelectors)
+	// Check VirtualServerRouteSelectors maps for equality
+	if len(vsc.VirtualServerRouteSelectors) != len(vsConfig.VirtualServerRouteSelectors) {
+		return false
+	}
+
+	for selector, routes := range vsc.VirtualServerRouteSelectors {
+		otherRoutes, exists := vsConfig.VirtualServerRouteSelectors[selector]
+		if !exists {
+			return false
+		}
+
+		if len(routes) != len(otherRoutes) {
+			return false
+		}
+
+		// Create maps for O(1) lookup to compare route slices
+		routeSet := make(map[string]bool)
+		for _, route := range routes {
+			routeSet[route] = true
+		}
+
+		for _, otherRoute := range otherRoutes {
+			if !routeSet[otherRoute] {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 // TransportServerConfiguration holds a TransportServer resource.
@@ -349,10 +375,6 @@ type TransportServerMetrics struct {
 // The IC needs to ensure that at any point in time the NGINX config on the filesystem reflects the state
 // of the objects in the Configuration.
 type Configuration struct {
-	// Context context.Context
-
-	logger *slog.Logger
-
 	hosts         map[string]Resource
 	listenerHosts map[listenerHostKey]*TransportServerConfiguration
 	listenerMap   map[string]conf_v1.Listener
@@ -381,22 +403,21 @@ type Configuration struct {
 	appLogConfReferenceChecker *appProtectResourceReferenceChecker
 	appDosProtectedChecker     *dosResourceReferenceChecker
 
-	isPlus                  bool
-	appProtectEnabled       bool
-	appProtectDosEnabled    bool
-	internalRoutesEnabled   bool
-	isTLSPassthroughEnabled bool
-	snippetsEnabled         bool
-	isCertManagerEnabled    bool
-	isIPV6Disabled          bool
+	isPlus                       bool
+	appProtectEnabled            bool
+	appProtectDosEnabled         bool
+	internalRoutesEnabled        bool
+	isTLSPassthroughEnabled      bool
+	snippetsEnabled              bool
+	isCertManagerEnabled         bool
+	isIPV6Disabled               bool
+	isDirectiveAutoadjustEnabled bool
 
 	lock sync.RWMutex
 }
 
 // NewConfiguration creates a new Configuration.
 func NewConfiguration(
-	// ctx context.Context,
-	logger *slog.Logger,
 	hasCorrectIngressClass func(interface{}) bool,
 	isPlus bool,
 	appProtectEnabled bool,
@@ -409,12 +430,9 @@ func NewConfiguration(
 	snippetsEnabled bool,
 	isCertManagerEnabled bool,
 	isIPV6Disabled bool,
+	isDirectiveAutoadjustEnabled bool,
 ) *Configuration {
-	// l := nl.LoggerFromContext(ctx)
-
 	return &Configuration{
-		// Context:                      ctx,
-		logger:                       logger,
 		hosts:                        make(map[string]Resource),
 		listenerHosts:                make(map[listenerHostKey]*TransportServerConfiguration),
 		ingresses:                    make(map[string]*networking.Ingress),
@@ -441,7 +459,7 @@ func NewConfiguration(
 		snippetsEnabled:              snippetsEnabled,
 		isCertManagerEnabled:         isCertManagerEnabled,
 		isIPV6Disabled:               isIPV6Disabled,
-		// logger:                       l,
+		isDirectiveAutoadjustEnabled: isDirectiveAutoadjustEnabled,
 	}
 }
 
@@ -456,7 +474,7 @@ func (c *Configuration) AddOrUpdateIngress(ing *networking.Ingress) ([]ResourceC
 	if !c.hasCorrectIngressClass(ing) {
 		delete(c.ingresses, key)
 	} else {
-		validationError = validateIngress(ing, c.isPlus, c.appProtectEnabled, c.appProtectDosEnabled, c.internalRoutesEnabled, c.snippetsEnabled).ToAggregate()
+		validationError = validateIngress(ing, c.isPlus, c.appProtectEnabled, c.appProtectDosEnabled, c.internalRoutesEnabled, c.snippetsEnabled, c.isDirectiveAutoadjustEnabled).ToAggregate()
 		if validationError != nil {
 			delete(c.ingresses, key)
 		} else {
@@ -487,7 +505,7 @@ func (c *Configuration) AddOrUpdateIngress(ing *networking.Ingress) ([]ResourceC
 		p := ConfigurationProblem{
 			Object:  ing,
 			IsError: true,
-			Reason:  "Rejected",
+			Reason:  nl.EventReasonRejected,
 			Message: validationError.Error(),
 		}
 		problems = append(problems, p)
@@ -526,7 +544,12 @@ func (c *Configuration) AddOrUpdateVirtualServer(vs *conf_v1.VirtualServer) ([]R
 		if validationError != nil {
 			delete(c.virtualServers, key)
 		} else {
-			c.virtualServers[key] = vs
+			if err := c.balanceUpstreamProxies(vs.Spec.Upstreams); err != nil {
+				validationError = fmt.Errorf("balancing proxy buffer sizes: %w", err)
+				delete(c.virtualServers, key)
+			} else {
+				c.virtualServers[key] = vs
+			}
 		}
 	}
 
@@ -553,7 +576,7 @@ func (c *Configuration) AddOrUpdateVirtualServer(vs *conf_v1.VirtualServer) ([]R
 		p := ConfigurationProblem{
 			Object:  vs,
 			IsError: true,
-			Reason:  "Rejected",
+			Reason:  nl.EventReasonRejected,
 			Message: fmt.Sprintf("VirtualServer %s was rejected with error: %s", getResourceKey(&vs.ObjectMeta), validationError.Error()),
 		}
 		problems = append(problems, p)
@@ -588,12 +611,18 @@ func (c *Configuration) AddOrUpdateVirtualServerRoute(vsr *conf_v1.VirtualServer
 	if !c.hasCorrectIngressClass(vsr) {
 		delete(c.virtualServerRoutes, key)
 	} else {
-		nl.Debugf(c.logger, "labels: %v", vsr.ObjectMeta.Labels)
 		validationError = c.virtualServerValidator.ValidateVirtualServerRoute(vsr)
 		if validationError != nil {
 			delete(c.virtualServerRoutes, key)
 		} else {
-			c.virtualServerRoutes[key] = vsr
+			// Balance proxy buffer sizes for all upstreams before storing
+			if err := c.balanceUpstreamProxies(vsr.Spec.Upstreams); err != nil {
+				// Create a proper validation error for proxy buffer balancing failures
+				validationError = fmt.Errorf("balancing proxy buffer sizes: %w", err)
+				delete(c.virtualServers, key)
+			} else {
+				c.virtualServerRoutes[key] = vsr
+			}
 		}
 	}
 
@@ -603,7 +632,7 @@ func (c *Configuration) AddOrUpdateVirtualServerRoute(vsr *conf_v1.VirtualServer
 		p := ConfigurationProblem{
 			Object:  vsr,
 			IsError: true,
-			Reason:  "Rejected",
+			Reason:  nl.EventReasonRejected,
 			Message: fmt.Sprintf("VirtualServerRoute %s was rejected with error: %s", getResourceKey(&vsr.ObjectMeta), validationError.Error()),
 		}
 		problems = append(problems, p)
@@ -730,7 +759,7 @@ func (c *Configuration) AddOrUpdateTransportServer(ts *conf_v1.TransportServer) 
 		p := ConfigurationProblem{
 			Object:  ts,
 			IsError: true,
-			Reason:  "Rejected",
+			Reason:  nl.EventReasonRejected,
 			Message: fmt.Sprintf("TransportServer %s was rejected with error: %s", getResourceKey(&ts.ObjectMeta), validationErr.Error()),
 		}
 		problems = append(problems, p)
@@ -1110,7 +1139,7 @@ func (c *Configuration) addProblemsForTSConfigsWithoutActiveListener(
 			p := ConfigurationProblem{
 				Object:  tsc.TransportServer,
 				IsError: false,
-				Reason:  "Rejected",
+				Reason:  nl.EventReasonRejected,
 				Message: fmt.Sprintf("Listener %s doesn't exist", listenerName),
 			}
 			problems[tsc.GetKeyWithKind()] = p
@@ -1121,7 +1150,7 @@ func (c *Configuration) addProblemsForTSConfigsWithoutActiveListener(
 			p := ConfigurationProblem{
 				Object:  tsc.TransportServer,
 				IsError: false,
-				Reason:  "Rejected",
+				Reason:  nl.EventReasonRejected,
 				Message: fmt.Sprintf("Listener %s with host %s is taken by another resource", listenerName, hostDescription),
 			}
 			problems[tsc.GetKeyWithKind()] = p
@@ -1144,7 +1173,7 @@ func (c *Configuration) addProblemsForResourcesWithoutActiveHost(resources map[s
 				p := ConfigurationProblem{
 					Object:  impl.Ingress,
 					IsError: false,
-					Reason:  "Rejected",
+					Reason:  nl.EventReasonRejected,
 					Message: "All hosts are taken by other resources",
 				}
 				problems[r.GetKeyWithKind()] = p
@@ -1156,7 +1185,7 @@ func (c *Configuration) addProblemsForResourcesWithoutActiveHost(resources map[s
 				p := ConfigurationProblem{
 					Object:  impl.VirtualServer,
 					IsError: false,
-					Reason:  "Rejected",
+					Reason:  nl.EventReasonRejected,
 					Message: "Host is taken by another resource",
 				}
 				problems[r.GetKeyWithKind()] = p
@@ -1168,7 +1197,7 @@ func (c *Configuration) addProblemsForResourcesWithoutActiveHost(resources map[s
 				p := ConfigurationProblem{
 					Object:  impl.TransportServer,
 					IsError: false,
-					Reason:  "Rejected",
+					Reason:  nl.EventReasonRejected,
 					Message: "Host is taken by another resource",
 				}
 				problems[r.GetKeyWithKind()] = p
@@ -1247,7 +1276,7 @@ func (c *Configuration) addProblemsForOrphanMinions(problems map[string]Configur
 			p := ConfigurationProblem{
 				Object:  ing,
 				IsError: false,
-				Reason:  "NoIngressMasterFound",
+				Reason:  nl.EventReasonNoIngressMasterFound,
 				Message: "Ingress master is invalid or doesn't exist",
 			}
 			k := getResourceKeyWithKind(ingressKind, &ing.ObjectMeta)
@@ -1267,7 +1296,7 @@ func (c *Configuration) addProblemsForOrphanOrIgnoredVsrs(problems map[string]Co
 			p := ConfigurationProblem{
 				Object:  vsr,
 				IsError: false,
-				Reason:  "NoVirtualServerFound",
+				Reason:  nl.EventReasonNoVirtualServerFound,
 				Message: "VirtualServer is invalid or doesn't exist",
 			}
 			k := getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta)
@@ -1287,7 +1316,7 @@ func (c *Configuration) addProblemsForOrphanOrIgnoredVsrs(problems map[string]Co
 			p := ConfigurationProblem{
 				Object:  vsr,
 				IsError: false,
-				Reason:  "Ignored",
+				Reason:  nl.EventReasonIgnored,
 				Message: fmt.Sprintf("VirtualServer %s ignores VirtualServerRoute", getResourceKey(&vsConfig.VirtualServer.ObjectMeta)),
 			}
 			k := getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta)
@@ -1435,7 +1464,6 @@ func squashResourceChanges(changes []ResourceChange) []ResourceChange {
 }
 
 func (c *Configuration) buildHostsAndResources() (newHosts map[string]Resource, newResources map[string]Resource) {
-	// l := nl.LoggerFromContext(c.Context)
 	newHosts = make(map[string]Resource)
 	newResources = make(map[string]Resource)
 	var challengesVSR []*conf_v1.VirtualServerRoute
@@ -1491,16 +1519,13 @@ func (c *Configuration) buildHostsAndResources() (newHosts map[string]Resource, 
 	for _, key := range getSortedVirtualServerKeys(c.virtualServers) {
 		vs := c.virtualServers[key]
 
-		vsrs, routeSelectorMap, warnings := c.buildVirtualServerRoutes(vs)
+		vsrs, vsrSelectors, warnings := c.buildVirtualServerRoutes(vs)
 		for _, vsr := range challengesVSR {
 			if vs.Spec.Host == vsr.Spec.Host {
 				vsrs = append(vsrs, vsr)
 			}
 		}
-		resource := NewVirtualServerConfiguration(vs, vsrs, routeSelectorMap, warnings)
-
-		// todo - uncomment (Jakub)
-		// nl.Infof(c.logger, "resource: %v", resource)
+		resource := NewVirtualServerConfiguration(vs, vsrs, vsrSelectors, warnings)
 
 		c.buildListenersForVSConfiguration(resource)
 
@@ -1655,10 +1680,9 @@ func (c *Configuration) buildMinionConfigs(masterHost string) ([]*MinionConfigur
 }
 
 func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*conf_v1.VirtualServerRoute, map[string][]string, []string) {
-	// l := nl.LoggerFromContext(c.Context)
 	var vsrs []*conf_v1.VirtualServerRoute
-	var routeSelectorMap map[string][]string
 	var warnings []string
+	var vsrSelectors map[string][]string
 
 	for _, r := range vs.Spec.Routes {
 		if r.Route != "" {
@@ -1687,45 +1711,44 @@ func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*
 
 			vsrs = append(vsrs, vsr)
 		} else if r.RouteSelector != nil {
+			if vsrSelectors == nil {
+				vsrSelectors = make(map[string][]string)
+			}
+
 			selector := &metav1.LabelSelector{
 				MatchLabels: r.RouteSelector.MatchLabels,
 			}
 			sel, err := metav1.LabelSelectorAsSelector(selector)
-
-			selectorKey := sel.String()
-
-			// routeSelectorMap[selectorKey] := []*conf_v1.VirtualServerRoute{}
-
 			if err != nil {
 				warning := fmt.Sprintf("VirtualServerRoute LabelSelector %s is invalid: %v", selector, err)
 				warnings = append(warnings, warning)
 				continue
 			}
+
+			selectorStr := sel.String()
+			// Initialize the selector entry regardless of whether routes match
+			if vsrSelectors[selectorStr] == nil {
+				vsrSelectors[selectorStr] = make([]string, 0)
+			}
+
 			for vsrKey, vsr := range c.virtualServerRoutes {
-				if sel.Matches(labels.Set(vsr.ObjectMeta.Labels)) {
+				if sel.Matches(labels.Set(vsr.Labels)) {
 					err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(vsr, vs.Spec.Host, r.Path)
 					if err != nil {
 						warning := fmt.Sprintf("VirtualServerRoute %s is invalid: %v", vsrKey, err)
 						warnings = append(warnings, warning)
 						continue
 					}
-
-					// todo (Jakub)
-					// nl.Infof(c.logger, "VirtualServerRoute %s found for label selector %v", vsrKey, selector)
-
-					if routeSelectorMap == nil {
-						routeSelectorMap = make(map[string][]string)
-					}
-					routeSelectorMap[selectorKey] = append(routeSelectorMap[selectorKey], vsrKey)
-
 					vsrs = append(vsrs, vsr)
+
+					// Add to selectors map
+					vsrSelectors[selectorStr] = append(vsrSelectors[selectorStr], vsrKey)
 				}
 			}
-
 		}
 	}
 
-	return vsrs, routeSelectorMap, warnings
+	return vsrs, vsrSelectors, warnings
 }
 
 // GetTransportServerMetrics returns metrics about TransportServers
@@ -1923,4 +1946,19 @@ func detectChangesInListenerHosts(
 	}
 
 	return removedListenerHosts, updatedListenerHosts, addedListenerHosts
+}
+
+// balanceUpstreamProxies balances proxy buffer sizes for all upstreams.
+// This is the unified function that handles proxy buffer balancing for both
+// VirtualServer and VirtualServerRoute. We need this here because upstreams are
+// values in the slice, but the balancing function takes pointers as it modifies
+// the upstreams.
+func (c *Configuration) balanceUpstreamProxies(upstreams []conf_v1.Upstream) error {
+	for i := range upstreams {
+		err := internalValidation.BalanceProxiesForUpstreams(&upstreams[i], c.isDirectiveAutoadjustEnabled)
+		if err != nil {
+			return fmt.Errorf("upstream %d: %w", i, err)
+		}
+	}
+	return nil
 }

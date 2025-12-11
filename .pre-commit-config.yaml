@@ -1,14 +1,13 @@
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
-exclude: (^site/_vendor/|.*pb2.*)
+exclude: (^_vendor/|.*pb2.*)
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
-        exclude: '(\.md|\.snap|\.avdl)$'
+        exclude: '(\.md|\.jwt|\.snap|\.avdl)$'
       - id: end-of-file-fixer
-        exclude: site/layouts/shortcodes/nic-.*.html
       - id: check-yaml
         args: [--allow-multiple-documents]
         exclude: ^(charts/nginx-ingress/templates)
@@ -17,6 +16,7 @@ repos:
       - id: check-merge-conflict
       - id: check-shebang-scripts-are-executable
       - id: check-executables-have-shebangs
+        exclude: '(\.snap)$'
       - id: check-symlinks
       - id: check-case-conflict
       - id: check-vcs-permalinks
@@ -27,7 +27,7 @@ repos:
         args: [--fix=lf]
       - id: name-tests-test
         args: [--pytest-test-first]
-        exclude: ^(tests/suite/utils|tests/suite/fixtures|tests/suite/grpc|tests/settings.py)
+        exclude: ^(tests/suite/utils|tests/suite/fixtures|tests/suite/grpc|tests/settings.py|tests/scripts)
       - id: no-commit-to-branch
       - id: requirements-txt-fixer
       - id: fix-byte-order-marker
@@ -44,23 +44,23 @@ repos:
         pass_filenames: false
 
   - repo: https://github.com/golangci/golangci-lint
-    rev: v1.62.0
+    rev: v2.6.2
     hooks:
       - id: golangci-lint
         args: [--new-from-patch=/tmp/diff.patch]
 
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.19.0
+    rev: v3.21.2
     hooks:
       - id: pyupgrade
 
   - repo: https://github.com/PyCQA/isort
-    rev: 5.13.2
+    rev: 7.0.0
     hooks:
       - id: isort
 
-  - repo: https://github.com/psf/black
-    rev: 24.10.0
+  - repo: https://github.com/psf/black-pre-commit-mirror
+    rev: 25.11.0
     hooks:
       - id: black
 
@@ -77,7 +77,7 @@ repos:
           ]
 
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0.29.4
+    rev: 0.35.0
     hooks:
       - id: check-jsonschema
         name: "Check Helm Chart JSON Schema"
@@ -86,12 +86,12 @@ repos:
         args: ["--schemafile", "charts/nginx-ingress/values.schema.json"]
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.15.0
+    rev: v0.19.1
     hooks:
       - id: markdownlint-cli2
 
   - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.4
+    rev: v1.7.9
     hooks:
       - id: actionlint
         name: Lint GitHub Actions workflow files

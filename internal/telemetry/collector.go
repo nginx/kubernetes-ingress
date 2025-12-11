@@ -7,15 +7,16 @@ import (
 	"runtime"
 	"time"
 
-	nl "github.com/nginxinc/kubernetes-ingress/internal/logger"
-	conf_v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 
-	"github.com/nginxinc/kubernetes-ingress/internal/k8s/secrets"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 
-	tel "github.com/nginxinc/telemetry-exporter/pkg/telemetry"
+	tel "github.com/nginx/telemetry-exporter/pkg/telemetry"
 
-	"github.com/nginxinc/kubernetes-ingress/internal/configs"
+	"github.com/nginx/kubernetes-ingress/internal/configs"
 
+	api_v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -83,6 +84,16 @@ type CollectorConfig struct {
 	// InstallationFlags represents the list of set flags managed by NIC
 	InstallationFlags []string
 
+	// MainConfigMap represents the main ConfigMap managed by NIC.
+	MainConfigMap *api_v1.ConfigMap
+	// MainConfigMapName represents the name of the main ConfigMap.
+	MainConfigMapName string
+
+	// MGMTConfigMap represents the mgmt ConfigMap managed by NIC.
+	MGMTConfigMap *api_v1.ConfigMap
+	// MGMTConfigMapName represents the name of the MGMT ConfigMap.
+	MGMTConfigMapName string
+
 	// Indicates if using of Custom Resources is enabled.
 	CustomResourcesEnabled bool
 }
@@ -130,34 +141,39 @@ func (c *Collector) Collect(ctx context.Context) {
 			ClusterNodeCount:    int64(report.ClusterNodeCount),
 		},
 		NICResourceCounts{
-			VirtualServers:        int64(report.VirtualServers),
-			VirtualServerRoutes:   int64(report.VirtualServerRoutes),
-			TransportServers:      int64(report.TransportServers),
-			Replicas:              int64(report.NICReplicaCount),
-			Secrets:               int64(report.Secrets),
-			ClusterIPServices:     int64(report.ClusterIPServices),
-			NodePortServices:      int64(report.NodePortServices),
-			LoadBalancerServices:  int64(report.LoadBalancerServices),
-			ExternalNameServices:  int64(report.ExternalNameServices),
-			RegularIngressCount:   int64(report.RegularIngressCount),
-			MasterIngressCount:    int64(report.MasterIngressCount),
-			MinionIngressCount:    int64(report.MinionIngressCount),
-			IngressClasses:        int64(report.IngressClassCount),
-			AccessControlPolicies: int64(report.AccessControlCount),
-			RateLimitPolicies:     int64(report.RateLimitCount),
-			APIKeyPolicies:        int64(report.APIKeyAuthCount),
-			JWTAuthPolicies:       int64(report.JWTAuthCount),
-			BasicAuthPolicies:     int64(report.BasicAuthCount),
-			IngressMTLSPolicies:   int64(report.IngressMTLSCount),
-			EgressMTLSPolicies:    int64(report.EgressMTLSCount),
-			OIDCPolicies:          int64(report.OIDCCount),
-			WAFPolicies:           int64(report.WAFCount),
-			GlobalConfiguration:   report.GlobalConfiguration,
-			IngressAnnotations:    report.IngressAnnotations,
-			AppProtectVersion:     report.AppProtectVersion,
-			IsPlus:                report.IsPlus,
-			InstallationFlags:     report.InstallationFlags,
-			BuildOS:               report.BuildOS,
+			VirtualServers:             int64(report.VirtualServers),
+			VirtualServerRoutes:        int64(report.VirtualServerRoutes),
+			TransportServers:           int64(report.TransportServers),
+			Replicas:                   int64(report.NICReplicaCount),
+			Secrets:                    int64(report.Secrets),
+			ClusterIPServices:          int64(report.ClusterIPServices),
+			NodePortServices:           int64(report.NodePortServices),
+			LoadBalancerServices:       int64(report.LoadBalancerServices),
+			ExternalNameServices:       int64(report.ExternalNameServices),
+			RegularIngressCount:        int64(report.RegularIngressCount),
+			MasterIngressCount:         int64(report.MasterIngressCount),
+			MinionIngressCount:         int64(report.MinionIngressCount),
+			IngressClasses:             int64(report.IngressClassCount),
+			AccessControlPolicies:      int64(report.AccessControlCount),
+			RateLimitPolicies:          int64(report.RateLimitCount),
+			JWTRateLimitPolicies:       int64(report.RateLimitJWTCount),
+			VariablesRateLimitPolicies: int64(report.RateLimitVariablesCount),
+			APIKeyPolicies:             int64(report.APIKeyAuthCount),
+			JWTAuthPolicies:            int64(report.JWTAuthCount),
+			BasicAuthPolicies:          int64(report.BasicAuthCount),
+			IngressMTLSPolicies:        int64(report.IngressMTLSCount),
+			EgressMTLSPolicies:         int64(report.EgressMTLSCount),
+			OIDCPolicies:               int64(report.OIDCCount),
+			WAFPolicies:                int64(report.WAFCount),
+			CachePolicies:              int64(report.CacheCount),
+			GlobalConfiguration:        report.GlobalConfiguration,
+			IngressAnnotations:         report.IngressAnnotations,
+			AppProtectVersion:          report.AppProtectVersion,
+			IsPlus:                     report.IsPlus,
+			InstallationFlags:          report.InstallationFlags,
+			BuildOS:                    report.BuildOS,
+			ConfigMapKeys:              report.MainConfigMapKeys,
+			MGMTConfigMapKeys:          report.MGMTConfigMapKeys,
 		},
 	}
 
@@ -172,42 +188,47 @@ func (c *Collector) Collect(ctx context.Context) {
 // data structure used for decoupling types between the NIC `telemetry`
 // package and the imported `telemetry` exporter.
 type Report struct {
-	Name                 string
-	Version              string
-	Architecture         string
-	ClusterID            string
-	ClusterVersion       string
-	ClusterPlatform      string
-	ClusterNodeCount     int
-	InstallationID       string
-	NICReplicaCount      int
-	VirtualServers       int
-	VirtualServerRoutes  int
-	ClusterIPServices    int
-	NodePortServices     int
-	LoadBalancerServices int
-	ExternalNameServices int
-	TransportServers     int
-	Secrets              int
-	RegularIngressCount  int
-	MasterIngressCount   int
-	MinionIngressCount   int
-	IngressClassCount    int
-	AccessControlCount   int
-	RateLimitCount       int
-	JWTAuthCount         int
-	APIKeyAuthCount      int
-	BasicAuthCount       int
-	IngressMTLSCount     int
-	EgressMTLSCount      int
-	OIDCCount            int
-	WAFCount             int
-	GlobalConfiguration  bool
-	IngressAnnotations   []string
-	AppProtectVersion    string
-	IsPlus               bool
-	InstallationFlags    []string
-	BuildOS              string
+	Name                    string
+	Version                 string
+	Architecture            string
+	ClusterID               string
+	ClusterVersion          string
+	ClusterPlatform         string
+	ClusterNodeCount        int
+	InstallationID          string
+	NICReplicaCount         int
+	VirtualServers          int
+	VirtualServerRoutes     int
+	ClusterIPServices       int
+	NodePortServices        int
+	LoadBalancerServices    int
+	ExternalNameServices    int
+	TransportServers        int
+	Secrets                 int
+	RegularIngressCount     int
+	MasterIngressCount      int
+	MinionIngressCount      int
+	IngressClassCount       int
+	AccessControlCount      int
+	RateLimitCount          int
+	RateLimitJWTCount       int
+	RateLimitVariablesCount int
+	JWTAuthCount            int
+	APIKeyAuthCount         int
+	BasicAuthCount          int
+	IngressMTLSCount        int
+	EgressMTLSCount         int
+	OIDCCount               int
+	WAFCount                int
+	CacheCount              int
+	GlobalConfiguration     bool
+	IngressAnnotations      []string
+	AppProtectVersion       string
+	IsPlus                  bool
+	InstallationFlags       []string
+	BuildOS                 string
+	MainConfigMapKeys       []string
+	MGMTConfigMapKeys       []string
 }
 
 // BuildReport takes context, collects telemetry data and builds the report.
@@ -267,21 +288,26 @@ func (c *Collector) BuildReport(ctx context.Context) (Report, error) {
 	}
 
 	var (
-		accessControlCount int
-		rateLimitCount     int
-		apiKeyCount        int
-		jwtAuthCount       int
-		basicAuthCount     int
-		ingressMTLSCount   int
-		egressMTLSCount    int
-		oidcCount          int
-		wafCount           int
+		accessControlCount      int
+		rateLimitCount          int
+		rateLimitJWTCount       int
+		rateLimitVariablesCount int
+		apiKeyCount             int
+		jwtAuthCount            int
+		basicAuthCount          int
+		ingressMTLSCount        int
+		egressMTLSCount         int
+		oidcCount               int
+		wafCount                int
+		cacheCount              int
 	)
 	// Collect Custom Resources (Policies) only if CR enabled at startup.
 	if c.Config.CustomResourcesEnabled {
 		policies := c.PolicyCount()
 		accessControlCount = policies["AccessControl"]
 		rateLimitCount = policies["RateLimit"]
+		rateLimitJWTCount = policies["RateLimitJWT"]
+		rateLimitVariablesCount = policies["RateLimitVariables"]
 		apiKeyCount = policies["APIKey"]
 		jwtAuthCount = policies["JWTAuth"]
 		basicAuthCount = policies["BasicAuth"]
@@ -289,6 +315,7 @@ func (c *Collector) BuildReport(ctx context.Context) (Report, error) {
 		egressMTLSCount = policies["EgressMTLS"]
 		oidcCount = policies["OIDC"]
 		wafCount = policies["WAF"]
+		cacheCount = policies["Cache"]
 	}
 
 	ingressAnnotations := c.IngressAnnotations()
@@ -304,42 +331,61 @@ func (c *Collector) BuildReport(ctx context.Context) (Report, error) {
 	loadBalancerServices := serviceCounts["LoadBalancer"]
 	externalNameServices := serviceCounts["ExternalName"]
 
+	configMapKeys, err := c.ConfigMapKeys(ctx)
+	if err != nil {
+		nl.Debugf(l, "Error fetching main ConfigMap keys: %v", err)
+		configMapKeys = []string{}
+	}
+	var mgmtConfigMapKeys []string
+	if isPlus {
+		mgmtConfigMapKeys, err = c.MGMTConfigMapKeys(ctx)
+		if err != nil {
+			nl.Debugf(l, "Error fetching MGMT ConfigMap keys: %v", err)
+			mgmtConfigMapKeys = []string{}
+		}
+	}
+
 	return Report{
-		Name:                 "NIC",
-		Version:              c.Config.Version,
-		Architecture:         runtime.GOARCH,
-		ClusterID:            clusterID,
-		ClusterVersion:       version,
-		ClusterPlatform:      platform,
-		ClusterNodeCount:     nodes,
-		InstallationID:       installationID,
-		NICReplicaCount:      replicas,
-		VirtualServers:       vsCount,
-		VirtualServerRoutes:  vsrCount,
-		ClusterIPServices:    clusterIPServices,
-		NodePortServices:     nodePortServices,
-		LoadBalancerServices: loadBalancerServices,
-		ExternalNameServices: externalNameServices,
-		TransportServers:     tsCount,
-		Secrets:              secretCount,
-		RegularIngressCount:  regularIngressCount,
-		MasterIngressCount:   masterIngressCount,
-		MinionIngressCount:   minionIngressCount,
-		IngressClassCount:    ingressClassCount,
-		AccessControlCount:   accessControlCount,
-		RateLimitCount:       rateLimitCount,
-		APIKeyAuthCount:      apiKeyCount,
-		JWTAuthCount:         jwtAuthCount,
-		BasicAuthCount:       basicAuthCount,
-		IngressMTLSCount:     ingressMTLSCount,
-		EgressMTLSCount:      egressMTLSCount,
-		OIDCCount:            oidcCount,
-		WAFCount:             wafCount,
-		GlobalConfiguration:  c.Config.GlobalConfiguration,
-		IngressAnnotations:   ingressAnnotations,
-		AppProtectVersion:    appProtectVersion,
-		IsPlus:               isPlus,
-		InstallationFlags:    installationFlags,
-		BuildOS:              c.BuildOS(),
+		Name:                    "NIC",
+		Version:                 c.Config.Version,
+		Architecture:            runtime.GOARCH,
+		ClusterID:               clusterID,
+		ClusterVersion:          version,
+		ClusterPlatform:         platform,
+		ClusterNodeCount:        nodes,
+		InstallationID:          installationID,
+		NICReplicaCount:         replicas,
+		VirtualServers:          vsCount,
+		VirtualServerRoutes:     vsrCount,
+		ClusterIPServices:       clusterIPServices,
+		NodePortServices:        nodePortServices,
+		LoadBalancerServices:    loadBalancerServices,
+		ExternalNameServices:    externalNameServices,
+		TransportServers:        tsCount,
+		Secrets:                 secretCount,
+		RegularIngressCount:     regularIngressCount,
+		MasterIngressCount:      masterIngressCount,
+		MinionIngressCount:      minionIngressCount,
+		IngressClassCount:       ingressClassCount,
+		AccessControlCount:      accessControlCount,
+		RateLimitCount:          rateLimitCount,
+		RateLimitJWTCount:       rateLimitJWTCount,
+		RateLimitVariablesCount: rateLimitVariablesCount,
+		APIKeyAuthCount:         apiKeyCount,
+		JWTAuthCount:            jwtAuthCount,
+		BasicAuthCount:          basicAuthCount,
+		IngressMTLSCount:        ingressMTLSCount,
+		EgressMTLSCount:         egressMTLSCount,
+		OIDCCount:               oidcCount,
+		WAFCount:                wafCount,
+		CacheCount:              cacheCount,
+		GlobalConfiguration:     c.Config.GlobalConfiguration,
+		IngressAnnotations:      ingressAnnotations,
+		AppProtectVersion:       appProtectVersion,
+		IsPlus:                  isPlus,
+		InstallationFlags:       installationFlags,
+		BuildOS:                 c.BuildOS(),
+		MainConfigMapKeys:       configMapKeys,
+		MGMTConfigMapKeys:       mgmtConfigMapKeys,
 	}, err
 }

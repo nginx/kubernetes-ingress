@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"text/template"
+
+	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
 )
 
 func TestMakeLocationPath_WithRegexCaseSensitiveModifier(t *testing.T) {
@@ -826,6 +828,249 @@ func TestGenerateProxySetHeadersForValidHeadersInOnlyOneMinion(t *testing.T) {
 				if !strings.Contains(generatedTeaConfig, wantHeader) {
 					t.Errorf("expected header %q not found in generated tea config", wantHeader)
 				}
+			}
+		})
+	}
+}
+
+func TestMakeResolver(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name              string
+		resolverAddresses []string
+		resolverValid     string
+		resolverIPV6      *bool
+		expected          string
+	}{
+		{
+			name:              "No addresses",
+			resolverAddresses: []string{},
+			resolverValid:     "",
+			resolverIPV6:      commonhelpers.BoolToPointerBool(true),
+			expected:          "",
+		},
+		{
+			name:              "Single address, default options",
+			resolverAddresses: []string{"8.8.8.8"},
+			resolverValid:     "",
+			resolverIPV6:      commonhelpers.BoolToPointerBool(true),
+			expected:          "resolver 8.8.8.8;",
+		},
+		{
+			name:              "Multiple addresses, valid time, ipv6 on",
+			resolverAddresses: []string{"8.8.8.8", "8.8.4.4"},
+			resolverValid:     "30s",
+			resolverIPV6:      commonhelpers.BoolToPointerBool(true),
+			expected:          "resolver 8.8.8.8 8.8.4.4 valid=30s;",
+		},
+		{
+			name:              "Single address, ipv6 off",
+			resolverAddresses: []string{"8.8.8.8"},
+			resolverValid:     "",
+			resolverIPV6:      commonhelpers.BoolToPointerBool(false),
+			expected:          "resolver 8.8.8.8 ipv6=off;",
+		},
+		{
+			name:              "Multiple addresses, valid time, ipv6 off",
+			resolverAddresses: []string{"8.8.8.8", "8.8.4.4"},
+			resolverValid:     "30s",
+			resolverIPV6:      commonhelpers.BoolToPointerBool(false),
+			expected:          "resolver 8.8.8.8 8.8.4.4 valid=30s ipv6=off;",
+		},
+		{
+			name:              "No valid time, ipv6 off",
+			resolverAddresses: []string{"8.8.8.8"},
+			resolverValid:     "",
+			resolverIPV6:      commonhelpers.BoolToPointerBool(false),
+			expected:          "resolver 8.8.8.8 ipv6=off;",
+		},
+		{
+			name:              "Valid time only",
+			resolverAddresses: []string{"8.8.8.8"},
+			resolverValid:     "10s",
+			resolverIPV6:      commonhelpers.BoolToPointerBool(true),
+			expected:          "resolver 8.8.8.8 valid=10s;",
+		},
+		{
+			name:              "IPv6 only",
+			resolverAddresses: []string{"8.8.8.8"},
+			resolverValid:     "",
+			resolverIPV6:      commonhelpers.BoolToPointerBool(false),
+			expected:          "resolver 8.8.8.8 ipv6=off;",
+		},
+		{
+			name:              "All options",
+			resolverAddresses: []string{"8.8.8.8", "8.8.4.4", "1.1.1.1"},
+			resolverValid:     "60s",
+			resolverIPV6:      commonhelpers.BoolToPointerBool(false),
+			expected:          "resolver 8.8.8.8 8.8.4.4 1.1.1.1 valid=60s ipv6=off;",
+		},
+		{
+			name:              "All options, ipv6 nil",
+			resolverAddresses: []string{"8.8.8.8", "8.8.4.4", "1.1.1.1"},
+			resolverValid:     "60s",
+			resolverIPV6:      nil,
+			expected:          "resolver 8.8.8.8 8.8.4.4 1.1.1.1 valid=60s;",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := makeResolver(tc.resolverAddresses, tc.resolverValid, tc.resolverIPV6)
+			if got != tc.expected {
+				t.Errorf("makeResolver(%v, %q, %v) = %q; want %q", tc.resolverAddresses, tc.resolverValid, tc.resolverIPV6, got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestMakeRewritePattern_WithRegexCaseSensitiveModifier(t *testing.T) {
+	t.Parallel()
+
+	want := "^/(hello|hi)"
+	got := makeRewritePattern(
+		&Location{Path: "/(hello|hi)"},
+		map[string]string{"nginx.org/path-regex": "case_sensitive"},
+	)
+	if got != want {
+		t.Errorf("makeRewritePattern() = %q; want %q", got, want)
+	}
+}
+
+func TestMakeRewritePattern_WithRegexCaseInsensitiveModifier(t *testing.T) {
+	t.Parallel()
+
+	want := "(?i)^/(hello|hi)"
+	got := makeRewritePattern(
+		&Location{Path: "/(hello|hi)"},
+		map[string]string{"nginx.org/path-regex": "case_insensitive"},
+	)
+	if got != want {
+		t.Errorf("makeRewritePattern() = %q; want %q", got, want)
+	}
+}
+
+func TestMakeRewritePattern_WithRegexExactModifier(t *testing.T) {
+	t.Parallel()
+
+	want := "/coffee"
+	got := makeRewritePattern(
+		&Location{Path: "/coffee"},
+		map[string]string{"nginx.org/path-regex": "exact"},
+	)
+	if got != want {
+		t.Errorf("makeRewritePattern() = %q; want %q", got, want)
+	}
+}
+
+func TestMakeRewritePattern_WithBogusRegexModifier(t *testing.T) {
+	t.Parallel()
+
+	want := "/(hello|hi)"
+	got := makeRewritePattern(
+		&Location{Path: "/(hello|hi)"},
+		map[string]string{"nginx.org/path-regex": "bogus"},
+	)
+	if got != want {
+		t.Errorf("makeRewritePattern() = %q; want %q", got, want)
+	}
+}
+
+func TestMakeRewritePattern_WithoutRegexModifier(t *testing.T) {
+	t.Parallel()
+
+	want := "/coffee"
+	got := makeRewritePattern(
+		&Location{Path: "/coffee"},
+		map[string]string{},
+	)
+	if got != want {
+		t.Errorf("makeRewritePattern() = %q; want %q", got, want)
+	}
+}
+
+func TestMakeRewritePattern_WithMergableIngress(t *testing.T) {
+	t.Parallel()
+
+	// Test with minion ingress having path-regex annotation
+	want := "^/coffee/[A-Z0-9]{3}"
+	got := makeRewritePattern(
+		&Location{
+			Path: "/coffee/[A-Z0-9]{3}",
+			MinionIngress: &Ingress{
+				Annotations: map[string]string{
+					"nginx.org/mergeable-ingress-type": "minion",
+					"nginx.org/path-regex":             "case_sensitive",
+				},
+			},
+		},
+		map[string]string{"nginx.org/path-regex": "case_insensitive"}, // Should be ignored
+	)
+	if got != want {
+		t.Errorf("makeRewritePattern() = %q; want %q", got, want)
+	}
+}
+
+func TestMakeRewritePattern_WithComplexPatterns(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		path      string
+		pathRegex string
+		expected  string
+	}{
+		{
+			name:      "Simple path with case sensitive regex",
+			path:      "/api/(v1|v2)",
+			pathRegex: "case_sensitive",
+			expected:  "^/api/(v1|v2)",
+		},
+		{
+			name:      "Complex regex pattern with case insensitive",
+			path:      "/user/([0-9]+)/(profile|settings)",
+			pathRegex: "case_insensitive",
+			expected:  "(?i)^/user/([0-9]+)/(profile|settings)",
+		},
+		{
+			name:      "Exact match pattern",
+			path:      "/health",
+			pathRegex: "exact",
+			expected:  "/health",
+		},
+		{
+			name:      "Pattern with special characters",
+			path:      "/api/v1/([a-zA-Z0-9_-]+)/data",
+			pathRegex: "case_sensitive",
+			expected:  "^/api/v1/([a-zA-Z0-9_-]+)/data",
+		},
+		{
+			name:      "Path with no regex annotation",
+			path:      "/static/assets",
+			pathRegex: "",
+			expected:  "/static/assets",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			annotations := map[string]string{}
+			if tt.pathRegex != "" {
+				annotations["nginx.org/path-regex"] = tt.pathRegex
+			}
+
+			got := makeRewritePattern(
+				&Location{Path: tt.path},
+				annotations,
+			)
+			if got != tt.expected {
+				t.Errorf("Test %q: makeRewritePattern() = %q; want %q", tt.name, got, tt.expected)
 			}
 		})
 	}

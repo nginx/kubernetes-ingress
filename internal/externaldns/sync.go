@@ -6,11 +6,11 @@ import (
 	"fmt"
 
 	"github.com/google/go-cmp/cmp"
-	nl "github.com/nginxinc/kubernetes-ingress/internal/logger"
-	vsapi "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
-	extdnsapi "github.com/nginxinc/kubernetes-ingress/pkg/apis/externaldns/v1"
-	clientset "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned"
-	extdnslisters "github.com/nginxinc/kubernetes-ingress/pkg/client/listers/externaldns/v1"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	vsapi "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	extdnsapi "github.com/nginx/kubernetes-ingress/pkg/apis/externaldns/v1"
+	clientset "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned"
+	extdnslisters "github.com/nginx/kubernetes-ingress/pkg/client/listers/externaldns/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	validators "k8s.io/apimachinery/pkg/util/validation"
@@ -23,12 +23,9 @@ import (
 )
 
 const (
-	reasonBadConfig         = "BadConfig"
-	reasonCreateDNSEndpoint = "CreateDNSEndpoint"
-	reasonUpdateDNSEndpoint = "UpdateDNSEndpoint"
-	recordTypeA             = "A"
-	recordTypeAAAA          = "AAAA"
-	recordTypeCNAME         = "CNAME"
+	recordTypeA     = "A"
+	recordTypeAAAA  = "AAAA"
+	recordTypeCNAME = "CNAME"
 )
 
 var vsGVK = vsapi.SchemeGroupVersion.WithKind("VirtualServer")
@@ -54,7 +51,7 @@ func SyncFnFor(rec record.EventRecorder, client clientset.Interface, ig map[stri
 		targets, recordType, err := getValidTargets(ctx, vs.Status.ExternalEndpoints)
 		if err != nil {
 			nl.Error(l, "Invalid external endpoint")
-			rec.Eventf(vs, corev1.EventTypeWarning, reasonBadConfig, "Invalid external endpoint")
+			rec.Eventf(vs, corev1.EventTypeWarning, nl.EventReasonBadConfig, "Invalid external endpoint")
 			return err
 		}
 
@@ -63,7 +60,7 @@ func SyncFnFor(rec record.EventRecorder, client clientset.Interface, ig map[stri
 		newDNSEndpoint, updateDNSEndpoint, err := buildDNSEndpoint(ctx, nsi.extdnslister, vs, targets, recordType)
 		if err != nil {
 			nl.Errorf(l, "incorrect DNSEndpoint config for VirtualServer resource: %s", err)
-			rec.Eventf(vs, corev1.EventTypeWarning, reasonBadConfig, "Incorrect DNSEndpoint config for VirtualServer resource: %s", err)
+			rec.Eventf(vs, corev1.EventTypeWarning, nl.EventReasonBadConfig, "Incorrect DNSEndpoint config for VirtualServer resource: %s", err)
 			return err
 		}
 
@@ -80,11 +77,11 @@ func SyncFnFor(rec record.EventRecorder, client clientset.Interface, ig map[stri
 					return fmt.Errorf("DNSEndpoint has already been created")
 				}
 				nl.Errorf(l, "Error creating DNSEndpoint for VirtualServer resource: %v", err)
-				rec.Eventf(vs, corev1.EventTypeWarning, reasonBadConfig, "Error creating DNSEndpoint for VirtualServer resource %s", err)
+				rec.Eventf(vs, corev1.EventTypeWarning, nl.EventReasonBadConfig, "Error creating DNSEndpoint for VirtualServer resource %s", err)
 				return err
 			}
-			rec.Eventf(vs, corev1.EventTypeNormal, reasonCreateDNSEndpoint, "Successfully created DNSEndpoint %q", newDNSEndpoint.Name)
-			rec.Eventf(dep, corev1.EventTypeNormal, reasonCreateDNSEndpoint, "Successfully created DNSEndpoint for VirtualServer %q", vs.Name)
+			rec.Eventf(vs, corev1.EventTypeNormal, nl.EventReasonCreateDNSEndpoint, "Successfully created DNSEndpoint %q", newDNSEndpoint.Name)
+			rec.Eventf(dep, corev1.EventTypeNormal, nl.EventReasonCreateDNSEndpoint, "Successfully created DNSEndpoint for VirtualServer %q", vs.Name)
 		}
 
 		// Update existing DNSEndpoint object
@@ -93,11 +90,11 @@ func SyncFnFor(rec record.EventRecorder, client clientset.Interface, ig map[stri
 			dep, err = client.ExternaldnsV1().DNSEndpoints(updateDNSEndpoint.Namespace).Update(ctx, updateDNSEndpoint, metav1.UpdateOptions{})
 			if err != nil {
 				nl.Errorf(l, "Error updating DNSEndpoint endpoint for VirtualServer resource: %v", err)
-				rec.Eventf(vs, corev1.EventTypeWarning, reasonBadConfig, "Error updating DNSEndpoint for VirtualServer resource: %s", err)
+				rec.Eventf(vs, corev1.EventTypeWarning, nl.EventReasonBadConfig, "Error updating DNSEndpoint for VirtualServer resource: %s", err)
 				return err
 			}
-			rec.Eventf(vs, corev1.EventTypeNormal, reasonUpdateDNSEndpoint, "Successfully updated DNSEndpoint %q", updateDNSEndpoint.Name)
-			rec.Eventf(dep, corev1.EventTypeNormal, reasonUpdateDNSEndpoint, "Successfully updated DNSEndpoint for VirtualServer %q", vs.Name)
+			rec.Eventf(vs, corev1.EventTypeNormal, nl.EventReasonUpdateDNSEndpoint, "Successfully updated DNSEndpoint %q", updateDNSEndpoint.Name)
+			rec.Eventf(dep, corev1.EventTypeNormal, nl.EventReasonUpdateDNSEndpoint, "Successfully updated DNSEndpoint for VirtualServer %q", vs.Name)
 		}
 		return nil
 	}
@@ -115,7 +112,7 @@ func getValidTargets(ctx context.Context, endpoints []vsapi.ExternalEndpoint) (e
 	for _, e := range endpoints {
 		if e.IP != "" {
 			nl.Debugf(l, "IP is defined: %v", e.IP)
-			if errMsg := validators.IsValidIP(field.NewPath(""), e.IP); len(errMsg) > 0 {
+			if errMsg := validators.IsValidIPForLegacyField(field.NewPath(""), e.IP, false, nil); len(errMsg) > 0 {
 				continue
 			}
 			ip := netutils.ParseIPSloppy(e.IP)
