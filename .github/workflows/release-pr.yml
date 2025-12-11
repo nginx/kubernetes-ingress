@@ -109,7 +109,6 @@ jobs:
           commit-message: Release ${{ github.event.inputs.new_version }}
           title: Release ${{ github.event.inputs.new_version }}
           branch: docs/release-${{ github.event.inputs.new_version }}
-          author: nginx-bot <integrations@nginx.com>
           body: |
             This automated PR updates the docs for ${{ github.event.inputs.new_version }} release.
         if: ${{ ! inputs.dry_run }}

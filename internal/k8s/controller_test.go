@@ -3588,7 +3588,7 @@ func TestCreateVirtualServerExWithZoneSync(t *testing.T) {
 
 	for _, tc := range testCases {
 		lbc := NewLoadBalancerController(tc.input)
-		vsEx := lbc.createVirtualServerEx(&tc.vs, tc.vsr)
+		vsEx := lbc.createVirtualServerEx(&tc.vs, tc.vsr, nil)
 		if reflect.DeepEqual(vsEx, tc.expected) {
 			t.Fatalf("Expected %v, but got %v", tc.expected, vsEx)
 		}

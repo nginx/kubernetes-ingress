@@ -13,14 +13,13 @@ import (
 	"strconv"
 	"strings"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	api_v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -418,7 +417,6 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	apResources *appProtectResourcesForVS,
 	dosResources map[string]*appProtectDosResource,
 ) (version2.VirtualServerConfig, Warnings) {
-	// l := nl.LoggerFromContext(vsc.cfgParams.Context)
 	vsc.clearWarnings()
 
 	var maps []version2.Map
@@ -588,13 +586,6 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 			selectorKey := sel.String()
 			vsrKeys := vsEx.VirtualServerSelectorRoutes[selectorKey]
-			//nl.Infof(l, "VirtualServerRoutes: %v", vsEx.VirtualServerRoutes)
-			//
-			//nl.Infof(l, "VirtualServerSelectorRoutes: %v", vsEx.VirtualServerSelectorRoutes)
-			//
-			//nl.Infof(l, "vsrKeys: %v", vsrKeys)
-			//
-			//nl.Infof(l, "RouteSelector: %v", selector)
 
 			// store route location snippet for the referenced VirtualServerRoute in case they don't define their own
 			if r.LocationSnippets != "" {
@@ -613,9 +604,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 			// store route policies for the referenced VirtualServerRoute in case they don't define their own
 			if len(r.Policies) > 0 {
-				// nl.Infof(l, "Route Policies: %v", r.Policies)
 				for _, name := range vsrKeys {
-					// nl.Infof(l, "Adding policy to VSR $v: %v", name, r.Policies)
 					vsrPoliciesFromVs[name] = r.Policies
 				}
 			}
@@ -745,7 +734,6 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			errorPages := generateErrorPageDetails(r.ErrorPages, errorPageLocations, vsr)
 			errorPageLocations = append(errorPageLocations, generateErrorPageLocations(errorPages.index, errorPages.pages)...)
 			vsrNamespaceName := fmt.Sprintf("%v/%v", vsr.Namespace, vsr.Name)
-			// glog.Infof("vsrNamespaceName: %v", vsrNamespaceName)
 			// use the VirtualServer error pages if the route does not define any
 			if r.ErrorPages == nil {
 				if vsErrorPages, ok := vsrErrorPagesFromVs[vsrNamespaceName]; ok {

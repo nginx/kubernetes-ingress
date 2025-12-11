@@ -2,13 +2,10 @@ package k8s
 
 import (
 	"fmt"
-	"log/slog"
 	"reflect"
 	"sort"
 	"strings"
 	"sync"
-
-	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
@@ -19,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 const (
@@ -223,11 +221,11 @@ type VirtualServerConfiguration struct {
 }
 
 // NewVirtualServerConfiguration creates a VirtualServerConfiguration.
-func NewVirtualServerConfiguration(vs *conf_v1.VirtualServer, vsrs []*conf_v1.VirtualServerRoute, routeSelectors map[string][]string, warnings []string) *VirtualServerConfiguration {
+func NewVirtualServerConfiguration(vs *conf_v1.VirtualServer, vsrs []*conf_v1.VirtualServerRoute, vsrSelectors map[string][]string, warnings []string) *VirtualServerConfiguration {
 	return &VirtualServerConfiguration{
 		VirtualServer:               vs,
 		VirtualServerRoutes:         vsrs,
-		VirtualServerRouteSelectors: routeSelectors,
+		VirtualServerRouteSelectors: vsrSelectors,
 		Warnings:                    warnings,
 	}
 }
@@ -275,8 +273,35 @@ func (vsc *VirtualServerConfiguration) IsEqual(resource Resource) bool {
 		}
 	}
 
-	// TODO: check all values of the map
-	return len(vsc.VirtualServerRouteSelectors) != len(vsConfig.VirtualServerRouteSelectors)
+	// Check VirtualServerRouteSelectors maps for equality
+	if len(vsc.VirtualServerRouteSelectors) != len(vsConfig.VirtualServerRouteSelectors) {
+		return false
+	}
+
+	for selector, routes := range vsc.VirtualServerRouteSelectors {
+		otherRoutes, exists := vsConfig.VirtualServerRouteSelectors[selector]
+		if !exists {
+			return false
+		}
+
+		if len(routes) != len(otherRoutes) {
+			return false
+		}
+
+		// Create maps for O(1) lookup to compare route slices
+		routeSet := make(map[string]bool)
+		for _, route := range routes {
+			routeSet[route] = true
+		}
+
+		for _, otherRoute := range otherRoutes {
+			if !routeSet[otherRoute] {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 // TransportServerConfiguration holds a TransportServer resource.
@@ -350,10 +375,6 @@ type TransportServerMetrics struct {
 // The IC needs to ensure that at any point in time the NGINX config on the filesystem reflects the state
 // of the objects in the Configuration.
 type Configuration struct {
-	// Context context.Context
-
-	logger *slog.Logger
-
 	hosts         map[string]Resource
 	listenerHosts map[listenerHostKey]*TransportServerConfiguration
 	listenerMap   map[string]conf_v1.Listener
@@ -397,8 +418,6 @@ type Configuration struct {
 
 // NewConfiguration creates a new Configuration.
 func NewConfiguration(
-	// ctx context.Context,
-	logger *slog.Logger,
 	hasCorrectIngressClass func(interface{}) bool,
 	isPlus bool,
 	appProtectEnabled bool,
@@ -413,11 +432,7 @@ func NewConfiguration(
 	isIPV6Disabled bool,
 	isDirectiveAutoadjustEnabled bool,
 ) *Configuration {
-	// l := nl.LoggerFromContext(ctx)
-
 	return &Configuration{
-		// Context:                      ctx,
-		logger:                       logger,
 		hosts:                        make(map[string]Resource),
 		listenerHosts:                make(map[listenerHostKey]*TransportServerConfiguration),
 		ingresses:                    make(map[string]*networking.Ingress),
@@ -596,7 +611,6 @@ func (c *Configuration) AddOrUpdateVirtualServerRoute(vsr *conf_v1.VirtualServer
 	if !c.hasCorrectIngressClass(vsr) {
 		delete(c.virtualServerRoutes, key)
 	} else {
-		nl.Debugf(c.logger, "labels: %v", vsr.ObjectMeta.Labels)
 		validationError = c.virtualServerValidator.ValidateVirtualServerRoute(vsr)
 		if validationError != nil {
 			delete(c.virtualServerRoutes, key)
@@ -1450,7 +1464,6 @@ func squashResourceChanges(changes []ResourceChange) []ResourceChange {
 }
 
 func (c *Configuration) buildHostsAndResources() (newHosts map[string]Resource, newResources map[string]Resource) {
-	// l := nl.LoggerFromContext(c.Context)
 	newHosts = make(map[string]Resource)
 	newResources = make(map[string]Resource)
 	var challengesVSR []*conf_v1.VirtualServerRoute
@@ -1506,16 +1519,13 @@ func (c *Configuration) buildHostsAndResources() (newHosts map[string]Resource, 
 	for _, key := range getSortedVirtualServerKeys(c.virtualServers) {
 		vs := c.virtualServers[key]
 
-		vsrs, routeSelectorMap, warnings := c.buildVirtualServerRoutes(vs)
+		vsrs, vsrSelectors, warnings := c.buildVirtualServerRoutes(vs)
 		for _, vsr := range challengesVSR {
 			if vs.Spec.Host == vsr.Spec.Host {
 				vsrs = append(vsrs, vsr)
 			}
 		}
-		resource := NewVirtualServerConfiguration(vs, vsrs, routeSelectorMap, warnings)
-
-		// todo - uncomment (Jakub)
-		// nl.Infof(c.logger, "resource: %v", resource)
+		resource := NewVirtualServerConfiguration(vs, vsrs, vsrSelectors, warnings)
 
 		c.buildListenersForVSConfiguration(resource)
 
@@ -1670,10 +1680,9 @@ func (c *Configuration) buildMinionConfigs(masterHost string) ([]*MinionConfigur
 }
 
 func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*conf_v1.VirtualServerRoute, map[string][]string, []string) {
-	// l := nl.LoggerFromContext(c.Context)
 	var vsrs []*conf_v1.VirtualServerRoute
-	var routeSelectorMap map[string][]string
 	var warnings []string
+	var vsrSelectors map[string][]string
 
 	for _, r := range vs.Spec.Routes {
 		if r.Route != "" {
@@ -1702,45 +1711,44 @@ func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*
 
 			vsrs = append(vsrs, vsr)
 		} else if r.RouteSelector != nil {
+			if vsrSelectors == nil {
+				vsrSelectors = make(map[string][]string)
+			}
+
 			selector := &metav1.LabelSelector{
 				MatchLabels: r.RouteSelector.MatchLabels,
 			}
 			sel, err := metav1.LabelSelectorAsSelector(selector)
-
-			selectorKey := sel.String()
-
-			// routeSelectorMap[selectorKey] := []*conf_v1.VirtualServerRoute{}
-
 			if err != nil {
 				warning := fmt.Sprintf("VirtualServerRoute LabelSelector %s is invalid: %v", selector, err)
 				warnings = append(warnings, warning)
 				continue
 			}
+
+			selectorStr := sel.String()
+			// Initialize the selector entry regardless of whether routes match
+			if vsrSelectors[selectorStr] == nil {
+				vsrSelectors[selectorStr] = make([]string, 0)
+			}
+
 			for vsrKey, vsr := range c.virtualServerRoutes {
-				if sel.Matches(labels.Set(vsr.ObjectMeta.Labels)) {
+				if sel.Matches(labels.Set(vsr.Labels)) {
 					err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(vsr, vs.Spec.Host, r.Path)
 					if err != nil {
 						warning := fmt.Sprintf("VirtualServerRoute %s is invalid: %v", vsrKey, err)
 						warnings = append(warnings, warning)
 						continue
 					}
-
-					// todo (Jakub)
-					// nl.Infof(c.logger, "VirtualServerRoute %s found for label selector %v", vsrKey, selector)
-
-					if routeSelectorMap == nil {
-						routeSelectorMap = make(map[string][]string)
-					}
-					routeSelectorMap[selectorKey] = append(routeSelectorMap[selectorKey], vsrKey)
-
 					vsrs = append(vsrs, vsr)
+
+					// Add to selectors map
+					vsrSelectors[selectorStr] = append(vsrSelectors[selectorStr], vsrKey)
 				}
 			}
-
 		}
 	}
 
-	return vsrs, routeSelectorMap, warnings
+	return vsrs, vsrSelectors, warnings
 }
 
 // GetTransportServerMetrics returns metrics about TransportServers
