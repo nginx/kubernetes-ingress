@@ -835,6 +835,30 @@ func applyPoliciesFromAnnotation(ctx context.Context, ingEx *IngressEx, policyNa
 			ingEx.Ingress.Namespace, ingEx.Ingress.Name, policyNames)
 	}
 
+	// WIP: reuse generatePolicies function from VirtualServer
+	// // OwnerDetails for policyCfg
+	// owner := &policyOwnerDetails{
+	// 	owner:          ingEx.Ingress,
+	// 	ownerName:      ingEx.Ingress.Name,
+	// 	ownerNamespace: ingEx.Ingress.Namespace,
+	// 	vsName:         ingEx.Ingress.Name,
+	// 	vsNamespace:    ingEx.Ingress.Namespace,
+	// }
+
+	// var policyRefs []conf_v1.PolicyReference
+
+	// // PolicyReference for cross-namespace policies
+	// for _, policyName := range policyNames {
+	// 	nl.Debugf(l, "Ingress %s/%s: Adding policy reference for policy %s from annotation",
+	// 		ingEx.Ingress.Namespace, ingEx.Ingress.Name, policyName)
+	// 	policyRefs = append(policyRefs, conf_v1.PolicyReference{
+	// 		Name:      policyName,
+	// 		Namespace: ingEx.Ingress.Namespace, // Namespace will be adjusted later for cross-namespace policies
+	// 	})
+	// }
+
+	// policyCfg := generatePolicies(ctx, owner, policyRefs, ingEx.Policies)
+
 	// Create a temporary policiesCfg to reuse VirtualServer's exact addAccessControlConfig function
 	policyCfg := &policiesCfg{
 		Allow:   []string{},
