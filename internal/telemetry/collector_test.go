@@ -830,6 +830,7 @@ func TestStandardIngressAnnotations(t *testing.T) {
 	annotations := map[string]string{
 		"appprotect.f5.com/app-protect-enable": "False",
 		"nginx.org/proxy-set-header":           "X-Forwarded-ABC",
+		"nginx.org/ssl-redirect":               "True",
 		"ingress.kubernetes.io/ssl-redirect":   "True",
 		"nginx.com/slow-start":                 "0s",
 	}
@@ -851,6 +852,7 @@ func TestStandardIngressAnnotations(t *testing.T) {
 	expectedAnnotations := []string{
 		"appprotect.f5.com/app-protect-enable",
 		"nginx.org/proxy-set-header",
+		"nginx.org/ssl-redirect",
 		"nginx.com/slow-start",
 		"ingress.kubernetes.io/ssl-redirect",
 	}

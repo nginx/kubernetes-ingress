@@ -927,3 +927,87 @@ func TestClientBodyBufferSizeAnnotationInvalid(t *testing.T) {
 		})
 	}
 }
+
+func TestSSLRedirectAnnotations(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		expected    bool
+	}{
+		{
+			name: "nginx.org/ssl-redirect enabled",
+			annotations: map[string]string{
+				"nginx.org/ssl-redirect": "true",
+			},
+			expected: true,
+		},
+		{
+			name: "nginx.org/ssl-redirect disabled",
+			annotations: map[string]string{
+				"nginx.org/ssl-redirect": "false",
+			},
+			expected: false,
+		},
+		{
+			name: "deprecated ingress.kubernetes.io/ssl-redirect enabled",
+			annotations: map[string]string{
+				"ingress.kubernetes.io/ssl-redirect": "true",
+			},
+			expected: true,
+		},
+		{
+			name: "deprecated ingress.kubernetes.io/ssl-redirect disabled",
+			annotations: map[string]string{
+				"ingress.kubernetes.io/ssl-redirect": "false",
+			},
+			expected: false,
+		},
+		{
+			name: "nginx.org/ssl-redirect takes precedence when both present",
+			annotations: map[string]string{
+				"nginx.org/ssl-redirect":             "false",
+				"ingress.kubernetes.io/ssl-redirect": "true",
+			},
+			expected: false,
+		},
+		{
+			name: "nginx.org/ssl-redirect enabled takes precedence",
+			annotations: map[string]string{
+				"nginx.org/ssl-redirect":             "true",
+				"ingress.kubernetes.io/ssl-redirect": "false",
+			},
+			expected: true,
+		},
+		{
+			name:        "no ssl-redirect annotations",
+			annotations: map[string]string{},
+			expected:    true, // Default is true
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ingEx := &IngressEx{
+				Ingress: &networking.Ingress{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        "test-ingress",
+						Namespace:   "default",
+						Annotations: tt.annotations,
+					},
+				},
+			}
+
+			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+
+			if result.SSLRedirect != tt.expected {
+				t.Errorf("Test %q: expected SSLRedirect %t, got %t", tt.name, tt.expected, result.SSLRedirect)
+			}
+		})
+	}
+}

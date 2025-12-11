@@ -132,6 +132,11 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 	allWarnings := newWarnings()
 	allWarnings.Add(rewriteTargetWarnings)
 
+	// Check for deprecated SSL redirect annotation and add warning
+	if _, exists := p.ingEx.Ingress.Annotations["ingress.kubernetes.io/ssl-redirect"]; exists {
+		allWarnings.AddWarningf(p.ingEx.Ingress, "The annotation 'ingress.kubernetes.io/ssl-redirect' is deprecated and will be removed. Please use 'nginx.org/ssl-redirect' instead.")
+	}
+
 	var servers []version1.Server
 	var limitReqZones []version1.LimitReqZone
 
