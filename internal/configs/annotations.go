@@ -278,7 +278,6 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 			nl.Error(l, err)
 		} else {
 			cfgParams.SSLRedirect = sslRedirect
-			nl.Warnf(l, "Ingress %s/%s: ingress.kubernetes.io/ssl-redirect is deprecated, use nginx.org/ssl-redirect", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName())
 		}
 	}
 
