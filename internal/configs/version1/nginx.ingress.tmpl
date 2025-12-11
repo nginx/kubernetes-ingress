@@ -96,7 +96,7 @@ server {
 	{{- if not $server.GRPCOnly}}
 	{{- if $server.SSLRedirect}}
 	if ($scheme = http) {
-		return 301 https://$host:{{index $server.SSLPorts 0}}$request_uri;
+		return {{$server.HTTPRedirectCode}} https://$host:{{index $server.SSLPorts 0}}$request_uri;
 	}
 	{{- end}}
 	{{- end}}
@@ -104,7 +104,7 @@ server {
 
 	{{- if $server.RedirectToHTTPS}}
 	if ($http_x_forwarded_proto = 'http') {
-		return 301 https://$host$request_uri;
+		return {{$server.HTTPRedirectCode}} https://$host$request_uri;
 	}
 	{{- end}}
 

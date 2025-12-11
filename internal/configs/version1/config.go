@@ -94,6 +94,7 @@ type Server struct {
 	HTTP2                  bool
 	RedirectToHTTPS        bool
 	SSLRedirect            bool
+	HTTPRedirectCode       int
 	ProxyProtocol          bool
 	HSTS                   bool
 	HSTSMaxAge             int64

@@ -425,7 +425,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	}
 
 	sslConfig := vsc.generateSSLConfig(vsEx.VirtualServer, vsEx.VirtualServer.Spec.TLS, vsEx.VirtualServer.Namespace, vsEx.SecretRefs, vsc.cfgParams)
-	tlsRedirectConfig := generateTLSRedirectConfig(vsEx.VirtualServer.Spec.TLS)
+	tlsRedirectConfig := generateTLSRedirectConfig(vsEx.VirtualServer.Spec.TLS, vsc.cfgParams)
 
 	policyOpts := policyOptions{
 		tls:             sslConfig != nil,
@@ -3346,13 +3346,13 @@ func (vsc *virtualServerConfigurator) generateSSLConfig(owner runtime.Object, tl
 	return &ssl
 }
 
-func generateTLSRedirectConfig(tls *conf_v1.TLS) *version2.TLSRedirect {
+func generateTLSRedirectConfig(tls *conf_v1.TLS, cfgParams *ConfigParams) *version2.TLSRedirect {
 	if tls == nil || tls.Redirect == nil || !tls.Redirect.Enable {
 		return nil
 	}
 
 	redirect := &version2.TLSRedirect{
-		Code:    generateIntFromPointer(tls.Redirect.Code, 301),
+		Code:    generateIntFromPointer(tls.Redirect.Code, cfgParams.HTTPRedirectCode),
 		BasedOn: generateTLSRedirectBasedOn(tls.Redirect.BasedOn),
 	}
 

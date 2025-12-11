@@ -2712,6 +2712,168 @@ func TestParseErrorLogLevelToVirtualServer(t *testing.T) {
 	}
 }
 
+func TestParseHTTPRedirectCode(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		code    string
+		expect  int
+		isValid bool
+		msg     string
+	}{
+		{
+			code:    "301",
+			expect:  301,
+			isValid: true,
+			msg:     "valid code 301",
+		},
+		{
+			code:    "302",
+			expect:  302,
+			isValid: true,
+			msg:     "valid code 302",
+		},
+		{
+			code:    "307",
+			expect:  307,
+			isValid: true,
+			msg:     "valid code 307",
+		},
+		{
+			code:    "308",
+			expect:  308,
+			isValid: true,
+			msg:     "valid code 308",
+		},
+		{
+			code:    "200",
+			expect:  0,
+			isValid: false,
+			msg:     "invalid code 200",
+		},
+		{
+			code:    "404",
+			expect:  0,
+			isValid: false,
+			msg:     "invalid code 404",
+		},
+		{
+			code:    "invalid",
+			expect:  0,
+			isValid: false,
+			msg:     "non-numeric code",
+		},
+		{
+			code:    "",
+			expect:  0,
+			isValid: false,
+			msg:     "empty code",
+		},
+	}
+
+	for _, test := range tests {
+		result, err := ParseHTTPRedirectCode(test.code)
+		if test.isValid {
+			assert.NoError(t, err, test.msg)
+			assert.Equal(t, test.expect, result, test.msg)
+		} else {
+			assert.Error(t, err, test.msg)
+		}
+	}
+}
+
+func TestParseConfigMapWithHTTPRedirectCode(t *testing.T) {
+	t.Parallel()
+	nginxPlus := false
+	hasAppProtect := false
+	hasAppProtectDos := false
+	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
+
+	tests := []struct {
+		configMap   map[string]string
+		expected    int
+		expectError bool
+		msg         string
+	}{
+		{
+			configMap: map[string]string{
+				"http-redirect-code": "301",
+			},
+			expected:    301,
+			expectError: false,
+			msg:         "valid redirect code 301",
+		},
+		{
+			configMap: map[string]string{
+				"http-redirect-code": "302",
+			},
+			expected:    302,
+			expectError: false,
+			msg:         "valid redirect code 302",
+		},
+		{
+			configMap: map[string]string{
+				"http-redirect-code": "307",
+			},
+			expected:    307,
+			expectError: false,
+			msg:         "valid redirect code 307",
+		},
+		{
+			configMap: map[string]string{
+				"http-redirect-code": "308",
+			},
+			expected:    308,
+			expectError: false,
+			msg:         "valid redirect code 308",
+		},
+		{
+			configMap: map[string]string{
+				"http-redirect-code": "200",
+			},
+			expected:    301, // should fallback to default
+			expectError: true,
+			msg:         "invalid redirect code 200",
+		},
+		{
+			configMap: map[string]string{
+				"http-redirect-code": "invalid",
+			},
+			expected:    301, // should fallback to default
+			expectError: true,
+			msg:         "non-numeric redirect code",
+		},
+		{
+			configMap:   map[string]string{},
+			expected:    301, // default value
+			expectError: false,
+			msg:         "no redirect code specified",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			configMap := &v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "nginx-config",
+					Namespace: "nginx-ingress",
+				},
+				Data: test.configMap,
+			}
+
+			result, configOK := ParseConfigMap(context.Background(), configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+
+			if test.expectError {
+				assert.False(t, configOK, test.msg)
+			} else {
+				assert.True(t, configOK, test.msg)
+			}
+
+			assert.Equal(t, test.expected, result.HTTPRedirectCode, test.msg)
+		})
+	}
+}
+
 func makeEventLogger() record.EventRecorder {
 	return record.NewFakeRecorder(1024)
 }

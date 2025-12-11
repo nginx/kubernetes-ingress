@@ -163,6 +163,7 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 			HTTP2:                  cfgParams.HTTP2,
 			RedirectToHTTPS:        cfgParams.RedirectToHTTPS,
 			SSLRedirect:            cfgParams.SSLRedirect,
+			HTTPRedirectCode:       cfgParams.HTTPRedirectCode,
 			SSLCiphers:             cfgParams.ServerSSLCiphers,
 			SSLPreferServerCiphers: cfgParams.ServerSSLPreferServerCiphers,
 			ProxyProtocol:          cfgParams.ProxyProtocol,

@@ -159,6 +159,20 @@ func TestExecuteTemplate_ForIngressForNGINX(t *testing.T) {
 	snaps.MatchSnapshot(t, buf.String())
 }
 
+func TestExecuteTemplate_ForIngressForNGINXWithHTTPRedirectCode(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithHTTPRedirectCode)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
 func TestExecuteTemplate_ForIngressForNGINXPlusWithRegexAnnotationCaseSensitiveModifier(t *testing.T) {
 	t.Parallel()
 
@@ -2100,6 +2114,7 @@ var (
 				SSLCertificateKey: "secret.pem",
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				Locations: []Location{
 					{
 						Path:                "/tea",
@@ -2170,6 +2185,7 @@ var (
 				SSLCertificateKey: "secret.pem",
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				Locations: []Location{
 					{
 						Path:                 "/tea",
@@ -2224,6 +2240,41 @@ var (
 		},
 	}
 
+	// Ingress Config example with ssl-redirect and redirect-to-https enabled with custom http-redirect-ccode
+	ingressCfgWithHTTPRedirectCode = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:              "test.example.com",
+				ServerTokens:      "off",
+				StatusZone:        "test.example.com",
+				SSL:               true,
+				SSLCertificate:    "secret.pem",
+				SSLCertificateKey: "secret.pem",
+				SSLPorts:          []int{443},
+				SSLRedirect:       true,
+				RedirectToHTTPS:   true,
+				HTTPRedirectCode:  308,
+				Locations: []Location{
+					{
+						Path:                "/tea",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "10s",
+						ProxyReadTimeout:    "10s",
+						ProxySendTimeout:    "10s",
+						ClientMaxBodySize:   "2m",
+					},
+				},
+				HealthChecks: map[string]HealthCheck{"test": healthCheck},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+
 	// Ingress Config example with path-regex annotation value "case_sensitive"
 	ingressCfgWithRegExAnnotationCaseSensitive = IngressNginxConfig{
 		Servers: []Server{
@@ -2242,6 +2293,7 @@ var (
 				SSLCertificateKey: "secret.pem",
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				Locations: []Location{
 					{
 						Path:                "/tea/[A-Z0-9]{3}",
@@ -2297,6 +2349,7 @@ var (
 				SSLCertificateKey: "secret.pem",
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				Locations: []Location{
 					{
 						Path:                "/tea/[A-Z0-9]{3}",
@@ -2352,6 +2405,7 @@ var (
 				SSLCertificateKey: "secret.pem",
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				Locations: []Location{
 					{
 						Path:                "/tea",
@@ -2407,6 +2461,7 @@ var (
 				SSLCertificateKey: "secret.pem",
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				Locations: []Location{
 					{
 						Path:                "/tea",
@@ -2899,6 +2954,7 @@ var (
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]HealthCheck),
 			},
 		},
@@ -2972,6 +3028,7 @@ var (
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]HealthCheck),
 			},
 		},
@@ -3047,6 +3104,7 @@ var (
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]HealthCheck),
 			},
 		},
@@ -3121,6 +3179,7 @@ var (
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]HealthCheck),
 			},
 		},
@@ -3195,6 +3254,7 @@ var (
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]HealthCheck),
 			},
 		},
@@ -3272,6 +3332,7 @@ var (
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]HealthCheck),
 			},
 		},
@@ -3348,6 +3409,7 @@ var (
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]HealthCheck),
 			},
 		},
@@ -3424,6 +3486,7 @@ var (
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]HealthCheck),
 			},
 		},
@@ -3449,6 +3512,7 @@ var (
 				SSLCertificateKey: "secret.pem",
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				Locations: []Location{
 					{
 						Path:                "/tea",
@@ -3502,6 +3566,7 @@ var (
 				SSLCertificateKey: "secret.pem",
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				Locations: []Location{
 					{
 						Path:                "/tea",
@@ -3586,6 +3651,7 @@ var (
 				SSLCertificateKey: "secret.pem",
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				Locations: []Location{
 					{
 						Path:                "/tea",

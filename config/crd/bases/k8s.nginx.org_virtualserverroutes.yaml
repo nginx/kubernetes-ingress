@@ -178,7 +178,9 @@ spec:
                           properties:
                             code:
                               description: 'The status code of a redirect. The allowed
-                                values are: 301, 302, 307 or 308. The default is 301.'
+                                values are: 301, 302, 307 or 308. The default follows
+                                the ConfigMap http-redirect-code setting, which defaults
+                                to 301.'
                               type: integer
                             url:
                               description: 'The URL to redirect the request to. Supported
@@ -243,8 +245,9 @@ spec:
                             properties:
                               code:
                                 description: 'The status code of a redirect. The allowed
-                                  values are: 301, 302, 307 or 308. The default is
-                                  301.'
+                                  values are: 301, 302, 307 or 308. The default follows
+                                  the ConfigMap http-redirect-code setting, which
+                                  defaults to 301.'
                                 type: integer
                               url:
                                 description: 'The URL to redirect the request to.
@@ -400,7 +403,8 @@ spec:
                                   code:
                                     description: 'The status code of a redirect. The
                                       allowed values are: 301, 302, 307 or 308. The
-                                      default is 301.'
+                                      default follows the ConfigMap http-redirect-code
+                                      setting, which defaults to 301.'
                                     type: integer
                                   url:
                                     description: 'The URL to redirect the request
@@ -585,7 +589,9 @@ spec:
                                         code:
                                           description: 'The status code of a redirect.
                                             The allowed values are: 301, 302, 307
-                                            or 308. The default is 301.'
+                                            or 308. The default follows the ConfigMap
+                                            http-redirect-code setting, which defaults
+                                            to 301.'
                                           type: integer
                                         url:
                                           description: 'The URL to redirect the request
@@ -783,7 +789,8 @@ spec:
                                   code:
                                     description: 'The status code of a redirect. The
                                       allowed values are: 301, 302, 307 or 308. The
-                                      default is 301.'
+                                      default follows the ConfigMap http-redirect-code
+                                      setting, which defaults to 301.'
                                     type: integer
                                   url:
                                     description: 'The URL to redirect the request
