@@ -146,6 +146,7 @@ run-tests-in-minikube: certs ## Run tests in Minikube
 		-v $(ROOT_DIR)/tests:/workspace/tests \
 		-v $$HOME/.minikube:$$HOME/.minikube \
 		-v $(ROOT_DIR)/common-secrets:/workspace/common-secrets \
+		-v $(ROOT_DIR)/charts:/workspace/charts \
 		-v $(ROOT_DIR)/deployments:/workspace/deployments \
 		-v $(ROOT_DIR)/config:/workspace/config \
 		-v $(ROOT_DIR)/pyproject.toml:/workspace/pyproject.toml \

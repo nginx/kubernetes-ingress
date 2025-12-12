@@ -515,20 +515,18 @@ def create_generic_from_yaml(file_path, request):
     :param kube_apis: client apis
     :param request: pytest fixture
     """
-    print(f"Create resources from {file_path}:")
     try:
         subprocess.run(["kubectl", "apply", "-f", f"{file_path}"], capture_output=True, check=True)
-    except subprocess.CalledProcessError as e:
-        print(f"Error applying {file_path}: {e.stderr.decode()}")
+    except subprocess.CalledProcessError:
+        print("Error occurred while applying a resource definition. See logs for details.")
         raise
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
-            print("Clean up resources from {file_path}:")
             try:
                 subprocess.run(["kubectl", "delete", "-f", f"{file_path}"], capture_output=True, check=True)
-            except subprocess.CalledProcessError as e:
-                print(f"Error deleting {file_path}: {e.stderr.decode()}")
+            except subprocess.CalledProcessError:
+                print("Error occurred while cleaning up resources. See logs for details.")
                 raise
 
     request.addfinalizer(fin)
