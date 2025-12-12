@@ -1029,12 +1029,12 @@ func TestHTTPRedirectCodeAnnotationBehavior(t *testing.T) {
 			expectedCode: 307,
 		},
 		{
-			name: "redirect code ignored when SSL redirect disabled",
+			name: "redirect code applied when SSL redirect disabled",
 			annotations: map[string]string{
 				"nginx.org/ssl-redirect":       "false",
 				"nginx.org/http-redirect-code": "307",
 			},
-			expectedCode: 301, // default
+			expectedCode: 307,
 		},
 		{
 			name: "redirect code applied with redirect-to-https",
@@ -1043,6 +1043,13 @@ func TestHTTPRedirectCodeAnnotationBehavior(t *testing.T) {
 				"nginx.org/http-redirect-code": "302",
 			},
 			expectedCode: 302,
+		},
+		{
+			name: "redirect code applied without any redirect settings",
+			annotations: map[string]string{
+				"nginx.org/http-redirect-code": "308",
+			},
+			expectedCode: 308,
 		},
 	}
 

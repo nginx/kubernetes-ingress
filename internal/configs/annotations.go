@@ -289,17 +289,10 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 	}
 
 	if httpRedirectCode, exists := ingEx.Ingress.Annotations[HTTPRedirectCodeAnnotation]; exists {
-		// Check if SSL redirect or redirect-to-https is enabled
-		sslRedirectEnabled := cfgParams.SSLRedirect
-		redirectToHTTPSEnabled := cfgParams.RedirectToHTTPS
-
-		// HTTP redirect code annotation only applies when SSL redirect or redirect-to-https is enabled
-		if sslRedirectEnabled || redirectToHTTPSEnabled {
-			if code, err := ParseHTTPRedirectCode(httpRedirectCode); err != nil {
-				nl.Errorf(l, "Ingress %s/%s: Invalid value for nginx.org/http-redirect-code: %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), httpRedirectCode, err)
-			} else {
-				cfgParams.HTTPRedirectCode = code
-			}
+		if code, err := ParseHTTPRedirectCode(httpRedirectCode); err != nil {
+			nl.Errorf(l, "Ingress %s/%s: Invalid value for nginx.org/http-redirect-code: %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), httpRedirectCode, err)
+		} else {
+			cfgParams.HTTPRedirectCode = code
 		}
 	}
 
