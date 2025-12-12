@@ -188,6 +188,7 @@ jobs:
       go-md5: ${{ needs.checks.outputs.go_code_md5 }}
       docker-md5: ${{ needs.checks.outputs.docker_md5 }}
       runner: "ubuntu-24.04-amd64"
+      write-to-cache: true
     secrets: inherit
     permissions:
       contents: read
