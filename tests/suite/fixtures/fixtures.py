@@ -10,6 +10,7 @@ from kubernetes import client, config
 from kubernetes.client import (
     ApiextensionsV1Api,
     AppsV1Api,
+    CoordinationV1Api,
     CoreV1Api,
     CustomObjectsApi,
     NetworkingV1Api,
@@ -29,8 +30,10 @@ from suite.utils.resources_utils import (
     create_ns_and_sa_from_yaml,
     create_secret_from_yaml,
     create_service_from_yaml,
+    delete_lease,
     delete_namespace,
     delete_testing_namespaces,
+    get_leases,
     get_service_node_ports,
     replace_configmap_from_yaml,
     wait_before_test,
@@ -49,6 +52,7 @@ class KubeApis:
         rbac_v1: RbacAuthorizationV1Api
         api_extensions_v1: ApiextensionsV1Api
         custom_objects: CustomObjectsApi
+        coordination_v1: CoordinationV1Api
     """
 
     def __init__(
@@ -59,6 +63,7 @@ class KubeApis:
         rbac_v1: RbacAuthorizationV1Api,
         api_extensions_v1: ApiextensionsV1Api,
         custom_objects: CustomObjectsApi,
+        coordination_v1: CoordinationV1Api,
     ):
         self.v1 = v1
         self.networking_v1 = networking_v1
@@ -66,6 +71,7 @@ class KubeApis:
         self.rbac_v1 = rbac_v1
         self.api_extensions_v1 = api_extensions_v1
         self.custom_objects = custom_objects
+        self.coordination_v1 = coordination_v1
 
 
 class PublicEndpoint:
@@ -293,7 +299,8 @@ def kube_apis(cli_arguments) -> KubeApis:
     rbac_v1 = client.RbacAuthorizationV1Api()
     api_extensions_v1 = client.ApiextensionsV1Api()
     custom_objects = client.CustomObjectsApi()
-    return KubeApis(v1, networking_v1, apps_v1_api, rbac_v1, api_extensions_v1, custom_objects)
+    coordination_v1 = client.CoordinationV1Api()
+    return KubeApis(v1, networking_v1, apps_v1_api, rbac_v1, api_extensions_v1, custom_objects, coordination_v1)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -446,7 +453,7 @@ def restore_configmap(request, kube_apis, ingress_controller_prerequisites, test
     request.addfinalizer(fin)
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def create_certmanager(request):
     """
     Create Cert-manager.
@@ -454,11 +461,8 @@ def create_certmanager(request):
     :param kube_apis: client apis
     :param request: pytest fixture
     """
-    issuer_name = request.param.get("issuer_name")
-    has_issuer_secret = False
-    if issuer_name == "ca-issuer":
-        has_issuer_secret = True
     cm_yaml = f"{TEST_DATA}/virtual-server-certmanager/certmanager.yaml"
+    kube_apis = request.getfixturevalue("kube_apis")
     with open(cm_yaml) as f:
         cm_yaml_content = yaml.load_all(f, Loader=yaml.SafeLoader)
         print("------------------------- Deploy CertManager in the cluster -----------------------------------")
@@ -473,23 +477,34 @@ def create_certmanager(request):
                 while (not are_all_pods_in_ready_state(request.getfixturevalue("kube_apis").v1, ns)) and count < 10:
                     count += 1
                     wait_before_test()
-        create_issuer(issuer_name, has_issuer_secret, request)
+
+    def fin():
+        if request.config.getoption("--skip-fixture-teardown") == "no":
+            print("------------------------- Delete CertManager from the cluster -----------------------------------")
+            leases = get_leases(kube_apis.coordination_v1, "kube-system")
+            for lease in leases.items:
+                if "cert-manager" in lease.metadata.name:
+                    delete_lease(kube_apis.coordination_v1, lease.metadata.name, "kube-system")
+
+    request.addfinalizer(fin)
 
 
-def create_issuer(issuer_name, has_secret, request):
+@pytest.fixture(scope="class")
+def create_issuer(request):
     """
-    Create Cert-manager.
+    Create Cert-manager issuer.
 
     :param kube_apis: client apis
     :param issuer_name: the name of the issuer
     :param request: pytest fixture
     """
+    issuer_name = request.param.get("issuer_name")
     issuer_yaml = f"{TEST_DATA}/virtual-server-certmanager/{issuer_name}.yaml"
     issuer_secret_yaml = f"{TEST_DATA}/virtual-server-certmanager/issuer-secret.yaml"
 
     print(f"Create issuer {issuer_name}")
     create_generic_from_yaml(issuer_yaml, request)
-    if has_secret is True:
+    if issuer_name == "ca-issuer":
         create_generic_from_yaml(issuer_secret_yaml, request)
 
 
@@ -500,13 +515,21 @@ def create_generic_from_yaml(file_path, request):
     :param kube_apis: client apis
     :param request: pytest fixture
     """
-
-    subprocess.run(["kubectl", "apply", "-f", f"{file_path}"])
+    print(f"Create resources from {file_path}:")
+    try:
+        subprocess.run(["kubectl", "apply", "-f", f"{file_path}"], capture_output=True, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Error applying {file_path}: {e.stderr.decode()}")
+        raise
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
             print("Clean up resources from {file_path}:")
-            subprocess.run(["kubectl", "delete", "-f", f"{file_path}"])
+            try:
+                subprocess.run(["kubectl", "delete", "-f", f"{file_path}"], capture_output=True, check=True)
+            except subprocess.CalledProcessError as e:
+                print(f"Error deleting {file_path}: {e.stderr.decode()}")
+                raise
 
     request.addfinalizer(fin)
 

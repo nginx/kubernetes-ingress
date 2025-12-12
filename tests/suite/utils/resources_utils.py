@@ -12,10 +12,12 @@ import requests
 import yaml
 from kubernetes.client import (
     AppsV1Api,
+    CoordinationV1Api,
     CoreV1Api,
     NetworkingV1Api,
     RbacAuthorizationV1Api,
     V1Ingress,
+    V1LeaseList,
     V1ObjectMeta,
     V1Secret,
     V1Service,
@@ -1830,6 +1832,33 @@ def wait_for_event(v1: CoreV1Api, text, namespace, retry=30, interval=1) -> None
         wait_before_test(interval)
         c += 1
     return False
+
+
+def get_leases(v1: CoordinationV1Api, namespace) -> V1LeaseList:
+    """
+    Get the list of leases in a namespace.
+
+    :param v1: CoordinationV1Api
+    :param namespace:
+    :return: V1LeaseList
+    """
+    print(f"Get the leases in the namespace: {namespace}")
+    res = v1.list_namespaced_lease(namespace)
+    return res
+
+
+def delete_lease(v1: CoordinationV1Api, name, namespace) -> None:
+    """
+    Delete a lease.
+
+    :param v1: CoordinationV1Api
+    :param name:
+    :param namespace:
+    :return:
+    """
+    print(f"Delete a lease: {name}")
+    v1.delete_namespaced_lease(name, namespace)
+    ensure_item_removal(v1.read_namespaced_lease, name, namespace)
 
 
 def ensure_response_from_backend(req_url, host, additional_headers=None, check404=False, sni=False) -> None:

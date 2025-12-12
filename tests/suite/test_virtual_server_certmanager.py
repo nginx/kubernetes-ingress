@@ -15,7 +15,7 @@ from suite.utils.yaml_utils import get_secret_name_from_vs_or_ts_yaml
 @pytest.mark.vs_certmanager
 @pytest.mark.smoke
 @pytest.mark.parametrize(
-    "crd_ingress_controller, create_certmanager, virtual_server_setup",
+    "crd_ingress_controller, create_issuer, virtual_server_setup",
     [
         (
             {"type": "complete", "extra_args": [f"-enable-custom-resources", f"-enable-cert-manager"]},
@@ -26,7 +26,9 @@ from suite.utils.yaml_utils import get_secret_name_from_vs_or_ts_yaml
     indirect=True,
 )
 class TestCertManagerVirtualServer:
-    def test_responses_after_setup(self, kube_apis, crd_ingress_controller, create_certmanager, virtual_server_setup):
+    def test_responses_after_setup(
+        self, kube_apis, crd_ingress_controller, create_certmanager, create_issuer, virtual_server_setup
+    ):
         print("\nStep 1: Verify secret exists")
         secret_name = get_secret_name_from_vs_or_ts_yaml(
             f"{TEST_DATA}/virtual-server-certmanager/standard/virtual-server.yaml"
@@ -55,7 +57,7 @@ class TestCertManagerVirtualServer:
 @pytest.mark.vs_certmanager
 @pytest.mark.smoke
 @pytest.mark.parametrize(
-    "crd_ingress_controller, create_certmanager, virtual_server_setup",
+    "crd_ingress_controller, create_issuer, virtual_server_setup",
     [
         (
             {"type": "complete", "extra_args": [f"-enable-custom-resources", f"-enable-cert-manager"]},
@@ -66,7 +68,9 @@ class TestCertManagerVirtualServer:
     indirect=True,
 )
 class TestCertManagerVirtualServerCA:
-    def test_responses_after_setup(self, kube_apis, crd_ingress_controller, create_certmanager, virtual_server_setup):
+    def test_responses_after_setup(
+        self, kube_apis, crd_ingress_controller, create_certmanager, create_issuer, virtual_server_setup
+    ):
         vs_src = f"{TEST_DATA}/virtual-server-certmanager/virtual-server-updated.yaml"
         print("\nStep 1: Verify no secret exists with bad issuer name")
         secret_name = get_secret_name_from_vs_or_ts_yaml(
@@ -101,7 +105,9 @@ class TestCertManagerVirtualServerCA:
             200, virtual_server_setup.backend_2_url_ssl, virtual_server_setup.vs_host, verify=False
         )
 
-    def test_virtual_server_no_cm(self, kube_apis, crd_ingress_controller, create_certmanager, virtual_server_setup):
+    def test_virtual_server_no_cm(
+        self, kube_apis, crd_ingress_controller, create_certmanager, create_issuer, virtual_server_setup
+    ):
         vs_src = f"{TEST_DATA}/virtual-server-certmanager/virtual-server-no-tls.yaml"
         patch_virtual_server_from_yaml(
             kube_apis.custom_objects, virtual_server_setup.vs_name, vs_src, virtual_server_setup.namespace
@@ -129,7 +135,7 @@ class TestCertManagerVirtualServerCA:
 @pytest.mark.vs_certmanager
 @pytest.mark.smoke
 @pytest.mark.parametrize(
-    "crd_ingress_controller, create_certmanager, virtual_server_setup",
+    "crd_ingress_controller, create_issuer, virtual_server_setup",
     [
         (
             {
@@ -148,7 +154,7 @@ class TestCertManagerVirtualServerCA:
 )
 class TestCertManagerVirtualServerWatchLabel:
     def test_responses_after_setup(
-        self, kube_apis, crd_ingress_controller, create_certmanager, virtual_server_setup, test_namespace
+        self, kube_apis, crd_ingress_controller, create_certmanager, create_issuer, virtual_server_setup, test_namespace
     ):
         print("\nStep 1: Not watching namespace - verify secret does not exist")
         secret_name = get_secret_name_from_vs_or_ts_yaml(
