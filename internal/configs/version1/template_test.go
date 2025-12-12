@@ -2240,7 +2240,7 @@ var (
 		},
 	}
 
-	// Ingress Config example with ssl-redirect and redirect-to-https enabled with custom http-redirect-ccode
+	// Ingress Config example with ssl-redirect and redirect-to-https enabled with custom http-redirect-code
 	ingressCfgWithHTTPRedirectCode = IngressNginxConfig{
 		Servers: []Server{
 			{
