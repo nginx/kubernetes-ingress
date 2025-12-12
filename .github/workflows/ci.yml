@@ -356,6 +356,7 @@ jobs:
       ic-version: ${{ needs.checks.outputs.ic_version }}
       authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
       runner: ubuntu-24.04
+      write-to-cache: false
     permissions:
       contents: read
       actions: read

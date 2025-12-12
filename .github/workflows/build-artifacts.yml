@@ -43,6 +43,10 @@ on:
       image-matrix-nap:
         required: true
         type: string
+      write-to-cache:
+        description: Whether to write built images to cache
+        type: boolean
+        default: false
 
 defaults:
   run:
@@ -208,6 +212,7 @@ jobs:
       branch: ${{ inputs.branch }}
       ic-version: ${{ inputs.ic-version }}
       runner: ${{ inputs.runner }}
+      write-to-cache: ${{ inputs.write-to-cache }}
     permissions:
       contents: read
       actions: read
@@ -235,6 +240,7 @@ jobs:
       full-build: ${{ inputs.force }}
       ic-version: ${{ inputs.ic-version }}
       runner: ${{ inputs.runner }}
+      write-to-cache: ${{ inputs.write-to-cache }}
     permissions:
       contents: read
       id-token: write
@@ -261,6 +267,7 @@ jobs:
       full-build: ${{ inputs.force }}
       ic-version: ${{ inputs.ic-version }}
       runner: ${{ inputs.runner }}
+      write-to-cache: ${{ inputs.write-to-cache }}
     permissions:
       contents: read
       id-token: write # gcr login

@@ -40,6 +40,10 @@ on:
       runner:
         type: string
         default: ubuntu-24.04
+      write-to-cache:
+        required: false
+        type: boolean
+        default: false
 
 defaults:
   run:
@@ -200,7 +204,7 @@ jobs:
         with:
           file: build/Dockerfile
           context: "."
-          cache-to: type=gha,scope=${{ inputs.image }}${{ steps.nap_modules.outputs.name != '' && format('-{0}', steps.nap_modules.outputs.name) || '' }},mode=max
+          cache-to: ${{ inputs.write-to-cache && format('type=gha,scope={0}{1},mode=max', inputs.image, steps.nap_modules.outputs.name != '' && format('-{0}', steps.nap_modules.outputs.name) || '' ) || '' }}
           target: common
           tags: ${{ steps.base_name.outputs.image }}
           platforms: ${{ inputs.platforms }}
@@ -239,7 +243,7 @@ jobs:
           file: build/Dockerfile
           context: "."
           cache-from: type=gha,scope=${{ inputs.image }}${{ steps.nap_modules.outputs.name != '' && format('-{0}', steps.nap_modules.outputs.name) || '' }}
-          cache-to: type=gha,scope=${{ inputs.image }}${{ steps.nap_modules.outputs.name != '' && format('-{0}', steps.nap_modules.outputs.name) || '' }},mode=max
+          cache-to: ${{ inputs.write-to-cache && format('type=gha,scope={0}{1},mode=max', inputs.image, steps.nap_modules.outputs.name != '' && format('-{0}', steps.nap_modules.outputs.name) || '' ) || '' }}
           target: ${{ inputs.target }}${{ inputs.authenticated && '-prebuilt' || '' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
