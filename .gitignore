@@ -144,7 +144,7 @@ tests/data/wildcard-tls-secret/gb-wildcard-tls-secret.yaml
 common-secrets/vs-tls-secret.yaml
 tests/data/ap-waf-grpc/tls-secret.yaml
 common-secrets/app-tls-secret.yaml
-tests/data/common/app/secure/secret/app-tls-secret.yaml
+tests/data/common/app/secure/app-tls-secret.yaml
 tests/data/transport-server-tls-passthrough/standard/secure-app-secret.yaml
 tests/data/transport-server-backup-service/standard/secure-app-secret.yaml
 common-secrets/tls-secret-tcp-lb-cafe.yaml
