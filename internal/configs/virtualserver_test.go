@@ -16852,34 +16852,30 @@ func TestGenerateSSLConfig(t *testing.T) {
 func TestGenerateRedirectConfig(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		inputTLS            *conf_v1.TLS
-		defaultRedirectCode int
-		expected            *version2.TLSRedirect
-		msg                 string
+		inputTLS *conf_v1.TLS
+		expected *version2.TLSRedirect
+		msg      string
 	}{
 		{
-			inputTLS:            nil,
-			defaultRedirectCode: 301,
-			expected:            nil,
-			msg:                 "no TLS field",
+			inputTLS: nil,
+			expected: nil,
+			msg:      "no TLS field",
 		},
 		{
 			inputTLS: &conf_v1.TLS{
 				Secret:   "secret",
 				Redirect: nil,
 			},
-			defaultRedirectCode: 301,
-			expected:            nil,
-			msg:                 "no redirect field",
+			expected: nil,
+			msg:      "no redirect field",
 		},
 		{
 			inputTLS: &conf_v1.TLS{
 				Secret:   "secret",
 				Redirect: &conf_v1.TLSRedirect{Enable: false},
 			},
-			defaultRedirectCode: 301,
-			expected:            nil,
-			msg:                 "redirect disabled",
+			expected: nil,
+			msg:      "redirect disabled",
 		},
 		{
 			inputTLS: &conf_v1.TLS{
@@ -16888,7 +16884,6 @@ func TestGenerateRedirectConfig(t *testing.T) {
 					Enable: true,
 				},
 			},
-			defaultRedirectCode: 301,
 			expected: &version2.TLSRedirect{
 				Code:    301,
 				BasedOn: "$scheme",
@@ -16903,34 +16898,16 @@ func TestGenerateRedirectConfig(t *testing.T) {
 					BasedOn: "x-forwarded-proto",
 				},
 			},
-			defaultRedirectCode: 301,
 			expected: &version2.TLSRedirect{
 				Code:    301,
 				BasedOn: "$http_x_forwarded_proto",
 			},
 			msg: "normal case with BasedOn set",
 		},
-		{
-			inputTLS: &conf_v1.TLS{
-				Secret: "secret",
-				Redirect: &conf_v1.TLSRedirect{
-					Enable: true,
-				},
-			},
-			defaultRedirectCode: 308,
-			expected: &version2.TLSRedirect{
-				Code:    308,
-				BasedOn: "$scheme",
-			},
-			msg: "normal case with non 301 default redirect code",
-		},
 	}
 
 	for _, test := range tests {
-		cfgParams := &ConfigParams{
-			HTTPRedirectCode: test.defaultRedirectCode,
-		}
-		result := generateTLSRedirectConfig(test.inputTLS, cfgParams)
+		result := generateTLSRedirectConfig(test.inputTLS)
 		if !reflect.DeepEqual(result, test.expected) {
 			t.Errorf("generateTLSRedirectConfig() returned %v but expected %v for the case of %s", result, test.expected, test.msg)
 		}
