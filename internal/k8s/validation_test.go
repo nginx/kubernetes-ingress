@@ -1424,6 +1424,35 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 
 		{
 			annotations: map[string]string{
+				"nginx.org/ssl-redirect": "true",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/ssl-redirect annotation",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/ssl-redirect": "not_a_boolean",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors: []string{
+				`annotations.nginx.org/ssl-redirect: Invalid value: "not_a_boolean": must be a boolean`,
+			},
+			msg: "invalid nginx.org/ssl-redirect annotation",
+		},
+
+		{
+			annotations: map[string]string{
 				"ingress.kubernetes.io/ssl-redirect": "true",
 			},
 			specServices:          map[string]bool{},

@@ -30,6 +30,9 @@ const SSLPreferServerCiphersAnnotation = "nginx.org/ssl-prefer-server-ciphers"
 // UseClusterIPAnnotation is the annotation where the use-cluster-ip boolean is specified.
 const UseClusterIPAnnotation = "nginx.org/use-cluster-ip"
 
+// SSLRedirectAnnotation is the annotation where the SSL redirect boolean is specified.
+const SSLRedirectAnnotation = "nginx.org/ssl-redirect"
+
 // AppProtectPolicyAnnotation is where the NGINX App Protect policy is specified
 const AppProtectPolicyAnnotation = "appprotect.f5.com/app-protect-policy"
 
@@ -62,6 +65,7 @@ var minionDenylist = map[string]bool{
 	"nginx.org/proxy-pass-headers":                      true,
 	"nginx.org/redirect-to-https":                       true,
 	"ingress.kubernetes.io/ssl-redirect":                true,
+	SSLRedirectAnnotation:                               true,
 	"nginx.org/hsts":                                    true,
 	"nginx.org/hsts-max-age":                            true,
 	"nginx.org/hsts-include-subdomains":                 true,
@@ -263,7 +267,13 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		}
 	}
 
-	if sslRedirect, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "ingress.kubernetes.io/ssl-redirect", ingEx.Ingress); exists {
+	if sslRedirect, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, SSLRedirectAnnotation, ingEx.Ingress); exists {
+		if err != nil {
+			nl.Error(l, err)
+		} else {
+			cfgParams.SSLRedirect = sslRedirect
+		}
+	} else if sslRedirect, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "ingress.kubernetes.io/ssl-redirect", ingEx.Ingress); exists {
 		if err != nil {
 			nl.Error(l, err)
 		} else {

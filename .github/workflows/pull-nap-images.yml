@@ -1,26 +1,15 @@
-name: "Retag Dev Images"
+name: Pull NAP Images
+run-name: ${{ inputs.dry_run && '[DRY RUN] ' || '' }}pull-nap-images - ${{ github.ref_name }} - ${{ inputs.version }}
 
 on:
   workflow_dispatch:
     inputs:
-      source_tag:
+      version:
+        description: "Version to pull"
         required: true
-        type: string
-      target_tag:
-        required: true
-        type: string
+        default: "latest"
       dry_run:
-        type: boolean
-        default: false
-  workflow_call:
-    inputs:
-      source_tag:
-        required: true
-        type: string
-      target_tag:
-        required: true
-        type: string
-      dry_run:
+        description: "Don't push images"
         type: boolean
         default: false
 
@@ -28,16 +17,20 @@ defaults:
   run:
     shell: bash
 
+concurrency:
+  group: ${{ github.ref_name }}-nap-images
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
-  copy-to-gcr-dev-registry:
-    name: Re-tag images in GCR Dev Registry
-    runs-on: ubuntu-24.04
+  sync-nap-images:
+    name: Pull NAP Images
     permissions:
       contents: read
       id-token: write
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
@@ -75,12 +68,21 @@ jobs:
           username: oauth2accesstoken
           password: ${{ steps.gcr-auth.outputs.access_token }}
 
-      - name: Retag images
+      - name: Get Id Token
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        id: idtoken
+        with:
+          script: |
+            let id_token = await core.getIDToken()
+            core.setOutput('id_token', id_token)
+
+      - name: Login to NGINX Registry
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: docker-mgmt.nginx.com
+          username: ${{ steps.idtoken.outputs.id_token }}
+          password: ${{ github.actor }}
+
+      - name: Sync NAP Images
         run: |
-          export CONFIG_PATH=.github/config/config-gcr-retag
-          export SOURCE_TAG=${{ inputs.source_tag }}
-          export TARGET_TAG=${{ inputs.target_tag }}
-          if ${{ inputs.dry_run }}; then
-            export DRY_RUN=true
-          fi
-          .github/scripts/copy-images.sh
+          ./.github/scripts/pull-nap-images.sh "${{ inputs.version }}" "${{ inputs.dry_run }}"

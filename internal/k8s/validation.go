@@ -36,7 +36,8 @@ const (
 	clientMaxBodySizeAnnotation           = "nginx.org/client-max-body-size"
 	clientBodyBufferSizeAnnotation        = "nginx.org/client-body-buffer-size"
 	redirectToHTTPSAnnotation             = "nginx.org/redirect-to-https"
-	sslRedirectAnnotation                 = "ingress.kubernetes.io/ssl-redirect"
+	sslRedirectAnnotationDeprecated       = "ingress.kubernetes.io/ssl-redirect"
+	sslRedirectAnnotation                 = "nginx.org/ssl-redirect"
 	proxyBufferingAnnotation              = "nginx.org/proxy-buffering"
 	hstsAnnotation                        = "nginx.org/hsts"
 	hstsMaxAgeAnnotation                  = "nginx.org/hsts-max-age"
@@ -185,6 +186,10 @@ var (
 			validateSizeAnnotation,
 		},
 		redirectToHTTPSAnnotation: {
+			validateRequiredAnnotation,
+			validateBoolAnnotation,
+		},
+		sslRedirectAnnotationDeprecated: {
 			validateRequiredAnnotation,
 			validateBoolAnnotation,
 		},

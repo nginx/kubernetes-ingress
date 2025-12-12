@@ -44,11 +44,7 @@ def virtual_server_foreign_upstream_app_setup(
     :param test_namespace:
     :return: VirtualServerSetup
     """
-    print("------------------------- Deploy Virtual Server Example -----------------------------------")
     vs_source = f"{TEST_DATA}/{request.param['example']}/standard/virtual-server.yaml"
-    vs_name = create_virtual_server_from_yaml(kube_apis.custom_objects, vs_source, test_namespace)
-    vs_host = get_first_host_from_yaml(vs_source)
-    vs_paths = get_paths_from_vs_yaml(vs_source)
     upstream_namespaces = get_upstream_namespace_from_vs_yaml(vs_source, test_namespace)
     print(f"Upstream namespaces detected in the VS yaml: {upstream_namespaces}")
     ns_1 = (
@@ -61,11 +57,16 @@ def virtual_server_foreign_upstream_app_setup(
         if upstream_namespaces[1] != test_namespace
         else test_namespace
     )
+    print("------------------------- Deploy Virtual Server Example -----------------------------------")
     create_items_from_yaml(kube_apis, f"{TEST_DATA}/common/app/{request.param['app_type']}/backend1.yaml", ns_1)
     create_items_from_yaml(kube_apis, f"{TEST_DATA}/common/app/{request.param['app_type']}/backend2.yaml", ns_2)
 
     wait_until_all_pods_are_ready(kube_apis.v1, ns_1)
     wait_until_all_pods_are_ready(kube_apis.v1, ns_2)
+
+    vs_name = create_virtual_server_from_yaml(kube_apis.custom_objects, vs_source, test_namespace)
+    vs_host = get_first_host_from_yaml(vs_source)
+    vs_paths = get_paths_from_vs_yaml(vs_source)
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
@@ -95,7 +96,6 @@ def virtual_server_foreign_upstream_app_setup(
 @pytest.mark.vs
 @pytest.mark.vs_responses
 @pytest.mark.smoke
-@pytest.mark.skip(reason="Flaky test - needs investigation")
 @pytest.mark.parametrize(
     "crd_ingress_controller, virtual_server_foreign_upstream_app_setup",
     [
