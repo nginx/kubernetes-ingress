@@ -23,7 +23,7 @@ ARCH                          ?= amd64 ## The architecture of the image or binar
 GOOS                          ?= linux ## The OS of the binary. For example linux, darwin
 TELEMETRY_ENDPOINT            ?= oss.edge.df.f5.com:443
 # renovate: datasource=docker depName=golangci/golangci-lint
-GOLANGCI_LINT_VERSION         ?= v2.6.2 ## The version of golangci-lint to use
+GOLANGCI_LINT_VERSION         ?= v2.7.2 ## The version of golangci-lint to use
 # renovate: datasource=go depName=golang.org/x/tools
 GOIMPORTS_VERSION             ?= v0.39.0 ## The version of goimports to use
 # renovate: datasource=go depName=mvdan.cc/gofumpt
