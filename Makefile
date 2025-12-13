@@ -268,3 +268,19 @@ update-crd-docs: ## Update CRD markdown documentation from YAML definitions
 	@echo "Generating CRD documentation..."
 	@go run hack/generate-crd-docs.go -crd-dir config/crd/bases -output-dir docs/crd
 	@echo "CRD documentation updated successfully!"
+
+.PHONY: certs
+certs: ## Create just in time TLS certificates needed for tests and examples
+ifeq (, $(shell command -v go))
+	docker run --rm -v .:/workspace/kubernetes-ingress -w /workspace/kubernetes-ingress golang:1.25.4-trixie make certs
+else
+	make -C hack/tls-cert-gen ignore
+endif
+
+.PHONY: certs-clean
+certs-clean: ## Clean just in time TLS certificates needed for tests and examples
+ifeq (, $(shell command -v go))
+	docker run --rm -v .:/workspace/kubernetes-ingress -w /workspace/kubernetes-ingress golang:1.25.4-trixie make certs-clean
+else
+	make -C hack/tls-cert-gen clean
+endif
