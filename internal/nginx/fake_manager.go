@@ -1,14 +1,13 @@
 package nginx
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"os"
 	"path"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
-	nic_glog "github.com/nginx/kubernetes-ingress/internal/logger/glog"
-	"github.com/nginx/kubernetes-ingress/internal/logger/levels"
 	"github.com/nginx/nginx-plus-go-client/v3/client"
 )
 
@@ -21,12 +20,13 @@ type FakeManager struct {
 }
 
 // NewFakeManager creates a FakeManager.
-func NewFakeManager(confPath string) *FakeManager {
+func NewFakeManager(ctx context.Context, confPath string) *FakeManager {
+	l := nl.LoggerFromContext(ctx)
 	return &FakeManager{
 		confdPath:       path.Join(confPath, "conf.d"),
 		secretsPath:     path.Join(confPath, "secrets"),
 		dhparamFilename: path.Join(confPath, "secrets", "dhparam.pem"),
-		logger:          slog.New(nic_glog.New(os.Stdout, &nic_glog.Options{Level: levels.LevelInfo})),
+		logger:          l,
 	}
 }
 
