@@ -25,7 +25,7 @@ from suite.utils.resources_utils import (
 from suite.utils.ssl_utils import create_sni_session
 from suite.utils.yaml_utils import get_first_host_from_yaml
 
-secure_app_secret = f"{TEST_DATA}/common/app/secure/secret/app-tls-secret.yaml"
+secure_app_secret = f"{TEST_DATA}/common/app/secure/app-tls-secret.yaml"
 secure_app_config_map = f"{TEST_DATA}/common/app/secure/config-map/secure-config.yaml"
 ts_with_backup = f"{TEST_DATA}/transport-server-backup-service/transport-server-with-backup.yaml"
 
