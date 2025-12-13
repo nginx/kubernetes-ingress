@@ -58,7 +58,7 @@ jobs:
     runs-on: ${{ inputs.runner }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           ref: ${{ inputs.branch }}
           fetch-depth: 0
@@ -225,7 +225,7 @@ jobs:
           echo "full-build: ${{ inputs.full-build }}"
 
       - name: Fetch Cached Artifacts
-        uses: actions/cache/restore@a7833574556fa59680c1b7cb190c1735db73ebf0 # v5.0.0
+        uses: actions/cache/restore@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ inputs.go-md5 }}
