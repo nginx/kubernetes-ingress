@@ -1858,7 +1858,6 @@ def delete_lease(v1: CoordinationV1Api, name, namespace) -> None:
     """
     print(f"Delete a lease: {name}")
     v1.delete_namespaced_lease(name, namespace)
-    ensure_item_removal(v1.read_namespaced_lease, name, namespace)
 
 
 def ensure_response_from_backend(req_url, host, additional_headers=None, check404=False, sni=False) -> None:

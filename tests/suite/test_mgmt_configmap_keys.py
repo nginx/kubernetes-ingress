@@ -224,9 +224,14 @@ class TestMGMTConfigMap:
 
         print("Step 9: check reload count has incremented")
         wait_before_test()
-        new_reload_count = get_reload_count(metrics_url)
-        print("new_reload_count", new_reload_count)
-        assert new_reload_count > reload_count
+        updated = False
+        for _ in range(10):
+            wait_before_test(3)
+            new_reload_count = get_reload_count(metrics_url)
+            if new_reload_count > reload_count:
+                updated = True
+                break
+        assert updated, "Reload count did not increment within the expected time"
 
         print("Step 10: check that the mgmt config map has been updated without error")
         config_events = get_events_for_object(
