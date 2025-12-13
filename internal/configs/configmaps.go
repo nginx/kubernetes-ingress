@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -157,6 +158,17 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 			configOk = false
 		} else {
 			cfgParams.SSLRedirect = sslRedirect
+		}
+	}
+
+	if httpRedirectCode, exists := cfgm.Data["http-redirect-code"]; exists {
+		if code, err := ParseHTTPRedirectCode(httpRedirectCode); err != nil {
+			errorText := fmt.Sprintf("ConfigMap %s/%s: Invalid value for 'http-redirect-code': %q: %v, ignoring", cfgm.GetNamespace(), cfgm.GetName(), httpRedirectCode, err)
+			nl.Error(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			configOk = false
+		} else {
+			cfgParams.HTTPRedirectCode = code
 		}
 	}
 
@@ -953,6 +965,28 @@ func parseConfigMapOpenTelemetry(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *
 	}
 
 	return cfgParams, nil
+}
+
+// ParseHTTPRedirectCode parses and validates an HTTP redirect code.
+func ParseHTTPRedirectCode(code string) (int, error) {
+	redirectCode, err := strconv.Atoi(code)
+	if err != nil {
+		return 0, fmt.Errorf("invalid redirect code: %w", err)
+	}
+
+	// Validate that the code is one of the allowed redirect codes: 301, 302, 307, 308
+	validCodes := map[int]bool{
+		301: true,
+		302: true,
+		307: true,
+		308: true,
+	}
+
+	if _, valid := validCodes[redirectCode]; !valid {
+		return 0, fmt.Errorf("status code out of accepted range. accepted values are '301', '302', '307', '308'")
+	}
+
+	return redirectCode, nil
 }
 
 // ParseMGMTConfigMap parses the mgmt block ConfigMap into MGMTConfigParams.

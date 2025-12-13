@@ -30,6 +30,7 @@ var configMapFilteredKeys = []string{
 	"http2",
 	"redirect-to-https",
 	"ssl-redirect",
+	"http-redirect-code",
 	"hsts",
 	"hsts-max-age",
 	"hsts-include-subdomains",

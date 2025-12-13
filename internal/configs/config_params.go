@@ -84,6 +84,7 @@ type ConfigParams struct {
 	ProxyReadTimeout                       string
 	ProxySendTimeout                       string
 	RedirectToHTTPS                        bool
+	HTTPRedirectCode                       int
 	ResolverAddresses                      []string
 	ResolverIPV6                           bool
 	ResolverTimeout                        string
@@ -245,6 +246,7 @@ func NewDefaultConfigParams(ctx context.Context, isPlus bool) *ConfigParams {
 		ProxySendTimeout:              "60s",
 		ClientMaxBodySize:             "1m",
 		SSLRedirect:                   true,
+		HTTPRedirectCode:              301,
 		MainAccessLog:                 "/dev/stdout main",
 		MainServerNamesHashBucketSize: "256",
 		MainServerNamesHashMaxSize:    "1024",
