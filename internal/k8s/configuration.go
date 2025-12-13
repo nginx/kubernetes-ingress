@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
-	"strings"
 	"sync"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
@@ -1660,7 +1659,7 @@ func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*
 		vsrKey := r.Route
 
 		// if route is defined without a namespace, use the namespace of VirtualServer.
-		if !strings.Contains(r.Route, "/") {
+		if !internalValidation.HasNamespace(vsrKey) {
 			vsrKey = fmt.Sprintf("%s/%s", vs.Namespace, r.Route)
 		}
 
