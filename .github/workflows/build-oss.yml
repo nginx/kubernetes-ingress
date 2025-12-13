@@ -34,6 +34,10 @@ on:
       runner:
         type: string
         default: ubuntu-24.04
+      write-to-cache:
+        required: false
+        type: boolean
+        default: false
 
 defaults:
   run:
@@ -177,7 +181,7 @@ jobs:
         with:
           file: build/Dockerfile
           context: "."
-          cache-to: type=gha,scope=${{ inputs.image }},mode=max
+          cache-to: ${{ inputs.write-to-cache && format('type=gha,scope={0},mode=max', inputs.image) || '' }}
           target: common
           tags: ${{ steps.base_name.outputs.image }}
           platforms: ${{ inputs.platforms }}
@@ -211,7 +215,7 @@ jobs:
           file: build/Dockerfile
           context: "."
           cache-from: type=gha,scope=${{ inputs.image }}
-          cache-to: type=gha,scope=${{ inputs.image }},mode=max
+          cache-to: ${{ inputs.write-to-cache && format('type=gha,scope={0},mode=max', inputs.image) || '' }}
           target: goreleaser${{ inputs.authenticated && '-prebuilt' || '' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

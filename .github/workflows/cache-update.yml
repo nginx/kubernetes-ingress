@@ -53,6 +53,7 @@ jobs:
       authenticated: false
       tag: "edge"
       branch: ${{ github.ref }}
+      write-to-cache: true
     permissions:
       contents: read
       actions: read
@@ -78,6 +79,7 @@ jobs:
       authenticated: false
       tag: "edge"
       branch: ${{ github.ref }}
+      write-to-cache: true
     permissions:
       contents: read
       security-events: write
@@ -102,6 +104,7 @@ jobs:
       authenticated: false
       tag: "edge"
       branch: ${{ github.ref }}
+      write-to-cache: true
     permissions:
       contents: read
       security-events: write
