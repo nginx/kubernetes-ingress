@@ -6,7 +6,7 @@ metadata:
 data:
   license-token-secret-name: "license-token"
   ssl-trusted-certificate-secret-name: "ssl-trusted-cert"
-  ssl-certificate-secret-name: "ssl-cert"
+  ssl-certificate-secret-name: "tls-secret"
   ssl-verify: "false"
   enforce-initial-report: "false"
   usage-report-endpoint: "product.connect.nginx.com"
