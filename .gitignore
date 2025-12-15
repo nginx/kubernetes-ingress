@@ -105,7 +105,6 @@ examples/ingress-resources/proxy-set-headers/mergeable-ingress/cafe-secret.yaml
 examples/ingress-resources/proxy-set-headers/standard-ingress/cafe-secret.yaml
 examples/ingress-resources/rate-limit/cafe-secret.yaml
 examples/ingress-resources/security-monitoring/cafe-secret.yaml
-tests/data/appprotect/appprotect-secret.yaml
 tests/data/dos/tls-secret.yaml
 tests/data/hsts/standard-tls/tls-secret.yaml
 tests/data/hsts/mergeable-tls/tls-secret.yaml
@@ -117,6 +116,8 @@ tests/data/virtual-server-certmanager/tls-secret.yaml
 tests/data/virtual-server-grpc/tls-secret.yaml
 tests/data/virtual-server-route-grpc/tls-secret.yaml
 tests/data/watch-secret-namespace/tls-secret.yaml
+common-secrets/appprotect-secret.yaml
+tests/data/appprotect/appprotect-secret.yaml
 common-secrets/tls-secret-gb.yaml
 tests/data/tls/new-tls-secret.yaml
 tests/data/virtual-server-tls/new-tls-secret.yaml

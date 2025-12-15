@@ -136,14 +136,14 @@ class TestMGMTConfigMap:
             f"MGMT ConfigMap {ingress_controller_prerequisites.namespace}/{mgmt_configmap_name} updated without error",
         )
 
-        print("Step 6: clean up - delete the created secret")
-        delete_secret(kube_apis.v1, license_name, ingress_controller_prerequisites.namespace)
+        print("Step 6: clean up - reset configmap & delete the created secret")
         replace_configmap_from_yaml(
             kube_apis.v1,
             mgmt_configmap_name,
             ingress_controller_prerequisites.namespace,
             default_mgmt_configmap,
         )
+        delete_secret(kube_apis.v1, license_name, ingress_controller_prerequisites.namespace)
 
     @pytest.mark.parametrize(
         "ingress_controller",
@@ -262,12 +262,12 @@ class TestMGMTConfigMap:
             f"MGMT ConfigMap {ingress_controller_prerequisites.namespace}/{mgmt_configmap_name} updated without error",
         )
 
-        print("Step 11: clean up - delete the created secrets")
-        delete_secret(kube_apis.v1, trusted_cert_secret_name, ingress_controller_prerequisites.namespace)
-        delete_secret(kube_apis.v1, ssl_cert_secret_name, ingress_controller_prerequisites.namespace)
+        print("Step 11: clean up - reset configmap & delete the created secrets")
         replace_configmap_from_yaml(
             kube_apis.v1,
             mgmt_configmap_name,
             ingress_controller_prerequisites.namespace,
             default_mgmt_configmap,
         )
+        delete_secret(kube_apis.v1, trusted_cert_secret_name, ingress_controller_prerequisites.namespace)
+        delete_secret(kube_apis.v1, ssl_cert_secret_name, ingress_controller_prerequisites.namespace)
