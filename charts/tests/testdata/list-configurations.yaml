@@ -4,21 +4,21 @@ controller:
     ipFamilies:
       - IPv6
       - IPv4
-    
+
     # Test ipFamilyPolicy
     ipFamilyPolicy: PreferDualStack
-    
+
     # Test loadBalancerSourceRanges as list
     loadBalancerSourceRanges:
       - 10.0.0.0/8
       - 172.16.0.0/12
       - 192.168.0.0/16
-    
+
     # Test externalIPs as list
     externalIPs:
       - 203.0.113.1
       - 203.0.113.2
-    
+
     # Test customPorts as list
     customPorts:
       - name: custom-tcp
@@ -29,7 +29,7 @@ controller:
         port: 9001
         protocol: UDP
         targetPort: 9001
-    
+
   # Test customPorts on controller
   customPorts:
     - name: metrics
