@@ -10,6 +10,8 @@ the cluster. This enables to use the Ingress Controller to route requests to the
 
 ## Prerequisites
 
+We need to run `make secrets` command to generate the necessary secrets for the example.
+
 For illustration purposes, we will run NGINX Ingress Controller (referred to as NIC in the examples) with the
 ```-watch-namespace=nginx-ingress,default``` option. The option enables NIC to watch selected namespaces.
 

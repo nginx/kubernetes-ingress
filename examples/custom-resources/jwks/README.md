@@ -10,10 +10,12 @@ example, KeyCloak is deployed as a single container for the purpose of exposing 
 
 ## Prerequisites
 
+1. Run `make secrets` command to generate the necessary secrets for the example.
+
 1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
    instructions to deploy the Ingress Controller.
 
-2. Save the public IP address of the Ingress Controller into `/etc/hosts` of your machine:
+1. Save the public IP address of the Ingress Controller into `/etc/hosts` of your machine:
 
     ```text
     ...
