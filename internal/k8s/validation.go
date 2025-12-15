@@ -75,6 +75,7 @@ const (
 	stickyCookieServicesAnnotation        = "nginx.com/sticky-cookie-services"
 	pathRegexAnnotation                   = "nginx.org/path-regex"
 	useClusterIPAnnotation                = "nginx.org/use-cluster-ip"
+	appRootAnnotation                     = "nginx.org/app-root"
 )
 
 const (
@@ -360,6 +361,9 @@ var (
 		useClusterIPAnnotation: {
 			validateBoolAnnotation,
 		},
+		appRootAnnotation: {
+			validateAppRootAnnotation,
+		},
 	}
 	annotationNames = sortedAnnotationNames(annotationValidations)
 )
@@ -371,6 +375,40 @@ func validatePathRegex(context *annotationValidationContext) field.ErrorList {
 	default:
 		return field.ErrorList{field.Invalid(context.fieldPath, context.value, "allowed values: 'case_sensitive', 'case_insensitive' or 'exact'")}
 	}
+}
+
+func validateAppRootAnnotation(context *annotationValidationContext) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	path := context.value
+
+	// App root must start with /
+	if !strings.HasPrefix(path, "/") {
+		allErrs = append(allErrs, field.Invalid(context.fieldPath, path, "must start with '/'"))
+		return allErrs
+	}
+
+	// App root cannot be just "/"
+	if path == "/" {
+		allErrs = append(allErrs, field.Invalid(context.fieldPath, path, "cannot be '/'"))
+		return allErrs
+	}
+
+	// Validate that the path doesn't contain invalid characters
+	// Allow alphanumeric, hyphens, underscores, dots, and forward slashes
+	validPath := regexp.MustCompile(`^/[a-zA-Z0-9\-_./]*$`)
+	if !validPath.MatchString(path) {
+		allErrs = append(allErrs, field.Invalid(context.fieldPath, path, "contains invalid characters, only alphanumeric, hyphens, underscores, dots, and forward slashes are allowed"))
+		return allErrs
+	}
+
+	// Ensure path doesn't end with /
+	if strings.HasSuffix(path, "/") {
+		allErrs = append(allErrs, field.Invalid(context.fieldPath, path, "path should not end with '/'"))
+		return allErrs
+	}
+
+	return allErrs
 }
 
 func validateJWTLoginURLAnnotation(context *annotationValidationContext) field.ErrorList {

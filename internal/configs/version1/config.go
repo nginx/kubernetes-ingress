@@ -132,6 +132,8 @@ type Server struct {
 	SpiffeCerts bool
 
 	DisableIPV6 bool
+
+	AppRoot string
 }
 
 // JWTRedirectLocation describes a location for redirecting client requests to a login URL for JWT Authentication.

@@ -503,6 +503,10 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		}
 	}
 
+	if appRoot, exists := ingEx.Ingress.Annotations["nginx.org/app-root"]; exists {
+		cfgParams.AppRoot = appRoot
+	}
+
 	if useClusterIP, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, UseClusterIPAnnotation, ingEx.Ingress); exists {
 		if err != nil {
 			nl.Error(l, err)

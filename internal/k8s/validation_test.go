@@ -3465,6 +3465,86 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			},
 			msg: "invalid nginx.org/rewrite-target annotation, pipe character for alternatives",
 		},
+		{
+			annotations: map[string]string{
+				"nginx.org/app-root": "/coffee",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/app-root annotation",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/app-root": "/coffee/mocha",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/app-root annotation with nested path",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/app-root": "coffee",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/app-root: Invalid value: "coffee": must start with '/'`,
+			},
+			msg: "invalid nginx.org/app-root annotation, does not start with slash",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/app-root": "/",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/app-root: Invalid value: "/": cannot be '/'`,
+			},
+			msg: "invalid nginx.org/app-root annotation, cannot be root path",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/app-root": "/coffee/",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/app-root: Invalid value: "/coffee/": path should not end with '/'`,
+			},
+			msg: "invalid nginx.org/app-root annotation, cannot end with slash",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/app-root": "/tea$1",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/app-root: Invalid value: "/tea$1": contains invalid characters, only alphanumeric, hyphens, underscores, dots, and forward slashes are allowed`,
+			},
+			msg: "invalid nginx.org/app-root annotation, invalid characters",
+		},
 	}
 
 	for _, test := range tests {
