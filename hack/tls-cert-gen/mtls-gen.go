@@ -236,11 +236,12 @@ func removeBundleFiles(logger *slog.Logger, bundle mtlsBundle) error {
 		if bundle.Crl && secret.SecretType == secrets.SecretTypeCA {
 			ext := filepath.Ext(bundle.Ca.FileName)
 			crlFilename := strings.ReplaceAll(bundle.Ca.FileName, ext, "-crl"+ext)
-			log.Debugf(logger, "Removing file %s", crlFilename)
-			if _, err := os.Stat(crlFilename); !os.IsNotExist(err) {
-				err := os.Remove(filepath.Join(projectRoot, realSecretDirectory, crlFilename))
+			filePath := filepath.Join(projectRoot, realSecretDirectory, crlFilename)
+			log.Debugf(logger, "Removing file %s", filePath)
+			if _, err := os.Stat(filePath); !os.IsNotExist(err) {
+				err := os.Remove(filePath)
 				if err != nil {
-					return fmt.Errorf("failed to remove file: %s %w", secret.FileName+"_crl", err)
+					return fmt.Errorf("failed to remove file: %s %w", filePath, err)
 				}
 			}
 		}
@@ -256,11 +257,12 @@ func removeBundleFiles(logger *slog.Logger, bundle mtlsBundle) error {
 			if bundle.Crl && secret.SecretType == secrets.SecretTypeCA {
 				ext := filepath.Ext(symlink)
 				newSymlink := strings.ReplaceAll(symlink, ext, "-crl"+ext)
-				log.Debugf(logger, "Removing symlink %s", newSymlink)
-				if _, err := os.Lstat(filepath.Join(projectRoot, newSymlink)); !os.IsNotExist(err) {
-					err = os.Remove(filepath.Join(projectRoot, newSymlink))
+				symlinkPath := filepath.Join(projectRoot, newSymlink)
+				log.Debugf(logger, "Removing symlink %s", symlinkPath)
+				if _, err := os.Lstat(symlinkPath); !os.IsNotExist(err) {
+					err = os.Remove(symlinkPath)
 					if err != nil {
-						return fmt.Errorf("failed to remove symlink: %s %w", newSymlink, err)
+						return fmt.Errorf("failed to remove symlink: %s %w", symlinkPath, err)
 					}
 				}
 			}
