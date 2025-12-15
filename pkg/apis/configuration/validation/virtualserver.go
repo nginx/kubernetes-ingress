@@ -10,6 +10,7 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	internalValidation "github.com/nginx/kubernetes-ingress/internal/validation"
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -829,7 +830,7 @@ func (vsv *VirtualServerValidator) validateRoute(route v1.Route, fieldPath *fiel
 	}
 
 	if route.RouteSelector != nil {
-		// TODO: validate RouteSelector
+		allErrs = append(allErrs, vsv.validateRouteSelector(route.RouteSelector, fieldPath.Child("routeSelector"))...)
 		fieldCount++
 	}
 
@@ -1681,6 +1682,24 @@ func validateLabels(labels map[string]string, fieldPath *field.Path) field.Error
 		allErrs = append(allErrs, isValidLabelName(labelName, fieldPath)...)
 		for _, msg := range validation.IsValidLabelValue(labelValue) {
 			allErrs = append(allErrs, field.Invalid(fieldPath, labelValue, msg))
+		}
+	}
+
+	return allErrs
+}
+
+func (vsv *VirtualServerValidator) validateRouteSelector(routeSelector *metav1.LabelSelector, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if len(routeSelector.MatchLabels) == 0 {
+		allErrs = append(allErrs, field.Required(fieldPath.Child("matchLabels"), "must specify at least one label"))
+	} else {
+		allErrs = append(allErrs, validateLabels(routeSelector.MatchLabels, fieldPath.Child("matchLabels"))...)
+		for k, v := range routeSelector.MatchLabels {
+			if v == "" {
+				msg := "label value must be non-empty"
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("matchLabels").Key(k), v, msg))
+			}
 		}
 	}
 

@@ -4666,3 +4666,97 @@ func TestValidateServiceName(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateRouteSelector(t *testing.T) {
+	t.Parallel()
+
+	type testCase struct {
+		selector meta_v1.LabelSelector
+		valid    bool
+		name     string
+	}
+	testCases := []testCase{
+		{
+			selector: meta_v1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "my-app",
+				},
+			},
+			valid: true,
+			name:  "valid selector with one label",
+		},
+		{
+			selector: meta_v1.LabelSelector{
+				MatchLabels: map[string]string{
+					"tier": "backend",
+				},
+			},
+			valid: true,
+			name:  "valid selector with different label",
+		},
+		{
+			selector: meta_v1.LabelSelector{
+				MatchLabels: map[string]string{
+					"env":  "prod",
+					"role": "frontend",
+				},
+			},
+			valid: true,
+			name:  "valid selector with multiple labels",
+		},
+		{
+			selector: meta_v1.LabelSelector{
+				MatchLabels: nil,
+			},
+			valid: false,
+			name:  "invalid selector with nil MatchLabels",
+		},
+		{
+			selector: meta_v1.LabelSelector{
+				MatchLabels: map[string]string{},
+			},
+			valid: false,
+			name:  "invalid selector with empty MatchLabels",
+		},
+		{
+			selector: meta_v1.LabelSelector{
+				MatchLabels: map[string]string{
+					"": "value",
+				},
+			},
+			valid: false,
+			name:  "invalid selector with empty key",
+		},
+		{
+			selector: meta_v1.LabelSelector{
+				MatchLabels: map[string]string{
+					"key": "",
+				},
+			},
+			valid: false,
+			name:  "invalid selector with empty value",
+		},
+		{
+			selector: meta_v1.LabelSelector{
+				MatchLabels: map[string]string{
+					"goodkey": "goodvalue",
+					"key":     "",
+				},
+			},
+			valid: false,
+			name:  "good selector and invalid selector with empty value",
+		},
+	}
+
+	vsv := &VirtualServerValidator{isPlus: false}
+
+	for _, test := range testCases {
+		allErrs := vsv.validateRouteSelector(&test.selector, field.NewPath("routeSelector"))
+		if test.valid && len(allErrs) != 0 {
+			t.Errorf("tc(%s) validateRouteSelector(%v) returned errors %v for valid input", test.name, test.selector, allErrs)
+		}
+		if !test.valid && len(allErrs) == 0 {
+			t.Errorf("tc(%s) validateRouteSelector(%v) returned no errors for invalid input", test.name, test.selector)
+		}
+	}
+}
