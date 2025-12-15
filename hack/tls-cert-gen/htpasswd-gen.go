@@ -30,7 +30,7 @@ type htpasswdSecret struct {
 	HtpasswdKey string          `json:"htpasswdKey,omitempty"`
 }
 
-func generateHtpasswdFile(secret htpasswdSecret, projectRoot string) error {
+func generateHtpasswdFile(logger *slog.Logger, secret htpasswdSecret, projectRoot string) error {
 	data := []byte{}
 	for _, entry := range secret.Entries {
 		hashedPassword, err := hashPassword(entry.Password)
@@ -46,7 +46,7 @@ func generateHtpasswdFile(secret htpasswdSecret, projectRoot string) error {
 		return fmt.Errorf("writing valid file for %s: %w", secret.FileName, err)
 	}
 
-	err = writeFiles(fileContents, projectRoot, secret.FileName, secret.Symlinks)
+	err = writeFiles(logger, fileContents, projectRoot, secret.FileName, secret.Symlinks)
 	if err != nil {
 		return fmt.Errorf("writing file for %s: %w", secret.FileName, err)
 	}

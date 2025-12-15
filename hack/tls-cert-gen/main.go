@@ -34,14 +34,21 @@ type secretsTypes struct {
 
 // nolint:gocyclo
 func main() {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	var err error
 	var secretsTypesData secretsTypes
 
 	cleanPtr := flag.Bool("clean", false, "only clean the generated files")
 	secretsPathPtr := flag.String("secrets-path", "../secrets.json", "path to the secrets.json file")
 	gitignorePtr := flag.Bool("gitignore", false, "generate gitignore file")
+	debugPtr := flag.Bool("debug", false, "enable debug logging")
+
 	flag.Parse()
+
+	loggerOptions := &slog.HandlerOptions{Level: slog.LevelInfo}
+	if *debugPtr {
+		loggerOptions.Level = slog.LevelDebug
+	}
+	logger := slog.New(slog.NewTextHandler(os.Stdout, loggerOptions))
 
 	rawSecretsData, err := os.ReadFile(*secretsPathPtr)
 	if err != nil {
@@ -113,7 +120,7 @@ func generateJwtFiles(logger *slog.Logger, secrets []jwtSecret, filenames map[st
 			}
 			continue
 		}
-		err := generateJwtFile(secret, projectRoot)
+		err := generateJwtFile(logger, secret, projectRoot)
 		if err != nil {
 			return nil, fmt.Errorf("failed to print JWT file: %s %w", secret.FileName, err)
 		}
@@ -144,7 +151,7 @@ func generateJwksFiles(logger *slog.Logger, secrets []jwkSecret, filenames map[s
 			}
 			continue
 		}
-		err := generateJwksFile(secret, projectRoot)
+		err := generateJwksFile(logger, secret, projectRoot)
 		if err != nil {
 			return nil, fmt.Errorf("failed to print JWKS file: %s %w", secret.FileName, err)
 		}
@@ -175,7 +182,7 @@ func generateHtpasswdFiles(logger *slog.Logger, secrets []htpasswdSecret, filena
 			}
 			continue
 		}
-		err := generateHtpasswdFile(secret, projectRoot)
+		err := generateHtpasswdFile(logger, secret, projectRoot)
 		if err != nil {
 			return nil, fmt.Errorf("failed to print htpasswd file: %s %w", secret.FileName, err)
 		}
@@ -241,7 +248,7 @@ func generateMTLSBundles(logger *slog.Logger, secrets []mtlsBundle, filenames ma
 			continue
 		}
 
-		err := generateMTLSBundleFiles(bundle, projectRoot)
+		err := generateMTLSBundleFiles(logger, bundle, projectRoot)
 		if err != nil {
 			return nil, fmt.Errorf("generateMTLSBundleFiles: %w", err)
 		}
@@ -272,7 +279,7 @@ func generateTLSCerts(logger *slog.Logger, secrets []yamlSecret, filenames map[s
 			}
 			continue
 		}
-		err := generateTLSSecretFiles(secret, projectRoot)
+		err := generateTLSSecretFiles(logger, secret, projectRoot)
 		if err != nil {
 			return nil, fmt.Errorf("failed to print tls key: %s %w", secret.FileName, err)
 		}
@@ -293,7 +300,7 @@ func publicKey(priv any) any {
 	}
 }
 
-func writeFiles(fileContents []byte, projectRoot, fileName string, symlinks []string) error {
+func writeFiles(logger *slog.Logger, fileContents []byte, projectRoot, fileName string, symlinks []string) error {
 	var err error
 
 	// This part takes care of writing the yaml file onto disk, and creating the
@@ -306,7 +313,7 @@ func writeFiles(fileContents []byte, projectRoot, fileName string, symlinks []st
 		return fmt.Errorf("write kubernetes secret to file %s: %w", fileName, err)
 	}
 
-	fmt.Printf("Wrote real file: %s\n", realFilePath)
+	log.Debugf(logger, "Wrote real file: %s", realFilePath)
 
 	// Remove and create symlinks
 	for _, symlinkTarget := range symlinks {
@@ -335,9 +342,7 @@ func writeFiles(fileContents []byte, projectRoot, fileName string, symlinks []st
 			return fmt.Errorf("symlink %s to %s: %w", symlinkTarget, realFilePath, err)
 		}
 
-		fmt.Printf(""+
-			" - symlink target: %s\n"+
-			" - absolute file: %s\n\n", relativeTarget, absSymlinkTarget)
+		log.Debugf(logger, "Created symlink: %s -> %s", absSymlinkTarget, relativeTarget)
 	}
 
 	return nil

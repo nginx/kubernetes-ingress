@@ -29,7 +29,7 @@ type mtlsBundle struct {
 }
 
 //gocyclo:ignore
-func generateMTLSBundleFiles(bundle mtlsBundle, projectRoot string) error {
+func generateMTLSBundleFiles(logger *slog.Logger, bundle mtlsBundle, projectRoot string) error {
 	// Render the CA x509.Certificate template
 	caTemplate, err := renderX509Template(bundle.Ca.TemplateData)
 	if err != nil {
@@ -74,7 +74,7 @@ func generateMTLSBundleFiles(bundle mtlsBundle, projectRoot string) error {
 		return fmt.Errorf("marshaling bundle CA %s to yaml: %w", bundle.Ca.FileName, err)
 	}
 
-	err = writeFiles(caContents, projectRoot, bundle.Ca.FileName, bundle.Ca.Symlinks)
+	err = writeFiles(logger, caContents, projectRoot, bundle.Ca.FileName, bundle.Ca.Symlinks)
 	if err != nil {
 		return fmt.Errorf("writing bundle CA %s to project root: %w", bundle.Ca.FileName, err)
 	}
@@ -117,7 +117,7 @@ func generateMTLSBundleFiles(bundle mtlsBundle, projectRoot string) error {
 			return fmt.Errorf("marshaling bundle client %s to yaml: %w", bundle.Client.FileName, err)
 		}
 
-		err = writeFiles(clientContents, projectRoot, bundle.Client.FileName, bundle.Client.Symlinks)
+		err = writeFiles(logger, clientContents, projectRoot, bundle.Client.FileName, bundle.Client.Symlinks)
 		if err != nil {
 			return fmt.Errorf("writing bundle client %s to project root: %w", bundle.Client.FileName, err)
 		}
@@ -158,7 +158,7 @@ func generateMTLSBundleFiles(bundle mtlsBundle, projectRoot string) error {
 			return fmt.Errorf("marshaling bundle server %s to yaml: %w", bundle.Server.FileName, err)
 		}
 
-		err = writeFiles(serverContents, projectRoot, bundle.Server.FileName, bundle.Server.Symlinks)
+		err = writeFiles(logger, serverContents, projectRoot, bundle.Server.FileName, bundle.Server.Symlinks)
 		if err != nil {
 			return fmt.Errorf("writing bundle server %s to project root: %w", bundle.Server.FileName, err)
 		}
@@ -198,19 +198,19 @@ func generateMTLSBundleFiles(bundle mtlsBundle, projectRoot string) error {
 
 		ext := filepath.Ext(bundle.Ca.FileName)
 		crlFilename := strings.ReplaceAll(bundle.Ca.FileName, ext, "-crl"+ext)
-		fmt.Printf("changing file name from %s to %s\n", bundle.Ca.FileName, crlFilename)
+		log.Debugf(logger, "changing file name from %s to %s", bundle.Ca.FileName, crlFilename)
 
 		crlSymlinks := make([]string, len(bundle.Ca.Symlinks))
 		for i, s := range bundle.Ca.Symlinks {
 			ext = filepath.Ext(s)
 			newSymlink := strings.ReplaceAll(s, ext, "-crl"+ext)
 
-			fmt.Printf("changing symlink from %s to %s\n", s, newSymlink)
+			log.Debugf(logger, "changing symlink from %s to %s", s, newSymlink)
 
 			crlSymlinks[i] = newSymlink
 		}
 
-		err = writeFiles(crlContents, projectRoot, crlFilename, crlSymlinks)
+		err = writeFiles(logger, crlContents, projectRoot, crlFilename, crlSymlinks)
 		if err != nil {
 			return fmt.Errorf("writing bundle CRL %s to project root: %w", bundle.Ca.FileName, err)
 		}

@@ -194,8 +194,8 @@ upgrade-resources:
 
 .PHONY: secrets-clean
 secrets-clean: ## Clean just in time TLS certificates etc needed for tests
-	make -C $(ROOT_DIR) secrets-clean
+	@make -C $(ROOT_DIR) secrets-clean
 
 .PHONY: secrets
 secrets: ## Create just in time TLS certificates etc needed for tests
-	make -C $(ROOT_DIR) secrets
+	@make -C $(ROOT_DIR) secrets
