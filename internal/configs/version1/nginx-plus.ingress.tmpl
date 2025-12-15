@@ -172,11 +172,11 @@ server {
 	{{$value}}{{end}}
 	{{- end}}
 
-	{{ if $server.AppRoot }}
+	{{- if $server.AppRoot }}
 	if ($uri = /) {
 		return 302 $scheme://$http_host{{ $server.AppRoot }};
 	}
-	{{ end }}
+	{{- end }}
 
 	{{- range $healthCheck := $server.HealthChecks}}
 	location @hc-{{$healthCheck.UpstreamName}} {
