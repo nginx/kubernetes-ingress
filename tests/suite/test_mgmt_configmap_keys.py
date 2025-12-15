@@ -5,6 +5,7 @@ from settings import TEST_DATA
 from suite.utils.resources_utils import (
     create_license,
     create_secret_from_yaml,
+    delete_secret,
     ensure_connection_to_public_endpoint,
     get_events_for_object,
     get_first_pod_name,
@@ -14,6 +15,9 @@ from suite.utils.resources_utils import (
     replace_configmap_from_yaml,
     wait_before_test,
 )
+from suite.utils.yaml_utils import get_name_from_yaml
+
+default_mgmt_configmap = f"{TEST_DATA}/common/default-mgmt-configmap.yaml"
 
 
 def assert_event(event_list, event_type, reason, message_substring):
@@ -132,6 +136,15 @@ class TestMGMTConfigMap:
             f"MGMT ConfigMap {ingress_controller_prerequisites.namespace}/{mgmt_configmap_name} updated without error",
         )
 
+        print("Step 6: clean up - delete the created secret")
+        delete_secret(kube_apis.v1, license_name, ingress_controller_prerequisites.namespace)
+        replace_configmap_from_yaml(
+            kube_apis.v1,
+            mgmt_configmap_name,
+            ingress_controller_prerequisites.namespace,
+            default_mgmt_configmap,
+        )
+
     @pytest.mark.parametrize(
         "ingress_controller",
         [
@@ -191,11 +204,15 @@ class TestMGMTConfigMap:
             ingress_controller_prerequisites.namespace,
             f"{TEST_DATA}/mgmt-configmap-keys/ssl-trusted-cert.yaml",
         )
+        trusted_cert_secret_name = get_name_from_yaml(f"{TEST_DATA}/mgmt-configmap-keys/ssl-trusted-cert.yaml")
+        assert is_secret_present(kube_apis.v1, trusted_cert_secret_name, ingress_controller_prerequisites.namespace)
 
         print("Step 5: create ssl certificate secret")
         create_secret_from_yaml(
             kube_apis.v1, ingress_controller_prerequisites.namespace, f"{TEST_DATA}/mgmt-configmap-keys/ssl-cert.yaml"
         )
+        ssl_cert_secret_name = get_name_from_yaml(f"{TEST_DATA}/mgmt-configmap-keys/ssl-cert.yaml")
+        assert is_secret_present(kube_apis.v1, ssl_cert_secret_name, ingress_controller_prerequisites.namespace)
 
         print("Step 6: update the mgmt config map with all options on")
         replace_configmap_from_yaml(
@@ -243,4 +260,14 @@ class TestMGMTConfigMap:
             "Normal",
             "Updated",
             f"MGMT ConfigMap {ingress_controller_prerequisites.namespace}/{mgmt_configmap_name} updated without error",
+        )
+
+        print("Step 11: clean up - delete the created secrets")
+        delete_secret(kube_apis.v1, trusted_cert_secret_name, ingress_controller_prerequisites.namespace)
+        delete_secret(kube_apis.v1, ssl_cert_secret_name, ingress_controller_prerequisites.namespace)
+        replace_configmap_from_yaml(
+            kube_apis.v1,
+            mgmt_configmap_name,
+            ingress_controller_prerequisites.namespace,
+            default_mgmt_configmap,
         )
