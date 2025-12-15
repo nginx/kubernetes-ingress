@@ -952,7 +952,7 @@ func createPlusAndLatencyCollectors(
 			plusCollector = nginxCollector.NewNginxPlusCollector(plusClient, "nginx_ingress_nginxplus", variableLabelNames, constLabels, l)
 			go metrics.RunPrometheusListenerForNginxPlus(ctx, *prometheusMetricsListenPort, plusCollector, registry, prometheusSecret)
 		} else {
-			httpClient := getSocketClient(filepath.Join(socketPath, "%s/nginx-status.sock"))
+			httpClient := getSocketClient(filepath.Join(socketPath, "nginx-status.sock"))
 			client := metrics.NewNginxMetricsClient(httpClient)
 			go metrics.RunPrometheusListenerForNginx(ctx, *prometheusMetricsListenPort, client, registry, constLabels, prometheusSecret)
 		}

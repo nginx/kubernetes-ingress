@@ -53,7 +53,8 @@ permissions:
   contents: read
 
 jobs:
-  release:
+  nic-release-pr:
+    name: Update NIC versions in local files and create PR
     permissions:
       contents: write
       pull-requests: write
@@ -68,7 +69,7 @@ jobs:
           echo "branch=release-$version" >> $GITHUB_OUTPUT
 
       - name: Checkout Repository
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           ref: ${{ steps.branch.outputs.branch }}
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -97,6 +98,50 @@ jobs:
             ${{ inputs.new_version }} \
             ${{ inputs.new_helm_version }} \
             ${{ inputs.new_operator_version }}
+        env:
+          DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
+          DEBUG: ${{ inputs.debug && 'true' || 'false' }}
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.11
+        with:
+          token: ${{ steps.secrets.outputs.NGINX_PAT }}
+          commit-message: Release ${{ github.event.inputs.new_version }}
+          title: Release ${{ github.event.inputs.new_version }}
+          branch: docs/release-${{ github.event.inputs.new_version }}
+          author: nginx-bot <integrations@nginx.com>
+          body: |
+            This automated PR updates the docs for ${{ github.event.inputs.new_version }} release.
+        if: ${{ ! inputs.dry_run }}
+
+  docs-release-pr:
+    name: Update NIC versions in NGINX documentation and create PR
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_COMMON_VAULT_SUBSCRIPTION_ID }}
+
+      - name: Setup secrets
+        id: secrets
+        run: |
+          echo "Setting secrets for job"
+          NGINX_PAT=$(az keyvault secret show --name nginx-bot-pat --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$NGINX_PAT"
+          echo "NGINX_PAT=$NGINX_PAT" >> $GITHUB_OUTPUT
+
+      - name: Update Documentation Versions
+        run: |
           pip install --require-hashes -r .github/scripts/requirements.txt --no-deps
           .github/scripts/release-docs.sh \
             ${{ inputs.new_version }} \
@@ -105,19 +150,8 @@ jobs:
             "${{ inputs.k8s_versions }}" \
             "${{ inputs.release_date }}"
         env:
-          GITHUB_USERNAME: ${{ github.actor }}
-          GITHUB_EMAIL: ${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com
+          GITHUB_USERNAME: nginx-bot
+          GITHUB_EMAIL: integrations@nginx.com
           GITHUB_TOKEN: ${{ steps.secrets.outputs.NGINX_PAT }}
           DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
           DEBUG: ${{ inputs.debug && 'true' || 'false' }}
-
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@84ae59a2cdc2258d6fa0732dd66352dddae2a412 # v7.0.9
-        with:
-          token: ${{ steps.secrets.outputs.NGINX_PAT }}
-          commit-message: Release ${{ github.event.inputs.new_version }}
-          title: Release ${{ github.event.inputs.new_version }}
-          branch: docs/release-${{ github.event.inputs.new_version }}
-          body: |
-            This automated PR updates the docs for ${{ github.event.inputs.new_version }} release.
-        if: ${{ ! inputs.dry_run }}

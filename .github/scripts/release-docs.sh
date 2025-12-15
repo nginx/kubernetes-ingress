@@ -75,7 +75,7 @@ if [ "${DEBUG}" != "false" ]; then
 fi
 
 echo "INFO: Generating release notes from github draft release"
-release_notes_content=$(${ROOTDIR}/.github/scripts/pull-release-notes.py ${ic_version} ${helm_chart_version} ${k8s_versions} "${release_date}")
+release_notes_content=$("${ROOTDIR}"/.github/scripts/pull-release-notes.py "${ic_version}" "${helm_chart_version}" "${k8s_versions}" "${release_date}")
 if [ $? -ne 0 ]; then
     echo "ERROR: failed to fetch release notes from GitHub draft release for version ${ic_version}"
     exit 2
@@ -111,7 +111,7 @@ if [ $? -ne 0 ]; then
     exit 2
 fi
 
-cd ${DOCS_FOLDER}
+cd ${DOCS_FOLDER} || exit 2
 if [ "${DEBUG}" != "false" ]; then
     echo "DEBUG: Cloned doc repo to ${DOCS_FOLDER} and changed directory"
 fi
@@ -123,15 +123,15 @@ if [ "${DEBUG}" != "false" ]; then
 fi
 
 echo "INFO: Checking out branch ${branch} in the documentation repository"
-remote_branch=$(git ls-remote --heads origin ${branch} 2> /dev/null)
+remote_branch=$(git ls-remote --heads origin "${branch}" 2> /dev/null)
 
 if [ -n "${remote_branch}" ]; then
-    git checkout ${branch}
+    git checkout "${branch}"
     if [ "${DEBUG}" != "false" ]; then
         echo "DEBUG: Checked out existing branch ${branch}"
     fi
 else
-    git checkout -b ${branch}
+    git checkout -b "${branch}"
     if [ "${DEBUG}" != "false" ]; then
         echo "DEBUG: Created new branch ${branch}"
     fi
@@ -227,7 +227,7 @@ EOF
     if [ "${DEBUG}" != "false" ]; then
         echo "DEBUG: Release content starts at line: ${release_start:-'not found'}"
     fi
-    [ -n "${release_start}" ] && tail -n +${release_start} "${TMPDIR}/temp_index.md" >> "${archive_file}"
+    [ -n "${release_start}" ] && tail -n +"${release_start}" "${TMPDIR}/temp_index.md" >> "${archive_file}"
 
     # Create new index for new year
     echo "INFO: Creating new _index.md for year ${release_year}"
@@ -288,7 +288,7 @@ else
     echo "" >> "${TMPDIR}/final_index.md"
     echo "${release_notes_content}" >> "${TMPDIR}/final_index.md"
     echo "" >> "${TMPDIR}/final_index.md"
-    tail -n +${insert_line} "${TMPDIR}/temp_index.md" >> "${TMPDIR}/final_index.md"
+    tail -n +"${insert_line}" "${TMPDIR}/temp_index.md" >> "${TMPDIR}/final_index.md"
 
     mv "${TMPDIR}/final_index.md" "${index_file_path}"
 fi
@@ -321,13 +321,13 @@ if [ "${DRY_RUN}" == "false" ]; then
     fi
 
     echo "INFO: Pushing changes to the documentation repository"
-    git push origin ${branch}
+    git push origin "${branch}"
     if [ $? -ne 0 ]; then
         echo "ERROR: failed pushing changes to the docs repo"
         exit 2
     fi
     echo "INFO: Creating pull request for the documentation repository"
-    gh pr create --title "Update release notes for ${ic_version}" --body "Update release notes for ${ic_version}" --head ${branch} --draft
+    gh pr create --title "Update release notes for ${ic_version}" --body "Update release notes for ${ic_version}" --head "${branch}" --draft
 else
     echo "INFO: DRY_RUN: Showing what would be committed:"
     git status --porcelain

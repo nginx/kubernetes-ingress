@@ -43,6 +43,10 @@ on:
       image-matrix-nap:
         required: true
         type: string
+      write-to-cache:
+        description: Whether to write built images to cache
+        type: boolean
+        default: false
 
 defaults:
   run:
@@ -62,7 +66,7 @@ jobs:
       json: ${{ steps.nic_binaries.outputs.json }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           ref: ${{ inputs.branch }}
 
@@ -101,7 +105,7 @@ jobs:
         if: ${{ inputs.force }}
 
       - name: Store Artifacts in Cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ inputs.go-md5 }}
@@ -144,7 +148,7 @@ jobs:
   #         chmod 600 $HOME/.netrc
 
   #     - name: Fetch Cached Artifacts
-  #       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+  #       uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
   #       with:
   #         path: ${{ github.workspace }}/dist
   #         key: nginx-ingress-${{ inputs.go-md5 }}
@@ -208,6 +212,7 @@ jobs:
       branch: ${{ inputs.branch }}
       ic-version: ${{ inputs.ic-version }}
       runner: ${{ inputs.runner }}
+      write-to-cache: ${{ inputs.write-to-cache }}
     permissions:
       contents: read
       actions: read
@@ -235,6 +240,7 @@ jobs:
       full-build: ${{ inputs.force }}
       ic-version: ${{ inputs.ic-version }}
       runner: ${{ inputs.runner }}
+      write-to-cache: ${{ inputs.write-to-cache }}
     permissions:
       contents: read
       id-token: write
@@ -261,6 +267,7 @@ jobs:
       full-build: ${{ inputs.force }}
       ic-version: ${{ inputs.ic-version }}
       runner: ${{ inputs.runner }}
+      write-to-cache: ${{ inputs.write-to-cache }}
     permissions:
       contents: read
       id-token: write # gcr login
