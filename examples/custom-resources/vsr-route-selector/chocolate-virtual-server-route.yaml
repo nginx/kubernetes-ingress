@@ -1,0 +1,21 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
+  name: chocolate
+  namespace: default
+  labels:
+    route: chocolate
+    app: cafe
+spec:
+  host: cafe.example.com
+  upstreams:
+  - name: chocolate
+    service: chocolate-svc
+    port: 80
+  subroutes:
+  - path: /chocolate
+    action:
+      pass: chocolate
+    location-snippets: |
+      # snippet defined in VSR
+      proxy_set_header X-VSR-Name "Chocolate";
