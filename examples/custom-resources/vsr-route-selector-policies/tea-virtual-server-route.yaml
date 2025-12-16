@@ -4,7 +4,6 @@ metadata:
   name: tea
   namespace: default
   labels:
-    route: tea
     app: cafe
 spec:
   host: cafe.example.com
@@ -16,6 +15,3 @@ spec:
   - path: /tea
     action:
       pass: tea
-    location-snippets: |
-      # snippet defined in VSR
-      proxy_set_header X-VSR-Name "Tea";
