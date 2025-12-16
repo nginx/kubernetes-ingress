@@ -34,6 +34,10 @@ on:
       runner:
         type: string
         default: ubuntu-24.04
+      write-to-cache:
+        required: false
+        type: boolean
+        default: false
 
 defaults:
   run:
@@ -56,7 +60,7 @@ jobs:
       image_digest: ${{ steps.build-push.outputs.digest }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           ref: ${{ inputs.branch }}
           fetch-depth: 0
@@ -177,7 +181,7 @@ jobs:
         with:
           file: build/Dockerfile
           context: "."
-          cache-to: type=gha,scope=${{ inputs.image }},mode=max
+          cache-to: ${{ inputs.write-to-cache && format('type=gha,scope={0},mode=max', inputs.image) || '' }}
           target: common
           tags: ${{ steps.base_name.outputs.image }}
           platforms: ${{ inputs.platforms }}
@@ -197,7 +201,7 @@ jobs:
           echo "full-build: ${{ inputs.full-build }}"
 
       - name: Fetch Cached Artifacts
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/restore@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ inputs.go-md5 }}
@@ -211,7 +215,7 @@ jobs:
           file: build/Dockerfile
           context: "."
           cache-from: type=gha,scope=${{ inputs.image }}
-          cache-to: type=gha,scope=${{ inputs.image }},mode=max
+          cache-to: ${{ inputs.write-to-cache && format('type=gha,scope={0},mode=max', inputs.image) || '' }}
           target: goreleaser${{ inputs.authenticated && '-prebuilt' || '' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

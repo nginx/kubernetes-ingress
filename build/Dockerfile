@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1.20
 ARG BUILD_OS=debian
 # renovate: datasource=docker depName=nginx/nginx
-ARG NGINX_OSS_VERSION=1.29.3
+ARG NGINX_OSS_VERSION=1.29.4
 ARG NGINX_PLUS_VERSION=R36
 ARG NAP_WAF_VERSION=36+5.550
 ARG NAP_WAF_COMMON_VERSION=11.583
 ARG NAP_WAF_PLUGIN_VERSION=6.25.0
-ARG NGINX_AGENT_VERSION=3.5
+ARG NGINX_AGENT_VERSION=3.6
 ARG NAP_AGENT_VERSION=2
 ARG DOWNLOAD_TAG=edge
 ARG DEBIAN_FRONTEND=noninteractive
@@ -16,10 +16,10 @@ ARG PACKAGE_REPO=pkgs.nginx.com
 
 
 ############################################# Base images containing libs for FIPS #############################################
-FROM ghcr.io/nginx/dependencies/nginx-ubi:ubi8@sha256:472ca813c8b5ed0657c7725eb44d56697992da5ce56b43dc47291ab89e2e254d AS ubi8-packages
-FROM ghcr.io/nginx/dependencies/nginx-ubi:ubi9@sha256:1bde412ee491e03e686f3f8cebe22dad0526e007d0d34829c143f063dca8084f AS ubi9-packages
+FROM ghcr.io/nginx/dependencies/nginx-ubi:ubi8@sha256:6b69a5df881f436aaa0929675e2fbfdce19307d5917031251eeab851064e22ec AS ubi8-packages
+FROM ghcr.io/nginx/dependencies/nginx-ubi:ubi9@sha256:c69c8a1d3255d5adaa30de233293d76fa3d903a5583c5933e26567d4e4c6f877 AS ubi9-packages
 FROM ghcr.io/nginx/alpine-fips:0.4.0-alpine3.22@sha256:61ed75f252bde7da1e6db33d2709456e87478280dfae3d11084f94c361e9f329 AS alpine-fips-3.22
-FROM redhat/ubi9-minimal:9.7-1764578379@sha256:161a4e29ea482bab6048c2b36031b4f302ae81e4ff18b83e61785f40dc576f5d AS ubi-minimal
+FROM redhat/ubi9-minimal:9.7-1764794109@sha256:6fc28bcb6776e387d7a35a2056d9d2b985dc4e26031e98a2bd35a7137cd6fd71 AS ubi-minimal
 FROM golang:1.25-alpine@sha256:26111811bc967321e7b6f852e914d14bede324cd1accb7f81811929a6a57fea9 AS golang-builder
 
 ############################################# NGINX files #############################################
@@ -87,7 +87,7 @@ USER 101
 
 
 ############################################# Base image for Alpine #############################################
-FROM nginx:1.29.3-alpine3.22@sha256:b3c656d55d7ad751196f21b7fd2e8d4da9cb430e32f646adcf92441b72f82b14 AS alpine
+FROM nginx:1.29.4-alpine3.23@sha256:052b75ab72f690f33debaa51c7e08d9b969a0447a133eb2b99cc905d9188cb2b AS alpine
 ARG PACKAGE_REPO
 ARG NGINX_OSS_VERSION
 ARG NGINX_AGENT_VERSION
@@ -106,7 +106,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk
 
 
 ############################################# Base image for Debian #############################################
-FROM nginx:1.29.3@sha256:553f64aecdc31b5bf944521731cd70e35da4faed96b2b7548a3d8e2598c52a42 AS debian
+FROM nginx:1.29.4@sha256:fb01117203ff38c2f9af91db1a7409459182a37c87cced5cb442d1d8fcc66d19 AS debian
 ARG NGINX_OSS_VERSION
 ARG NGINX_AGENT_VERSION
 
@@ -280,7 +280,7 @@ RUN --mount=type=bind,from=alpine-fips-3.22,target=/tmp/fips/ \
 
 
 ############################################# Base image for Debian with NGINX Plus only #############################################
-FROM debian:12-slim@sha256:b4aa902587c2e61ce789849cb54c332b0400fe27b1ee33af4669e1f7e7c3e22f AS debian-plus-only
+FROM debian:12-slim@sha256:e899040a73d36e2b36fa33216943539d9957cba8172b858097c2cabcdb20a3e2 AS debian-plus-only
 ARG NGINX_PLUS_VERSION
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
