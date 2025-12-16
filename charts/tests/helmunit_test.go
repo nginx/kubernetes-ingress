@@ -181,6 +181,11 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "list-configs",
 			namespace:   "default",
 		},
+		"commonLabels": {
+			valuesFile:  "testdata/common-labels.yaml",
+			releaseName: "common-labels",
+			namespace:   "default",
+		},
 	}
 
 	// Path to the helm chart we will test

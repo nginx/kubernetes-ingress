@@ -11,6 +11,12 @@
     "nginxServiceMesh"
   ],
   "properties": {
+    "commonLabels": {
+      "type": "object",
+      "default": {},
+      "title": "Common labels to apply to all resources",
+      "additionalProperties": true
+    },
     "controller": {
       "type": "object",
       "default": {},
