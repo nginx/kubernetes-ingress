@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"fmt"
+	"maps"
 	"reflect"
 	"sort"
 	"strings"
@@ -1679,72 +1680,90 @@ func (c *Configuration) buildMinionConfigs(masterHost string) ([]*MinionConfigur
 	return minionConfigs, childWarnings
 }
 
-func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*conf_v1.VirtualServerRoute, map[string][]string, []string) {
+func (c *Configuration) vsrValidation(r *conf_v1.Route, vsHost, vsNamespace string) ([]*conf_v1.VirtualServerRoute, []string) {
 	var vsrs []*conf_v1.VirtualServerRoute
 	var warnings []string
-	var vsrSelectors map[string][]string
 
-	for _, r := range vs.Spec.Routes {
-		if r.Route != "" {
-			vsrKey := r.Route
+	vsrKey := r.Route
 
-			// if route is defined without a namespace, use the namespace of VirtualServer.
-			if !strings.Contains(r.Route, "/") {
-				vsrKey = fmt.Sprintf("%s/%s", vs.Namespace, r.Route)
-			}
+	// if route is defined without a namespace, use the namespace of VirtualServer.
+	if !strings.Contains(r.Route, "/") {
+		vsrKey = fmt.Sprintf("%s/%s", vsNamespace, r.Route)
+	}
 
-			vsr, exists := c.virtualServerRoutes[vsrKey]
+	vsr, exists := c.virtualServerRoutes[vsrKey]
 
-			// if route is defined
-			if !exists {
-				warning := fmt.Sprintf("VirtualServerRoute %s doesn't exist or invalid", vsrKey)
-				warnings = append(warnings, warning)
-				continue
-			}
+	// if route is defined
+	if !exists {
+		warning := fmt.Sprintf("VirtualServerRoute %s doesn't exist or invalid", vsrKey)
+		warnings = append(warnings, warning)
+		return vsrs, warnings
+	}
 
-			err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(vsr, vs.Spec.Host, r.Path)
+	err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(vsr, vsHost, r.Path)
+	if err != nil {
+		warning := fmt.Sprintf("VirtualServerRoute %s is invalid: %v", vsrKey, err)
+		warnings = append(warnings, warning)
+		return vsrs, warnings
+	}
+
+	vsrs = append(vsrs, vsr)
+	return vsrs, warnings
+}
+
+func (c *Configuration) vsrSelectorValidation(r *conf_v1.Route, vsHost string) ([]*conf_v1.VirtualServerRoute, map[string][]string, []string) {
+	var vsrs []*conf_v1.VirtualServerRoute
+	var warnings []string
+	vsrSelectors := make(map[string][]string)
+
+	selector := &metav1.LabelSelector{
+		MatchLabels: r.RouteSelector.MatchLabels,
+	}
+	sel, err := metav1.LabelSelectorAsSelector(selector)
+	if err != nil {
+		warning := fmt.Sprintf("VirtualServerRoute LabelSelector %s is invalid: %v", selector, err)
+		warnings = append(warnings, warning)
+		return vsrs, vsrSelectors, warnings
+	}
+
+	selectorStr := sel.String()
+	// Initialize the selector entry regardless of whether routes match
+	if vsrSelectors[selectorStr] == nil {
+		vsrSelectors[selectorStr] = make([]string, 0)
+	}
+
+	for vsrKey, vsr := range c.virtualServerRoutes {
+		if sel.Matches(labels.Set(vsr.Labels)) {
+			err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(vsr, vsHost, r.Path)
 			if err != nil {
 				warning := fmt.Sprintf("VirtualServerRoute %s is invalid: %v", vsrKey, err)
 				warnings = append(warnings, warning)
 				continue
 			}
-
 			vsrs = append(vsrs, vsr)
+
+			// Add to selectors map
+			vsrSelectors[selectorStr] = append(vsrSelectors[selectorStr], vsrKey)
+		}
+	}
+	return vsrs, vsrSelectors, warnings
+}
+
+func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*conf_v1.VirtualServerRoute, map[string][]string, []string) {
+	var vsrs []*conf_v1.VirtualServerRoute
+	var warnings []string
+	vsrSelectors := make(map[string][]string)
+
+	for _, r := range vs.Spec.Routes {
+		if r.Route != "" {
+			validVsrs, vsrWarnings := c.vsrValidation(&r, vs.Spec.Host, vs.Namespace)
+			vsrs = append(vsrs, validVsrs...)
+			warnings = append(warnings, vsrWarnings...)
 		} else if r.RouteSelector != nil {
-			if vsrSelectors == nil {
-				vsrSelectors = make(map[string][]string)
-			}
-
-			selector := &metav1.LabelSelector{
-				MatchLabels: r.RouteSelector.MatchLabels,
-			}
-			sel, err := metav1.LabelSelectorAsSelector(selector)
-			if err != nil {
-				warning := fmt.Sprintf("VirtualServerRoute LabelSelector %s is invalid: %v", selector, err)
-				warnings = append(warnings, warning)
-				continue
-			}
-
-			selectorStr := sel.String()
-			// Initialize the selector entry regardless of whether routes match
-			if vsrSelectors[selectorStr] == nil {
-				vsrSelectors[selectorStr] = make([]string, 0)
-			}
-
-			for vsrKey, vsr := range c.virtualServerRoutes {
-				if sel.Matches(labels.Set(vsr.Labels)) {
-					err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(vsr, vs.Spec.Host, r.Path)
-					if err != nil {
-						warning := fmt.Sprintf("VirtualServerRoute %s is invalid: %v", vsrKey, err)
-						warnings = append(warnings, warning)
-						continue
-					}
-					vsrs = append(vsrs, vsr)
-
-					// Add to selectors map
-					vsrSelectors[selectorStr] = append(vsrSelectors[selectorStr], vsrKey)
-				}
-			}
+			validVsrs, selectors, vsrWarnings := c.vsrSelectorValidation(&r, vs.Spec.Host)
+			vsrs = append(vsrs, validVsrs...)
+			warnings = append(warnings, vsrWarnings...)
+			maps.Copy(vsrSelectors, selectors)
 		}
 	}
 

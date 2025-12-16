@@ -1190,7 +1190,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 
 	// Add VirtualServerRoute-1
 
-	vsr1 := createTestVirtualServerRoute("virtualserverroute-1", "foo.example.com", "/first")
+	vsr1 := createTestVirtualServerRoute("virtualserverroute-1", "default", "foo.example.com", "/first")
 	var expectedChanges []ResourceChange
 	expectedProblems := []ConfigurationProblem{
 		{
@@ -1248,7 +1248,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 		t.Errorf("AddOrUpdateVirtualServer() returned unexpected result (-want +got):\n%s", diff)
 	}
 
-	vsr2 := createTestVirtualServerRoute("virtualserverroute-2", "foo.example.com", "/second")
+	vsr2 := createTestVirtualServerRoute("virtualserverroute-2", "default", "foo.example.com", "/second")
 
 	// Add VirtualServerRoute-2
 
@@ -1643,7 +1643,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 func TestAddInvalidVirtualServerRoute(t *testing.T) {
 	configuration := createTestConfiguration()
 
-	vsr := createTestVirtualServerRoute("virtualserverroute", "", "/")
+	vsr := createTestVirtualServerRoute("virtualserverroute", "default", "", "/")
 
 	var expectedChanges []ResourceChange
 	expectedProblems := []ConfigurationProblem{
@@ -1667,7 +1667,7 @@ func TestAddInvalidVirtualServerRoute(t *testing.T) {
 func TestAddVirtualServerWithIncorrectClass(t *testing.T) {
 	configuration := createTestConfiguration()
 
-	vsr := createTestVirtualServerRoute("virtualserver", "foo.example.com", "/")
+	vsr := createTestVirtualServerRoute("virtualserver", "default", "foo.example.com", "/")
 	vsr.Spec.IngressClass = "someproxy"
 
 	var expectedChanges []ResourceChange
@@ -3836,10 +3836,10 @@ func createTestVirtualServerWithRoutes(name string, host string, routes []conf_v
 	return vs
 }
 
-func createTestVirtualServerRoute(name string, host string, path string) *conf_v1.VirtualServerRoute {
+func createTestVirtualServerRoute(name, namespace, host, path string) *conf_v1.VirtualServerRoute {
 	return &conf_v1.VirtualServerRoute{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "default",
+			Namespace: namespace,
 			Name:      name,
 		},
 		Spec: conf_v1.VirtualServerRouteSpec{
@@ -4220,7 +4220,7 @@ func TestFindResourcesForResourceReference(t *testing.T) {
 				Route: "virtualserverroute",
 			},
 		})
-	vsr := createTestVirtualServerRoute("virtualserverroute", "asd.example.com", "/")
+	vsr := createTestVirtualServerRoute("virtualserverroute", "default", "asd.example.com", "/")
 	tsPassthrough := createTestTLSPassthroughTransportServer("transportserver-passthrough", "ts.example.com")
 	listeners := []conf_v1.Listener{
 		{
@@ -4603,7 +4603,7 @@ func TestIsEqualForVirtualServers(t *testing.T) {
 				Route: "virtualserverroute",
 			},
 		})
-	vsr := createTestVirtualServerRoute("virtualserverroute", "foo.example.com", "/")
+	vsr := createTestVirtualServerRoute("virtualserverroute", "default", "foo.example.com", "/")
 
 	vsWithUpdatedGen := vs.DeepCopy()
 	vsWithUpdatedGen.Generation++
@@ -5226,5 +5226,75 @@ func TestIsEqualForVirtualServersVSR(t *testing.T) {
 		if result != test.expected {
 			t.Errorf("IsEqual() returned %v but expected %v for the case of %s", result, test.expected, test.msg)
 		}
+	}
+}
+
+func TestVSRValidation(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name          string
+		route         *conf_v1.Route
+		vsHost        string
+		vsNamespace   string
+		expectedVSR   *conf_v1.VirtualServerRoute
+		expectedWarns []string
+	}{
+		{
+			name: "VSR exists and is valid",
+			route: &conf_v1.Route{
+				Route: "default/myroute",
+			},
+			vsHost:        "foo.example.com",
+			vsNamespace:   "default",
+			expectedVSR:   createTestVirtualServerRoute("myroute", "default", "foo.example.com", "/"),
+			expectedWarns: nil,
+		},
+		{
+			name: "VSR exists and is valid different namespace",
+			route: &conf_v1.Route{
+				Route: "coffee/coffee",
+			},
+			vsHost:        "cafe.example.com",
+			vsNamespace:   "default",
+			expectedVSR:   createTestVirtualServerRoute("coffee", "default", "cafe.example.com", "/coffee"),
+			expectedWarns: nil,
+		},
+		{
+			name: "VSR exists same namsespace as VS",
+			route: &conf_v1.Route{
+				Route: "default/coffee",
+			},
+			vsHost:        "cafe.example.com",
+			vsNamespace:   "default",
+			expectedVSR:   createTestVirtualServerRoute("coffee", "default", "cafe.example.com", "/coffee"),
+			expectedWarns: nil,
+		},
+		{
+			name: "VSR exists same namsespace as VS",
+			route: &conf_v1.Route{
+				Route: "cafe/coffee",
+			},
+			vsHost:        "cafe.example.com",
+			vsNamespace:   "cafe",
+			expectedVSR:   createTestVirtualServerRoute("coffee", "cafe", "cafe.example.com", "/coffee"),
+			expectedWarns: nil,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			configuration := createTestConfiguration()
+			configuration.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{
+				testCase.route.Route: testCase.expectedVSR,
+			}
+			vsrs, warnings := configuration.vsrValidation(testCase.route, testCase.vsHost, testCase.vsNamespace)
+
+			if len(vsrs) != 1 || vsrs[0] != testCase.expectedVSR {
+				t.Errorf("vsrValidation() returned unexpected VSRs, got: %v, want: %v", vsrs, testCase.expectedVSR)
+			}
+			if diff := cmp.Diff(testCase.expectedWarns, warnings); diff != "" {
+				t.Errorf("vsrValidation() returned unexpected warnings (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
