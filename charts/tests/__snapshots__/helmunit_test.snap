@@ -6671,10 +6671,10 @@ metadata:
   name: list-configs-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.5.0
+    helm.sh/chart: nginx-ingress-2.4.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: list-configs
-    app.kubernetes.io/version: "5.4.0"
+    app.kubernetes.io/version: "5.3.0"
     app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
@@ -6684,10 +6684,10 @@ metadata:
   name: list-configs-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.5.0
+    helm.sh/chart: nginx-ingress-2.4.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: list-configs
-    app.kubernetes.io/version: "5.4.0"
+    app.kubernetes.io/version: "5.3.0"
     app.kubernetes.io/managed-by: Helm
 data:
   {}
@@ -6699,10 +6699,10 @@ metadata:
   name: list-configs-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.5.0
+    helm.sh/chart: nginx-ingress-2.4.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: list-configs
-    app.kubernetes.io/version: "5.4.0"
+    app.kubernetes.io/version: "5.3.0"
     app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
@@ -6711,10 +6711,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: list-configs-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.5.0
+    helm.sh/chart: nginx-ingress-2.4.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: list-configs
-    app.kubernetes.io/version: "5.4.0"
+    app.kubernetes.io/version: "5.3.0"
     app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups:
@@ -6826,10 +6826,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: list-configs-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.5.0
+    helm.sh/chart: nginx-ingress-2.4.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: list-configs
-    app.kubernetes.io/version: "5.4.0"
+    app.kubernetes.io/version: "5.3.0"
     app.kubernetes.io/managed-by: Helm
 subjects:
 - kind: ServiceAccount
@@ -6846,10 +6846,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: list-configs-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.5.0
+    helm.sh/chart: nginx-ingress-2.4.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: list-configs
-    app.kubernetes.io/version: "5.4.0"
+    app.kubernetes.io/version: "5.3.0"
     app.kubernetes.io/managed-by: Helm
   namespace: default
 rules:
@@ -6906,10 +6906,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: list-configs-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.5.0
+    helm.sh/chart: nginx-ingress-2.4.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: list-configs
-    app.kubernetes.io/version: "5.4.0"
+    app.kubernetes.io/version: "5.3.0"
     app.kubernetes.io/managed-by: Helm
   namespace: default
 roleRef:
@@ -6928,10 +6928,10 @@ metadata:
   name: list-configs-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.5.0
+    helm.sh/chart: nginx-ingress-2.4.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: list-configs
-    app.kubernetes.io/version: "5.4.0"
+    app.kubernetes.io/version: "5.3.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   externalTrafficPolicy: Local
@@ -6978,10 +6978,10 @@ metadata:
   name: list-configs-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.5.0
+    helm.sh/chart: nginx-ingress-2.4.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: list-configs
-    app.kubernetes.io/version: "5.4.0"
+    app.kubernetes.io/version: "5.3.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -7009,7 +7009,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.4.0
+      - image: nginx/nginx-ingress:5.3.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -7107,10 +7107,10 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.5.0
+    helm.sh/chart: nginx-ingress-2.4.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: list-configs
-    app.kubernetes.io/version: "5.4.0"
+    app.kubernetes.io/version: "5.3.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
@@ -7125,10 +7125,10 @@ metadata:
   name: list-configs-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.5.0
+    helm.sh/chart: nginx-ingress-2.4.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: list-configs
-    app.kubernetes.io/version: "5.4.0"
+    app.kubernetes.io/version: "5.3.0"
     app.kubernetes.io/managed-by: Helm
 ---
 
