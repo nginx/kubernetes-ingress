@@ -293,18 +293,6 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		}
 	}
 
-	if sslCiphers, exists := ingEx.Ingress.Annotations[SSLCiphersAnnotation]; exists {
-		cfgParams.ServerSSLCiphers = sslCiphers
-	}
-
-	if sslPreferServerCiphers, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, SSLPreferServerCiphersAnnotation, ingEx.Ingress); exists {
-		if err != nil {
-			nl.Error(l, err)
-		} else {
-			cfgParams.ServerSSLPreferServerCiphers = sslPreferServerCiphers
-		}
-	}
-
 	if proxyBuffering, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/proxy-buffering", ingEx.Ingress); exists {
 		if err != nil {
 			nl.Error(l, err)
