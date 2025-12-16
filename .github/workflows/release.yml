@@ -599,7 +599,6 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    environment: release
     steps:
       - name: Checkout Repository
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
