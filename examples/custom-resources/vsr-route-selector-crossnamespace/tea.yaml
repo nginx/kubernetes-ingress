@@ -1,40 +1,13 @@
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: coffee
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: coffee
-  template:
-    metadata:
-      labels:
-        app: coffee
-    spec:
-      containers:
-      - name: coffee
-        image: nginxdemos/nginx-hello:plain-text
-        ports:
-        - containerPort: 8080
----
 apiVersion: v1
-kind: Service
+kind: Namespace
 metadata:
-  name: coffee-svc
-spec:
-  ports:
-  - port: 80
-    targetPort: 8080
-    protocol: TCP
-    name: http
-  selector:
-    app: coffee
+  name: tea
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: tea
+  namespace: tea
 spec:
   replicas: 1
   selector:
@@ -55,6 +28,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: tea-svc
+  namespace: tea
 spec:
   ports:
   - port: 80
