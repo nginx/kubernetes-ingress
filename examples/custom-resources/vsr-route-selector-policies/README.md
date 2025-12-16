@@ -1,16 +1,22 @@
-# Basic Configuration
+# Basic, single-namespace VirtualServerRoute Selector
 
 In this example we use the [VirtualServer and
 VirtualServerRoute](https://docs.nginx.com/nginx-ingress-controller/configuration/virtualserver-and-virtualserverroute-resources/)
 resources to configure load balancing for the modified cafe application from the [Basic
 Configuration](../basic-configuration/) example. We have put the load balancing configuration as well as the deployments
-and services into one namespace.
+and services into one default namespace.
 
+- In the default namespace, we create the tea deployment, service, and the corresponding load-balancing configuration.
+- In the same namespace, we create the cafe secret with the TLS certificate and key and the load-balancing configuration
+  for the cafe application. That configuration references the tea configuration.
 
 ## Prerequisites
 
+## Step 1 - Install NGINX Ingress COntroller
+
 1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
    instructions to deploy the Ingress Controller with custom resources enabled.
+
 1. Save the public IP address of the Ingress Controller into a shell variable:
 
     ```console
@@ -23,15 +29,33 @@ and services into one namespace.
     IC_HTTPS_PORT=<port number>
     ```
 
-## Step 1 - Deploy the Cafe Application
+## Step 2 - Deploy the Cafe Application
 
-Create the coffee and the tea deployments and services:
+1. Create the tea deployment and service in the tea namespace:
 
-```console
-kubectl create -f cafe.yaml
-```
+    ```console
+    kubectl create -f tea.yaml
+    ```
 
-## Step 2 - Configure Load Balancing and TLS Termination
+1. Create the coffee deployment and service in the default namespace:
+
+    ```console
+    kubectl create -f coffee.yaml
+    ```
+
+## Step 3 - Configure Load Balancing and TLS Termination
+
+1. Create the VirtualServerRoute resource for tea:
+
+    ```console
+    kubectl create -f tea-virtual-server-route.yaml
+    ```
+
+1. Create the VirtualServerRoute resource for coffee:
+
+    ```console
+    kubectl create -f coffee-virtual-server-route.yaml
+    ```
 
 1. Create the secret with the TLS certificate and key:
 
@@ -39,26 +63,39 @@ kubectl create -f cafe.yaml
     kubectl create -f cafe-secret.yaml
     ```
 
-2. Create the VirtualServer resource:
+1. Create the VirtualServer resource for the cafe app:
 
     ```console
     kubectl create -f cafe-virtual-server.yaml
     ```
 
-## Step 3 - Test the Configuration
+## Step 4 - Test the Configuration
 
-1. Check that the configuration has been successfully applied by inspecting the events of the VirtualServer:
+1. Check that the configuration has been successfully applied by inspecting the events of the VirtualServerRoutes and
+   VirtualServer:
+
+    ```console
+    kubectl describe virtualserverroute tea -n tea
+    ```
+
+    ```text
+    WIP - add an example
+    ```
+
+    ```console
+    kubectl describe virtualserverroute coffee
+    ```
+
+    ```text
+    WIP - add an example
+    ```
 
     ```console
     kubectl describe virtualserver cafe
     ```
 
     ```text
-    . . .
-    Events:
-      Type    Reason          Age   From                      Message
-      ----    ------          ----  ----                      -------
-      Normal  AddedOrUpdated  7s    nginx-ingress-controller  Configuration for default/cafe was added or updated
+    WIP - add example
     ```
 
 1. Access the application using curl. We'll use curl's `--insecure` option to turn off certificate verification of our
@@ -72,8 +109,8 @@ kubectl create -f cafe.yaml
     ```
 
     ```text
-    Server address: 10.16.1.182:80
-    Server name: coffee-7dbb5795f6-tnbtq
+    Server address: 10.16.1.193:80
+    Server name: coffee-7dbb5795f6-mltpf
     ...
     ```
 
@@ -84,6 +121,6 @@ kubectl create -f cafe.yaml
     ```
 
     ```text
-    Server address: 10.16.0.149:80
-    Server name: tea-7d57856c44-zlftd
+    Server address: 10.16.0.157:80
+    Server name: tea-7d57856c44-674b8
     ...
