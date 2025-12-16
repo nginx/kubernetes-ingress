@@ -114,7 +114,7 @@ func generateJwtFiles(logger *slog.Logger, secrets []jwtSecret, filenames map[st
 		}
 
 		if *cleanPtr {
-			err := removeJwtFiles(logger, secret)
+			err := removeFiles(logger, secret.FileName, secret.Symlinks)
 			if err != nil {
 				return nil, fmt.Errorf("failed to remove JWT files: %s %w", secret.FileName, err)
 			}
@@ -145,7 +145,7 @@ func generateJwksFiles(logger *slog.Logger, secrets []jwkSecret, filenames map[s
 		}
 
 		if *cleanPtr {
-			err := removeJwksFiles(logger, secret)
+			err := removeFiles(logger, secret.FileName, secret.Symlinks)
 			if err != nil {
 				return nil, fmt.Errorf("failed to remove secret files: %s %w", secret.FileName, err)
 			}
@@ -176,7 +176,7 @@ func generateHtpasswdFiles(logger *slog.Logger, secrets []htpasswdSecret, filena
 		}
 
 		if *cleanPtr {
-			err := removeHtpasswdFiles(logger, secret)
+			err := removeFiles(logger, secret.FileName, secret.Symlinks)
 			if err != nil {
 				return nil, fmt.Errorf("failed to remove secret files: %s %w", secret.FileName, err)
 			}
@@ -273,7 +273,7 @@ func generateTLSCerts(logger *slog.Logger, secrets []yamlSecret, filenames map[s
 		}
 
 		if *cleanPtr {
-			err := removeSecretFiles(logger, secret)
+			err := removeFiles(logger, secret.FileName, secret.Symlinks)
 			if err != nil {
 				return nil, fmt.Errorf("failed to remove secret files: %s %w", secret.FileName, err)
 			}
@@ -451,4 +451,27 @@ func createYamlCA(secretName string, tlsKeys *JITTLSKey, crl []byte) ([]byte, er
 	}
 
 	return sb, nil
+}
+
+func removeFiles(logger *slog.Logger, fileName string, symlinks []string) error {
+	filePath := filepath.Join(projectRoot, realSecretDirectory, fileName)
+	log.Debugf(logger, "Removing file %s", filePath)
+	if _, err := os.Stat(filePath); !os.IsNotExist(err) {
+		err = os.Remove(filePath)
+		if err != nil {
+			return fmt.Errorf("failed to remove file: %s %w", fileName, err)
+		}
+	}
+
+	for _, symlink := range symlinks {
+		log.Debugf(logger, "Removing symlink %s", symlink)
+		symlinkPath := filepath.Join(projectRoot, symlink)
+		if _, err := os.Lstat(symlinkPath); !os.IsNotExist(err) {
+			err = os.Remove(symlinkPath)
+			if err != nil {
+				return fmt.Errorf("failed to remove symlink: %s %w", symlink, err)
+			}
+		}
+	}
+	return nil
 }

@@ -5,10 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
 
-	log "github.com/nginx/kubernetes-ingress/internal/logger"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
@@ -105,26 +102,4 @@ func createKubeJwksSecretYaml(secret jwkSecret, data []byte) ([]byte, error) {
 	}
 
 	return yaml.Marshal(s)
-}
-
-func removeJwksFiles(logger *slog.Logger, secret jwkSecret) error {
-	filePath := filepath.Join(projectRoot, realSecretDirectory, secret.FileName)
-	log.Debugf(logger, "Removing file %s", filePath)
-	if _, err := os.Stat(filePath); !os.IsNotExist(err) {
-		err := os.Remove(filepath.Join(projectRoot, realSecretDirectory, secret.FileName))
-		if err != nil {
-			return fmt.Errorf("failed to remove file: %s %w", secret.FileName, err)
-		}
-	}
-
-	for _, symlink := range secret.Symlinks {
-		log.Debugf(logger, "Removing symlink %s", symlink)
-		if _, err := os.Lstat(filepath.Join(projectRoot, symlink)); !os.IsNotExist(err) {
-			err = os.Remove(filepath.Join(projectRoot, symlink))
-			if err != nil {
-				return fmt.Errorf("failed to remove symlink: %s %w", symlink, err)
-			}
-		}
-	}
-	return nil
 }

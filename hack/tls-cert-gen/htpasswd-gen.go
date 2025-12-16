@@ -3,10 +3,7 @@ package main
 import (
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
 
-	log "github.com/nginx/kubernetes-ingress/internal/logger"
 	"golang.org/x/crypto/bcrypt"
 	"sigs.k8s.io/yaml"
 
@@ -90,26 +87,4 @@ func createKubeHTPasswdSecretYaml(secret htpasswdSecret, data []byte) ([]byte, e
 	}
 
 	return yaml.Marshal(s)
-}
-
-func removeHtpasswdFiles(logger *slog.Logger, secret htpasswdSecret) error {
-	filePath := filepath.Join(projectRoot, realSecretDirectory, secret.FileName)
-	log.Debugf(logger, "Removing file %s", filePath)
-	if _, err := os.Stat(filePath); !os.IsNotExist(err) {
-		err := os.Remove(filepath.Join(projectRoot, realSecretDirectory, secret.FileName))
-		if err != nil {
-			return fmt.Errorf("failed to remove file: %s %w", secret.FileName, err)
-		}
-	}
-
-	for _, symlink := range secret.Symlinks {
-		log.Debugf(logger, "Removing symlink %s", symlink)
-		if _, err := os.Lstat(filepath.Join(projectRoot, symlink)); !os.IsNotExist(err) {
-			err = os.Remove(filepath.Join(projectRoot, symlink))
-			if err != nil {
-				return fmt.Errorf("failed to remove symlink: %s %w", symlink, err)
-			}
-		}
-	}
-	return nil
 }
