@@ -77,7 +77,7 @@ repos:
           ]
 
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0.35.0
+    rev: 0.36.0
     hooks:
       - id: check-jsonschema
         name: "Check Helm Chart JSON Schema"
@@ -86,7 +86,7 @@ repos:
         args: ["--schemafile", "charts/nginx-ingress/values.schema.json"]
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.19.1
+    rev: v0.20.0
     hooks:
       - id: markdownlint-cli2
 
