@@ -5236,7 +5236,8 @@ func TestVSRValidation(t *testing.T) {
 		route         *conf_v1.Route
 		vsHost        string
 		vsNamespace   string
-		expectedVSR   *conf_v1.VirtualServerRoute
+		vsrs          []*conf_v1.VirtualServerRoute
+		expectedVSRs  []*conf_v1.VirtualServerRoute
 		expectedWarns []string
 	}{
 		{
@@ -5246,7 +5247,8 @@ func TestVSRValidation(t *testing.T) {
 			},
 			vsHost:        "foo.example.com",
 			vsNamespace:   "default",
-			expectedVSR:   createTestVirtualServerRoute("myroute", "default", "foo.example.com", "/"),
+			vsrs:          []*conf_v1.VirtualServerRoute{createTestVirtualServerRoute("myroute", "default", "foo.example.com", "/")},
+			expectedVSRs:  []*conf_v1.VirtualServerRoute{createTestVirtualServerRoute("myroute", "default", "foo.example.com", "/")},
 			expectedWarns: nil,
 		},
 		{
@@ -5256,7 +5258,8 @@ func TestVSRValidation(t *testing.T) {
 			},
 			vsHost:        "cafe.example.com",
 			vsNamespace:   "default",
-			expectedVSR:   createTestVirtualServerRoute("coffee", "default", "cafe.example.com", "/coffee"),
+			vsrs:          []*conf_v1.VirtualServerRoute{createTestVirtualServerRoute("coffee", "default", "cafe.example.com", "/coffee")},
+			expectedVSRs:  []*conf_v1.VirtualServerRoute{createTestVirtualServerRoute("coffee", "default", "cafe.example.com", "/coffee")},
 			expectedWarns: nil,
 		},
 		{
@@ -5266,7 +5269,8 @@ func TestVSRValidation(t *testing.T) {
 			},
 			vsHost:        "cafe.example.com",
 			vsNamespace:   "default",
-			expectedVSR:   createTestVirtualServerRoute("coffee", "default", "cafe.example.com", "/coffee"),
+			vsrs:          []*conf_v1.VirtualServerRoute{createTestVirtualServerRoute("coffee", "default", "cafe.example.com", "/coffee")},
+			expectedVSRs:  []*conf_v1.VirtualServerRoute{createTestVirtualServerRoute("coffee", "default", "cafe.example.com", "/coffee")},
 			expectedWarns: nil,
 		},
 		{
@@ -5276,7 +5280,8 @@ func TestVSRValidation(t *testing.T) {
 			},
 			vsHost:        "cafe.example.com",
 			vsNamespace:   "cafe",
-			expectedVSR:   createTestVirtualServerRoute("coffee", "cafe", "cafe.example.com", "/coffee"),
+			vsrs:          []*conf_v1.VirtualServerRoute{createTestVirtualServerRoute("coffee", "cafe", "cafe.example.com", "/coffee")},
+			expectedVSRs:  []*conf_v1.VirtualServerRoute{createTestVirtualServerRoute("coffee", "cafe", "cafe.example.com", "/coffee")},
 			expectedWarns: nil,
 		},
 		{
@@ -5286,7 +5291,8 @@ func TestVSRValidation(t *testing.T) {
 			},
 			vsHost:        "cafe.example.com",
 			vsNamespace:   "default",
-			expectedVSR:   &conf_v1.VirtualServerRoute{},
+			vsrs:          []*conf_v1.VirtualServerRoute{},
+			expectedVSRs:  nil,
 			expectedWarns: []string{"VirtualServerRoute default/missingroute doesn't exist or invalid"},
 		},
 		{
@@ -5296,7 +5302,8 @@ func TestVSRValidation(t *testing.T) {
 			},
 			vsHost:        "bar.example.com",
 			vsNamespace:   "default",
-			expectedVSR:   &conf_v1.VirtualServerRoute{},
+			vsrs:          []*conf_v1.VirtualServerRoute{createTestVirtualServerRoute("tea", "default", "cafe.example.com", "/tea")},
+			expectedVSRs:  nil,
 			expectedWarns: []string{`VirtualServerRoute default/tea is invalid: spec.host: Invalid value: "cafe.example.com": must be equal to 'bar.example.com'`},
 		},
 	}
@@ -5304,13 +5311,16 @@ func TestVSRValidation(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			configuration := createTestConfiguration()
-			configuration.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{
-				testCase.route.Route: testCase.expectedVSR,
+			configuration.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{}
+			if len(testCase.vsrs) > 0 {
+				for _, vsr := range testCase.vsrs {
+					configuration.virtualServerRoutes[testCase.route.Route] = vsr
+				}
 			}
 			vsrs, warnings := configuration.vsrValidation(testCase.route, testCase.vsHost, testCase.vsNamespace)
 
-			if len(vsrs) != 1 || vsrs[0] != testCase.expectedVSR {
-				t.Errorf("vsrValidation() returned unexpected VSRs, got: %v, want: %v", vsrs, testCase.expectedVSR)
+			if diff := cmp.Diff(testCase.expectedVSRs, vsrs); diff != "" {
+				t.Errorf("vsrValidation() returned unexpected VSRs (-want +got):\n%s", diff)
 			}
 			if diff := cmp.Diff(testCase.expectedWarns, warnings); diff != "" {
 				t.Errorf("vsrValidation() returned unexpected warnings (-want +got):\n%s", diff)
