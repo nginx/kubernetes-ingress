@@ -83,7 +83,7 @@ staticcheck: ## Run staticcheck linter
 	staticcheck ./...
 
 .PHONY: govulncheck
-govulncheck:
+govulncheck: ## Run govulncheck linter
 	@govulncheck -version >/dev/null 2>&1 || go install golang.org/x/vuln/cmd/govulncheck@v1.1.4;
 	govulncheck ./...
 
