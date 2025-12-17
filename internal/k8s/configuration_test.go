@@ -5279,6 +5279,26 @@ func TestVSRValidation(t *testing.T) {
 			expectedVSR:   createTestVirtualServerRoute("coffee", "cafe", "cafe.example.com", "/coffee"),
 			expectedWarns: nil,
 		},
+		{
+			name: "VSR does not exist",
+			route: &conf_v1.Route{
+				Route: "default/missingroute",
+			},
+			vsHost:        "cafe.example.com",
+			vsNamespace:   "default",
+			expectedVSR:   &conf_v1.VirtualServerRoute{},
+			expectedWarns: []string{"VirtualServerRoute default/missingroute doesn't exist or invalid"},
+		},
+		{
+			name: "VSR exists but host mismatch",
+			route: &conf_v1.Route{
+				Route: "default/tea",
+			},
+			vsHost:        "bar.example.com",
+			vsNamespace:   "default",
+			expectedVSR:   &conf_v1.VirtualServerRoute{},
+			expectedWarns: []string{`VirtualServerRoute default/tea is invalid: spec.host: Invalid value: "cafe.example.com": must be equal to 'bar.example.com'`},
+		},
 	}
 
 	for _, testCase := range testCases {
