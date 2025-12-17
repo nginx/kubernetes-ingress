@@ -612,7 +612,7 @@ jobs:
           path: ${{ github.workspace }}/tarballs
           fail-on-cache-miss: true
 
-      - name: Azure login
+      - name: Azure login for secrets
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
         with:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
@@ -632,7 +632,7 @@ jobs:
           echo "::add-mask::$AZURE_BUCKET_NAME"
           echo "AZURE_BUCKET_NAME=$AZURE_BUCKET_NAME" >> $GITHUB_OUTPUT
 
-      - name: Azure login
+      - name: Azure login for upload
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
