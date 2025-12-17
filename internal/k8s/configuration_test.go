@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -3859,16 +3860,16 @@ func createTestVirtualServerRoute(name, namespace, host, path string) *conf_v1.V
 	}
 }
 
-func createTestVirtualServerRouteWithLabels(name string, path string, labels map[string]string) *conf_v1.VirtualServerRoute {
+func createTestVirtualServerRouteWithLabels(name, namespace, host, path string, labels map[string]string) *conf_v1.VirtualServerRoute {
 	return &conf_v1.VirtualServerRoute{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "default",
+			Namespace: namespace,
 			Name:      name,
 			Labels:    labels,
 		},
 		Spec: conf_v1.VirtualServerRouteSpec{
 			IngressClass: "nginx",
-			Host:         "foo.example.com",
+			Host:         host,
 			Subroutes: []conf_v1.Route{
 				{
 					Path: path,
@@ -4999,7 +5000,7 @@ func TestMatchVSwithVSRusingSelector(t *testing.T) {
 	// Add VirtualServerRoute
 
 	labels := make(map[string]string)
-	vsr := createTestVirtualServerRouteWithLabels("virtualserverroute", "/first", labels)
+	vsr := createTestVirtualServerRouteWithLabels("virtualserverroute", "default", "foo.example.com", "/first", labels)
 
 	var expectedChanges []ResourceChange
 	expectedProblems := []ConfigurationProblem{
@@ -5063,7 +5064,7 @@ func TestAddVirtualServerWithVirtualServerRoutesVSR(t *testing.T) {
 	// Add VirtualServerRoute-1
 
 	labels := make(map[string]string)
-	vsr1 := createTestVirtualServerRouteWithLabels("virtualserverroute-1", "/first", labels)
+	vsr1 := createTestVirtualServerRouteWithLabels("virtualserverroute-1", "default", "foo.example.com", "/first", labels)
 
 	var expectedChanges []ResourceChange
 	expectedProblems := []ConfigurationProblem{
@@ -5124,7 +5125,7 @@ func TestAddVirtualServerWithVirtualServerRoutesVSR(t *testing.T) {
 
 	// Add VirtualServerRoute-2
 
-	vsr2 := createTestVirtualServerRouteWithLabels("virtualserverroute-2", "/second", nil)
+	vsr2 := createTestVirtualServerRouteWithLabels("virtualserverroute-2", "default", "foo.example.com", "/second", nil)
 
 	expectedChanges = []ResourceChange{
 		{
@@ -5148,7 +5149,7 @@ func TestAddVirtualServerWithVirtualServerRoutesVSR(t *testing.T) {
 
 	// Add VirtualServerRoute-3 with RouteSelector labels
 
-	vsr3 := createTestVirtualServerRouteWithLabels("virtualserverroute-3", "/third", map[string]string{"app": "route"})
+	vsr3 := createTestVirtualServerRouteWithLabels("virtualserverroute-3", "default", "foo.example.com", "/third", map[string]string{"app": "route"})
 	expectedChanges = []ResourceChange{
 		{
 			Op: AddOrUpdate,
@@ -5181,7 +5182,7 @@ func TestIsEqualForVirtualServersVSR(t *testing.T) {
 				Route: "virtualserverroute",
 			},
 		})
-	vsr := createTestVirtualServerRouteWithLabels("virtualserverroute", "/", nil)
+	vsr := createTestVirtualServerRouteWithLabels("virtualserverroute", "default", "foo.example.com", "/", nil)
 
 	vsWithUpdatedGen := vs.DeepCopy()
 	vsWithUpdatedGen.Generation++
@@ -5241,7 +5242,7 @@ func TestVSRValidation(t *testing.T) {
 		expectedWarns []string
 	}{
 		{
-			name: "VSR exists and is valid",
+			name: "VSR exists and is valid VS & VSR same namespace (default)",
 			route: &conf_v1.Route{
 				Route: "default/myroute",
 			},
@@ -5252,29 +5253,18 @@ func TestVSRValidation(t *testing.T) {
 			expectedWarns: nil,
 		},
 		{
-			name: "VSR exists and is valid different namespace",
+			name: "VSR exists and is valid VS (default) & VSR (coffee) in different namespaces",
 			route: &conf_v1.Route{
 				Route: "coffee/coffee",
 			},
 			vsHost:        "cafe.example.com",
 			vsNamespace:   "default",
-			vsrs:          []*conf_v1.VirtualServerRoute{createTestVirtualServerRoute("coffee", "default", "cafe.example.com", "/coffee")},
-			expectedVSRs:  []*conf_v1.VirtualServerRoute{createTestVirtualServerRoute("coffee", "default", "cafe.example.com", "/coffee")},
+			vsrs:          []*conf_v1.VirtualServerRoute{createTestVirtualServerRoute("coffee", "coffee", "cafe.example.com", "/coffee")},
+			expectedVSRs:  []*conf_v1.VirtualServerRoute{createTestVirtualServerRoute("coffee", "coffee", "cafe.example.com", "/coffee")},
 			expectedWarns: nil,
 		},
 		{
-			name: "VSR exists same namsespace as VS",
-			route: &conf_v1.Route{
-				Route: "default/coffee",
-			},
-			vsHost:        "cafe.example.com",
-			vsNamespace:   "default",
-			vsrs:          []*conf_v1.VirtualServerRoute{createTestVirtualServerRoute("coffee", "default", "cafe.example.com", "/coffee")},
-			expectedVSRs:  []*conf_v1.VirtualServerRoute{createTestVirtualServerRoute("coffee", "default", "cafe.example.com", "/coffee")},
-			expectedWarns: nil,
-		},
-		{
-			name: "VSR exists same namsespace as VS",
+			name: "VSR exists same namespace as VS (cafe)",
 			route: &conf_v1.Route{
 				Route: "cafe/coffee",
 			},
@@ -5314,7 +5304,7 @@ func TestVSRValidation(t *testing.T) {
 			configuration.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{}
 			if len(testCase.vsrs) > 0 {
 				for _, vsr := range testCase.vsrs {
-					configuration.virtualServerRoutes[testCase.route.Route] = vsr
+					configuration.virtualServerRoutes[fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)] = vsr
 				}
 			}
 			vsrs, warnings := configuration.vsrValidation(testCase.route, testCase.vsHost, testCase.vsNamespace)
@@ -5324,6 +5314,71 @@ func TestVSRValidation(t *testing.T) {
 			}
 			if diff := cmp.Diff(testCase.expectedWarns, warnings); diff != "" {
 				t.Errorf("vsrValidation() returned unexpected warnings (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestVSRSelectorValidation(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name                 string
+		route                *conf_v1.Route
+		vsHost               string
+		vsrs                 []*conf_v1.VirtualServerRoute
+		expectedVSRs         []*conf_v1.VirtualServerRoute
+		expectedVSRSelectors map[string][]string
+		expectedWarns        []string
+	}{
+		{
+			name: "VSR exists and is valid",
+			route: &conf_v1.Route{
+				Path:          "/",
+				RouteSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "route"}},
+			},
+			vsHost:       "foo.example.com",
+			vsrs:         []*conf_v1.VirtualServerRoute{createTestVirtualServerRouteWithLabels("myroute", "default", "foo.example.com", "/", map[string]string{"app": "route"})},
+			expectedVSRs: []*conf_v1.VirtualServerRoute{createTestVirtualServerRouteWithLabels("myroute", "default", "foo.example.com", "/", map[string]string{"app": "route"})},
+			expectedVSRSelectors: map[string][]string{
+				"app=route": {"default/myroute"},
+			},
+			expectedWarns: nil,
+		},
+		{
+			name: "VSR exists and is valid different namespace",
+			route: &conf_v1.Route{
+				Path:          "/",
+				RouteSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "route"}},
+			},
+			vsHost:       "cafe.example.com",
+			vsrs:         []*conf_v1.VirtualServerRoute{createTestVirtualServerRouteWithLabels("coffee", "coffee", "cafe.example.com", "/", map[string]string{"app": "route"})},
+			expectedVSRs: []*conf_v1.VirtualServerRoute{createTestVirtualServerRouteWithLabels("coffee", "coffee", "cafe.example.com", "/", map[string]string{"app": "route"})},
+			expectedVSRSelectors: map[string][]string{
+				"app=route": {"coffee/coffee"},
+			},
+			expectedWarns: nil,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			configuration := createTestConfiguration()
+			configuration.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{}
+			if len(testCase.vsrs) > 0 {
+				for _, vsr := range testCase.vsrs {
+					configuration.virtualServerRoutes[fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)] = vsr
+				}
+			}
+			vsrs, selectors, warnings := configuration.vsrSelectorValidation(testCase.route, testCase.vsHost)
+
+			if diff := cmp.Diff(testCase.expectedVSRs, vsrs); diff != "" {
+				t.Errorf("vsrValidation() returned unexpected VSRs (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(testCase.expectedWarns, warnings); diff != "" {
+				t.Errorf("vsrValidation() returned unexpected warnings (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(testCase.expectedVSRSelectors, selectors); diff != "" {
+				t.Errorf("vsrValidation() returned unexpected VSR selectors (-want +got):\n%s", diff)
 			}
 		})
 	}
