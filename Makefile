@@ -241,6 +241,7 @@ ubi-image-nap-dos-plus: build ## Create Docker image for Ingress Controller (UBI
 
 .PHONY: all-images ## Create all the Docker images for Ingress Controller
 all-images:
+	docker builder prune -af; \
 	images="alpine-image alpine-image-plus alpine-image-plus-fips alpine-image-nap-plus-fips debian-image debian-image-plus debian-image-nap-plus debian-image-dos-plus debian-image-nap-dos-plus ubi-image ubi-image-plus ubi-image-nap-plus ubi-image-dos-plus ubi-image-nap-dos-plus"; \
 	for img in $$images; do \
 		TAG="$(strip $(TAG))-$$img" make $$img; \
