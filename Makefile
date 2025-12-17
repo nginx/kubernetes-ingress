@@ -12,6 +12,12 @@ NAP_AGENT_VERSION             ?= 2
 NGINX_AGENT_VERSION           ?= 3.5
 PLUS_ARGS = --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --secret id=nginx-repo.crt,src=nginx-repo.crt --secret id=nginx-repo.key,src=nginx-repo.key
 
+# renovate: datasource=github depName=dominikh/go-tools
+STATICCHECK_VERSION ?= 2025.1.1
+
+# renovate: datasource=github depName=dominikh/go-tools
+GOVULNCHECK_VERSION ?= v1.1.4
+
 # Variables that can be overridden
 REGISTRY                      ?= ## The registry where the image is located.
 PREFIX                        ?= nginx/nginx-ingress ## The name of the image. For example, nginx/nginx-ingress
@@ -79,12 +85,12 @@ format: ## Run goimports & gofmt
 
 .PHONY: staticcheck
 staticcheck: ## Run staticcheck linter
-	@staticcheck -version >/dev/null 2>&1 || go install honnef.co/go/tools/cmd/staticcheck@2025.1.1;
+	@staticcheck -version >/dev/null 2>&1 || go install honnef.co/go/tools/cmd/staticcheck@${STATICCHECK_VERSION};
 	staticcheck ./...
 
 .PHONY: govulncheck
 govulncheck: ## Run govulncheck linter
-	@govulncheck -version >/dev/null 2>&1 || go install golang.org/x/vuln/cmd/govulncheck@v1.1.4;
+	@govulncheck -version >/dev/null 2>&1 || go install golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION};
 	govulncheck ./...
 
 .PHONY: test
