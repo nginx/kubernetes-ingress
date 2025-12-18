@@ -1749,6 +1749,38 @@ func (c *Configuration) vsrSelectorValidation(r *conf_v1.Route, vsHost string) (
 	return vsrs, vsrSelectors, warnings
 }
 
+func duplicateVSRPathValidation(vsrs []*conf_v1.VirtualServerRoute) ([]*conf_v1.VirtualServerRoute, []string) {
+	var warnings []string
+
+	paths := make(map[string]string)
+	var vsrsToRemove []string
+
+	for _, vsr := range vsrs {
+		for _, subroute := range vsr.Spec.Subroutes {
+			if path, exists := paths[subroute.Path]; exists {
+				pathWarning := fmt.Sprintf("path %s is taken by %s", subroute.Path, path)
+				warnings = append(warnings, pathWarning)
+
+				vsrsToRemove = append(vsrsToRemove, getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta))
+			} else {
+				paths[subroute.Path] = getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta)
+			}
+		}
+	}
+
+	if len(vsrsToRemove) != 0 {
+		for _, vsrToRemove := range vsrsToRemove {
+			for i, vsr := range vsrs {
+				if getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta) == vsrToRemove {
+					vsrs = removeFromVSRSlice(vsrs, i)
+					break
+				}
+			}
+		}
+	}
+	return vsrs, warnings
+}
+
 func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*conf_v1.VirtualServerRoute, map[string][]string, []string) {
 	var vsrs []*conf_v1.VirtualServerRoute
 	var warnings []string
@@ -1767,7 +1799,15 @@ func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*
 		}
 	}
 
+	vsrs, pathWarnings := duplicateVSRPathValidation(vsrs)
+	warnings = append(warnings, pathWarnings...)
+
 	return vsrs, vsrSelectors, warnings
+}
+
+func removeFromVSRSlice(s []*conf_v1.VirtualServerRoute, i int) []*conf_v1.VirtualServerRoute {
+	s[i] = s[len(s)-1]
+	return s[:len(s)-1]
 }
 
 // GetTransportServerMetrics returns metrics about TransportServers

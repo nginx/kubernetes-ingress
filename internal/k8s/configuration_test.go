@@ -5477,3 +5477,314 @@ func TestVSRSelectorValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestDuplicateVSRPathValidation(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		vsrs          []*conf_v1.VirtualServerRoute
+		expectedVSRs  []*conf_v1.VirtualServerRoute
+		expectedWarns []string
+	}{
+		{
+			name: "No duplicate paths",
+			vsrs: []*conf_v1.VirtualServerRoute{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr1",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "/path1",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "path1"},
+								},
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr2",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "/path2",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "path2"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedVSRs: []*conf_v1.VirtualServerRoute{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr1",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "/path1",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "path1"},
+								},
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr2",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "/path2",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "path2"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedWarns: nil,
+		},
+		{
+			name: "Duplicate paths between VSRs",
+			vsrs: []*conf_v1.VirtualServerRoute{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr1",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "/duplicate",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "path1"},
+								},
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr2",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "/duplicate",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "path2"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedVSRs: []*conf_v1.VirtualServerRoute{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr1",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "/duplicate",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "path1"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedWarns: []string{
+				"path /duplicate is taken by another route in VirtualServer default/test-vs",
+			},
+		},
+		{
+			name: "Multiple duplicate paths within single VSR",
+			vsrs: []*conf_v1.VirtualServerRoute{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr1",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "/path1",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "first"},
+								},
+							},
+							{
+								Path: "/path1",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "duplicate"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedVSRs: []*conf_v1.VirtualServerRoute{},
+			expectedWarns: []string{
+				"path /path1 is taken by another route in VirtualServer default/test-vs",
+			},
+		},
+		{
+			name: "Multiple VSRs with multiple duplicate paths",
+			vsrs: []*conf_v1.VirtualServerRoute{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr1",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "/dup1",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "first"},
+								},
+							},
+							{
+								Path: "/unique",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "unique"},
+								},
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr2",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "/dup1",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "duplicate1"},
+								},
+							},
+							{
+								Path: "/dup2",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "first2"},
+								},
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr3",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "/dup2",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "duplicate2"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedVSRs: []*conf_v1.VirtualServerRoute{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr1",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "/dup1",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "first"},
+								},
+							},
+							{
+								Path: "/unique",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "unique"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedWarns: []string{
+				"path /dup1 is taken by another route in VirtualServer default/test-vs",
+				"path /dup2 is taken by another route in VirtualServer default/test-vs",
+			},
+		},
+		{
+			name:          "Empty VSR slice",
+			vsrs:          []*conf_v1.VirtualServerRoute{},
+			expectedVSRs:  []*conf_v1.VirtualServerRoute{},
+			expectedWarns: nil,
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			resultVSRs, warnings := duplicateVSRPathValidation(testCase.vsrs)
+
+			if diff := cmp.Diff(testCase.expectedVSRs, resultVSRs); diff != "" {
+				t.Errorf("duplicateVSRPathValidation() returned unexpected VSRs (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(testCase.expectedWarns, warnings); diff != "" {
+				t.Errorf("duplicateVSRPathValidation() returned unexpected warnings (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
