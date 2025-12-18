@@ -962,7 +962,8 @@ func TestAddVirtualServer(t *testing.T) {
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: vs,
+				VirtualServer:               vs,
+				VirtualServerRouteSelectors: map[string][]string{},
 			},
 		},
 	}
@@ -985,7 +986,8 @@ func TestAddVirtualServer(t *testing.T) {
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: updatedVS,
+				VirtualServer:               updatedVS,
+				VirtualServerRouteSelectors: map[string][]string{},
 			},
 		},
 	}
@@ -1008,7 +1010,8 @@ func TestAddVirtualServer(t *testing.T) {
 		{
 			Op: Delete,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: updatedVS,
+				VirtualServer:               updatedVS,
+				VirtualServerRouteSelectors: map[string][]string{},
 			},
 			Error: "spec.host: Required value",
 		},
@@ -1028,7 +1031,8 @@ func TestAddVirtualServer(t *testing.T) {
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: updatedVS,
+				VirtualServer:               updatedVS,
+				VirtualServerRouteSelectors: map[string][]string{},
 			},
 		},
 	}
@@ -1051,7 +1055,8 @@ func TestAddVirtualServer(t *testing.T) {
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: updatedHostVS,
+				VirtualServer:               updatedHostVS,
+				VirtualServerRouteSelectors: map[string][]string{},
 			},
 		},
 	}
@@ -1069,7 +1074,8 @@ func TestAddVirtualServer(t *testing.T) {
 		{
 			Op: Delete,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: updatedHostVS,
+				VirtualServer:               updatedHostVS,
+				VirtualServerRouteSelectors: map[string][]string{},
 			},
 		},
 	}
@@ -1136,7 +1142,8 @@ func TestAddInvalidVirtualServerWithIncorrectClass(t *testing.T) {
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: updatedVS,
+				VirtualServer:               updatedVS,
+				VirtualServerRouteSelectors: map[string][]string{},
 			},
 		},
 	}
@@ -1156,7 +1163,8 @@ func TestAddInvalidVirtualServerWithIncorrectClass(t *testing.T) {
 		{
 			Op: Delete,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: updatedVS,
+				VirtualServer:               updatedVS,
+				VirtualServerRouteSelectors: map[string][]string{},
 			},
 		},
 	}
@@ -1744,7 +1752,8 @@ func TestHostCollisions(t *testing.T) {
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: vs,
+				VirtualServer:               vs,
+				VirtualServerRouteSelectors: map[string][]string{},
 			},
 		},
 	}
@@ -1771,8 +1780,9 @@ func TestHostCollisions(t *testing.T) {
 		{
 			Op: Delete,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: vs,
-				Warnings:      []string{"host foo.example.com is taken by another resource"},
+				VirtualServer:               vs,
+				VirtualServerRouteSelectors: map[string][]string{},
+				Warnings:                    []string{"host foo.example.com is taken by another resource"},
 			},
 		},
 		{
@@ -1910,7 +1920,8 @@ func TestHostCollisions(t *testing.T) {
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: vs,
+				VirtualServer:               vs,
+				VirtualServerRouteSelectors: map[string][]string{},
 			},
 		},
 	}
@@ -1930,7 +1941,8 @@ func TestHostCollisions(t *testing.T) {
 		{
 			Op: Delete,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: vs,
+				VirtualServer:               vs,
+				VirtualServerRouteSelectors: map[string][]string{},
 			},
 		},
 		{
@@ -2805,9 +2817,10 @@ func TestAddGlobalConfigurationThenAddVirtualServerWithValidCustomListeners(t *t
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServer,
-				HTTPPort:      8082,
-				HTTPSPort:     8442,
+				VirtualServer:               virtualServer,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    8082,
+				HTTPSPort:                   8442,
 			},
 		},
 	}
@@ -2829,10 +2842,11 @@ func TestAddVirtualServerWithValidCustomListenersFirstThenAddGlobalConfiguration
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServer,
-				HTTPPort:      0,
-				HTTPSPort:     0,
-				Warnings:      []string{"Listeners defined, but no GlobalConfiguration is deployed"},
+				VirtualServer:               virtualServer,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    0,
+				HTTPSPort:                   0,
+				Warnings:                    []string{"Listeners defined, but no GlobalConfiguration is deployed"},
 			},
 		},
 	}
@@ -2843,9 +2857,10 @@ func TestAddVirtualServerWithValidCustomListenersFirstThenAddGlobalConfiguration
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServer,
-				HTTPPort:      8082,
-				HTTPSPort:     8442,
+				VirtualServer:               virtualServer,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    8082,
+				HTTPSPort:                   8442,
 			},
 		},
 	}
@@ -2867,10 +2882,11 @@ func TestAddVirtualServerWithValidCustomListenersAndNoGlobalConfiguration(t *tes
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServer,
-				HTTPPort:      0,
-				HTTPSPort:     0,
-				Warnings:      []string{"Listeners defined, but no GlobalConfiguration is deployed"},
+				VirtualServer:               virtualServer,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    0,
+				HTTPSPort:                   0,
+				Warnings:                    []string{"Listeners defined, but no GlobalConfiguration is deployed"},
 			},
 		},
 	}
@@ -2894,10 +2910,11 @@ func TestAddVirtualServerWithCustomHttpListenerThatDoNotExistInGlobalConfigurati
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServer,
-				HTTPPort:      0,
-				HTTPSPort:     8442,
-				Warnings:      []string{"Listener http-bogus is not defined in GlobalConfiguration"},
+				VirtualServer:               virtualServer,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    0,
+				HTTPSPort:                   8442,
+				Warnings:                    []string{"Listener http-bogus is not defined in GlobalConfiguration"},
 			},
 		},
 	}
@@ -2921,10 +2938,11 @@ func TestAddVirtualServerWithCustomHttpsListenerThatDoNotExistInGlobalConfigurat
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServer,
-				HTTPPort:      8082,
-				HTTPSPort:     0,
-				Warnings:      []string{"Listener https-bogus is not defined in GlobalConfiguration"},
+				VirtualServer:               virtualServer,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    8082,
+				HTTPSPort:                   0,
+				Warnings:                    []string{"Listener https-bogus is not defined in GlobalConfiguration"},
 			},
 		},
 	}
@@ -2948,9 +2966,10 @@ func TestDeleteHttpListenerFromExistingGlobalConfigurationWithVirtualServerDeplo
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServer,
-				HTTPPort:      8082,
-				HTTPSPort:     8442,
+				VirtualServer:               virtualServer,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    8082,
+				HTTPSPort:                   8442,
 			},
 		},
 	}
@@ -2961,10 +2980,11 @@ func TestDeleteHttpListenerFromExistingGlobalConfigurationWithVirtualServerDeplo
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServer,
-				HTTPPort:      0,
-				HTTPSPort:     8442,
-				Warnings:      []string{"Listener http-8082 is not defined in GlobalConfiguration"},
+				VirtualServer:               virtualServer,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    0,
+				HTTPSPort:                   8442,
+				Warnings:                    []string{"Listener http-8082 is not defined in GlobalConfiguration"},
 			},
 		},
 	}
@@ -2988,9 +3008,10 @@ func TestDeleteHttpsListenerFromExistingGlobalConfigurationWithVirtualServerDepl
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServer,
-				HTTPPort:      8082,
-				HTTPSPort:     8442,
+				VirtualServer:               virtualServer,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    8082,
+				HTTPSPort:                   8442,
 			},
 		},
 	}
@@ -3000,10 +3021,11 @@ func TestDeleteHttpsListenerFromExistingGlobalConfigurationWithVirtualServerDepl
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServer,
-				HTTPPort:      8082,
-				HTTPSPort:     0,
-				Warnings:      []string{"Listener https-8442 is not defined in GlobalConfiguration"},
+				VirtualServer:               virtualServer,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    8082,
+				HTTPSPort:                   0,
+				Warnings:                    []string{"Listener https-8442 is not defined in GlobalConfiguration"},
 			},
 		},
 	}
@@ -3026,9 +3048,10 @@ func TestDeleteGlobalConfigurationWithVirtualServerDeployedWithValidCustomListen
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServer,
-				HTTPPort:      8082,
-				HTTPSPort:     8442,
+				VirtualServer:               virtualServer,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    8082,
+				HTTPSPort:                   8442,
 			},
 		},
 	}
@@ -3038,10 +3061,11 @@ func TestDeleteGlobalConfigurationWithVirtualServerDeployedWithValidCustomListen
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServer,
-				HTTPPort:      0,
-				HTTPSPort:     0,
-				Warnings:      []string{"Listeners defined, but no GlobalConfiguration is deployed"},
+				VirtualServer:               virtualServer,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    0,
+				HTTPSPort:                   0,
+				Warnings:                    []string{"Listeners defined, but no GlobalConfiguration is deployed"},
 			},
 		},
 	}
@@ -3060,9 +3084,10 @@ func TestRenameHttpListenerInExistingGlobalConfigurationWithVirtualServerDeploye
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServer,
-				HTTPPort:      8082,
-				HTTPSPort:     8442,
+				VirtualServer:               virtualServer,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    8082,
+				HTTPSPort:                   8442,
 			},
 		},
 	}
@@ -3073,10 +3098,11 @@ func TestRenameHttpListenerInExistingGlobalConfigurationWithVirtualServerDeploye
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServer,
-				HTTPPort:      0,
-				HTTPSPort:     8442,
-				Warnings:      []string{"Listener http-8082 is not defined in GlobalConfiguration"},
+				VirtualServer:               virtualServer,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    0,
+				HTTPSPort:                   8442,
+				Warnings:                    []string{"Listener http-8082 is not defined in GlobalConfiguration"},
 			},
 		},
 	}
@@ -3096,9 +3122,10 @@ func TestRenameHttpsListenerInExistingGlobalConfigurationWithVirtualServerDeploy
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServer,
-				HTTPPort:      8082,
-				HTTPSPort:     8442,
+				VirtualServer:               virtualServer,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    8082,
+				HTTPSPort:                   8442,
 			},
 		},
 	}
@@ -3108,10 +3135,11 @@ func TestRenameHttpsListenerInExistingGlobalConfigurationWithVirtualServerDeploy
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServer,
-				HTTPPort:      8082,
-				HTTPSPort:     0,
-				Warnings:      []string{"Listener https-8442 is not defined in GlobalConfiguration"},
+				VirtualServer:               virtualServer,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    8082,
+				HTTPSPort:                   0,
+				Warnings:                    []string{"Listener https-8442 is not defined in GlobalConfiguration"},
 			},
 		},
 	}
@@ -3136,10 +3164,11 @@ func TestAddVirtualServerWithCustomHttpListenerInHttpsBlock(t *testing.T) {
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServer,
-				HTTPPort:      8082,
-				HTTPSPort:     0,
-				Warnings:      []string{expectedWarningMsg},
+				VirtualServer:               virtualServer,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    8082,
+				HTTPSPort:                   0,
+				Warnings:                    []string{expectedWarningMsg},
 			},
 		},
 	}
@@ -3165,10 +3194,11 @@ func TestAddVirtualServerWithCustomHttpsListenerInHttpBlock(t *testing.T) {
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServer,
-				HTTPPort:      0,
-				HTTPSPort:     8442,
-				Warnings:      []string{expectedWarningMsg},
+				VirtualServer:               virtualServer,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    0,
+				HTTPSPort:                   8442,
+				Warnings:                    []string{expectedWarningMsg},
 			},
 		},
 	}
@@ -3192,9 +3222,10 @@ func TestAddVirtualServerWithNoHttpsListener(t *testing.T) {
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServer,
-				HTTPPort:      8082,
-				HTTPSPort:     0,
+				VirtualServer:               virtualServer,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    8082,
+				HTTPSPort:                   0,
 			},
 		},
 	}
@@ -3218,9 +3249,10 @@ func TestAddVirtualServerWithNoHttpListener(t *testing.T) {
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServer,
-				HTTPPort:      0,
-				HTTPSPort:     8442,
+				VirtualServer:               virtualServer,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    0,
+				HTTPSPort:                   8442,
 			},
 		},
 	}
@@ -3244,9 +3276,10 @@ func TestAddVirtualServerWithNoHttpOrHttpsListener(t *testing.T) {
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServer,
-				HTTPPort:      0,
-				HTTPSPort:     0,
+				VirtualServer:               virtualServer,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    0,
+				HTTPSPort:                   0,
 			},
 		},
 	}
@@ -3270,9 +3303,10 @@ func TestAddVirtualServerWithValidCustomListenersAndChangeValueOfSslToFalseInGlo
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServer,
-				HTTPPort:      8082,
-				HTTPSPort:     8442,
+				VirtualServer:               virtualServer,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    8082,
+				HTTPSPort:                   8442,
 			},
 		},
 	}
@@ -3285,10 +3319,11 @@ func TestAddVirtualServerWithValidCustomListenersAndChangeValueOfSslToFalseInGlo
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServer,
-				HTTPPort:      8082,
-				HTTPSPort:     0,
-				Warnings:      []string{expectedWarningMsg},
+				VirtualServer:               virtualServer,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    8082,
+				HTTPSPort:                   0,
+				Warnings:                    []string{expectedWarningMsg},
 			},
 		},
 	}
@@ -3312,9 +3347,10 @@ func TestAddVirtualServerWithValidCustomListenersAndChangeValueOfSslToTrueInGlob
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServer,
-				HTTPPort:      8082,
-				HTTPSPort:     8442,
+				VirtualServer:               virtualServer,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    8082,
+				HTTPSPort:                   8442,
 			},
 		},
 	}
@@ -3327,10 +3363,11 @@ func TestAddVirtualServerWithValidCustomListenersAndChangeValueOfSslToTrueInGlob
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServer,
-				HTTPPort:      0,
-				HTTPSPort:     8442,
-				Warnings:      []string{expectedWarningMsg},
+				VirtualServer:               virtualServer,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    0,
+				HTTPSPort:                   8442,
+				Warnings:                    []string{expectedWarningMsg},
 			},
 		},
 	}
@@ -3360,9 +3397,10 @@ func TestAddMultipleVirtualServersWithTheSameCustomListeners(t *testing.T) {
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServerCafe,
-				HTTPPort:      8082,
-				HTTPSPort:     8442,
+				VirtualServer:               virtualServerCafe,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    8082,
+				HTTPSPort:                   8442,
 			},
 		},
 	}
@@ -3372,9 +3410,10 @@ func TestAddMultipleVirtualServersWithTheSameCustomListeners(t *testing.T) {
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServerFoo,
-				HTTPPort:      8082,
-				HTTPSPort:     8442,
+				VirtualServer:               virtualServerFoo,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    8082,
+				HTTPSPort:                   8442,
 			},
 		},
 	}
@@ -3395,9 +3434,10 @@ func TestUpdateGlobalConfigurationWithVirtualServerDeployedWithNoCustomListeners
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServer,
-				HTTPPort:      0,
-				HTTPSPort:     0,
+				VirtualServer:               virtualServer,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    0,
+				HTTPSPort:                   0,
 			},
 		},
 	}
@@ -3424,9 +3464,10 @@ func TestDeleteGlobalConfigurationWithVirtualServerDeployedWithNoCustomListeners
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer: virtualServer,
-				HTTPPort:      0,
-				HTTPSPort:     0,
+				VirtualServer:               virtualServer,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HTTPPort:                    0,
+				HTTPSPort:                   0,
 			},
 		},
 	}
@@ -3564,9 +3605,10 @@ func TestChallengeIngressToVSR(t *testing.T) {
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
-				VirtualServer:       vs,
-				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr1},
-				Warnings:            nil,
+				VirtualServer:               vs,
+				VirtualServerRouteSelectors: map[string][]string{},
+				VirtualServerRoutes:         []*conf_v1.VirtualServerRoute{vsr1},
+				Warnings:                    nil,
 			},
 		},
 	}
@@ -4028,7 +4070,8 @@ func TestSquashResourceChanges(t *testing.T) {
 	}
 
 	vsConfig := &VirtualServerConfiguration{
-		VirtualServer: createTestVirtualServer("test", "bar.example.com"),
+		VirtualServer:               createTestVirtualServer("test", "bar.example.com"),
+		VirtualServerRouteSelectors: map[string][]string{},
 	}
 
 	tests := []struct {
@@ -5253,12 +5296,12 @@ func TestVSRValidation(t *testing.T) {
 			expectedWarns: nil,
 		},
 		{
-			name: "VSR exists and is valid VS (default) & VSR (coffee) in different namespaces",
+			name: "VSR exists and is valid VS (cafe) & VSR (coffee) in different namespaces",
 			route: &conf_v1.Route{
 				Route: "coffee/coffee",
 			},
 			vsHost:        "cafe.example.com",
-			vsNamespace:   "default",
+			vsNamespace:   "cafe",
 			vsrs:          []*conf_v1.VirtualServerRoute{createTestVirtualServerRoute("coffee", "coffee", "cafe.example.com", "/coffee")},
 			expectedVSRs:  []*conf_v1.VirtualServerRoute{createTestVirtualServerRoute("coffee", "coffee", "cafe.example.com", "/coffee")},
 			expectedWarns: nil,
@@ -5345,7 +5388,7 @@ func TestVSRSelectorValidation(t *testing.T) {
 			expectedWarns: nil,
 		},
 		{
-			name: "VSR exists and is valid different namespace",
+			name: "VSR exists and is valid",
 			route: &conf_v1.Route{
 				Path:          "/",
 				RouteSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "route"}},
@@ -5357,6 +5400,57 @@ func TestVSRSelectorValidation(t *testing.T) {
 				"app=route": {"coffee/coffee"},
 			},
 			expectedWarns: nil,
+		},
+		{
+			name: "Multiple VSR selectors",
+			route: &conf_v1.Route{
+				Path: "/",
+				RouteSelector: &metav1.LabelSelector{MatchLabels: map[string]string{
+					"app": "route",
+					"env": "prod",
+				}},
+			},
+			vsHost: "cafe.example.com",
+			vsrs: []*conf_v1.VirtualServerRoute{
+				createTestVirtualServerRouteWithLabels("coffee", "coffee", "cafe.example.com", "/", map[string]string{"app": "route", "env": "prod", "tier": "backend"}),
+				createTestVirtualServerRouteWithLabels("tea", "tea", "cafe.example.com", "/", map[string]string{"app": "route", "env": "prod", "tier": "backend"}),
+			},
+			expectedVSRs: []*conf_v1.VirtualServerRoute{
+				createTestVirtualServerRouteWithLabels("coffee", "coffee", "cafe.example.com", "/", map[string]string{"app": "route", "env": "prod", "tier": "backend"}),
+				createTestVirtualServerRouteWithLabels("tea", "tea", "cafe.example.com", "/", map[string]string{"app": "route", "env": "prod", "tier": "backend"}),
+			},
+			expectedVSRSelectors: map[string][]string{
+				"app=route,env=prod": {"coffee/coffee", "tea/tea"},
+			},
+			expectedWarns: nil,
+		},
+		{
+			name: "VSR does not exist",
+			route: &conf_v1.Route{
+				Path:          "/",
+				RouteSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "route"}},
+			},
+			vsHost:       "cafe.example.com",
+			vsrs:         []*conf_v1.VirtualServerRoute{},
+			expectedVSRs: nil,
+			expectedVSRSelectors: map[string][]string{
+				"app=route": {},
+			},
+			expectedWarns: nil,
+		},
+		{
+			name: "VSR exists but host mismatch",
+			route: &conf_v1.Route{
+				Path:          "/",
+				RouteSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "route"}},
+			},
+			vsHost:       "foo.example.com",
+			vsrs:         []*conf_v1.VirtualServerRoute{createTestVirtualServerRouteWithLabels("coffee", "coffee", "cafe.example.com", "/", map[string]string{"app": "route"})},
+			expectedVSRs: nil,
+			expectedVSRSelectors: map[string][]string{
+				"app=route": {},
+			},
+			expectedWarns: []string{`VirtualServerRoute coffee/coffee is invalid: spec.host: Invalid value: "cafe.example.com": must be equal to 'foo.example.com'`},
 		},
 	}
 
@@ -5372,13 +5466,13 @@ func TestVSRSelectorValidation(t *testing.T) {
 			vsrs, selectors, warnings := configuration.vsrSelectorValidation(testCase.route, testCase.vsHost)
 
 			if diff := cmp.Diff(testCase.expectedVSRs, vsrs); diff != "" {
-				t.Errorf("vsrValidation() returned unexpected VSRs (-want +got):\n%s", diff)
+				t.Errorf("vsrSelectorValidation() returned unexpected VSRs (-want +got):\n%s", diff)
 			}
 			if diff := cmp.Diff(testCase.expectedWarns, warnings); diff != "" {
-				t.Errorf("vsrValidation() returned unexpected warnings (-want +got):\n%s", diff)
+				t.Errorf("vsrSelectorValidation() returned unexpected warnings (-want +got):\n%s", diff)
 			}
 			if diff := cmp.Diff(testCase.expectedVSRSelectors, selectors); diff != "" {
-				t.Errorf("vsrValidation() returned unexpected VSR selectors (-want +got):\n%s", diff)
+				t.Errorf("vsrSelectorValidation() returned unexpected VSR selectors (-want +got):\n%s", diff)
 			}
 		})
 	}
