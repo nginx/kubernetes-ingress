@@ -1758,12 +1758,17 @@ func duplicateVSRPathValidation(vsrs []*conf_v1.VirtualServerRoute) ([]*conf_v1.
 	for _, vsr := range vsrs {
 		for _, subroute := range vsr.Spec.Subroutes {
 			if path, exists := paths[subroute.Path]; exists {
-				pathWarning := fmt.Sprintf("path %s is taken by %s", subroute.Path, path)
+				subRoutes := fmt.Sprintf("%s and %s", fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name), path)
+				if fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name) == path {
+					// both subroutes are from the same VSR
+					subRoutes = path
+				}
+				pathWarning := fmt.Sprintf("path %s has conflicting subroutes on %s", subroute.Path, subRoutes)
 				warnings = append(warnings, pathWarning)
 
 				vsrsToRemove = append(vsrsToRemove, getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta))
 			} else {
-				paths[subroute.Path] = getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta)
+				paths[subroute.Path] = fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)
 			}
 		}
 	}

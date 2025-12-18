@@ -5628,7 +5628,7 @@ func TestDuplicateVSRPathValidation(t *testing.T) {
 				},
 			},
 			expectedWarns: []string{
-				"path /duplicate is taken by another route in VirtualServer default/test-vs",
+				"path /duplicate has conflicting subroutes on default/vsr2 and default/vsr1",
 			},
 		},
 		{
@@ -5661,7 +5661,7 @@ func TestDuplicateVSRPathValidation(t *testing.T) {
 			},
 			expectedVSRs: []*conf_v1.VirtualServerRoute{},
 			expectedWarns: []string{
-				"path /path1 is taken by another route in VirtualServer default/test-vs",
+				"path /path1 has conflicting subroutes on default/vsr1",
 			},
 		},
 		{
@@ -5761,8 +5761,8 @@ func TestDuplicateVSRPathValidation(t *testing.T) {
 				},
 			},
 			expectedWarns: []string{
-				"path /dup1 is taken by another route in VirtualServer default/test-vs",
-				"path /dup2 is taken by another route in VirtualServer default/test-vs",
+				"path /dup1 has conflicting subroutes on default/vsr2 and default/vsr1",
+				"path /dup2 has conflicting subroutes on default/vsr3 and default/vsr2",
 			},
 		},
 		{
