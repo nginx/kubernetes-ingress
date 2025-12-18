@@ -23963,6 +23963,19 @@ func TestGenerateVirtualServerConfigWithRouteSelector(t *testing.T) {
 							},
 						},
 					},
+					"policy/rate-limit-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "rate-limit-policy",
+							Namespace: "policy",
+						},
+						Spec: conf_v1.PolicySpec{
+							RateLimit: &conf_v1.RateLimit{
+								Key:      "$binary_remote_addr",
+								ZoneSize: "10M",
+								Rate:     "10r/s",
+							},
+						},
+					},
 				},
 				VirtualServerSelectorRoutes: map[string][]string{
 					"app=cafe": {"coffee/coffee,tea/tea"},
@@ -23988,6 +24001,12 @@ func TestGenerateVirtualServerConfigWithRouteSelector(t *testing.T) {
 							Subroutes: []conf_v1.Route{
 								{
 									Path: "/coffee",
+									Policies: []conf_v1.PolicyReference{
+										{
+											Name:      "rate-limit-policy",
+											Namespace: "policy",
+										},
+									},
 									Action: &conf_v1.Action{
 										Pass: "coffee",
 									},
@@ -24079,8 +24098,15 @@ func TestGenerateVirtualServerConfigWithRouteSelector(t *testing.T) {
 						},
 					},
 				},
-				HTTPSnippets:  []string{},
-				LimitReqZones: []version2.LimitReqZone{},
+				HTTPSnippets: []string{},
+				LimitReqZones: []version2.LimitReqZone{
+					{
+						Key:      "$binary_remote_addr",
+						ZoneName: "pol_rl_policy_rate_limit_policy_default_cafe",
+						ZoneSize: "10M",
+						Rate:     "10r/s",
+					},
+				},
 				Server: version2.Server{
 					APIKeyEnabled: true,
 					APIKey: &version2.APIKey{
@@ -24107,6 +24133,14 @@ func TestGenerateVirtualServerConfigWithRouteSelector(t *testing.T) {
 							IsVSR:                    true,
 							VSRName:                  "coffee",
 							VSRNamespace:             "coffee",
+							LimitReqs: []version2.LimitReq{
+								{ZoneName: "pol_rl_policy_rate_limit_policy_default_cafe", Burst: 0, NoDelay: false, Delay: 0},
+							},
+							LimitReqOptions: version2.LimitReqOptions{
+								DryRun:     false,
+								LogLevel:   "error",
+								RejectCode: 503,
+							},
 						},
 						{
 							Path:                     "/tea",
