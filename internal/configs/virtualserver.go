@@ -577,12 +577,14 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			continue
 		} else if r.RouteSelector != nil {
 
-			// get vsr name
-
 			selector := &metav1.LabelSelector{
 				MatchLabels: r.RouteSelector.MatchLabels,
 			}
-			sel, _ := metav1.LabelSelectorAsSelector(selector)
+			sel, err := metav1.LabelSelectorAsSelector(selector)
+			if err != nil {
+				vsc.addWarningf(vsEx.VirtualServer, "Invalid routeSelector in route with path %v: %v", r.Path, err)
+				continue
+			}
 
 			selectorKey := sel.String()
 			vsrKeys := vsEx.VirtualServerSelectorRoutes[selectorKey]

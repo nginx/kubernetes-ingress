@@ -23634,3 +23634,534 @@ func TestGenerateVirtualServerConfigWithOIDCTLSCASecret(t *testing.T) {
 		}
 	}
 }
+
+func TestGenerateVirtualServerConfigWithRouteSelector(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		msg             string
+		virtualServerEx VirtualServerEx
+		expected        version2.VirtualServerConfig
+	}{
+		{
+			msg: "basic route selector",
+			virtualServerEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Routes: []conf_v1.Route{
+							{
+								Path: "/",
+								RouteSelector: &meta_v1.LabelSelector{
+									MatchLabels: map[string]string{
+										"app": "cafe",
+									},
+								},
+							},
+						},
+					},
+				},
+				VirtualServerSelectorRoutes: map[string][]string{
+					"app=cafe": {"default/coffee"},
+				},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
+					{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "coffee",
+							Namespace: "default",
+							Labels: map[string]string{
+								"app": "cafe",
+							},
+						},
+						Spec: conf_v1.VirtualServerRouteSpec{
+							Host: "cafe.example.com",
+							Upstreams: []conf_v1.Upstream{
+								{
+									Name:    "coffee",
+									Service: "coffee-svc",
+									Port:    80,
+								},
+							},
+							Subroutes: []conf_v1.Route{
+								{
+									Path: "/coffee",
+									Action: &conf_v1.Action{
+										Pass: "coffee",
+									},
+								},
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/coffee-svc:80": {
+						"10.0.0.30:80",
+					},
+				},
+			},
+			expected: version2.VirtualServerConfig{
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "coffee-svc",
+							ResourceType:      "virtualserverroute",
+							ResourceName:      "coffee",
+							ResourceNamespace: "default",
+						},
+						Name: "vs_default_cafe_vsr_default_coffee_coffee",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.30:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets:  []string{},
+				LimitReqZones: []version2.LimitReqZone{},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+					Locations: []version2.Location{
+						{
+							Path:                     "/coffee",
+							ProxyPass:                "http://vs_default_cafe_vsr_default_coffee_coffee",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "coffee-svc.default.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "coffee-svc",
+							IsVSR:                    true,
+							VSRName:                  "coffee",
+							VSRNamespace:             "default",
+						},
+					},
+				},
+			},
+		},
+		{
+			msg: "cross namespace route selector",
+			virtualServerEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Routes: []conf_v1.Route{
+							{
+								Path: "/",
+								RouteSelector: &meta_v1.LabelSelector{
+									MatchLabels: map[string]string{
+										"app": "cafe",
+									},
+								},
+							},
+						},
+					},
+				},
+				VirtualServerSelectorRoutes: map[string][]string{
+					"app=cafe": {"coffee/coffee,tea/tea"},
+				},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
+					{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "coffee",
+							Namespace: "coffee",
+							Labels: map[string]string{
+								"app": "cafe",
+							},
+						},
+						Spec: conf_v1.VirtualServerRouteSpec{
+							Host: "cafe.example.com",
+							Upstreams: []conf_v1.Upstream{
+								{
+									Name:    "coffee",
+									Service: "coffee-svc",
+									Port:    80,
+								},
+							},
+							Subroutes: []conf_v1.Route{
+								{
+									Path: "/coffee",
+									Action: &conf_v1.Action{
+										Pass: "coffee",
+									},
+								},
+							},
+						},
+					},
+					{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "tea",
+							Namespace: "tea",
+							Labels: map[string]string{
+								"app": "cafe",
+							},
+						},
+						Spec: conf_v1.VirtualServerRouteSpec{
+							Host: "cafe.example.com",
+							Upstreams: []conf_v1.Upstream{
+								{
+									Name:    "tea",
+									Service: "tea-svc",
+									Port:    80,
+								},
+							},
+							Subroutes: []conf_v1.Route{
+								{
+									Path: "/tea",
+									Action: &conf_v1.Action{
+										Pass: "tea",
+									},
+								},
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"coffee/coffee-svc:80": {
+						"10.0.0.30:80",
+					},
+					"tea/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+				},
+			},
+			expected: version2.VirtualServerConfig{
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "coffee-svc",
+							ResourceType:      "virtualserverroute",
+							ResourceName:      "coffee",
+							ResourceNamespace: "coffee",
+						},
+						Name: "vs_default_cafe_vsr_coffee_coffee_coffee",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.30:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserverroute",
+							ResourceName:      "tea",
+							ResourceNamespace: "tea",
+						},
+						Name: "vs_default_cafe_vsr_tea_tea_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+				},
+				HTTPSnippets:  []string{},
+				LimitReqZones: []version2.LimitReqZone{},
+				Server: version2.Server{
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+					Locations: []version2.Location{
+						{
+							Path:                     "/coffee",
+							ProxyPass:                "http://vs_default_cafe_vsr_coffee_coffee_coffee",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "coffee-svc.coffee.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "coffee-svc",
+							IsVSR:                    true,
+							VSRName:                  "coffee",
+							VSRNamespace:             "coffee",
+						},
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_vsr_tea_tea_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-svc.tea.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+							IsVSR:                    true,
+							VSRName:                  "tea",
+							VSRNamespace:             "tea",
+						},
+					},
+				},
+			},
+		},
+		{
+			msg: "cross namespace route selector with policies",
+			virtualServerEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Routes: []conf_v1.Route{
+							{
+								Path: "/",
+								RouteSelector: &meta_v1.LabelSelector{
+									MatchLabels: map[string]string{
+										"app": "cafe",
+									},
+								},
+							},
+						},
+						Policies: []conf_v1.PolicyReference{
+							{
+								Name:      "api-key-policy",
+								Namespace: "cafe",
+							},
+						},
+					},
+				},
+				SecretRefs: map[string]*secrets.SecretReference{
+					"cafe/api-key-secret": {
+						Secret: &api_v1.Secret{
+							Type: secrets.SecretTypeAPIKey,
+							Data: map[string][]byte{
+								"clientSpec": []byte("password"),
+							},
+						},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"cafe/api-key-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "api-key-policy",
+							Namespace: "cafe",
+						},
+						Spec: conf_v1.PolicySpec{
+							APIKey: &conf_v1.APIKey{
+								SuppliedIn: &conf_v1.SuppliedIn{
+									Header: []string{"X-API-Key"},
+									Query:  []string{"apikey"},
+								},
+								ClientSecret: "api-key-secret",
+							},
+						},
+					},
+				},
+				VirtualServerSelectorRoutes: map[string][]string{
+					"app=cafe": {"coffee/coffee,tea/tea"},
+				},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
+					{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "coffee",
+							Namespace: "coffee",
+							Labels: map[string]string{
+								"app": "cafe",
+							},
+						},
+						Spec: conf_v1.VirtualServerRouteSpec{
+							Host: "cafe.example.com",
+							Upstreams: []conf_v1.Upstream{
+								{
+									Name:    "coffee",
+									Service: "coffee-svc",
+									Port:    80,
+								},
+							},
+							Subroutes: []conf_v1.Route{
+								{
+									Path: "/coffee",
+									Action: &conf_v1.Action{
+										Pass: "coffee",
+									},
+								},
+							},
+						},
+					},
+					{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "tea",
+							Namespace: "tea",
+							Labels: map[string]string{
+								"app": "cafe",
+							},
+						},
+						Spec: conf_v1.VirtualServerRouteSpec{
+							Host: "cafe.example.com",
+							Upstreams: []conf_v1.Upstream{
+								{
+									Name:    "tea",
+									Service: "tea-svc",
+									Port:    80,
+								},
+							},
+							Subroutes: []conf_v1.Route{
+								{
+									Path: "/tea",
+									Action: &conf_v1.Action{
+										Pass: "tea",
+									},
+								},
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{
+					"coffee/coffee-svc:80": {
+						"10.0.0.30:80",
+					},
+					"tea/tea-svc:80": {
+						"10.0.0.20:80",
+					},
+				},
+			},
+			expected: version2.VirtualServerConfig{
+				Upstreams: []version2.Upstream{
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "coffee-svc",
+							ResourceType:      "virtualserverroute",
+							ResourceName:      "coffee",
+							ResourceNamespace: "coffee",
+						},
+						Name: "vs_default_cafe_vsr_coffee_coffee_coffee",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.30:80",
+							},
+						},
+					},
+					{
+						UpstreamLabels: version2.UpstreamLabels{
+							Service:           "tea-svc",
+							ResourceType:      "virtualserverroute",
+							ResourceName:      "tea",
+							ResourceNamespace: "tea",
+						},
+						Name: "vs_default_cafe_vsr_tea_tea_tea",
+						Servers: []version2.UpstreamServer{
+							{
+								Address: "10.0.0.20:80",
+							},
+						},
+					},
+				},
+				Maps: []version2.Map{
+					{
+						Source:   "$apikey_auth_token",
+						Variable: "$apikey_auth_client_name_default_cafe_api_key_policy",
+						Parameters: []version2.Parameter{
+							{
+								Value:  "default",
+								Result: `""`,
+							},
+							{
+								Value:  `"5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"`,
+								Result: `"clientSpec"`,
+							},
+						},
+					},
+				},
+				HTTPSnippets:  []string{},
+				LimitReqZones: []version2.LimitReqZone{},
+				Server: version2.Server{
+					APIKeyEnabled: true,
+					APIKey: &version2.APIKey{
+						Header:  []string{"X-API-Key"},
+						Query:   []string{"apikey"},
+						MapName: "apikey_auth_client_name_default_cafe_api_key_policy",
+					},
+					ServerName:   "cafe.example.com",
+					StatusZone:   "cafe.example.com",
+					ServerTokens: "off",
+					VSNamespace:  "default",
+					VSName:       "cafe",
+					Locations: []version2.Location{
+						{
+							Path:                     "/coffee",
+							ProxyPass:                "http://vs_default_cafe_vsr_coffee_coffee_coffee",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "coffee-svc.coffee.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "coffee-svc",
+							IsVSR:                    true,
+							VSRName:                  "coffee",
+							VSRNamespace:             "coffee",
+						},
+						{
+							Path:                     "/tea",
+							ProxyPass:                "http://vs_default_cafe_vsr_tea_tea_tea",
+							ProxyNextUpstream:        "error timeout",
+							ProxyNextUpstreamTimeout: "0s",
+							ProxyNextUpstreamTries:   0,
+							ProxySSLName:             "tea-svc.tea.svc",
+							ProxyPassRequestHeaders:  true,
+							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+							ServiceName:              "tea-svc",
+							IsVSR:                    true,
+							VSRName:                  "tea",
+							VSRNamespace:             "tea",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	baseCfgParams := ConfigParams{
+		Context:      context.Background(),
+		ServerTokens: "off",
+	}
+
+	vsc := newVirtualServerConfigurator(
+		&baseCfgParams,
+		false,
+		false,
+		&StaticConfigParams{
+			DefaultCABundle: "/etc/ssl/certs/ca-certificate.crt",
+		},
+		false,
+		&fakeBV,
+	)
+
+	for _, test := range tests {
+		result, warnings := vsc.GenerateVirtualServerConfig(&test.virtualServerEx, nil, nil)
+
+		sort.Slice(result.Maps, func(i, j int) bool {
+			return result.Maps[i].Variable < result.Maps[j].Variable
+		})
+
+		sort.Slice(test.expected.Maps, func(i, j int) bool {
+			return test.expected.Maps[i].Variable < test.expected.Maps[j].Variable
+		})
+
+		if diff := cmp.Diff(test.expected, result); diff != "" {
+			t.Errorf("GenerateVirtualServerConfig() mismatch (-want +got):\n%s", diff)
+			t.Error(test.msg)
+		}
+
+		if len(warnings) != 0 {
+			t.Errorf("GenerateVirtualServerConfig returned warnings: %v", vsc.warnings)
+		}
+	}
+}
