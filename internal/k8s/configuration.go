@@ -1786,6 +1786,38 @@ func duplicateVSRPathValidation(vsrs []*conf_v1.VirtualServerRoute) ([]*conf_v1.
 	return vsrs, warnings
 }
 
+func duplicateVSRValidation(vsrs []*conf_v1.VirtualServerRoute, vsName, vsNamespace string) ([]*conf_v1.VirtualServerRoute, []string) {
+	var warnings []string
+
+	unique := make(map[string]string)
+	var vsrsToRemove []string
+
+	for _, vsr := range vsrs {
+
+		vsrKey := getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta)
+		vsrValue := fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)
+		if _, exists := unique[vsrKey]; exists {
+			warning := fmt.Sprintf("VS %s has duplicate VirtualServerRoutes %s", fmt.Sprintf("%s/%s", vsNamespace, vsName), vsrValue)
+			warnings = append(warnings, warning)
+			vsrsToRemove = append(vsrsToRemove, getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta))
+			continue
+		}
+		unique[vsrKey] = vsrValue
+	}
+
+	if len(vsrsToRemove) != 0 {
+		for _, vsrToRemove := range vsrsToRemove {
+			for i, vsr := range vsrs {
+				if getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta) == vsrToRemove {
+					vsrs = removeFromVSRSlice(vsrs, i)
+					break
+				}
+			}
+		}
+	}
+	return vsrs, warnings
+}
+
 func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*conf_v1.VirtualServerRoute, map[string][]string, []string) {
 	var vsrs []*conf_v1.VirtualServerRoute
 	var warnings []string
@@ -1806,6 +1838,9 @@ func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*
 
 	vsrs, pathWarnings := duplicateVSRPathValidation(vsrs)
 	warnings = append(warnings, pathWarnings...)
+
+	vsrs, duplicateVSRWarnings := duplicateVSRValidation(vsrs, vs.Name, vs.Namespace)
+	warnings = append(warnings, duplicateVSRWarnings...)
 
 	return vsrs, vsrSelectors, warnings
 }
