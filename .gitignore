@@ -237,23 +237,39 @@ common-secrets/tests-jwt-secret-updated-jwk.yaml
 tests/data/jwt-secrets/jwt-secret-updated.yaml
 
 #Jwt secrets
-common-secrets/fantastic-jwt-token
+common-secrets/fantastic-jwt-token.yaml
 examples/custom-resources/jwt/token.jwt
 examples/custom-resources/rate-limit-jwt-claim/token.jwt
 examples/ingress-resources/jwt-secret-policy/token.jwt
 tests/data/jwt-auth-mergeable/tokens/jwt-auth-master-token.jwt
 tests/data/jwt-policy/token.jwt
 tests/data/jwt-secrets/tokens/jwt-secrets-token.jwt
-common-secrets/awesome-jwt-token
+common-secrets/awesome-jwt-token.yaml
 tests/data/jwt-auth-mergeable/tokens/jwt-auth-minion-token.jwt
-common-secrets/invalid-jwt-token
+common-secrets/invalid-jwt-token.yaml
 tests/data/jwt-policy/invalid-token.jwt
-common-secrets/basic-jwt-token
+common-secrets/basic-jwt-token.yaml
 examples/custom-resources/rate-limit-tiered-jwt-claim/basic-token.jwt
-common-secrets/premium-jwt-token
+common-secrets/premium-jwt-token.yaml
 examples/custom-resources/rate-limit-tiered-jwt-claim/premium-token.jwt
-common-secrets/default-jwt-token
+common-secrets/default-jwt-token.yaml
 examples/custom-resources/rate-limit-tiered-jwt-claim/default-token.jwt
+
+#API Key secrets
+common-secrets/apikey-secret-1.yaml
+tests/data/apikey-auth-policy/secret/apikey-secret-1.yaml
+common-secrets/apikey-secret-server.yaml
+tests/data/apikey-auth-policy/secret/apikey-secret-server.yaml
+common-secrets/apikey-secret-route.yaml
+tests/data/apikey-auth-policy/secret/apikey-secret-route.yaml
+common-secrets/api-key-secret-test.yaml
+tests/data/rate-limit/policies/api-key-secret.yaml
+common-secrets/api-key-secret-example.yaml
+examples/custom-resources/api-key/api-key-secret.yaml
+common-secrets/api-key-secret.yaml
+examples/custom-resources/rate-limit-tiered-apikey/api-key-secret.yaml
+common-secrets/api-key-client-secret-2.yaml
+tests/data/apikey-auth-policy/secret/apikey-secret-2.yaml
 
 
 # END CERTGEN SECTION. YOU MAY EDIT BELOW
