@@ -1424,6 +1424,35 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 
 		{
 			annotations: map[string]string{
+				"nginx.org/ssl-redirect": "true",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/ssl-redirect annotation",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/ssl-redirect": "not_a_boolean",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors: []string{
+				`annotations.nginx.org/ssl-redirect: Invalid value: "not_a_boolean": must be a boolean`,
+			},
+			msg: "invalid nginx.org/ssl-redirect annotation",
+		},
+
+		{
+			annotations: map[string]string{
 				"ingress.kubernetes.io/ssl-redirect": "true",
 			},
 			specServices:          map[string]bool{},
@@ -3368,6 +3397,34 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
+				"nginx.org/rewrite-target": "/foo/$1; } path / { my/location/test/ }",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/rewrite-target: Invalid value: "/foo/$1; } path / { my/location/test/ }": NGINX configuration syntax characters (;{}) and []|<>,^` + "`" + `~ not allowed in rewrite target`,
+			},
+			msg: "invalid nginx.org/rewrite-target annotation, NGINX configuration syntax characters (;{}) not allowed in rewrite target",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/rewrite-target": "/api\npath",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/rewrite-target: Invalid value: "/api\npath": control characters not allowed in rewrite target`,
+			},
+			msg: "invalid nginx.org/rewrite-target annotation, control characters not allowed in rewrite target",
+		},
+		{
+			annotations: map[string]string{
 				"nginx.org/rewrite-target": "api/users",
 			},
 			specServices:          map[string]bool{},
@@ -3379,6 +3436,34 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 				`annotations.nginx.org/rewrite-target: Invalid value: "api/users": rewrite target must start with /`,
 			},
 			msg: "invalid nginx.org/rewrite-target annotation, does not start with slash",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/rewrite-target": "/api/v1`; proxy_pass http://evil.com; #",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				"annotations.nginx.org/rewrite-target: Invalid value: \"/api/v1`; proxy_pass http://evil.com; #\": NGINX configuration syntax characters (;{}) and []|<>,^`~ not allowed in rewrite target",
+			},
+			msg: "invalid nginx.org/rewrite-target annotation, backtick and semicolon injection",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/rewrite-target": "/path/$1|/backup/$1",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				"annotations.nginx.org/rewrite-target: Invalid value: \"/path/$1|/backup/$1\": NGINX configuration syntax characters (;{}) and []|<>,^`~ not allowed in rewrite target",
+			},
+			msg: "invalid nginx.org/rewrite-target annotation, pipe character for alternatives",
 		},
 	}
 

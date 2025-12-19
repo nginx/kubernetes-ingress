@@ -36,7 +36,7 @@ spec:
 #      - name: nginx-log
 #        emptyDir: {}
       containers:
-      - image: nginx-plus-ingress:5.2.1
+      - image: nginx-plus-ingress:5.3.1
         imagePullPolicy: IfNotPresent
         name: nginx-plus-ingress
         ports:
@@ -109,7 +109,7 @@ spec:
          #- -enable-service-insight
          #- -global-configuration=$(POD_NAMESPACE)/nginx-configuration
 #      initContainers:
-#      - image: nginx/nginx-ingress:5.2.1
+#      - image: nginx/nginx-ingress:5.3.1
 #        imagePullPolicy: IfNotPresent
 #        name: init-nginx-ingress
 #        command: ['cp', '-vdR', '/etc/nginx/.', '/mnt/etc']

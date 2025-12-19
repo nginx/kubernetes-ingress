@@ -2703,3 +2703,68 @@ func TestScaleRatelimit(t *testing.T) {
 		}
 	}
 }
+
+func TestGenerateNginxCfgForSSLRedirectDeprecationWarnings(t *testing.T) {
+	t.Parallel()
+
+	cafeIngressEx := createCafeIngressEx()
+
+	tests := []struct {
+		annotations      map[string]string
+		expectedWarnings Warnings
+		msg              string
+	}{
+		{
+			annotations: map[string]string{
+				"ingress.kubernetes.io/ssl-redirect": "true",
+			},
+			expectedWarnings: Warnings{
+				cafeIngressEx.Ingress: {"The annotation 'ingress.kubernetes.io/ssl-redirect' is deprecated and will be removed. Please use 'nginx.org/ssl-redirect' instead."},
+			},
+			msg: "deprecated annotation generates warning",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/ssl-redirect": "true",
+			},
+			expectedWarnings: Warnings{},
+			msg:              "new annotation does not generate warning",
+		},
+		{
+			annotations: map[string]string{
+				"ingress.kubernetes.io/ssl-redirect": "true",
+				"nginx.org/ssl-redirect":             "false",
+			},
+			expectedWarnings: Warnings{
+				cafeIngressEx.Ingress: {"The annotation 'ingress.kubernetes.io/ssl-redirect' is deprecated and will be removed. Please use 'nginx.org/ssl-redirect' instead."},
+			},
+			msg: "both annotations present generates warning",
+		},
+		{
+			annotations:      map[string]string{},
+			expectedWarnings: Warnings{},
+			msg:              "no ssl-redirect annotations",
+		},
+	}
+
+	for _, test := range tests {
+		cafeIngressEx.Ingress.Annotations = test.annotations
+		configParams := NewDefaultConfigParams(context.Background(), false)
+
+		_, warnings := generateNginxCfg(NginxCfgParams{
+			staticParams:         &StaticConfigParams{},
+			ingEx:                &cafeIngressEx,
+			apResources:          nil,
+			dosResource:          nil,
+			isMinion:             false,
+			isPlus:               false,
+			BaseCfgParams:        configParams,
+			isResolverConfigured: false,
+			isWildcardEnabled:    false,
+		})
+
+		if !reflect.DeepEqual(test.expectedWarnings, warnings) {
+			t.Errorf("generateNginxCfg() returned %v but expected %v for the case of %s", warnings, test.expectedWarnings, test.msg)
+		}
+	}
+}

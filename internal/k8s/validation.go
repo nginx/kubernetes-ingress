@@ -36,7 +36,8 @@ const (
 	clientMaxBodySizeAnnotation           = "nginx.org/client-max-body-size"
 	clientBodyBufferSizeAnnotation        = "nginx.org/client-body-buffer-size"
 	redirectToHTTPSAnnotation             = "nginx.org/redirect-to-https"
-	sslRedirectAnnotation                 = "ingress.kubernetes.io/ssl-redirect"
+	sslRedirectAnnotationDeprecated       = "ingress.kubernetes.io/ssl-redirect"
+	sslRedirectAnnotation                 = "nginx.org/ssl-redirect"
 	proxyBufferingAnnotation              = "nginx.org/proxy-buffering"
 	hstsAnnotation                        = "nginx.org/hsts"
 	hstsMaxAgeAnnotation                  = "nginx.org/hsts-max-age"
@@ -185,6 +186,10 @@ var (
 			validateSizeAnnotation,
 		},
 		redirectToHTTPSAnnotation: {
+			validateRequiredAnnotation,
+			validateBoolAnnotation,
+		},
+		sslRedirectAnnotationDeprecated: {
 			validateRequiredAnnotation,
 			validateBoolAnnotation,
 		},
@@ -802,6 +807,18 @@ func validateRewriteTargetAnnotation(context *annotationValidationContext) field
 	// Must start with / (relative path)
 	if !strings.HasPrefix(target, "/") {
 		return field.ErrorList{field.Invalid(context.fieldPath, target, "rewrite target must start with /")}
+	}
+
+	// Prevent NGINX configuration injection characters
+	if strings.ContainsAny(target, ";{}[]|<>,^`~") {
+		return field.ErrorList{field.Invalid(context.fieldPath, target, "NGINX configuration syntax characters (;{}) and []|<>,^`~ not allowed in rewrite target")}
+	}
+
+	// Prevent control characters and line breaks that could break NGINX config
+	for _, char := range target {
+		if char <= 32 || char == 127 { // ASCII control characters; 127 is DEL, 32 is space
+			return field.ErrorList{field.Invalid(context.fieldPath, target, "control characters not allowed in rewrite target")}
+		}
 	}
 
 	return nil
