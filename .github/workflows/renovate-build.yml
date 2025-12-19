@@ -43,6 +43,7 @@ jobs:
     needs: check
     permissions:
       contents: write
+      id-token: write
     if: ${{ needs.check.outputs.generate == 'true' }}
     steps:
       - name: Azure login
