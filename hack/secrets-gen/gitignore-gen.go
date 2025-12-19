@@ -91,7 +91,7 @@ func generateGitignore(secrets secretsTypes, gitignorePtr *bool) error {
 	return nil
 }
 
-func generateCertIgnoreLines(certs []yamlSecret) []string {
+func generateCertIgnoreLines(certs []TLSSecret) []string {
 	filesToIgnore := make([]string, 0)
 
 	filesToIgnore = append(filesToIgnore, "\n#TLS Certificate secrets")

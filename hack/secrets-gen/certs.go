@@ -15,7 +15,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-// yamlSecret encapsulates all the data that we need to create the tls secrets
+// TLSSecret encapsulates all the data that we need to create the tls secrets
 // that kubernetes needs as tls files.
 //
 // secretName   - this is what virtualservers and other objects reference
@@ -25,7 +25,7 @@ import (
 // TemplateData - has information about issuer, subject, common name (main domain), and dnsNames (subject alternate names).
 // secretType   - if left empty, it will be the default v1.SecretTypeTLS value. The type is "k8s.io/api/core/v1".SecretType, which is an alias for strings.
 // usedIn       - not used in the generation, it's only so we can keep track on which py tests used the specific certs
-type yamlSecret struct {
+type TLSSecret struct {
 	SecretName   string        `json:"secretName"`
 	Namespace    string        `json:"namespace,omitempty"`
 	FileName     string        `json:"filename"`

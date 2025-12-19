@@ -7,7 +7,7 @@ import (
 
 // generateTLSSecretFiles wraps creating the TLS certificate and key, and writes the actual
 // file, and any symbolic links to the disk.
-func generateTLSSecretFiles(logger *slog.Logger, secret yamlSecret, projectRoot string) error {
+func generateTLSSecretFiles(logger *slog.Logger, secret TLSSecret, projectRoot string) error {
 	// This part creates the tls keys (certificate and key) based on the
 	// issuer, subject, and dns names data.
 	td, err := renderX509Template(secret.TemplateData)

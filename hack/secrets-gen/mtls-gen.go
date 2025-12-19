@@ -22,10 +22,10 @@ import (
 )
 
 type mtlsBundle struct {
-	Ca     yamlSecret `json:"ca"`
-	Client yamlSecret `json:"client,omitempty"`
-	Server yamlSecret `json:"server,omitempty"`
-	Crl    bool       `json:"crl,omitempty"`
+	Ca     TLSSecret `json:"ca"`
+	Client TLSSecret `json:"client,omitempty"`
+	Server TLSSecret `json:"server,omitempty"`
+	Crl    bool      `json:"crl,omitempty"`
 }
 
 //gocyclo:ignore
@@ -220,7 +220,7 @@ func generateMTLSBundleFiles(logger *slog.Logger, bundle mtlsBundle, projectRoot
 
 // nolint cyclo:ignore
 func removeBundleFiles(logger *slog.Logger, bundle mtlsBundle) error {
-	for _, secret := range []yamlSecret{bundle.Ca, bundle.Client, bundle.Server} {
+	for _, secret := range []TLSSecret{bundle.Ca, bundle.Client, bundle.Server} {
 		if secret.FileName == "" {
 			continue
 		}

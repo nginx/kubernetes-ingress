@@ -25,7 +25,7 @@ const (
 var projectRoot = "" // this will be redefined in main()
 
 type secretsTypes struct {
-	Certs         []yamlSecret     `json:"certs,omitempty"`
+	Certs         []TLSSecret      `json:"certs,omitempty"`
 	Mtls          []mtlsBundle     `json:"mtls,omitempty"`
 	Htpasswds     []htpasswdSecret `json:"htpasswds,omitempty"`
 	Jwks          []jwkSecret      `json:"jwks,omitempty"`
@@ -293,7 +293,7 @@ func generateMTLSBundles(logger *slog.Logger, secrets []mtlsBundle, filenames ma
 	return filenames, nil
 }
 
-func generateTLSCerts(logger *slog.Logger, secrets []yamlSecret, filenames map[string]struct{}, cleanPtr *bool) (map[string]struct{}, error) {
+func generateTLSCerts(logger *slog.Logger, secrets []TLSSecret, filenames map[string]struct{}, cleanPtr *bool) (map[string]struct{}, error) {
 	for _, secret := range secrets {
 		if _, ok := filenames[secret.FileName]; ok {
 			return nil, fmt.Errorf("secret contains duplicated files: %v", secret.FileName)
@@ -387,7 +387,7 @@ func writeFiles(logger *slog.Logger, fileContents []byte, projectRoot, fileName 
 
 // createKubeTLSSecretYaml takes in the generated TLS key in generateTLSKeyPair, and marshals it
 // into a yaml file contents and returns that as a byteslice.
-func createKubeTLSSecretYaml(secret yamlSecret, isValid bool, tlsKeys *JITTLSKey) ([]byte, error) {
+func createKubeTLSSecretYaml(secret TLSSecret, isValid bool, tlsKeys *JITTLSKey) ([]byte, error) {
 	s := v1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Secret",
@@ -425,7 +425,7 @@ func createKubeTLSSecretYaml(secret yamlSecret, isValid bool, tlsKeys *JITTLSKey
 
 // createOpaqueSecretYaml takes in the generated TLS key in generateTLSKeyPair, and marshals it
 // into a yaml file contents and returns that as a byteslice.
-func createOpaqueSecretYaml(secret yamlSecret, isValid bool, keyPair *JITTLSKey, caCert []byte) ([]byte, error) {
+func createOpaqueSecretYaml(secret TLSSecret, isValid bool, keyPair *JITTLSKey, caCert []byte) ([]byte, error) {
 	s := v1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Secret",
