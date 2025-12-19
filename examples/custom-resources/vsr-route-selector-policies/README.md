@@ -1,18 +1,19 @@
-# Basic, single-namespace VirtualServerRoute Selector
+# VirtualServerRoute Selector With Policies Configuration
 
 In this example we use the [VirtualServer and
 VirtualServerRoute](https://docs.nginx.com/nginx-ingress-controller/configuration/virtualserver-and-virtualserverroute-resources/)
-resources to configure load balancing for the modified cafe application from the [Basic
-Configuration](../basic-configuration/) example. We have put the load balancing configuration as well as the deployments
-and services into one default namespace.
+resources attached using `routeSelector` to configure load balancing for the cafe application with additional api-key and rate-limit policies on different routes.
 
-- In the default namespace, we create the tea deployment, service, and the corresponding load-balancing configuration.
-- In the same namespace, we create the cafe secret with the TLS certificate and key and the load-balancing configuration
-  for the cafe application. That configuration references the tea configuration.
+The example demonstrates:
+
+- How policies defined on a VirtualServer are inherited by all routes
+- How VirtualServerRoute resources can have their own additional policies
+- Policy layering where a route can have both inherited and route-specific policies
+
+The example is similar to the [basic route selector example](../vsr-route-selector-basic/README.md).
+However, instead of just routing configuration, we add policy configuration using [`Policy`](https://docs.nginx.com/nginx-ingress-controller/configuration/policy-resource/) resources to demonstrate inheritance and layering.
 
 ## Prerequisites
-
-## Step 1 - Install NGINX Ingress COntroller
 
 1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
    instructions to deploy the Ingress Controller with custom resources enabled.
@@ -29,33 +30,59 @@ and services into one default namespace.
     IC_HTTPS_PORT=<port number>
     ```
 
-## Step 2 - Deploy the Cafe Application
+## Step 1 - Create Cafe Namespace
 
-1. Create the tea deployment and service in the tea namespace:
+Create the required cafe namespace for the api-key policy:
+
+```console
+kubectl create -f cafe-namespace.yaml
+```
+
+## Step 2 - Deploy the API Key Auth Secret in the Cafe Namespace
+
+Create a secret of type `nginx.org/apikey` with the name `api-key-client-secret` that will be used for authorization on the server level.
+
+This secret will contain a mapping of client IDs to base64 encoded API Keys.
+
+```console
+kubectl apply -f api-key-secret.yaml
+```
+
+## Step 3 - Deploy the API Key Auth Policy in the Cafe Namespace
+
+Create a policy with the name `api-key-policy` that references the secret from the previous step in the clientSecret field.
+Provide an array of headers and queries in the header and query fields of the suppliedIn field, indicating where the API key can be sent
+
+```console
+kubectl apply -f api-key-policy.yaml
+```
+
+## Step 4 - Deploy the Cafe Application
+
+1. Create the tea deployment and service:
 
     ```console
     kubectl create -f tea.yaml
     ```
 
-1. Create the coffee deployment and service in the default namespace:
+1. Create the coffee deployment and service:
 
     ```console
     kubectl create -f coffee.yaml
     ```
 
-## Step 3 - Configure Load Balancing and TLS Termination
+## Step 5 - Deploy the Rate Limit Policy
 
-1. Create the VirtualServerRoute resource for tea:
+In this step, we create a policy with the name `rate-limit-policy` that allows only 1 request per second coming from a
+single IP address.
 
-    ```console
-    kubectl create -f tea-virtual-server-route.yaml
-    ```
+Create the policy:
 
-1. Create the VirtualServerRoute resource for coffee:
+```console
+kubectl apply -f rate-limit.yaml
+```
 
-    ```console
-    kubectl create -f coffee-virtual-server-route.yaml
-    ```
+## Step 6 - Configure Load Balancing and TLS Termination
 
 1. Create the secret with the TLS certificate and key:
 
@@ -63,64 +90,131 @@ and services into one default namespace.
     kubectl create -f cafe-secret.yaml
     ```
 
-1. Create the VirtualServer resource for the cafe app:
+1. Create the VirtualServerRoute resource for tea:
+
+    ```console
+    kubectl create -f tea-virtual-server-route.yaml
+    ```
+
+1. Create the VirtualServerRoute resource for coffee with the rate-limit policy:
+
+    ```console
+    kubectl create -f coffee-virtual-server-route.yaml
+    ```
+
+    Note that the coffee VirtualServerRoute references the policy `rate-limit-policy` created in Step 5.
+
+1. Create the VirtualServer resource for the cafe app with the api-key policy:
 
     ```console
     kubectl create -f cafe-virtual-server.yaml
     ```
 
-## Step 4 - Test the Configuration
+    Note that the VirtualServer references the policy `api-key-policy` created in Step 3.
 
-1. Check that the configuration has been successfully applied by inspecting the events of the VirtualServerRoutes and
-   VirtualServer:
+## Step 7 - Test the API Key Configuration
 
-    ```console
-    kubectl describe virtualserverroute tea -n tea
-    ```
+Let's test the API key authentication that applies to all routes. The policy is defined on the VirtualServer and inherited by both tea and coffee routes.
 
-    ```text
-    WIP - add an example
-    ```
+### Test without API Key (401 Unauthorized)
 
-    ```console
-    kubectl describe virtualserverroute coffee
-    ```
+If you attempt to access any route without providing a valid API Key:
 
-    ```text
-    WIP - add an example
-    ```
+```console
+curl -k --resolve cafe.example.com:$IC_HTTPS_PORT:$IC_IP https://cafe.example.com:$IC_HTTPS_PORT/tea
+```
 
-    ```console
-    kubectl describe virtualserver cafe
-    ```
+```text
+<html>
+<head><title>401 Authorization Required</title></head>
+<body>
+<center><h1>401 Authorization Required</h1></center>
+</body>
+</html>
+```
 
-    ```text
-    WIP - add example
-    ```
+### Test with Invalid API Key (403 Forbidden)
 
-1. Access the application using curl. We'll use curl's `--insecure` option to turn off certificate verification of our
-   self-signed certificate and `--resolve` option to set the IP address and HTTPS port of the Ingress Controller to the
-   domain name of the cafe application:
+If you attempt to access any route with an incorrect API Key:
 
-    To get coffee:
+```console
+curl -k --resolve cafe.example.com:$IC_HTTPS_PORT:$IC_IP -H "X-header-name: wrongpassword" https://cafe.example.com:$IC_HTTPS_PORT/tea
+```
 
-    ```console
-    curl --resolve cafe.example.com:$IC_HTTPS_PORT:$IC_IP https://cafe.example.com:$IC_HTTPS_PORT/coffee --insecure
-    ```
+```text
+<html>
+<head><title>403 Forbidden</title></head>
+<body>
+<center><h1>403 Forbidden</h1></center>
+</body>
+</html>
+```
 
-    ```text
-    Server address: 10.16.1.193:80
-    Server name: coffee-7dbb5795f6-mltpf
-    ...
-    ```
+Additionally you can set [error pages](https://docs.nginx.com/nginx-ingress-controller/configuration/virtualserver-and-virtualserverroute-resources/#errorpage) to handle the 401 and 403 responses.
 
-    If your prefer tea:
+### Test with Valid API Key - Tea Route (Inheritance)
 
-    ```console
-    curl --resolve cafe.example.com:$IC_HTTPS_PORT:$IC_IP https://cafe.example.com:$IC_HTTPS_PORT/tea --insecure
-    ```
+With a valid API key, you can access the tea route:
 
-    ```text
-    Server address: 10.16.0.157:80
-    Server name: tea-7d57856c44-674b8
-    ...
+```console
+curl -k --resolve cafe.example.com:$IC_HTTPS_PORT:$IC_IP -H "X-header-name: password" https://cafe.example.com:$IC_HTTPS_PORT/tea
+```
+
+```text
+Server address: 10.244.0.7:8080
+Server name: tea-56b44d4c55-abcde
+Date: 13/Jun/2024:13:12:17 +0000
+URI: /tea
+Request ID: 4feedb3265a0430a1f58831d016e846f
+```
+
+### Test with Valid API Key - Coffee Route (Inheritance)
+
+The coffee route also inherits the API key policy from the VirtualServer:
+
+```console
+curl -k --resolve cafe.example.com:$IC_HTTPS_PORT:$IC_IP -H "X-header-name: password" https://cafe.example.com:$IC_HTTPS_PORT/coffee
+```
+
+```text
+Server address: 10.244.0.6:8080
+Server name: coffee-56b44d4c55-vjwxd
+Date: 13/Jun/2024:13:12:17 +0000
+URI: /coffee
+Request ID: 4feedb3265a0430a1f58831d016e846d
+```
+
+## Step 8 - Test the Rate Limit Configuration on Coffee Route
+
+The coffee route has both API key authentication (inherited from VirtualServer) AND rate limiting. Let's test the rate limiting by making rapid requests to the coffee endpoint.
+
+First, wait at least 1 second from your last request, then make a successful request with valid API key:
+
+```console
+curl -k --resolve cafe.example.com:$IC_HTTPS_PORT:$IC_IP -H "X-header-name: password" https://cafe.example.com:$IC_HTTPS_PORT/coffee
+```
+
+```text
+Server address: 10.244.0.6:8080
+Server name: coffee-56b44d4c55-vjwxd
+Date: 13/Jun/2024:13:12:17 +0000
+URI: /coffee
+Request ID: 4feedb3265a0430a1f58831d016e846d
+```
+
+Now make another request immediately (within 1 second). The rate limit policy will reject it:
+
+```console
+curl -k --resolve cafe.example.com:$IC_HTTPS_PORT:$IC_IP -H "X-header-name: password" https://cafe.example.com:$IC_HTTPS_PORT/coffee
+```
+
+```text
+<html>
+<head><title>503 Service Temporarily Unavailable</title></head>
+<body>
+<center><h1>503 Service Temporarily Unavailable</h1></center>
+</body>
+</html>
+```
+
+Note that the tea route does NOT have rate limiting, so you can make multiple requests to it without being rate limited (as long as you have a valid API key).
