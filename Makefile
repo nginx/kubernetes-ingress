@@ -12,10 +12,10 @@ NAP_AGENT_VERSION             ?= 2
 NGINX_AGENT_VERSION           ?= 3.6
 PLUS_ARGS = --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --secret id=nginx-repo.crt,src=nginx-repo.crt --secret id=nginx-repo.key,src=nginx-repo.key
 
-# renovate: datasource=github depName=dominikh/go-tools
+# renovate: datasource=github-releases depName=dominikh/go-tools
 STATICCHECK_VERSION ?= 2025.1.1
 
-# renovate: datasource=github depName=dominikh/go-tools
+# renovate: datasource=github-releases depName=golang/vuln
 GOVULNCHECK_VERSION ?= v1.1.4
 
 # Variables that can be overridden
