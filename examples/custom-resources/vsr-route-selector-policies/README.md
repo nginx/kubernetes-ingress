@@ -168,12 +168,12 @@ URI: /tea
 Request ID: 4feedb3265a0430a1f58831d016e846f
 ```
 
-### Test with Valid API Key - Coffee Route (Inheritance)
+### Test without an API Key - Coffee Route (Inheritance)
 
-The coffee route also inherits the API key policy from the VirtualServer:
+The coffee route applies the `rate-limit-policy` policy on the VirtualServerRoute, this means it does not inherit the API Key policy from the VirtualServer resource.  A request can be made without needing the `X-header-name` header:
 
 ```console
-curl -k --resolve cafe.example.com:$IC_HTTPS_PORT:$IC_IP -H "X-header-name: password" https://cafe.example.com:$IC_HTTPS_PORT/coffee
+curl -k --resolve cafe.example.com:$IC_HTTPS_PORT:$IC_IP https://cafe.example.com:$IC_HTTPS_PORT/coffee
 ```
 
 ```text
