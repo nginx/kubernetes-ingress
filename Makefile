@@ -12,6 +12,12 @@ NAP_AGENT_VERSION             ?= 2
 NGINX_AGENT_VERSION           ?= 3.6
 PLUS_ARGS = --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --secret id=nginx-repo.crt,src=nginx-repo.crt --secret id=nginx-repo.key,src=nginx-repo.key
 
+# renovate: datasource=github-releases depName=dominikh/go-tools
+STATICCHECK_VERSION ?= 2025.1.1
+
+# renovate: datasource=github-releases depName=golang/vuln
+GOVULNCHECK_VERSION ?= v1.1.4
+
 # Variables that can be overridden
 REGISTRY                      ?= ## The registry where the image is located.
 PREFIX                        ?= nginx/nginx-ingress ## The name of the image. For example, nginx/nginx-ingress
@@ -79,8 +85,13 @@ format: ## Run goimports & gofmt
 
 .PHONY: staticcheck
 staticcheck: ## Run staticcheck linter
-	@staticcheck -version >/dev/null 2>&1 || go install honnef.co/go/tools/cmd/staticcheck@2022.1.3;
+	@staticcheck -version >/dev/null 2>&1 || go install honnef.co/go/tools/cmd/staticcheck@${STATICCHECK_VERSION};
 	staticcheck ./...
+
+.PHONY: govulncheck
+govulncheck: ## Run govulncheck linter
+	@govulncheck -version >/dev/null 2>&1 || go install golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION};
+	govulncheck ./...
 
 .PHONY: test
 test: ## Run GoLang tests
@@ -88,7 +99,7 @@ test: ## Run GoLang tests
 
 .PHONY: test-update-snaps
 test-update-snaps:
-	UPDATE_SNAPS=true go test -tags=aws,helmunit -shuffle=on ./...
+	UPDATE_SNAPS=always go test -tags=aws,helmunit -shuffle=on ./...
 
 cover: ## Generate coverage report
 	go test -tags=aws,helmunit -shuffle=on -race -coverprofile=coverage.txt -covermode=atomic ./...
@@ -235,7 +246,12 @@ ubi-image-nap-dos-plus: build ## Create Docker image for Ingress Controller (UBI
 		--build-arg NAP_MODULES=waf,dos --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg NAP_AGENT_VERSION=$(NAP_AGENT_VERSION)
 
 .PHONY: all-images ## Create all the Docker images for Ingress Controller
-all-images: alpine-image alpine-image-plus alpine-image-plus-fips alpine-image-nap-plus-fips debian-image debian-image-plus debian-image-nap-plus debian-image-dos-plus debian-image-nap-dos-plus ubi-image ubi-image-plus ubi-image-nap-plus ubi-image-dos-plus ubi-image-nap-dos-plus
+all-images:
+	docker builder prune -af; \
+	images="alpine-image alpine-image-plus alpine-image-plus-fips alpine-image-nap-plus-fips debian-image debian-image-plus debian-image-nap-plus debian-image-dos-plus debian-image-nap-dos-plus ubi-image ubi-image-plus ubi-image-nap-plus ubi-image-dos-plus ubi-image-nap-dos-plus"; \
+	for img in $$images; do \
+		TAG="$(strip $(TAG))-$$img" make $$img; \
+	done
 
 .PHONY: patch-os
 patch-os: ## Patch supplied image

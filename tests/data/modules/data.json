@@ -33,7 +33,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-1"
+          "version": "36-2"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -64,7 +64,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-1"
+          "version": "36-2"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -110,7 +110,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-1"
+          "version": "36-2"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -152,7 +152,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-1"
+          "version": "36-2"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -186,7 +186,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-1"
+          "version": "36-2"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -267,7 +267,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-r1"
+          "version": "36-r2"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -298,7 +298,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-r1"
+          "version": "36-r2"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -329,7 +329,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-r1"
+          "version": "36-r2"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -375,7 +375,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-r1"
+          "version": "36-r2"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -444,7 +444,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-1"
+          "version": "36-2"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -475,7 +475,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-1"
+          "version": "36-2"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -521,7 +521,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-1"
+          "version": "36-2"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -563,7 +563,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-1"
+          "version": "36-2"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -609,7 +609,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-1"
+          "version": "36-2"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -651,7 +651,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-1"
+          "version": "36-2"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -685,7 +685,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-1"
+          "version": "36-2"
         },
         {
           "name": "nginx-plus-module-njs",
