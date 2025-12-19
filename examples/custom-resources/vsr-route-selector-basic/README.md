@@ -1,15 +1,17 @@
-# Basic, Single-Namespace VirtualServeRoute Configuration
+# Basic, VirtualServeRoute Selector Configuration
 
 In this example we use the [VirtualServer and
 VirtualServerRoute](https://docs.nginx.com/nginx-ingress-controller/configuration/virtualserver-and-virtualserverroute-resources/)
-resources to configure load balancing for the modified cafe application from the [Basic
-Configuration](../basic-configuration/) example. We have put the load balancing configuration as well as the deployments
-and services into one default namespace.
+resources attached using `routeSelector` to configure load balancing for the cafe application.
+
+The example is similar to the [basic configuration example](../basic-configuration/README.md).
+However, instead of just a VirtualServer resource, we use a combination of VirtualServer with a VirtualServerRoute attached using [`routeSelector`](https://docs.nginx.com/nginx-ingress-controller/configuration/virtualserver-and-virtualserverroute-resources/#routeselector).
 
 ## Prerequisites
 
 1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
    instructions to deploy the Ingress Controller with custom resources enabled.
+
 1. Save the public IP address of the Ingress Controller into a shell variable:
 
     ```console
@@ -24,11 +26,17 @@ and services into one default namespace.
 
 ## Step 1 - Deploy the Cafe Application
 
-Create the coffee and the tea deployments and services:
+1. Create the tea deployment and service:
 
-```console
-kubectl create -f cafe.yaml
-```
+    ```console
+    kubectl create -f tea.yaml
+    ```
+
+1. Create the coffee deployment and service:
+
+    ```console
+    kubectl create -f coffee.yaml
+    ```
 
 ## Step 2 - Configure Load Balancing and TLS Termination
 
@@ -38,7 +46,19 @@ kubectl create -f cafe.yaml
     kubectl create -f cafe-secret.yaml
     ```
 
-2. Create the VirtualServer resource:
+1. Create the VirtualServerRoute resource for tea:
+
+    ```console
+    kubectl create -f tea-virtual-server-route.yaml
+    ```
+
+1. Create the VirtualServerRoute resource for coffee:
+
+    ```console
+    kubectl create -f coffee-virtual-server-route.yaml
+    ```
+
+1. Create the VirtualServer resource:
 
     ```console
     kubectl create -f cafe-virtual-server.yaml
