@@ -290,7 +290,7 @@ secrets: ## Create just in time TLS certificates etc needed for tests and exampl
 ifeq (, $(shell command -v go))
 	@docker run --rm -v .:/workspace/kubernetes-ingress -w /workspace/kubernetes-ingress golang:1.25.4-trixie make secrets
 else
-	@make -C hack/tls-cert-gen ignore
+	@make -C hack/secrets-gen ignore
 endif
 
 .PHONY: secrets-clean
@@ -298,5 +298,5 @@ secrets-clean: ## Clean just in time TLS certificates etc. needed for tests and 
 ifeq (, $(shell command -v go))
 	@docker run --rm -v .:/workspace/kubernetes-ingress -w /workspace/kubernetes-ingress golang:1.25.4-trixie make secrets-clean
 else
-	@make -C hack/tls-cert-gen clean
+	@make -C hack/secrets-gen clean
 endif

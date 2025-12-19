@@ -83,6 +83,8 @@ func generateGitignore(secrets secretsTypes, gitignorePtr *bool) error {
 
 	ignoredFilesAndLines = append(ignoredFilesAndLines, generateJwtIgnores(secrets.Jwt)...)
 
+	ignoredFilesAndLines = append(ignoredFilesAndLines, generateAPIKeyIgnores(secrets.APIKeySecrets)...)
+
 	err := writeGitIgnoreFile(ignoredFilesAndLines)
 	if err != nil {
 		return fmt.Errorf("writeGitIgnoreFile: %w", err)
@@ -184,6 +186,22 @@ func generateJwtIgnores(jwts []jwtSecret) []string {
 		filesToIgnore = append(filesToIgnore, path.Join(realSecretDirectory, jwt.FileName))
 
 		for _, symlink := range jwt.Symlinks {
+			filesToIgnore = append(filesToIgnore, strings.TrimPrefix(symlink, "/"))
+		}
+	}
+
+	return filesToIgnore
+}
+
+func generateAPIKeyIgnores(apiKeys []apiKeysSecret) []string {
+	filesToIgnore := make([]string, 0)
+
+	filesToIgnore = append(filesToIgnore, "\n#API Key secrets")
+
+	for _, htpw := range apiKeys {
+		filesToIgnore = append(filesToIgnore, path.Join(realSecretDirectory, htpw.FileName))
+
+		for _, symlink := range htpw.Symlinks {
 			filesToIgnore = append(filesToIgnore, strings.TrimPrefix(symlink, "/"))
 		}
 	}
