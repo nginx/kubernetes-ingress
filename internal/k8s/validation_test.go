@@ -3541,7 +3541,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				`annotations.nginx.org/app-root: Invalid value: "/tea$1": contains invalid characters, only alphanumeric, hyphens, underscores, dots, and forward slashes are allowed`,
+				`annotations.nginx.org/app-root: Invalid value: "/tea$1": path must start with '/' and must not include any special character, '{', '}', ';' or '$'`,
 			},
 			msg: "invalid nginx.org/app-root annotation, invalid characters",
 		},

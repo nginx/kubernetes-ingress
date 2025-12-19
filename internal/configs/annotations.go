@@ -75,6 +75,7 @@ var minionDenylist = map[string]bool{
 	"nginx.org/server-snippets":                         true,
 	"nginx.org/ssl-ciphers":                             true,
 	"nginx.org/ssl-prefer-server-ciphers":               true,
+	"nginx.org/app-root":                                true,
 	"appprotect.f5.com/app_protect_enable":              true,
 	"appprotect.f5.com/app_protect_policy":              true,
 	"appprotect.f5.com/app_protect_security_log_enable": true,
@@ -504,7 +505,11 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 	}
 
 	if appRoot, exists := ingEx.Ingress.Annotations["nginx.org/app-root"]; exists {
-		cfgParams.AppRoot = appRoot
+		if !VerifyPath(appRoot) {
+			nl.Errorf(l, "Ingress %s/%s: Invalid value nginx.org/app-root: got %q. Must start with '/'", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), appRoot)
+		} else {
+			cfgParams.AppRoot = appRoot
+		}
 	}
 
 	if useClusterIP, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, UseClusterIPAnnotation, ingEx.Ingress); exists {

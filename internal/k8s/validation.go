@@ -394,11 +394,8 @@ func validateAppRootAnnotation(context *annotationValidationContext) field.Error
 		return allErrs
 	}
 
-	// Validate that the path doesn't contain invalid characters
-	// Allow alphanumeric, hyphens, underscores, dots, and forward slashes
-	validPath := regexp.MustCompile(`^/[a-zA-Z0-9\-_./]*$`)
-	if !validPath.MatchString(path) {
-		allErrs = append(allErrs, field.Invalid(context.fieldPath, path, "contains invalid characters, only alphanumeric, hyphens, underscores, dots, and forward slashes are allowed"))
+	if !configs.VerifyPath(path) {
+		allErrs = append(allErrs, field.Invalid(context.fieldPath, path, "path must start with '/' and must not include any special character, '{', '}', ';' or '$'"))
 		return allErrs
 	}
 
