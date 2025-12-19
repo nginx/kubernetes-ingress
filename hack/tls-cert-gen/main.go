@@ -25,11 +25,12 @@ const (
 var projectRoot = "" // this will be redefined in main()
 
 type secretsTypes struct {
-	Certs     []yamlSecret     `json:"certs,omitempty"`
-	Mtls      []mtlsBundle     `json:"mtls,omitempty"`
-	Htpasswds []htpasswdSecret `json:"htpasswds,omitempty"`
-	Jwks      []jwkSecret      `json:"jwks,omitempty"`
-	Jwt       []jwtSecret      `json:"jwt,omitempty"`
+	Certs         []yamlSecret     `json:"certs,omitempty"`
+	Mtls          []mtlsBundle     `json:"mtls,omitempty"`
+	Htpasswds     []htpasswdSecret `json:"htpasswds,omitempty"`
+	Jwks          []jwkSecret      `json:"jwks,omitempty"`
+	Jwt           []jwtSecret      `json:"jwt,omitempty"`
+	APIKeySecrets []apiKeysSecret  `json:"apikeys,omitempty"`
 }
 
 // nolint:gocyclo
@@ -86,15 +87,51 @@ func main() {
 		log.Fatalf(logger, "generateJwksFiles: %v", err)
 	}
 
-	_, err = generateJwtFiles(logger, secretsTypesData.Jwt, filenames, cleanPtr)
+	filenames, err = generateJwtFiles(logger, secretsTypesData.Jwt, filenames, cleanPtr)
 	if err != nil {
 		log.Fatalf(logger, "generateJwtFiles: %v", err)
+	}
+
+	_, err = generateAPIKeyFiles(logger, secretsTypesData.APIKeySecrets, filenames, cleanPtr)
+	if err != nil {
+		log.Fatalf(logger, "generateAPIKeyFiles: %v", err)
 	}
 
 	err = generateGitignore(secretsTypesData, gitignorePtr)
 	if err != nil {
 		log.Fatalf(logger, "generateGitignore: %v", err)
 	}
+}
+
+func generateAPIKeyFiles(logger *slog.Logger, secrets []apiKeysSecret, filenames map[string]struct{}, cleanPtr *bool) (map[string]struct{}, error) {
+	for _, secret := range secrets {
+		if _, ok := filenames[secret.FileName]; ok {
+			return nil, fmt.Errorf("secret contains duplicated files: %v", secret.FileName)
+		}
+
+		filenames[secret.FileName] = struct{}{}
+
+		for _, symlink := range secret.Symlinks {
+			if _, ok := filenames[symlink]; ok {
+				return nil, fmt.Errorf("secret contains duplicated symlink for file %s: %s", secret.FileName, symlink)
+			}
+
+			filenames[symlink] = struct{}{}
+		}
+
+		if *cleanPtr {
+			err := removeFiles(logger, secret.FileName, secret.Symlinks)
+			if err != nil {
+				return nil, fmt.Errorf("failed to remove JWT files: %s %w", secret.FileName, err)
+			}
+			continue
+		}
+		err := generateAPIKeyFile(logger, secret, projectRoot)
+		if err != nil {
+			return nil, fmt.Errorf("failed to print JWT file: %s %w", secret.FileName, err)
+		}
+	}
+	return filenames, nil
 }
 
 func generateJwtFiles(logger *slog.Logger, secrets []jwtSecret, filenames map[string]struct{}, cleanPtr *bool) (map[string]struct{}, error) {
