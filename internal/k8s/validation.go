@@ -363,6 +363,7 @@ var (
 		},
 		appRootAnnotation: {
 			validateAppRootAnnotation,
+			validateRewriteTargetAnnotation,
 		},
 	}
 	annotationNames = sortedAnnotationNames(annotationValidations)
@@ -394,9 +395,9 @@ func validateAppRootAnnotation(context *annotationValidationContext) field.Error
 		return allErrs
 	}
 
-	if !configs.VerifyPath(path) {
-		allErrs = append(allErrs, field.Invalid(context.fieldPath, path, "path must start with '/' and must not include any special character, '{', '}', ';' or '$'"))
-		return allErrs
+	validPath := regexp.MustCompile(`^/[a-zA-Z0-9\-_./]*$`)
+	if !validPath.MatchString(path) {
+		allErrs = append(allErrs, field.Invalid(context.fieldPath, path, "contains invalid characters, only alphanumeric, hyphens, underscores, dots, and forward slashes are allowed"))
 	}
 
 	// Ensure path doesn't end with /

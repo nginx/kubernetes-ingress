@@ -505,11 +505,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 	}
 
 	if appRoot, exists := ingEx.Ingress.Annotations["nginx.org/app-root"]; exists {
-		if !VerifyPath(appRoot) {
-			nl.Errorf(l, "Ingress %s/%s: Invalid value nginx.org/app-root: got %q. Must start with '/'", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), appRoot)
-		} else {
-			cfgParams.AppRoot = appRoot
-		}
+		cfgParams.AppRoot = appRoot
 	}
 
 	if useClusterIP, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, UseClusterIPAnnotation, ingEx.Ingress); exists {
