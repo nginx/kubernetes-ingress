@@ -1836,11 +1836,11 @@ func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*
 		}
 	}
 
-	vsrs, pathWarnings := duplicateVSRPathValidation(vsrs)
-	warnings = append(warnings, pathWarnings...)
-
 	vsrs, duplicateVSRWarnings := duplicateVSRValidation(vsrs, vs.Name, vs.Namespace)
 	warnings = append(warnings, duplicateVSRWarnings...)
+
+	vsrs, pathWarnings := duplicateVSRPathValidation(vsrs)
+	warnings = append(warnings, pathWarnings...)
 
 	return vsrs, vsrSelectors, warnings
 }
