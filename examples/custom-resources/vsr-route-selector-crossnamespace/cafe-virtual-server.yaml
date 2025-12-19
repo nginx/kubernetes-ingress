@@ -2,7 +2,7 @@ apiVersion: k8s.nginx.org/v1
 kind: VirtualServer
 metadata:
   name: cafe
-  namespace: default
+  namespace: cafe
 spec:
   host: cafe.example.com
   tls:
