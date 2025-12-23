@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/base64"
 	"fmt"
 	"log/slog"
 
@@ -23,14 +22,15 @@ type apiKeysSecret struct {
 }
 
 func generateAPIKeyFile(logger *slog.Logger, secret apiKeysSecret, projectRoot string) error {
-	hashedEntries := make(map[string]string)
+	convertedEntries := make(map[string][]byte)
 
+	// secret.Entries is a map[string]string, but the yaml
+	// needs a map[string][]byte
 	for key, value := range secret.Entries {
-		encoded := base64.StdEncoding.EncodeToString([]byte(value))
-		hashedEntries[key] = encoded
+		convertedEntries[key] = []byte(value)
 	}
 
-	fileContents, err := createKubeAPIKeySecretYaml(secret, hashedEntries)
+	fileContents, err := createKubeAPIKeySecretYaml(secret, convertedEntries)
 	if err != nil {
 		return fmt.Errorf("writing valid file for %s: %w", secret.FileName, err)
 	}
@@ -43,7 +43,7 @@ func generateAPIKeyFile(logger *slog.Logger, secret apiKeysSecret, projectRoot s
 	return nil
 }
 
-func createKubeAPIKeySecretYaml(secret apiKeysSecret, hashedEntries map[string]string) ([]byte, error) {
+func createKubeAPIKeySecretYaml(secret apiKeysSecret, hashedEntries map[string][]byte) ([]byte, error) {
 	s := v1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Secret",
@@ -52,8 +52,8 @@ func createKubeAPIKeySecretYaml(secret apiKeysSecret, hashedEntries map[string]s
 		ObjectMeta: metav1.ObjectMeta{
 			Name: secret.SecretName,
 		},
-		StringData: hashedEntries,
-		Type:       v1.SecretType(apiKeyType),
+		Data: hashedEntries,
+		Type: v1.SecretType(apiKeyType),
 	}
 
 	if secret.SecretType != "" {
