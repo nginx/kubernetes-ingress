@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/pem"
 	"fmt"
 	"math/big"
@@ -69,6 +70,10 @@ type JITTLSKey struct {
 	privateKey *ecdsa.PrivateKey
 }
 
+// See RFC 2985 appendix B, section B.3.5 for the reference
+// @see https://datatracker.ietf.org/doc/html/rfc2985#appendix-B
+var emailOID = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 1}
+
 // generateTLSKeyPair is roughly the same function as crypto/tls/generate_cert.go in the
 // go standard library. Notable differences:
 //   - this one returns the cert/key as bytes rather than writing them as files
@@ -77,6 +82,7 @@ type JITTLSKey struct {
 //   - keys are always valid from "now" until 4 days in the future. Given the
 //     short usage window of the keys, this is enough
 func generateTLSKeyPair(template, parent x509.Certificate, parentPriv *ecdsa.PrivateKey) (*JITTLSKey, error) {
+	// generate a new private key in case one was not provided.
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate private key: %w", err)
@@ -153,12 +159,23 @@ func renderX509Template(td TemplateData) (x509.Certificate, error) {
 		ExtKeyUsage:           []x509.ExtKeyUsage{eku, x509.ExtKeyUsageAny, x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
 		IsCA:                  td.CA,
-		EmailAddresses:        []string{td.EmailAddress},
 	}
 	if td.CA {
 		x509Cert.KeyUsage |= x509.KeyUsageCertSign | x509.KeyUsageCRLSign // so we can sign another certificate and a CRL with it
 		x509Cert.IsCA = true                                              // because it is a CA
 		x509Cert.ExtKeyUsage = nil                                        // CA certificates should not have ExtKeyUsage
 	}
+
+	if td.EmailAddress != "" {
+		x509Cert.Issuer.ExtraNames = []pkix.AttributeTypeAndValue{
+			{
+				Type:  emailOID,
+				Value: td.EmailAddress,
+			},
+		}
+
+		x509Cert.Subject.ExtraNames = x509Cert.Issuer.ExtraNames
+	}
+
 	return x509Cert, nil
 }

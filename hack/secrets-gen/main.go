@@ -31,6 +31,7 @@ type secretsTypes struct {
 	Jwks          []jwkSecret      `json:"jwks,omitempty"`
 	Jwt           []jwtSecret      `json:"jwt,omitempty"`
 	APIKeySecrets []apiKeysSecret  `json:"apikeys,omitempty"`
+	IngressMtls   IngressMtls      `json:"ingress-mtls,omitempty"`
 }
 
 // nolint:gocyclo
@@ -95,6 +96,11 @@ func main() {
 	_, err = generateAPIKeyFiles(logger, secretsTypesData.APIKeySecrets, filenames, cleanPtr)
 	if err != nil {
 		log.Fatalf(logger, "generateAPIKeyFiles: %v", err)
+	}
+
+	err = generateIngressMtlsSecrets(logger, secretsTypesData.IngressMtls)
+	if err != nil {
+		log.Fatalf(logger, "generateIngressMtlsSecrets: %v", err)
 	}
 
 	err = generateGitignore(secretsTypesData, gitignorePtr)

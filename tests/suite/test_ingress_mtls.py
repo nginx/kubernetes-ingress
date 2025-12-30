@@ -170,6 +170,10 @@ class TestIngressMtlsPolicyVS:
             std_vs_src,
             virtual_server_setup.namespace,
         )
+
+        print("printing out the response text")
+        print(resp.text)
+
         assert (
             resp.status_code == expected_code
             and expected_text in resp.text
