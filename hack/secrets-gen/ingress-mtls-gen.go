@@ -18,37 +18,29 @@ import (
 )
 
 type IngressMtls struct {
-	Ca struct {
-		SecretName string   `json:"secretName"`
-		FileName   string   `json:"fileName"`
-		Symlinks   []string `json:"symlinks"`
-	} `json:"ca"`
-	Crl struct {
-		SecretName string   `json:"secretName"`
-		FileName   string   `json:"fileName"`
-		Symlinks   []string `json:"symlinks"`
-		RawCRL     string   `json:"rawCRLPath"`
-	} `json:"crl"`
-	Client struct {
-		FileName string   `json:"fileName"`
-		Symlinks []string `json:"symlinks"`
-	} `json:"client"`
-	Valid struct {
-		FileName string   `json:"fileName"`
-		Symlinks []string `json:"symlinks"`
-	} `json:"valid"`
-	Invalid struct {
-		FileName string   `json:"fileName"`
-		Symlinks []string `json:"symlinks"`
-	} `json:"invalid"`
-	NotRevoked struct {
-		FileName string   `json:"fileName"`
-		Symlinks []string `json:"symlinks"`
-	} `json:"not-revoked"`
-	Revoked struct {
-		FileName string   `json:"fileName"`
-		Symlinks []string `json:"symlinks"`
-	} `json:"revoked"`
+	Ca         CertificateInfo `json:"ca"`
+	Crl        CertificateInfo `json:"crl"`
+	Client     FilePaths       `json:"client"`
+	Valid      ClientCerts     `json:"valid"`
+	Invalid    ClientCerts     `json:"invalid"`
+	NotRevoked ClientCerts     `json:"not-revoked"`
+	Revoked    ClientCerts     `json:"revoked"`
+}
+
+type CertificateInfo struct {
+	SecretName string   `json:"secretName"`
+	FileName   string   `json:"fileName"`
+	Symlinks   []string `json:"symlinks"`
+	RawCRL     string   `json:"rawCRLPath"`
+}
+
+type FilePaths struct {
+	FileName string   `json:"fileName"`
+	Symlinks []string `json:"symlinks"`
+}
+type ClientCerts struct {
+	Cert FilePaths `json:"cert"`
+	Key  FilePaths `json:"key"`
 }
 
 //gocyclo:ignore
@@ -189,26 +181,23 @@ func generateIngressMtlsSecrets(logger *slog.Logger, details IngressMtls) (err e
 		return fmt.Errorf("writing raw CRL file contents: %w", err)
 	}
 
-	fmt.Printf("Generating valid client cert...\n")
-	err = generateValidClientCert(ca, projectRoot)
+	err = generateValidClientCert(logger, ca, projectRoot, details)
 	if err != nil {
 		return fmt.Errorf("generating valid client cert: %w", err)
 	}
 
-	fmt.Printf("Generating not-revoked client cert...\n")
-	err = generateNotRevokedClientCert(caCrl, projectRoot)
+	err = generateNotRevokedClientCert(logger, caCrl, projectRoot, details)
 	if err != nil {
 		return fmt.Errorf("generating not-revoked client cert: %w", err)
 	}
 
-	fmt.Printf("Generating revoked client cert...\n")
-	err = generateRevokedClientCert(caCrl, projectRoot)
+	err = generateRevokedClientCert(logger, caCrl, projectRoot, details)
 	if err != nil {
 		return fmt.Errorf("generating revoked client cert: %w", err)
 	}
 
 	fmt.Printf("Generating invalid client cert...\n")
-	err = generateInvalidClientCert(ca, projectRoot)
+	err = generateInvalidClientCert(logger, ca, projectRoot, details)
 	if err != nil {
 		return fmt.Errorf("generating invalid client cert: %w", err)
 	}
@@ -223,7 +212,7 @@ func generateIngressMtlsSecrets(logger *slog.Logger, details IngressMtls) (err e
 // - serial number is random (not 2)
 // - not revoked by ../crl/webapp.crl (nor ../../secret/crl.crl)
 // - files: valid/client-cert.pem, valid/client-key.pem
-func generateValidClientCert(ca *JITTLSKey, projectRoot string) (err error) {
+func generateValidClientCert(logger *slog.Logger, ca *JITTLSKey, projectRoot string, details IngressMtls) (err error) {
 	caPem, _ := pem.Decode(ca.cert)
 	caCert, err := x509.ParseCertificate(caPem.Bytes)
 	if err != nil {
@@ -272,39 +261,14 @@ func generateValidClientCert(ca *JITTLSKey, projectRoot string) (err error) {
 		return fmt.Errorf("checking client is signed by CA with clientCert.CheckSignatureFrom: %w", err)
 	}
 
-	// Write the valid files to disk
-	// This is the certificate
-	certFile, err := os.Create(path.Join(projectRoot, "tests/data/ingress-mtls/client-auth/valid", "client-cert-2.pem")) //gosec:disable G304 -- no part of this path is user-controlled. Project Root is defined in main(), it's a global variable, and gitignorePath is a const at the top of this file.
+	err = writeFiles(logger, client.cert, projectRoot, details.Valid.Cert.FileName, details.Valid.Cert.Symlinks)
 	if err != nil {
-		return fmt.Errorf("creating valid client cert file with os.Create: %w", err)
-	}
-	defer func() {
-		err = certFile.Close()
-		if err != nil {
-			err = fmt.Errorf("closing certfile with certFile.Close in defer: %w", err)
-		}
-	}()
-
-	_, err = certFile.Write(client.cert)
-	if err != nil {
-		return fmt.Errorf("writing certificate to file with certFile.Write: %w", err)
+		return fmt.Errorf("writing valid certificate %s to project root: %w", details.Crl.FileName, err)
 	}
 
-	// This is the key
-	keyFile, err := os.Create(path.Join(projectRoot, "tests/data/ingress-mtls/client-auth/valid", "client-key-2.pem")) //gosec:disable G304 -- no part of this path is user-controlled. Project Root is defined in main(), it's a global variable, and gitignorePath is a const at the top of this file.
+	err = writeFiles(logger, client.key, projectRoot, details.Valid.Key.FileName, details.Valid.Key.Symlinks)
 	if err != nil {
-		return fmt.Errorf("creating valid client key file with os.Create: %w", err)
-	}
-	defer func() {
-		err = keyFile.Close()
-		if err != nil {
-			err = fmt.Errorf("closing keyfile with keyFile.Close in defer: %w", err)
-		}
-	}()
-
-	_, err = keyFile.Write(client.key)
-	if err != nil {
-		return fmt.Errorf("writing key to file with keyFile.Write: %w", err)
+		return fmt.Errorf("writing valid key %s to project root: %w", details.Crl.FileName, err)
 	}
 
 	return nil
@@ -320,7 +284,7 @@ func generateValidClientCert(ca *JITTLSKey, projectRoot string) (err error) {
 // Serial Number: 1 (0x1)
 // Issuer: same as the CA that signed it
 // Subject: C=US, ST=MD, L=Baltimore, O=Test Server, Limited, CN=Test Server
-func generateNotRevokedClientCert(ca *JITTLSKey, projectRoot string) error {
+func generateNotRevokedClientCert(logger *slog.Logger, ca *JITTLSKey, projectRoot string, details IngressMtls) error {
 	caPem, _ := pem.Decode(ca.cert)
 	caCert, err := x509.ParseCertificate(caPem.Bytes)
 	if err != nil {
@@ -368,39 +332,14 @@ func generateNotRevokedClientCert(ca *JITTLSKey, projectRoot string) error {
 		return fmt.Errorf("checking client is signed by CA with clientCert.CheckSignatureFrom: %w", err)
 	}
 
-	// Write the valid files to disk
-	// This is the certificate
-	certFile, err := os.Create(path.Join(projectRoot, "tests/data/ingress-mtls/client-auth/not-revoked", "client-cert-2.pem")) //gosec:disable G304 -- no part of this path is user-controlled. Project Root is defined in main(), it's a global variable, and gitignorePath is a const at the top of this file.
+	err = writeFiles(logger, client.cert, projectRoot, details.NotRevoked.Cert.FileName, details.NotRevoked.Cert.Symlinks)
 	if err != nil {
-		return fmt.Errorf("creating valid client cert file with os.Create: %w", err)
-	}
-	defer func() {
-		err = certFile.Close()
-		if err != nil {
-			err = fmt.Errorf("closing certfile with certFile.Close in defer: %w", err)
-		}
-	}()
-
-	_, err = certFile.Write(client.cert)
-	if err != nil {
-		return fmt.Errorf("writing certificate to file with certFile.Write: %w", err)
+		return fmt.Errorf("writing not-revoked certificate %s to project root: %w", details.NotRevoked.Cert.FileName, err)
 	}
 
-	// This is the key
-	keyFile, err := os.Create(path.Join(projectRoot, "tests/data/ingress-mtls/client-auth/not-revoked", "client-key-2.pem")) //gosec:disable G304 -- no part of this path is user-controlled. Project Root is defined in main(), it's a global variable, and gitignorePath is a const at the top of this file.
+	err = writeFiles(logger, client.key, projectRoot, details.NotRevoked.Key.FileName, details.NotRevoked.Key.Symlinks)
 	if err != nil {
-		return fmt.Errorf("creating valid client key file with os.Create: %w", err)
-	}
-	defer func() {
-		err = keyFile.Close()
-		if err != nil {
-			err = fmt.Errorf("closing keyfile with keyFile.Close in defer: %w", err)
-		}
-	}()
-
-	_, err = keyFile.Write(client.key)
-	if err != nil {
-		return fmt.Errorf("writing key to file with keyFile.Write: %w", err)
+		return fmt.Errorf("writing not-revoked key %s to project root: %w", details.NotRevoked.Key.FileName, err)
 	}
 
 	return nil
@@ -413,7 +352,7 @@ func generateNotRevokedClientCert(ca *JITTLSKey, projectRoot string) error {
 // - signed by ../../secret/ca-crl.crt
 // - not signed by ../../secret/ca.crt
 // - client-key.pem goes with it
-func generateRevokedClientCert(ca *JITTLSKey, projectRoot string) error {
+func generateRevokedClientCert(logger *slog.Logger, ca *JITTLSKey, projectRoot string, details IngressMtls) error {
 	caPem, _ := pem.Decode(ca.cert)
 	caCert, err := x509.ParseCertificate(caPem.Bytes)
 	if err != nil {
@@ -461,39 +400,14 @@ func generateRevokedClientCert(ca *JITTLSKey, projectRoot string) error {
 		return fmt.Errorf("checking client is signed by CA with clientCert.CheckSignatureFrom: %w", err)
 	}
 
-	// Write the valid files to disk
-	// This is the certificate
-	certFile, err := os.Create(path.Join(projectRoot, "tests/data/ingress-mtls/client-auth/revoked", "client-cert-2.pem")) //gosec:disable G304 -- no part of this path is user-controlled. Project Root is defined in main(), it's a global variable, and gitignorePath is a const at the top of this file.
+	err = writeFiles(logger, client.cert, projectRoot, details.Revoked.Cert.FileName, details.Revoked.Cert.Symlinks)
 	if err != nil {
-		return fmt.Errorf("creating valid client cert file with os.Create: %w", err)
-	}
-	defer func() {
-		err = certFile.Close()
-		if err != nil {
-			err = fmt.Errorf("closing certfile with certFile.Close in defer: %w", err)
-		}
-	}()
-
-	_, err = certFile.Write(client.cert)
-	if err != nil {
-		return fmt.Errorf("writing certificate to file with certFile.Write: %w", err)
+		return fmt.Errorf("writing revoked certificate %s to project root: %w", details.Revoked.Cert.FileName, err)
 	}
 
-	// This is the key
-	keyFile, err := os.Create(path.Join(projectRoot, "tests/data/ingress-mtls/client-auth/revoked", "client-key-2.pem")) //gosec:disable G304 -- no part of this path is user-controlled. Project Root is defined in main(), it's a global variable, and gitignorePath is a const at the top of this file.
+	err = writeFiles(logger, client.key, projectRoot, details.Revoked.Key.FileName, details.Revoked.Key.Symlinks)
 	if err != nil {
-		return fmt.Errorf("creating valid client key file with os.Create: %w", err)
-	}
-	defer func() {
-		err = keyFile.Close()
-		if err != nil {
-			err = fmt.Errorf("closing keyfile with keyFile.Close in defer: %w", err)
-		}
-	}()
-
-	_, err = keyFile.Write(client.key)
-	if err != nil {
-		return fmt.Errorf("writing key to file with keyFile.Write: %w", err)
+		return fmt.Errorf("writing revoked key %s to project root: %w", details.Revoked.Key.FileName, err)
 	}
 
 	return nil
@@ -502,7 +416,7 @@ func generateRevokedClientCert(ca *JITTLSKey, projectRoot string) error {
 // generateInvalidClientCert creates a client certificate that is invalid.
 // I think it's the same as the valid one, except with bytes chopped off from
 // the end before encoding it.
-func generateInvalidClientCert(ca *JITTLSKey, projectRoot string) error {
+func generateInvalidClientCert(logger *slog.Logger, ca *JITTLSKey, projectRoot string, details IngressMtls) error {
 	caPem, _ := pem.Decode(ca.cert)
 	caCert, err := x509.ParseCertificate(caPem.Bytes)
 	if err != nil {
@@ -560,39 +474,14 @@ func generateInvalidClientCert(ca *JITTLSKey, projectRoot string) error {
 	invalidCert = append(invalidCert[:45], invalidCert[52:]...)
 	invalidKey = append(invalidKey[:45], invalidKey[52:]...)
 
-	// Write the valid files to disk
-	// This is the certificate
-	certFile, err := os.Create(path.Join(projectRoot, "tests/data/ingress-mtls/client-auth/invalid", "client-cert-2.pem")) //gosec:disable G304 -- no part of this path is user-controlled. Project Root is defined in main(), it's a global variable, and gitignorePath is a const at the top of this file.
+	err = writeFiles(logger, invalidCert, projectRoot, details.Invalid.Cert.FileName, details.Invalid.Cert.Symlinks)
 	if err != nil {
-		return fmt.Errorf("creating valid client cert file with os.Create: %w", err)
-	}
-	defer func() {
-		err = certFile.Close()
-		if err != nil {
-			err = fmt.Errorf("closing certfile with certFile.Close in defer: %w", err)
-		}
-	}()
-
-	_, err = certFile.Write(invalidCert)
-	if err != nil {
-		return fmt.Errorf("writing certificate to file with certFile.Write: %w", err)
+		return fmt.Errorf("writing invalid certificate %s to project root: %w", details.Invalid.Cert.FileName, err)
 	}
 
-	// This is the key
-	keyFile, err := os.Create(path.Join(projectRoot, "tests/data/ingress-mtls/client-auth/invalid", "client-key-2.pem")) //gosec:disable G304 -- no part of this path is user-controlled. Project Root is defined in main(), it's a global variable, and gitignorePath is a const at the top of this file.
+	err = writeFiles(logger, invalidKey, projectRoot, details.Invalid.Key.FileName, details.Invalid.Key.Symlinks)
 	if err != nil {
-		return fmt.Errorf("creating valid client key file with os.Create: %w", err)
-	}
-	defer func() {
-		err = keyFile.Close()
-		if err != nil {
-			err = fmt.Errorf("closing keyfile with keyFile.Close in defer: %w", err)
-		}
-	}()
-
-	_, err = keyFile.Write(invalidKey)
-	if err != nil {
-		return fmt.Errorf("writing key to file with keyFile.Write: %w", err)
+		return fmt.Errorf("writing invalid key %s to project root: %w", details.Invalid.Key.FileName, err)
 	}
 
 	return nil
