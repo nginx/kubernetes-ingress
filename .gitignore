@@ -65,14 +65,9 @@ package.json
 kube-local
 venv/
 
-# generated tls certificates
-# that gitignore file is at hack/.gitignore
+# AUTO GENERATED SECTION BY CERTGEN (hack/secrets-gen/gitignore-gen.go), DO NOT EDIT BELOW
 
-# AUTO GENERATED SECTION BY CERTGEN (hack/tls-cert-gen/gitignore-gen.go), DO NOT EDIT BELOW
-
-
-
-#TLS Certificate secrets
+# TLS Certificate secrets
 common-secrets/tls-secret.yaml
 examples/custom-resources/api-key/cafe-secret.yaml
 examples/custom-resources/backup-directive/transport-server/app-tls-secret.yaml
@@ -108,7 +103,6 @@ examples/ingress-resources/security-monitoring/cafe-secret.yaml
 tests/data/dos/tls-secret.yaml
 tests/data/hsts/standard-tls/tls-secret.yaml
 tests/data/hsts/mergeable-tls/tls-secret.yaml
-tests/data/ingress-mtls/secret/tls-secret.yaml
 tests/data/mgmt-configmap-keys/ssl-cert.yaml
 tests/data/smoke/smoke-secret.yaml
 tests/data/upgrade-test-resources/secret.yaml
@@ -161,25 +155,24 @@ tests/data/transport-server-with-host/cafe-secret.yaml
 common-secrets/ca-key-pair.yaml
 tests/data/virtual-server-certmanager/issuer-secret.yaml
 
-#mTLS Bundle Certificate secrets
+# mTLS Bundle Certificate secrets
 common-secrets/test-egress-mtls-secret.yaml
-common-secrets/test-egress-tls-client-secret.yaml
 common-secrets/test-secure-app-tls-secret.yaml
 common-secrets/test-egress-mtls-secret-crl.yaml
+common-secrets/test-egress-tls-client-secret.yaml
 tests/data/egress-mtls/secret/egress-mtls-secret.yaml
 tests/data/egress-mtls/secret/egress-mtls-secret-crl.yaml
 tests/data/egress-mtls/secret/tls-secret.yaml
 tests/data/common/app/secure-ca/app-tls-secret.yaml
 common-secrets/example-egress-trusted-ca-secret.yaml
-common-secrets/example-egress-mtls-client-secret.yaml
 common-secrets/example-secure-app-tls-secret.yaml
 common-secrets/example-egress-trusted-ca-secret-crl.yaml
+common-secrets/example-egress-mtls-client-secret.yaml
 examples/custom-resources/egress-mtls/egress-trusted-ca-secret.yaml
 examples/custom-resources/egress-mtls/egress-trusted-ca-secret-crl.yaml
 examples/custom-resources/egress-mtls/egress-mtls-secret.yaml
 examples/custom-resources/egress-mtls/secure-app-tls-secret.yaml
 common-secrets/keycloak-ca-secret.yaml
-common-secrets
 common-secrets/keycloak-tls-secret.yaml
 common-secrets/keycloak-ca-secret-crl.yaml
 examples/custom-resources/oidc/keycloak-ca-secret.yaml
@@ -189,7 +182,7 @@ tests/data/oidc/keycloak-ca-secret-crl.yaml
 examples/custom-resources/oidc/keycloak-tls-secret.yaml
 tests/data/oidc/keycloak-tls-secret.yaml
 
-#TLS Certificate secrets
+# TLS Certificate secrets
 common-secrets/cafe-passwd-basic-auth-secret.yaml
 examples/ingress-resources/basic-auth/cafe-passwd.yaml
 examples/custom-resources/basic-auth/cafe-passwd.yaml
@@ -214,7 +207,7 @@ tests/data/auth-basic-secrets/auth-basic-secret-updated.yaml
 common-secrets/auth-basic-secrets-htpasswd-secret-invalid.yaml
 tests/data/auth-basic-secrets/auth-basic-secret-invalid.yaml
 
-#Jwks secrets
+# Jwks secrets
 common-secrets/example-jwt-jwks-secret.yaml
 examples/custom-resources/jwt/jwk-secret.yaml
 common-secrets/tests-jwt-master-jwk.yaml
@@ -236,7 +229,7 @@ tests/data/jwt-secrets/jwt-secret.yaml
 common-secrets/tests-jwt-secret-updated-jwk.yaml
 tests/data/jwt-secrets/jwt-secret-updated.yaml
 
-#Jwt secrets
+# Jwt secrets
 common-secrets/fantastic-jwt-token.yaml
 examples/custom-resources/jwt/token.jwt
 examples/custom-resources/rate-limit-jwt-claim/token.jwt
@@ -255,7 +248,7 @@ examples/custom-resources/rate-limit-tiered-jwt-claim/premium-token.jwt
 common-secrets/default-jwt-token.yaml
 examples/custom-resources/rate-limit-tiered-jwt-claim/default-token.jwt
 
-#API Key secrets
+# API Key secrets
 common-secrets/apikey-secret-1.yaml
 tests/data/apikey-auth-policy/secret/apikey-secret-1.yaml
 common-secrets/apikey-secret-server.yaml
@@ -270,6 +263,32 @@ common-secrets/api-key-secret.yaml
 examples/custom-resources/rate-limit-tiered-apikey/api-key-secret.yaml
 common-secrets/api-key-client-secret-2.yaml
 tests/data/apikey-auth-policy/secret/apikey-secret-2.yaml
+
+# Ingress mTLS Certificate secrets
+common-secrets/ingress-mtls-secret.yaml
+tests/data/ingress-mtls/secret/ingress-mtls-secret.yaml
+common-secrets/ingress-mtls-secret-crl.yaml
+common-secrets/ingress-mtls-webapp-crl.pem
+tests/data/ingress-mtls/secret/ingress-mtls-secret-crl.yaml
+tests/data/ingress-mtls/client-auth/crl/webapp.crl
+common-secrets/ingress-mtls-secret-client.yaml
+tests/data/ingress-mtls/secret/tls-secret.yaml
+common-secrets/ingress-mtls-valid-client-cert.pem
+tests/data/ingress-mtls/client-auth/valid/client-cert.pem
+common-secrets/ingress-mtls-valid-client-key.pem
+tests/data/ingress-mtls/client-auth/valid/client-key.pem
+common-secrets/ingress-mtls-invalid-client-cert.pem
+tests/data/ingress-mtls/client-auth/invalid/client-cert.pem
+common-secrets/ingress-mtls-invalid-client-key.pem
+tests/data/ingress-mtls/client-auth/invalid/client-key.pem
+common-secrets/ingress-mtls-not-revoked-client.pem
+tests/data/ingress-mtls/client-auth/not-revoked/client-cert.pem
+common-secrets/ingress-mtls-not-revoked-client-key.pem
+tests/data/ingress-mtls/client-auth/not-revoked/client-key.pem
+common-secrets/ingress-mtls-revoked-client-cert.pem
+tests/data/ingress-mtls/client-auth/revoked/client-cert.pem
+common-secrets/ingress-mtls-revoked-client-key.pem
+tests/data/ingress-mtls/client-auth/revoked/client-key.pem
 
 
 # END CERTGEN SECTION. YOU MAY EDIT BELOW

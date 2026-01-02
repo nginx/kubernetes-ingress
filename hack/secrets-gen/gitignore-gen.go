@@ -10,7 +10,7 @@ import (
 
 const (
 	gitignorePath = ".gitignore"
-	startMarker   = "# AUTO GENERATED SECTION BY CERTGEN (hack/tls-cert-gen/gitignore-gen.go), DO NOT EDIT BELOW"
+	startMarker   = "# AUTO GENERATED SECTION BY CERTGEN (hack/secrets-gen/gitignore-gen.go), DO NOT EDIT BELOW"
 	endMarker     = "# END CERTGEN SECTION. YOU MAY EDIT BELOW"
 )
 
@@ -39,7 +39,7 @@ func writeGitIgnoreFile(filenames []string) error {
 	}
 
 	// Build new section
-	newSection := []string{startMarker, "\n"}
+	newSection := []string{startMarker}
 	newSection = append(newSection, filenames...)
 	newSection = append(newSection, "\n", endMarker)
 
@@ -85,6 +85,8 @@ func generateGitignore(secrets secretsTypes, gitignorePtr *bool) error {
 
 	ignoredFilesAndLines = append(ignoredFilesAndLines, generateAPIKeyIgnores(secrets.APIKeySecrets)...)
 
+	ignoredFilesAndLines = append(ignoredFilesAndLines, generateIngressMtlsIgnoreLines(secrets.IngressMtls)...)
+
 	err := writeGitIgnoreFile(ignoredFilesAndLines)
 	if err != nil {
 		return fmt.Errorf("writeGitIgnoreFile: %w", err)
@@ -96,7 +98,7 @@ func generateGitignore(secrets secretsTypes, gitignorePtr *bool) error {
 func generateCertIgnoreLines(certs []TLSSecret) []string {
 	filesToIgnore := make([]string, 0)
 
-	filesToIgnore = append(filesToIgnore, "\n#TLS Certificate secrets")
+	filesToIgnore = append(filesToIgnore, "\n# TLS Certificate secrets")
 
 	for _, cert := range certs {
 		filesToIgnore = append(filesToIgnore, path.Join(realSecretDirectory, cert.FileName))
@@ -112,17 +114,22 @@ func generateCertIgnoreLines(certs []TLSSecret) []string {
 func generateMtlsIgnoreLines(mtls []mtlsBundle) []string {
 	filesToIgnore := make([]string, 0)
 
-	filesToIgnore = append(filesToIgnore, "\n#mTLS Bundle Certificate secrets")
+	filesToIgnore = append(filesToIgnore, "\n# mTLS Bundle Certificate secrets")
 
 	for _, bundle := range mtls {
 		ext := filepath.Ext(bundle.Ca.FileName)
 
 		filesToIgnore = append(filesToIgnore,
 			path.Join(realSecretDirectory, bundle.Ca.FileName),
-			path.Join(realSecretDirectory, bundle.Client.FileName),
 			path.Join(realSecretDirectory, bundle.Server.FileName),
 			path.Join(realSecretDirectory, strings.ReplaceAll(bundle.Ca.FileName, ext, "-crl"+ext)), // ignore the crl file always
 		)
+
+		if bundle.Client.FileName != "" {
+			filesToIgnore = append(filesToIgnore,
+				path.Join(realSecretDirectory, bundle.Client.FileName),
+			)
+		}
 
 		for _, symlink := range bundle.Ca.Symlinks {
 			ext = filepath.Ext(symlink)
@@ -148,7 +155,7 @@ func generateMtlsIgnoreLines(mtls []mtlsBundle) []string {
 func generateHtpasswdIgnores(htPasswds []htpasswdSecret) []string {
 	filesToIgnore := make([]string, 0)
 
-	filesToIgnore = append(filesToIgnore, "\n#TLS Certificate secrets")
+	filesToIgnore = append(filesToIgnore, "\n# TLS Certificate secrets")
 
 	for _, htpw := range htPasswds {
 		filesToIgnore = append(filesToIgnore, path.Join(realSecretDirectory, htpw.FileName))
@@ -164,7 +171,7 @@ func generateHtpasswdIgnores(htPasswds []htpasswdSecret) []string {
 func generateJwksIgnores(jwks []jwkSecret) []string {
 	filesToIgnore := make([]string, 0)
 
-	filesToIgnore = append(filesToIgnore, "\n#Jwks secrets")
+	filesToIgnore = append(filesToIgnore, "\n# Jwks secrets")
 
 	for _, jwk := range jwks {
 		filesToIgnore = append(filesToIgnore, path.Join(realSecretDirectory, jwk.FileName))
@@ -180,7 +187,7 @@ func generateJwksIgnores(jwks []jwkSecret) []string {
 func generateJwtIgnores(jwts []jwtSecret) []string {
 	filesToIgnore := make([]string, 0)
 
-	filesToIgnore = append(filesToIgnore, "\n#Jwt secrets")
+	filesToIgnore = append(filesToIgnore, "\n# Jwt secrets")
 
 	for _, jwt := range jwts {
 		filesToIgnore = append(filesToIgnore, path.Join(realSecretDirectory, jwt.FileName))
@@ -196,7 +203,7 @@ func generateJwtIgnores(jwts []jwtSecret) []string {
 func generateAPIKeyIgnores(apiKeys []apiKeysSecret) []string {
 	filesToIgnore := make([]string, 0)
 
-	filesToIgnore = append(filesToIgnore, "\n#API Key secrets")
+	filesToIgnore = append(filesToIgnore, "\n# API Key secrets")
 
 	for _, htpw := range apiKeys {
 		filesToIgnore = append(filesToIgnore, path.Join(realSecretDirectory, htpw.FileName))
@@ -205,6 +212,55 @@ func generateAPIKeyIgnores(apiKeys []apiKeysSecret) []string {
 			filesToIgnore = append(filesToIgnore, strings.TrimPrefix(symlink, "/"))
 		}
 	}
+
+	return filesToIgnore
+}
+
+func generateIngressMtlsIgnoreLines(ingressMtls IngressMtls) []string {
+	filesToIgnore := make([]string, 0)
+	filesToIgnore = append(filesToIgnore, "\n# Ingress mTLS Certificate secrets")
+
+	// closures to add files and paths
+	addFilesToIgnore := func(paths FilePaths) {
+		filesToIgnore = append(filesToIgnore,
+			path.Join(realSecretDirectory, paths.FileName),
+		)
+
+		for _, symlink := range paths.Symlinks {
+			filesToIgnore = append(filesToIgnore, strings.TrimPrefix(symlink, "/"))
+		}
+	}
+
+	addCertsToIgnore := func(section ClientCerts) {
+		addFilesToIgnore(section.Cert)
+		addFilesToIgnore(section.Key)
+	}
+	// end closures
+
+	// CA
+	filesToIgnore = append(filesToIgnore, path.Join(realSecretDirectory, ingressMtls.Ca.FileName))
+	for _, symlink := range ingressMtls.Ca.Symlinks {
+		filesToIgnore = append(filesToIgnore, strings.TrimPrefix(symlink, "/"))
+	}
+
+	// CRL
+	filesToIgnore = append(filesToIgnore,
+		path.Join(realSecretDirectory, ingressMtls.Crl.FileName),
+		path.Join(realSecretDirectory, ingressMtls.Crl.RawCRL.FileName),
+	)
+	for _, symlink := range ingressMtls.Crl.Symlinks {
+		filesToIgnore = append(filesToIgnore, strings.TrimPrefix(symlink, "/"))
+	}
+
+	for _, symlink := range ingressMtls.Crl.RawCRL.Symlinks {
+		filesToIgnore = append(filesToIgnore, strings.TrimPrefix(symlink, "/"))
+	}
+
+	addFilesToIgnore(ingressMtls.Client)
+	addCertsToIgnore(ingressMtls.Valid)
+	addCertsToIgnore(ingressMtls.Invalid)
+	addCertsToIgnore(ingressMtls.NotRevoked)
+	addCertsToIgnore(ingressMtls.Revoked)
 
 	return filesToIgnore
 }
