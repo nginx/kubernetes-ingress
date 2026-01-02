@@ -68,22 +68,22 @@ func generateIngressMtlsSecrets(logger *slog.Logger, details IngressMtls, filena
 	========================================================================================
 	*/
 
-	err = generateValidClientCert(logger, ca, projectRoot, details)
+	err = generateValidClientCert(logger, ca, details)
 	if err != nil {
 		return filenames, fmt.Errorf("generating valid client cert: %w", err)
 	}
 
-	err = generateNotRevokedClientCert(logger, caCrl, projectRoot, details)
+	err = generateNotRevokedClientCert(logger, caCrl, details)
 	if err != nil {
 		return filenames, fmt.Errorf("generating not-revoked client cert: %w", err)
 	}
 
-	err = generateRevokedClientCert(logger, caCrl, projectRoot, details)
+	err = generateRevokedClientCert(logger, caCrl, details)
 	if err != nil {
 		return filenames, fmt.Errorf("generating revoked client cert: %w", err)
 	}
 
-	err = generateInvalidClientCert(logger, ca, projectRoot, details)
+	err = generateInvalidClientCert(logger, ca, details)
 	if err != nil {
 		return filenames, fmt.Errorf("generating invalid client cert: %w", err)
 	}
@@ -98,7 +98,7 @@ func generateIngressMtlsSecrets(logger *slog.Logger, details IngressMtls, filena
 // - serial number is random (not 2)
 // - not revoked by ../crl/webapp.crl (nor ../../secret/crl.crl)
 // - files: valid/client-cert.pem, valid/client-key.pem
-func generateValidClientCert(logger *slog.Logger, ca *JITTLSKey, projectRoot string, details IngressMtls) (err error) {
+func generateValidClientCert(logger *slog.Logger, ca *JITTLSKey, details IngressMtls) (err error) {
 	caPem, _ := pem.Decode(ca.cert)
 	caCert, err := x509.ParseCertificate(caPem.Bytes)
 	if err != nil {
@@ -147,12 +147,12 @@ func generateValidClientCert(logger *slog.Logger, ca *JITTLSKey, projectRoot str
 		return fmt.Errorf("checking client is signed by CA with clientCert.CheckSignatureFrom: %w", err)
 	}
 
-	err = writeFiles(logger, client.cert, projectRoot, details.Valid.Cert.FileName, details.Valid.Cert.Symlinks)
+	err = writeFiles(logger, client.cert, details.Valid.Cert.FileName, details.Valid.Cert.Symlinks)
 	if err != nil {
 		return fmt.Errorf("writing valid certificate %s to project root: %w", details.Crl.FileName, err)
 	}
 
-	err = writeFiles(logger, client.key, projectRoot, details.Valid.Key.FileName, details.Valid.Key.Symlinks)
+	err = writeFiles(logger, client.key, details.Valid.Key.FileName, details.Valid.Key.Symlinks)
 	if err != nil {
 		return fmt.Errorf("writing valid key %s to project root: %w", details.Crl.FileName, err)
 	}
@@ -170,7 +170,7 @@ func generateValidClientCert(logger *slog.Logger, ca *JITTLSKey, projectRoot str
 // Serial Number: 1 (0x1)
 // Issuer: same as the CA that signed it
 // Subject: C=US, ST=MD, L=Baltimore, O=Test Server, Limited, CN=Test Server
-func generateNotRevokedClientCert(logger *slog.Logger, ca *JITTLSKey, projectRoot string, details IngressMtls) error {
+func generateNotRevokedClientCert(logger *slog.Logger, ca *JITTLSKey, details IngressMtls) error {
 	caPem, _ := pem.Decode(ca.cert)
 	caCert, err := x509.ParseCertificate(caPem.Bytes)
 	if err != nil {
@@ -218,12 +218,12 @@ func generateNotRevokedClientCert(logger *slog.Logger, ca *JITTLSKey, projectRoo
 		return fmt.Errorf("checking client is signed by CA with clientCert.CheckSignatureFrom: %w", err)
 	}
 
-	err = writeFiles(logger, client.cert, projectRoot, details.NotRevoked.Cert.FileName, details.NotRevoked.Cert.Symlinks)
+	err = writeFiles(logger, client.cert, details.NotRevoked.Cert.FileName, details.NotRevoked.Cert.Symlinks)
 	if err != nil {
 		return fmt.Errorf("writing not-revoked certificate %s to project root: %w", details.NotRevoked.Cert.FileName, err)
 	}
 
-	err = writeFiles(logger, client.key, projectRoot, details.NotRevoked.Key.FileName, details.NotRevoked.Key.Symlinks)
+	err = writeFiles(logger, client.key, details.NotRevoked.Key.FileName, details.NotRevoked.Key.Symlinks)
 	if err != nil {
 		return fmt.Errorf("writing not-revoked key %s to project root: %w", details.NotRevoked.Key.FileName, err)
 	}
@@ -238,7 +238,7 @@ func generateNotRevokedClientCert(logger *slog.Logger, ca *JITTLSKey, projectRoo
 // - signed by ../../secret/ca-crl.crt
 // - not signed by ../../secret/ca.crt
 // - client-key.pem goes with it
-func generateRevokedClientCert(logger *slog.Logger, ca *JITTLSKey, projectRoot string, details IngressMtls) error {
+func generateRevokedClientCert(logger *slog.Logger, ca *JITTLSKey, details IngressMtls) error {
 	caPem, _ := pem.Decode(ca.cert)
 	caCert, err := x509.ParseCertificate(caPem.Bytes)
 	if err != nil {
@@ -286,12 +286,12 @@ func generateRevokedClientCert(logger *slog.Logger, ca *JITTLSKey, projectRoot s
 		return fmt.Errorf("checking client is signed by CA with clientCert.CheckSignatureFrom: %w", err)
 	}
 
-	err = writeFiles(logger, client.cert, projectRoot, details.Revoked.Cert.FileName, details.Revoked.Cert.Symlinks)
+	err = writeFiles(logger, client.cert, details.Revoked.Cert.FileName, details.Revoked.Cert.Symlinks)
 	if err != nil {
 		return fmt.Errorf("writing revoked certificate %s to project root: %w", details.Revoked.Cert.FileName, err)
 	}
 
-	err = writeFiles(logger, client.key, projectRoot, details.Revoked.Key.FileName, details.Revoked.Key.Symlinks)
+	err = writeFiles(logger, client.key, details.Revoked.Key.FileName, details.Revoked.Key.Symlinks)
 	if err != nil {
 		return fmt.Errorf("writing revoked key %s to project root: %w", details.Revoked.Key.FileName, err)
 	}
@@ -302,7 +302,7 @@ func generateRevokedClientCert(logger *slog.Logger, ca *JITTLSKey, projectRoot s
 // generateInvalidClientCert creates a client certificate that is invalid.
 // I think it's the same as the valid one, except with bytes chopped off from
 // the end before encoding it.
-func generateInvalidClientCert(logger *slog.Logger, ca *JITTLSKey, projectRoot string, details IngressMtls) error {
+func generateInvalidClientCert(logger *slog.Logger, ca *JITTLSKey, details IngressMtls) error {
 	caPem, _ := pem.Decode(ca.cert)
 	caCert, err := x509.ParseCertificate(caPem.Bytes)
 	if err != nil {
@@ -360,12 +360,12 @@ func generateInvalidClientCert(logger *slog.Logger, ca *JITTLSKey, projectRoot s
 	invalidCert = append(invalidCert[:45], invalidCert[52:]...)
 	invalidKey = append(invalidKey[:45], invalidKey[52:]...)
 
-	err = writeFiles(logger, invalidCert, projectRoot, details.Invalid.Cert.FileName, details.Invalid.Cert.Symlinks)
+	err = writeFiles(logger, invalidCert, details.Invalid.Cert.FileName, details.Invalid.Cert.Symlinks)
 	if err != nil {
 		return fmt.Errorf("writing invalid certificate %s to project root: %w", details.Invalid.Cert.FileName, err)
 	}
 
-	err = writeFiles(logger, invalidKey, projectRoot, details.Invalid.Key.FileName, details.Invalid.Key.Symlinks)
+	err = writeFiles(logger, invalidKey, details.Invalid.Key.FileName, details.Invalid.Key.Symlinks)
 	if err != nil {
 		return fmt.Errorf("writing invalid key %s to project root: %w", details.Invalid.Key.FileName, err)
 	}
@@ -410,7 +410,7 @@ func generateStandardCertificateAuthority(logger *slog.Logger, details IngressMt
 		return filenames, nil, fmt.Errorf("marshaling bundle CA %s to yaml: %w", details.Ca.FileName, err)
 	}
 
-	err = writeFiles(logger, caContents, projectRoot, details.Ca.FileName, details.Ca.Symlinks)
+	err = writeFiles(logger, caContents, details.Ca.FileName, details.Ca.Symlinks)
 	if err != nil {
 		return filenames, nil, fmt.Errorf("writing bundle CA %s to project root: %w", details.Ca.FileName, err)
 	}
@@ -481,12 +481,12 @@ func generateCRLAndCertificateAuthority(logger *slog.Logger, details IngressMtls
 		return filenames, nil, fmt.Errorf("marshaling bundle CA with CRL %s to yaml: %w", details.Crl.FileName, err)
 	}
 
-	err = writeFiles(logger, crlContents, projectRoot, details.Crl.FileName, details.Crl.Symlinks)
+	err = writeFiles(logger, crlContents, details.Crl.FileName, details.Crl.Symlinks)
 	if err != nil {
 		return filenames, nil, fmt.Errorf("writing bundle CA %s to project root: %w", details.Ca.FileName, err)
 	}
 
-	err = writeFiles(logger, crlOut.Bytes(), projectRoot, details.Crl.RawCRL.FileName, details.Crl.RawCRL.Symlinks)
+	err = writeFiles(logger, crlOut.Bytes(), details.Crl.RawCRL.FileName, details.Crl.RawCRL.Symlinks)
 	if err != nil {
 		return filenames, nil, fmt.Errorf("writing raw CRL %s to project root: %w", details.Crl.RawCRL.FileName, err)
 	}

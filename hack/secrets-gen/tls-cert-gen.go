@@ -7,7 +7,7 @@ import (
 
 // generateTLSSecretFiles wraps creating the TLS certificate and key, and writes the actual
 // file, and any symbolic links to the disk.
-func generateTLSSecretFiles(logger *slog.Logger, secret TLSSecret, projectRoot string) error {
+func generateTLSSecretFiles(logger *slog.Logger, secret TLSSecret) error {
 	// This part creates the tls keys (certificate and key) based on the
 	// issuer, subject, and dns names data.
 	td, err := renderX509Template(secret.TemplateData)
@@ -32,7 +32,7 @@ func generateTLSSecretFiles(logger *slog.Logger, secret TLSSecret, projectRoot s
 		return fmt.Errorf("writing valid file for %s: %w", secret.FileName, err)
 	}
 
-	err = writeFiles(logger, fileContents, projectRoot, secret.FileName, secret.Symlinks)
+	err = writeFiles(logger, fileContents, secret.FileName, secret.Symlinks)
 	if err != nil {
 		return fmt.Errorf("writing file for %s: %w", secret.FileName, err)
 	}

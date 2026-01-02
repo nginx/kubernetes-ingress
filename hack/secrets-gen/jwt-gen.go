@@ -20,7 +20,7 @@ type jwtSecret struct {
 	Invalid  bool                   `json:"invalid,omitempty"`
 }
 
-func generateJwtFile(logger *slog.Logger, secret jwtSecret, projectRoot string) error {
+func generateJwtFile(logger *slog.Logger, secret jwtSecret) error {
 	jwt, err := generateJwt(secret.Claims, secret.Key, secret.Kid)
 	if err != nil {
 		return fmt.Errorf("generating JWT for secret %s: %w", secret.FileName, err)
@@ -31,7 +31,7 @@ func generateJwtFile(logger *slog.Logger, secret jwtSecret, projectRoot string) 
 		jwt = parts[0] + ".." + parts[2]
 	}
 	fileContents := []byte(jwt)
-	err = writeFiles(logger, fileContents, projectRoot, secret.FileName, secret.Symlinks)
+	err = writeFiles(logger, fileContents, secret.FileName, secret.Symlinks)
 	if err != nil {
 		return fmt.Errorf("writing file for %s: %w", secret.FileName, err)
 	}

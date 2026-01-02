@@ -21,7 +21,7 @@ type apiKeysSecret struct {
 	SecretType v1.SecretType     `json:"secretType,omitempty"`
 }
 
-func generateAPIKeyFile(logger *slog.Logger, secret apiKeysSecret, projectRoot string) error {
+func generateAPIKeyFile(logger *slog.Logger, secret apiKeysSecret) error {
 	convertedEntries := make(map[string][]byte)
 
 	// secret.Entries is a map[string]string, but the yaml
@@ -35,7 +35,7 @@ func generateAPIKeyFile(logger *slog.Logger, secret apiKeysSecret, projectRoot s
 		return fmt.Errorf("writing valid file for %s: %w", secret.FileName, err)
 	}
 
-	err = writeFiles(logger, fileContents, projectRoot, secret.FileName, secret.Symlinks)
+	err = writeFiles(logger, fileContents, secret.FileName, secret.Symlinks)
 	if err != nil {
 		return fmt.Errorf("writing file for %s: %w", secret.FileName, err)
 	}

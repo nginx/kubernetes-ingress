@@ -132,7 +132,7 @@ func generateAPIKeyFiles(logger *slog.Logger, secrets []apiKeysSecret, filenames
 			}
 			continue
 		}
-		err := generateAPIKeyFile(logger, secret, projectRoot)
+		err := generateAPIKeyFile(logger, secret)
 		if err != nil {
 			return nil, fmt.Errorf("failed to print JWT file: %s %w", secret.FileName, err)
 		}
@@ -163,7 +163,7 @@ func generateJwtFiles(logger *slog.Logger, secrets []jwtSecret, filenames map[st
 			}
 			continue
 		}
-		err := generateJwtFile(logger, secret, projectRoot)
+		err := generateJwtFile(logger, secret)
 		if err != nil {
 			return nil, fmt.Errorf("failed to print JWT file: %s %w", secret.FileName, err)
 		}
@@ -194,7 +194,7 @@ func generateJwksFiles(logger *slog.Logger, secrets []jwkSecret, filenames map[s
 			}
 			continue
 		}
-		err := generateJwksFile(logger, secret, projectRoot)
+		err := generateJwksFile(logger, secret)
 		if err != nil {
 			return nil, fmt.Errorf("failed to print JWKS file: %s %w", secret.FileName, err)
 		}
@@ -225,7 +225,7 @@ func generateHtpasswdFiles(logger *slog.Logger, secrets []htpasswdSecret, filena
 			}
 			continue
 		}
-		err := generateHtpasswdFile(logger, secret, projectRoot)
+		err := generateHtpasswdFile(logger, secret)
 		if err != nil {
 			return nil, fmt.Errorf("failed to print htpasswd file: %s %w", secret.FileName, err)
 		}
@@ -291,7 +291,7 @@ func generateMTLSBundles(logger *slog.Logger, secrets []mtlsBundle, filenames ma
 			continue
 		}
 
-		err := generateMTLSBundleFiles(logger, bundle, projectRoot)
+		err := generateMTLSBundleFiles(logger, bundle)
 		if err != nil {
 			return nil, fmt.Errorf("generateMTLSBundleFiles: %w", err)
 		}
@@ -322,7 +322,7 @@ func generateTLSCerts(logger *slog.Logger, secrets []TLSSecret, filenames map[st
 			}
 			continue
 		}
-		err := generateTLSSecretFiles(logger, secret, projectRoot)
+		err := generateTLSSecretFiles(logger, secret)
 		if err != nil {
 			return nil, fmt.Errorf("failed to print tls key: %s %w", secret.FileName, err)
 		}
@@ -343,7 +343,7 @@ func publicKey(priv any) any {
 	}
 }
 
-func writeFiles(logger *slog.Logger, fileContents []byte, projectRoot, fileName string, symlinks []string) error {
+func writeFiles(logger *slog.Logger, fileContents []byte, fileName string, symlinks []string) error {
 	var err error
 
 	// This part takes care of writing the yaml file onto disk, and creating the

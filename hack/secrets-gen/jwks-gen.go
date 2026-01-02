@@ -34,7 +34,7 @@ type JWKS struct {
 	Keys []JWK `json:"keys"`
 }
 
-func generateJwksFile(logger *slog.Logger, secret jwkSecret, projectRoot string) error {
+func generateJwksFile(logger *slog.Logger, secret jwkSecret) error {
 	jwks, err := generateJwks(secret.Kid, secret.Kty, secret.Key)
 	if err != nil {
 		return fmt.Errorf("generating JWKS for secret %s: %w", secret.SecretName, err)
@@ -45,7 +45,7 @@ func generateJwksFile(logger *slog.Logger, secret jwkSecret, projectRoot string)
 		return fmt.Errorf("writing valid file for %s: %w", secret.FileName, err)
 	}
 
-	err = writeFiles(logger, fileContents, projectRoot, secret.FileName, secret.Symlinks)
+	err = writeFiles(logger, fileContents, secret.FileName, secret.Symlinks)
 	if err != nil {
 		return fmt.Errorf("writing file for %s: %w", secret.FileName, err)
 	}

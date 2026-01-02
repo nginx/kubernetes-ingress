@@ -29,7 +29,7 @@ type mtlsBundle struct {
 }
 
 //gocyclo:ignore
-func generateMTLSBundleFiles(logger *slog.Logger, bundle mtlsBundle, projectRoot string) error {
+func generateMTLSBundleFiles(logger *slog.Logger, bundle mtlsBundle) error {
 	// Render the CA x509.Certificate template
 	caTemplate, err := renderX509Template(bundle.Ca.TemplateData)
 	if err != nil {
@@ -74,7 +74,7 @@ func generateMTLSBundleFiles(logger *slog.Logger, bundle mtlsBundle, projectRoot
 		return fmt.Errorf("marshaling bundle CA %s to yaml: %w", bundle.Ca.FileName, err)
 	}
 
-	err = writeFiles(logger, caContents, projectRoot, bundle.Ca.FileName, bundle.Ca.Symlinks)
+	err = writeFiles(logger, caContents, bundle.Ca.FileName, bundle.Ca.Symlinks)
 	if err != nil {
 		return fmt.Errorf("writing bundle CA %s to project root: %w", bundle.Ca.FileName, err)
 	}
@@ -117,7 +117,7 @@ func generateMTLSBundleFiles(logger *slog.Logger, bundle mtlsBundle, projectRoot
 			return fmt.Errorf("marshaling bundle client %s to yaml: %w", bundle.Client.FileName, err)
 		}
 
-		err = writeFiles(logger, clientContents, projectRoot, bundle.Client.FileName, bundle.Client.Symlinks)
+		err = writeFiles(logger, clientContents, bundle.Client.FileName, bundle.Client.Symlinks)
 		if err != nil {
 			return fmt.Errorf("writing bundle client %s to project root: %w", bundle.Client.FileName, err)
 		}
@@ -158,7 +158,7 @@ func generateMTLSBundleFiles(logger *slog.Logger, bundle mtlsBundle, projectRoot
 			return fmt.Errorf("marshaling bundle server %s to yaml: %w", bundle.Server.FileName, err)
 		}
 
-		err = writeFiles(logger, serverContents, projectRoot, bundle.Server.FileName, bundle.Server.Symlinks)
+		err = writeFiles(logger, serverContents, bundle.Server.FileName, bundle.Server.Symlinks)
 		if err != nil {
 			return fmt.Errorf("writing bundle server %s to project root: %w", bundle.Server.FileName, err)
 		}
@@ -210,7 +210,7 @@ func generateMTLSBundleFiles(logger *slog.Logger, bundle mtlsBundle, projectRoot
 			crlSymlinks[i] = newSymlink
 		}
 
-		err = writeFiles(logger, crlContents, projectRoot, crlFilename, crlSymlinks)
+		err = writeFiles(logger, crlContents, crlFilename, crlSymlinks)
 		if err != nil {
 			return fmt.Errorf("writing bundle CRL %s to project root: %w", bundle.Ca.FileName, err)
 		}
