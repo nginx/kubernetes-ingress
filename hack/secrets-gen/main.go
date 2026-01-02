@@ -93,12 +93,12 @@ func main() {
 		log.Fatalf(logger, "generateJwtFiles: %v", err)
 	}
 
-	_, err = generateAPIKeyFiles(logger, secretsTypesData.APIKeySecrets, filenames, cleanPtr)
+	filenames, err = generateAPIKeyFiles(logger, secretsTypesData.APIKeySecrets, filenames, cleanPtr)
 	if err != nil {
 		log.Fatalf(logger, "generateAPIKeyFiles: %v", err)
 	}
 
-	err = generateIngressMtlsSecrets(logger, secretsTypesData.IngressMtls)
+	_, err = generateIngressMtlsSecrets(logger, secretsTypesData.IngressMtls, filenames, cleanPtr)
 	if err != nil {
 		log.Fatalf(logger, "generateIngressMtlsSecrets: %v", err)
 	}

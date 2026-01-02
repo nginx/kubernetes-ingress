@@ -44,7 +44,19 @@ type ClientCerts struct {
 }
 
 //gocyclo:ignore
-func generateIngressMtlsSecrets(logger *slog.Logger, details IngressMtls) (err error) {
+func generateIngressMtlsSecrets(logger *slog.Logger, details IngressMtls, filenames map[string]struct{}, cleanPtr *bool) (map[string]struct{}, error) {
+	/**
+	Check for filename uniqueness
+	*/
+	if _, ok := filenames[details.Ca.FileName]; ok {
+		return nil, fmt.Errorf("secret contains duplicated files: %v", details.Ca.FileName)
+	}
+
+	filenames[details.Ca.FileName] = struct{}{}
+	if *cleanPtr {
+		fmt.Printf("Cleaning existing ingress mTLS files...\n")
+	}
+
 	/**
 	========================================================================================
 	Generate the CA that is not used to sign the CRL
@@ -52,7 +64,7 @@ func generateIngressMtlsSecrets(logger *slog.Logger, details IngressMtls) (err e
 	*/
 	caTemplate, err := generateStandardCertificateAuthority()
 	if err != nil {
-		return fmt.Errorf("generating certificate authority: %w", err)
+		return filenames, fmt.Errorf("generating certificate authority: %w", err)
 	}
 
 	// as it is a CA certificate, we need to modify certain parts of it
@@ -63,7 +75,7 @@ func generateIngressMtlsSecrets(logger *slog.Logger, details IngressMtls) (err e
 	// Need this here otherwise the certs go out of sync
 	caPrivateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return fmt.Errorf("failed to generate private key: %w", err)
+		return filenames, fmt.Errorf("failed to generate private key: %w", err)
 	}
 
 	caPubKey := publicKey(caPrivateKey)
@@ -77,18 +89,18 @@ func generateIngressMtlsSecrets(logger *slog.Logger, details IngressMtls) (err e
 	// the CA in the bundle is self-signed
 	ca, err := generateTLSKeyPair(caTemplate, caTemplate, caPrivateKey)
 	if err != nil {
-		return fmt.Errorf("generating CA: %w", err)
+		return filenames, fmt.Errorf("generating CA: %w", err)
 	}
 
 	// Write the CA to disk
 	caContents, err := createYamlCA(details.Ca.SecretName, ca, nil)
 	if err != nil {
-		return fmt.Errorf("marshaling bundle CA %s to yaml: %w", details.Ca.FileName, err)
+		return filenames, fmt.Errorf("marshaling bundle CA %s to yaml: %w", details.Ca.FileName, err)
 	}
 
 	err = writeFiles(logger, caContents, projectRoot, details.Ca.FileName, details.Ca.Symlinks)
 	if err != nil {
-		return fmt.Errorf("writing bundle CA %s to project root: %w", details.Ca.FileName, err)
+		return filenames, fmt.Errorf("writing bundle CA %s to project root: %w", details.Ca.FileName, err)
 	}
 
 	/**
@@ -98,7 +110,7 @@ func generateIngressMtlsSecrets(logger *slog.Logger, details IngressMtls) (err e
 	*/
 	caCrlTemplate, err := generateCRLCertificateAuthority()
 	if err != nil {
-		return fmt.Errorf("generating certificate authority: %w", err)
+		return filenames, fmt.Errorf("generating certificate authority: %w", err)
 	}
 
 	// as it is a CA certificate, we need to modify certain parts of it
@@ -109,7 +121,7 @@ func generateIngressMtlsSecrets(logger *slog.Logger, details IngressMtls) (err e
 	// Need this here otherwise the certs go out of sync
 	caCrlPrivateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return fmt.Errorf("failed to generate private key: %w", err)
+		return filenames, fmt.Errorf("failed to generate private key: %w", err)
 	}
 
 	caCrlPubKey := publicKey(caCrlPrivateKey)
@@ -123,7 +135,7 @@ func generateIngressMtlsSecrets(logger *slog.Logger, details IngressMtls) (err e
 	// the CA in the bundle is self-signed
 	caCrl, err := generateTLSKeyPair(caCrlTemplate, caCrlTemplate, caCrlPrivateKey)
 	if err != nil {
-		return fmt.Errorf("generating CA: %w", err)
+		return filenames, fmt.Errorf("generating CA: %w", err)
 	}
 
 	// Now would be the time to write the CA + CRL into the file. In order to
@@ -147,30 +159,30 @@ func generateIngressMtlsSecrets(logger *slog.Logger, details IngressMtls) (err e
 	crlOut := bytes.Buffer{}
 	crl, err := x509.CreateRevocationList(rand.Reader, &crlTemplate, &caCrlTemplate, caCrlPrivateKey)
 	if err != nil {
-		return fmt.Errorf("creating revocation list: %w", err)
+		return filenames, fmt.Errorf("creating revocation list: %w", err)
 	}
 	err = pem.Encode(&crlOut, &pem.Block{
 		Type:  "X509 CRL",
 		Bytes: crl,
 	})
 	if err != nil {
-		return fmt.Errorf("encoding revocation list: %w", err)
+		return filenames, fmt.Errorf("encoding revocation list: %w", err)
 	}
 
 	crlContents, err := createYamlCA(details.Crl.SecretName, caCrl, crlOut.Bytes())
 	if err != nil {
-		return fmt.Errorf("marshaling bundle CA with CRL %s to yaml: %w", details.Crl.FileName, err)
+		return filenames, fmt.Errorf("marshaling bundle CA with CRL %s to yaml: %w", details.Crl.FileName, err)
 	}
 
 	err = writeFiles(logger, crlContents, projectRoot, details.Crl.FileName, details.Crl.Symlinks)
 	if err != nil {
-		return fmt.Errorf("writing bundle CA %s to project root: %w", details.Ca.FileName, err)
+		return filenames, fmt.Errorf("writing bundle CA %s to project root: %w", details.Ca.FileName, err)
 	}
 
 	// Also write the alternative crl without encoding it into a yaml file
 	crlPemFile, err := os.Create(path.Join(projectRoot, details.Crl.RawCRL)) //gosec:disable G304 -- no part of this path is user-controlled. Project Root is defined in main(), it's a global variable, and gitignorePath is a const at the top of this file.
 	if err != nil {
-		return fmt.Errorf("creating raw CRL file: %w", err)
+		return filenames, fmt.Errorf("creating raw CRL file: %w", err)
 	}
 	defer func() {
 		err = crlPemFile.Close()
@@ -178,31 +190,31 @@ func generateIngressMtlsSecrets(logger *slog.Logger, details IngressMtls) (err e
 
 	_, err = crlPemFile.Write(crlOut.Bytes())
 	if err != nil {
-		return fmt.Errorf("writing raw CRL file contents: %w", err)
+		return filenames, fmt.Errorf("writing raw CRL file contents: %w", err)
 	}
 
 	err = generateValidClientCert(logger, ca, projectRoot, details)
 	if err != nil {
-		return fmt.Errorf("generating valid client cert: %w", err)
+		return filenames, fmt.Errorf("generating valid client cert: %w", err)
 	}
 
 	err = generateNotRevokedClientCert(logger, caCrl, projectRoot, details)
 	if err != nil {
-		return fmt.Errorf("generating not-revoked client cert: %w", err)
+		return filenames, fmt.Errorf("generating not-revoked client cert: %w", err)
 	}
 
 	err = generateRevokedClientCert(logger, caCrl, projectRoot, details)
 	if err != nil {
-		return fmt.Errorf("generating revoked client cert: %w", err)
+		return filenames, fmt.Errorf("generating revoked client cert: %w", err)
 	}
 
 	fmt.Printf("Generating invalid client cert...\n")
 	err = generateInvalidClientCert(logger, ca, projectRoot, details)
 	if err != nil {
-		return fmt.Errorf("generating invalid client cert: %w", err)
+		return filenames, fmt.Errorf("generating invalid client cert: %w", err)
 	}
 
-	return nil
+	return filenames, nil
 }
 
 // generateValidClientCert creates a client certificate that is valid.
