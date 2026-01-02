@@ -208,7 +208,7 @@ func generateIngressMtlsSecrets(logger *slog.Logger, details IngressMtls) (err e
 	}
 
 	fmt.Printf("Generating invalid client cert...\n")
-	err = generateInvalidClientCert(caTemplate)
+	err = generateInvalidClientCert(ca, projectRoot)
 	if err != nil {
 		return fmt.Errorf("generating invalid client cert: %w", err)
 	}
@@ -331,7 +331,101 @@ func generateRevokedClientCert(_ x509.Certificate) error { return nil }
 // generateInvalidClientCert creates a client certificate that is invalid.
 // I think it's the same as the valid one, except with bytes chopped off from
 // the end before encoding it.
-func generateInvalidClientCert(_ x509.Certificate) error { return nil }
+func generateInvalidClientCert(ca *JITTLSKey, projectRoot string) error {
+	caPem, _ := pem.Decode(ca.cert)
+	caCert, err := x509.ParseCertificate(caPem.Bytes)
+	if err != nil {
+		return fmt.Errorf("parsing client cert for bundle: %w", err)
+	}
+
+	td := TemplateData{
+		Country:            []string{"US"},
+		Organization:       []string{"NGINX"},
+		OrganizationalUnit: []string{"KIC"},
+		Locality:           []string{"San Francisco"},
+		Province:           []string{"CA"},
+		CommonName:         "kic.nginx.com",
+		DNSNames:           []string{"virtual-server.example.com"},
+		EmailAddress:       "kubernetes@nginx.com",
+		CA:                 false,
+	}
+
+	clientTemplate, err := renderX509Template(td)
+	if err != nil {
+		return fmt.Errorf("generating client template with renderX509Template: %w", err)
+	}
+
+	// because this is a client certificate, we need to swap out the issuer
+	clientTemplate.Issuer = caCert.Subject
+	clientTemplate.KeyUsage |= x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
+	clientTemplate.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}
+
+	client, err := generateTLSKeyPair(clientTemplate, *caCert, ca.privateKey) // signed by the CA from above
+	if err != nil {
+		return fmt.Errorf("generating signed client cert with generateTLSKeyPair: %w", err)
+	}
+
+	_, err = tls.X509KeyPair(client.cert, client.key)
+	if err != nil {
+		return fmt.Errorf("generated client certificate validation with tls.X509KeyPair: %w", err)
+	}
+
+	clientChild, _ := pem.Decode(client.cert)
+	clientCert, err := x509.ParseCertificate(clientChild.Bytes)
+	if err != nil {
+		return fmt.Errorf("parsing client cert with x509.ParseCertificate: %w", err)
+	}
+	err = clientCert.CheckSignatureFrom(caCert)
+	if err != nil {
+		return fmt.Errorf("checking client is signed by CA with clientCert.CheckSignatureFrom: %w", err)
+	}
+
+	// remove bytes from the certificate and key to make them invalid
+	invalidCert := make([]byte, len(client.cert))
+	invalidKey := make([]byte, len(client.key))
+	copy(invalidCert, client.cert)
+	copy(invalidKey, client.key)
+
+	invalidCert = append(invalidCert[:45], invalidCert[52:]...)
+	invalidKey = append(invalidKey[:45], invalidKey[52:]...)
+
+	// Write the valid files to disk
+	// This is the certificate
+	certFile, err := os.Create(path.Join(projectRoot, "tests/data/ingress-mtls/client-auth/invalid", "client-cert-2.pem")) //gosec:disable G304 -- no part of this path is user-controlled. Project Root is defined in main(), it's a global variable, and gitignorePath is a const at the top of this file.
+	if err != nil {
+		return fmt.Errorf("creating valid client cert file with os.Create: %w", err)
+	}
+	defer func() {
+		err = certFile.Close()
+		if err != nil {
+			err = fmt.Errorf("closing certfile with certFile.Close in defer: %w", err)
+		}
+	}()
+
+	_, err = certFile.Write(invalidCert)
+	if err != nil {
+		return fmt.Errorf("writing certificate to file with certFile.Write: %w", err)
+	}
+
+	// This is the key
+	keyFile, err := os.Create(path.Join(projectRoot, "tests/data/ingress-mtls/client-auth/invalid", "client-key-2.pem")) //gosec:disable G304 -- no part of this path is user-controlled. Project Root is defined in main(), it's a global variable, and gitignorePath is a const at the top of this file.
+	if err != nil {
+		return fmt.Errorf("creating valid client key file with os.Create: %w", err)
+	}
+	defer func() {
+		err = keyFile.Close()
+		if err != nil {
+			err = fmt.Errorf("closing keyfile with keyFile.Close in defer: %w", err)
+		}
+	}()
+
+	_, err = keyFile.Write(invalidKey)
+	if err != nil {
+		return fmt.Errorf("writing key to file with keyFile.Write: %w", err)
+	}
+
+	return nil
+}
 
 // generateStandardCertificateAuthority generates a signing certificate that is
 // used to sign some of the client certificates.
