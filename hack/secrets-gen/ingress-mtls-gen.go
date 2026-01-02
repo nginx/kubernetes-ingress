@@ -12,8 +12,6 @@ import (
 	"fmt"
 	"log/slog"
 	"math/big"
-	"os"
-	"path"
 	"time"
 )
 
@@ -28,10 +26,9 @@ type IngressMtls struct {
 }
 
 type CertificateInfo struct {
-	SecretName string   `json:"secretName"`
-	FileName   string   `json:"fileName"`
-	Symlinks   []string `json:"symlinks"`
-	RawCRL     string   `json:"rawCRLPath"`
+	SecretName string `json:"secretName"`
+	FilePaths
+	RawCRL FilePaths `json:"rawCRL"`
 }
 
 type FilePaths struct {
@@ -46,61 +43,13 @@ type ClientCerts struct {
 //gocyclo:ignore
 func generateIngressMtlsSecrets(logger *slog.Logger, details IngressMtls, filenames map[string]struct{}, cleanPtr *bool) (map[string]struct{}, error) {
 	/**
-	Check for filename uniqueness
-	*/
-	if _, ok := filenames[details.Ca.FileName]; ok {
-		return nil, fmt.Errorf("secret contains duplicated files: %v", details.Ca.FileName)
-	}
-
-	filenames[details.Ca.FileName] = struct{}{}
-	if *cleanPtr {
-		fmt.Printf("Cleaning existing ingress mTLS files...\n")
-	}
-
-	/**
 	========================================================================================
 	Generate the CA that is not used to sign the CRL
 	========================================================================================
 	*/
-	caTemplate, err := generateStandardCertificateAuthority()
+	filenames, ca, err := generateStandardCertificateAuthority(logger, details, filenames, cleanPtr)
 	if err != nil {
 		return filenames, fmt.Errorf("generating certificate authority: %w", err)
-	}
-
-	// as it is a CA certificate, we need to modify certain parts of it
-	caTemplate.KeyUsage |= x509.KeyUsageCertSign | x509.KeyUsageCRLSign // so we can sign another certificate and a CRL with it
-	caTemplate.IsCA = true                                              // because it is a CA
-	caTemplate.ExtKeyUsage = nil
-
-	// Need this here otherwise the certs go out of sync
-	caPrivateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return filenames, fmt.Errorf("failed to generate private key: %w", err)
-	}
-
-	caPubKey := publicKey(caPrivateKey)
-
-	// pub is crypto.PublicKey
-	caPkBytes, _ := x509.MarshalPKIXPublicKey(caPubKey)
-	caSki := sha1.Sum(caPkBytes) //gosec:disable G401 -- A Certificate Revocation List needs a Subject Key Identifier, and per RFC5280, that needs to be an SHA1 hash https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.2
-
-	caTemplate.SubjectKeyId = caSki[:]
-
-	// the CA in the bundle is self-signed
-	ca, err := generateTLSKeyPair(caTemplate, caTemplate, caPrivateKey)
-	if err != nil {
-		return filenames, fmt.Errorf("generating CA: %w", err)
-	}
-
-	// Write the CA to disk
-	caContents, err := createYamlCA(details.Ca.SecretName, ca, nil)
-	if err != nil {
-		return filenames, fmt.Errorf("marshaling bundle CA %s to yaml: %w", details.Ca.FileName, err)
-	}
-
-	err = writeFiles(logger, caContents, projectRoot, details.Ca.FileName, details.Ca.Symlinks)
-	if err != nil {
-		return filenames, fmt.Errorf("writing bundle CA %s to project root: %w", details.Ca.FileName, err)
 	}
 
 	/**
@@ -108,90 +57,16 @@ func generateIngressMtlsSecrets(logger *slog.Logger, details IngressMtls, filena
 	Generate the Certificate Authority that will sign the CRL and some client certs
 	========================================================================================
 	*/
-	caCrlTemplate, err := generateCRLCertificateAuthority()
+	filenames, caCrl, err := generateCRLAndCertificateAuthority(logger, details, filenames, cleanPtr)
 	if err != nil {
 		return filenames, fmt.Errorf("generating certificate authority: %w", err)
 	}
 
-	// as it is a CA certificate, we need to modify certain parts of it
-	caCrlTemplate.KeyUsage |= x509.KeyUsageCertSign | x509.KeyUsageCRLSign // so we can sign another certificate and a CRL with it
-	caCrlTemplate.IsCA = true                                              // because it is a CA
-	caCrlTemplate.ExtKeyUsage = nil
-
-	// Need this here otherwise the certs go out of sync
-	caCrlPrivateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return filenames, fmt.Errorf("failed to generate private key: %w", err)
-	}
-
-	caCrlPubKey := publicKey(caCrlPrivateKey)
-
-	// pub is crypto.PublicKey
-	caCrlPkBytes, _ := x509.MarshalPKIXPublicKey(caCrlPubKey)
-	caCrlSki := sha1.Sum(caCrlPkBytes) //gosec:disable G401 -- A Certificate Revocation List needs a Subject Key Identifier, and per RFC5280, that needs to be an SHA1 hash https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.2
-
-	caCrlTemplate.SubjectKeyId = caCrlSki[:]
-
-	// the CA in the bundle is self-signed
-	caCrl, err := generateTLSKeyPair(caCrlTemplate, caCrlTemplate, caCrlPrivateKey)
-	if err != nil {
-		return filenames, fmt.Errorf("generating CA: %w", err)
-	}
-
-	// Now would be the time to write the CA + CRL into the file. In order to
-	// write the CRL, we need to create it first. The client cert being revoked
-	// will have its serial number hardcoded and manually created to be 2.
-	revokedCertificateSerialNumber := big.NewInt(2)
-
-	crlTemplate := x509.RevocationList{
-		Issuer: caCrlTemplate.Subject, // signed by the caCrl
-		RevokedCertificateEntries: []x509.RevocationListEntry{
-			{
-				SerialNumber:   revokedCertificateSerialNumber, // serial of the certificate being revoked
-				RevocationTime: time.Now(),                     // revoke it from now
-			},
-		},
-		ThisUpdate: time.Now(),
-		NextUpdate: time.Now().Add(31 * 24 * time.Hour), // 31 days from now
-		Number:     big.NewInt(1),                       // ID of the CRL itself
-	}
-
-	crlOut := bytes.Buffer{}
-	crl, err := x509.CreateRevocationList(rand.Reader, &crlTemplate, &caCrlTemplate, caCrlPrivateKey)
-	if err != nil {
-		return filenames, fmt.Errorf("creating revocation list: %w", err)
-	}
-	err = pem.Encode(&crlOut, &pem.Block{
-		Type:  "X509 CRL",
-		Bytes: crl,
-	})
-	if err != nil {
-		return filenames, fmt.Errorf("encoding revocation list: %w", err)
-	}
-
-	crlContents, err := createYamlCA(details.Crl.SecretName, caCrl, crlOut.Bytes())
-	if err != nil {
-		return filenames, fmt.Errorf("marshaling bundle CA with CRL %s to yaml: %w", details.Crl.FileName, err)
-	}
-
-	err = writeFiles(logger, crlContents, projectRoot, details.Crl.FileName, details.Crl.Symlinks)
-	if err != nil {
-		return filenames, fmt.Errorf("writing bundle CA %s to project root: %w", details.Ca.FileName, err)
-	}
-
-	// Also write the alternative crl without encoding it into a yaml file
-	crlPemFile, err := os.Create(path.Join(projectRoot, details.Crl.RawCRL)) //gosec:disable G304 -- no part of this path is user-controlled. Project Root is defined in main(), it's a global variable, and gitignorePath is a const at the top of this file.
-	if err != nil {
-		return filenames, fmt.Errorf("creating raw CRL file: %w", err)
-	}
-	defer func() {
-		err = crlPemFile.Close()
-	}()
-
-	_, err = crlPemFile.Write(crlOut.Bytes())
-	if err != nil {
-		return filenames, fmt.Errorf("writing raw CRL file contents: %w", err)
-	}
+	/**
+	========================================================================================
+	Generate the client certificates
+	========================================================================================
+	*/
 
 	err = generateValidClientCert(logger, ca, projectRoot, details)
 	if err != nil {
@@ -504,7 +379,15 @@ func generateInvalidClientCert(logger *slog.Logger, ca *JITTLSKey, projectRoot s
 //
 // Issuer: C=US, ST=CA, L=San Francisco, O=NGINX, OU=KIC, CN=kic.nginx.com,
 // emailAddress=kubernetes@nginx.com
-func generateStandardCertificateAuthority() (x509.Certificate, error) {
+func generateStandardCertificateAuthority(logger *slog.Logger, details IngressMtls, filenames map[string]struct{}, cleanPtr *bool) (map[string]struct{}, *JITTLSKey, error) {
+	/**
+	Check for filename uniqueness
+	*/
+	filenames, err := checkForUniqueAndClean(logger, filenames, details.Ca.FileName, details.Ca.Symlinks, cleanPtr)
+	if err != nil {
+		return filenames, nil, fmt.Errorf("checking for unique and clean filenames for CA: %w", err)
+	}
+
 	td := TemplateData{
 		Country:            []string{"US"},
 		Organization:       []string{"NGINX"},
@@ -517,14 +400,60 @@ func generateStandardCertificateAuthority() (x509.Certificate, error) {
 		Client:             false,
 	}
 
-	return generateSigningCertificateAuthority(td)
+	caTemplate, err := generateSigningCertificateAuthority(td)
+	if err != nil {
+		return filenames, nil, fmt.Errorf("error generating signing certificate authority: %w", err)
+	}
+
+	// as it is a CA certificate, we need to modify certain parts of it
+	caTemplate.KeyUsage |= x509.KeyUsageCertSign | x509.KeyUsageCRLSign // so we can sign another certificate and a CRL with it
+	caTemplate.IsCA = true                                              // because it is a CA
+	caTemplate.ExtKeyUsage = nil
+
+	// Need this here otherwise the certs go out of sync
+	caPrivateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return filenames, nil, fmt.Errorf("failed to generate private key: %w", err)
+	}
+
+	caPubKey := publicKey(caPrivateKey)
+
+	// pub is crypto.PublicKey
+	caPkBytes, _ := x509.MarshalPKIXPublicKey(caPubKey)
+	caSki := sha1.Sum(caPkBytes) //gosec:disable G401 -- A Certificate Revocation List needs a Subject Key Identifier, and per RFC5280, that needs to be an SHA1 hash https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.2
+
+	caTemplate.SubjectKeyId = caSki[:]
+
+	// the CA in the bundle is self-signed
+	ca, err := generateTLSKeyPair(caTemplate, caTemplate, caPrivateKey)
+	if err != nil {
+		return filenames, nil, fmt.Errorf("generating CA: %w", err)
+	}
+
+	// Write the CA to disk
+	caContents, err := createYamlCA(details.Ca.SecretName, ca, nil)
+	if err != nil {
+		return filenames, nil, fmt.Errorf("marshaling bundle CA %s to yaml: %w", details.Ca.FileName, err)
+	}
+
+	err = writeFiles(logger, caContents, projectRoot, details.Ca.FileName, details.Ca.Symlinks)
+	if err != nil {
+		return filenames, nil, fmt.Errorf("writing bundle CA %s to project root: %w", details.Ca.FileName, err)
+	}
+
+	return filenames, ca, nil
 }
 
-// generateCRLCertificateAuthority generates a signing certificate that will be
+// generateCRLAndCertificateAuthority generates a signing certificate that will be
 // used to sign the CRL and some of the client certificates.
 // Issuer: C=US, ST=Maryland, L=Baltimore, O=Test CA, Limited,
 // OU=Server Research Department, CN=Test CA, emailAddress=test@example.com
-func generateCRLCertificateAuthority() (x509.Certificate, error) {
+func generateCRLAndCertificateAuthority(logger *slog.Logger, details IngressMtls, filenames map[string]struct{}, cleanPtr *bool) (map[string]struct{}, *JITTLSKey, error) {
+	filenames, err := checkForUniqueAndClean(logger, filenames, details.Crl.FileName, details.Crl.Symlinks, cleanPtr)
+	if err != nil {
+		return nil, nil, fmt.Errorf("checking for unique and clean filenames for CRL CA: %w", err)
+	}
+
 	td := TemplateData{
 		Country:            []string{"US"},
 		Organization:       []string{"Test CA, Limited"},
@@ -537,7 +466,83 @@ func generateCRLCertificateAuthority() (x509.Certificate, error) {
 		Client:             false,
 	}
 
-	return generateSigningCertificateAuthority(td)
+	caCrlTemplate, err := generateSigningCertificateAuthority(td)
+	if err != nil {
+		return filenames, nil, fmt.Errorf("error generating signing certificate authority: %w", err)
+	}
+
+	// as it is a CA certificate, we need to modify certain parts of it
+	caCrlTemplate.KeyUsage |= x509.KeyUsageCertSign | x509.KeyUsageCRLSign // so we can sign another certificate and a CRL with it
+	caCrlTemplate.IsCA = true                                              // because it is a CA
+	caCrlTemplate.ExtKeyUsage = nil
+
+	// Need this here otherwise the certs go out of sync
+	caCrlPrivateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return filenames, nil, fmt.Errorf("failed to generate private key: %w", err)
+	}
+
+	caCrlPubKey := publicKey(caCrlPrivateKey)
+
+	// pub is crypto.PublicKey
+	caCrlPkBytes, _ := x509.MarshalPKIXPublicKey(caCrlPubKey)
+	caCrlSki := sha1.Sum(caCrlPkBytes) //gosec:disable G401 -- A Certificate Revocation List needs a Subject Key Identifier, and per RFC5280, that needs to be an SHA1 hash https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.2
+
+	caCrlTemplate.SubjectKeyId = caCrlSki[:]
+
+	// the CA in the bundle is self-signed
+	caCrl, err := generateTLSKeyPair(caCrlTemplate, caCrlTemplate, caCrlPrivateKey)
+	if err != nil {
+		return filenames, nil, fmt.Errorf("generating CA: %w", err)
+	}
+
+	// Now would be the time to write the CA + CRL into the file. In order to
+	// write the CRL, we need to create it first. The client cert being revoked
+	// will have its serial number hardcoded and manually created to be 2.
+	revokedCertificateSerialNumber := big.NewInt(2)
+
+	crlTemplate := x509.RevocationList{
+		Issuer: caCrlTemplate.Subject, // signed by the caCrl
+		RevokedCertificateEntries: []x509.RevocationListEntry{
+			{
+				SerialNumber:   revokedCertificateSerialNumber, // serial of the certificate being revoked
+				RevocationTime: time.Now(),                     // revoke it from now
+			},
+		},
+		ThisUpdate: time.Now(),
+		NextUpdate: time.Now().Add(31 * 24 * time.Hour), // 31 days from now
+		Number:     big.NewInt(1),                       // ID of the CRL itself
+	}
+
+	crlOut := bytes.Buffer{}
+	crl, err := x509.CreateRevocationList(rand.Reader, &crlTemplate, &caCrlTemplate, caCrlPrivateKey)
+	if err != nil {
+		return filenames, nil, fmt.Errorf("creating revocation list: %w", err)
+	}
+	err = pem.Encode(&crlOut, &pem.Block{
+		Type:  "X509 CRL",
+		Bytes: crl,
+	})
+	if err != nil {
+		return filenames, nil, fmt.Errorf("encoding revocation list: %w", err)
+	}
+
+	crlContents, err := createYamlCA(details.Crl.SecretName, caCrl, crlOut.Bytes())
+	if err != nil {
+		return filenames, nil, fmt.Errorf("marshaling bundle CA with CRL %s to yaml: %w", details.Crl.FileName, err)
+	}
+
+	err = writeFiles(logger, crlContents, projectRoot, details.Crl.FileName, details.Crl.Symlinks)
+	if err != nil {
+		return filenames, nil, fmt.Errorf("writing bundle CA %s to project root: %w", details.Ca.FileName, err)
+	}
+
+	err = writeFiles(logger, crlOut.Bytes(), projectRoot, details.Crl.RawCRL.FileName, details.Crl.RawCRL.Symlinks)
+	if err != nil {
+		return filenames, nil, fmt.Errorf("writing raw CRL %s to project root: %w", details.Crl.RawCRL.FileName, err)
+	}
+
+	return filenames, caCrl, nil
 }
 
 // generateCertificateAuthority creates a generic CA certificate based on the
@@ -555,4 +560,27 @@ func generateSigningCertificateAuthority(td TemplateData) (x509.Certificate, err
 	cert.ExtKeyUsage = nil
 
 	return cert, nil
+}
+
+func checkForUniqueAndClean(logger *slog.Logger, filenames map[string]struct{}, fileName string, symlinks []string, cleanPtr *bool) (map[string]struct{}, error) {
+	if _, ok := filenames[fileName]; ok {
+		return filenames, fmt.Errorf("duplicated filename %s", fileName)
+	}
+	filenames[fileName] = struct{}{}
+
+	for _, symlink := range symlinks {
+		if _, ok := filenames[symlink]; ok {
+			return filenames, fmt.Errorf("duplicated symlink for file %s: %s", fileName, symlink)
+		}
+		filenames[symlink] = struct{}{}
+	}
+
+	if *cleanPtr {
+		err := removeFiles(logger, fileName, symlinks)
+		if err != nil {
+			return nil, fmt.Errorf("cleaning up files: %w", err)
+		}
+	}
+
+	return filenames, nil
 }
