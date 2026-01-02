@@ -196,13 +196,13 @@ func generateIngressMtlsSecrets(logger *slog.Logger, details IngressMtls) (err e
 	}
 
 	fmt.Printf("Generating not-revoked client cert...\n")
-	err = generateNotRevokedClientCert(caCrlTemplate)
+	err = generateNotRevokedClientCert(caCrl, projectRoot)
 	if err != nil {
 		return fmt.Errorf("generating not-revoked client cert: %w", err)
 	}
 
 	fmt.Printf("Generating revoked client cert...\n")
-	err = generateRevokedClientCert(caCrlTemplate)
+	err = generateRevokedClientCert(caCrl, projectRoot)
 	if err != nil {
 		return fmt.Errorf("generating revoked client cert: %w", err)
 	}
@@ -317,7 +317,94 @@ func generateValidClientCert(ca *JITTLSKey, projectRoot string) (err error) {
 // - signed by ../../secret/ca-crl.crt
 // - not signed by ../../secret/ca.crt
 // - client-key.pem goes with it
-func generateNotRevokedClientCert(_ x509.Certificate) error { return nil }
+// Serial Number: 1 (0x1)
+// Issuer: same as the CA that signed it
+// Subject: C=US, ST=MD, L=Baltimore, O=Test Server, Limited, CN=Test Server
+func generateNotRevokedClientCert(ca *JITTLSKey, projectRoot string) error {
+	caPem, _ := pem.Decode(ca.cert)
+	caCert, err := x509.ParseCertificate(caPem.Bytes)
+	if err != nil {
+		return fmt.Errorf("parsing client cert for bundle: %w", err)
+	}
+
+	td := TemplateData{
+		Country:      []string{"US"},
+		Organization: []string{"Test Server, Limited"},
+		Locality:     []string{"Baltimore"},
+		Province:     []string{"MD"},
+		CommonName:   "Test Server",
+		DNSNames:     nil,
+		CA:           false,
+	}
+
+	clientTemplate, err := renderX509Template(td)
+	if err != nil {
+		return fmt.Errorf("generating client template with renderX509Template: %w", err)
+	}
+
+	// because this is a client certificate, we need to swap out the issuer
+	clientTemplate.Issuer = caCert.Subject
+	clientTemplate.KeyUsage |= x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
+	clientTemplate.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}
+	clientTemplate.SerialNumber = big.NewInt(1) // serial number 1
+
+	client, err := generateTLSKeyPair(clientTemplate, *caCert, ca.privateKey) // signed by the CA from above
+	if err != nil {
+		return fmt.Errorf("generating signed client cert with generateTLSKeyPair: %w", err)
+	}
+
+	_, err = tls.X509KeyPair(client.cert, client.key)
+	if err != nil {
+		return fmt.Errorf("generated client certificate validation with tls.X509KeyPair: %w", err)
+	}
+
+	clientChild, _ := pem.Decode(client.cert)
+	clientCert, err := x509.ParseCertificate(clientChild.Bytes)
+	if err != nil {
+		return fmt.Errorf("parsing client cert with x509.ParseCertificate: %w", err)
+	}
+	err = clientCert.CheckSignatureFrom(caCert)
+	if err != nil {
+		return fmt.Errorf("checking client is signed by CA with clientCert.CheckSignatureFrom: %w", err)
+	}
+
+	// Write the valid files to disk
+	// This is the certificate
+	certFile, err := os.Create(path.Join(projectRoot, "tests/data/ingress-mtls/client-auth/not-revoked", "client-cert-2.pem")) //gosec:disable G304 -- no part of this path is user-controlled. Project Root is defined in main(), it's a global variable, and gitignorePath is a const at the top of this file.
+	if err != nil {
+		return fmt.Errorf("creating valid client cert file with os.Create: %w", err)
+	}
+	defer func() {
+		err = certFile.Close()
+		if err != nil {
+			err = fmt.Errorf("closing certfile with certFile.Close in defer: %w", err)
+		}
+	}()
+
+	_, err = certFile.Write(client.cert)
+	if err != nil {
+		return fmt.Errorf("writing certificate to file with certFile.Write: %w", err)
+	}
+
+	// This is the key
+	keyFile, err := os.Create(path.Join(projectRoot, "tests/data/ingress-mtls/client-auth/not-revoked", "client-key-2.pem")) //gosec:disable G304 -- no part of this path is user-controlled. Project Root is defined in main(), it's a global variable, and gitignorePath is a const at the top of this file.
+	if err != nil {
+		return fmt.Errorf("creating valid client key file with os.Create: %w", err)
+	}
+	defer func() {
+		err = keyFile.Close()
+		if err != nil {
+			err = fmt.Errorf("closing keyfile with keyFile.Close in defer: %w", err)
+		}
+	}()
+
+	_, err = keyFile.Write(client.key)
+	if err != nil {
+		return fmt.Errorf("writing key to file with keyFile.Write: %w", err)
+	}
+
+	return nil
+}
 
 // generateRevokedClientCert creates a client certificate that is revoked by the
 // CRL. This one will be serial number 2.
@@ -326,7 +413,91 @@ func generateNotRevokedClientCert(_ x509.Certificate) error { return nil }
 // - signed by ../../secret/ca-crl.crt
 // - not signed by ../../secret/ca.crt
 // - client-key.pem goes with it
-func generateRevokedClientCert(_ x509.Certificate) error { return nil }
+func generateRevokedClientCert(ca *JITTLSKey, projectRoot string) error {
+	caPem, _ := pem.Decode(ca.cert)
+	caCert, err := x509.ParseCertificate(caPem.Bytes)
+	if err != nil {
+		return fmt.Errorf("parsing client cert for bundle: %w", err)
+	}
+
+	td := TemplateData{
+		Country:      []string{"US"},
+		Organization: []string{"Test Server, Limited"},
+		Locality:     []string{"Baltimore"},
+		Province:     []string{"MD"},
+		CommonName:   "Test Server",
+		DNSNames:     nil,
+		CA:           false,
+	}
+
+	clientTemplate, err := renderX509Template(td)
+	if err != nil {
+		return fmt.Errorf("generating client template with renderX509Template: %w", err)
+	}
+
+	// because this is a client certificate, we need to swap out the issuer
+	clientTemplate.Issuer = caCert.Subject
+	clientTemplate.KeyUsage |= x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
+	clientTemplate.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}
+	clientTemplate.SerialNumber = big.NewInt(2) // serial number 2
+
+	client, err := generateTLSKeyPair(clientTemplate, *caCert, ca.privateKey) // signed by the CA from above
+	if err != nil {
+		return fmt.Errorf("generating signed client cert with generateTLSKeyPair: %w", err)
+	}
+
+	_, err = tls.X509KeyPair(client.cert, client.key)
+	if err != nil {
+		return fmt.Errorf("generated client certificate validation with tls.X509KeyPair: %w", err)
+	}
+
+	clientChild, _ := pem.Decode(client.cert)
+	clientCert, err := x509.ParseCertificate(clientChild.Bytes)
+	if err != nil {
+		return fmt.Errorf("parsing client cert with x509.ParseCertificate: %w", err)
+	}
+	err = clientCert.CheckSignatureFrom(caCert)
+	if err != nil {
+		return fmt.Errorf("checking client is signed by CA with clientCert.CheckSignatureFrom: %w", err)
+	}
+
+	// Write the valid files to disk
+	// This is the certificate
+	certFile, err := os.Create(path.Join(projectRoot, "tests/data/ingress-mtls/client-auth/revoked", "client-cert-2.pem")) //gosec:disable G304 -- no part of this path is user-controlled. Project Root is defined in main(), it's a global variable, and gitignorePath is a const at the top of this file.
+	if err != nil {
+		return fmt.Errorf("creating valid client cert file with os.Create: %w", err)
+	}
+	defer func() {
+		err = certFile.Close()
+		if err != nil {
+			err = fmt.Errorf("closing certfile with certFile.Close in defer: %w", err)
+		}
+	}()
+
+	_, err = certFile.Write(client.cert)
+	if err != nil {
+		return fmt.Errorf("writing certificate to file with certFile.Write: %w", err)
+	}
+
+	// This is the key
+	keyFile, err := os.Create(path.Join(projectRoot, "tests/data/ingress-mtls/client-auth/revoked", "client-key-2.pem")) //gosec:disable G304 -- no part of this path is user-controlled. Project Root is defined in main(), it's a global variable, and gitignorePath is a const at the top of this file.
+	if err != nil {
+		return fmt.Errorf("creating valid client key file with os.Create: %w", err)
+	}
+	defer func() {
+		err = keyFile.Close()
+		if err != nil {
+			err = fmt.Errorf("closing keyfile with keyFile.Close in defer: %w", err)
+		}
+	}()
+
+	_, err = keyFile.Write(client.key)
+	if err != nil {
+		return fmt.Errorf("writing key to file with keyFile.Write: %w", err)
+	}
+
+	return nil
+}
 
 // generateInvalidClientCert creates a client certificate that is invalid.
 // I think it's the same as the valid one, except with bytes chopped off from
