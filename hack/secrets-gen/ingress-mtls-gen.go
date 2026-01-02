@@ -83,7 +83,6 @@ func generateIngressMtlsSecrets(logger *slog.Logger, details IngressMtls, filena
 		return filenames, fmt.Errorf("generating revoked client cert: %w", err)
 	}
 
-	fmt.Printf("Generating invalid client cert...\n")
 	err = generateInvalidClientCert(logger, ca, projectRoot, details)
 	if err != nil {
 		return filenames, fmt.Errorf("generating invalid client cert: %w", err)
