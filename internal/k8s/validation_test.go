@@ -3541,9 +3541,51 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				`annotations.nginx.org/app-root: Invalid value: "/tea$1": path must start with '/' and must not include any special character, '{', '}', ';' or '$'`,
+				`annotations.nginx.org/app-root: Invalid value: "/tea$1": path must not contain the following characters: whitespace, '{', '}', ';', '$', '|', '^', '<', '>', '\', '"', '#', '[', ']'`,
 			},
-			msg: "invalid nginx.org/app-root annotation, invalid characters",
+			msg: "invalid nginx.org/app-root annotation, contains dollar sign",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/app-root": "/coffee{test}",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/app-root: Invalid value: "/coffee{test}": path must not contain the following characters: whitespace, '{', '}', ';', '$', '|', '^', '<', '>', '\', '"', '#', '[', ']'`,
+			},
+			msg: "invalid app-root - contains curly braces",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/app-root": "/tea;chai",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/app-root: Invalid value: "/tea;chai": path must not contain the following characters: whitespace, '{', '}', ';', '$', '|', '^', '<', '>', '\', '"', '#', '[', ']'`,
+			},
+			msg: "invalid app-root - contains semicolon",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/app-root": "/tea chai",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/app-root: Invalid value: "/tea chai": path must not contain the following characters: whitespace, '{', '}', ';', '$', '|', '^', '<', '>', '\', '"', '#', '[', ']'`,
+			},
+			msg: "invalid app-root - contains whitespace",
 		},
 	}
 

@@ -363,7 +363,6 @@ var (
 		},
 		appRootAnnotation: {
 			validateAppRootAnnotation,
-			validateRewriteTargetAnnotation,
 		},
 	}
 	annotationNames = sortedAnnotationNames(annotationValidations)
@@ -395,9 +394,20 @@ func validateAppRootAnnotation(context *annotationValidationContext) field.Error
 		return allErrs
 	}
 
-	validPath := regexp.MustCompile(`^/[a-zA-Z0-9\-_./]*$`)
-	if !validPath.MatchString(path) {
-		allErrs = append(allErrs, field.Invalid(context.fieldPath, path, "contains invalid characters, only alphanumeric, hyphens, underscores, dots, and forward slashes are allowed"))
+	// Prevent protocol-relative URLs (//)
+	if strings.HasPrefix(path, "//") {
+		return field.ErrorList{field.Invalid(context.fieldPath, path, "protocol-relative URLs not allowed in rewrite target")}
+	}
+
+	// Prevent path traversal patterns
+	if strings.Contains(path, "../") || strings.Contains(path, "..\\") {
+		return field.ErrorList{field.Invalid(context.fieldPath, path, "path traversal patterns not allowed in rewrite target")}
+	}
+
+	// Prevents invalid config characters
+	if !validateRFC1738Path(path) {
+		allErrs = append(allErrs, field.Invalid(context.fieldPath, path, "path must not contain the following characters: whitespace, '{', '}', ';', '$', '|', '^', '<', '>', '\\', '\"', '#', '[', ']'"))
+		return allErrs
 	}
 
 	// Ensure path doesn't end with /
@@ -1014,6 +1024,15 @@ func validatePath(path string, pathType *networking.PathType, fieldPath *field.P
 	allErrs = append(allErrs, validateIllegalKeywords(path, fieldPath)...)
 
 	return allErrs
+}
+
+// validateRestrictedPath applies RFC 1738 compliant validation that excludes characters problematic for NGINX configuration
+// Allows: A-Z a-z 0-9 / - _ . ~ ! * ' ( ) : @ & = + , ? %
+// Excludes: whitespace { } ; $ | ^ ` < > \ " # [ ]
+var rfc1738PathRegexp = regexp.MustCompile(`^/[A-Za-z0-9\-_.~!*'():@&=+,/?%]*$`)
+
+func validateRFC1738Path(path string) bool {
+	return rfc1738PathRegexp.MatchString(path)
 }
 
 // validateRegexPath validates correctness of the string representing the path.

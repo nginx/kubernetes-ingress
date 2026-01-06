@@ -1048,53 +1048,6 @@ func TestAppRootAnnotation(t *testing.T) {
 			},
 			expected: "/tea/green-tea",
 		},
-		{
-			name: "valid app-root - cafe path",
-			annotations: map[string]string{
-				"nginx.org/app-root": "/cafe",
-			},
-			expected: "/cafe",
-		},
-		{
-			name: "invalid app-root - does not start with slash",
-			annotations: map[string]string{
-				"nginx.org/app-root": "coffee",
-			},
-			expected: "", // Should remain empty due to invalid path
-		},
-		{
-			name: "invalid app-root - contains invalid characters",
-			annotations: map[string]string{
-				"nginx.org/app-root": "/tea$mocha",
-			},
-			expected: "", // Should remain empty due to invalid characters
-		},
-		{
-			name: "invalid app-root - contains curly braces",
-			annotations: map[string]string{
-				"nginx.org/app-root": "/coffee{test}",
-			},
-			expected: "", // Should remain empty due to invalid characters
-		},
-		{
-			name: "invalid app-root - contains semicolon",
-			annotations: map[string]string{
-				"nginx.org/app-root": "/tea;chai",
-			},
-			expected: "", // Should remain empty due to invalid characters
-		},
-		{
-			name: "invalid app-root - contains whitespace",
-			annotations: map[string]string{
-				"nginx.org/app-root": "/tea chai",
-			},
-			expected: "", // Should remain empty due to invalid characters
-		},
-		{
-			name:        "no app-root annotation",
-			annotations: map[string]string{},
-			expected:    "", // Should remain empty when annotation is missing
-		},
 	}
 
 	for _, tt := range tests {
