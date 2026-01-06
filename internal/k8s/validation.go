@@ -75,6 +75,7 @@ const (
 	stickyCookieServicesAnnotation        = "nginx.com/sticky-cookie-services"
 	pathRegexAnnotation                   = "nginx.org/path-regex"
 	useClusterIPAnnotation                = "nginx.org/use-cluster-ip"
+	httpRedirectCodeAnnotation            = "nginx.org/http-redirect-code"
 )
 
 const (
@@ -360,6 +361,10 @@ var (
 		useClusterIPAnnotation: {
 			validateBoolAnnotation,
 		},
+		httpRedirectCodeAnnotation: {
+			validateRequiredAnnotation,
+			validateHTTPRedirectCodeAnnotation,
+		},
 	}
 	annotationNames = sortedAnnotationNames(annotationValidations)
 )
@@ -371,6 +376,13 @@ func validatePathRegex(context *annotationValidationContext) field.ErrorList {
 	default:
 		return field.ErrorList{field.Invalid(context.fieldPath, context.value, "allowed values: 'case_sensitive', 'case_insensitive' or 'exact'")}
 	}
+}
+
+func validateHTTPRedirectCodeAnnotation(context *annotationValidationContext) field.ErrorList {
+	if _, err := configs.ParseHTTPRedirectCode(context.value); err != nil {
+		return field.ErrorList{field.Invalid(context.fieldPath, context.value, err.Error())}
+	}
+	return nil
 }
 
 func validateJWTLoginURLAnnotation(context *annotationValidationContext) field.ErrorList {
@@ -807,6 +819,18 @@ func validateRewriteTargetAnnotation(context *annotationValidationContext) field
 	// Must start with / (relative path)
 	if !strings.HasPrefix(target, "/") {
 		return field.ErrorList{field.Invalid(context.fieldPath, target, "rewrite target must start with /")}
+	}
+
+	// Prevent NGINX configuration injection characters
+	if strings.ContainsAny(target, ";{}[]|<>,^`~") {
+		return field.ErrorList{field.Invalid(context.fieldPath, target, "NGINX configuration syntax characters (;{}) and []|<>,^`~ not allowed in rewrite target")}
+	}
+
+	// Prevent control characters and line breaks that could break NGINX config
+	for _, char := range target {
+		if char <= 32 || char == 127 { // ASCII control characters; 127 is DEL, 32 is space
+			return field.ErrorList{field.Invalid(context.fieldPath, target, "control characters not allowed in rewrite target")}
+		}
 	}
 
 	return nil

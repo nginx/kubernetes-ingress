@@ -20,7 +20,7 @@ PREFIX                      ?= nginx/nginx-ingress ## The name of the image. For
 TAG                         ?= edge ## The tag of the image. For example, edge
 K8S_CLUSTER_NAME            ?= local ## The name used when creating/using a Kind Kubernetes cluster
 # renovate: datasource=docker depName=kindest/node
-K8S_CLUSTER_VERSION         ?= v1.34.2
+K8S_CLUSTER_VERSION         ?= v1.35.0
 K8S_TIMEOUT                 ?= 75s ## The timeout used when creating a Kind Kubernetes cluster
 PLUS_JWT                    ?=
 PYTEST_ARGS                 ?=
