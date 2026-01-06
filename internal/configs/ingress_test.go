@@ -139,6 +139,37 @@ func TestGenerateNginxCfgForBasicAuth(t *testing.T) {
 	}
 }
 
+func TestGenerateNginxCfgForAppRoot(t *testing.T) {
+	t.Parallel()
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations["nginx.org/app-root"] = "/coffee"
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	expected := createExpectedConfigForCafeIngressEx(isPlus)
+	expected.Servers[0].AppRoot = "/coffee"
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:         &StaticConfigParams{},
+		ingEx:                &cafeIngressEx,
+		apResources:          nil,
+		dosResource:          nil,
+		isMinion:             false,
+		isPlus:               isPlus,
+		BaseCfgParams:        configParams,
+		isResolverConfigured: false,
+		isWildcardEnabled:    false,
+	})
+
+	if result.Servers[0].AppRoot != expected.Servers[0].AppRoot {
+		t.Errorf("generateNginxCfg returned AppRoot %v, but expected %v", result.Servers[0].AppRoot, expected.Servers[0].AppRoot)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfg returned warnings: %v", warnings)
+	}
+}
+
 func TestGenerateNginxCfgWithMissingTLSSecret(t *testing.T) {
 	t.Parallel()
 	cafeIngressEx := createCafeIngressEx()
@@ -379,6 +410,7 @@ func createExpectedConfigForCafeIngressEx(isPlus bool) version1.IngressNginxConf
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]version1.HealthCheck),
 			},
 		},
@@ -780,6 +812,7 @@ func createExpectedConfigForMergeableCafeIngressWithUseClusterIP() version1.Ingr
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]version1.HealthCheck),
 			},
 		},
@@ -868,6 +901,7 @@ func createExpectedConfigForCafeIngressWithUseClusterIPNamedPorts() version1.Ing
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]version1.HealthCheck),
 			},
 		},
@@ -955,6 +989,7 @@ func createExpectedConfigForCafeIngressWithUseClusterIP() version1.IngressNginxC
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]version1.HealthCheck),
 			},
 		},
@@ -1693,6 +1728,7 @@ func createExpectedConfigForMergeableCafeIngress(isPlus bool) version1.IngressNg
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]version1.HealthCheck),
 			},
 		},
@@ -1793,6 +1829,7 @@ func createExpectedConfigForCrossNamespaceMergeableCafeIngress() version1.Ingres
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]version1.HealthCheck),
 			},
 		},

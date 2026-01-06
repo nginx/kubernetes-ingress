@@ -75,6 +75,8 @@ const (
 	stickyCookieServicesAnnotation        = "nginx.com/sticky-cookie-services"
 	pathRegexAnnotation                   = "nginx.org/path-regex"
 	useClusterIPAnnotation                = "nginx.org/use-cluster-ip"
+	httpRedirectCodeAnnotation            = "nginx.org/http-redirect-code"
+	appRootAnnotation                     = "nginx.org/app-root"
 )
 
 const (
@@ -360,6 +362,13 @@ var (
 		useClusterIPAnnotation: {
 			validateBoolAnnotation,
 		},
+		httpRedirectCodeAnnotation: {
+			validateRequiredAnnotation,
+			validateHTTPRedirectCodeAnnotation,
+		},
+		appRootAnnotation: {
+			validateAppRootAnnotation,
+		},
 	}
 	annotationNames = sortedAnnotationNames(annotationValidations)
 )
@@ -371,6 +380,60 @@ func validatePathRegex(context *annotationValidationContext) field.ErrorList {
 	default:
 		return field.ErrorList{field.Invalid(context.fieldPath, context.value, "allowed values: 'case_sensitive', 'case_insensitive' or 'exact'")}
 	}
+}
+
+func validateHTTPRedirectCodeAnnotation(context *annotationValidationContext) field.ErrorList {
+	if _, err := configs.ParseHTTPRedirectCode(context.value); err != nil {
+		return field.ErrorList{field.Invalid(context.fieldPath, context.value, err.Error())}
+	}
+	return nil
+}
+
+func validateAppRootAnnotation(context *annotationValidationContext) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	path := context.value
+
+	// App root must start with /
+	if !strings.HasPrefix(path, "/") {
+		allErrs = append(allErrs, field.Invalid(context.fieldPath, path, "must start with '/'"))
+		return allErrs
+	}
+
+	// App root cannot be just "/"
+	if path == "/" {
+		allErrs = append(allErrs, field.Invalid(context.fieldPath, path, "cannot be '/'"))
+		return allErrs
+	}
+
+	// Prevent protocol-relative URLs (//)
+	if strings.HasPrefix(path, "//") {
+		return field.ErrorList{field.Invalid(context.fieldPath, path, "protocol-relative URLs not allowed")}
+	}
+
+	// Prevent path traversal patterns
+	if strings.Contains(path, "../") || strings.Contains(path, "..\\") {
+		return field.ErrorList{field.Invalid(context.fieldPath, path, "path traversal patterns not allowed")}
+	}
+
+	// Prevents invalid config characters
+	if !validateRFC1738Path(path) {
+		allErrs = append(allErrs, field.Invalid(context.fieldPath, path, "path must not contain the following characters: whitespace, '{', '}', ';', '$', '|', '^', '<', '>', '\\', '\"', '#', '[', ']'"))
+		return allErrs
+	}
+
+	// Prevent tilde character
+	if strings.Contains(path, "~") {
+		allErrs = append(allErrs, field.Invalid(context.fieldPath, path, "path must not contain the '~' character"))
+	}
+
+	// Ensure path doesn't end with /
+	if strings.HasSuffix(path, "/") {
+		allErrs = append(allErrs, field.Invalid(context.fieldPath, path, "path should not end with '/'"))
+		return allErrs
+	}
+
+	return allErrs
 }
 
 func validateJWTLoginURLAnnotation(context *annotationValidationContext) field.ErrorList {
@@ -978,6 +1041,15 @@ func validatePath(path string, pathType *networking.PathType, fieldPath *field.P
 	allErrs = append(allErrs, validateIllegalKeywords(path, fieldPath)...)
 
 	return allErrs
+}
+
+// validateRestrictedPath applies RFC 1738 compliant validation that excludes characters problematic for NGINX configuration
+// Allows: A-Z a-z 0-9 / - _ . ~ ! * ' ( ) : @ & = + , ? %
+// Excludes: whitespace { } ; $ | ^ ` < > \ " # [ ]
+var rfc1738PathRegexp = regexp.MustCompile(`^/[A-Za-z0-9\-_.~!*'():@&=+,/?%]*$`)
+
+func validateRFC1738Path(path string) bool {
+	return rfc1738PathRegexp.MatchString(path)
 }
 
 // validateRegexPath validates correctness of the string representing the path.

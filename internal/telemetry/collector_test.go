@@ -907,6 +907,36 @@ func TestInvalidStandardIngressAnnotations(t *testing.T) {
 	}
 }
 
+func TestAppRootAnnotationTelemetry(t *testing.T) {
+	t.Parallel()
+
+	buf := &bytes.Buffer{}
+	exp := &telemetry.StdoutExporter{Endpoint: buf}
+
+	annotations := map[string]string{
+		"nginx.org/app-root": "/coffee",
+	}
+
+	configurator := newConfiguratorWithIngressWithCustomAnnotations(t, annotations)
+
+	cfg := telemetry.CollectorConfig{
+		Configurator:    configurator,
+		K8sClientReader: newTestClientset(node1, kubeNS),
+		Version:         telemetryNICData.ProjectVersion,
+	}
+
+	c, err := telemetry.NewCollector(cfg, telemetry.WithExporter(exp))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Collect(context.Background())
+
+	got := buf.String()
+	if !strings.Contains(got, "nginx.org/app-root") {
+		t.Errorf("expected app-root annotation to be collected in telemetry, got: %v", got)
+	}
+}
+
 func TestIngressCountReportsNumberOfDeployedIngresses(t *testing.T) {
 	t.Parallel()
 

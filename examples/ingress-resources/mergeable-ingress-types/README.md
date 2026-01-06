@@ -33,8 +33,9 @@ Minions cannot contain the following annotations:
 - nginx.org/proxy-hide-headers
 - nginx.org/proxy-pass-headers
 - nginx.org/redirect-to-https
-- ingress.kubernetes.io/ssl-redirect (deprecated, use nginx.org/ssl-redirect instead)
 - nginx.org/ssl-redirect
+- ingress.kubernetes.io/ssl-redirect (deprecated, use nginx.org/ssl-redirect instead)
+- nginx.org/http-redirect-code
 - nginx.org/hsts
 - nginx.org/hsts-max-age
 - nginx.org/hsts-include-subdomains
