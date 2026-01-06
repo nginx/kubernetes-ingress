@@ -108,12 +108,12 @@ func generateValidClientCert(logger *slog.Logger, ca *JITTLSKey, details Ingress
 	td := TemplateData{
 		Country:            []string{"US"},
 		Organization:       []string{"NGINX"},
-		OrganizationalUnit: []string{"KIC"},
+		OrganizationalUnit: nil,
 		Locality:           []string{"San Francisco"},
 		Province:           []string{"CA"},
-		CommonName:         "kic.nginx.com",
-		DNSNames:           []string{"virtual-server.example.com"},
-		EmailAddress:       "kubernetes@nginx.com",
+		CommonName:         "",
+		DNSNames:           nil,
+		EmailAddress:       "",
 		CA:                 false,
 	}
 
