@@ -147,7 +147,6 @@ class TestIngressMtlsPolicyVS:
         )
         wait_before_test()
         resp = mock.Mock()
-        resp.status_code == 502
         counter = 0
 
         while resp.status_code != expected_code and counter < 10:
