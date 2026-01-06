@@ -3657,7 +3657,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			expectedErrors: []string{
 				`annotations.nginx.org/app-root: Invalid value: "/tea~1": path must not contain the '~' character`,
 			},
-			msg: "invalid nginx.org/app-root annotation, contains tilda",
+			msg: "invalid nginx.org/app-root annotation, contains tilde",
 		},
 		{
 			annotations: map[string]string{
