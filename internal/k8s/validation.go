@@ -75,6 +75,7 @@ const (
 	stickyCookieServicesAnnotation        = "nginx.com/sticky-cookie-services"
 	pathRegexAnnotation                   = "nginx.org/path-regex"
 	useClusterIPAnnotation                = "nginx.org/use-cluster-ip"
+	httpRedirectCodeAnnotation            = "nginx.org/http-redirect-code"
 	appRootAnnotation                     = "nginx.org/app-root"
 )
 
@@ -361,6 +362,10 @@ var (
 		useClusterIPAnnotation: {
 			validateBoolAnnotation,
 		},
+		httpRedirectCodeAnnotation: {
+			validateRequiredAnnotation,
+			validateHTTPRedirectCodeAnnotation,
+		},
 		appRootAnnotation: {
 			validateAppRootAnnotation,
 		},
@@ -375,6 +380,13 @@ func validatePathRegex(context *annotationValidationContext) field.ErrorList {
 	default:
 		return field.ErrorList{field.Invalid(context.fieldPath, context.value, "allowed values: 'case_sensitive', 'case_insensitive' or 'exact'")}
 	}
+}
+
+func validateHTTPRedirectCodeAnnotation(context *annotationValidationContext) field.ErrorList {
+	if _, err := configs.ParseHTTPRedirectCode(context.value); err != nil {
+		return field.ErrorList{field.Invalid(context.fieldPath, context.value, err.Error())}
+	}
+	return nil
 }
 
 func validateAppRootAnnotation(context *annotationValidationContext) field.ErrorList {

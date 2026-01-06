@@ -1074,3 +1074,66 @@ func TestAppRootAnnotation(t *testing.T) {
 		})
 	}
 }
+
+func TestHTTPRedirectCodeAnnotationBehavior(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		annotations  map[string]string
+		expectedCode int
+	}{
+		{
+			name: "redirect code applied when SSL redirect enabled",
+			annotations: map[string]string{
+				"nginx.org/ssl-redirect":       "true",
+				"nginx.org/http-redirect-code": "307",
+			},
+			expectedCode: 307,
+		},
+		{
+			name: "redirect code applied when SSL redirect disabled",
+			annotations: map[string]string{
+				"nginx.org/ssl-redirect":       "false",
+				"nginx.org/http-redirect-code": "307",
+			},
+			expectedCode: 307,
+		},
+		{
+			name: "redirect code applied with redirect-to-https",
+			annotations: map[string]string{
+				"nginx.org/redirect-to-https":  "true",
+				"nginx.org/http-redirect-code": "302",
+			},
+			expectedCode: 302,
+		},
+		{
+			name: "redirect code applied without any redirect settings",
+			annotations: map[string]string{
+				"nginx.org/http-redirect-code": "308",
+			},
+			expectedCode: 308,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ingEx := &IngressEx{
+				Ingress: &networking.Ingress{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        "test-ingress",
+						Namespace:   "default",
+						Annotations: tt.annotations,
+					},
+				},
+			}
+
+			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+
+			if result.HTTPRedirectCode != tt.expectedCode {
+				t.Errorf("Test %q: expected HTTPRedirectCode %d, got %d", tt.name, tt.expectedCode, result.HTTPRedirectCode)
+			}
+		})
+	}
+}
