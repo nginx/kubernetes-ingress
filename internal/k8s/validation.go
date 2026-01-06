@@ -422,7 +422,7 @@ func validateAppRootAnnotation(context *annotationValidationContext) field.Error
 		return allErrs
 	}
 
-	// Prevent tilda character
+	// Prevent tilde character
 	if strings.Contains(path, "~") {
 		allErrs = append(allErrs, field.Invalid(context.fieldPath, path, "path must not contain the '~' character"))
 	}
