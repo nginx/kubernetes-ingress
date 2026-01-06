@@ -87,6 +87,8 @@ func generateGitignore(secrets secretsTypes, gitignorePtr *bool) error {
 
 	ignoredFilesAndLines = append(ignoredFilesAndLines, generateIngressMtlsIgnoreLines(secrets.IngressMtls)...)
 
+	ignoredFilesAndLines = append(ignoredFilesAndLines, generateMgmtCMKeysIgnoreLines(secrets.MgmtCMKeys)...)
+
 	err := writeGitIgnoreFile(ignoredFilesAndLines)
 	if err != nil {
 		return fmt.Errorf("writeGitIgnoreFile: %w", err)
@@ -261,6 +263,28 @@ func generateIngressMtlsIgnoreLines(ingressMtls IngressMtls) []string {
 	addCertsToIgnore(ingressMtls.Invalid)
 	addCertsToIgnore(ingressMtls.NotRevoked)
 	addCertsToIgnore(ingressMtls.Revoked)
+
+	return filesToIgnore
+}
+
+func generateMgmtCMKeysIgnoreLines(bundles []MgmtCMKeysBundle) []string {
+	filesToIgnore := make([]string, 0)
+
+	filesToIgnore = append(filesToIgnore, "\n# Management ConfigMap Keys Bundle secrets")
+	for _, bundle := range bundles {
+		filesToIgnore = append(filesToIgnore,
+			path.Join(realSecretDirectory, bundle.Client.FileName),
+			path.Join(realSecretDirectory, bundle.CaWithCrl.FileName),
+		)
+
+		for _, symlink := range bundle.Client.Symlinks {
+			filesToIgnore = append(filesToIgnore, strings.TrimPrefix(symlink, "/"))
+		}
+
+		for _, symlink := range bundle.CaWithCrl.Symlinks {
+			filesToIgnore = append(filesToIgnore, strings.TrimPrefix(symlink, "/"))
+		}
+	}
 
 	return filesToIgnore
 }

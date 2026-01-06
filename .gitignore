@@ -290,5 +290,11 @@ tests/data/ingress-mtls/client-auth/revoked/client-cert.pem
 common-secrets/ingress-mtls-revoked-client-key.pem
 tests/data/ingress-mtls/client-auth/revoked/client-key.pem
 
+# Management ConfigMap Keys Bundle secrets
+common-secrets/mgmt-cm-ssl-cert.yaml
+common-secrets/mgmt-cm-ssl-trusted-cert.yaml
+tests/data/mgmt-configmap-keys/ssl-cert.yaml
+tests/data/mgmt-configmap-keys/ssl-trusted-cert.yaml
+
 
 # END CERTGEN SECTION. YOU MAY EDIT BELOW
