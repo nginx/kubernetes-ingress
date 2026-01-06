@@ -25,13 +25,14 @@ const (
 var projectRoot = "" // this will be redefined in main()
 
 type secretsTypes struct {
-	Certs         []TLSSecret      `json:"certs,omitempty"`
-	Mtls          []mtlsBundle     `json:"mtls,omitempty"`
-	Htpasswds     []htpasswdSecret `json:"htpasswds,omitempty"`
-	Jwks          []jwkSecret      `json:"jwks,omitempty"`
-	Jwt           []jwtSecret      `json:"jwt,omitempty"`
-	APIKeySecrets []apiKeysSecret  `json:"apikeys,omitempty"`
-	IngressMtls   IngressMtls      `json:"ingress-mtls,omitempty"`
+	Certs         []TLSSecret        `json:"certs,omitempty"`
+	Mtls          []mtlsBundle       `json:"mtls,omitempty"`
+	Htpasswds     []htpasswdSecret   `json:"htpasswds,omitempty"`
+	Jwks          []jwkSecret        `json:"jwks,omitempty"`
+	Jwt           []jwtSecret        `json:"jwt,omitempty"`
+	APIKeySecrets []apiKeysSecret    `json:"apikeys,omitempty"`
+	IngressMtls   IngressMtls        `json:"ingress-mtls,omitempty"`
+	MgmtCMKeys    []MgmtCMKeysBundle `json:"mgmt-cmkeys-bundles,omitempty"`
 }
 
 // nolint:gocyclo
@@ -98,9 +99,14 @@ func main() {
 		log.Fatalf(logger, "generateAPIKeyFiles: %v", err)
 	}
 
-	_, err = generateIngressMtlsSecrets(logger, secretsTypesData.IngressMtls, filenames, cleanPtr)
+	filenames, err = generateIngressMtlsSecrets(logger, secretsTypesData.IngressMtls, filenames, cleanPtr)
 	if err != nil {
 		log.Fatalf(logger, "generateIngressMtlsSecrets: %v", err)
+	}
+
+	_, err = generateMgmtCMKeysBundles(logger, secretsTypesData.MgmtCMKeys, filenames, cleanPtr)
+	if err != nil {
+		log.Fatalf(logger, "generateMgmtCMKeysBundles: %v", err)
 	}
 
 	err = generateGitignore(secretsTypesData, gitignorePtr)
