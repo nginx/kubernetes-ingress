@@ -1680,7 +1680,7 @@ func (c *Configuration) buildMinionConfigs(masterHost string) ([]*MinionConfigur
 	return minionConfigs, childWarnings
 }
 
-func (c *Configuration) vsrValidation(r *conf_v1.Route, vsHost, vsNamespace string) ([]*conf_v1.VirtualServerRoute, []string) {
+func (c *Configuration) validateVSRs(r *conf_v1.Route, vsHost, vsNamespace string) ([]*conf_v1.VirtualServerRoute, []string) {
 	var vsrs []*conf_v1.VirtualServerRoute
 	var warnings []string
 
@@ -1711,7 +1711,7 @@ func (c *Configuration) vsrValidation(r *conf_v1.Route, vsHost, vsNamespace stri
 	return vsrs, warnings
 }
 
-func (c *Configuration) vsrSelectorValidation(r *conf_v1.Route, vsHost string) ([]*conf_v1.VirtualServerRoute, map[string][]string, []string) {
+func (c *Configuration) validateVSRSelectors(r *conf_v1.Route, vsHost string) ([]*conf_v1.VirtualServerRoute, map[string][]string, []string) {
 	var vsrs []*conf_v1.VirtualServerRoute
 	var warnings []string
 	vsrSelectors := make(map[string][]string)
@@ -1749,7 +1749,7 @@ func (c *Configuration) vsrSelectorValidation(r *conf_v1.Route, vsHost string) (
 	return vsrs, vsrSelectors, warnings
 }
 
-func duplicateVSRPathValidation(vsrs []*conf_v1.VirtualServerRoute) ([]*conf_v1.VirtualServerRoute, []string) {
+func validateDuplicateVSRPaths(vsrs []*conf_v1.VirtualServerRoute) ([]*conf_v1.VirtualServerRoute, []string) {
 	var warnings []string
 
 	paths := make(map[string]string)
@@ -1786,7 +1786,7 @@ func duplicateVSRPathValidation(vsrs []*conf_v1.VirtualServerRoute) ([]*conf_v1.
 	return vsrs, warnings
 }
 
-func duplicateVSRValidation(vsrs []*conf_v1.VirtualServerRoute, vsName, vsNamespace string) ([]*conf_v1.VirtualServerRoute, []string) {
+func validateDuplicateVSRs(vsrs []*conf_v1.VirtualServerRoute, vsName, vsNamespace string) ([]*conf_v1.VirtualServerRoute, []string) {
 	var warnings []string
 
 	unique := make(map[string]string)
@@ -1825,21 +1825,21 @@ func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*
 
 	for _, r := range vs.Spec.Routes {
 		if r.Route != "" {
-			validVsrs, vsrWarnings := c.vsrValidation(&r, vs.Spec.Host, vs.Namespace)
+			validVsrs, vsrWarnings := c.validateVSRs(&r, vs.Spec.Host, vs.Namespace)
 			vsrs = append(vsrs, validVsrs...)
 			warnings = append(warnings, vsrWarnings...)
 		} else if r.RouteSelector != nil {
-			validVsrs, selectors, vsrWarnings := c.vsrSelectorValidation(&r, vs.Spec.Host)
+			validVsrs, selectors, vsrWarnings := c.validateVSRSelectors(&r, vs.Spec.Host)
 			vsrs = append(vsrs, validVsrs...)
 			warnings = append(warnings, vsrWarnings...)
 			maps.Copy(vsrSelectors, selectors)
 		}
 	}
 
-	vsrs, duplicateVSRWarnings := duplicateVSRValidation(vsrs, vs.Name, vs.Namespace)
+	vsrs, duplicateVSRWarnings := validateDuplicateVSRs(vsrs, vs.Name, vs.Namespace)
 	warnings = append(warnings, duplicateVSRWarnings...)
 
-	vsrs, pathWarnings := duplicateVSRPathValidation(vsrs)
+	vsrs, pathWarnings := validateDuplicateVSRPaths(vsrs)
 	warnings = append(warnings, pathWarnings...)
 
 	return vsrs, vsrSelectors, warnings

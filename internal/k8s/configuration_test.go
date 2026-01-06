@@ -3,6 +3,7 @@ package k8s
 import (
 	"context"
 	"fmt"
+	"sort"
 	"testing"
 	"time"
 
@@ -5273,7 +5274,7 @@ func TestIsEqualForVirtualServersVSR(t *testing.T) {
 	}
 }
 
-func TestVSRValidation(t *testing.T) {
+func TestValidateVSRs(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
 		name          string
@@ -5350,19 +5351,27 @@ func TestVSRValidation(t *testing.T) {
 					configuration.virtualServerRoutes[fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)] = vsr
 				}
 			}
-			vsrs, warnings := configuration.vsrValidation(testCase.route, testCase.vsHost, testCase.vsNamespace)
+			vsrs, warnings := configuration.validateVSRs(testCase.route, testCase.vsHost, testCase.vsNamespace)
+
+			sort.Slice(testCase.expectedVSRs, func(i, j int) bool {
+				return testCase.expectedVSRs[i].Name < testCase.expectedVSRs[j].Name
+			})
+
+			sort.Slice(vsrs, func(i, j int) bool {
+				return vsrs[i].Name < vsrs[j].Name
+			})
 
 			if diff := cmp.Diff(testCase.expectedVSRs, vsrs); diff != "" {
-				t.Errorf("vsrValidation() returned unexpected VSRs (-want +got):\n%s", diff)
+				t.Errorf("validateVSRs() returned unexpected VSRs (-want +got):\n%s", diff)
 			}
 			if diff := cmp.Diff(testCase.expectedWarns, warnings); diff != "" {
-				t.Errorf("vsrValidation() returned unexpected warnings (-want +got):\n%s", diff)
+				t.Errorf("validateVSRs() returned unexpected warnings (-want +got):\n%s", diff)
 			}
 		})
 	}
 }
 
-func TestVSRSelectorValidation(t *testing.T) {
+func TestValidateVSRSelectors(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
 		name                 string
@@ -5463,22 +5472,30 @@ func TestVSRSelectorValidation(t *testing.T) {
 					configuration.virtualServerRoutes[fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)] = vsr
 				}
 			}
-			vsrs, selectors, warnings := configuration.vsrSelectorValidation(testCase.route, testCase.vsHost)
+			vsrs, selectors, warnings := configuration.validateVSRSelectors(testCase.route, testCase.vsHost)
+
+			sort.Slice(testCase.expectedVSRs, func(i, j int) bool {
+				return testCase.expectedVSRs[i].Name < testCase.expectedVSRs[j].Name
+			})
+
+			sort.Slice(vsrs, func(i, j int) bool {
+				return vsrs[i].Name < vsrs[j].Name
+			})
 
 			if diff := cmp.Diff(testCase.expectedVSRs, vsrs); diff != "" {
-				t.Errorf("vsrSelectorValidation() returned unexpected VSRs (-want +got):\n%s", diff)
+				t.Errorf("validateVSRSelectors() returned unexpected VSRs (-want +got):\n%s", diff)
 			}
 			if diff := cmp.Diff(testCase.expectedWarns, warnings); diff != "" {
-				t.Errorf("vsrSelectorValidation() returned unexpected warnings (-want +got):\n%s", diff)
+				t.Errorf("validateVSRSelectors() returned unexpected warnings (-want +got):\n%s", diff)
 			}
 			if diff := cmp.Diff(testCase.expectedVSRSelectors, selectors); diff != "" {
-				t.Errorf("vsrSelectorValidation() returned unexpected VSR selectors (-want +got):\n%s", diff)
+				t.Errorf("validateVSRSelectors() returned unexpected VSR selectors (-want +got):\n%s", diff)
 			}
 		})
 	}
 }
 
-func TestDuplicateVSRPathValidation(t *testing.T) {
+func TestValidateDuplicateVSRPaths(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -5776,19 +5793,19 @@ func TestDuplicateVSRPathValidation(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			resultVSRs, warnings := duplicateVSRPathValidation(testCase.vsrs)
+			resultVSRs, warnings := validateDuplicateVSRPaths(testCase.vsrs)
 
 			if diff := cmp.Diff(testCase.expectedVSRs, resultVSRs); diff != "" {
-				t.Errorf("duplicateVSRPathValidation() returned unexpected VSRs (-want +got):\n%s", diff)
+				t.Errorf("validateDuplicateVSRPaths() returned unexpected VSRs (-want +got):\n%s", diff)
 			}
 			if diff := cmp.Diff(testCase.expectedWarns, warnings); diff != "" {
-				t.Errorf("duplicateVSRPathValidation() returned unexpected warnings (-want +got):\n%s", diff)
+				t.Errorf("validateDuplicateVSRPaths() returned unexpected warnings (-want +got):\n%s", diff)
 			}
 		})
 	}
 }
 
-func TestDuplicateVSRValidation(t *testing.T) {
+func TestValidateDuplicateVSRs(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -5958,13 +5975,13 @@ func TestDuplicateVSRValidation(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			resultVSRs, warnings := duplicateVSRValidation(testCase.vsrs, testCase.vsName, testCase.vsNamespace)
+			resultVSRs, warnings := validateDuplicateVSRs(testCase.vsrs, testCase.vsName, testCase.vsNamespace)
 
 			if diff := cmp.Diff(testCase.expectedVSRs, resultVSRs); diff != "" {
-				t.Errorf("duplicateVSRValidation() returned unexpected VSRs (-want +got):\n%s", diff)
+				t.Errorf("validateDuplicateVSRs() returned unexpected VSRs (-want +got):\n%s", diff)
 			}
 			if diff := cmp.Diff(testCase.expectedWarns, warnings); diff != "" {
-				t.Errorf("duplicateVSRValidation() returned unexpected warnings (-want +got):\n%s", diff)
+				t.Errorf("validateDuplicateVSRs() returned unexpected warnings (-want +got):\n%s", diff)
 			}
 		})
 	}
