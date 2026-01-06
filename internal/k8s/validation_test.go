@@ -3647,6 +3647,20 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
+				"nginx.org/app-root": "/tea~1",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/app-root: Invalid value: "/tea~1": path must not contain the '~' character`,
+			},
+			msg: "invalid nginx.org/app-root annotation, contains tilda",
+		},
+		{
+			annotations: map[string]string{
 				"nginx.org/app-root": "/coffee{test}",
 			},
 			specServices:          map[string]bool{},

@@ -408,18 +408,23 @@ func validateAppRootAnnotation(context *annotationValidationContext) field.Error
 
 	// Prevent protocol-relative URLs (//)
 	if strings.HasPrefix(path, "//") {
-		return field.ErrorList{field.Invalid(context.fieldPath, path, "protocol-relative URLs not allowed in rewrite target")}
+		return field.ErrorList{field.Invalid(context.fieldPath, path, "protocol-relative URLs not allowed")}
 	}
 
 	// Prevent path traversal patterns
 	if strings.Contains(path, "../") || strings.Contains(path, "..\\") {
-		return field.ErrorList{field.Invalid(context.fieldPath, path, "path traversal patterns not allowed in rewrite target")}
+		return field.ErrorList{field.Invalid(context.fieldPath, path, "path traversal patterns not allowed")}
 	}
 
 	// Prevents invalid config characters
 	if !validateRFC1738Path(path) {
 		allErrs = append(allErrs, field.Invalid(context.fieldPath, path, "path must not contain the following characters: whitespace, '{', '}', ';', '$', '|', '^', '<', '>', '\\', '\"', '#', '[', ']'"))
 		return allErrs
+	}
+
+	// Prevent tilda character
+	if strings.Contains(path, "~") {
+		allErrs = append(allErrs, field.Invalid(context.fieldPath, path, "path must not contain the '~' character"))
 	}
 
 	// Ensure path doesn't end with /
