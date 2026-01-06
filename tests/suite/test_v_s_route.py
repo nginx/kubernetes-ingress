@@ -26,6 +26,8 @@ from suite.utils.vs_vsr_resources_utils import (
 )
 from suite.utils.yaml_utils import get_paths_from_vsr_yaml
 
+from tests.suite.utils.custom_resources_utils import read_custom_resource
+
 
 def assert_responses_and_server_name(resp_1, resp_2, resp_3):
     assert resp_1.status_code == 200
@@ -405,3 +407,241 @@ class TestCreateInvalidVirtualServerRoute:
         assert_locations_not_in_config(new_config, v_s_route_setup.route_s.paths)
         assert_event_and_count(vs_event_text, 1, new_vs_events)
         assert_event_and_count(vsr_event_text, 1, new_vsr_events)
+
+
+@pytest.mark.smoke
+@pytest.mark.vsr
+@pytest.mark.vsr_basic
+@pytest.mark.parametrize(
+    "crd_ingress_controller, v_s_route_selector_setup",
+    [({"type": "complete", "extra_args": [f"-enable-custom-resources"]}, {"example": "virtual-server-route-selector"})],
+    indirect=True,
+)
+class TestVirtualServerRouteSelector:
+    def test_responses_and_events_in_flow(
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        crd_ingress_controller,
+        v_s_route_selector_setup,
+        v_s_route_selector_app_setup,
+    ):
+        vs_info = read_custom_resource(
+            kube_apis.custom_objects,
+            v_s_route_selector_setup.namespace,
+            "virtualservers",
+            v_s_route_selector_setup.vs_name,
+        )
+        assert (
+            vs_info["status"]
+            and vs_info["status"]["reason"] == "AddedOrUpdated"
+            and vs_info["status"]["state"] == "Valid"
+        ), vs_info
+
+        vsr_info = read_custom_resource(
+            kube_apis.custom_objects,
+            v_s_route_selector_setup.namespace,
+            "virtualserverroutes",
+            v_s_route_selector_setup.route_s.name,
+        )
+        assert (
+            vsr_info["status"]
+            and vsr_info["status"]["reason"] == "AddedOrUpdated"
+            and vsr_info["status"]["state"] == "Valid"
+        ), vsr_info
+
+        req_url = f"http://{v_s_route_selector_setup.public_endpoint.public_ip}:{v_s_route_selector_setup.public_endpoint.port}"
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        vs_name = f"{v_s_route_selector_setup.namespace}/{v_s_route_selector_setup.vs_name}"
+        vsr_name = f"{v_s_route_selector_setup.namespace}/{v_s_route_selector_setup.route_s.name}"
+        vsr_event_text = f"Configuration for {vsr_name} was added or updated"
+        vs_event_text = f"Configuration for {vs_name} was added or updated"
+        # vs_warning_event_text = f"Configuration for {vs_name} was added or updated with warning(s): VirtualServerRoute {vsr_name} doesn't exist or invalid"
+        initial_config = get_vs_nginx_template_conf(
+            kube_apis.v1,
+            v_s_route_selector_setup.namespace,
+            v_s_route_selector_setup.vs_name,
+            ic_pod_name,
+            ingress_controller_prerequisites.namespace,
+            print_log=False,
+        )
+
+        print("\nStep 1: initial check")
+        resp_1 = requests.get(
+            f"{req_url}{v_s_route_selector_setup.route_s.paths[0]}", headers={"host": v_s_route_selector_setup.vs_host}
+        )
+        events_ns_1 = get_events(kube_apis.v1, v_s_route_selector_setup.route_s.namespace)
+        assert resp_1.status_code == 200
+        assert "Server name: backend1-" in resp_1.text
+        assert_locations_in_config(initial_config, v_s_route_selector_setup.route_s.paths)
+        initial_count_vsr_1 = assert_event_and_get_count(vsr_event_text, events_ns_1)
+        initial_count_vs = assert_event_and_get_count(vs_event_text, events_ns_1)
+
+        print("\nStep 2: update multiple VSRoute and check")
+        patch_v_s_route_from_yaml(
+            kube_apis.custom_objects,
+            v_s_route_selector_setup.route_s.name,
+            f"{TEST_DATA}/virtual-server-route-selector/route-selector-single-updated.yaml",
+            v_s_route_selector_setup.route_s.namespace,
+        )
+        new_vsr_paths = get_paths_from_vsr_yaml(
+            f"{TEST_DATA}/virtual-server-route-selector/route-selector-single-updated.yaml"
+        )
+        wait_before_test(1)
+        resp_1 = requests.get(f"{req_url}{new_vsr_paths[0]}", headers={"host": v_s_route_selector_setup.vs_host})
+        assert resp_1.status_code == 200
+        assert "Server name: backend1-" in resp_1.text
+        events_ns_1 = get_events(kube_apis.v1, v_s_route_selector_setup.route_s.namespace)
+        assert_event_and_count(vsr_event_text, initial_count_vsr_1 + 1, events_ns_1)
+        assert_event_with_full_equality_and_count(vs_event_text, initial_count_vs + 1, events_ns_1)
+
+        print("\nStep 3: restore VSRoute and check")
+        patch_v_s_route_from_yaml(
+            kube_apis.custom_objects,
+            v_s_route_selector_setup.route_s.name,
+            f"{TEST_DATA}/virtual-server-route-selector/route-selector-single.yaml",
+            v_s_route_selector_setup.route_s.namespace,
+        )
+        wait_before_test(1)
+        resp_1 = requests.get(
+            f"{req_url}{v_s_route_selector_setup.route_s.paths[0]}", headers={"host": v_s_route_selector_setup.vs_host}
+        )
+        assert resp_1.status_code == 200
+        assert "Server name: backend1-" in resp_1.text
+        events_ns_1 = get_events(kube_apis.v1, v_s_route_selector_setup.route_s.namespace)
+        assert_event_and_count(vsr_event_text, initial_count_vsr_1 + 2, events_ns_1)
+        assert_event_with_full_equality_and_count(vs_event_text, initial_count_vs + 2, events_ns_1)
+
+        print("\nStep 4: update one backend service port and check")
+        svc_1 = read_service(kube_apis.v1, "backend1-svc", v_s_route_selector_setup.route_s.namespace)
+        svc_1.spec.ports[0].port = 8080
+        replace_service(kube_apis.v1, "backend1-svc", v_s_route_selector_setup.route_s.namespace, svc_1)
+        wait_before_test(1)
+        resp_1 = requests.get(
+            f"{req_url}{v_s_route_selector_setup.route_s.paths[0]}", headers={"host": v_s_route_selector_setup.vs_host}
+        )
+        assert resp_1.status_code == 502
+        events_ns_1 = get_events(kube_apis.v1, v_s_route_selector_setup.route_s.namespace)
+        assert_event_and_count(vsr_event_text, initial_count_vsr_1 + 3, events_ns_1)
+        assert_event_with_full_equality_and_count(vs_event_text, initial_count_vs + 3, events_ns_1)
+
+        print("\nStep 5: restore backend service and check")
+        svc_1 = read_service(kube_apis.v1, "backend1-svc", v_s_route_selector_setup.route_s.namespace)
+        svc_1.spec.ports[0].port = 80
+        replace_service(kube_apis.v1, "backend1-svc", v_s_route_selector_setup.route_s.namespace, svc_1)
+        wait_before_test(1)
+        resp_1 = requests.get(
+            f"{req_url}{v_s_route_selector_setup.route_s.paths[0]}", headers={"host": v_s_route_selector_setup.vs_host}
+        )
+        assert resp_1.status_code == 200
+        events_ns_1 = get_events(kube_apis.v1, v_s_route_selector_setup.route_s.namespace)
+        assert_event_and_count(vsr_event_text, initial_count_vsr_1 + 4, events_ns_1)
+        assert_event_with_full_equality_and_count(vs_event_text, initial_count_vs + 4, events_ns_1)
+
+        # print("\nStep 6: remove VSRoute and check")
+        # delete_v_s_route(kube_apis.custom_objects, v_s_route_selector_setup.route_s.name, v_s_route_selector_setup.route_s.namespace)
+        # wait_before_test(1)
+        # new_config = get_vs_nginx_template_conf(
+        #     kube_apis.v1,
+        #     v_s_route_setup.namespace,
+        #     v_s_route_setup.vs_name,
+        #     ic_pod_name,
+        #     ingress_controller_prerequisites.namespace,
+        # )
+        # resp_1 = requests.get(f"{req_url}{v_s_route_setup.route_m.paths[0]}", headers={"host": v_s_route_setup.vs_host})
+        # resp_2 = requests.get(f"{req_url}{v_s_route_setup.route_m.paths[1]}", headers={"host": v_s_route_setup.vs_host})
+        # resp_3 = requests.get(f"{req_url}{v_s_route_setup.route_s.paths[0]}", headers={"host": v_s_route_setup.vs_host})
+        # assert resp_1.status_code == 404
+        # assert resp_2.status_code == 404
+        # assert resp_3.status_code == 200
+        # events_ns_1 = get_events(kube_apis.v1, v_s_route_setup.route_m.namespace)
+        # events_ns_2 = get_events(kube_apis.v1, v_s_route_setup.route_s.namespace)
+        # assert_locations_not_in_config(new_config, v_s_route_setup.route_m.paths)
+        # assert_event_and_count(vsr_1_event_text, initial_count_vsr_1 + 4, events_ns_1)
+        # assert_event_with_full_equality_and_count(vs_event_text, initial_count_vs + 4, events_ns_1)
+        # # a warning event because the VS references a non-existing VSR
+        # assert_event_with_full_equality_and_count(vs_warning_event_text, 1, events_ns_1)
+        # assert_event_and_count(vsr_2_event_text, initial_count_vsr_2 + 5, events_ns_2)
+
+        # print("\nStep 7: restore VSRoute and check")
+        # create_v_s_route_from_yaml(
+        #     kube_apis.custom_objects, f"{TEST_DATA}/virtual-server-route/route-multiple.yaml", v_s_route_setup.namespace
+        # )
+        # wait_before_test(1)
+        # new_config = get_vs_nginx_template_conf(
+        #     kube_apis.v1,
+        #     v_s_route_setup.namespace,
+        #     v_s_route_setup.vs_name,
+        #     ic_pod_name,
+        #     ingress_controller_prerequisites.namespace,
+        # )
+        # resp_1 = requests.get(f"{req_url}{v_s_route_setup.route_m.paths[0]}", headers={"host": v_s_route_setup.vs_host})
+        # resp_2 = requests.get(f"{req_url}{v_s_route_setup.route_m.paths[1]}", headers={"host": v_s_route_setup.vs_host})
+        # resp_3 = requests.get(f"{req_url}{v_s_route_setup.route_s.paths[0]}", headers={"host": v_s_route_setup.vs_host})
+        # assert_responses_and_server_name(resp_1, resp_2, resp_3)
+        # events_ns_1 = get_events(kube_apis.v1, v_s_route_setup.route_m.namespace)
+        # events_ns_2 = get_events(kube_apis.v1, v_s_route_setup.route_s.namespace)
+        # assert_locations_in_config(new_config, v_s_route_setup.route_m.paths)
+        # assert_event_and_count(vsr_1_event_text, 1, events_ns_1)
+        # assert_event_with_full_equality_and_count(vs_event_text, initial_count_vs + 5, events_ns_1)
+        # assert_event_and_count(vsr_2_event_text, initial_count_vsr_2 + 6, events_ns_2)
+
+        # print("\nStep 8: remove one backend service and check")
+        # delete_service(kube_apis.v1, "backend1-svc", v_s_route_setup.route_m.namespace)
+        # wait_before_test(1)
+        # resp_1 = requests.get(f"{req_url}{v_s_route_setup.route_m.paths[0]}", headers={"host": v_s_route_setup.vs_host})
+        # resp_2 = requests.get(f"{req_url}{v_s_route_setup.route_m.paths[1]}", headers={"host": v_s_route_setup.vs_host})
+        # resp_3 = requests.get(f"{req_url}{v_s_route_setup.route_s.paths[0]}", headers={"host": v_s_route_setup.vs_host})
+        # assert resp_1.status_code == 502
+        # assert resp_2.status_code == 200
+        # assert resp_3.status_code == 200
+        # events_ns_1 = get_events(kube_apis.v1, v_s_route_setup.route_m.namespace)
+        # events_ns_2 = get_events(kube_apis.v1, v_s_route_setup.route_s.namespace)
+        # assert_event_and_count(vsr_1_event_text, 2, events_ns_1)
+        # assert_event_with_full_equality_and_count(vs_event_text, initial_count_vs + 6, events_ns_1)
+        # assert_event_and_count(vsr_2_event_text, initial_count_vsr_2 + 7, events_ns_2)
+
+        # print("\nStep 9: restore backend service and check")
+        # create_service_with_name(kube_apis.v1, v_s_route_setup.route_m.namespace, "backend1-svc")
+        # wait_before_test(1)
+        # resp_1 = requests.get(f"{req_url}{v_s_route_setup.route_m.paths[0]}", headers={"host": v_s_route_setup.vs_host})
+        # resp_2 = requests.get(f"{req_url}{v_s_route_setup.route_m.paths[1]}", headers={"host": v_s_route_setup.vs_host})
+        # resp_3 = requests.get(f"{req_url}{v_s_route_setup.route_s.paths[0]}", headers={"host": v_s_route_setup.vs_host})
+        # assert_responses_and_server_name(resp_1, resp_2, resp_3)
+        # events_ns_1 = get_events(kube_apis.v1, v_s_route_setup.route_m.namespace)
+        # events_ns_2 = get_events(kube_apis.v1, v_s_route_setup.route_s.namespace)
+        # assert_event_and_count(vsr_1_event_text, 3, events_ns_1)
+        # assert_event_with_full_equality_and_count(vs_event_text, initial_count_vs + 7, events_ns_1)
+        # assert_event_and_count(vsr_2_event_text, initial_count_vsr_2 + 8, events_ns_2)
+
+        # print("\nStep 10: remove VS and check")
+        # delete_virtual_server(kube_apis.custom_objects, v_s_route_setup.vs_name, v_s_route_setup.namespace)
+        # wait_before_test(1)
+        # resp_1 = requests.get(f"{req_url}{v_s_route_setup.route_m.paths[0]}", headers={"host": v_s_route_setup.vs_host})
+        # resp_2 = requests.get(f"{req_url}{v_s_route_setup.route_m.paths[1]}", headers={"host": v_s_route_setup.vs_host})
+        # resp_3 = requests.get(f"{req_url}{v_s_route_setup.route_s.paths[0]}", headers={"host": v_s_route_setup.vs_host})
+        # assert resp_1.status_code == 404
+        # assert resp_2.status_code == 404
+        # assert resp_3.status_code == 404
+        # list0_list_ns_1 = get_events(kube_apis.v1, v_s_route_setup.route_m.namespace)
+        # list0_list_ns_2 = get_events(kube_apis.v1, v_s_route_setup.route_s.namespace)
+        # assert_event_and_count(vsr_1_event_text, 3, list0_list_ns_1)
+        # assert_event_with_full_equality_and_count(vs_event_text, initial_count_vs + 7, list0_list_ns_1)
+        # assert_event_and_count(vsr_2_event_text, initial_count_vsr_2 + 8, list0_list_ns_2)
+
+        # print("\nStep 11: restore VS and check")
+        # create_virtual_server_from_yaml(
+        #     kube_apis.custom_objects,
+        #     f"{TEST_DATA}/virtual-server-route/standard/virtual-server.yaml",
+        #     v_s_route_setup.namespace,
+        # )
+        # wait_before_test(1)
+        # resp_1 = requests.get(f"{req_url}{v_s_route_setup.route_m.paths[0]}", headers={"host": v_s_route_setup.vs_host})
+        # resp_2 = requests.get(f"{req_url}{v_s_route_setup.route_m.paths[1]}", headers={"host": v_s_route_setup.vs_host})
+        # resp_3 = requests.get(f"{req_url}{v_s_route_setup.route_s.paths[0]}", headers={"host": v_s_route_setup.vs_host})
+        # assert_responses_and_server_name(resp_1, resp_2, resp_3)
+        # list1_list_ns_1 = get_events(kube_apis.v1, v_s_route_setup.route_m.namespace)
+        # list1_list_ns_2 = get_events(kube_apis.v1, v_s_route_setup.route_s.namespace)
+        # assert_event_and_count(vsr_1_event_text, 4, list1_list_ns_1)
+        # assert_event_with_full_equality_and_count(vs_event_text, 1, list1_list_ns_1)
+        # assert_event_and_count(vsr_2_event_text, initial_count_vsr_2 + 9, list1_list_ns_2)
