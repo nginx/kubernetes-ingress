@@ -725,13 +725,19 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 // parseConfigMapOIDC parses OIDC timeout configuration from ConfigMap.
 func parseConfigMapOIDC(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *ConfigParams, eventLog record.EventRecorder) error {
 	timeSuggestion := "must be a valid nginx time (e.g. '90s', '5m', '1h')"
+	sizeSuggestion := "must be a valid nginx size (e.g. '16k', '1m')"
 
 	// curry the parseStringField function for time parsing
 	parseTimeField := func(fieldName string, assignFunc func(value string)) error {
 		return parseStringField(cfgm, fieldName, ParseTime, assignFunc, timeSuggestion, l, eventLog)
 	}
 
-	// Parse the fields
+	// curry the parseStringField function for size parsing
+	parseSizeField := func(fieldName string, assignFunc func(value string)) error {
+		return parseStringField(cfgm, fieldName, ParseSize, assignFunc, sizeSuggestion, l, eventLog)
+	}
+
+	// Parse the time fields
 	err := parseTimeField("oidc-pkce-timeout", func(value string) {
 		cfgParams.OIDC.PKCETimeout = value
 	})
@@ -765,6 +771,42 @@ func parseConfigMapOIDC(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *ConfigPar
 	})
 	if err != nil {
 		return fmt.Errorf("parsing 'oidc-sids-timeout': %w", err)
+	}
+
+	// Parse the size fields
+	err = parseSizeField("oidc-pkce-zone-size", func(value string) {
+		cfgParams.OIDC.PKCEZoneSize = value
+	})
+	if err != nil {
+		return fmt.Errorf("parsing 'oidc-pkce-zone-size': %w", err)
+	}
+
+	err = parseSizeField("oidc-id-token-zone-size", func(value string) {
+		cfgParams.OIDC.IDTokenZoneSize = value
+	})
+	if err != nil {
+		return fmt.Errorf("parsing 'oidc-id-token-zone-size': %w", err)
+	}
+
+	err = parseSizeField("oidc-access-zone-size", func(value string) {
+		cfgParams.OIDC.AccessZoneSize = value
+	})
+	if err != nil {
+		return fmt.Errorf("parsing 'oidc-access-zone-size': %w", err)
+	}
+
+	err = parseSizeField("oidc-refresh-zone-size", func(value string) {
+		cfgParams.OIDC.RefreshZoneSize = value
+	})
+	if err != nil {
+		return fmt.Errorf("parsing 'oidc-refresh-zone-size': %w", err)
+	}
+
+	err = parseSizeField("oidc-sids-zone-size", func(value string) {
+		cfgParams.OIDC.SIDSZoneSize = value
+	})
+	if err != nil {
+		return fmt.Errorf("parsing 'oidc-sids-zone-size': %w", err)
 	}
 
 	return nil
