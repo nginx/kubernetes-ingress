@@ -597,7 +597,7 @@ func TestParseConfigMapOIDCErrors(t *testing.T) {
 		{
 			configMap: &v1.ConfigMap{
 				Data: map[string]string{
-					"oidc-id-token-zone-size": "123abc",
+					"oidc-id-tokens-zone-size": "123abc",
 				},
 			},
 			expectedErr: true,
@@ -606,7 +606,7 @@ func TestParseConfigMapOIDCErrors(t *testing.T) {
 		{
 			configMap: &v1.ConfigMap{
 				Data: map[string]string{
-					"oidc-access-zone-size": "1.5M",
+					"oidc-access-tokens-zone-size": "1.5M",
 				},
 			},
 			expectedErr: true,
@@ -615,7 +615,7 @@ func TestParseConfigMapOIDCErrors(t *testing.T) {
 		{
 			configMap: &v1.ConfigMap{
 				Data: map[string]string{
-					"oidc-refresh-zone-size": "",
+					"oidc-refresh-tokens-zone-size": "",
 				},
 			},
 			expectedErr: true,

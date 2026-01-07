@@ -789,21 +789,21 @@ func parseConfigMapOIDC(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *ConfigPar
 			functionType: parseSizeField,
 		},
 		{
-			key: "oidc-id-token-zone-size",
+			key: "oidc-id-tokens-zone-size",
 			assignFunc: func(value string) {
 				cfgParams.OIDC.IDTokenZoneSize = value
 			},
 			functionType: parseSizeField,
 		},
 		{
-			key: "oidc-access-zone-size",
+			key: "oidc-access-tokens-zone-size",
 			assignFunc: func(value string) {
 				cfgParams.OIDC.AccessZoneSize = value
 			},
 			functionType: parseSizeField,
 		},
 		{
-			key: "oidc-refresh-zone-size",
+			key: "oidc-refresh-tokens-zone-size",
 			assignFunc: func(value string) {
 				cfgParams.OIDC.RefreshZoneSize = value
 			},
