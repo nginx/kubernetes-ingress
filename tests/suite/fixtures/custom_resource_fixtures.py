@@ -219,26 +219,40 @@ def v_s_route_selector_app_setup(request, kube_apis, v_s_route_selector_setup) -
     """
     Prepare an example app for Virtual Server Route Selector.
 
-    1 backend deployment and service in the same namespace as VS and VSR.
+    1st namespace with backend1-svc and backend3-svc and deployment and 2nd namespace with backend2-svc and deployment.
 
     :param request: internal pytest fixture
     :param kube_apis: client apis
-    :param v_s_route_selector_setup:
+    :param v_s_route_setup:
     :return:
     """
-    print("---------------------- Deploy a VS Route Selector Example Application ----------------------------")
-    svc_one = create_service_with_name(kube_apis.v1, v_s_route_selector_setup.route_s.namespace, "backend1-svc")
+    print("---------------------- Deploy a VS Route Example Application ----------------------------")
+    svc_one = create_service_with_name(kube_apis.v1, v_s_route_selector_setup.route_m.namespace, "backend1-svc")
+    svc_three = create_service_with_name(kube_apis.v1, v_s_route_selector_setup.route_m.namespace, "backend3-svc")
     deployment_one = create_deployment_with_name(
-        kube_apis.apps_v1_api, v_s_route_selector_setup.route_s.namespace, "backend1"
+        kube_apis.apps_v1_api, v_s_route_selector_setup.route_m.namespace, "backend1"
+    )
+    deployment_three = create_deployment_with_name(
+        kube_apis.apps_v1_api, v_s_route_selector_setup.route_m.namespace, "backend3"
     )
 
+    svc_two = create_service_with_name(kube_apis.v1, v_s_route_selector_setup.route_s.namespace, "backend2-svc")
+    deployment_two = create_deployment_with_name(
+        kube_apis.apps_v1_api, v_s_route_selector_setup.route_s.namespace, "backend2"
+    )
+
+    wait_until_all_pods_are_ready(kube_apis.v1, v_s_route_selector_setup.route_m.namespace)
     wait_until_all_pods_are_ready(kube_apis.v1, v_s_route_selector_setup.route_s.namespace)
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
             print("Clean up the Application:")
-            delete_deployment(kube_apis.apps_v1_api, deployment_one, v_s_route_selector_setup.route_s.namespace)
-            delete_service(kube_apis.v1, svc_one, v_s_route_selector_setup.route_s.namespace)
+            delete_deployment(kube_apis.apps_v1_api, deployment_one, v_s_route_selector_setup.route_m.namespace)
+            delete_service(kube_apis.v1, svc_one, v_s_route_selector_setup.route_m.namespace)
+            delete_deployment(kube_apis.apps_v1_api, deployment_three, v_s_route_selector_setup.route_m.namespace)
+            delete_service(kube_apis.v1, svc_three, v_s_route_selector_setup.route_m.namespace)
+            delete_deployment(kube_apis.apps_v1_api, deployment_two, v_s_route_selector_setup.route_s.namespace)
+            delete_service(kube_apis.v1, svc_two, v_s_route_selector_setup.route_s.namespace)
 
     request.addfinalizer(fin)
 
@@ -382,24 +396,30 @@ def v_s_route_selector_setup(
     vs_host = get_first_host_from_yaml(f"{TEST_DATA}/{request.param['example']}/standard/virtual-server.yaml")
 
     print("------------------------- Deploy Virtual Server Route Selector -----------------------------------")
-    vsr_s_name = create_v_s_route_from_yaml(
+    vsr_m_name = create_v_s_route_from_yaml(
         kube_apis.custom_objects,
-        f"{TEST_DATA}/{request.param['example']}/route-selector-single.yaml",
+        f"{TEST_DATA}/{request.param['example']}/route-multiple.yaml",
         test_namespace,
     )
+    vsr_m_paths = get_paths_from_vsr_yaml(f"{TEST_DATA}/{request.param['example']}/route-multiple.yaml")
+    route_m = VirtualServerRoute(test_namespace, vsr_m_name, vsr_m_paths)
 
-    vsr_s_paths = get_paths_from_vsr_yaml(f"{TEST_DATA}/{request.param['example']}/route-selector-single.yaml")
+    vsr_s_name = create_v_s_route_from_yaml(
+        kube_apis.custom_objects, f"{TEST_DATA}/{request.param['example']}/route-single.yaml", test_namespace
+    )
+    vsr_s_paths = get_paths_from_vsr_yaml(f"{TEST_DATA}/{request.param['example']}/route-single.yaml")
     route_s = VirtualServerRoute(test_namespace, vsr_s_name, vsr_s_paths)
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
             print("Clean up the Virtual Server Route:")
+            delete_v_s_route(kube_apis.custom_objects, vsr_m_name, test_namespace)
             delete_v_s_route(kube_apis.custom_objects, vsr_s_name, test_namespace)
             print("Clean up Virtual Server:")
             delete_virtual_server(kube_apis.custom_objects, vs_name, test_namespace)
-            print("Delete test namespaces")
+            print("Delete test namespace")
             delete_namespace(kube_apis.v1, test_namespace)
 
     request.addfinalizer(fin)
 
-    return VirtualServerRouteSetup(ingress_controller_endpoint, test_namespace, vs_host, vs_name, route_s, route_s)
+    return VirtualServerRouteSetup(ingress_controller_endpoint, test_namespace, vs_host, vs_name, route_m, route_s)

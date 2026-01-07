@@ -1,7 +1,7 @@
 apiVersion: k8s.nginx.org/v1
 kind: VirtualServerRoute
 metadata:
-  name: backend1
+  name: backends
   labels:
     app: backends
 spec:
@@ -10,7 +10,13 @@ spec:
   - name: backend1
     service: backend1-svc
     port: 80
+  - name: backend3
+    service: backend3-svc
+    port: 80
   subroutes:
-  - path: "/backend1"
+  - path: "/backends/backend1"
     action:
       pass: backend1
+  - path: "/backends/backend3"
+    action:
+      pass: backend3
