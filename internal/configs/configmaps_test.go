@@ -407,6 +407,60 @@ func TestParseConfigMapOIDC(t *testing.T) {
 			},
 			msg: "custom SIDS timeout only",
 		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-pkce-zone-size": "1m",
+				},
+			},
+			want: &OIDC{
+				PKCEZoneSize: "1m",
+			},
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-id-tokens-zone-size": "2m",
+				},
+			},
+			want: &OIDC{
+				IDTokenZoneSize: "2m",
+			},
+			msg: "custom ID token zone size only",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-access-tokens-zone-size": "3m",
+				},
+			},
+			want: &OIDC{
+				AccessZoneSize: "3m",
+			},
+			msg: "custom access token zone size only",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-refresh-tokens-zone-size": "4m",
+				},
+			},
+			want: &OIDC{
+				RefreshZoneSize: "4m",
+			},
+			msg: "custom refresh token zone size only",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-sids-zone-size": "5m",
+				},
+			},
+			want: &OIDC{
+				SIDSZoneSize: "5m",
+			},
+			msg: "custom SIDS zone size only",
+		},
 	}
 
 	nginxPlus := true
