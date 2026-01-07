@@ -41,6 +41,8 @@ import (
 	k8s_nginx "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned"
 	vsfake "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/fake"
 	vsinformers "github.com/nginx/kubernetes-ingress/pkg/client/informers/externalversions"
+	clientfeatures "k8s.io/client-go/features"
+	clienttesting "k8s.io/client-go/features/testing"
 )
 
 // Builder is a structure used to construct new Contexts for use during tests.
@@ -108,6 +110,9 @@ func (b *Builder) Init() {
 	b.FakeKubeClient().PrependReactor("create", "*", b.generateNameReactor)
 	b.FakeCMClient().PrependReactor("create", "*", b.generateNameReactor)
 	b.FakeVSClient().PrependReactor("create", "*", b.generateNameReactor)
+	// Borrowed from cert-manager to disable WatchListClient feature gate
+	// FIXME: It seems like we need to disable the WatchListClient feature gate until our gateway-api dependency is bumped to K8s 1.35
+	clienttesting.SetFeatureDuringTest(b.T, clientfeatures.WatchListClient, false)
 	b.KubeSharedInformerFactory = kubeinformers.NewSharedInformerFactory(b.Client, informerResyncPeriod)
 	b.SharedInformerFactory = informers.NewSharedInformerFactory(b.CMClient, informerResyncPeriod)
 	b.VsSharedInformerFactory = vsinformers.NewSharedInformerFactory(b.VSClient, informerResyncPeriod)
