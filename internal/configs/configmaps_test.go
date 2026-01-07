@@ -585,6 +585,51 @@ func TestParseConfigMapOIDCErrors(t *testing.T) {
 			expectedErr: true,
 			msg:         "multiple time values without proper format",
 		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-pkce-zone-size": "invalid-size",
+				},
+			},
+			expectedErr: true,
+			msg:         "invalid PKCE zone size format",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-id-token-zone-size": "123abc",
+				},
+			},
+			expectedErr: true,
+			msg:         "invalid ID token zone size format",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-access-zone-size": "1.5M",
+				},
+			},
+			expectedErr: true,
+			msg:         "invalid access token zone size format",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-refresh-zone-size": "",
+				},
+			},
+			expectedErr: true,
+			msg:         "empty refresh token zone size",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-sids-zone-size": "   ",
+				},
+			},
+			expectedErr: true,
+			msg:         "whitespace-only SIDS zone size",
+		},
 	}
 
 	nginxPlus := true
