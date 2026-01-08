@@ -1,6 +1,7 @@
 package nginx
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
@@ -73,6 +74,10 @@ type ServerConfig struct {
 type Manager interface {
 	CreateMainConfig(content []byte) bool
 	CreateConfig(name string, content []byte) bool
+	CreateConfigSafe(name string, content []byte) (bool, error)
+	TestConfig() error
+	CreateStreamConfigSafe(name string, content []byte) (bool, error)
+	CreateTLSPassthroughHostsConfigSafe(content []byte) (bool, error)
 	DeleteConfig(name string)
 	CreateStreamConfig(name string, content []byte) bool
 	DeleteStreamConfig(name string)
@@ -223,6 +228,126 @@ func deleteConfig(l *slog.Logger, filename string) {
 
 func (lm *LocalManager) getFilenameForConfig(name string) string {
 	return path.Join(lm.confdPath, name+".conf")
+}
+
+// TestConfig tests the nginx configuration for syntax errors and file accessibility.
+func (lm *LocalManager) TestConfig() error {
+	nl.Debugf(lm.logger, "Testing nginx configuration")
+
+	binaryFilename := getBinaryFileName(lm.debug)
+	testCmd := fmt.Sprintf("%v -t -q", binaryFilename)
+
+	if err := shellOut(lm.logger, testCmd); err != nil {
+		return fmt.Errorf("nginx configuration test failed: %w", err)
+	}
+
+	nl.Debugf(lm.logger, "Nginx configuration test passed")
+	return nil
+}
+
+// CreateConfigSafe creates a configuration file after validating it won't break nginx.
+// If validation fails, attempts rollback to previous working config.
+func (lm *LocalManager) CreateConfigSafe(name string, content []byte) (bool, error) {
+	// Check if we're trying to recreate a config that was just processed
+	// This prevents repeated processing of the same invalid config
+	existingConfigPath := lm.getFilenameForConfig(name)
+	// #nosec G304 -- existingConfigPath is constructed from safe internal path
+	if existingContent, err := os.ReadFile(existingConfigPath); err == nil {
+		// If the existing config is identical to what we're trying to write,
+		// we need to check if the current overall nginx config is valid
+		if bytes.Equal(existingContent, content) {
+			// If nginx config is currently valid, this means the existing config is working
+			// and we don't need to reprocess it (it's already applied successfully)
+			if testErr := lm.TestConfig(); testErr == nil {
+				nl.Debugf(lm.logger, "Configuration %s is already applied and working", name)
+				return false, nil // No change needed, config already working
+			}
+			// If nginx config is invalid, then the identical config on disk failed before
+			// Don't reprocess the same invalid config
+			return false, fmt.Errorf("configuration %s was already validated and found invalid", name)
+		}
+	}
+
+	// Store backup of existing working config before making changes
+	var previousConfig []byte
+	var hadPreviousConfig bool
+	// #nosec G304 -- existingConfigPath is constructed from safe internal path
+	if existingContent, err := os.ReadFile(existingConfigPath); err == nil {
+		// Only consider it a "previous working config" if current nginx config is valid
+		if testErr := lm.TestConfig(); testErr == nil {
+			previousConfig = existingContent
+			hadPreviousConfig = true
+			nl.Debugf(lm.logger, "Backing up current working config for %s", name)
+		}
+	}
+
+	// Write the new config
+	changed := lm.CreateConfig(name, content)
+
+	// Test the configuration with the new config in place
+	if err := lm.TestConfig(); err != nil {
+		nl.Debugf(lm.logger, "Nginx configuration validation failed for %s: %v", name, err)
+
+		// Rollback to previous working config if available
+		if hadPreviousConfig {
+			nl.Infof(lm.logger, "Rolling back %s to previous working configuration", name)
+
+			// Restore the previous working config
+			if rollbackErr := createFileAndWrite(existingConfigPath, previousConfig); rollbackErr != nil {
+				nl.Errorf(lm.logger, "Failed to rollback %s to previous config: %v", name, rollbackErr)
+				// Delete the invalid config to prevent further issues
+				lm.DeleteConfig(name)
+				return false, fmt.Errorf("configuration validation failed and rollback failed for %s: %w", name, err)
+			}
+
+			// Test if rollback worked
+			if testErr := lm.TestConfig(); testErr == nil {
+				nl.Infof(lm.logger, "Successfully rolled back %s to previous working configuration", name)
+				// Trigger reload to restart workers with rolled back configuration
+				if reloadErr := lm.Reload(false); reloadErr != nil {
+					nl.Warnf(lm.logger, "Failed to reload after rollback: %v", reloadErr)
+				} else {
+					nl.Infof(lm.logger, "Successfully reloaded nginx after rollback, workers restarted")
+				}
+				return false, fmt.Errorf("configuration validation failed for %s, rolled back to previous working config", name)
+			}
+			testErr := lm.TestConfig()
+			nl.Warnf(lm.logger, "Rollback of %s didn't resolve validation issues: %v", name, testErr)
+			// Delete the config to prevent further issues since rollback didn't work
+			lm.DeleteConfig(name)
+			return false, fmt.Errorf("configuration validation failed and rollback didn't resolve issues for %s: %w", name, err)
+		}
+		// No previous config exists, delete the invalid config
+		nl.Warnf(lm.logger, "No previous config to rollback to for %s, deleting invalid config", name)
+		lm.DeleteConfig(name)
+		return false, fmt.Errorf("configuration validation failed for %s: %w", name, err)
+	}
+
+	// If we get here, the config is valid and nginx can reload successfully
+	return changed, nil
+}
+
+// CreateStreamConfigSafe creates a stream configuration file after validating it won't break nginx.
+func (lm *LocalManager) CreateStreamConfigSafe(name string, content []byte) (bool, error) {
+	// For now, just use the regular CreateStreamConfig since we're focusing on rollback protection
+	// Needs more work to implement similar rollback logic as in CreateConfigSafe
+	changed := lm.CreateStreamConfig(name, content)
+	if err := lm.TestConfig(); err != nil {
+		lm.DeleteStreamConfig(name)
+		return false, fmt.Errorf("stream configuration validation failed for %s: %w", name, err)
+	}
+	return changed, nil
+}
+
+// CreateTLSPassthroughHostsConfigSafe creates a TLS passthrough hosts configuration after validating it won't break nginx.
+func (lm *LocalManager) CreateTLSPassthroughHostsConfigSafe(content []byte) (bool, error) {
+	// For now, just use the regular CreateTLSPassthroughHostsConfig since we're focusing on rollback protection
+	// Needs more work to implement similar rollback logic as in CreateConfigSafe
+	changed := lm.CreateTLSPassthroughHostsConfig(content)
+	if err := lm.TestConfig(); err != nil {
+		return false, fmt.Errorf("TLS passthrough hosts configuration validation failed: %w", err)
+	}
+	return changed, nil
 }
 
 func (lm *LocalManager) getFilenameForOIDCConfig(name string) string {

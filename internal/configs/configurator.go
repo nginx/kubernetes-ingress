@@ -455,7 +455,10 @@ func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) (bool, Warnings, e
 	if err != nil {
 		return false, warnings, fmt.Errorf("error generating Ingress Config %v: %w", name, err)
 	}
-	configChanged := cnf.nginxManager.CreateConfig(name, content)
+	configChanged, err := cnf.nginxManager.CreateConfigSafe(name, content)
+	if err != nil {
+		return false, warnings, fmt.Errorf("error validating Ingress config %v: %w", name, err)
+	}
 
 	cnf.ingresses[name] = ingEx
 	if (cnf.isPlus && cnf.isPrometheusEnabled) || cnf.isLatencyMetricsEnabled {
@@ -537,7 +540,10 @@ func (cnf *Configurator) addOrUpdateMergeableIngress(mergeableIngs *MergeableIng
 	if err != nil {
 		return false, warnings, fmt.Errorf("error generating Ingress Config %v: %w", name, err)
 	}
-	changed := cnf.nginxManager.CreateConfig(name, content)
+	changed, err := cnf.nginxManager.CreateConfigSafe(name, content)
+	if err != nil {
+		return false, warnings, fmt.Errorf("error validating Ingress config %v: %w", name, err)
+	}
 
 	cnf.ingresses[name] = mergeableIngs.Master
 	cnf.minions[name] = make(map[string]bool)
@@ -677,7 +683,10 @@ func (cnf *Configurator) addOrUpdateVirtualServer(virtualServerEx *VirtualServer
 	if err != nil {
 		return false, warnings, weightUpdates, fmt.Errorf("error generating VirtualServer config: %v: %w", name, err)
 	}
-	changed := cnf.nginxManager.CreateConfig(name, content)
+	changed, err := cnf.nginxManager.CreateConfigSafe(name, content)
+	if err != nil {
+		return false, warnings, weightUpdates, fmt.Errorf("error validating VirtualServer config %v: %w", name, err)
+	}
 
 	if vsCfg.Server.OIDC != nil {
 		name := getFileNameForOIDCVirtualServer(virtualServerEx.VirtualServer)
