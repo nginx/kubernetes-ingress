@@ -2,6 +2,7 @@ apiVersion: k8s.nginx.org/v1
 kind: VirtualServerRoute
 metadata:
   name: backends
+  namespace: backends
   labels:
     app: backends
 spec:

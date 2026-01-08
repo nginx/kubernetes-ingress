@@ -26,6 +26,7 @@ from suite.utils.vs_vsr_resources_utils import (
 )
 from suite.utils.yaml_utils import (
     get_first_host_from_yaml,
+    get_namespace_from_yaml,
     get_paths_from_vs_yaml,
     get_paths_from_vsr_yaml,
     get_route_namespace_from_vs_yaml,
@@ -396,13 +397,17 @@ def v_s_route_selector_setup(
     vs_host = get_first_host_from_yaml(f"{TEST_DATA}/{request.param['example']}/standard/virtual-server.yaml")
 
     print("------------------------- Deploy Virtual Server Route Selector -----------------------------------")
+    vsr_m_yaml_path = f"{TEST_DATA}/{request.param['example']}/route-multiple.yaml"
+    vsr_m_namespace = get_namespace_from_yaml(vsr_m_yaml_path)
+    create_namespace_with_name_from_yaml(kube_apis.v1, vsr_m_namespace, f"{TEST_DATA}/common/ns.yaml")
+
     vsr_m_name = create_v_s_route_from_yaml(
         kube_apis.custom_objects,
-        f"{TEST_DATA}/{request.param['example']}/route-multiple.yaml",
-        test_namespace,
+        vsr_m_yaml_path,
+        vsr_m_namespace,
     )
-    vsr_m_paths = get_paths_from_vsr_yaml(f"{TEST_DATA}/{request.param['example']}/route-multiple.yaml")
-    route_m = VirtualServerRoute(test_namespace, vsr_m_name, vsr_m_paths)
+    vsr_m_paths = get_paths_from_vsr_yaml(vsr_m_yaml_path)
+    route_m = VirtualServerRoute(vsr_m_namespace, vsr_m_name, vsr_m_paths)
 
     vsr_s_name = create_v_s_route_from_yaml(
         kube_apis.custom_objects, f"{TEST_DATA}/{request.param['example']}/route-single.yaml", test_namespace
@@ -413,12 +418,13 @@ def v_s_route_selector_setup(
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
             print("Clean up the Virtual Server Route:")
-            delete_v_s_route(kube_apis.custom_objects, vsr_m_name, test_namespace)
+            delete_v_s_route(kube_apis.custom_objects, vsr_m_name, vsr_m_namespace)
             delete_v_s_route(kube_apis.custom_objects, vsr_s_name, test_namespace)
             print("Clean up Virtual Server:")
             delete_virtual_server(kube_apis.custom_objects, vs_name, test_namespace)
-            print("Delete test namespace")
+            print("Cleanup test namespaces:")
             delete_namespace(kube_apis.v1, test_namespace)
+            delete_namespace(kube_apis.v1, vsr_m_namespace)
 
     request.addfinalizer(fin)
 
