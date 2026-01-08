@@ -94,6 +94,7 @@ type Server struct {
 	HTTP2                  bool
 	RedirectToHTTPS        bool
 	SSLRedirect            bool
+	HTTPRedirectCode       int
 	ProxyProtocol          bool
 	HSTS                   bool
 	HSTSMaxAge             int64
@@ -132,6 +133,8 @@ type Server struct {
 	SpiffeCerts bool
 
 	DisableIPV6 bool
+
+	AppRoot string
 }
 
 // JWTRedirectLocation describes a location for redirecting client requests to a login URL for JWT Authentication.

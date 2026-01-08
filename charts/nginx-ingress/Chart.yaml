@@ -5,10 +5,10 @@ appVersion: 5.4.0
 kubeVersion: ">= 1.25.0-0"
 type: application
 description: NGINX Ingress Controller
-icon: https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.3.0/charts/nginx-ingress/chart-icon.png
+icon: https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.3.1/charts/nginx-ingress/chart-icon.png
 home: https://github.com/nginx/kubernetes-ingress
 sources:
-  - https://github.com/nginx/kubernetes-ingress/tree/v5.3.0/charts/nginx-ingress
+  - https://github.com/nginx/kubernetes-ingress/tree/v5.3.1/charts/nginx-ingress
 keywords:
   - ingress
   - nginx

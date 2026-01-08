@@ -176,6 +176,11 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "startupstatus",
 			namespace:   "default",
 		},
+		"listConfigurations": {
+			valuesFile:  "testdata/list-configurations.yaml",
+			releaseName: "list-configs",
+			namespace:   "default",
+		},
 	}
 
 	// Path to the helm chart we will test

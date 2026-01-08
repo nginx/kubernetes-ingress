@@ -163,6 +163,7 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 			HTTP2:                  cfgParams.HTTP2,
 			RedirectToHTTPS:        cfgParams.RedirectToHTTPS,
 			SSLRedirect:            cfgParams.SSLRedirect,
+			HTTPRedirectCode:       cfgParams.HTTPRedirectCode,
 			SSLCiphers:             cfgParams.ServerSSLCiphers,
 			SSLPreferServerCiphers: cfgParams.ServerSSLPreferServerCiphers,
 			ProxyProtocol:          cfgParams.ProxyProtocol,
@@ -184,6 +185,7 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 			AppProtectLogEnable:    cfgParams.AppProtectLogEnable,
 			SpiffeCerts:            cfgParams.SpiffeServerCerts,
 			DisableIPV6:            p.staticParams.DisableIPV6,
+			AppRoot:                cfgParams.AppRoot,
 		}
 
 		warnings := addSSLConfig(&server, p.ingEx.Ingress, rule.Host, p.ingEx.Ingress.Spec.TLS, p.ingEx.SecretRefs, p.isWildcardEnabled)

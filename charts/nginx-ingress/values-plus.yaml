@@ -3,4 +3,4 @@ controller:
   nginxplus: true
   image:
     repository: nginx-plus-ingress
-    tag: "5.3.0"
+    tag: "5.3.1"
