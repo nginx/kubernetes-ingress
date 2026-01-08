@@ -103,9 +103,9 @@ func (b *Builder) Init() {
 		b.StringGenerator = RandStringBytes
 	}
 	b.requiredReactors = make(map[string]bool)
-	b.Client = kubefake.NewSimpleClientset(b.KubeObjects...)
-	b.CMClient = cmfake.NewSimpleClientset(b.CertManagerObjects...)
-	b.VSClient = vsfake.NewSimpleClientset(b.VSObjects...)
+	b.Client = kubefake.NewClientset(b.KubeObjects...)
+	b.CMClient = cmfake.NewClientset(b.CertManagerObjects...)
+	b.VSClient = vsfake.NewClientset(b.VSObjects...)
 	b.Recorder = new(FakeRecorder)
 	b.FakeKubeClient().PrependReactor("create", "*", b.generateNameReactor)
 	b.FakeCMClient().PrependReactor("create", "*", b.generateNameReactor)

@@ -88,7 +88,7 @@ func TestK8sVersionValidation(t *testing.T) {
 			ctx := nl.ContextWithLogger(context.Background(), l)
 
 			// setup kube client with version
-			clientset := fake.NewSimpleClientset()
+			clientset := fake.NewClientset()
 			fakeDiscovery, _ := clientset.Discovery().(*fakediscovery.FakeDiscovery)
 			fakeDiscovery.FakedServerVersion = &pkgversion.Info{GitVersion: tc.kubeVersion}
 
@@ -127,7 +127,7 @@ func TestK8sVersionValidationBad(t *testing.T) {
 			ctx := nl.ContextWithLogger(context.Background(), l)
 
 			// setup kube client with version
-			clientset := fake.NewSimpleClientset()
+			clientset := fake.NewClientset()
 			fakeDiscovery, _ := clientset.Discovery().(*fakediscovery.FakeDiscovery)
 			fakeDiscovery.FakedServerVersion = &pkgversion.Info{GitVersion: tc.kubeVersion}
 
@@ -354,7 +354,7 @@ func TestCreateHeadlessService(t *testing.T) {
 			if tc.existingService != nil {
 				clientObjects = append(clientObjects, tc.existingService)
 			}
-			clientset := fake.NewSimpleClientset(clientObjects...)
+			clientset := fake.NewClientset(clientObjects...)
 
 			err := createHeadlessService(logger, clientset, controllerNamespace, svcName, configMapNamespacedName, pod)
 			assert.NoError(t, err)

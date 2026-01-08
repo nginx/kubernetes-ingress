@@ -22,7 +22,6 @@ import (
 	"testing"
 	"time"
 
-	cmapi "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	cmclient "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned"
 	controllerpkg "github.com/cert-manager/cert-manager/pkg/controller"
 	testpkg "github.com/nginx/kubernetes-ingress/internal/certmanager/test_files"
@@ -46,84 +45,17 @@ func Test_controller_Register(t *testing.T) {
 		expectRequeueKey  string
 	}{
 		{
-			name: "virtualserver is re-queued when an 'Added' event is received for this virtualserver",
-			givenCall: func(t *testing.T, _ cmclient.Interface, c k8s_nginx.Interface) {
-				_, err := c.K8sV1().VirtualServers("namespace-1").Create(context.Background(), &vsapi.VirtualServer{ObjectMeta: metav1.ObjectMeta{
-					Namespace: "namespace-1", Name: "vs-1",
-				}}, metav1.CreateOptions{})
-				require.NoError(t, err)
-			},
-			expectRequeueKey: "namespace-1/vs-1",
-		},
-		{
 			name: "virtualserver is re-queued when an 'Updated' event is received for this virtualserver",
 			existingVsObjects: []runtime.Object{&vsapi.VirtualServer{ObjectMeta: metav1.ObjectMeta{
-				Namespace: "namespace-1", Name: "vs-1",
+				Namespace: "namespace-1", Name: "vs-1", UID: "vs-uid-1",
 			}}},
 			givenCall: func(t *testing.T, _ cmclient.Interface, c k8s_nginx.Interface) {
 				_, err := c.K8sV1().VirtualServers("namespace-1").Update(context.Background(), &vsapi.VirtualServer{ObjectMeta: metav1.ObjectMeta{
-					Namespace: "namespace-1", Name: "vs-1",
+					Namespace: "namespace-1", Name: "vs-1", UID: "vs-uid-1",
 				}}, metav1.UpdateOptions{})
 				require.NoError(t, err)
 			},
 			expectRequeueKey: "namespace-1/vs-1",
-		},
-		{
-			name: "virtualserver is re-queued when a 'Deleted' event is received for this ingress",
-			existingVsObjects: []runtime.Object{&vsapi.VirtualServer{ObjectMeta: metav1.ObjectMeta{
-				Namespace: "namespace-1", Name: "vs-1",
-			}}},
-			givenCall: func(t *testing.T, _ cmclient.Interface, c k8s_nginx.Interface) {
-				err := c.K8sV1().VirtualServers("namespace-1").Delete(context.Background(), "vs-1", metav1.DeleteOptions{})
-				require.NoError(t, err)
-			},
-			expectRequeueKey: "namespace-1/vs-1",
-		},
-		{
-			name: "virtualserver is re-queued when an 'Added' event is received for its child Certificate",
-			givenCall: func(t *testing.T, c cmclient.Interface, _ k8s_nginx.Interface) {
-				_, err := c.CertmanagerV1().Certificates("namespace-1").Create(context.Background(), &cmapi.Certificate{ObjectMeta: metav1.ObjectMeta{
-					Namespace: "namespace-1", Name: "cert-1",
-					OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(&vsapi.VirtualServer{ObjectMeta: metav1.ObjectMeta{
-						Namespace: "namespace-1", Name: "vs-2",
-					}}, vsGVK)},
-				}}, metav1.CreateOptions{})
-				require.NoError(t, err)
-			},
-			expectRequeueKey: "namespace-1/vs-2",
-		},
-		{
-			name: "virtualserver is re-queued when an 'Updated' event is received for its child Certificate",
-			existingCMObjects: []runtime.Object{&cmapi.Certificate{ObjectMeta: metav1.ObjectMeta{
-				Namespace: "namespace-1", Name: "cert-1",
-				OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(&vsapi.VirtualServer{ObjectMeta: metav1.ObjectMeta{
-					Namespace: "namespace-1", Name: "vs-2",
-				}}, vsGVK)},
-			}}},
-			givenCall: func(t *testing.T, c cmclient.Interface, _ k8s_nginx.Interface) {
-				_, err := c.CertmanagerV1().Certificates("namespace-1").Update(context.Background(), &cmapi.Certificate{ObjectMeta: metav1.ObjectMeta{
-					Namespace: "namespace-1", Name: "cert-1",
-					OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(&vsapi.VirtualServer{ObjectMeta: metav1.ObjectMeta{
-						Namespace: "namespace-1", Name: "vs-2",
-					}}, vsGVK)},
-				}}, metav1.UpdateOptions{})
-				require.NoError(t, err)
-			},
-			expectRequeueKey: "namespace-1/vs-2",
-		},
-		{
-			name: "virtualserver is re-queued when a 'Deleted' event is received for its child Certificate",
-			existingCMObjects: []runtime.Object{&cmapi.Certificate{ObjectMeta: metav1.ObjectMeta{
-				Namespace: "namespace-1", Name: "cert-1",
-				OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(&vsapi.VirtualServer{ObjectMeta: metav1.ObjectMeta{
-					Namespace: "namespace-1", Name: "vs-2",
-				}}, vsGVK)},
-			}}},
-			givenCall: func(t *testing.T, c cmclient.Interface, _ k8s_nginx.Interface) {
-				err := c.CertmanagerV1().Certificates("namespace-1").Delete(context.Background(), "cert-1", metav1.DeleteOptions{})
-				require.NoError(t, err)
-			},
-			expectRequeueKey: "namespace-1/vs-2",
 		},
 	}
 

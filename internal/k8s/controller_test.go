@@ -431,7 +431,7 @@ func TestFindProbeForPods(t *testing.T) {
 
 func TestGetServicePortForIngressPort(t *testing.T) {
 	t.Parallel()
-	fakeClient := fake.NewSimpleClientset()
+	fakeClient := fake.NewClientset()
 
 	cnf := configs.NewConfigurator(configs.ConfiguratorParams{
 		NginxManager:            &nginx.LocalManager{},
@@ -3476,7 +3476,7 @@ func TestNewTelemetryCollector(t *testing.T) {
 		{
 			testCase: "New Telemetry Collector with default values",
 			input: NewLoadBalancerControllerInput{
-				KubeClient:               fake.NewSimpleClientset(),
+				KubeClient:               fake.NewClientset(),
 				EnableTelemetryReporting: true,
 				LoggerContext:            context.Background(),
 			},
@@ -3490,7 +3490,7 @@ func TestNewTelemetryCollector(t *testing.T) {
 		{
 			testCase: "New Telemetry Collector with Telemetry Reporting set to false",
 			input: NewLoadBalancerControllerInput{
-				KubeClient:               fake.NewSimpleClientset(),
+				KubeClient:               fake.NewClientset(),
 				EnableTelemetryReporting: false,
 				LoggerContext:            context.Background(),
 			},
@@ -3548,7 +3548,7 @@ func TestCreateVirtualServerExWithZoneSync(t *testing.T) {
 		{
 			testCase: "VirtualServerEx without Zone sync",
 			input: NewLoadBalancerControllerInput{
-				KubeClient:               fake.NewSimpleClientset(),
+				KubeClient:               fake.NewClientset(),
 				EnableTelemetryReporting: false,
 				LoggerContext:            context.Background(),
 			},
@@ -3564,7 +3564,7 @@ func TestCreateVirtualServerExWithZoneSync(t *testing.T) {
 		{
 			testCase: "VirtualServerEx with Zone sync",
 			input: NewLoadBalancerControllerInput{
-				KubeClient:               fake.NewSimpleClientset(),
+				KubeClient:               fake.NewClientset(),
 				EnableTelemetryReporting: false,
 				LoggerContext:            context.Background(),
 				NginxConfigurator: &configs.Configurator{
@@ -3607,7 +3607,7 @@ func TestCreateIngressExWithZoneSync(t *testing.T) {
 		{
 			testCase: "IngressEx without Zone sync",
 			input: NewLoadBalancerControllerInput{
-				KubeClient:               fake.NewSimpleClientset(),
+				KubeClient:               fake.NewClientset(),
 				EnableTelemetryReporting: false,
 				LoggerContext:            context.Background(),
 			},
@@ -3619,7 +3619,7 @@ func TestCreateIngressExWithZoneSync(t *testing.T) {
 		{
 			testCase: "IngressEx with Zone sync",
 			input: NewLoadBalancerControllerInput{
-				KubeClient:               fake.NewSimpleClientset(),
+				KubeClient:               fake.NewClientset(),
 				EnableTelemetryReporting: false,
 				LoggerContext:            context.Background(),
 			},
@@ -3680,7 +3680,7 @@ func TestIsPodMarkedForDeletion(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			client := fake.NewSimpleClientset()
+			client := fake.NewClientset()
 			if test.podExists {
 				pod := &api_v1.Pod{
 					ObjectMeta: meta_v1.ObjectMeta{
