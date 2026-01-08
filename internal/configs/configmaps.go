@@ -727,12 +727,22 @@ func parseConfigMapOIDC(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *ConfigPar
 	timeSuggestion := "must be a valid nginx time (e.g. '90s', '5m', '1h')"
 	sizeSuggestion := "must be a valid nginx size (e.g. '16k', '1m')"
 
-	// curry the parseStringField function for time parsing
+	// parseTimeField is a curried version of parseStringField for time parsing.
+	// We could technically use parseStringField directly, but that would end up
+	// being repeated a lot. We would be passing in the same, unchanged
+	// parameters each time.
+	//
+	// This curried function returns a new function that already has the common
+	// arguments already passed in, so you only need to pass in the parts that
+	// change between invocations.
+	//
+	// cfgm, timeSuggestion, l (the logger), and eventLog are constant for all
+	// parseTimeField calls.
 	parseTimeField := func(fieldName string, assignFunc func(value string)) error {
 		return parseStringField(cfgm, fieldName, ParseTime, assignFunc, timeSuggestion, l, eventLog)
 	}
 
-	// curry the parseStringField function for size parsing
+	// The same as above, but it's for sizing.
 	parseSizeField := func(fieldName string, assignFunc func(value string)) error {
 		return parseStringField(cfgm, fieldName, ParseSize, assignFunc, sizeSuggestion, l, eventLog)
 	}
@@ -819,6 +829,9 @@ func parseConfigMapOIDC(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *ConfigPar
 	}
 
 	for _, field := range fields {
+		// field.functionType would be
+		// - parseTimeField or
+		// - parseSizeField
 		err = field.functionType(field.key, field.assignFunc)
 		if err != nil {
 			return fmt.Errorf("parsing '%s': %w", field.key, err)
@@ -1299,6 +1312,12 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 	return nginxCfg
 }
 
+// parseStringField is a helper function to parse, validate, and optionally
+// report errors about fields in cfgm.Data that are going to be used as strings.
+// This is used to parse and validate the OIDC configmap fields for now.
+//
+// Usage is via curried functions where the cfgm, suggestion, logger, and
+// eventLog are fixed, and only the key and assignFunc vary.
 func parseStringField(cfgm *v1.ConfigMap, key string, parseFunc func(string) (string, error), assignFunc func(string), suggestion string, l *slog.Logger, eventLog record.EventRecorder) error {
 	if value, exists := cfgm.Data[key]; exists {
 		parsedValue, err := parseFunc(value)
