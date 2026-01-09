@@ -200,11 +200,20 @@ type ZoneSync struct {
 
 // OIDC holds OIDC configuration parameters.
 type OIDC struct {
-	PKCETimeout    string
-	IDTokenTimeout string
+	PKCETimeout  string
+	PKCEZoneSize string
+
+	IDTokenTimeout  string
+	IDTokenZoneSize string
+
 	AccessTimeout  string
-	RefreshTimeout string
-	SIDSTimeout    string
+	AccessZoneSize string
+
+	RefreshTimeout  string
+	RefreshZoneSize string
+
+	SIDSTimeout  string
+	SIDSZoneSize string
 }
 
 // MGMTSecrets holds mgmt block secret names
@@ -275,11 +284,16 @@ func NewDefaultConfigParams(ctx context.Context, isPlus bool) *ConfigParams {
 		LimitReqLogLevel:              "error",
 		LimitReqRejectCode:            429,
 		OIDC: OIDC{
-			PKCETimeout:    "90s",
-			IDTokenTimeout: "1h",
-			AccessTimeout:  "1h",
-			RefreshTimeout: "8h",
-			SIDSTimeout:    "8h",
+			PKCETimeout:     "90s",
+			PKCEZoneSize:    "128K",
+			IDTokenTimeout:  "1h",
+			IDTokenZoneSize: "1M",
+			AccessTimeout:   "1h",
+			AccessZoneSize:  "1M",
+			RefreshTimeout:  "8h",
+			RefreshZoneSize: "1M",
+			SIDSTimeout:     "8h",
+			SIDSZoneSize:    "1M",
 		},
 	}
 }

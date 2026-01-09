@@ -724,56 +724,120 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 
 // parseConfigMapOIDC parses OIDC timeout configuration from ConfigMap.
 func parseConfigMapOIDC(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *ConfigParams, eventLog record.EventRecorder) error {
-	if oidcPKCETimeout, exists := cfgm.Data["oidc-pkce-timeout"]; exists {
-		pkceTimeout, err := ParseTime(oidcPKCETimeout)
-		if err != nil {
-			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'oidc-pkce-timeout': %q, must be a valid nginx time (e.g. '90s', '5m', '1h')", cfgm.Namespace, cfgm.Name, oidcPKCETimeout)
-			nl.Warn(l, errorText)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-			return err
-		}
-		cfgParams.OIDC.PKCETimeout = pkceTimeout
+	timeSuggestion := "must be a valid nginx time (e.g. '90s', '5m', '1h')"
+	sizeSuggestion := "must be a valid nginx size (e.g. '16k', '1m')"
+
+	// parseTimeField is a curried version of parseStringField for time parsing.
+	// We could technically use parseStringField directly, but that would end up
+	// being repeated a lot. We would be passing in the same, unchanged
+	// parameters each time.
+	//
+	// This curried function returns a new function that already has the common
+	// arguments already passed in, so you only need to pass in the parts that
+	// change between invocations.
+	//
+	// cfgm, timeSuggestion, l (the logger), and eventLog are constant for all
+	// parseTimeField calls.
+	parseTimeField := func(fieldName string, assignFunc func(value string)) error {
+		return parseStringField(cfgm, fieldName, ParseTime, assignFunc, timeSuggestion, l, eventLog)
 	}
-	if oidcIDTokensTimeout, exists := cfgm.Data["oidc-id-tokens-timeout"]; exists {
-		idTokensTimeout, err := ParseTime(oidcIDTokensTimeout)
-		if err != nil {
-			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'oidc-id-tokens-timeout': %q, must be a valid nginx time (e.g. '1h', '30m', '2h')", cfgm.Namespace, cfgm.Name, oidcIDTokensTimeout)
-			nl.Warn(l, errorText)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-			return err
-		}
-		cfgParams.OIDC.IDTokenTimeout = idTokensTimeout
+
+	// The same as above, but it's for sizing.
+	parseSizeField := func(fieldName string, assignFunc func(value string)) error {
+		return parseStringField(cfgm, fieldName, ParseSize, assignFunc, sizeSuggestion, l, eventLog)
 	}
-	if oidcAccessTokensTimeout, exists := cfgm.Data["oidc-access-tokens-timeout"]; exists {
-		accessTokensTimeout, err := ParseTime(oidcAccessTokensTimeout)
-		if err != nil {
-			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'oidc-access-tokens-timeout': %q, must be a valid nginx time (e.g. '1h', '30m', '2h')", cfgm.Namespace, cfgm.Name, oidcAccessTokensTimeout)
-			nl.Warn(l, errorText)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-			return err
-		}
-		cfgParams.OIDC.AccessTimeout = accessTokensTimeout
+
+	type fieldset struct {
+		functionType func(string, func(string)) error
+		key          string
+		assignFunc   func(value string)
 	}
-	if oidcRefreshTokensTimeout, exists := cfgm.Data["oidc-refresh-tokens-timeout"]; exists {
-		refreshTokensTimeout, err := ParseTime(oidcRefreshTokensTimeout)
-		if err != nil {
-			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'oidc-refresh-tokens-timeout': %q, must be a valid nginx time (e.g. '8h', '12h', '24h')", cfgm.Namespace, cfgm.Name, oidcRefreshTokensTimeout)
-			nl.Warn(l, errorText)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-			return err
-		}
-		cfgParams.OIDC.RefreshTimeout = refreshTokensTimeout
+
+	var err error
+
+	fields := []fieldset{
+		{
+			key: "oidc-pkce-timeout",
+			assignFunc: func(value string) {
+				cfgParams.OIDC.PKCETimeout = value
+			},
+			functionType: parseTimeField,
+		},
+		{
+			key: "oidc-id-tokens-timeout",
+			assignFunc: func(value string) {
+				cfgParams.OIDC.IDTokenTimeout = value
+			},
+			functionType: parseTimeField,
+		},
+		{
+			key: "oidc-access-tokens-timeout",
+			assignFunc: func(value string) {
+				cfgParams.OIDC.AccessTimeout = value
+			},
+			functionType: parseTimeField,
+		},
+		{
+			key: "oidc-refresh-tokens-timeout",
+			assignFunc: func(value string) {
+				cfgParams.OIDC.RefreshTimeout = value
+			},
+			functionType: parseTimeField,
+		},
+		{
+			key: "oidc-sids-timeout",
+			assignFunc: func(value string) {
+				cfgParams.OIDC.SIDSTimeout = value
+			},
+			functionType: parseTimeField,
+		},
+		{
+			key: "oidc-pkce-zone-size",
+			assignFunc: func(value string) {
+				cfgParams.OIDC.PKCEZoneSize = value
+			},
+			functionType: parseSizeField,
+		},
+		{
+			key: "oidc-id-tokens-zone-size",
+			assignFunc: func(value string) {
+				cfgParams.OIDC.IDTokenZoneSize = value
+			},
+			functionType: parseSizeField,
+		},
+		{
+			key: "oidc-access-tokens-zone-size",
+			assignFunc: func(value string) {
+				cfgParams.OIDC.AccessZoneSize = value
+			},
+			functionType: parseSizeField,
+		},
+		{
+			key: "oidc-refresh-tokens-zone-size",
+			assignFunc: func(value string) {
+				cfgParams.OIDC.RefreshZoneSize = value
+			},
+			functionType: parseSizeField,
+		},
+		{
+			key: "oidc-sids-zone-size",
+			assignFunc: func(value string) {
+				cfgParams.OIDC.SIDSZoneSize = value
+			},
+			functionType: parseSizeField,
+		},
 	}
-	if oidcSIDSTimeout, exists := cfgm.Data["oidc-sids-timeout"]; exists {
-		sidsTimeout, err := ParseTime(oidcSIDSTimeout)
+
+	for _, field := range fields {
+		// field.functionType would be
+		// - parseTimeField or
+		// - parseSizeField
+		err = field.functionType(field.key, field.assignFunc)
 		if err != nil {
-			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'oidc-sids-timeout': %q, must be a valid nginx time (e.g. '8h', '12h', '24h')", cfgm.Namespace, cfgm.Name, oidcSIDSTimeout)
-			nl.Warn(l, errorText)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-			return err
+			return fmt.Errorf("parsing '%s': %w", field.key, err)
 		}
-		cfgParams.OIDC.SIDSTimeout = sidsTimeout
 	}
+
 	return nil
 }
 
@@ -1228,12 +1292,17 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		InternalRouteServerName:            staticCfgParams.InternalRouteServerName,
 		LatencyMetrics:                     staticCfgParams.EnableLatencyMetrics,
 		OIDC: version1.OIDCConfig{
-			Enable:         staticCfgParams.EnableOIDC,
-			PKCETimeout:    config.OIDC.PKCETimeout,
-			IDTokenTimeout: config.OIDC.IDTokenTimeout,
-			AccessTimeout:  config.OIDC.AccessTimeout,
-			RefreshTimeout: config.OIDC.RefreshTimeout,
-			SIDSTimeout:    config.OIDC.SIDSTimeout,
+			Enable:          staticCfgParams.EnableOIDC,
+			PKCETimeout:     config.OIDC.PKCETimeout,
+			PKCEZoneSize:    config.OIDC.PKCEZoneSize,
+			IDTokenTimeout:  config.OIDC.IDTokenTimeout,
+			IDTokenZoneSize: config.OIDC.IDTokenZoneSize,
+			AccessTimeout:   config.OIDC.AccessTimeout,
+			AccessZoneSize:  config.OIDC.AccessZoneSize,
+			RefreshTimeout:  config.OIDC.RefreshTimeout,
+			RefreshZoneSize: config.OIDC.RefreshZoneSize,
+			SIDSTimeout:     config.OIDC.SIDSTimeout,
+			SIDSZoneSize:    config.OIDC.SIDSZoneSize,
 		},
 		ZoneSyncConfig:          zoneSyncConfig,
 		DynamicSSLReloadEnabled: staticCfgParams.DynamicSSLReload,
@@ -1241,4 +1310,24 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		NginxVersion:            staticCfgParams.NginxVersion,
 	}
 	return nginxCfg
+}
+
+// parseStringField is a helper function to parse, validate, and optionally
+// report errors about fields in cfgm.Data that are going to be used as strings.
+// This is used to parse and validate the OIDC configmap fields for now.
+//
+// Usage is via curried functions where the cfgm, suggestion, logger, and
+// eventLog are fixed, and only the key and assignFunc vary.
+func parseStringField(cfgm *v1.ConfigMap, key string, parseFunc func(string) (string, error), assignFunc func(string), suggestion string, l *slog.Logger, eventLog record.EventRecorder) error {
+	if value, exists := cfgm.Data[key]; exists {
+		parsedValue, err := parseFunc(value)
+		if err != nil {
+			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for '%s': %q, %v, %s", cfgm.GetNamespace(), cfgm.GetName(), key, value, err, suggestion)
+			nl.Error(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			return err
+		}
+		assignFunc(parsedValue)
+	}
+	return nil
 }
