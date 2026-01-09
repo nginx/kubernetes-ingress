@@ -26,7 +26,9 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/watch"
 	kubeinformers "k8s.io/client-go/informers"
 	kubefake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
@@ -38,9 +40,11 @@ import (
 	cmfake "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned/fake"
 	informers "github.com/cert-manager/cert-manager/pkg/client/informers/externalversions"
 	"github.com/cert-manager/cert-manager/pkg/util"
+	confv1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	k8s_nginx "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned"
 	vsfake "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/fake"
 	vsinformers "github.com/nginx/kubernetes-ingress/pkg/client/informers/externalversions"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientfeatures "k8s.io/client-go/features"
 	clienttesting "k8s.io/client-go/features/testing"
 )
@@ -105,11 +109,39 @@ func (b *Builder) Init() {
 	b.requiredReactors = make(map[string]bool)
 	b.Client = kubefake.NewClientset(b.KubeObjects...)
 	b.CMClient = cmfake.NewClientset(b.CertManagerObjects...)
-	b.VSClient = vsfake.NewClientset(b.VSObjects...)
+	b.VSClient = vsfake.NewClientset()
 	b.Recorder = new(FakeRecorder)
 	b.FakeKubeClient().PrependReactor("create", "*", b.generateNameReactor)
 	b.FakeCMClient().PrependReactor("create", "*", b.generateNameReactor)
 	b.FakeVSClient().PrependReactor("create", "*", b.generateNameReactor)
+	// Build a scheme/codecs for VS CRD and use a simple tracker to avoid typed SMD conversion
+	scheme := runtime.NewScheme()
+	utilruntime.Must(confv1.AddToScheme(scheme))
+	codecs := serializer.NewCodecFactory(scheme)
+
+	st := coretesting.NewObjectTracker(scheme, codecs.UniversalDecoder())
+	for _, obj := range b.VSObjects {
+		_ = st.Add(obj)
+	}
+
+	// Intercept VirtualServer CRUD via simple tracker
+	b.FakeVSClient().PrependReactor("*", "virtualservers", coretesting.ObjectReaction(st))
+
+	// Intercept VirtualServer watch via simple tracker
+	b.FakeVSClient().PrependWatchReactor("virtualservers", func(action coretesting.Action) (bool, watch.Interface, error) {
+		var opts metav1.ListOptions
+		if wa, ok := action.(coretesting.WatchActionImpl); ok {
+			opts = wa.ListOptions
+		}
+		gvr := action.GetResource()
+		ns := action.GetNamespace()
+		w, err := st.Watch(gvr, ns, opts)
+		if err != nil {
+			return false, nil, err
+		}
+		return true, w, nil
+	})
+
 	// Borrowed from cert-manager to disable WatchListClient feature gate
 	// FIXME: It seems like we need to disable the WatchListClient feature gate until our gateway-api dependency is bumped to K8s 1.35
 	clienttesting.SetFeatureDuringTest(b.T, clientfeatures.WatchListClient, false)
