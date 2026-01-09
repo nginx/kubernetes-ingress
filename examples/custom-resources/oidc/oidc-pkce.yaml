@@ -13,4 +13,4 @@ spec:
     scope: openid+profile+email
     accessTokenEnable: true
     sslVerify: true
-    trustedCertSecret: keycloak-ca
+    trustedCertSecret: keycloak-ca-secret

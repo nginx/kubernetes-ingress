@@ -5,6 +5,7 @@ from settings import TEST_DATA
 from suite.utils.resources_utils import (
     create_license,
     create_secret_from_yaml,
+    delete_secret,
     ensure_connection_to_public_endpoint,
     get_events_for_object,
     get_first_pod_name,
@@ -14,6 +15,9 @@ from suite.utils.resources_utils import (
     replace_configmap_from_yaml,
     wait_before_test,
 )
+from suite.utils.yaml_utils import get_name_from_yaml
+
+default_mgmt_configmap = f"{TEST_DATA}/common/default-mgmt-configmap.yaml"
 
 
 def assert_event(event_list, event_type, reason, message_substring):
@@ -97,9 +101,14 @@ class TestMGMTConfigMap:
         wait_before_test()
 
         print("Step 4: check reload count has incremented")
-        new_reload_count = get_reload_count(metrics_url)
-        print(f"Step 4a: new reload count is {new_reload_count}")
-        assert new_reload_count > reload_count
+        updated = False
+        for _ in range(10):
+            wait_before_test(3)
+            new_reload_count = get_reload_count(metrics_url)
+            if new_reload_count > reload_count:
+                updated = True
+                break
+        assert updated, "Reload count did not increment within the expected time"
 
         print("Step 5: check pod for SecretUpdated event")
         pod_events = get_events_for_object(
@@ -126,6 +135,15 @@ class TestMGMTConfigMap:
             "Updated",
             f"MGMT ConfigMap {ingress_controller_prerequisites.namespace}/{mgmt_configmap_name} updated without error",
         )
+
+        print("Step 6: clean up - reset configmap & delete the created secret")
+        replace_configmap_from_yaml(
+            kube_apis.v1,
+            mgmt_configmap_name,
+            ingress_controller_prerequisites.namespace,
+            default_mgmt_configmap,
+        )
+        delete_secret(kube_apis.v1, license_name, ingress_controller_prerequisites.namespace)
 
     @pytest.mark.parametrize(
         "ingress_controller",
@@ -186,11 +204,15 @@ class TestMGMTConfigMap:
             ingress_controller_prerequisites.namespace,
             f"{TEST_DATA}/mgmt-configmap-keys/ssl-trusted-cert.yaml",
         )
+        trusted_cert_secret_name = get_name_from_yaml(f"{TEST_DATA}/mgmt-configmap-keys/ssl-trusted-cert.yaml")
+        assert is_secret_present(kube_apis.v1, trusted_cert_secret_name, ingress_controller_prerequisites.namespace)
 
         print("Step 5: create ssl certificate secret")
         create_secret_from_yaml(
             kube_apis.v1, ingress_controller_prerequisites.namespace, f"{TEST_DATA}/mgmt-configmap-keys/ssl-cert.yaml"
         )
+        ssl_cert_secret_name = get_name_from_yaml(f"{TEST_DATA}/mgmt-configmap-keys/ssl-cert.yaml")
+        assert is_secret_present(kube_apis.v1, ssl_cert_secret_name, ingress_controller_prerequisites.namespace)
 
         print("Step 6: update the mgmt config map with all options on")
         replace_configmap_from_yaml(
@@ -219,9 +241,14 @@ class TestMGMTConfigMap:
 
         print("Step 9: check reload count has incremented")
         wait_before_test()
-        new_reload_count = get_reload_count(metrics_url)
-        print("new_reload_count", new_reload_count)
-        assert new_reload_count > reload_count
+        updated = False
+        for _ in range(10):
+            wait_before_test(3)
+            new_reload_count = get_reload_count(metrics_url)
+            if new_reload_count > reload_count:
+                updated = True
+                break
+        assert updated, "Reload count did not increment within the expected time"
 
         print("Step 10: check that the mgmt config map has been updated without error")
         config_events = get_events_for_object(
@@ -234,3 +261,13 @@ class TestMGMTConfigMap:
             "Updated",
             f"MGMT ConfigMap {ingress_controller_prerequisites.namespace}/{mgmt_configmap_name} updated without error",
         )
+
+        print("Step 11: clean up - reset configmap & delete the created secrets")
+        replace_configmap_from_yaml(
+            kube_apis.v1,
+            mgmt_configmap_name,
+            ingress_controller_prerequisites.namespace,
+            default_mgmt_configmap,
+        )
+        delete_secret(kube_apis.v1, trusted_cert_secret_name, ingress_controller_prerequisites.namespace)
+        delete_secret(kube_apis.v1, ssl_cert_secret_name, ingress_controller_prerequisites.namespace)

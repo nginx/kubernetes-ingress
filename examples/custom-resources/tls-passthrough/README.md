@@ -25,6 +25,7 @@ You can see how the Secure App is implemented in the `secure-app.yaml` file.
 
 ## Prerequisites
 
+1. Run `make secrets` command to generate the necessary secrets for the example.
 1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
    instructions to deploy the Ingress Controller:
     - As part of Step 2 of those instructions, make sure to deploy the custom resource definition for the
