@@ -2,7 +2,7 @@ apiVersion: k8s.nginx.org/v1
 kind: VirtualServerRoute
 metadata:
   name: coffee
-  namespace: coffee
+  namespace: default
   labels:
     app: cafe
     route: coffee
