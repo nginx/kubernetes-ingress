@@ -41,7 +41,7 @@ func NewTransportServerInformer(client versioned.Interface, namespace string, re
 // one. This reduces memory footprint and number of connections to the server.
 func NewFilteredTransportServerInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
-		&cache.ListWatch{
+		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
@@ -66,7 +66,7 @@ func NewFilteredTransportServerInformer(client versioned.Interface, namespace st
 				}
 				return client.K8sV1().TransportServers(namespace).Watch(ctx, options)
 			},
-		},
+		}, client),
 		&apisconfigurationv1.TransportServer{},
 		resyncPeriod,
 		indexers,
