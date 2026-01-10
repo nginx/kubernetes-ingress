@@ -4,19 +4,20 @@ package fake
 
 import (
 	v1beta1 "github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
-	dosv1beta1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/typed/dos/v1beta1"
+	dosv1beta1 "github.com/nginx/kubernetes-ingress/pkg/client/applyconfiguration/dos/v1beta1"
+	typeddosv1beta1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/typed/dos/v1beta1"
 	gentype "k8s.io/client-go/gentype"
 )
 
 // fakeDosProtectedResources implements DosProtectedResourceInterface
 type fakeDosProtectedResources struct {
-	*gentype.FakeClientWithList[*v1beta1.DosProtectedResource, *v1beta1.DosProtectedResourceList]
+	*gentype.FakeClientWithListAndApply[*v1beta1.DosProtectedResource, *v1beta1.DosProtectedResourceList, *dosv1beta1.DosProtectedResourceApplyConfiguration]
 	Fake *FakeAppprotectdosV1beta1
 }
 
-func newFakeDosProtectedResources(fake *FakeAppprotectdosV1beta1, namespace string) dosv1beta1.DosProtectedResourceInterface {
+func newFakeDosProtectedResources(fake *FakeAppprotectdosV1beta1, namespace string) typeddosv1beta1.DosProtectedResourceInterface {
 	return &fakeDosProtectedResources{
-		gentype.NewFakeClientWithList[*v1beta1.DosProtectedResource, *v1beta1.DosProtectedResourceList](
+		gentype.NewFakeClientWithListAndApply[*v1beta1.DosProtectedResource, *v1beta1.DosProtectedResourceList, *dosv1beta1.DosProtectedResourceApplyConfiguration](
 			fake.Fake,
 			namespace,
 			v1beta1.SchemeGroupVersion.WithResource("dosprotectedresources"),

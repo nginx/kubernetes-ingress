@@ -6,6 +6,7 @@ import (
 	context "context"
 
 	configurationv1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	applyconfigurationconfigurationv1 "github.com/nginx/kubernetes-ingress/pkg/client/applyconfiguration/configuration/v1"
 	scheme "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -31,18 +32,21 @@ type VirtualServerInterface interface {
 	List(ctx context.Context, opts metav1.ListOptions) (*configurationv1.VirtualServerList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
 	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *configurationv1.VirtualServer, err error)
+	Apply(ctx context.Context, virtualServer *applyconfigurationconfigurationv1.VirtualServerApplyConfiguration, opts metav1.ApplyOptions) (result *configurationv1.VirtualServer, err error)
+	// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
+	ApplyStatus(ctx context.Context, virtualServer *applyconfigurationconfigurationv1.VirtualServerApplyConfiguration, opts metav1.ApplyOptions) (result *configurationv1.VirtualServer, err error)
 	VirtualServerExpansion
 }
 
 // virtualServers implements VirtualServerInterface
 type virtualServers struct {
-	*gentype.ClientWithList[*configurationv1.VirtualServer, *configurationv1.VirtualServerList]
+	*gentype.ClientWithListAndApply[*configurationv1.VirtualServer, *configurationv1.VirtualServerList, *applyconfigurationconfigurationv1.VirtualServerApplyConfiguration]
 }
 
 // newVirtualServers returns a VirtualServers
 func newVirtualServers(c *K8sV1Client, namespace string) *virtualServers {
 	return &virtualServers{
-		gentype.NewClientWithList[*configurationv1.VirtualServer, *configurationv1.VirtualServerList](
+		gentype.NewClientWithListAndApply[*configurationv1.VirtualServer, *configurationv1.VirtualServerList, *applyconfigurationconfigurationv1.VirtualServerApplyConfiguration](
 			"virtualservers",
 			c.RESTClient(),
 			scheme.ParameterCodec,

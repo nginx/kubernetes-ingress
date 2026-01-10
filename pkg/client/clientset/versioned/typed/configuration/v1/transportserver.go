@@ -6,6 +6,7 @@ import (
 	context "context"
 
 	configurationv1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	applyconfigurationconfigurationv1 "github.com/nginx/kubernetes-ingress/pkg/client/applyconfiguration/configuration/v1"
 	scheme "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -31,18 +32,21 @@ type TransportServerInterface interface {
 	List(ctx context.Context, opts metav1.ListOptions) (*configurationv1.TransportServerList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
 	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *configurationv1.TransportServer, err error)
+	Apply(ctx context.Context, transportServer *applyconfigurationconfigurationv1.TransportServerApplyConfiguration, opts metav1.ApplyOptions) (result *configurationv1.TransportServer, err error)
+	// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
+	ApplyStatus(ctx context.Context, transportServer *applyconfigurationconfigurationv1.TransportServerApplyConfiguration, opts metav1.ApplyOptions) (result *configurationv1.TransportServer, err error)
 	TransportServerExpansion
 }
 
 // transportServers implements TransportServerInterface
 type transportServers struct {
-	*gentype.ClientWithList[*configurationv1.TransportServer, *configurationv1.TransportServerList]
+	*gentype.ClientWithListAndApply[*configurationv1.TransportServer, *configurationv1.TransportServerList, *applyconfigurationconfigurationv1.TransportServerApplyConfiguration]
 }
 
 // newTransportServers returns a TransportServers
 func newTransportServers(c *K8sV1Client, namespace string) *transportServers {
 	return &transportServers{
-		gentype.NewClientWithList[*configurationv1.TransportServer, *configurationv1.TransportServerList](
+		gentype.NewClientWithListAndApply[*configurationv1.TransportServer, *configurationv1.TransportServerList, *applyconfigurationconfigurationv1.TransportServerApplyConfiguration](
 			"transportservers",
 			c.RESTClient(),
 			scheme.ParameterCodec,
