@@ -838,11 +838,11 @@ func TestExecuteTemplate_ForMainForNGINXPlusWithOIDCTimeoutDefault(t *testing.T)
 	t.Log(mainConf)
 
 	expectedDirectives := []string{
-		"keyval_zone zone=oidc_pkce:128K            timeout=90s sync;",
-		"keyval_zone zone=oidc_id_tokens:1M    timeout=1h sync;",
+		"keyval_zone zone=oidc_pkce:128K timeout=90s sync;",
+		"keyval_zone zone=oidc_id_tokens:1M timeout=1h sync;",
 		"keyval_zone zone=oidc_access_tokens:1M timeout=1h sync;",
-		"keyval_zone zone=refresh_tokens:1M    timeout=8h sync;",
-		"keyval_zone zone=oidc_sids:1M            timeout=8h sync;",
+		"keyval_zone zone=refresh_tokens:1M timeout=8h sync;",
+		"keyval_zone zone=oidc_sids:1M timeout=8h sync;",
 		"include oidc/oidc_common.conf;",
 	}
 
@@ -869,11 +869,11 @@ func TestExecuteTemplate_ForMainForNGINXPlusWithOIDCTimeoutCustom(t *testing.T) 
 	t.Log(mainConf)
 
 	expectedDirectives := []string{
-		"keyval_zone zone=oidc_pkce:512K            timeout=2m sync;",
-		"keyval_zone zone=oidc_id_tokens:2M    timeout=2h sync;",
+		"keyval_zone zone=oidc_pkce:512K timeout=2m sync;",
+		"keyval_zone zone=oidc_id_tokens:2M timeout=2h sync;",
 		"keyval_zone zone=oidc_access_tokens:3M timeout=30m sync;",
-		"keyval_zone zone=refresh_tokens:4M    timeout=1h sync;",
-		"keyval_zone zone=oidc_sids:5M            timeout=120s sync;",
+		"keyval_zone zone=refresh_tokens:4M timeout=1h sync;",
+		"keyval_zone zone=oidc_sids:5M timeout=120s sync;",
 		"include oidc/oidc_common.conf;",
 	}
 
