@@ -727,115 +727,78 @@ func parseConfigMapOIDC(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *ConfigPar
 	timeSuggestion := "must be a valid nginx time (e.g. '90s', '5m', '1h')"
 	sizeSuggestion := "must be a valid nginx size (e.g. '16k', '1m')"
 
-	// parseTimeField is a curried version of parseStringField for time parsing.
-	// We could technically use parseStringField directly, but that would end up
-	// being repeated a lot. We would be passing in the same, unchanged
-	// parameters each time.
-	//
-	// This curried function returns a new function that already has the common
-	// arguments already passed in, so you only need to pass in the parts that
-	// change between invocations.
-	//
-	// cfgm, timeSuggestion, l (the logger), and eventLog are constant for all
-	// parseTimeField calls.
-	parseTimeField := func(fieldName string, assignFunc func(value string)) error {
-		return parseStringField(cfgm, fieldName, ParseTime, assignFunc, timeSuggestion, l, eventLog)
-	}
-
-	// The same as above, but it's for sizing.
-	parseSizeField := func(fieldName string, assignFunc func(value string)) error {
-		return parseStringField(cfgm, fieldName, ParseSize, assignFunc, sizeSuggestion, l, eventLog)
-	}
-
-	type fieldset struct {
-		functionType func(string, func(string)) error
-		key          string
-		assignFunc   func(value string)
-	}
-
 	var err error
 
-	fields := []fieldset{
-		{
-			key: "oidc-pkce-timeout",
-			assignFunc: func(value string) {
-				cfgParams.OIDC.PKCETimeout = value
-			},
-			functionType: parseTimeField,
-		},
-		{
-			key: "oidc-id-tokens-timeout",
-			assignFunc: func(value string) {
-				cfgParams.OIDC.IDTokenTimeout = value
-			},
-			functionType: parseTimeField,
-		},
-		{
-			key: "oidc-access-tokens-timeout",
-			assignFunc: func(value string) {
-				cfgParams.OIDC.AccessTimeout = value
-			},
-			functionType: parseTimeField,
-		},
-		{
-			key: "oidc-refresh-tokens-timeout",
-			assignFunc: func(value string) {
-				cfgParams.OIDC.RefreshTimeout = value
-			},
-			functionType: parseTimeField,
-		},
-		{
-			key: "oidc-sids-timeout",
-			assignFunc: func(value string) {
-				cfgParams.OIDC.SIDSTimeout = value
-			},
-			functionType: parseTimeField,
-		},
-		{
-			key: "oidc-pkce-zone-size",
-			assignFunc: func(value string) {
-				cfgParams.OIDC.PKCEZoneSize = value
-			},
-			functionType: parseSizeField,
-		},
-		{
-			key: "oidc-id-tokens-zone-size",
-			assignFunc: func(value string) {
-				cfgParams.OIDC.IDTokenZoneSize = value
-			},
-			functionType: parseSizeField,
-		},
-		{
-			key: "oidc-access-tokens-zone-size",
-			assignFunc: func(value string) {
-				cfgParams.OIDC.AccessZoneSize = value
-			},
-			functionType: parseSizeField,
-		},
-		{
-			key: "oidc-refresh-tokens-zone-size",
-			assignFunc: func(value string) {
-				cfgParams.OIDC.RefreshZoneSize = value
-			},
-			functionType: parseSizeField,
-		},
-		{
-			key: "oidc-sids-zone-size",
-			assignFunc: func(value string) {
-				cfgParams.OIDC.SIDSZoneSize = value
-			},
-			functionType: parseSizeField,
-		},
+	// TimeOut config map variables
+	err = parseStringField(cfgm, "oidc-pkce-timeout", ParseTime, func(value string) {
+		cfgParams.OIDC.PKCETimeout = value
+	}, timeSuggestion, l, eventLog)
+	if err != nil {
+		return fmt.Errorf("error parsing oidc-pkce-timeout: %w", err)
 	}
 
-	for _, field := range fields {
-		// field.functionType would be
-		// - parseTimeField or
-		// - parseSizeField
-		err = field.functionType(field.key, field.assignFunc)
-		if err != nil {
-			return fmt.Errorf("parsing '%s': %w", field.key, err)
-		}
+	err = parseStringField(cfgm, "oidc-id-tokens-timeout", ParseTime, func(value string) {
+		cfgParams.OIDC.IDTokenTimeout = value
+	}, timeSuggestion, l, eventLog)
+	if err != nil {
+		return fmt.Errorf("error parsing oidc-id-tokens-timeout: %w", err)
+	}
+
+	err = parseStringField(cfgm, "oidc-access-tokens-timeout", ParseTime, func(value string) {
+		cfgParams.OIDC.AccessTimeout = value
+	}, timeSuggestion, l, eventLog)
+	if err != nil {
+		return fmt.Errorf("error parsing oidc-access-tokens-timeout: %w", err)
+	}
+
+	err = parseStringField(cfgm, "oidc-refresh-tokens-timeout", ParseTime, func(value string) {
+		cfgParams.OIDC.RefreshTimeout = value
+	}, timeSuggestion, l, eventLog)
+	if err != nil {
+		return fmt.Errorf("error parsing oidc-refresh-tokens-timeout: %w", err)
+	}
+
+	err = parseStringField(cfgm, "oidc-sids-timeout", ParseTime, func(value string) {
+		cfgParams.OIDC.SIDSTimeout = value
+	}, timeSuggestion, l, eventLog)
+	if err != nil {
+		return fmt.Errorf("error parsing oidc-sids-timeout: %w", err)
+	}
+
+	// ZoneSize config map variables
+	err = parseStringField(cfgm, "oidc-pkce-zone-size", ParseSize, func(value string) {
+		cfgParams.OIDC.PKCEZoneSize = value
+	}, sizeSuggestion, l, eventLog)
+	if err != nil {
+		return fmt.Errorf("error parsing oidc-pkce-zone-size: %w", err)
+	}
+
+	err = parseStringField(cfgm, "oidc-id-tokens-zone-size", ParseSize, func(value string) {
+		cfgParams.OIDC.IDTokenZoneSize = value
+	}, sizeSuggestion, l, eventLog)
+	if err != nil {
+		return fmt.Errorf("error parsing oidc-id-tokens-zone-size: %w", err)
+	}
+
+	err = parseStringField(cfgm, "oidc-access-tokens-zone-size", ParseSize, func(value string) {
+		cfgParams.OIDC.AccessZoneSize = value
+	}, sizeSuggestion, l, eventLog)
+	if err != nil {
+		return fmt.Errorf("error parsing oidc-access-tokens-zone-size: %w", err)
+	}
+
+	err = parseStringField(cfgm, "oidc-refresh-tokens-zone-size", ParseSize, func(value string) {
+		cfgParams.OIDC.RefreshZoneSize = value
+	}, sizeSuggestion, l, eventLog)
+	if err != nil {
+		return fmt.Errorf("error parsing oidc-refresh-tokens-zone-size: %w", err)
+	}
+
+	err = parseStringField(cfgm, "oidc-sids-zone-size", ParseSize, func(value string) {
+		cfgParams.OIDC.SIDSZoneSize = value
+	}, sizeSuggestion, l, eventLog)
+	if err != nil {
+		return fmt.Errorf("error parsing oidc-sids-zone-size: %w", err)
 	}
 
 	return nil
