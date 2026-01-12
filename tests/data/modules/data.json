@@ -92,7 +92,7 @@
         },
         {
           "name": "app-protect-threat-campaigns",
-          "version": "2026"
+          "version": "2025"
         },
         {
           "name": "nginx-agent",
@@ -214,7 +214,7 @@
         },
         {
           "name": "app-protect-threat-campaigns",
-          "version": "2026"
+          "version": "2025"
         },
         {
           "name": "nginx-plus-module-appprotectdos",
@@ -361,7 +361,7 @@
         },
         {
           "name": "app-protect-threat-campaigns",
-          "version": "2026"
+          "version": "2025"
         }
       ],
       "system": "alpine",
@@ -507,7 +507,7 @@
         },
         {
           "name": "app-protect-threat-campaigns",
-          "version": "2026"
+          "version": "2025"
         }
       ],
       "system": "ubi",
@@ -595,7 +595,7 @@
         },
         {
           "name": "app-protect-threat-campaigns",
-          "version": "2026"
+          "version": "2025"
         }
       ],
       "system": "ubi",
@@ -721,7 +721,7 @@
         },
         {
           "name": "app-protect-threat-campaigns",
-          "version": "2026"
+          "version": "2025"
         },
         {
           "name": "app-protect-dos",
