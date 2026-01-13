@@ -211,12 +211,17 @@ type ZoneSyncConfig struct {
 
 // OIDCConfig allows to configure OIDC parameters.
 type OIDCConfig struct {
-	Enable         bool
-	PKCETimeout    string
-	IDTokenTimeout string
-	AccessTimeout  string
-	RefreshTimeout string
-	SIDSTimeout    string
+	Enable          bool
+	PKCETimeout     string
+	PKCEZoneSize    string
+	IDTokenTimeout  string
+	IDTokenZoneSize string
+	AccessTimeout   string
+	AccessZoneSize  string
+	RefreshTimeout  string
+	RefreshZoneSize string
+	SIDSTimeout     string
+	SIDSZoneSize    string
 }
 
 // MGMTConfig is tbe configuration for the MGMT block.

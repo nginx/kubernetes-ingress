@@ -724,56 +724,83 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 
 // parseConfigMapOIDC parses OIDC timeout configuration from ConfigMap.
 func parseConfigMapOIDC(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *ConfigParams, eventLog record.EventRecorder) error {
-	if oidcPKCETimeout, exists := cfgm.Data["oidc-pkce-timeout"]; exists {
-		pkceTimeout, err := ParseTime(oidcPKCETimeout)
-		if err != nil {
-			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'oidc-pkce-timeout': %q, must be a valid nginx time (e.g. '90s', '5m', '1h')", cfgm.Namespace, cfgm.Name, oidcPKCETimeout)
-			nl.Warn(l, errorText)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-			return err
-		}
-		cfgParams.OIDC.PKCETimeout = pkceTimeout
+	timeSuggestion := "must be a valid nginx time (e.g. '90s', '5m', '1h')"
+	sizeSuggestion := "must be a valid nginx size (e.g. '16k', '1m')"
+
+	var err error
+
+	// TimeOut config map variables
+	err = parseStringField(cfgm, "oidc-pkce-timeout", ParseTime, func(value string) {
+		cfgParams.OIDC.PKCETimeout = value
+	}, timeSuggestion, l, eventLog)
+	if err != nil {
+		return fmt.Errorf("error parsing oidc-pkce-timeout: %w", err)
 	}
-	if oidcIDTokensTimeout, exists := cfgm.Data["oidc-id-tokens-timeout"]; exists {
-		idTokensTimeout, err := ParseTime(oidcIDTokensTimeout)
-		if err != nil {
-			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'oidc-id-tokens-timeout': %q, must be a valid nginx time (e.g. '1h', '30m', '2h')", cfgm.Namespace, cfgm.Name, oidcIDTokensTimeout)
-			nl.Warn(l, errorText)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-			return err
-		}
-		cfgParams.OIDC.IDTokenTimeout = idTokensTimeout
+
+	err = parseStringField(cfgm, "oidc-id-tokens-timeout", ParseTime, func(value string) {
+		cfgParams.OIDC.IDTokenTimeout = value
+	}, timeSuggestion, l, eventLog)
+	if err != nil {
+		return fmt.Errorf("error parsing oidc-id-tokens-timeout: %w", err)
 	}
-	if oidcAccessTokensTimeout, exists := cfgm.Data["oidc-access-tokens-timeout"]; exists {
-		accessTokensTimeout, err := ParseTime(oidcAccessTokensTimeout)
-		if err != nil {
-			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'oidc-access-tokens-timeout': %q, must be a valid nginx time (e.g. '1h', '30m', '2h')", cfgm.Namespace, cfgm.Name, oidcAccessTokensTimeout)
-			nl.Warn(l, errorText)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-			return err
-		}
-		cfgParams.OIDC.AccessTimeout = accessTokensTimeout
+
+	err = parseStringField(cfgm, "oidc-access-tokens-timeout", ParseTime, func(value string) {
+		cfgParams.OIDC.AccessTimeout = value
+	}, timeSuggestion, l, eventLog)
+	if err != nil {
+		return fmt.Errorf("error parsing oidc-access-tokens-timeout: %w", err)
 	}
-	if oidcRefreshTokensTimeout, exists := cfgm.Data["oidc-refresh-tokens-timeout"]; exists {
-		refreshTokensTimeout, err := ParseTime(oidcRefreshTokensTimeout)
-		if err != nil {
-			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'oidc-refresh-tokens-timeout': %q, must be a valid nginx time (e.g. '8h', '12h', '24h')", cfgm.Namespace, cfgm.Name, oidcRefreshTokensTimeout)
-			nl.Warn(l, errorText)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-			return err
-		}
-		cfgParams.OIDC.RefreshTimeout = refreshTokensTimeout
+
+	err = parseStringField(cfgm, "oidc-refresh-tokens-timeout", ParseTime, func(value string) {
+		cfgParams.OIDC.RefreshTimeout = value
+	}, timeSuggestion, l, eventLog)
+	if err != nil {
+		return fmt.Errorf("error parsing oidc-refresh-tokens-timeout: %w", err)
 	}
-	if oidcSIDSTimeout, exists := cfgm.Data["oidc-sids-timeout"]; exists {
-		sidsTimeout, err := ParseTime(oidcSIDSTimeout)
-		if err != nil {
-			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'oidc-sids-timeout': %q, must be a valid nginx time (e.g. '8h', '12h', '24h')", cfgm.Namespace, cfgm.Name, oidcSIDSTimeout)
-			nl.Warn(l, errorText)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-			return err
-		}
-		cfgParams.OIDC.SIDSTimeout = sidsTimeout
+
+	err = parseStringField(cfgm, "oidc-sids-timeout", ParseTime, func(value string) {
+		cfgParams.OIDC.SIDSTimeout = value
+	}, timeSuggestion, l, eventLog)
+	if err != nil {
+		return fmt.Errorf("error parsing oidc-sids-timeout: %w", err)
 	}
+
+	// ZoneSize config map variables
+	err = parseStringField(cfgm, "oidc-pkce-zone-size", ParseSize, func(value string) {
+		cfgParams.OIDC.PKCEZoneSize = value
+	}, sizeSuggestion, l, eventLog)
+	if err != nil {
+		return fmt.Errorf("error parsing oidc-pkce-zone-size: %w", err)
+	}
+
+	err = parseStringField(cfgm, "oidc-id-tokens-zone-size", ParseSize, func(value string) {
+		cfgParams.OIDC.IDTokenZoneSize = value
+	}, sizeSuggestion, l, eventLog)
+	if err != nil {
+		return fmt.Errorf("error parsing oidc-id-tokens-zone-size: %w", err)
+	}
+
+	err = parseStringField(cfgm, "oidc-access-tokens-zone-size", ParseSize, func(value string) {
+		cfgParams.OIDC.AccessZoneSize = value
+	}, sizeSuggestion, l, eventLog)
+	if err != nil {
+		return fmt.Errorf("error parsing oidc-access-tokens-zone-size: %w", err)
+	}
+
+	err = parseStringField(cfgm, "oidc-refresh-tokens-zone-size", ParseSize, func(value string) {
+		cfgParams.OIDC.RefreshZoneSize = value
+	}, sizeSuggestion, l, eventLog)
+	if err != nil {
+		return fmt.Errorf("error parsing oidc-refresh-tokens-zone-size: %w", err)
+	}
+
+	err = parseStringField(cfgm, "oidc-sids-zone-size", ParseSize, func(value string) {
+		cfgParams.OIDC.SIDSZoneSize = value
+	}, sizeSuggestion, l, eventLog)
+	if err != nil {
+		return fmt.Errorf("error parsing oidc-sids-zone-size: %w", err)
+	}
+
 	return nil
 }
 
@@ -1228,12 +1255,17 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		InternalRouteServerName:            staticCfgParams.InternalRouteServerName,
 		LatencyMetrics:                     staticCfgParams.EnableLatencyMetrics,
 		OIDC: version1.OIDCConfig{
-			Enable:         staticCfgParams.EnableOIDC,
-			PKCETimeout:    config.OIDC.PKCETimeout,
-			IDTokenTimeout: config.OIDC.IDTokenTimeout,
-			AccessTimeout:  config.OIDC.AccessTimeout,
-			RefreshTimeout: config.OIDC.RefreshTimeout,
-			SIDSTimeout:    config.OIDC.SIDSTimeout,
+			Enable:          staticCfgParams.EnableOIDC,
+			PKCETimeout:     config.OIDC.PKCETimeout,
+			PKCEZoneSize:    config.OIDC.PKCEZoneSize,
+			IDTokenTimeout:  config.OIDC.IDTokenTimeout,
+			IDTokenZoneSize: config.OIDC.IDTokenZoneSize,
+			AccessTimeout:   config.OIDC.AccessTimeout,
+			AccessZoneSize:  config.OIDC.AccessZoneSize,
+			RefreshTimeout:  config.OIDC.RefreshTimeout,
+			RefreshZoneSize: config.OIDC.RefreshZoneSize,
+			SIDSTimeout:     config.OIDC.SIDSTimeout,
+			SIDSZoneSize:    config.OIDC.SIDSZoneSize,
 		},
 		ZoneSyncConfig:          zoneSyncConfig,
 		DynamicSSLReloadEnabled: staticCfgParams.DynamicSSLReload,
@@ -1241,4 +1273,24 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		NginxVersion:            staticCfgParams.NginxVersion,
 	}
 	return nginxCfg
+}
+
+// parseStringField is a helper function to parse, validate, and optionally
+// report errors about fields in cfgm.Data that are going to be used as strings.
+// This is used to parse and validate the OIDC configmap fields for now.
+//
+// Usage is via curried functions where the cfgm, suggestion, logger, and
+// eventLog are fixed, and only the key and assignFunc vary.
+func parseStringField(cfgm *v1.ConfigMap, key string, parseFunc func(string) (string, error), assignFunc func(string), suggestion string, l *slog.Logger, eventLog record.EventRecorder) error {
+	if value, exists := cfgm.Data[key]; exists {
+		parsedValue, err := parseFunc(value)
+		if err != nil {
+			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for '%s': %q, %v, %s", cfgm.GetNamespace(), cfgm.GetName(), key, value, err, suggestion)
+			nl.Error(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			return err
+		}
+		assignFunc(parsedValue)
+	}
+	return nil
 }
