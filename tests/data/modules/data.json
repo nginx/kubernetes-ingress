@@ -88,11 +88,11 @@
         },
         {
           "name": "app-protect-attack-signatures",
-          "version": "2025"
+          "version": "2026"
         },
         {
           "name": "app-protect-threat-campaigns",
-          "version": "2025"
+          "version": "2026"
         },
         {
           "name": "nginx-agent",
@@ -210,11 +210,11 @@
         },
         {
           "name": "app-protect-attack-signatures",
-          "version": "2025"
+          "version": "2026"
         },
         {
           "name": "app-protect-threat-campaigns",
-          "version": "2025"
+          "version": "2026"
         },
         {
           "name": "nginx-plus-module-appprotectdos",
@@ -357,11 +357,11 @@
         },
         {
           "name": "app-protect-attack-signatures",
-          "version": "2025"
+          "version": "2026"
         },
         {
           "name": "app-protect-threat-campaigns",
-          "version": "2025"
+          "version": "2026"
         }
       ],
       "system": "alpine",
@@ -503,11 +503,11 @@
         },
         {
           "name": "app-protect-attack-signatures",
-          "version": "2025"
+          "version": "2026"
         },
         {
           "name": "app-protect-threat-campaigns",
-          "version": "2025"
+          "version": "2026"
         }
       ],
       "system": "ubi",
@@ -591,11 +591,11 @@
         },
         {
           "name": "app-protect-attack-signatures",
-          "version": "2025"
+          "version": "2026"
         },
         {
           "name": "app-protect-threat-campaigns",
-          "version": "2025"
+          "version": "2026"
         }
       ],
       "system": "ubi",
@@ -717,11 +717,11 @@
         },
         {
           "name": "app-protect-attack-signatures",
-          "version": "2025"
+          "version": "2026"
         },
         {
           "name": "app-protect-threat-campaigns",
-          "version": "2025"
+          "version": "2026"
         },
         {
           "name": "app-protect-dos",

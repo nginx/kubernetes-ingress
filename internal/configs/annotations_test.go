@@ -1012,6 +1012,69 @@ func TestSSLRedirectAnnotations(t *testing.T) {
 	}
 }
 
+func TestAppRootAnnotation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		expected    string
+	}{
+		{
+			name: "valid app-root - coffee path",
+			annotations: map[string]string{
+				"nginx.org/app-root": "/coffee",
+			},
+			expected: "/coffee",
+		},
+		{
+			name: "valid app-root - nested path with mocha",
+			annotations: map[string]string{
+				"nginx.org/app-root": "/coffee/mocha",
+			},
+			expected: "/coffee/mocha",
+		},
+		{
+			name: "valid app-root - tea path",
+			annotations: map[string]string{
+				"nginx.org/app-root": "/tea",
+			},
+			expected: "/tea",
+		},
+		{
+			name: "valid app-root - nested tea path",
+			annotations: map[string]string{
+				"nginx.org/app-root": "/tea/green-tea",
+			},
+			expected: "/tea/green-tea",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ingEx := &IngressEx{
+				Ingress: &networking.Ingress{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        "test-ingress",
+						Namespace:   "default",
+						Annotations: tt.annotations,
+					},
+				},
+			}
+
+			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+
+			if result.AppRoot != tt.expected {
+				t.Errorf("Test %q: expected AppRoot %q, got %q", tt.name, tt.expected, result.AppRoot)
+			}
+		})
+	}
+}
+
 func TestHTTPRedirectCodeAnnotationBehavior(t *testing.T) {
 	t.Parallel()
 
