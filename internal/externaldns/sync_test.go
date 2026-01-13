@@ -98,7 +98,7 @@ func TestGetValidTargets(t *testing.T) {
 			},
 		},
 		{
-			name: "from external endpoint with multiple targets",
+			name: "from external endpoint with multiple targets of different types",
 			wantTargets: extdnsapi.Targets{
 				{
 					Type:    "AAAA",
