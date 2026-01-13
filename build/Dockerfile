@@ -280,7 +280,7 @@ RUN --mount=type=bind,from=alpine-fips-3.22,target=/tmp/fips/ \
 
 
 ############################################# Base image for Debian with NGINX Plus only #############################################
-FROM debian:12-slim@sha256:d5d3f9c23164ea16f31852f95bd5959aad1c5e854332fe00f7b3a20fcc9f635c AS debian-plus-only
+FROM debian:12-slim@sha256:94c4d598b5987d76c38408657aae7118b101662595bf5eefe478e093a0bed2f6 AS debian-plus-only
 ARG NGINX_PLUS_VERSION
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
