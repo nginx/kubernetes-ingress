@@ -21,7 +21,7 @@ func TestValidateDNSEndpoint(t *testing.T) {
 					Endpoints: []*v1.Endpoint{
 						{
 							DNSName:    "example.com",
-							Targets:    v1.Targets{"10.2.2.3"},
+							Targets:    []string{"10.2.2.3"},
 							RecordType: "A",
 							RecordTTL:  600,
 						},
@@ -36,7 +36,7 @@ func TestValidateDNSEndpoint(t *testing.T) {
 					Endpoints: []*v1.Endpoint{
 						{
 							DNSName:    "example.com",
-							Targets:    v1.Targets{"2001:db8:0:0:0:0:2:1"},
+							Targets:    []string{"2001:db8:0:0:0:0:2:1"},
 							RecordType: "A",
 							RecordTTL:  600,
 						},
@@ -51,19 +51,19 @@ func TestValidateDNSEndpoint(t *testing.T) {
 					Endpoints: []*v1.Endpoint{
 						{
 							DNSName:    "example.com",
-							Targets:    v1.Targets{"10.2.2.3"},
+							Targets:    []string{"10.2.2.3"},
 							RecordType: "A",
 							RecordTTL:  600,
 						},
 						{
 							DNSName:    "example.co.uk",
-							Targets:    v1.Targets{"10.2.2.3"},
+							Targets:    []string{"example.org"},
 							RecordType: "CNAME",
 							RecordTTL:  900,
 						},
 						{
 							DNSName:    "example.ie",
-							Targets:    v1.Targets{"2001:db8:0:0:0:0:2:1"},
+							Targets:    []string{"2001:db8:0:0:0:0:2:1"},
 							RecordType: "AAAA",
 							RecordTTL:  900,
 						},
@@ -78,13 +78,13 @@ func TestValidateDNSEndpoint(t *testing.T) {
 					Endpoints: []*v1.Endpoint{
 						{
 							DNSName:    "example.com",
-							Targets:    v1.Targets{"example.ie", "example.io"},
+							Targets:    []string{"example.ie", "example.io"},
 							RecordType: "CNAME",
 							RecordTTL:  600,
 						},
 						{
 							DNSName:    "example.co.uk",
-							Targets:    v1.Targets{"10.2.2.3", "192.123.23.4"},
+							Targets:    []string{"10.2.2.3", "192.123.23.4"},
 							RecordType: "A",
 							RecordTTL:  900,
 						},
@@ -119,7 +119,7 @@ func TestValidateDNSEndpoint_ReturnsErrorOn(t *testing.T) {
 					Endpoints: []*v1.Endpoint{
 						{
 							DNSName:    "example.com",
-							Targets:    v1.Targets{"10.2.2.3"},
+							Targets:    []string{"10.2.2.3"},
 							RecordType: "bogusRecordType",
 							RecordTTL:  600,
 						},
@@ -135,7 +135,7 @@ func TestValidateDNSEndpoint_ReturnsErrorOn(t *testing.T) {
 					Endpoints: []*v1.Endpoint{
 						{
 							DNSName:    "example.com",
-							Targets:    v1.Targets{"bogusTargetName"},
+							Targets:    []string{"bogusTargetName"},
 							RecordType: "A",
 							RecordTTL:  600,
 						},
@@ -151,7 +151,7 @@ func TestValidateDNSEndpoint_ReturnsErrorOn(t *testing.T) {
 					Endpoints: []*v1.Endpoint{
 						{
 							DNSName:    "example.com",
-							Targets:    v1.Targets{"2001:::0:0:0:0:2:1"},
+							Targets:    []string{"2001:::0:0:0:0:2:1"},
 							RecordType: "A",
 							RecordTTL:  600,
 						},
@@ -167,7 +167,7 @@ func TestValidateDNSEndpoint_ReturnsErrorOn(t *testing.T) {
 					Endpoints: []*v1.Endpoint{
 						{
 							DNSName:    "example.com",
-							Targets:    v1.Targets{"acme.com", "10.2.2.3", "acme.com"},
+							Targets:    []string{"acme.com", "10.2.2.3", "acme.com"},
 							RecordType: "A",
 							RecordTTL:  600,
 						},
@@ -183,7 +183,7 @@ func TestValidateDNSEndpoint_ReturnsErrorOn(t *testing.T) {
 					Endpoints: []*v1.Endpoint{
 						{
 							DNSName:    "example.com",
-							Targets:    v1.Targets{"10.2.2.3", "acme.com"},
+							Targets:    []string{"10.2.2.3", "acme.com"},
 							RecordType: "A",
 							RecordTTL:  -1,
 						},
@@ -199,7 +199,7 @@ func TestValidateDNSEndpoint_ReturnsErrorOn(t *testing.T) {
 					Endpoints: []*v1.Endpoint{
 						{
 							DNSName:    "bogusDNSName",
-							Targets:    v1.Targets{"acme.com"},
+							Targets:    []string{"acme.com"},
 							RecordType: "A",
 							RecordTTL:  1800,
 						},
@@ -215,7 +215,7 @@ func TestValidateDNSEndpoint_ReturnsErrorOn(t *testing.T) {
 					Endpoints: []*v1.Endpoint{
 						{
 							DNSName:    "",
-							Targets:    v1.Targets{"acme.com"},
+							Targets:    []string{"acme.com"},
 							RecordType: "A",
 							RecordTTL:  1800,
 						},
@@ -231,7 +231,7 @@ func TestValidateDNSEndpoint_ReturnsErrorOn(t *testing.T) {
 					Endpoints: []*v1.Endpoint{
 						{
 							DNSName:    "example.com",
-							Targets:    v1.Targets{"acme."},
+							Targets:    []string{"acme."},
 							RecordType: "A",
 							RecordTTL:  1800,
 						},
@@ -247,7 +247,7 @@ func TestValidateDNSEndpoint_ReturnsErrorOn(t *testing.T) {
 					Endpoints: []*v1.Endpoint{
 						{
 							DNSName:    "example.com",
-							Targets:    v1.Targets{""},
+							Targets:    []string{""},
 							RecordType: "A",
 							RecordTTL:  1800,
 						},
@@ -263,7 +263,7 @@ func TestValidateDNSEndpoint_ReturnsErrorOn(t *testing.T) {
 					Endpoints: []*v1.Endpoint{
 						{
 							DNSName:    "example.com",
-							Targets:    v1.Targets{"&$$.*&^"},
+							Targets:    []string{"&$$.*&^"},
 							RecordType: "A",
 							RecordTTL:  1800,
 						},
