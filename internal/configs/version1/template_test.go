@@ -3,6 +3,7 @@ package version1
 import (
 	"bytes"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -171,6 +172,90 @@ func TestExecuteTemplate_ForIngressForNGINXWithHTTPRedirectCode(t *testing.T) {
 		t.Fatal(err)
 	}
 	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithServiceBeforeRedirect(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+	setServiceString := "set $service \"-\";"
+	returnRegex := `return \d{3} .+;`
+
+	err := tmpl.Execute(buf, ingressCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+
+	if !strings.Contains(bufString, setServiceString) {
+		t.Errorf("want %q in generated config", setServiceString)
+	}
+
+	// Find position of setServiceString
+	setServicePos := strings.Index(bufString, setServiceString)
+	if setServicePos == -1 {
+		t.Fatalf("setServiceString not found in generated config")
+	}
+
+	// Find position of return statement using regex
+	re := regexp.MustCompile(returnRegex)
+	returnMatch := re.FindStringIndex(bufString)
+	if returnMatch == nil {
+		t.Fatalf("return statement matching %q not found in generated config", returnRegex)
+	}
+	returnPos := returnMatch[0]
+
+	// Verify setServiceString comes before return statement
+	if setServicePos >= returnPos {
+		t.Errorf("setServiceString at position %d should come before return statement at position %d", setServicePos, returnPos)
+	}
+
+	snaps.MatchSnapshot(t, buf.String())
+	t.Log(buf.String())
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithServiceBeforeRedirect(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+	setServiceString := "set $service \"-\";"
+	returnRegex := `return \d{3} .+;`
+
+	err := tmpl.Execute(buf, ingressCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+
+	if !strings.Contains(bufString, setServiceString) {
+		t.Errorf("want %q in generated config", setServiceString)
+	}
+
+	// Find position of setServiceString
+	setServicePos := strings.Index(bufString, setServiceString)
+	if setServicePos == -1 {
+		t.Fatalf("setServiceString not found in generated config")
+	}
+
+	// Find position of return statement using regex
+	re := regexp.MustCompile(returnRegex)
+	returnMatch := re.FindStringIndex(bufString)
+	if returnMatch == nil {
+		t.Fatalf("return statement matching %q not found in generated config", returnRegex)
+	}
+	returnPos := returnMatch[0]
+
+	// Verify setServiceString comes before return statement
+	if setServicePos >= returnPos {
+		t.Errorf("setServiceString at position %d should come before return statement at position %d", setServicePos, returnPos)
+	}
+
+	snaps.MatchSnapshot(t, buf.String())
+	t.Log(buf.String())
 }
 
 func TestExecuteTemplate_ForIngressForNGINXPlusWithRegexAnnotationCaseSensitiveModifier(t *testing.T) {

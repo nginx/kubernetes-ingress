@@ -72,6 +72,7 @@ server {
 	set $resource_type "ingress";
 	set $resource_name "{{$.Ingress.Name}}";
 	set $resource_namespace "{{$.Ingress.Namespace}}";
+	set $service "-";
 
 	{{- range $proxyHideHeader := $server.ProxyHideHeaders}}
 	proxy_hide_header {{$proxyHideHeader}};{{end}}

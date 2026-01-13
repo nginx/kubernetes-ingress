@@ -56,6 +56,7 @@ server {
     set $resource_type "virtualserver";
     set $resource_name "{{$s.VSName}}";
     set $resource_namespace "{{$s.VSNamespace}}";
+    set $service "-";
 
     {{- with $ssl := $s.SSL }}
         {{- if $s.TLSPassthrough }}

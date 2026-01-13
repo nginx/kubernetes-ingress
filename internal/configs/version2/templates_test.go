@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/gkampitakis/go-snaps/snaps"
@@ -49,6 +51,86 @@ func TestVirtualServerForNginxPlus(t *testing.T) {
 	}
 	snaps.MatchSnapshot(t, string(data))
 	t.Log(string(data))
+}
+
+func TestVirtualServerForNginxPlusWithServiceBeforeRedirect(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	setServiceString := "set $service \"-\";"
+	returnRegex := `return \d{3} .+;`
+
+	buf, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgPlus)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := string(buf)
+
+	if !strings.Contains(bufString, setServiceString) {
+		t.Errorf("want %q in generated config", setServiceString)
+	}
+
+	// Find position of setServiceString
+	setServicePos := strings.Index(bufString, setServiceString)
+	if setServicePos == -1 {
+		t.Fatalf("setServiceString not found in generated config")
+	}
+
+	// Find position of return statement using regex
+	re := regexp.MustCompile(returnRegex)
+	returnMatch := re.FindStringIndex(bufString)
+	if returnMatch == nil {
+		t.Fatalf("return statement matching %q not found in generated config", returnRegex)
+	}
+	returnPos := returnMatch[0]
+
+	// Verify setServiceString comes before return statement
+	if setServicePos >= returnPos {
+		t.Errorf("setServiceString at position %d should come before return statement at position %d", setServicePos, returnPos)
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
+func TestVirtualServerForNginxWithServiceBeforeRedirect(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINX(t)
+	setServiceString := "set $service \"-\";"
+	returnRegex := `return \d{3} .+;`
+
+	buf, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := string(buf)
+
+	if !strings.Contains(bufString, setServiceString) {
+		t.Errorf("want %q in generated config", setServiceString)
+	}
+
+	// Find position of setServiceString
+	setServicePos := strings.Index(bufString, setServiceString)
+	if setServicePos == -1 {
+		t.Fatalf("setServiceString not found in generated config")
+	}
+
+	// Find position of return statement using regex
+	re := regexp.MustCompile(returnRegex)
+	returnMatch := re.FindStringIndex(bufString)
+	if returnMatch == nil {
+		t.Fatalf("return statement matching %q not found in generated config", returnRegex)
+	}
+	returnPos := returnMatch[0]
+
+	// Verify setServiceString comes before return statement
+	if setServicePos >= returnPos {
+		t.Errorf("setServiceString at position %d should come before return statement at position %d", setServicePos, returnPos)
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
 }
 
 func TestExecuteVirtualServerTemplate_RendersTemplateWithServerGunzipOn(t *testing.T) {

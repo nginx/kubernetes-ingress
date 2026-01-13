@@ -82,6 +82,7 @@ server {
 	set $resource_type "ingress";
 	set $resource_name "{{$.Ingress.Name}}";
 	set $resource_namespace "{{$.Ingress.Namespace}}";
+	set $service "-";
 
 	{{- if $server.AppProtectEnable}}
 	app_protect_enable {{$server.AppProtectEnable}};
