@@ -132,6 +132,11 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 	allWarnings := newWarnings()
 	allWarnings.Add(rewriteTargetWarnings)
 
+	// Check for deprecated SSL redirect annotation and add warning
+	if _, exists := p.ingEx.Ingress.Annotations["ingress.kubernetes.io/ssl-redirect"]; exists {
+		allWarnings.AddWarningf(p.ingEx.Ingress, "The annotation 'ingress.kubernetes.io/ssl-redirect' is deprecated and will be removed. Please use 'nginx.org/ssl-redirect' instead.")
+	}
+
 	var servers []version1.Server
 	var limitReqZones []version1.LimitReqZone
 
@@ -158,6 +163,7 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 			HTTP2:                  cfgParams.HTTP2,
 			RedirectToHTTPS:        cfgParams.RedirectToHTTPS,
 			SSLRedirect:            cfgParams.SSLRedirect,
+			HTTPRedirectCode:       cfgParams.HTTPRedirectCode,
 			SSLCiphers:             cfgParams.ServerSSLCiphers,
 			SSLPreferServerCiphers: cfgParams.ServerSSLPreferServerCiphers,
 			ProxyProtocol:          cfgParams.ProxyProtocol,
@@ -179,6 +185,7 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 			AppProtectLogEnable:    cfgParams.AppProtectLogEnable,
 			SpiffeCerts:            cfgParams.SpiffeServerCerts,
 			DisableIPV6:            p.staticParams.DisableIPV6,
+			AppRoot:                cfgParams.AppRoot,
 		}
 
 		warnings := addSSLConfig(&server, p.ingEx.Ingress, rule.Host, p.ingEx.Ingress.Spec.TLS, p.ingEx.SecretRefs, p.isWildcardEnabled)
@@ -498,6 +505,7 @@ func createLocation(path string, upstream version1.Upstream, cfg *ConfigParams, 
 		ProxySendTimeout:     cfg.ProxySendTimeout,
 		ProxySetHeaders:      cfg.ProxySetHeaders,
 		ClientMaxBodySize:    cfg.ClientMaxBodySize,
+		ClientBodyBufferSize: cfg.ClientBodyBufferSize,
 		Websocket:            websocket,
 		Rewrite:              rewrite,
 		RewriteTarget:        rewriteTarget,

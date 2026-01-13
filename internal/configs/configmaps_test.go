@@ -2489,6 +2489,199 @@ func TestParseProxyBuffersInvalidFormat(t *testing.T) {
 	})
 }
 
+func TestParseConfigMapClientBodyBufferSizeValid(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		value       string
+		expected    string
+		description string
+	}{
+		{
+			name:        "valid size with k suffix",
+			value:       "12k",
+			expected:    "12k",
+			description: "should accept valid size with k suffix",
+		},
+		{
+			name:        "valid size with K suffix",
+			value:       "16K",
+			expected:    "16K",
+			description: "should accept valid size with K suffix",
+		},
+		{
+			name:        "valid size with m suffix",
+			value:       "6m",
+			expected:    "6m",
+			description: "should accept valid size with m suffix",
+		},
+		{
+			name:        "valid size with M suffix",
+			value:       "8M",
+			expected:    "8M",
+			description: "should accept valid size with M suffix",
+		},
+		{
+			name:        "valid size without suffix",
+			value:       "1024",
+			expected:    "1024",
+			description: "should accept valid size without suffix",
+		},
+		{
+			name:        "not set",
+			value:       "",
+			expected:    "", // no default value anymore
+			description: "should use empty string when not set",
+		},
+	}
+
+	nginxPlus := false
+	hasAppProtect := false
+	hasAppProtectDos := false
+	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cm := &v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-configmap",
+					Namespace: "default",
+				},
+			}
+
+			if tt.value != "" {
+				cm.Data = map[string]string{
+					"client-body-buffer-size": tt.value,
+				}
+			}
+
+			result, configOk := ParseConfigMap(
+				context.Background(),
+				cm,
+				nginxPlus,
+				hasAppProtect,
+				hasAppProtectDos,
+				hasTLSPassthrough,
+				directiveAutoadjustEnabled,
+				makeEventLogger(),
+			)
+
+			// Should always pass validation for valid cases
+			if !configOk {
+				t.Errorf("ParseConfigMap() for %s should have passed validation but failed", tt.description)
+			}
+
+			if result.MainClientBodyBufferSize != tt.expected {
+				t.Errorf("ParseConfigMap() for %s returned MainClientBodyBufferSize=%q, expected %q",
+					tt.description, result.MainClientBodyBufferSize, tt.expected)
+			}
+		})
+	}
+}
+
+func TestParseConfigMapClientBodyBufferSizeInvalid(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		value       string
+		description string
+	}{
+		{
+			name:        "invalid time unit h",
+			value:       "4h",
+			description: "should reject invalid time units",
+		},
+		{
+			name:        "invalid random string",
+			value:       "3cd2",
+			description: "should reject invalid strings",
+		},
+		{
+			name:        "invalid with g suffix",
+			value:       "2g",
+			description: "should reject unsupported g suffix",
+		},
+		{
+			name:        "invalid with G suffix",
+			value:       "1G",
+			description: "should reject unsupported G suffix",
+		},
+		{
+			name:        "invalid negative value",
+			value:       "-16k",
+			description: "should reject negative values",
+		},
+		{
+			name:        "invalid whitespace only",
+			value:       " ",
+			description: "should reject whitespace-only values",
+		},
+		{
+			name:        "invalid with text prefix",
+			value:       "abc16k",
+			description: "should reject values with text prefix",
+		},
+		{
+			name:        "invalid with special characters",
+			value:       "16@k",
+			description: "should reject values with special characters",
+		},
+		{
+			name:        "invalid decimal with unsupported suffix",
+			value:       "16.5g",
+			description: "should reject decimal values with unsupported suffix",
+		},
+	}
+
+	nginxPlus := false
+	hasAppProtect := false
+	hasAppProtectDos := false
+	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cm := &v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-configmap",
+					Namespace: "default",
+				},
+				Data: map[string]string{
+					"client-body-buffer-size": tt.value,
+				},
+			}
+
+			result, configOk := ParseConfigMap(
+				context.Background(),
+				cm,
+				nginxPlus,
+				hasAppProtect,
+				hasAppProtectDos,
+				hasTLSPassthrough,
+				directiveAutoadjustEnabled,
+				makeEventLogger(),
+			)
+
+			// Should always fail validation for invalid cases
+			if configOk {
+				t.Errorf("%s should have failed validation but passed", tt.name)
+			}
+
+			if result.MainClientBodyBufferSize != "" {
+				t.Errorf(`%s returned MainClientBodyBufferSize=%q, expected ""`,
+					tt.name, result.MainClientBodyBufferSize)
+			}
+		})
+	}
+}
+
 func TestParseErrorLogLevelToVirtualServer(t *testing.T) {
 	t.Parallel()
 
@@ -2515,6 +2708,168 @@ func TestParseErrorLogLevelToVirtualServer(t *testing.T) {
 			}
 
 			assert.Equal(t, testLevel, result.MainErrorLogLevel)
+		})
+	}
+}
+
+func TestParseHTTPRedirectCode(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		code    string
+		expect  int
+		isValid bool
+		msg     string
+	}{
+		{
+			code:    "301",
+			expect:  301,
+			isValid: true,
+			msg:     "valid code 301",
+		},
+		{
+			code:    "302",
+			expect:  302,
+			isValid: true,
+			msg:     "valid code 302",
+		},
+		{
+			code:    "307",
+			expect:  307,
+			isValid: true,
+			msg:     "valid code 307",
+		},
+		{
+			code:    "308",
+			expect:  308,
+			isValid: true,
+			msg:     "valid code 308",
+		},
+		{
+			code:    "200",
+			expect:  0,
+			isValid: false,
+			msg:     "invalid code 200",
+		},
+		{
+			code:    "404",
+			expect:  0,
+			isValid: false,
+			msg:     "invalid code 404",
+		},
+		{
+			code:    "invalid",
+			expect:  0,
+			isValid: false,
+			msg:     "non-numeric code",
+		},
+		{
+			code:    "",
+			expect:  0,
+			isValid: false,
+			msg:     "empty code",
+		},
+	}
+
+	for _, test := range tests {
+		result, err := ParseHTTPRedirectCode(test.code)
+		if test.isValid {
+			assert.NoError(t, err, test.msg)
+			assert.Equal(t, test.expect, result, test.msg)
+		} else {
+			assert.Error(t, err, test.msg)
+		}
+	}
+}
+
+func TestParseConfigMapWithHTTPRedirectCode(t *testing.T) {
+	t.Parallel()
+	nginxPlus := false
+	hasAppProtect := false
+	hasAppProtectDos := false
+	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
+
+	tests := []struct {
+		configMap   map[string]string
+		expected    int
+		expectError bool
+		msg         string
+	}{
+		{
+			configMap: map[string]string{
+				"http-redirect-code": "301",
+			},
+			expected:    301,
+			expectError: false,
+			msg:         "valid redirect code 301",
+		},
+		{
+			configMap: map[string]string{
+				"http-redirect-code": "302",
+			},
+			expected:    302,
+			expectError: false,
+			msg:         "valid redirect code 302",
+		},
+		{
+			configMap: map[string]string{
+				"http-redirect-code": "307",
+			},
+			expected:    307,
+			expectError: false,
+			msg:         "valid redirect code 307",
+		},
+		{
+			configMap: map[string]string{
+				"http-redirect-code": "308",
+			},
+			expected:    308,
+			expectError: false,
+			msg:         "valid redirect code 308",
+		},
+		{
+			configMap: map[string]string{
+				"http-redirect-code": "200",
+			},
+			expected:    301, // should fallback to default
+			expectError: true,
+			msg:         "invalid redirect code 200",
+		},
+		{
+			configMap: map[string]string{
+				"http-redirect-code": "invalid",
+			},
+			expected:    301, // should fallback to default
+			expectError: true,
+			msg:         "non-numeric redirect code",
+		},
+		{
+			configMap:   map[string]string{},
+			expected:    301, // default value
+			expectError: false,
+			msg:         "no redirect code specified",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			configMap := &v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "nginx-config",
+					Namespace: "nginx-ingress",
+				},
+				Data: test.configMap,
+			}
+
+			result, configOK := ParseConfigMap(context.Background(), configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+
+			if test.expectError {
+				assert.False(t, configOK, test.msg)
+			} else {
+				assert.True(t, configOK, test.msg)
+			}
+
+			assert.Equal(t, test.expected, result.HTTPRedirectCode, test.msg)
 		})
 	}
 }

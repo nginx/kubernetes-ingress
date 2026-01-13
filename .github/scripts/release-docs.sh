@@ -75,9 +75,9 @@ if [ "${DEBUG}" != "false" ]; then
 fi
 
 echo "INFO: Generating release notes from github draft release"
-release_notes_content=$(${ROOTDIR}/.github/scripts/pull-release-notes.py ${ic_version} ${helm_chart_version} ${k8s_versions} "${release_date}")
+release_notes_content=$("${ROOTDIR}"/.github/scripts/pull-release-notes.py "${ic_version}" "${helm_chart_version}" "${k8s_versions}" "${release_date}")
 if [ $? -ne 0 ]; then
-    echo "ERROR: failed processing release notes"
+    echo "ERROR: failed to fetch release notes from GitHub draft release for version ${ic_version}"
     exit 2
 fi
 
@@ -85,6 +85,9 @@ if [ -z "${release_notes_content}" ]; then
     echo "ERROR: no release notes content"
     exit 2
 fi
+
+# Fix HTML entity encoding issues that happen when converting github draft to .md
+release_notes_content=$(echo "${release_notes_content}" | sed 's/&amp;/\&/g' | sed 's/&lt;/</g' | sed 's/&gt;/>/g' | sed 's/&quot;/"/g' | sed 's/&#34;/"/g')
 
 if [ "${DEBUG}" != "false" ]; then
     echo "DEBUG: Release notes content:"
@@ -108,46 +111,190 @@ if [ $? -ne 0 ]; then
     exit 2
 fi
 
-cd ${DOCS_FOLDER}
+cd ${DOCS_FOLDER} || exit 2
 if [ "${DEBUG}" != "false" ]; then
     echo "DEBUG: Cloned doc repo to ${DOCS_FOLDER} and changed directory"
 fi
 
-# generate branch name
+# Generate branch name using major.minor version (e.g., nic-release-5.2)
 branch=${RELEASE_BRANCH_PREFIX}${ic_version%.*}
 if [ "${DEBUG}" != "false" ]; then
-    echo "DEBUG: Generating branch ${branch}"
+    echo "DEBUG: Generated branch name: ${branch} (from version ${ic_version})"
 fi
 
 echo "INFO: Checking out branch ${branch} in the documentation repository"
-remote_branch=$(git ls-remote --heads origin ${branch} 2> /dev/null)
+remote_branch=$(git ls-remote --heads origin "${branch}" 2> /dev/null)
 
 if [ -n "${remote_branch}" ]; then
-    git checkout ${branch}
+    git checkout "${branch}"
     if [ "${DEBUG}" != "false" ]; then
-        echo "DEBUG: Checked out branch ${branch}"
+        echo "DEBUG: Checked out existing branch ${branch}"
     fi
 else
-    git checkout -b ${branch}
+    git checkout -b "${branch}"
     if [ "${DEBUG}" != "false" ]; then
-        echo "DEBUG: Created branch ${branch}"
+        echo "DEBUG: Created new branch ${branch}"
     fi
 fi
 
-echo "INFO: Adding release notes content to release.md in the documentation repository"
-file_path=${DOCS_FOLDER}/content/nic/releases.md
-if [ "${DEBUG}" != "false" ]; then
-    echo "DEBUG: Processing ${file_path}"
+# Extract year from release date
+release_year=$(date -j -f "%d %b %Y" "${release_date}" "+%Y" 2>/dev/null || date -d "${release_date}" "+%Y" 2>/dev/null)
+
+if [ -z "${release_year}" ]; then
+    echo "ERROR: failed to parse release year from date: ${release_date}"
+    exit 2
 fi
-file_name=$(basename "${file_path}")
-mv "${file_path}" "${TMPDIR}/${file_name}"
-head -n 8 "${TMPDIR}/${file_name}" > "${TMPDIR}/header"
-tail -n +9 "${TMPDIR}/${file_name}" > "${TMPDIR}/body"
-echo "${release_notes_content}" > "${TMPDIR}/release_notes"
-cat "${TMPDIR}/header" "${TMPDIR}/release_notes" "${TMPDIR}/body" > "${file_path}"
+
+# Determine what year the current _index.md represents
+index_file_path=${DOCS_FOLDER}/content/nic/changelog/_index.md
+
+if [ "${DEBUG}" != "false" ]; then
+    echo "DEBUG: Attempting to detect current changelog year from ${index_file_path}"
+fi
+
+# First: look for "releases in 2025" in the header
+current_year=$(grep "releases in" "${index_file_path}" | grep -o "[0-9]\{4\}" | head -1)
+if [ "${DEBUG}" != "false" ] && [ -n "${current_year}" ]; then
+    echo "DEBUG: Found year in header text: ${current_year}"
+fi
+
+# Second: if that fails, look for year in release headings like "## 5.2.1"
+if [ -z "${current_year}" ]; then
+    current_year=$(grep -o "^## .*[0-9]\{4\}" "${index_file_path}" | grep -o "[0-9]\{4\}" | head -1)
+    if [ "${DEBUG}" != "false" ] && [ -n "${current_year}" ]; then
+        echo "DEBUG: Found year in release headings: ${current_year}"
+    fi
+fi
+
+# Third: if both fail, assume it's the previous year as a safe fallback
+if [ -z "${current_year}" ]; then
+    current_year=$((release_year - 1))
+    if [ "${DEBUG}" != "false" ]; then
+        echo "DEBUG: No year found in changelog, using fallback: ${current_year}"
+    fi
+fi
+
+if [ "${DEBUG}" != "false" ]; then
+    echo "DEBUG: Current index year: ${current_year}, Release year: ${release_year}"
+fi
+
+# Compare release year vs current index year
+# If different years: archive current year's releases and create new index
+# If same year: just add to existing index
+if [ "${release_year}" != "${current_year}" ]; then
+    # New year - archive current year and start fresh
+    echo "INFO: New year detected (${release_year}). Archiving ${current_year} and creating new index."
+
+    # Create archive file with Hugo frontmatter for the current year's releases
+    archive_file=${DOCS_FOLDER}/content/nic/changelog/${current_year}.md
+    cp "${index_file_path}" "${TMPDIR}/temp_index.md"
+
+    # Update weights in existing archive files (bump each by 100 to make room for new archive at 100)
+    if [ "${DEBUG}" != "false" ]; then
+        echo "DEBUG: Updating weights in existing archive files"
+    fi
+    for existing_archive in ${DOCS_FOLDER}/content/nic/changelog/[0-9][0-9][0-9][0-9].md; do
+        if [ -f "${existing_archive}" ]; then
+            # Extract current weight and add 100
+            current_weight=$(grep "^weight:" "${existing_archive}" | sed 's/^weight:[[:space:]]*//')
+            new_weight=$((current_weight + 100))
+            sed -i.bak "s/^weight: *${current_weight}/weight: ${new_weight}/" "${existing_archive}"
+            rm -f "${existing_archive}.bak"
+            if [ "${DEBUG}" != "false" ]; then
+                echo "DEBUG: Updated $(basename "${existing_archive}") weight from ${current_weight} to ${new_weight}"
+            fi
+        fi
+    done
+
+    # Create archive with frontmatter
+    cat > "${archive_file}" << EOF
+---
+title: "${current_year} archive"
+# Weights are assigned in increments of 100: determines sorting order
+weight: 100
+# Creates a table of contents and sidebar, useful for large documents
+toc: true
+# Types have a 1:1 relationship with Hugo archetypes, so you shouldn't need to change this
+nd-content-type: reference
+nd-product: INGRESS
+---
+
+EOF
+
+    # Find where releases start (first "## " heading) and copy everything after that
+    # This skips the frontmatter and intro text, keeping only actual release entries
+    release_start=$(grep -n "^## " "${TMPDIR}/temp_index.md" | head -1 | cut -d: -f1)
+    if [ "${DEBUG}" != "false" ]; then
+        echo "DEBUG: Release content starts at line: ${release_start:-'not found'}"
+    fi
+    [ -n "${release_start}" ] && tail -n +"${release_start}" "${TMPDIR}/temp_index.md" >> "${archive_file}"
+
+    # Create new index for new year
+    echo "INFO: Creating new _index.md for year ${release_year}"
+
+    # Extract header content (everything before the newest release) and update year references
+    if [ "${DEBUG}" != "false" ]; then
+        echo "DEBUG: Extracting header and updating year references from ${current_year} to ${release_year}"
+    fi
+
+    if [ -n "${release_start}" ]; then
+        # Extract everything before the newest release heading
+        head -n $((release_start - 1)) "${TMPDIR}/temp_index.md"
+    else
+        # No releases found, extract most of the file (excluding footer)
+        head -n $(($(wc -l < "${TMPDIR}/temp_index.md") - 3)) "${TMPDIR}/temp_index.md"
+    fi | sed "s/${current_year}/${release_year}/g" | awk -v archived_year="${current_year}" '
+    # Add the archived year to the "previous years" link list
+    /For older releases, check the changelogs for previous years:/ {
+        # Insert the archived year at the beginning
+        sub(/For older releases, check the changelogs for previous years: /, "For older releases, check the changelogs for previous years: [" archived_year "]({{< ref \"/nic/changelog/" archived_year ".md\" >}}), ")
+    }
+    { print }
+    ' > "${TMPDIR}/new_header.md"
+
+    # Assemble new index file: header + new release notes
+    if [ "${DEBUG}" != "false" ]; then
+        echo "DEBUG: Assembling new _index.md with header and new release notes"
+    fi
+    cat "${TMPDIR}/new_header.md" > "${index_file_path}"
+    echo "" >> "${index_file_path}"
+    echo "${release_notes_content}" >> "${index_file_path}"
+
+else
+    # Same year - add to existing changelog
+    echo "INFO: Adding release notes to existing changelog/_index.md for year ${release_year}"
+
+    # Find where to insert new release notes in existing changelog
+    # Look for first release heading ("## ") or fallback to after compatibility matrix
+    cp "${index_file_path}" "${TMPDIR}/temp_index.md"
+    insert_line=$(grep -n "^## " "${TMPDIR}/temp_index.md" | head -1 | cut -d: -f1)
+
+    if [ -z "${insert_line}" ]; then
+        # No existing releases found, insert after the compatibility matrix
+        if [ "${DEBUG}" != "false" ]; then
+            echo "DEBUG: No existing releases found, looking for {{< /details >}} tag"
+        fi
+        insert_line=$(grep -n "{{< /details >}}" "${TMPDIR}/temp_index.md" | tail -1 | cut -d: -f1)
+        [ -n "${insert_line}" ] && insert_line=$((insert_line + 2)) || insert_line=8
+    fi
+
+    if [ "${DEBUG}" != "false" ]; then
+        echo "DEBUG: Will insert new release at line ${insert_line}"
+    fi
+
+    # Reconstruct the file: header + new release + existing releases
+    # This inserts the new release at the top of the releases section
+    head -n $((insert_line - 1)) "${TMPDIR}/temp_index.md" > "${TMPDIR}/final_index.md"
+    echo "" >> "${TMPDIR}/final_index.md"
+    echo "${release_notes_content}" >> "${TMPDIR}/final_index.md"
+    echo "" >> "${TMPDIR}/final_index.md"
+    tail -n +"${insert_line}" "${TMPDIR}/temp_index.md" >> "${TMPDIR}/final_index.md"
+
+    mv "${TMPDIR}/final_index.md" "${index_file_path}"
+fi
+
 if [ $? -ne 0 ]; then
-    echo "ERROR: failed processing ${file_path}"
-    mv "${TMPDIR}/${file_name}" "${file_path}"
+    echo "ERROR: failed processing changelog files"
     exit 2
 fi
 
@@ -158,30 +305,33 @@ if [ $? -ne 0 ]; then
     exit 2
 fi
 
-echo "INFO: Committing changes to the documentation repository"
+echo "INFO: Staging changes for commit"
 git add -A
 if [ $? -ne 0 ]; then
     echo "ERROR: failed adding files to git"
     exit 2
 fi
 
-git commit -m "Update release notes for ${ic_version}"
-if [ $? -ne 0 ]; then
-    echo "ERROR: failed committing changes to the docs repo"
-    exit 2
-fi
-
 if [ "${DRY_RUN}" == "false" ]; then
+    echo "INFO: Committing changes to the documentation repository"
+    git commit -m "Update release notes for ${ic_version}"
+    if [ $? -ne 0 ]; then
+        echo "ERROR: failed committing changes to the docs repo"
+        exit 2
+    fi
+
     echo "INFO: Pushing changes to the documentation repository"
-    git push origin ${branch}
+    git push origin "${branch}"
     if [ $? -ne 0 ]; then
         echo "ERROR: failed pushing changes to the docs repo"
         exit 2
     fi
     echo "INFO: Creating pull request for the documentation repository"
-    gh pr create --title "Update release notes for ${ic_version}" --body "Update release notes for ${ic_version}" --head ${branch} --draft
+    gh pr create --title "Update release notes for ${ic_version}" --body "Update release notes for ${ic_version}" --head "${branch}" --draft
 else
-    echo "INFO: DRY_RUN: Skipping push and pull request creation"
+    echo "INFO: DRY_RUN: Showing what would be committed:"
+    git status --porcelain
+    echo "INFO: DRY_RUN: Skipping commit, push and pull request creation"
 fi
 
 if [ "${DEBUG}" != "false" ]; then
@@ -191,7 +341,9 @@ cd - > /dev/null 2>&1
 
 if [ "${TIDY}" == "true" ]; then
     echo "INFO: Clean up"
-    rm -rf "${TMPDIR}/header" "${TMPDIR}/body" "${TMPDIR}/release_notes" "${DOCS_FOLDER}"
+    rm -rf "${TMPDIR}/temp_index.md" "${TMPDIR}/final_index.md" "${TMPDIR}/current_index.md" "${TMPDIR}/new_header.md" "${DOCS_FOLDER}"
+else
+    echo "INFO: Skipping tidy (docs folder: ${DOCS_FOLDER})"
 fi
 
 exit 0
