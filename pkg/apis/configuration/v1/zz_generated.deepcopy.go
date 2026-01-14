@@ -6,6 +6,7 @@
 package v1
 
 import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	intstr "k8s.io/apimachinery/pkg/util/intstr"
 )
@@ -1076,6 +1077,11 @@ func (in *Route) DeepCopyInto(out *Route) {
 		in, out := &in.Policies, &out.Policies
 		*out = make([]PolicyReference, len(*in))
 		copy(*out, *in)
+	}
+	if in.RouteSelector != nil {
+		in, out := &in.RouteSelector, &out.RouteSelector
+		*out = new(metav1.LabelSelector)
+		(*in).DeepCopyInto(*out)
 	}
 	if in.Action != nil {
 		in, out := &in.Action, &out.Action
