@@ -5,8 +5,8 @@ VERSION = $(VER)-SNAPSHOT
 # renovate: datasource=docker depName=nginx/nginx
 NGINX_OSS_VERSION             ?= 1.29.4
 NGINX_PLUS_VERSION            ?= R36
-NAP_WAF_VERSION               ?= 36+5.550
-NAP_WAF_COMMON_VERSION        ?= 11.583
+NAP_WAF_VERSION               ?= 36+5.575
+NAP_WAF_COMMON_VERSION        ?= 11.608
 NAP_WAF_PLUGIN_VERSION        ?= 6.25.0
 NAP_AGENT_VERSION             ?= 2
 NGINX_AGENT_VERSION           ?= 3.6
