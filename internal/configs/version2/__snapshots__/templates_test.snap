@@ -4086,42 +4086,6 @@ server {
 
 ---
 
-[TestVirtualServerForNginxPlusWithWAFApBundle - 1]
-
-
-server {
-    listen 80;
-    listen [::]:80;
-
-
-    server_name example.com;
-    status_zone example.com;
-    set $resource_type "virtualserver";
-    set $resource_name "";
-    set $resource_namespace "";
-    set $service "-";
-
-    server_tokens "";
-    app_protect_enable on;
-    app_protect_policy_file /fake/bundle/path/NginxDefaultPolicy.tgz;
-    app_protect_security_log_enable on;
-    app_protect_security_log /etc/nginx/waf/nac-logconfs/default-logconf;
-    
-
-    
-
-    
-    location / {
-        set $service "";
-        status_zone "";
-
-        
-        set $default_connection_header close;
-    }
-}
-
----
-
 [TestVirtualServerForNginxPlusWithServiceBeforeRedirect - 1]
 
 upstream test-upstream {
@@ -4528,6 +4492,42 @@ server {
 
         
     
+}
+
+---
+
+[TestVirtualServerForNginxPlusWithWAFApBundle - 1]
+
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name example.com;
+    status_zone example.com;
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+    app_protect_enable on;
+    app_protect_policy_file /fake/bundle/path/NginxDefaultPolicy.tgz;
+    app_protect_security_log_enable on;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/default-logconf;
+    
+
+    
+
+    
+    location / {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header close;
+    }
 }
 
 ---
