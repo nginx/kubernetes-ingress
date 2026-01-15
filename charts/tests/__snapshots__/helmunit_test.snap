@@ -14240,10 +14240,10 @@ metadata:
   name: loadbalancerclass-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.4.0
+    helm.sh/chart: nginx-ingress-2.5.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: loadbalancerclass
-    app.kubernetes.io/version: "5.3.0"
+    app.kubernetes.io/version: "5.4.0"
     app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
@@ -14253,10 +14253,10 @@ metadata:
   name: loadbalancerclass-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.4.0
+    helm.sh/chart: nginx-ingress-2.5.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: loadbalancerclass
-    app.kubernetes.io/version: "5.3.0"
+    app.kubernetes.io/version: "5.4.0"
     app.kubernetes.io/managed-by: Helm
 data:
   {}
@@ -14268,10 +14268,10 @@ metadata:
   name: loadbalancerclass-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.4.0
+    helm.sh/chart: nginx-ingress-2.5.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: loadbalancerclass
-    app.kubernetes.io/version: "5.3.0"
+    app.kubernetes.io/version: "5.4.0"
     app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
@@ -14280,10 +14280,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: loadbalancerclass-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.4.0
+    helm.sh/chart: nginx-ingress-2.5.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: loadbalancerclass
-    app.kubernetes.io/version: "5.3.0"
+    app.kubernetes.io/version: "5.4.0"
     app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups:
@@ -14395,10 +14395,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: loadbalancerclass-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.4.0
+    helm.sh/chart: nginx-ingress-2.5.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: loadbalancerclass
-    app.kubernetes.io/version: "5.3.0"
+    app.kubernetes.io/version: "5.4.0"
     app.kubernetes.io/managed-by: Helm
 subjects:
 - kind: ServiceAccount
@@ -14415,10 +14415,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: loadbalancerclass-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.4.0
+    helm.sh/chart: nginx-ingress-2.5.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: loadbalancerclass
-    app.kubernetes.io/version: "5.3.0"
+    app.kubernetes.io/version: "5.4.0"
     app.kubernetes.io/managed-by: Helm
   namespace: default
 rules:
@@ -14475,10 +14475,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: loadbalancerclass-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.4.0
+    helm.sh/chart: nginx-ingress-2.5.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: loadbalancerclass
-    app.kubernetes.io/version: "5.3.0"
+    app.kubernetes.io/version: "5.4.0"
     app.kubernetes.io/managed-by: Helm
   namespace: default
 roleRef:
@@ -14497,10 +14497,10 @@ metadata:
   name: loadbalancerclass-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.4.0
+    helm.sh/chart: nginx-ingress-2.5.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: loadbalancerclass
-    app.kubernetes.io/version: "5.3.0"
+    app.kubernetes.io/version: "5.4.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   externalTrafficPolicy: Local
@@ -14528,10 +14528,10 @@ metadata:
   name: loadbalancerclass-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.4.0
+    helm.sh/chart: nginx-ingress-2.5.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: loadbalancerclass
-    app.kubernetes.io/version: "5.3.0"
+    app.kubernetes.io/version: "5.4.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -14651,10 +14651,10 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.4.0
+    helm.sh/chart: nginx-ingress-2.5.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: loadbalancerclass
-    app.kubernetes.io/version: "5.3.0"
+    app.kubernetes.io/version: "5.4.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
@@ -14669,9 +14669,9 @@ metadata:
   name: loadbalancerclass-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.4.0
+    helm.sh/chart: nginx-ingress-2.5.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: loadbalancerclass
-    app.kubernetes.io/version: "5.3.0"
+    app.kubernetes.io/version: "5.4.0"
     app.kubernetes.io/managed-by: Helm
 ---
