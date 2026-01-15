@@ -180,7 +180,7 @@ func TestHelmNICTemplate(t *testing.T) {
 			valuesFile:  "testdata/service-loadbalancerclass.yaml",
 			releaseName: "loadbalancerclass",
             namespace: "default",
-    },
+		},
 		"listConfigurations": {
 			valuesFile:  "testdata/list-configurations.yaml",
 			releaseName: "list-configs",
