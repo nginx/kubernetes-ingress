@@ -80,15 +80,15 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36+5.550"
+          "version": "36+5.575"
         },
         {
           "name": "app-protect",
-          "version": "36+5.550"
+          "version": "36+5.575"
         },
         {
           "name": "app-protect-attack-signatures",
-          "version": "2025"
+          "version": "2026"
         },
         {
           "name": "app-protect-threat-campaigns",
@@ -126,11 +126,11 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36+5.550"
+          "version": "36+5.575"
         },
         {
           "name": "app-protect-module-plus",
-          "version": "36+5.550"
+          "version": "36+5.575"
         },
         {
           "name": "app-protect-plugin",
@@ -202,15 +202,15 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36+5.550"
+          "version": "36+5.575"
         },
         {
           "name": "app-protect",
-          "version": "36+5.550"
+          "version": "36+5.575"
         },
         {
           "name": "app-protect-attack-signatures",
-          "version": "2025"
+          "version": "2026"
         },
         {
           "name": "app-protect-threat-campaigns",
@@ -349,15 +349,15 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36.5.550"
+          "version": "36.5.575"
         },
         {
           "name": "app-protect",
-          "version": "36.5.550"
+          "version": "36.5.575"
         },
         {
           "name": "app-protect-attack-signatures",
-          "version": "2025"
+          "version": "2026"
         },
         {
           "name": "app-protect-threat-campaigns",
@@ -395,11 +395,11 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36.5.550"
+          "version": "36.5.575"
         },
         {
           "name": "app-protect-module-plus",
-          "version": "36.5.550"
+          "version": "36.5.575"
         },
         {
           "name": "app-protect-plugin",
@@ -495,15 +495,15 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36+5.550"
+          "version": "36+5.575"
         },
         {
           "name": "app-protect",
-          "version": "36+5.550"
+          "version": "36+5.575"
         },
         {
           "name": "app-protect-attack-signatures",
-          "version": "2025"
+          "version": "2026"
         },
         {
           "name": "app-protect-threat-campaigns",
@@ -541,11 +541,11 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36+5.550"
+          "version": "36+5.575"
         },
         {
           "name": "app-protect-module-plus",
-          "version": "36+5.550"
+          "version": "36+5.575"
         },
         {
           "name": "app-protect-plugin",
@@ -583,15 +583,15 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36+5.550"
+          "version": "36+5.575"
         },
         {
           "name": "app-protect",
-          "version": "36+5.550"
+          "version": "36+5.575"
         },
         {
           "name": "app-protect-attack-signatures",
-          "version": "2025"
+          "version": "2026"
         },
         {
           "name": "app-protect-threat-campaigns",
@@ -629,11 +629,11 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36+5.550"
+          "version": "36+5.575"
         },
         {
           "name": "app-protect-module-plus",
-          "version": "36+5.550"
+          "version": "36+5.575"
         },
         {
           "name": "app-protect-plugin",
@@ -701,7 +701,7 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36+5.550"
+          "version": "36+5.575"
         },
         {
           "name": "nginx-plus-module-appprotectdos",
@@ -713,11 +713,11 @@
         },
         {
           "name": "app-protect",
-          "version": "36+5.550"
+          "version": "36+5.575"
         },
         {
           "name": "app-protect-attack-signatures",
-          "version": "2025"
+          "version": "2026"
         },
         {
           "name": "app-protect-threat-campaigns",
