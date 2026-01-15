@@ -2700,7 +2700,7 @@ func newSecretStore(t *testing.T) *secrets.LocalSecretStore {
 //	  Platform     string
 //	}
 func newTestClientset(objects ...k8sruntime.Object) *testClient.Clientset {
-	client := testClient.NewSimpleClientset(objects...)
+	client := testClient.NewClientset(objects...)
 	client.Discovery().(*fakediscovery.FakeDiscovery).FakedServerVersion = &version.Info{
 		GitVersion: "v1.30.0",
 	}
