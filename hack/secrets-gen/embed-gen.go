@@ -29,8 +29,6 @@ type emptyCA struct {
 }
 
 func generateEmbedCerts(logger *slog.Logger, embeds embedCrts, filenames map[string]struct{}, cleanPtr *bool) (map[string]struct{}, error) {
-	fmt.Printf("\n\n%#v\n\n", embeds)
-
 	filenames, err := checkForUniqueAndCleanEmbeds(logger, filenames, embeds, cleanPtr)
 	if err != nil {
 		return filenames, fmt.Errorf("checking for unique and cleaning embed certs: %w", err)
