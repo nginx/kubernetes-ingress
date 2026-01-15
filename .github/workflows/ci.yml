@@ -316,6 +316,10 @@ jobs:
           chmod 600 $HOME/.netrc
         if: ${{ inputs.force || (needs.checks.outputs.binary_cache_hit != 'true' && needs.checks.outputs.forked_workflow != 'true') }}
 
+      - name: Generate secrets for tests
+        run: |
+          make secrets
+
       - name: Run Tests
         run: make cover
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' && (inputs.run_tests && inputs.run_tests || true) }}
