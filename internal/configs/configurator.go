@@ -641,6 +641,18 @@ func (cnf *Configurator) addOrUpdateVirtualServer(virtualServerEx *VirtualServer
 	}
 	changed := cnf.nginxManager.CreateConfig(name, content)
 
+	if vsCfg.Server.OIDC != nil {
+		name := getFileNameForOIDCVirtualServer(virtualServerEx.VirtualServer)
+
+		content, err := cnf.templateExecutorV2.ExecuteOIDCTemplate(vsCfg.Server.OIDC)
+		if err != nil {
+			return false, warnings, weightUpdates, fmt.Errorf("error generating VirtualServer OIDC config: %v: %w", name, err)
+		}
+		oidcChanged := cnf.nginxManager.CreateOIDCConfig(name, content)
+		if oidcChanged {
+			changed = true
+		}
+	}
 	cnf.virtualServers[name] = virtualServerEx
 
 	if (cnf.isPlus && cnf.isPrometheusEnabled) || cnf.isLatencyMetricsEnabled {
@@ -1029,6 +1041,14 @@ func (cnf *Configurator) DeleteIngress(key string, skipReload bool) error {
 func (cnf *Configurator) DeleteVirtualServer(key string, skipReload bool) error {
 	name := getFileNameForVirtualServerFromKey(key)
 	cnf.nginxManager.DeleteConfig(name)
+	if cnf.virtualServers[name] != nil {
+		for _, policy := range cnf.virtualServers[name].Policies {
+			if policy.Spec.OIDC != nil {
+				oidcName := getFileNameForOIDCVirtualServer(cnf.virtualServers[name].VirtualServer)
+				cnf.nginxManager.DeleteOIDCConfig(oidcName)
+			}
+		}
+	}
 
 	if cnf.isPlus {
 		cnf.nginxManager.DeleteKeyValStateFiles(name)
@@ -1553,6 +1573,10 @@ func generateNamespaceNameKey(objectMeta *meta_v1.ObjectMeta) string {
 
 func getFileNameForVirtualServer(virtualServer *conf_v1.VirtualServer) string {
 	return fmt.Sprintf("vs_%s_%s", virtualServer.Namespace, virtualServer.Name)
+}
+
+func getFileNameForOIDCVirtualServer(virtualServer *conf_v1.VirtualServer) string {
+	return fmt.Sprintf("oidc_%s_%s", virtualServer.Namespace, virtualServer.Name)
 }
 
 func getFileNameForTransportServer(transportServer *conf_v1.TransportServer) string {

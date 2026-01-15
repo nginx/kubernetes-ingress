@@ -830,6 +830,7 @@ func TestStandardIngressAnnotations(t *testing.T) {
 	annotations := map[string]string{
 		"appprotect.f5.com/app-protect-enable": "False",
 		"nginx.org/proxy-set-header":           "X-Forwarded-ABC",
+		"nginx.org/ssl-redirect":               "True",
 		"ingress.kubernetes.io/ssl-redirect":   "True",
 		"nginx.com/slow-start":                 "0s",
 	}
@@ -851,6 +852,7 @@ func TestStandardIngressAnnotations(t *testing.T) {
 	expectedAnnotations := []string{
 		"appprotect.f5.com/app-protect-enable",
 		"nginx.org/proxy-set-header",
+		"nginx.org/ssl-redirect",
 		"nginx.com/slow-start",
 		"ingress.kubernetes.io/ssl-redirect",
 	}
@@ -902,6 +904,36 @@ func TestInvalidStandardIngressAnnotations(t *testing.T) {
 		if strings.Contains(got, expectedAnnotation) {
 			t.Errorf("expected %v in %v", expectedAnnotation, got)
 		}
+	}
+}
+
+func TestAppRootAnnotationTelemetry(t *testing.T) {
+	t.Parallel()
+
+	buf := &bytes.Buffer{}
+	exp := &telemetry.StdoutExporter{Endpoint: buf}
+
+	annotations := map[string]string{
+		"nginx.org/app-root": "/coffee",
+	}
+
+	configurator := newConfiguratorWithIngressWithCustomAnnotations(t, annotations)
+
+	cfg := telemetry.CollectorConfig{
+		Configurator:    configurator,
+		K8sClientReader: newTestClientset(node1, kubeNS),
+		Version:         telemetryNICData.ProjectVersion,
+	}
+
+	c, err := telemetry.NewCollector(cfg, telemetry.WithExporter(exp))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Collect(context.Background())
+
+	got := buf.String()
+	if !strings.Contains(got, "nginx.org/app-root") {
+		t.Errorf("expected app-root annotation to be collected in telemetry, got: %v", got)
 	}
 }
 
@@ -2646,7 +2678,7 @@ func newConfigurator(t *testing.T) *configs.Configurator {
 		t.Fatal(err)
 	}
 
-	templateExecutorV2, err := version2.NewTemplateExecutor(virtualServerTemplatePath, transportServerTemplatePath)
+	templateExecutorV2, err := version2.NewTemplateExecutor(virtualServerTemplatePath, transportServerTemplatePath, oidcTemplatePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2712,6 +2744,7 @@ const (
 	ingressTemplatePath         = "../configs/version1/nginx-plus.ingress.tmpl"
 	virtualServerTemplatePath   = "../configs/version2/nginx-plus.virtualserver.tmpl"
 	transportServerTemplatePath = "../configs/version2/nginx-plus.transportserver.tmpl"
+	oidcTemplatePath            = "../configs/version2/oidc.tmpl"
 )
 
 // telemetryNICData holds static test data for telemetry tests.

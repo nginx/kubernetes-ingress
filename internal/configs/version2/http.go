@@ -157,6 +157,9 @@ type OIDC struct {
 	AuthExtraArgs         string
 	AccessTokenEnable     bool
 	PKCEEnable            bool
+	TLSVerify             bool
+	VerifyDepth           int
+	CAFile                string
 }
 
 // APIKey holds API key configuration.
@@ -198,6 +201,7 @@ type Location struct {
 	ProxyReadTimeout         string
 	ProxySendTimeout         string
 	ClientMaxBodySize        string
+	ClientBodyBufferSize     string
 	ProxyMaxTempFileSize     string
 	ProxyBuffering           bool
 	ProxyBuffers             string
@@ -491,20 +495,71 @@ type Variable struct {
 
 // CacheZone defines a proxy cache zone configuration.
 type CacheZone struct {
-	Name   string
-	Size   string
-	Path   string
-	Levels string // Optional. Directory hierarchy for cache files (e.g., "1:2", "2:2", "1:2:2")
+	Name             string
+	Size             string
+	Path             string
+	Levels           string // Optional. Directory hierarchy for cache files (e.g., "1:2", "2:2", "1:2:2")
+	Inactive         string // Optional. Time after which inactive cached data is removed
+	UseTempPath      bool   // Optional. Whether to use temporary path (use_temp_path=off when false)
+	MaxSize          string // Optional. Maximum size of the cache
+	MinFree          string // Optional. Minimum free space required
+	ManagerFiles     *int
+	ManagerSleep     string
+	ManagerThreshold string
 }
 
 // Cache defines cache configuration for locations.
 type Cache struct {
-	ZoneName              string
-	ZoneSize              string
-	Time                  string
-	Valid                 map[string]string // map for codes to time
-	AllowedMethods        []string          // HTTP methods allowed for caching based on proxy_cache_methods
-	CachePurgeAllow       []string          // IPs/CIDRs allowed to purge cache
-	OverrideUpstreamCache bool              // Controls whether to override upstream cache headers
-	Levels                string            // Optional. Directory hierarchy for cache files (e.g., "1:2", "2:2", "1:2:2")
+	// proxy_cache directive
+	ZoneName string // Required. The name of the cache zone
+	ZoneSize string // Required. The size of the cache zone
+
+	// proxy_cache_path directive
+	Levels           string // Optional. Directory hierarchy for cache files (e.g., "1:2", "2:2", "1:2:2")
+	Inactive         string // Optional. Time after which inactive cached data is removed
+	UseTempPath      bool   // Optional. Whether to use temporary path (use_temp_path=off when false)
+	MaxSize          string // Optional. Maximum size of the cache
+	MinFree          string // Optional. Minimum free space required
+	ManagerFiles     *int   // Optional. Number of files manager can handle
+	ManagerSleep     string // Optional. Sleep time between manager runs
+	ManagerThreshold string // Optional. Manager threshold for cache operations
+
+	// proxy_cache_key directive
+	CacheKey string // Optional. Custom cache key
+
+	// proxy_ignore_headers directive
+	OverrideUpstreamCache bool // Controls whether to override upstream cache headers
+
+	// proxy_cache_valid directive
+	Time  string            // Optional. Default cache validity time
+	Valid map[string]string // Optional. Cache validity map for codes to time
+
+	// proxy_cache_methods directive
+	AllowedMethods []string // Optional. HTTP methods to cache
+
+	// proxy_cache_use_stale directive
+	CacheUseStale []string // Optional. Conditions under which stale cached responses may be served
+
+	// proxy_cache_revalidate directive
+	CacheRevalidate bool // Optional. Enables revalidation of expired cache items
+
+	// proxy_cache_background_update directive
+	CacheBackgroundUpdate bool // Optional. Enables background updating of expired items while serving stale content
+
+	// proxy_cache_min_uses directive
+	CacheMinUses *int // Optional. Minimum number of uses before a response is cached
+
+	// proxy_cache_purge directive
+	CachePurgeAllow []string // Optional. IPs/CIDRs allowed to purge cache (Plus only)
+
+	// proxy_cache_lock directive
+	CacheLock        bool   // Optional. Whether to enable cache locking
+	CacheLockTimeout string // Optional. Timeout for cache lock
+	CacheLockAge     string // Optional. Age for cache lock
+
+	// proxy_no_cache directive
+	NoCacheConditions []string // Optional. Conditions under which responses should not be cached
+
+	// proxy_cache_bypass directive
+	CacheBypassConditions []string // Optional. Conditions under which cache should be bypassed for requests
 }

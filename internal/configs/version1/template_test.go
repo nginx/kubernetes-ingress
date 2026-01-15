@@ -3,6 +3,7 @@ package version1
 import (
 	"bytes"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -159,6 +160,104 @@ func TestExecuteTemplate_ForIngressForNGINX(t *testing.T) {
 	snaps.MatchSnapshot(t, buf.String())
 }
 
+func TestExecuteTemplate_ForIngressForNGINXWithHTTPRedirectCode(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithHTTPRedirectCode)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithServiceBeforeRedirect(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+	setServiceString := "set $service \"-\";"
+	returnRegex := `return \d{3} .+;`
+
+	err := tmpl.Execute(buf, ingressCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+
+	if !strings.Contains(bufString, setServiceString) {
+		t.Errorf("want %q in generated config", setServiceString)
+	}
+
+	// Find position of setServiceString
+	setServicePos := strings.Index(bufString, setServiceString)
+	if setServicePos == -1 {
+		t.Fatalf("setServiceString not found in generated config")
+	}
+
+	// Find position of return statement using regex
+	re := regexp.MustCompile(returnRegex)
+	returnMatch := re.FindStringIndex(bufString)
+	if returnMatch == nil {
+		t.Fatalf("return statement matching %q not found in generated config", returnRegex)
+	}
+	returnPos := returnMatch[0]
+
+	// Verify setServiceString comes before return statement
+	if setServicePos >= returnPos {
+		t.Errorf("setServiceString at position %d should come before return statement at position %d", setServicePos, returnPos)
+	}
+
+	snaps.MatchSnapshot(t, buf.String())
+	t.Log(buf.String())
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithServiceBeforeRedirect(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+	setServiceString := "set $service \"-\";"
+	returnRegex := `return \d{3} .+;`
+
+	err := tmpl.Execute(buf, ingressCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+
+	if !strings.Contains(bufString, setServiceString) {
+		t.Errorf("want %q in generated config", setServiceString)
+	}
+
+	// Find position of setServiceString
+	setServicePos := strings.Index(bufString, setServiceString)
+	if setServicePos == -1 {
+		t.Fatalf("setServiceString not found in generated config")
+	}
+
+	// Find position of return statement using regex
+	re := regexp.MustCompile(returnRegex)
+	returnMatch := re.FindStringIndex(bufString)
+	if returnMatch == nil {
+		t.Fatalf("return statement matching %q not found in generated config", returnRegex)
+	}
+	returnPos := returnMatch[0]
+
+	// Verify setServiceString comes before return statement
+	if setServicePos >= returnPos {
+		t.Errorf("setServiceString at position %d should come before return statement at position %d", setServicePos, returnPos)
+	}
+
+	snaps.MatchSnapshot(t, buf.String())
+	t.Log(buf.String())
+}
+
 func TestExecuteTemplate_ForIngressForNGINXPlusWithRegexAnnotationCaseSensitiveModifier(t *testing.T) {
 	t.Parallel()
 
@@ -297,6 +396,25 @@ func TestExecuteTemplate_ForMergeableIngressWithOneMinionWithPathRegexAnnotation
 	}
 	// Observe location /tea not updated with regex
 	want = "location /tea {"
+	if !strings.Contains(buf.String(), want) {
+		t.Errorf("want %q in generated config", want)
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForIngressWithClientBodyBufferSize(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithClientBodyBufferSize)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := "client_body_buffer_size 16k;"
 	if !strings.Contains(buf.String(), want) {
 		t.Errorf("want %q in generated config", want)
 	}
@@ -805,11 +923,11 @@ func TestExecuteTemplate_ForMainForNGINXPlusWithOIDCTimeoutDefault(t *testing.T)
 	t.Log(mainConf)
 
 	expectedDirectives := []string{
-		"keyval_zone zone=oidc_pkce:128K        timeout=90s sync;",
-		"keyval_zone zone=oidc_id_tokens:1M     timeout=1h sync;",
+		"keyval_zone zone=oidc_pkce:128K timeout=90s sync;",
+		"keyval_zone zone=oidc_id_tokens:1M timeout=1h sync;",
 		"keyval_zone zone=oidc_access_tokens:1M timeout=1h sync;",
-		"keyval_zone zone=refresh_tokens:1M     timeout=8h sync;",
-		"keyval_zone zone=oidc_sids:1M          timeout=8h sync;",
+		"keyval_zone zone=refresh_tokens:1M timeout=8h sync;",
+		"keyval_zone zone=oidc_sids:1M timeout=8h sync;",
 		"include oidc/oidc_common.conf;",
 	}
 
@@ -836,11 +954,11 @@ func TestExecuteTemplate_ForMainForNGINXPlusWithOIDCTimeoutCustom(t *testing.T) 
 	t.Log(mainConf)
 
 	expectedDirectives := []string{
-		"keyval_zone zone=oidc_pkce:128K        timeout=2m sync;",
-		"keyval_zone zone=oidc_id_tokens:1M     timeout=2h sync;",
-		"keyval_zone zone=oidc_access_tokens:1M timeout=30m sync;",
-		"keyval_zone zone=refresh_tokens:1M     timeout=1h sync;",
-		"keyval_zone zone=oidc_sids:1M          timeout=120s sync;",
+		"keyval_zone zone=oidc_pkce:512K timeout=2m sync;",
+		"keyval_zone zone=oidc_id_tokens:2M timeout=2h sync;",
+		"keyval_zone zone=oidc_access_tokens:3M timeout=30m sync;",
+		"keyval_zone zone=refresh_tokens:4M timeout=1h sync;",
+		"keyval_zone zone=oidc_sids:5M timeout=120s sync;",
 		"include oidc/oidc_common.conf;",
 	}
 
@@ -2081,6 +2199,7 @@ var (
 				SSLCertificateKey: "secret.pem",
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				Locations: []Location{
 					{
 						Path:                "/tea",
@@ -2134,6 +2253,113 @@ var (
 		},
 	}
 
+	ingressCfgWithClientBodyBufferSize = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "test.example.com",
+				ServerTokens: "off",
+				StatusZone:   "test.example.com",
+				JWTAuth: &JWTAuth{
+					Key:                  "/etc/nginx/secrets/key.jwk",
+					Realm:                "closed site",
+					Token:                "$cookie_auth_token",
+					RedirectLocationName: "@login_url-default-cafe-ingress",
+				},
+				SSL:               true,
+				SSLCertificate:    "secret.pem",
+				SSLCertificateKey: "secret.pem",
+				SSLPorts:          []int{443},
+				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
+				Locations: []Location{
+					{
+						Path:                 "/tea",
+						Upstream:             testUpstream,
+						ProxyConnectTimeout:  "10s",
+						ProxyReadTimeout:     "10s",
+						ProxySendTimeout:     "10s",
+						ClientMaxBodySize:    "2m",
+						ClientBodyBufferSize: "16k",
+						JWTAuth: &JWTAuth{
+							Key:   "/etc/nginx/secrets/location-key.jwk",
+							Realm: "closed site",
+							Token: "$cookie_auth_token",
+						},
+						MinionIngress: &Ingress{
+							Name:      "tea-minion",
+							Namespace: "default",
+						},
+					},
+				},
+				HealthChecks: map[string]HealthCheck{"test": healthCheck},
+				JWTRedirectLocations: []JWTRedirectLocation{
+					{
+						Name:     "@login_url-default-cafe-ingress",
+						LoginURL: "https://test.example.com/login",
+					},
+				},
+				AppProtectEnable: "on",
+				AppProtectPolicy: "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
+				AppProtectLogConfs: []string{
+					"/etc/nginx/waf/nac-logconfs/test_logconf syslog:server=127.0.0.1:514",
+					"/etc/nginx/waf/nac-logconfs/test_logconf2",
+				},
+				AppProtectLogEnable:          "on",
+				AppProtectDosEnable:          "on",
+				AppProtectDosPolicyFile:      "/test/policy.json",
+				AppProtectDosLogConfFile:     "/test/logConf.json",
+				AppProtectDosLogEnable:       true,
+				AppProtectDosMonitorURI:      "/path/to/monitor",
+				AppProtectDosMonitorProtocol: "http1",
+				AppProtectDosMonitorTimeout:  30,
+				AppProtectDosName:            "testdos",
+				AppProtectDosAccessLogDst:    "/var/log/dos",
+				AppProtectDosAllowListPath:   "/etc/nginx/dos/allowlist/default_test.example.com",
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+
+	// Ingress Config example with ssl-redirect and redirect-to-https enabled with custom http-redirect-code
+	ingressCfgWithHTTPRedirectCode = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:              "test.example.com",
+				ServerTokens:      "off",
+				StatusZone:        "test.example.com",
+				SSL:               true,
+				SSLCertificate:    "secret.pem",
+				SSLCertificateKey: "secret.pem",
+				SSLPorts:          []int{443},
+				SSLRedirect:       true,
+				RedirectToHTTPS:   true,
+				HTTPRedirectCode:  308,
+				Locations: []Location{
+					{
+						Path:                "/tea",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "10s",
+						ProxyReadTimeout:    "10s",
+						ProxySendTimeout:    "10s",
+						ClientMaxBodySize:   "2m",
+					},
+				},
+				HealthChecks: map[string]HealthCheck{"test": healthCheck},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+
 	// Ingress Config example with path-regex annotation value "case_sensitive"
 	ingressCfgWithRegExAnnotationCaseSensitive = IngressNginxConfig{
 		Servers: []Server{
@@ -2152,6 +2378,7 @@ var (
 				SSLCertificateKey: "secret.pem",
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				Locations: []Location{
 					{
 						Path:                "/tea/[A-Z0-9]{3}",
@@ -2207,6 +2434,7 @@ var (
 				SSLCertificateKey: "secret.pem",
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				Locations: []Location{
 					{
 						Path:                "/tea/[A-Z0-9]{3}",
@@ -2262,6 +2490,7 @@ var (
 				SSLCertificateKey: "secret.pem",
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				Locations: []Location{
 					{
 						Path:                "/tea",
@@ -2317,6 +2546,7 @@ var (
 				SSLCertificateKey: "secret.pem",
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				Locations: []Location{
 					{
 						Path:                "/tea",
@@ -2692,23 +2922,33 @@ var (
 
 	mainCfgWithOIDCTimeoutDefault = MainConfig{
 		OIDC: OIDCConfig{
-			Enable:         true,
-			PKCETimeout:    "90s",
-			IDTokenTimeout: "1h",
-			AccessTimeout:  "1h",
-			RefreshTimeout: "8h",
-			SIDSTimeout:    "8h",
+			Enable:          true,
+			PKCETimeout:     "90s",
+			PKCEZoneSize:    "128K",
+			IDTokenTimeout:  "1h",
+			IDTokenZoneSize: "1M",
+			AccessTimeout:   "1h",
+			AccessZoneSize:  "1M",
+			RefreshTimeout:  "8h",
+			RefreshZoneSize: "1M",
+			SIDSTimeout:     "8h",
+			SIDSZoneSize:    "1M",
 		},
 	}
 
 	mainCfgWithOIDCTimeoutCustom = MainConfig{
 		OIDC: OIDCConfig{
-			Enable:         true,
-			PKCETimeout:    "2m",
-			IDTokenTimeout: "2h",
-			AccessTimeout:  "30m",
-			RefreshTimeout: "1h",
-			SIDSTimeout:    "120s",
+			Enable:          true,
+			PKCETimeout:     "2m",
+			PKCEZoneSize:    "512K",
+			IDTokenTimeout:  "2h",
+			IDTokenZoneSize: "2M",
+			AccessTimeout:   "30m",
+			AccessZoneSize:  "3M",
+			RefreshTimeout:  "1h",
+			RefreshZoneSize: "4M",
+			SIDSTimeout:     "120s",
+			SIDSZoneSize:    "5M",
 		},
 	}
 
@@ -2809,6 +3049,7 @@ var (
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]HealthCheck),
 			},
 		},
@@ -2882,6 +3123,7 @@ var (
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]HealthCheck),
 			},
 		},
@@ -2957,6 +3199,7 @@ var (
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]HealthCheck),
 			},
 		},
@@ -3031,6 +3274,7 @@ var (
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]HealthCheck),
 			},
 		},
@@ -3105,6 +3349,7 @@ var (
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]HealthCheck),
 			},
 		},
@@ -3182,6 +3427,7 @@ var (
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]HealthCheck),
 			},
 		},
@@ -3258,6 +3504,7 @@ var (
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]HealthCheck),
 			},
 		},
@@ -3334,6 +3581,7 @@ var (
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]HealthCheck),
 			},
 		},
@@ -3359,6 +3607,7 @@ var (
 				SSLCertificateKey: "secret.pem",
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				Locations: []Location{
 					{
 						Path:                "/tea",
@@ -3412,6 +3661,7 @@ var (
 				SSLCertificateKey: "secret.pem",
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				Locations: []Location{
 					{
 						Path:                "/tea",
@@ -3496,6 +3746,7 @@ var (
 				SSLCertificateKey: "secret.pem",
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				Locations: []Location{
 					{
 						Path:                "/tea",

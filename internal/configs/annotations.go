@@ -30,6 +30,15 @@ const SSLPreferServerCiphersAnnotation = "nginx.org/ssl-prefer-server-ciphers"
 // UseClusterIPAnnotation is the annotation where the use-cluster-ip boolean is specified.
 const UseClusterIPAnnotation = "nginx.org/use-cluster-ip"
 
+// SSLRedirectAnnotation is the annotation where the SSL redirect boolean is specified.
+const SSLRedirectAnnotation = "nginx.org/ssl-redirect"
+
+// HTTPRedirectCodeAnnotation is the annotation where the HTTP redirect code is specified.
+const HTTPRedirectCodeAnnotation = "nginx.org/http-redirect-code"
+
+// RedirectToHTTPSAnnotation is the annotation where the redirect-to-https boolean is specified.
+const RedirectToHTTPSAnnotation = "nginx.org/redirect-to-https"
+
 // AppProtectPolicyAnnotation is where the NGINX App Protect policy is specified
 const AppProtectPolicyAnnotation = "appprotect.f5.com/app-protect-policy"
 
@@ -60,8 +69,10 @@ var masterDenylist = map[string]bool{
 var minionDenylist = map[string]bool{
 	"nginx.org/proxy-hide-headers":                      true,
 	"nginx.org/proxy-pass-headers":                      true,
-	"nginx.org/redirect-to-https":                       true,
+	RedirectToHTTPSAnnotation:                           true,
 	"ingress.kubernetes.io/ssl-redirect":                true,
+	SSLRedirectAnnotation:                               true,
+	HTTPRedirectCodeAnnotation:                          true,
 	"nginx.org/hsts":                                    true,
 	"nginx.org/hsts-max-age":                            true,
 	"nginx.org/hsts-include-subdomains":                 true,
@@ -71,6 +82,7 @@ var minionDenylist = map[string]bool{
 	"nginx.org/server-snippets":                         true,
 	"nginx.org/ssl-ciphers":                             true,
 	"nginx.org/ssl-prefer-server-ciphers":               true,
+	"nginx.org/app-root":                                true,
 	"appprotect.f5.com/app_protect_enable":              true,
 	"appprotect.f5.com/app_protect_policy":              true,
 	"appprotect.f5.com/app_protect_security_log_enable": true,
@@ -247,7 +259,15 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		cfgParams.ClientMaxBodySize = clientMaxBodySize
 	}
 
-	if redirectToHTTPS, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/redirect-to-https", ingEx.Ingress); exists {
+	if clientBodyBufferSize, exists := ingEx.Ingress.Annotations["nginx.org/client-body-buffer-size"]; exists {
+		size, err := ParseSize(clientBodyBufferSize)
+		if err != nil {
+			nl.Errorf(l, "Ingress %s/%s: Invalid value nginx.org/client-body-buffer-size: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), clientBodyBufferSize, err)
+		}
+		cfgParams.ClientBodyBufferSize = size
+	}
+
+	if redirectToHTTPS, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, RedirectToHTTPSAnnotation, ingEx.Ingress); exists {
 		if err != nil {
 			nl.Error(l, err)
 		} else {
@@ -255,11 +275,25 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		}
 	}
 
-	if sslRedirect, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "ingress.kubernetes.io/ssl-redirect", ingEx.Ingress); exists {
+	if sslRedirect, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, SSLRedirectAnnotation, ingEx.Ingress); exists {
 		if err != nil {
 			nl.Error(l, err)
 		} else {
 			cfgParams.SSLRedirect = sslRedirect
+		}
+	} else if sslRedirect, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "ingress.kubernetes.io/ssl-redirect", ingEx.Ingress); exists {
+		if err != nil {
+			nl.Error(l, err)
+		} else {
+			cfgParams.SSLRedirect = sslRedirect
+		}
+	}
+
+	if httpRedirectCode, exists := ingEx.Ingress.Annotations[HTTPRedirectCodeAnnotation]; exists {
+		if code, err := ParseHTTPRedirectCode(httpRedirectCode); err != nil {
+			nl.Errorf(l, "Ingress %s/%s: Invalid value for nginx.org/http-redirect-code: %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), httpRedirectCode, err)
+		} else {
+			cfgParams.HTTPRedirectCode = code
 		}
 	}
 
@@ -483,6 +517,10 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		if !ok {
 			nl.Errorf(l, "Ingress %s/%s: Invalid value nginx.org/path-regex: got %q. Allowed values: 'case_sensitive', 'case_insensitive', 'exact'", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), pathRegex)
 		}
+	}
+
+	if appRoot, exists := ingEx.Ingress.Annotations["nginx.org/app-root"]; exists {
+		cfgParams.AppRoot = appRoot
 	}
 
 	if useClusterIP, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, UseClusterIPAnnotation, ingEx.Ingress); exists {

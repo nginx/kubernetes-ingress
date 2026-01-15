@@ -94,6 +94,7 @@ type Server struct {
 	HTTP2                  bool
 	RedirectToHTTPS        bool
 	SSLRedirect            bool
+	HTTPRedirectCode       int
 	ProxyProtocol          bool
 	HSTS                   bool
 	HSTSMaxAge             int64
@@ -132,6 +133,8 @@ type Server struct {
 	SpiffeCerts bool
 
 	DisableIPV6 bool
+
+	AppRoot string
 }
 
 // JWTRedirectLocation describes a location for redirecting client requests to a login URL for JWT Authentication.
@@ -175,6 +178,7 @@ type Location struct {
 	ProxySendTimeout     string
 	ProxySetHeaders      []version2.Header
 	ClientMaxBodySize    string
+	ClientBodyBufferSize string
 	Websocket            bool
 	Rewrite              string
 	RewriteTarget        string
@@ -207,12 +211,17 @@ type ZoneSyncConfig struct {
 
 // OIDCConfig allows to configure OIDC parameters.
 type OIDCConfig struct {
-	Enable         bool
-	PKCETimeout    string
-	IDTokenTimeout string
-	AccessTimeout  string
-	RefreshTimeout string
-	SIDSTimeout    string
+	Enable          bool
+	PKCETimeout     string
+	PKCEZoneSize    string
+	IDTokenTimeout  string
+	IDTokenZoneSize string
+	AccessTimeout   string
+	AccessZoneSize  string
+	RefreshTimeout  string
+	RefreshZoneSize string
+	SIDSTimeout     string
+	SIDSZoneSize    string
 }
 
 // MGMTConfig is tbe configuration for the MGMT block.
@@ -272,6 +281,7 @@ type MainConfig struct {
 	ServerNamesHashMaxSize             string
 	MapHashBucketSize                  string
 	MapHashMaxSize                     string
+	ClientBodyBufferSize               string
 	ServerTokens                       string
 	SSLRejectHandshake                 bool
 	SSLCiphers                         string

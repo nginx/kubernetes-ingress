@@ -303,6 +303,7 @@ type virtualServerConfigurator struct {
 	isIPV6Disabled             bool
 	DynamicSSLReloadEnabled    bool
 	StaticSSLPath              string
+	CABundlePath               string
 	DynamicWeightChangesReload bool
 	bundleValidator            bundleValidator
 	IngressControllerReplicas  int
@@ -353,6 +354,7 @@ func newVirtualServerConfigurator(
 		isIPV6Disabled:             staticParams.DisableIPV6,
 		DynamicSSLReloadEnabled:    staticParams.DynamicSSLReload,
 		StaticSSLPath:              staticParams.StaticSSLPath,
+		CABundlePath:               staticParams.DefaultCABundle,
 		DynamicWeightChangesReload: staticParams.DynamicWeightChangesReload,
 		bundleValidator:            bundleValidator,
 	}
@@ -426,10 +428,11 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	tlsRedirectConfig := generateTLSRedirectConfig(vsEx.VirtualServer.Spec.TLS)
 
 	policyOpts := policyOptions{
-		tls:         sslConfig != nil,
-		zoneSync:    vsEx.ZoneSync,
-		secretRefs:  vsEx.SecretRefs,
-		apResources: apResources,
+		tls:             sslConfig != nil,
+		zoneSync:        vsEx.ZoneSync,
+		secretRefs:      vsEx.SecretRefs,
+		apResources:     apResources,
+		defaultCABundle: vsc.CABundlePath,
 	}
 
 	ownerDetails := policyOwnerDetails{
@@ -1047,10 +1050,11 @@ type policyOwnerDetails struct {
 }
 
 type policyOptions struct {
-	tls         bool
-	zoneSync    bool
-	secretRefs  map[string]*secrets.SecretReference
-	apResources *appProtectResourcesForVS
+	tls             bool
+	zoneSync        bool
+	secretRefs      map[string]*secrets.SecretReference
+	apResources     *appProtectResourcesForVS
+	defaultCABundle string
 }
 
 type validationResults struct {
@@ -1430,9 +1434,10 @@ func (p *policiesCfg) addOIDCConfig(
 	oidc *conf_v1.OIDC,
 	polKey string,
 	polNamespace string,
-	secretRefs map[string]*secrets.SecretReference,
+	policyOpts policyOptions,
 	oidcPolCfg *oidcPolicyCfg,
 ) *validationResults {
+	secretRefs := policyOpts.secretRefs
 	res := newValidationResults()
 	if p.OIDC {
 		res.addWarningf(
@@ -1500,6 +1505,44 @@ func (p *policiesCfg) addOIDCConfig(
 			authExtraArgs = strings.Join(oidc.AuthExtraArgs, "&")
 		}
 
+		trustedCertPath := policyOpts.defaultCABundle
+		if oidc.SSLVerify && oidc.TrustedCertSecret != "" {
+			// Override default CA bundle if trusted cert secret is provided
+			trustedCertSecretKey := fmt.Sprintf("%s/%s", polNamespace, oidc.TrustedCertSecret)
+			trustedCertSecretRef := secretRefs[trustedCertSecretKey]
+
+			// Check if secret reference exists
+			if trustedCertSecretRef == nil {
+				res.addWarningf("OIDC policy %s references a non-existent trusted cert secret %s", polKey, trustedCertSecretKey)
+				res.isError = true
+				return res
+			}
+
+			var secretType api_v1.SecretType
+			if trustedCertSecretRef.Secret != nil {
+				secretType = trustedCertSecretRef.Secret.Type
+			}
+			if secretType != "" && secretType != secrets.SecretTypeCA {
+				res.addWarningf("OIDC policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, trustedCertSecretKey, secretType, secrets.SecretTypeCA)
+				res.isError = true
+				return res
+			} else if trustedCertSecretRef.Error != nil {
+				res.addWarningf("OIDC policy %s references an invalid trusted cert secret %s: %v", polKey, trustedCertSecretKey, trustedCertSecretRef.Error)
+				res.isError = true
+				return res
+			}
+
+			caFields := strings.Fields(trustedCertSecretRef.Path)
+			if len(caFields) > 0 {
+				trustedCertPath = caFields[0]
+			}
+		}
+
+		sslVerifyDepth := 1
+		if oidc.SSLVerifyDepth != nil {
+			sslVerifyDepth = *oidc.SSLVerifyDepth
+		}
+
 		oidcPolCfg.oidc = &version2.OIDC{
 			AuthEndpoint:          oidc.AuthEndpoint,
 			AuthExtraArgs:         authExtraArgs,
@@ -1514,6 +1557,9 @@ func (p *policiesCfg) addOIDCConfig(
 			ZoneSyncLeeway:        generateIntFromPointer(oidc.ZoneSyncLeeway, 200),
 			AccessTokenEnable:     oidc.AccessTokenEnable,
 			PKCEEnable:            oidc.PKCEEnable,
+			TLSVerify:             oidc.SSLVerify,
+			VerifyDepth:           sslVerifyDepth,
+			CAFile:                trustedCertPath,
 		}
 		oidcPolCfg.key = polKey
 	}
@@ -1811,7 +1857,7 @@ func (vsc *virtualServerConfigurator) generatePolicies(
 			case pol.Spec.EgressMTLS != nil:
 				res = config.addEgressMTLSConfig(pol.Spec.EgressMTLS, key, polNamespace, policyOpts.secretRefs)
 			case pol.Spec.OIDC != nil:
-				res = config.addOIDCConfig(pol.Spec.OIDC, key, polNamespace, policyOpts.secretRefs, vsc.oidcPolCfg)
+				res = config.addOIDCConfig(pol.Spec.OIDC, key, polNamespace, policyOpts, vsc.oidcPolCfg)
 			case pol.Spec.APIKey != nil:
 				res = config.addAPIKeyConfig(pol.Spec.APIKey, key, polNamespace, ownerDetails.vsNamespace,
 					ownerDetails.vsName, policyOpts.secretRefs)
@@ -1990,6 +2036,12 @@ func generateCacheConfig(cache *conf_v1.Cache, vsNamespace, vsName, ownerNamespa
 		uniqueZoneName = fmt.Sprintf("%s_%s_%s_%s_%s", vsNamespace, vsName, ownerNamespace, ownerName, cache.CacheZoneName)
 	}
 
+	// Set cache key with default if not provided
+	cacheKey := "$scheme$proxy_host$request_uri"
+	if cache.CacheKey != "" {
+		cacheKey = cache.CacheKey
+	}
+
 	cacheConfig := &version2.Cache{
 		ZoneName:              uniqueZoneName,
 		Time:                  cache.Time,
@@ -1999,6 +2051,35 @@ func generateCacheConfig(cache *conf_v1.Cache, vsNamespace, vsName, ownerNamespa
 		ZoneSize:              cache.CacheZoneSize,
 		OverrideUpstreamCache: cache.OverrideUpstreamCache,
 		Levels:                cache.Levels, // Pass Levels from Cache to CacheZone
+		Inactive:              cache.Inactive,
+		UseTempPath:           cache.UseTempPath,
+		MaxSize:               cache.MaxSize,
+		MinFree:               cache.MinFree,
+		CacheKey:              cacheKey,
+		CacheUseStale:         cache.CacheUseStale,
+		CacheRevalidate:       cache.CacheRevalidate,
+		CacheBackgroundUpdate: cache.CacheBackgroundUpdate,
+		CacheMinUses:          cache.CacheMinUses,
+	}
+
+	// Map lock fields
+	if cache.Lock != nil {
+		cacheConfig.CacheLock = cache.Lock.Enable
+		cacheConfig.CacheLockTimeout = cache.Lock.Timeout
+		cacheConfig.CacheLockAge = cache.Lock.Age
+	}
+
+	// Map manager fields
+	if cache.Manager != nil {
+		cacheConfig.ManagerFiles = cache.Manager.Files
+		cacheConfig.ManagerSleep = cache.Manager.Sleep
+		cacheConfig.ManagerThreshold = cache.Manager.Threshold
+	}
+
+	// Map conditions
+	if cache.Conditions != nil {
+		cacheConfig.NoCacheConditions = cache.Conditions.NoCache
+		cacheConfig.CacheBypassConditions = cache.Conditions.Bypass
 	}
 
 	// Convert allowed codes to proxy_cache_valid entries
@@ -2028,10 +2109,17 @@ func addCacheZone(cacheZones *[]version2.CacheZone, cache *version2.Cache) {
 	}
 
 	cacheZone := version2.CacheZone{
-		Name:   cache.ZoneName,
-		Size:   zoneSize,
-		Path:   fmt.Sprintf("/var/cache/nginx/%s", cache.ZoneName),
-		Levels: cache.Levels, // Pass Levels from Cache to CacheZone
+		Name:             cache.ZoneName,
+		Size:             zoneSize,
+		Path:             fmt.Sprintf("/var/cache/nginx/%s", cache.ZoneName),
+		Levels:           cache.Levels, // Pass Levels from Cache to CacheZone
+		Inactive:         cache.Inactive,
+		UseTempPath:      cache.UseTempPath,
+		MaxSize:          cache.MaxSize,
+		MinFree:          cache.MinFree,
+		ManagerFiles:     cache.ManagerFiles,
+		ManagerSleep:     cache.ManagerSleep,
+		ManagerThreshold: cache.ManagerThreshold,
 	}
 
 	// Check for duplicates
@@ -2647,6 +2735,7 @@ func generateLocationForProxying(path string, upstreamName string, upstream conf
 		ProxyReadTimeout:         generateTimeWithDefault(upstream.ProxyReadTimeout, cfgParams.ProxyReadTimeout),
 		ProxySendTimeout:         generateTimeWithDefault(upstream.ProxySendTimeout, cfgParams.ProxySendTimeout),
 		ClientMaxBodySize:        generateString(upstream.ClientMaxBodySize, cfgParams.ClientMaxBodySize),
+		ClientBodyBufferSize:     generateString(upstream.ClientBodyBufferSize, cfgParams.ClientBodyBufferSize),
 		ProxyMaxTempFileSize:     cfgParams.ProxyMaxTempFileSize,
 		ProxyBuffering:           generateBool(upstream.ProxyBuffering, cfgParams.ProxyBuffering),
 		ProxyBuffers:             generateBuffers(upstream.ProxyBuffers, cfgParams.ProxyBuffers),
