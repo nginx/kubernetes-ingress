@@ -89,6 +89,8 @@ func generateGitignore(secrets secretsTypes, gitignorePtr *bool) error {
 
 	ignoredFilesAndLines = append(ignoredFilesAndLines, generateMgmtCMKeysIgnoreLines(secrets.MgmtCMKeys)...)
 
+	ignoredFilesAndLines = append(ignoredFilesAndLines, generateEmbedIgnores(secrets.EmbedCerts)...)
+
 	err := writeGitIgnoreFile(ignoredFilesAndLines)
 	if err != nil {
 		return fmt.Errorf("writeGitIgnoreFile: %w", err)

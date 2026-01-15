@@ -296,5 +296,13 @@ common-secrets/mgmt-cm-ssl-trusted-cert.yaml
 tests/data/mgmt-configmap-keys/ssl-cert.yaml
 tests/data/mgmt-configmap-keys/ssl-trusted-cert.yaml
 
+# Certificates and keys generated for embedding into the
+# `internal/k8s/secrets` package.
+
+internal/k8s/secrets/embeds-ca.crt
+internal/k8s/secrets/embeds-ca.key
+internal/k8s/secrets/embeds-empty-ca.crt
+internal/k8s/secrets/embeds-empty-ca.key
+
 
 # END CERTGEN SECTION. YOU MAY EDIT BELOW

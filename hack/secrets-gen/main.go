@@ -33,6 +33,7 @@ type secretsTypes struct {
 	APIKeySecrets []apiKeysSecret    `json:"apikeys,omitempty"`
 	IngressMtls   IngressMtls        `json:"ingress-mtls,omitempty"`
 	MgmtCMKeys    []MgmtCMKeysBundle `json:"mgmt-cmkeys-bundles,omitempty"`
+	EmbedCerts    embedCrts          `json:"embeds,omitempty"`
 }
 
 // nolint:gocyclo
@@ -107,6 +108,11 @@ func main() {
 	_, err = generateMgmtCMKeysBundles(logger, secretsTypesData.MgmtCMKeys, filenames, cleanPtr)
 	if err != nil {
 		log.Fatalf(logger, "generateMgmtCMKeysBundles: %v", err)
+	}
+
+	_, err = generateEmbedCerts(logger, secretsTypesData.EmbedCerts, filenames, cleanPtr)
+	if err != nil {
+		log.Fatalf(logger, "generateEmbedCerts: %v", err)
 	}
 
 	err = generateGitignore(secretsTypesData, gitignorePtr)
