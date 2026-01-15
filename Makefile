@@ -5,8 +5,8 @@ VERSION = $(VER)-SNAPSHOT
 # renovate: datasource=docker depName=nginx/nginx
 NGINX_OSS_VERSION             ?= 1.29.4
 NGINX_PLUS_VERSION            ?= R36
-NAP_WAF_VERSION               ?= 36+5.550
-NAP_WAF_COMMON_VERSION        ?= 11.583
+NAP_WAF_VERSION               ?= 36+5.575
+NAP_WAF_COMMON_VERSION        ?= 11.608
 NAP_WAF_PLUGIN_VERSION        ?= 6.25.0
 NAP_AGENT_VERSION             ?= 2
 NGINX_AGENT_VERSION           ?= 3.6
@@ -248,7 +248,7 @@ ubi-image-nap-dos-plus: build ## Create Docker image for Ingress Controller (UBI
 .PHONY: all-images ## Create all the Docker images for Ingress Controller
 all-images:
 	docker builder prune -af; \
-	images="alpine-image alpine-image-plus alpine-image-plus-fips alpine-image-nap-plus-fips debian-image debian-image-plus debian-image-nap-plus debian-image-dos-plus debian-image-nap-dos-plus ubi-image ubi-image-plus ubi-image-nap-plus ubi-image-dos-plus ubi-image-nap-dos-plus"; \
+	images="alpine-image alpine-image-nap-plus-fips alpine-image-nap-v5-plus-fips alpine-image-plus alpine-image-plus-fips debian-image debian-image-dos-plus debian-image-nap-dos-plus debian-image-nap-plus debian-image-nap-v5-plus debian-image-plus ubi-image ubi-image-dos-plus ubi-image-nap-dos-plus ubi-image-nap-plus ubi-image-nap-v5-plus ubi-image-plus ubi8-image-nap-v5-plus"; \
 	for img in $$images; do \
 		TAG="$(strip $(TAG))-$$img" make $$img; \
 	done

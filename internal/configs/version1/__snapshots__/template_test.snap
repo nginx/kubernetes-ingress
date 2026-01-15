@@ -2087,6 +2087,103 @@ server {
 
 ---
 
+[TestExecuteTemplate_ForIngressForNGINXPlusWithServiceBeforeRedirect - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
+}
+
+
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    app_protect_enable on;
+    app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
+    app_protect_security_log_enable on;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf syslog:server=127.0.0.1:514;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf2;
+    
+    app_protect_dos_enable on;
+    app_protect_dos_policy_file /test/policy.json;
+    app_protect_dos_security_log_enable on;
+    app_protect_dos_security_log /test/logConf.json;
+    set $loggable '0';
+    # app-protect-dos module will set it to '1'  if a request doesn't pass the rate limit
+    access_log /var/log/dos log_dos if=$loggable;
+    app_protect_dos_monitor uri=/path/to/monitor protocol=http1 timeout=30;
+    app_protect_dos_name "testdos";
+    app_protect_dos_access_file "/etc/nginx/dos/allowlist/default_test.example.com";
+
+    
+    if ($scheme = http) {
+        return 301 https://$host:443$request_uri;
+    }
+
+    
+    auth_jwt_key_file /etc/nginx/secrets/key.jwk;
+    auth_jwt "closed site" token=$cookie_auth_token;
+    error_page 401 @login_url-default-cafe-ingress;
+    
+    location @hc-test {
+        proxy_set_header Test-Header "test-header-value";
+        proxy_connect_timeout 0s;
+        proxy_read_timeout 0s;
+        proxy_send_timeout 0s;
+        proxy_pass ://test;
+        health_check uri= interval=1s fails=1 passes=1;
+    }
+    
+    location @login_url-default-cafe-ingress {
+        internal;
+        return 302 https://test.example.com/login;
+    }
+    
+    location /tea {
+        set $service "";
+        status_zone "";
+        # location for minion default/tea-minion
+        set $resource_name "tea-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        auth_jwt_key_file /etc/nginx/secrets/location-key.jwk;
+        auth_jwt "closed site" token=$cookie_auth_token;
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+
+        
+    }
+    
+}
+
+---
+
 [TestExecuteTemplate_ForIngressForNGINXRewriteTarget/case_insensitive_regex_rewrite - 1]
 # configuration for default/cafe-ingress
 
@@ -4049,11 +4146,11 @@ http {
 
     
     
-    keyval_zone zone=oidc_pkce:128K        timeout=2m sync;
-    keyval_zone zone=oidc_id_tokens:1M     timeout=2h sync;
-    keyval_zone zone=oidc_access_tokens:1M timeout=30m sync;
-    keyval_zone zone=refresh_tokens:1M     timeout=1h sync;
-    keyval_zone zone=oidc_sids:1M          timeout=120s sync;
+    keyval_zone zone=oidc_pkce:512K timeout=2m sync;
+    keyval_zone zone=oidc_id_tokens:2M timeout=2h sync;
+    keyval_zone zone=oidc_access_tokens:3M timeout=30m sync;
+    keyval_zone zone=refresh_tokens:4M timeout=1h sync;
+    keyval_zone zone=oidc_sids:5M timeout=120s sync;
     include oidc/oidc_common.conf;
 
     server {
@@ -4193,11 +4290,11 @@ http {
 
     
     
-    keyval_zone zone=oidc_pkce:128K        timeout=90s sync;
-    keyval_zone zone=oidc_id_tokens:1M     timeout=1h sync;
+    keyval_zone zone=oidc_pkce:128K timeout=90s sync;
+    keyval_zone zone=oidc_id_tokens:1M timeout=1h sync;
     keyval_zone zone=oidc_access_tokens:1M timeout=1h sync;
-    keyval_zone zone=refresh_tokens:1M     timeout=8h sync;
-    keyval_zone zone=oidc_sids:1M          timeout=8h sync;
+    keyval_zone zone=refresh_tokens:1M timeout=8h sync;
+    keyval_zone zone=oidc_sids:1M timeout=8h sync;
     include oidc/oidc_common.conf;
 
     server {
@@ -7773,103 +7870,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering on;
         proxy_pass http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80;
-
-        
-    }
-    
-}
-
----
-
-[TestExecuteTemplate_ForIngressForNGINXPlusWithServiceBeforeRedirect - 1]
-# configuration for default/cafe-ingress
-upstream test {
-    zone test 256k;
-    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
-}
-
-
-
-
-server {
-    listen 443 ssl;listen [::]:443 ssl;
-    ssl_certificate secret.pem;
-    ssl_certificate_key secret.pem;
-
-    server_tokens "off";
-
-    server_name test.example.com;
-
-    status_zone test.example.com;
-    set $resource_type "ingress";
-    set $resource_name "cafe-ingress";
-    set $resource_namespace "default";
-    set $service "-";
-    app_protect_enable on;
-    app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
-    app_protect_security_log_enable on;
-    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf syslog:server=127.0.0.1:514;
-    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf2;
-    
-    app_protect_dos_enable on;
-    app_protect_dos_policy_file /test/policy.json;
-    app_protect_dos_security_log_enable on;
-    app_protect_dos_security_log /test/logConf.json;
-    set $loggable '0';
-    # app-protect-dos module will set it to '1'  if a request doesn't pass the rate limit
-    access_log /var/log/dos log_dos if=$loggable;
-    app_protect_dos_monitor uri=/path/to/monitor protocol=http1 timeout=30;
-    app_protect_dos_name "testdos";
-    app_protect_dos_access_file "/etc/nginx/dos/allowlist/default_test.example.com";
-
-    
-    if ($scheme = http) {
-        return 301 https://$host:443$request_uri;
-    }
-
-    
-    auth_jwt_key_file /etc/nginx/secrets/key.jwk;
-    auth_jwt "closed site" token=$cookie_auth_token;
-    error_page 401 @login_url-default-cafe-ingress;
-    
-    location @hc-test {
-        proxy_set_header Test-Header "test-header-value";
-        proxy_connect_timeout 0s;
-        proxy_read_timeout 0s;
-        proxy_send_timeout 0s;
-        proxy_pass ://test;
-        health_check uri= interval=1s fails=1 passes=1;
-    }
-    
-    location @login_url-default-cafe-ingress {
-        internal;
-        return 302 https://test.example.com/login;
-    }
-    
-    location /tea {
-        set $service "";
-        status_zone "";
-        # location for minion default/tea-minion
-        set $resource_name "tea-minion";
-        set $resource_namespace "default";
-        proxy_http_version 1.1;
-        proxy_set_header Connection "";
-        auth_jwt_key_file /etc/nginx/secrets/location-key.jwk;
-        auth_jwt "closed site" token=$cookie_auth_token;
-
-        proxy_connect_timeout 10s;
-        proxy_read_timeout 10s;
-        proxy_send_timeout 10s;
-        client_max_body_size 2m;
-        
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Port $server_port;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_buffering off;
-        proxy_pass http://test;
 
         
     }
