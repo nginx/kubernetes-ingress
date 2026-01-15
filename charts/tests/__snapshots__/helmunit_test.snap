@@ -14559,7 +14559,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.3.0
+      - image: nginx/nginx-ingress:5.4.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
