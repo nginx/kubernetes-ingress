@@ -12,7 +12,7 @@ controller:
   annotations: {}
 
   ## Deploys the Ingress Controller for NGINX Plus.
-  nginxplus: true
+  nginxplus: false
 
   ## Configures NGINX mgmt block for NGINX Plus
   mgmt:
@@ -176,7 +176,7 @@ controller:
     repository: nginx/nginx-ingress
 
     ## The tag of the Ingress Controller image. If not specified the appVersion from Chart.yaml is used as a tag.
-    tag: "5.4.0-SNAPSHOT"
+    # tag: "5.3.1"
     ## The digest of the Ingress Controller image.
     ## If digest is specified it has precedence over tag and will be used instead
     # digest: "sha256:CHANGEME"
@@ -409,7 +409,7 @@ controller:
   enableCustomResources: true
 
   ## Enable OIDC policies.
-  enableOIDC: true
+  enableOIDC: false
 
   ## Enable TLS Passthrough on port 443. Requires controller.enableCustomResources.
   enableTLSPassthrough: false
