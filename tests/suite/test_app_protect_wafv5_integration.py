@@ -182,6 +182,7 @@ class TestAppProtectWAFv5IntegrationVSR:
     ],
     indirect=True,
 )
+@pytest.mark.vsr_selector
 class TestAppProtectWAFv5IntegrationVSRSelector:
 
     def restore_default_vsr_selector(self, kube_apis, v_s_route_selector_setup) -> None:

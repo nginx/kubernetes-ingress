@@ -417,6 +417,7 @@ class TestCreateInvalidVirtualServerRoute:
     [({"type": "complete", "extra_args": [f"-enable-custom-resources"]}, {"example": "virtual-server-route-selector"})],
     indirect=True,
 )
+@pytest.mark.vsr_selector
 class TestVirtualServerRouteSelector:
     """
     This tests the ability for VirtualServers to dynamically select VirtualServerRoutes

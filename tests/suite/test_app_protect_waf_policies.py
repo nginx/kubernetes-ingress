@@ -485,6 +485,7 @@ class TestAppProtectWAFPolicyVSR:
     ],
     indirect=True,
 )
+@pytest.mark.vsr_selector
 class TestAppProtectWAFPolicyVSRSelector:
     def restore_default_vsr(self, kube_apis, v_s_route_selector_setup) -> None:
         """
