@@ -6,6 +6,7 @@ import (
 	context "context"
 
 	externaldnsv1 "github.com/nginx/kubernetes-ingress/pkg/apis/externaldns/v1"
+	applyconfigurationexternaldnsv1 "github.com/nginx/kubernetes-ingress/pkg/client/applyconfiguration/externaldns/v1"
 	scheme "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -31,18 +32,21 @@ type DNSEndpointInterface interface {
 	List(ctx context.Context, opts metav1.ListOptions) (*externaldnsv1.DNSEndpointList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
 	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *externaldnsv1.DNSEndpoint, err error)
+	Apply(ctx context.Context, dNSEndpoint *applyconfigurationexternaldnsv1.DNSEndpointApplyConfiguration, opts metav1.ApplyOptions) (result *externaldnsv1.DNSEndpoint, err error)
+	// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
+	ApplyStatus(ctx context.Context, dNSEndpoint *applyconfigurationexternaldnsv1.DNSEndpointApplyConfiguration, opts metav1.ApplyOptions) (result *externaldnsv1.DNSEndpoint, err error)
 	DNSEndpointExpansion
 }
 
 // dNSEndpoints implements DNSEndpointInterface
 type dNSEndpoints struct {
-	*gentype.ClientWithList[*externaldnsv1.DNSEndpoint, *externaldnsv1.DNSEndpointList]
+	*gentype.ClientWithListAndApply[*externaldnsv1.DNSEndpoint, *externaldnsv1.DNSEndpointList, *applyconfigurationexternaldnsv1.DNSEndpointApplyConfiguration]
 }
 
 // newDNSEndpoints returns a DNSEndpoints
 func newDNSEndpoints(c *ExternaldnsV1Client, namespace string) *dNSEndpoints {
 	return &dNSEndpoints{
-		gentype.NewClientWithList[*externaldnsv1.DNSEndpoint, *externaldnsv1.DNSEndpointList](
+		gentype.NewClientWithListAndApply[*externaldnsv1.DNSEndpoint, *externaldnsv1.DNSEndpointList, *applyconfigurationexternaldnsv1.DNSEndpointApplyConfiguration](
 			"dnsendpoints",
 			c.RESTClient(),
 			scheme.ParameterCodec,
