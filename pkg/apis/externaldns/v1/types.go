@@ -35,7 +35,7 @@ type Endpoint struct {
 	DNSName string `json:"dnsName,omitempty"`
 
 	// The targets the DNS service points to
-	Targets Targets `json:"targets,omitempty"`
+	Targets []string `json:"targets,omitempty"`
 
 	// RecordType type of record, e.g. CNAME, A, SRV, TXT, MX
 	RecordType string `json:"recordType,omitempty"`
@@ -67,7 +67,13 @@ type ProviderSpecificProperty struct {
 type TTL int64
 
 // Targets describe targets the DNS service points to.
-type Targets []string
+type Targets []DNSTarget
+
+// DNSTarget describes a single DNS target: address and record type.
+type DNSTarget struct {
+	Type    string
+	Address string
+}
 
 // Labels describe labels defined for the Endpoint.
 type Labels map[string]string

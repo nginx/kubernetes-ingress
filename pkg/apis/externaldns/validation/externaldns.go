@@ -48,7 +48,7 @@ func validateDNSName(name string) error {
 	return nil
 }
 
-func validateTargets(targets v1.Targets) error {
+func validateTargets(targets []string) error {
 	for _, target := range targets {
 		switch {
 		case strings.Contains(target, ":"):
@@ -64,7 +64,7 @@ func validateTargets(targets v1.Targets) error {
 	return isUnique(targets)
 }
 
-func isUnique(targets v1.Targets) error {
+func isUnique(targets []string) error {
 	occurred := make(map[string]bool)
 	for _, target := range targets {
 		if occurred[target] {
