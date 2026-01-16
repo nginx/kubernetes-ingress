@@ -17,6 +17,7 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
+	"github.com/nginx/kubernetes-ingress/internal/validation"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	api_v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -552,7 +553,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		// ignore routes that reference VirtualServerRoute
 		if r.Route != "" {
 			name := r.Route
-			if !strings.Contains(name, "/") {
+			if !validation.HasNamespace(name) {
 				name = fmt.Sprintf("%v/%v", vsEx.VirtualServer.Namespace, r.Route)
 			}
 
@@ -1732,8 +1733,7 @@ func (p *policiesCfg) addWAFConfig(
 
 	if waf.ApPolicy != "" {
 		apPolKey := waf.ApPolicy
-		hasNamespace := strings.Contains(apPolKey, "/")
-		if !hasNamespace {
+		if !validation.HasNamespace(apPolKey) {
 			apPolKey = fmt.Sprintf("%v/%v", polNamespace, apPolKey)
 		}
 
@@ -1768,7 +1768,7 @@ func (p *policiesCfg) addWAFConfig(
 
 			if loco.ApLogConf != "" {
 				logConfKey := loco.ApLogConf
-				if !strings.Contains(logConfKey, "/") {
+				if !validation.HasNamespace(logConfKey) {
 					logConfKey = fmt.Sprintf("%v/%v", polNamespace, logConfKey)
 				}
 				if logConfPath, ok := apResources.LogConfs[logConfKey]; ok {

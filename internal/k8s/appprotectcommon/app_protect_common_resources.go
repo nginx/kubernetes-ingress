@@ -3,6 +3,7 @@ package appprotectcommon
 import (
 	"strings"
 
+	"github.com/nginx/kubernetes-ingress/internal/validation"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -13,7 +14,7 @@ func GetNsName(obj *unstructured.Unstructured) string {
 
 // ParseResourceReferenceAnnotation returns a namespace/name string
 func ParseResourceReferenceAnnotation(ns, antn string) string {
-	if !strings.Contains(antn, "/") {
+	if !validation.HasNamespace(antn) {
 		return ns + "/" + antn
 	}
 	return antn
