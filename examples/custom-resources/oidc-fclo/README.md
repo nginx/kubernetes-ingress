@@ -19,10 +19,11 @@ kubectl config set-context --namespace default --current
 
 ## Prerequisites
 
+1. Run `make secrets` command to generate the necessary secrets for the example.
 1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
    instructions to deploy NGINX Ingress Controller. This example requires that the HTTPS port of the Ingress
    Controller is `443`.
-2. Save the public IP address of the Ingress Controller into `/etc/hosts` of your machine:
+1. Save the public IP address of the Ingress Controller into `/etc/hosts` of your machine:
 
     ```text
     ...

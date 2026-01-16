@@ -11,6 +11,7 @@ The Ingress controller provides the following 2 annotations for configuring Basi
 
 ## Prerequisites
 
+1. Run `make secrets` command to generate the necessary secrets for the example.
 1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
    instructions to deploy the Ingress Controller.
 1. Save the public IP address of the Ingress Controller into a shell variable:
@@ -19,10 +20,10 @@ The Ingress controller provides the following 2 annotations for configuring Basi
     IC_IP=XXX.YYY.ZZZ.III
     ```
 
-1. Save the HTTP port of the Ingress Controller into a shell variable:
+1. Save the HTTPS port of the Ingress Controller into a shell variable:
 
     ```console
-    IC_HTTP_PORT=<port number>
+    IC_HTTPS_PORT=<port number>
     ```
 
 ## Step 1 - Deploy a Web Application
@@ -59,7 +60,7 @@ If you attempt to access the application without providing a valid user and pass
 for that Ingress:
 
 ```console
-curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP http://cafe.example.com:$IC_HTTP_PORT/
+curl --resolve cafe.example.com:$IC_HTTPS_PORT:$IC_IP https://cafe.example.com:$IC_HTTPS_PORT/coffee --insecure
 ```
 
 ```text

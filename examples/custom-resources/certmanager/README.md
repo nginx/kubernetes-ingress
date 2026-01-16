@@ -10,7 +10,7 @@ that application using the VirtualServer resource.
 1. Deploy cert manager and all dependent resources:
 
     ```console
-    kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.8.0/cert-manager.yaml
+    kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.19.2/cert-manager.yaml
     ```
 
 2. Deploy a self-signed certificate issuer:

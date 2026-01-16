@@ -67,4 +67,4 @@ spec:
       volumes:
         - name: tls-secret
           secret:
-            secretName: keycloak-tls
+            secretName: keycloak-tls-secret

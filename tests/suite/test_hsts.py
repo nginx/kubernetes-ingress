@@ -47,6 +47,8 @@ def hsts_setup(
     test_namespace,
 ) -> HSTSSetup:
     print("------------------------- Deploy HSTS-Example -----------------------------------")
+    if request.param in ["standard-tls", "mergeable-tls"]:
+        create_items_from_yaml(kube_apis, f"{TEST_DATA}/hsts/{request.param}/tls-secret.yaml", test_namespace)
     create_items_from_yaml(kube_apis, f"{TEST_DATA}/hsts/{request.param}/hsts-ingress.yaml", test_namespace)
     ingress_name = get_name_from_yaml(f"{TEST_DATA}/hsts/{request.param}/hsts-ingress.yaml")
     ingress_host = get_first_ingress_host_from_yaml(f"{TEST_DATA}/hsts/{request.param}/hsts-ingress.yaml")
@@ -65,6 +67,8 @@ def hsts_setup(
             print("Clean up HSTS Example:")
             delete_common_app(kube_apis, "simple", test_namespace)
             delete_items_from_yaml(kube_apis, f"{TEST_DATA}/hsts/{request.param}/hsts-ingress.yaml", test_namespace)
+            if request.param in ["standard-tls", "mergeable-tls"]:
+                delete_items_from_yaml(kube_apis, f"{TEST_DATA}/hsts/{request.param}/tls-secret.yaml", test_namespace)
 
     request.addfinalizer(fin)
 

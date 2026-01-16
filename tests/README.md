@@ -4,6 +4,16 @@ The project includes automated tests for testing the NGINX Ingress Controller in
 
 This documentation covers how to run tests against Minikube and Kind clusters, though the tests can be run against any Kubernetes cluster. See the [Configuring the Tests](#configuring-the-tests) section for various configuration options.
 
+Before running individual tests, you'll need to run the following `make` command to generate the necessary secrets that are used in all tests and examples:
+
+```bash
+make secrets
+```
+
+This command can be run from either the `tests` directory or the root directory.
+
+For whole suite runs, like `run-local-tests`, the secrets are generated automatically.
+
 ## Running Tests in Minikube
 
 ### Prerequisites
