@@ -6,6 +6,7 @@ import (
 	context "context"
 
 	configurationv1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	applyconfigurationconfigurationv1 "github.com/nginx/kubernetes-ingress/pkg/client/applyconfiguration/configuration/v1"
 	scheme "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -29,18 +30,19 @@ type GlobalConfigurationInterface interface {
 	List(ctx context.Context, opts metav1.ListOptions) (*configurationv1.GlobalConfigurationList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
 	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *configurationv1.GlobalConfiguration, err error)
+	Apply(ctx context.Context, globalConfiguration *applyconfigurationconfigurationv1.GlobalConfigurationApplyConfiguration, opts metav1.ApplyOptions) (result *configurationv1.GlobalConfiguration, err error)
 	GlobalConfigurationExpansion
 }
 
 // globalConfigurations implements GlobalConfigurationInterface
 type globalConfigurations struct {
-	*gentype.ClientWithList[*configurationv1.GlobalConfiguration, *configurationv1.GlobalConfigurationList]
+	*gentype.ClientWithListAndApply[*configurationv1.GlobalConfiguration, *configurationv1.GlobalConfigurationList, *applyconfigurationconfigurationv1.GlobalConfigurationApplyConfiguration]
 }
 
 // newGlobalConfigurations returns a GlobalConfigurations
 func newGlobalConfigurations(c *K8sV1Client, namespace string) *globalConfigurations {
 	return &globalConfigurations{
-		gentype.NewClientWithList[*configurationv1.GlobalConfiguration, *configurationv1.GlobalConfigurationList](
+		gentype.NewClientWithListAndApply[*configurationv1.GlobalConfiguration, *configurationv1.GlobalConfigurationList, *applyconfigurationconfigurationv1.GlobalConfigurationApplyConfiguration](
 			"globalconfigurations",
 			c.RESTClient(),
 			scheme.ParameterCodec,
