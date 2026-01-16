@@ -1,0 +1,16 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: virtual-server-route
+spec:
+  host: virtual-server-route.example.com
+  routes:
+  - path: "/backends/match"
+    route: backend1
+    routeSelect~or:
+      matchLabels:
+        app: backend1
+  - path: "~ /backends/match"
+    routeSelector:
+      matchLabels:
+        app: backend3
