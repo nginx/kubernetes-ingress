@@ -229,7 +229,7 @@ jobs:
           echo "full-build: ${{ inputs.full-build }}"
 
       - name: Fetch Cached Artifacts
-        uses: actions/cache/restore@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
+        uses: actions/cache/restore@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5.0.2
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ inputs.go-md5 }}
