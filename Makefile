@@ -5,8 +5,8 @@ VERSION = $(VER)-SNAPSHOT
 # renovate: datasource=docker depName=nginx/nginx
 NGINX_OSS_VERSION             ?= 1.29.4
 NGINX_PLUS_VERSION            ?= R36
-NAP_WAF_VERSION               ?= 36+5.550
-NAP_WAF_COMMON_VERSION        ?= 11.583
+NAP_WAF_VERSION               ?= 36+5.575
+NAP_WAF_COMMON_VERSION        ?= 11.608
 NAP_WAF_PLUGIN_VERSION        ?= 6.25.0
 NAP_AGENT_VERSION             ?= 2
 NGINX_AGENT_VERSION           ?= 3.6
@@ -29,9 +29,9 @@ ARCH                          ?= amd64 ## The architecture of the image or binar
 GOOS                          ?= linux ## The OS of the binary. For example linux, darwin
 TELEMETRY_ENDPOINT            ?= oss.edge.df.f5.com:443
 # renovate: datasource=docker depName=golangci/golangci-lint
-GOLANGCI_LINT_VERSION         ?= v2.7.2 ## The version of golangci-lint to use
+GOLANGCI_LINT_VERSION         ?= v2.8.0 ## The version of golangci-lint to use
 # renovate: datasource=go depName=golang.org/x/tools
-GOIMPORTS_VERSION             ?= v0.40.0 ## The version of goimports to use
+GOIMPORTS_VERSION             ?= v0.41.0 ## The version of goimports to use
 # renovate: datasource=go depName=mvdan.cc/gofumpt
 GOFUMPT_VERSION               ?= v0.9.2 ## The version of gofumpt to use
 
@@ -248,7 +248,7 @@ ubi-image-nap-dos-plus: build ## Create Docker image for Ingress Controller (UBI
 .PHONY: all-images ## Create all the Docker images for Ingress Controller
 all-images:
 	docker builder prune -af; \
-	images="alpine-image alpine-image-plus alpine-image-plus-fips alpine-image-nap-plus-fips debian-image debian-image-plus debian-image-nap-plus debian-image-dos-plus debian-image-nap-dos-plus ubi-image ubi-image-plus ubi-image-nap-plus ubi-image-dos-plus ubi-image-nap-dos-plus"; \
+	images="alpine-image alpine-image-nap-plus-fips alpine-image-nap-v5-plus-fips alpine-image-plus alpine-image-plus-fips debian-image debian-image-dos-plus debian-image-nap-dos-plus debian-image-nap-plus debian-image-nap-v5-plus debian-image-plus ubi-image ubi-image-dos-plus ubi-image-nap-dos-plus ubi-image-nap-plus ubi-image-nap-v5-plus ubi-image-plus ubi8-image-nap-v5-plus"; \
 	for img in $$images; do \
 		TAG="$(strip $(TAG))-$$img" make $$img; \
 	done

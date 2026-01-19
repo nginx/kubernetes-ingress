@@ -4,19 +4,20 @@ package fake
 
 import (
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
-	configurationv1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/typed/configuration/v1"
+	configurationv1 "github.com/nginx/kubernetes-ingress/pkg/client/applyconfiguration/configuration/v1"
+	typedconfigurationv1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/typed/configuration/v1"
 	gentype "k8s.io/client-go/gentype"
 )
 
 // fakeTransportServers implements TransportServerInterface
 type fakeTransportServers struct {
-	*gentype.FakeClientWithList[*v1.TransportServer, *v1.TransportServerList]
+	*gentype.FakeClientWithListAndApply[*v1.TransportServer, *v1.TransportServerList, *configurationv1.TransportServerApplyConfiguration]
 	Fake *FakeK8sV1
 }
 
-func newFakeTransportServers(fake *FakeK8sV1, namespace string) configurationv1.TransportServerInterface {
+func newFakeTransportServers(fake *FakeK8sV1, namespace string) typedconfigurationv1.TransportServerInterface {
 	return &fakeTransportServers{
-		gentype.NewFakeClientWithList[*v1.TransportServer, *v1.TransportServerList](
+		gentype.NewFakeClientWithListAndApply[*v1.TransportServer, *v1.TransportServerList, *configurationv1.TransportServerApplyConfiguration](
 			fake.Fake,
 			namespace,
 			v1.SchemeGroupVersion.WithResource("transportservers"),

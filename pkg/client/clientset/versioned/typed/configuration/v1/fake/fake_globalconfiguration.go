@@ -4,19 +4,20 @@ package fake
 
 import (
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
-	configurationv1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/typed/configuration/v1"
+	configurationv1 "github.com/nginx/kubernetes-ingress/pkg/client/applyconfiguration/configuration/v1"
+	typedconfigurationv1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/typed/configuration/v1"
 	gentype "k8s.io/client-go/gentype"
 )
 
 // fakeGlobalConfigurations implements GlobalConfigurationInterface
 type fakeGlobalConfigurations struct {
-	*gentype.FakeClientWithList[*v1.GlobalConfiguration, *v1.GlobalConfigurationList]
+	*gentype.FakeClientWithListAndApply[*v1.GlobalConfiguration, *v1.GlobalConfigurationList, *configurationv1.GlobalConfigurationApplyConfiguration]
 	Fake *FakeK8sV1
 }
 
-func newFakeGlobalConfigurations(fake *FakeK8sV1, namespace string) configurationv1.GlobalConfigurationInterface {
+func newFakeGlobalConfigurations(fake *FakeK8sV1, namespace string) typedconfigurationv1.GlobalConfigurationInterface {
 	return &fakeGlobalConfigurations{
-		gentype.NewFakeClientWithList[*v1.GlobalConfiguration, *v1.GlobalConfigurationList](
+		gentype.NewFakeClientWithListAndApply[*v1.GlobalConfiguration, *v1.GlobalConfigurationList, *configurationv1.GlobalConfigurationApplyConfiguration](
 			fake.Fake,
 			namespace,
 			v1.SchemeGroupVersion.WithResource("globalconfigurations"),
