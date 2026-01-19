@@ -124,7 +124,7 @@ func (lbc *LoadBalancerController) processChangesFromGlobalConfiguration(changes
 		switch impl := c.Resource.(type) {
 		case *VirtualServerConfiguration:
 			if c.Op == AddOrUpdate {
-				vsEx := lbc.createVirtualServerEx(impl.VirtualServer, impl.VirtualServerRoutes)
+				vsEx := lbc.createVirtualServerEx(impl.VirtualServer, impl.VirtualServerRoutes, impl.VirtualServerRouteSelectors)
 
 				updatedVSExes = append(updatedVSExes, vsEx)
 				updatedResources = append(updatedResources, impl)
