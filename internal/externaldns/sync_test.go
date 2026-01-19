@@ -27,13 +27,13 @@ func TestGetValidTargets(t *testing.T) {
 	t.Parallel()
 	tt := []struct {
 		name        string
-		wantTargets extdnsapi.Targets
+		wantTargets []DNSTarget
 		wantRecord  string
 		endpoints   []vsapi.ExternalEndpoint
 	}{
 		{
 			name: "from external endpoint with IPv4",
-			wantTargets: extdnsapi.Targets{
+			wantTargets: []DNSTarget{
 				{
 					Type:    "A",
 					Address: "10.23.4.5",
@@ -48,7 +48,7 @@ func TestGetValidTargets(t *testing.T) {
 		},
 		{
 			name: "from external endpoint with IPv6",
-			wantTargets: extdnsapi.Targets{
+			wantTargets: []DNSTarget{
 				{
 					Type:    "AAAA",
 					Address: "2001:db8:0:0:0:0:2:1",
@@ -63,7 +63,7 @@ func TestGetValidTargets(t *testing.T) {
 		},
 		{
 			name: "from external endpoint with a hostname",
-			wantTargets: extdnsapi.Targets{
+			wantTargets: []DNSTarget{
 				{
 					Type:    "CNAME",
 					Address: "tea.com",
@@ -78,7 +78,7 @@ func TestGetValidTargets(t *testing.T) {
 		},
 		{
 			name: "from external endpoint with multiple targets",
-			wantTargets: extdnsapi.Targets{
+			wantTargets: []DNSTarget{
 				{
 					Type:    "AAAA",
 					Address: "2001:db8:0:0:0:0:2:1",
@@ -99,7 +99,7 @@ func TestGetValidTargets(t *testing.T) {
 		},
 		{
 			name: "from external endpoint with multiple targets of different types",
-			wantTargets: extdnsapi.Targets{
+			wantTargets: []DNSTarget{
 				{
 					Type:    "AAAA",
 					Address: "2001:db8:0:0:0:0:2:1",
