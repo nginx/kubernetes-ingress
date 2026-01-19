@@ -133,6 +133,7 @@ server {
     set $resource_type "virtualserver";
     set $resource_name "{{$s.VSName}}";
     set $resource_namespace "{{$s.VSNamespace}}";
+    set $service "-";
 
     {{- with $oidc := $s.OIDC }}
     include oidc-conf.d/oidc_{{$s.VSNamespace}}_{{$s.VSName}}.conf;

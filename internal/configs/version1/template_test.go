@@ -3,6 +3,7 @@ package version1
 import (
 	"bytes"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -171,6 +172,90 @@ func TestExecuteTemplate_ForIngressForNGINXWithHTTPRedirectCode(t *testing.T) {
 		t.Fatal(err)
 	}
 	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithServiceBeforeRedirect(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+	setServiceString := "set $service \"-\";"
+	returnRegex := `return \d{3} .+;`
+
+	err := tmpl.Execute(buf, ingressCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+
+	if !strings.Contains(bufString, setServiceString) {
+		t.Errorf("want %q in generated config", setServiceString)
+	}
+
+	// Find position of setServiceString
+	setServicePos := strings.Index(bufString, setServiceString)
+	if setServicePos == -1 {
+		t.Fatalf("setServiceString not found in generated config")
+	}
+
+	// Find position of return statement using regex
+	re := regexp.MustCompile(returnRegex)
+	returnMatch := re.FindStringIndex(bufString)
+	if returnMatch == nil {
+		t.Fatalf("return statement matching %q not found in generated config", returnRegex)
+	}
+	returnPos := returnMatch[0]
+
+	// Verify setServiceString comes before return statement
+	if setServicePos >= returnPos {
+		t.Errorf("setServiceString at position %d should come before return statement at position %d", setServicePos, returnPos)
+	}
+
+	snaps.MatchSnapshot(t, buf.String())
+	t.Log(buf.String())
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithServiceBeforeRedirect(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+	setServiceString := "set $service \"-\";"
+	returnRegex := `return \d{3} .+;`
+
+	err := tmpl.Execute(buf, ingressCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+
+	if !strings.Contains(bufString, setServiceString) {
+		t.Errorf("want %q in generated config", setServiceString)
+	}
+
+	// Find position of setServiceString
+	setServicePos := strings.Index(bufString, setServiceString)
+	if setServicePos == -1 {
+		t.Fatalf("setServiceString not found in generated config")
+	}
+
+	// Find position of return statement using regex
+	re := regexp.MustCompile(returnRegex)
+	returnMatch := re.FindStringIndex(bufString)
+	if returnMatch == nil {
+		t.Fatalf("return statement matching %q not found in generated config", returnRegex)
+	}
+	returnPos := returnMatch[0]
+
+	// Verify setServiceString comes before return statement
+	if setServicePos >= returnPos {
+		t.Errorf("setServiceString at position %d should come before return statement at position %d", setServicePos, returnPos)
+	}
+
+	snaps.MatchSnapshot(t, buf.String())
+	t.Log(buf.String())
 }
 
 func TestExecuteTemplate_ForIngressForNGINXPlusWithRegexAnnotationCaseSensitiveModifier(t *testing.T) {
@@ -838,11 +923,11 @@ func TestExecuteTemplate_ForMainForNGINXPlusWithOIDCTimeoutDefault(t *testing.T)
 	t.Log(mainConf)
 
 	expectedDirectives := []string{
-		"keyval_zone zone=oidc_pkce:128K        timeout=90s sync;",
-		"keyval_zone zone=oidc_id_tokens:1M     timeout=1h sync;",
+		"keyval_zone zone=oidc_pkce:128K timeout=90s sync;",
+		"keyval_zone zone=oidc_id_tokens:1M timeout=1h sync;",
 		"keyval_zone zone=oidc_access_tokens:1M timeout=1h sync;",
-		"keyval_zone zone=refresh_tokens:1M     timeout=8h sync;",
-		"keyval_zone zone=oidc_sids:1M          timeout=8h sync;",
+		"keyval_zone zone=refresh_tokens:1M timeout=8h sync;",
+		"keyval_zone zone=oidc_sids:1M timeout=8h sync;",
 		"include oidc/oidc_common.conf;",
 	}
 
@@ -869,11 +954,11 @@ func TestExecuteTemplate_ForMainForNGINXPlusWithOIDCTimeoutCustom(t *testing.T) 
 	t.Log(mainConf)
 
 	expectedDirectives := []string{
-		"keyval_zone zone=oidc_pkce:128K        timeout=2m sync;",
-		"keyval_zone zone=oidc_id_tokens:1M     timeout=2h sync;",
-		"keyval_zone zone=oidc_access_tokens:1M timeout=30m sync;",
-		"keyval_zone zone=refresh_tokens:1M     timeout=1h sync;",
-		"keyval_zone zone=oidc_sids:1M          timeout=120s sync;",
+		"keyval_zone zone=oidc_pkce:512K timeout=2m sync;",
+		"keyval_zone zone=oidc_id_tokens:2M timeout=2h sync;",
+		"keyval_zone zone=oidc_access_tokens:3M timeout=30m sync;",
+		"keyval_zone zone=refresh_tokens:4M timeout=1h sync;",
+		"keyval_zone zone=oidc_sids:5M timeout=120s sync;",
 		"include oidc/oidc_common.conf;",
 	}
 
@@ -2837,23 +2922,33 @@ var (
 
 	mainCfgWithOIDCTimeoutDefault = MainConfig{
 		OIDC: OIDCConfig{
-			Enable:         true,
-			PKCETimeout:    "90s",
-			IDTokenTimeout: "1h",
-			AccessTimeout:  "1h",
-			RefreshTimeout: "8h",
-			SIDSTimeout:    "8h",
+			Enable:          true,
+			PKCETimeout:     "90s",
+			PKCEZoneSize:    "128K",
+			IDTokenTimeout:  "1h",
+			IDTokenZoneSize: "1M",
+			AccessTimeout:   "1h",
+			AccessZoneSize:  "1M",
+			RefreshTimeout:  "8h",
+			RefreshZoneSize: "1M",
+			SIDSTimeout:     "8h",
+			SIDSZoneSize:    "1M",
 		},
 	}
 
 	mainCfgWithOIDCTimeoutCustom = MainConfig{
 		OIDC: OIDCConfig{
-			Enable:         true,
-			PKCETimeout:    "2m",
-			IDTokenTimeout: "2h",
-			AccessTimeout:  "30m",
-			RefreshTimeout: "1h",
-			SIDSTimeout:    "120s",
+			Enable:          true,
+			PKCETimeout:     "2m",
+			PKCEZoneSize:    "512K",
+			IDTokenTimeout:  "2h",
+			IDTokenZoneSize: "2M",
+			AccessTimeout:   "30m",
+			AccessZoneSize:  "3M",
+			RefreshTimeout:  "1h",
+			RefreshZoneSize: "4M",
+			SIDSTimeout:     "120s",
+			SIDSZoneSize:    "5M",
 		},
 	}
 

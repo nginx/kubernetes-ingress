@@ -41,7 +41,7 @@ func NewDNSEndpointInformer(client versioned.Interface, namespace string, resync
 // one. This reduces memory footprint and number of connections to the server.
 func NewFilteredDNSEndpointInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
-		&cache.ListWatch{
+		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
@@ -66,7 +66,7 @@ func NewFilteredDNSEndpointInformer(client versioned.Interface, namespace string
 				}
 				return client.ExternaldnsV1().DNSEndpoints(namespace).Watch(ctx, options)
 			},
-		},
+		}, client),
 		&apisexternaldnsv1.DNSEndpoint{},
 		resyncPeriod,
 		indexers,

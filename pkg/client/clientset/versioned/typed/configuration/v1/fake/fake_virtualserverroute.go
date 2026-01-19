@@ -4,19 +4,20 @@ package fake
 
 import (
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
-	configurationv1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/typed/configuration/v1"
+	configurationv1 "github.com/nginx/kubernetes-ingress/pkg/client/applyconfiguration/configuration/v1"
+	typedconfigurationv1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/typed/configuration/v1"
 	gentype "k8s.io/client-go/gentype"
 )
 
 // fakeVirtualServerRoutes implements VirtualServerRouteInterface
 type fakeVirtualServerRoutes struct {
-	*gentype.FakeClientWithList[*v1.VirtualServerRoute, *v1.VirtualServerRouteList]
+	*gentype.FakeClientWithListAndApply[*v1.VirtualServerRoute, *v1.VirtualServerRouteList, *configurationv1.VirtualServerRouteApplyConfiguration]
 	Fake *FakeK8sV1
 }
 
-func newFakeVirtualServerRoutes(fake *FakeK8sV1, namespace string) configurationv1.VirtualServerRouteInterface {
+func newFakeVirtualServerRoutes(fake *FakeK8sV1, namespace string) typedconfigurationv1.VirtualServerRouteInterface {
 	return &fakeVirtualServerRoutes{
-		gentype.NewFakeClientWithList[*v1.VirtualServerRoute, *v1.VirtualServerRouteList](
+		gentype.NewFakeClientWithListAndApply[*v1.VirtualServerRoute, *v1.VirtualServerRouteList, *configurationv1.VirtualServerRouteApplyConfiguration](
 			fake.Fake,
 			namespace,
 			v1.SchemeGroupVersion.WithResource("virtualserverroutes"),

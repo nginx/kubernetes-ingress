@@ -56,7 +56,7 @@ func TestCollectAndWrite(t *testing.T) {
 		t.Errorf("unable to set POD_NAME: %v", err)
 	}
 
-	client := fake.NewSimpleClientset(
+	client := fake.NewClientset(
 		&api_v1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "kube-system",
@@ -82,7 +82,7 @@ func TestCollectAndWrite(t *testing.T) {
 
 func TestNewMetadataReporter(t *testing.T) {
 	reporter := NewMetadataReporter(
-		fake.NewSimpleClientset(),
+		fake.NewClientset(),
 		&api_v1.Pod{},
 		"5.0.0",
 	)
