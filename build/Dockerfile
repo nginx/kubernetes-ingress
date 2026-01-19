@@ -16,11 +16,11 @@ ARG PACKAGE_REPO=pkgs.nginx.com
 
 
 ############################################# Base images containing libs for FIPS #############################################
-FROM ghcr.io/nginx/dependencies/nginx-ubi:ubi8@sha256:dceea2015bbbd183b5a52fa783b19d355f76c27ba6cf55e7dbef24b60bdee02b AS ubi8-packages
+FROM ghcr.io/nginx/dependencies/nginx-ubi:ubi8@sha256:02b586b58cb380cd210955b43f73f3b80b34950403366b0860d85a071653330f AS ubi8-packages
 FROM ghcr.io/nginx/dependencies/nginx-ubi:ubi9@sha256:2ffc9bc521deb28ae11b336c298572b26fd523ccfb9c8812c6da63f651936610 AS ubi9-packages
 FROM ghcr.io/nginx/alpine-fips:0.5.0-alpine3.22@sha256:f907d7541ab03453fd7d630dc0fb8d9a819717ea52a7956fe1f45b9833051177 AS alpine-fips-3.22
 FROM redhat/ubi9-minimal:9.7-1764794109@sha256:6fc28bcb6776e387d7a35a2056d9d2b985dc4e26031e98a2bd35a7137cd6fd71 AS ubi-minimal
-FROM golang:1.25-alpine@sha256:e6898559d553d81b245eb8eadafcb3ca38ef320a9e26674df59d4f07a4fd0b07 AS golang-builder
+FROM golang:1.25-alpine@sha256:d9b2e14101f27ec8d09674cd01186798d227bb0daec90e032aeb1cd22ac0f029 AS golang-builder
 
 ############################################# NGINX files #############################################
 FROM scratch AS nginx-files
