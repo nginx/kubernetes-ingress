@@ -47,6 +47,33 @@ func createTestConfiguration() *Configuration {
 	)
 }
 
+// setupVSRConfiguration creates a test configuration with a VirtualServer and two VirtualServerRoutes
+func setupVSRConfiguration() (*Configuration, *conf_v1.VirtualServer, *conf_v1.VirtualServerRoute, *conf_v1.VirtualServerRoute) {
+	configuration := createTestConfiguration()
+
+	vsr1 := createTestVirtualServerRoute("virtualserverroute-1", "foo.example.com", "/first")
+	vsr2 := createTestVirtualServerRoute("virtualserverroute-2", "foo.example.com", "/second")
+	vs := createTestVirtualServerWithRoutes(
+		"virtualserver",
+		"foo.example.com",
+		[]conf_v1.Route{
+			{
+				Path:  "/first",
+				Route: "virtualserverroute-1",
+			},
+			{
+				Path:  "/second",
+				Route: "virtualserverroute-2",
+			},
+		})
+
+	configuration.AddOrUpdateVirtualServerRoute(vsr1)
+	configuration.AddOrUpdateVirtualServer(vs)
+	configuration.AddOrUpdateVirtualServerRoute(vsr2)
+
+	return configuration, vs, vsr1, vsr2
+}
+
 func TestAddIngressForRegularIngress(t *testing.T) {
 	t.Parallel()
 	configuration := createTestConfiguration()
@@ -1184,10 +1211,9 @@ func TestDeleteNonExistingVirtualServer(t *testing.T) {
 	}
 }
 
-func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
+func TestAddVirtualServerRouteWithoutVirtualServer(t *testing.T) {
+	t.Parallel()
 	configuration := createTestConfiguration()
-
-	// Add VirtualServerRoute-1
 
 	vsr1 := createTestVirtualServerRoute("virtualserverroute-1", "foo.example.com", "/first")
 	var expectedChanges []ResourceChange
@@ -1206,9 +1232,17 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
 		t.Errorf("AddOrUpdateVirtualServerRoute() returned unexpected result (-want +got):\n%s", diff)
 	}
+}
 
-	// Add VirtualServer
+func TestAddVirtualServerWithExistingVirtualServerRoute(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfiguration()
 
+	// First add VirtualServerRoute
+	vsr1 := createTestVirtualServerRoute("virtualserverroute-1", "foo.example.com", "/first")
+	configuration.AddOrUpdateVirtualServerRoute(vsr1)
+
+	// Then add VirtualServer
 	vs := createTestVirtualServerWithRoutes(
 		"virtualserver",
 		"foo.example.com",
@@ -1222,7 +1256,8 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 				Route: "virtualserverroute-2",
 			},
 		})
-	expectedChanges = []ResourceChange{
+
+	expectedChanges := []ResourceChange{
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
@@ -1232,21 +1267,43 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 			},
 		},
 	}
-	expectedProblems = nil
+	expectedProblems := []ConfigurationProblem(nil)
 
-	changes, problems = configuration.AddOrUpdateVirtualServer(vs)
+	changes, problems := configuration.AddOrUpdateVirtualServer(vs)
 	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
 		t.Errorf("AddOrUpdateVirtualServer() returned unexpected result (-want +got):\n%s", diff)
 	}
 	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
 		t.Errorf("AddOrUpdateVirtualServer() returned unexpected result (-want +got):\n%s", diff)
 	}
+}
 
+func TestAddSecondVirtualServerRoute(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfiguration()
+
+	// Setup initial state
+	vsr1 := createTestVirtualServerRoute("virtualserverroute-1", "foo.example.com", "/first")
+	vs := createTestVirtualServerWithRoutes(
+		"virtualserver",
+		"foo.example.com",
+		[]conf_v1.Route{
+			{
+				Path:  "/first",
+				Route: "virtualserverroute-1",
+			},
+			{
+				Path:  "/second",
+				Route: "virtualserverroute-2",
+			},
+		})
+	configuration.AddOrUpdateVirtualServerRoute(vsr1)
+	configuration.AddOrUpdateVirtualServer(vs)
+
+	// Add second VirtualServerRoute
 	vsr2 := createTestVirtualServerRoute("virtualserverroute-2", "foo.example.com", "/second")
 
-	// Add VirtualServerRoute-2
-
-	expectedChanges = []ResourceChange{
+	expectedChanges := []ResourceChange{
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
@@ -1255,22 +1312,27 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 			},
 		},
 	}
-	expectedProblems = nil
+	expectedProblems := []ConfigurationProblem(nil)
 
-	changes, problems = configuration.AddOrUpdateVirtualServerRoute(vsr2)
+	changes, problems := configuration.AddOrUpdateVirtualServerRoute(vsr2)
 	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
 		t.Errorf("AddOrUpdateVirtualServerRoute() returned unexpected result (-want +got):\n%s", diff)
 	}
 	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
 		t.Errorf("AddOrUpdateVirtualServerRoute() returned unexpected result (-want +got):\n%s", diff)
 	}
+}
+
+func TestUpdateVirtualServerRoute(t *testing.T) {
+	t.Parallel()
+	configuration, vs, vsr1, vsr2 := setupVSRConfiguration()
 
 	// Update VirtualServerRoute-1
-
 	updatedVSR1 := vsr1.DeepCopy()
 	updatedVSR1.Generation++
 	updatedVSR1.Spec.Subroutes[0].LocationSnippets = "# snippet"
-	expectedChanges = []ResourceChange{
+
+	expectedChanges := []ResourceChange{
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
@@ -1279,22 +1341,27 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 			},
 		},
 	}
-	expectedProblems = nil
+	expectedProblems := []ConfigurationProblem(nil)
 
-	changes, problems = configuration.AddOrUpdateVirtualServerRoute(updatedVSR1)
+	changes, problems := configuration.AddOrUpdateVirtualServerRoute(updatedVSR1)
 	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
 		t.Errorf("AddOrUpdateVirtualServerRoute() returned unexpected result (-want +got):\n%s", diff)
 	}
 	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
 		t.Errorf("AddOrUpdateVirtualServerRoute() returned unexpected result (-want +got):\n%s", diff)
 	}
+}
 
-	// Make VirtualServerRoute-1 invalid
+func TestMakeVirtualServerRouteInvalid(t *testing.T) {
+	t.Parallel()
+	configuration, vs, vsr1, vsr2 := setupVSRConfiguration()
 
-	invalidVSR1 := updatedVSR1.DeepCopy()
+	// Make VirtualServerRoute-1 invalid by removing host
+	invalidVSR1 := vsr1.DeepCopy()
 	invalidVSR1.Generation++
 	invalidVSR1.Spec.Host = ""
-	expectedChanges = []ResourceChange{
+
+	expectedChanges := []ResourceChange{
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
@@ -1304,7 +1371,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 			},
 		},
 	}
-	expectedProblems = []ConfigurationProblem{
+	expectedProblems := []ConfigurationProblem{
 		{
 			Object:  invalidVSR1,
 			IsError: true,
@@ -1313,41 +1380,25 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 		},
 	}
 
-	changes, problems = configuration.AddOrUpdateVirtualServerRoute(invalidVSR1)
+	changes, problems := configuration.AddOrUpdateVirtualServerRoute(invalidVSR1)
 	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
 		t.Errorf("AddOrUpdateVirtualServerRoute() returned unexpected result (-want +got):\n%s", diff)
 	}
 	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
 		t.Errorf("AddOrUpdateVirtualServerRoute() returned unexpected result (-want +got):\n%s", diff)
 	}
+}
 
-	// Restore VirtualServerRoute-1
+func TestMakeVirtualServerRouteInvalidForVirtualServer(t *testing.T) {
+	t.Parallel()
+	configuration, vs, vsr1, vsr2 := setupVSRConfiguration()
 
-	expectedChanges = []ResourceChange{
-		{
-			Op: AddOrUpdate,
-			Resource: &VirtualServerConfiguration{
-				VirtualServer:       vs,
-				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr1, vsr2},
-			},
-		},
-	}
-	expectedProblems = nil
-
-	changes, problems = configuration.AddOrUpdateVirtualServerRoute(vsr1)
-	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
-		t.Errorf("AddOrUpdateVirtualServerRoute() returned unexpected result (-want +got):\n%s", diff)
-	}
-	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
-		t.Errorf("AddOrUpdateVirtualServerRoute() returned unexpected result (-want +got):\n%s", diff)
-	}
-
-	// Make VirtualServerRoute-1 invalid for VirtualServer
-
+	// Make VirtualServerRoute-1 invalid for VirtualServer by changing path
 	invalidForVSVSR1 := vsr1.DeepCopy()
 	invalidForVSVSR1.Generation++
 	invalidForVSVSR1.Spec.Subroutes[0].Path = "/"
-	expectedChanges = []ResourceChange{
+
+	expectedChanges := []ResourceChange{
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
@@ -1357,7 +1408,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 			},
 		},
 	}
-	expectedProblems = []ConfigurationProblem{
+	expectedProblems := []ConfigurationProblem{
 		{
 			Object:  invalidForVSVSR1,
 			Reason:  nl.EventReasonIgnored,
@@ -1365,41 +1416,25 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 		},
 	}
 
-	changes, problems = configuration.AddOrUpdateVirtualServerRoute(invalidForVSVSR1)
+	changes, problems := configuration.AddOrUpdateVirtualServerRoute(invalidForVSVSR1)
 	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
 		t.Errorf("AddOrUpdateVirtualServerRoute() returned unexpected result (-want +got):\n%s", diff)
 	}
 	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
 		t.Errorf("AddOrUpdateVirtualServerRoute() returned unexpected result (-want +got):\n%s", diff)
 	}
+}
 
-	// Restore VirtualServerRoute-1
+func TestUpdateVirtualServerRouteHostMismatch(t *testing.T) {
+	t.Parallel()
+	configuration, vs, vsr1, vsr2 := setupVSRConfiguration()
 
-	expectedChanges = []ResourceChange{
-		{
-			Op: AddOrUpdate,
-			Resource: &VirtualServerConfiguration{
-				VirtualServer:       vs,
-				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr1, vsr2},
-			},
-		},
-	}
-	expectedProblems = nil
-
-	changes, problems = configuration.AddOrUpdateVirtualServerRoute(vsr1)
-	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
-		t.Errorf("AddOrUpdateVirtualServerRoute() returned unexpected result (-want +got):\n%s", diff)
-	}
-	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
-		t.Errorf("AddOrUpdateVirtualServerRoute() returned unexpected result (-want +got):\n%s", diff)
-	}
-
-	// Update host of VirtualServerRoute-2
-
+	// Update VirtualServerRoute-2 host to mismatch VirtualServer host
 	updatedVSR2 := vsr2.DeepCopy()
 	updatedVSR2.Generation++
 	updatedVSR2.Spec.Host = "bar.example.com"
-	expectedChanges = []ResourceChange{
+
+	expectedChanges := []ResourceChange{
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
@@ -1409,7 +1444,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 			},
 		},
 	}
-	expectedProblems = []ConfigurationProblem{
+	expectedProblems := []ConfigurationProblem{
 		{
 			Object:  updatedVSR2,
 			Reason:  nl.EventReasonNoVirtualServerFound,
@@ -1417,30 +1452,55 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 		},
 	}
 
-	changes, problems = configuration.AddOrUpdateVirtualServerRoute(updatedVSR2)
+	changes, problems := configuration.AddOrUpdateVirtualServerRoute(updatedVSR2)
 	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
 		t.Errorf("AddOrUpdateVirtualServerRoute() returned unexpected result (-want +got):\n%s", diff)
 	}
 	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
 		t.Errorf("AddOrUpdateVirtualServerRoute() returned unexpected result (-want +got):\n%s", diff)
 	}
+}
 
-	// Update host of VirtualServer
+func TestUpdateVirtualServerHost(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfiguration()
 
+	// Setup initial state
+	vsr1 := createTestVirtualServerRoute("virtualserverroute-1", "foo.example.com", "/first")
+	vsr2 := createTestVirtualServerRoute("virtualserverroute-2", "bar.example.com", "/second")
+	vs := createTestVirtualServerWithRoutes(
+		"virtualserver",
+		"foo.example.com",
+		[]conf_v1.Route{
+			{
+				Path:  "/first",
+				Route: "virtualserverroute-1",
+			},
+			{
+				Path:  "/second",
+				Route: "virtualserverroute-2",
+			},
+		})
+	configuration.AddOrUpdateVirtualServerRoute(vsr1)
+	configuration.AddOrUpdateVirtualServer(vs)
+	configuration.AddOrUpdateVirtualServerRoute(vsr2) // This will be invalid due to host mismatch
+
+	// Update VirtualServer host to match VirtualServerRoute-2
 	updatedVS := vs.DeepCopy()
 	updatedVS.Generation++
 	updatedVS.Spec.Host = "bar.example.com"
-	expectedChanges = []ResourceChange{
+
+	expectedChanges := []ResourceChange{
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
 				VirtualServer:       updatedVS,
-				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{updatedVSR2},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr2},
 				Warnings:            []string{"VirtualServerRoute default/virtualserverroute-1 is invalid: spec.host: Invalid value: \"foo.example.com\": must be equal to 'bar.example.com'"},
 			},
 		},
 	}
-	expectedProblems = []ConfigurationProblem{
+	expectedProblems := []ConfigurationProblem{
 		{
 			Object:  vsr1,
 			Reason:  nl.EventReasonNoVirtualServerFound,
@@ -1448,66 +1508,21 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 		},
 	}
 
-	changes, problems = configuration.AddOrUpdateVirtualServer(updatedVS)
+	changes, problems := configuration.AddOrUpdateVirtualServer(updatedVS)
 	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
 		t.Errorf("AddOrUpdateVirtualServer() returned unexpected result (-want +got):\n%s", diff)
 	}
 	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
 		t.Errorf("AddOrUpdateVirtualServer() returned unexpected result (-want +got):\n%s", diff)
 	}
+}
 
-	// Restore host of VirtualServer
-
-	expectedChanges = []ResourceChange{
-		{
-			Op: AddOrUpdate,
-			Resource: &VirtualServerConfiguration{
-				VirtualServer:       vs,
-				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr1},
-				Warnings:            []string{"VirtualServerRoute default/virtualserverroute-2 is invalid: spec.host: Invalid value: \"bar.example.com\": must be equal to 'foo.example.com'"},
-			},
-		},
-	}
-	expectedProblems = []ConfigurationProblem{
-		{
-			Object:  updatedVSR2,
-			Reason:  nl.EventReasonNoVirtualServerFound,
-			Message: "VirtualServer is invalid or doesn't exist",
-		},
-	}
-
-	changes, problems = configuration.AddOrUpdateVirtualServer(vs)
-	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
-		t.Errorf("AddOrUpdateVirtualServer() returned unexpected result (-want +got):\n%s", diff)
-	}
-	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
-		t.Errorf("AddOrUpdateVirtualServer() returned unexpected result (-want +got):\n%s", diff)
-	}
-
-	// Restore host of VirtualServerRoute-2
-
-	expectedChanges = []ResourceChange{
-		{
-			Op: AddOrUpdate,
-			Resource: &VirtualServerConfiguration{
-				VirtualServer:       vs,
-				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr1, vsr2},
-			},
-		},
-	}
-	expectedProblems = nil
-
-	changes, problems = configuration.AddOrUpdateVirtualServerRoute(vsr2)
-	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
-		t.Errorf("AddOrUpdateVirtualServerRoute() returned unexpected result (-want +got):\n%s", diff)
-	}
-	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
-		t.Errorf("AddOrUpdateVirtualServerRoute() returned unexpected result (-want +got):\n%s", diff)
-	}
+func TestDeleteVirtualServerRouteAndVirtualServer(t *testing.T) {
+	t.Parallel()
+	configuration, vs, _, vsr2 := setupVSRConfiguration()
 
 	// Remove VirtualServerRoute-1
-
-	expectedChanges = []ResourceChange{
+	expectedChanges := []ResourceChange{
 		{
 			Op: AddOrUpdate,
 			Resource: &VirtualServerConfiguration{
@@ -1517,9 +1532,9 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 			},
 		},
 	}
-	expectedProblems = nil
+	expectedProblems := []ConfigurationProblem(nil)
 
-	changes, problems = configuration.DeleteVirtualServerRoute("default/virtualserverroute-1")
+	changes, problems := configuration.DeleteVirtualServerRoute("default/virtualserverroute-1")
 	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
 		t.Errorf("DeleteVirtualServerRoute() returned unexpected result (-want +got):\n%s", diff)
 	}
@@ -1555,8 +1570,7 @@ func TestAddVirtualServerWithVirtualServerRoutes(t *testing.T) {
 		t.Errorf("DeleteVirtualServer() returned unexpected result (-want +got):\n%s", diff)
 	}
 
-	// Remove VirtualServerRoute-2
-
+	// Remove remaining VirtualServerRoute-2
 	expectedChanges = nil
 	expectedProblems = nil
 
