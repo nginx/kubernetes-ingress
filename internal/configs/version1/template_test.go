@@ -923,11 +923,11 @@ func TestExecuteTemplate_ForMainForNGINXPlusWithOIDCTimeoutDefault(t *testing.T)
 	t.Log(mainConf)
 
 	expectedDirectives := []string{
-		"keyval_zone zone=oidc_pkce:128K        timeout=90s sync;",
-		"keyval_zone zone=oidc_id_tokens:1M     timeout=1h sync;",
+		"keyval_zone zone=oidc_pkce:128K timeout=90s sync;",
+		"keyval_zone zone=oidc_id_tokens:1M timeout=1h sync;",
 		"keyval_zone zone=oidc_access_tokens:1M timeout=1h sync;",
-		"keyval_zone zone=refresh_tokens:1M     timeout=8h sync;",
-		"keyval_zone zone=oidc_sids:1M          timeout=8h sync;",
+		"keyval_zone zone=refresh_tokens:1M timeout=8h sync;",
+		"keyval_zone zone=oidc_sids:1M timeout=8h sync;",
 		"include oidc/oidc_common.conf;",
 	}
 
@@ -954,11 +954,11 @@ func TestExecuteTemplate_ForMainForNGINXPlusWithOIDCTimeoutCustom(t *testing.T) 
 	t.Log(mainConf)
 
 	expectedDirectives := []string{
-		"keyval_zone zone=oidc_pkce:128K        timeout=2m sync;",
-		"keyval_zone zone=oidc_id_tokens:1M     timeout=2h sync;",
-		"keyval_zone zone=oidc_access_tokens:1M timeout=30m sync;",
-		"keyval_zone zone=refresh_tokens:1M     timeout=1h sync;",
-		"keyval_zone zone=oidc_sids:1M          timeout=120s sync;",
+		"keyval_zone zone=oidc_pkce:512K timeout=2m sync;",
+		"keyval_zone zone=oidc_id_tokens:2M timeout=2h sync;",
+		"keyval_zone zone=oidc_access_tokens:3M timeout=30m sync;",
+		"keyval_zone zone=refresh_tokens:4M timeout=1h sync;",
+		"keyval_zone zone=oidc_sids:5M timeout=120s sync;",
 		"include oidc/oidc_common.conf;",
 	}
 
@@ -2922,23 +2922,33 @@ var (
 
 	mainCfgWithOIDCTimeoutDefault = MainConfig{
 		OIDC: OIDCConfig{
-			Enable:         true,
-			PKCETimeout:    "90s",
-			IDTokenTimeout: "1h",
-			AccessTimeout:  "1h",
-			RefreshTimeout: "8h",
-			SIDSTimeout:    "8h",
+			Enable:          true,
+			PKCETimeout:     "90s",
+			PKCEZoneSize:    "128K",
+			IDTokenTimeout:  "1h",
+			IDTokenZoneSize: "1M",
+			AccessTimeout:   "1h",
+			AccessZoneSize:  "1M",
+			RefreshTimeout:  "8h",
+			RefreshZoneSize: "1M",
+			SIDSTimeout:     "8h",
+			SIDSZoneSize:    "1M",
 		},
 	}
 
 	mainCfgWithOIDCTimeoutCustom = MainConfig{
 		OIDC: OIDCConfig{
-			Enable:         true,
-			PKCETimeout:    "2m",
-			IDTokenTimeout: "2h",
-			AccessTimeout:  "30m",
-			RefreshTimeout: "1h",
-			SIDSTimeout:    "120s",
+			Enable:          true,
+			PKCETimeout:     "2m",
+			PKCEZoneSize:    "512K",
+			IDTokenTimeout:  "2h",
+			IDTokenZoneSize: "2M",
+			AccessTimeout:   "30m",
+			AccessZoneSize:  "3M",
+			RefreshTimeout:  "1h",
+			RefreshZoneSize: "4M",
+			SIDSTimeout:     "120s",
+			SIDSZoneSize:    "5M",
 		},
 	}
 

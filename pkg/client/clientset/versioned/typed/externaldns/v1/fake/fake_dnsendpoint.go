@@ -4,19 +4,20 @@ package fake
 
 import (
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/externaldns/v1"
-	externaldnsv1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/typed/externaldns/v1"
+	externaldnsv1 "github.com/nginx/kubernetes-ingress/pkg/client/applyconfiguration/externaldns/v1"
+	typedexternaldnsv1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/typed/externaldns/v1"
 	gentype "k8s.io/client-go/gentype"
 )
 
 // fakeDNSEndpoints implements DNSEndpointInterface
 type fakeDNSEndpoints struct {
-	*gentype.FakeClientWithList[*v1.DNSEndpoint, *v1.DNSEndpointList]
+	*gentype.FakeClientWithListAndApply[*v1.DNSEndpoint, *v1.DNSEndpointList, *externaldnsv1.DNSEndpointApplyConfiguration]
 	Fake *FakeExternaldnsV1
 }
 
-func newFakeDNSEndpoints(fake *FakeExternaldnsV1, namespace string) externaldnsv1.DNSEndpointInterface {
+func newFakeDNSEndpoints(fake *FakeExternaldnsV1, namespace string) typedexternaldnsv1.DNSEndpointInterface {
 	return &fakeDNSEndpoints{
-		gentype.NewFakeClientWithList[*v1.DNSEndpoint, *v1.DNSEndpointList](
+		gentype.NewFakeClientWithListAndApply[*v1.DNSEndpoint, *v1.DNSEndpointList, *externaldnsv1.DNSEndpointApplyConfiguration](
 			fake.Fake,
 			namespace,
 			v1.SchemeGroupVersion.WithResource("dnsendpoints"),

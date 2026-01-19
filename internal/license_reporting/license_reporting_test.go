@@ -68,7 +68,7 @@ func TestWriteLicenseInfo(t *testing.T) {
 }
 
 func TestNewLicenseReporter(t *testing.T) {
-	reporter := NewLicenseReporter(fake.NewSimpleClientset(), record.NewFakeRecorder(2048), &v1.Pod{})
+	reporter := NewLicenseReporter(fake.NewClientset(), record.NewFakeRecorder(2048), &v1.Pod{})
 	if reporter == nil {
 		t.Fatal("NewLicenseReporter() returned nil")
 	}
