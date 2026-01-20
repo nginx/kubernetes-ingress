@@ -44,7 +44,7 @@ repos:
         pass_filenames: false
 
   - repo: https://github.com/golangci/golangci-lint
-    rev: v2.7.2
+    rev: v2.8.0
     hooks:
       - id: golangci-lint
         args: [--new-from-patch=/tmp/diff.patch]
@@ -104,3 +104,4 @@ repos:
 
 ci:
   skip: [golang-diff, golangci-lint, check-jsonschema, markdownlint-cli2]
+  autoupdate_schedule: quarterly # We use renovate for more frequent updates and there's no way to disable autoupdate
