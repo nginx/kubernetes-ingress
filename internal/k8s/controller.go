@@ -31,7 +31,6 @@ import (
 
 	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotect"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotectdos"
-	"github.com/nginx/kubernetes-ingress/internal/nsutils"
 	"github.com/nginx/kubernetes-ingress/internal/telemetry"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/rest"
@@ -330,13 +329,13 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 	if lbc.areCustomResourcesEnabled {
 		if input.GlobalConfiguration != "" {
 			lbc.watchGlobalConfiguration = true
-			ns, name, _ := nsutils.ParseNamespaceName(input.GlobalConfiguration)
+			ns, name, _ := ParseNamespaceName(input.GlobalConfiguration)
 			lbc.addGlobalConfigurationHandler(createGlobalConfigurationHandlers(lbc), ns, name)
 		}
 	}
 
 	if input.ConfigMaps != "" {
-		nginxConfigMapsNS, nginxConfigMapsName, err := nsutils.ParseNamespaceName(input.ConfigMaps)
+		nginxConfigMapsNS, nginxConfigMapsName, err := ParseNamespaceName(input.ConfigMaps)
 		if err != nil {
 			nl.Warn(lbc.Logger, err)
 		} else {
@@ -346,7 +345,7 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 	}
 
 	if input.MGMTConfigMap != "" {
-		mgmtConfigMapNS, mgmtConfigMapName, err := nsutils.ParseNamespaceName(input.MGMTConfigMap)
+		mgmtConfigMapNS, mgmtConfigMapName, err := ParseNamespaceName(input.MGMTConfigMap)
 		if err != nil {
 			nl.Warn(lbc.Logger, err)
 		} else {
@@ -1766,7 +1765,7 @@ func (lbc *LoadBalancerController) syncSecret(task task) {
 	var secretWatched bool
 	var err error
 
-	namespace, name, err := nsutils.ParseNamespaceName(key)
+	namespace, name, err := ParseNamespaceName(key)
 	if err != nil {
 		nl.Warnf(lbc.Logger, "Secret key %v is invalid: %v", key, err)
 		return

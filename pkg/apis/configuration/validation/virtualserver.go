@@ -739,17 +739,17 @@ func validateServiceName(name string, fieldPath *field.Path) field.ErrorList {
 // validateVirtualServerServiceName checks if a namespaced service name is valid for VirtualServer upstreams.
 func validateVirtualServerServiceName(name string, fieldPath *field.Path) field.ErrorList {
 	if nsutils.HasNamespace(name) {
-		svcNamespace, svcName, err := nsutils.ParseNamespaceName(name)
-		if err != nil {
+		parts := strings.Split(name, "/")
+		if len(parts) != 2 {
 			return field.ErrorList{field.Invalid(fieldPath, name, " service reference must be in the format namespace/service-name")}
 		}
 
-		namespaceErrs := validateDNS1123Label(svcNamespace, fieldPath)
+		namespaceErrs := validateDNS1123Label(parts[0], fieldPath)
 		if len(namespaceErrs) > 0 {
 			return field.ErrorList{field.Invalid(fieldPath, name, "invalid namespace in service reference")}
 		}
 
-		serviceErrs := validateServiceName(svcName, fieldPath)
+		serviceErrs := validateServiceName(parts[1], fieldPath)
 		if len(serviceErrs) > 0 {
 			return field.ErrorList{field.Invalid(fieldPath, name, "invalid service name in service reference")}
 		}

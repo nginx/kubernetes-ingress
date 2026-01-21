@@ -5,7 +5,6 @@ import (
 	"reflect"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
-	"github.com/nginx/kubernetes-ingress/internal/nsutils"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
 	api_v1 "k8s.io/api/core/v1"
@@ -97,7 +96,7 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 	}
 
 	// it is safe to ignore the error
-	namespace, name, _ := nsutils.ParseNamespaceName(key)
+	namespace, name, _ := ParseNamespaceName(key)
 
 	resources := lbc.configuration.FindResourcesForPolicy(namespace, name)
 	resourceExes := lbc.createExtendedResources(resources)

@@ -7,7 +7,6 @@ import (
 	"sort"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
-	"github.com/nginx/kubernetes-ingress/internal/nsutils"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	v1 "k8s.io/api/core/v1"
@@ -258,7 +257,7 @@ func (lbc *LoadBalancerController) syncService(task task) {
 	// Second case: the service is referenced by some resources in the cluster
 
 	// it is safe to ignore the error
-	namespace, name, _ := nsutils.ParseNamespaceName(key)
+	namespace, name, _ := ParseNamespaceName(key)
 
 	resources := lbc.configuration.FindResourcesForService(namespace, name)
 

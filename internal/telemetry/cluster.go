@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	clusterInfo "github.com/nginx/kubernetes-ingress/internal/common_cluster_info"
-	"github.com/nginx/kubernetes-ingress/internal/nsutils"
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -351,10 +350,11 @@ func (c *Collector) configMapKeys(
 	configMapName string,
 	filteredConfigMapKeys []string,
 ) ([]string, error) {
-	namespace, name, err := nsutils.ParseNamespaceName(configMapName)
-	if err != nil {
+	parts := strings.Split(configMapName, "/")
+	if len(parts) != 2 {
 		return nil, fmt.Errorf("invalid config map name: %s", configMapName)
 	}
+	namespace, name := parts[0], parts[1]
 
 	configMap, err := c.Config.K8sClientReader.CoreV1().ConfigMaps(namespace).Get(ctx, name, metaV1.GetOptions{})
 	if err != nil {

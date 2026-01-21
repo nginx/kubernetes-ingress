@@ -149,8 +149,10 @@ func GenerateEndpointsKey(
 // ParseServiceReference returns the namespace and name from a service reference.
 func ParseServiceReference(serviceRef, defaultNamespace string) (namespace, serviceName string) {
 	if nsutils.HasNamespace(serviceRef) {
-		ns, name, _ := nsutils.ParseNamespaceName(serviceRef)
-		return ns, name
+		parts := strings.Split(serviceRef, "/")
+		if len(parts) == 2 {
+			return parts[0], parts[1]
+		}
 	}
 	return defaultNamespace, serviceRef
 }
@@ -1604,12 +1606,11 @@ func (p *policiesCfg) addAPIKeyConfig(
 
 	p.APIKey.Clients = generateAPIKeyClients(secretRef.Secret.Data)
 
-	_, polName, _ := nsutils.ParseNamespaceName(rfc1123ToSnake(polKey))
 	mapName := fmt.Sprintf(
 		"apikey_auth_client_name_%s_%s_%s",
 		rfc1123ToSnake(vsNamespace),
 		rfc1123ToSnake(vsName),
-		polName,
+		strings.Split(rfc1123ToSnake(polKey), "/")[1],
 	)
 	p.APIKey.Key = &version2.APIKey{
 		Header:  apiKey.SuppliedIn.Header,
