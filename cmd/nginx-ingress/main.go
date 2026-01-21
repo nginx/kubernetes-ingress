@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
+	"github.com/nginx/kubernetes-ingress/internal/nsutils"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
@@ -778,7 +779,7 @@ func getSocketClient(sockPath string) *http.Client {
 
 // getAndValidateSecret gets and validates a secret.
 func getAndValidateSecret(kubeClient *kubernetes.Clientset, secretNsName string, secretType api_v1.SecretType) (secret *api_v1.Secret, err error) {
-	ns, name, err := k8s.ParseNamespaceName(secretNsName)
+	ns, name, err := nsutils.ParseNamespaceName(secretNsName)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse the %v argument: %w", secretNsName, err)
 	}
@@ -991,7 +992,7 @@ func createHealthProbeEndpoint(kubeClient *kubernetes.Clientset, plusClient *cli
 func mustProcessGlobalConfiguration(ctx context.Context) {
 	l := nl.LoggerFromContext(ctx)
 	if *globalConfiguration != "" {
-		_, _, err := k8s.ParseNamespaceName(*globalConfiguration)
+		_, _, err := nsutils.ParseNamespaceName(*globalConfiguration)
 		if err != nil {
 			nl.Fatalf(l, "Error parsing the global-configuration argument: %v", err)
 		}
@@ -1005,7 +1006,7 @@ func mustProcessGlobalConfiguration(ctx context.Context) {
 func processConfigMaps(kubeClient *kubernetes.Clientset, cfgParams *configs.ConfigParams, nginxManager nginx.Manager, templateExecutor *version1.TemplateExecutor, eventLog record.EventRecorder) *configs.ConfigParams {
 	l := nl.LoggerFromContext(cfgParams.Context)
 	if *nginxConfigMaps != "" {
-		ns, name, err := k8s.ParseNamespaceName(*nginxConfigMaps)
+		ns, name, err := nsutils.ParseNamespaceName(*nginxConfigMaps)
 		if err != nil {
 			nl.Fatalf(l, "Error parsing the nginx-configmaps argument: %v", err)
 		}
@@ -1042,7 +1043,7 @@ func processMGMTConfigMap(kubeClient *kubernetes.Clientset, mgmtCfgParams *confi
 	ctx := mgmtCfgParams.Context
 	var fatalErr error
 
-	ns, name, err := k8s.ParseNamespaceName(*mgmtConfigMap)
+	ns, name, err := nsutils.ParseNamespaceName(*mgmtConfigMap)
 	if err != nil {
 		logEventAndExit(ctx, eventLog, pod, configMapErrorReason, fmt.Errorf("error parsing the mgmt-configmap argument: %w", err))
 	}

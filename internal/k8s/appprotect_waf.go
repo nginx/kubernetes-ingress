@@ -8,7 +8,7 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotect"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotectcommon"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
-	"github.com/nginx/kubernetes-ingress/internal/validation"
+	"github.com/nginx/kubernetes-ingress/internal/nsutils"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	api_v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
@@ -250,7 +250,7 @@ func getWAFPoliciesForAppProtectLogConf(pols []*conf_v1.Policy, key string) []*c
 }
 
 func isMatchingResourceRef(ownerNs, resRef, key string) bool {
-	if !validation.HasNamespace(resRef) {
+	if !nsutils.HasNamespace(resRef) {
 		resRef = fmt.Sprintf("%v/%v", ownerNs, resRef)
 	}
 	return resRef == key
@@ -269,7 +269,7 @@ func (lbc *LoadBalancerController) addWAFPolicyRefs(
 
 		if pol.Spec.WAF.ApPolicy != "" {
 			apPolKey := pol.Spec.WAF.ApPolicy
-			if !validation.HasNamespace(apPolKey) {
+			if !nsutils.HasNamespace(apPolKey) {
 				apPolKey = fmt.Sprintf("%v/%v", pol.Namespace, apPolKey)
 			}
 
@@ -283,7 +283,7 @@ func (lbc *LoadBalancerController) addWAFPolicyRefs(
 		if pol.Spec.WAF.SecurityLog != nil && pol.Spec.WAF.SecurityLogs == nil {
 			if pol.Spec.WAF.SecurityLog.ApLogConf != "" {
 				logConfKey := pol.Spec.WAF.SecurityLog.ApLogConf
-				if !validation.HasNamespace(logConfKey) {
+				if !nsutils.HasNamespace(logConfKey) {
 					logConfKey = fmt.Sprintf("%v/%v", pol.Namespace, logConfKey)
 				}
 
@@ -299,7 +299,7 @@ func (lbc *LoadBalancerController) addWAFPolicyRefs(
 			for _, SecLog := range pol.Spec.WAF.SecurityLogs {
 				if SecLog.ApLogConf != "" {
 					logConfKey := SecLog.ApLogConf
-					if !validation.HasNamespace(logConfKey) {
+					if !nsutils.HasNamespace(logConfKey) {
 						logConfKey = fmt.Sprintf("%v/%v", pol.Namespace, logConfKey)
 					}
 

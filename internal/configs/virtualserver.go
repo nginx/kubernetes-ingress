@@ -17,7 +17,7 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
-	"github.com/nginx/kubernetes-ingress/internal/validation"
+	"github.com/nginx/kubernetes-ingress/internal/nsutils"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	api_v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -148,11 +148,9 @@ func GenerateEndpointsKey(
 
 // ParseServiceReference returns the namespace and name from a service reference.
 func ParseServiceReference(serviceRef, defaultNamespace string) (namespace, serviceName string) {
-	if strings.Contains(serviceRef, "/") {
-		parts := strings.Split(serviceRef, "/")
-		if len(parts) == 2 {
-			return parts[0], parts[1]
-		}
+	if nsutils.HasNamespace(serviceRef) {
+		ns, name, _ := nsutils.ParseNamespaceName(serviceRef)
+		return ns, name
 	}
 	return defaultNamespace, serviceRef
 }
@@ -553,7 +551,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		// ignore routes that reference VirtualServerRoute
 		if r.Route != "" {
 			name := r.Route
-			if !validation.HasNamespace(name) {
+			if !nsutils.HasNamespace(name) {
 				name = fmt.Sprintf("%v/%v", vsEx.VirtualServer.Namespace, r.Route)
 			}
 
@@ -1606,11 +1604,12 @@ func (p *policiesCfg) addAPIKeyConfig(
 
 	p.APIKey.Clients = generateAPIKeyClients(secretRef.Secret.Data)
 
+	_, polName, _ := nsutils.ParseNamespaceName(rfc1123ToSnake(polKey))
 	mapName := fmt.Sprintf(
 		"apikey_auth_client_name_%s_%s_%s",
 		rfc1123ToSnake(vsNamespace),
 		rfc1123ToSnake(vsName),
-		strings.Split(rfc1123ToSnake(polKey), "/")[1],
+		polName,
 	)
 	p.APIKey.Key = &version2.APIKey{
 		Header:  apiKey.SuppliedIn.Header,
@@ -1733,7 +1732,7 @@ func (p *policiesCfg) addWAFConfig(
 
 	if waf.ApPolicy != "" {
 		apPolKey := waf.ApPolicy
-		if !validation.HasNamespace(apPolKey) {
+		if !nsutils.HasNamespace(apPolKey) {
 			apPolKey = fmt.Sprintf("%v/%v", polNamespace, apPolKey)
 		}
 
@@ -1768,7 +1767,7 @@ func (p *policiesCfg) addWAFConfig(
 
 			if loco.ApLogConf != "" {
 				logConfKey := loco.ApLogConf
-				if !validation.HasNamespace(logConfKey) {
+				if !nsutils.HasNamespace(logConfKey) {
 					logConfKey = fmt.Sprintf("%v/%v", polNamespace, logConfKey)
 				}
 				if logConfPath, ok := apResources.LogConfs[logConfKey]; ok {

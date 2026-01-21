@@ -8,6 +8,7 @@ import (
 
 	"github.com/dlclark/regexp2"
 	"github.com/nginx/kubernetes-ingress/internal/configs"
+	"github.com/nginx/kubernetes-ingress/internal/nsutils"
 	internalValidation "github.com/nginx/kubernetes-ingress/internal/validation"
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -737,18 +738,18 @@ func validateServiceName(name string, fieldPath *field.Path) field.ErrorList {
 
 // validateVirtualServerServiceName checks if a namespaced service name is valid for VirtualServer upstreams.
 func validateVirtualServerServiceName(name string, fieldPath *field.Path) field.ErrorList {
-	if strings.Contains(name, "/") {
-		parts := strings.Split(name, "/")
-		if len(parts) != 2 {
+	if nsutils.HasNamespace(name) {
+		svcNamespace, svcName, err := nsutils.ParseNamespaceName(name)
+		if err != nil {
 			return field.ErrorList{field.Invalid(fieldPath, name, " service reference must be in the format namespace/service-name")}
 		}
 
-		namespaceErrs := validateDNS1123Label(parts[0], fieldPath)
+		namespaceErrs := validateDNS1123Label(svcNamespace, fieldPath)
 		if len(namespaceErrs) > 0 {
 			return field.ErrorList{field.Invalid(fieldPath, name, "invalid namespace in service reference")}
 		}
 
-		serviceErrs := validateServiceName(parts[1], fieldPath)
+		serviceErrs := validateServiceName(svcName, fieldPath)
 		if len(serviceErrs) > 0 {
 			return field.ErrorList{field.Invalid(fieldPath, name, "invalid service name in service reference")}
 		}

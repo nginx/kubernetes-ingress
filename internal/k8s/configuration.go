@@ -8,6 +8,7 @@ import (
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	"github.com/nginx/kubernetes-ingress/internal/nsutils"
 	internalValidation "github.com/nginx/kubernetes-ingress/internal/validation"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
@@ -1659,7 +1660,7 @@ func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*
 		vsrKey := r.Route
 
 		// if route is defined without a namespace, use the namespace of VirtualServer.
-		if !internalValidation.HasNamespace(vsrKey) {
+		if !nsutils.HasNamespace(vsrKey) {
 			vsrKey = fmt.Sprintf("%s/%s", vs.Namespace, r.Route)
 		}
 
