@@ -8,7 +8,7 @@ spec:
   tls:
     secret: cafe-secret
   routes:
-  - path: /
+  - path: ~/coffee
     routeSelector:
       matchLabels:
        app: cafe

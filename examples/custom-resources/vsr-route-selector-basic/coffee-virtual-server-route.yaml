@@ -12,6 +12,6 @@ spec:
     service: coffee-svc
     port: 80
   subroutes:
-  - path: /coffee
+  - path: ~/coffee
     action:
       pass: coffee
