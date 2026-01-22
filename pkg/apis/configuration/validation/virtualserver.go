@@ -848,7 +848,7 @@ func (vsv *VirtualServerValidator) validateRoute(route v1.Route, fieldPath *fiel
 	}
 
 	if fieldCount != 1 {
-		msg := "must specify exactly one of `action`, `splits`, `route` or `routeSelector`,"
+		msg := "must specify exactly one of `action`, `splits`, `route` or `routeSelector`"
 		if isRouteFieldForbidden || len(route.Matches) > 0 {
 			msg = "must specify exactly one of `action` or `splits`"
 		}

@@ -7,7 +7,7 @@ spec:
   routes:
   - path: "/backends/match"
     route: backend1
-    routeSelect~or:
+    routeSelector:
       matchLabels:
         app: backend1
   - path: "~ /backends/match"
