@@ -47,6 +47,9 @@ const (
 	proxyBufferSizeAnnotation             = "nginx.org/proxy-buffer-size"
 	proxyBusyBuffersSizeAnnotation        = "nginx.org/proxy-busy-buffers-size"
 	proxyMaxTempFileSizeAnnotation        = "nginx.org/proxy-max-temp-file-size"
+	proxyNextUpstreamAnnotation           = "nginx.org/proxy-next-upstream"
+	proxyNextUpstreamTimeoutAnnotation    = "nginx.org/proxy-next-upstream-timeout"
+	proxyNextUpstreamTriesAnnotation      = "nginx.org/proxy-next-upstream-tries"
 	upstreamZoneSizeAnnotation            = "nginx.org/upstream-zone-size"
 	basicAuthSecretAnnotation             = "nginx.org/basic-auth-secret" // #nosec G101
 	basicAuthRealmAnnotation              = "nginx.org/basic-auth-realm"
@@ -236,6 +239,15 @@ var (
 		proxyMaxTempFileSizeAnnotation: {
 			validateRequiredAnnotation,
 			validateSizeAnnotation,
+		},
+		proxyNextUpstreamAnnotation: {
+			validateProxyNextUpstreamAnnotation,
+		},
+		proxyNextUpstreamTimeoutAnnotation: {
+			validateUint64Annotation,
+		},
+		proxyNextUpstreamTriesAnnotation: {
+			validateUint64Annotation,
 		},
 		upstreamZoneSizeAnnotation: {
 			validateRequiredAnnotation,
@@ -534,6 +546,21 @@ func validateProxySetHeaderAnnotation(context *annotationValidationContext) fiel
 			continue
 		}
 	}
+	return allErrs
+}
+
+func validateProxyNextUpstreamAnnotation(context *annotationValidationContext) field.ErrorList {
+	var allErrs field.ErrorList
+
+	methods := strings.Split(context.value, " ")
+	nextValidUpstreamOptions := sets.NewString("error", "timeout", "denied", "invalid_header", "http_500", "http_502", "http_503", "http_504", "http_403", "http_404", "http_429", "non_idempotent", "off")
+
+	for _, method := range methods {
+		if !nextValidUpstreamOptions.Has(method) {
+			allErrs = append(allErrs, field.Invalid(context.fieldPath, context.value, "invalid value: "+context.value))
+		}
+	}
+
 	return allErrs
 }
 

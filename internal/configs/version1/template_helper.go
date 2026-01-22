@@ -182,6 +182,27 @@ func generateProxySetHeaders(loc *Location, ingressAnnotations map[string]string
 	return combinedHeaders, nil
 }
 
+func buildNextUpstream(nextUpstream string, retryNonIdempotent bool) string{
+	parts := strings.Split(nextUpstream, " ")
+
+	nextUpstreamCodes := make([]string, 0, len(parts))
+	for _, val := range parts {
+		if val != "" && val != "non_idempotent" {
+			nextUpstreamCodes = append(nextUpstreamCodes, val)
+		}
+
+		if val == "non_idempotent" {
+			retryNonIdempotent = true
+		}
+	}
+
+	if retryNonIdempotent {
+		nextUpstreamCodes = append(nextUpstreamCodes, "non_idempotent")
+	}
+
+	return strings.Join(nextUpstreamCodes, " ")
+}
+
 func makeResolver(resolverAddresses []string, resolverValid string, resolverIPV6 *bool) string {
 	var builder strings.Builder
 	if len(resolverAddresses) > 0 {
@@ -288,4 +309,5 @@ var helperFunctions = template.FuncMap{
 	"generateProxySetHeaders": generateProxySetHeaders,
 	"boolToPointerBool":       commonhelpers.BoolToPointerBool,
 	"makeResolver":            makeResolver,
+	"buildNextUpstream":       buildNextUpstream,
 }

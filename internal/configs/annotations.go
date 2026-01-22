@@ -36,6 +36,15 @@ const SSLRedirectAnnotation = "nginx.org/ssl-redirect"
 // HTTPRedirectCodeAnnotation is the annotation where the HTTP redirect code is specified.
 const HTTPRedirectCodeAnnotation = "nginx.org/http-redirect-code"
 
+// ProxyNextUpstreamAnnotation is the annotation where the proxy next upstream settings are specified.
+const ProxyNextUpstreamAnnotation = "nginx.org/proxy-next-upstream"
+
+// ProxyNextUpstreamTimeoutAnnotation is the annotation where the proxy next upstream timeout is specified.
+const ProxyNextUpstreamTimeoutAnnotation = "nginx.org/proxy-next-upstream-timeout"
+
+// ProxyNextUpstreamTriesAnnotation is the annotation where the proxy next upstream tries is specified.
+const ProxyNextUpstreamTriesAnnotation = "nginx.org/proxy-next-upstream-tries"
+
 // RedirectToHTTPSAnnotation is the annotation where the redirect-to-https boolean is specified.
 const RedirectToHTTPSAnnotation = "nginx.org/redirect-to-https"
 
@@ -253,6 +262,24 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 	if proxySetHeaders, exists := GetMapKeyAsStringSlice(ingEx.Ingress.Annotations, "nginx.org/proxy-set-headers", ingEx.Ingress, ","); exists {
 		parsedHeaders := parseProxySetHeaders(proxySetHeaders)
 		cfgParams.ProxySetHeaders = parsedHeaders
+	}
+
+	if proxyNextUpstream, exists := ingEx.Ingress.Annotations[ProxyNextUpstreamAnnotation]; exists {
+		cfgParams.ProxyNextUpstream = proxyNextUpstream
+	}
+
+	if proxyNextUpstreamTimeout, exists, err := GetMapKeyAsUint64(ingEx.Ingress.Annotations, ProxyNextUpstreamTimeoutAnnotation, ingEx.Ingress, false); exists {
+		if err != nil {
+			nl.Error(l, err)
+		}
+		cfgParams.ProxyNextUpstreamTimeout = proxyNextUpstreamTimeout
+	}
+
+	if proxyNextUpstreamTries, exists, err := GetMapKeyAsUint64(ingEx.Ingress.Annotations, ProxyNextUpstreamTriesAnnotation, ingEx.Ingress, false); exists {
+		if err != nil {
+			nl.Error(l, err)
+		}
+		cfgParams.ProxyNextUpstreamTries = proxyNextUpstreamTries
 	}
 
 	if clientMaxBodySize, exists := ingEx.Ingress.Annotations["nginx.org/client-max-body-size"]; exists {

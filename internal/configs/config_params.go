@@ -84,6 +84,10 @@ type ConfigParams struct {
 	ProxyProtocol                          bool
 	ProxyReadTimeout                       string
 	ProxySendTimeout                       string
+	ProxyNextUpstream                      string
+	ProxyNextUpstreamTimeout               uint64
+	ProxyNextUpstreamTries                 uint64
+	RetryNonIdempotent                     bool
 	RedirectToHTTPS                        bool
 	HTTPRedirectCode                       int
 	ResolverAddresses                      []string
@@ -263,6 +267,10 @@ func NewDefaultConfigParams(ctx context.Context, isPlus bool) *ConfigParams {
 		MainMapHashBucketSize:         "256",
 		MainMapHashMaxSize:            "2048",
 		ProxyBuffering:                true,
+		ProxyNextUpstream:             "error timeout",
+		ProxyNextUpstreamTimeout:      0,
+		ProxyNextUpstreamTries:        3,
+		RetryNonIdempotent:            false,
 		MainWorkerProcesses:           "auto",
 		MainWorkerConnections:         "1024",
 		HSTSMaxAge:                    2592000,

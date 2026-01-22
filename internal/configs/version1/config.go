@@ -102,6 +102,7 @@ type Server struct {
 	HSTSBehindProxy        bool
 	ProxyHideHeaders       []string
 	ProxyPassHeaders       []string
+	RetryNonIdempotent       bool
 
 	HealthChecks map[string]HealthCheck
 
@@ -196,6 +197,10 @@ type Location struct {
 	LimitReq             *LimitReq
 
 	MinionIngress *Ingress
+
+	ProxyNextUpstream string
+	ProxyNextUpstreamTimeout uint64
+	ProxyNextUpstreamTries uint64
 }
 
 // ZoneSyncConfig is tbe configuration for the zone_sync directives for state sharing.

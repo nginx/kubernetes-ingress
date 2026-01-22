@@ -415,6 +415,16 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		cfgParams.ProxyMaxTempFileSize = proxyMaxTempFileSize
 	}
 
+	if retryNonIdempotent, exists, err := GetMapKeyAsBool(cfgm.Data, "retry-non-idempotent", cfgm); exists {
+		if err != nil{
+			nl.Error(l, err)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
+			configOk = false
+		} else {
+			cfgParams.RetryNonIdempotent = retryNonIdempotent
+		}
+	}
+
 	if mainMainSnippets, exists := GetMapKeyAsStringSlice(cfgm.Data, "main-snippets", cfgm, "\n"); exists {
 		cfgParams.MainMainSnippets = mainMainSnippets
 	}

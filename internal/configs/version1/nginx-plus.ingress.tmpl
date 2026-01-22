@@ -331,6 +331,9 @@ server {
 		proxy_ssl_verify_depth 25;
 		proxy_ssl_name {{$location.ProxySSLName}};
 		{{- end}}
+        proxy_next_upstream {{ buildNextUpstream $location.ProxyNextUpstream $server.RetryNonIdempotent }};
+        proxy_next_upstream_timeout {{ $location.ProxyNextUpstreamTimeout }};
+        proxy_next_upstream_tries {{ $location.ProxyNextUpstreamTries }};
 		{{- if $location.SSL}}
 		proxy_pass https://{{$location.Upstream.Name}}{{$location.Rewrite}};
 		{{- else}}
