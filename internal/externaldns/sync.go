@@ -33,6 +33,12 @@ var vsGVK = vsapi.SchemeGroupVersion.WithKind("VirtualServer")
 // SyncFn is the reconciliation function passed to externaldns controller.
 type SyncFn func(context.Context, *vsapi.VirtualServer) error
 
+// DNSTarget describes a single DNS target: address and record type.
+type DNSTarget struct {
+	Type    string
+	Address string
+}
+
 // SyncFnFor knows how to reconcile VirtualServer DNSEndpoint object.
 func SyncFnFor(rec record.EventRecorder, client clientset.Interface, ig map[string]*namespacedInformer) SyncFn {
 	return func(ctx context.Context, vs *vsapi.VirtualServer) error {
@@ -48,7 +54,7 @@ func SyncFnFor(rec record.EventRecorder, client clientset.Interface, ig map[stri
 			return fmt.Errorf("failed to determine external endpoints")
 		}
 
-		targets, recordType, err := getValidTargets(ctx, vs.Status.ExternalEndpoints)
+		targets, err := getValidTargets(ctx, vs.Status.ExternalEndpoints)
 		if err != nil {
 			nl.Error(l, "Invalid external endpoint")
 			rec.Eventf(vs, corev1.EventTypeWarning, nl.EventReasonBadConfig, "Invalid external endpoint")
@@ -57,7 +63,7 @@ func SyncFnFor(rec record.EventRecorder, client clientset.Interface, ig map[stri
 
 		nsi := getNamespacedInformer(vs.Namespace, ig)
 
-		newDNSEndpoint, updateDNSEndpoint, err := buildDNSEndpoint(ctx, nsi.extdnslister, vs, targets, recordType)
+		newDNSEndpoint, updateDNSEndpoint, err := buildDNSEndpoint(ctx, nsi.extdnslister, vs, targets)
 		if err != nil {
 			nl.Errorf(l, "incorrect DNSEndpoint config for VirtualServer resource: %s", err)
 			rec.Eventf(vs, corev1.EventTypeWarning, nl.EventReasonBadConfig, "Incorrect DNSEndpoint config for VirtualServer resource: %s", err)
@@ -100,13 +106,9 @@ func SyncFnFor(rec record.EventRecorder, client clientset.Interface, ig map[stri
 	}
 }
 
-func getValidTargets(ctx context.Context, endpoints []vsapi.ExternalEndpoint) (extdnsapi.Targets, string, error) {
-	var targets extdnsapi.Targets
-	var recordType string
-	var recordA bool
-	var recordCNAME bool
-	var recordAAAA bool
-	var err error
+func getValidTargets(ctx context.Context, endpoints []vsapi.ExternalEndpoint) ([]DNSTarget, error) {
+	var targets []DNSTarget
+
 	l := nl.LoggerFromContext(ctx)
 	nl.Debugf(l, "Going through endpoints %v", endpoints)
 	for _, e := range endpoints {
@@ -115,35 +117,38 @@ func getValidTargets(ctx context.Context, endpoints []vsapi.ExternalEndpoint) (e
 			if errMsg := validators.IsValidIPForLegacyField(field.NewPath(""), e.IP, false, nil); len(errMsg) > 0 {
 				continue
 			}
+
+			// Initialize DNSTarget for an ipv6 by default
+			t := DNSTarget{
+				Address: e.IP,
+				Type:    recordTypeAAAA,
+			}
+
 			ip := netutils.ParseIPSloppy(e.IP)
 			if ip.To4() != nil {
-				recordA = true
-			} else {
-				recordAAAA = true
+				t.Type = recordTypeA
 			}
-			targets = append(targets, e.IP)
+
+			targets = append(targets, t)
 		} else if e.Hostname != "" {
 			nl.Debugf(l, "Hostname is defined: %v", e.Hostname)
-			targets = append(targets, e.Hostname)
-			recordCNAME = true
+
+			t := DNSTarget{
+				Address: e.Hostname,
+				Type:    recordTypeCNAME,
+			}
+
+			targets = append(targets, t)
 		}
 	}
 	if len(targets) == 0 {
-		return targets, recordType, errors.New("valid targets not defined")
+		return nil, errors.New("valid targets not defined")
 	}
-	if recordA {
-		recordType = recordTypeA
-	} else if recordAAAA {
-		recordType = recordTypeAAAA
-	} else if recordCNAME {
-		recordType = recordTypeCNAME
-	} else {
-		err = errors.New("recordType could not be determined")
-	}
-	return targets, recordType, err
+
+	return targets, nil
 }
 
-func buildDNSEndpoint(ctx context.Context, extdnsLister extdnslisters.DNSEndpointLister, vs *vsapi.VirtualServer, targets extdnsapi.Targets, recordType string) (*extdnsapi.DNSEndpoint, *extdnsapi.DNSEndpoint, error) {
+func buildDNSEndpoint(ctx context.Context, extdnsLister extdnslisters.DNSEndpointLister, vs *vsapi.VirtualServer, targets []DNSTarget) (*extdnsapi.DNSEndpoint, *extdnsapi.DNSEndpoint, error) {
 	var updateDNSEndpoint *extdnsapi.DNSEndpoint
 	var newDNSEndpoint *extdnsapi.DNSEndpoint
 	var existingDNSEndpoint *extdnsapi.DNSEndpoint
@@ -160,6 +165,34 @@ func buildDNSEndpoint(ctx context.Context, extdnsLister extdnslisters.DNSEndpoin
 	blockOwnerDeletion := false
 	ownerRef.BlockOwnerDeletion = &blockOwnerDeletion
 
+	recordTTL := buildTTL(vs.Spec.ExternalDNS)
+	labels := buildLabels(vs.Spec.ExternalDNS)
+	providerSpecific := buildProviderSpecificProperties(vs.Spec.ExternalDNS)
+
+	collatedTargets := make(map[string][]DNSTarget)
+	for _, target := range targets {
+		collatedTargets[target.Type] = append(collatedTargets[target.Type], target)
+	}
+
+	endpoints := make([]*extdnsapi.Endpoint, 0)
+	for recordType, filteredTargets := range collatedTargets {
+		listOfTargets := make([]string, len(filteredTargets))
+
+		for i, t := range filteredTargets {
+			listOfTargets[i] = t.Address
+		}
+
+		endpoint := &extdnsapi.Endpoint{
+			DNSName:          vs.Spec.Host,
+			Targets:          listOfTargets,
+			RecordType:       buildRecordType(vs.Spec.ExternalDNS, recordType),
+			RecordTTL:        recordTTL,
+			Labels:           labels,
+			ProviderSpecific: providerSpecific,
+		}
+		endpoints = append(endpoints, endpoint)
+	}
+
 	dnsEndpoint := &extdnsapi.DNSEndpoint{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            vs.ObjectMeta.Name,
@@ -168,16 +201,7 @@ func buildDNSEndpoint(ctx context.Context, extdnsLister extdnslisters.DNSEndpoin
 			OwnerReferences: []metav1.OwnerReference{ownerRef},
 		},
 		Spec: extdnsapi.DNSEndpointSpec{
-			Endpoints: []*extdnsapi.Endpoint{
-				{
-					DNSName:          vs.Spec.Host,
-					Targets:          targets,
-					RecordType:       buildRecordType(vs.Spec.ExternalDNS, recordType),
-					RecordTTL:        buildTTL(vs.Spec.ExternalDNS),
-					Labels:           buildLabels(vs.Spec.ExternalDNS),
-					ProviderSpecific: buildProviderSpecificProperties(vs.Spec.ExternalDNS),
-				},
-			},
+			Endpoints: endpoints,
 		},
 	}
 
