@@ -57,7 +57,7 @@ func TestValidateDNSEndpoint(t *testing.T) {
 						},
 						{
 							DNSName:    "example.co.uk",
-							Targets:    v1.Targets{"example.org"},
+							Targets:    v1.Targets{"10.2.2.3"},
 							RecordType: "CNAME",
 							RecordTTL:  900,
 						},
