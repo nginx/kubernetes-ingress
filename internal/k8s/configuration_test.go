@@ -1356,10 +1356,10 @@ func TestMakeVirtualServerRouteInvalid(t *testing.T) {
 	t.Parallel()
 	configuration, vs, vsr1, vsr2 := setupVSRConfiguration()
 
-	// Make VirtualServerRoute-1 invalid by removing host
+	// Make VirtualServerRoute-1 invalid by removing making the first subroute action nil
 	invalidVSR1 := vsr1.DeepCopy()
 	invalidVSR1.Generation++
-	invalidVSR1.Spec.Host = ""
+	invalidVSR1.Spec.Subroutes[0].Action = nil
 
 	expectedChanges := []ResourceChange{
 		{
@@ -1376,7 +1376,7 @@ func TestMakeVirtualServerRouteInvalid(t *testing.T) {
 			Object:  invalidVSR1,
 			IsError: true,
 			Reason:  nl.EventReasonRejected,
-			Message: "VirtualServerRoute default/virtualserverroute-1 was rejected with error: spec.host: Required value",
+			Message: "VirtualServerRoute default/virtualserverroute-1 was rejected with error: spec.subroutes[0]: Invalid value: \"\": must specify exactly one of `action` or `splits`",
 		},
 	}
 
