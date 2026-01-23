@@ -1254,11 +1254,33 @@ func (c *Configuration) addProblemsForOrphanMinions(problems map[string]Configur
 	}
 }
 
+func (c *Configuration) isVSRReferencedByVS(vsr *conf_v1.VirtualServerRoute) (Resource, bool) {
+	if vsr.Spec.Host != "" {
+		vs, exists := c.hosts[vsr.Spec.Host]
+		return vs, exists
+	}
+	vsrKey := getResourceKey(&vsr.ObjectMeta)
+	for _, r := range c.hosts {
+		vs, ok := r.(*VirtualServerConfiguration)
+		if !ok {
+			continue
+		}
+		for _, v := range vs.VirtualServerRoutes {
+			vKey := getResourceKey(&v.ObjectMeta)
+			if vKey != vsrKey {
+				continue
+			}
+			return r, true
+		}
+	}
+	return nil, false
+}
+
 func (c *Configuration) addProblemsForOrphanOrIgnoredVsrs(problems map[string]ConfigurationProblem) {
 	for _, key := range getSortedVirtualServerRouteKeys(c.virtualServerRoutes) {
 		vsr := c.virtualServerRoutes[key]
 
-		r, exists := c.hosts[vsr.Spec.Host]
+		r, exists := c.isVSRReferencedByVS(vsr)
 		vsConfig, ok := r.(*VirtualServerConfiguration)
 
 		if !exists || !ok {
