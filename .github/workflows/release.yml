@@ -65,7 +65,7 @@ jobs:
       k8s_version: ${{ steps.vars.outputs.k8s_version }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           ref: ${{ inputs.release_branch }}
@@ -130,7 +130,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout NIC repo
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ inputs.release_branch }}
           fetch-depth: 0
@@ -331,7 +331,7 @@ jobs:
     needs: [release-oss]
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ inputs.release_branch }}
 
@@ -558,7 +558,7 @@ jobs:
       id-token: write # for cosign to sign artifacts
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ inputs.release_branch }}
 
@@ -600,7 +600,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ inputs.release_branch }}
 
@@ -657,7 +657,7 @@ jobs:
       actions: read # for slack notification
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ inputs.release_branch }}
 
@@ -746,7 +746,7 @@ jobs:
         image: ["nginx/nginx-ingress:${{ inputs.nic_version }}", "nginx/nginx-ingress:${{ inputs.nic_version }}-ubi", "nginx/nginx-ingress:${{ inputs.nic_version }}-alpine"]
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ inputs.release_branch }}
 
