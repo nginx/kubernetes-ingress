@@ -14,6 +14,8 @@ The `nginx.org/proxy-set-headers` annotation allows for the following configurat
 
 When using the ``proxy-set-headers`` annotation, the specified headers will be added to the outgoing requests proxied by NGINX.
 
+Before using the examples, run `make secrets` command to generate the necessary secrets.
+
 ## Proxy-Set-Headers Annotation In Standard Ingress Type
 
 ### Example 1: Setting a Single Custom Header With Default Value
