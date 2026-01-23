@@ -12,6 +12,15 @@ import (
 // JWTKeyAnnotation is the annotation where the Secret with a JWK is specified.
 const JWTKeyAnnotation = "nginx.com/jwt-key"
 
+// JWTRealmAnnotation is the annotation where the JWT authentication realm is specified.
+const JWTRealmAnnotation = "nginx.com/jwt-realm"
+
+// JWTTokenAnnotation is the annotation where the JWT token location is specified.
+const JWTTokenAnnotation = "nginx.com/jwt-token" // #nosec G101
+
+// JWTLoginURLAnnotation is the annotation where the JWT login URL is specified.
+const JWTLoginURLAnnotation = "nginx.com/jwt-login-url"
+
 // BasicAuthSecretAnnotation is the annotation where the Secret with the HTTP basic user list
 const BasicAuthSecretAnnotation = "nginx.org/basic-auth-secret" // #nosec G101
 
@@ -398,16 +407,16 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 	}
 
 	if isPlus {
-		if jwtRealm, exists := ingEx.Ingress.Annotations["nginx.com/jwt-realm"]; exists {
+		if jwtRealm, exists := ingEx.Ingress.Annotations[JWTRealmAnnotation]; exists {
 			cfgParams.JWTRealm = jwtRealm
 		}
 		if jwtKey, exists := ingEx.Ingress.Annotations[JWTKeyAnnotation]; exists {
 			cfgParams.JWTKey = jwtKey
 		}
-		if jwtToken, exists := ingEx.Ingress.Annotations["nginx.com/jwt-token"]; exists {
+		if jwtToken, exists := ingEx.Ingress.Annotations[JWTTokenAnnotation]; exists {
 			cfgParams.JWTToken = jwtToken
 		}
-		if jwtLoginURL, exists := ingEx.Ingress.Annotations["nginx.com/jwt-login-url"]; exists {
+		if jwtLoginURL, exists := ingEx.Ingress.Annotations[JWTLoginURLAnnotation]; exists {
 			cfgParams.JWTLoginURL = jwtLoginURL
 		}
 	}
