@@ -60,7 +60,7 @@ repos:
       - id: isort
 
   - repo: https://github.com/psf/black-pre-commit-mirror
-    rev: 25.12.0
+    rev: 26.1.0
     hooks:
       - id: black
 
@@ -104,3 +104,4 @@ repos:
 
 ci:
   skip: [golang-diff, golangci-lint, check-jsonschema, markdownlint-cli2]
+  autoupdate_schedule: quarterly # We use renovate for more frequent updates and there's no way to disable autoupdate
