@@ -47,10 +47,10 @@ func TestGenerateNginxCfg(t *testing.T) {
 func TestGenerateNginxCfgForJWT(t *testing.T) {
 	t.Parallel()
 	cafeIngressEx := createCafeIngressEx()
-	cafeIngressEx.Ingress.Annotations["nginx.com/jwt-key"] = "cafe-jwk"
-	cafeIngressEx.Ingress.Annotations["nginx.com/jwt-realm"] = "Cafe App"
-	cafeIngressEx.Ingress.Annotations["nginx.com/jwt-token"] = "$cookie_auth_token"
-	cafeIngressEx.Ingress.Annotations["nginx.com/jwt-login-url"] = "https://login.example.com"
+	cafeIngressEx.Ingress.Annotations[JWTKeyAnnotation] = "cafe-jwk"
+	cafeIngressEx.Ingress.Annotations[JWTRealmAnnotation] = "Cafe App"
+	cafeIngressEx.Ingress.Annotations[JWTTokenAnnotation] = "$cookie_auth_token"
+	cafeIngressEx.Ingress.Annotations[JWTLoginURLAnnotation] = "https://login.example.com"
 	cafeIngressEx.SecretRefs["cafe-jwk"] = &secrets.SecretReference{
 		Secret: &v1.Secret{
 			Type: secrets.SecretTypeJWK,
@@ -563,10 +563,10 @@ func TestGenerateNginxConfigForCrossNamespaceMergeableIngresses(t *testing.T) {
 func TestGenerateNginxCfgForMergeableIngressesForJWT(t *testing.T) {
 	t.Parallel()
 	mergeableIngresses := createMergeableCafeIngress()
-	mergeableIngresses.Master.Ingress.Annotations["nginx.com/jwt-key"] = "cafe-jwk"
-	mergeableIngresses.Master.Ingress.Annotations["nginx.com/jwt-realm"] = "Cafe"
-	mergeableIngresses.Master.Ingress.Annotations["nginx.com/jwt-token"] = "$cookie_auth_token"
-	mergeableIngresses.Master.Ingress.Annotations["nginx.com/jwt-login-url"] = "https://login.example.com"
+	mergeableIngresses.Master.Ingress.Annotations[JWTKeyAnnotation] = "cafe-jwk"
+	mergeableIngresses.Master.Ingress.Annotations[JWTRealmAnnotation] = "Cafe"
+	mergeableIngresses.Master.Ingress.Annotations[JWTTokenAnnotation] = "$cookie_auth_token"
+	mergeableIngresses.Master.Ingress.Annotations[JWTLoginURLAnnotation] = "https://login.example.com"
 	mergeableIngresses.Master.SecretRefs["cafe-jwk"] = &secrets.SecretReference{
 		Secret: &v1.Secret{
 			Type: secrets.SecretTypeJWK,
@@ -574,10 +574,10 @@ func TestGenerateNginxCfgForMergeableIngressesForJWT(t *testing.T) {
 		Path: "/etc/nginx/secrets/default-cafe-jwk",
 	}
 
-	mergeableIngresses.Minions[0].Ingress.Annotations["nginx.com/jwt-key"] = "coffee-jwk"
-	mergeableIngresses.Minions[0].Ingress.Annotations["nginx.com/jwt-realm"] = "Coffee"
-	mergeableIngresses.Minions[0].Ingress.Annotations["nginx.com/jwt-token"] = "$cookie_auth_token_coffee"
-	mergeableIngresses.Minions[0].Ingress.Annotations["nginx.com/jwt-login-url"] = "https://login.coffee.example.com"
+	mergeableIngresses.Minions[0].Ingress.Annotations[JWTKeyAnnotation] = "coffee-jwk"
+	mergeableIngresses.Minions[0].Ingress.Annotations[JWTRealmAnnotation] = "Coffee"
+	mergeableIngresses.Minions[0].Ingress.Annotations[JWTTokenAnnotation] = "$cookie_auth_token_coffee"
+	mergeableIngresses.Minions[0].Ingress.Annotations[JWTLoginURLAnnotation] = "https://login.coffee.example.com"
 	mergeableIngresses.Minions[0].SecretRefs["coffee-jwk"] = &secrets.SecretReference{
 		Secret: &v1.Secret{
 			Type: secrets.SecretTypeJWK,
