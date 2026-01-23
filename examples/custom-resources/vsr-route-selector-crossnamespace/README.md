@@ -14,6 +14,8 @@ We use a combination of VirtualServer with a VirtualServerRoute attached using [
 
 ## Prerequisites
 
+1. Run `make secrets` command to generate the necessary secrets for the example.
+
 1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
    instructions to deploy the Ingress Controller with custom resources enabled.
 

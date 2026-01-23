@@ -152,6 +152,10 @@ common-secrets/invalid-tls-secret-sometype.yaml
 tests/data/virtual-server-tls/invalid-tls-secret.yaml
 common-secrets/cafe-secret.yaml
 tests/data/transport-server-with-host/cafe-secret.yaml
+examples/custom-resources/vsr-route-selector-basic/cafe-secret.yaml
+examples/custom-resources/vsr-route-selector-policies/cafe-secret.yaml
+common-secrets/cafe-secret-cafe-namespace.yaml
+examples/custom-resources/vsr-route-selector-crossnamespace/cafe-secret.yaml
 common-secrets/ca-key-pair.yaml
 tests/data/virtual-server-certmanager/issuer-secret.yaml
 
@@ -261,6 +265,7 @@ common-secrets/api-key-secret-example.yaml
 examples/custom-resources/api-key/api-key-secret.yaml
 common-secrets/api-key-secret.yaml
 examples/custom-resources/rate-limit-tiered-apikey/api-key-secret.yaml
+examples/custom-resources/vsr-route-selector-policies/api-key-secret.yaml
 common-secrets/api-key-client-secret-2.yaml
 tests/data/apikey-auth-policy/secret/apikey-secret-2.yaml
 

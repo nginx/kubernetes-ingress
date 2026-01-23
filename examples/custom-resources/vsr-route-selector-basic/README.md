@@ -7,7 +7,9 @@ resources attached using `routeSelector` to configure load balancing for the caf
 The example is similar to the [basic configuration example](../basic-configuration/README.md).
 However, instead of just a VirtualServer resource, we use a combination of VirtualServer with a VirtualServerRoute attached using [`routeSelector`](https://docs.nginx.com/nginx-ingress-controller/configuration/virtualserver-and-virtualserverroute-resources/#routeselector).
 
-## Prerequisites
+## Prereqsuisites
+
+1. Run `make secrets` command to generate the necessary secrets for the example.
 
 1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
    instructions to deploy the Ingress Controller with custom resources enabled.
