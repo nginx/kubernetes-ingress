@@ -2,6 +2,8 @@
 
   > The Service Insight feature is available only for F5 NGINX Plus.
 
+Before using this example, run `make secrets` command to generate the necessary secrets.
+
 To use the [Service Insight](https://docs.nginx.com/nginx-ingress-controller/logging-and-monitoring/service-insight/)
 feature provided by F5 NGINX Ingress Controller you must enable it by setting `serviceInsight.create=true` in your `helm
 install/upgrade...` command OR  [manifest](../../../deployments/deployment/nginx-plus-ingress.yaml) depending on your
