@@ -6,7 +6,6 @@ spec:
   host: virtual-server-route.example.com
   routes:
   - path: "/backends/match"
-    route: backend1
     routeSelector:
       matchLabels:
         app: backend1
