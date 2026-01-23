@@ -568,7 +568,7 @@ func (su *statusUpdater) UpdateVirtualServerRouteStatusWithReferencedBy(vsr *con
 
 	_, err = su.confClient.K8sV1().VirtualServerRoutes(vsrCopy.Namespace).UpdateStatus(context.TODO(), vsrCopy, metav1.UpdateOptions{})
 	if err != nil {
-		nl.Infof(su.logger, "error setting VirtualServerRoute %v/%v status, retrying: %v", vsrCopy.Namespace, vsrCopy.Name, err)
+		nl.Warnf(su.logger, "error setting VirtualServerRoute %v/%v status, retrying: %v", vsrCopy.Namespace, vsrCopy.Name, err)
 		return su.retryUpdateVirtualServerRouteStatus(vsrCopy)
 	}
 	return err
