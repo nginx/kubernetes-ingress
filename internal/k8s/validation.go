@@ -557,7 +557,7 @@ func validateProxyNextUpstreamAnnotation(context *annotationValidationContext) f
 
 	for _, method := range methods {
 		if !nextValidUpstreamOptions.Has(method) {
-			allErrs = append(allErrs, field.Invalid(context.fieldPath, context.value, "invalid value: "+context.value))
+			allErrs = append(allErrs, field.Invalid(context.fieldPath, context.value, "must be a space-separated list with any of the following values: error, timeout, denied, invalid_header, http_500, http_502, http_503, http_504, http_403, http_404, http_429, non_idempotent, off"))
 		}
 	}
 

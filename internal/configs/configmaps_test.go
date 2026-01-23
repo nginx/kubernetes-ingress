@@ -2697,6 +2697,70 @@ func TestParseConfigMapClientBodyBufferSizeValid(t *testing.T) {
 	}
 }
 
+func TestParseConfigMapRetryNonIdempotent(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		value       string
+		expected    bool
+		description string
+	}{
+		{
+			name:        "valid true value",
+			value:       "true",
+			expected:    true,
+			description: "should accept 'true' as valid",
+		},
+		{
+			name:        "valid false value",
+			value:       "false",
+			expected:    false,
+			description: "should accept 'false' as valid",
+		},
+	}
+	nginxPlus := false
+	hasAppProtect := false
+	hasAppProtectDos := false
+	hasTLSPassthrough := false
+	directiveAutoadjustEnabled := false
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cm := &v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-configmap",
+					Namespace: "default",
+				},
+				Data: map[string]string{
+					"retry-non-idempotent": tt.value,
+				},
+			}
+			result, configOk := ParseConfigMap(
+				context.Background(),
+				cm,
+				nginxPlus,
+				hasAppProtect,
+				hasAppProtectDos,
+				hasTLSPassthrough,
+				directiveAutoadjustEnabled,
+				makeEventLogger(),
+			)
+
+			// Should always pass validation for valid cases
+			if !configOk {
+				t.Errorf("ParseConfigMap() for %s should have passed validation but failed", tt.description)
+			}
+			if result.RetryNonIdempotent != tt.expected {
+				t.Errorf("ParseConfigMap() for %s returned MainRetryNonIdempotent=%v, expected %v",
+					tt.description, result.RetryNonIdempotent, tt.expected)
+			}
+		})
+	}
+}
+
 func TestParseConfigMapClientBodyBufferSizeInvalid(t *testing.T) {
 	t.Parallel()
 
