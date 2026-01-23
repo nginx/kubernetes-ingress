@@ -1,5 +1,7 @@
 # TransportServer SNI
 
+Run `make secrets` command to generate the necessary secrets for the example.
+
 In this example we create two different TransportServers that listen on the same interface, which are distinguished by their Host field.
 The applications (a TCP echo server, and MongoDB) will be accessed via `ncat` and `mongosh`.
 The `ncat` binary is available via `nmap`. On mac/linux this can be installed via homebrew/linuxbrew with `brew install nmap`

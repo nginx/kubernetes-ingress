@@ -25,7 +25,7 @@ from suite.utils.resources_utils import (
 from suite.utils.ssl_utils import create_sni_session
 from suite.utils.yaml_utils import get_first_host_from_yaml
 
-secure_app_secret = f"{TEST_DATA}/common/app/secure/secret/app-tls-secret.yaml"
+secure_app_secret = f"{TEST_DATA}/common/app/secure/app-tls-secret.yaml"
 secure_app_config_map = f"{TEST_DATA}/common/app/secure/config-map/secure-config.yaml"
 ts_with_backup = f"{TEST_DATA}/transport-server-backup-service/transport-server-with-backup.yaml"
 
@@ -133,6 +133,8 @@ def transport_server_tls_passthrough_setup(
     print("------------------------- Deploy Transport Server with tls passthrough -----------------------------------")
     # deploy secure_app
     secure_app_file = f"{TEST_DATA}/{request.param['example']}/standard/secure-app.yaml"
+    secure_app_secret_file = f"{TEST_DATA}/{request.param['example']}/standard/secure-app-secret.yaml"
+    create_items_from_yaml(kube_apis, secure_app_secret_file, test_namespace)
     create_items_from_yaml(kube_apis, secure_app_file, test_namespace)
 
     # deploy transport server
@@ -145,6 +147,7 @@ def transport_server_tls_passthrough_setup(
         if request.config.getoption("--skip-fixture-teardown") == "no":
             print("Clean up TransportServer and app:")
             delete_ts(kube_apis.custom_objects, ts_resource, test_namespace)
+            delete_items_from_yaml(kube_apis, secure_app_secret_file, test_namespace)
             delete_items_from_yaml(kube_apis, secure_app_file, test_namespace)
 
     request.addfinalizer(fin)

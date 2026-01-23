@@ -147,7 +147,6 @@ class TestIngressMtlsPolicyVS:
         )
         wait_before_test()
         resp = mock.Mock()
-        resp.status_code == 502
         counter = 0
 
         while resp.status_code != expected_code and counter < 10:
@@ -170,6 +169,7 @@ class TestIngressMtlsPolicyVS:
             std_vs_src,
             virtual_server_setup.namespace,
         )
+
         assert (
             resp.status_code == expected_code
             and expected_text in resp.text
