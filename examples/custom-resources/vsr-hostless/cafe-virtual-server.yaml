@@ -1,0 +1,13 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: cafe
+spec:
+  host: cafe.example.com
+  tls:
+    secret: cafe-secret
+  routes:
+  - path: /tea
+    route: default/tea
+  - path: /coffee
+    route: default/coffee
