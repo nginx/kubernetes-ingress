@@ -1687,7 +1687,7 @@ func (c *Configuration) validateVSRs(r *conf_v1.Route, vsHost, vsNamespace strin
 	vsrKey := r.Route
 
 	// if route is defined without a namespace, use the namespace of VirtualServer.
-	if !strings.Contains(r.Route, "/") {
+	if !nsutils.HasNamespace(vsrKey) {
 		vsrKey = fmt.Sprintf("%s/%s", vsNamespace, r.Route)
 	}
 
@@ -1746,6 +1746,8 @@ func (c *Configuration) validateVSRSelectors(r *conf_v1.Route, vsHost string) ([
 			vsrSelectors[selectorStr] = append(vsrSelectors[selectorStr], vsrKey)
 		}
 	}
+
+	sort.Strings(vsrSelectors[selectorStr])
 	return vsrs, vsrSelectors, warnings
 }
 
@@ -1770,9 +1772,6 @@ func validateDuplicateVSRPaths(vsrs []*conf_v1.VirtualServerRoute) ([]*conf_v1.V
 			} else {
 				paths[subroute.Path] = fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)
 			}
-		// if route is defined without a namespace, use the namespace of VirtualServer.
-		if !nsutils.HasNamespace(vsrKey) {
-			vsrKey = fmt.Sprintf("%s/%s", vs.Namespace, r.Route)
 		}
 	}
 
