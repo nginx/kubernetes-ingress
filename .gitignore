@@ -75,7 +75,6 @@ examples/custom-resources/backup-directive/virtual-server/cafe-secret.yaml
 examples/custom-resources/basic-auth/cafe-secret.yaml
 examples/custom-resources/basic-configuration/cafe-secret.yaml
 examples/custom-resources/cache-policy/cafe-secret.yaml
-examples/custom-resources/cross-namespace-configuration/cafe-secret.yaml
 examples/custom-resources/custom-ip-listeners/virtualserver/cafe-secret.yaml
 examples/custom-resources/custom-listeners/cafe-secret.yaml
 examples/custom-resources/external-dns/cafe-secret.yaml
@@ -152,6 +151,8 @@ common-secrets/invalid-tls-secret-sometype.yaml
 tests/data/virtual-server-tls/invalid-tls-secret.yaml
 common-secrets/cafe-secret.yaml
 tests/data/transport-server-with-host/cafe-secret.yaml
+common-secrets/cafe-secret-cafe-namespace.yaml
+examples/custom-resources/cross-namespace-configuration/cafe-secret.yaml
 common-secrets/ca-key-pair.yaml
 tests/data/virtual-server-certmanager/issuer-secret.yaml
 
