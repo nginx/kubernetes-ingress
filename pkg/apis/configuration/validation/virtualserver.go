@@ -8,6 +8,7 @@ import (
 
 	"github.com/dlclark/regexp2"
 	"github.com/nginx/kubernetes-ingress/internal/configs"
+	"github.com/nginx/kubernetes-ingress/internal/nsutils"
 	internalValidation "github.com/nginx/kubernetes-ingress/internal/validation"
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -738,7 +739,7 @@ func validateServiceName(name string, fieldPath *field.Path) field.ErrorList {
 
 // validateVirtualServerServiceName checks if a namespaced service name is valid for VirtualServer upstreams.
 func validateVirtualServerServiceName(name string, fieldPath *field.Path) field.ErrorList {
-	if strings.Contains(name, "/") {
+	if nsutils.HasNamespace(name) {
 		parts := strings.Split(name, "/")
 		if len(parts) != 2 {
 			return field.ErrorList{field.Invalid(fieldPath, name, " service reference must be in the format namespace/service-name")}

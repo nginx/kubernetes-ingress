@@ -5,11 +5,11 @@ import (
 	"maps"
 	"reflect"
 	"sort"
-	"strings"
 	"sync"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	"github.com/nginx/kubernetes-ingress/internal/nsutils"
 	internalValidation "github.com/nginx/kubernetes-ingress/internal/validation"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
@@ -1770,6 +1770,9 @@ func validateDuplicateVSRPaths(vsrs []*conf_v1.VirtualServerRoute) ([]*conf_v1.V
 			} else {
 				paths[subroute.Path] = fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)
 			}
+		// if route is defined without a namespace, use the namespace of VirtualServer.
+		if !nsutils.HasNamespace(vsrKey) {
+			vsrKey = fmt.Sprintf("%s/%s", vs.Namespace, r.Route)
 		}
 	}
 
