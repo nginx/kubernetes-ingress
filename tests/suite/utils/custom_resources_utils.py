@@ -99,9 +99,9 @@ def wait_for_resource_status(custom_objects, namespace, resource_type, name, tim
             resource_info = read_custom_resource(custom_objects, namespace, resource_type, name)
             if resource_info.get("status"):
                 return resource_info
-            wait_before_test(1)
+            time.sleep(1)
         except Exception:
-            wait_before_test(1)
+            time.sleep(1)
             continue
 
     # Final attempt - return whatever we get
