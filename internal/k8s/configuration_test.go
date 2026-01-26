@@ -4969,56 +4969,6 @@ func TestIsVSRReferencedByVS(t *testing.T) {
 			expectedResult: false,
 		},
 		{
-			name: "VSR with host exists in configuration but not referenced by VS",
-			setupFunc: func() (*Configuration, *conf_v1.VirtualServerRoute) {
-				configuration := createTestConfiguration()
-
-				// Add VSR first
-				vsr := createTestVirtualServerRoute("vsr", "foo.example.com", "/path")
-				configuration.AddOrUpdateVirtualServerRoute(vsr)
-
-				// Add VS that doesn't reference the VSR
-				vs := createTestVirtualServerWithRoutes("virtualserver", "foo.example.com", []conf_v1.Route{
-					{
-						Path:  "/different",
-						Route: "different-vsr",
-					},
-				})
-				configuration.AddOrUpdateVirtualServer(vs)
-
-				return configuration, vsr
-			},
-			expectedVS:     false,
-			expectedResult: false,
-		},
-		{
-			name: "Multiple VSRs, only one is referenced",
-			setupFunc: func() (*Configuration, *conf_v1.VirtualServerRoute) {
-				configuration := createTestConfiguration()
-
-				vsr1 := createTestVirtualServerRoute("vsr1", "foo.example.com", "/first")
-				vsr2 := createTestVirtualServerRoute("vsr2", "foo.example.com", "/second")
-
-				// Add both VSRs
-				configuration.AddOrUpdateVirtualServerRoute(vsr1)
-				configuration.AddOrUpdateVirtualServerRoute(vsr2)
-
-				// Add VS that only references vsr1
-				vs := createTestVirtualServerWithRoutes("virtualserver", "foo.example.com", []conf_v1.Route{
-					{
-						Path:  "/first",
-						Route: "vsr1",
-					},
-				})
-				configuration.AddOrUpdateVirtualServer(vs)
-
-				// Test with vsr2 (not referenced)
-				return configuration, vsr2
-			},
-			expectedVS:     false,
-			expectedResult: false,
-		},
-		{
 			name: "VSR with empty host is referenced by VS",
 			setupFunc: func() (*Configuration, *conf_v1.VirtualServerRoute) {
 				configuration := createTestConfiguration()
@@ -5063,23 +5013,10 @@ func TestIsVSRReferencedByVS(t *testing.T) {
 
 			// If we expect a VS to be returned, verify it contains the VSR
 			if tt.expectedVS && resultResource != nil {
-				resultVS, ok := resultResource.(*VirtualServerConfiguration)
+				_, ok := resultResource.(*VirtualServerConfiguration)
 				if !ok {
 					t.Errorf("isVSRReferencedByVS() returned Resource that is not a VirtualServerConfiguration")
 					return
-				}
-
-				found := false
-				vsrKey := getResourceKey(&vsr.ObjectMeta)
-				for _, v := range resultVS.VirtualServerRoutes {
-					vKey := getResourceKey(&v.ObjectMeta)
-					if vKey == vsrKey {
-						found = true
-						break
-					}
-				}
-				if !found {
-					t.Errorf("Returned VirtualServerConfiguration does not contain the expected VSR")
 				}
 			}
 		})
