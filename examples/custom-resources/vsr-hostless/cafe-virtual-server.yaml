@@ -6,6 +6,8 @@ spec:
   host: cafe.example.com
   tls:
     secret: cafe-secret
+  policies:
+    - name: rate-limit-policy
   routes:
   - path: /tea
     route: default/tea

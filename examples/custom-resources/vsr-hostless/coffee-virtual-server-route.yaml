@@ -11,3 +11,5 @@ spec:
   - path: /coffee
     action:
       pass: coffee
+    policies:
+      - name: access-control-policy-allow
