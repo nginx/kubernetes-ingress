@@ -715,6 +715,6 @@ jobs:
             ## Resources
             - Documentation -- https://docs.nginx.com/nginx-ingress-controller/
             - Configuration examples -- https://github.com/nginx/kubernetes-ingress/tree/{{version}}/examples
-            - Helm Chart -- https://github.com/nginx/kubernetes-ingress/tree/{{version}}/deployments/helm-chart
+            - Helm Chart -- https://github.com/nginx/kubernetes-ingress/tree/{{version}}/charts/nginx-ingress
             - Operator -- https://github.com/nginx/nginx-ingress-helm-operator
         if: ${{ github.event_name == 'push' && contains(github.ref_name, 'release-') }}
