@@ -167,7 +167,6 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 			SSLCiphers:             cfgParams.ServerSSLCiphers,
 			SSLPreferServerCiphers: cfgParams.ServerSSLPreferServerCiphers,
 			ProxyProtocol:          cfgParams.ProxyProtocol,
-			RetryNonIdempotent:     cfgParams.RetryNonIdempotent,
 			HSTS:                   cfgParams.HSTS,
 			HSTSMaxAge:             cfgParams.HSTSMaxAge,
 			HSTSIncludeSubdomains:  cfgParams.HSTSIncludeSubdomains,

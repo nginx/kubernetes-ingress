@@ -1130,35 +1130,35 @@ func TestProxyNextUpstreamTimeoutAnnotation(t *testing.T) {
 	tests := []struct {
 		name        string
 		annotations map[string]string
-		expected    uint64
+		expected    string
 	}{
 		{
 			name: "valid proxy-next-upstream-timeout - zero value",
 			annotations: map[string]string{
 				"nginx.org/proxy-next-upstream-timeout": "0",
 			},
-			expected: 0,
+			expected: "0s",
 		},
 		{
-			name: "valid proxy-next-upstream-timeout - positive value",
+			name: "valid proxy-next-upstream-timeout - positive time value",
 			annotations: map[string]string{
-				"nginx.org/proxy-next-upstream-timeout": "5",
+				"nginx.org/proxy-next-upstream-timeout": "5m",
 			},
-			expected: 5,
+			expected: "5m",
 		},
 		{
-			name: "invalid proxy-next-upstream-timeout - negative value",
+			name: "invalid proxy-next-upstream-timeout - negative time value",
 			annotations: map[string]string{
-				"nginx.org/proxy-next-upstream-timeout": "-8",
+				"nginx.org/proxy-next-upstream-timeout": "-8h",
 			},
-			expected: 0,
+			expected: "",
 		},
 		{
 			name: "invalid proxy-next-upstream-timeout - non-numeric value",
 			annotations: map[string]string{
 				"nginx.org/proxy-next-upstream-timeout": "abcde",
 			},
-			expected: 0,
+			expected: "",
 		},
 	}
 

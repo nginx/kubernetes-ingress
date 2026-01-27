@@ -47,9 +47,6 @@ const (
 	proxyBufferSizeAnnotation             = "nginx.org/proxy-buffer-size"
 	proxyBusyBuffersSizeAnnotation        = "nginx.org/proxy-busy-buffers-size"
 	proxyMaxTempFileSizeAnnotation        = "nginx.org/proxy-max-temp-file-size"
-	proxyNextUpstreamAnnotation           = "nginx.org/proxy-next-upstream"
-	proxyNextUpstreamTimeoutAnnotation    = "nginx.org/proxy-next-upstream-timeout"
-	proxyNextUpstreamTriesAnnotation      = "nginx.org/proxy-next-upstream-tries"
 	upstreamZoneSizeAnnotation            = "nginx.org/upstream-zone-size"
 	basicAuthSecretAnnotation             = "nginx.org/basic-auth-secret" // #nosec G101
 	basicAuthRealmAnnotation              = "nginx.org/basic-auth-realm"
@@ -240,13 +237,13 @@ var (
 			validateRequiredAnnotation,
 			validateSizeAnnotation,
 		},
-		proxyNextUpstreamAnnotation: {
+		configs.ProxyNextUpstreamAnnotation: {
 			validateProxyNextUpstreamAnnotation,
 		},
-		proxyNextUpstreamTimeoutAnnotation: {
-			validateUint64Annotation,
+		configs.ProxyNextUpstreamTimeoutAnnotation: {
+			validateTimeAnnotation,
 		},
-		proxyNextUpstreamTriesAnnotation: {
+		configs.ProxyNextUpstreamTriesAnnotation: {
 			validateUint64Annotation,
 		},
 		upstreamZoneSizeAnnotation: {
@@ -553,11 +550,16 @@ func validateProxyNextUpstreamAnnotation(context *annotationValidationContext) f
 	var allErrs field.ErrorList
 
 	methods := strings.Split(context.value, " ")
-	nextValidUpstreamOptions := sets.NewString("error", "timeout", "denied", "invalid_header", "http_500", "http_502", "http_503", "http_504", "http_403", "http_404", "http_429", "non_idempotent", "off")
+	nextValidUpstreamOptions := sets.NewString("error", "timeout", "invalid_header", "http_500", "http_502", "http_503", "http_504", "http_403", "http_404", "http_429", "non_idempotent", "off")
+
+	if context.isPlus {
+		nextValidUpstreamOptions = nextValidUpstreamOptions.Insert("denied")
+	}
 
 	for _, method := range methods {
 		if !nextValidUpstreamOptions.Has(method) {
-			allErrs = append(allErrs, field.Invalid(context.fieldPath, context.value, "must be a space-separated list with any of the following values: error, timeout, denied, invalid_header, http_500, http_502, http_503, http_504, http_403, http_404, http_429, non_idempotent, off"))
+			validOptions := strings.Join(nextValidUpstreamOptions.List(), ", ")
+			allErrs = append(allErrs, field.Invalid(context.fieldPath, context.value, fmt.Sprintf("must be a space-separated list with any of the following values: %s", validOptions)))
 		}
 	}
 

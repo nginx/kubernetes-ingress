@@ -268,11 +268,12 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		cfgParams.ProxyNextUpstream = proxyNextUpstream
 	}
 
-	if proxyNextUpstreamTimeout, exists, err := GetMapKeyAsUint64(ingEx.Ingress.Annotations, ProxyNextUpstreamTimeoutAnnotation, ingEx.Ingress, false); exists {
-		if err != nil {
-			nl.Error(l, err)
+	if proxyNextUpstreamTimeout, exists := ingEx.Ingress.Annotations[ProxyNextUpstreamTimeoutAnnotation]; exists {
+		if parsedProxyReadTimeout, err := ParseTime(proxyNextUpstreamTimeout); err != nil {
+			nl.Errorf(l, "Ingress %s/%s: Invalid value nginx.org/proxy-next-upstream-timeout: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), proxyNextUpstreamTimeout, err)
+		} else {
+			cfgParams.ProxyNextUpstreamTimeout = parsedProxyReadTimeout
 		}
-		cfgParams.ProxyNextUpstreamTimeout = proxyNextUpstreamTimeout
 	}
 
 	if proxyNextUpstreamTries, exists, err := GetMapKeyAsUint64(ingEx.Ingress.Annotations, ProxyNextUpstreamTriesAnnotation, ingEx.Ingress, false); exists {

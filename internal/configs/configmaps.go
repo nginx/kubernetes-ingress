@@ -100,6 +100,31 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		cfgParams.ProxyPassHeaders = proxyPassHeaders
 	}
 
+	if proxyNextUpstream, exists := cfgm.Data["proxy-next-upstream"]; exists {
+		cfgParams.MainProxyNextUpstream = proxyNextUpstream
+	}
+
+	if proxyNextUpstreamTimeout, exists := cfgm.Data["proxy-next-upstream-timeout"]; exists {
+		parsedProxyNextUpstreamTimeout, err := ParseTime(proxyNextUpstreamTimeout)
+		if err != nil {
+			errorText := fmt.Sprintf("ConfigMap %s/%s key %s contains invalid nginx time: %s, eg. 10s\",", cfgm.Namespace, cfgm.Name, "proxy-next-upstream-timeout", proxyNextUpstreamTimeout)
+			nl.Warn(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			configOk = false
+		}
+		cfgParams.MainProxyNextUpstreamTimeout = parsedProxyNextUpstreamTimeout
+	}
+
+	if proxyNextUpstreamTries, exists, err := GetMapKeyAsUint64(cfgm.Data, "proxy-next-upstream-tries", cfgm, false); exists {
+		if err != nil {
+			nl.Error(l, err)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
+			configOk = false
+		} else {
+			cfgParams.MainProxyNextUpstreamTries = proxyNextUpstreamTries
+		}
+	}
+
 	if clientMaxBodySize, exists := cfgm.Data["client-max-body-size"]; exists {
 		cfgParams.ClientMaxBodySize = clientMaxBodySize
 	}
@@ -413,16 +438,6 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 
 	if proxyMaxTempFileSize, exists := cfgm.Data["proxy-max-temp-file-size"]; exists {
 		cfgParams.ProxyMaxTempFileSize = proxyMaxTempFileSize
-	}
-
-	if retryNonIdempotent, exists, err := GetMapKeyAsBool(cfgm.Data, "retry-non-idempotent", cfgm); exists {
-		if err != nil{
-			nl.Error(l, err)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
-			configOk = false
-		} else {
-			cfgParams.RetryNonIdempotent = retryNonIdempotent
-		}
 	}
 
 	if mainMainSnippets, exists := GetMapKeyAsStringSlice(cfgm.Data, "main-snippets", cfgm, "\n"); exists {
@@ -1217,6 +1232,9 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		MainOtelExporterHeaderValue:        config.MainOtelExporterHeaderValue,
 		MainOtelServiceName:                config.MainOtelServiceName,
 		ProxyProtocol:                      config.ProxyProtocol,
+		ProxyNextUpstream:                  config.MainProxyNextUpstream,
+		ProxyNextUpstreamTimeout:           config.MainProxyNextUpstreamTimeout,
+		ProxyNextUpstreamTries:             config.MainProxyNextUpstreamTries,
 		ResolverAddresses:                  config.ResolverAddresses,
 		ResolverIPV6:                       config.ResolverIPV6,
 		ResolverTimeout:                    config.ResolverTimeout,

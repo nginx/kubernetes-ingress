@@ -833,45 +833,6 @@ func TestGenerateProxySetHeadersForValidHeadersInOnlyOneMinion(t *testing.T) {
 	}
 }
 
-func TestBuildNextUpstream(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name          string
-		nextUpstream  string
-		nonIdempotent bool
-		expected      string
-	}{
-		{
-			name:  "No non_idempotent in next_upstream, nonIdempotent false",
-			nextUpstream:  "timeout http_500 http_502",
-			nonIdempotent: false,
-			expected:      "timeout http_500 http_502",
-		},
-		{
-			name:  "No non_idempotent in next_upstream, nonIdempotent true",
-			nextUpstream:  "timeout http_500 http_502",
-			nonIdempotent: true,
-			expected:      "timeout http_500 http_502 non_idempotent",
-		},
-		{
-			name:  "non_idempotent already in next_upstream, nonIdempotent true",
-			nextUpstream:  "timeout http_500 http_502 non_idempotent",
-			nonIdempotent: true,
-			expected:      "timeout http_500 http_502 non_idempotent",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			actual := buildNextUpstream(tc.nextUpstream, tc.nonIdempotent)
-			if actual != tc.expected {
-				t.Errorf("Expected '%v' but returned '%v'", tc.expected, actual)
-			}
-		})
-	}
-}
-
 func TestMakeResolver(t *testing.T) {
 	t.Parallel()
 

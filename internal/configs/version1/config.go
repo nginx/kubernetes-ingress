@@ -102,7 +102,7 @@ type Server struct {
 	HSTSBehindProxy        bool
 	ProxyHideHeaders       []string
 	ProxyPassHeaders       []string
-	RetryNonIdempotent       bool
+	RetryNonIdempotent     bool
 
 	HealthChecks map[string]HealthCheck
 
@@ -198,9 +198,9 @@ type Location struct {
 
 	MinionIngress *Ingress
 
-	ProxyNextUpstream string
-	ProxyNextUpstreamTimeout uint64
-	ProxyNextUpstreamTries uint64
+	ProxyNextUpstream        string
+	ProxyNextUpstreamTimeout string
+	ProxyNextUpstreamTries   uint64
 }
 
 // ZoneSyncConfig is tbe configuration for the zone_sync directives for state sharing.
@@ -275,6 +275,9 @@ type MainConfig struct {
 	MainOtelExporterHeaderValue        string
 	MainOtelServiceName                string
 	ProxyProtocol                      bool
+	ProxyNextUpstream                  string
+	ProxyNextUpstreamTimeout           string
+	ProxyNextUpstreamTries             uint64
 	ResolverAddresses                  []string
 	ResolverIPV6                       bool
 	ResolverTimeout                    string

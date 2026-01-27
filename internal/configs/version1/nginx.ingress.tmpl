@@ -239,18 +239,14 @@ server {
 		proxy_ssl_name {{$location.ProxySSLName}};
 		{{- end}}
 		{{- if $location.ProxyNextUpstream}}
-        proxy_next_upstream {{ buildNextUpstream $location.ProxyNextUpstream $server.RetryNonIdempotent }};
-        {{- end }}
-        {{- if $location.ProxyNextUpstreamTimeout}}
-        proxy_next_upstream_timeout {{ $location.ProxyNextUpstreamTimeout }};
-        {{- else }}
-        proxy_next_upstream_timeout 0;
-        {{- end }}
-        {{- if $location.ProxyNextUpstreamTries}}
-        proxy_next_upstream_tries {{ $location.ProxyNextUpstreamTries }};
-        {{- else }}
-        proxy_next_upstream_tries 0;
-        {{- end }}
+		proxy_next_upstream {{ $location.ProxyNextUpstream }};
+		{{- end }}
+		{{- if $location.ProxyNextUpstreamTimeout}}
+		proxy_next_upstream_timeout {{ $location.ProxyNextUpstreamTimeout }};
+		{{- end }}
+		{{- if $location.ProxyNextUpstreamTries}}
+		proxy_next_upstream_tries {{ $location.ProxyNextUpstreamTries }};
+		{{- end }}
 		{{- if $location.SSL}}
 		proxy_pass https://{{$location.Upstream.Name}}{{$location.Rewrite}};
 		{{- else}}
