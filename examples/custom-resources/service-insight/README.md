@@ -353,7 +353,7 @@ spec:
           - -nginx-configmaps=$(POD_NAMESPACE)/nginx-config
         ...
           - -enable-service-insight
-          - -service-insight-tls-secret=default/service-insight-secret
+          - -service-insight-tls-secret=default/tls-secret
 ```
 
 The example below uses the `nodeport` service.
@@ -370,7 +370,7 @@ kubectl get secrets service-insight-secret
 
 ```text
 NAME                     TYPE                DATA   AGE
-service-insight-secret   kubernetes.io/tls   2      55s
+tls-secret   kubernetes.io/tls   2      55s
 ```
 
 Get the nginx-ingress pod id:
