@@ -6,6 +6,7 @@ a web application, configure load balancing for it via a VirtualServer, and appl
 
 ## Prerequisites
 
+1. Run `make secrets` command to generate the necessary secrets for the example.
 1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
    instructions to deploy the Ingress Controller.
 1. Save the public IP address of the Ingress Controller into a shell variable:
@@ -62,7 +63,7 @@ If you attempt to access the application without providing a valid user and pass
 for that VirtualServer:
 
 ```console
-curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP http://cafe.example.com:$IC_HTTP_PORT/
+curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP http://cafe.example.com:$IC_HTTP_PORT/coffee
 ```
 
 ```text
@@ -77,7 +78,7 @@ curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP http://cafe.example.com:$IC
 If you provide a valid user and password, your request will succeed:
 
 ```console
-curl --resolve cafe.example.com:$IC_HTTPS_PORT:$IC_IP https://cafe.example.com:$IC_HTTPS_PORT/coffee --insecure -u foo:bar
+curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP http://cafe.example.com:$IC_HTTP_PORT/coffee -u foo:bar
 ```
 
 ```text
