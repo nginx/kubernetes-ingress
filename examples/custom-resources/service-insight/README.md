@@ -365,7 +365,7 @@ kubectl apply -f service-insight-secret.yaml
 ```
 
 ```console
-kubectl get secrets service-insight-secret
+kubectl get secrets tls-secret
 ```
 
 ```text
