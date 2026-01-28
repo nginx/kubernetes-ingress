@@ -159,16 +159,6 @@ http {
         {{- if .RealIPHeader}}real_ip_header {{.RealIPHeader}};{{end}}
         {{- if .RealIPRecursive}}real_ip_recursive on;{{end}}
 
-        {{- if .ProxyNextUpstream }}
-        proxy_next_upstream {{.ProxyNextUpstream}};
-        {{- end}}
-        {{- if .ProxyNextUpstreamTimeout }}
-        proxy_next_upstream_timeout {{.ProxyNextUpstreamTimeout}};
-        {{- end}}
-        {{- if .ProxyNextUpstreamTries }}
-        proxy_next_upstream_tries {{.ProxyNextUpstreamTries}};
-        {{- end}}
-
         server_name _;
         server_tokens "{{.ServerTokens}}";
         {{- if .DefaultServerAccessLogOff}}

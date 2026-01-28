@@ -55,9 +55,6 @@ type ConfigParams struct {
 	MainWorkerRlimitNofile                 string
 	MainWorkerShutdownTimeout              string
 	MainClientBodyBufferSize               string
-	MainProxyNextUpstream                  string
-	MainProxyNextUpstreamTimeout           string
-	MainProxyNextUpstreamTries             uint64
 	MaxConns                               int
 	MaxFails                               int
 	AppProtectEnable                       string
