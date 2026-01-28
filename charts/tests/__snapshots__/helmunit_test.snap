@@ -7646,6 +7646,11 @@ data:
         tokenpath: "/etc/nginx-agent/secrets/dataplane.key"
       tls:
         skip_verify: false
+    
+    ## collector settings
+    collector:
+      log:
+        path: "stdout"
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -7929,7 +7934,7 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: oss-agent
-        agent-configuration-revision-hash: "e150cd8a"
+        agent-configuration-revision-hash: "e53398cb"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
@@ -10934,6 +10939,11 @@ data:
         tokenpath: "/etc/nginx-agent/secrets/dataplane.key"
       tls:
         skip_verify: false
+    
+    ## collector settings
+    collector:
+      log:
+        path: "stdout"
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -11232,7 +11242,7 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: plus-agent
-        agent-configuration-revision-hash: "e150cd8a"
+        agent-configuration-revision-hash: "e53398cb"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
@@ -11447,6 +11457,11 @@ data:
         tokenpath: "/etc/nginx-agent/secrets/dataplane.key"
       tls:
         skip_verify: true
+    
+    ## collector settings
+    collector:
+      log:
+        path: "stdout"
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -11745,7 +11760,7 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: plus-agent-all
-        agent-configuration-revision-hash: "8c900020"
+        agent-configuration-revision-hash: "36d57a7e"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
