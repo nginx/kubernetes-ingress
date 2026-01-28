@@ -12,13 +12,19 @@ NAP_AGENT_VERSION             ?= 2
 NGINX_AGENT_VERSION           ?= 3.6
 PLUS_ARGS = --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --secret id=nginx-repo.crt,src=nginx-repo.crt --secret id=nginx-repo.key,src=nginx-repo.key
 
+# Variables that can be overridden
+
 # renovate: datasource=github-releases depName=dominikh/go-tools
 STATICCHECK_VERSION ?= 2025.1.1
 
 # renovate: datasource=github-releases depName=golang/vuln
 GOVULNCHECK_VERSION ?= v1.1.4
 
-# Variables that can be overridden
+GO_DOCKER_IMAGE_NAME    ?= golang
+# renovate: datasource=docker depName=golang versioning=docker
+GO_DOCKER_IMAGE_VERSION ?= 1.25.6-trixie
+GO_DOCKER_IMAGE         ?= $(GO_DOCKER_IMAGE_NAME):$(GO_DOCKER_IMAGE_VERSION)
+
 REGISTRY                      ?= ## The registry where the image is located.
 PREFIX                        ?= nginx/nginx-ingress ## The name of the image. For example, nginx/nginx-ingress
 TAG                           ?= $(VERSION:v%=%) ## The tag of the image. For example, 2.0.0
@@ -248,7 +254,7 @@ ubi-image-nap-dos-plus: build ## Create Docker image for Ingress Controller (UBI
 .PHONY: all-images ## Create all the Docker images for Ingress Controller
 all-images:
 	docker builder prune -af; \
-	images="alpine-image alpine-image-plus alpine-image-plus-fips alpine-image-nap-plus-fips debian-image debian-image-plus debian-image-nap-plus debian-image-dos-plus debian-image-nap-dos-plus ubi-image ubi-image-plus ubi-image-nap-plus ubi-image-dos-plus ubi-image-nap-dos-plus"; \
+	images="alpine-image alpine-image-nap-plus-fips alpine-image-nap-v5-plus-fips alpine-image-plus alpine-image-plus-fips debian-image debian-image-dos-plus debian-image-nap-dos-plus debian-image-nap-plus debian-image-nap-v5-plus debian-image-plus ubi-image ubi-image-dos-plus ubi-image-nap-dos-plus ubi-image-nap-plus ubi-image-nap-v5-plus ubi-image-plus ubi8-image-nap-v5-plus"; \
 	for img in $$images; do \
 		TAG="$(strip $(TAG))-$$img" make $$img; \
 	done
@@ -284,3 +290,19 @@ update-crd-docs: ## Update CRD markdown documentation from YAML definitions
 	@echo "Generating CRD documentation..."
 	@go run hack/generate-crd-docs.go -crd-dir config/crd/bases -output-dir docs/crd
 	@echo "CRD documentation updated successfully!"
+
+.PHONY: secrets
+secrets: ## Create just in time TLS certificates etc needed for tests and examples
+ifeq (, $(shell command -v go))
+	@docker run --rm -v .:/workspace/kubernetes-ingress -w /workspace/kubernetes-ingress ${GO_DOCKER_IMAGE} make secrets
+else
+	@make -C hack/secrets-gen ignore
+endif
+
+.PHONY: secrets-clean
+secrets-clean: ## Clean just in time TLS certificates etc. needed for tests and examples
+ifeq (, $(shell command -v go))
+	@docker run --rm -v .:/workspace/kubernetes-ingress -w /workspace/kubernetes-ingress ${GO_DOCKER_IMAGE} make secrets-clean
+else
+	@make -C hack/secrets-gen clean
+endif

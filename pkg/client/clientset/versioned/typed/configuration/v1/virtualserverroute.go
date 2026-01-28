@@ -6,6 +6,7 @@ import (
 	context "context"
 
 	configurationv1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	applyconfigurationconfigurationv1 "github.com/nginx/kubernetes-ingress/pkg/client/applyconfiguration/configuration/v1"
 	scheme "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -31,18 +32,21 @@ type VirtualServerRouteInterface interface {
 	List(ctx context.Context, opts metav1.ListOptions) (*configurationv1.VirtualServerRouteList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
 	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *configurationv1.VirtualServerRoute, err error)
+	Apply(ctx context.Context, virtualServerRoute *applyconfigurationconfigurationv1.VirtualServerRouteApplyConfiguration, opts metav1.ApplyOptions) (result *configurationv1.VirtualServerRoute, err error)
+	// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
+	ApplyStatus(ctx context.Context, virtualServerRoute *applyconfigurationconfigurationv1.VirtualServerRouteApplyConfiguration, opts metav1.ApplyOptions) (result *configurationv1.VirtualServerRoute, err error)
 	VirtualServerRouteExpansion
 }
 
 // virtualServerRoutes implements VirtualServerRouteInterface
 type virtualServerRoutes struct {
-	*gentype.ClientWithList[*configurationv1.VirtualServerRoute, *configurationv1.VirtualServerRouteList]
+	*gentype.ClientWithListAndApply[*configurationv1.VirtualServerRoute, *configurationv1.VirtualServerRouteList, *applyconfigurationconfigurationv1.VirtualServerRouteApplyConfiguration]
 }
 
 // newVirtualServerRoutes returns a VirtualServerRoutes
 func newVirtualServerRoutes(c *K8sV1Client, namespace string) *virtualServerRoutes {
 	return &virtualServerRoutes{
-		gentype.NewClientWithList[*configurationv1.VirtualServerRoute, *configurationv1.VirtualServerRouteList](
+		gentype.NewClientWithListAndApply[*configurationv1.VirtualServerRoute, *configurationv1.VirtualServerRouteList, *applyconfigurationconfigurationv1.VirtualServerRouteApplyConfiguration](
 			"virtualserverroutes",
 			c.RESTClient(),
 			scheme.ParameterCodec,

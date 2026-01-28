@@ -310,30 +310,45 @@ func TestParseConfigMapOIDC(t *testing.T) {
 				Data: map[string]string{},
 			},
 			want: &OIDC{
-				PKCETimeout:    "90s",
-				IDTokenTimeout: "1h",
-				AccessTimeout:  "1h",
-				RefreshTimeout: "8h",
-				SIDSTimeout:    "8h",
+				PKCETimeout:     "90s",
+				PKCEZoneSize:    "128K",
+				IDTokenTimeout:  "1h",
+				IDTokenZoneSize: "1M",
+				AccessTimeout:   "1h",
+				AccessZoneSize:  "1M",
+				RefreshTimeout:  "8h",
+				RefreshZoneSize: "1M",
+				SIDSTimeout:     "8h",
+				SIDSZoneSize:    "1M",
 			},
 			msg: "default OIDC values",
 		},
 		{
 			configMap: &v1.ConfigMap{
 				Data: map[string]string{
-					"oidc-pkce-timeout":           "5m",
-					"oidc-id-tokens-timeout":      "2h",
-					"oidc-access-tokens-timeout":  "3h",
-					"oidc-refresh-tokens-timeout": "48h",
-					"oidc-sids-timeout":           "72h",
+					"oidc-pkce-timeout":             "5m",
+					"oidc-pkce-zone-size":           "256K",
+					"oidc-id-tokens-timeout":        "2h",
+					"oidc-id-tokens-zone-size":      "2M",
+					"oidc-access-tokens-timeout":    "3h",
+					"oidc-access-tokens-zone-size":  "2M",
+					"oidc-refresh-tokens-timeout":   "48h",
+					"oidc-refresh-tokens-zone-size": "2M",
+					"oidc-sids-timeout":             "72h",
+					"oidc-sids-zone-size":           "2M",
 				},
 			},
 			want: &OIDC{
-				PKCETimeout:    "5m",
-				IDTokenTimeout: "2h",
-				AccessTimeout:  "3h",
-				RefreshTimeout: "48h",
-				SIDSTimeout:    "72h",
+				PKCETimeout:     "5m",
+				PKCEZoneSize:    "256k",
+				IDTokenTimeout:  "2h",
+				IDTokenZoneSize: "2m",
+				AccessTimeout:   "3h",
+				AccessZoneSize:  "2m",
+				RefreshTimeout:  "48h",
+				RefreshZoneSize: "2m",
+				SIDSTimeout:     "72h",
+				SIDSZoneSize:    "2m",
 			},
 			msg: "all timeout values custom",
 		},
@@ -391,6 +406,60 @@ func TestParseConfigMapOIDC(t *testing.T) {
 				SIDSTimeout: "12h",
 			},
 			msg: "custom SIDS timeout only",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-pkce-zone-size": "1m",
+				},
+			},
+			want: &OIDC{
+				PKCEZoneSize: "1m",
+			},
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-id-tokens-zone-size": "2m",
+				},
+			},
+			want: &OIDC{
+				IDTokenZoneSize: "2m",
+			},
+			msg: "custom ID token zone size only",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-access-tokens-zone-size": "3m",
+				},
+			},
+			want: &OIDC{
+				AccessZoneSize: "3m",
+			},
+			msg: "custom access token zone size only",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-refresh-tokens-zone-size": "4m",
+				},
+			},
+			want: &OIDC{
+				RefreshZoneSize: "4m",
+			},
+			msg: "custom refresh token zone size only",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-sids-zone-size": "5m",
+				},
+			},
+			want: &OIDC{
+				SIDSZoneSize: "5m",
+			},
+			msg: "custom SIDS zone size only",
 		},
 	}
 
@@ -515,6 +584,51 @@ func TestParseConfigMapOIDCErrors(t *testing.T) {
 			},
 			expectedErr: true,
 			msg:         "multiple time values without proper format",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-pkce-zone-size": "invalid-size",
+				},
+			},
+			expectedErr: true,
+			msg:         "invalid PKCE zone size format",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-id-tokens-zone-size": "123abc",
+				},
+			},
+			expectedErr: true,
+			msg:         "invalid ID token zone size format",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-access-tokens-zone-size": "1.5M",
+				},
+			},
+			expectedErr: true,
+			msg:         "invalid access token zone size format",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-refresh-tokens-zone-size": "",
+				},
+			},
+			expectedErr: true,
+			msg:         "empty refresh token zone size",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"oidc-sids-zone-size": "   ",
+				},
+			},
+			expectedErr: true,
+			msg:         "whitespace-only SIDS zone size",
 		},
 	}
 

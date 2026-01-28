@@ -11,6 +11,7 @@ However, instead of the Ingress resource, we use the VirtualServer.
 
 ## Prerequisites
 
+1. Run `make secrets` command to generate the necessary secrets for the example.
 1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
    instructions to deploy the Ingress Controller with custom resources enabled.
 1. Save the public IP address of the Ingress Controller into a shell variable:
