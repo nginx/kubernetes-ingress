@@ -1906,6 +1906,282 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 
 		{
 			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream": "error timeout http_502 http_503",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			msg:                   "valid nginx.org/proxy-next-upstream annotation",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream": "invalid_value",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-next-upstream: Invalid value: "invalid_value": must be a space-separated list with any of the following values: error, http_403, http_404, http_429, http_500, http_502, http_503, http_504, invalid_header, non_idempotent, off, timeout`,
+			},
+			msg: "invalid nginx.org/proxy-next-upstream annotation",
+		},
+
+		{
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream-timeout": "0",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			msg:                   "valid nginx.org/proxy-next-upstream-timeout annotation",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream-timeout": "123",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			msg:                   "valid nginx.org/proxy-next-upstream-timeout annotation",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream-timeout": "-123",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-next-upstream-timeout: Invalid value: "-123": must be a time`,
+			},
+			msg: "invalid nginx.org/proxy-next-upstream-timeout annotation",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream-timeout": "abc",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-next-upstream-timeout: Invalid value: "abc": must be a time`,
+			},
+			msg: "invalid nginx.org/proxy-next-upstream-timeout annotation",
+		},
+
+		{
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream-tries": "0",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			msg:                   "valid nginx.org/proxy-next-upstream-tries annotation",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream-tries": "123",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			msg:                   "valid nginx.org/proxy-next-upstream-tries annotation",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream-tries": "-123",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-next-upstream-tries: Invalid value: "-123": must be a non-negative integer`,
+			},
+			msg: "invalid nginx.org/proxy-next-upstream-tries annotation",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream-tries": "abc",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-next-upstream-tries: Invalid value: "abc": must be a non-negative integer`,
+			},
+			msg: "invalid nginx.org/proxy-next-upstream-tries annotation",
+		},
+
+		{
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream": "error timeout http_502 http_503",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                true,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			msg:                   "valid nginx.org/proxy-next-upstream annotation",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream": "invalid_value",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                true,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-next-upstream: Invalid value: "invalid_value": must be a space-separated list with any of the following values: denied, error, http_403, http_404, http_429, http_500, http_502, http_503, http_504, invalid_header, non_idempotent, off, timeout`,
+			},
+			msg: "invalid nginx.org/proxy-next-upstream annotation",
+		},
+
+		{
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream-timeout": "0",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                true,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			msg:                   "valid nginx.org/proxy-next-upstream-timeout annotation",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream-timeout": "123",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                true,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			msg:                   "valid nginx.org/proxy-next-upstream-timeout annotation",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream-timeout": "-123",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                true,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-next-upstream-timeout: Invalid value: "-123": must be a time`,
+			},
+			msg: "invalid nginx.org/proxy-next-upstream-timeout annotation",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream-timeout": "abc",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                true,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-next-upstream-timeout: Invalid value: "abc": must be a time`,
+			},
+			msg: "invalid nginx.org/proxy-next-upstream-timeout annotation",
+		},
+
+		{
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream-tries": "0",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                true,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			msg:                   "valid nginx.org/proxy-next-upstream-tries annotation",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream-tries": "123",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                true,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			msg:                   "valid nginx.org/proxy-next-upstream-tries annotation",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream-tries": "-123",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                true,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-next-upstream-tries: Invalid value: "-123": must be a non-negative integer`,
+			},
+			msg: "invalid nginx.org/proxy-next-upstream-tries annotation",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream-tries": "abc",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                true,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-next-upstream-tries: Invalid value: "abc": must be a non-negative integer`,
+			},
+			msg: "invalid nginx.org/proxy-next-upstream-tries annotation",
+		},
+
+		{
+			annotations: map[string]string{
 				"nginx.org/upstream-zone-size": "512k",
 			},
 			specServices:          map[string]bool{},

@@ -233,6 +233,15 @@ var (
 			validateRequiredAnnotation,
 			validateSizeAnnotation,
 		},
+		configs.ProxyNextUpstreamAnnotation: {
+			validateProxyNextUpstreamAnnotation,
+		},
+		configs.ProxyNextUpstreamTimeoutAnnotation: {
+			validateTimeAnnotation,
+		},
+		configs.ProxyNextUpstreamTriesAnnotation: {
+			validateUint64Annotation,
+		},
 		upstreamZoneSizeAnnotation: {
 			validateRequiredAnnotation,
 			validateSizeAnnotation,
@@ -530,6 +539,26 @@ func validateProxySetHeaderAnnotation(context *annotationValidationContext) fiel
 			continue
 		}
 	}
+	return allErrs
+}
+
+func validateProxyNextUpstreamAnnotation(context *annotationValidationContext) field.ErrorList {
+	var allErrs field.ErrorList
+
+	methods := strings.Split(context.value, " ")
+	nextValidUpstreamOptions := sets.NewString("error", "timeout", "invalid_header", "http_500", "http_502", "http_503", "http_504", "http_403", "http_404", "http_429", "non_idempotent", "off")
+
+	if context.isPlus {
+		nextValidUpstreamOptions = nextValidUpstreamOptions.Insert("denied")
+	}
+
+	for _, method := range methods {
+		if !nextValidUpstreamOptions.Has(method) {
+			validOptions := strings.Join(nextValidUpstreamOptions.List(), ", ")
+			allErrs = append(allErrs, field.Invalid(context.fieldPath, context.value, fmt.Sprintf("must be a space-separated list with any of the following values: %s", validOptions)))
+		}
+	}
+
 	return allErrs
 }
 
