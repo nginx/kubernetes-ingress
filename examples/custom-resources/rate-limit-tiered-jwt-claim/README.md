@@ -27,7 +27,7 @@ limit for the group.
 Create the application deployments and services:
 
 ```console
-kubectl apply -f coffee.yaml
+kubectl apply -f coffee.yaml -f cafe-secret.yaml
 ```
 
 ## Step 2 - Deploy the Rate Limit Policies

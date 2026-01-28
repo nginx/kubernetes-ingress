@@ -67,7 +67,7 @@ with ```cafe.example.com```
     If your prefer tea:
 
     ```console
-    $ curl --resolve cafe.example.com:$IC_HTTPS_PORT:$IC_IP https://cafe.example.com:$IC_HTTPS_PORT/tea --insecure
+    curl --resolve cafe.example.com:$IC_HTTPS_PORT:$IC_IP https://cafe.example.com:$IC_HTTPS_PORT/tea --insecure
 
     ```text
     Server address: 10.12.0.19:80
