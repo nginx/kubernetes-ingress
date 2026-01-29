@@ -398,6 +398,11 @@
                   "default": {},
                   "title": "The securityContext Schema",
                   "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.35.0/_definitions.json#/definitions/io.k8s.api.core.v1.SecurityContext"
+                },
+                "resources": {
+                  "default": {},
+                  "title": "The resources Schema",
+                  "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.35.0/_definitions.json#/definitions/io.k8s.api.core.v1.ResourceRequirements"
                 }
               }
             },
@@ -479,6 +484,11 @@
                   },
                   "title": "The securityContext Schema",
                   "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.35.0/_definitions.json#/definitions/io.k8s.api.core.v1.SecurityContext"
+                },
+                "resources": {
+                  "default": {},
+                  "title": "The resources Schema",
+                  "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.35.0/_definitions.json#/definitions/io.k8s.api.core.v1.ResourceRequirements"
                 }
               }
             }

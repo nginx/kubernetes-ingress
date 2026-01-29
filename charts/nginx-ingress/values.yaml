@@ -92,6 +92,14 @@ controller:
         ## The pull policy for the App Protect WAF v5 Enforcer image.
         pullPolicy: IfNotPresent
       securityContext: {}
+      ## The resources of the App Protect WAF v5 Enforcer container.
+      resources: {}
+      #  requests:
+      #    cpu: 100m
+      #    memory: 128Mi
+      #  limits:
+      #    cpu: 500m
+      #    memory: 512Mi
 
     ## Configuration for App Protect WAF v5 Configuration Manager
     configManager:
@@ -114,6 +122,14 @@ controller:
         capabilities:
           drop:
             - all
+      ## The resources of the App Protect WAF v5 Configuration Manager container.
+      resources: {}
+      #  requests:
+      #    cpu: 100m
+      #    memory: 128Mi
+      #  limits:
+      #    cpu: 500m
+      #    memory: 512Mi
 
   ## Support for App Protect DoS
   appprotectdos:
