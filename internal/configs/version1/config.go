@@ -199,7 +199,7 @@ type Location struct {
 
 	ProxyNextUpstream        string
 	ProxyNextUpstreamTimeout string
-	ProxyNextUpstreamTries   string
+	ProxyNextUpstreamTries   *uint64
 }
 
 // ZoneSyncConfig is tbe configuration for the zone_sync directives for state sharing.

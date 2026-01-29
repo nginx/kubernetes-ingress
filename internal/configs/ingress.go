@@ -519,7 +519,7 @@ func createLocation(path string, upstream version1.Upstream, cfg *ConfigParams, 
 		ProxySSLName:             proxySSLName,
 		ProxyNextUpstream:        cfg.ProxyNextUpstream,
 		ProxyNextUpstreamTimeout: cfg.ProxyNextUpstreamTimeout,
-		ProxyNextUpstreamTries:   strconv.FormatUint(cfg.ProxyNextUpstreamTries, 10),
+		ProxyNextUpstreamTries:   cfg.ProxyNextUpstreamTries,
 		LocationSnippets:         cfg.LocationSnippets,
 		ServiceName:              serviceName,
 	}

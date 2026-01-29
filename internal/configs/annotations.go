@@ -280,7 +280,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		if err != nil {
 			nl.Error(l, err)
 		}
-		cfgParams.ProxyNextUpstreamTries = proxyNextUpstreamTries
+		cfgParams.ProxyNextUpstreamTries = &proxyNextUpstreamTries
 	}
 
 	if clientMaxBodySize, exists := ingEx.Ingress.Annotations["nginx.org/client-max-body-size"]; exists {

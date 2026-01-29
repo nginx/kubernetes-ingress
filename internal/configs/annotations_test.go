@@ -1243,8 +1243,8 @@ func TestProxyNextUpstreamTriesAnnotation(t *testing.T) {
 			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
 			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
 
-			if result.ProxyNextUpstreamTries != tt.expected {
-				t.Errorf("Test %q: expected ProxyNextUpstreamTries %q, got %q", tt.name, tt.expected, result.ProxyNextUpstreamTries)
+			if *result.ProxyNextUpstreamTries != tt.expected {
+				t.Errorf("Test %q: expected ProxyNextUpstreamTries %d, got %d", tt.name, tt.expected, result.ProxyNextUpstreamTries)
 			}
 		})
 	}
