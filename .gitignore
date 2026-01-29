@@ -85,7 +85,6 @@ examples/custom-resources/jwks/tls-secret.yaml
 examples/custom-resources/oidc-fclo/tls-secret.yaml
 examples/custom-resources/oidc/tls-secret.yaml
 examples/custom-resources/rate-limit-tiered-jwt-claim/cafe-secret.yaml
-examples/custom-resources/service-insight/service-insight-secret.yaml
 examples/custom-resources/tls-passthrough/app-tls-secret.yaml
 examples/custom-resources/transport-server-sni/cafe-secret.yaml
 examples/custom-resources/transport-server-sni/mongo-secret.yaml
@@ -146,6 +145,8 @@ common-secrets/kic-tls-secret.yaml
 tests/data/transport-server-tcp-load-balance/tcp-tls-secret.yaml
 common-secrets/tls-secret-test.yaml
 tests/data/service-insight/secret.yaml
+common-secrets/service-insight-secret.yaml
+examples/custom-resources/service-insight/service-insight-secret.yaml
 common-secrets/invalid-tls-secret-sometype.yaml
 tests/data/virtual-server-tls/invalid-tls-secret.yaml
 common-secrets/cafe-secret.yaml
