@@ -8,7 +8,7 @@ require (
 	github.com/cert-manager/cert-manager v1.19.2
 	github.com/dlclark/regexp2 v1.11.5
 	github.com/gkampitakis/go-snaps v0.5.19
-	github.com/golang-jwt/jwt/v5 v5.3.0
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/go-cmp v0.7.0
 	github.com/gruntwork-io/terratest v0.55.0
 	github.com/jinzhu/copier v0.4.0
