@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"fmt"
+	"maps"
 	"reflect"
 	"sort"
 	"sync"
@@ -16,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 const (
@@ -207,23 +209,25 @@ func NewMinionConfiguration(ing *networking.Ingress) *MinionConfiguration {
 
 // VirtualServerConfiguration holds a VirtualServer along with its VirtualServerRoutes.
 type VirtualServerConfiguration struct {
-	VirtualServer       *conf_v1.VirtualServer
-	VirtualServerRoutes []*conf_v1.VirtualServerRoute
-	Warnings            []string
-	HTTPPort            int
-	HTTPSPort           int
-	HTTPIPv4            string
-	HTTPIPv6            string
-	HTTPSIPv4           string
-	HTTPSIPv6           string
+	VirtualServer               *conf_v1.VirtualServer
+	VirtualServerRoutes         []*conf_v1.VirtualServerRoute
+	VirtualServerRouteSelectors map[string][]string
+	Warnings                    []string
+	HTTPPort                    int
+	HTTPSPort                   int
+	HTTPIPv4                    string
+	HTTPIPv6                    string
+	HTTPSIPv4                   string
+	HTTPSIPv6                   string
 }
 
 // NewVirtualServerConfiguration creates a VirtualServerConfiguration.
-func NewVirtualServerConfiguration(vs *conf_v1.VirtualServer, vsrs []*conf_v1.VirtualServerRoute, warnings []string) *VirtualServerConfiguration {
+func NewVirtualServerConfiguration(vs *conf_v1.VirtualServer, vsrs []*conf_v1.VirtualServerRoute, vsrSelectors map[string][]string, warnings []string) *VirtualServerConfiguration {
 	return &VirtualServerConfiguration{
-		VirtualServer:       vs,
-		VirtualServerRoutes: vsrs,
-		Warnings:            warnings,
+		VirtualServer:               vs,
+		VirtualServerRoutes:         vsrs,
+		VirtualServerRouteSelectors: vsrSelectors,
+		Warnings:                    warnings,
 	}
 }
 
@@ -267,6 +271,34 @@ func (vsc *VirtualServerConfiguration) IsEqual(resource Resource) bool {
 	for i := range vsc.VirtualServerRoutes {
 		if !compareObjectMetas(&vsc.VirtualServerRoutes[i].ObjectMeta, &vsConfig.VirtualServerRoutes[i].ObjectMeta) {
 			return false
+		}
+	}
+
+	// Check VirtualServerRouteSelectors maps for equality
+	if len(vsc.VirtualServerRouteSelectors) != len(vsConfig.VirtualServerRouteSelectors) {
+		return false
+	}
+
+	for selector, routes := range vsc.VirtualServerRouteSelectors {
+		otherRoutes, exists := vsConfig.VirtualServerRouteSelectors[selector]
+		if !exists {
+			return false
+		}
+
+		if len(routes) != len(otherRoutes) {
+			return false
+		}
+
+		// Create maps for O(1) lookup to compare route slices
+		routeSet := make(map[string]bool)
+		for _, route := range routes {
+			routeSet[route] = true
+		}
+
+		for _, otherRoute := range otherRoutes {
+			if !routeSet[otherRoute] {
+				return false
+			}
 		}
 	}
 
@@ -1488,13 +1520,13 @@ func (c *Configuration) buildHostsAndResources() (newHosts map[string]Resource, 
 	for _, key := range getSortedVirtualServerKeys(c.virtualServers) {
 		vs := c.virtualServers[key]
 
-		vsrs, warnings := c.buildVirtualServerRoutes(vs)
+		vsrs, vsrSelectors, warnings := c.buildVirtualServerRoutes(vs)
 		for _, vsr := range challengesVSR {
 			if vs.Spec.Host == vsr.Spec.Host {
 				vsrs = append(vsrs, vsr)
 			}
 		}
-		resource := NewVirtualServerConfiguration(vs, vsrs, warnings)
+		resource := NewVirtualServerConfiguration(vs, vsrs, vsrSelectors, warnings)
 
 		c.buildListenersForVSConfiguration(resource)
 
@@ -1648,40 +1680,176 @@ func (c *Configuration) buildMinionConfigs(masterHost string) ([]*MinionConfigur
 	return minionConfigs, childWarnings
 }
 
-func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*conf_v1.VirtualServerRoute, []string) {
+func (c *Configuration) validateVSRs(r *conf_v1.Route, vsHost, vsNamespace string) ([]*conf_v1.VirtualServerRoute, []string) {
 	var vsrs []*conf_v1.VirtualServerRoute
 	var warnings []string
 
-	for _, r := range vs.Spec.Routes {
-		if r.Route == "" {
-			continue
-		}
+	vsrKey := r.Route
 
-		vsrKey := r.Route
-
-		// if route is defined without a namespace, use the namespace of VirtualServer.
-		if !nsutils.HasNamespace(vsrKey) {
-			vsrKey = fmt.Sprintf("%s/%s", vs.Namespace, r.Route)
-		}
-
-		vsr, exists := c.virtualServerRoutes[vsrKey]
-		if !exists {
-			warning := fmt.Sprintf("VirtualServerRoute %s doesn't exist or invalid", vsrKey)
-			warnings = append(warnings, warning)
-			continue
-		}
-
-		err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(vsr, vs.Spec.Host, r.Path)
-		if err != nil {
-			warning := fmt.Sprintf("VirtualServerRoute %s is invalid: %v", vsrKey, err)
-			warnings = append(warnings, warning)
-			continue
-		}
-
-		vsrs = append(vsrs, vsr)
+	// if route is defined without a namespace, use the namespace of VirtualServer.
+	if !nsutils.HasNamespace(vsrKey) {
+		vsrKey = fmt.Sprintf("%s/%s", vsNamespace, r.Route)
 	}
 
+	vsr, exists := c.virtualServerRoutes[vsrKey]
+
+	// if route is defined
+	if !exists {
+		warning := fmt.Sprintf("VirtualServerRoute %s doesn't exist or invalid", vsrKey)
+		warnings = append(warnings, warning)
+		return vsrs, warnings
+	}
+
+	err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(vsr, vsHost, r.Path)
+	if err != nil {
+		warning := fmt.Sprintf("VirtualServerRoute %s is invalid: %v", vsrKey, err)
+		warnings = append(warnings, warning)
+		return vsrs, warnings
+	}
+
+	vsrs = append(vsrs, vsr)
 	return vsrs, warnings
+}
+
+func (c *Configuration) validateVSRSelectors(r *conf_v1.Route, vsHost string) ([]*conf_v1.VirtualServerRoute, map[string][]string, []string) {
+	var vsrs []*conf_v1.VirtualServerRoute
+	var warnings []string
+	vsrSelectors := make(map[string][]string)
+
+	selector := &metav1.LabelSelector{
+		MatchLabels: r.RouteSelector.MatchLabels,
+	}
+	sel, err := metav1.LabelSelectorAsSelector(selector)
+	if err != nil {
+		warning := fmt.Sprintf("VirtualServerRoute LabelSelector %s is invalid: %v", selector, err)
+		warnings = append(warnings, warning)
+		return vsrs, vsrSelectors, warnings
+	}
+
+	selectorStr := sel.String()
+	// Initialize the selector entry regardless of whether routes match
+	if vsrSelectors[selectorStr] == nil {
+		vsrSelectors[selectorStr] = make([]string, 0)
+	}
+
+	for vsrKey, vsr := range c.virtualServerRoutes {
+		if sel.Matches(labels.Set(vsr.Labels)) {
+			err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(vsr, vsHost, r.Path)
+			if err != nil {
+				warning := fmt.Sprintf("VirtualServerRoute %s is invalid: %v", vsrKey, err)
+				warnings = append(warnings, warning)
+				continue
+			}
+			vsrs = append(vsrs, vsr)
+
+			// Add to selectors map
+			vsrSelectors[selectorStr] = append(vsrSelectors[selectorStr], vsrKey)
+		}
+	}
+
+	sort.Strings(vsrSelectors[selectorStr])
+	return vsrs, vsrSelectors, warnings
+}
+
+func validateDuplicateVSRPaths(vsrs []*conf_v1.VirtualServerRoute) ([]*conf_v1.VirtualServerRoute, []string) {
+	var warnings []string
+
+	paths := make(map[string]string)
+	var vsrsToRemove []string
+
+	for _, vsr := range vsrs {
+		for _, subroute := range vsr.Spec.Subroutes {
+			if path, exists := paths[subroute.Path]; exists {
+				subRoutes := fmt.Sprintf("%s and %s", fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name), path)
+				if fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name) == path {
+					// both subroutes are from the same VSR
+					subRoutes = path
+				}
+				pathWarning := fmt.Sprintf("path %s has conflicting subroutes on %s", subroute.Path, subRoutes)
+				warnings = append(warnings, pathWarning)
+
+				vsrsToRemove = append(vsrsToRemove, getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta))
+			} else {
+				paths[subroute.Path] = fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)
+			}
+		}
+	}
+
+	if len(vsrsToRemove) != 0 {
+		for _, vsrToRemove := range vsrsToRemove {
+			for i, vsr := range vsrs {
+				if getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta) == vsrToRemove {
+					vsrs = removeFromVSRSlice(vsrs, i)
+					break
+				}
+			}
+		}
+	}
+	return vsrs, warnings
+}
+
+func validateDuplicateVSRs(vsrs []*conf_v1.VirtualServerRoute, vsName, vsNamespace string) ([]*conf_v1.VirtualServerRoute, []string) {
+	var warnings []string
+
+	unique := make(map[string]string)
+	var vsrsToRemove []string
+
+	for _, vsr := range vsrs {
+
+		vsrKey := getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta)
+		vsrValue := fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)
+		if _, exists := unique[vsrKey]; exists {
+			warning := fmt.Sprintf("VS %s has duplicate VirtualServerRoutes %s", fmt.Sprintf("%s/%s", vsNamespace, vsName), vsrValue)
+			warnings = append(warnings, warning)
+			vsrsToRemove = append(vsrsToRemove, getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta))
+			continue
+		}
+		unique[vsrKey] = vsrValue
+	}
+
+	if len(vsrsToRemove) != 0 {
+		for _, vsrToRemove := range vsrsToRemove {
+			for i, vsr := range vsrs {
+				if getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta) == vsrToRemove {
+					vsrs = removeFromVSRSlice(vsrs, i)
+					break
+				}
+			}
+		}
+	}
+	return vsrs, warnings
+}
+
+func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*conf_v1.VirtualServerRoute, map[string][]string, []string) {
+	var vsrs []*conf_v1.VirtualServerRoute
+	var warnings []string
+	vsrSelectors := make(map[string][]string)
+
+	for _, r := range vs.Spec.Routes {
+		if r.Route != "" {
+			validVsrs, vsrWarnings := c.validateVSRs(&r, vs.Spec.Host, vs.Namespace)
+			vsrs = append(vsrs, validVsrs...)
+			warnings = append(warnings, vsrWarnings...)
+		} else if r.RouteSelector != nil {
+			validVsrs, selectors, vsrWarnings := c.validateVSRSelectors(&r, vs.Spec.Host)
+			vsrs = append(vsrs, validVsrs...)
+			warnings = append(warnings, vsrWarnings...)
+			maps.Copy(vsrSelectors, selectors)
+		}
+	}
+
+	vsrs, duplicateVSRWarnings := validateDuplicateVSRs(vsrs, vs.Name, vs.Namespace)
+	warnings = append(warnings, duplicateVSRWarnings...)
+
+	vsrs, pathWarnings := validateDuplicateVSRPaths(vsrs)
+	warnings = append(warnings, pathWarnings...)
+
+	return vsrs, vsrSelectors, warnings
+}
+
+func removeFromVSRSlice(s []*conf_v1.VirtualServerRoute, i int) []*conf_v1.VirtualServerRoute {
+	s[i] = s[len(s)-1]
+	return s[:len(s)-1]
 }
 
 // GetTransportServerMetrics returns metrics about TransportServers

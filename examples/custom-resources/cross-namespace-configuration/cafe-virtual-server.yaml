@@ -6,7 +6,7 @@ metadata:
 spec:
   host: cafe.example.com
   tls:
-    secret: cafe-secret
+    secret: tls-secret
   routes:
   - path: /tea
     route: tea/tea
