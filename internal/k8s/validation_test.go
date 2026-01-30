@@ -2231,7 +2231,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 
 		{
 			annotations: map[string]string{
-				"nginx.com/jwt-realm": "true",
+				configs.JWTRealmAnnotation: "true",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -2239,13 +2239,13 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				"annotations.nginx.com/jwt-realm: Forbidden: annotation requires NGINX Plus",
+				fmt.Sprintf("annotations.%s: Forbidden: annotation requires NGINX Plus", configs.JWTRealmAnnotation),
 			},
-			msg: "invalid nginx.com/jwt-realm annotation, nginx plus only",
+			msg: fmt.Sprintf("invalid %s annotation, nginx plus only", configs.JWTRealmAnnotation),
 		},
 		{
 			annotations: map[string]string{
-				"nginx.com/jwt-realm": "my-jwt-realm",
+				configs.JWTRealmAnnotation: "my-jwt-realm",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -2253,11 +2253,11 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors:        nil,
-			msg:                   "valid nginx.com/jwt-realm annotation",
+			msg:                   fmt.Sprintf("valid %s annotation", configs.JWTRealmAnnotation),
 		},
 		{
 			annotations: map[string]string{
-				"nginx.com/jwt-realm": "",
+				configs.JWTRealmAnnotation: "",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -2265,13 +2265,13 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				"annotations.nginx.com/jwt-realm: Required value",
+				fmt.Sprintf("annotations.%s: Required value", configs.JWTRealmAnnotation),
 			},
-			msg: "invalid nginx.com/jwt-realm annotation, empty",
+			msg: fmt.Sprintf("invalid %s annotation, empty", configs.JWTRealmAnnotation),
 		},
 		{
 			annotations: map[string]string{
-				"nginx.com/jwt-realm": "realm$1",
+				configs.JWTRealmAnnotation: "realm$1",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -2279,14 +2279,14 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				`annotations.nginx.com/jwt-realm: Invalid value: "realm$1": a valid annotation value must have all '"' escaped and must not contain any '$' or end with an unescaped '\' (e.g. 'My Realm',  or 'Cafe App', regex used for validation is '([^"$\\]|\\[^$])*')`,
+				fmt.Sprintf(`annotations.%s: Invalid value: "realm$1": a valid annotation value must have all '"' escaped and must not contain any '$' or end with an unescaped '\' (e.g. 'My Realm',  or 'Cafe App', regex used for validation is '([^"$\\]|\\[^$])*')`, configs.JWTRealmAnnotation),
 			},
-			msg: "invalid nginx.com/jwt-realm annotation with special character '$'",
+			msg: fmt.Sprintf("invalid %s annotation with special character '$'", configs.JWTRealmAnnotation),
 		},
 
 		{
 			annotations: map[string]string{
-				"nginx.com/jwt-key": "true",
+				configs.JWTKeyAnnotation: "true",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -2294,13 +2294,13 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				"annotations.nginx.com/jwt-key: Forbidden: annotation requires NGINX Plus",
+				fmt.Sprintf("annotations.%s: Forbidden: annotation requires NGINX Plus", configs.JWTKeyAnnotation),
 			},
-			msg: "invalid nginx.com/jwt-key annotation, nginx plus only",
+			msg: fmt.Sprintf("invalid %s annotation, nginx plus only", configs.JWTKeyAnnotation),
 		},
 		{
 			annotations: map[string]string{
-				"nginx.com/jwt-key": "my-jwk",
+				configs.JWTKeyAnnotation: "my-jwk",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -2308,11 +2308,11 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors:        nil,
-			msg:                   "valid nginx.com/jwt-key annotation",
+			msg:                   fmt.Sprintf("valid %s annotation", configs.JWTKeyAnnotation),
 		},
 		{
 			annotations: map[string]string{
-				"nginx.com/jwt-key": "my_jwk",
+				configs.JWTKeyAnnotation: "my_jwk",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -2320,14 +2320,14 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				"annotations.nginx.com/jwt-key: Invalid value: \"my_jwk\": a lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character (e.g. 'example.com', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*')",
+				fmt.Sprintf(`annotations.%s: Invalid value: "my_jwk": a lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character (e.g. 'example.com', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*')`, configs.JWTKeyAnnotation),
 			},
-			msg: "invalid nginx.com/jwt-key annotation, containing '_",
+			msg: fmt.Sprintf("invalid %s annotation, containing '_'", configs.JWTKeyAnnotation),
 		},
 
 		{
 			annotations: map[string]string{
-				"nginx.com/jwt-token": "true",
+				configs.JWTTokenAnnotation: "true",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -2335,13 +2335,13 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				"annotations.nginx.com/jwt-token: Forbidden: annotation requires NGINX Plus",
+				fmt.Sprintf("annotations.%s: Forbidden: annotation requires NGINX Plus", configs.JWTTokenAnnotation),
 			},
-			msg: "invalid nginx.com/jwt-token annotation, nginx plus only",
+			msg: fmt.Sprintf("invalid %s annotation, nginx plus only", configs.JWTTokenAnnotation),
 		},
 		{
 			annotations: map[string]string{
-				"nginx.com/jwt-token": "$cookie_auth_token",
+				configs.JWTTokenAnnotation: "$cookie_auth_token",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -2349,11 +2349,11 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors:        nil,
-			msg:                   "valid nginx.com/jwt-token annotation",
+			msg:                   fmt.Sprintf("valid %s annotation", configs.JWTTokenAnnotation),
 		},
 		{
 			annotations: map[string]string{
-				"nginx.com/jwt-token": "cookie_auth_token",
+				configs.JWTTokenAnnotation: "cookie_auth_token",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -2361,12 +2361,13 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				"annotations.nginx.com/jwt-token: Invalid value: \"cookie_auth_token\": a valid annotation value must start with '$', have all '\"' escaped, and must not contain any '$' or end with an unescaped '\\' (e.g. '$http_token',  or '$cookie_auth_token', regex used for validation is '\\$([^\"$\\\\]|\\\\[^$])*')",
-			}, msg: "invalid nginx.com/jwt-token annotation, '$' missing",
+				fmt.Sprintf(`annotations.%s: Invalid value: "cookie_auth_token": a valid annotation value must start with '$', have all '"' escaped, and must not contain any '$' or end with an unescaped '\' (e.g. '$http_token',  or '$cookie_auth_token', regex used for validation is '\$([^"$\\]|\\[^$])*')`, configs.JWTTokenAnnotation),
+			},
+			msg: fmt.Sprintf("invalid %s annotation, '$' missing", configs.JWTTokenAnnotation),
 		},
 		{
 			annotations: map[string]string{
-				"nginx.com/jwt-token": `$cookie_auth_token"`,
+				configs.JWTTokenAnnotation: `$cookie_auth_token"`,
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -2374,13 +2375,13 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				"annotations.nginx.com/jwt-token: Invalid value: \"$cookie_auth_token\\\"\": a valid annotation value must start with '$', have all '\"' escaped, and must not contain any '$' or end with an unescaped '\\' (e.g. '$http_token',  or '$cookie_auth_token', regex used for validation is '\\$([^\"$\\\\]|\\\\[^$])*')",
+				fmt.Sprintf(`annotations.%s: Invalid value: "$cookie_auth_token\"": a valid annotation value must start with '$', have all '"' escaped, and must not contain any '$' or end with an unescaped '\' (e.g. '$http_token',  or '$cookie_auth_token', regex used for validation is '\$([^"$\\]|\\[^$])*')`, configs.JWTTokenAnnotation),
 			},
-			msg: "invalid nginx.com/jwt-token annotation, containing unescaped '\"'",
+			msg: fmt.Sprintf("invalid %s annotation, containing unescaped '\"'", configs.JWTTokenAnnotation),
 		},
 		{
 			annotations: map[string]string{
-				"nginx.com/jwt-token": `$cookie_auth_token\`,
+				configs.JWTTokenAnnotation: `$cookie_auth_token\`,
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -2388,13 +2389,13 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				"annotations.nginx.com/jwt-token: Invalid value: \"$cookie_auth_token\\\\\": a valid annotation value must start with '$', have all '\"' escaped, and must not contain any '$' or end with an unescaped '\\' (e.g. '$http_token',  or '$cookie_auth_token', regex used for validation is '\\$([^\"$\\\\]|\\\\[^$])*')",
+				fmt.Sprintf(`annotations.%s: Invalid value: "$cookie_auth_token\\": a valid annotation value must start with '$', have all '"' escaped, and must not contain any '$' or end with an unescaped '\' (e.g. '$http_token',  or '$cookie_auth_token', regex used for validation is '\$([^"$\\]|\\[^$])*')`, configs.JWTTokenAnnotation),
 			},
-			msg: "invalid nginx.com/jwt-token annotation, containing escape characters",
+			msg: fmt.Sprintf("invalid %s annotation, containing escape characters", configs.JWTTokenAnnotation),
 		},
 		{
 			annotations: map[string]string{
-				"nginx.com/jwt-token": "cookie_auth$token",
+				configs.JWTTokenAnnotation: "cookie_auth$token",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -2402,13 +2403,13 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				"annotations.nginx.com/jwt-token: Invalid value: \"cookie_auth$token\": a valid annotation value must start with '$', have all '\"' escaped, and must not contain any '$' or end with an unescaped '\\' (e.g. '$http_token',  or '$cookie_auth_token', regex used for validation is '\\$([^\"$\\\\]|\\\\[^$])*')",
+				fmt.Sprintf("annotations.%s: Invalid value: \"%s\": a valid annotation value must start with '$', have all '\"' escaped, and must not contain any '$' or end with an unescaped '\\' (e.g. '$http_token',  or '$cookie_auth_token', regex used for validation is '\\$([^\"$\\\\]|\\\\[^$])*')", configs.JWTTokenAnnotation, "cookie_auth$token"),
 			},
-			msg: "invalid nginx.com/jwt-token annotation, containing incorrect variable",
+			msg: fmt.Sprintf("invalid %s annotation, containing incorrect variable", configs.JWTTokenAnnotation),
 		},
 		{
 			annotations: map[string]string{
-				"nginx.com/jwt-token": "$cookie_auth_token$http_token",
+				configs.JWTTokenAnnotation: "$cookie_auth_token$http_token",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -2416,14 +2417,14 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				"annotations.nginx.com/jwt-token: Invalid value: \"$cookie_auth_token$http_token\": a valid annotation value must start with '$', have all '\"' escaped, and must not contain any '$' or end with an unescaped '\\' (e.g. '$http_token',  or '$cookie_auth_token', regex used for validation is '\\$([^\"$\\\\]|\\\\[^$])*')",
+				fmt.Sprintf("annotations.%s: Invalid value: \"%s\": a valid annotation value must start with '$', have all '\"' escaped, and must not contain any '$' or end with an unescaped '\\' (e.g. '$http_token',  or '$cookie_auth_token', regex used for validation is '\\$([^\"$\\\\]|\\\\[^$])*')", configs.JWTTokenAnnotation, "$cookie_auth_token$http_token"),
 			},
-			msg: "invalid nginx.com/jwt-token annotation, containing more than 1 variable",
+			msg: fmt.Sprintf("invalid %s annotation, containing more than 1 variable", configs.JWTTokenAnnotation),
 		},
 
 		{
 			annotations: map[string]string{
-				"nginx.com/jwt-login-url": "true",
+				configs.JWTLoginURLAnnotation: "true",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -2431,13 +2432,13 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				"annotations.nginx.com/jwt-login-url: Forbidden: annotation requires NGINX Plus",
+				fmt.Sprintf("annotations.%s: Forbidden: annotation requires NGINX Plus", configs.JWTLoginURLAnnotation),
 			},
-			msg: "invalid nginx.com/jwt-login-url annotation, nginx plus only",
+			msg: fmt.Sprintf("invalid %s annotation, nginx plus only", configs.JWTLoginURLAnnotation),
 		},
 		{
 			annotations: map[string]string{
-				"nginx.com/jwt-login-url": "https://login.example.com",
+				configs.JWTLoginURLAnnotation: "https://login.example.com",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -2445,11 +2446,11 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors:        nil,
-			msg:                   "valid nginx.com/jwt-login-url annotation",
+			msg:                   fmt.Sprintf("valid %s annotation", configs.JWTLoginURLAnnotation),
 		},
 		{
 			annotations: map[string]string{
-				"nginx.com/jwt-login-url": `https://login.example.com\`,
+				configs.JWTLoginURLAnnotation: `https://login.example.com\`,
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -2457,13 +2458,13 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				`annotations.nginx.com/jwt-login-url: Invalid value: "https://login.example.com\\": parse "https://login.example.com\\": invalid character "\\" in host name`,
+				fmt.Sprintf(`annotations.%s: Invalid value: "https://login.example.com\\": parse "https://login.example.com\\": invalid character "\\" in host name`, configs.JWTLoginURLAnnotation),
 			},
-			msg: "invalid nginx.com/jwt-login-url annotation, containing escape character at the end",
+			msg: fmt.Sprintf("invalid %s annotation, containing escape character at the end", configs.JWTLoginURLAnnotation),
 		},
 		{
 			annotations: map[string]string{
-				"nginx.com/jwt-login-url": `https://{login.example.com`,
+				configs.JWTLoginURLAnnotation: `https://{login.example.com`,
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -2471,13 +2472,13 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				`annotations.nginx.com/jwt-login-url: Invalid value: "https://{login.example.com": parse "https://{login.example.com": invalid character "{" in host name`,
+				fmt.Sprintf(`annotations.%s: Invalid value: "https://{login.example.com": parse "https://{login.example.com": invalid character "{" in host name`, configs.JWTLoginURLAnnotation),
 			},
-			msg: "invalid nginx.com/jwt-login-url annotation, containing invalid character",
+			msg: fmt.Sprintf("invalid %s annotation, containing invalid character", configs.JWTLoginURLAnnotation),
 		},
 		{
 			annotations: map[string]string{
-				"nginx.com/jwt-login-url": "login.example.com",
+				configs.JWTLoginURLAnnotation: "login.example.com",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -2485,13 +2486,13 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				"annotations.nginx.com/jwt-login-url: Invalid value: \"login.example.com\": scheme required, please use the prefix http(s)://",
+				fmt.Sprintf(`annotations.%s: Invalid value: "login.example.com": scheme required, please use the prefix http(s)://`, configs.JWTLoginURLAnnotation),
 			},
-			msg: "invalid nginx.com/jwt-login-url annotation, scheme missing",
+			msg: fmt.Sprintf("invalid %s annotation, scheme missing", configs.JWTLoginURLAnnotation),
 		},
 		{
 			annotations: map[string]string{
-				"nginx.com/jwt-login-url": "http:",
+				configs.JWTLoginURLAnnotation: "http:",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -2499,9 +2500,9 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				"annotations.nginx.com/jwt-login-url: Invalid value: \"http:\": hostname required",
+				fmt.Sprintf(`annotations.%s: Invalid value: "http:": hostname required`, configs.JWTLoginURLAnnotation),
 			},
-			msg: "invalid nginx.com/jwt-login-url annotation, hostname missing",
+			msg: fmt.Sprintf("invalid %s annotation, hostname missing", configs.JWTLoginURLAnnotation),
 		},
 
 		{

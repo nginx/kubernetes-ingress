@@ -50,10 +50,6 @@ const (
 	upstreamZoneSizeAnnotation            = "nginx.org/upstream-zone-size"
 	basicAuthSecretAnnotation             = "nginx.org/basic-auth-secret" // #nosec G101
 	basicAuthRealmAnnotation              = "nginx.org/basic-auth-realm"
-	jwtRealmAnnotation                    = "nginx.com/jwt-realm"
-	jwtKeyAnnotation                      = "nginx.com/jwt-key"
-	jwtTokenAnnotation                    = "nginx.com/jwt-token" // #nosec G101
-	jwtLoginURLAnnotation                 = "nginx.com/jwt-login-url"
 	listenPortsAnnotation                 = "nginx.org/listen-ports"
 	listenPortsSSLAnnotation              = "nginx.org/listen-ports-ssl"
 	keepaliveAnnotation                   = "nginx.org/keepalive"
@@ -258,21 +254,21 @@ var (
 			validateRelatedAnnotation(basicAuthSecretAnnotation, validateNoop),
 			validateRealmAnnotation,
 		},
-		jwtRealmAnnotation: {
+		configs.JWTRealmAnnotation: {
 			validatePlusOnlyAnnotation,
 			validateRequiredAnnotation,
 			validateJWTRealm,
 		},
-		jwtKeyAnnotation: {
+		configs.JWTKeyAnnotation: {
 			validatePlusOnlyAnnotation,
 			validateRequiredAnnotation,
 			validateJWTKey,
 		},
-		jwtTokenAnnotation: {
+		configs.JWTTokenAnnotation: {
 			validatePlusOnlyAnnotation,
 			validateJWTTokenAnnotation,
 		},
-		jwtLoginURLAnnotation: {
+		configs.JWTLoginURLAnnotation: {
 			validatePlusOnlyAnnotation,
 			validateJWTLoginURLAnnotation,
 		},

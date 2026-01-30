@@ -5,22 +5,23 @@ This will allow HTTP and/or HTTPs based requests to be made on non-default ports
 
 ## Prerequisites
 
+1. Run `make secrets` command to generate the necessary secrets for the example.
 1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
    instructions to deploy the Ingress Controller with custom resources enabled.
-2. Ensure the Ingress Controller is configured with the `-global-configuration` argument:
+1. Ensure the Ingress Controller is configured with the `-global-configuration` argument:
 
    ```console
    args:
       - -global-configuration=$(POD_NAMESPACE)/nginx-configuration
    ```
 
-3. Save the public IP address of the Ingress Controller into a shell variable:
+1. Save the public IP address of the Ingress Controller into a shell variable:
 
    ```console
    IC_IP=XXX.YYY.ZZZ.III
    ```
 
-4. If you have a NodePort or Loadbalancer service deployed, ensure they are updated to include the custom listener ports.
+1. If you have a NodePort or Loadbalancer service deployed, ensure they are updated to include the custom listener ports.
 Example YAML for a LoadBalancer:
 
    ```yaml
