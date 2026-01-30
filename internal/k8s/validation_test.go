@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nginx/kubernetes-ingress/internal/configs"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1902,10 +1903,9 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			},
 			msg: "invalid nginx.org/proxy-max-temp-file-size annotation",
 		},
-
 		{
 			annotations: map[string]string{
-				"nginx.org/proxy-next-upstream": "error timeout http_502 http_503",
+				configs.ProxyNextUpstreamAnnotation: "error timeout http_502 http_503",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -1913,51 +1913,11 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			directiveAutoAdjust:   false,
-			msg:                   "valid nginx.org/proxy-next-upstream annotation",
+			msg:                   "valid " + configs.ProxyNextUpstreamAnnotation + " annotation",
 		},
 		{
 			annotations: map[string]string{
-				"nginx.org/proxy-next-upstream": "invalid_value",
-			},
-			specServices:          map[string]bool{},
-			isPlus:                false,
-			appProtectEnabled:     false,
-			appProtectDosEnabled:  false,
-			internalRoutesEnabled: false,
-			directiveAutoAdjust:   false,
-			expectedErrors: []string{
-				`annotations.nginx.org/proxy-next-upstream: Invalid value: "invalid_value": must be a space-separated list with any of the following values: error, http_403, http_404, http_429, http_500, http_502, http_503, http_504, invalid_header, non_idempotent, off, timeout`,
-			},
-			msg: "invalid nginx.org/proxy-next-upstream annotation",
-		},
-
-		{
-			annotations: map[string]string{
-				"nginx.org/proxy-next-upstream-timeout": "0",
-			},
-			specServices:          map[string]bool{},
-			isPlus:                false,
-			appProtectEnabled:     false,
-			appProtectDosEnabled:  false,
-			internalRoutesEnabled: false,
-			directiveAutoAdjust:   false,
-			msg:                   "valid nginx.org/proxy-next-upstream-timeout annotation",
-		},
-		{
-			annotations: map[string]string{
-				"nginx.org/proxy-next-upstream-timeout": "123",
-			},
-			specServices:          map[string]bool{},
-			isPlus:                false,
-			appProtectEnabled:     false,
-			appProtectDosEnabled:  false,
-			internalRoutesEnabled: false,
-			directiveAutoAdjust:   false,
-			msg:                   "valid nginx.org/proxy-next-upstream-timeout annotation",
-		},
-		{
-			annotations: map[string]string{
-				"nginx.org/proxy-next-upstream-timeout": "-123",
+				configs.ProxyNextUpstreamAnnotation: "denied",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -1966,13 +1926,13 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			internalRoutesEnabled: false,
 			directiveAutoAdjust:   false,
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-next-upstream-timeout: Invalid value: "-123": must be a time`,
+				`annotations.` + configs.ProxyNextUpstreamAnnotation + `: Invalid value: "denied": must be a space-separated list with any of the following values: error, http_403, http_404, http_429, http_500, http_502, http_503, http_504, invalid_header, non_idempotent, off, timeout`,
 			},
-			msg: "invalid nginx.org/proxy-next-upstream-timeout annotation",
+			msg: "Plus Only " + configs.ProxyNextUpstreamAnnotation + " annotation",
 		},
 		{
 			annotations: map[string]string{
-				"nginx.org/proxy-next-upstream-timeout": "abc",
+				configs.ProxyNextUpstreamAnnotation: "invalid_value",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -1981,14 +1941,13 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			internalRoutesEnabled: false,
 			directiveAutoAdjust:   false,
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-next-upstream-timeout: Invalid value: "abc": must be a time`,
+				`annotations.` + configs.ProxyNextUpstreamAnnotation + `: Invalid value: "invalid_value": must be a space-separated list with any of the following values: error, http_403, http_404, http_429, http_500, http_502, http_503, http_504, invalid_header, non_idempotent, off, timeout`,
 			},
-			msg: "invalid nginx.org/proxy-next-upstream-timeout annotation",
+			msg: "invalid " + configs.ProxyNextUpstreamAnnotation + " annotation",
 		},
-
 		{
 			annotations: map[string]string{
-				"nginx.org/proxy-next-upstream-tries": "0",
+				configs.ProxyNextUpstreamTimeoutAnnotation: "0",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -1996,11 +1955,11 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			directiveAutoAdjust:   false,
-			msg:                   "valid nginx.org/proxy-next-upstream-tries annotation",
+			msg:                   "valid " + configs.ProxyNextUpstreamTimeoutAnnotation + " annotation",
 		},
 		{
 			annotations: map[string]string{
-				"nginx.org/proxy-next-upstream-tries": "123",
+				configs.ProxyNextUpstreamTimeoutAnnotation: "123",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -2008,26 +1967,11 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			directiveAutoAdjust:   false,
-			msg:                   "valid nginx.org/proxy-next-upstream-tries annotation",
+			msg:                   "valid " + configs.ProxyNextUpstreamTimeoutAnnotation + " annotation",
 		},
 		{
 			annotations: map[string]string{
-				"nginx.org/proxy-next-upstream-tries": "-123",
-			},
-			specServices:          map[string]bool{},
-			isPlus:                false,
-			appProtectEnabled:     false,
-			appProtectDosEnabled:  false,
-			internalRoutesEnabled: false,
-			directiveAutoAdjust:   false,
-			expectedErrors: []string{
-				`annotations.nginx.org/proxy-next-upstream-tries: Invalid value: "-123": must be a non-negative integer`,
-			},
-			msg: "invalid nginx.org/proxy-next-upstream-tries annotation",
-		},
-		{
-			annotations: map[string]string{
-				"nginx.org/proxy-next-upstream-tries": "abc",
+				configs.ProxyNextUpstreamTimeoutAnnotation: "-123",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -2036,14 +1980,82 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			internalRoutesEnabled: false,
 			directiveAutoAdjust:   false,
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-next-upstream-tries: Invalid value: "abc": must be a non-negative integer`,
+				`annotations.` + configs.ProxyNextUpstreamTimeoutAnnotation + `: Invalid value: "-123": must be a time`,
 			},
-			msg: "invalid nginx.org/proxy-next-upstream-tries annotation",
+			msg: "invalid " + configs.ProxyNextUpstreamTimeoutAnnotation + " annotation",
 		},
-
 		{
 			annotations: map[string]string{
-				"nginx.org/proxy-next-upstream": "error timeout http_502 http_503",
+				configs.ProxyNextUpstreamTimeoutAnnotation: "abc",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors: []string{
+				`annotations.` + configs.ProxyNextUpstreamTimeoutAnnotation + `: Invalid value: "abc": must be a time`,
+			},
+			msg: "invalid " + configs.ProxyNextUpstreamTimeoutAnnotation + " annotation",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyNextUpstreamTriesAnnotation: "0",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			msg:                   "valid " + configs.ProxyNextUpstreamTriesAnnotation + " annotation",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyNextUpstreamTriesAnnotation: "123",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			msg:                   "valid " + configs.ProxyNextUpstreamTriesAnnotation + " annotation",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyNextUpstreamTriesAnnotation: "-123",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors: []string{
+				`annotations.` + configs.ProxyNextUpstreamTriesAnnotation + `: Invalid value: "-123": must be a non-negative integer`,
+			},
+			msg: "invalid " + configs.ProxyNextUpstreamTriesAnnotation + " annotation",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyNextUpstreamTriesAnnotation: "abc",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors: []string{
+				`annotations.` + configs.ProxyNextUpstreamTriesAnnotation + `: Invalid value: "abc": must be a non-negative integer`,
+			},
+			msg: "invalid " + configs.ProxyNextUpstreamTriesAnnotation + " annotation",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyNextUpstreamAnnotation: "error timeout http_502 http_503",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -2051,11 +2063,11 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			directiveAutoAdjust:   false,
-			msg:                   "valid nginx.org/proxy-next-upstream annotation",
+			msg:                   "valid " + configs.ProxyNextUpstreamAnnotation + " annotation",
 		},
 		{
 			annotations: map[string]string{
-				"nginx.org/proxy-next-upstream": "invalid_value",
+				configs.ProxyNextUpstreamAnnotation: "invalid_value",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -2064,14 +2076,13 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			internalRoutesEnabled: false,
 			directiveAutoAdjust:   false,
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-next-upstream: Invalid value: "invalid_value": must be a space-separated list with any of the following values: denied, error, http_403, http_404, http_429, http_500, http_502, http_503, http_504, invalid_header, non_idempotent, off, timeout`,
+				`annotations.` + configs.ProxyNextUpstreamAnnotation + `: Invalid value: "invalid_value": must be a space-separated list with any of the following values: denied, error, http_403, http_404, http_429, http_500, http_502, http_503, http_504, invalid_header, non_idempotent, off, timeout`,
 			},
-			msg: "invalid nginx.org/proxy-next-upstream annotation",
+			msg: "invalid " + configs.ProxyNextUpstreamAnnotation + " annotation",
 		},
-
 		{
 			annotations: map[string]string{
-				"nginx.org/proxy-next-upstream-timeout": "0",
+				configs.ProxyNextUpstreamAnnotation: "denied",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -2079,11 +2090,11 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			directiveAutoAdjust:   false,
-			msg:                   "valid nginx.org/proxy-next-upstream-timeout annotation",
+			msg:                   "Plus Only " + configs.ProxyNextUpstreamAnnotation + " annotation",
 		},
 		{
 			annotations: map[string]string{
-				"nginx.org/proxy-next-upstream-timeout": "123",
+				configs.ProxyNextUpstreamTimeoutAnnotation: "0",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -2091,11 +2102,11 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			directiveAutoAdjust:   false,
-			msg:                   "valid nginx.org/proxy-next-upstream-timeout annotation",
+			msg:                   "valid " + configs.ProxyNextUpstreamTimeoutAnnotation + " annotation",
 		},
 		{
 			annotations: map[string]string{
-				"nginx.org/proxy-next-upstream-timeout": "-123",
+				configs.ProxyNextUpstreamTimeoutAnnotation: "123",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -2103,54 +2114,11 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			directiveAutoAdjust:   false,
-			expectedErrors: []string{
-				`annotations.nginx.org/proxy-next-upstream-timeout: Invalid value: "-123": must be a time`,
-			},
-			msg: "invalid nginx.org/proxy-next-upstream-timeout annotation",
+			msg:                   "valid " + configs.ProxyNextUpstreamTimeoutAnnotation + " annotation",
 		},
 		{
 			annotations: map[string]string{
-				"nginx.org/proxy-next-upstream-timeout": "abc",
-			},
-			specServices:          map[string]bool{},
-			isPlus:                true,
-			appProtectEnabled:     false,
-			appProtectDosEnabled:  false,
-			internalRoutesEnabled: false,
-			directiveAutoAdjust:   false,
-			expectedErrors: []string{
-				`annotations.nginx.org/proxy-next-upstream-timeout: Invalid value: "abc": must be a time`,
-			},
-			msg: "invalid nginx.org/proxy-next-upstream-timeout annotation",
-		},
-
-		{
-			annotations: map[string]string{
-				"nginx.org/proxy-next-upstream-tries": "0",
-			},
-			specServices:          map[string]bool{},
-			isPlus:                true,
-			appProtectEnabled:     false,
-			appProtectDosEnabled:  false,
-			internalRoutesEnabled: false,
-			directiveAutoAdjust:   false,
-			msg:                   "valid nginx.org/proxy-next-upstream-tries annotation",
-		},
-		{
-			annotations: map[string]string{
-				"nginx.org/proxy-next-upstream-tries": "123",
-			},
-			specServices:          map[string]bool{},
-			isPlus:                true,
-			appProtectEnabled:     false,
-			appProtectDosEnabled:  false,
-			internalRoutesEnabled: false,
-			directiveAutoAdjust:   false,
-			msg:                   "valid nginx.org/proxy-next-upstream-tries annotation",
-		},
-		{
-			annotations: map[string]string{
-				"nginx.org/proxy-next-upstream-tries": "-123",
+				configs.ProxyNextUpstreamTimeoutAnnotation: "-123",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -2159,13 +2127,13 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			internalRoutesEnabled: false,
 			directiveAutoAdjust:   false,
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-next-upstream-tries: Invalid value: "-123": must be a non-negative integer`,
+				`annotations.` + configs.ProxyNextUpstreamTimeoutAnnotation + `: Invalid value: "-123": must be a time`,
 			},
-			msg: "invalid nginx.org/proxy-next-upstream-tries annotation",
+			msg: "invalid " + configs.ProxyNextUpstreamTimeoutAnnotation + " annotation",
 		},
 		{
 			annotations: map[string]string{
-				"nginx.org/proxy-next-upstream-tries": "abc",
+				configs.ProxyNextUpstreamTimeoutAnnotation: "abc",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -2174,11 +2142,64 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			internalRoutesEnabled: false,
 			directiveAutoAdjust:   false,
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-next-upstream-tries: Invalid value: "abc": must be a non-negative integer`,
+				`annotations.` + configs.ProxyNextUpstreamTimeoutAnnotation + `: Invalid value: "abc": must be a time`,
 			},
-			msg: "invalid nginx.org/proxy-next-upstream-tries annotation",
+			msg: "invalid " + configs.ProxyNextUpstreamTimeoutAnnotation + " annotation",
 		},
-
+		{
+			annotations: map[string]string{
+				configs.ProxyNextUpstreamTriesAnnotation: "0",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                true,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			msg:                   "valid " + configs.ProxyNextUpstreamTriesAnnotation + " annotation",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyNextUpstreamTriesAnnotation: "123",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                true,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			msg:                   "valid " + configs.ProxyNextUpstreamTriesAnnotation + " annotation",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyNextUpstreamTriesAnnotation: "-123",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                true,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors: []string{
+				`annotations.` + configs.ProxyNextUpstreamTriesAnnotation + `: Invalid value: "-123": must be a non-negative integer`,
+			},
+			msg: "invalid " + configs.ProxyNextUpstreamTriesAnnotation + " annotation",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyNextUpstreamTriesAnnotation: "abc",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                true,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors: []string{
+				`annotations.` + configs.ProxyNextUpstreamTriesAnnotation + `: Invalid value: "abc": must be a non-negative integer`,
+			},
+			msg: "invalid " + configs.ProxyNextUpstreamTriesAnnotation + " annotation",
+		},
 		{
 			annotations: map[string]string{
 				"nginx.org/upstream-zone-size": "512k",

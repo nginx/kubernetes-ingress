@@ -269,10 +269,10 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 	}
 
 	if proxyNextUpstreamTimeout, exists := ingEx.Ingress.Annotations[ProxyNextUpstreamTimeoutAnnotation]; exists {
-		if parsedProxyReadTimeout, err := ParseTime(proxyNextUpstreamTimeout); err != nil {
+		if parsedProxyNextUpstreamTimeout, err := ParseTime(proxyNextUpstreamTimeout); err != nil {
 			nl.Errorf(l, "Ingress %s/%s: Invalid value nginx.org/proxy-next-upstream-timeout: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), proxyNextUpstreamTimeout, err)
 		} else {
-			cfgParams.ProxyNextUpstreamTimeout = parsedProxyReadTimeout
+			cfgParams.ProxyNextUpstreamTimeout = parsedProxyNextUpstreamTimeout
 		}
 	}
 
