@@ -291,6 +291,10 @@ update-crd-docs: ## Update CRD markdown documentation from YAML definitions
 	@go run hack/generate-crd-docs.go -crd-dir config/crd/bases -output-dir docs/crd
 	@echo "CRD documentation updated successfully!"
 
+.PHONY: generate-schema
+generate-schema: ## Generate values.schema.json with embedded Kubernetes definitions
+	@python3 hack/generate-schema.py
+
 .PHONY: secrets
 secrets: ## Create just in time TLS certificates etc needed for tests and examples
 ifeq (, $(shell command -v go))
