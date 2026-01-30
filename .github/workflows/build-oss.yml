@@ -83,6 +83,7 @@ jobs:
           GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
           echo "::add-mask::$GCR_SERVICE_ACCOUNT"
           echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
+        if: ${{ inputs.authenticated }}
 
       - name: Azure login Common Vault
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
