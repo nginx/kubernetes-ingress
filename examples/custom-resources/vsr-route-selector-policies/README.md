@@ -10,7 +10,7 @@ The example demonstrates:
 - How VirtualServerRoute resources can have their own additional policies
 - Policy layering where a route can have both inherited and route-specific policies
 
-The example is similar to the [basic route selector example](../vsr-route-selector-basic/README.md).
+The example is similar to the [basic configuration example](../basic-configuration-vsr/README.md) using RouteSelector.
 However, instead of just routing configuration, we add policy configuration using [`Policy`](https://docs.nginx.com/nginx-ingress-controller/configuration/policy-resource/) resources to demonstrate inheritance and layering.
 
 ## Prerequisites

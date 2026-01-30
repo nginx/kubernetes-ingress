@@ -100,6 +100,7 @@ examples/ingress-resources/proxy-set-headers/mergeable-ingress/cafe-secret.yaml
 examples/ingress-resources/proxy-set-headers/standard-ingress/cafe-secret.yaml
 examples/ingress-resources/rate-limit/cafe-secret.yaml
 examples/ingress-resources/security-monitoring/cafe-secret.yaml
+examples/custom-resources/basic-configuration-vsr/cafe-secret.yaml
 tests/data/dos/tls-secret.yaml
 tests/data/hsts/mergeable-tls/tls-secret.yaml
 tests/data/hsts/standard-tls/tls-secret.yaml
@@ -152,7 +153,6 @@ common-secrets/invalid-tls-secret-sometype.yaml
 tests/data/virtual-server-tls/invalid-tls-secret.yaml
 common-secrets/cafe-secret.yaml
 tests/data/transport-server-with-host/cafe-secret.yaml
-examples/custom-resources/vsr-route-selector-basic/cafe-secret.yaml
 examples/custom-resources/vsr-route-selector-policies/cafe-secret.yaml
 common-secrets/cafe-secret-cafe-namespace.yaml
 examples/custom-resources/vsr-route-selector-crossnamespace/cafe-secret.yaml
