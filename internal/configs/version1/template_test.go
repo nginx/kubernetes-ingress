@@ -1804,6 +1804,92 @@ func TestExecuteTemplate_ForMergeableIngressForNGINXMasterMinionsWithMultipleDif
 	}
 }
 
+func TestExecuteTemplate_ForIngressForNGINXWithProxyNextUpstreamTimeout(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	ingressCfg := IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name: "test.example.com",
+				Locations: []Location{
+					{
+						ProxyNextUpstreamTimeout: "",
+						Upstream:                 testUpstream,
+					},
+				},
+			},
+		},
+		Ingress: Ingress{
+			Name:      "test-ingress",
+			Namespace: "default",
+		},
+	}
+
+	err := tmpl.Execute(buf, ingressCfg)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	unwantDirectives := []string{
+		"proxy_next_upstream_timeout",
+	}
+
+	ingConf := buf.String()
+	for _, unwant := range unwantDirectives {
+		if strings.Contains(ingConf, unwant) {
+			t.Errorf("unwant %q in generated config", unwant)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithProxyNextUpstreamTries(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	ingressCfg := IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name: "test.example.com",
+				Locations: []Location{
+					{
+						ProxyNextUpstreamTries: nil,
+						Upstream:               testUpstream,
+					},
+				},
+			},
+		},
+		Ingress: Ingress{
+			Name:      "test-ingress",
+			Namespace: "default",
+		},
+	}
+
+	err := tmpl.Execute(buf, ingressCfg)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	unwantDirectives := []string{
+		"proxy_next_upstream_tries",
+	}
+
+	ingConf := buf.String()
+	for _, unwant := range unwantDirectives {
+		if strings.Contains(ingConf, unwant) {
+			t.Errorf("unwant %q in generated config", unwant)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
 func TestExecuteTemplate_ForIngressForNGINXPlusWithHTTP2On(t *testing.T) {
 	t.Parallel()
 

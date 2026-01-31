@@ -84,6 +84,9 @@ type ConfigParams struct {
 	ProxyProtocol                          bool
 	ProxyReadTimeout                       string
 	ProxySendTimeout                       string
+	ProxyNextUpstream                      string
+	ProxyNextUpstreamTimeout               string
+	ProxyNextUpstreamTries                 *uint64
 	RedirectToHTTPS                        bool
 	HTTPRedirectCode                       int
 	ResolverAddresses                      []string
