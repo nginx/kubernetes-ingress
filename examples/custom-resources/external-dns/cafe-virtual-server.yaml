@@ -5,7 +5,7 @@ metadata:
 spec:
   host: cafe.example.com
   tls:
-    secret: cafe-secret
+    secret: tls-secret
   externalDNS:
     enable: true
   upstreams:
