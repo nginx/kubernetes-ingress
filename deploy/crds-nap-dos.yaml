@@ -12,7 +12,6 @@ spec:
     listKind: APDosLogConfList
     plural: apdoslogconfs
     singular: apdoslogconf
-  preserveUnknownFields: false
   scope: Namespaced
   versions:
   - name: v1beta1
@@ -85,7 +84,6 @@ spec:
     listKind: APDosPoliciesList
     plural: apdospolicies
     singular: apdospolicy
-  preserveUnknownFields: false
   scope: Namespaced
   versions:
   - name: v1beta1
