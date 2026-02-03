@@ -75,19 +75,16 @@ examples/custom-resources/backup-directive/virtual-server/cafe-secret.yaml
 examples/custom-resources/basic-auth/cafe-secret.yaml
 examples/custom-resources/basic-configuration/cafe-secret.yaml
 examples/custom-resources/cache-policy/cafe-secret.yaml
-examples/custom-resources/cross-namespace-configuration/cafe-secret.yaml
 examples/custom-resources/custom-ip-listeners/virtualserver/cafe-secret.yaml
 examples/custom-resources/custom-listeners/cafe-secret.yaml
 examples/custom-resources/external-dns/cafe-secret.yaml
 examples/custom-resources/externalname-services/transport-server/app-tls-secret.yaml
-examples/custom-resources/foreign-namespace-upstreams/cafe-secret.yaml
 examples/custom-resources/grpc-upstreams/greeter-secret.yaml
 examples/custom-resources/ingress-mtls/tls-secret.yaml
 examples/custom-resources/jwks/tls-secret.yaml
 examples/custom-resources/oidc-fclo/tls-secret.yaml
 examples/custom-resources/oidc/tls-secret.yaml
 examples/custom-resources/rate-limit-tiered-jwt-claim/cafe-secret.yaml
-examples/custom-resources/service-insight/service-insight-secret.yaml
 examples/custom-resources/tls-passthrough/app-tls-secret.yaml
 examples/custom-resources/transport-server-sni/cafe-secret.yaml
 examples/custom-resources/transport-server-sni/mongo-secret.yaml
@@ -149,12 +146,15 @@ common-secrets/kic-tls-secret.yaml
 tests/data/transport-server-tcp-load-balance/tcp-tls-secret.yaml
 common-secrets/tls-secret-test.yaml
 tests/data/service-insight/secret.yaml
+common-secrets/service-insight-secret.yaml
+examples/custom-resources/service-insight/service-insight-secret.yaml
 common-secrets/invalid-tls-secret-sometype.yaml
 tests/data/virtual-server-tls/invalid-tls-secret.yaml
 common-secrets/cafe-secret.yaml
 tests/data/transport-server-with-host/cafe-secret.yaml
-examples/custom-resources/vsr-route-selector-policies/cafe-secret.yaml
 common-secrets/cafe-secret-cafe-namespace.yaml
+examples/custom-resources/cross-namespace-configuration/cafe-secret.yaml
+examples/custom-resources/foreign-namespace-upstreams/cafe-secret.yaml
 examples/custom-resources/vsr-route-selector-crossnamespace/cafe-secret.yaml
 common-secrets/ca-key-pair.yaml
 tests/data/virtual-server-certmanager/issuer-secret.yaml
@@ -272,6 +272,7 @@ tests/data/apikey-auth-policy/secret/apikey-secret-2.yaml
 # Ingress mTLS Certificate secrets
 common-secrets/ingress-mtls-secret.yaml
 tests/data/ingress-mtls/secret/ingress-mtls-secret.yaml
+examples/custom-resources/ingress-mtls/ingress-mtls-secret.yaml
 common-secrets/ingress-mtls-secret-crl.yaml
 common-secrets/ingress-mtls-webapp-crl.pem
 tests/data/ingress-mtls/secret/ingress-mtls-secret-crl.yaml
@@ -280,8 +281,10 @@ common-secrets/ingress-mtls-secret-client.yaml
 tests/data/ingress-mtls/secret/tls-secret.yaml
 common-secrets/ingress-mtls-valid-client-cert.pem
 tests/data/ingress-mtls/client-auth/valid/client-cert.pem
+examples/custom-resources/ingress-mtls/client-cert.pem
 common-secrets/ingress-mtls-valid-client-key.pem
 tests/data/ingress-mtls/client-auth/valid/client-key.pem
+examples/custom-resources/ingress-mtls/client-key.pem
 common-secrets/ingress-mtls-invalid-client-cert.pem
 tests/data/ingress-mtls/client-auth/invalid/client-cert.pem
 common-secrets/ingress-mtls-invalid-client-key.pem
