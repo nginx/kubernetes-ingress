@@ -353,7 +353,7 @@ spec:
           - -nginx-configmaps=$(POD_NAMESPACE)/nginx-config
         ...
           - -enable-service-insight
-        - -service-insight-tls-secret=default/service-insight-secret
+       - -service-insight-tls-secret=default/service-insight-secret
 ```
 
 The example below uses the `nodeport` service.
