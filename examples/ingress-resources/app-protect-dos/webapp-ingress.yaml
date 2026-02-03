@@ -9,7 +9,7 @@ spec:
   tls:
     - hosts:
       - webapp.example.com
-      secretName: webapp-secret
+      secretName: tls-secret
   rules:
     - host: webapp.example.com
       http:
