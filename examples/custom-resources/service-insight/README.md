@@ -365,12 +365,12 @@ kubectl apply -f service-insight-secret.yaml
 ```
 
 ```console
-kubectl get secrets tls-secret
+kubectl get secrets service-insight-secret
 ```
 
 ```text
 NAME                     TYPE                DATA   AGE
-tls-secret   kubernetes.io/tls   2      55s
+service-insight-secret   kubernetes.io/tls   2      55s
 ```
 
 Get the nginx-ingress pod id:
