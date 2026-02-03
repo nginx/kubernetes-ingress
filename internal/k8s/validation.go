@@ -545,7 +545,7 @@ func validateProxySetHeaderAnnotation(context *annotationValidationContext) fiel
 func validateProxyNextUpstreamAnnotation(context *annotationValidationContext) field.ErrorList {
 	var allErrs field.ErrorList
 
-	methods := strings.SplitN(context.value, " ", 1)
+	methods := strings.Fields(context.value)
 	nextValidUpstreamOptions := sets.NewString("error", "timeout", "invalid_header", "http_500", "http_502", "http_503", "http_504", "http_403", "http_404", "http_429", "non_idempotent", "off")
 
 	if context.isPlus {
@@ -554,14 +554,15 @@ func validateProxyNextUpstreamAnnotation(context *annotationValidationContext) f
 
 	seen := sets.NewString()
 	for _, method := range methods {
-		if seen.Has(strings.TrimSpace(method)) {
+		if seen.Has(method) {
 			allErrs = append(allErrs, field.Invalid(context.fieldPath, context.value, fmt.Sprintf("duplicate value: %s", method)))
 			continue
 		}
-		if !nextValidUpstreamOptions.Has(strings.TrimSpace(method)) {
+		if !nextValidUpstreamOptions.Has(method) {
 			validOptions := strings.Join(nextValidUpstreamOptions.List(), ", ")
-			allErrs = append(allErrs, field.Invalid(context.fieldPath, context.value, fmt.Sprintf("must be a space-separated list with any of the following values: %s, the list is: %s, issue is: '%s'", validOptions, methods, method)))
+			allErrs = append(allErrs, field.Invalid(context.fieldPath, context.value, fmt.Sprintf("must be a space-separated list with any of the following values: %s", validOptions)))
 		}
+		seen.Insert(method)
 	}
 
 	return allErrs

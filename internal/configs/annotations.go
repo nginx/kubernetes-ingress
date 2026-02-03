@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	"github.com/nginx/kubernetes-ingress/internal/validation"
@@ -274,7 +275,8 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 	}
 
 	if proxyNextUpstream, exists := ingEx.Ingress.Annotations[ProxyNextUpstreamAnnotation]; exists {
-		cfgParams.ProxyNextUpstream = proxyNextUpstream
+		normalizedValue := strings.Join(strings.Fields(proxyNextUpstream), " ")
+		cfgParams.ProxyNextUpstream = normalizedValue
 	}
 
 	if proxyNextUpstreamTimeout, exists := ingEx.Ingress.Annotations[ProxyNextUpstreamTimeoutAnnotation]; exists {

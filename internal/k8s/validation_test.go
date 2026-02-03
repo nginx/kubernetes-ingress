@@ -1905,6 +1905,18 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
+				configs.ProxyNextUpstreamAnnotation: "error timeout http_502 http_503",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			msg:                   "valid " + configs.ProxyNextUpstreamAnnotation + " annotation",
+		},
+		{
+			annotations: map[string]string{
 				configs.ProxyNextUpstreamAnnotation: "error      timeout http_502 http_503",
 			},
 			specServices:          map[string]bool{},
