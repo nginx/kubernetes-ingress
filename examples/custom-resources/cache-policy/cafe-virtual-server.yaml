@@ -11,7 +11,7 @@ spec:
   - name: cache-policy
   host: cafe.example.com
   tls:
-    secret: cafe-secret
+    secret: app-tls-secret
   upstreams:
   - name: tea
     service: tea-svc
