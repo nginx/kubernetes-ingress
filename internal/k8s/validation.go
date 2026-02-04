@@ -238,9 +238,11 @@ var (
 			validateProxyNextUpstreamAnnotation,
 		},
 		configs.ProxyNextUpstreamTimeoutAnnotation: {
+			validateRequiredAnnotation,
 			validateTimeAnnotation,
 		},
 		configs.ProxyNextUpstreamTriesAnnotation: {
+			validateRequiredAnnotation,
 			validateUint64Annotation,
 		},
 		upstreamZoneSizeAnnotation: {
