@@ -37,6 +37,13 @@ func (fm *FakeManager) CreateMainConfig(content []byte) bool {
 	return true
 }
 
+// CreateMainConfigSafe provides a fake implementation of CreateMainConfigSafe.
+func (fm *FakeManager) CreateMainConfigSafe(content []byte) bool {
+	nl.Debug(fm.logger, "Writing main config safely")
+	nl.Debug(fm.logger, string(content))
+	return true
+}
+
 // CreateConfig provides a fake implementation of CreateConfig.
 func (fm *FakeManager) CreateConfig(name string, content []byte) bool {
 	nl.Debugf(fm.logger, "Writing config %v", name)
