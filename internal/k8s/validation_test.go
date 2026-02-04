@@ -1959,6 +1959,21 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
+				configs.ProxyNextUpstreamAnnotation: "",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors: []string{
+				`annotations.` + configs.ProxyNextUpstreamAnnotation + `: Required value`,
+			},
+			msg: "invalid " + configs.ProxyNextUpstreamAnnotation + " annotation",
+		},
+		{
+			annotations: map[string]string{
 				configs.ProxyNextUpstreamTimeoutAnnotation: "0",
 			},
 			specServices:          map[string]bool{},
@@ -2089,6 +2104,21 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			directiveAutoAdjust:   false,
 			expectedErrors: []string{
 				`annotations.` + configs.ProxyNextUpstreamAnnotation + `: Invalid value: "invalid_value": must be a space-separated list with any of the following values: denied, error, http_403, http_404, http_429, http_500, http_502, http_503, http_504, invalid_header, non_idempotent, off, timeout`,
+			},
+			msg: "invalid " + configs.ProxyNextUpstreamAnnotation + " annotation",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyNextUpstreamAnnotation: "",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                true,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			directiveAutoAdjust:   false,
+			expectedErrors: []string{
+				`annotations.` + configs.ProxyNextUpstreamAnnotation + `: Required value`,
 			},
 			msg: "invalid " + configs.ProxyNextUpstreamAnnotation + " annotation",
 		},

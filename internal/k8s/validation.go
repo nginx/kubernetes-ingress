@@ -234,6 +234,7 @@ var (
 			validateSizeAnnotation,
 		},
 		configs.ProxyNextUpstreamAnnotation: {
+			validateRequiredAnnotation,
 			validateProxyNextUpstreamAnnotation,
 		},
 		configs.ProxyNextUpstreamTimeoutAnnotation: {
