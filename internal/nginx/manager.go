@@ -73,6 +73,7 @@ type ServerConfig struct {
 // updates NGINX Plus upstream servers.
 type Manager interface {
 	CreateMainConfig(content []byte) bool
+	CreateMainConfigSafe(content []byte) bool
 	CreateConfig(name string, content []byte) bool
 	CreateConfigSafe(name string, content []byte) (bool, error)
 	TestConfig() error
@@ -184,6 +185,92 @@ func (lm *LocalManager) CreateMainConfig(content []byte) bool {
 		nl.Fatalf(lm.logger, "Failed to write main config: %v", err)
 	}
 	return configChanged
+}
+
+// CreateMainConfigSafe creates the main NGINX configuration file after validating it won't break nginx.
+// If validation fails, attempts rollback to previous working config.
+// Skips testing on first iteration (configVersion == 0) when dependencies may not exist yet.
+func (lm *LocalManager) CreateMainConfigSafe(content []byte) bool {
+	// Skip testing on first iteration when configVersion is 0
+	// During startup, dependencies like tls-passthrough-hosts.conf may not exist yet
+	if lm.configVersion == 0 {
+		nl.Debugf(lm.logger, "Skipping validation on first iteration (configVersion == 0)")
+		return lm.CreateMainConfig(content)
+	}
+
+	// Check if we're trying to recreate a config that was just processed
+	// This prevents repeated processing of the same invalid config
+	existingConfigPath := lm.mainConfFilename
+	// #nosec G304 -- existingConfigPath is constructed from safe internal path
+	if existingContent, err := os.ReadFile(existingConfigPath); err == nil {
+		// If the existing config is identical to what we're trying to write,
+		// we need to check if the current overall nginx config is valid
+		if bytes.Equal(existingContent, content) {
+			// If nginx config is currently valid, this means the existing config is working
+			// and we don't need to reprocess it (it's already applied successfully)
+			if testErr := lm.TestConfig(); testErr == nil {
+				nl.Debugf(lm.logger, "Main configuration is already applied and working")
+				return false // No change needed, config already working
+			}
+			// If nginx config is invalid, then the identical config on disk failed before
+			// Don't reprocess the same invalid config
+			nl.Warnf(lm.logger, "Main configuration was already validated and found invalid")
+			return false
+		}
+	}
+
+	// Store backup of existing working config before making changes
+	var previousConfig []byte
+	var hadPreviousConfig bool
+	// #nosec G304 -- existingConfigPath is constructed from safe internal path
+	if existingContent, err := os.ReadFile(existingConfigPath); err == nil {
+		// Only consider it a "previous working config" if current nginx config is valid
+		if testErr := lm.TestConfig(); testErr == nil {
+			previousConfig = existingContent
+			hadPreviousConfig = true
+			nl.Debugf(lm.logger, "Backing up current working main config")
+		}
+	}
+
+	// Write the new config
+	changed := lm.CreateMainConfig(content)
+
+	// Test the configuration with the new config in place
+	if err := lm.TestConfig(); err != nil {
+		nl.Debugf(lm.logger, "Nginx main configuration validation failed: %v", err)
+
+		// Rollback to previous working config if available
+		if hadPreviousConfig {
+			nl.Infof(lm.logger, "Rolling back main config to previous working configuration")
+
+			// Restore the previous working config
+			if rollbackErr := createFileAndWrite(existingConfigPath, previousConfig); rollbackErr != nil {
+				nl.Errorf(lm.logger, "Failed to rollback main config to previous config: %v", rollbackErr)
+				return false
+			}
+
+			// Test if rollback worked
+			if testErr := lm.TestConfig(); testErr == nil {
+				nl.Infof(lm.logger, "Successfully rolled back main config to previous working configuration")
+				// Trigger reload to restart workers with rolled back configuration
+				if reloadErr := lm.Reload(false); reloadErr != nil {
+					nl.Warnf(lm.logger, "Failed to reload after rollback: %v", reloadErr)
+				} else {
+					nl.Infof(lm.logger, "Successfully reloaded nginx after rollback, workers restarted")
+				}
+				return false
+			}
+			testErr := lm.TestConfig()
+			nl.Warnf(lm.logger, "Rollback of main config didn't resolve validation issues: %v", testErr)
+			return false
+		}
+		// No previous config exists
+		nl.Warnf(lm.logger, "No previous main config to rollback to, keeping invalid config for debugging")
+		return false
+	}
+
+	// If we get here, the config is valid and nginx can reload successfully
+	return changed
 }
 
 // CreateConfig creates a configuration file. If the file already exists, it will be overridden.
