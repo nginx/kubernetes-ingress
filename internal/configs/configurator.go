@@ -1425,7 +1425,7 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, er
 	if err != nil {
 		return allWarnings, fmt.Errorf("error when writing main Config")
 	}
-	cnf.nginxManager.CreateMainConfig(mainCfgContent)
+	cnf.nginxManager.CreateMainConfigSafe(mainCfgContent)
 
 	for _, ingEx := range resources.IngressExes {
 		_, warnings, err := cnf.addOrUpdateIngress(ingEx)
@@ -2028,7 +2028,7 @@ func (cnf *Configurator) AddInternalRouteConfig() error {
 	if err != nil {
 		return fmt.Errorf("error when writing main Config: %w", err)
 	}
-	cnf.nginxManager.CreateMainConfig(mainCfgContent)
+	cnf.nginxManager.CreateMainConfigSafe(mainCfgContent)
 	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
 		return fmt.Errorf("error when reloading nginx: %w", err)
 	}

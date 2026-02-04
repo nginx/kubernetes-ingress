@@ -760,7 +760,7 @@ func mustWriteNginxMainConfig(staticCfgParams *configs.StaticConfigParams, cfgPa
 	if err != nil {
 		nl.Fatalf(l, "Error generating NGINX main config: %v", err)
 	}
-	nginxManager.CreateMainConfig(content)
+	nginxManager.CreateMainConfigSafe(content)
 
 	nginxManager.UpdateConfigVersionFile()
 }
