@@ -563,7 +563,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-2"
+          "version": "36-3"
         },
         {
           "name": "nginx-plus-module-njs",
