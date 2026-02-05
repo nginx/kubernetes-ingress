@@ -591,7 +591,11 @@ func createNginxManager(ctx context.Context, managerCollector collectors.Manager
 		nginxManager = nginx.NewFakeManager("/etc/nginx")
 	} else {
 		timeout := time.Duration(*nginxReloadTimeout) * time.Millisecond
-		nginxManager = nginx.NewLocalManager(ctx, "/etc/nginx/", *nginxDebug, managerCollector, licenseReporter, deploymentMetadata, timeout, *nginxPlus)
+		if *enableConfigRollback {
+			nginxManager = nginx.NewConfigRollbackManager(ctx, "/etc/nginx/", *nginxDebug, managerCollector, licenseReporter, deploymentMetadata, timeout, *nginxPlus)
+		} else {
+			nginxManager = nginx.NewLocalManager(ctx, "/etc/nginx/", *nginxDebug, managerCollector, licenseReporter, deploymentMetadata, timeout, *nginxPlus)
+		}
 	}
 	return nginxManager, useFakeNginxManager
 }
@@ -760,7 +764,9 @@ func mustWriteNginxMainConfig(staticCfgParams *configs.StaticConfigParams, cfgPa
 	if err != nil {
 		nl.Fatalf(l, "Error generating NGINX main config: %v", err)
 	}
-	nginxManager.CreateMainConfigSafe(content)
+	if _, err := nginxManager.CreateMainConfig(content); err != nil {
+		nl.Fatalf(l, "%v", err)
+	}
 
 	nginxManager.UpdateConfigVersionFile()
 }

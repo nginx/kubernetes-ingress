@@ -144,6 +144,9 @@ var (
 	nginxDebug = flag.Bool("nginx-debug", false,
 		"Enable debugging for NGINX. Uses the nginx-debug binary. Requires 'error-log-level: debug' in the ConfigMap.")
 
+	enableConfigRollback = flag.Bool("enable-config-rollback", false,
+		"Enable config validation and rollback via the ConfigRollbackManager")
+
 	nginxReloadTimeout = flag.Int("nginx-reload-timeout", 60000,
 		`The timeout in milliseconds which the Ingress Controller will wait for a successful NGINX reload after a change or at the initial start. (default 60000)`)
 
