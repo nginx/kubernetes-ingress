@@ -960,9 +960,15 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 
 	if lbc.configMap != nil {
 		if isNGINXConfigValid {
+			//if isNGINXConfigValid && updateErr == nil {
 			lbc.recorder.Event(lbc.configMap, api_v1.EventTypeNormal, nl.EventReasonUpdated, fmt.Sprintf("ConfigMap %s/%s updated without error", lbc.configMap.GetNamespace(), lbc.configMap.GetName()))
 		} else {
 			lbc.recorder.Event(lbc.configMap, api_v1.EventTypeWarning, nl.EventReasonUpdatedWithError, fmt.Sprintf("ConfigMap %s/%s updated with errors. Ignoring invalid values", lbc.configMap.GetNamespace(), lbc.configMap.GetName()))
+			//if updateErr != nil {
+			//	lbc.recorder.Event(lbc.configMap, api_v1.EventTypeWarning, nl.EventReasonUpdatedWithError, fmt.Sprintf("ConfigMap %s/%s updated with errors: %v", lbc.configMap.GetNamespace(), lbc.configMap.GetName(), updateErr))
+			//} else {
+			//	lbc.recorder.Event(lbc.configMap, api_v1.EventTypeWarning, nl.EventReasonUpdatedWithError, fmt.Sprintf("ConfigMap %s/%s updated with warnings. Ignoring invalid values", lbc.configMap.GetNamespace(), lbc.configMap.GetName()))
+			//}
 		}
 	}
 

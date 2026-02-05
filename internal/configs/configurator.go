@@ -436,7 +436,7 @@ func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) (bool, Warnings, e
 	if err != nil {
 		return false, warnings, fmt.Errorf("error generating Ingress Config %v: %w", name, err)
 	}
-	configChanged, err := cnf.nginxManager.CreateConfigSafe(name, content)
+	configChanged, err := cnf.nginxManager.CreateConfig(name, content)
 	if err != nil {
 		return false, warnings, fmt.Errorf("error validating Ingress config %v: %w", name, err)
 	}
@@ -502,7 +502,7 @@ func (cnf *Configurator) addOrUpdateMergeableIngress(mergeableIngs *MergeableIng
 	if err != nil {
 		return false, warnings, fmt.Errorf("error generating Ingress Config %v: %w", name, err)
 	}
-	changed, err := cnf.nginxManager.CreateConfigSafe(name, content)
+	changed, err := cnf.nginxManager.CreateConfig(name, content)
 	if err != nil {
 		return false, warnings, fmt.Errorf("error validating Ingress config %v: %w", name, err)
 	}
@@ -645,7 +645,7 @@ func (cnf *Configurator) addOrUpdateVirtualServer(virtualServerEx *VirtualServer
 	if err != nil {
 		return false, warnings, weightUpdates, fmt.Errorf("error generating VirtualServer config: %v: %w", name, err)
 	}
-	changed, err := cnf.nginxManager.CreateConfigSafe(name, content)
+	changed, err := cnf.nginxManager.CreateConfig(name, content)
 	if err != nil {
 		return false, warnings, weightUpdates, fmt.Errorf("error validating VirtualServer config %v: %w", name, err)
 	}
@@ -1425,7 +1425,9 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, er
 	if err != nil {
 		return allWarnings, fmt.Errorf("error when writing main Config")
 	}
-	cnf.nginxManager.CreateMainConfigSafe(mainCfgContent)
+	if _, err := cnf.nginxManager.CreateMainConfig(mainCfgContent); err != nil {
+		return allWarnings, err
+	}
 
 	for _, ingEx := range resources.IngressExes {
 		_, warnings, err := cnf.addOrUpdateIngress(ingEx)
@@ -2028,7 +2030,9 @@ func (cnf *Configurator) AddInternalRouteConfig() error {
 	if err != nil {
 		return fmt.Errorf("error when writing main Config: %w", err)
 	}
-	cnf.nginxManager.CreateMainConfigSafe(mainCfgContent)
+	if _, err := cnf.nginxManager.CreateMainConfig(mainCfgContent); err != nil {
+		return err
+	}
 	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
 		return fmt.Errorf("error when reloading nginx: %w", err)
 	}
