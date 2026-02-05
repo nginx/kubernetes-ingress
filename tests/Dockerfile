@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.21
-FROM python:3.14-trixie@sha256:4878b7ad12a3c49e49c775ea617df0d2169605eaffc5ede31977e1c3dd913eae
+FROM python:3.14-trixie@sha256:ca9350a396a46c3be8bc93ea701cf3c7055488e6898e079d3e25bc698d8d3ea0
 
 
 RUN apt-get update \
