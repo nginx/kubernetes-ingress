@@ -46,7 +46,7 @@ func (cm *ConfigRollbackManager) CreateMainConfig(content []byte) (bool, error) 
 				return false, nil
 			} else {
 				nl.Warnf(cm.logger, "Main configuration was already validated and found invalid")
-				return false, fmt.Errorf("%w: %v", ErrMainConfigValidation, testErr)
+				return false, fmt.Errorf("main configuration was already validated and found invalid")
 			}
 		}
 	}
@@ -71,7 +71,7 @@ func (cm *ConfigRollbackManager) CreateMainConfig(content []byte) (bool, error) 
 			nl.Infof(cm.logger, "Rolling back main config to previous working configuration")
 			if rollbackErr := createFileAndWrite(existingConfigPath, previousConfig); rollbackErr != nil {
 				nl.Errorf(cm.logger, "Failed to rollback main config to previous config: %v", rollbackErr)
-				return false, fmt.Errorf("%w: %v", ErrMainConfigValidation, err)
+				return false, fmt.Errorf("main configuration validation failed and rollback failed: %w", err)
 			}
 
 			if testErr := cm.TestConfig(); testErr == nil {
@@ -81,15 +81,15 @@ func (cm *ConfigRollbackManager) CreateMainConfig(content []byte) (bool, error) 
 				} else {
 					nl.Infof(cm.logger, "Successfully reloaded nginx after rollback, workers restarted")
 				}
-				return false, fmt.Errorf("%w: %v", ErrMainConfigValidation, err)
+				return false, fmt.Errorf("main configuration validation failed, rolled back to previous working config")
 			}
 			testErr := cm.TestConfig()
 			nl.Warnf(cm.logger, "Rollback of main config didn't resolve validation issues: %v", testErr)
-			return false, fmt.Errorf("%w: %v", ErrMainConfigValidation, err)
+			return false, fmt.Errorf("main configuration validation failed and rollback didn't resolve issues: %w", err)
 		}
 
 		nl.Warnf(cm.logger, "No previous main config to rollback to, keeping invalid config for debugging")
-		return false, fmt.Errorf("%w: %v", ErrMainConfigValidation, err)
+		return false, fmt.Errorf("main configuration validation failed: %w", err)
 	}
 
 	return changed, nil
