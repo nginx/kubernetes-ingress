@@ -447,7 +447,7 @@ class TestVirtualServerRouteSelector:
             v_s_route_selector_setup.route_s.name,
         )
         assert (
-            vsr_info.get("status")
+            vsr_info("status")
             and vsr_info["status"]["reason"] == "AddedOrUpdated"
             and vsr_info["status"]["state"] == "Valid"
         ), vsr_info
@@ -459,7 +459,7 @@ class TestVirtualServerRouteSelector:
             v_s_route_selector_setup.vs_name,
         )
         assert (
-            vs_info.get("status")
+            vs_info("status")
             and vs_info["status"]["reason"] == "AddedOrUpdated"
             and vs_info["status"]["state"] == "Valid"
         ), f"VirtualServer status check failed: {vs_info}"
