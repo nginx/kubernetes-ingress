@@ -31,29 +31,15 @@ func NewFakeManager(confPath string) *FakeManager {
 }
 
 // CreateMainConfig provides a fake implementation of CreateMainConfig.
-func (fm *FakeManager) CreateMainConfig(content []byte) bool {
+func (fm *FakeManager) CreateMainConfig(content []byte) (bool, error) {
 	nl.Debug(fm.logger, "Writing main config")
 	nl.Debug(fm.logger, string(content))
-	return true
-}
-
-// CreateMainConfigSafe provides a fake implementation of CreateMainConfigSafe.
-func (fm *FakeManager) CreateMainConfigSafe(content []byte) bool {
-	nl.Debug(fm.logger, "Writing main config safely")
-	nl.Debug(fm.logger, string(content))
-	return true
+	return true, nil
 }
 
 // CreateConfig provides a fake implementation of CreateConfig.
-func (fm *FakeManager) CreateConfig(name string, content []byte) bool {
+func (fm *FakeManager) CreateConfig(name string, content []byte) (bool, error) {
 	nl.Debugf(fm.logger, "Writing config %v", name)
-	nl.Debug(fm.logger, string(content))
-	return true
-}
-
-// CreateConfigSafe provides a fake implementation of CreateConfigSafe.
-func (fm *FakeManager) CreateConfigSafe(name string, content []byte) (bool, error) {
-	nl.Debugf(fm.logger, "Writing config safely %v", name)
 	nl.Debug(fm.logger, string(content))
 	return true, nil
 }
@@ -62,20 +48,6 @@ func (fm *FakeManager) CreateConfigSafe(name string, content []byte) (bool, erro
 func (fm *FakeManager) TestConfig() error {
 	nl.Debug(fm.logger, "Testing nginx configuration")
 	return nil
-}
-
-// CreateStreamConfigSafe provides a fake implementation of CreateStreamConfigSafe.
-func (fm *FakeManager) CreateStreamConfigSafe(name string, content []byte) (bool, error) {
-	nl.Debugf(fm.logger, "Writing stream config safely %v", name)
-	nl.Debug(fm.logger, string(content))
-	return true, nil
-}
-
-// CreateTLSPassthroughHostsConfigSafe provides a fake implementation of CreateTLSPassthroughHostsConfigSafe.
-func (fm *FakeManager) CreateTLSPassthroughHostsConfigSafe(content []byte) (bool, error) {
-	nl.Debug(fm.logger, "Writing TLS Passthrough Hosts config safely")
-	nl.Debug(fm.logger, string(content))
-	return true, nil
 }
 
 // CreateOIDCConfig provides a fake implementation of CreateOIDCConfig.
