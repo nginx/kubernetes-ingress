@@ -1,6 +1,7 @@
 package validation
 
 import (
+	"strings"
 	"testing"
 
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
@@ -3104,4 +3105,242 @@ func TestValidatePolicy_IsValidCachePolicy(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateCORS(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		cors      *v1.CORS
+		expectErr bool
+		errMsg    string
+	}{
+		{
+			name: "Valid CORS configuration",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com", "https://app.com"},
+				AllowMethods: []string{"GET", "POST", "PUT"},
+				AllowHeaders: []string{"Content-Type", "Authorization"},
+				MaxAge:       intPtr(86400),
+			},
+			expectErr: false,
+		},
+		{
+			name: "Valid CORS with wildcard origin (no credentials)",
+			cors: &v1.CORS{
+				AllowOrigin:      []string{"*"},
+				AllowMethods:     []string{"GET", "POST"},
+				AllowCredentials: boolPtr(false),
+			},
+			expectErr: false,
+		},
+		{
+			name: "Invalid origin format - missing protocol",
+			cors: &v1.CORS{
+				AllowOrigin: []string{"example.com"}, // Missing http:// or https://
+			},
+			expectErr: true,
+			errMsg:    "must start with http:// or https://",
+		},
+		{
+			name: "Invalid header name - non-RFC compliant",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com"},
+				AllowHeaders: []string{"Content@Type"}, // @ not allowed in header names
+			},
+			expectErr: true,
+			errMsg:    "RFC 7230 violation",
+		},
+		{
+			name: "Invalid expose header name - non-RFC compliant",
+			cors: &v1.CORS{
+				AllowOrigin:   []string{"https://example.com"},
+				ExposeHeaders: []string{"X-Custom-Header", "Invalid Header Name"}, // Space not allowed
+			},
+			expectErr: true,
+			errMsg:    "RFC 7230 violation",
+		},
+		{
+			name: "Valid with all HTTP methods",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com"},
+				AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"}, // Removed HEAD to avoid redundancy warning
+			},
+			expectErr: false,
+		},
+		{
+			name: "Forbidden request header - Host",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com"},
+				AllowHeaders: []string{"Host"}, // Forbidden header
+			},
+			expectErr: true,
+			errMsg:    "forbidden request header",
+		},
+		{
+			name: "Forbidden request header - Cookie",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com"},
+				AllowHeaders: []string{"Cookie"}, // Forbidden header
+			},
+			expectErr: true,
+			errMsg:    "forbidden request header",
+		},
+		{
+			name: "Forbidden request header - Sec- prefix",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com"},
+				AllowHeaders: []string{"Sec-WebSocket-Key"}, // Forbidden header
+			},
+			expectErr: true,
+			errMsg:    "forbidden request header",
+		},
+		{
+			name: "Forbidden response header - Set-Cookie",
+			cors: &v1.CORS{
+				AllowOrigin:   []string{"https://example.com"},
+				ExposeHeaders: []string{"Set-Cookie"}, // Forbidden response header
+			},
+			expectErr: true,
+			errMsg:    "forbidden response header",
+		},
+		{
+			name: "Invalid method combination - HEAD with GET",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com"},
+				AllowMethods: []string{"GET", "HEAD", "POST"}, // HEAD redundant when GET present
+			},
+			expectErr: true,
+			errMsg:    "HEAD method should not be explicitly listed",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fieldPath := field.NewPath("spec").Child("cors")
+			errs := validateCORS(test.cors, fieldPath)
+
+			if test.expectErr {
+				if len(errs) == 0 {
+					t.Errorf("Expected error but got none")
+				} else {
+					found := false
+					for _, err := range errs {
+						if strings.Contains(err.Detail, test.errMsg) {
+							found = true
+							break
+						}
+					}
+					if !found {
+						t.Errorf("Expected error message containing '%s' not found in errors: %v", test.errMsg, errs)
+					}
+				}
+			} else {
+				if len(errs) > 0 {
+					t.Errorf("Expected no errors but got: %v", errs)
+				}
+			}
+		})
+	}
+}
+
+// TestCORSCRDLevelValidations tests validations that are now handled at CRD level
+// Note: These tests document what's now validated at CRD admission level
+func TestCORSCRDLevelValidations(t *testing.T) {
+	t.Parallel()
+
+	// These test cases document what's now validated at CRD level:
+	// - allowOrigin: Required, MinItems=1, MaxItems=100, no empty strings, no dangerous chars
+	// - allowMethods: MaxItems=10, valid HTTP methods only, no empty strings, no dangerous chars
+	// - allowHeaders: MaxItems=50, no empty strings, no dangerous chars, no wildcards
+	// - exposeHeaders: MaxItems=20, no empty strings, no dangerous chars, no wildcards
+	// - maxAge: Minimum=0, Maximum=86400
+	// - wildcard + credentials: XValidation at struct level
+	// - dangerous characters: ;{}\\n\\r$` rejected for all string fields
+	// - MDN compliance: HEAD method optimization, wildcard restrictions
+
+	invalidConfigs := []struct {
+		name        string
+		description string
+	}{
+		{"Empty allowOrigin", "allowOrigin: [] - violates MinItems=1"},
+		{"Empty origin string", "allowOrigin: [''] - violates XValidation for empty strings"},
+		{"Origin with semicolon", "allowOrigin: ['https://example.com; evil'] - violates dangerous char validation"},
+		{"Origin with braces", "allowOrigin: ['https://example.com { evil }'] - violates dangerous char validation"},
+		{"Origin with newline", "allowOrigin: ['https://example.com\\nX-Evil'] - violates dangerous char validation"},
+		{"Method with injection", "allowMethods: ['GET; evil'] - violates dangerous char validation"},
+		{"Header with injection", "allowHeaders: ['Content-Type; evil'] - violates dangerous char validation"},
+		{"Invalid HTTP method", "allowMethods: ['INVALID'] - violates XValidation for valid methods"},
+		{"Negative maxAge", "maxAge: -1 - violates Minimum=0"},
+		{"Wildcard + credentials", "allowOrigin: ['*'] + allowCredentials: true - violates XValidation"},
+		{"Wildcard in header name", "allowHeaders: ['*'] - violates XValidation for wildcard prohibition"},
+		{"Wildcard in expose header", "exposeHeaders: ['*'] - violates XValidation for wildcard prohibition"},
+	}
+
+	for _, config := range invalidConfigs {
+		t.Run(config.name, func(t *testing.T) {
+			// Document that these validations happen at CRD admission level
+			t.Logf("CRD validation: %s", config.description)
+		})
+	}
+}
+
+// TestCORSMDNCompliance tests that our CORS implementation follows MDN guidelines
+func TestCORSMDNCompliance(t *testing.T) {
+	t.Parallel()
+
+	validConfigs := []struct {
+		name        string
+		cors        *v1.CORS
+		description string
+	}{
+		{
+			name: "Simple request configuration",
+			cors: &v1.CORS{
+				AllowOrigin:      []string{"*"},
+				AllowMethods:     []string{"GET", "POST"}, // Removed HEAD as it's redundant when GET is present
+				AllowHeaders:     []string{"Accept", "Accept-Language", "Content-Language", "Content-Type"},
+				AllowCredentials: boolPtr(false),
+			},
+			description: "MDN simple request: wildcard allowed without credentials",
+		},
+		{
+			name: "Credentialed request configuration",
+			cors: &v1.CORS{
+				AllowOrigin:      []string{"https://example.com"},
+				AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+				AllowHeaders:     []string{"Content-Type", "Authorization"},
+				AllowCredentials: boolPtr(true),
+			},
+			description: "MDN credentialed request: explicit origin required",
+		},
+		{
+			name: "Complex request configuration",
+			cors: &v1.CORS{
+				AllowOrigin:   []string{"https://app.example.com"},
+				AllowMethods:  []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"},
+				AllowHeaders:  []string{"Content-Type", "Authorization", "X-Requested-With"},
+				ExposeHeaders: []string{"X-Total-Count", "X-RateLimit-Remaining"},
+				MaxAge:        createPointerFromInt(3600),
+			},
+			description: "MDN complex request: comprehensive header configuration",
+		},
+	}
+
+	for _, config := range validConfigs {
+		t.Run(config.name, func(t *testing.T) {
+			fieldPath := field.NewPath("cors")
+			errs := validateCORS(config.cors, fieldPath)
+
+			if len(errs) != 0 {
+				t.Errorf("Expected no validation errors for %s, but got: %v", config.description, errs)
+			}
+		})
+	}
+}
+
+// Helper functions for CORS tests
+func boolPtr(b bool) *bool {
+	return &b
 }

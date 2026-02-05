@@ -800,6 +800,8 @@ type PolicySpec struct {
 	APIKey *APIKey `json:"apiKey"`
 	// The Cache Key defines a cache policy for proxy caching
 	Cache *Cache `json:"cache"`
+	// The CORS policy configures Cross-Origin Resource Sharing headers
+	CORS *CORS `json:"cors"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -1206,4 +1208,63 @@ type Cache struct {
 	// +kubebuilder:validation:Optional
 	// Conditions defines when responses should not be cached or taken from cache.
 	Conditions *CacheConditions `json:"conditions,omitempty"`
+}
+
+// CORS defines a Cross-Origin Resource Sharing policy for controlling cross-origin requests.
+// +kubebuilder:validation:XValidation:rule="!(self.allowOrigin.exists(origin, origin == '*') && has(self.allowCredentials) && self.allowCredentials == true)",message="cannot use wildcard '*' for allowOrigin when allowCredentials is true for security reasons"
+type CORS struct {
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=100
+	// +kubebuilder:validation:XValidation:rule="self.all(origin, origin != '')",message="origin cannot be empty"
+	// AllowOrigin defines the origins that are allowed to make cross-origin requests.
+	// Can be exact domains, wildcards, or "*" for all origins.
+	// Examples: ["https://example.com", "https://*.mydomain.com", "*"]
+	// Security: When allowCredentials is true, wildcard "*" is not allowed per CORS specification.
+	// The server must specify explicit origins for credentialed requests.
+	AllowOrigin []string `json:"allowOrigin"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MaxItems=10
+	// +kubebuilder:validation:XValidation:rule="self.all(method, method != '')",message="method name cannot be empty"
+	// AllowMethods defines the HTTP methods that are allowed for cross-origin requests.
+	// If not specified, defaults to ["GET", "HEAD", "POST", "OPTIONS"] which are the standard simple request methods.
+	// Note: GET automatically includes HEAD support per HTTP specification.
+	AllowMethods []string `json:"allowMethods,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MaxItems=50
+	// +kubebuilder:validation:XValidation:rule="self.all(header, header != '')",message="header name cannot be empty"
+	// AllowHeaders defines the headers that are allowed in cross-origin requests.
+	// Common safe headers: ["Accept", "Accept-Language", "Content-Language", "Content-Type"]
+	// Custom headers: ["Authorization", "X-Requested-With", "X-Custom-Header"]
+	// Note: Simple request headers (Accept, Accept-Language, Content-Language, Content-Type with specific values) don't require explicit listing.
+	// Note: Forbidden headers (Host, Cookie, Origin, etc.) are validated at runtime to keep CRD validation costs low.
+	AllowHeaders []string `json:"allowHeaders,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	// AllowCredentials indicates whether the response to the request can be exposed when the credentials flag is true.
+	// When used as part of a response to a preflight request, this indicates whether the actual request can be made using credentials.
+	AllowCredentials *bool `json:"allowCredentials,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MaxItems=20
+	// +kubebuilder:validation:XValidation:rule="self.all(header, header != '')",message="header name cannot be empty"
+	// ExposeHeaders defines the headers that browsers are allowed to access.
+	// By default, only simple response headers are exposed: Cache-Control, Content-Language, Content-Type, Expires, Last-Modified, Pragma.
+	// Use this field to expose additional custom headers to the browser.
+	// Example: ["X-Total-Count", "X-Page-Size", "X-RateLimit-Remaining"]
+	// Note: Forbidden response headers (Set-Cookie, etc.) are validated at runtime to keep CRD validation costs low.
+	ExposeHeaders []string `json:"exposeHeaders,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=86400
+	// +kubebuilder:default=86400
+	// MaxAge defines how long (in seconds) the results of a preflight request can be cached.
+	// Default: 86400 (24 hours). Maximum recommended value is 86400 (24 hours).
+	// Note: Each browser has a maximum internal value that takes precedence when this value exceeds it.
+	// Setting this too high may not be effective as browsers will use their own maximum values.
+	MaxAge *int `json:"maxAge,omitempty"`
 }

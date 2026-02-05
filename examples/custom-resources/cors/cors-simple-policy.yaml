@@ -1,0 +1,42 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: cors-simple-policy
+  annotations:
+    description: "Simple CORS Policy for basic cross-origin requests following MDN guidelines"
+spec:
+  cors:
+    # Simple CORS configuration for public API
+    allowOrigin:
+      - "*"  # Wildcard allowed only when credentials are false
+
+    # Simple request methods (no preflight required for these)
+    allowMethods:
+      - "GET"
+      - "HEAD"
+      - "POST"
+
+    # Simple headers for basic requests
+    # These headers don't trigger preflight for simple requests:
+    # - Accept
+    # - Accept-Language
+    # - Content-Language
+    # - Content-Type (for specific MIME types)
+    allowHeaders:
+      - "Accept"
+      - "Accept-Language"
+      - "Content-Language"
+      - "Content-Type"  # Only for: application/x-www-form-urlencoded, multipart/form-data, text/plain
+
+    # No credentials for simple public API
+    allowCredentials: false
+
+    # Basic response headers that can be accessed
+    exposeHeaders:
+      - "Content-Length"
+      - "Content-Type"
+
+    # Standard cache duration
+    maxAge: 86400  # 24 hours (default)
+
+    # CORS headers are applied to all requests by default

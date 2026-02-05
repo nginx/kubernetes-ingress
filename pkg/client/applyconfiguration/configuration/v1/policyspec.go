@@ -31,6 +31,8 @@ type PolicySpecApplyConfiguration struct {
 	APIKey *APIKeyApplyConfiguration `json:"apiKey,omitempty"`
 	// The Cache Key defines a cache policy for proxy caching
 	Cache *CacheApplyConfiguration `json:"cache,omitempty"`
+	// The CORS policy configures Cross-Origin Resource Sharing headers
+	CORS *CORSApplyConfiguration `json:"cors,omitempty"`
 }
 
 // PolicySpecApplyConfiguration constructs a declarative configuration of the PolicySpec type for use with
@@ -124,5 +126,13 @@ func (b *PolicySpecApplyConfiguration) WithAPIKey(value *APIKeyApplyConfiguratio
 // If called multiple times, the Cache field is set to the value of the last call.
 func (b *PolicySpecApplyConfiguration) WithCache(value *CacheApplyConfiguration) *PolicySpecApplyConfiguration {
 	b.Cache = value
+	return b
+}
+
+// WithCORS sets the CORS field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the CORS field is set to the value of the last call.
+func (b *PolicySpecApplyConfiguration) WithCORS(value *CORSApplyConfiguration) *PolicySpecApplyConfiguration {
+	b.CORS = value
 	return b
 }

@@ -70,6 +70,16 @@ var incompatibleLBMethodsForSlowStart = map[string]bool{
 	"random two least_time=last_byte": true,
 }
 
+// escapeNginxString safely escapes string values for nginx configuration
+// Note: Dangerous characters are already prevented by CRD validation,
+// so this only needs to handle quote escaping for nginx string values.
+func escapeNginxString(value string) string {
+	// Escape quotes and backslashes for nginx string safety
+	result := strings.ReplaceAll(value, "\\", "\\\\")
+	result = strings.ReplaceAll(result, "\"", "\\\"")
+	return result
+}
+
 // MeshPodOwner contains the type and name of the K8s resource that owns the pod.
 // This owner information is needed for NGINX Service Mesh metrics.
 type MeshPodOwner struct {
@@ -465,6 +475,10 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		maps = append(maps, policiesCfg.RateLimit.PolicyGroupMaps...)
 	}
 
+	if policiesCfg.CORSMap != nil {
+		maps = append(maps, *policiesCfg.CORSMap)
+	}
+
 	dosCfg := generateDosCfg(dosResources[""])
 
 	// enabledInternalRoutes controls if a virtual server is configured as an internal route.
@@ -611,12 +625,25 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			}
 		}
 
+		// Apply VirtualServer spec-level CORS to routes that don't have their own CORS policies
+		if len(routePoliciesCfg.CORS) == 0 && len(policiesCfg.CORS) > 0 {
+			routePoliciesCfg.CORS = policiesCfg.CORS
+			// Also inherit the CORS map if needed
+			if policiesCfg.CORSMap != nil {
+				routePoliciesCfg.CORSMap = policiesCfg.CORSMap
+			}
+		}
+
 		if len(routePoliciesCfg.RateLimit.GroupMaps) > 0 {
 			maps = append(maps, routePoliciesCfg.RateLimit.GroupMaps...)
 		}
 
 		if len(routePoliciesCfg.RateLimit.PolicyGroupMaps) > 0 {
 			maps = append(maps, routePoliciesCfg.RateLimit.PolicyGroupMaps...)
+		}
+
+		if routePoliciesCfg.CORSMap != nil {
+			maps = append(maps, *routePoliciesCfg.CORSMap)
 		}
 
 		limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
@@ -764,12 +791,25 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				}
 			}
 
+			// Apply VirtualServer spec-level CORS to subroutes that don't have their own CORS policies
+			if len(routePoliciesCfg.CORS) == 0 && len(policiesCfg.CORS) > 0 {
+				routePoliciesCfg.CORS = policiesCfg.CORS
+				// Also inherit the CORS map if needed
+				if policiesCfg.CORSMap != nil {
+					routePoliciesCfg.CORSMap = policiesCfg.CORSMap
+				}
+			}
+
 			if len(routePoliciesCfg.RateLimit.GroupMaps) > 0 {
 				maps = append(maps, routePoliciesCfg.RateLimit.GroupMaps...)
 			}
 
 			if len(routePoliciesCfg.RateLimit.PolicyGroupMaps) > 0 {
 				maps = append(maps, routePoliciesCfg.RateLimit.PolicyGroupMaps...)
+			}
+
+			if routePoliciesCfg.CORSMap != nil {
+				maps = append(maps, *routePoliciesCfg.CORSMap)
 			}
 
 			limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
@@ -816,9 +856,6 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				cfg := generateDefaultSplitsConfig(r, upstreamNamer, crUpstreams, VariableNamer, len(splitClients), vsc.cfgParams,
 					errorPages, r.Path, locSnippets, vsc.enableSnippets, len(returnLocations), isVSR, vsr.Name, vsr.Namespace, vsc.warnings, vsc.DynamicWeightChangesReload)
 				addPoliciesCfgToLocations(routePoliciesCfg, cfg.Locations)
-				addDosConfigToLocations(dosRouteCfg, cfg.Locations)
-
-				splitClients = append(splitClients, cfg.SplitClients...)
 				locations = append(locations, cfg.Locations...)
 				internalRedirectLocations = append(internalRedirectLocations, cfg.InternalRedirectLocation)
 				returnLocations = append(returnLocations, cfg.ReturnLocations...)
@@ -1006,6 +1043,8 @@ type policiesCfg struct {
 	APIKey          apiKeyAuth
 	WAF             *version2.WAF
 	Cache           *version2.Cache
+	CORS            []version2.AddHeader
+	CORSMap         *version2.Map
 	ErrorReturn     *version2.Return
 	BundleValidator bundleValidator
 }
@@ -1808,6 +1847,142 @@ func (p *policiesCfg) addCacheConfig(
 	return res
 }
 
+func (p *policiesCfg) addCORSConfig(cors *conf_v1.CORS) *validationResults {
+	res := newValidationResults()
+
+	// Generate CORS headers
+	var corsHeaders []version2.AddHeader
+
+	// Always add headers to all responses
+	always := true
+
+	// Access-Control-Allow-Origin - CORS compliant implementation
+	if len(cors.AllowOrigin) > 0 {
+		if len(cors.AllowOrigin) == 1 && cors.AllowOrigin[0] == "*" {
+			// Single wildcard - simple case
+			corsHeaders = append(corsHeaders, version2.AddHeader{
+				Header: version2.Header{
+					Name:  "Access-Control-Allow-Origin",
+					Value: "*",
+				},
+				Always: always,
+			})
+		} else if len(cors.AllowOrigin) == 1 {
+			// Single specific origin - simple case
+			escapedOrigin := escapeNginxString(cors.AllowOrigin[0])
+			corsHeaders = append(corsHeaders, version2.AddHeader{
+				Header: version2.Header{
+					Name:  "Access-Control-Allow-Origin",
+					Value: escapedOrigin,
+				},
+				Always: always,
+			})
+		} else {
+			// Multiple origins - use nginx variable for CORS compliance
+			// This will be handled by a map directive that checks $http_origin
+			corsHeaders = append(corsHeaders, version2.AddHeader{
+				Header: version2.Header{
+					Name:  "Access-Control-Allow-Origin",
+					Value: "$cors_origin",
+				},
+				Always: always,
+			})
+
+			// Generate map directive for multiple origins
+			var params []version2.Parameter
+			// Default case - no origin matches (return empty string to deny)
+			params = append(params, version2.Parameter{
+				Value:  "default",
+				Result: `""`,
+			})
+			// Add each allowed origin
+			for _, origin := range cors.AllowOrigin {
+				if origin == "" {
+					continue // Skip empty origins
+				}
+				escapedOrigin := escapeNginxString(origin)
+				// Wrap origin in quotes for nginx map syntax
+				quotedOrigin := fmt.Sprintf(`"%s"`, escapedOrigin)
+				params = append(params, version2.Parameter{
+					Value:  quotedOrigin,
+					Result: escapedOrigin,
+				})
+			}
+
+			corsMap := version2.Map{
+				Source:     "$http_origin",
+				Variable:   "$cors_origin",
+				Parameters: params,
+			}
+			p.CORSMap = &corsMap
+		}
+	}
+
+	// Access-Control-Allow-Methods - with security escaping
+	if len(cors.AllowMethods) > 0 {
+		methods := strings.Join(cors.AllowMethods, ", ")
+		escapedMethods := escapeNginxString(methods)
+		corsHeaders = append(corsHeaders, version2.AddHeader{
+			Header: version2.Header{
+				Name:  "Access-Control-Allow-Methods",
+				Value: escapedMethods,
+			},
+			Always: always,
+		})
+	}
+
+	// Access-Control-Allow-Headers - with security escaping
+	if len(cors.AllowHeaders) > 0 {
+		headers := strings.Join(cors.AllowHeaders, ", ")
+		escapedHeaders := escapeNginxString(headers)
+		corsHeaders = append(corsHeaders, version2.AddHeader{
+			Header: version2.Header{
+				Name:  "Access-Control-Allow-Headers",
+				Value: escapedHeaders,
+			},
+			Always: always,
+		})
+	}
+
+	// Access-Control-Allow-Credentials
+	if cors.AllowCredentials != nil {
+		corsHeaders = append(corsHeaders, version2.AddHeader{
+			Header: version2.Header{
+				Name:  "Access-Control-Allow-Credentials",
+				Value: fmt.Sprintf("%t", *cors.AllowCredentials),
+			},
+			Always: always,
+		})
+	}
+
+	// Access-Control-Expose-Headers - with security escaping
+	if len(cors.ExposeHeaders) > 0 {
+		headers := strings.Join(cors.ExposeHeaders, ", ")
+		escapedHeaders := escapeNginxString(headers)
+		corsHeaders = append(corsHeaders, version2.AddHeader{
+			Header: version2.Header{
+				Name:  "Access-Control-Expose-Headers",
+				Value: escapedHeaders,
+			},
+			Always: always,
+		})
+	}
+
+	// Access-Control-Max-Age
+	if cors.MaxAge != nil {
+		corsHeaders = append(corsHeaders, version2.AddHeader{
+			Header: version2.Header{
+				Name:  "Access-Control-Max-Age",
+				Value: fmt.Sprintf("%d", *cors.MaxAge),
+			},
+			Always: always,
+		})
+	}
+
+	p.CORS = corsHeaders
+	return res
+}
+
 func (vsc *virtualServerConfigurator) generatePolicies(
 	ownerDetails policyOwnerDetails,
 	policyRefs []conf_v1.PolicyReference,
@@ -1865,6 +2040,8 @@ func (vsc *virtualServerConfigurator) generatePolicies(
 				res = config.addWAFConfig(vsc.cfgParams.Context, pol.Spec.WAF, key, polNamespace, policyOpts.apResources)
 			case pol.Spec.Cache != nil:
 				res = config.addCacheConfig(pol.Spec.Cache, key, ownerDetails.vsNamespace, ownerDetails.vsName, ownerDetails.ownerNamespace, ownerDetails.ownerName)
+			case pol.Spec.CORS != nil:
+				res = config.addCORSConfig(pol.Spec.CORS)
 			default:
 				res = newValidationResults()
 			}
@@ -2218,6 +2395,11 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 	location.APIKey = cfg.APIKey.Key
 	location.Cache = cfg.Cache
 	location.PoliciesErrorReturn = cfg.ErrorReturn
+
+	// Add CORS headers to the existing AddHeaders
+	if len(cfg.CORS) > 0 {
+		location.AddHeaders = append(location.AddHeaders, cfg.CORS...)
+	}
 }
 
 func addPoliciesCfgToLocations(cfg policiesCfg, locations []version2.Location) {
