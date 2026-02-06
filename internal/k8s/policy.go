@@ -46,12 +46,15 @@ func createPolicyHandlers(lbc *LoadBalancerController) cache.ResourceEventHandle
 	}
 }
 
-func (nsi *namespacedInformer) addPolicyHandler(handlers cache.ResourceEventHandlerFuncs) {
+func (nsi *namespacedInformer) addPolicyHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.confSharedInformerFactory.K8s().V1().Policies().Informer()
-	informer.AddEventHandler(handlers) //nolint:errcheck,gosec
+	if _, err := informer.AddEventHandler(handlers); err != nil {
+		return fmt.Errorf("failed to add Policy event handler: %w", err)
+	}
 	nsi.policyLister = informer.GetStore()
 
 	nsi.cacheSyncs = append(nsi.cacheSyncs, informer.HasSynced)
+	return nil
 }
 
 func (lbc *LoadBalancerController) syncPolicy(task task) {

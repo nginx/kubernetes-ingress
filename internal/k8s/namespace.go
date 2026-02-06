@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
@@ -45,16 +46,19 @@ func createNamespaceHandlers(lbc *LoadBalancerController) cache.ResourceEventHan
 	}
 }
 
-func (lbc *LoadBalancerController) addNamespaceHandler(handlers cache.ResourceEventHandlerFuncs, nsLabel string) {
+func (lbc *LoadBalancerController) addNamespaceHandler(handlers cache.ResourceEventHandlerFuncs, nsLabel string) error {
 	optionsModifier := func(options *meta_v1.ListOptions) {
 		options.LabelSelector = nsLabel
 	}
 	nsInformer := informers.NewSharedInformerFactoryWithOptions(lbc.client, lbc.resync, informers.WithTweakListOptions(optionsModifier)).Core().V1().Namespaces().Informer()
-	nsInformer.AddEventHandler(handlers) //nolint:errcheck,gosec
+	if _, err := nsInformer.AddEventHandler(handlers); err != nil {
+		return fmt.Errorf("failed to add Namespace event handler: %w", err)
+	}
 	lbc.namespaceLabeledLister = nsInformer.GetStore()
 	lbc.namespaceWatcherController = nsInformer
 
 	lbc.cacheSyncs = append(lbc.cacheSyncs, nsInformer.HasSynced)
+	return nil
 }
 
 func (lbc *LoadBalancerController) syncNamespace(task task) {
@@ -102,7 +106,12 @@ func (lbc *LoadBalancerController) syncNamespace(task task) {
 		nsi := lbc.getNamespacedInformer(key)
 		if nsi == nil {
 			nl.Infof(lbc.Logger, "Adding New Watched Namespace: %v", key)
-			nsi = lbc.newNamespacedInformer(key)
+			var err error
+			nsi, err = lbc.newNamespacedInformer(key)
+			if err != nil {
+				nl.Errorf(lbc.Logger, "Failed to create namespaced informer for namespace %s: %v", key, err)
+				return
+			}
 			nsi.start()
 		}
 		if lbc.certManagerController != nil {
