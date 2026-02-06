@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	license_reporting "github.com/nginx/kubernetes-ingress/internal/license_reporting"
@@ -16,6 +17,7 @@ import (
 // ConfigRollbackManager wraps LocalManager and adds rollback protection for main and regular configs.
 type ConfigRollbackManager struct {
 	*LocalManager
+	configMutex sync.Mutex // Protects against concurrent config operations
 }
 
 // NewConfigRollbackManager creates a ConfigRollbackManager.
@@ -28,6 +30,9 @@ func NewConfigRollbackManager(ctx context.Context, confPath string, debug bool, 
 // If validation fails, attempts rollback to previous working config.
 // Skips testing on first iteration (configVersion == 0) when dependencies may not exist yet.
 func (cm *ConfigRollbackManager) CreateMainConfig(content []byte) (bool, error) {
+	cm.configMutex.Lock()
+	defer cm.configMutex.Unlock()
+
 	// Skip testing on first iteration when configVersion is 0
 	// During startup, dependencies like tls-passthrough-hosts.conf may not exist yet
 	if cm.configVersion == 0 {
@@ -44,10 +49,9 @@ func (cm *ConfigRollbackManager) CreateMainConfig(content []byte) (bool, error) 
 			if testErr := cm.TestConfig(); testErr == nil {
 				nl.Debugf(cm.logger, "Main configuration is already applied and working")
 				return false, nil
-			} else {
-				nl.Warnf(cm.logger, "Main configuration was already validated and found invalid")
-				return false, fmt.Errorf("main configuration was already validated and found invalid")
 			}
+			nl.Warnf(cm.logger, "Main configuration was already validated and found invalid")
+			return false, fmt.Errorf("main configuration was already validated and found invalid")
 		}
 	}
 
@@ -98,6 +102,9 @@ func (cm *ConfigRollbackManager) CreateMainConfig(content []byte) (bool, error) 
 // CreateConfig creates a configuration file after validating it won't break nginx.
 // If validation fails, attempts rollback to previous working config.
 func (cm *ConfigRollbackManager) CreateConfig(name string, content []byte) (bool, error) {
+	cm.configMutex.Lock()
+	defer cm.configMutex.Unlock()
+
 	existingConfigPath := cm.getFilenameForConfig(name)
 	// #nosec G304 -- existingConfigPath is constructed from safe internal path
 	if existingContent, err := os.ReadFile(existingConfigPath); err == nil {
