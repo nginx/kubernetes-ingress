@@ -305,6 +305,7 @@ Build the args for the service binary.
 - -nginx-debug={{ .Values.controller.nginxDebug }}
 - -log-level={{ .Values.controller.logLevel }}
 - -log-format={{ .Values.controller.logFormat }}
+- -enable-config-rollback={{ .Values.controller.enableConfigRollback }}
 - -nginx-status={{ .Values.controller.nginxStatus.enable }}
 {{- if .Values.controller.nginxStatus.enable }}
 - -nginx-status-port={{ .Values.controller.nginxStatus.port }}
