@@ -10,6 +10,9 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/validation"
 )
 
+// PoliciesAnnotation is the annotation where the list of policies to apply to an Ingress is specified.
+const PoliciesAnnotation = "nginx.org/policies"
+
 // JWTKeyAnnotation is the annotation where the Secret with a JWK is specified.
 const JWTKeyAnnotation = "nginx.com/jwt-key"
 
