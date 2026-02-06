@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
@@ -26,6 +28,9 @@ import (
 // API. For external information, it primarily reports the IP or host of the LoadBalancer Service exposing the
 // Ingress Controller, or an external IP specified in the ConfigMap.
 type statusUpdater struct {
+	resourceMutexes          map[string]*sync.Mutex // Protects concurrent status updates per resource
+	mutexMapLock             sync.RWMutex           // Protects the resourceMutexes map
+	mutexCleanupTicker       *time.Ticker           // Periodic cleanup of unused mutexes
 	client                   kubernetes.Interface
 	namespace                string
 	externalServiceName      string
@@ -126,14 +131,52 @@ func (su *statusUpdater) getNamespacedInformer(ns string) *namespacedInformer {
 	return nsi
 }
 
+// getResourceMutex returns a mutex for a specific resource key, creating one if it doesn't exist
+func (su *statusUpdater) getResourceMutex(resourceType, namespace, name string) *sync.Mutex {
+	// Create unique key that includes resource type to avoid collisions
+	resourceKey := fmt.Sprintf("%s:%s/%s", resourceType, namespace, name)
+
+	// First try read lock for fast path
+	su.mutexMapLock.RLock()
+	if mutex, exists := su.resourceMutexes[resourceKey]; exists {
+		su.mutexMapLock.RUnlock()
+		return mutex
+	}
+	su.mutexMapLock.RUnlock()
+
+	// Need to create new mutex, acquire write lock
+	su.mutexMapLock.Lock()
+	defer su.mutexMapLock.Unlock()
+
+	// Double-check after acquiring write lock
+	if mutex, exists := su.resourceMutexes[resourceKey]; exists {
+		return mutex
+	}
+
+	// Initialize map if needed
+	if su.resourceMutexes == nil {
+		su.resourceMutexes = make(map[string]*sync.Mutex)
+	}
+
+	// Create new mutex for this resource
+	mutex := &sync.Mutex{}
+	su.resourceMutexes[resourceKey] = mutex
+	return mutex
+}
+
 // updateIngressWithStatus sets the provided status on the selected Ingress.
 func (su *statusUpdater) updateIngressWithStatus(ing networking.Ingress, status []networking.IngressLoadBalancerIngress) error {
-	// Get an up-to-date Ingress from the Store
+	// Get resource key for per-resource locking
 	key, err := su.keyFunc(&ing)
 	if err != nil {
 		nl.Infof(su.logger, "error getting key for ing: %v", err)
 		return err
 	}
+
+	// Get or create mutex for this specific resource
+	resourceMutex := su.getResourceMutex("ingress", ing.Namespace, ing.Name)
+	resourceMutex.Lock()
+	defer resourceMutex.Unlock()
 
 	ns, _, _ := cache.SplitMetaNamespaceKey(key)
 	var ingCopy *networking.Ingress
@@ -427,6 +470,11 @@ func (su *statusUpdater) hasVsStatusChanged(vs *conf_v1.VirtualServer, state str
 
 // UpdateTransportServerStatus updates the status of a TransportServer.
 func (su *statusUpdater) UpdateTransportServerStatus(ts *conf_v1.TransportServer, state string, reason string, message string) error {
+	// Get resource key for per-resource locking
+	resourceMutex := su.getResourceMutex("transportserver", ts.Namespace, ts.Name)
+	resourceMutex.Lock()
+	defer resourceMutex.Unlock()
+
 	var tsLatest interface{}
 	var exists bool
 	var err error
@@ -473,6 +521,11 @@ func hasTsStatusChanged(ts *conf_v1.TransportServer, state string, reason string
 
 // UpdateVirtualServerStatus updates the status of a VirtualServer.
 func (su *statusUpdater) UpdateVirtualServerStatus(vs *conf_v1.VirtualServer, state string, reason string, message string) error {
+	// Get resource key for per-resource locking
+	resourceMutex := su.getResourceMutex("virtualserver", vs.Namespace, vs.Name)
+	resourceMutex.Lock()
+	defer resourceMutex.Unlock()
+
 	// Get an up-to-date VirtualServer from the Store
 	var vsLatest interface{}
 	var exists bool
@@ -533,6 +586,11 @@ func (su *statusUpdater) hasVsrStatusChanged(vsr *conf_v1.VirtualServerRoute, st
 
 // UpdateVirtualServerRouteStatusWithReferencedBy updates the status of a VirtualServerRoute, including the referencedBy field.
 func (su *statusUpdater) UpdateVirtualServerRouteStatusWithReferencedBy(vsr *conf_v1.VirtualServerRoute, state string, reason string, message string, referencedBy []*conf_v1.VirtualServer) error {
+	// Get resource key for per-resource locking
+	resourceMutex := su.getResourceMutex("virtualserverroute", vsr.Namespace, vsr.Name)
+	resourceMutex.Lock()
+	defer resourceMutex.Unlock()
+
 	var referencedByString string
 	if len(referencedBy) != 0 {
 		vs := referencedBy[0]
@@ -578,6 +636,11 @@ func (su *statusUpdater) UpdateVirtualServerRouteStatusWithReferencedBy(vsr *con
 // This method does not clear or update the referencedBy field of the status.
 // If you need to update the referencedBy field, use UpdateVirtualServerRouteStatusWithReferencedBy instead.
 func (su *statusUpdater) UpdateVirtualServerRouteStatus(vsr *conf_v1.VirtualServerRoute, state string, reason string, message string) error {
+	// Get resource key for per-resource locking
+	resourceMutex := su.getResourceMutex("virtualserverroute", vsr.Namespace, vsr.Name)
+	resourceMutex.Lock()
+	defer resourceMutex.Unlock()
+
 	// Get an up-to-date VirtualServerRoute from the Store
 	var vsrLatest interface{}
 	var exists bool
@@ -613,6 +676,11 @@ func (su *statusUpdater) UpdateVirtualServerRouteStatus(vsr *conf_v1.VirtualServ
 }
 
 func (su *statusUpdater) updateVirtualServerExternalEndpoints(vs *conf_v1.VirtualServer) error {
+	// Get resource key for per-resource locking
+	resourceMutex := su.getResourceMutex("virtualserver", vs.Namespace, vs.Name)
+	resourceMutex.Lock()
+	defer resourceMutex.Unlock()
+
 	// Get a pristine VirtualServer from the Store
 	var vsLatest interface{}
 	var exists bool
@@ -640,6 +708,11 @@ func (su *statusUpdater) updateVirtualServerExternalEndpoints(vs *conf_v1.Virtua
 }
 
 func (su *statusUpdater) updateVirtualServerRouteExternalEndpoints(vsr *conf_v1.VirtualServerRoute) error {
+	// Get resource key for per-resource locking
+	resourceMutex := su.getResourceMutex("virtualserverroute", vsr.Namespace, vsr.Name)
+	resourceMutex.Lock()
+	defer resourceMutex.Unlock()
+
 	// Get an up-to-date VirtualServerRoute from the Store
 	var vsrLatest interface{}
 	var exists bool
@@ -687,6 +760,11 @@ func hasPolicyStatusChanged(pol *conf_v1.Policy, state string, reason string, me
 
 // UpdatePolicyStatus updates the status of a Policy.
 func (su *statusUpdater) UpdatePolicyStatus(pol *conf_v1.Policy, state string, reason string, message string) error {
+	// Get resource key for per-resource locking
+	resourceMutex := su.getResourceMutex("policy", pol.Namespace, pol.Name)
+	resourceMutex.Lock()
+	defer resourceMutex.Unlock()
+
 	// Get an up-to-date Policy from the Store
 	var polLatest interface{}
 	var exists bool
