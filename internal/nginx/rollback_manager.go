@@ -17,7 +17,9 @@ import (
 // ConfigRollbackManager wraps LocalManager and adds rollback protection for main and regular configs.
 type ConfigRollbackManager struct {
 	*LocalManager
-	configMutex sync.Mutex // Protects against concurrent config operations
+	resourceMutexes    map[string]*sync.Mutex // Protects concurrent operations per config resource
+	mutexMapLock       sync.RWMutex           // Protects the resourceMutexes map
+	mutexCleanupTicker *time.Timer            // Periodic cleanup of unused mutexes
 }
 
 // NewConfigRollbackManager creates a ConfigRollbackManager.
@@ -26,12 +28,47 @@ func NewConfigRollbackManager(ctx context.Context, confPath string, debug bool, 
 	return &ConfigRollbackManager{LocalManager: lm}
 }
 
+// getResourceMutex returns a mutex for a specific resource key, creating one if it doesn't exist
+func (cm *ConfigRollbackManager) getResourceMutex(resourceType, resourceName string) *sync.Mutex {
+	// Create unique key that includes resource type to avoid collisions
+	resourceKey := fmt.Sprintf("%s:%s", resourceType, resourceName)
+
+	// First try read lock for fast path
+	cm.mutexMapLock.RLock()
+	if mutex, exists := cm.resourceMutexes[resourceKey]; exists {
+		cm.mutexMapLock.RUnlock()
+		return mutex
+	}
+	cm.mutexMapLock.RUnlock()
+
+	// Need to create new mutex, acquire write lock
+	cm.mutexMapLock.Lock()
+	defer cm.mutexMapLock.Unlock()
+
+	// Double-check after acquiring write lock
+	if mutex, exists := cm.resourceMutexes[resourceKey]; exists {
+		return mutex
+	}
+
+	// Initialize map if needed
+	if cm.resourceMutexes == nil {
+		cm.resourceMutexes = make(map[string]*sync.Mutex)
+	}
+
+	// Create new mutex for this resource
+	mutex := &sync.Mutex{}
+	cm.resourceMutexes[resourceKey] = mutex
+	return mutex
+}
+
 // CreateMainConfig creates the main NGINX configuration file after validating it won't break nginx.
 // If validation fails, attempts rollback to previous working config.
 // Skips testing on first iteration (configVersion == 0) when dependencies may not exist yet.
 func (cm *ConfigRollbackManager) CreateMainConfig(content []byte) (bool, error) {
-	cm.configMutex.Lock()
-	defer cm.configMutex.Unlock()
+	// Use per-resource locking for main config
+	resourceMutex := cm.getResourceMutex("main-config", "nginx.conf")
+	resourceMutex.Lock()
+	defer resourceMutex.Unlock()
 
 	// Skip testing on first iteration when configVersion is 0
 	// During startup, dependencies like tls-passthrough-hosts.conf may not exist yet
@@ -102,8 +139,10 @@ func (cm *ConfigRollbackManager) CreateMainConfig(content []byte) (bool, error) 
 // CreateConfig creates a configuration file after validating it won't break nginx.
 // If validation fails, attempts rollback to previous working config.
 func (cm *ConfigRollbackManager) CreateConfig(name string, content []byte) (bool, error) {
-	cm.configMutex.Lock()
-	defer cm.configMutex.Unlock()
+	// Use per-resource locking for individual config
+	resourceMutex := cm.getResourceMutex("config", name)
+	resourceMutex.Lock()
+	defer resourceMutex.Unlock()
 
 	existingConfigPath := cm.getFilenameForConfig(name)
 	// #nosec G304 -- existingConfigPath is constructed from safe internal path
