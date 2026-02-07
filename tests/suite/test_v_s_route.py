@@ -440,18 +440,6 @@ class TestVirtualServerRouteSelector:
         v_s_route_selector_setup,
         v_s_route_selector_app_setup,
     ):
-        vs_info = wait_for_resource_status(
-            kube_apis.custom_objects,
-            v_s_route_selector_setup.namespace,
-            "virtualservers",
-            v_s_route_selector_setup.vs_name,
-        )
-        assert (
-            vs_info.get("status")
-            and vs_info["status"]["reason"] == "AddedOrUpdated"
-            and vs_info["status"]["state"] == "Valid"
-        ), "VirtualServer status check failed"
-
         vsr_info = wait_for_resource_status(
             kube_apis.custom_objects,
             v_s_route_selector_setup.namespace,
@@ -459,10 +447,22 @@ class TestVirtualServerRouteSelector:
             v_s_route_selector_setup.route_s.name,
         )
         assert (
-            vsr_info["status"]
+            vsr_info("status")
             and vsr_info["status"]["reason"] == "AddedOrUpdated"
             and vsr_info["status"]["state"] == "Valid"
         ), vsr_info
+
+        vs_info = wait_for_resource_status(
+            kube_apis.custom_objects,
+            v_s_route_selector_setup.namespace,
+            "virtualservers",
+            v_s_route_selector_setup.vs_name,
+        )
+        assert (
+            vs_info("status")
+            and vs_info["status"]["reason"] == "AddedOrUpdated"
+            and vs_info["status"]["state"] == "Valid"
+        ), f"VirtualServer status check failed: {vs_info}"
 
         req_url = f"http://{v_s_route_selector_setup.public_endpoint.public_ip}:{v_s_route_selector_setup.public_endpoint.port}"
         ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
