@@ -1,0 +1,35 @@
+controller:
+  nginxplus: true
+  appprotect:
+    enable: true
+    v5: true
+    volumes:
+      - name: app-protect-bd-config
+        emptyDir: {}
+      - name: app-protect-config
+        emptyDir: {}
+      - name: app-protect-bundles
+        emptyDir: {}
+
+    enforcer:
+      host: "localhost"
+      port: 50001
+      image:
+        repository: my.private.reg/nap/waf-enforcer
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+    configManager:
+      image:
+        repository: my.private.reg/nap/waf-config-mgr
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 250m
+          memory: 256Mi
