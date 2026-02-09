@@ -447,9 +447,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	}
 	policiesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, vsEx.VirtualServer.Spec.Policies, vsEx.Policies, specContext, "/", policyOpts, vsc.IngressControllerReplicas, vsc.bundleValidator, vsc.oidcPolCfg)
 	if len(warnings) > 0 {
-		for obj, msgs := range warnings {
-			vsc.addWarnings(obj, msgs)
-		}
+		vsc.mergeWarnings(warnings)
 	}
 	if policiesCfg.JWTAuth.JWKSEnabled {
 		jwtAuthKey := policiesCfg.JWTAuth.Auth.Key
@@ -629,9 +627,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		}
 		routePoliciesCfg, routeWarnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, r.Policies, vsEx.Policies, routeContext, r.Path, policyOpts, vsc.IngressControllerReplicas, vsc.bundleValidator, vsc.oidcPolCfg)
 		if len(routeWarnings) > 0 {
-			for obj, msgs := range routeWarnings {
-				vsc.addWarnings(obj, msgs)
-			}
+			vsc.mergeWarnings(routeWarnings)
 		}
 		if policiesCfg.OIDC {
 			routePoliciesCfg.OIDC = policiesCfg.OIDC
@@ -787,9 +783,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			}
 			routePoliciesCfg, routeWarnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, policyRefs, vsEx.Policies, context, r.Path, policyOpts, vsc.IngressControllerReplicas, vsc.bundleValidator, vsc.oidcPolCfg)
 			if len(routeWarnings) > 0 {
-				for obj, msgs := range routeWarnings {
-					vsc.addWarnings(obj, msgs)
-				}
+				vsc.mergeWarnings(routeWarnings)
 			}
 			if policiesCfg.OIDC {
 				routePoliciesCfg.OIDC = policiesCfg.OIDC
@@ -979,6 +973,12 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	}
 
 	return vsCfg, vsc.warnings
+}
+
+func (vsc *virtualServerConfigurator) mergeWarnings(routeWarnings Warnings) {
+	for obj, msgs := range routeWarnings {
+		vsc.addWarnings(obj, msgs)
+	}
 }
 
 func generateUpstreams(
@@ -1863,7 +1863,7 @@ func (p *policiesCfg) addCacheConfig(
 
 // nolint:gocyclo
 func generatePolicies(
-	context context.Context,
+	ctx context.Context,
 	ownerDetails policyOwnerDetails,
 	policyRefs []conf_v1.PolicyReference,
 	policies map[string]*conf_v1.Policy,
@@ -1874,9 +1874,9 @@ func generatePolicies(
 	bundleValidator bundleValidator,
 	oidcPolCfg *oidcPolicyCfg,
 ) (policiesCfg, Warnings) {
-	warnings := Warnings{}
+	warnings := make(Warnings)
 	config := newPoliciesConfig(bundleValidator)
-	config.Context = context
+	config.Context = ctx
 
 	for _, p := range policyRefs {
 		polNamespace := p.Namespace
@@ -1921,7 +1921,7 @@ func generatePolicies(
 				res = config.addAPIKeyConfig(pol.Spec.APIKey, key, polNamespace, ownerDetails.vsNamespace,
 					ownerDetails.vsName, policyOpts.secretRefs)
 			case pol.Spec.WAF != nil:
-				res = config.addWAFConfig(context, pol.Spec.WAF, key, polNamespace, policyOpts.apResources)
+				res = config.addWAFConfig(ctx, pol.Spec.WAF, key, polNamespace, policyOpts.apResources)
 			case pol.Spec.Cache != nil:
 				res = config.addCacheConfig(pol.Spec.Cache, key, ownerDetails.vsNamespace, ownerDetails.vsName, ownerDetails.ownerNamespace, ownerDetails.ownerName)
 			default:
