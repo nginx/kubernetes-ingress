@@ -208,17 +208,7 @@ func (rc *policyReferenceChecker) IsReferencedByIngress(policyNamespace string, 
 }
 
 func (rc *policyReferenceChecker) IsReferencedByMinion(policyNamespace string, policyName string, ing *networking.Ingress) bool {
-	for key, value := range ing.Annotations {
-		if key == configs.PoliciesAnnotation {
-			for p := range strings.SplitSeq(value, ",") {
-				if p == nsutils.FormatResourceReference(policyNamespace, policyName) || (policyNamespace == ing.Namespace && p == policyName) {
-					return true
-				}
-			}
-		}
-	}
-
-	return false
+	return rc.IsReferencedByIngress(policyNamespace, policyName, ing)
 }
 
 func (rc *policyReferenceChecker) IsReferencedByVirtualServer(policyNamespace string, policyName string, vs *conf_v1.VirtualServer) bool {
