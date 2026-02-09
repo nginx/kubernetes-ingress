@@ -448,8 +448,8 @@ class TestVirtualServerRouteSelector:
         )
         assert (
             vs_info.get("status")
-            and vs_info["status"]["reason"] == "AddedOrUpdated"
-            and vs_info["status"]["state"] == "Valid"
+            and vs_info.get("status", {}).get("reason") == "AddedOrUpdated"
+            and vs_info.get("status", {}).get("state") == "Valid"
         ), "VirtualServer status check failed"
 
         vsr_info = wait_for_resource_status(
@@ -459,9 +459,9 @@ class TestVirtualServerRouteSelector:
             v_s_route_selector_setup.route_s.name,
         )
         assert (
-            vsr_info["status"]
-            and vsr_info["status"]["reason"] == "AddedOrUpdated"
-            and vsr_info["status"]["state"] == "Valid"
+            vsr_info.get("status")
+            and vsr_info.get("status", {}).get("reason") == "AddedOrUpdated"
+            and vsr_info.get("status", {}).get("state") == "Valid"
         ), vsr_info
 
         req_url = f"http://{v_s_route_selector_setup.public_endpoint.public_ip}:{v_s_route_selector_setup.public_endpoint.port}"
