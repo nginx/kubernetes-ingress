@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -31,8 +32,10 @@ func TestGeneratePolicies(t *testing.T) {
 	mTLSCrlPath := "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crl"
 	mTLSCertAndCrlPath := fmt.Sprintf("%s %s", mTLSCertPath, mTLSCrlPath)
 	policyOpts := policyOptions{
-		tls:      true,
-		zoneSync: false,
+		tls:            true,
+		zoneSync:       false,
+		replicas:       2,
+		oidcPolicyName: "",
 		secretRefs: map[string]*secrets.SecretReference{
 			"default/ingress-mtls-secret": {
 				Secret: &api_v1.Secret{
@@ -857,7 +860,22 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 			expected: policiesCfg{
 				Context: ctx,
-				OIDC:    true,
+				OIDC: &version2.OIDC{
+					AuthEndpoint:          "http://example.com/auth",
+					TokenEndpoint:         "http://example.com/token",
+					JwksURI:               "http://example.com/jwks",
+					ClientID:              "client-id",
+					ClientSecret:          "super_secret_123",
+					Scope:                 "scope",
+					RedirectURI:           "/redirect",
+					EndSessionEndpoint:    "http://example.com/logout",
+					PostLogoutRedirectURI: "/_logout",
+					ZoneSyncLeeway:        20,
+					AccessTokenEnable:     true,
+					VerifyDepth:           1,
+					CAFile:                "/etc/ssl/certs/ca-certificate.crt",
+					PolicyName:            "default/oidc-policy",
+				},
 			},
 			msg: "oidc reference",
 		},
@@ -1252,7 +1270,7 @@ func TestGeneratePolicies(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.msg, func(t *testing.T) {
-			result, warnings := generatePolicies(ctx, ownerDetails, tc.policyRefs, tc.policies, tc.context, tc.path, policyOpts, vsc.IngressControllerReplicas, vsc.bundleValidator, &oidcPolicyCfg{})
+			result, warnings := generatePolicies(ctx, ownerDetails, tc.policyRefs, tc.policies, tc.context, tc.path, policyOpts, vsc.bundleValidator)
 
 			result.BundleValidator = nil
 
@@ -1350,7 +1368,7 @@ func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			res, warnings := generatePolicies(ctx, ownerDetails, tc.policyRefs, tc.policies, tc.context, tc.path, policyOptions{apResources: &appProtectResourcesForVS{}}, 1, &fakeBV, nil)
+			res, warnings := generatePolicies(ctx, ownerDetails, tc.policyRefs, tc.policies, tc.context, tc.path, policyOptions{apResources: &appProtectResourcesForVS{}, replicas: 1, oidcPolicyName: ""}, &fakeBV)
 			res.BundleValidator = nil
 			if !reflect.DeepEqual(tc.want, res) {
 				t.Error(cmp.Diff(tc.want, res))
@@ -1385,10 +1403,8 @@ func TestGeneratePoliciesFails(t *testing.T) {
 		trustedCAFileName string
 		context           string
 		path              string
-		oidcPolCfg        *oidcPolicyCfg
 		expected          policiesCfg
 		expectedWarnings  Warnings
-		expectedOidc      *oidcPolicyCfg
 		msg               string
 	}{
 		{
@@ -1410,8 +1426,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					"Policy default/allow-policy is missing or invalid",
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "missing policy",
+			msg: "missing policy",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -1449,8 +1464,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					"AccessControl policy (or policies) with deny rules is overridden by policy (or policies) with allow rules",
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "conflicting policies",
+			msg: "conflicting policies",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -1533,8 +1547,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					`RateLimit policy default/rateLimit-policy2 with limit request option rejectCode='505' is overridden to rejectCode='503' by the first policy reference in this context`,
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "rate limit policy limit request option override",
+			msg: "rate limit policy limit request option override",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -1600,8 +1613,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					`Tiered rate-limit Policies on [default/test] contain conflicting default values`,
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "tiered rate limit policy with duplicate defaults",
+			msg: "tiered rate limit policy with duplicate defaults",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -1644,8 +1656,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					`JWT policy default/jwt-policy references an invalid secret default/jwt-secret: secret is invalid`,
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "jwt reference missing secret",
+			msg: "jwt reference missing secret",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -1687,8 +1698,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					`JWT policy default/jwt-policy references a secret default/jwt-secret of a wrong type 'nginx.org/ca', must be 'nginx.org/jwk'`,
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "jwt references wrong secret type",
+			msg: "jwt references wrong secret type",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -1757,8 +1767,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					`Multiple jwt policies in the same context is not valid. JWT policy default/jwt-policy2 will be ignored`,
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "multi jwt reference",
+			msg: "multi jwt reference",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -1801,8 +1810,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					`Basic Auth policy default/basic-auth-policy references an invalid secret default/htpasswd-secret: secret is invalid`,
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "basic auth reference missing secret",
+			msg: "basic auth reference missing secret",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -1844,8 +1852,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					`Basic Auth policy default/basic-auth-policy references a secret default/htpasswd-secret of a wrong type 'nginx.org/ca', must be 'nginx.org/htpasswd'`,
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "basic auth references wrong secret type",
+			msg: "basic auth references wrong secret type",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -1912,8 +1919,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					`Multiple basic auth policies in the same context is not valid. Basic auth policy default/basic-auth-policy2 will be ignored`,
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "multi basic auth reference",
+			msg: "multi basic auth reference",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -1954,8 +1960,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					`IngressMTLS policy "default/ingress-mtls-policy" references an invalid secret default/ingress-mtls-secret: secret is invalid`,
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "ingress mtls reference an invalid secret",
+			msg: "ingress mtls reference an invalid secret",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -1998,8 +2003,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					`IngressMTLS policy default/ingress-mtls-policy references a secret default/ingress-mtls-secret of a wrong type 'kubernetes.io/tls', must be 'nginx.org/ca'`,
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "ingress mtls references wrong secret type",
+			msg: "ingress mtls references wrong secret type",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -2057,8 +2061,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					`Multiple ingressMTLS policies are not allowed. IngressMTLS policy default/ingress-mtls-policy2 will be ignored`,
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "multi ingress mtls",
+			msg: "multi ingress mtls",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -2102,8 +2105,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					`IngressMTLS policy default/ingress-mtls-policy is not allowed in the route context`,
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "ingress mtls in the wrong context",
+			msg: "ingress mtls in the wrong context",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -2147,8 +2149,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					`TLS must be enabled in VirtualServer for IngressMTLS policy default/ingress-mtls-policy`,
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "ingress mtls missing TLS config",
+			msg: "ingress mtls missing TLS config",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -2201,8 +2202,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					`Both ca.crl in the Secret and ingressMTLS.crlFileName fields cannot be used. ca.crl in default/ingress-mtls-secret will be ignored and default/ingress-mtls-policy will be applied`,
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "ingress mtls ca.crl and ingressMTLS.Crl set",
+			msg: "ingress mtls ca.crl and ingressMTLS.Crl set",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -2268,8 +2268,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					`Multiple egressMTLS policies in the same context is not valid. EgressMTLS policy default/egress-mtls-policy2 will be ignored`,
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "multi egress mtls",
+			msg: "multi egress mtls",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -2313,8 +2312,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					`EgressMTLS policy default/egress-mtls-policy references an invalid secret default/egress-trusted-secret: secret is invalid`,
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "egress mtls referencing an invalid CA secret",
+			msg: "egress mtls referencing an invalid CA secret",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -2357,8 +2355,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					`EgressMTLS policy default/egress-mtls-policy references a secret default/egress-mtls-secret of a wrong type 'nginx.org/ca', must be 'kubernetes.io/tls'`,
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "egress mtls referencing wrong secret type",
+			msg: "egress mtls referencing wrong secret type",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -2401,8 +2398,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					`EgressMTLS policy default/egress-mtls-policy references a secret default/egress-trusted-secret of a wrong type 'kubernetes.io/tls', must be 'nginx.org/ca'`,
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "egress trusted secret referencing wrong secret type",
+			msg: "egress trusted secret referencing wrong secret type",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -2446,8 +2442,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					`EgressMTLS policy default/egress-mtls-policy references an invalid secret default/egress-mtls-secret: secret is invalid`,
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "egress mtls referencing missing tls secret",
+			msg: "egress mtls referencing missing tls secret",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -2490,8 +2485,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					`OIDC policy default/oidc-policy references an invalid secret default/oidc-secret: secret is invalid`,
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "oidc referencing missing oidc secret",
+			msg: "oidc referencing missing oidc secret",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -2540,8 +2534,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					`OIDC policy default/oidc-policy references a secret default/oidc-secret of a wrong type 'kubernetes.io/tls', must be 'nginx.org/oidc'`,
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "oidc secret referencing wrong secret type",
+			msg: "oidc secret referencing wrong secret type",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -2599,24 +2592,9 @@ func TestGeneratePoliciesFails(t *testing.T) {
 						},
 					},
 				},
+				oidcPolicyName: "default/oidc-policy-1",
 			},
 			context: "route",
-			oidcPolCfg: &oidcPolicyCfg{
-				oidc: &version2.OIDC{
-					AuthEndpoint:          "https://foo.com/auth",
-					TokenEndpoint:         "https://foo.com/token",
-					JwksURI:               "https://foo.com/certs",
-					ClientID:              "foo",
-					ClientSecret:          "super_secret_123",
-					RedirectURI:           "/_codexch",
-					Scope:                 "openid",
-					ZoneSyncLeeway:        0,
-					EndSessionEndpoint:    "https://foo.com/logout",
-					PostLogoutRedirectURI: "/_logout",
-					AccessTokenEnable:     true,
-				},
-				key: "default/oidc-policy-1",
-			},
 			expected: policiesCfg{
 				ErrorReturn: &version2.Return{
 					Code: 500,
@@ -2626,21 +2604,6 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				nil: {
 					`Only one oidc policy is allowed in a VirtualServer and its VirtualServerRoutes. Can't use default/oidc-policy-2. Use default/oidc-policy-1`,
 				},
-			},
-			expectedOidc: &oidcPolicyCfg{
-				oidc: &version2.OIDC{
-					AuthEndpoint:          "https://foo.com/auth",
-					TokenEndpoint:         "https://foo.com/token",
-					JwksURI:               "https://foo.com/certs",
-					ClientID:              "foo",
-					ClientSecret:          "super_secret_123",
-					RedirectURI:           "/_codexch",
-					Scope:                 "openid",
-					EndSessionEndpoint:    "https://foo.com/logout",
-					PostLogoutRedirectURI: "/_logout",
-					AccessTokenEnable:     true,
-				},
-				key: "default/oidc-policy-1",
 			},
 			msg: "multiple oidc policies",
 		},
@@ -2671,6 +2634,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 							PostLogoutRedirectURI: "/_logout",
 							ClientID:              "foo",
 							AccessTokenEnable:     true,
+							SSLVerifyDepth:        intPointer(0),
 						},
 					},
 				},
@@ -2708,15 +2672,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			context: "route",
 			expected: policiesCfg{
 				Context: ctx,
-				OIDC:    true,
-			},
-			expectedWarnings: Warnings{
-				nil: {
-					`Multiple oidc policies in the same context is not valid. OIDC policy default/oidc-policy2 will be ignored`,
-				},
-			},
-			expectedOidc: &oidcPolicyCfg{
-				&version2.OIDC{
+				OIDC: &version2.OIDC{
 					AuthEndpoint:          "https://foo.com/auth",
 					TokenEndpoint:         "https://foo.com/token",
 					JwksURI:               "https://foo.com/certs",
@@ -2726,11 +2682,15 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					Scope:                 "openid",
 					EndSessionEndpoint:    "https://foo.com/logout",
 					PostLogoutRedirectURI: "/_logout",
-					ZoneSyncLeeway:        200,
 					AccessTokenEnable:     true,
-					VerifyDepth:           1,
+					ZoneSyncLeeway:        200,
+					PolicyName:            "default/oidc-policy",
 				},
-				"default/oidc-policy",
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`Multiple oidc policies in the same context is not valid. OIDC policy default/oidc-policy2 will be ignored`,
+				},
 			},
 			msg: "multi oidc",
 		},
@@ -2799,8 +2759,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					`Multiple API Key policies in the same context is not valid. API Key policy default/api-key-policy-2 will be ignored`,
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "api key multi api key policies",
+			msg: "api key multi api key policies",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -2867,8 +2826,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					`API Key policy default/api-key-policy references a secret default/api-key-secret of a wrong type 'nginx.org/jwk', must be 'nginx.org/apikey'`,
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "api key referencing wrong secret type",
+			msg: "api key referencing wrong secret type",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -2937,8 +2895,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					`API Key default/api-key-policy references an invalid secret default/api-key-secret: secret is invalid`,
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "api key referencing invalid api key secrets",
+			msg: "api key referencing invalid api key secrets",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -3000,8 +2957,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					`Multiple WAF policies in the same context is not valid. WAF policy default/waf-policy2 will be ignored`,
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "multi waf",
+			msg: "multi waf",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -3032,6 +2988,8 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
+				replicas:       1,
+				oidcPolicyName: "",
 				secretRefs: map[string]*secrets.SecretReference{
 					"default/oidc-secret": {
 						Secret: &api_v1.Secret{
@@ -3054,8 +3012,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					`OIDC policy default/oidc-policy has a secret and PKCE enabled. Secrets can't be used with PKCE`,
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "oidc pkce yes secret yes",
+			msg: "oidc pkce yes secret yes",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -3095,24 +3052,17 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					`Client secret is required for OIDC policy default/oidc-policy when not using PKCE`,
 				},
 			},
-			expectedOidc: &oidcPolicyCfg{},
-			msg:          "oidc pkce no secret no",
+			msg: "oidc pkce no secret no",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
-			vsc := newVirtualServerConfigurator(&ConfigParams{Context: ctx}, false, false, &StaticConfigParams{}, false, &fakeBV)
-
-			if test.oidcPolCfg != nil {
-				vsc.oidcPolCfg = test.oidcPolCfg
-			}
-
-			result, warnings := generatePolicies(ctx, ownerDetails, test.policyRefs, test.policies, test.context, test.path, test.policyOpts, 1, &fakeBV, vsc.oidcPolCfg)
+			result, warnings := generatePolicies(ctx, ownerDetails, test.policyRefs, test.policies, test.context, test.path, test.policyOpts, &fakeBV)
 			result.BundleValidator = nil
 
 			if !reflect.DeepEqual(test.expected, result) {
-				t.Errorf("generatePolicies() '%v' mismatch (-want +got):\n%s", test.msg, cmp.Diff(test.expected, result))
+				t.Errorf("generatePolicies() '%v' mismatch (-want +got):\n%s", test.msg, cmp.Diff(test.expected, result, cmpopts.IgnoreFields(policiesCfg{}, "Context")))
 			}
 			if !reflect.DeepEqual(warnings, test.expectedWarnings) {
 				t.Errorf(
@@ -3122,12 +3072,526 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					test.msg,
 				)
 			}
-			if !reflect.DeepEqual(test.expectedOidc.oidc, vsc.oidcPolCfg.oidc) {
-				t.Errorf("generatePolicies() '%v' mismatch (-want +got):\n%s", test.msg, cmp.Diff(test.expectedOidc.oidc, vsc.oidcPolCfg.oidc))
+		})
+	}
+}
+
+func TestGenerateLRZPolicyGroupMap(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		lrz      version2.LimitReqZone
+		expected *version2.Map
+	}{
+		{
+			lrz: version2.LimitReqZone{
+				ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+				Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+				PolicyValue:   "rl_vsnamespace_vsname_match_gold",
+				GroupVariable: "$rl_vsnamespace_vsname_group_sub_spec",
+				PolicyResult:  "$jwt_claim_sub",
+			},
+			expected: &version2.Map{
+				Source:   "$rl_vsnamespace_vsname_group_sub_spec",
+				Variable: "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+				Parameters: []version2.Parameter{
+					{
+						Value:  "default",
+						Result: "''",
+					},
+					{
+						Value:  "rl_vsnamespace_vsname_match_gold",
+						Result: "Val$jwt_claim_sub",
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		result := generateLRZPolicyGroupMap(test.lrz)
+		if !reflect.DeepEqual(result, test.expected) {
+			t.Errorf("generateLRZPolicyGroupMap() returned \n%v, but expected \n%v", result, test.expected)
+		}
+	}
+}
+
+func TestGenerateLRZGroupMaps(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		lrzs     []version2.LimitReqZone
+		expected map[string]*version2.Map
+	}{
+		{
+			lrzs: []version2.LimitReqZone{
+				{
+					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupValue:    "Gold",
+					GroupVariable: "$rl_vsnamespace_vsname_group_sub_spec",
+					PolicyValue:   "rl_vsnamespace_vsname_match_gold",
+					PolicyResult:  "$jwt_claim_sub",
+					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+				},
+				{
+					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupValue:    "Silver",
+					GroupVariable: "$rl_vsnamespace_vsname_group_sub_spec",
+					PolicyValue:   "rl_vsnamespace_vsname_match_silver",
+					PolicyResult:  "$jwt_claim_sub",
+					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+				},
+				{
+					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupValue:    "Bronze",
+					GroupVariable: "$rl_vsnamespace_vsname_group_sub_spec",
+					PolicyValue:   "rl_vsnamespace_vsname_match_bronze",
+					PolicyResult:  "$jwt_claim_sub",
+					GroupDefault:  true,
+					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+				},
+			},
+			expected: map[string]*version2.Map{
+				"$rl_vsnamespace_vsname_group_sub_spec": {
+					Source:   "$jwt_vsnamespace_vsname_sub",
+					Variable: "$rl_vsnamespace_vsname_group_sub_spec",
+					Parameters: []version2.Parameter{
+						{
+							Value:  "default",
+							Result: "rl_vsnamespace_vsname_match_bronze",
+						},
+						{
+							Value:  "Gold",
+							Result: "rl_vsnamespace_vsname_match_gold",
+						},
+						{
+							Value:  "Silver",
+							Result: "rl_vsnamespace_vsname_match_silver",
+						},
+						{
+							Value:  "Bronze",
+							Result: "rl_vsnamespace_vsname_match_bronze",
+						},
+					},
+				},
+			},
+		},
+		{
+			lrzs: []version2.LimitReqZone{
+				{
+					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupValue:    "Gold",
+					GroupVariable: "$rl_vsnamespace_vsname_group_sub_spec",
+					PolicyValue:   "rl_vsnamespace_vsname_match_gold",
+					PolicyResult:  "$jwt_claim_sub",
+					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+				},
+				{
+					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupValue:    "Silver",
+					GroupVariable: "$rl_vsnamespace_vsname_group_sub_spec",
+					PolicyValue:   "rl_vsnamespace_vsname_match_silver",
+					PolicyResult:  "$jwt_claim_sub",
+					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+				},
+				{
+					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupValue:    "Bronze",
+					GroupVariable: "$rl_vsnamespace_vsname_group_sub_spec",
+					PolicyValue:   "rl_vsnamespace_vsname_match_bronze",
+					PolicyResult:  "$jwt_claim_sub",
+					GroupDefault:  true,
+					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+				},
+				{
+					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupValue:    "Gold",
+					GroupVariable: "$rl_vsnamespace_vsname_group_sub_subroute",
+					PolicyValue:   "rl_vsnamespace_vsname_match_gold",
+					PolicyResult:  "$jwt_claim_sub",
+					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+				},
+				{
+					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupValue:    "Silver",
+					GroupVariable: "$rl_vsnamespace_vsname_group_sub_subroute",
+					PolicyValue:   "rl_vsnamespace_vsname_match_silver",
+					PolicyResult:  "$jwt_claim_sub",
+					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+				},
+				{
+					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupValue:    "Bronze",
+					GroupVariable: "$rl_vsnamespace_vsname_group_sub_subroute",
+					PolicyValue:   "rl_vsnamespace_vsname_match_bronze",
+					PolicyResult:  "$jwt_claim_sub",
+					GroupDefault:  true,
+					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+				},
+			},
+			expected: map[string]*version2.Map{
+				"$rl_vsnamespace_vsname_group_sub_spec": {
+					Source:   "$jwt_vsnamespace_vsname_sub",
+					Variable: "$rl_vsnamespace_vsname_group_sub_spec",
+					Parameters: []version2.Parameter{
+						{
+							Value:  "default",
+							Result: "rl_vsnamespace_vsname_match_bronze",
+						},
+						{
+							Value:  "Gold",
+							Result: "rl_vsnamespace_vsname_match_gold",
+						},
+						{
+							Value:  "Silver",
+							Result: "rl_vsnamespace_vsname_match_silver",
+						},
+						{
+							Value:  "Bronze",
+							Result: "rl_vsnamespace_vsname_match_bronze",
+						},
+					},
+				},
+				"$rl_vsnamespace_vsname_group_sub_subroute": {
+					Source:   "$jwt_vsnamespace_vsname_sub",
+					Variable: "$rl_vsnamespace_vsname_group_sub_subroute",
+					Parameters: []version2.Parameter{
+						{
+							Value:  "default",
+							Result: "rl_vsnamespace_vsname_match_bronze",
+						},
+						{
+							Value:  "Gold",
+							Result: "rl_vsnamespace_vsname_match_gold",
+						},
+						{
+							Value:  "Silver",
+							Result: "rl_vsnamespace_vsname_match_silver",
+						},
+						{
+							Value:  "Bronze",
+							Result: "rl_vsnamespace_vsname_match_bronze",
+						},
+					},
+				},
+			},
+		},
+		{
+			lrzs: []version2.LimitReqZone{
+				{
+					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupValue:    "Premium",
+					GroupVariable: "$rl_vsnamespace_vsname_group_sub_route",
+					PolicyValue:   "rl_vsnamespace_vsname_match_premium",
+					PolicyResult:  "$jwt_claim_sub",
+					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+				},
+				{
+					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
+					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					GroupValue:    "Basic",
+					GroupVariable: "$rl_vsnamespace_vsname_group_sub_route",
+					PolicyValue:   "rl_vsnamespace_vsname_match_basic",
+					PolicyResult:  "$jwt_claim_sub",
+					GroupDefault:  true,
+					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+				},
+			},
+			expected: map[string]*version2.Map{
+				"$rl_vsnamespace_vsname_group_sub_route": {
+					Source:   "$jwt_vsnamespace_vsname_sub",
+					Variable: "$rl_vsnamespace_vsname_group_sub_route",
+					Parameters: []version2.Parameter{
+						{
+							Value:  "default",
+							Result: "rl_vsnamespace_vsname_match_basic",
+						},
+						{
+							Value:  "Premium",
+							Result: "rl_vsnamespace_vsname_match_premium",
+						},
+						{
+							Value:  "Basic",
+							Result: "rl_vsnamespace_vsname_match_basic",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		result := generateLRZGroupMaps(test.lrzs)
+		for k, v := range test.expected {
+			sort.Slice(v.Parameters, func(i, j int) bool { return v.Parameters[i].Value < v.Parameters[j].Value })
+			sort.Slice(result[k].Parameters, func(i, j int) bool { return result[k].Parameters[i].Value < result[k].Parameters[j].Value })
+			if !reflect.DeepEqual(result[k], v) {
+				t.Errorf("generateLRZGroupMaps() returned \n%v, but expected \n%v", result, test.expected)
 			}
-			if !reflect.DeepEqual(test.expectedOidc.key, vsc.oidcPolCfg.key) {
-				t.Errorf("generatePolicies() '%v' mismatch (-want +got):\n%s", test.msg, cmp.Diff(test.expectedOidc.key, vsc.oidcPolCfg.key))
+		}
+	}
+}
+
+func TestRFC1123ToSnake(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "valid",
+			input:    "api-policy-1",
+			expected: "api_policy_1",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !cmp.Equal(rfc1123ToSnake(tt.input), tt.expected) {
+				t.Error(cmp.Diff(rfc1123ToSnake(tt.input), tt.expected))
 			}
 		})
+	}
+}
+
+func TestAddWafConfig(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		wafInput     *conf_v1.WAF
+		polKey       string
+		polNamespace string
+		apResources  *appProtectResourcesForVS
+		wafConfig    *version2.WAF
+		expected     *validationResults
+		msg          string
+	}{
+		{
+			wafInput: &conf_v1.WAF{
+				Enable: true,
+			},
+			polKey:       "default/waf-policy",
+			polNamespace: "default",
+			apResources: &appProtectResourcesForVS{
+				Policies: map[string]string{},
+				LogConfs: map[string]string{},
+			},
+			wafConfig: &version2.WAF{
+				Enable: "on",
+			},
+			expected: &validationResults{isError: false},
+			msg:      "valid waf config, default App Protect config",
+		},
+		{
+			wafInput: &conf_v1.WAF{
+				Enable:   true,
+				ApPolicy: "dataguard-alarm",
+				SecurityLog: &conf_v1.SecurityLog{
+					Enable:    true,
+					ApLogConf: "logconf",
+					LogDest:   "syslog:server=127.0.0.1:514",
+				},
+			},
+			polKey:       "default/waf-policy",
+			polNamespace: "default",
+			apResources: &appProtectResourcesForVS{
+				Policies: map[string]string{
+					"default/dataguard-alarm": "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
+				},
+				LogConfs: map[string]string{
+					"default/logconf": "/etc/nginx/waf/nac-logconfs/default-logconf",
+				},
+			},
+			wafConfig: &version2.WAF{
+				ApPolicy:            "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
+				ApSecurityLogEnable: true,
+				ApLogConf:           []string{"/etc/nginx/waf/nac-logconfs/default-logconf"},
+			},
+			expected: &validationResults{isError: false},
+			msg:      "valid waf config",
+		},
+		{
+			wafInput: &conf_v1.WAF{
+				Enable:   true,
+				ApPolicy: "dataguard-alarm",
+				SecurityLogs: []*conf_v1.SecurityLog{
+					{
+						Enable:    true,
+						ApLogConf: "logconf",
+						LogDest:   "syslog:server=127.0.0.1:514",
+					},
+				},
+			},
+			polKey:       "default/waf-policy",
+			polNamespace: "default",
+			apResources: &appProtectResourcesForVS{
+				Policies: map[string]string{
+					"default/dataguard-alarm": "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
+				},
+				LogConfs: map[string]string{
+					"default/logconf": "/etc/nginx/waf/nac-logconfs/default-logconf",
+				},
+			},
+			wafConfig: &version2.WAF{
+				ApPolicy:            "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
+				ApSecurityLogEnable: true,
+				ApLogConf:           []string{"/etc/nginx/waf/nac-logconfs/default-logconf"},
+			},
+			expected: &validationResults{isError: false},
+			msg:      "valid waf config",
+		},
+		{
+			wafInput: &conf_v1.WAF{
+				Enable:   true,
+				ApPolicy: "default/dataguard-alarm",
+				SecurityLog: &conf_v1.SecurityLog{
+					Enable:    true,
+					ApLogConf: "default/logconf",
+					LogDest:   "syslog:server=127.0.0.1:514",
+				},
+			},
+			polKey:       "default/waf-policy",
+			polNamespace: "",
+			apResources: &appProtectResourcesForVS{
+				Policies: map[string]string{
+					"default/dataguard-alarm": "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
+				},
+				LogConfs: map[string]string{},
+			},
+			wafConfig: &version2.WAF{
+				ApPolicy:            "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
+				ApSecurityLogEnable: true,
+				ApLogConf:           []string{"/etc/nginx/waf/nac-logconfs/default-logconf"},
+			},
+			expected: &validationResults{
+				isError: true,
+				warnings: []string{
+					`WAF policy default/waf-policy references an invalid or non-existing log config default/logconf`,
+				},
+			},
+			msg: "invalid waf config, apLogConf references non-existing log conf",
+		},
+		{
+			wafInput: &conf_v1.WAF{
+				Enable:   true,
+				ApPolicy: "default/dataguard-alarm",
+				SecurityLog: &conf_v1.SecurityLog{
+					Enable:  true,
+					LogDest: "syslog:server=127.0.0.1:514",
+				},
+			},
+			polKey:       "default/waf-policy",
+			polNamespace: "",
+			apResources: &appProtectResourcesForVS{
+				Policies: map[string]string{},
+				LogConfs: map[string]string{
+					"default/logconf": "/etc/nginx/waf/nac-logconfs/default-logconf",
+				},
+			},
+			wafConfig: &version2.WAF{
+				ApPolicy:            "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
+				ApSecurityLogEnable: true,
+				ApLogConf:           []string{"/etc/nginx/waf/nac-logconfs/default-logconf"},
+			},
+			expected: &validationResults{
+				isError: true,
+				warnings: []string{
+					`WAF policy default/waf-policy references an invalid or non-existing App Protect policy default/dataguard-alarm`,
+				},
+			},
+			msg: "invalid waf config, apLogConf references non-existing ap conf",
+		},
+		{
+			wafInput: &conf_v1.WAF{
+				Enable:   true,
+				ApPolicy: "ns1/dataguard-alarm",
+				SecurityLog: &conf_v1.SecurityLog{
+					Enable:    true,
+					ApLogConf: "ns2/logconf",
+					LogDest:   "syslog:server=127.0.0.1:514",
+				},
+			},
+			polKey:       "default/waf-policy",
+			polNamespace: "",
+			apResources: &appProtectResourcesForVS{
+				Policies: map[string]string{
+					"ns1/dataguard-alarm": "/etc/nginx/waf/nac-policies/ns1-dataguard-alarm",
+				},
+				LogConfs: map[string]string{
+					"ns2/logconf": "/etc/nginx/waf/nac-logconfs/ns2-logconf",
+				},
+			},
+			wafConfig: &version2.WAF{
+				ApPolicy:            "/etc/nginx/waf/nac-policies/ns1-dataguard-alarm",
+				ApSecurityLogEnable: true,
+				ApLogConf:           []string{"/etc/nginx/waf/nac-logconfs/ns2-logconf"},
+			},
+			expected: &validationResults{},
+			msg:      "valid waf config, cross ns reference",
+		},
+		{
+			wafInput: &conf_v1.WAF{
+				Enable:   false,
+				ApPolicy: "dataguard-alarm",
+			},
+			polKey:       "default/waf-policy",
+			polNamespace: "default",
+			apResources: &appProtectResourcesForVS{
+				Policies: map[string]string{
+					"default/dataguard-alarm": "/etc/nginx/waf/nac-policies/ns1-dataguard-alarm",
+				},
+				LogConfs: map[string]string{
+					"default/logconf": "/etc/nginx/waf/nac-logconfs/ns2-logconf",
+				},
+			},
+			wafConfig: &version2.WAF{
+				Enable:   "off",
+				ApPolicy: "/etc/nginx/waf/nac-policies/ns1-dataguard-alarm",
+			},
+			expected: &validationResults{},
+			msg:      "valid waf config, disable waf",
+		},
+		{
+			wafInput: &conf_v1.WAF{
+				Enable:   true,
+				ApBundle: "NginxDefaultPolicy.tgz",
+				SecurityLog: &conf_v1.SecurityLog{
+					Enable:      true,
+					ApLogBundle: "secops_dashboard.tgz",
+					LogDest:     "syslog:server=127.0.0.1:1514",
+				},
+			},
+			polKey:       "default/waf-policy",
+			polNamespace: "",
+			apResources: &appProtectResourcesForVS{
+				Policies: map[string]string{
+					"ns1/dataguard-alarm": "/etc/nginx/waf/nac-policies/ns1-dataguard-alarm",
+				},
+				LogConfs: map[string]string{
+					"ns2/logconf": "/etc/nginx/waf/nac-logconfs/ns2-logconf",
+				},
+			},
+			wafConfig: &version2.WAF{
+				ApPolicy:            "/etc/nginx/waf/nac-policies/ns1-dataguard-alarm",
+				ApSecurityLogEnable: true,
+				ApLogConf:           []string{"/etc/nginx/waf/nac-logconfs/ns2-logconf"},
+			},
+			expected: &validationResults{},
+			msg:      "valid waf config using bundle",
+		},
+	}
+
+	for _, test := range tests {
+		polCfg := newPoliciesConfig(&fakeBV)
+		result := polCfg.addWAFConfig(context.Background(), test.wafInput, test.polKey, test.polNamespace, test.apResources)
+		if diff := cmp.Diff(test.expected.warnings, result.warnings); diff != "" {
+			t.Errorf("policiesCfg.addWAFConfig() '%v' mismatch (-want +got):\n%s", test.msg, diff)
+		}
 	}
 }
