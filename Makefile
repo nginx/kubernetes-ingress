@@ -3,13 +3,13 @@ VER = $(shell grep IC_VERSION .github/data/version.txt | cut -d '=' -f 2)
 GIT_TAG = $(shell git describe --exact-match --tags || echo untagged)
 VERSION = $(VER)-SNAPSHOT
 # renovate: datasource=docker depName=nginx/nginx
-NGINX_OSS_VERSION             ?= 1.29.4
+NGINX_OSS_VERSION             ?= 1.29.5
 NGINX_PLUS_VERSION            ?= R36
 NAP_WAF_VERSION               ?= 36+5.575
 NAP_WAF_COMMON_VERSION        ?= 11.608
 NAP_WAF_PLUGIN_VERSION        ?= 6.25.0
 NAP_AGENT_VERSION             ?= 2
-NGINX_AGENT_VERSION           ?= 3.6
+NGINX_AGENT_VERSION           ?= 3.7
 PLUS_ARGS = --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --secret id=nginx-repo.crt,src=nginx-repo.crt --secret id=nginx-repo.key,src=nginx-repo.key
 
 # Variables that can be overridden

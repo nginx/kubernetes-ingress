@@ -233,6 +233,18 @@ var (
 			validateRequiredAnnotation,
 			validateSizeAnnotation,
 		},
+		configs.ProxyNextUpstreamAnnotation: {
+			validateRequiredAnnotation,
+			validateProxyNextUpstreamAnnotation,
+		},
+		configs.ProxyNextUpstreamTimeoutAnnotation: {
+			validateRequiredAnnotation,
+			validateTimeAnnotation,
+		},
+		configs.ProxyNextUpstreamTriesAnnotation: {
+			validateRequiredAnnotation,
+			validateUint64Annotation,
+		},
 		upstreamZoneSizeAnnotation: {
 			validateRequiredAnnotation,
 			validateSizeAnnotation,
@@ -530,6 +542,32 @@ func validateProxySetHeaderAnnotation(context *annotationValidationContext) fiel
 			continue
 		}
 	}
+	return allErrs
+}
+
+func validateProxyNextUpstreamAnnotation(context *annotationValidationContext) field.ErrorList {
+	var allErrs field.ErrorList
+
+	methods := strings.Fields(context.value)
+	nextValidUpstreamOptions := sets.NewString("error", "timeout", "invalid_header", "http_500", "http_502", "http_503", "http_504", "http_403", "http_404", "http_429", "non_idempotent", "off")
+
+	if context.isPlus {
+		nextValidUpstreamOptions = nextValidUpstreamOptions.Insert("denied")
+	}
+
+	seen := sets.NewString()
+	for _, method := range methods {
+		if seen.Has(method) {
+			allErrs = append(allErrs, field.Invalid(context.fieldPath, context.value, fmt.Sprintf("duplicate value: %s", method)))
+			continue
+		}
+		if !nextValidUpstreamOptions.Has(method) {
+			validOptions := strings.Join(nextValidUpstreamOptions.List(), ", ")
+			allErrs = append(allErrs, field.Invalid(context.fieldPath, context.value, fmt.Sprintf("must be a space-separated list with any of the following values: %s", validOptions)))
+		}
+		seen.Insert(method)
+	}
+
 	return allErrs
 }
 
