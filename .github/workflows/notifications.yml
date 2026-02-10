@@ -69,7 +69,7 @@ jobs:
                 color: 'danger',
                 fields: [{
                   title: 'Commit',
-                  value: `<https://github.com/${{ github.repository }}/commit/${{ github.event.workflow_run.head_commit.id }}>`,
+                  value: `<https://github.com/${{ github.repository }}/commit/${{ github.event.workflow_run.head_commit.id }}|view commit>`,
                   short: true
                 },
                 {
