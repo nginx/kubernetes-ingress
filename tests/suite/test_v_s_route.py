@@ -26,7 +26,7 @@ from suite.utils.vs_vsr_resources_utils import (
 )
 from suite.utils.yaml_utils import get_paths_from_vsr_yaml
 
-from tests.suite.utils.custom_resources_utils import wait_for_resource_status
+from tests.suite.utils.custom_resources_utils import read_custom_resource
 
 
 def assert_responses_and_server_name(resp_1, resp_2, resp_3):
@@ -440,7 +440,9 @@ class TestVirtualServerRouteSelector:
         v_s_route_selector_setup,
         v_s_route_selector_app_setup,
     ):
-        vs_info = wait_for_resource_status(
+        wait_before_test()
+
+        vs_info = read_custom_resource(
             kube_apis.custom_objects,
             v_s_route_selector_setup.namespace,
             "virtualservers",
@@ -448,7 +450,7 @@ class TestVirtualServerRouteSelector:
         )
         assert vs_info["status"]["state"] == "Valid", f"VirtualServer should be Valid, got: {vs_info.get('status', {})}"
 
-        vsr_info = wait_for_resource_status(
+        vsr_info = read_custom_resource(
             kube_apis.custom_objects,
             v_s_route_selector_setup.namespace,
             "virtualserverroutes",

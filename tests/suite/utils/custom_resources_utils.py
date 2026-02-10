@@ -83,48 +83,6 @@ def read_custom_resource(
         raise
 
 
-def wait_for_resource_status(custom_objects, namespace, resource_type, name, timeout=30):
-    """
-    Wait for a custom resource to have a populated status field.
-
-    :param custom_objects: CustomObjectsApi
-    :param namespace: Resource namespace
-    :param resource_type: Resource type (e.g., 'virtualservers', 'virtualserverroutes')
-    :param name: Resource name
-    :param timeout: Maximum time to wait in seconds
-    :return: Resource object with status
-    """
-    for i in range(timeout):
-        try:
-            resource_info = read_custom_resource(custom_objects, namespace, resource_type, name)
-            if resource_info.get("status"):
-                print(f"Resource {name} has status after {i+1} seconds")
-                return resource_info
-            time.sleep(1)
-        except ApiException as e:
-            if e.status == 404:
-                print(f"Resource {name} not found, waiting... ({i+1}/{timeout})")
-                time.sleep(1)
-                continue
-            else:
-                print(f"API error while waiting for {name}: {e}")
-                time.sleep(1)
-                continue
-        except Exception as e:
-            print(f"Unexpected error while waiting for {name}: {e}")
-            time.sleep(1)
-            continue
-
-    # Final attempt - return whatever we get, but handle exceptions
-    try:
-        resource_info = read_custom_resource(custom_objects, namespace, resource_type, name)
-        print(f"Final attempt for {name}: status present = {bool(resource_info.get('status'))}")
-        return resource_info
-    except Exception as e:
-        print(f"Final attempt failed for {name}: {e}")
-        raise
-
-
 def is_dnsendpoint_present(custom_objects: CustomObjectsApi, name, namespace) -> bool:
     """
     Check if a namespace has a dnsendpoint.
