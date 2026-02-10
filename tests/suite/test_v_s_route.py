@@ -17,6 +17,8 @@ from suite.utils.resources_utils import (
     wait_before_test,
 )
 from suite.utils.vs_vsr_resources_utils import (
+    apply_and_assert_valid_vs,
+    apply_and_assert_valid_vsr,
     create_v_s_route_from_yaml,
     create_virtual_server_from_yaml,
     delete_v_s_route,
@@ -438,6 +440,7 @@ class TestVirtualServerRouteSelector:
         v_s_route_selector_setup,
         v_s_route_selector_app_setup,
     ):
+
         req_url = f"http://{v_s_route_selector_setup.public_endpoint.public_ip}:{v_s_route_selector_setup.public_endpoint.port}"
         ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
         vs_name = f"{v_s_route_selector_setup.namespace}/{v_s_route_selector_setup.vs_name}"
@@ -455,6 +458,32 @@ class TestVirtualServerRouteSelector:
             ingress_controller_prerequisites.namespace,
             print_log=False,
         )
+
+        print("\nStep 0: check if vs and vsr are valid")
+        # Retry validation to handle potential timing issues
+        for attempt in range(3):
+            try:
+                apply_and_assert_valid_vs(
+                    kube_apis,
+                    f"{TEST_DATA}/virtual-server-route-selector/standard/virtual-server.yaml",
+                    v_s_route_selector_setup.namespace,
+                )
+                apply_and_assert_valid_vsr(
+                    kube_apis,
+                    f"{TEST_DATA}/virtual-server-route-selector/route-multiple.yaml",
+                    v_s_route_selector_setup.route_m.namespace,
+                )
+                apply_and_assert_valid_vsr(
+                    kube_apis,
+                    f"{TEST_DATA}/virtual-server-route-selector/route-single.yaml",
+                    v_s_route_selector_setup.route_s.namespace,
+                )
+                break
+            except AssertionError as e:
+                if attempt == 2:  # Last attempt
+                    raise
+                print(f"Validation attempt {attempt + 1} failed, retrying: {e}")
+                wait_before_test(2)
 
         print("\nStep 1: initial check")
         resp_1 = requests.get(
