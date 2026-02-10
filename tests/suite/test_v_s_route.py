@@ -469,14 +469,14 @@ class TestVirtualServerRouteSelector:
         )
         apply_and_assert_valid_vsr(
             kube_apis,
-            v_s_route_selector_setup.route_m.name,
             v_s_route_selector_setup.route_m.namespace,
+            v_s_route_selector_setup.route_m.name,
             f"{TEST_DATA}/virtual-server-route-selector/route-multiple.yaml",
         )
         apply_and_assert_valid_vsr(
             kube_apis,
-            v_s_route_selector_setup.route_s.name,
             v_s_route_selector_setup.route_s.namespace,
+            v_s_route_selector_setup.route_s.name,
             f"{TEST_DATA}/virtual-server-route-selector/route-single.yaml",
         )
 
