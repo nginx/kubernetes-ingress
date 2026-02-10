@@ -619,11 +619,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		if len(routeWarnings) > 0 {
 			vsc.mergeWarnings(routeWarnings)
 		}
-		if policiesCfg.OIDC != nil {
-			// If the VirtualServer defines a policy, it takes precedence over the route. If not, the Route policy is processed.
-			routePoliciesCfg.OIDC = policiesCfg.OIDC
-			policyOpts.oidcPolicyName = policiesCfg.OIDC.PolicyName
-		} else {
+		if routePoliciesCfg.OIDC != nil {
 			// Store the OIDC policy name for conflict checking in further calls to generatePolicies for subroutes
 			policyOpts.oidcPolicyName = routePoliciesCfg.OIDC.PolicyName
 		}
@@ -779,11 +775,6 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			routePoliciesCfg, routeWarnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, policyRefs, vsEx.Policies, context, r.Path, policyOpts, vsc.bundleValidator)
 			if len(routeWarnings) > 0 {
 				vsc.mergeWarnings(routeWarnings)
-			}
-			if policiesCfg.OIDC != nil {
-				// If the VirtualServer defines a policy, it takes precedence over the subroute. If not, the subroute policy processes the policy.
-				routePoliciesCfg.OIDC = policiesCfg.OIDC
-				policyOpts.oidcPolicyName = policiesCfg.OIDC.PolicyName
 			}
 			if routePoliciesCfg.JWTAuth.JWKSEnabled {
 				policiesCfg.JWTAuth.JWKSEnabled = routePoliciesCfg.JWTAuth.JWKSEnabled
