@@ -465,18 +465,21 @@ class TestVirtualServerRouteSelector:
             try:
                 apply_and_assert_valid_vs(
                     kube_apis,
-                    f"{TEST_DATA}/virtual-server-route-selector/standard/virtual-server.yaml",
                     v_s_route_selector_setup.namespace,
+                    v_s_route_selector_setup.vs_name,
+                    f"{TEST_DATA}/virtual-server-route-selector/standard/virtual-server.yaml",
                 )
                 apply_and_assert_valid_vsr(
                     kube_apis,
-                    f"{TEST_DATA}/virtual-server-route-selector/route-multiple.yaml",
+                    v_s_route_selector_setup.route_m.name,
                     v_s_route_selector_setup.route_m.namespace,
+                    f"{TEST_DATA}/virtual-server-route-selector/route-multiple.yaml",
                 )
                 apply_and_assert_valid_vsr(
                     kube_apis,
-                    f"{TEST_DATA}/virtual-server-route-selector/route-single.yaml",
+                    v_s_route_selector_setup.route_s.name,
                     v_s_route_selector_setup.route_s.namespace,
+                    f"{TEST_DATA}/virtual-server-route-selector/route-single.yaml",
                 )
                 break
             except AssertionError as e:
