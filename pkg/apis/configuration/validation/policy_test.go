@@ -3245,47 +3245,6 @@ func TestValidateCORS(t *testing.T) {
 	}
 }
 
-// TestCORSCRDLevelValidations tests validations that are now handled at CRD level
-// Note: These tests document what's now validated at CRD admission level
-func TestCORSCRDLevelValidations(t *testing.T) {
-	t.Parallel()
-
-	// These test cases document what's now validated at CRD level:
-	// - allowOrigin: Required, MinItems=1, MaxItems=100, no empty strings, no dangerous chars
-	// - allowMethods: MaxItems=10, valid HTTP methods only, no empty strings, no dangerous chars
-	// - allowHeaders: MaxItems=50, no empty strings, no dangerous chars, no wildcards
-	// - exposeHeaders: MaxItems=20, no empty strings, no dangerous chars, no wildcards
-	// - maxAge: Minimum=0, Maximum=86400
-	// - wildcard + credentials: XValidation at struct level
-	// - dangerous characters: ;{}\\n\\r$` rejected for all string fields
-	// - MDN compliance: HEAD method optimization, wildcard restrictions
-
-	invalidConfigs := []struct {
-		name        string
-		description string
-	}{
-		{"Empty allowOrigin", "allowOrigin: [] - violates MinItems=1"},
-		{"Empty origin string", "allowOrigin: [''] - violates XValidation for empty strings"},
-		{"Origin with semicolon", "allowOrigin: ['https://example.com; evil'] - violates dangerous char validation"},
-		{"Origin with braces", "allowOrigin: ['https://example.com { evil }'] - violates dangerous char validation"},
-		{"Origin with newline", "allowOrigin: ['https://example.com\\nX-Evil'] - violates dangerous char validation"},
-		{"Method with injection", "allowMethods: ['GET; evil'] - violates dangerous char validation"},
-		{"Header with injection", "allowHeaders: ['Content-Type; evil'] - violates dangerous char validation"},
-		{"Invalid HTTP method", "allowMethods: ['INVALID'] - violates XValidation for valid methods"},
-		{"Negative maxAge", "maxAge: -1 - violates Minimum=0"},
-		{"Wildcard + credentials", "allowOrigin: ['*'] + allowCredentials: true - violates XValidation"},
-		{"Wildcard in header name", "allowHeaders: ['*'] - violates XValidation for wildcard prohibition"},
-		{"Wildcard in expose header", "exposeHeaders: ['*'] - violates XValidation for wildcard prohibition"},
-	}
-
-	for _, config := range invalidConfigs {
-		t.Run(config.name, func(t *testing.T) {
-			// Document that these validations happen at CRD admission level
-			t.Logf("CRD validation: %s", config.description)
-		})
-	}
-}
-
 // TestCORSMDNCompliance tests that our CORS implementation follows MDN guidelines
 func TestCORSMDNCompliance(t *testing.T) {
 	t.Parallel()
