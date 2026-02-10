@@ -460,33 +460,25 @@ class TestVirtualServerRouteSelector:
         )
 
         print("\nStep 0: check if vs and vsr are valid")
-        # Retry validation to handle potential timing issues
-        for attempt in range(3):
-            try:
-                apply_and_assert_valid_vs(
-                    kube_apis,
-                    v_s_route_selector_setup.namespace,
-                    v_s_route_selector_setup.vs_name,
-                    f"{TEST_DATA}/virtual-server-route-selector/standard/virtual-server.yaml",
-                )
-                apply_and_assert_valid_vsr(
-                    kube_apis,
-                    v_s_route_selector_setup.route_m.name,
-                    v_s_route_selector_setup.route_m.namespace,
-                    f"{TEST_DATA}/virtual-server-route-selector/route-multiple.yaml",
-                )
-                apply_and_assert_valid_vsr(
-                    kube_apis,
-                    v_s_route_selector_setup.route_s.name,
-                    v_s_route_selector_setup.route_s.namespace,
-                    f"{TEST_DATA}/virtual-server-route-selector/route-single.yaml",
-                )
-                break
-            except AssertionError as e:
-                if attempt == 2:  # Last attempt
-                    raise
-                print(f"Validation attempt {attempt + 1} failed, retrying: {e}")
-                wait_before_test(2)
+
+        apply_and_assert_valid_vs(
+            kube_apis,
+            v_s_route_selector_setup.namespace,
+            v_s_route_selector_setup.vs_name,
+            f"{TEST_DATA}/virtual-server-route-selector/standard/virtual-server.yaml",
+        )
+        apply_and_assert_valid_vsr(
+            kube_apis,
+            v_s_route_selector_setup.route_m.name,
+            v_s_route_selector_setup.route_m.namespace,
+            f"{TEST_DATA}/virtual-server-route-selector/route-multiple.yaml",
+        )
+        apply_and_assert_valid_vsr(
+            kube_apis,
+            v_s_route_selector_setup.route_s.name,
+            v_s_route_selector_setup.route_s.namespace,
+            f"{TEST_DATA}/virtual-server-route-selector/route-single.yaml",
+        )
 
         print("\nStep 1: initial check")
         resp_1 = requests.get(

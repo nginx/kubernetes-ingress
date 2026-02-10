@@ -203,18 +203,34 @@ def apply_and_assert_valid_vsr(kube_apis, namespace, name, vsr_yaml):
         vsr_yaml,
         namespace,
     )
-    wait_before_test(1)
-    vsr_info = read_custom_resource(
-        kube_apis.custom_objects,
-        namespace,
-        "virtualserverroutes",
-        name,
-    )
+    
+    count = 0
+    while count < 5:
+        wait_before_test()
+        vsr_info = read_custom_resource(
+            kube_apis.custom_objects,
+            namespace,
+            "virtualserverroutes",
+            name,
+        )
+        
+        if (
+            "status" in vsr_info
+            and vsr_info["status"].get("reason") == "AddedOrUpdated"
+            and vsr_info["status"].get("state") == "Valid"
+        ):
+            break
+        
+        count += 1
+        if count < 5:
+            print(f"VSR status not ready on retry {count}, retrying...")
+            wait_before_test(2)
+    
     assert (
-        vsr_info["status"]
-        and vsr_info["status"]["reason"] == "AddedOrUpdated"
-        and vsr_info["status"]["state"] == "Valid"
-    ), vsr_info
+        "status" in vsr_info
+        and vsr_info["status"].get("reason") == "AddedOrUpdated"
+        and vsr_info["status"].get("state") == "Valid"
+    ), f"VSR validation failed. Resource info: {vsr_info}"
 
 
 def apply_and_assert_warning_vsr(kube_apis, namespace, name, vsr_yaml):
@@ -245,16 +261,34 @@ def apply_and_assert_valid_vs(kube_apis, namespace, name, vs_yaml):
         vs_yaml,
         namespace,
     )
-    wait_before_test(1)
-    vs_info = read_custom_resource(
-        kube_apis.custom_objects,
-        namespace,
-        "virtualservers",
-        name,
-    )
+    
+    count = 0
+    while count < 5:
+        wait_before_test()
+        vs_info = read_custom_resource(
+            kube_apis.custom_objects,
+            namespace,
+            "virtualservers",
+            name,
+        )
+        
+        if (
+            "status" in vs_info
+            and vs_info["status"].get("reason") == "AddedOrUpdated"
+            and vs_info["status"].get("state") == "Valid"
+        ):
+            break
+        
+        count += 1
+        if count < 5:
+            print(f"VS status not ready on retry {count}, retrying...")
+            wait_before_test(2)
+    
     assert (
-        vs_info["status"] and vs_info["status"]["reason"] == "AddedOrUpdated" and vs_info["status"]["state"] == "Valid"
-    ), vs_info
+        "status" in vs_info
+        and vs_info["status"].get("reason") == "AddedOrUpdated"
+        and vs_info["status"].get("state") == "Valid"
+    ), f"VS validation failed. Resource info: {vs_info}"
 
 
 def apply_and_assert_warning_vs(kube_apis, namespace, name, vs_yaml):
