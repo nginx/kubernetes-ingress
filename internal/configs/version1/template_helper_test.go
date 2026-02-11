@@ -529,6 +529,7 @@ func TestGenerateProxySetHeadersForValidHeadersInMaster(t *testing.T) {
 			},
 			wantProxyHeaders: []string{
 				"proxy_set_header X-Forwarded-ABC1 $http_x_forwarded_abc1;",
+				"proxy_set_header Host $host;",
 			},
 		},
 		{
@@ -538,6 +539,7 @@ func TestGenerateProxySetHeadersForValidHeadersInMaster(t *testing.T) {
 			},
 			wantProxyHeaders: []string{
 				"proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;",
+				"proxy_set_header Host $host;",
 			},
 		},
 		{
@@ -548,6 +550,7 @@ func TestGenerateProxySetHeadersForValidHeadersInMaster(t *testing.T) {
 			wantProxyHeaders: []string{
 				"proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;",
 				"proxy_set_header BVC $http_bvc;",
+				"proxy_set_header Host $host;",
 			},
 		},
 		{
@@ -558,6 +561,7 @@ func TestGenerateProxySetHeadersForValidHeadersInMaster(t *testing.T) {
 			wantProxyHeaders: []string{
 				"proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;",
 				`proxy_set_header BVC "test";`,
+				"proxy_set_header Host $host;",
 			},
 		},
 		{
@@ -569,6 +573,7 @@ func TestGenerateProxySetHeadersForValidHeadersInMaster(t *testing.T) {
 				"proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;",
 				"proxy_set_header BVC $http_bvc;",
 				"proxy_set_header X-Forwarded-Test $http_x_forwarded_test;",
+				"proxy_set_header Host $host;",
 			},
 		},
 		{
@@ -580,6 +585,7 @@ func TestGenerateProxySetHeadersForValidHeadersInMaster(t *testing.T) {
 				`proxy_set_header X-Forwarded-ABC "abc";`,
 				`proxy_set_header BVC "bat";`,
 				"proxy_set_header X-Forwarded-Test $http_x_forwarded_test;",
+				"proxy_set_header Host $host;",
 			},
 		},
 		{
@@ -589,6 +595,7 @@ func TestGenerateProxySetHeadersForValidHeadersInMaster(t *testing.T) {
 			},
 			wantProxyHeaders: []string{
 				`proxy_set_header X-Forwarded-ABC "test test2";`,
+				"proxy_set_header Host $host;",
 			},
 		},
 	}
@@ -674,10 +681,12 @@ func TestGenerateProxySetHeadersForValidHeadersInMasterAndTwoMinions(t *testing.
 			wantCoffeeHeaders: []string{
 				"proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;",
 				"proxy_set_header X-Forwarded-Coffee $http_x_forwarded_coffee;",
+				"proxy_set_header Host $host;",
 			},
 			wantTeaHeaders: []string{
 				"proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;",
 				"proxy_set_header X-Forwarded-Tea $http_x_forwarded_tea;",
+				"proxy_set_header Host $host;",
 			},
 		},
 	}
@@ -736,9 +745,11 @@ func TestGenerateProxySetHeadersForValidHeadersInMinionOverrideMaster(t *testing
 			},
 			wantCoffeeHeaders: []string{
 				`proxy_set_header X-Forwarded-ABC "coffee"`,
+				"proxy_set_header Host $host;",
 			},
 			wantTeaHeaders: []string{
 				"proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;",
+				"proxy_set_header Host $host;",
 			},
 		},
 	}
@@ -794,6 +805,75 @@ func TestGenerateProxySetHeadersForValidHeadersInOnlyOneMinion(t *testing.T) {
 			},
 			wantCoffeeHeaders: []string{
 				`proxy_set_header X-Forwarded-ABC "coffee"`,
+				"proxy_set_header Host $host;",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			generatedMasterConfig, err := generateProxySetHeaders(&Location{Path: ""}, tc.masterAnnotations)
+			if err != nil {
+				t.Fatal(err)
+			}
+			generatedCoffeeConfig, err := generateProxySetHeaders(&Location{Path: "coffee"}, tc.coffeeAnnotations)
+			if err != nil {
+				t.Fatal(err)
+			}
+			generatedTeaConfig, err := generateProxySetHeaders(&Location{Path: "tea"}, tc.teaAnnotations)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			generatedCoffeeConfig = generatedMasterConfig + "\n" + generatedCoffeeConfig
+			generatedTeaConfig = generatedMasterConfig + "\n" + generatedTeaConfig
+
+			for _, wantHeader := range tc.wantCoffeeHeaders {
+				if !strings.Contains(generatedCoffeeConfig, wantHeader) {
+					t.Errorf("expected header %q not found in generated coffee config", wantHeader)
+				}
+			}
+
+			for _, wantHeader := range tc.wantTeaHeaders {
+				if !strings.Contains(generatedTeaConfig, wantHeader) {
+					t.Errorf("expected header %q not found in generated tea config", wantHeader)
+				}
+			}
+		})
+	}
+}
+
+func TestGenerateProxySetHeadersForValidHeadersInMasterAndTwoMinionsOverrideHost(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name              string
+		masterAnnotations map[string]string
+		coffeeAnnotations map[string]string
+		teaAnnotations    map[string]string
+		wantCoffeeHeaders []string
+		wantTeaHeaders    []string
+	}{
+		{
+			name: "One Master Header and a unique header in Coffee and Tea",
+			masterAnnotations: map[string]string{
+				"nginx.org/proxy-set-headers": "X-Forwarded-ABC",
+			},
+			coffeeAnnotations: map[string]string{
+				"nginx.org/proxy-set-headers": "X-Forwarded-Coffee,Host:coffee",
+			},
+			teaAnnotations: map[string]string{
+				"nginx.org/proxy-set-headers": "X-Forwarded-Tea",
+			},
+			wantCoffeeHeaders: []string{
+				"proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;",
+				"proxy_set_header X-Forwarded-Coffee $http_x_forwarded_coffee;",
+				`proxy_set_header Host "coffee";`,
+			},
+			wantTeaHeaders: []string{
+				"proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;",
+				"proxy_set_header X-Forwarded-Tea $http_x_forwarded_tea;",
+				"proxy_set_header Host $host;",
 			},
 		},
 	}
