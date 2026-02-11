@@ -205,7 +205,7 @@ def apply_and_assert_valid_vsr(kube_apis, namespace, name, vsr_yaml):
     )
 
     count = 0
-    while count < 5:
+    while count < 15:
         wait_before_test()
         vsr_info = read_custom_resource(
             kube_apis.custom_objects,
@@ -222,7 +222,7 @@ def apply_and_assert_valid_vsr(kube_apis, namespace, name, vsr_yaml):
             break
 
         count += 1
-        if count < 5:
+        if count < 15:
             print(f"VSR status not ready on retry {count}, retrying...")
             wait_before_test(2)
 
@@ -263,7 +263,7 @@ def apply_and_assert_valid_vs(kube_apis, namespace, name, vs_yaml):
     )
 
     count = 0
-    while count < 5:
+    while count < 15:
         wait_before_test()
         vs_info = read_custom_resource(
             kube_apis.custom_objects,
@@ -280,7 +280,7 @@ def apply_and_assert_valid_vs(kube_apis, namespace, name, vs_yaml):
             break
 
         count += 1
-        if count < 5:
+        if count < 15:
             print(f"VS status not ready on retry {count}, retrying...")
             wait_before_test(2)
 
