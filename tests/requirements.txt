@@ -8,9 +8,9 @@ attrs==25.4.0 \
     --hash=sha256:16d5969b87f0859ef33a48b35d55ac1be6e42ae49d5e853b597db70c35c57e11 \
     --hash=sha256:adcf7e2a1fb3b36ac48d97835bb6d8ade15b8dcce26aba8bf1d14847b57a3373
     # via -r requirements.in
-cachetools==7.0.0 \
-    --hash=sha256:a9abf18ff3b86c7d05b27ead412e235e16ae045925e531fae38d5fada5ed5b08 \
-    --hash=sha256:d52fef60e6e964a1969cfb61ccf6242a801b432790fe520d78720d757c81cbd2
+cachetools==7.0.1 \
+    --hash=sha256:8f086515c254d5664ae2146d14fc7f65c9a4bce75152eb247e5a9c5e6d7b2ecf \
+    --hash=sha256:e31e579d2c5b6e2944177a0397150d312888ddf4e16e12f1016068f0c03b8341
     # via
     #   -r requirements.in
     #   google-auth
