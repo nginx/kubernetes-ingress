@@ -619,9 +619,20 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		if len(routeWarnings) > 0 {
 			vsc.mergeWarnings(routeWarnings)
 		}
-		if routePoliciesCfg.OIDC != nil {
+		if policiesCfg.OIDC != nil || routePoliciesCfg.OIDC != nil {
 			// Store the OIDC policy name for conflict checking in further calls to generatePolicies for subroutes
-			policyOpts.oidcPolicyName = routePoliciesCfg.OIDC.PolicyName
+			if routePoliciesCfg.OIDC != nil {
+				policyOpts.oidcPolicyName = routePoliciesCfg.OIDC.PolicyName
+
+				// policiesCfg.OIDC is used to store the OIDC policy for template generation for both spec, routes and subroutes.
+				// We can only have one OIDC policy per VirtualServer, so if we have an OIDC policy defined on the route, we use that one for template generation.
+				// We use the non-nil routePoliciesCfg.OIDC struct as a marker to trigger adding the OIDC configuration to the route locations in addPoliciesCfgToLocations.
+				policiesCfg.OIDC = routePoliciesCfg.OIDC
+			}
+			// If the route does not have an OIDC policy, but the VirtualServer has one, we still need to set routePoliciesCfg.OIDC to a non-nil value to trigger adding the OIDC configuration to the route locations in addPoliciesCfgToLocations, so we set it to the VirtualServer policy.
+			if policiesCfg.OIDC != nil {
+				routePoliciesCfg.OIDC = policiesCfg.OIDC
+			}
 		}
 		if routePoliciesCfg.JWTAuth.JWKSEnabled {
 			policiesCfg.JWTAuth.JWKSEnabled = routePoliciesCfg.JWTAuth.JWKSEnabled
@@ -775,6 +786,21 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			routePoliciesCfg, routeWarnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, policyRefs, vsEx.Policies, context, r.Path, policyOpts, vsc.bundleValidator)
 			if len(routeWarnings) > 0 {
 				vsc.mergeWarnings(routeWarnings)
+			}
+			if policiesCfg.OIDC != nil || routePoliciesCfg.OIDC != nil {
+				// Store the OIDC policy name for conflict checking in further calls to generatePolicies for subroutes
+				if routePoliciesCfg.OIDC != nil {
+					policyOpts.oidcPolicyName = routePoliciesCfg.OIDC.PolicyName
+
+					// policiesCfg.OIDC is used to store the OIDC policy for template generation for both spec, routes and subroutes.
+					// We can only have one OIDC policy per VirtualServer, so if we have an OIDC policy defined on the route, we use that one for template generation.
+					// We use the non-nil routePoliciesCfg.OIDC struct as a marker to trigger adding the OIDC configuration to the route locations in addPoliciesCfgToLocations.
+					policiesCfg.OIDC = routePoliciesCfg.OIDC
+				}
+				// If the route does not have an OIDC policy, but the VirtualServer has one, we still need to set routePoliciesCfg.OIDC to a non-nil value to trigger adding the OIDC configuration to the route locations in addPoliciesCfgToLocations, so we set it to the VirtualServer policy.
+				if policiesCfg.OIDC != nil {
+					routePoliciesCfg.OIDC = policiesCfg.OIDC
+				}
 			}
 			if routePoliciesCfg.JWTAuth.JWKSEnabled {
 				policiesCfg.JWTAuth.JWKSEnabled = routePoliciesCfg.JWTAuth.JWKSEnabled
