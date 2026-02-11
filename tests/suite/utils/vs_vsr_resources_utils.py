@@ -226,11 +226,8 @@ def apply_and_assert_valid_vsr(kube_apis, namespace, name, vsr_yaml):
             print(f"VSR status not ready on retry {count}, retrying...")
             wait_before_test(2)
 
-    assert (
-        "status" in vsr_info
-        and vsr_info["status"].get("reason") == "AddedOrUpdated"
-        and vsr_info["status"].get("state") == "Valid"
-    ), f"VSR validation failed. Resource info: {vsr_info}"
+    # If we reach here, validation failed after all retries
+    raise AssertionError(f"VSR validation failed. Resource info: {vsr_info}")
 
 
 def apply_and_assert_warning_vsr(kube_apis, namespace, name, vsr_yaml):
@@ -284,11 +281,8 @@ def apply_and_assert_valid_vs(kube_apis, namespace, name, vs_yaml):
             print(f"VS status not ready on retry {count}, retrying...")
             wait_before_test(2)
 
-    assert (
-        "status" in vs_info
-        and vs_info["status"].get("reason") == "AddedOrUpdated"
-        and vs_info["status"].get("state") == "Valid"
-    ), f"VS validation failed. Resource info: {vs_info}"
+    # If we reach here, validation failed after all retries
+    raise AssertionError(f"VS validation failed. Resource info: {vs_info}")
 
 
 def apply_and_assert_warning_vs(kube_apis, namespace, name, vs_yaml):
