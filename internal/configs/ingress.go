@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
 
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
@@ -38,6 +39,7 @@ type IngressEx struct {
 	Ingress          *networking.Ingress
 	Endpoints        map[string][]string
 	HealthChecks     map[string]*api_v1.Probe
+	Policies         map[string]*conf_v1.Policy
 	ExternalNameSvcs map[string]bool
 	PodsByIP         map[string]PodInfo
 	ValidHosts       map[string]bool

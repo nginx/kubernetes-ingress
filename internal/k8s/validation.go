@@ -589,18 +589,20 @@ func validateIngress(
 	appProtectDosEnabled bool,
 	internalRoutesEnabled bool,
 	snippetsEnabled bool,
-	directiveAutoadjust bool,
+	directiveAutoAdjust bool,
 ) field.ErrorList {
 	allErrs := validateIngressAnnotations(
+		IngressOpts{
+			isPlus:                isPlus,
+			appProtectEnabled:     appProtectEnabled,
+			appProtectDosEnabled:  appProtectDosEnabled,
+			internalRoutesEnabled: internalRoutesEnabled,
+			snippetsEnabled:       snippetsEnabled,
+			directiveAutoAdjust:   directiveAutoAdjust,
+		},
 		ing.Annotations,
 		getSpecServices(ing.Spec),
-		isPlus,
-		appProtectEnabled,
-		appProtectDosEnabled,
-		internalRoutesEnabled,
 		field.NewPath("annotations"),
-		snippetsEnabled,
-		directiveAutoadjust,
 	)
 
 	allErrs = append(allErrs, validateIngressSpec(&ing.Spec, field.NewPath("spec"))...)
@@ -641,16 +643,20 @@ func validateChallengeIngress(spec *networking.IngressSpec, fieldPath *field.Pat
 	return allErrs
 }
 
+type IngressOpts struct {
+	isPlus                bool
+	appProtectEnabled     bool
+	appProtectDosEnabled  bool
+	internalRoutesEnabled bool
+	snippetsEnabled       bool
+	directiveAutoAdjust   bool
+}
+
 func validateIngressAnnotations(
+	ingOpts IngressOpts,
 	annotations map[string]string,
 	specServices map[string]bool,
-	isPlus bool,
-	appProtectEnabled bool,
-	appProtectDosEnabled bool,
-	internalRoutesEnabled bool,
 	fieldPath *field.Path,
-	snippetsEnabled bool,
-	directiveAutoadjust bool,
 ) field.ErrorList {
 	allErrs := field.ErrorList{}
 
@@ -661,13 +667,13 @@ func validateIngressAnnotations(
 				specServices:          specServices,
 				name:                  name,
 				value:                 value,
-				isPlus:                isPlus,
-				appProtectEnabled:     appProtectEnabled,
-				appProtectDosEnabled:  appProtectDosEnabled,
-				internalRoutesEnabled: internalRoutesEnabled,
+				isPlus:                ingOpts.isPlus,
+				appProtectEnabled:     ingOpts.appProtectEnabled,
+				appProtectDosEnabled:  ingOpts.appProtectDosEnabled,
+				internalRoutesEnabled: ingOpts.internalRoutesEnabled,
 				fieldPath:             fieldPath.Child(name),
-				snippetsEnabled:       snippetsEnabled,
-				directiveAutoadjust:   directiveAutoadjust,
+				snippetsEnabled:       ingOpts.snippetsEnabled,
+				directiveAutoadjust:   ingOpts.directiveAutoAdjust,
 			}
 			allErrs = append(allErrs, validateIngressAnnotation(context)...)
 		}

@@ -4106,15 +4106,17 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
 			allErrs := validateIngressAnnotations(
+				IngressOpts{
+					isPlus:                test.isPlus,
+					appProtectEnabled:     test.appProtectEnabled,
+					appProtectDosEnabled:  test.appProtectDosEnabled,
+					internalRoutesEnabled: test.internalRoutesEnabled,
+					snippetsEnabled:       test.snippetsEnabled,
+					directiveAutoAdjust:   test.directiveAutoAdjust,
+				},
 				test.annotations,
 				test.specServices,
-				test.isPlus,
-				test.appProtectEnabled,
-				test.appProtectDosEnabled,
-				test.internalRoutesEnabled,
 				field.NewPath("annotations"),
-				test.snippetsEnabled,
-				test.directiveAutoAdjust,
 			)
 			assertion := assertErrors("validateIngressAnnotations()", test.msg, allErrs, test.expectedErrors)
 			if assertion != "" {

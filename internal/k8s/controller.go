@@ -2170,6 +2170,14 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 		ingEx.SecretRefs[secretName] = secretRef
 	}
 
+	var policyRefs []conf_v1.PolicyReference
+	policies, policyErrors := lbc.getPolicies(policyRefs, ing.Namespace)
+	if len(policyErrors) > 0 {
+		for _, err := range policyErrors {
+			nl.Warnf(lbc.Logger, "Error trying to get the policies for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
+		}
+	}
+
 	if basicAuth, exists := ingEx.Ingress.Annotations[configs.BasicAuthSecretAnnotation]; exists {
 		secretName := basicAuth
 		secretKey := ing.Namespace + "/" + secretName
@@ -2182,6 +2190,20 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 		ingEx.SecretRefs[secretName] = secretRef
 	}
 
+	if policies, exists := ingEx.Ingress.Annotations[configs.PoliciesAnnotation]; exists {
+		policyNames := strings.Split(policies, ",")
+		for _, policyName := range policyNames {
+			policyName = strings.TrimSpace(policyName)
+			if policyName == "" {
+				continue
+			}
+			policyRef := conf_v1.PolicyReference{
+				Name:      policyName,
+				Namespace: ing.Namespace,
+			}
+			policyRefs = append(policyRefs, policyRef)
+		}
+	}
 	if lbc.isNginxPlus {
 		if jwtKey, exists := ingEx.Ingress.Annotations[configs.JWTKeyAnnotation]; exists {
 			secretName := jwtKey
@@ -2234,6 +2256,7 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 	ingEx.Endpoints = make(map[string][]string)
 	ingEx.HealthChecks = make(map[string]*api_v1.Probe)
 	ingEx.ExternalNameSvcs = make(map[string]bool)
+	ingEx.Policies = createPolicyMap(policies)
 	ingEx.PodsByIP = make(map[string]configs.PodInfo)
 	hasUseClusterIP := ingEx.Ingress.Annotations[configs.UseClusterIPAnnotation] == "true"
 
