@@ -2171,6 +2171,9 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 	}
 
 	var policyRefs []conf_v1.PolicyReference
+	if ingEx.Ingress.Annotations[configs.PoliciesAnnotation] != "" {
+		policyRefs = getPolicyRefsFromAnnotation(ingEx.Ingress.Annotations[configs.PoliciesAnnotation], ing.Namespace)
+	}
 	policies, policyErrors := lbc.getPolicies(policyRefs, ing.Namespace)
 	if len(policyErrors) > 0 {
 		for _, err := range policyErrors {
@@ -2382,6 +2385,32 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 	}
 
 	return ingEx
+}
+
+// getPolicyRefsFromAnnotation parses the policies annotation and returns a slice of PolicyReference.
+func getPolicyRefsFromAnnotation(annotation, namespace string) []conf_v1.PolicyReference {
+	var policyRefs []conf_v1.PolicyReference
+	if annotation == "" {
+		return policyRefs
+	}
+	policyNames := strings.Split(annotation, ",")
+	for _, policyName := range policyNames {
+		policyName = strings.TrimSpace(policyName)
+		parts := strings.Split(policyName, "/")
+		if len(parts) == 2 {
+			namespace = parts[0]
+			policyName = parts[1]
+		}
+		if policyName == "" {
+			continue
+		}
+		policyRef := conf_v1.PolicyReference{
+			Name:      policyName,
+			Namespace: namespace,
+		}
+		policyRefs = append(policyRefs, policyRef)
+	}
+	return policyRefs
 }
 
 // nolint:gocyclo

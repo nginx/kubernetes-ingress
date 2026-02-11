@@ -643,6 +643,7 @@ func validateChallengeIngress(spec *networking.IngressSpec, fieldPath *field.Pat
 	return allErrs
 }
 
+// IngressOpts contains options that affect how Ingress annotations are validated. This is used to avoid passing a long list of parameters to the validation functions.
 type IngressOpts struct {
 	isPlus                bool
 	appProtectEnabled     bool
