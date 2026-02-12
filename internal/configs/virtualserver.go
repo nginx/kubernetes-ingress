@@ -1956,6 +1956,7 @@ func isWildcardOrigin(origin string) bool {
 	return false
 }
 
+//nolint:gocyclo
 func (p *policiesCfg) addCORSConfig(cors *conf_v1.CORS, polKey string) *validationResults {
 	res := newValidationResults()
 
@@ -1965,7 +1966,7 @@ func (p *policiesCfg) addCORSConfig(cors *conf_v1.CORS, polKey string) *validati
 
 	// Vary header is critical for CORS when origin validation is used
 	// Per enable-cors.org: prevents cache poisoning where one origin receives another's cached response
-	hasOriginValidation := len(cors.AllowOrigin) > 0 && !(len(cors.AllowOrigin) == 1 && cors.AllowOrigin[0] == "*")
+	hasOriginValidation := len(cors.AllowOrigin) > 0 && (len(cors.AllowOrigin) != 1 || cors.AllowOrigin[0] != "*")
 	if hasOriginValidation {
 		corsHeaders = append(corsHeaders, version2.AddHeader{
 			Header: version2.Header{
