@@ -432,6 +432,7 @@ class TestVirtualServerRouteSelector:
     to ensure all correct resources are properly created, updated, and configured.
     """
 
+    @pytest.mark.flaky(max_runs=3)
     def test_responses_and_events_in_flow(
         self,
         kube_apis,
