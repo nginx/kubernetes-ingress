@@ -1,0 +1,26 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: wildcard-cors-policy
+  namespace: default
+spec:
+  cors:
+    # Wildcard subdomain support - allows any single-level subdomain
+    # Following enable-cors.org best practices with proper Vary header handling
+    allowOrigin:
+      - "https://*.example.com"
+      - "https://app.example.com"
+    allowMethods:
+      - "GET"
+      - "POST"
+      - "PUT"
+      - "OPTIONS"
+    allowHeaders:
+      - "Content-Type"
+      - "Authorization"
+      - "X-Requested-With"
+    allowCredentials: true
+    exposeHeaders:
+      - "X-Total-Count"
+      - "X-Page-Size"
+    maxAge: 86400
