@@ -5,7 +5,7 @@ metadata:
 spec:
   host: cafe.example.com
   tls:
-    secret: cafe-secret
+    secret: app-tls-secret
   policies:
   - name: basic-auth-policy
   upstreams:

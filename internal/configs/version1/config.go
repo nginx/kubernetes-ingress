@@ -196,6 +196,10 @@ type Location struct {
 	LimitReq             *LimitReq
 
 	MinionIngress *Ingress
+
+	ProxyNextUpstream        string
+	ProxyNextUpstreamTimeout string
+	ProxyNextUpstreamTries   *uint64
 }
 
 // ZoneSyncConfig is tbe configuration for the zone_sync directives for state sharing.

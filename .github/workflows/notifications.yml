@@ -4,15 +4,10 @@ on:
   workflow_run:
     branches: [main, release-*]
     workflows:
-      - "CI"
-      - "CodeQL"
-      - "Fossa"
-      - "Lint"
       - "Update Docker Images"
-      - "OpenSSF Scorecards"
-      - "Build OSS"
-      - "Build Plus"
       - "Release NIC"
+      - "Build Test Image"
+      - "Run Regression tests"
     types:
       - completed
 
@@ -34,9 +29,6 @@ jobs:
         id: data
         with:
           script: |
-            const message = context.payload.workflow_run.head_commit.message
-            message_sanitized = message.split('\n')[0]
-
             const check_data = (await github.rest.checks.listForRef({
               owner: context.payload.repository.owner.login,
               repo: context.payload.repository.name,
@@ -46,7 +38,6 @@ jobs:
             return {
               job_name: check_data.name,
               job_url: check_data.html_url,
-              commit_message: message_sanitized,
             }
 
       - name: Azure login
@@ -78,7 +69,7 @@ jobs:
                 color: 'danger',
                 fields: [{
                   title: 'Commit',
-                  value: `<https://github.com/${{ github.repository }}/commit/${{ github.event.workflow_run.head_commit.id }}|${{ fromJSON(steps.data.outputs.result).commit_message }}>`,
+                  value: `<https://github.com/${{ github.repository }}/commit/${{ github.event.workflow_run.head_commit.id }}|view commit>`,
                   short: true
                 },
                 {

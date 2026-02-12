@@ -2,6 +2,10 @@
 
 package v1
 
+import (
+	metav1 "k8s.io/client-go/applyconfigurations/meta/v1"
+)
+
 // RouteApplyConfiguration represents a declarative configuration of the Route type for use
 // with apply.
 //
@@ -13,6 +17,8 @@ type RouteApplyConfiguration struct {
 	Policies []PolicyReferenceApplyConfiguration `json:"policies,omitempty"`
 	// The name of a VirtualServerRoute resource that defines this route. If the VirtualServerRoute belongs to a different namespace than the VirtualServer, you need to include the namespace. For example, tea-namespace/tea.
 	Route *string `json:"route,omitempty"`
+	// The RouteSelector allows selecting VirtualServerRoute resources using label selectors.
+	RouteSelector *metav1.LabelSelectorApplyConfiguration `json:"routeSelector,omitempty"`
 	// The default action to perform for a request.
 	Action *ActionApplyConfiguration `json:"action,omitempty"`
 	// The default splits configuration for traffic splitting. Must include at least 2 splits.
@@ -59,6 +65,14 @@ func (b *RouteApplyConfiguration) WithPolicies(values ...*PolicyReferenceApplyCo
 // If called multiple times, the Route field is set to the value of the last call.
 func (b *RouteApplyConfiguration) WithRoute(value string) *RouteApplyConfiguration {
 	b.Route = &value
+	return b
+}
+
+// WithRouteSelector sets the RouteSelector field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the RouteSelector field is set to the value of the last call.
+func (b *RouteApplyConfiguration) WithRouteSelector(value *metav1.LabelSelectorApplyConfiguration) *RouteApplyConfiguration {
+	b.RouteSelector = value
 	return b
 }
 

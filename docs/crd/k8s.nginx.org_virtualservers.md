@@ -148,6 +148,12 @@ The `.spec` object supports the following fields:
 | `routes[].policies[].name` | `string` | The name of a policy. If the policy doesn’t exist or invalid, NGINX will respond with an error response with the 500 status code. |
 | `routes[].policies[].namespace` | `string` | The namespace of a policy. If not specified, the namespace of the VirtualServer resource is used. |
 | `routes[].route` | `string` | The name of a VirtualServerRoute resource that defines this route. If the VirtualServerRoute belongs to a different namespace than the VirtualServer, you need to include the namespace. For example, tea-namespace/tea. |
+| `routes[].routeSelector` | `object` | The RouteSelector allows selecting VirtualServerRoute resources using label selectors. |
+| `routes[].routeSelector.matchExpressions` | `array` | MatchExpressions is a list of label selector requirements. The requirements are ANDed. |
+| `routes[].routeSelector.matchExpressions[].key` | `string` | Key is the label key that the selector applies to. |
+| `routes[].routeSelector.matchExpressions[].operator` | `string` | Operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist. |
+| `routes[].routeSelector.matchExpressions[].values` | `array[string]` | Values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch. |
+| `routes[].routeSelector.matchLabels` | `object` | MatchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed. |
 | `routes[].splits` | `array` | The default splits configuration for traffic splitting. Must include at least 2 splits. |
 | `routes[].splits[].action` | `object` | The action to perform for a request. |
 | `routes[].splits[].action.pass` | `string` | Passes requests to an upstream. The upstream with that name must be defined in the resource. |

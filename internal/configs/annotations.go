@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	"github.com/nginx/kubernetes-ingress/internal/validation"
@@ -44,6 +45,15 @@ const SSLRedirectAnnotation = "nginx.org/ssl-redirect"
 
 // HTTPRedirectCodeAnnotation is the annotation where the HTTP redirect code is specified.
 const HTTPRedirectCodeAnnotation = "nginx.org/http-redirect-code"
+
+// ProxyNextUpstreamAnnotation is the annotation where the proxy next upstream settings are specified.
+const ProxyNextUpstreamAnnotation = "nginx.org/proxy-next-upstream"
+
+// ProxyNextUpstreamTimeoutAnnotation is the annotation where the proxy next upstream timeout is specified.
+const ProxyNextUpstreamTimeoutAnnotation = "nginx.org/proxy-next-upstream-timeout"
+
+// ProxyNextUpstreamTriesAnnotation is the annotation where the proxy next upstream tries is specified.
+const ProxyNextUpstreamTriesAnnotation = "nginx.org/proxy-next-upstream-tries"
 
 // RedirectToHTTPSAnnotation is the annotation where the redirect-to-https boolean is specified.
 const RedirectToHTTPSAnnotation = "nginx.org/redirect-to-https"
@@ -262,6 +272,26 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 	if proxySetHeaders, exists := GetMapKeyAsStringSlice(ingEx.Ingress.Annotations, "nginx.org/proxy-set-headers", ingEx.Ingress, ","); exists {
 		parsedHeaders := parseProxySetHeaders(proxySetHeaders)
 		cfgParams.ProxySetHeaders = parsedHeaders
+	}
+
+	if proxyNextUpstream, exists := ingEx.Ingress.Annotations[ProxyNextUpstreamAnnotation]; exists {
+		normalizedValue := strings.Join(strings.Fields(proxyNextUpstream), " ")
+		cfgParams.ProxyNextUpstream = normalizedValue
+	}
+
+	if proxyNextUpstreamTimeout, exists := ingEx.Ingress.Annotations[ProxyNextUpstreamTimeoutAnnotation]; exists {
+		if parsedProxyNextUpstreamTimeout, err := ParseTime(proxyNextUpstreamTimeout); err != nil {
+			nl.Errorf(l, "Ingress %s/%s: Invalid value nginx.org/proxy-next-upstream-timeout: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), proxyNextUpstreamTimeout, err)
+		} else {
+			cfgParams.ProxyNextUpstreamTimeout = parsedProxyNextUpstreamTimeout
+		}
+	}
+
+	if proxyNextUpstreamTries, exists, err := GetMapKeyAsUint64(ingEx.Ingress.Annotations, ProxyNextUpstreamTriesAnnotation, ingEx.Ingress, false); exists {
+		if err != nil {
+			nl.Error(l, err)
+		}
+		cfgParams.ProxyNextUpstreamTries = &proxyNextUpstreamTries
 	}
 
 	if clientMaxBodySize, exists := ingEx.Ingress.Annotations["nginx.org/client-max-body-size"]; exists {

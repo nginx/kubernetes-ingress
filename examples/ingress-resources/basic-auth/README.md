@@ -31,7 +31,7 @@ The Ingress controller provides the following 2 annotations for configuring Basi
 Create the application deployment and service:
 
 ```console
-kubectl apply -f cafe.yaml
+kubectl apply -f cafe.yaml -f cafe-secret.yaml
 ```
 
 ## Step 2 - Deploy the Basic Auth Secret
