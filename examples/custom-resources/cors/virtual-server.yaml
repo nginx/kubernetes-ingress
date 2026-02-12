@@ -19,5 +19,3 @@ spec:
     - path: /api
       action:
         pass: webapp
-
-
