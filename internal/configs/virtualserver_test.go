@@ -13549,6 +13549,7 @@ func TestAddCORSConfig(t *testing.T) {
 			},
 			expected: policiesCfg{
 				CORS: []version2.AddHeader{
+					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "https://example.com"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Headers", Value: "Content-Type, Authorization"}, Always: true},
@@ -13583,7 +13584,8 @@ func TestAddCORSConfig(t *testing.T) {
 			},
 			expected: policiesCfg{
 				CORS: []version2.AddHeader{
-					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin"}, Always: true},
+					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_cors_policy"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST, PUT, DELETE"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Headers", Value: "Content-Type"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Credentials", Value: "true"}, Always: true},
@@ -13592,7 +13594,7 @@ func TestAddCORSConfig(t *testing.T) {
 				},
 				CORSMap: &version2.Map{
 					Source:   "$http_origin",
-					Variable: "$cors_origin",
+					Variable: "$cors_origin_default_cors_policy",
 					Parameters: []version2.Parameter{
 						{Value: "default", Result: `""`},
 						{Value: `"https://app.example.com"`, Result: "https://app.example.com"},
@@ -13605,8 +13607,75 @@ func TestAddCORSConfig(t *testing.T) {
 			name: "empty CORS policy",
 			cors: &conf_v1.CORS{},
 			expected: policiesCfg{
-				CORS:    nil, // Will be overwritten with empty slice
+				CORS:    []version2.AddHeader{}, // Will be overwritten with empty slice
 				CORSMap: nil,
+			},
+		},
+		{
+			name: "single wildcard subdomain CORS",
+			cors: &conf_v1.CORS{
+				AllowOrigin:  []string{"https://*.example.com"},
+				AllowMethods: []string{"GET", "POST"},
+			},
+			expected: policiesCfg{
+				CORS: []version2.AddHeader{
+					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_cors_policy"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST"}, Always: true},
+				},
+				CORSMap: &version2.Map{
+					Source:   "$http_origin",
+					Variable: "$cors_origin_default_cors_policy",
+					Parameters: []version2.Parameter{
+						{Value: "default", Result: `""`},
+						{Value: "~^https://[^.]+\\.example\\.com$", Result: "$http_origin"},
+					},
+				},
+			},
+		},
+		{
+			name: "mixed exact and wildcard origins",
+			cors: &conf_v1.CORS{
+				AllowOrigin:  []string{"https://api.example.com", "https://*.dev.example.com"},
+				AllowMethods: []string{"GET", "POST", "PUT"},
+				AllowHeaders: []string{"Content-Type", "Authorization"},
+			},
+			expected: policiesCfg{
+				CORS: []version2.AddHeader{
+					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_cors_policy"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST, PUT"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Headers", Value: "Content-Type, Authorization"}, Always: true},
+				},
+				CORSMap: &version2.Map{
+					Source:   "$http_origin",
+					Variable: "$cors_origin_default_cors_policy",
+					Parameters: []version2.Parameter{
+						{Value: "default", Result: `""`},
+						{Value: `"https://api.example.com"`, Result: "https://api.example.com"},
+						{Value: "~^https://[^.]+\\.dev\\.example\\.com$", Result: "$http_origin"},
+					},
+				},
+			},
+		},
+		{
+			name: "HTTP wildcard subdomain CORS",
+			cors: &conf_v1.CORS{
+				AllowOrigin: []string{"http://*.localhost.dev"},
+			},
+			expected: policiesCfg{
+				CORS: []version2.AddHeader{
+					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_cors_policy"}, Always: true},
+				},
+				CORSMap: &version2.Map{
+					Source:   "$http_origin",
+					Variable: "$cors_origin_default_cors_policy",
+					Parameters: []version2.Parameter{
+						{Value: "default", Result: `""`},
+						{Value: "~^http://[^.]+\\.localhost\\.dev$", Result: "$http_origin"},
+					},
+				},
 			},
 		},
 	}
@@ -13616,7 +13685,8 @@ func TestAddCORSConfig(t *testing.T) {
 			t.Parallel()
 
 			config := &policiesCfg{}
-			res := config.addCORSConfig(test.cors)
+			polKey := "default/cors-policy"
+			res := config.addCORSConfig(test.cors, polKey)
 
 			// Check that no validation errors occurred
 			if len(res.warnings) > 0 {
@@ -13691,6 +13761,7 @@ func TestGenerateCORSPolicyForVS(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				CORS: []version2.AddHeader{
+					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "https://trusted.example.com"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Headers", Value: "Content-Type"}, Always: true},
@@ -13724,7 +13795,8 @@ func TestGenerateCORSPolicyForVS(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				CORS: []version2.AddHeader{
-					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin"}, Always: true},
+					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_multi_origin_cors"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST, PUT, DELETE, OPTIONS"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Headers", Value: "Content-Type, Authorization, X-Requested-With"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Credentials", Value: "true"}, Always: true},
@@ -13733,7 +13805,7 @@ func TestGenerateCORSPolicyForVS(t *testing.T) {
 				},
 				CORSMap: &version2.Map{
 					Source:   "$http_origin",
-					Variable: "$cors_origin",
+					Variable: "$cors_origin_default_multi_origin_cors",
 					Parameters: []version2.Parameter{
 						{Value: "default", Result: `""`},
 						{Value: `"https://app.example.com"`, Result: "https://app.example.com"},
@@ -13863,6 +13935,7 @@ func TestGenerateCORSPolicyForVSR(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				CORS: []version2.AddHeader{
+					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "https://app.example.com"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST, PUT"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Headers", Value: "Content-Type, X-API-Key"}, Always: true},
@@ -13896,14 +13969,15 @@ func TestGenerateCORSPolicyForVSR(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				CORS: []version2.AddHeader{
-					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin"}, Always: true},
+					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_shared_policies_shared_cors"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST, DELETE"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Headers", Value: "Authorization, Content-Type"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Credentials", Value: "true"}, Always: true},
 				},
 				CORSMap: &version2.Map{
 					Source:   "$http_origin",
-					Variable: "$cors_origin",
+					Variable: "$cors_origin_shared_policies_shared_cors",
 					Parameters: []version2.Parameter{
 						{Value: "default", Result: `""`},
 						{Value: `"https://api.example.com"`, Result: "https://api.example.com"},

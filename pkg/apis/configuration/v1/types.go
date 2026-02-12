@@ -1255,7 +1255,7 @@ type CORS struct {
 	// By default, only simple response headers are exposed: Cache-Control, Content-Language, Content-Type, Expires, Last-Modified, Pragma.
 	// Use this field to expose additional custom headers to the browser.
 	// Example: ["X-Total-Count", "X-Page-Size", "X-RateLimit-Remaining"]
-	// Note: Forbidden response headers (Set-Cookie, etc.) are validated at runtime to keep CRD validation costs low.
+	// Note: Set-Cookie headers cannot be exposed via CORS per official MDN specification.
 	ExposeHeaders []string `json:"exposeHeaders,omitempty"`
 
 	// +kubebuilder:validation:Optional

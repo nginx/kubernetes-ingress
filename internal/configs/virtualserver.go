@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -599,6 +600,12 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			vsName:         vsEx.VirtualServer.Name,
 		}
 		routePoliciesCfg := vsc.generatePolicies(ownerDetails, r.Policies, vsEx.Policies, routeContext, r.Path, policyOpts)
+
+		// Inherit spec-level CORS if route doesn't have its own CORS policy
+		if len(routePoliciesCfg.CORS) == 0 && len(policiesCfg.CORS) > 0 {
+			routePoliciesCfg.CORS = policiesCfg.CORS
+		}
+
 		if policiesCfg.OIDC {
 			routePoliciesCfg.OIDC = policiesCfg.OIDC
 		}
@@ -622,15 +629,6 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			}
 			if _, exists := policiesCfg.APIKey.ClientMap[apiMapName]; !exists {
 				policiesCfg.APIKey.ClientMap[apiMapName] = routePoliciesCfg.APIKey.Clients
-			}
-		}
-
-		// Apply VirtualServer spec-level CORS to routes that don't have their own CORS policies
-		if len(routePoliciesCfg.CORS) == 0 && len(policiesCfg.CORS) > 0 {
-			routePoliciesCfg.CORS = policiesCfg.CORS
-			// Also inherit the CORS map if needed
-			if policiesCfg.CORSMap != nil {
-				routePoliciesCfg.CORSMap = policiesCfg.CORSMap
 			}
 		}
 
@@ -765,6 +763,12 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				context = subRouteContext
 			}
 			routePoliciesCfg := vsc.generatePolicies(ownerDetails, policyRefs, vsEx.Policies, context, r.Path, policyOpts)
+
+			// Inherit spec-level CORS if route doesn't have its own CORS policy
+			if len(routePoliciesCfg.CORS) == 0 && len(policiesCfg.CORS) > 0 {
+				routePoliciesCfg.CORS = policiesCfg.CORS
+			}
+
 			if policiesCfg.OIDC {
 				routePoliciesCfg.OIDC = policiesCfg.OIDC
 			}
@@ -791,14 +795,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				}
 			}
 
-			// Apply VirtualServer spec-level CORS to subroutes that don't have their own CORS policies
-			if len(routePoliciesCfg.CORS) == 0 && len(policiesCfg.CORS) > 0 {
-				routePoliciesCfg.CORS = policiesCfg.CORS
-				// Also inherit the CORS map if needed
-				if policiesCfg.CORSMap != nil {
-					routePoliciesCfg.CORSMap = policiesCfg.CORSMap
-				}
-			}
+			// Route-level policies override spec-level policies naturally via nginx context precedence
+			// No inheritance needed - spec-level at server context, route-level at location context
 
 			if len(routePoliciesCfg.RateLimit.GroupMaps) > 0 {
 				maps = append(maps, routePoliciesCfg.RateLimit.GroupMaps...)
@@ -884,6 +882,10 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	for mapName, apiKeyClients := range policiesCfg.APIKey.ClientMap {
 		maps = append(maps, *generateAPIKeyClientMap(mapName, apiKeyClients))
+	}
+
+	if policiesCfg.CORSMap != nil {
+		maps = append(maps, *policiesCfg.CORSMap)
 	}
 
 	httpSnippets := generateSnippets(vsc.enableSnippets, vsEx.VirtualServer.Spec.HTTPSnippets, []string{})
@@ -1676,6 +1678,79 @@ func generateAPIKeyClients(secretData map[string][]byte) []apiKeyClient {
 	return clients
 }
 
+// generateCORSVariableName creates a unique variable name for CORS map based on policy key
+// Format: cors_origin_{namespace}_{policyName}
+// Example: cors_origin_default_cors_policy_tea or cors_origin_coffee_cors_policy_coffee
+func generateCORSVariableName(polKey string) string {
+	// polKey format is "namespace/policyName"
+	// Convert to snake_case and create unique variable name
+	parts := strings.Split(polKey, "/")
+	if len(parts) != 2 {
+		// Fallback for unexpected format
+		return "cors_origin_unknown"
+	}
+	namespace := rfc1123ToSnake(parts[0])
+	policyName := rfc1123ToSnake(parts[1])
+	return fmt.Sprintf("cors_origin_%s_%s", namespace, policyName)
+}
+
+// buildOriginRegex converts a wildcard origin pattern to nginx-compatible regex
+// Similar to community ingress-nginx controller's approach, but more security-focused
+// Supports single-level wildcard subdomains: https://*.example.com -> ~^https://[^.]+\.example\.com$
+func buildOriginRegex(origin string) string {
+	// Global wildcard - return as-is
+	if origin == "*" {
+		return origin
+	}
+
+	// Check if this is a wildcard subdomain pattern
+	var scheme, host string
+	if strings.HasPrefix(origin, "https://") {
+		scheme = "https://"
+		host = origin[8:]
+	} else if strings.HasPrefix(origin, "http://") {
+		scheme = "http://"
+		host = origin[7:]
+	} else {
+		// Not a valid origin format, return as-is (validation should catch this)
+		return origin
+	}
+
+	// Check for wildcard subdomain pattern
+	if strings.HasPrefix(host, "*.") {
+		// Convert wildcard subdomain to regex
+		domain := host[2:] // Remove "*."
+
+		// Use regexp.QuoteMeta for security, then build regex pattern
+		escapedDomain := regexp.QuoteMeta(domain)
+		escapedScheme := regexp.QuoteMeta(scheme)
+
+		// Build regex pattern: ^https://[^.]+\.example\.com$
+		// [^.]+  matches one or more characters except dots (single-level subdomain)
+		// \.     escaped literal dot
+		// ^...$  anchored to match full string
+		regexPattern := fmt.Sprintf("~^%s[^.]+\\.%s$", escapedScheme, escapedDomain)
+		return regexPattern
+	}
+
+	// For exact origins, return as-is (no regex needed)
+	return origin
+}
+
+// isWildcardOrigin checks if an origin contains a wildcard subdomain pattern
+func isWildcardOrigin(origin string) bool {
+	if origin == "*" {
+		return false // Global wildcard is handled differently
+	}
+
+	// Check for wildcard subdomain pattern
+	if strings.HasPrefix(origin, "https://*.") || strings.HasPrefix(origin, "http://*.") {
+		return true
+	}
+
+	return false
+}
+
 func generateAPIKeyClientMap(mapName string, apiKeyClients []apiKeyClient) *version2.Map {
 	defaultParam := version2.Parameter{
 		Value:  "default",
@@ -1847,78 +1922,94 @@ func (p *policiesCfg) addCacheConfig(
 	return res
 }
 
-func (p *policiesCfg) addCORSConfig(cors *conf_v1.CORS) *validationResults {
+func (p *policiesCfg) addCORSConfig(cors *conf_v1.CORS, polKey string) *validationResults {
 	res := newValidationResults()
 
-	// Generate CORS headers
+	// Generate CORS headers - ALL headers go to both regular and OPTIONS responses
+	// The only difference is the 'always' flag and additional OPTIONS-specific headers
 	var corsHeaders []version2.AddHeader
 
-	// Always add headers to all responses
-	always := true
+	// Vary header is critical for CORS when origin validation is used
+	// Per enable-cors.org: prevents cache poisoning where one origin receives another's cached response
+	hasOriginValidation := len(cors.AllowOrigin) > 0 && !(len(cors.AllowOrigin) == 1 && cors.AllowOrigin[0] == "*")
+	if hasOriginValidation {
+		corsHeaders = append(corsHeaders, version2.AddHeader{
+			Header: version2.Header{
+				Name:  "Vary",
+				Value: "Origin",
+			},
+			Always: true, // Regular responses need always for error handling
+		})
+	}
 
-	// Access-Control-Allow-Origin - CORS compliant implementation
+	// Access-Control-Allow-Origin - CORS compliant implementation with wildcard support
 	if len(cors.AllowOrigin) > 0 {
+		var originValue string
+
 		if len(cors.AllowOrigin) == 1 && cors.AllowOrigin[0] == "*" {
 			// Single wildcard - simple case
-			corsHeaders = append(corsHeaders, version2.AddHeader{
-				Header: version2.Header{
-					Name:  "Access-Control-Allow-Origin",
-					Value: "*",
-				},
-				Always: always,
-			})
-		} else if len(cors.AllowOrigin) == 1 {
-			// Single specific origin - simple case
-			escapedOrigin := escapeNginxString(cors.AllowOrigin[0])
-			corsHeaders = append(corsHeaders, version2.AddHeader{
-				Header: version2.Header{
-					Name:  "Access-Control-Allow-Origin",
-					Value: escapedOrigin,
-				},
-				Always: always,
-			})
+			originValue = "*"
+		} else if len(cors.AllowOrigin) == 1 && !isWildcardOrigin(cors.AllowOrigin[0]) {
+			// Single exact origin - simple case
+			originValue = escapeNginxString(cors.AllowOrigin[0])
 		} else {
-			// Multiple origins - use nginx variable for CORS compliance
-			// This will be handled by a map directive that checks $http_origin
-			corsHeaders = append(corsHeaders, version2.AddHeader{
-				Header: version2.Header{
-					Name:  "Access-Control-Allow-Origin",
-					Value: "$cors_origin",
-				},
-				Always: always,
-			})
+			// Multiple origins OR single wildcard pattern - use nginx map for regex matching
+			// Generate unique variable name based on policy key to avoid conflicts
+			policyVarName := generateCORSVariableName(polKey)
+			originValue = fmt.Sprintf("$%s", policyVarName)
 
-			// Generate map directive for multiple origins
+			// Generate map directive with regex support for wildcard patterns
 			var params []version2.Parameter
 			// Default case - no origin matches (return empty string to deny)
 			params = append(params, version2.Parameter{
 				Value:  "default",
 				Result: `""`,
 			})
-			// Add each allowed origin
+
+			// Add each allowed origin, converting wildcards to regex patterns
 			for _, origin := range cors.AllowOrigin {
 				if origin == "" {
 					continue // Skip empty origins
 				}
-				escapedOrigin := escapeNginxString(origin)
-				// Wrap origin in quotes for nginx map syntax
-				quotedOrigin := fmt.Sprintf(`"%s"`, escapedOrigin)
-				params = append(params, version2.Parameter{
-					Value:  quotedOrigin,
-					Result: escapedOrigin,
-				})
+
+				if isWildcardOrigin(origin) {
+					// Convert wildcard pattern to nginx regex
+					regexPattern := buildOriginRegex(origin)
+					// For wildcard patterns, the result should be the original request origin
+					params = append(params, version2.Parameter{
+						Value:  regexPattern,
+						Result: "$http_origin", // Return the actual origin for wildcard matches
+					})
+				} else {
+					// Exact origin matching
+					escapedOrigin := escapeNginxString(origin)
+					// Wrap origin in quotes for nginx map syntax
+					quotedOrigin := fmt.Sprintf(`"%s"`, escapedOrigin)
+					params = append(params, version2.Parameter{
+						Value:  quotedOrigin,
+						Result: escapedOrigin,
+					})
+				}
 			}
 
 			corsMap := version2.Map{
 				Source:     "$http_origin",
-				Variable:   "$cors_origin",
+				Variable:   fmt.Sprintf("$%s", policyVarName),
 				Parameters: params,
 			}
 			p.CORSMap = &corsMap
 		}
+
+		corsHeaders = append(corsHeaders, version2.AddHeader{
+			Header: version2.Header{
+				Name:  "Access-Control-Allow-Origin",
+				Value: originValue,
+			},
+			Always: true, // Regular responses need always for error handling
+		})
 	}
 
-	// Access-Control-Allow-Methods - with security escaping
+	// Access-Control-Allow-Methods - per enable-cors.org should be in ALL responses
 	if len(cors.AllowMethods) > 0 {
 		methods := strings.Join(cors.AllowMethods, ", ")
 		escapedMethods := escapeNginxString(methods)
@@ -1927,11 +2018,11 @@ func (p *policiesCfg) addCORSConfig(cors *conf_v1.CORS) *validationResults {
 				Name:  "Access-Control-Allow-Methods",
 				Value: escapedMethods,
 			},
-			Always: always,
+			Always: true, // Regular responses need always for error handling
 		})
 	}
 
-	// Access-Control-Allow-Headers - with security escaping
+	// Access-Control-Allow-Headers - per enable-cors.org should be in ALL responses
 	if len(cors.AllowHeaders) > 0 {
 		headers := strings.Join(cors.AllowHeaders, ", ")
 		escapedHeaders := escapeNginxString(headers)
@@ -1940,22 +2031,22 @@ func (p *policiesCfg) addCORSConfig(cors *conf_v1.CORS) *validationResults {
 				Name:  "Access-Control-Allow-Headers",
 				Value: escapedHeaders,
 			},
-			Always: always,
+			Always: true, // Regular responses need always for error handling
 		})
 	}
 
-	// Access-Control-Allow-Credentials
+	// Access-Control-Allow-Credentials - should be in ALL responses
 	if cors.AllowCredentials != nil {
 		corsHeaders = append(corsHeaders, version2.AddHeader{
 			Header: version2.Header{
 				Name:  "Access-Control-Allow-Credentials",
 				Value: fmt.Sprintf("%t", *cors.AllowCredentials),
 			},
-			Always: always,
+			Always: true, // Regular responses need always for error handling
 		})
 	}
 
-	// Access-Control-Expose-Headers - with security escaping
+	// Access-Control-Expose-Headers - should be in ALL responses
 	if len(cors.ExposeHeaders) > 0 {
 		headers := strings.Join(cors.ExposeHeaders, ", ")
 		escapedHeaders := escapeNginxString(headers)
@@ -1964,22 +2055,25 @@ func (p *policiesCfg) addCORSConfig(cors *conf_v1.CORS) *validationResults {
 				Name:  "Access-Control-Expose-Headers",
 				Value: escapedHeaders,
 			},
-			Always: always,
+			Always: true, // Regular responses need always for error handling
 		})
 	}
 
-	// Access-Control-Max-Age
+	// Access-Control-Max-Age - should be in ALL responses
 	if cors.MaxAge != nil {
 		corsHeaders = append(corsHeaders, version2.AddHeader{
 			Header: version2.Header{
 				Name:  "Access-Control-Max-Age",
 				Value: fmt.Sprintf("%d", *cors.MaxAge),
 			},
-			Always: always,
+			Always: true, // Regular responses need always for error handling
 		})
 	}
 
+	// Store all CORS headers - will be used for both regular and OPTIONS responses
+	// The template will handle the 'always' flag difference and OPTIONS-specific headers
 	p.CORS = corsHeaders
+
 	return res
 }
 
@@ -2041,7 +2135,7 @@ func (vsc *virtualServerConfigurator) generatePolicies(
 			case pol.Spec.Cache != nil:
 				res = config.addCacheConfig(pol.Spec.Cache, key, ownerDetails.vsNamespace, ownerDetails.vsName, ownerDetails.ownerNamespace, ownerDetails.ownerName)
 			case pol.Spec.CORS != nil:
-				res = config.addCORSConfig(pol.Spec.CORS)
+				res = config.addCORSConfig(pol.Spec.CORS, key)
 			default:
 				res = newValidationResults()
 			}
@@ -2396,9 +2490,10 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 	location.Cache = cfg.Cache
 	location.PoliciesErrorReturn = cfg.ErrorReturn
 
-	// Add CORS headers to the existing AddHeaders
+	// Add CORS headers if present
 	if len(cfg.CORS) > 0 {
 		location.AddHeaders = append(location.AddHeaders, cfg.CORS...)
+		location.CORSEnabled = true
 	}
 }
 

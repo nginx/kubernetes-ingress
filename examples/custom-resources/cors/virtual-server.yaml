@@ -14,8 +14,10 @@ spec:
     - path: /
       action:
         pass: webapp
-    - path: /api
       policies:
-        - name: cors-wildcard-policy  # Different CORS policy for API routes
+      - name: wildcard-cors-policy
+    - path: /api
       action:
         pass: webapp
+
+

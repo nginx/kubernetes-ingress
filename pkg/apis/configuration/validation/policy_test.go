@@ -3136,12 +3136,92 @@ func TestValidateCORS(t *testing.T) {
 			expectErr: false,
 		},
 		{
+			name: "Valid CORS with wildcard subdomain",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://*.example.com"},
+				AllowMethods: []string{"GET", "POST"},
+			},
+			expectErr: false,
+		},
+		{
+			name: "Valid CORS with multiple wildcard subdomains",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://*.app.com", "https://*.api.example.org"},
+				AllowMethods: []string{"GET", "POST"},
+			},
+			expectErr: false,
+		},
+		{
+			name: "Valid CORS with mixed exact and wildcard origins",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com", "https://*.dev.example.com"},
+				AllowMethods: []string{"GET", "POST"},
+			},
+			expectErr: false,
+		},
+		{
+			name: "Valid CORS with HTTP wildcard subdomain",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"http://*.localhost.com"},
+				AllowMethods: []string{"GET", "POST"},
+			},
+			expectErr: false,
+		},
+		{
 			name: "Invalid origin format - missing protocol",
 			cors: &v1.CORS{
 				AllowOrigin: []string{"example.com"}, // Missing http:// or https://
 			},
 			expectErr: true,
 			errMsg:    "must start with http:// or https://",
+		},
+		{
+			name: "Invalid wildcard subdomain - empty domain",
+			cors: &v1.CORS{
+				AllowOrigin: []string{"https://*."}, // Empty domain after wildcard
+			},
+			expectErr: true,
+			errMsg:    "wildcard subdomain cannot be empty",
+		},
+		{
+			name: "Invalid wildcard subdomain - no domain",
+			cors: &v1.CORS{
+				AllowOrigin: []string{"https://*.dev"}, // Missing top-level domain
+			},
+			expectErr: true,
+			errMsg:    "wildcard subdomain must specify a valid domain",
+		},
+		{
+			name: "Invalid wildcard subdomain - multiple wildcards",
+			cors: &v1.CORS{
+				AllowOrigin: []string{"https://*.*.example.com"}, // Multiple wildcards not supported
+			},
+			expectErr: true,
+			errMsg:    "only single-level wildcard subdomains are supported",
+		},
+		{
+			name: "Invalid wildcard subdomain - wildcard in domain",
+			cors: &v1.CORS{
+				AllowOrigin: []string{"https://*.exam*le.com"}, // Wildcard in domain part
+			},
+			expectErr: true,
+			errMsg:    "only single-level wildcard subdomains are supported",
+		},
+		{
+			name: "Invalid wildcard position",
+			cors: &v1.CORS{
+				AllowOrigin: []string{"https://example.*.com"}, // Wildcard not at subdomain position
+			},
+			expectErr: true,
+			errMsg:    "wildcards are only supported in subdomain format",
+		},
+		{
+			name: "Invalid wildcard subdomain - invalid domain character",
+			cors: &v1.CORS{
+				AllowOrigin: []string{"https://*.exam@ple.com"}, // Invalid character in domain
+			},
+			expectErr: true,
+			errMsg:    "wildcard subdomain contains invalid domain character",
 		},
 		{
 			name: "Invalid header name - non-RFC compliant",
@@ -3160,6 +3240,14 @@ func TestValidateCORS(t *testing.T) {
 			},
 			expectErr: true,
 			errMsg:    "RFC 7230 violation",
+		},
+		{
+			name: "Duplicate origins - should be blocked",
+			cors: &v1.CORS{
+				AllowOrigin: []string{"https://example.com", "https://test.com", "https://example.com"}, // Duplicate origin
+			},
+			expectErr: true,
+			errMsg:    "Duplicate value",
 		},
 		{
 			name: "Valid with all HTTP methods",
@@ -3200,7 +3288,7 @@ func TestValidateCORS(t *testing.T) {
 			name: "Forbidden response header - Set-Cookie",
 			cors: &v1.CORS{
 				AllowOrigin:   []string{"https://example.com"},
-				ExposeHeaders: []string{"Set-Cookie"}, // Forbidden response header
+				ExposeHeaders: []string{"Set-Cookie"}, // Forbidden response header per CORS spec
 			},
 			expectErr: true,
 			errMsg:    "forbidden response header",
@@ -3227,7 +3315,7 @@ func TestValidateCORS(t *testing.T) {
 				} else {
 					found := false
 					for _, err := range errs {
-						if strings.Contains(err.Detail, test.errMsg) {
+						if strings.Contains(err.Error(), test.errMsg) {
 							found = true
 							break
 						}

@@ -952,11 +952,20 @@ func validateCORS(cors *v1.CORS, fieldPath *field.Path) field.ErrorList {
 // validateCORSOrigins validates the allowOrigin field
 func validateCORSOrigins(origins []string, fieldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
+	originSet := make(map[string]int) // Track origins and their first occurrence index
 
 	for i, origin := range origins {
-		// Basic URL format validation - must have proper protocol or be wildcard
-		if origin != "*" && !strings.HasPrefix(origin, "http://") && !strings.HasPrefix(origin, "https://") {
-			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), origin, "origin must start with http:// or https:// (or be '*')"))
+		// Check for duplicates
+		if firstIndex, exists := originSet[origin]; exists {
+			allErrs = append(allErrs, field.Duplicate(fieldPath.Index(i),
+				fmt.Sprintf("origin '%s' already specified at index %d, duplicates cause nginx configuration conflicts", origin, firstIndex)))
+		} else {
+			originSet[origin] = i
+		}
+
+		// Validate origin format - must be wildcard, exact URL, or wildcard subdomain pattern
+		if err := validateOriginFormat(origin); err != nil {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), origin, err.Error()))
 		}
 
 		// Check for dangerous characters that could cause nginx injection
@@ -966,6 +975,75 @@ func validateCORSOrigins(origins []string, fieldPath *field.Path) field.ErrorLis
 	}
 
 	return allErrs
+}
+
+// validateOriginFormat validates a single origin format
+func validateOriginFormat(origin string) error {
+	// Global wildcard
+	if origin == "*" {
+		return nil
+	}
+
+	// Must have protocol
+	if !strings.HasPrefix(origin, "http://") && !strings.HasPrefix(origin, "https://") {
+		return fmt.Errorf("origin must start with http:// or https:// (or be '*')")
+	}
+
+	// Extract host from origin
+	var host string
+	if strings.HasPrefix(origin, "https://") {
+		host = origin[8:] // Remove "https://"
+	} else {
+		host = origin[7:] // Remove "http://"
+	}
+
+	// Check for wildcard subdomain pattern
+	if strings.HasPrefix(host, "*.") {
+		// Validate wildcard subdomain format
+		domain := host[2:] // Remove "*."
+		if domain == "" {
+			return fmt.Errorf("wildcard subdomain cannot be empty (invalid format: %s)", origin)
+		}
+
+		// Ensure domain doesn't contain additional wildcards
+		if strings.Contains(domain, "*") {
+			return fmt.Errorf("only single-level wildcard subdomains are supported (invalid: %s)", origin)
+		}
+
+		// Basic domain validation - should contain at least one dot for a valid domain
+		if !strings.Contains(domain, ".") {
+			return fmt.Errorf("wildcard subdomain must specify a valid domain (invalid: %s)", origin)
+		}
+
+		// Check for invalid characters in domain part
+		for _, char := range domain {
+			if !isValidDomainChar(char) {
+				return fmt.Errorf("wildcard subdomain contains invalid domain character '%c' (invalid: %s)", char, origin)
+			}
+		}
+
+		return nil
+	}
+
+	// For exact origins, basic validation that host is not empty
+	if host == "" {
+		return fmt.Errorf("origin host cannot be empty")
+	}
+
+	// Check for any wildcards in non-wildcard origins
+	if strings.Contains(host, "*") {
+		return fmt.Errorf("wildcards are only supported in subdomain format (*.domain.com), not in other positions")
+	}
+
+	return nil
+}
+
+// isValidDomainChar checks if a character is valid in a domain name
+func isValidDomainChar(char int32) bool {
+	return (char >= 'a' && char <= 'z') ||
+		(char >= 'A' && char <= 'Z') ||
+		(char >= '0' && char <= '9') ||
+		char == '-' || char == '.' || char == ':'
 }
 
 // validateCORSAllowHeaders validates the allowHeaders field
@@ -1085,7 +1163,7 @@ func isForbiddenRequestHeader(header string) bool {
 func isForbiddenResponseHeader(header string) bool {
 	lower := strings.ToLower(header)
 
-	// Set-Cookie headers cannot be exposed via CORS
+	// Set-Cookie headers cannot be exposed via CORS (per MDN specification)
 	return lower == "set-cookie" || lower == "set-cookie2"
 }
 
