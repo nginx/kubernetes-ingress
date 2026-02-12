@@ -615,9 +615,9 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			vsNamespace:    vsEx.VirtualServer.Namespace,
 			vsName:         vsEx.VirtualServer.Name,
 		}
-		routePoliciesCfg, routeWarnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, r.Policies, vsEx.Policies, routeContext, r.Path, policyOpts, vsc.bundleValidator)
-		if len(routeWarnings) > 0 {
-			vsc.mergeWarnings(routeWarnings)
+		routePoliciesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, r.Policies, vsEx.Policies, routeContext, r.Path, policyOpts, vsc.bundleValidator)
+		if len(warnings) > 0 {
+			vsc.mergeWarnings(warnings)
 		}
 		if policiesCfg.OIDC != nil || routePoliciesCfg.OIDC != nil {
 			// Store the OIDC policy name for conflict checking in further calls to generatePolicies for subroutes
@@ -783,9 +783,9 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				policyRefs = r.Policies
 				context = subRouteContext
 			}
-			routePoliciesCfg, routeWarnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, policyRefs, vsEx.Policies, context, r.Path, policyOpts, vsc.bundleValidator)
-			if len(routeWarnings) > 0 {
-				vsc.mergeWarnings(routeWarnings)
+			routePoliciesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, policyRefs, vsEx.Policies, context, r.Path, policyOpts, vsc.bundleValidator)
+			if len(warnings) > 0 {
+				vsc.mergeWarnings(warnings)
 			}
 			if policiesCfg.OIDC != nil || routePoliciesCfg.OIDC != nil {
 				// Store the OIDC policy name for conflict checking in further calls to generatePolicies for subroutes

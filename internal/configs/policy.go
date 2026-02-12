@@ -35,6 +35,11 @@ type jwtAuth struct {
 	JWKSEnabled bool
 }
 
+type apiKeyClient struct {
+	ClientID  string
+	HashedKey string
+}
+
 // apiKeyAuth hold the configuration for the APIKey Policy
 type apiKeyAuth struct {
 	Enabled   bool

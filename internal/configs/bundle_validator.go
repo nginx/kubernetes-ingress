@@ -14,11 +14,6 @@ type internalBundleValidator struct {
 	bundlePath string
 }
 
-type apiKeyClient struct {
-	ClientID  string
-	HashedKey string
-}
-
 func (i internalBundleValidator) validate(bundle string) (string, error) {
 	bundle = path.Join(i.bundlePath, bundle)
 	_, err := os.Stat(bundle)
