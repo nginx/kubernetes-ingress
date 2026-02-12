@@ -923,10 +923,6 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		maps = append(maps, *generateAPIKeyClientMap(mapName, apiKeyClients))
 	}
 
-	if policiesCfg.CORSMap != nil {
-		maps = append(maps, *policiesCfg.CORSMap)
-	}
-
 	httpSnippets := generateSnippets(vsc.enableSnippets, vsEx.VirtualServer.Spec.HTTPSnippets, []string{})
 	serverSnippets := generateSnippets(
 		vsc.enableSnippets,
