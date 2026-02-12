@@ -21,6 +21,7 @@ type CORSApplyConfiguration struct {
 	// Common safe headers: ["Accept", "Accept-Language", "Content-Language", "Content-Type"]
 	// Custom headers: ["Authorization", "X-Requested-With", "X-Custom-Header"]
 	// Note: Simple request headers (Accept, Accept-Language, Content-Language, Content-Type with specific values) don't require explicit listing.
+	// Note: Forbidden headers (Host, Cookie, Origin, etc.) are validated at runtime to keep CRD validation costs low.
 	AllowHeaders []string `json:"allowHeaders,omitempty"`
 	// AllowCredentials indicates whether the response to the request can be exposed when the credentials flag is true.
 	// When used as part of a response to a preflight request, this indicates whether the actual request can be made using credentials.
@@ -29,6 +30,7 @@ type CORSApplyConfiguration struct {
 	// By default, only simple response headers are exposed: Cache-Control, Content-Language, Content-Type, Expires, Last-Modified, Pragma.
 	// Use this field to expose additional custom headers to the browser.
 	// Example: ["X-Total-Count", "X-Page-Size", "X-RateLimit-Remaining"]
+	// Note: Set-Cookie headers cannot be exposed via CORS per official MDN specification.
 	ExposeHeaders []string `json:"exposeHeaders,omitempty"`
 	// MaxAge defines how long (in seconds) the results of a preflight request can be cached.
 	// Default: 86400 (24 hours). Maximum recommended value is 86400 (24 hours).
