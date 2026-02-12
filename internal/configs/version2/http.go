@@ -160,6 +160,7 @@ type OIDC struct {
 	TLSVerify             bool
 	VerifyDepth           int
 	CAFile                string
+	PolicyName            string
 }
 
 // APIKey holds API key configuration.
