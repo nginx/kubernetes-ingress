@@ -156,7 +156,9 @@ func Test_controller_Register(t *testing.T) {
 				vsClient:      b.VSClient,
 			}
 
-			cm.addHandlers(nsi)
+			if err := cm.addHandlers(nsi); err != nil {
+				t.Fatalf("Failed to add handlers: %v", err)
+			}
 
 			queue := cm.register()
 

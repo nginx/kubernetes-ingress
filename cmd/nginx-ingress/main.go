@@ -867,7 +867,10 @@ func ready(lbc *k8s.LoadBalancerController) http.HandlerFunc {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "Ready")
+		if _, err := fmt.Fprintln(w, "Ready"); err != nil {
+			// Log error but don't fail the handler since status was already written
+			nl.Error(lbc.Logger, "Failed to write readiness response", err)
+		}
 	}
 }
 
