@@ -834,9 +834,6 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				}
 			}
 
-			// Route-level policies override spec-level policies naturally via nginx context precedence
-			// No inheritance needed - spec-level at server context, route-level at location context
-
 			if len(routePoliciesCfg.RateLimit.GroupMaps) > 0 {
 				maps = append(maps, routePoliciesCfg.RateLimit.GroupMaps...)
 			}
@@ -893,6 +890,9 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				cfg := generateDefaultSplitsConfig(r, upstreamNamer, crUpstreams, VariableNamer, len(splitClients), vsc.cfgParams,
 					errorPages, r.Path, locSnippets, vsc.enableSnippets, len(returnLocations), isVSR, vsr.Name, vsr.Namespace, vsc.warnings, vsc.DynamicWeightChangesReload)
 				addPoliciesCfgToLocations(routePoliciesCfg, cfg.Locations)
+				addDosConfigToLocations(dosRouteCfg, cfg.Locations)
+
+				splitClients = append(splitClients, cfg.SplitClients...)
 				locations = append(locations, cfg.Locations...)
 				internalRedirectLocations = append(internalRedirectLocations, cfg.InternalRedirectLocation)
 				returnLocations = append(returnLocations, cfg.ReturnLocations...)
@@ -1717,79 +1717,6 @@ func generateAPIKeyClients(secretData map[string][]byte) []apiKeyClient {
 	return clients
 }
 
-// generateCORSVariableName creates a unique variable name for CORS map based on policy key
-// Format: cors_origin_{namespace}_{policyName}
-// Example: cors_origin_default_cors_policy_tea or cors_origin_coffee_cors_policy_coffee
-func generateCORSVariableName(polKey string) string {
-	// polKey format is "namespace/policyName"
-	// Convert to snake_case and create unique variable name
-	parts := strings.Split(polKey, "/")
-	if len(parts) != 2 {
-		// Fallback for unexpected format
-		return "cors_origin_unknown"
-	}
-	namespace := rfc1123ToSnake(parts[0])
-	policyName := rfc1123ToSnake(parts[1])
-	return fmt.Sprintf("cors_origin_%s_%s", namespace, policyName)
-}
-
-// buildOriginRegex converts a wildcard origin pattern to nginx-compatible regex
-// Similar to community ingress-nginx controller's approach, but more security-focused
-// Supports single-level wildcard subdomains: https://*.example.com -> ~^https://[^.]+\.example\.com$
-func buildOriginRegex(origin string) string {
-	// Global wildcard - return as-is
-	if origin == "*" {
-		return origin
-	}
-
-	// Check if this is a wildcard subdomain pattern
-	var scheme, host string
-	if strings.HasPrefix(origin, "https://") {
-		scheme = "https://"
-		host = origin[8:]
-	} else if strings.HasPrefix(origin, "http://") {
-		scheme = "http://"
-		host = origin[7:]
-	} else {
-		// Not a valid origin format, return as-is (validation should catch this)
-		return origin
-	}
-
-	// Check for wildcard subdomain pattern
-	if strings.HasPrefix(host, "*.") {
-		// Convert wildcard subdomain to regex
-		domain := host[2:] // Remove "*."
-
-		// Use regexp.QuoteMeta for security, then build regex pattern
-		escapedDomain := regexp.QuoteMeta(domain)
-		escapedScheme := regexp.QuoteMeta(scheme)
-
-		// Build regex pattern: ^https://[^.]+\.example\.com$
-		// [^.]+  matches one or more characters except dots (single-level subdomain)
-		// \.     escaped literal dot
-		// ^...$  anchored to match full string
-		regexPattern := fmt.Sprintf("~^%s[^.]+\\.%s$", escapedScheme, escapedDomain)
-		return regexPattern
-	}
-
-	// For exact origins, return as-is (no regex needed)
-	return origin
-}
-
-// isWildcardOrigin checks if an origin contains a wildcard subdomain pattern
-func isWildcardOrigin(origin string) bool {
-	if origin == "*" {
-		return false // Global wildcard is handled differently
-	}
-
-	// Check for wildcard subdomain pattern
-	if strings.HasPrefix(origin, "https://*.") || strings.HasPrefix(origin, "http://*.") {
-		return true
-	}
-
-	return false
-}
-
 func generateAPIKeyClientMap(mapName string, apiKeyClients []apiKeyClient) *version2.Map {
 	defaultParam := version2.Parameter{
 		Value:  "default",
@@ -1959,6 +1886,78 @@ func (p *policiesCfg) addCacheConfig(
 
 	p.Cache = generateCacheConfig(cache, vsNamespace, vsName, ownerNamespace, ownerName)
 	return res
+}
+
+// generateCORSVariableName creates a unique variable name for CORS map based on policy key
+// Format: cors_origin_{namespace}_{policyName}
+// Example: cors_origin_default_cors_policy_tea or cors_origin_coffee_cors_policy_coffee
+func generateCORSVariableName(polKey string) string {
+	// polKey format is "namespace/policyName"
+	// Convert to snake_case and create unique variable name
+	parts := strings.Split(polKey, "/")
+	if len(parts) != 2 {
+		// Fallback for unexpected format
+		return "cors_origin_unknown"
+	}
+	namespace := rfc1123ToSnake(parts[0])
+	policyName := rfc1123ToSnake(parts[1])
+	return fmt.Sprintf("cors_origin_%s_%s", namespace, policyName)
+}
+
+// buildOriginRegex converts a wildcard origin pattern to nginx-compatible regex
+// Supports single-level wildcard subdomains: https://*.example.com -> ~^https://[^.]+\.example\.com$
+func buildOriginRegex(origin string) string {
+	// Global wildcard - return as-is
+	if origin == "*" {
+		return origin
+	}
+
+	// Check if this is a wildcard subdomain pattern
+	var scheme, host string
+	if strings.HasPrefix(origin, "https://") {
+		scheme = "https://"
+		host = origin[8:]
+	} else if strings.HasPrefix(origin, "http://") {
+		scheme = "http://"
+		host = origin[7:]
+	} else {
+		// Not a valid origin format, return as-is (validation should catch this)
+		return origin
+	}
+
+	// Check for wildcard subdomain pattern
+	if strings.HasPrefix(host, "*.") {
+		// Convert wildcard subdomain to regex
+		domain := host[2:] // Remove "*."
+
+		// Use regexp.QuoteMeta for security, then build regex pattern
+		escapedDomain := regexp.QuoteMeta(domain)
+		escapedScheme := regexp.QuoteMeta(scheme)
+
+		// Build regex pattern: ^https://[^.]+\.example\.com$
+		// [^.]+  matches one or more characters except dots (single-level subdomain)
+		// \.     escaped literal dot
+		// ^...$  anchored to match full string
+		regexPattern := fmt.Sprintf("~^%s[^.]+\\.%s$", escapedScheme, escapedDomain)
+		return regexPattern
+	}
+
+	// For exact origins, return as-is (no regex needed)
+	return origin
+}
+
+// isWildcardOrigin checks if an origin contains a wildcard subdomain pattern
+func isWildcardOrigin(origin string) bool {
+	if origin == "*" {
+		return false // Global wildcard is handled differently
+	}
+
+	// Check for wildcard subdomain pattern
+	if strings.HasPrefix(origin, "https://*.") || strings.HasPrefix(origin, "http://*.") {
+		return true
+	}
+
+	return false
 }
 
 func (p *policiesCfg) addCORSConfig(cors *conf_v1.CORS, polKey string) *validationResults {
