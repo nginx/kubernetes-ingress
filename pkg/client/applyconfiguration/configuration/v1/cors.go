@@ -8,34 +8,27 @@ package v1
 // CORS defines a Cross-Origin Resource Sharing policy for controlling cross-origin requests.
 type CORSApplyConfiguration struct {
 	// AllowOrigin defines the origins that are allowed to make cross-origin requests.
-	// Can be exact domains, wildcards, or "*" for all origins.
+	// Can be exact domains, single wildcards, or "*" for all origins.
 	// Examples: ["https://example.com", "https://*.mydomain.com", "*"]
 	// Security: When allowCredentials is true, wildcard "*" is not allowed per CORS specification.
 	// The server must specify explicit origins for credentialed requests.
 	AllowOrigin []string `json:"allowOrigin,omitempty"`
 	// AllowMethods defines the HTTP methods that are allowed for cross-origin requests.
-	// If not specified, defaults to ["GET", "HEAD", "POST", "OPTIONS"] which are the standard simple request methods.
-	// Note: GET automatically includes HEAD support per HTTP specification.
 	AllowMethods []string `json:"allowMethods,omitempty"`
 	// AllowHeaders defines the headers that are allowed in cross-origin requests.
 	// Common safe headers: ["Accept", "Accept-Language", "Content-Language", "Content-Type"]
 	// Custom headers: ["Authorization", "X-Requested-With", "X-Custom-Header"]
-	// Note: Simple request headers (Accept, Accept-Language, Content-Language, Content-Type with specific values) don't require explicit listing.
-	// Note: Forbidden headers (Host, Cookie, Origin, etc.) are validated at runtime to keep CRD validation costs low.
 	AllowHeaders []string `json:"allowHeaders,omitempty"`
 	// AllowCredentials indicates whether the response to the request can be exposed when the credentials flag is true.
 	// When used as part of a response to a preflight request, this indicates whether the actual request can be made using credentials.
 	AllowCredentials *bool `json:"allowCredentials,omitempty"`
 	// ExposeHeaders defines the headers that browsers are allowed to access.
-	// By default, only simple response headers are exposed: Cache-Control, Content-Language, Content-Type, Expires, Last-Modified, Pragma.
 	// Use this field to expose additional custom headers to the browser.
 	// Example: ["X-Total-Count", "X-Page-Size", "X-RateLimit-Remaining"]
 	// Note: Set-Cookie headers cannot be exposed via CORS per official MDN specification.
 	ExposeHeaders []string `json:"exposeHeaders,omitempty"`
 	// MaxAge defines how long (in seconds) the results of a preflight request can be cached.
 	// Default: 86400 (24 hours). Maximum recommended value is 86400 (24 hours).
-	// Note: Each browser has a maximum internal value that takes precedence when this value exceeds it.
-	// Setting this too high may not be effective as browsers will use their own maximum values.
 	MaxAge *int `json:"maxAge,omitempty"`
 }
 
