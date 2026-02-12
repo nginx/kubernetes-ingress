@@ -377,9 +377,54 @@ var (
 		appRootAnnotation: {
 			validateAppRootAnnotation,
 		},
+		configs.PoliciesAnnotation: {
+			validateRequiredAnnotation,
+			validateCommaSeparatedList,
+			validatePolicyNames,
+		},
 	}
 	annotationNames = sortedAnnotationNames(annotationValidations)
 )
+
+func validateCommaSeparatedList(context *annotationValidationContext) field.ErrorList {
+	items := strings.Split(context.value, commaDelimiter)
+	var allErrs field.ErrorList
+	for _, item := range items {
+		if !validAnnotationValueRegex.MatchString(item) {
+			allErrs = append(allErrs, field.Invalid(context.fieldPath, policy, annotationValueFmtErrMsg))
+		}
+	}
+	return allErrs
+}
+
+func validatePolicyNames(context *annotationValidationContext) field.ErrorList {
+	var allErrs field.ErrorList
+	for policy := range strings.SplitSeq(context.value, commaDelimiter) {
+		policy = strings.TrimSpace(policy)
+		var dnsErrs []string
+		policyName := policy
+		if strings.Contains(policy, "/") {
+			parts := strings.SplitN(policy, "/", 2)
+			namespace := parts[0]
+			if namespace == "" {
+				allErrs = append(allErrs, field.Invalid(context.fieldPath, policy, "policy namespace cannot be empty"))
+			}
+			dnsErrs = validation.IsDNS1123Subdomain(namespace)
+			if len(dnsErrs) > 0 {
+				allErrs = append(allErrs, field.Invalid(context.fieldPath, policy, fmt.Sprintf("policy namespace must be a valid DNS subdomain: %s", strings.Join(dnsErrs, "; "))))
+			}
+			policyName = parts[1]
+		}
+		if policyName == "" {
+			allErrs = append(allErrs, field.Invalid(context.fieldPath, policy, "policy name cannot be empty"))
+		}
+		dnsErrs = validation.IsDNS1123Subdomain(policyName)
+		if len(dnsErrs) > 0 {
+			allErrs = append(allErrs, field.Invalid(context.fieldPath, policy, fmt.Sprintf("policy name must be a valid DNS subdomain: %s", strings.Join(dnsErrs, "; "))))
+		}
+	}
+	return allErrs
+}
 
 func validatePathRegex(context *annotationValidationContext) field.ErrorList {
 	switch context.value {

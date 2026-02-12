@@ -1204,21 +1204,11 @@ func TestBackupServiceIsReferencedByTransportServer(t *testing.T) {
 	}
 }
 
-func TestPolicyIsReferencedByIngressesAndTransportServers(t *testing.T) {
+func TestPolicyIsReferencedByTransportServers(t *testing.T) {
 	t.Parallel()
 	rc := newPolicyReferenceChecker()
 
-	result := rc.IsReferencedByIngress("", "", nil)
-	if result {
-		t.Error("IsReferencedByIngress() returned true but expected false")
-	}
-
-	result = rc.IsReferencedByMinion("", "", nil)
-	if result {
-		t.Error("IsReferencedByMinion() returned true but expected false")
-	}
-
-	result = rc.IsReferencedByTransportServer("", "", nil)
+	result := rc.IsReferencedByTransportServer("", "", nil)
 	if result {
 		t.Error("IsReferencedByTransportServer() returned true but expected false")
 	}

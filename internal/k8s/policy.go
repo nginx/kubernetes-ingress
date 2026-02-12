@@ -99,14 +99,39 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 	namespace, name, _ := ParseNamespaceName(key)
 
 	resources := lbc.configuration.FindResourcesForPolicy(namespace, name)
+
+	for _, res := range resources {
+		switch impl := res.(type) {
+		case *IngressConfiguration:
+			// call addOrUpdateIngress for all ingresses that reference the policy,
+			// which will trigger a validation and update of the status of the ingress and the policy
+			lbc.configuration.AddOrUpdateIngress(impl.Ingress)
+
+			pol := obj.(*conf_v1.Policy)
+			switch {
+			case pol.Spec.AccessControl != nil:
+				// Access Control policy is supported on Ingress
+				continue
+			default: // Unsupported policy type on Ingress
+				msg := fmt.Sprintf("Policy %s/%s has unsupported type on Ingress resource %s/%s",
+					pol.Namespace, pol.Name, impl.Ingress.Namespace, impl.Ingress.Name)
+				nl.Error(lbc.Logger, msg)
+				lbc.recorder.Eventf(impl.Ingress, api_v1.EventTypeWarning, nl.EventReasonRejected, msg)
+			}
+		default:
+			continue
+		}
+	}
+
 	resourceExes := lbc.createExtendedResources(resources)
 
-	// Only VirtualServers support policies
-	if len(resourceExes.VirtualServerExes) == 0 {
+	// Only VirtualServers and Ingresses support policies
+	if len(resourceExes.VirtualServerExes) == 0 && len(resourceExes.IngressExes) == 0 {
 		return
 	}
 
 	warnings, updateErr := lbc.configurator.AddOrUpdateVirtualServers(resourceExes.VirtualServerExes)
+
 	lbc.updateResourcesStatusAndEvents(resources, warnings, updateErr)
 
 	// Note: updating the status of a policy based on a reload is not needed.
