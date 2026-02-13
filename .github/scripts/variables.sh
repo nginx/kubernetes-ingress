@@ -59,7 +59,7 @@ get_additional_tag() {
 }
 
 get_k8s_latest() {
-  cat tests/Makefile  | grep -E "^K8S_CLUSTER_VERSION" | awk '{print $3}'
+  cat tests/Makefile  | grep -E "^K8S_CLUSTER_VERSION" | awk '{print $3}' | sed 's/^v//'
 }
 
 get_k8s_timeout() {
