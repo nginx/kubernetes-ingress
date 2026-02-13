@@ -67,14 +67,14 @@ runs:
 
         # server container for k3d cluster
         cluster_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' k3d-${{ github.run_id }}-server-0)
-        
+
         # validate network and cluster IP
         if [ -z "$cluster_ip" ]; then
           echo "Error: Could not get cluster IP from k3d-${{ github.run_id }}-server-0"
           docker ps --filter name=k3d-${{ github.run_id }}
           exit 1
         fi
-        
+
         # verify k3d network exists
         if ! docker network inspect k3d-${{ github.run_id }} > /dev/null 2>&1; then
           echo "Error: k3d network k3d-${{ github.run_id }} not found"
