@@ -196,25 +196,19 @@ def patch_v_s_route_from_yaml(custom_objects: CustomObjectsApi, name, yaml_manif
         raise
 
 
-def apply_and_assert_valid_vsr(kube_apis, namespace, name, vsr_yaml):
-    delete_and_create_v_s_route_from_yaml(
-        kube_apis.custom_objects,
-        name,
-        vsr_yaml,
-        namespace,
-    )
-    
+def assert_valid_vsr(kube_apis, namespace, name, retry_count=30, wait_time=1):
     count = 0
     valid = False
-    while count < 15:
-        wait_before_test()
+    vsr_info = None
+    while count < retry_count:
+        wait_before_test(wait_time)
         vsr_info = read_custom_resource(
             kube_apis.custom_objects,
             namespace,
             "virtualserverroutes",
             name,
         )
-        
+
         if (
             "status" in vsr_info
             and vsr_info["status"].get("reason") == "AddedOrUpdated"
@@ -222,13 +216,23 @@ def apply_and_assert_valid_vsr(kube_apis, namespace, name, vsr_yaml):
         ):
             valid = True
             break
-        
+
         count += 1
-        if count < 15:
-            print(f"VSR status not ready on retry {count}, retrying...")
-            wait_before_test(2)
-    
+        print(f"VSR status not ready on retry {count}, retrying...")
+        wait_before_test(wait_time)
+
     assert valid is True, f"VSR validation failed. Resource info: {vsr_info}"
+
+
+def apply_and_assert_valid_vsr(kube_apis, namespace, name, vsr_yaml):
+    delete_and_create_v_s_route_from_yaml(
+        kube_apis.custom_objects,
+        name,
+        vsr_yaml,
+        namespace,
+    )
+
+    assert_valid_vsr(kube_apis, namespace, name)
 
 
 def apply_and_assert_warning_vsr(kube_apis, namespace, name, vsr_yaml):
@@ -252,25 +256,19 @@ def apply_and_assert_warning_vsr(kube_apis, namespace, name, vsr_yaml):
     ), vsr_info
 
 
-def apply_and_assert_valid_vs(kube_apis, namespace, name, vs_yaml):
-    delete_and_create_vs_from_yaml(
-        kube_apis.custom_objects,
-        name,
-        vs_yaml,
-        namespace,
-    )
-    
+def assert_valid_vs(kube_apis, namespace, name, retry_count=30, wait_time=1):
     count = 0
     valid = False
-    while count < 15:
-        wait_before_test()
+    vs_info = None
+    while count < retry_count:
+        wait_before_test(wait_time)
         vs_info = read_custom_resource(
             kube_apis.custom_objects,
             namespace,
-            "virtualserverroutes",
+            "virtualservers",
             name,
         )
-        
+
         if (
             "status" in vs_info
             and vs_info["status"].get("reason") == "AddedOrUpdated"
@@ -278,12 +276,23 @@ def apply_and_assert_valid_vs(kube_apis, namespace, name, vs_yaml):
         ):
             valid = True
             break
-        
-        count += 1
-        print(f"VSR status not ready on retry {count}, retrying...")
-        wait_before_test(2)
 
-    assert valid is True, f"VSR validation failed. Resource info: {vsr_info}"
+        count += 1
+        print(f"VS status not ready on retry {count}, retrying...")
+        wait_before_test(wait_time)
+
+    assert valid is True, f"VS validation failed. Resource info: {vs_info}"
+
+
+def apply_and_assert_valid_vs(kube_apis, namespace, name, vs_yaml):
+    delete_and_create_vs_from_yaml(
+        kube_apis.custom_objects,
+        name,
+        vs_yaml,
+        namespace,
+    )
+
+    assert_valid_vs(kube_apis, namespace, name)
 
 
 def apply_and_assert_warning_vs(kube_apis, namespace, name, vs_yaml):
