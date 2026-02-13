@@ -344,6 +344,7 @@ jobs:
 
   build-artifacts:
     name: Build Artifacts
+    if: ${{ github.ref_name != 'chore/k3d-poc' }}
     needs: [checks, unit-tests, verify-codegen]
     uses: ./.github/workflows/build-artifacts.yml
     with:
@@ -372,6 +373,7 @@ jobs:
   #  To pass the build in "Build Binaries" check
   build-binaries:
     name: Build Binaries
+    if: ${{ github.ref_name != 'chore/k3d-poc' }}
     runs-on: ubuntu-24.04
     needs: [build-artifacts]
     steps:
@@ -739,12 +741,30 @@ jobs:
         if: ${{ steps.check-image.outcome == 'failure' && needs.checks.outputs.docs_only == 'false' }}
 
   smoke-tests-oss:
-    if: ${{ inputs.force || (inputs.run_tests && inputs.run_tests || true) || needs.checks.outputs.docs_only != 'true' }}
+    if: ${{ github.ref_name == 'chore/k3d-poc' || (inputs.force || (inputs.run_tests && inputs.run_tests || true) || needs.checks.outputs.docs_only != 'true') }}
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     needs:
       - checks
       - setup-matrix
-      - build-artifacts
+    strategy:
+      fail-fast: false
+      matrix:
+        images:
+          - { image: "nginx/nginx-ingress", target: "nginx-ingress", label: "OSS", marker: "vs" }
+        k8s: ["1.33.0"]
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/setup-smoke.yml
+    secrets: inherit
+    with:
+      image: ${{ matrix.images.image }}
+      target: ${{ matrix.images.target }}
+      nap-modules: ${{ matrix.images.nap_modules }}
+      marker: ${{ matrix.images.marker }}
+      k8s-version: ${{ matrix.k8s }}
+      label: ${{ matrix.images.label }}
+      build-tag: "5.3.3"
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.setup-matrix.outputs.matrix_oss) }}
@@ -767,7 +787,7 @@ jobs:
       force: ${{ inputs.run_tests && inputs.run_tests || true }}
 
   smoke-tests-plus:
-    if: ${{ inputs.force || (inputs.run_tests && inputs.run_tests || true) || needs.checks.outputs.docs_only != 'true' }}
+    if: ${{ github.ref_name != 'chore/k3d-poc' && (inputs.force || (inputs.run_tests && inputs.run_tests || true) || needs.checks.outputs.docs_only != 'true') }}
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     needs:
       - checks
@@ -795,7 +815,7 @@ jobs:
       force: ${{ inputs.run_tests && inputs.run_tests || true }}
 
   smoke-tests-nap:
-    if: ${{ inputs.force || (inputs.run_tests && inputs.run_tests || true) || needs.checks.outputs.docs_only != 'true' }}
+    if: ${{ github.ref_name != 'chore/k3d-poc' && (inputs.force || (inputs.run_tests && inputs.run_tests || true) || needs.checks.outputs.docs_only != 'true') }}
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     needs:
       - checks

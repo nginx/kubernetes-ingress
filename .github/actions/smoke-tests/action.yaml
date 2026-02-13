@@ -57,7 +57,8 @@ runs:
       run: |
         # create a k3d cluster named after the run id and wait for it
         k3d cluster create ${{ github.run_id }} --wait
-        make -f tests/Makefile image-load REGISTRY="" PREFIX=${{ inputs.image-name }} TAG=${{ inputs.tag }} K8S_CLUSTER_NAME=${{ github.run_id }} K8S_PROVIDER=k3d
+        kubectl wait --for=condition=Ready nodes --all --timeout=60s --kubeconfig ~/.kube/config
+        k3d image import ${{ inputs.image-name }}:${{ inputs.tag }} --cluster ${{ github.run_id }}
         label="${{ inputs.label }}"
         nospaces="${label// /_}"
         noslash="${nospaces//\//_}"
