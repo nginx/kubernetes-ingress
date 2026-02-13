@@ -55,9 +55,12 @@ runs:
     - name: Deploy Kubernetes (k3d)
       id: k8s
       run: |
-        # create a k3d cluster named after the run id and wait for it
-        k3d cluster create ${{ github.run_id }} --wait
-        kubectl wait --for=condition=Ready nodes --all --timeout=60s --kubeconfig ~/.kube/config
+        # create a k3d cluster with more resources
+        k3d cluster create ${{ github.run_id }} --wait \
+          --servers-memory 2g \
+          --servers 1 --agents 0
+        
+        kubectl wait --for=condition=Ready nodes --all --timeout=120s --kubeconfig ~/.kube/config
         k3d image import ${{ inputs.image-name }}:${{ inputs.tag }} --cluster ${{ github.run_id }}
         label="${{ inputs.label }}"
         nospaces="${label// /_}"
@@ -108,6 +111,7 @@ runs:
         docker run --rm \
         --name test-runner-${{ github.run_id }} \
         --network=k3d-${{ github.run_id }} \
+        --memory=2g --cpus=2 \
         -v "/var/run/docker.sock:/var/run/docker.sock" \
         -v ~/.docker:/root/.docker \
         -v ${{ github.workspace }}/tests:/workspace/tests \
