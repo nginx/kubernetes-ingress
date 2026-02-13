@@ -823,7 +823,7 @@ jobs:
       stable-tag: ${{ needs.checks.outputs.stable_tag }}
       authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
       k8s-version: ${{ matrix.k8s }}
-
+      k8s-timeout: ${{ needs.checks.outputs.k8s_timeout }}
       force: ${{ inputs.run_tests && inputs.run_tests || true }}
 
   tag-stable:
