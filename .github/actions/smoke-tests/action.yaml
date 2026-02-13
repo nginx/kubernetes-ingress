@@ -86,7 +86,7 @@ runs:
         -v ${{ github.workspace }}/config:/workspace/config \
         -v ${{ github.workspace }}/pyproject.toml:/workspace/pyproject.toml \
         -v ${{ steps.k8s.outputs.test_output_path }}:${{ steps.k8s.outputs.test_output_path }} \
-        -v $HOME/.minikube:/root/.minikube \
+        -v $HOME/.minikube:$HOME/.minikube \
         -v $HOME/.kube:/root/.kube \
         ${{ inputs.test-image }} \
         --docker-registry-user=oauth2accesstoken \

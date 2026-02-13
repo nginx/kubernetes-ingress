@@ -31,6 +31,7 @@ jobs:
       id-token: write
     outputs:
       k8s_latest: ${{ steps.vars.outputs.k8s_latest }}
+      k8s_timeout: ${{ steps.vars.outputs.k8s_timeout }}
       latest_kindest_node_versions: ${{ steps.vars.outputs.latest_kindest_node_versions }}
       stable_tag: ${{ steps.vars.outputs.stable_tag }}
       branch: ${{ steps.vars.outputs.branch }}
@@ -43,15 +44,8 @@ jobs:
       - name: Output Variables
         id: vars
         run: |
-          kindest_latest=$(curl -s "https://hub.docker.com/v2/repositories/kindest/node/tags" \
-            | jq -r '.results[].name' \
-            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
-            | sort -rV \
-            | grep -v v1.32.1 \
-            | head -n 1 \
-            | sed 's/^.\{1\}//' \
-            | tr -d '\n')
-          echo "k8s_latest=$kindest_latest" >> $GITHUB_OUTPUT
+          ./.github/scripts/variables.sh k8s_latest >> $GITHUB_OUTPUT
+          ./.github/scripts/variables.sh k8s_timeout >> $GITHUB_OUTPUT
           kindest_versions=$(curl -s "https://hub.docker.com/v2/repositories/kindest/node/tags/?page_size=50" \
             | jq -r '.results[].name' \
             | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
@@ -76,6 +70,7 @@ jobs:
       - name: Output variables
         run: |
           echo k8s_latest: ${{ steps.vars.outputs.k8s_latest }}
+          echo k8s_timeout: ${{ steps.vars.outputs.k8s_timeout }}
           echo latest_kindest_node_versions: ${{ steps.vars.outputs.latest_kindest_node_versions }}
           echo stable_tag: ${{ steps.vars.outputs.stable_tag }}
           echo branch: ${{ steps.vars.outputs.branch }}
@@ -202,8 +197,8 @@ jobs:
       - name: Deploy Kubernetes
         id: k8s
         run: |
-          kind create cluster --name ${{ github.run_id }} --image=kindest/node:v${{ needs.checks.outputs.k8s_latest }} --wait 75s
-          kind load docker-image "${{ matrix.image }}:${{ matrix.tag }}" --name ${{ github.run_id }}
+          make -f tests/Makefile create-mini-cluster K8S_VERSION=${{ needs.checks.outputs.k8s_latest }} K8S_TIMEOUT=${{ needs.checks.outputs.k8s_timeout }}
+          minikube image load "${{ matrix.image }}:${{ matrix.tag }}"
 
       - name: Create Plus Secret
         run: kubectl create secret generic license-token --from-literal=license.jwt="${{ steps.secrets.outputs.PLUS_JWT }}" --type="nginx.com/license"
@@ -351,6 +346,7 @@ jobs:
           tag: ${{ steps.image_details.outputs.tag }}
           marker: ${{ matrix.images.marker != '' && matrix.images.marker || '' }}
           k8s-version: ${{ matrix.k8s }}
+          k8s-timeout: ${{ needs.checks.outputs.k8s_timeout }}
           label: ${{ matrix.images.label }}
           registry-token: ${{ steps.auth.outputs.access_token }}
           test-image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') || 'latest' }}"

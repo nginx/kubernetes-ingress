@@ -58,6 +58,14 @@ get_additional_tag() {
   fi
 }
 
+get_k8s_latest() {
+  cat tests/Makefile  | grep -E "^K8S_CLUSTER_VERSION" | awk '{print $3}'
+}
+
+get_k8s_timeout() {
+  cat tests/Makefile  | grep -E "^K8S_TIMEOUT" | awk '{print $3}'
+}
+
 case $INPUT in
   docker_md5)
     echo "docker_md5=$(get_docker_md5)"
@@ -77,6 +85,14 @@ case $INPUT in
 
   additional_tag)
     echo "additional_tag=$(get_additional_tag)"
+    ;;
+
+  k8s_latest)
+    echo "k8s_latest=$(get_k8s_latest)"
+    ;;
+
+    k8s_timeout)
+    echo "k8s_timeout=$(get_k8s_timeout)"
     ;;
 
   *)

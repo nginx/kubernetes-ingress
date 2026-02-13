@@ -41,7 +41,7 @@ jobs:
     outputs:
       docs_only: ${{ github.event.pull_request && steps.docs.outputs.docs_only == 'true' }}
       k8s_latest: ${{ steps.vars.outputs.k8s_latest }}
-      k8s_timeout: 75s
+      k8s_timeout: ${{ steps.vars.outputs.k8s_timeout }}
       go_path: ${{ steps.vars.outputs.go_path }}
       go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}
       go_proxy: ${{ steps.vars.outputs.go_proxy }}
@@ -88,15 +88,8 @@ jobs:
       - name: Configure pipeline Variables
         id: vars
         run: |
-          kindest_latest=$(curl -s "https://hub.docker.com/v2/repositories/kindest/node/tags" \
-            | jq -r '.results[].name' \
-            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
-            | sort -rV \
-            | grep -v v1.32.1 \
-            | head -n 1 \
-            | sed 's/^.\{1\}//' \
-            | tr -d '\n')
-          echo "k8s_latest=$kindest_latest" >> $GITHUB_OUTPUT
+          ./.github/scripts/variables.sh k8s_latest >> $GITHUB_OUTPUT
+          ./.github/scripts/variables.sh k8s_timeout >> $GITHUB_OUTPUT
           echo "go_path=$(go env GOPATH)" >> $GITHUB_OUTPUT
           source .github/data/version.txt
           echo "ic_version=${IC_VERSION}" >> $GITHUB_OUTPUT
