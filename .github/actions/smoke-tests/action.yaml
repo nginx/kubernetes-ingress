@@ -69,10 +69,10 @@ runs:
         echo "  test_output_path=${test_output_path}"
       shell: bash
 
-    - name: Setup Kubeconfig
-      run: |
-        sed -i 's|server:.*|server: https://${{ steps.k8s.outputs.cluster_ip }}:6443|' ~/.kube/kind/config
-      shell: bash
+    # - name: Setup Kubeconfig
+    #   run: |
+    #     sed -i 's|server:.*|server: https://${{ steps.k8s.outputs.cluster_ip }}:6443|' ~/.kube/kind/config
+    #   shell: bash
 
     - name: Run Smoke Tests
       id: smoke-tests
