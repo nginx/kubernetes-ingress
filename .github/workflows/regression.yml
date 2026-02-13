@@ -197,7 +197,7 @@ jobs:
       - name: Deploy Kubernetes
         id: k8s
         run: |
-          make -f tests/Makefile create-mini-cluster K8S_VERSION=${{ needs.checks.outputs.k8s_latest }} K8S_TIMEOUT=${{ needs.checks.outputs.k8s_timeout }}
+          make -f tests/Makefile create-mini-cluster K8S_VERSION=v${{ needs.checks.outputs.k8s_latest }} K8S_TIMEOUT=${{ needs.checks.outputs.k8s_timeout }}
           minikube image load "${{ matrix.image }}:${{ matrix.tag }}"
 
       - name: Create Plus Secret
