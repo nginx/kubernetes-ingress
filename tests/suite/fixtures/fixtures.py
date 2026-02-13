@@ -360,11 +360,6 @@ def cli_arguments(request) -> {}:
     print(
         f"All test fixtures be available for debugging: {result['skip-fixture-teardown']}, /// ONLY USE THIS OPTION FOR INDIVIDUAL TEST DEBUGGING ///"
     )
-    # Debug output of /workspace
-    print("Debug output of /workspace:")
-    for root, dirs, files in os.walk("/workspace"):
-        for name in files:
-            print(os.path.join(root, name))
     return result
 
 

@@ -134,6 +134,10 @@ jobs:
           load: true
         if: ${{ steps.check-image.outcome == 'failure' }}
 
+      - name: Generate Secrets for tests
+        run: |
+          make secrets
+
       - name: Run Tests
         uses: ./.github/actions/smoke-tests
         with:
