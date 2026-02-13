@@ -91,7 +91,7 @@ case $INPUT in
     echo "k8s_latest=$(get_k8s_latest)"
     ;;
 
-    k8s_timeout)
+  k8s_timeout)
     echo "k8s_timeout=$(get_k8s_timeout)"
     ;;
 
