@@ -96,6 +96,9 @@ runs:
       run: |
         mkdir -p ~/.kube/k3d
         k3d kubeconfig get ${{ github.run_id }} > ~/.kube/k3d/config
+        sed -i "s|server: https://0.0.0.0:[0-9]*|server: https://${{ steps.k8s.outputs.cluster_ip }}:6443|g" ~/.kube/k3d/config
+        echo "Updated kubeconfig server to use cluster IP:"
+        grep "server:" ~/.kube/k3d/config
       shell: bash
 
     - name: Run Smoke Tests
