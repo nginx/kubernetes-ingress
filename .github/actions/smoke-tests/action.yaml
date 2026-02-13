@@ -49,14 +49,16 @@ runs:
     - name: Deploy Kubernetes
       id: k8s
       run: |
-        make -f tests/Makefile create-kind-cluster K8S_CLUSTER_NAME=${{ github.run_id }} K8S_CLUSTER_VERSION=v${{ inputs.k8s-version }} K8S_TIMEOUT=${{ inputs.k8s-timeout }}
-        make -f tests/Makefile image-load REGISTRY="" PREFIX=${{ inputs.image-name }} TAG=${{ inputs.tag }} K8S_CLUSTER_NAME=${{ github.run_id }}
+        make -f tests/Makefile create-mini-cluster K8S_CLUSTER_VERSION=v${{ inputs.k8s-version }} K8S_TIMEOUT=${{ inputs.k8s-timeout }}
+        echo "Kubernetes cluster created with version v${{ inputs.k8s-version }} and timeout ${{ inputs.k8s-timeout }}"
+        minikube image load ${{ inputs.image-name }}:${{ inputs.tag }}
+        echo "Docker image ${{ inputs.image-name }}:${{ inputs.tag }} loaded into Minikube cluster"
         label="${{ inputs.label }}"
         nospaces="${label// /_}"
         noslash="${nospaces//\//_}"
         sanitized_marker="${noslash//\'/}"
         name="${sanitized_marker}-${{ inputs.k8s-version }}"
-        cluster_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${{ github.run_id }}-control-plane)
+        cluster_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' minikube)
         test_name=tests-nginx-${{ inputs.image-type }}-${name}.html
         test_output_path=${{ github.workspace }}/tests/${test_name}
         echo "cluster_ip=${cluster_ip}" >> $GITHUB_OUTPUT
@@ -67,18 +69,14 @@ runs:
         echo "  test_output_path=${test_output_path}"
       shell: bash
 
-    - name: Setup Kubeconfig
-      run: |
-        sed -i 's|server:.*|server: https://${{ steps.k8s.outputs.cluster_ip }}:6443|' ~/.kube/kind/config
-      shell: bash
-
     - name: Run Smoke Tests
       id: smoke-tests
       run: |
         touch ${{ steps.k8s.outputs.test_output_path }}
+        chmod 644 $HOME/.kube/minikube/config
         docker run --rm \
         --name test-runner-${{ github.run_id }} \
-        --network=kind \
+        --network=minikube \
         -v "/var/run/docker.sock:/var/run/docker.sock" \
         -v ~/.docker:/root/.docker \
         -v ${{ github.workspace }}/tests:/workspace/tests \
@@ -88,14 +86,18 @@ runs:
         -v ${{ github.workspace }}/config:/workspace/config \
         -v ${{ github.workspace }}/pyproject.toml:/workspace/pyproject.toml \
         -v ${{ steps.k8s.outputs.test_output_path }}:${{ steps.k8s.outputs.test_output_path }} \
-        -v ~/.kube/kind/config:/root/.kube/config ${{ inputs.test-image }} \
+        -v $HOME/.minikube:$HOME/.minikube \
+        -v $HOME/.kube:/root/.kube \
+        ${{ inputs.test-image }} \
         --docker-registry-user=oauth2accesstoken \
         --docker-registry-token=${{ inputs.registry-token }} \
-        --context=kind-${{ github.run_id }} \
+        --kubeconfig=/root/.kube/minikube/config \
+        --context=minikube \
         --image=${{ inputs.image-name }}:${{ inputs.tag }} \
         --image-pull-policy=Never \
         --ic-type=nginx${{ contains(inputs.image-type, 'plus') && '-plus' || '' }}-ingress \
-        --service=nodeport --node-ip=${{ steps.k8s.outputs.cluster_ip }} \
+        --service=nodeport \
+        --node-ip=minikube \
         --html=${{ steps.k8s.outputs.test_output_path }} \
         --self-contained-html \
         --durations=10 \
