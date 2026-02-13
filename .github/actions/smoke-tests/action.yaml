@@ -59,7 +59,7 @@ runs:
         k3d cluster create ${{ github.run_id }} --wait \
           --servers-memory 2g \
           --servers 1 --agents 0
-        
+
         kubectl wait --for=condition=Ready nodes --all --timeout=120s --kubeconfig ~/.kube/config
         k3d image import ${{ inputs.image-name }}:${{ inputs.tag }} --cluster ${{ github.run_id }}
         label="${{ inputs.label }}"
