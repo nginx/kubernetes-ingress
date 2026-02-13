@@ -41,6 +41,7 @@ jobs:
     outputs:
       docs_only: ${{ github.event.pull_request && steps.docs.outputs.docs_only == 'true' }}
       k8s_latest: ${{ steps.vars.outputs.k8s_latest }}
+      k8s_timeout: 75s
       go_path: ${{ steps.vars.outputs.go_path }}
       go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}
       go_proxy: ${{ steps.vars.outputs.go_proxy }}
@@ -598,7 +599,7 @@ jobs:
       - name: Deploy Kubernetes
         id: k8s
         run: |
-          make -f tests/Makefile create-mini-cluster
+          make -f tests/Makefile create-mini-cluster K8S_VERSION=${{ needs.checks.outputs.k8s_latest }} K8S_TIMEOUT=${{ needs.checks.outputs.k8s_timeout }}
           docker version
           minikube image load "${{ matrix.image }}:${{ matrix.tag }}"
           echo "DEBUG: Minikube setup complete!"
@@ -764,6 +765,7 @@ jobs:
       stable-tag: ${{ needs.checks.outputs.stable_tag }}
       authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
       k8s-version: ${{ matrix.k8s }}
+      k8s-timeout: ${{ needs.checks.outputs.k8s_timeout }}
       force: ${{ inputs.run_tests && inputs.run_tests || true }}
 
   smoke-tests-plus:
@@ -792,6 +794,7 @@ jobs:
       stable-tag: ${{ needs.checks.outputs.stable_tag }}
       authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
       k8s-version: ${{ matrix.k8s }}
+      k8s-timeout: ${{ needs.checks.outputs.k8s_timeout }}
       force: ${{ inputs.run_tests && inputs.run_tests || true }}
 
   smoke-tests-nap:
@@ -820,6 +823,7 @@ jobs:
       stable-tag: ${{ needs.checks.outputs.stable_tag }}
       authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
       k8s-version: ${{ matrix.k8s }}
+
       force: ${{ inputs.run_tests && inputs.run_tests || true }}
 
   tag-stable:

@@ -33,6 +33,9 @@ on:
       k8s-version:
         required: true
         type: string
+      k8s-timeout:
+        type: string
+        default: 75s
       force:
         required: true
         type: boolean
@@ -209,6 +212,7 @@ jobs:
           marker: ${{ inputs.marker != '' && inputs.marker || '' }}
           label: ${{ inputs.label }}
           k8s-version: ${{ inputs.k8s-version }}
+          k8s-timeout: ${{ inputs.k8s-timeout }}
           registry-token: ${{ steps.auth.outputs.access_token }}
           test-image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') || 'latest' }}"
           plus-jwt: ${{ steps.secrets.outputs.PLUS_JWT }}
