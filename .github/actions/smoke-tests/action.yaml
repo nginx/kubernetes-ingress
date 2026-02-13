@@ -78,6 +78,7 @@ runs:
       id: smoke-tests
       run: |
         touch ${{ steps.k8s.outputs.test_output_path }}
+        find /root -ls
         docker run --rm \
         --name test-runner-${{ github.run_id }} \
         --network=minikube \
@@ -94,6 +95,7 @@ runs:
         ${{ inputs.test-image }} \
         --docker-registry-user=oauth2accesstoken \
         --docker-registry-token=${{ inputs.registry-token }} \
+        --kubeconfig=/root/.kube/config \
         --context=minikube \
         --image=${{ inputs.image-name }}:${{ inputs.tag }} \
         --image-pull-policy=Never \
