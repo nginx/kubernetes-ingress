@@ -598,10 +598,10 @@ jobs:
       - name: Deploy Kubernetes
         id: k8s
         run: |
-          kind create cluster --name ${{ github.run_id }} --image=kindest/node:v${{ needs.checks.outputs.k8s_latest }} --wait 75s
+          make -f tests/Makefile create-mini-cluster
           docker version
-          kind load docker-image "${{ matrix.image }}:${{ matrix.tag }}" --name ${{ github.run_id }}
-          echo "DEBUG: Kind setup complete!"
+          minikube image load ${{ matrix.image }}:${{ matrix.tag }}
+          echo "DEBUG: Minikube setup complete!"
         if: ${{ steps.stable_exists.outputs.exists != 'true' && needs.checks.outputs.docs_only == 'false' }}
 
       - name: Create Plus Secret
