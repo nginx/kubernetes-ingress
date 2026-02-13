@@ -49,8 +49,8 @@ runs:
     - name: Deploy Kubernetes
       id: k8s
       run: |
-        make -f tests/Makefile create-kind-cluster K8S_CLUSTER_NAME=${{ github.run_id }} K8S_CLUSTER_VERSION=v${{ inputs.k8s-version }} K8S_TIMEOUT=${{ inputs.k8s-timeout }}
-        make -f tests/Makefile image-load REGISTRY="" PREFIX=${{ inputs.image-name }} TAG=${{ inputs.tag }} K8S_CLUSTER_NAME=${{ github.run_id }}
+        make -f tests/Makefile create-mini-cluster K8S_CLUSTER_VERSION=v${{ inputs.k8s-version }} K8S_TIMEOUT=${{ inputs.k8s-timeout }}
+        make -f tests/Makefile mini-image-load ${{ inputs.image-name }}:${{ inputs.tag }}
         label="${{ inputs.label }}"
         nospaces="${label// /_}"
         noslash="${nospaces//\//_}"
@@ -76,9 +76,10 @@ runs:
       id: smoke-tests
       run: |
         touch ${{ steps.k8s.outputs.test_output_path }}
+        make -f tests/Makefile run-tests-in-minikube
         docker run --rm \
         --name test-runner-${{ github.run_id }} \
-        --network=kind \
+        --network=minikube \
         -v "/var/run/docker.sock:/var/run/docker.sock" \
         -v ~/.docker:/root/.docker \
         -v ${{ github.workspace }}/tests:/workspace/tests \
@@ -88,14 +89,16 @@ runs:
         -v ${{ github.workspace }}/config:/workspace/config \
         -v ${{ github.workspace }}/pyproject.toml:/workspace/pyproject.toml \
         -v ${{ steps.k8s.outputs.test_output_path }}:${{ steps.k8s.outputs.test_output_path }} \
-        -v ~/.kube/kind/config:/root/.kube/config ${{ inputs.test-image }} \
+        -v $HOME/.minikube:$HOME/.minikube \
+        ${{ inputs.test-image }} \
         --docker-registry-user=oauth2accesstoken \
         --docker-registry-token=${{ inputs.registry-token }} \
-        --context=kind-${{ github.run_id }} \
+        --context=minikube \
         --image=${{ inputs.image-name }}:${{ inputs.tag }} \
         --image-pull-policy=Never \
         --ic-type=nginx${{ contains(inputs.image-type, 'plus') && '-plus' || '' }}-ingress \
-        --service=nodeport --node-ip=${{ steps.k8s.outputs.cluster_ip }} \
+        --service=nodeport \
+        --node-ip=minikube \
         --html=${{ steps.k8s.outputs.test_output_path }} \
         --self-contained-html \
         --durations=10 \
