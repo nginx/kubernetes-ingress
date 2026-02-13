@@ -62,7 +62,9 @@ runs:
           --k3s-arg "--disable=traefik@server:*"
 
         kubectl wait --for=condition=Ready nodes --all --timeout=120s --kubeconfig ~/.kube/config
-        k3d image import ${{ inputs.image-name }}:${{ inputs.tag }} --cluster ${{ github.run_id }}
+        docker save ${{ inputs.image-name }}:${{ inputs.tag }} | \
+          docker exec --privileged -i k3d-${{ github.run_id }}-server-0 \
+            ctr --namespace=k8s.io images import --all-platforms --digests --snapshotter=overlayfs -
         label="${{ inputs.label }}"
         nospaces="${label// /_}"
         noslash="${nospaces//\//_}"
