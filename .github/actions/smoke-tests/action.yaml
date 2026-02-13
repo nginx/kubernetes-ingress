@@ -50,8 +50,9 @@ runs:
       id: k8s
       run: |
         make -f tests/Makefile create-mini-cluster K8S_CLUSTER_VERSION=v${{ inputs.k8s-version }} K8S_TIMEOUT=${{ inputs.k8s-timeout }}
-        echo "Kubernetes cluster created with version v${{ inputs.k8s-version }} and timeout ${K8S_TIMEOUT}"
-        make -f tests/Makefile mini-image-load REGISTRY="" PREFIX=${{ inputs.image-name }} TAG=${{ inputs.tag }}
+        echo "Kubernetes cluster created with version v${{ inputs.k8s-version }} and timeout ${{ inputs.k8s-timeout }}"
+        minikube image load ${{ inputs.image-name }}:${{ inputs.tag }}
+        echo "Docker image ${{ inputs.image-name }}:${{ inputs.tag }} loaded into Minikube cluster"
         label="${{ inputs.label }}"
         nospaces="${label// /_}"
         noslash="${nospaces//\//_}"
