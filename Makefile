@@ -15,7 +15,7 @@ PLUS_ARGS = --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --secret id=ngi
 # Variables that can be overridden
 
 # renovate: datasource=github-releases depName=dominikh/go-tools
-STATICCHECK_VERSION ?= 2025.1.1
+STATICCHECK_VERSION ?= 2026.1
 
 # renovate: datasource=github-releases depName=golang/vuln
 GOVULNCHECK_VERSION ?= v1.1.4
