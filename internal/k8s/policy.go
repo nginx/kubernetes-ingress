@@ -126,7 +126,7 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 	if len(resourceExes.VirtualServerExes) == 0 && len(resourceExes.IngressExes) == 0 {
 		return
 	}
-	
+
 	if len(resourceExes.VirtualServerExes) > 0 {
 		warnings, updateErr := lbc.configurator.AddOrUpdateVirtualServers(resourceExes.VirtualServerExes)
 		lbc.updateResourcesStatusAndEvents(resources, warnings, updateErr)

@@ -221,14 +221,8 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			SpiffeCerts:            cfgParams.SpiffeServerCerts,
 			DisableIPV6:            ncp.staticParams.DisableIPV6,
 			AppRoot:                cfgParams.AppRoot,
-		}
-
-		// check if policiesCfg has AccessControl
-		if policyCfg.Allow != nil {
-			server.Allow = policyCfg.Allow
-		}
-		if policyCfg.Deny != nil {
-			server.Deny = policyCfg.Deny
+			Allow:                  policyCfg.Allow,
+			Deny:                   policyCfg.Deny,
 		}
 
 		warnings := addSSLConfig(&server, ncp.ingEx.Ingress, rule.Host, ncp.ingEx.Ingress.Spec.TLS, ncp.ingEx.SecretRefs, ncp.isWildcardEnabled)
@@ -322,6 +316,13 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 				basicAuth, warnings := generateBasicAuthConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams)
 				loc.BasicAuth = basicAuth
 				allWarnings.Add(warnings)
+			}
+
+			if ncp.isMinion && policyCfg.Allow != nil {
+				loc.Allow = policyCfg.Allow
+			}
+			if ncp.isMinion && policyCfg.Deny != nil {
+				loc.Deny = policyCfg.Deny
 			}
 
 			if cfgParams.LimitReqRate != "" {
@@ -789,6 +790,7 @@ func generateNginxCfgForMergeableIngresses(p NginxCfgParams) (version1.IngressNg
 			for _, loc := range server.Locations {
 				loc.MinionIngress = &nginxCfg.Ingress
 				locations = append(locations, loc)
+
 			}
 			for hcName, healthCheck := range server.HealthChecks {
 				healthChecks[hcName] = healthCheck

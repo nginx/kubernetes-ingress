@@ -145,6 +145,19 @@ server {
 		set $resource_name "{{$location.MinionIngress.Name}}";
 		set $resource_namespace "{{$location.MinionIngress.Namespace}}";
 		{{- end}}
+		{{- range $allow := $location.Allow }}
+		allow {{ $allow }};
+		{{- end }}
+		{{- if gt (len $location.Allow) 0 }}
+		deny all;
+		{{- end }}
+
+		{{- range $deny := $location.Deny }}
+		deny {{ $deny }};
+		{{- end }}
+		{{- if gt (len $location.Deny) 0 }}
+		allow all;
+		{{- end }}
 		{{- if $location.RewriteTarget}}
 		rewrite {{ makeRewritePattern $location $.Ingress.Annotations }} {{$location.RewriteTarget}} break;
 		{{- end}}

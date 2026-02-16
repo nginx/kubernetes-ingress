@@ -311,6 +311,7 @@ func (cnf *Configurator) AddOrUpdateIngress(ingEx *IngressEx) (Warnings, error) 
 	return warnings, nil
 }
 
+// AddOrUpdateIngresses adds or updates NGINX configuration for the list of Ingress resources.
 func (cnf *Configurator) AddOrUpdateIngresses(ingExes []*IngressEx) (Warnings, error) {
 	allWarnings := newWarnings()
 
