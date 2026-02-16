@@ -126,10 +126,16 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 	if len(resourceExes.VirtualServerExes) == 0 && len(resourceExes.IngressExes) == 0 {
 		return
 	}
+	
+	if len(resourceExes.VirtualServerExes) > 0 {
+		warnings, updateErr := lbc.configurator.AddOrUpdateVirtualServers(resourceExes.VirtualServerExes)
+		lbc.updateResourcesStatusAndEvents(resources, warnings, updateErr)
+	}
 
-	warnings, updateErr := lbc.configurator.AddOrUpdateVirtualServers(resourceExes.VirtualServerExes)
-
-	lbc.updateResourcesStatusAndEvents(resources, warnings, updateErr)
+	if len(resourceExes.IngressExes) > 0 {
+		warnings, updateErr := lbc.configurator.AddOrUpdateIngresses(resourceExes.IngressExes)
+		lbc.updateResourcesStatusAndEvents(resources, warnings, updateErr)
+	}
 
 	// Note: updating the status of a policy based on a reload is not needed.
 }

@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/nginx/kubernetes-ingress/internal/k8s/policies"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
 
@@ -143,12 +144,36 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 	var limitReqZones []version1.LimitReqZone
 
 	// Run generate Policies
-	// var policyRefs []conf_v1.PolicyReference
-	// if ncp.ingEx.Ingress.Annotations[PoliciesAnnotation] != "" {
-	// 	policyRefs = policies.GetPolicyRefsFromAnnotation(ncp.ingEx.Ingress.Annotations[PoliciesAnnotation], ncp.ingEx.Ingress.Namespace)
-	// }
+	var policyRefs []conf_v1.PolicyReference
+	if ncp.ingEx.Ingress.Annotations[PoliciesAnnotation] != "" {
+		policyRefs = policies.GetPolicyRefsFromAnnotation(ncp.ingEx.Ingress.Annotations[PoliciesAnnotation], ncp.ingEx.Ingress.Namespace)
+	}
 
-	// policyCfg, warnings := generatePolicies()
+	policyCfg, warnings := generatePolicies(
+		ncp.BaseCfgParams.Context,
+		policyOwnerDetails{
+			ncp.ingEx.Ingress,
+			ncp.ingEx.Ingress.Name,
+			ncp.ingEx.Ingress.Namespace,
+			"",
+			"",
+		},
+		policyRefs,
+		ncp.ingEx.Policies,
+		"spec",
+		"",
+		policyOptions{
+			tls:             false,
+			zoneSync:        false,
+			secretRefs:      nil,
+			apResources:     nil,
+			defaultCABundle: "",
+			replicas:        0,
+			oidcPolicyName:  "",
+		},
+		nil,
+	)
+	allWarnings.Add(warnings)
 
 	for _, rule := range ncp.ingEx.Ingress.Spec.Rules {
 		// skipping invalid hosts
@@ -196,6 +221,14 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			SpiffeCerts:            cfgParams.SpiffeServerCerts,
 			DisableIPV6:            ncp.staticParams.DisableIPV6,
 			AppRoot:                cfgParams.AppRoot,
+		}
+
+		// check if policiesCfg has AccessControl
+		if policyCfg.Allow != nil {
+			server.Allow = policyCfg.Allow
+		}
+		if policyCfg.Deny != nil {
+			server.Deny = policyCfg.Deny
 		}
 
 		warnings := addSSLConfig(&server, ncp.ingEx.Ingress, rule.Host, ncp.ingEx.Ingress.Spec.TLS, ncp.ingEx.SecretRefs, ncp.isWildcardEnabled)

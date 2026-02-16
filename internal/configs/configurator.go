@@ -311,6 +311,24 @@ func (cnf *Configurator) AddOrUpdateIngress(ingEx *IngressEx) (Warnings, error) 
 	return warnings, nil
 }
 
+func (cnf *Configurator) AddOrUpdateIngresses(ingExes []*IngressEx) (Warnings, error) {
+	allWarnings := newWarnings()
+
+	for _, ingEx := range ingExes {
+		_, warnings, err := cnf.addOrUpdateIngress(ingEx)
+		if err != nil {
+			return allWarnings, err
+		}
+		allWarnings.Add(warnings)
+	}
+
+	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
+		return allWarnings, fmt.Errorf("error when reloading NGINX when updating Policy: %w", err)
+	}
+
+	return allWarnings, nil
+}
+
 // virtualServerExForHost takes a hostname and returns a VirtualServerEx for the given hostname.
 func (cnf *Configurator) virtualServerExForHost(hostname string) *VirtualServerEx {
 	for _, vsEx := range cnf.virtualServers {
