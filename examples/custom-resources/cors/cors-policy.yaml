@@ -1,0 +1,40 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: cors-policy
+spec:
+  cors:
+    allowOrigin:
+      - "https://example.com"
+      - "https://app.example.com"
+      - "https://admin.example.com"
+
+    # HTTP methods for cross-origin requests
+    allowMethods:
+      - "GET"
+      - "POST"
+      - "PUT"
+      - "DELETE"
+      - "OPTIONS"
+
+    # Headers allowed in requests
+    allowHeaders:
+      - "Content-Type"
+      - "Authorization"
+      - "X-Requested-With"
+      - "X-API-Key"
+
+    # Allow credentials (cookies, authorization headers) for authenticated requests
+    # Note: Cannot use wildcard "*" in allowOrigin when this is true
+    allowCredentials: true
+
+    # Headers that browsers can access from the response
+    # Only simple response headers are exposed by default
+    exposeHeaders:
+      - "X-Total-Count"
+      - "X-Page-Size"
+      - "X-RateLimit-Remaining"
+      - "X-RateLimit-Reset"
+
+    # Preflight cache duration (max 24 hours recommended)
+    maxAge: 3600  # 1 hour

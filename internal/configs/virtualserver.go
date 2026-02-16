@@ -63,6 +63,16 @@ var incompatibleLBMethodsForSlowStart = map[string]bool{
 	"random two least_time=last_byte": true,
 }
 
+// escapeNginxString safely escapes string values for nginx configuration
+// Note: Dangerous characters are already prevented by CRD validation,
+// so this only needs to handle quote escaping for nginx string values.
+func escapeNginxString(value string) string {
+	// Escape quotes and backslashes for nginx string safety
+	result := strings.ReplaceAll(value, "\\", "\\\\")
+	result = strings.ReplaceAll(result, "\"", "\\\"")
+	return result
+}
+
 // MeshPodOwner contains the type and name of the K8s resource that owns the pod.
 // This owner information is needed for NGINX Service Mesh metrics.
 type MeshPodOwner struct {
@@ -459,6 +469,10 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		maps = append(maps, policiesCfg.RateLimit.PolicyGroupMaps...)
 	}
 
+	if policiesCfg.CORSMap != nil {
+		maps = append(maps, *policiesCfg.CORSMap)
+	}
+
 	dosCfg := generateDosCfg(dosResources[""])
 
 	// enabledInternalRoutes controls if a virtual server is configured as an internal route.
@@ -616,6 +630,12 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			vsName:         vsEx.VirtualServer.Name,
 		}
 		routePoliciesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, r.Policies, vsEx.Policies, routeContext, r.Path, policyOpts, vsc.bundleValidator)
+
+		// Inherit spec-level CORS if route doesn't have its own CORS policy
+		if len(routePoliciesCfg.CORS) == 0 && len(policiesCfg.CORS) > 0 {
+			routePoliciesCfg.CORS = policiesCfg.CORS
+		}
+
 		if len(warnings) > 0 {
 			vsc.mergeWarnings(warnings)
 		}
@@ -663,6 +683,10 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 		if len(routePoliciesCfg.RateLimit.PolicyGroupMaps) > 0 {
 			maps = append(maps, routePoliciesCfg.RateLimit.PolicyGroupMaps...)
+		}
+
+		if routePoliciesCfg.CORSMap != nil {
+			maps = append(maps, *routePoliciesCfg.CORSMap)
 		}
 
 		limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
@@ -787,6 +811,12 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			if len(warnings) > 0 {
 				vsc.mergeWarnings(warnings)
 			}
+
+			// Inherit spec-level CORS if route doesn't have its own CORS policy
+			if len(routePoliciesCfg.CORS) == 0 && len(policiesCfg.CORS) > 0 {
+				routePoliciesCfg.CORS = policiesCfg.CORS
+			}
+
 			if policiesCfg.OIDC != nil || routePoliciesCfg.OIDC != nil {
 				// Store the OIDC policy name for conflict checking in further calls to generatePolicies for subroutes
 				if routePoliciesCfg.OIDC != nil {
@@ -831,6 +861,10 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 			if len(routePoliciesCfg.RateLimit.PolicyGroupMaps) > 0 {
 				maps = append(maps, routePoliciesCfg.RateLimit.PolicyGroupMaps...)
+			}
+
+			if routePoliciesCfg.CORSMap != nil {
+				maps = append(maps, *routePoliciesCfg.CORSMap)
 			}
 
 			limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
@@ -1183,6 +1217,12 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 	location.APIKey = cfg.APIKey.Key
 	location.Cache = cfg.Cache
 	location.PoliciesErrorReturn = cfg.ErrorReturn
+
+	// Add CORS headers if present
+	if len(cfg.CORS) > 0 {
+		location.AddHeaders = append(location.AddHeaders, cfg.CORS...)
+		location.CORSEnabled = true
+	}
 }
 
 func addPoliciesCfgToLocations(cfg policiesCfg, locations []version2.Location) {
