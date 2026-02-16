@@ -203,7 +203,9 @@ jobs:
         id: k8s
         run: |
           kind create cluster --name ${{ github.run_id }} --image=kindest/node:v${{ needs.checks.outputs.k8s_latest }} --wait 75s
-          kind load docker-image "${{ matrix.image }}:${{ matrix.tag }}" --name ${{ github.run_id }}
+          docker save "${{ matrix.image }}:${{ matrix.tag }}" | \
+            docker exec -i ${{ github.run_id }}-control-plane \
+              ctr --namespace=k8s.io images import -
 
       - name: Create Plus Secret
         run: kubectl create secret generic license-token --from-literal=license.jwt="${{ steps.secrets.outputs.PLUS_JWT }}" --type="nginx.com/license"
