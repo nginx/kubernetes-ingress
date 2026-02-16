@@ -342,6 +342,10 @@ jobs:
           docker run --rm --user root -v /var/run/docker.sock:/var/run/docker.sock -v ${{ github.workspace }}/tests/data/ap-waf-v5:/data gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/nap/waf-compiler:5.11.0 -p /data/wafv5.json -o /data/wafv5.tgz
         if: ${{ contains(matrix.images.image, 'nap-v5')}}
 
+      - name: Generate secrets for tests
+        run: |
+          make secrets
+
       - name: Run Regression Tests
         id: regression-tests
         uses: ./.github/actions/smoke-tests
