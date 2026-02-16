@@ -765,7 +765,7 @@ func generateNginxCfgForMergeableIngresses(p NginxCfgParams) (version1.IngressNg
 		// App Protect Resources not allowed in minions - pass empty struct
 		dummyApResources := &AppProtectResources{}
 		dummyDosResource := &appProtectDosResource{}
-		nginxCfg, minionWarnings := generateNginxCfg(NginxCfgParams{
+		minionNginxCfg, minionWarnings := generateNginxCfg(NginxCfgParams{
 			staticParams:              p.staticParams,
 			ingEx:                     minion,
 			apResources:               dummyApResources,
@@ -786,9 +786,9 @@ func generateNginxCfgForMergeableIngresses(p NginxCfgParams) (version1.IngressNg
 			delete(warnings, minion.Ingress)
 		}
 
-		for _, server := range nginxCfg.Servers {
+		for _, server := range minionNginxCfg.Servers {
 			for _, loc := range server.Locations {
-				loc.MinionIngress = &nginxCfg.Ingress
+				loc.MinionIngress = &minionNginxCfg.Ingress
 				locations = append(locations, loc)
 
 			}
@@ -798,8 +798,8 @@ func generateNginxCfgForMergeableIngresses(p NginxCfgParams) (version1.IngressNg
 			masterServer.JWTRedirectLocations = append(masterServer.JWTRedirectLocations, server.JWTRedirectLocations...)
 		}
 
-		upstreams = append(upstreams, nginxCfg.Upstreams...)
-		limitReqZones = append(limitReqZones, nginxCfg.LimitReqZones...)
+		upstreams = append(upstreams, minionNginxCfg.Upstreams...)
+		limitReqZones = append(limitReqZones, minionNginxCfg.LimitReqZones...)
 	}
 
 	masterServer.HealthChecks = healthChecks
