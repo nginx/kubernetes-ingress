@@ -578,7 +578,7 @@ jobs:
         if: ${{ needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false' }}
 
       - name: Build Docker Image ${{ matrix.base-os }}
-        uses: docker/build-push-action@601a80b39c9405e50806ae38af30926f9d957c47 # v6.19.1
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           file: build/Dockerfile
           context: "."
@@ -729,7 +729,7 @@ jobs:
         if: ${{ needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.docs_only == 'false' }}
 
       - name: Build Test-Runner Container
-        uses: docker/build-push-action@601a80b39c9405e50806ae38af30926f9d957c47 # v6.19.1
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           file: tests/Dockerfile
           context: "."
