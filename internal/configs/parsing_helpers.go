@@ -330,7 +330,7 @@ func parsePort(value string) (int, error) {
 	}
 
 	if port <= 0 {
-		return 0, fmt.Errorf("port number should be greater than zero: %q", port)
+		return 0, fmt.Errorf("port number should be greater than zero: %d", port)
 	}
 
 	return int(port), nil
