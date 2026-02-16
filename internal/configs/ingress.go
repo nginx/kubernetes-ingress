@@ -142,6 +142,14 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 	var servers []version1.Server
 	var limitReqZones []version1.LimitReqZone
 
+	// Run generate Policies
+	// var policyRefs []conf_v1.PolicyReference
+	// if ncp.ingEx.Ingress.Annotations[PoliciesAnnotation] != "" {
+	// 	policyRefs = policies.GetPolicyRefsFromAnnotation(ncp.ingEx.Ingress.Annotations[PoliciesAnnotation], ncp.ingEx.Ingress.Namespace)
+	// }
+
+	// policyCfg, warnings := generatePolicies()
+
 	for _, rule := range ncp.ingEx.Ingress.Spec.Rules {
 		// skipping invalid hosts
 		if !ncp.ingEx.ValidHosts[rule.Host] {
