@@ -95,37 +95,37 @@ type NginxCfgParams struct {
 }
 
 //nolint:gocyclo
-func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) {
-	l := nl.LoggerFromContext(p.BaseCfgParams.Context)
-	hasAppProtect := p.staticParams.MainAppProtectLoadModule
-	hasAppProtectDos := p.staticParams.MainAppProtectDosLoadModule
+func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings) {
+	l := nl.LoggerFromContext(ncp.BaseCfgParams.Context)
+	hasAppProtect := ncp.staticParams.MainAppProtectLoadModule
+	hasAppProtectDos := ncp.staticParams.MainAppProtectDosLoadModule
 
-	cfgParams := parseAnnotations(p.ingEx, p.BaseCfgParams, p.isPlus, hasAppProtect, hasAppProtectDos, p.staticParams.EnableInternalRoutes, p.staticParams.IsDirectiveAutoadjustEnabled)
+	cfgParams := parseAnnotations(ncp.ingEx, ncp.BaseCfgParams, ncp.isPlus, hasAppProtect, hasAppProtectDos, ncp.staticParams.EnableInternalRoutes, ncp.staticParams.IsDirectiveAutoadjustEnabled)
 
-	wsServices := getWebsocketServices(p.ingEx)
-	spServices := getSessionPersistenceServices(p.BaseCfgParams.Context, p.ingEx)
-	rewrites := getRewrites(p.BaseCfgParams.Context, p.ingEx)
-	rewriteTarget, rewriteTargetWarnings := getRewriteTarget(p.BaseCfgParams.Context, p.ingEx)
-	sslServices := getSSLServices(p.ingEx)
-	grpcServices := getGrpcServices(p.ingEx)
+	wsServices := getWebsocketServices(ncp.ingEx)
+	spServices := getSessionPersistenceServices(ncp.BaseCfgParams.Context, ncp.ingEx)
+	rewrites := getRewrites(ncp.BaseCfgParams.Context, ncp.ingEx)
+	rewriteTarget, rewriteTargetWarnings := getRewriteTarget(ncp.BaseCfgParams.Context, ncp.ingEx)
+	sslServices := getSSLServices(ncp.ingEx)
+	grpcServices := getGrpcServices(ncp.ingEx)
 
 	upstreams := make(map[string]version1.Upstream)
 	healthChecks := make(map[string]version1.HealthCheck)
 
 	// HTTP2 is required for gRPC to function
 	if len(grpcServices) > 0 && !cfgParams.HTTP2 {
-		nl.Errorf(l, "Ingress %s/%s: annotation nginx.org/grpc-services requires HTTP2, ignoring", p.ingEx.Ingress.Namespace, p.ingEx.Ingress.Name)
+		nl.Errorf(l, "Ingress %s/%s: annotation nginx.org/grpc-services requires HTTP2, ignoring", ncp.ingEx.Ingress.Namespace, ncp.ingEx.Ingress.Name)
 		grpcServices = make(map[string]bool)
 	}
 
-	if p.ingEx.Ingress.Spec.DefaultBackend != nil {
-		name := getNameForUpstream(p.ingEx.Ingress, emptyHost, p.ingEx.Ingress.Spec.DefaultBackend)
-		upstream := createUpstream(p.ingEx, name, p.ingEx.Ingress.Spec.DefaultBackend, spServices[p.ingEx.Ingress.Spec.DefaultBackend.Service.Name], &cfgParams,
-			p.isPlus, p.isResolverConfigured, p.staticParams.EnableLatencyMetrics)
+	if ncp.ingEx.Ingress.Spec.DefaultBackend != nil {
+		name := getNameForUpstream(ncp.ingEx.Ingress, emptyHost, ncp.ingEx.Ingress.Spec.DefaultBackend)
+		upstream := createUpstream(ncp.ingEx, name, ncp.ingEx.Ingress.Spec.DefaultBackend, spServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], &cfgParams,
+			ncp.isPlus, ncp.isResolverConfigured, ncp.staticParams.EnableLatencyMetrics)
 		upstreams[name] = upstream
 
 		if cfgParams.HealthCheckEnabled {
-			if hc, exists := p.ingEx.HealthChecks[p.ingEx.Ingress.Spec.DefaultBackend.Service.Name+GetBackendPortAsString(p.ingEx.Ingress.Spec.DefaultBackend.Service.Port)]; exists {
+			if hc, exists := ncp.ingEx.HealthChecks[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name+GetBackendPortAsString(ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Port)]; exists {
 				healthChecks[name] = createHealthCheck(hc, name, &cfgParams)
 			}
 		}
@@ -135,16 +135,16 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 	allWarnings.Add(rewriteTargetWarnings)
 
 	// Check for deprecated SSL redirect annotation and add warning
-	if _, exists := p.ingEx.Ingress.Annotations["ingress.kubernetes.io/ssl-redirect"]; exists {
-		allWarnings.AddWarningf(p.ingEx.Ingress, "The annotation 'ingress.kubernetes.io/ssl-redirect' is deprecated and will be removed. Please use 'nginx.org/ssl-redirect' instead.")
+	if _, exists := ncp.ingEx.Ingress.Annotations["ingress.kubernetes.io/ssl-redirect"]; exists {
+		allWarnings.AddWarningf(ncp.ingEx.Ingress, "The annotation 'ingress.kubernetes.io/ssl-redirect' is deprecated and will be removed. Please use 'nginx.org/ssl-redirect' instead.")
 	}
 
 	var servers []version1.Server
 	var limitReqZones []version1.LimitReqZone
 
-	for _, rule := range p.ingEx.Ingress.Spec.Rules {
+	for _, rule := range ncp.ingEx.Ingress.Spec.Rules {
 		// skipping invalid hosts
-		if !p.ingEx.ValidHosts[rule.Host] {
+		if !ncp.ingEx.ValidHosts[rule.Host] {
 			continue
 		}
 
@@ -182,37 +182,37 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 			ServerSnippets:         cfgParams.ServerSnippets,
 			Ports:                  cfgParams.Ports,
 			SSLPorts:               cfgParams.SSLPorts,
-			TLSPassthrough:         p.staticParams.TLSPassthrough,
+			TLSPassthrough:         ncp.staticParams.TLSPassthrough,
 			AppProtectEnable:       cfgParams.AppProtectEnable,
 			AppProtectLogEnable:    cfgParams.AppProtectLogEnable,
 			SpiffeCerts:            cfgParams.SpiffeServerCerts,
-			DisableIPV6:            p.staticParams.DisableIPV6,
+			DisableIPV6:            ncp.staticParams.DisableIPV6,
 			AppRoot:                cfgParams.AppRoot,
 		}
 
-		warnings := addSSLConfig(&server, p.ingEx.Ingress, rule.Host, p.ingEx.Ingress.Spec.TLS, p.ingEx.SecretRefs, p.isWildcardEnabled)
+		warnings := addSSLConfig(&server, ncp.ingEx.Ingress, rule.Host, ncp.ingEx.Ingress.Spec.TLS, ncp.ingEx.SecretRefs, ncp.isWildcardEnabled)
 		allWarnings.Add(warnings)
 
 		if hasAppProtect {
-			server.AppProtectPolicy = p.apResources.AppProtectPolicy
-			server.AppProtectLogConfs = p.apResources.AppProtectLogconfs
+			server.AppProtectPolicy = ncp.apResources.AppProtectPolicy
+			server.AppProtectLogConfs = ncp.apResources.AppProtectLogconfs
 		}
 
-		if hasAppProtectDos && p.dosResource != nil {
-			server.AppProtectDosEnable = p.dosResource.AppProtectDosEnable
-			server.AppProtectDosLogEnable = p.dosResource.AppProtectDosLogEnable
-			server.AppProtectDosMonitorURI = p.dosResource.AppProtectDosMonitorURI
-			server.AppProtectDosMonitorProtocol = p.dosResource.AppProtectDosMonitorProtocol
-			server.AppProtectDosMonitorTimeout = p.dosResource.AppProtectDosMonitorTimeout
-			server.AppProtectDosName = p.dosResource.AppProtectDosName
-			server.AppProtectDosAllowListPath = p.dosResource.AppProtectDosAllowListPath
-			server.AppProtectDosAccessLogDst = p.dosResource.AppProtectDosAccessLogDst
-			server.AppProtectDosPolicyFile = p.dosResource.AppProtectDosPolicyFile
-			server.AppProtectDosLogConfFile = p.dosResource.AppProtectDosLogConfFile
+		if hasAppProtectDos && ncp.dosResource != nil {
+			server.AppProtectDosEnable = ncp.dosResource.AppProtectDosEnable
+			server.AppProtectDosLogEnable = ncp.dosResource.AppProtectDosLogEnable
+			server.AppProtectDosMonitorURI = ncp.dosResource.AppProtectDosMonitorURI
+			server.AppProtectDosMonitorProtocol = ncp.dosResource.AppProtectDosMonitorProtocol
+			server.AppProtectDosMonitorTimeout = ncp.dosResource.AppProtectDosMonitorTimeout
+			server.AppProtectDosName = ncp.dosResource.AppProtectDosName
+			server.AppProtectDosAllowListPath = ncp.dosResource.AppProtectDosAllowListPath
+			server.AppProtectDosAccessLogDst = ncp.dosResource.AppProtectDosAccessLogDst
+			server.AppProtectDosPolicyFile = ncp.dosResource.AppProtectDosPolicyFile
+			server.AppProtectDosLogConfFile = ncp.dosResource.AppProtectDosLogConfFile
 		}
 
-		if !p.isMinion && cfgParams.JWTKey != "" {
-			jwtAuth, redirectLoc, warnings := generateJWTConfig(p.ingEx.Ingress, p.ingEx.SecretRefs, &cfgParams, getNameForRedirectLocation(p.ingEx.Ingress))
+		if !ncp.isMinion && cfgParams.JWTKey != "" {
+			jwtAuth, redirectLoc, warnings := generateJWTConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams, getNameForRedirectLocation(ncp.ingEx.Ingress))
 			server.JWTAuth = jwtAuth
 			if redirectLoc != nil {
 				server.JWTRedirectLocations = append(server.JWTRedirectLocations, *redirectLoc)
@@ -220,8 +220,8 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 			allWarnings.Add(warnings)
 		}
 
-		if !p.isMinion && cfgParams.BasicAuthSecret != "" {
-			basicAuth, warnings := generateBasicAuthConfig(p.ingEx.Ingress, p.ingEx.SecretRefs, &cfgParams)
+		if !ncp.isMinion && cfgParams.BasicAuthSecret != "" {
+			basicAuth, warnings := generateBasicAuthConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams)
 			server.BasicAuth = basicAuth
 			allWarnings.Add(warnings)
 		}
@@ -246,30 +246,30 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 		for i := range httpIngressRuleValue.Paths {
 			path := httpIngressRuleValue.Paths[i]
 			// skip invalid paths for minions
-			if p.isMinion && !p.ingEx.ValidMinionPaths[path.Path] {
+			if ncp.isMinion && !ncp.ingEx.ValidMinionPaths[path.Path] {
 				continue
 			}
 
-			upsName := getNameForUpstream(p.ingEx.Ingress, rule.Host, &path.Backend)
+			upsName := getNameForUpstream(ncp.ingEx.Ingress, rule.Host, &path.Backend)
 
 			if cfgParams.HealthCheckEnabled {
-				if hc, exists := p.ingEx.HealthChecks[path.Backend.Service.Name+GetBackendPortAsString(path.Backend.Service.Port)]; exists {
+				if hc, exists := ncp.ingEx.HealthChecks[path.Backend.Service.Name+GetBackendPortAsString(path.Backend.Service.Port)]; exists {
 					healthChecks[upsName] = createHealthCheck(hc, upsName, &cfgParams)
 				}
 			}
 
 			if _, exists := upstreams[upsName]; !exists {
-				upstream := createUpstream(p.ingEx, upsName, &path.Backend, spServices[path.Backend.Service.Name], &cfgParams, p.isPlus, p.isResolverConfigured, p.staticParams.EnableLatencyMetrics)
+				upstream := createUpstream(ncp.ingEx, upsName, &path.Backend, spServices[path.Backend.Service.Name], &cfgParams, ncp.isPlus, ncp.isResolverConfigured, ncp.staticParams.EnableLatencyMetrics)
 				upstreams[upsName] = upstream
 			}
 
-			ssl := isSSLEnabled(sslServices[path.Backend.Service.Name], cfgParams, p.staticParams)
-			proxySSLName := generateProxySSLName(path.Backend.Service.Name, p.ingEx.Ingress.Namespace)
+			ssl := isSSLEnabled(sslServices[path.Backend.Service.Name], cfgParams, ncp.staticParams)
+			proxySSLName := generateProxySSLName(path.Backend.Service.Name, ncp.ingEx.Ingress.Namespace)
 			loc := createLocation(pathOrDefault(path.Path), upstreams[upsName], &cfgParams, wsServices[path.Backend.Service.Name], rewrites[path.Backend.Service.Name],
 				ssl, grpcServices[path.Backend.Service.Name], proxySSLName, path.PathType, path.Backend.Service.Name, rewriteTarget)
 
-			if p.isMinion && cfgParams.JWTKey != "" {
-				jwtAuth, redirectLoc, warnings := generateJWTConfig(p.ingEx.Ingress, p.ingEx.SecretRefs, &cfgParams, getNameForRedirectLocation(p.ingEx.Ingress))
+			if ncp.isMinion && cfgParams.JWTKey != "" {
+				jwtAuth, redirectLoc, warnings := generateJWTConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams, getNameForRedirectLocation(ncp.ingEx.Ingress))
 				loc.JWTAuth = jwtAuth
 				if redirectLoc != nil {
 					server.JWTRedirectLocations = append(server.JWTRedirectLocations, *redirectLoc)
@@ -277,15 +277,15 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 				allWarnings.Add(warnings)
 			}
 
-			if p.isMinion && cfgParams.BasicAuthSecret != "" {
-				basicAuth, warnings := generateBasicAuthConfig(p.ingEx.Ingress, p.ingEx.SecretRefs, &cfgParams)
+			if ncp.isMinion && cfgParams.BasicAuthSecret != "" {
+				basicAuth, warnings := generateBasicAuthConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams)
 				loc.BasicAuth = basicAuth
 				allWarnings.Add(warnings)
 			}
 
 			if cfgParams.LimitReqRate != "" {
-				zoneName := p.ingEx.Ingress.Namespace + "/" + p.ingEx.Ingress.Name
-				if p.ingEx.ZoneSync {
+				zoneName := ncp.ingEx.Ingress.Namespace + "/" + ncp.ingEx.Ingress.Name
+				if ncp.ingEx.ZoneSync {
 					zoneName = fmt.Sprintf("%v_sync", zoneName)
 				}
 				loc.LimitReq = &version1.LimitReq{
@@ -299,12 +299,12 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 				}
 				if !limitReqZoneExists(limitReqZones, zoneName) {
 					rate := cfgParams.LimitReqRate
-					if cfgParams.LimitReqScale && p.ingressControllerReplicas > 0 {
-						if p.ingEx.ZoneSync {
-							warningText := fmt.Sprintf("Ingress %s/%s: both zone sync and rate limit scale are enabled, the rate limit scale value will not be used.", p.ingEx.Ingress.Namespace, p.ingEx.Ingress.Name)
+					if cfgParams.LimitReqScale && ncp.ingressControllerReplicas > 0 {
+						if ncp.ingEx.ZoneSync {
+							warningText := fmt.Sprintf("Ingress %s/%s: both zone sync and rate limit scale are enabled, the rate limit scale value will not be used.", ncp.ingEx.Ingress.Namespace, ncp.ingEx.Ingress.Name)
 							nl.Warn(l, warningText)
 						} else {
-							rate = scaleRatelimit(rate, p.ingressControllerReplicas)
+							rate = scaleRatelimit(rate, ncp.ingressControllerReplicas)
 						}
 					}
 					limitReqZones = append(limitReqZones, version1.LimitReqZone{
@@ -312,7 +312,7 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 						Key:  cfgParams.LimitReqKey,
 						Size: cfgParams.LimitReqZoneSize,
 						Rate: rate,
-						Sync: p.ingEx.ZoneSync,
+						Sync: ncp.ingEx.ZoneSync,
 					})
 				}
 			}
@@ -324,23 +324,23 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 			}
 		}
 
-		if !rootLocation && p.ingEx.Ingress.Spec.DefaultBackend != nil {
-			upsName := getNameForUpstream(p.ingEx.Ingress, emptyHost, p.ingEx.Ingress.Spec.DefaultBackend)
-			ssl := isSSLEnabled(sslServices[p.ingEx.Ingress.Spec.DefaultBackend.Service.Name], cfgParams, p.staticParams)
-			proxySSLName := generateProxySSLName(p.ingEx.Ingress.Spec.DefaultBackend.Service.Name, p.ingEx.Ingress.Namespace)
+		if !rootLocation && ncp.ingEx.Ingress.Spec.DefaultBackend != nil {
+			upsName := getNameForUpstream(ncp.ingEx.Ingress, emptyHost, ncp.ingEx.Ingress.Spec.DefaultBackend)
+			ssl := isSSLEnabled(sslServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], cfgParams, ncp.staticParams)
+			proxySSLName := generateProxySSLName(ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name, ncp.ingEx.Ingress.Namespace)
 			pathtype := networking.PathTypePrefix
 
-			loc := createLocation(pathOrDefault("/"), upstreams[upsName], &cfgParams, wsServices[p.ingEx.Ingress.Spec.DefaultBackend.Service.Name], rewrites[p.ingEx.Ingress.Spec.DefaultBackend.Service.Name],
-				ssl, grpcServices[p.ingEx.Ingress.Spec.DefaultBackend.Service.Name], proxySSLName, &pathtype, p.ingEx.Ingress.Spec.DefaultBackend.Service.Name, rewriteTarget)
+			loc := createLocation(pathOrDefault("/"), upstreams[upsName], &cfgParams, wsServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], rewrites[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name],
+				ssl, grpcServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], proxySSLName, &pathtype, ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name, rewriteTarget)
 			locations = append(locations, loc)
 
 			if cfgParams.HealthCheckEnabled {
-				if hc, exists := p.ingEx.HealthChecks[p.ingEx.Ingress.Spec.DefaultBackend.Service.Name+GetBackendPortAsString(p.ingEx.Ingress.Spec.DefaultBackend.Service.Port)]; exists {
+				if hc, exists := ncp.ingEx.HealthChecks[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name+GetBackendPortAsString(ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Port)]; exists {
 					healthChecks[upsName] = createHealthCheck(hc, upsName, &cfgParams)
 				}
 			}
 
-			if _, exists := grpcServices[p.ingEx.Ingress.Spec.DefaultBackend.Service.Name]; !exists {
+			if _, exists := grpcServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name]; !exists {
 				grpcOnly = false
 			}
 		}
@@ -362,13 +362,13 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 		Servers:   servers,
 		Keepalive: keepalive,
 		Ingress: version1.Ingress{
-			Name:        p.ingEx.Ingress.Name,
-			Namespace:   p.ingEx.Ingress.Namespace,
-			Annotations: p.ingEx.Ingress.Annotations,
+			Name:        ncp.ingEx.Ingress.Name,
+			Namespace:   ncp.ingEx.Ingress.Namespace,
+			Annotations: ncp.ingEx.Ingress.Annotations,
 		},
-		SpiffeClientCerts:       p.staticParams.NginxServiceMesh && !cfgParams.SpiffeServerCerts,
-		DynamicSSLReloadEnabled: p.staticParams.DynamicSSLReload,
-		StaticSSLPath:           p.staticParams.StaticSSLPath,
+		SpiffeClientCerts:       ncp.staticParams.NginxServiceMesh && !cfgParams.SpiffeServerCerts,
+		DynamicSSLReloadEnabled: ncp.staticParams.DynamicSSLReload,
+		StaticSSLPath:           ncp.staticParams.StaticSSLPath,
 		LimitReqZones:           limitReqZones,
 	}, allWarnings
 }
