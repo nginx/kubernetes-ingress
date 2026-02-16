@@ -135,8 +135,10 @@ delete-kind-cluster: ## Delete a Kind K8S cluster
 
 
 .PHONY: image-load
-image-load: ## Load the image into the Kind K8S cluster
-	@kind load docker-image $(BUILD_IMAGE) --name $(K8S_CLUSTER_NAME)
+image-load: ## Load the image into the Kind K8S cluster
+	@docker save $(BUILD_IMAGE) | \
+		docker exec --privileged -i $(K8S_CLUSTER_NAME)-control-plane \
+			ctr --namespace=k8s.io images import -
 
 
 .PHONY: run-tests-in-minikube
