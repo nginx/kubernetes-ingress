@@ -18,7 +18,11 @@ STATICCHECK_VERSION ?= 2026.1
 # renovate: datasource=github-releases depName=golang/vuln
 GOVULNCHECK_VERSION ?= v1.1.4
 
-# Variables that can be overridden
+GO_DOCKER_IMAGE_NAME    ?= golang
+# renovate: datasource=docker depName=golang versioning=docker
+GO_DOCKER_IMAGE_VERSION ?= 1.26.0-trixie
+GO_DOCKER_IMAGE         ?= $(GO_DOCKER_IMAGE_NAME):$(GO_DOCKER_IMAGE_VERSION)
+
 REGISTRY                      ?= ## The registry where the image is located.
 PREFIX                        ?= nginx/nginx-ingress ## The name of the image. For example, nginx/nginx-ingress
 TAG                           ?= $(VERSION:v%=%) ## The tag of the image. For example, 2.0.0
