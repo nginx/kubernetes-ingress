@@ -100,13 +100,10 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 
 	resources := lbc.configuration.FindResourcesForPolicy(namespace, name)
 
+	// Is this policy supported in an ingress?
 	for _, res := range resources {
 		switch impl := res.(type) {
 		case *IngressConfiguration:
-			// call addOrUpdateIngress for all ingresses that reference the policy,
-			// which will trigger a validation and update of the status of the ingress and the policy
-			lbc.configuration.AddOrUpdateIngress(impl.Ingress)
-
 			pol := obj.(*conf_v1.Policy)
 			switch {
 			case pol.Spec.AccessControl != nil:
