@@ -57,7 +57,7 @@ Note that the VirtualServer references the policy `cors-policy` created in Step 
          http://webapp.example.com:$IC_HTTP_PORT/test/ -v
     ```
 
-    You should see CORS headers in the response and 204 response form nginx
+    You should see CORS headers in the response and 204 response from nginx
 
     ```console
         < Access-Control-Allow-Origin: https://app.example.com

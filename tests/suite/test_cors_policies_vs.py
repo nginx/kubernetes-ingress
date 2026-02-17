@@ -15,7 +15,7 @@ cors_vs_wildcard_route_src = f"{TEST_DATA}/cors/route/virtual-server-cors-wildca
 
 
 @pytest.mark.policies
-@pytest.mark.polcies_cors
+@pytest.mark.policies_cors
 @pytest.mark.parametrize(
     "crd_ingress_controller, virtual_server_setup",
     [
@@ -204,7 +204,6 @@ class TestCORSPolicies:
             },
         )
         print(f"OPTIONS preflight response: status={resp_options.status_code}, headers={resp_options.headers}")
-        input("wait...")
         # Assertions for wildcard matched origin
         assert resp_wildcard_match.status_code == 200
         # For wildcard patterns, nginx returns the actual origin from the request
