@@ -714,6 +714,8 @@ type UpstreamParameters struct {
 	NextUpstreamTimeout string `json:"nextUpstreamTimeout"`
 	// The number of tries for passing a connection to the next server. The default is 0.
 	NextUpstreamTries int `json:"nextUpstreamTries"`
+	// Enables or disables the use of the PROXY protocol. The default is false.
+	ProxyProtocol bool `json:"proxyProtocol"`
 }
 
 // SessionParameters defines session parameters.

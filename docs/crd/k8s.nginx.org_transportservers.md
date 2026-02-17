@@ -33,6 +33,7 @@ The `.spec` object supports the following fields:
 | `upstreamParameters.nextUpstream` | `boolean` | If a connection to the proxied server cannot be established, determines whether a client connection will be passed to the next server. The default is true. |
 | `upstreamParameters.nextUpstreamTimeout` | `string` | The time allowed to pass a connection to the next server. The default is 0. |
 | `upstreamParameters.nextUpstreamTries` | `integer` | The number of tries for passing a connection to the next server. The default is 0. |
+| `upstreamParameters.proxyProtocol` | `boolean` | Enables or disables the use of the PROXY protocol. The default is false. |
 | `upstreamParameters.udpRequests` | `integer` | The number of datagrams, after receiving which, the next datagram from the same client starts a new session. The default is 0. |
 | `upstreamParameters.udpResponses` | `integer` | The number of datagrams expected from the proxied server in response to a client datagram. By default, the number of datagrams is not limited. |
 | `upstreams` | `array` | A list of upstreams. |

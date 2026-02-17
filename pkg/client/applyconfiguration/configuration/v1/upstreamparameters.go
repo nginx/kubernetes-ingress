@@ -19,6 +19,8 @@ type UpstreamParametersApplyConfiguration struct {
 	NextUpstreamTimeout *string `json:"nextUpstreamTimeout,omitempty"`
 	// The number of tries for passing a connection to the next server. The default is 0.
 	NextUpstreamTries *int `json:"nextUpstreamTries,omitempty"`
+	// Enables or disables the use of the PROXY protocol. The default is false.
+	ProxyProtocol *bool `json:"proxyProtocol,omitempty"`
 }
 
 // UpstreamParametersApplyConfiguration constructs a declarative configuration of the UpstreamParameters type for use with
