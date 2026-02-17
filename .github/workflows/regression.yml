@@ -203,7 +203,9 @@ jobs:
         id: k8s
         run: |
           kind create cluster --name ${{ github.run_id }} --image=kindest/node:v${{ needs.checks.outputs.k8s_latest }} --wait 75s
-          kind load docker-image "${{ matrix.image }}:${{ matrix.tag }}" --name ${{ github.run_id }}
+          docker save "${{ matrix.image }}:${{ matrix.tag }}" | \
+            docker exec -i ${{ github.run_id }}-control-plane \
+              ctr --namespace=k8s.io images import -
 
       - name: Create Plus Secret
         run: kubectl create secret generic license-token --from-literal=license.jwt="${{ steps.secrets.outputs.PLUS_JWT }}" --type="nginx.com/license"
@@ -341,6 +343,10 @@ jobs:
         run: |
           docker run --rm --user root -v /var/run/docker.sock:/var/run/docker.sock -v ${{ github.workspace }}/tests/data/ap-waf-v5:/data gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/nap/waf-compiler:5.11.0 -p /data/wafv5.json -o /data/wafv5.tgz
         if: ${{ contains(matrix.images.image, 'nap-v5')}}
+
+      - name: Generate secrets for tests
+        run: |
+          make secrets
 
       - name: Run Regression Tests
         id: regression-tests
