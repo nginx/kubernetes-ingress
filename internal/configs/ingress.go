@@ -253,19 +253,22 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			server.AppProtectDosLogConfFile = ncp.dosResource.AppProtectDosLogConfFile
 		}
 
-		if !ncp.isMinion && cfgParams.JWTKey != "" {
-			jwtAuth, redirectLoc, warnings := generateJWTConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams, getNameForRedirectLocation(ncp.ingEx.Ingress))
-			server.JWTAuth = jwtAuth
-			if redirectLoc != nil {
-				server.JWTRedirectLocations = append(server.JWTRedirectLocations, *redirectLoc)
+		if !ncp.isMinion {
+			if cfgParams.JWTKey != "" {
+				jwtAuth, redirectLoc, warnings := generateJWTConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams, getNameForRedirectLocation(ncp.ingEx.Ingress))
+				server.JWTAuth = jwtAuth
+				if redirectLoc != nil {
+					server.JWTRedirectLocations = append(server.JWTRedirectLocations, *redirectLoc)
+				}
+				allWarnings.Add(warnings)
 			}
-			allWarnings.Add(warnings)
-		}
 
-		if !ncp.isMinion && cfgParams.BasicAuthSecret != "" {
-			basicAuth, warnings := generateBasicAuthConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams)
-			server.BasicAuth = basicAuth
-			allWarnings.Add(warnings)
+			if cfgParams.BasicAuthSecret != "" {
+				basicAuth, warnings := generateBasicAuthConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams)
+				server.BasicAuth = basicAuth
+				allWarnings.Add(warnings)
+			}
+
 		}
 
 		var locations []version1.Location
@@ -310,26 +313,29 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			loc := createLocation(pathOrDefault(path.Path), upstreams[upsName], &cfgParams, wsServices[path.Backend.Service.Name], rewrites[path.Backend.Service.Name],
 				ssl, grpcServices[path.Backend.Service.Name], proxySSLName, path.PathType, path.Backend.Service.Name, rewriteTarget)
 
-			if ncp.isMinion && cfgParams.JWTKey != "" {
-				jwtAuth, redirectLoc, warnings := generateJWTConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams, getNameForRedirectLocation(ncp.ingEx.Ingress))
-				loc.JWTAuth = jwtAuth
-				if redirectLoc != nil {
-					server.JWTRedirectLocations = append(server.JWTRedirectLocations, *redirectLoc)
+			if ncp.isMinion {
+				if cfgParams.JWTKey != "" {
+					jwtAuth, redirectLoc, warnings := generateJWTConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams, getNameForRedirectLocation(ncp.ingEx.Ingress))
+					loc.JWTAuth = jwtAuth
+					if redirectLoc != nil {
+						server.JWTRedirectLocations = append(server.JWTRedirectLocations, *redirectLoc)
+					}
+					allWarnings.Add(warnings)
 				}
-				allWarnings.Add(warnings)
-			}
 
-			if ncp.isMinion && cfgParams.BasicAuthSecret != "" {
-				basicAuth, warnings := generateBasicAuthConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams)
-				loc.BasicAuth = basicAuth
-				allWarnings.Add(warnings)
-			}
+				if cfgParams.BasicAuthSecret != "" {
+					basicAuth, warnings := generateBasicAuthConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams)
+					loc.BasicAuth = basicAuth
+					allWarnings.Add(warnings)
+				}
 
-			if ncp.isMinion && policyCfg.Allow != nil {
-				loc.Allow = policyCfg.Allow
-			}
-			if ncp.isMinion && policyCfg.Deny != nil {
-				loc.Deny = policyCfg.Deny
+				if policyCfg.Allow != nil {
+					loc.Allow = policyCfg.Allow
+				}
+				if policyCfg.Deny != nil {
+					loc.Deny = policyCfg.Deny
+				}
+
 			}
 
 			if cfgParams.LimitReqRate != "" {
