@@ -1041,7 +1041,8 @@ spec:
                       next server. The default is 0.
                     type: integer
                   proxyProtocol:
-                    description: Enables or disables the use of the PROXY protocol. The default is false.
+                    description: Enables or disables the use of the PROXY protocol
+                      for upstream connections. The default is false.
                     type: boolean
                   udpRequests:
                     description: The number of datagrams, after receiving which, the
