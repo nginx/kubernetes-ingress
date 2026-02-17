@@ -145,35 +145,42 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 
 	// Run generate Policies
 	var policyRefs []conf_v1.PolicyReference
-	if ncp.ingEx.Ingress.Annotations[PoliciesAnnotation] != "" {
-		policyRefs = policies.GetPolicyRefsFromAnnotation(ncp.ingEx.Ingress.Annotations[PoliciesAnnotation], ncp.ingEx.Ingress.Namespace)
+	if ncp.ingEx.Policies != nil {
+		policyRefs = policies.GetPolicyRefsFromPolicies(ncp.ingEx.Policies)
 	}
 
-	policyCfg, warnings := generatePolicies(
-		ncp.BaseCfgParams.Context,
-		policyOwnerDetails{
-			ncp.ingEx.Ingress,
-			ncp.ingEx.Ingress.Name,
-			ncp.ingEx.Ingress.Namespace,
+	var policyCfg policiesCfg
+	if len(policyRefs) > 0 {
+		var warnings Warnings
+		ownerDetails := policyOwnerDetails{
+			owner:          ncp.ingEx.Ingress,
+			ownerName:      ncp.ingEx.Ingress.Name,
+			ownerNamespace: ncp.ingEx.Ingress.Namespace,
+		}
+		if ncp.isMinion {
+			ownerDetails.vsName = ncp.mergeableIngs.Master.Ingress.Name
+			ownerDetails.vsNamespace = ncp.mergeableIngs.Master.Ingress.Namespace
+		}
+		policyCfg, warnings = generatePolicies(
+			ncp.BaseCfgParams.Context,
+			ownerDetails,
+			policyRefs,
+			ncp.ingEx.Policies,
+			"spec",
 			"",
-			"",
-		},
-		policyRefs,
-		ncp.ingEx.Policies,
-		"spec",
-		"",
-		policyOptions{
-			tls:             false,
-			zoneSync:        false,
-			secretRefs:      nil,
-			apResources:     nil,
-			defaultCABundle: "",
-			replicas:        0,
-			oidcPolicyName:  "",
-		},
-		nil,
-	)
-	allWarnings.Add(warnings)
+			policyOptions{
+				tls:             ncp.ingEx.Ingress.Spec.TLS != nil,
+				zoneSync:        ncp.BaseCfgParams.ZoneSync.Enable,
+				secretRefs:      ncp.ingEx.SecretRefs,
+				apResources:     nil,
+				defaultCABundle: ncp.staticParams.DefaultCABundle,
+				replicas:        ncp.ingressControllerReplicas,
+				oidcPolicyName:  "",
+			},
+			nil,
+		)
+		allWarnings.Add(warnings)
+	}
 
 	for _, rule := range ncp.ingEx.Ingress.Spec.Rules {
 		// skipping invalid hosts
@@ -766,6 +773,7 @@ func generateNginxCfgForMergeableIngresses(p NginxCfgParams) (version1.IngressNg
 		dummyApResources := &AppProtectResources{}
 		dummyDosResource := &appProtectDosResource{}
 		minionNginxCfg, minionWarnings := generateNginxCfg(NginxCfgParams{
+			mergeableIngs:             p.mergeableIngs,
 			staticParams:              p.staticParams,
 			ingEx:                     minion,
 			apResources:               dummyApResources,
