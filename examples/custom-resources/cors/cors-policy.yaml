@@ -4,6 +4,7 @@ metadata:
   name: cors-policy
 spec:
   cors:
+    # specific origins only
     allowOrigin:
       - "https://example.com"
       - "https://app.example.com"
@@ -36,5 +37,5 @@ spec:
       - "X-RateLimit-Remaining"
       - "X-RateLimit-Reset"
 
-    # Preflight cache duration (max 24 hours recommended)
+    # Preflight cache duration
     maxAge: 3600  # 1 hour

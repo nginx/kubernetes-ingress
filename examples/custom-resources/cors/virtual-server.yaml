@@ -11,11 +11,11 @@ spec:
       service: webapp-svc
       port: 80
   routes:
-    - path: /
+    - path: /test
       action:
         pass: webapp
       policies:
       - name: wildcard-cors-policy
-    - path: /api
+    - path: /prod
       action:
         pass: webapp

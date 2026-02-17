@@ -6,10 +6,9 @@ metadata:
 spec:
   cors:
     # Wildcard subdomain support - allows any single-level subdomain
-    # Following enable-cors.org best practices with proper Vary header handling
     allowOrigin:
       - "https://*.example.com"
-      - "https://app.example.com"
+      - "https://test.example.com"
     allowMethods:
       - "GET"
       - "POST"

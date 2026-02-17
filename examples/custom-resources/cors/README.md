@@ -50,43 +50,49 @@ Note that the VirtualServer references the policy `cors-policy` created in Step 
 
     ```console
     curl -X OPTIONS \
-         -H "Origin: https://example.com" \
+         -H "Origin: https://app.example.com" \
          -H "Access-Control-Request-Method: POST" \
          -H "Access-Control-Request-Headers: Content-Type" \
          --resolve webapp.example.com:$IC_HTTP_PORT:$IC_IP \
-         http://webapp.example.com:$IC_HTTP_PORT/api/data -v
+         http://webapp.example.com:$IC_HTTP_PORT/test/ -v
     ```
 
-    You should see CORS headers in the response:
+    You should see CORS headers in the response and 204 response form nginx
 
     ```console
-    Access-Control-Allow-Origin: https://example.com
-    Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
-    Access-Control-Allow-Headers: Content-Type, Authorization
-    Access-Control-Max-Age: 3600
+        < Access-Control-Allow-Origin: https://app.example.com
+        < Access-Control-Allow-Methods: GET, POST, PUT, OPTIONS
+        < Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With
+        < Access-Control-Allow-Credentials: true
+        < Access-Control-Expose-Headers: X-Total-Count, X-Page-Size
+        < Access-Control-Max-Age: 86400
     ```
 
 2. Send an actual cross-origin request:
 
     ```console
-    curl -X POST \
-         -H "Origin: https://example.com" \
-         -H "Content-Type: application/json" \
-         -d '{"message": "Hello World"}' \
+    curl -X POST \   
+         -H "Origin: https://app.example.com" \
+         -H "Access-Control-Request-Method: POST" \
+         -H "Access-Control-Request-Headers: Content-Type" \
          --resolve webapp.example.com:$IC_HTTP_PORT:$IC_IP \
-         http://webapp.example.com:$IC_HTTP_PORT/api/data -v
+         http://webapp.example.com:$IC_HTTP_PORT/test/ -v
     ```
 
-    The response should include CORS headers allowing the cross-origin request.
-
-3. Test with an unauthorized origin:
+    The response should include CORS headers allowing the cross-origin request and response from backend.
 
     ```console
-    curl -X POST \
-         -H "Origin: https://unauthorized.com" \
-         -H "Content-Type: application/json" \
-         --resolve webapp.example.com:$IC_HTTP_PORT:$IC_IP \
-         http://webapp.example.com:$IC_HTTP_PORT/api/data -v
+    < Access-Control-Allow-Origin: https://app.example.com
+    < Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
+    < Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-API-Key
+    < Access-Control-Allow-Credentials: true
+    < Access-Control-Expose-Headers: X-Total-Count, X-Page-Size, X-RateLimit-Remaining, X-RateLimit-Reset
+    < Access-Control-Max-Age: 3600
+    < 
+    Server address: 10.0.0.25:8080
+    Server name: webapp-558ff5c8f6-mtnlc
+    Date: 17/Feb/2026:16:24:44 +0000
+    URI: /test/
+    Request ID: 8d1317dacf9243ea42c75e5d3fd9f382
+    * Connection #0 to host webapp.example.com left intact
     ```
-
-    The response should not include the `Access-Control-Allow-Origin` header, effectively blocking the cross-origin request from the browser's perspective.
