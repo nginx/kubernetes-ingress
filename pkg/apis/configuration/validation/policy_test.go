@@ -1255,7 +1255,7 @@ func TestValidatePositiveInt_PassesOnValidInput(t *testing.T) {
 	for _, input := range validInput {
 		allErrs := validatePositiveInt(input, field.NewPath("int"))
 		if len(allErrs) > 0 {
-			t.Errorf("validatePositiveInt(%q) returned errors %v for valid input", input, allErrs)
+			t.Errorf("validatePositiveInt(%d) returned errors %v for valid input", input, allErrs)
 		}
 	}
 }
@@ -1268,7 +1268,7 @@ func TestValidatePositiveInt_ErrorsOnInvalidInput(t *testing.T) {
 	for _, input := range invalidInput {
 		allErrs := validatePositiveInt(input, field.NewPath("int"))
 		if len(allErrs) == 0 {
-			t.Errorf("validatePositiveInt(%q) returned no errors for invalid input", input)
+			t.Errorf("validatePositiveInt(%d) returned no errors for invalid input", input)
 		}
 	}
 }
