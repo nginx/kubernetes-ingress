@@ -20,7 +20,7 @@ PREFIX                      ?= nginx/nginx-ingress ## The name of the image. For
 TAG                         ?= edge ## The tag of the image. For example, edge
 K8S_CLUSTER_NAME            ?= local ## The name used when creating/using a Kind Kubernetes cluster
 # renovate: datasource=docker depName=kindest/node
-K8S_CLUSTER_VERSION         ?= v1.35.0
+K8S_CLUSTER_VERSION         ?= v1.35.1
 K8S_TIMEOUT                 ?= 75s ## The timeout used when creating a Kind Kubernetes cluster
 PLUS_JWT                    ?=
 PYTEST_ARGS                 ?=
@@ -136,7 +136,9 @@ delete-kind-cluster: ## Delete a Kind K8S cluster
 
 .PHONY: image-load
 image-load: ## Load the image into the Kind K8S cluster
-	@kind load docker-image $(BUILD_IMAGE) --name $(K8S_CLUSTER_NAME)
+	@docker save $(BUILD_IMAGE) | \
+		docker exec --privileged -i $(K8S_CLUSTER_NAME)-control-plane \
+			ctr --namespace=k8s.io images import -
 
 
 .PHONY: run-tests-in-minikube

@@ -160,6 +160,7 @@ type OIDC struct {
 	TLSVerify             bool
 	VerifyDepth           int
 	CAFile                string
+	PolicyName            string
 }
 
 // APIKey holds API key configuration.
@@ -421,7 +422,7 @@ type LimitReq struct {
 }
 
 func (rl LimitReq) String() string {
-	return fmt.Sprintf("{ZoneName %q, Burst %q, NoDelay %v, Delay %q}", rl.ZoneName, rl.Burst, rl.NoDelay, rl.Delay)
+	return fmt.Sprintf("{ZoneName %q, Burst %d, NoDelay %v, Delay %d}", rl.ZoneName, rl.Burst, rl.NoDelay, rl.Delay)
 }
 
 // LimitReqOptions defines rate limit options.
@@ -432,7 +433,7 @@ type LimitReqOptions struct {
 }
 
 func (rl LimitReqOptions) String() string {
-	return fmt.Sprintf("{DryRun %v, LogLevel %q, RejectCode %q}", rl.DryRun, rl.LogLevel, rl.RejectCode)
+	return fmt.Sprintf("{DryRun %v, LogLevel %q, RejectCode %d}", rl.DryRun, rl.LogLevel, rl.RejectCode)
 }
 
 // JWTAuth holds JWT authentication configuration.

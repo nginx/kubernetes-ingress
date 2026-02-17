@@ -161,3 +161,80 @@ class TestAppProtectWAFv5IntegrationVSR:
         delete_policy(kube_apis.custom_objects, pol, v_s_route_setup.route_m.namespace)
         assert response.status_code == 200
         assert "The requested URL was rejected. Please consult with your administrator." in response.text
+
+
+@pytest.mark.skip_for_nginx_oss
+@pytest.mark.appprotect_waf_v5
+@pytest.mark.parametrize(
+    "crd_ingress_controller_with_waf_v5, v_s_route_selector_setup",
+    [
+        (
+            {
+                "type": "complete",
+                "extra_args": [
+                    f"-enable-app-protect",
+                ],
+            },
+            {
+                "example": "virtual-server-route-selector",
+            },
+        )
+    ],
+    indirect=True,
+)
+@pytest.mark.vsr_selector
+class TestAppProtectWAFv5IntegrationVSRSelector:
+
+    def restore_default_vsr_selector(self, kube_apis, v_s_route_selector_setup) -> None:
+        """
+        Function to revert vsr selector deployments to standard state
+        """
+        patch_src_m = f"{TEST_DATA}/virtual-server-route-selector/route-multiple.yaml"
+        patch_v_s_route_from_yaml(
+            kube_apis.custom_objects,
+            v_s_route_selector_setup.route_m.name,
+            patch_src_m,
+            v_s_route_selector_setup.route_m.namespace,
+        )
+        wait_before_test()
+
+    def test_ap_waf_v5_policy_block_vsr_selector(
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        crd_ingress_controller_with_waf_v5,
+        test_namespace,
+        v_s_route_selector_setup,
+    ):
+        req_url = f"http://{v_s_route_selector_setup.public_endpoint.public_ip}:{v_s_route_selector_setup.public_endpoint.port}"
+        waf_subroute_vsr_selector_src = f"{TEST_DATA}/virtual-server-route-selector/route-multiple-wafv5.yaml"
+        pol = create_policy_from_yaml(
+            kube_apis.custom_objects,
+            f"{TEST_DATA}/virtual-server-route-selector/waf-v5-policy.yaml",
+            v_s_route_selector_setup.route_m.namespace,
+        )
+        wait_before_test()
+        patch_v_s_route_from_yaml(
+            kube_apis.custom_objects,
+            v_s_route_selector_setup.route_m.name,
+            waf_subroute_vsr_selector_src,
+            v_s_route_selector_setup.route_m.namespace,
+        )
+        wait_before_test()
+        print("----------------------- Send request with embedded malicious script----------------------")
+        count = 0
+        response = requests.get(
+            f'{req_url}{v_s_route_selector_setup.route_m.paths[0]}+"</script>"',
+            headers={"host": v_s_route_selector_setup.vs_host},
+        )
+        while count < 5 and "Request Rejected" not in response.text:
+            response = requests.get(
+                f'{req_url}{v_s_route_selector_setup.route_m.paths[0]}+"</script>"',
+                headers={"host": v_s_route_selector_setup.vs_host},
+            )
+            wait_before_test()
+            count += 1
+        self.restore_default_vsr_selector(kube_apis, v_s_route_selector_setup)
+        delete_policy(kube_apis.custom_objects, pol, v_s_route_selector_setup.route_m.namespace)
+        assert response.status_code == 200
+        assert "The requested URL was rejected. Please consult with your administrator." in response.text
