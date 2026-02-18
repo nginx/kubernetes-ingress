@@ -7951,3 +7951,142 @@ server {
 }
 
 ---
+
+[TestExecuteTemplate_ForIngressForNGINXWithACPolicy - 1]
+# configuration for default/cafe-ingress
+upstream test {zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+}
+
+
+
+server {
+        allow 10.0.0.0/8;
+        deny all;
+
+    server_tokens off;
+
+    server_name test.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location /tea {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXWithACPolicyDeny - 1]
+# configuration for default/cafe-ingress
+upstream test {zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+}
+
+
+
+server {
+        deny 10.0.0.0/8;
+        allow all;
+
+    server_tokens off;
+
+    server_name test.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location /tea {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusWithACPolicyAllow - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;
+}
+
+
+
+
+server {
+        allow 10.0.0.0/8;
+        deny all;
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location /tea {
+        set $service "";
+        status_zone "";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+
+        
+    }
+    
+}
+
+---
