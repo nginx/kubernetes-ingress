@@ -33,11 +33,16 @@ We value community input and would love to see you at the next community call. A
 
 | **Community Call Dates** |
 | ------------------------ |
-| **2025-12-15**           |
-| **2026-01-12**           |
-| **2026-01-26**           |
-| **2026-02-09**           |
 | **2026-02-23**           |
+| **2026-03-09**           |
+| **2026-03-23**           |
+| **2026-04-07**           |
+| **2026-04-20**           |
+| **2026-05-05**           |
+| **2026-05-18**           |
+| **2026-06-02**           |
+| **2026-06-15**           |
+| **2026-06-29**           |
 
 
 You can also join the [NGINX Community Forum](https://community.nginx.org) to chat about the NGINX Ingress Controller.
