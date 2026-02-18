@@ -17,7 +17,7 @@ func GetPolicyRefsFromAnnotation(annotation, namespace string) []conf_v1.PolicyR
 	for _, policyName := range policyNames {
 		policyName = strings.TrimSpace(policyName)
 		parts := strings.Split(policyName, "/")
-		var ns = namespace
+		ns := namespace
 		if len(parts) == 2 {
 			ns = parts[0]
 			policyName = parts[1]
