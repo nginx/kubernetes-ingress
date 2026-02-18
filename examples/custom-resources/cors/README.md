@@ -71,7 +71,7 @@ Note that the VirtualServer references the policy `cors-policy` created in Step 
 2. Send an actual cross-origin request:
 
     ```console
-    curl -X POST \   
+    curl -X POST \
          -H "Origin: https://app.example.com" \
          -H "Access-Control-Request-Method: POST" \
          -H "Access-Control-Request-Headers: Content-Type" \
