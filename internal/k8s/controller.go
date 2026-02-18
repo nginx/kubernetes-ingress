@@ -1039,7 +1039,7 @@ func (lbc *LoadBalancerController) sync(task task) {
 		lbc.syncConfigMap(task)
 	case endpointslice:
 		resourcesFound := lbc.syncEndpointSlices(task)
-		if lbc.batchSyncEnabled && resourcesFound {
+		if lbc.batchSyncEnabled && resourcesFound && !lbc.isNginxPlus {
 			nl.Debugf(lbc.Logger, "Endpointslice %v is referenced - enabling batch reload", task.Key)
 			lbc.enableBatchReload = true
 		}
