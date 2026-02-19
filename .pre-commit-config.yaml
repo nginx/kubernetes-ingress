@@ -36,12 +36,6 @@ repos:
 
   - repo: local
     hooks:
-      - id: golang-diff
-        name: create-go-diff
-        entry: bash -c 'git diff -p origin/main > /tmp/diff.patch'
-        language: system
-        types: [go]
-        pass_filenames: false
       - id: golangci-lint
         name: golangci-lint
         description: Fast linters runner for Go. Note that only modified files are linted, so linters like 'unused' that need to scan all files won't work as expected.
