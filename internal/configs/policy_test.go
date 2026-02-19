@@ -22,11 +22,11 @@ func TestGeneratePolicies(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	ownerDetails := policyOwnerDetails{
-		owner:          nil, // nil is OK for the unit test
-		ownerNamespace: "default",
-		vsNamespace:    "default",
-		vsName:         "test",
-		ownerName:      "test",
+		owner:           nil, // nil is OK for the unit test
+		ownerNamespace:  "default",
+		parentNamespace: "default",
+		parentName:      "test",
+		ownerName:       "test",
 	}
 	mTLSCertPath := "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crt"
 	mTLSCrlPath := "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crl"
@@ -1288,10 +1288,10 @@ func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 	t.Parallel()
 
 	ownerDetails := policyOwnerDetails{
-		owner:          nil, // nil is OK for the unit test
-		ownerNamespace: "default",
-		vsNamespace:    "default",
-		vsName:         "test",
+		owner:           nil, // nil is OK for the unit test
+		ownerNamespace:  "default",
+		parentNamespace: "default",
+		parentName:      "test",
 	}
 
 	tests := []struct {
@@ -1383,11 +1383,11 @@ func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 func TestGeneratePoliciesFails(t *testing.T) {
 	t.Parallel()
 	ownerDetails := policyOwnerDetails{
-		owner:          nil, // nil is OK for the unit test
-		ownerName:      "test",
-		ownerNamespace: "default",
-		vsNamespace:    "default",
-		vsName:         "test",
+		owner:           nil, // nil is OK for the unit test
+		ownerName:       "test",
+		ownerNamespace:  "default",
+		parentNamespace: "default",
+		parentName:      "test",
 	}
 
 	dryRunOverride := true

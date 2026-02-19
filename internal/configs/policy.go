@@ -15,6 +15,7 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/nsutils"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	api_v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
@@ -65,6 +66,24 @@ type policiesCfg struct {
 	BundleValidator bundleValidator
 }
 
+type policyOwnerDetails struct {
+	owner           runtime.Object
+	ownerName       string
+	ownerNamespace  string
+	parentNamespace string
+	parentName      string
+}
+
+type policyOptions struct {
+	tls             bool
+	zoneSync        bool
+	secretRefs      map[string]*secrets.SecretReference
+	apResources     *appProtectResourcesForVS
+	defaultCABundle string
+	replicas        int
+	oidcPolicyName  string
+}
+
 func newPoliciesConfig(bv bundleValidator) *policiesCfg {
 	return &policiesCfg{
 		BundleValidator: bv,
@@ -96,7 +115,7 @@ func (p *policiesCfg) addRateLimitConfig(
 	polKey := fmt.Sprintf("%v/%v", policy.Namespace, policy.Name)
 	l := nl.LoggerFromContext(p.Context)
 
-	rlZoneName := rfc1123ToSnake(fmt.Sprintf("pol_rl_%v_%v_%v_%v", policy.Namespace, policy.Name, ownerDetails.vsNamespace, ownerDetails.vsName))
+	rlZoneName := rfc1123ToSnake(fmt.Sprintf("pol_rl_%v_%v_%v_%v", policy.Namespace, policy.Name, ownerDetails.parentNamespace, ownerDetails.parentName))
 	if zoneSync {
 		rlZoneName = fmt.Sprintf("%v_sync", rlZoneName)
 	}
@@ -776,12 +795,12 @@ func generatePolicies(
 			case pol.Spec.OIDC != nil:
 				res = config.addOIDCConfig(pol.Spec.OIDC, key, polNamespace, policyOpts)
 			case pol.Spec.APIKey != nil:
-				res = config.addAPIKeyConfig(pol.Spec.APIKey, key, polNamespace, ownerDetails.vsNamespace,
-					ownerDetails.vsName, policyOpts.secretRefs)
+				res = config.addAPIKeyConfig(pol.Spec.APIKey, key, polNamespace, ownerDetails.parentNamespace,
+					ownerDetails.parentName, policyOpts.secretRefs)
 			case pol.Spec.WAF != nil:
 				res = config.addWAFConfig(ctx, pol.Spec.WAF, key, polNamespace, policyOpts.apResources)
 			case pol.Spec.Cache != nil:
-				res = config.addCacheConfig(pol.Spec.Cache, key, ownerDetails.vsNamespace, ownerDetails.vsName, ownerDetails.ownerNamespace, ownerDetails.ownerName)
+				res = config.addCacheConfig(pol.Spec.Cache, key, ownerDetails.parentNamespace, ownerDetails.parentName, ownerDetails.ownerNamespace, ownerDetails.ownerName)
 			default:
 				res = newValidationResults()
 			}
@@ -902,14 +921,14 @@ func generateGroupedLimitReqZone(
 	if rateLimitPol.Condition != nil && rateLimitPol.Condition.JWT != nil {
 		lrz.GroupValue = rateLimitPol.Condition.JWT.Match
 		lrz.PolicyValue = fmt.Sprintf("rl_%s_%s_match_%s",
-			ownerDetails.vsNamespace,
-			ownerDetails.vsName,
+			ownerDetails.parentNamespace,
+			ownerDetails.parentName,
 			strings.ToLower(rateLimitPol.Condition.JWT.Match),
 		)
 
 		lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf("$rl_%s_%s_group_%s_%s_%s",
-			ownerDetails.vsNamespace,
-			ownerDetails.vsName,
+			ownerDetails.parentNamespace,
+			ownerDetails.parentName,
 			strings.ToLower(
 				strings.Join(
 					strings.Split(rateLimitPol.Condition.JWT.Claim, "."), "_",
@@ -921,20 +940,20 @@ func generateGroupedLimitReqZone(
 		lrz.Key = rfc1123ToSnake(fmt.Sprintf("$%s", zoneName))
 		lrz.PolicyResult = rateLimitPol.Key
 		lrz.GroupDefault = rateLimitPol.Condition.Default
-		lrz.GroupSource = generateAuthJwtClaimSetVariable(rateLimitPol.Condition.JWT.Claim, ownerDetails.vsNamespace, ownerDetails.vsName)
+		lrz.GroupSource = generateAuthJwtClaimSetVariable(rateLimitPol.Condition.JWT.Claim, ownerDetails.parentNamespace, ownerDetails.parentName)
 	}
 	if rateLimitPol.Condition != nil && rateLimitPol.Condition.Variables != nil && len(*rateLimitPol.Condition.Variables) > 0 {
 		variable := (*rateLimitPol.Condition.Variables)[0]
 		lrz.GroupValue = fmt.Sprintf("\"%s\"", variable.Match)
 		lrz.PolicyValue = rfc1123ToSnake(fmt.Sprintf("rl_%s_%s_match_%s",
-			ownerDetails.vsNamespace,
-			ownerDetails.vsName,
+			ownerDetails.parentNamespace,
+			ownerDetails.parentName,
 			strings.ToLower(policy.Name),
 		))
 
 		lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf("$rl_%s_%s_variable_%s_%s_%s",
-			ownerDetails.vsNamespace,
-			ownerDetails.vsName,
+			ownerDetails.parentNamespace,
+			ownerDetails.parentName,
 			strings.ReplaceAll(variable.Name, "$", ""),
 			context,
 			encPath,
@@ -1009,7 +1028,7 @@ func generateLimitReqOptions(rateLimitPol *conf_v1.RateLimit) version2.LimitReqO
 
 func generateAuthJwtClaimSet(jwtCondition conf_v1.JWTCondition, owner policyOwnerDetails) version2.AuthJWTClaimSet {
 	return version2.AuthJWTClaimSet{
-		Variable: generateAuthJwtClaimSetVariable(jwtCondition.Claim, owner.vsNamespace, owner.vsName),
+		Variable: generateAuthJwtClaimSetVariable(jwtCondition.Claim, owner.parentNamespace, owner.parentName),
 		Claim:    generateAuthJwtClaimSetClaim(jwtCondition.Claim),
 	}
 }
