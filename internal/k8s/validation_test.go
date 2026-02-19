@@ -5441,9 +5441,9 @@ func TestValidatePolicyNamesEdgeCases(t *testing.T) {
 		},
 		{
 			name:         "maximum length valid policy",
-			value:        strings.Repeat("a", 63),
+			value:        strings.Repeat("a", 253),
 			expectErrors: false,
-			description:  "63 character policy name should be valid (DNS label max)",
+			description:  "253 character policy name should be valid (DNS label max)",
 		},
 		{
 			name:         "over maximum length policy",

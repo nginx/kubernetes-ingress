@@ -100,9 +100,12 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 
 	resources := lbc.configuration.FindResourcesForPolicy(namespace, name)
 
-	// Is this policy supported in an ingress?
+	// Loop through the resources that reference this policy and check if the policy type is supported on the resource. If not, log an error and emit an event.
+	// Note: if we ever support all policy types on all resources, this loop can be removed.
 	for _, res := range resources {
 		switch impl := res.(type) {
+		// We only check for Ingress resources because VirtualServer and VirtualServerRoute support all policy types.
+		//   If a new resource type is added that supports a subset of policy types, a new case should be added here to check for supported policy types on that resource.
 		case *IngressConfiguration:
 			if !polExists {
 				continue

@@ -6,14 +6,11 @@ import (
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 )
 
-// GetPolicyRefsFromAnnotation parses the policies annotation and returns a slice of PolicyReference.
+// GetPolicyRefsFromAnnotation parses the policies annotation value and returns a slice of PolicyReference.
 // validation of the annotation is handled by validateIngressAnnotation(), so we can assume that the format is correct.
-func GetPolicyRefsFromAnnotation(annotation, namespace string) []conf_v1.PolicyReference {
+func GetPolicyRefsFromAnnotation(value, namespace string) []conf_v1.PolicyReference {
 	var policyRefs []conf_v1.PolicyReference
-	if annotation == "" {
-		return policyRefs
-	}
-	policyNames := strings.Split(annotation, ",")
+	policyNames := strings.Split(value, ",")
 	for _, policyName := range policyNames {
 		policyName = strings.TrimSpace(policyName)
 		parts := strings.Split(policyName, "/")
