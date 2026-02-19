@@ -5901,8 +5901,7 @@ stream {
     map_hash_max_size ;
     
     server {
-        listen 1337;
-        listen [::]:1337;
+        listen 1337;listen [::]:1337;
         
         zone_sync;
         zone_sync_server nginx-ingress-headless.nginx-ingress.svc.cluster.local:1337 resolve;
@@ -6046,8 +6045,7 @@ stream {
     map_hash_max_size ;
     
     server {
-        listen 12345;
-        listen [::]:12345;
+        listen 12345;listen [::]:12345;
         resolver example.com;
         zone_sync;
         zone_sync_server nginx-ingress-headless.nginx-ingress.svc.cluster.local:12345 resolve;
@@ -6191,8 +6189,7 @@ stream {
     map_hash_max_size ;
     
     server {
-        listen 1223;
-        listen [::]:1223;
+        listen 1223;listen [::]:1223;
         resolver example.com valid=20s;
         zone_sync;
         zone_sync_server nginx-ingress-headless.nginx-ingress.svc.cluster.local:1223 resolve;
@@ -6281,9 +6278,9 @@ http {
         set $resource_namespace "";
         set $service "";
 
-        listen 0 default_server;listen [::]:0 default_server;
+        listen 0 default_server;
         listen 0 ssl default_server;
-        listen [::]:0 ssl default_server;
+        
         ssl_certificate /etc/nginx/secrets/default;
         ssl_certificate_key /etc/nginx/secrets/default;
 
@@ -6337,7 +6334,6 @@ stream {
     
     server {
         listen 1223;
-        listen [::]:1223;
         resolver example.com valid=20s ipv6=off;
         zone_sync;
         zone_sync_server nginx-ingress-headless.nginx-ingress.svc.cluster.local:1223 resolve;
@@ -6481,8 +6477,7 @@ stream {
     map_hash_max_size ;
     
     server {
-        listen 12345;
-        listen [::]:12345;
+        listen 12345;listen [::]:12345;
         
         zone_sync;
         zone_sync_server nginx-ingress-headless.nginx-ingress.svc.cluster.local:12345 resolve;
