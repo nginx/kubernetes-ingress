@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.21
 FROM python:3.14-trixie@sha256:abc08a893f14b116d97079a69f1a8c0b5c33df65a7e5af8ff6356aa6d41d40aa
-
+ARG ARCH=amd64
 
 RUN apt-get update \
 	&& apt-get install -y curl git apache2-utils \
@@ -15,9 +15,9 @@ COPY --link config /workspace/config
 COPY --link tests /workspace/tests
 COPY --link pyproject.toml /workspace/pyproject.toml
 
-RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl \
+RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/${ARCH}/kubectl \
 	&& install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl \
-    && curl https://get.docker.com/builds/Linux/x86_64/docker-latest.tgz | tar xvz -C /tmp/ && mv /tmp/docker/docker /usr/bin/docker
+    && curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh
 
 RUN pip install --require-hashes -r requirements.txt --no-deps
 RUN playwright install chromium
