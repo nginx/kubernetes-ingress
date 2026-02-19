@@ -50,6 +50,9 @@ default.pem
 # Platform specific CRD schema generation scripts
 hack/controller-gen-*
 
+# Temporary downloads folder for cve automation
+hack/cve-automation/downloads/
+
 # trivy container scanning cache
 .trivycache/
 
