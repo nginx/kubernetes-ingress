@@ -2172,8 +2172,10 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 	}
 
 	var policyRefs []conf_v1.PolicyReference
-	if ingEx.Ingress.Annotations[configs.PoliciesAnnotation] != "" {
-		policyRefs = k8spolicies.GetPolicyRefsFromAnnotation(ingEx.Ingress.Annotations[configs.PoliciesAnnotation], ing.Namespace)
+	for _, ann := range ingEx.Ingress.Annotations {
+		if strings.HasPrefix(ann, configs.PolicyAnnotationPrefix) {
+			policyRefs = append(policyRefs, k8spolicies.GetPolicyRefsFromAnnotation(ann, ing.Namespace)...)
+		}
 	}
 	policies, policyErrors := lbc.getPolicies(policyRefs, ing.Namespace)
 	if len(policyErrors) > 0 {
