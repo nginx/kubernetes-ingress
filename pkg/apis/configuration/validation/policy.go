@@ -984,54 +984,79 @@ func validateOriginFormat(origin string) error {
 		return nil
 	}
 
+	parsedOrigin, err := url.Parse(origin)
+	if err != nil {
+		return fmt.Errorf("invalid origin URL format")
+	}
+
+	if err := validateParsedOriginBase(parsedOrigin); err != nil {
+		return err
+	}
+
+	host := parsedOrigin.Host
+	if strings.HasPrefix(host, "*.") {
+		return validateWildcardOriginHost(origin, host)
+	}
+
+	return validateExactOriginHost(host)
+}
+
+func validateParsedOriginBase(parsedOrigin *url.URL) error {
 	// Must have protocol
-	if !strings.HasPrefix(origin, "http://") && !strings.HasPrefix(origin, "https://") {
+	if parsedOrigin.Scheme != "http" && parsedOrigin.Scheme != "https" {
 		return fmt.Errorf("origin must start with http:// or https:// (or be '*')")
 	}
 
-	// Extract host from origin
-	var host string
-	if strings.HasPrefix(origin, "https://") {
-		host = origin[8:] // Remove "https://"
-	} else {
-		host = origin[7:] // Remove "http://"
+	// Origin must contain only scheme://host[:port]
+	if parsedOrigin.Host == "" {
+		return fmt.Errorf("origin host cannot be empty")
+	}
+	if parsedOrigin.Path != "" && parsedOrigin.Path != "/" {
+		return fmt.Errorf("origin must not include a path")
+	}
+	if parsedOrigin.RawQuery != "" {
+		return fmt.Errorf("origin must not include query parameters")
+	}
+	if parsedOrigin.Fragment != "" {
+		return fmt.Errorf("origin must not include a fragment")
 	}
 
-	// Check for wildcard subdomain pattern
-	if strings.HasPrefix(host, "*.") {
-		// Validate wildcard subdomain format
-		domain := host[2:] // Remove "*."
-		if domain == "" {
-			return fmt.Errorf("wildcard subdomain cannot be empty (invalid format: %s)", origin)
-		}
+	return nil
+}
 
-		// Ensure domain doesn't contain additional wildcards
-		if strings.Contains(domain, "*") {
-			return fmt.Errorf("only single-level wildcard subdomains are supported (invalid: %s)", origin)
-		}
-
-		// Split domain and port if port exists
-		domainPart := domain
-		if colonIdx := strings.Index(domain, ":"); colonIdx != -1 {
-			domainPart = domain[:colonIdx]
-			port := domain[colonIdx+1:]
-			if port == "" {
-				return fmt.Errorf("port cannot be empty when colon is present (invalid: %s)", origin)
-			}
-			// Validate port is numeric and in valid range
-			if _, err := strconv.Atoi(port); err != nil {
-				return fmt.Errorf("port must be numeric (invalid: %s)", origin)
-			}
-		}
-
-		// Validate domain part using Kubernetes DNS validation
-		if errs := validation.IsDNS1123Subdomain(domainPart); len(errs) > 0 {
-			return fmt.Errorf("wildcard subdomain is not a valid DNS name: %s (invalid: %s)", strings.Join(errs, ", "), origin)
-		}
-
-		return nil
+func validateWildcardOriginHost(origin, host string) error {
+	// Validate wildcard subdomain format
+	domain := host[2:] // Remove "*."
+	if domain == "" {
+		return fmt.Errorf("wildcard subdomain cannot be empty (invalid format: %s)", origin)
 	}
 
+	// Ensure domain doesn't contain additional wildcards
+	if strings.Contains(domain, "*") {
+		return fmt.Errorf("only single-level wildcard subdomains are supported (invalid: %s)", origin)
+	}
+
+	// Split domain and port if port exists
+	domainPart, port, hasPort := strings.Cut(domain, ":")
+	if hasPort {
+		if port == "" {
+			return fmt.Errorf("port cannot be empty when colon is present (invalid: %s)", origin)
+		}
+		// Validate port is numeric and in valid range
+		if _, err := strconv.Atoi(port); err != nil {
+			return fmt.Errorf("port must be numeric (invalid: %s)", origin)
+		}
+	}
+
+	// Validate domain part using Kubernetes DNS validation
+	if errs := validation.IsDNS1123Subdomain(domainPart); len(errs) > 0 {
+		return fmt.Errorf("wildcard subdomain is not a valid DNS name: %s (invalid: %s)", strings.Join(errs, ", "), origin)
+	}
+
+	return nil
+}
+
+func validateExactOriginHost(host string) error {
 	// For exact origins, basic validation that host is not empty
 	if host == "" {
 		return fmt.Errorf("origin host cannot be empty")
