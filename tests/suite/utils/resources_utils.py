@@ -1041,6 +1041,19 @@ def get_nginx_template_conf(v1: CoreV1Api, ingress_namespace, ic_pod_name=None, 
     file_path = "/etc/nginx/nginx.conf"
     return get_file_contents(v1, file_path, ic_pod_name, ingress_namespace, print_log)
 
+def get_nginx_config_version(v1: CoreV1Api, ingress_namespace, ic_pod_name=None, print_log=False) -> str:
+    """
+    Get the version of nginx configuration in the pod.
+
+    :param v1: CoreV1Api
+    :param ingress_namespace: str
+    :param ic_pod_name: str
+    :return: str
+    """
+    if ic_pod_name is None:
+        ic_pod_name = get_first_pod_name(v1, ingress_namespace)
+    file_path = "/etc/nginx/config-version.conf"
+    return get_file_contents(v1, file_path, ic_pod_name, ingress_namespace, print_log)
 
 def get_ingress_nginx_template_conf(v1: CoreV1Api, ingress_namespace, ingress_name, pod_name, pod_namespace) -> str:
     """
