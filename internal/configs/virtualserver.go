@@ -632,8 +632,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		routePoliciesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, r.Policies, vsEx.Policies, routeContext, r.Path, policyOpts, vsc.bundleValidator)
 
 		// Inherit spec-level CORS if route doesn't have its own CORS policy
-		if len(routePoliciesCfg.CORS) == 0 && len(policiesCfg.CORS) > 0 {
-			routePoliciesCfg.CORS = policiesCfg.CORS
+		if len(routePoliciesCfg.CORSHeaders) == 0 && len(policiesCfg.CORSHeaders) > 0 {
+			routePoliciesCfg.CORSHeaders = policiesCfg.CORSHeaders
 		}
 
 		if len(warnings) > 0 {
@@ -813,8 +813,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			}
 
 			// Inherit spec-level CORS if route doesn't have its own CORS policy
-			if len(routePoliciesCfg.CORS) == 0 && len(policiesCfg.CORS) > 0 {
-				routePoliciesCfg.CORS = policiesCfg.CORS
+			if len(routePoliciesCfg.CORSHeaders) == 0 && len(policiesCfg.CORSHeaders) > 0 {
+				routePoliciesCfg.CORSHeaders = policiesCfg.CORSHeaders
 			}
 
 			if policiesCfg.OIDC != nil || routePoliciesCfg.OIDC != nil {
@@ -1219,8 +1219,8 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 	location.PoliciesErrorReturn = cfg.ErrorReturn
 
 	// Add CORS headers if present
-	if len(cfg.CORS) > 0 {
-		location.AddHeaders = append(location.AddHeaders, cfg.CORS...)
+	if len(cfg.CORSHeaders) > 0 {
+		location.AddHeaders = append(location.AddHeaders, cfg.CORSHeaders...)
 		location.CORSEnabled = true
 	}
 }
