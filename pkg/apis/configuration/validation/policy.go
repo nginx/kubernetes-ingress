@@ -1010,16 +1010,23 @@ func validateOriginFormat(origin string) error {
 			return fmt.Errorf("only single-level wildcard subdomains are supported (invalid: %s)", origin)
 		}
 
-		// Basic domain validation - should contain at least one dot for a valid domain
-		if !strings.Contains(domain, ".") {
-			return fmt.Errorf("wildcard subdomain must specify a valid domain (invalid: %s)", origin)
+		// Split domain and port if port exists
+		domainPart := domain
+		if colonIdx := strings.Index(domain, ":"); colonIdx != -1 {
+			domainPart = domain[:colonIdx]
+			port := domain[colonIdx+1:]
+			if port == "" {
+				return fmt.Errorf("port cannot be empty when colon is present (invalid: %s)", origin)
+			}
+			// Validate port is numeric and in valid range
+			if _, err := strconv.Atoi(port); err != nil {
+				return fmt.Errorf("port must be numeric (invalid: %s)", origin)
+			}
 		}
 
-		// Check for invalid characters in domain part
-		for _, char := range domain {
-			if !isValidDomainChar(char) {
-				return fmt.Errorf("wildcard subdomain contains invalid domain character '%c' (invalid: %s)", char, origin)
-			}
+		// Validate domain part using Kubernetes DNS validation
+		if errs := validation.IsDNS1123Subdomain(domainPart); len(errs) > 0 {
+			return fmt.Errorf("wildcard subdomain is not a valid DNS name: %s (invalid: %s)", strings.Join(errs, ", "), origin)
 		}
 
 		return nil
@@ -1036,14 +1043,6 @@ func validateOriginFormat(origin string) error {
 	}
 
 	return nil
-}
-
-// isValidDomainChar checks if a character is valid in a domain name
-func isValidDomainChar(char int32) bool {
-	return (char >= 'a' && char <= 'z') ||
-		(char >= 'A' && char <= 'Z') ||
-		(char >= '0' && char <= '9') ||
-		char == '-' || char == '.' || char == ':'
 }
 
 // validateCORSAllowHeaders validates the allowHeaders field

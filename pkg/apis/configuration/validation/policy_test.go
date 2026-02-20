@@ -3184,12 +3184,11 @@ func TestValidateCORS(t *testing.T) {
 			errMsg:    "wildcard subdomain cannot be empty",
 		},
 		{
-			name: "Invalid wildcard subdomain - no domain",
+			name: "Valid wildcard subdomain - single domain",
 			cors: &v1.CORS{
-				AllowOrigin: []string{"https://*.dev"}, // Missing top-level domain
+				AllowOrigin: []string{"https://*.dev"}, // Single-label domain is valid per k8s DNS rules
 			},
-			expectErr: true,
-			errMsg:    "wildcard subdomain must specify a valid domain",
+			expectErr: false,
 		},
 		{
 			name: "Invalid wildcard subdomain - multiple wildcards",
@@ -3221,7 +3220,7 @@ func TestValidateCORS(t *testing.T) {
 				AllowOrigin: []string{"https://*.exam@ple.com"}, // Invalid character in domain
 			},
 			expectErr: true,
-			errMsg:    "wildcard subdomain contains invalid domain character",
+			errMsg:    "wildcard subdomain is not a valid DNS name",
 		},
 		{
 			name: "Invalid header name - non-RFC compliant",

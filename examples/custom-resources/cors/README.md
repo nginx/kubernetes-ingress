@@ -34,7 +34,15 @@ Create a CORS policy that allows requests from specific origins with common HTTP
 kubectl apply -f cors-policy.yaml
 ```
 
-## Step 3 - Configure Load Balancing
+## Step 2 - Deploy the CORS wildcard Policy
+
+Create a CORS policy that does origin matching base on wildcard:
+
+```console
+kubectl apply -f wildcard-cors-policy.yaml
+```
+
+## Step 4 - Configure Load Balancing
 
 Create a VirtualServer resource for the web application:
 
@@ -44,9 +52,9 @@ kubectl apply -f virtual-server.yaml
 
 Note that the VirtualServer references the policy `cors-policy` created in Step 2.
 
-## Step 4 - Test the Configuration
+## Step 5 - Test the Configuration
 
-1. Send a preflight CORS request:
+1. Send a preflight CORS request to `/test`:
 
     ```console
     curl -X OPTIONS \
@@ -96,3 +104,32 @@ Note that the VirtualServer references the policy `cors-policy` created in Step 
     Request ID: 8d1317dacf9243ea42c75e5d3fd9f382
     * Connection #0 to host webapp.example.com left intact
     ```
+
+3. Send a pre-flight request to `/prod` with `https://example.com`:
+
+    ```console
+    curl -X OPTIONS \
+         -H "Origin: https://example.com" \
+         -H "Access-Control-Request-Method: POST" \
+         -H "Access-Control-Request-Headers: Content-Type" \
+         --resolve webapp.example.com:$IC_HTTP_PORT:$IC_IP \
+         http://webapp.example.com:$IC_HTTP_PORT/prod/ -v
+    ```
+
+    ```console
+    < HTTP/1.1 204 No Content
+    < Server: nginx/1.29.5
+    < Date: Fri, 20 Feb 2026 11:35:14 GMT
+    < Connection: keep-alive
+    < Vary: Origin
+    < Access-Control-Allow-Methods: GET, POST, PUT, OPTIONS
+    < Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With
+    < Access-Control-Allow-Credentials: true
+    < Access-Control-Expose-Headers: X-Total-Count, X-Page-Size
+    < Access-Control-Max-Age: 86400
+    < Content-Type: text/plain
+    < Content-Length: 0
+    ```
+
+    You should see 204 response from nginx and `Access-Control-Allow-Origin` missing from returned
+    headers, as the origin sent did not match the one specified by wildcard policy.

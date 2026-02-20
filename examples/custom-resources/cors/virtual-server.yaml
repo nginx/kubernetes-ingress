@@ -14,8 +14,8 @@ spec:
     - path: /test
       action:
         pass: webapp
-      policies:
-      - name: wildcard-cors-policy
     - path: /prod
       action:
         pass: webapp
+      policies:
+      - name: wildcard-cors-policy
