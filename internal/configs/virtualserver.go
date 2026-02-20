@@ -63,16 +63,6 @@ var incompatibleLBMethodsForSlowStart = map[string]bool{
 	"random two least_time=last_byte": true,
 }
 
-// escapeNginxString safely escapes string values for nginx configuration
-// Note: Dangerous characters are already prevented by CRD validation,
-// so this only needs to handle quote escaping for nginx string values.
-func escapeNginxString(value string) string {
-	// Escape quotes and backslashes for nginx string safety
-	result := strings.ReplaceAll(value, "\\", "\\\\")
-	result = strings.ReplaceAll(result, "\"", "\\\"")
-	return result
-}
-
 // MeshPodOwner contains the type and name of the K8s resource that owns the pod.
 // This owner information is needed for NGINX Service Mesh metrics.
 type MeshPodOwner struct {

@@ -766,38 +766,39 @@ func buildOriginRegex(origin string) string {
 		return origin
 	}
 
-	// Check if this is a wildcard subdomain pattern
-	var scheme, host string
-	if strings.HasPrefix(origin, "https://") {
-		scheme = "https://"
-		host = origin[8:]
-	} else if strings.HasPrefix(origin, "http://") {
-		scheme = "http://"
-		host = origin[7:]
-	} else {
+	parsedOrigin, err := url.Parse(origin)
+	if err != nil {
 		// Not a valid origin format, return as-is (validation should catch this)
 		return origin
 	}
 
-	// Check for wildcard subdomain pattern
-	if strings.HasPrefix(host, "*.") {
-		// Convert wildcard subdomain to regex
-		domain := host[2:] // Remove "*."
-
-		// Use regexp.QuoteMeta for security, then build regex pattern
-		escapedDomain := regexp.QuoteMeta(domain)
-		escapedScheme := regexp.QuoteMeta(scheme)
-
-		// Build regex pattern: ^https://[^.]+\.example\.com$
-		// [^.]+  matches one or more characters except dots (single-level subdomain)
-		// \.     escaped literal dot
-		// ^...$  anchored to match full string
-		regexPattern := fmt.Sprintf("~^%s[^.]+\\.%s$", escapedScheme, escapedDomain)
-		return regexPattern
+	if parsedOrigin.Scheme != "http" && parsedOrigin.Scheme != "https" {
+		// Not a valid origin format, return as-is (validation should catch this)
+		return origin
 	}
 
-	// For exact origins, return as-is (no regex needed)
-	return origin
+	if parsedOrigin.Host == "" {
+		// Not a valid origin format, return as-is (validation should catch this)
+		return origin
+	}
+
+	scheme := parsedOrigin.Scheme + "://"
+	host := parsedOrigin.Host
+
+	// Check for wildcard subdomain pattern
+	if !strings.HasPrefix(host, "*.") {
+		// For exact origins, return as-is (no regex needed)
+		return origin
+	}
+
+	// Convert wildcard subdomain to regex
+	domain := host[2:] // Remove "*."
+
+	// Build regex pattern: ^https://[^.]+\.example\.com$
+	// [^.]+  matches one or more characters except dots (single-level subdomain)
+	// \.     escaped literal dot
+	// ^...$  anchored to match full string
+	return fmt.Sprintf("~^%s[^.]+\\.%s$", regexp.QuoteMeta(scheme), regexp.QuoteMeta(domain))
 }
 
 // isWildcardOrigin checks if an origin contains a wildcard subdomain pattern
@@ -806,12 +807,20 @@ func isWildcardOrigin(origin string) bool {
 		return false // Global wildcard is handled differently
 	}
 
-	// Check for wildcard subdomain pattern
-	if strings.HasPrefix(origin, "https://*.") || strings.HasPrefix(origin, "http://*.") {
-		return true
+	parsedOrigin, err := url.Parse(origin)
+	if err != nil {
+		return false
 	}
 
-	return false
+	if parsedOrigin.Scheme != "http" && parsedOrigin.Scheme != "https" {
+		return false
+	}
+
+	if parsedOrigin.Host == "" {
+		return false
+	}
+
+	return strings.HasPrefix(parsedOrigin.Host, "*.")
 }
 
 func generateCORSOriginMap(origins []string, variableName string) *version2.Map {
