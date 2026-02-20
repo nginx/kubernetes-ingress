@@ -34,7 +34,7 @@ Create a CORS policy that allows requests from specific origins with common HTTP
 kubectl apply -f cors-policy.yaml
 ```
 
-## Step 2 - Deploy the CORS wildcard Policy
+## Step 3 - Deploy the CORS wildcard Policy
 
 Create a CORS policy that does origin matching base on wildcard:
 
