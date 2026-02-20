@@ -3217,10 +3217,10 @@ func TestValidateCORS(t *testing.T) {
 		{
 			name: "Invalid wildcard subdomain - invalid domain character",
 			cors: &v1.CORS{
-				AllowOrigin: []string{"https://*.exam@ple.com"}, // Invalid character in domain
+				AllowOrigin: []string{"https://*.exam@ple.com"}, // Parsed as user@host
 			},
 			expectErr: true,
-			errMsg:    "wildcard subdomain is not a valid DNS name",
+			errMsg:    "origin must not include @",
 		},
 		{
 			name: "Invalid header name - non-RFC compliant",

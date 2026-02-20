@@ -1011,6 +1011,9 @@ func validateParsedOriginBase(parsedOrigin *url.URL) error {
 	if parsedOrigin.Host == "" {
 		return fmt.Errorf("origin host cannot be empty")
 	}
+	if parsedOrigin.User != nil {
+		return fmt.Errorf("origin must not include @")
+	}
 	if parsedOrigin.Path != "" && parsedOrigin.Path != "/" {
 		return fmt.Errorf("origin must not include a path")
 	}
