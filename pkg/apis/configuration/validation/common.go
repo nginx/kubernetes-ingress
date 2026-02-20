@@ -219,3 +219,16 @@ func ValidateParameter(nPar string, validParams map[string]bool, fieldPath *fiel
 	}
 	return nil
 }
+
+// isValidHeaderName checks if header name follows RFC 7230 token rules
+func isValidHeaderName(name string) bool {
+	if name == "" {
+		return false
+	}
+
+	// RFC 7230: token = 1*tchar
+	// tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." /
+	//         "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA
+	validHeaderName := regexp.MustCompile(`^[a-zA-Z0-9\-_]+$`)
+	return validHeaderName.MatchString(name)
+}

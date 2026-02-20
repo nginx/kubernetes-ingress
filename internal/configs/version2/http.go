@@ -243,6 +243,7 @@ type Location struct {
 	VSRName                  string
 	VSRNamespace             string
 	GRPCPass                 string
+	CORSEnabled              bool
 }
 
 // ReturnLocation defines a location for returning a fixed response.
