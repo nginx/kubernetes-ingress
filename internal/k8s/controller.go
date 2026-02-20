@@ -35,6 +35,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/rest"
 
+	k8spolicies "github.com/nginx/kubernetes-ingress/internal/k8s/policies"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	"github.com/nginxinc/nginx-service-mesh/pkg/spiffe"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
@@ -2170,6 +2171,17 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 		ingEx.SecretRefs[secretName] = secretRef
 	}
 
+	var policyRefs []conf_v1.PolicyReference
+	if ingEx.Ingress.Annotations[configs.PoliciesAnnotation] != "" {
+		policyRefs = k8spolicies.GetPolicyRefsFromAnnotation(ingEx.Ingress.Annotations[configs.PoliciesAnnotation], ing.Namespace)
+	}
+	policies, policyErrors := lbc.getPolicies(policyRefs, ing.Namespace)
+	if len(policyErrors) > 0 {
+		for _, err := range policyErrors {
+			nl.Warnf(lbc.Logger, "Error trying to get the policies for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
+		}
+	}
+
 	if basicAuth, exists := ingEx.Ingress.Annotations[configs.BasicAuthSecretAnnotation]; exists {
 		secretName := basicAuth
 		secretKey := ing.Namespace + "/" + secretName
@@ -2234,6 +2246,7 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 	ingEx.Endpoints = make(map[string][]string)
 	ingEx.HealthChecks = make(map[string]*api_v1.Probe)
 	ingEx.ExternalNameSvcs = make(map[string]bool)
+	ingEx.Policies = createPolicyMap(policies)
 	ingEx.PodsByIP = make(map[string]configs.PodInfo)
 	hasUseClusterIP := ingEx.Ingress.Annotations[configs.UseClusterIPAnnotation] == "true"
 
