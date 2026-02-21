@@ -115,6 +115,7 @@ type Server struct {
 	RealIPRecursive bool
 
 	JWTAuth              *JWTAuth
+	ExternalAuth         *version2.ExternalAuth
 	BasicAuth            *BasicAuth
 	JWTRedirectLocations []JWTRedirectLocation
 
@@ -176,43 +177,52 @@ type LimitReq struct {
 
 // Location describes an NGINX location.
 type Location struct {
-	LocationSnippets     []string
-	Path                 string
-	Upstream             Upstream
-	ProxyPass            string
-	ProxyConnectTimeout  string
-	ProxyReadTimeout     string
-	ProxySendTimeout     string
-	ProxySetHeaders      []version2.Header
-	ClientMaxBodySize    string
-	ClientBodyBufferSize string
-	Websocket            bool
-	Rewrite              string
-	RewriteTarget        string
-	SSL                  bool
-	GRPC                 bool
-	ProxyBuffering       bool
-	ProxyBuffers         string
-	ProxyBufferSize      string
-	ProxyBusyBuffersSize string
-	ProxyMaxTempFileSize string
-	ProxySSLName         string
-	AddHeaders           []version2.AddHeader
-	JWTAuth              *JWTAuth
-	BasicAuth            *BasicAuth
-	ServiceName          string
-	LimitReq             *LimitReq
-	CORSEnabled          bool
+	LocationSnippets        []string
+	Path                    string
+	Upstream                Upstream
+	ProxyPass               string
+	ProxyPassRequestBody    string
+	ProxyPassRequestHeaders string
+	ProxyConnectTimeout     string
+	ProxyReadTimeout        string
+	ProxySendTimeout        string
+	ProxySetHeaders         []version2.Header
+	ClientMaxBodySize       string
+	ClientBodyBufferSize    string
+	Websocket               bool
+	Rewrite                 string
+	RewriteTarget           string
+	SSL                     bool
+	GRPC                    bool
+	ProxyBuffering          bool
+	ProxyBuffers            string
+	ProxyBufferSize         string
+	ProxyBusyBuffersSize    string
+	ProxyMaxTempFileSize    string
+	ProxySSLName            string
+	AddHeaders              []version2.AddHeader
+	JWTAuth                 *JWTAuth
+	ExternalAuth            *version2.ExternalAuth
+	BasicAuth               *BasicAuth
+	ServiceName             string
+	LimitReq                *LimitReq
+	CORSEnabled             bool
+
+	AuthRequestOff bool
+	Internal       bool
 
 	MinionIngress *Ingress
 
-	ProxyNextUpstream        string
-	ProxyNextUpstreamTimeout string
-	ProxyNextUpstreamTries   *uint64
-	Allow                    []string
-	Deny                     []string
-	WAF                      *version2.WAF
-	PoliciesErrorReturn      *version2.Return
+	ProxyNextUpstream          string
+	ProxyNextUpstreamTimeout   string
+	ProxyNextUpstreamTries     *uint64
+	Allow                      []string
+	Deny                       []string
+	ProxySSLVerify             bool
+	ProxySSLVerifyDepth        int
+	ProxySSLTrustedCertificate string
+	PoliciesErrorReturn        *version2.Return
+	WAF                        *version2.WAF
 }
 
 // ZoneSyncConfig is tbe configuration for the zone_sync directives for state sharing.

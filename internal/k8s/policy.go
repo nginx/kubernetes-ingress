@@ -99,6 +99,19 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 	// it is safe to ignore the error
 	namespace, name, _ := ParseNamespaceName(key)
 
+	// Track external auth service references so that service/endpoint changes
+	// for the auth service can be correlated back to VirtualServers that use it.
+	if polExists && lbc.HasCorrectIngressClass(obj) {
+		pol := obj.(*conf_v1.Policy)
+		if pol.Spec.ExternalAuth != nil && pol.Spec.ExternalAuth.AuthServiceName != "" {
+			lbc.configuration.UpdatePolicyServiceRef(namespace, name, pol.Spec.ExternalAuth.AuthServiceName)
+		} else {
+			lbc.configuration.DeletePolicyServiceRef(namespace, name)
+		}
+	} else {
+		lbc.configuration.DeletePolicyServiceRef(namespace, name)
+	}
+
 	resources := lbc.configuration.FindResourcesForPolicy(namespace, name)
 
 	// Loop through the resources that reference this policy and check if the policy type is supported on the resource. If not, log an error and emit an event.
@@ -121,6 +134,9 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 				continue
 			case pol.Spec.WAF != nil:
 				// WAF policy is supported on Ingress
+				continue
+			case pol.Spec.ExternalAuth != nil:
+				// External Auth policy is supported on Ingress
 				continue
 			default: // Unsupported policy type on Ingress
 				msg := fmt.Sprintf("Policy %s/%s has unsupported type on Ingress resource %s/%s",
@@ -201,6 +217,11 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 		ingressCfg := mergeableIngressResource.(*IngressConfiguration)
 		mergeableIngressErr := mergeableIngressErrors[getResourceKey(&ingressCfg.Ingress.ObjectMeta)]
 		lbc.updateResourcesStatusAndEvents([]Resource{mergeableIngressResource}, mergeableIngressWarnings, mergeableIngressErr)
+	}
+
+	if len(resourceExes.MergeableIngresses) > 0 {
+		warnings, updateErr := lbc.configurator.AddOrUpdateMergeableIngresses(resourceExes.MergeableIngresses)
+		lbc.updateResourcesStatusAndEvents(resources, warnings, updateErr)
 	}
 
 	// Note: updating the status of a policy based on a reload is not needed.

@@ -190,6 +190,11 @@ func validateSize(size string, fieldPath *field.Path) field.ErrorList {
 // validateSecretName checks if a secret name is valid.
 // It performs the same validation as ValidateSecretName from k8s.io/kubernetes/pkg/apis/core/validation/validation.go.
 func validateSecretName(name string, fieldPath *field.Path) field.ErrorList {
+	return validateK8SName(name, fieldPath)
+}
+
+// validateK8SName is a wrapper for validation.IsDNS1123Subdomain to be used in other packages
+func validateK8SName(name string, fieldPath *field.Path) field.ErrorList {
 	if name == "" {
 		return nil
 	}
