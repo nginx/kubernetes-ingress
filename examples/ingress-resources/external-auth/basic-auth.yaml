@@ -1,0 +1,73 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: secure-config
+data:
+  simple.conf: |-
+    server {
+        listen 8080;
+        listen [::]:8080;
+
+        root /usr/share/nginx/html;
+        try_files /index.html =404;
+
+        auth_basic "Protected Area";
+        auth_basic_user_file /etc/nginx/auth/htpasswd;
+
+        expires -1;
+
+        sub_filter_once off;
+        sub_filter 'server_hostname' '$hostname';
+        sub_filter 'server_address' '$server_addr:$server_port';
+        sub_filter 'server_url' '$request_uri';
+        sub_filter 'server_date' '$time_local';
+        sub_filter 'request_id' '$request_id';
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: basic-auth
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: basic-auth
+  template:
+    metadata:
+      labels:
+        app: basic-auth
+    spec:
+      containers:
+        - name: basic-auth
+          image: nginxdemos/nginx-hello:plain-text
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/nginx/conf.d
+            - name: htpasswd-volume
+              mountPath: /etc/nginx/auth/htpasswd
+              subPath: htpasswd
+              readOnly: true
+      volumes:
+        - name: config-volume
+          configMap:
+            name: secure-config
+        - name: htpasswd-volume
+          secret:
+            secretName: htpasswd-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: basic-auth-svc
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: basic-auth
