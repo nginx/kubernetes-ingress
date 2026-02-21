@@ -689,6 +689,7 @@ func createExpectedConfigForCafeIngressEx(isPlus bool) version1.IngressNginxConf
 						ClientMaxBodySize:   "1m",
 						ProxyBuffering:      true,
 						ProxySSLName:        "coffee-svc.default.svc",
+						ProxyPass:           "http://default-cafe-ingress-cafe.example.com-coffee-svc-80",
 					},
 					{
 						Path:                "/tea",
@@ -700,6 +701,7 @@ func createExpectedConfigForCafeIngressEx(isPlus bool) version1.IngressNginxConf
 						ClientMaxBodySize:   "1m",
 						ProxyBuffering:      true,
 						ProxySSLName:        "tea-svc.default.svc",
+						ProxyPass:           "http://default-cafe-ingress-cafe.example.com-tea-svc-80",
 					},
 				},
 				SSL:               true,
@@ -1252,6 +1254,7 @@ func createExpectedConfigForMergeableCafeIngressWithUseClusterIP() version1.Ingr
 							},
 						},
 						ProxySSLName: "coffee-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80",
 					},
 					{
 						Path:                "/tea",
@@ -1271,6 +1274,7 @@ func createExpectedConfigForMergeableCafeIngressWithUseClusterIP() version1.Ingr
 							},
 						},
 						ProxySSLName: "tea-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80",
 					},
 				},
 				SSL:               true,
@@ -1349,6 +1353,7 @@ func createExpectedConfigForCafeIngressWithUseClusterIPNamedPorts() version1.Ing
 						ClientMaxBodySize:   "1m",
 						ProxyBuffering:      true,
 						ProxySSLName:        "coffee-svc.default.svc",
+						ProxyPass:           "http://default-cafe-ingress-cafe.example.com-coffee-svc-custom-port-name",
 					},
 					{
 						Path:                "/tea",
@@ -1360,6 +1365,7 @@ func createExpectedConfigForCafeIngressWithUseClusterIPNamedPorts() version1.Ing
 						ClientMaxBodySize:   "1m",
 						ProxyBuffering:      true,
 						ProxySSLName:        "tea-svc.default.svc",
+						ProxyPass:           "http://default-cafe-ingress-cafe.example.com-tea-svc-80",
 					},
 				},
 				SSL:               true,
@@ -1437,6 +1443,7 @@ func createExpectedConfigForCafeIngressWithUseClusterIP() version1.IngressNginxC
 						ClientMaxBodySize:   "1m",
 						ProxyBuffering:      true,
 						ProxySSLName:        "coffee-svc.default.svc",
+						ProxyPass:           "http://default-cafe-ingress-cafe.example.com-coffee-svc-80",
 					},
 					{
 						Path:                "/tea",
@@ -1448,6 +1455,7 @@ func createExpectedConfigForCafeIngressWithUseClusterIP() version1.IngressNginxC
 						ClientMaxBodySize:   "1m",
 						ProxyBuffering:      true,
 						ProxySSLName:        "tea-svc.default.svc",
+						ProxyPass:           "http://default-cafe-ingress-cafe.example.com-tea-svc-80",
 					},
 				},
 				SSL:               true,
@@ -2168,6 +2176,7 @@ func createExpectedConfigForMergeableCafeIngress(isPlus bool) version1.IngressNg
 							},
 						},
 						ProxySSLName: "coffee-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80",
 					},
 					{
 						Path:                "/tea",
@@ -2187,6 +2196,7 @@ func createExpectedConfigForMergeableCafeIngress(isPlus bool) version1.IngressNg
 							},
 						},
 						ProxySSLName: "tea-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80",
 					},
 				},
 				SSL:               true,
@@ -2269,6 +2279,7 @@ func createExpectedConfigForCrossNamespaceMergeableCafeIngress() version1.Ingres
 							},
 						},
 						ProxySSLName: "coffee-svc.coffee.svc",
+						ProxyPass:    "http://coffee-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80",
 					},
 					{
 						Path:                "/tea",
@@ -2288,6 +2299,7 @@ func createExpectedConfigForCrossNamespaceMergeableCafeIngress() version1.Ingres
 							},
 						},
 						ProxySSLName: "tea-svc.tea.svc",
+						ProxyPass:    "http://tea-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80",
 					},
 				},
 				SSL:               true,
@@ -2325,6 +2337,7 @@ func TestGenerateNginxCfgForSpiffe(t *testing.T) {
 	expected.SpiffeClientCerts = true
 	for i := range expected.Servers[0].Locations {
 		expected.Servers[0].Locations[i].SSL = true
+		expected.Servers[0].Locations[i].ProxyPass = strings.Replace(expected.Servers[0].Locations[i].ProxyPass, "http://", "https://", 1)
 	}
 
 	result, warnings := generateNginxCfg(NginxCfgParams{
@@ -3288,3 +3301,468 @@ func warningsContain(w Warnings, substr string) bool {
 	}
 	return false
 }
+
+func TestCreateExternalAuthUpstream(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		upsName   string
+		endpoints []string
+		expected  version1.Upstream
+		warning   bool
+	}{
+		{
+			name:      "no endpoints returns default server",
+			upsName:   "ext_auth_default_my-auth",
+			endpoints: nil,
+			expected:  version1.NewUpstreamWithDefaultServer("ext_auth_default_my-auth"),
+			warning:   true,
+		},
+		{
+			name:      "empty endpoints returns default server",
+			upsName:   "ext_auth_default_my-auth",
+			endpoints: []string{},
+			expected:  version1.NewUpstreamWithDefaultServer("ext_auth_default_my-auth"),
+			warning:   true,
+		},
+		{
+			name:      "single endpoint",
+			upsName:   "ext_auth_default_my-auth",
+			endpoints: []string{"10.0.0.1:8080"},
+			expected: version1.Upstream{
+				Name:             "ext_auth_default_my-auth",
+				UpstreamZoneSize: "256k",
+				UpstreamServers: []version1.UpstreamServer{
+					{Address: "10.0.0.1:8080", MaxFails: 1, MaxConns: 0, FailTimeout: "10s"},
+				},
+			},
+			warning: false,
+		},
+		{
+			name:      "multiple endpoints sorted",
+			upsName:   "ext_auth_default_my-auth",
+			endpoints: []string{"10.0.0.3:8080", "10.0.0.1:8080", "10.0.0.2:8080"},
+			expected: version1.Upstream{
+				Name:             "ext_auth_default_my-auth",
+				UpstreamZoneSize: "256k",
+				UpstreamServers: []version1.UpstreamServer{
+					{Address: "10.0.0.1:8080", MaxFails: 1, MaxConns: 0, FailTimeout: "10s"},
+					{Address: "10.0.0.2:8080", MaxFails: 1, MaxConns: 0, FailTimeout: "10s"},
+					{Address: "10.0.0.3:8080", MaxFails: 1, MaxConns: 0, FailTimeout: "10s"},
+				},
+			},
+			warning: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			result, warning := createExternalAuthUpstream(test.upsName, test.endpoints)
+			if diff := cmp.Diff(test.expected, result); diff != "" {
+				t.Errorf("createExternalAuthUpstream() mismatch (-want +got):\n%s", diff)
+			}
+			if (warning != "") != test.warning {
+				t.Errorf("createExternalAuthUpstream() warning mismatch (-want +got):\n%s", warning)
+			}
+		})
+	}
+}
+
+func TestGenerateIngressExternalAuthLocation(t *testing.T) {
+	t.Parallel()
+
+	externalAuth := &version2.ExternalAuth{
+		URI: &version2.AuthURI{
+			Service:      "auth-svc",
+			Upstream:     "ext_auth_default_my-auth",
+			Path:         "/auth",
+			InternalPath: "/_ext_auth_default_my-auth",
+		},
+		Snippets: "proxy_set_header X-Custom \"value\"",
+	}
+
+	cfg := &ConfigParams{
+		Context:                  context.Background(),
+		ProxyConnectTimeout:      "10s",
+		ProxyReadTimeout:         "15s",
+		ProxySendTimeout:         "15s",
+		ProxyNextUpstreamTimeout: "5s",
+	}
+
+	result := generateIngressExternalAuthLocation(externalAuth, "ext_auth_default_my-auth", cfg)
+
+	expected := version1.Location{
+		Path:                     "/_ext_auth_default_my-auth",
+		Internal:                 true,
+		ProxyPass:                "http://ext_auth_default_my-auth/auth",
+		ProxySetHeaders:          []version2.Header{{Name: "Content-Length", Value: "0"}, {Name: "X-Scheme", Value: "$scheme"}},
+		ProxyConnectTimeout:      "10s",
+		ProxyReadTimeout:         "15s",
+		ProxySendTimeout:         "15s",
+		ProxyPassRequestBody:     "off",
+		ClientMaxBodySize:        "0",
+		ProxyNextUpstream:        "error timeout",
+		ProxyNextUpstreamTimeout: "5s",
+		LocationSnippets:         []string{"proxy_set_header X-Custom \"value\""},
+		ServiceName:              "auth-svc",
+	}
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateIngressExternalAuthLocation() mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestGenerateIngressExternalAuthOAuth2Location(t *testing.T) {
+	t.Parallel()
+
+	externalAuth := &version2.ExternalAuth{
+		URI: &version2.AuthURI{
+			Service:      "auth-svc",
+			Upstream:     "ext_auth_default_my-auth",
+			Path:         "/oauth2/auth",
+			InternalPath: "/_ext_auth_default_my-auth",
+		},
+		SigninURL:              "https://example.com/oauth2/start",
+		SigninRedirectBasePath: "/oauth2",
+		Snippets:               "proxy_set_header X-Custom \"value\"",
+	}
+
+	cfg := &ConfigParams{
+		Context:                  context.Background(),
+		ProxyConnectTimeout:      "10s",
+		ProxyReadTimeout:         "15s",
+		ProxySendTimeout:         "15s",
+		ProxyNextUpstreamTimeout: "5s",
+	}
+
+	result := generateIngressExternalAuthOAuth2Location(externalAuth, "ext_auth_default_my-auth", cfg)
+
+	expected := version1.Location{
+		Path:                     "/oauth2",
+		AuthRequestOff:           true,
+		ProxyPass:                "http://ext_auth_default_my-auth",
+		ProxySetHeaders:          []version2.Header{{Name: "X-Auth-Request-Redirect", Value: "$request_uri"}, {Name: "X-Scheme", Value: "$scheme"}},
+		ProxyConnectTimeout:      "10s",
+		ProxyReadTimeout:         "15s",
+		ProxySendTimeout:         "15s",
+		ProxyPassRequestHeaders:  "on",
+		ClientMaxBodySize:        "0",
+		ProxyNextUpstream:        "error timeout",
+		ProxyNextUpstreamTimeout: "5s",
+		LocationSnippets:         []string{"proxy_set_header X-Custom \"value\""},
+		ServiceName:              "auth-svc",
+	}
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateIngressExternalAuthOAuth2Location() mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestGetExternalAuthServicePort(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		externalAuth    *version2.ExternalAuth
+		expectedPort    uint16
+		expectedWarning string
+	}{
+		{
+			name: "port from ServicePorts",
+			externalAuth: &version2.ExternalAuth{
+				ServicePorts: []int{8080},
+			},
+			expectedPort:    8080,
+			expectedWarning: "",
+		},
+		{
+			name: "port from URI.Port",
+			externalAuth: &version2.ExternalAuth{
+				URI: &version2.AuthURI{
+					Port: "9090",
+				},
+			},
+			expectedPort:    9090,
+			expectedWarning: "",
+		},
+		{
+			name: "default port 80",
+			externalAuth: &version2.ExternalAuth{
+				URI: &version2.AuthURI{},
+			},
+			expectedPort:    80,
+			expectedWarning: "",
+		},
+		{
+			name: "invalid URI.Port returns warning",
+			externalAuth: &version2.ExternalAuth{
+				URI: &version2.AuthURI{
+					Port: "invalid",
+				},
+			},
+			expectedPort:    0,
+			expectedWarning: "Invalid port in ExternalAuth URI",
+		},
+		{
+			name: "ServicePorts takes precedence over URI.Port",
+			externalAuth: &version2.ExternalAuth{
+				URI: &version2.AuthURI{
+					Port: "9090",
+				},
+				ServicePorts: []int{7070},
+			},
+			expectedPort:    7070,
+			expectedWarning: "",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			port, warning := getExternalAuthServicePort(test.externalAuth)
+			if port != test.expectedPort {
+				t.Errorf("getExternalAuthServicePort() port = %d, want %d", port, test.expectedPort)
+			}
+			if test.expectedWarning != "" && !strings.Contains(warning, test.expectedWarning) {
+				t.Errorf("getExternalAuthServicePort() warning = %q, want it to contain %q", warning, test.expectedWarning)
+			}
+			if test.expectedWarning == "" && warning != "" {
+				t.Errorf("getExternalAuthServicePort() unexpected warning = %q", warning)
+			}
+		})
+	}
+}
+
+func TestInternalAuthLocationInLocations(t *testing.T) {
+	t.Parallel()
+
+	locations := []version1.Location{
+		{Path: "/_ext_auth_1", Internal: true},
+		{Path: "/_ext_auth_2", Internal: true},
+		{Path: "/coffee"},
+	}
+
+	found := false
+	for _, loc := range locations {
+		if loc.Path == "/_ext_auth_1" && loc.Internal {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("should find internal auth location /_ext_auth_1 in locations")
+	}
+
+	found = false
+	for _, loc := range locations {
+		if loc.Path == "/_ext_auth_3" && loc.Internal {
+			found = true
+			break
+		}
+	}
+	if found {
+		t.Error("should not find internal auth location /_ext_auth_3 in locations")
+	}
+}
+
+func TestGenerateNginxCfgForExternalAuth(t *testing.T) {
+	t.Parallel()
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations["nginx.org/policies"] = "my-ext-auth-policy"
+	cafeIngressEx.Endpoints["default/auth-svc:8080"] = []string{"10.0.0.5:8080"}
+	cafeIngressEx.Policies = map[string]*conf_v1.Policy{
+		"default/my-ext-auth-policy": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "my-ext-auth-policy",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				ExternalAuth: &conf_v1.ExternalAuth{
+					AuthServiceName:  "auth-svc",
+					AuthServicePorts: []int{8080},
+				},
+			},
+		},
+	}
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:  &StaticConfigParams{},
+		ingEx:         &cafeIngressEx,
+		isPlus:        isPlus,
+		BaseCfgParams: configParams,
+	})
+
+	if result.Servers[0].ExternalAuth == nil {
+		t.Fatal("generateNginxCfg() ExternalAuth should not be nil")
+	}
+	// Find the internal auth location in server.Locations
+	var authLoc *version1.Location
+	for i, loc := range result.Servers[0].Locations {
+		if loc.Internal && loc.Path == result.Servers[0].ExternalAuth.URI.InternalPath {
+			authLoc = &result.Servers[0].Locations[i]
+			break
+		}
+	}
+	if authLoc == nil {
+		t.Fatal("generateNginxCfg() should have an internal auth location in Locations")
+	}
+	if authLoc.ProxyPassRequestBody != "off" {
+		t.Errorf("auth location ProxyPassRequestBody = %q, want %q", authLoc.ProxyPassRequestBody, "off")
+	}
+
+	// There should be an auth upstream in the upstreams
+	authUpstreamFound := false
+	for _, ups := range result.Upstreams {
+		if ups.Name == result.Servers[0].ExternalAuth.URI.Upstream {
+			authUpstreamFound = true
+			if len(ups.UpstreamServers) == 0 {
+				t.Error("ExternalAuth upstream should have servers")
+			}
+			break
+		}
+	}
+	if !authUpstreamFound {
+		t.Error("ExternalAuth upstream not found in upstreams")
+	}
+
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgForExternalAuthWithSignin(t *testing.T) {
+	t.Parallel()
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations["nginx.org/policies"] = "my-ext-auth-signin-policy"
+	cafeIngressEx.Endpoints["default/auth-svc:8080"] = []string{"10.0.0.5:8080"}
+	cafeIngressEx.Policies = map[string]*conf_v1.Policy{
+		"default/my-ext-auth-signin-policy": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "my-ext-auth-signin-policy",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				ExternalAuth: &conf_v1.ExternalAuth{
+					AuthServiceName:  "auth-svc",
+					AuthServicePorts: []int{8080},
+					AuthSigninURI:    "/oauth2/start",
+				},
+			},
+		},
+	}
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:  &StaticConfigParams{},
+		ingEx:         &cafeIngressEx,
+		isPlus:        isPlus,
+		BaseCfgParams: configParams,
+	})
+
+	if result.Servers[0].ExternalAuth == nil {
+		t.Fatal("generateNginxCfg() ExternalAuth should not be nil")
+	}
+	if result.Servers[0].ExternalAuth.SigninURL == "" {
+		t.Error("generateNginxCfg() ExternalAuth.SigninURL should not be empty")
+	}
+	// Find the OAuth2 location in server.Locations (AuthRequestOff == true)
+	var oauth2Loc *version1.Location
+	for i, loc := range result.Servers[0].Locations {
+		if loc.AuthRequestOff {
+			oauth2Loc = &result.Servers[0].Locations[i]
+			break
+		}
+	}
+	if oauth2Loc == nil {
+		t.Fatal("generateNginxCfg() should have an OAuth2 location in Locations")
+	}
+	if oauth2Loc.Path == "" {
+		t.Error("OAuth2 location Path should not be empty")
+	}
+
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgForMergeableIngressesWithExternalAuth(t *testing.T) {
+	t.Parallel()
+	mergeableIngresses := createMergeableCafeIngress()
+
+	// Add ExternalAuth policy to the coffee minion
+	mergeableIngresses.Minions[0].Ingress.Annotations["nginx.org/policies"] = "coffee-ext-auth"
+	mergeableIngresses.Minions[0].Endpoints["default/auth-svc:8080"] = []string{"10.0.0.5:8080"}
+	mergeableIngresses.Minions[0].Policies = map[string]*conf_v1.Policy{
+		"default/coffee-ext-auth": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "coffee-ext-auth",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				ExternalAuth: &conf_v1.ExternalAuth{
+					AuthServiceName:  "auth-svc",
+					AuthServicePorts: []int{8080},
+				},
+			},
+		},
+	}
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs: mergeableIngresses,
+		staticParams:  &StaticConfigParams{},
+		isPlus:        isPlus,
+		BaseCfgParams: configParams,
+	})
+
+	server := result.Servers[0]
+
+	// The coffee minion location should have ExternalAuth set
+	coffeeLocFound := false
+	for _, loc := range server.Locations {
+		if loc.Path == "/coffee" {
+			coffeeLocFound = true
+			if loc.ExternalAuth == nil {
+				t.Error("coffee location ExternalAuth should not be nil")
+			}
+			break
+		}
+	}
+	if !coffeeLocFound {
+		t.Error("coffee location not found")
+	}
+
+	// There should be an internal auth location in server.Locations from the minion
+	authLocFound := false
+	for _, loc := range server.Locations {
+		if loc.Internal {
+			authLocFound = true
+			break
+		}
+	}
+	if !authLocFound {
+		t.Error("should have an internal auth location in Locations for mergeable ingresses with ExternalAuth")
+	}
+
+	// The tea minion location should NOT have ExternalAuth set
+	for _, loc := range server.Locations {
+		if loc.Path == "/tea" {
+			if loc.ExternalAuth != nil {
+				t.Error("tea location ExternalAuth should be nil")
+			}
+			break
+		}
+	}
+
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
+	}

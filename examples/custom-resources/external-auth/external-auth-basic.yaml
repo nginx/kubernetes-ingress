@@ -1,0 +1,15 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: external-auth-basic-policy
+spec:
+externalAuth:
+    authURI: "/auth"
+    authServiceName: "default/basic-auth-svc"
+    sslEnabled: true
+    sslVerify: true
+    sslVerifyDepth: 2
+    sslServerName: "basic-auth-tls-svc.default.svc.cluster.local"
+    sslTrustedCertsSecret: "basic-auth-tls-secret"
+    authSnippets: |
+      # Example snippets

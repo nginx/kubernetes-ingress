@@ -265,6 +265,8 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			server.AppProtectDosLogConfFile = ncp.dosResource.AppProtectDosLogConfFile
 		}
 
+		var locations []version1.Location
+
 		if !ncp.isMinion {
 			if cfgParams.JWTKey != "" {
 				jwtAuth, redirectLoc, warnings := generateJWTConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams, getNameForRedirectLocation(ncp.ingEx.Ingress))
@@ -281,9 +283,19 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 				allWarnings.Add(warnings)
 			}
 
+			if policyCfg.ExternalAuth != nil {
+				exAuth := policyCfg.ExternalAuth
+				authUps, authLocs, portWarning := resolveExternalAuth(exAuth, ncp.ingEx.Ingress, ncp.ingEx.Endpoints, &cfgParams)
+				if portWarning != "" {
+					allWarnings.AddWarningf(ncp.ingEx.Ingress, "%s", portWarning)
+				}
+				upstreams[exAuth.URI.Upstream] = authUps
+				server.ExternalAuth = exAuth
+				locations = append(locations, authLocs...)
+			}
+
 		}
 
-		var locations []version1.Location
 		healthChecks := make(map[string]version1.HealthCheck)
 
 		rootLocation := false
@@ -351,6 +363,24 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 				if policyCfg.ErrorReturn != nil {
 					loc.PoliciesErrorReturn = policyCfg.ErrorReturn
 				}
+
+				if policyCfg.ExternalAuth != nil {
+					exAuth := policyCfg.ExternalAuth
+					authUps, authLocs, portWarning := resolveExternalAuth(exAuth, ncp.ingEx.Ingress, ncp.ingEx.Endpoints, &cfgParams)
+					if portWarning != "" {
+						allWarnings.AddWarningf(ncp.ingEx.Ingress, "%s", portWarning)
+					}
+					upstreams[exAuth.URI.Upstream] = authUps
+					loc.ExternalAuth = exAuth
+					locations = append(locations, authLocs...)
+				}
+
+			}
+
+			if !loc.CORSEnabled && len(policyCfg.CORSHeaders) > 0 {
+				// Apply Ingress-level CORS headers to every generated location unless already set.
+				loc.AddHeaders = append(loc.AddHeaders, policyCfg.CORSHeaders...)
+				loc.CORSEnabled = true
 			}
 
 			if !loc.CORSEnabled && len(policyCfg.CORSHeaders) > 0 {
@@ -518,6 +548,142 @@ func generateBasicAuthConfig(owner runtime.Object, secretRefs map[string]*secret
 	return basicAuth, warnings
 }
 
+// createExternalAuthUpstream creates a version1.Upstream for the external auth service
+// from the resolved endpoints.
+func createExternalAuthUpstream(name string, endpoints []string) (version1.Upstream, string) {
+	if len(endpoints) == 0 {
+		return version1.NewUpstreamWithDefaultServer(name), fmt.Sprintf("No endpoints found for service %v", name)
+	}
+	upsServers := make([]version1.UpstreamServer, 0, len(endpoints))
+	for _, ep := range endpoints {
+		upsServers = append(upsServers, version1.UpstreamServer{
+			Address:     ep,
+			MaxFails:    1,
+			MaxConns:    0,
+			FailTimeout: "10s",
+		})
+	}
+	sort.Slice(upsServers, func(i, j int) bool {
+		return upsServers[i].Address < upsServers[j].Address
+	})
+	return version1.Upstream{
+		Name:             name,
+		UpstreamServers:  upsServers,
+		UpstreamZoneSize: "256k",
+	}, ""
+}
+
+// resolveExternalAuth resolves the external auth upstream and generates the
+// associated internal NGINX locations. It returns the upstream, locations to
+// append, and an optional warning string.
+func resolveExternalAuth(
+	exAuth *version2.ExternalAuth,
+	ingress *networking.Ingress,
+	endpoints map[string][]string,
+	cfgParams *ConfigParams,
+) (version1.Upstream, []version1.Location, string) {
+	port, warning := getExternalAuthServicePort(exAuth)
+	ns, svcName := ParseServiceReference(exAuth.URI.Service, ingress.Namespace)
+	upsName := exAuth.URI.Upstream
+	endpointKey := fmt.Sprintf("%s/%s:%d", ns, svcName, port)
+	authUps, upsWarning := createExternalAuthUpstream(upsName, endpoints[endpointKey])
+	if upsWarning != "" {
+		warning = fmt.Sprintf("%s. %s", warning, upsWarning)
+	}
+	var locs []version1.Location
+	locs = append(locs, generateIngressExternalAuthLocation(exAuth, upsName, cfgParams))
+	if exAuth.SigninURL != "" {
+		locs = append(locs, generateIngressExternalAuthOAuth2Location(exAuth, upsName, cfgParams))
+	}
+
+	return authUps, locs, warning
+}
+
+// generateIngressExternalAuthLocation builds a version1.Location for the
+// internal NGINX location that proxies auth subrequests to the external auth service.
+func generateIngressExternalAuthLocation(externalAuth *version2.ExternalAuth, upstreamName string, cfg *ConfigParams) version1.Location {
+	var svcName string
+	_, svcName = ParseServiceReference(externalAuth.URI.Service, "")
+	loc := version1.Location{
+		Path:                     externalAuth.URI.InternalPath,
+		Internal:                 true,
+		ProxyPass:                fmt.Sprintf("%s://%s%s", generateProxyPassProtocol(externalAuth.SSLEnabled), upstreamName, externalAuth.URI.Path),
+		ProxySetHeaders:          []version2.Header{{Name: "Content-Length", Value: "0"}, {Name: "X-Scheme", Value: "$scheme"}},
+		ProxyConnectTimeout:      generateTimeWithDefault(cfg.ProxyConnectTimeout, cfg.ProxyConnectTimeout),
+		ProxyReadTimeout:         generateTimeWithDefault(cfg.ProxyReadTimeout, cfg.ProxyReadTimeout),
+		ProxySendTimeout:         generateTimeWithDefault(cfg.ProxySendTimeout, cfg.ProxySendTimeout),
+		ProxyPassRequestBody:     "off",
+		ClientMaxBodySize:        "0",
+		ProxyNextUpstream:        "error timeout",
+		ProxyNextUpstreamTimeout: generateTimeWithDefault(cfg.ProxyNextUpstreamTimeout, "0s"),
+		LocationSnippets:         splitSnippets(externalAuth.Snippets),
+		ServiceName:              svcName,
+	}
+	if externalAuth.SSLVerify {
+		loc.ProxySSLVerify = true
+		loc.ProxySSLVerifyDepth = externalAuth.SSLVerifyDepth
+		loc.ProxySSLTrustedCertificate = externalAuth.SSLTrustedCert
+		loc.ProxySSLName = externalAuth.SNIName
+	}
+	return loc
+}
+
+// generateIngressExternalAuthOAuth2Location builds a version1.Location
+// for the NGINX location that handles OAuth2 signin redirects.
+func generateIngressExternalAuthOAuth2Location(externalAuth *version2.ExternalAuth, upstreamName string, cfg *ConfigParams) version1.Location {
+	var svcName string
+	_, svcName = ParseServiceReference(externalAuth.URI.Service, "")
+	loc := version1.Location{
+		Path:                     externalAuth.SigninRedirectBasePath,
+		AuthRequestOff:           true,
+		ProxyPass:                fmt.Sprintf("%s://%s", generateProxyPassProtocol(externalAuth.SSLEnabled), upstreamName),
+		ProxySetHeaders:          []version2.Header{{Name: "X-Auth-Request-Redirect", Value: "$request_uri"}, {Name: "X-Scheme", Value: "$scheme"}},
+		ProxyConnectTimeout:      generateTimeWithDefault(cfg.ProxyConnectTimeout, cfg.ProxyConnectTimeout),
+		ProxyReadTimeout:         generateTimeWithDefault(cfg.ProxyReadTimeout, cfg.ProxyReadTimeout),
+		ProxySendTimeout:         generateTimeWithDefault(cfg.ProxySendTimeout, cfg.ProxySendTimeout),
+		ClientMaxBodySize:        "0",
+		ProxyNextUpstream:        "error timeout",
+		ProxyNextUpstreamTimeout: generateTimeWithDefault(cfg.ProxyNextUpstreamTimeout, "0s"),
+		LocationSnippets:         splitSnippets(externalAuth.Snippets),
+		ServiceName:              svcName,
+		ProxyPassRequestHeaders:  "on",
+	}
+	if externalAuth.SSLVerify {
+		loc.ProxySSLVerify = true
+		loc.ProxySSLVerifyDepth = externalAuth.SSLVerifyDepth
+		loc.ProxySSLTrustedCertificate = externalAuth.SSLTrustedCert
+		loc.ProxySSLName = externalAuth.SNIName
+	}
+	return loc
+}
+
+// splitSnippets splits a snippets string by newline, returning nil for empty input.
+func splitSnippets(s string) []string {
+	if s == "" {
+		return nil
+	}
+	return strings.Split(s, "\n")
+}
+
+// getExternalAuthServicePort resolves the service port for an ExternalAuth policy.
+// Returns the port and an optional warning message.
+func getExternalAuthServicePort(externalAuth *version2.ExternalAuth) (uint16, string) {
+	if len(externalAuth.ServicePorts) > 0 {
+		return uint16(externalAuth.ServicePorts[0]), ""
+	}
+	if externalAuth.URI.Port != "" {
+		value, err := strconv.ParseUint(externalAuth.URI.Port, 10, 16)
+		if err != nil {
+			return 0, fmt.Sprintf("Invalid port in ExternalAuth URI: %v. ExternalAuth location will be generated without a port. Error: %v", externalAuth.URI.Port, err)
+		}
+		return uint16(value), ""
+	}
+	if externalAuth.SSLEnabled {
+		return 443, ""
+	}
+	return 80, ""
+}
+
 func addSSLConfig(server *version1.Server, owner runtime.Object, host string, ingressTLS []networking.IngressTLS,
 	secretRefs map[string]*secrets.SecretReference, isWildcardEnabled bool,
 ) Warnings {
@@ -588,6 +754,7 @@ func createLocation(path string, upstream version1.Upstream, cfg *ConfigParams, 
 	loc := version1.Location{
 		Path:                     generateIngressPath(path, pathType),
 		Upstream:                 upstream,
+		ProxyPass:                fmt.Sprintf("%s://%s", generateProxyPassProtocol(ssl), upstream.Name),
 		ProxyConnectTimeout:      cfg.ProxyConnectTimeout,
 		ProxyReadTimeout:         cfg.ProxyReadTimeout,
 		ProxySendTimeout:         cfg.ProxySendTimeout,
