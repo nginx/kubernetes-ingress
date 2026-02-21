@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cafe-ingress-oauth2-proxy-minion
+  annotations:
+    nginx.org/mergeable-ingress-type: "minion"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: cafe.example.com
+    http:
+      paths:
+      - path: /_oauth2
+        pathType: Prefix
+        backend:
+          service:
+            name: oauth2-proxy-svc
+            port:
+              number: 80
