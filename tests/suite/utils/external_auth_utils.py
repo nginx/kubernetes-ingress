@@ -9,6 +9,7 @@ from suite.utils.policy_resources_utils import (
     setup_policy_backend,
     teardown_policy_backend,
 )
+from suite.utils.vs_vsr_resources_utils import delete_and_create_vs_from_yaml
 from suite.utils.resources_utils import (
     create_example_app,
     create_items_from_yaml,
@@ -63,6 +64,8 @@ ext_auth_pol_tls_signin_src = f"{TEST_DATA}/external-auth/policies/external-auth
 ext_auth_pol_tls_disabled_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-disabled.yaml"
 ext_auth_pol_tls_full_multi_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-full-multi.yaml"
 
+# Standard VS (used to restore VS state after tests)
+std_vs_src = f"{TEST_DATA}/virtual-server/standard/virtual-server.yaml"
 
 # ---------------------------------------------------------------------------
 # Ingress setup helper
@@ -144,6 +147,77 @@ def build_ext_auth_headers(vs_host, credentials=None):
 
 
 def _teardown_ext_auth_resources(kube_apis, namespace, secret_names, policy_names, *, tls=False):
+    """Teardown external auth backend (HTTP or TLS).
+
+    Args:
+        kube_apis: KubeApis instance.
+        namespace: Kubernetes namespace.
+        secret_names: List of secret names to delete.
+        policy_names: List of policy names to delete.
+        tls: If True, use TLS backend YAML for deletion.
+    """
+    teardown_policy_backend(
+        kube_apis,
+        namespace,
+        backend_yaml=ext_auth_tls_backend_src if tls else ext_auth_backend_src,
+        secret_names=secret_names,
+        policy_names=policy_names,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Setup / teardown helpers
+# ---------------------------------------------------------------------------
+
+
+def setup_ext_auth(
+    kube_apis,
+    namespace,
+    credentials,
+    policy_yamls,
+    vs_host,
+    *,
+    tls=False,
+    validate_policies=True,
+):
+    """Setup external auth backend (HTTP or TLS) with policies and request headers.
+
+    Args:
+        kube_apis: KubeApis instance.
+        namespace: Kubernetes namespace.
+        credentials: Path to credentials file, or None for no-auth requests.
+        policy_yamls: List of policy YAML file paths (1 or more).
+        vs_host: The VirtualServer/VSR host header value.
+        tls: If True, deploy TLS backend with server TLS and CA secrets.
+        validate_policies: If True, wait for each policy to reach Valid state.
+
+    Returns:
+        (secret_names: list[str], policy_names: list[str], headers: dict)
+    """
+    if tls:
+        secret_yamls = [
+            ext_auth_backend_secret_src,
+            ext_auth_tls_server_secret_src,
+            ext_auth_tls_ca_secret_src,
+        ]
+        backend_yaml = ext_auth_tls_backend_src
+    else:
+        secret_yamls = [ext_auth_backend_secret_src]
+        backend_yaml = ext_auth_backend_src
+
+    secret_names, policy_names = setup_policy_backend(
+        kube_apis,
+        namespace,
+        secret_yamls=secret_yamls,
+        backend_yaml=backend_yaml,
+        policy_yamls=policy_yamls,
+        validate_policies=validate_policies,
+    )
+    headers = build_ext_auth_headers(vs_host, credentials)
+    return secret_names, policy_names, headers
+
+
+def teardown_ext_auth(kube_apis, namespace, secret_names, policy_names, *, tls=False):
     """Teardown external auth backend (HTTP or TLS).
 
     Args:
@@ -251,3 +325,22 @@ def ext_auth_ingress(
 
     request.addfinalizer(fin)
     return ing
+
+@pytest.fixture
+def ext_auth_restore_vs(kube_apis, virtual_server_setup):
+    """Restore the standard VirtualServer spec after each test.
+
+    This ensures the VS is returned to its baseline state even when a test
+    raises an exception mid-way through.
+    """
+    yield
+
+    try:
+        delete_and_create_vs_from_yaml(
+            kube_apis.custom_objects,
+            virtual_server_setup.vs_name,
+            std_vs_src,
+            virtual_server_setup.namespace,
+        )
+    except Exception:
+        logger.debug("ext_auth_restore_vs teardown: ignoring error during VS restore")

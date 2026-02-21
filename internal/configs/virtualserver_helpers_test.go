@@ -2315,12 +2315,37 @@ func TestGenerateEndpointsForUpstream(t *testing.T) {
 						Namespace: namespace,
 					},
 				},
-				Endpoints: map[string][]string{},
+				Endpoints: map[string][]string{
+					"test-namespace/test:8080": {},
+				},
 			},
 			isPlus:               false,
 			isResolverConfigured: false,
 			expected:             []string{nginx502Server},
-			msg:                  "Service with no endpoints",
+			warningsExpected:     true,
+			msg:                  "Service exists with no endpoints",
+		},
+		{
+			upstream: conf_v1.Upstream{
+				Service: name,
+				Port:    8080,
+			},
+			vsEx: &VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      name,
+						Namespace: namespace,
+					},
+				},
+				Endpoints: map[string][]string{
+					"test-namespace/test:8080": {},
+				},
+			},
+			isPlus:               true,
+			isResolverConfigured: false,
+			expected:             []string{},
+			warningsExpected:     true,
+			msg:                  "Service exists with no endpoints (Plus)",
 		},
 		{
 			upstream: conf_v1.Upstream{
@@ -2336,10 +2361,11 @@ func TestGenerateEndpointsForUpstream(t *testing.T) {
 				},
 				Endpoints: map[string][]string{},
 			},
-			isPlus:               true,
+			isPlus:               false,
 			isResolverConfigured: false,
-			expected:             nil,
-			msg:                  "Service with no endpoints",
+			expected:             []string{nginx502Server},
+			warningsExpected:     false,
+			msg:                  "Service unknown, no warning emitted",
 		},
 		{
 			upstream: conf_v1.Upstream{
@@ -2383,6 +2409,7 @@ func TestGenerateEndpointsForUpstream(t *testing.T) {
 			isPlus:               false,
 			isResolverConfigured: false,
 			expected:             []string{nginx502Server},
+			warningsExpected:     false,
 			msg:                  "Upstream with subselector, without a matching endpoint",
 		},
 	}
@@ -3622,5 +3649,80 @@ func TestGenerateTimeWithDefault(t *testing.T) {
 		if result != test.expected {
 			t.Errorf("generateTimeWithDefault(%q, %q) returned %q but expected %q", test.value, test.defaultValue, result, test.expected)
 		}
+	}
+}
+
+func TestGetExAuthServicePort(t *testing.T) {
+	t.Parallel()
+
+	vsEx := &VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{Name: "test-vs", Namespace: "default"},
+		},
+	}
+
+	tests := []struct {
+		name     string
+		cfg      policiesCfg
+		expected uint16
+	}{
+		{
+			name: "Ports from policy spec takes precedence over URI port",
+			cfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					URI:          &version2.AuthURI{Port: "80"},
+					ServicePorts: []int{9000},
+				},
+			},
+			expected: 9000,
+		},
+		{
+			name: "first port from Ports is used",
+			cfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					ServicePorts: []int{8080, 9000},
+				},
+			},
+			expected: 8080,
+		},
+		{
+			name: "falls back to URI port when Ports is empty",
+			cfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					URI:          &version2.AuthURI{Port: "8443"},
+					ServicePorts: []int{},
+				},
+			},
+			expected: 8443,
+		},
+		{
+			name: "falls back to URI port when Ports is nil",
+			cfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					URI: &version2.AuthURI{Port: "3000"},
+				},
+			},
+			expected: 3000,
+		},
+		{
+			name: "defaults to 80 when no Ports and no URI port",
+			cfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					URI: &version2.AuthURI{},
+				},
+			},
+			expected: 80,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			vsc := newVirtualServerConfigurator(&ConfigParams{}, false, false, &StaticConfigParams{}, false, &fakeBV)
+			got := vsc.getExAuthServicePort(tc.cfg, vsEx)
+			if got != tc.expected {
+				t.Errorf("getExAuthServicePort() = %d, want %d", got, tc.expected)
+			}
+		})
 	}
 }
