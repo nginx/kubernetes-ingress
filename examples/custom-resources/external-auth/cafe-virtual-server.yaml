@@ -1,0 +1,61 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: cafe
+spec:
+  host: cafe.example.com
+  tls:
+    secret: tls-secret
+    redirect:
+      enable: true
+  upstreams:
+  - name: tea
+    service: tea-svc
+    port: 80
+  - name: coffee
+    service: coffee-svc
+    port: 80
+  - name: basic-auth
+    service: basic-auth-svc
+    port: 80
+  - name: oauth2-proxy
+    service: oauth2-proxy-svc
+    port: 80
+  routes:
+  # Basic-auth protected route
+  - path: /tea
+    location-snippets: |
+      auth_request /basic-auth;
+    action:
+      pass: tea
+  # OAuth2 proxy protected route
+  - path: /coffee
+    location-snippets: |
+      auth_request /_oauth2/auth;
+      auth_request_set $auth_user $upstream_http_x_auth_request_user;
+      auth_request_set $auth_email $upstream_http_x_auth_request_email;
+      proxy_set_header X-Auth-Request-User $auth_user;
+      proxy_set_header X-Auth-Request-Email $auth_email;
+      error_page 401 = /_oauth2/start?rd=$scheme://$host$request_uri;
+    action:
+      pass: coffee
+  # Internal basic-auth subrequest endpoint
+  - path: /basic-auth
+    location-snippets: |
+      internal;
+      proxy_set_header Content-Length "";
+      proxy_pass_request_body off;
+    action:
+      pass: basic-auth
+  # Internal oauth2-proxy auth subrequest endpoint
+  - path: /_oauth2/auth
+    location-snippets: |
+      internal;
+      proxy_set_header Content-Length "";
+      proxy_pass_request_body off;
+    action:
+      pass: oauth2-proxy
+  # OAuth2 proxy callback and start endpoints
+  - path: /_oauth2
+    action:
+      pass: oauth2-proxy

@@ -1,0 +1,79 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oauth2-proxy-config
+data:
+  oauth2-proxy.cfg: |
+    http_address = "0.0.0.0:4180"
+    upstreams = ["static://200"]
+    email_domains = ["*"]
+    cookie_secure = false
+    cookie_secret = "OQINaROshtE9TcZkNAm-5Zs2Pv3xaWytBmc5W7sPX4="
+    provider = "keycloak-oidc"
+    provider_display_name = "Keycloak"
+    redirect_url = "https://cafe.example.com:443/_oauth2/callback"
+    oidc_issuer_url = "https://keycloak.example.com/realms/master"
+    ssl_insecure_skip_verify = true
+    skip_provider_button = true
+    pass_access_token = true
+    set_xauthrequest = true
+    cookie_name = "_oauth2_proxy"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oauth2-proxy
+  template:
+    metadata:
+      labels:
+        app: oauth2-proxy
+    spec:
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.7.1
+          args:
+            - --config=/etc/oauth2-proxy/oauth2-proxy.cfg
+            - --client-id=nginx-plus
+            - --client-secret=$(CLIENT_SECRET)
+          env:
+            - name: CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: oauth2-proxy-client-secret
+                  key: client-secret
+          ports:
+            - containerPort: 4180
+              name: http
+          volumeMounts:
+            - name: config
+              mountPath: /etc/oauth2-proxy
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: 4180
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: oauth2-proxy-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy-svc
+spec:
+  ports:
+    - port: 80
+      targetPort: 4180
+      protocol: TCP
+      name: http
+  selector:
+    app: oauth2-proxy
