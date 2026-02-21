@@ -72,7 +72,7 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 
 	if polExists && lbc.HasCorrectIngressClass(obj) {
 		pol := obj.(*conf_v1.Policy)
-		err := validation.ValidatePolicy(pol, lbc.isNginxPlus, lbc.enableOIDC, lbc.appProtectEnabled)
+		err := validation.ValidatePolicy(pol, lbc.policyValidationConfig())
 		if err != nil {
 			msg := fmt.Sprintf("Policy %v/%v is invalid and was rejected: %v", pol.Namespace, pol.Name, err)
 			lbc.recorder.Eventf(pol, api_v1.EventTypeWarning, nl.EventReasonRejected, msg)
@@ -99,6 +99,19 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 	// it is safe to ignore the error
 	namespace, name, _ := ParseNamespaceName(key)
 
+	// Track external auth service references so that service/endpoint changes
+	// for the auth service can be correlated back to VirtualServers that use it.
+	if polExists && lbc.HasCorrectIngressClass(obj) {
+		pol := obj.(*conf_v1.Policy)
+		if pol.Spec.ExternalAuth != nil && pol.Spec.ExternalAuth.AuthServiceName != "" {
+			lbc.configuration.UpdatePolicyServiceRef(namespace, name, pol.Spec.ExternalAuth.AuthServiceName)
+		} else {
+			lbc.configuration.DeletePolicyServiceRef(namespace, name)
+		}
+	} else {
+		lbc.configuration.DeletePolicyServiceRef(namespace, name)
+	}
+
 	resources := lbc.configuration.FindResourcesForPolicy(namespace, name)
 
 	// Loop through the resources that reference this policy and check if the policy type is supported on the resource. If not, log an error and emit an event.
@@ -119,6 +132,7 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 			case pol.Spec.AccessControl != nil:
 				// Access Control policy is supported on Ingress
 				continue
+			case pol.Spec.ExternalAuth != nil:
 			default: // Unsupported policy type on Ingress
 				msg := fmt.Sprintf("Policy %s/%s has unsupported type on Ingress resource %s/%s",
 					pol.Namespace, pol.Name, impl.Ingress.Namespace, impl.Ingress.Name)
@@ -198,6 +212,11 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 		ingressCfg := mergeableIngressResource.(*IngressConfiguration)
 		mergeableIngressErr := mergeableIngressErrors[getResourceKey(&ingressCfg.Ingress.ObjectMeta)]
 		lbc.updateResourcesStatusAndEvents([]Resource{mergeableIngressResource}, mergeableIngressWarnings, mergeableIngressErr)
+	}
+
+	if len(resourceExes.MergeableIngresses) > 0 {
+		warnings, updateErr := lbc.configurator.AddOrUpdateMergeableIngresses(resourceExes.MergeableIngresses)
+		lbc.updateResourcesStatusAndEvents(resources, warnings, updateErr)
 	}
 
 	// Note: updating the status of a policy based on a reload is not needed.

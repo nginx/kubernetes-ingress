@@ -615,6 +615,99 @@ spec:
                       certificate.
                     type: boolean
                 type: object
+              externalAuth:
+                description: The ExternalAuth policy configures NGINX to authenticate
+                  client requests using an external authentication server, which can
+                  be used for example with the oauth2-proxy or any custom authentication
+                  server.
+                properties:
+                  authServiceName:
+                    description: AuthServiceName is the name of the Kubernetes service
+                      to which the request will be sent for authentication.  It can
+                      be in the same namespace as the Policy resource or in a different
+                      namespace. If the service is in a different namespace, it should
+                      be specified in the format <namespace>/<service>. For example,
+                      auth-service or auth-namespace/auth-service.
+                    pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?\/)?[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                    type: string
+                  authServicePorts:
+                    description: AuthServicePort is the port of the Kubernetes service
+                      to which the request will be sent for authentication. If not
+                      specified, the ports will be looked up from the service definition.
+                      This field is only required if the user wants to choose a specific
+                      port from the service definition, otherwise the first port will
+                      be used by default.
+                    items:
+                      type: integer
+                    type: array
+                  authSigninRedirectBasePath:
+                    description: AuthSigninRedirectBasePath is the base path for the
+                      NGINX location block that handles sign-in redirect requests
+                      from the external authentication server. For example, oauth2-proxy
+                      expects /oauth2. If not specified, defaults to /oauth2.
+                    pattern: ^/[a-zA-Z0-9._~:/?#\[\]@!$&'()*+,;=-]*$
+                    type: string
+                  authSigninURI:
+                    description: AuthSigninURI is the URI which requests will be redirected
+                      to if the external authentication server determines that the
+                      client needs to be authenticated. This is typically used when
+                      the external authentication server is an oauth2-proxy or any
+                      custom authentication server that requires redirection for authentication.
+                      The URI is a relative URI, for example /signin.
+                    pattern: ^/.*$
+                    type: string
+                  authSnippets:
+                    description: AuthSnippets can be used to add custom configuration
+                      snippets to the location block of the external authentication
+                      configuration. This can be used for example to add additional
+                      headers to the request sent to the external authentication server,
+                      or to configure additional parameters for the auth_request module.
+                      The content of this field will be added as-is to the location
+                      block, so it must be a valid NGINX configuration snippet.
+                    type: string
+                  authURI:
+                    default: /
+                    description: AuthURI is the URI of the external authentication
+                      server to which the request will be sent for authentication.
+                      The URI is a relative URI, for example /auth.
+                    pattern: ^/.*$
+                    type: string
+                  sniName:
+                    description: SNIName sets the server name used for SNI and certificate
+                      verification when connecting to the external authentication
+                      server over TLS. If not specified, defaults to <service-name>.<namespace>.svc
+                      derived from authServiceName.
+                    type: string
+                  sslEnabled:
+                    default: false
+                    description: SSLEnabled enables HTTPS when proxying requests to
+                      the external authentication server. Default is false.
+                    type: boolean
+                  sslVerify:
+                    default: false
+                    description: SSLVerify enables verification of the external authentication
+                      server's SSL certificate. Default is false.
+                    type: boolean
+                  sslVerifyDepth:
+                    default: 1
+                    description: SSLVerifyDepth sets the verification depth in the
+                      external authentication server certificates chain. Default is
+                      1.
+                    minimum: 0
+                    type: integer
+                  trustedCertSecret:
+                    description: TrustedCertSecret is the name of the Kubernetes secret
+                      that stores the CA certificate for external authentication server
+                      certificate verification. It can be in the same namespace as
+                      the Policy resource or in a different namespace specified as
+                      <namespace>/<secret>. The secret must be of the type nginx.org/ca,
+                      and the certificate must be stored under the key ca.crt.
+                    pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?\/)?[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                    type: string
+                required:
+                - authServiceName
+                - authURI
+                type: object
               ingressClassName:
                 description: Specifies which instance of NGINX Ingress Controller
                   must handle the Policy resource.

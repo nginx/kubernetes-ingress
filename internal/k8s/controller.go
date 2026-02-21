@@ -805,6 +805,16 @@ func (lbc *LoadBalancerController) virtualServerRequiresEndpointsUpdate(vsEx *co
 		}
 	}
 
+	// Check external auth services referenced by policies
+	for _, p := range vsEx.Policies {
+		if p.Spec.ExternalAuth != nil && p.Spec.ExternalAuth.AuthServiceName != "" {
+			_, resolvedName := configs.ParseServiceReference(p.Spec.ExternalAuth.AuthServiceName, vsEx.VirtualServer.Namespace)
+			if resolvedName == serviceName {
+				return true
+			}
+		}
+	}
+
 	return false
 }
 
@@ -826,6 +836,16 @@ func (lbc *LoadBalancerController) ingressRequiresEndpointsUpdate(ingressEx *con
 	if http := ingressEx.Ingress.Spec.DefaultBackend; http != nil {
 		if http.Service != nil && http.Service.Name == serviceName {
 			if !hasUseClusterIPAnnotation {
+				return true
+			}
+		}
+	}
+
+	// Check external auth services referenced by policies
+	for _, p := range ingressEx.Policies {
+		if p.Spec.ExternalAuth != nil && p.Spec.ExternalAuth.AuthServiceName != "" {
+			_, resolvedName := configs.ParseServiceReference(p.Spec.ExternalAuth.AuthServiceName, ingressEx.Ingress.Namespace)
+			if resolvedName == serviceName {
 				return true
 			}
 		}
@@ -2370,6 +2390,11 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 		}
 	}
 
+	// Resolve ExternalAuth trusted cert secrets for Ingress policies
+	if err := lbc.addExternalAuthTrustedCertSecretRefs(ingEx.SecretRefs, policies); err != nil {
+		nl.Warnf(lbc.Logger, "Error getting ExternalAuth trusted cert secrets for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
+	}
+
 	ingEx.Endpoints = make(map[string][]string)
 	ingEx.HealthChecks = make(map[string]*api_v1.Probe)
 	ingEx.ExternalNameSvcs = make(map[string]bool)
@@ -2498,6 +2523,8 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 		}
 	}
 
+	lbc.generateExternalAuthEndpoints(policies, ing.Namespace, ingEx.Endpoints)
+
 	return ingEx
 }
 
@@ -2568,6 +2595,10 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 	err = lbc.addOIDCTrustedCertSecretRefs(virtualServerEx.SecretRefs, policies)
 	if err != nil {
 		nl.Warnf(lbc.Logger, "Error getting OIDC trusted cert secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
+	}
+	err = lbc.addExternalAuthTrustedCertSecretRefs(virtualServerEx.SecretRefs, policies)
+	if err != nil {
+		nl.Warnf(lbc.Logger, "Error getting ExternalAuth trusted cert secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
 	}
 	err = lbc.addAPIKeySecretRefs(virtualServerEx.SecretRefs, policies)
 	if err != nil {
@@ -2707,6 +2738,11 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 			nl.Warnf(lbc.Logger, "Error getting OIDC trusted cert secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
 		}
 
+		err = lbc.addExternalAuthTrustedCertSecretRefs(virtualServerEx.SecretRefs, vsRoutePolicies)
+		if err != nil {
+			nl.Warnf(lbc.Logger, "Error getting ExternalAuth trusted cert secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
+		}
+
 		err = lbc.addAPIKeySecretRefs(virtualServerEx.SecretRefs, vsRoutePolicies)
 		if err != nil {
 			nl.Warnf(lbc.Logger, "Error getting APIKey secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
@@ -2749,6 +2785,11 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 			err = lbc.addOIDCTrustedCertSecretRefs(virtualServerEx.SecretRefs, vsrSubroutePolicies)
 			if err != nil {
 				nl.Warnf(lbc.Logger, "Error getting OIDC trusted cert secrets for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
+			}
+
+			err = lbc.addExternalAuthTrustedCertSecretRefs(virtualServerEx.SecretRefs, vsrSubroutePolicies)
+			if err != nil {
+				nl.Warnf(lbc.Logger, "Error getting ExternalAuth trusted cert secrets for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
 			}
 
 			err = lbc.addAPIKeySecretRefs(virtualServerEx.SecretRefs, vsrSubroutePolicies)
@@ -2817,6 +2858,8 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 		}
 	}
 
+	lbc.generateExternalAuthEndpoints(policies, virtualServerEx.VirtualServer.Namespace, endpoints)
+
 	virtualServerEx.Endpoints = endpoints
 	virtualServerEx.VirtualServerRoutes = virtualServerRoutes
 	virtualServerEx.ExternalNameSvcs = externalNameSvcs
@@ -2824,6 +2867,50 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 	virtualServerEx.PodsByIP = podsByIP
 
 	return &virtualServerEx
+}
+
+func (lbc *LoadBalancerController) generateExternalAuthEndpoints(policies []*conf_v1.Policy, defaultNamespace string, endpoints map[string][]string) {
+	for _, p := range policies {
+		if p.Spec.ExternalAuth == nil || p.Spec.ExternalAuth.AuthServiceName == "" {
+			continue
+		}
+
+		ns, name := configs.ParseServiceReference(p.Spec.ExternalAuth.AuthServiceName, defaultNamespace)
+
+		svc, err := lbc.getServiceFromInformer(ns, name)
+		if err != nil {
+			nl.Warnf(lbc.Logger, "Error getting Service for ExternalAuth %v in policy %v/%v: %v", p.Spec.ExternalAuth.AuthServiceName, p.Namespace, p.Name, err)
+			continue
+		}
+
+		ports := collectAuthPorts(p, svc)
+		for _, port := range ports {
+			endps, _, err := lbc.getEndpointsForUpstream(ns, name, uint16(port))
+			if err != nil {
+				nl.Warnf(lbc.Logger, "Error getting Endpoints for ExternalAuth service %v in policy %v/%v: %v", p.Spec.ExternalAuth.AuthServiceName, p.Namespace, p.Name, err)
+				continue
+			}
+			endpoints[fmt.Sprintf("%s/%s:%d", ns, name, port)] = getIPAddressesFromEndpoints(endps)
+		}
+	}
+}
+
+// collectAuthPorts returns the list of ports to resolve for an ExternalAuth policy.
+// If AuthServicePorts is specified on the policy, those are used; otherwise the ports
+// are read from the Kubernetes Service definition.
+func collectAuthPorts(p *conf_v1.Policy, svc *api_v1.Service) []int32 {
+	if len(p.Spec.ExternalAuth.AuthServicePorts) > 0 {
+		ports := make([]int32, 0, len(p.Spec.ExternalAuth.AuthServicePorts))
+		for _, port := range p.Spec.ExternalAuth.AuthServicePorts {
+			ports = append(ports, int32(port))
+		}
+		return ports
+	}
+	ports := make([]int32, 0, len(svc.Spec.Ports))
+	for _, port := range svc.Spec.Ports {
+		ports = append(ports, port.Port)
+	}
+	return ports
 }
 
 func createPolicyMap(policies []*conf_v1.Policy) map[string]*conf_v1.Policy {
@@ -2837,6 +2924,18 @@ func createPolicyMap(policies []*conf_v1.Policy) map[string]*conf_v1.Policy {
 	return result
 }
 
+func (lbc *LoadBalancerController) policyValidationConfig() validation.PolicyValidationConfig {
+	cfg := validation.PolicyValidationConfig{
+		IsPlus:           lbc.isNginxPlus,
+		EnableOIDC:       lbc.enableOIDC,
+		EnableAppProtect: lbc.appProtectEnabled,
+	}
+	if lbc.configuration != nil {
+		cfg.EnableSnippets = lbc.configuration.snippetsEnabled
+	}
+	return cfg
+}
+
 func (lbc *LoadBalancerController) getAllPolicies() []*conf_v1.Policy {
 	var policies []*conf_v1.Policy
 
@@ -2844,7 +2943,7 @@ func (lbc *LoadBalancerController) getAllPolicies() []*conf_v1.Policy {
 		for _, obj := range nsi.policyLister.List() {
 			pol := obj.(*conf_v1.Policy)
 
-			err := validation.ValidatePolicy(pol, lbc.isNginxPlus, lbc.enableOIDC, lbc.appProtectEnabled)
+			err := validation.ValidatePolicy(pol, lbc.policyValidationConfig())
 			if err != nil {
 				nl.Debugf(lbc.Logger, "Skipping invalid Policy %s/%s: %v", pol.Namespace, pol.Name, err)
 				continue
@@ -2906,7 +3005,7 @@ func (lbc *LoadBalancerController) getPolicies(policies []conf_v1.PolicyReferenc
 			continue
 		}
 
-		err = validation.ValidatePolicy(policy, lbc.isNginxPlus, lbc.enableOIDC, lbc.appProtectEnabled)
+		err = validation.ValidatePolicy(policy, lbc.policyValidationConfig())
 		if err != nil {
 			errors = append(errors, fmt.Errorf("policy %s is invalid: %w", policyKey, err))
 			continue
@@ -3069,6 +3168,27 @@ func (lbc *LoadBalancerController) addOIDCTrustedCertSecretRefs(secretRefs map[s
 	return nil
 }
 
+func (lbc *LoadBalancerController) addExternalAuthTrustedCertSecretRefs(secretRefs map[string]*secrets.SecretReference, policies []*conf_v1.Policy) error {
+	for _, pol := range policies {
+		if pol.Spec.ExternalAuth == nil {
+			continue
+		}
+		if pol.Spec.ExternalAuth.TrustedCertSecret != "" {
+			secretNS, secretName := configs.ParseServiceReference(pol.Spec.ExternalAuth.TrustedCertSecret, pol.Namespace)
+			secretKey := fmt.Sprintf("%v/%v", secretNS, secretName)
+			secretRef := lbc.secretStore.GetSecret(secretKey)
+
+			secretRefs[secretKey] = secretRef
+
+			if secretRef.Error != nil {
+				return secretRef.Error
+			}
+		}
+	}
+
+	return nil
+}
+
 func (lbc *LoadBalancerController) addAPIKeySecretRefs(secretRefs map[string]*secrets.SecretReference, policies []*conf_v1.Policy) error {
 	for _, pol := range policies {
 		if pol.Spec.APIKey == nil {
@@ -3111,6 +3231,8 @@ func findPoliciesForSecret(policies []*conf_v1.Policy, secretNamespace string, s
 		} else if pol.Spec.OIDC != nil && pol.Spec.OIDC.ClientSecret == secretName && pol.Namespace == secretNamespace {
 			res = append(res, pol)
 		} else if pol.Spec.OIDC != nil && pol.Spec.OIDC.TrustedCertSecret == secretName && pol.Namespace == secretNamespace {
+			res = append(res, pol)
+		} else if pol.Spec.ExternalAuth != nil && pol.Spec.ExternalAuth.TrustedCertSecret == secretName && pol.Namespace == secretNamespace {
 			res = append(res, pol)
 		} else if pol.Spec.APIKey != nil && pol.Spec.APIKey.ClientSecret == secretName && pol.Namespace == secretNamespace {
 			res = append(res, pol)
@@ -3509,6 +3631,27 @@ func (lbc *LoadBalancerController) getServiceForIngressBackend(backend *networki
 	}
 
 	return nil, fmt.Errorf("service %s doesn't exist", svcKey)
+}
+
+// getServiceFromInformer retrieves a Service from the informer cache by namespace and name.
+// This should be used instead of direct Kubernetes API calls for consistency and reliability.
+func (lbc *LoadBalancerController) getServiceFromInformer(namespace, serviceName string) (*api_v1.Service, error) {
+	nsi := lbc.getNamespacedInformer(namespace)
+	if nsi == nil {
+		return nil, fmt.Errorf("namespace %s is not being watched", namespace)
+	}
+
+	svcKey := namespace + "/" + serviceName
+	svcObj, svcExists, err := nsi.svcLister.GetByKey(svcKey)
+	if err != nil {
+		return nil, err
+	}
+
+	if !svcExists {
+		return nil, fmt.Errorf("service %s doesn't exist", svcKey)
+	}
+
+	return svcObj.(*api_v1.Service), nil
 }
 
 // HasCorrectIngressClass checks if resource ingress class annotation (if exists) or ingressClass string for VS/VSR is matching with Ingress Controller class

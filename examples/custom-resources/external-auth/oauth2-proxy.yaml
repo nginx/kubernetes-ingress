@@ -1,0 +1,75 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oauth2-proxy-config
+data:
+  oauth2-proxy.cfg: |
+    provider = "github"
+    provider_display_name = "GitHub"
+    email_domains = ["*"]
+    upstreams = ["file:///dev/null"]
+    http_address = "0.0.0.0:4180"
+    redirect_url = "https://cafe.example.com/oauth2/callback"
+    cookie_secure = true
+    whitelist_domains = ["cafe.example.com"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oauth2-proxy
+  template:
+    metadata:
+      labels:
+        app: oauth2-proxy
+    spec:
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.7.1
+          args:
+            - --config=/etc/oauth2-proxy/oauth2-proxy.cfg
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              value: ""
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: oauth2-proxy-client-secret
+                  key: client-secret
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              value: "rmXYk59eajf5Mm2y19gjwA=="
+          ports:
+            - containerPort: 4180
+              name: http
+          volumeMounts:
+            - name: config
+              mountPath: /etc/oauth2-proxy
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: 4180
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: oauth2-proxy-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy-svc
+spec:
+  ports:
+    - port: 80
+      targetPort: 4180
+      protocol: TCP
+      name: http
+  selector:
+    app: oauth2-proxy

@@ -2256,6 +2256,7 @@ func TestGenerateEndpointsForUpstream(t *testing.T) {
 			isPlus:               false,
 			isResolverConfigured: false,
 			expected:             []string{nginx502Server},
+			warningsExpected:     true,
 			msg:                  "Service with no endpoints",
 		},
 		{
@@ -2275,6 +2276,7 @@ func TestGenerateEndpointsForUpstream(t *testing.T) {
 			isPlus:               true,
 			isResolverConfigured: false,
 			expected:             nil,
+			warningsExpected:     true,
 			msg:                  "Service with no endpoints",
 		},
 		{
@@ -2319,6 +2321,7 @@ func TestGenerateEndpointsForUpstream(t *testing.T) {
 			isPlus:               false,
 			isResolverConfigured: false,
 			expected:             []string{nginx502Server},
+			warningsExpected:     true,
 			msg:                  "Upstream with subselector, without a matching endpoint",
 		},
 	}
@@ -3541,5 +3544,80 @@ func TestGenerateTimeWithDefault(t *testing.T) {
 		if result != test.expected {
 			t.Errorf("generateTimeWithDefault(%q, %q) returned %q but expected %q", test.value, test.defaultValue, result, test.expected)
 		}
+	}
+}
+
+func TestGetExAuthServicePort(t *testing.T) {
+	t.Parallel()
+
+	vsEx := &VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{Name: "test-vs", Namespace: "default"},
+		},
+	}
+
+	tests := []struct {
+		name     string
+		cfg      policiesCfg
+		expected uint16
+	}{
+		{
+			name: "Ports from policy spec takes precedence over URI port",
+			cfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					URI:          &version2.AuthURI{Port: "80"},
+					ServicePorts: []int{9000},
+				},
+			},
+			expected: 9000,
+		},
+		{
+			name: "first port from Ports is used",
+			cfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					ServicePorts: []int{8080, 9000},
+				},
+			},
+			expected: 8080,
+		},
+		{
+			name: "falls back to URI port when Ports is empty",
+			cfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					URI:          &version2.AuthURI{Port: "8443"},
+					ServicePorts: []int{},
+				},
+			},
+			expected: 8443,
+		},
+		{
+			name: "falls back to URI port when Ports is nil",
+			cfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					URI: &version2.AuthURI{Port: "3000"},
+				},
+			},
+			expected: 3000,
+		},
+		{
+			name: "defaults to 80 when no Ports and no URI port",
+			cfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					URI: &version2.AuthURI{},
+				},
+			},
+			expected: 80,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			vsc := newVirtualServerConfigurator(&ConfigParams{}, false, false, &StaticConfigParams{}, false, &fakeBV)
+			got := vsc.getExAuthServicePort(tc.cfg, vsEx)
+			if got != tc.expected {
+				t.Errorf("getExAuthServicePort() = %d, want %d", got, tc.expected)
+			}
+		})
 	}
 }

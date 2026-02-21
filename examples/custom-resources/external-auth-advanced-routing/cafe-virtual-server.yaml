@@ -1,0 +1,50 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: cafe
+spec:
+  host: cafe.example.com
+  tls:
+    secret: tls-secret
+    redirect:
+      enable: true
+  upstreams:
+  - name: tea-post
+    service: tea-post-svc
+    port: 80
+  - name: tea
+    service: tea-svc
+    port: 80
+  - name: coffee-v1
+    service: coffee-v1-svc
+    port: 80
+  - name: coffee-v2
+    service: coffee-v2-svc
+    port: 80
+  routes:
+  # Advanced routing for /tea with external auth applied at the route level.
+  # POST requests are routed to tea-post, all others to tea.
+  - path: /tea
+    policies:
+    - name: external-auth-basic-policy
+    matches:
+    - conditions:
+      - variable: $request_method
+        value: POST
+      action:
+        pass: tea-post
+    action:
+      pass: tea
+  # Advanced routing for /coffee with external auth applied at the route level.
+  # Requests with cookie "version=v2" are routed to coffee-v2, all others to coffee-v1.
+  - path: /coffee
+    policies:
+    - name: external-auth-basic-policy
+    matches:
+    - conditions:
+      - cookie: version
+        value: v2
+      action:
+        pass: coffee-v2
+    action:
+      pass: coffee-v1

@@ -467,6 +467,25 @@ func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) (bool, Warnings, e
 	return configChanged, warnings, nil
 }
 
+// AddOrUpdateMergeableIngresses adds or updates NGINX configuration for the list of Mergeable Ingress resources.
+func (cnf *Configurator) AddOrUpdateMergeableIngresses(ingExes []*MergeableIngresses) (Warnings, error) {
+	allWarnings := newWarnings()
+
+	for _, mergeableIngs := range ingExes {
+		_, warnings, err := cnf.addOrUpdateMergeableIngress(mergeableIngs)
+		if err != nil {
+			return allWarnings, err
+		}
+		allWarnings.Add(warnings)
+	}
+
+	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
+		return allWarnings, fmt.Errorf("error when reloading NGINX when updating Ingresses: %w", err)
+	}
+
+	return allWarnings, nil
+}
+
 // AddOrUpdateMergeableIngress adds or updates NGINX configuration for the Ingress resources with Mergeable Types.
 func (cnf *Configurator) AddOrUpdateMergeableIngress(mergeableIngs *MergeableIngresses) (Warnings, error) {
 	_, warnings, err := cnf.addOrUpdateMergeableIngress(mergeableIngs)
@@ -479,25 +498,6 @@ func (cnf *Configurator) AddOrUpdateMergeableIngress(mergeableIngs *MergeableIng
 	}
 
 	return warnings, nil
-}
-
-// AddOrUpdateMergeableIngresses adds or updates NGINX configuration for the list of mergeable Ingress resources.
-func (cnf *Configurator) AddOrUpdateMergeableIngresses(mergeableIngs []*MergeableIngresses) (Warnings, error) {
-	allWarnings := newWarnings()
-
-	for _, mergeableIng := range mergeableIngs {
-		_, warnings, err := cnf.addOrUpdateMergeableIngress(mergeableIng)
-		if err != nil {
-			return allWarnings, err
-		}
-		allWarnings.Add(warnings)
-	}
-
-	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
-		return allWarnings, fmt.Errorf("error when reloading NGINX when updating mergeable Ingresses: %w", err)
-	}
-
-	return allWarnings, nil
 }
 
 func (cnf *Configurator) addOrUpdateMergeableIngress(mergeableIngs *MergeableIngresses) (bool, Warnings, error) {
@@ -1153,16 +1153,17 @@ func (cnf *Configurator) deleteTransportServer(key string) error {
 }
 
 // UpdateEndpoints updates endpoints in NGINX configuration for the Ingress resources.
-func (cnf *Configurator) UpdateEndpoints(ingExes []*IngressEx) error {
+func (cnf *Configurator) UpdateEndpoints(ingExes []*IngressEx) (Warnings, error) {
 	l := nl.LoggerFromContext(cnf.CfgParams.Context)
 	reloadPlus := false
+	allWarnings := newWarnings()
 
 	for _, ingEx := range ingExes {
-		// It is safe to ignore warnings here as no new warnings should appear when updating Endpoints for Ingresses
-		_, _, err := cnf.addOrUpdateIngress(ingEx)
+		_, warnings, err := cnf.addOrUpdateIngress(ingEx)
 		if err != nil {
-			return fmt.Errorf("error adding or updating ingress %v/%v: %w", ingEx.Ingress.Namespace, ingEx.Ingress.Name, err)
+			return allWarnings, fmt.Errorf("error adding or updating ingress %v/%v: %w", ingEx.Ingress.Namespace, ingEx.Ingress.Name, err)
 		}
+		allWarnings.Add(warnings)
 
 		if cnf.isPlus {
 			err := cnf.updatePlusEndpoints(ingEx)
@@ -1175,27 +1176,28 @@ func (cnf *Configurator) UpdateEndpoints(ingExes []*IngressEx) error {
 
 	if cnf.isPlus && !reloadPlus {
 		nl.Debug(l, "No need to reload nginx")
-		return nil
+		return allWarnings, nil
 	}
 
 	if err := cnf.Reload(nginx.ReloadForEndpointsUpdate); err != nil {
-		return fmt.Errorf("error reloading NGINX when updating endpoints: %w", err)
+		return allWarnings, fmt.Errorf("error reloading NGINX when updating endpoints: %w", err)
 	}
 
-	return nil
+	return allWarnings, nil
 }
 
 // UpdateEndpointsMergeableIngress updates endpoints in NGINX configuration for a mergeable Ingress resource.
-func (cnf *Configurator) UpdateEndpointsMergeableIngress(mergeableIngresses []*MergeableIngresses) error {
+func (cnf *Configurator) UpdateEndpointsMergeableIngress(mergeableIngresses []*MergeableIngresses) (Warnings, error) {
 	l := nl.LoggerFromContext(cnf.CfgParams.Context)
 	reloadPlus := false
+	allWarnings := newWarnings()
 
 	for i := range mergeableIngresses {
-		// It is safe to ignore warnings here as no new warnings should appear when updating Endpoints for Ingresses
-		_, _, err := cnf.addOrUpdateMergeableIngress(mergeableIngresses[i])
+		_, warnings, err := cnf.addOrUpdateMergeableIngress(mergeableIngresses[i])
 		if err != nil {
-			return fmt.Errorf("error adding or updating mergeableIngress %v/%v: %w", mergeableIngresses[i].Master.Ingress.Namespace, mergeableIngresses[i].Master.Ingress.Name, err)
+			return allWarnings, fmt.Errorf("error adding or updating mergeableIngress %v/%v: %w", mergeableIngresses[i].Master.Ingress.Namespace, mergeableIngresses[i].Master.Ingress.Name, err)
 		}
+		allWarnings.Add(warnings)
 
 		if cnf.isPlus {
 			for _, ing := range mergeableIngresses[i].Minions {
@@ -1210,27 +1212,28 @@ func (cnf *Configurator) UpdateEndpointsMergeableIngress(mergeableIngresses []*M
 
 	if cnf.isPlus && !reloadPlus {
 		nl.Debug(l, "No need to reload nginx")
-		return nil
+		return allWarnings, nil
 	}
 
 	if err := cnf.Reload(nginx.ReloadForEndpointsUpdate); err != nil {
-		return fmt.Errorf("error reloading NGINX when updating endpoints for %v: %w", mergeableIngresses, err)
+		return allWarnings, fmt.Errorf("error reloading NGINX when updating endpoints for %v: %w", mergeableIngresses, err)
 	}
 
-	return nil
+	return allWarnings, nil
 }
 
 // UpdateEndpointsForVirtualServers updates endpoints in NGINX configuration for the VirtualServer resources.
-func (cnf *Configurator) UpdateEndpointsForVirtualServers(virtualServerExes []*VirtualServerEx) error {
+func (cnf *Configurator) UpdateEndpointsForVirtualServers(virtualServerExes []*VirtualServerEx) (Warnings, error) {
 	l := nl.LoggerFromContext(cnf.CfgParams.Context)
 	reloadPlus := false
+	allWarnings := newWarnings()
 
 	for _, vs := range virtualServerExes {
-		// It is safe to ignore warnings here as no new warnings should appear when updating Endpoints for VirtualServers
-		_, _, _, err := cnf.addOrUpdateVirtualServer(vs)
+		_, warnings, _, err := cnf.addOrUpdateVirtualServer(vs)
 		if err != nil {
-			return fmt.Errorf("error adding or updating VirtualServer %v/%v: %w", vs.VirtualServer.Namespace, vs.VirtualServer.Name, err)
+			return allWarnings, fmt.Errorf("error adding or updating VirtualServer %v/%v: %w", vs.VirtualServer.Namespace, vs.VirtualServer.Name, err)
 		}
+		allWarnings.Add(warnings)
 
 		if cnf.isPlus {
 			err := cnf.updatePlusEndpointsForVirtualServer(vs)
@@ -1243,14 +1246,14 @@ func (cnf *Configurator) UpdateEndpointsForVirtualServers(virtualServerExes []*V
 
 	if cnf.isPlus && !reloadPlus {
 		nl.Debug(l, "No need to reload nginx")
-		return nil
+		return allWarnings, nil
 	}
 
 	if err := cnf.Reload(nginx.ReloadForEndpointsUpdate); err != nil {
-		return fmt.Errorf("error reloading NGINX when updating endpoints: %w", err)
+		return allWarnings, fmt.Errorf("error reloading NGINX when updating endpoints: %w", err)
 	}
 
-	return nil
+	return allWarnings, nil
 }
 
 func (cnf *Configurator) updatePlusEndpointsForVirtualServer(virtualServerEx *VirtualServerEx) error {

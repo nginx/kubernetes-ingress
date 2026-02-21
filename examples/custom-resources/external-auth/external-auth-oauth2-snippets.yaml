@@ -1,0 +1,11 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: external-auth-oauth2-snippets-policy
+spec:
+  externalAuth:
+    authURI: "/oauth2/auth"
+    authSigninURI: "/oauth2/signin"
+    authServiceName: "default/oauth2-proxy-svc"
+    authSnippets: |
+      # additional auth snippets

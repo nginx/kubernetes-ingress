@@ -1,8 +1,10 @@
 package k8s
 
 import (
+	"fmt"
 	"reflect"
 
+	configs "github.com/nginx/kubernetes-ingress/internal/configs"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	discovery_v1 "k8s.io/api/discovery/v1"
 	"k8s.io/client-go/tools/cache"
@@ -87,10 +89,11 @@ func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
 			if lbc.ingressRequiresEndpointsUpdate(ingEx, svcName) {
 				resourcesFound = true
 				nl.Debugf(lbc.Logger, "Updating EndpointSlices for %v", resourceExes.IngressExes)
-				err = lbc.configurator.UpdateEndpoints(resourceExes.IngressExes)
+				cfgWarnings, err := lbc.configurator.UpdateEndpoints(resourceExes.IngressExes)
 				if err != nil {
 					nl.Errorf(lbc.Logger, "Error updating EndpointSlices for %v: %v", resourceExes.IngressExes, err)
 				}
+				lbc.updateResourceStatusOnEndpointSliceChangeWithWarnings(svcResource, endpointSlice, svcName, cfgWarnings)
 				break
 			}
 		}
@@ -101,10 +104,11 @@ func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
 			if lbc.mergeableIngressRequiresEndpointsUpdate(mergeableIngresses, svcName) {
 				resourcesFound = true
 				nl.Debugf(lbc.Logger, "Updating EndpointSlices for %v", resourceExes.MergeableIngresses)
-				err = lbc.configurator.UpdateEndpointsMergeableIngress(resourceExes.MergeableIngresses)
+				cfgWarnings, err := lbc.configurator.UpdateEndpointsMergeableIngress(resourceExes.MergeableIngresses)
 				if err != nil {
 					nl.Errorf(lbc.Logger, "Error updating EndpointSlices for %v: %v", resourceExes.MergeableIngresses, err)
 				}
+				lbc.updateResourceStatusOnEndpointSliceChangeWithWarnings(svcResource, endpointSlice, svcName, cfgWarnings)
 				break
 			}
 		}
@@ -116,10 +120,11 @@ func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
 				if lbc.virtualServerRequiresEndpointsUpdate(vsEx, svcName) {
 					resourcesFound = true
 					nl.Debugf(lbc.Logger, "Updating EndpointSlices for %v", resourceExes.VirtualServerExes)
-					err := lbc.configurator.UpdateEndpointsForVirtualServers(resourceExes.VirtualServerExes)
+					cfgWarnings, err := lbc.configurator.UpdateEndpointsForVirtualServers(resourceExes.VirtualServerExes)
 					if err != nil {
 						nl.Errorf(lbc.Logger, "Error updating EndpointSlices for %v: %v", resourceExes.VirtualServerExes, err)
 					}
+					lbc.updateResourceStatusOnEndpointSliceChangeWithWarnings(svcResource, endpointSlice, svcName, cfgWarnings)
 					break
 				}
 			}
@@ -135,4 +140,60 @@ func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
 		}
 	}
 	return resourcesFound
+}
+
+// updateResourceStatusOnEndpointSliceChangeWithWarnings updates the status and events for
+// resources affected by an EndpointSlice change. It merges configuration warnings (e.g. from
+// policy/secret validation) with any "no endpoints" warnings so that resource status
+// accurately reflects all issues, not just endpoint availability.
+func (lbc *LoadBalancerController) updateResourceStatusOnEndpointSliceChangeWithWarnings(
+	svcResources []Resource,
+	endpointSlice *discovery_v1.EndpointSlice,
+	svcName string,
+	cfgWarnings configs.Warnings,
+) {
+	hasEndpoints := len(endpointSlice.Endpoints) > 0
+
+	for _, r := range svcResources {
+		warnings := make(configs.Warnings)
+		warnings.Add(cfgWarnings)
+		if !hasEndpoints {
+			noEndpointWarnings := lbc.buildNoEndpointWarnings(r, endpointSlice.Namespace, svcName)
+			for obj, msgs := range noEndpointWarnings {
+				warnings[obj] = append(warnings[obj], msgs...)
+			}
+		}
+		lbc.updateResourcesStatusAndEvents([]Resource{r}, warnings, nil)
+	}
+}
+
+// buildNoEndpointWarnings creates a warnings map for resources that reference a service
+// with no endpoints. Only the specific sub-resources (e.g. VS, VSR, Ingress, minion)
+// that actually reference the service are included.
+func (lbc *LoadBalancerController) buildNoEndpointWarnings(r Resource, svcNamespace, svcName string) configs.Warnings {
+	warnings := make(configs.Warnings)
+	noEndpointsMsg := []string{fmt.Sprintf("No endpoints found for service %v", svcName)}
+
+	switch impl := r.(type) {
+	case *VirtualServerConfiguration:
+		if lbc.configuration.IsServiceReferencedByVirtualServer(svcNamespace, svcName, impl.VirtualServer) {
+			warnings[impl.VirtualServer] = noEndpointsMsg
+		}
+		for _, vsr := range impl.VirtualServerRoutes {
+			if lbc.configuration.IsServiceReferencedByVirtualServerRoute(svcNamespace, svcName, vsr) {
+				warnings[vsr] = noEndpointsMsg
+			}
+		}
+	case *IngressConfiguration:
+		if lbc.configuration.IsServiceReferencedByIngress(svcNamespace, svcName, impl.Ingress) {
+			warnings[impl.Ingress] = noEndpointsMsg
+		}
+		for _, minion := range impl.Minions {
+			if lbc.configuration.IsServiceReferencedByMinion(svcNamespace, svcName, minion.Ingress) {
+				warnings[minion.Ingress] = noEndpointsMsg
+			}
+		}
+	}
+
+	return warnings
 }

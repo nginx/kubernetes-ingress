@@ -121,7 +121,7 @@ func (lbc *LoadBalancerController) updatePoliciesStatus() error {
 		for _, obj := range nsi.policyLister.List() {
 			pol := obj.(*conf_v1.Policy)
 
-			err := validation.ValidatePolicy(pol, lbc.isNginxPlus, lbc.enableOIDC, lbc.appProtectEnabled)
+			err := validation.ValidatePolicy(pol, lbc.policyValidationConfig())
 			if err != nil {
 				msg := fmt.Sprintf("Policy %v/%v is invalid and was rejected: %v", pol.Namespace, pol.Name, err)
 				err = lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateInvalid, "Rejected", msg)
