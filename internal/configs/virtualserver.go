@@ -1065,8 +1065,6 @@ type policyOwnerDetails struct {
 	ownerNamespace string
 	vsNamespace    string
 	vsName         string
-	// parentNamespace    string
-	// parentName         string
 }
 
 type policyOptions struct {
