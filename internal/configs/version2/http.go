@@ -250,6 +250,7 @@ type Location struct {
 	VSRName                  string
 	VSRNamespace             string
 	GRPCPass                 string
+	CORSEnabled              bool
 	ExternalAuth             *ExternalAuth
 }
 

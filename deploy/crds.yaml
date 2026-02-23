@@ -496,6 +496,77 @@ spec:
                 x-kubernetes-validations:
                 - message: time is required when allowedCodes is specified
                   rule: '!has(self.allowedCodes) || (has(self.allowedCodes) && has(self.time))'
+              cors:
+                description: The CORS policy configures Cross-Origin Resource Sharing
+                  headers
+                properties:
+                  allowCredentials:
+                    default: false
+                    description: |-
+                      AllowCredentials indicates whether the response to the request can be exposed when the credentials flag is true.
+                      When used as part of a response to a preflight request, this indicates whether the actual request can be made using credentials.
+                    type: boolean
+                  allowHeaders:
+                    description: |-
+                      AllowHeaders defines the headers that are allowed in cross-origin requests.
+                      Common safe headers: ["Accept", "Accept-Language", "Content-Language", "Content-Type"]
+                      Custom headers: ["Authorization", "X-Requested-With", "X-Custom-Header"]
+                    items:
+                      type: string
+                    type: array
+                    x-kubernetes-validations:
+                    - message: header name cannot be empty
+                      rule: self.all(header, header != '')
+                  allowMethods:
+                    description: AllowMethods defines the HTTP methods that are allowed
+                      for cross-origin requests.
+                    items:
+                      type: string
+                    type: array
+                    x-kubernetes-validations:
+                    - message: method name cannot be empty
+                      rule: self.all(method, method != '')
+                  allowOrigin:
+                    description: |-
+                      AllowOrigin defines the origins that are allowed to make cross-origin requests.
+                      Can be exact domains, single wildcards, or "*" for all origins.
+                      Examples: ["https://example.com", "https://*.mydomain.com", "*"]
+                      Security: When allowCredentials is true, wildcard "*" is not allowed per CORS specification.
+                      The server must specify explicit origins for credentialed requests.
+                    items:
+                      type: string
+                    minItems: 1
+                    type: array
+                    x-kubernetes-validations:
+                    - message: origin cannot be empty
+                      rule: self.all(origin, origin != '')
+                  exposeHeaders:
+                    description: |-
+                      ExposeHeaders defines the headers that browsers are allowed to access.
+                      Use this field to expose additional custom headers to the browser.
+                      Example: ["X-Total-Count", "X-Page-Size", "X-RateLimit-Remaining"]
+                      Note: Set-Cookie headers cannot be exposed via CORS per official MDN specification.
+                    items:
+                      type: string
+                    type: array
+                    x-kubernetes-validations:
+                    - message: header name cannot be empty
+                      rule: self.all(header, header != '')
+                  maxAge:
+                    default: 86400
+                    description: |-
+                      MaxAge defines how long (in seconds) the results of a preflight request can be cached.
+                      Default: 86400 (24 hours). Maximum recommended value is 86400 (24 hours).
+                    minimum: 0
+                    type: integer
+                required:
+                - allowOrigin
+                type: object
+                x-kubernetes-validations:
+                - message: cannot use wildcard '*' for allowOrigin when allowCredentials
+                    is true for security reasons
+                  rule: '!(self.allowOrigin.exists(origin, origin == ''*'') && has(self.allowCredentials)
+                    && self.allowCredentials == true)'
               egressMTLS:
                 description: The EgressMTLS policy configures upstreams authentication
                   and certificate verification.

@@ -276,6 +276,13 @@ func TestCollectPolicyCountOnCustomResourcesEnabled(t *testing.T) {
 			want: 1,
 		},
 		{
+			name: "CORSPolicy",
+			policies: func() []*conf_v1.Policy {
+				return []*conf_v1.Policy{corsPolicy}
+			},
+			want: 1,
+		},
+		{
 			name: "MultiplePolicies",
 			policies: func() []*conf_v1.Policy {
 				return []*conf_v1.Policy{rateLimitPolicy, wafPolicy, oidcPolicy}
@@ -427,6 +434,7 @@ func TestCollectPoliciesReportOnEnabledCustomResources(t *testing.T) {
 				wafPolicy,
 				oidcPolicy,
 				cachePolicy,
+				corsPolicy,
 			}
 		},
 		CustomResourcesEnabled: true,
@@ -454,6 +462,7 @@ func TestCollectPoliciesReportOnEnabledCustomResources(t *testing.T) {
 		OIDCPolicies:       1,
 		EgressMTLSPolicies: 2,
 		CachePolicies:      1,
+		CORSPolicies:       1,
 	}
 
 	td := telemetry.Data{
@@ -2890,6 +2899,21 @@ var (
 		},
 		Spec: conf_v1.PolicySpec{
 			Cache: &conf_v1.Cache{},
+		},
+		Status: conf_v1.PolicyStatus{},
+	}
+
+	corsPolicy = &conf_v1.Policy{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Policy",
+			APIVersion: "k8s.nginx.org/v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      "cors-policy",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			CORS: &conf_v1.CORS{},
 		},
 		Status: conf_v1.PolicyStatus{},
 	}

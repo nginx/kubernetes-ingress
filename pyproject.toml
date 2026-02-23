@@ -58,6 +58,7 @@ markers = [
     "policies_ac",
     "policies_mtls",
     "policies_cache",
+    "policies_cors",
     "rewrite",
     "skip_for_nginx_oss",
     "skip_for_loadbalancer",

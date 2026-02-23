@@ -548,6 +548,19 @@ server {
                 {{- end }}
         {{- end }}
 
+        {{- if $l.CORSEnabled }}
+        # CORS configuration per enable-cors.org
+        # Handle CORS preflight OPTIONS requests
+        if ($request_method = 'OPTIONS') {
+            {{- range $h := $l.AddHeaders }}
+            add_header {{ $h.Name }} "{{ $h.Value }}";
+            {{- end }}
+            add_header Content-Type text/plain;
+            add_header Content-Length 0;
+            return 204;
+        }
+        {{- end }}
+
             {{-  if $l.GRPCPass }}
         grpc_pass {{ $l.GRPCPass }};
             {{- else }}
