@@ -1041,6 +1041,7 @@ def get_nginx_template_conf(v1: CoreV1Api, ingress_namespace, ic_pod_name=None, 
     file_path = "/etc/nginx/nginx.conf"
     return get_file_contents(v1, file_path, ic_pod_name, ingress_namespace, print_log)
 
+
 def get_nginx_config_version(v1: CoreV1Api, ingress_namespace, ic_pod_name=None, print_log=False) -> str:
     """
     Get the version of nginx configuration in the pod.
@@ -1054,6 +1055,7 @@ def get_nginx_config_version(v1: CoreV1Api, ingress_namespace, ic_pod_name=None,
         ic_pod_name = get_first_pod_name(v1, ingress_namespace)
     file_path = "/etc/nginx/config-version.conf"
     return get_file_contents(v1, file_path, ic_pod_name, ingress_namespace, print_log)
+
 
 def get_ingress_nginx_template_conf(v1: CoreV1Api, ingress_namespace, ingress_name, pod_name, pod_namespace) -> str:
     """
@@ -2054,9 +2056,9 @@ def wait_for_reload(metrics_url, count_before, timeout=60) -> None:
         except (requests.exceptions.ConnectionError, AssertionError) as e:
             print(f"Attempt {i + 1}/{timeout}: metrics not ready yet ({e})")
         time.sleep(1)
-    assert get_reload_count(metrics_url) - count_before > 0, (
-        f"Timed out after {timeout}s waiting for NGINX reload (count_before={count_before})"
-    )
+    assert (
+        get_reload_count(metrics_url) - count_before > 0
+    ), f"Timed out after {timeout}s waiting for NGINX reload (count_before={count_before})"
 
 
 def get_test_file_name(path) -> str:

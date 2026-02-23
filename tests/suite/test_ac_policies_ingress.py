@@ -2,27 +2,25 @@ import pytest
 import requests
 from settings import DEPLOYMENTS, TEST_DATA
 from suite.utils.custom_resources_utils import read_custom_resource
-from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_policy, apply_and_wait_for_valid_policy
+from suite.utils.policy_resources_utils import apply_and_wait_for_valid_policy, create_policy_from_yaml, delete_policy
 from suite.utils.resources_utils import (
-    ensure_response_from_backend,
+    create_example_app,
+    create_items_from_yaml,
+    delete_common_app,
+    delete_items_from_yaml,
+    ensure_connection_to_public_endpoint,
+    get_first_pod_name,
     get_reload_count,
     get_test_file_name,
     replace_configmap_from_yaml,
     wait_before_test,
     wait_for_reload,
-    write_to_json,
-    create_items_from_yaml,
-    create_example_app,
     wait_until_all_pods_are_ready,
-    ensure_connection_to_public_endpoint,
-    get_first_pod_name,
-    delete_common_app,
-    delete_items_from_yaml,
-    get_ingress_nginx_template_conf
+    write_to_json,
 )
 from suite.utils.yaml_utils import (
-    get_name_from_yaml,
     get_first_ingress_host_from_yaml,
+    get_name_from_yaml,
 )
 
 std_cm_src = f"{DEPLOYMENTS}/common/nginx-config.yaml"
@@ -33,6 +31,7 @@ allow_pol_src = f"{TEST_DATA}/access-control/policies/access-control-policy-allo
 invalid_pol_src = f"{TEST_DATA}/access-control/policies/access-control-policy-invalid.yaml"
 
 reload_times = {}
+
 
 class IngressSetup:
     """Encapsulate Ingress example details.
@@ -65,6 +64,7 @@ class IngressSetup:
         self.request_url = request_url
         self.metrics_url = f"http://{public_endpoint.public_ip}:{public_endpoint.metrics_port}/metrics"
 
+
 @pytest.fixture(scope="function")
 def policy_setup(request, kube_apis, test_namespace) -> None:
     """
@@ -80,13 +80,14 @@ def policy_setup(request, kube_apis, test_namespace) -> None:
     pol_name = apply_and_wait_for_valid_policy(kube_apis, test_namespace, pol_path)
     if not pol_name:
         pytest.skip(f"Failed to create policy from {pol_path}")
-    
+
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
             print(f"------------- Delete policy --------------")
             delete_policy(kube_apis.custom_objects, pol_name, test_namespace)
 
     request.addfinalizer(fin)
+
 
 @pytest.fixture(scope="function")
 def invalid_policy_setup(request, kube_apis, test_namespace) -> None:
@@ -110,6 +111,7 @@ def invalid_policy_setup(request, kube_apis, test_namespace) -> None:
             delete_policy(kube_apis.custom_objects, pol_name, test_namespace)
 
     request.addfinalizer(fin)
+
 
 @pytest.fixture(scope="function")
 def ingress_setup(
@@ -188,21 +190,23 @@ def config_setup(request, kube_apis, ingress_controller_prerequisites) -> None:
 
     request.addfinalizer(fin)
 
+
 @pytest.mark.policies
 @pytest.mark.policies_ac
 @pytest.mark.annotations
-@pytest.mark.parametrize("crd_ingress_controller",
-[
-    {
-        "type": "complete",
-        "extra_args": [
-            f"-enable-custom-resources",
-            f"-enable-leader-election=false",
-            f"-enable-prometheus-metrics",
-        ],
-    },
-],
-indirect=True
+@pytest.mark.parametrize(
+    "crd_ingress_controller",
+    [
+        {
+            "type": "complete",
+            "extra_args": [
+                f"-enable-custom-resources",
+                f"-enable-leader-election=false",
+                f"-enable-prometheus-metrics",
+            ],
+        },
+    ],
+    indirect=True,
 )
 class TestAccessControlPoliciesIngress:
 
@@ -278,7 +282,9 @@ class TestAccessControlPoliciesIngress:
         assert resp1.status_code == 200, f"Expected 200 for allowed IP, got {resp1.status_code}"
         assert resp2.status_code == 403, f"Expected 403 for non-allowed IP, got {resp2.status_code}"
 
-    @pytest.mark.parametrize("ingress_setup", ["standard-invalid", "mergeable-invalid", "minion-invalid"], indirect=True)
+    @pytest.mark.parametrize(
+        "ingress_setup", ["standard-invalid", "mergeable-invalid", "minion-invalid"], indirect=True
+    )
     @pytest.mark.parametrize("invalid_policy_setup", [invalid_pol_src], indirect=True)
     def test_invalid_policy(
         self,
@@ -301,9 +307,7 @@ class TestAccessControlPoliciesIngress:
         )
         print(f"Response: {resp.status_code}\n{resp.text}")
 
-        policy_info = read_custom_resource(
-            kube_apis.custom_objects, test_namespace, "policies", "invalid-policy"
-        )
+        policy_info = read_custom_resource(kube_apis.custom_objects, test_namespace, "policies", "invalid-policy")
         print(f"Policy status: {policy_info.get('status', {})}")
 
         assert resp.status_code == 200, f"Expected 200 for invalid policy, got {resp.status_code}"
