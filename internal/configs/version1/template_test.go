@@ -1359,12 +1359,23 @@ func TestExecuteTemplate_ForMainForNGINXWithZoneSyncEnabledCustomResolverAddress
 		"zone_sync_server nginx-ingress-headless.nginx-ingress.svc.cluster.local:1223 resolve;",
 	}
 
+	unwantedDirectives := []string{
+		"listen [::]:1223;",
+	}
+
 	mainConf := buf.String()
 	for _, want := range wantDirectives {
 		if !strings.Contains(mainConf, want) {
 			t.Errorf("want %q in generated config", want)
 		}
 	}
+
+	for _, unwanted := range unwantedDirectives {
+		if strings.Contains(mainConf, unwanted) {
+			t.Errorf("do not want %q in generated config", unwanted)
+		}
+	}
+
 	snaps.MatchSnapshot(t, buf.String())
 }
 
@@ -3479,6 +3490,7 @@ var (
 	}
 
 	mainCfgWithZoneSyncEnabledCustomResolverAddressAndValidAndIPV6Off = MainConfig{
+		DisableIPV6: true,
 		ZoneSyncConfig: ZoneSyncConfig{
 			Enable:            true,
 			Port:              1223,

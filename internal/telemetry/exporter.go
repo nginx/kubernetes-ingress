@@ -146,4 +146,6 @@ type NICResourceCounts struct {
 	VariablesRateLimitPolicies int64
 	// CachePolicies is the number of Cache policies managed by NGINX Ingress Controller
 	CachePolicies int64
+	// CORSPolicies is the number of CORS policies managed by NGINX Ingress Controller
+	CORSPolicies int64
 }

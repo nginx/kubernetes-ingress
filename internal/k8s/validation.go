@@ -102,7 +102,7 @@ type annotationValidationContext struct {
 	internalRoutesEnabled bool
 	fieldPath             *field.Path
 	snippetsEnabled       bool
-	directiveAutoadjust   bool
+	directiveAutoAdjust   bool
 }
 
 type (
@@ -390,8 +390,9 @@ func validateCommaSeparatedList(context *annotationValidationContext) field.Erro
 	items := strings.Split(context.value, commaDelimiter)
 	var allErrs field.ErrorList
 	for _, item := range items {
+		item = strings.TrimSpace(item)
 		if !validAnnotationValueRegex.MatchString(item) {
-			allErrs = append(allErrs, field.Invalid(context.fieldPath, policy, annotationValueFmtErrMsg))
+			allErrs = append(allErrs, field.Invalid(context.fieldPath, item, annotationValueFmtErrMsg))
 		}
 	}
 	return allErrs
@@ -719,7 +720,7 @@ func validateIngressAnnotations(
 				internalRoutesEnabled: ingOpts.internalRoutesEnabled,
 				fieldPath:             fieldPath.Child(name),
 				snippetsEnabled:       ingOpts.snippetsEnabled,
-				directiveAutoadjust:   ingOpts.directiveAutoAdjust,
+				directiveAutoAdjust:   ingOpts.directiveAutoAdjust,
 			}
 			allErrs = append(allErrs, validateIngressAnnotation(context)...)
 		}

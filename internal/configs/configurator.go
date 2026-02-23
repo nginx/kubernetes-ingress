@@ -324,7 +324,7 @@ func (cnf *Configurator) AddOrUpdateIngresses(ingExes []*IngressEx) (Warnings, e
 	}
 
 	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
-		return allWarnings, fmt.Errorf("error when reloading NGINX when updating Policy: %w", err)
+		return allWarnings, fmt.Errorf("error when reloading NGINX when updating Ingresses: %w", err)
 	}
 
 	return allWarnings, nil

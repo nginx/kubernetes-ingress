@@ -6473,9 +6473,9 @@ http {
         set $resource_namespace "";
         set $service "";
 
-        listen 0 default_server;listen [::]:0 default_server;
+        listen 0 default_server;
         listen 0 ssl default_server;
-        listen [::]:0 ssl default_server;
+        
         ssl_certificate /etc/nginx/secrets/default;
         ssl_certificate_key /etc/nginx/secrets/default;
 
@@ -6529,7 +6529,6 @@ stream {
     
     server {
         listen 1223;
-        listen [::]:1223;
         resolver example.com valid=20s ipv6=off;
         zone_sync;
         zone_sync_server nginx-ingress-headless.nginx-ingress.svc.cluster.local:1223 resolve;

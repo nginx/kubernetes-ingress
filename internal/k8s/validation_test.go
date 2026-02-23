@@ -5089,8 +5089,8 @@ func TestValidatePolicyNames(t *testing.T) {
 		},
 		{
 			name:         "policy name too long",
-			value:        strings.Repeat("a", 64),
-			expectErrors: false,
+			value:        strings.Repeat("a", 254),
+			expectErrors: true,
 		},
 		{
 			name:           "policy name with space",
@@ -5144,8 +5144,8 @@ func TestValidatePolicyNames(t *testing.T) {
 		},
 		{
 			name:         "namespace too long",
-			value:        strings.Repeat("a", 64) + "/policy",
-			expectErrors: false,
+			value:        strings.Repeat("a", 254) + "/policy",
+			expectErrors: true,
 		},
 		{
 			name:           "namespace with space",
@@ -5276,9 +5276,6 @@ func TestValidatePolicyNamesFuzzing(t *testing.T) {
 
 		// Boundary length cases
 		"a",                      // Minimum length
-		strings.Repeat("a", 63),  // DNS label max length
-		strings.Repeat("a", 64),  // Over DNS label max length (should fail)
-		strings.Repeat("a", 100), // Way over limit
 		strings.Repeat("a", 253), // Very long
 
 		// Various whitespace combinations
@@ -5444,9 +5441,9 @@ func TestValidatePolicyNamesEdgeCases(t *testing.T) {
 		},
 		{
 			name:         "maximum length valid policy",
-			value:        strings.Repeat("a", 63),
+			value:        strings.Repeat("a", 253),
 			expectErrors: false,
-			description:  "63 character policy name should be valid (DNS label max)",
+			description:  "253 character policy name should be valid (DNS label max)",
 		},
 		{
 			name:         "over maximum length policy",
