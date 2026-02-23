@@ -1,0 +1,31 @@
+{
+  "realm": "example",
+  "enabled": true,
+  "users": [
+    {
+      "username": "testuser",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "testpassword"
+        }
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "oauth2-proxy-client",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "REPLACE_WITH_CLIENT_SECRET",
+      "protocol": "openid-connect",
+      "redirectUris": [
+        "http://oauth2-proxy.example.svc.cluster.local:4180/oauth2/callback",
+        "http://localhost:4180/oauth2/callback"
+      ],
+      "standardFlowEnabled": true
+    }
+  ]
+}
+

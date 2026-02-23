@@ -3595,3 +3595,65 @@ func TestAddWafConfig(t *testing.T) {
 		}
 	}
 }
+
+// Tests for ExternalAuth moved from external_auth_test.go
+func TestGeneratePoliciesWithExternalAuth(t *testing.T) {
+	ctx := context.TODO()
+	owner := &conf_v1.VirtualServer{ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: "vs"}}
+	ownerDetails := policyOwnerDetails{
+		owner:          owner,
+		ownerName:      owner.Name,
+		ownerNamespace: owner.Namespace,
+		vsNamespace:    owner.Namespace,
+		vsName:         owner.Name,
+	}
+
+	pol := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: "exauth"},
+		Spec: conf_v1.PolicySpec{
+			ExternalAuth: &conf_v1.ExternalAuth{
+				ProxyPass: "http://auth-server",
+				Headers:   []conf_v1.Header{{Name: "X-Auth", Value: "val"}},
+			},
+		},
+	}
+
+	policies := map[string]*conf_v1.Policy{"default/exauth": pol}
+	policyRefs := []conf_v1.PolicyReference{{Name: "exauth"}}
+
+	res, warnings := generatePolicies(ctx, ownerDetails, policyRefs, policies, specContext, "/", policyOptions{}, nil)
+	if len(warnings) > 0 {
+		t.Errorf("expected no warnings, got %v", warnings)
+	}
+	if res.ExternalAuth == nil {
+		t.Fatalf("expected ExternalAuth to be set, got nil")
+	}
+	if res.ExternalAuth.ProxyPass != "http://auth-server" {
+		t.Fatalf("unexpected ProxyPass: %v", res.ExternalAuth.ProxyPass)
+	}
+	if len(res.ExternalAuth.AddHeaders) != 1 {
+		t.Fatalf("expected 1 header, got %d", len(res.ExternalAuth.AddHeaders))
+	}
+	if res.ExternalAuth.AddHeaders[0].Name != "X-Auth" || res.ExternalAuth.AddHeaders[0].Value != "val" {
+		t.Fatalf("unexpected header value: %+v", res.ExternalAuth.AddHeaders[0])
+	}
+}
+
+func TestAddPoliciesCfgToLocationSetsExternalAuth(t *testing.T) {
+	cfg := policiesCfg{}
+	cfg.ExternalAuth = &version2.ExternalAuth{
+		ProxyPass:  "http://auth-server",
+		AddHeaders: []version2.Header{{Name: "X-Auth", Value: "val"}},
+	}
+	loc := version2.Location{}
+	addPoliciesCfgToLocation(cfg, &loc)
+	if loc.ExternalAuth == nil {
+		t.Fatalf("expected location.ExternalAuth to be set")
+	}
+	if loc.ExternalAuth.ProxyPass != "http://auth-server" {
+		t.Fatalf("unexpected ProxyPass: %v", loc.ExternalAuth.ProxyPass)
+	}
+	if len(loc.ExternalAuth.AddHeaders) != 1 || loc.ExternalAuth.AddHeaders[0].Name != "X-Auth" {
+		t.Fatalf("unexpected AddHeaders: %+v", loc.ExternalAuth.AddHeaders)
+	}
+}

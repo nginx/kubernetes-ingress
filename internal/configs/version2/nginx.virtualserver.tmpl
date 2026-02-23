@@ -202,6 +202,28 @@ server {
     }
     {{- end }}
 
+    {{- /* External auth: server-level internal auth endpoint and support for locations. */}}
+    {{- if or $s.ExternalAuth.Enabled (gt (len $s.ExternalAuth) 0) }}
+    location = /_external_auth {
+        internal;
+        {{- /* proxy target can be set via $s.ExternalAuth.ProxyPass (e.g. "http://auth-server") */}}
+        {{- if $s.ExternalAuth.ProxyPass }}
+        proxy_pass {{ $s.ExternalAuth.ProxyPass }};
+        {{- else }}
+        proxy_pass http://auth-server;
+        {{- end }}
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+        proxy_set_header X-Original-URI $request_uri;
+        proxy_set_header X-Original-Method $request_method;
+        proxy_set_header X-Original-Host $host;
+        {{- /* copy through other forwarded headers if configured on the policy */}}
+        {{- range $h := $s.ExternalAuth.AddHeaders }}
+        proxy_set_header {{ $h.Name }} "{{ $h.Value }}";
+        {{- end }}
+    }
+    {{- end }}
+
     {{- with $s.BasicAuth }}
     auth_basic {{ printf "%q" .Realm }};
     auth_basic_user_file {{ .Secret }};
@@ -280,6 +302,13 @@ server {
         {{- end }}
         {{- range $snippet := $l.Snippets }}
         {{ $snippet }}
+        {{- end }}
+
+        {{- /* External auth on a per-location basis: prefer location setting, fallback to server-level */}}
+        {{- $locEA := or $l.ExternalAuth $s.ExternalAuth }}
+        {{- if $locEA.Enabled }}
+        auth_request /_external_auth;
+        auth_request_set $auth_status $upstream_status;
         {{- end }}
 
         {{- with $l.PoliciesErrorReturn }}

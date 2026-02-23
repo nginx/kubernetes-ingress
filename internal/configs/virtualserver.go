@@ -461,13 +461,6 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	dosCfg := generateDosCfg(dosResources[""])
 
-	// enabledInternalRoutes controls if a virtual server is configured as an internal route.
-	enabledInternalRoutes := vsEx.VirtualServer.Spec.InternalRoute
-	if vsEx.VirtualServer.Spec.InternalRoute && !vsc.enableInternalRoutes {
-		vsc.addWarningf(vsEx.VirtualServer, "Internal Route cannot be configured for virtual server %s. Internal Routes can be enabled by setting the enable-internal-routes flag", vsEx.VirtualServer.Name)
-		enabledInternalRoutes = false
-	}
-
 	// crUpstreams maps an UpstreamName to its conf_v1.Upstream as they are generated
 	// necessary for generateLocation to know what Upstream each Location references
 	crUpstreams := make(map[string]conf_v1.Upstream)
@@ -874,22 +867,22 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				twoWaySplitClients = append(twoWaySplitClients, cfg.TwoWaySplitClients...)
 				matchesRoutes++
 			} else if len(r.Splits) > 0 {
-				cfg := generateDefaultSplitsConfig(r, upstreamNamer, crUpstreams, VariableNamer, len(splitClients), vsc.cfgParams,
-					errorPages, r.Path, locSnippets, vsc.enableSnippets, len(returnLocations), isVSR, vsr.Name, vsr.Namespace, vsc.warnings, vsc.DynamicWeightChangesReload)
+				cfg := generateDefaultSplitsConfig(r, virtualServerUpstreamNamer, crUpstreams, VariableNamer, len(splitClients),
+					vsc.cfgParams, errorPages, r.Path, locSnippets, vsc.enableSnippets, len(returnLocations), isVSR, "", "", vsc.warnings, vsc.DynamicWeightChangesReload)
 				addPoliciesCfgToLocations(routePoliciesCfg, cfg.Locations)
 				addDosConfigToLocations(dosRouteCfg, cfg.Locations)
-
 				splitClients = append(splitClients, cfg.SplitClients...)
 				locations = append(locations, cfg.Locations...)
 				internalRedirectLocations = append(internalRedirectLocations, cfg.InternalRedirectLocation)
 				returnLocations = append(returnLocations, cfg.ReturnLocations...)
+				maps = append(maps, cfg.Maps...)
 				keyValZones = append(keyValZones, cfg.KeyValZones...)
 				keyVals = append(keyVals, cfg.KeyVals...)
 				twoWaySplitClients = append(twoWaySplitClients, cfg.TwoWaySplitClients...)
-				maps = append(maps, cfg.Maps...)
 			} else {
 				upstreamName := upstreamNamer.GetNameForUpstreamFromAction(r.Action)
 				upstream := crUpstreams[upstreamName]
+
 				serviceNamespace, serviceName := ParseServiceReference(upstream.Service, vsr.Namespace)
 				proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
 
@@ -977,13 +970,12 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			DisableIPV6:               vsc.isIPV6Disabled,
 			NGINXDebugLevel:           vsc.cfgParams.MainErrorLogLevel,
 		},
-		SpiffeCerts:             enabledInternalRoutes,
-		SpiffeClientCerts:       vsc.spiffeCerts && !enabledInternalRoutes,
-		DynamicSSLReloadEnabled: vsc.DynamicSSLReloadEnabled,
-		StaticSSLPath:           vsc.StaticSSLPath,
-		KeyValZones:             keyValZones,
-		KeyVals:                 keyVals,
-		TwoWaySplitClients:      twoWaySplitClients,
+	}
+	if policiesCfg.ExternalAuth != nil {
+		vsCfg.Server.ExternalAuth = &version2.ExternalAuth{
+			ProxyPass:  policiesCfg.ExternalAuth.ProxyPass,
+			AddHeaders: policiesCfg.ExternalAuth.AddHeaders,
+		}
 	}
 
 	return vsCfg, vsc.warnings
@@ -1183,6 +1175,12 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 	location.APIKey = cfg.APIKey.Key
 	location.Cache = cfg.Cache
 	location.PoliciesErrorReturn = cfg.ErrorReturn
+	if cfg.ExternalAuth != nil {
+		location.ExternalAuth = &version2.ExternalAuth{
+			ProxyPass:  cfg.ExternalAuth.ProxyPass,
+			AddHeaders: cfg.ExternalAuth.AddHeaders,
+		}
+	}
 }
 
 func addPoliciesCfgToLocations(cfg policiesCfg, locations []version2.Location) {

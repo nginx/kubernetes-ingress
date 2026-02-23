@@ -373,6 +373,28 @@ spec:
                       certificate.
                     type: boolean
                 type: object
+              externalAuth:
+                description: ExternalAuth configures an auth_request based external
+                  authentication backend (OSS).
+                properties:
+                  headers:
+                    description: Headers to add when proxying to the auth backend.
+                    items:
+                      description: Header defines an HTTP Header.
+                      properties:
+                        name:
+                          description: The name of the header.
+                          type: string
+                        value:
+                          description: The value of the header.
+                          type: string
+                      type: object
+                    type: array
+                  proxyPass:
+                    description: ProxyPass target for the internal auth location (e.g.
+                      "http://auth-server").
+                    type: string
+                type: object
               ingressClassName:
                 description: Specifies which instance of NGINX Ingress Controller
                   must handle the Policy resource.

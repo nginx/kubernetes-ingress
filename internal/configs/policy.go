@@ -63,6 +63,7 @@ type policiesCfg struct {
 	Cache           *version2.Cache
 	ErrorReturn     *version2.Return
 	BundleValidator bundleValidator
+	ExternalAuth    *version2.ExternalAuth
 }
 
 func newPoliciesConfig(bv bundleValidator) *policiesCfg {
@@ -721,6 +722,23 @@ func (p *policiesCfg) addCacheConfig(
 	return res
 }
 
+func (p *policiesCfg) addExternalAuthConfig(exAuth *conf_v1.ExternalAuth, polKey string) *validationResults {
+	res := newValidationResults()
+	if p.ExternalAuth != nil {
+		res.addWarningf("Multiple externalAuth policies in the same context is not valid. ExternalAuth policy %s will be ignored", polKey)
+		return res
+	}
+	addHeaders := []version2.Header{}
+	for _, h := range exAuth.Headers {
+		addHeaders = append(addHeaders, version2.Header{Name: h.Name, Value: h.Value})
+	}
+	p.ExternalAuth = &version2.ExternalAuth{
+		ProxyPass:  exAuth.ProxyPass,
+		AddHeaders: addHeaders,
+	}
+	return res
+}
+
 // nolint:gocyclo
 func generatePolicies(
 	ctx context.Context,
@@ -775,6 +793,8 @@ func generatePolicies(
 				res = config.addEgressMTLSConfig(pol.Spec.EgressMTLS, key, polNamespace, policyOpts.secretRefs)
 			case pol.Spec.OIDC != nil:
 				res = config.addOIDCConfig(pol.Spec.OIDC, key, polNamespace, policyOpts)
+			case pol.Spec.ExternalAuth != nil:
+				res = config.addExternalAuthConfig(pol.Spec.ExternalAuth, key)
 			case pol.Spec.APIKey != nil:
 				res = config.addAPIKeyConfig(pol.Spec.APIKey, key, polNamespace, ownerDetails.vsNamespace,
 					ownerDetails.vsName, policyOpts.secretRefs)

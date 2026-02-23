@@ -105,7 +105,6 @@ jobs:
             needs cherry pick
           body: |
             This automated PR updates pinned container image SHAs to latest.
-        if: ${{ !inputs.dry_run && steps.update_images.outputs.change_detected == 'true' }}
 
       - name: Enable auto-merge for Docker update PRs
         run: gh pr merge --auto --squash "$PR_URL"

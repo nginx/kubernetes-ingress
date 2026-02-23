@@ -1,0 +1,13 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: vs-external-auth
+  namespace: default
+spec:
+  host: external-auth.example.com
+  policies:
+    - name: external-auth-policy
+  routes:
+    - path: /private/
+      action:
+        pass: httpbin

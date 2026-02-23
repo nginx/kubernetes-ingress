@@ -54,3 +54,4 @@ jobs:
           token: ${{ steps.secrets.outputs.NGINX_PAT }}
           author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
           title: "[cherry-pick] {old_title}"
+          title: "[cherry-pick] {old_title}"

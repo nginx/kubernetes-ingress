@@ -110,6 +110,7 @@ type Server struct {
 	DisableIPV6               bool
 	Gunzip                    bool
 	NGINXDebugLevel           string
+	ExternalAuth              *ExternalAuth
 }
 
 // SSL defines SSL configuration for a server.
@@ -193,6 +194,12 @@ type Dos struct {
 	ApDosAccessLogDest     string
 }
 
+// ExternalAuth describes an auth_request-based external auth backend.
+type ExternalAuth struct {
+	ProxyPass  string
+	AddHeaders []Header
+}
+
 // Location defines a location.
 type Location struct {
 	Path                     string
@@ -243,6 +250,7 @@ type Location struct {
 	VSRName                  string
 	VSRNamespace             string
 	GRPCPass                 string
+	ExternalAuth             *ExternalAuth
 }
 
 // ReturnLocation defines a location for returning a fixed response.

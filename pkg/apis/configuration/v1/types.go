@@ -796,12 +796,22 @@ type PolicySpec struct {
 	// The OpenID Connect policy configures NGINX to authenticate client requests by validating a JWT token against an OAuth2/OIDC token provider, such as Auth0 or Keycloak.
 	// +kubebuilder:validation:XValidation:rule="(self.sslVerify == true) || (self.sslVerify == false && !has(self.trustedCertSecret))",message="trustedCertSecret can be set only if sslVerify is true"
 	OIDC *OIDC `json:"oidc"`
+	// ExternalAuth configures an auth_request based external authentication backend (OSS).
+	ExternalAuth *ExternalAuth `json:"externalAuth"`
 	// The WAF policy configures WAF and log configuration policies for NGINX AppProtect
 	WAF *WAF `json:"waf"`
 	// The API Key policy configures NGINX to authorize requests which provide a valid API Key in a specified header or query param.
 	APIKey *APIKey `json:"apiKey"`
 	// The Cache Key defines a cache policy for proxy caching
 	Cache *Cache `json:"cache"`
+}
+
+// ExternalAuth configures an auth_request style external auth endpoint for OSS NGINX.
+type ExternalAuth struct {
+	// ProxyPass target for the internal auth location (e.g. "http://auth-server").
+	ProxyPass string `json:"proxyPass"`
+	// Headers to add when proxying to the auth backend.
+	Headers []Header `json:"headers"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

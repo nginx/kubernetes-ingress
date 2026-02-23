@@ -1,0 +1,15 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: external-auth-policy
+  namespace: default
+spec:
+  externalAuth:
+    proxyPass: "http://oauth2-proxy.default.svc.cluster.local:4180/oauth2/auth"
+    headers:
+      - name: "X-Original-Host"
+        value: "$host"
+      - name: "X-Original-URI"
+        value: "$request_uri"
+      - name: "X-Original-Method"
+        value: "$request_method"

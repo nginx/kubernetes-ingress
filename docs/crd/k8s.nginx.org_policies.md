@@ -65,6 +65,11 @@ The `.spec` object supports the following fields:
 | `egressMTLS.trustedCertSecret` | `string` | The name of the Kubernetes secret that stores the CA certificate. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/ca, and the certificate must be stored in the secret under the key ca.crt, otherwise the secret will be rejected as invalid. |
 | `egressMTLS.verifyDepth` | `integer` | Sets the verification depth in the proxied HTTPS server certificates chain. The default is 1. |
 | `egressMTLS.verifyServer` | `boolean` | Enables verification of the upstream HTTPS server certificate. |
+| `externalAuth` | `object` | ExternalAuth configures an auth_request based external authentication backend (OSS). |
+| `externalAuth.headers` | `array` | Headers to add when proxying to the auth backend. |
+| `externalAuth.headers[].name` | `string` | The name of the header. |
+| `externalAuth.headers[].value` | `string` | The value of the header. |
+| `externalAuth.proxyPass` | `string` | ProxyPass target for the internal auth location (e.g. "http://auth-server"). |
 | `ingressClassName` | `string` | Specifies which instance of NGINX Ingress Controller must handle the Policy resource. |
 | `ingressMTLS` | `object` | The IngressMTLS policy configures client certificate verification. |
 | `ingressMTLS.clientCertSecret` | `string` | The name of the Kubernetes secret that stores the CA certificate. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/ca, and the certificate must be stored in the secret under the key ca.crt, otherwise the secret will be rejected as invalid. |

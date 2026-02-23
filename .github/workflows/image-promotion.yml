@@ -704,7 +704,6 @@ jobs:
           major-label: "change"
           publish: false
           collapse-after: 50
-          variables: |
             helm-chart=${{ needs.checks.outputs.chart_version }}
           notes-footer: |
             ## Upgrade
