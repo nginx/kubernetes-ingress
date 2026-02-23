@@ -1001,6 +1001,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			DisableIPV6:               vsc.isIPV6Disabled,
 			NGINXDebugLevel:           vsc.cfgParams.MainErrorLogLevel,
 		},
+
 		SpiffeCerts:             enabledInternalRoutes,
 		SpiffeClientCerts:       vsc.spiffeCerts && !enabledInternalRoutes,
 		DynamicSSLReloadEnabled: vsc.DynamicSSLReloadEnabled,
@@ -1008,14 +1009,13 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		KeyValZones:             keyValZones,
 		KeyVals:                 keyVals,
 		TwoWaySplitClients:      twoWaySplitClients,
+	}
 	if policiesCfg.ExternalAuth != nil {
 		vsCfg.Server.ExternalAuth = &version2.ExternalAuth{
 			ProxyPass:  policiesCfg.ExternalAuth.ProxyPass,
 			AddHeaders: policiesCfg.ExternalAuth.AddHeaders,
 		}
 	}
-
-}
 
 	return vsCfg, vsc.warnings
 }
