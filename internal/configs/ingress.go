@@ -182,8 +182,6 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 		allWarnings.Add(warnings)
 	}
 
-	// TODO: Remove this debug line when policyCfg is used in the code below
-	nl.Debug(l, policyCfg)
 	for _, rule := range p.ingEx.Ingress.Spec.Rules {
 		// skipping invalid hosts
 		if !p.ingEx.ValidHosts[rule.Host] {
