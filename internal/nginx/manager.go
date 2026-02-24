@@ -73,7 +73,6 @@ type ServerConfig struct {
 type Manager interface {
 	CreateMainConfig(content []byte) (bool, error)
 	CreateConfig(name string, content []byte) (bool, error)
-	TestConfig() error
 	DeleteConfig(name string)
 	CreateStreamConfig(name string, content []byte) bool
 	DeleteStreamConfig(name string)
@@ -223,21 +222,6 @@ func deleteConfig(l *slog.Logger, filename string) {
 
 func (lm *LocalManager) getFilenameForConfig(name string) string {
 	return path.Join(lm.confdPath, name+".conf")
-}
-
-// TestConfig tests the nginx configuration for syntax errors and file accessibility.
-func (lm *LocalManager) TestConfig() error {
-	nl.Debugf(lm.logger, "Testing nginx configuration")
-
-	binaryFilename := getBinaryFileName(lm.debug)
-	testCmd := fmt.Sprintf("%v -t -q", binaryFilename)
-
-	if err := shellOut(lm.logger, testCmd); err != nil {
-		return fmt.Errorf("nginx configuration test failed: %w", err)
-	}
-
-	nl.Debugf(lm.logger, "Nginx configuration test passed")
-	return nil
 }
 
 func (lm *LocalManager) getFilenameForOIDCConfig(name string) string {

@@ -44,12 +44,6 @@ func (fm *FakeManager) CreateConfig(name string, content []byte) (bool, error) {
 	return true, nil
 }
 
-// TestConfig provides a fake implementation of TestConfig.
-func (fm *FakeManager) TestConfig() error {
-	nl.Debug(fm.logger, "Testing nginx configuration")
-	return nil
-}
-
 // CreateOIDCConfig provides a fake implementation of CreateOIDCConfig.
 func (fm *FakeManager) CreateOIDCConfig(name string, content []byte) bool {
 	nl.Debugf(fm.logger, "Writing OIDC config %v", name)
