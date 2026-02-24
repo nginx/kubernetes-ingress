@@ -1,0 +1,117 @@
+name: External PR Handler
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+    contents: write
+    pull-requests: write
+    issues: write
+
+jobs:
+  create-branch:
+    if: >
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '/approve-pipeline-run')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check commenter permissions
+        uses: actions/github-script@v8
+        id: pr
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { data: permission } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: context.actor
+            });
+
+            const allowed = ["admin", "write", "maintain"].includes(permission.permission);
+            if (!allowed) {
+              core.setFailed("User is not authorized to approve pipeline run.");
+            }
+
+      - name: Get PR details
+        uses: actions/github-script@v8
+        id: pr-info
+        with:
+          script: |
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+
+            core.setOutput('is_fork', pr.data.head.repo.fork.toString());
+            core.setOutput('fork_owner', pr.data.head.repo.owner.login);
+            core.setOutput('fork_repo', pr.data.head.repo.name);
+            core.setOutput('branch', pr.data.head.ref);
+            core.setOutput('sha', pr.data.head.sha);
+            core.setOutput('contributor', pr.data.user.login);
+            core.setOutput('pr_number', pr.data.number.toString());
+            core.setOutput('base_branch', pr.data.base.ref);
+            core.setOutput('title', pr.data.title);
+            core.setOutput('body', pr.data.body);
+
+      - name: Skip if not fork
+        if: steps.pr-info.outputs.is_fork != 'true'
+        run: |
+          echo "Not from fork - skipping"
+          exit 0
+
+      - name: Checkout fork branch
+        if: steps.pr-info.outputs.is_fork == 'true'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          repository: ${{ steps.pr-info.outputs.fork_owner }}/${{ steps.pr-info.outputs.fork_repo }}
+          ref: ${{ steps.pr-info.outputs.branch }}
+          fetch-depth: 0
+
+      - name: Configure Git
+        if: steps.pr-info.outputs.is_fork == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create and push branch
+        if: steps.pr-info.outputs.is_fork == 'true'
+        id: branch
+        run: |
+          git remote add upstream https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          git fetch upstream
+
+          CONTRIBUTOR="${{ steps.pr-info.outputs.contributor }}"
+          BRANCH_NAME="${{ steps.pr-info.outputs.branch }}"
+          PR_NUM="${{ steps.pr-info.outputs.pr_number }}"
+
+          INTERNAL_BRANCH="${CONTRIBUTOR}-${BRANCH_NAME}-pr${PR_NUM}"
+
+          # Check if branch already exists
+          if git ls-remote --heads upstream "$INTERNAL_BRANCH" | grep -q "$INTERNAL_BRANCH"; then
+            echo "Branch already exists - appending timestamp"
+            INTERNAL_BRANCH="${INTERNAL_BRANCH}-$(date +%s)"
+          fi
+
+          echo "internal_branch=${INTERNAL_BRANCH}" >> $GITHUB_OUTPUT
+
+          git checkout -b "${INTERNAL_BRANCH}"
+          git push upstream "${INTERNAL_BRANCH}"
+
+          echo "Branch created: ${INTERNAL_BRANCH}"
+
+      - name: Open internal PR
+        if: steps.pr-info.outputs.is_fork == 'true'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              base: '${{ steps.pr-info.outputs.base_branch }}',
+              head: '${{ steps.branch.outputs.internal_branch }}',
+              title: `DO NOT MERGE ${{ steps.pr-info.outputs.title }}`,
+              body: `${{ steps.pr-info.outputs.body }}`,
+              draft: true
+            });
