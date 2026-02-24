@@ -68,6 +68,10 @@ package.json
 kube-local
 venv/
 
+# hack/cve-automation generated files
+hack/cve-automation/reports/*
+hack/cve-automation/downloads/*
+
 # AUTO GENERATED SECTION BY CERTGEN (hack/secrets-gen/gitignore-gen.go), DO NOT EDIT BELOW
 
 # TLS Certificate secrets
