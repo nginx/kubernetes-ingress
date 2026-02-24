@@ -99,15 +99,50 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 	namespace, name, _ := ParseNamespaceName(key)
 
 	resources := lbc.configuration.FindResourcesForPolicy(namespace, name)
+
+	// Loop through the resources that reference this policy and check if the policy type is supported on the resource. If not, log an error and emit an event.
+	// Note: if we ever support all policy types on all resources, this loop can be removed.
+	for _, res := range resources {
+		switch impl := res.(type) {
+		// We only check for Ingress resources because VirtualServer and VirtualServerRoute support all policy types.
+		//   If a new resource type is added that supports a subset of policy types, a new case should be added here to check for supported policy types on that resource.
+		case *IngressConfiguration:
+			if !polExists {
+				continue
+			}
+			pol := obj.(*conf_v1.Policy)
+			switch {
+			// Use the AccessControl example below to add support for a policy type on Ingress
+			// case pol.Spec.AccessControl != nil:
+			// 	// Access Control policy is supported on Ingress
+			// 	continue
+			default: // Unsupported policy type on Ingress
+				msg := fmt.Sprintf("Policy %s/%s has unsupported type on Ingress resource %s/%s",
+					pol.Namespace, pol.Name, impl.Ingress.Namespace, impl.Ingress.Name)
+				nl.Error(lbc.Logger, msg)
+				lbc.recorder.Eventf(impl.Ingress, api_v1.EventTypeWarning, nl.EventReasonRejected, msg)
+			}
+		default:
+			continue
+		}
+	}
+
 	resourceExes := lbc.createExtendedResources(resources)
 
-	// Only VirtualServers support policies
-	if len(resourceExes.VirtualServerExes) == 0 {
+	// Only VirtualServers and Ingresses support policies
+	if len(resourceExes.VirtualServerExes) == 0 && len(resourceExes.IngressExes) == 0 {
 		return
 	}
 
-	warnings, updateErr := lbc.configurator.AddOrUpdateVirtualServers(resourceExes.VirtualServerExes)
-	lbc.updateResourcesStatusAndEvents(resources, warnings, updateErr)
+	if len(resourceExes.VirtualServerExes) > 0 {
+		warnings, updateErr := lbc.configurator.AddOrUpdateVirtualServers(resourceExes.VirtualServerExes)
+		lbc.updateResourcesStatusAndEvents(resources, warnings, updateErr)
+	}
+
+	if len(resourceExes.IngressExes) > 0 {
+		warnings, updateErr := lbc.configurator.AddOrUpdateIngresses(resourceExes.IngressExes)
+		lbc.updateResourcesStatusAndEvents(resources, warnings, updateErr)
+	}
 
 	// Note: updating the status of a policy based on a reload is not needed.
 }

@@ -1284,6 +1284,438 @@ func TestGeneratePolicies(t *testing.T) {
 	}
 }
 
+func TestAddCORSConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		cors     *conf_v1.CORS
+		expected policiesCfg
+	}{
+		{
+			name: "single origin CORS",
+			cors: &conf_v1.CORS{
+				AllowOrigin:  []string{"https://example.com"},
+				AllowMethods: []string{"GET", "POST"},
+				AllowHeaders: []string{"Content-Type", "Authorization"},
+				MaxAge:       createPointerFromInt(3600),
+			},
+			expected: policiesCfg{
+				CORSHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "https://example.com"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Headers", Value: "Content-Type, Authorization"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Max-Age", Value: "3600"}, Always: true},
+				},
+				CORSMap: nil,
+			},
+		},
+		{
+			name: "wildcard CORS without credentials",
+			cors: &conf_v1.CORS{
+				AllowOrigin:  []string{"*"},
+				AllowMethods: []string{"GET", "POST", "OPTIONS"},
+			},
+			expected: policiesCfg{
+				CORSHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "*"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST, OPTIONS"}, Always: true},
+				},
+				CORSMap: nil,
+			},
+		},
+		{
+			name: "multiple origins with credentials",
+			cors: &conf_v1.CORS{
+				AllowOrigin:      []string{"https://app.example.com", "https://admin.example.com"},
+				AllowMethods:     []string{"GET", "POST", "PUT", "DELETE"},
+				AllowHeaders:     []string{"Content-Type"},
+				ExposeHeaders:    []string{"X-Total-Count"},
+				AllowCredentials: createPointerFromBool(true),
+				MaxAge:           createPointerFromInt(86400),
+			},
+			expected: policiesCfg{
+				CORSHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_test_vs_default_cors_policy_default_cors_policy"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST, PUT, DELETE"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Headers", Value: "Content-Type"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Credentials", Value: "true"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Expose-Headers", Value: "X-Total-Count"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Max-Age", Value: "86400"}, Always: true},
+				},
+				CORSMap: &version2.Map{
+					Source:   "$http_origin",
+					Variable: "$cors_origin_default_test_vs_default_cors_policy_default_cors_policy",
+					Parameters: []version2.Parameter{
+						{Value: "default", Result: `""`},
+						{Value: `"https://app.example.com"`, Result: "https://app.example.com"},
+						{Value: `"https://admin.example.com"`, Result: "https://admin.example.com"},
+					},
+				},
+			},
+		},
+		{
+			name: "empty CORS policy",
+			cors: &conf_v1.CORS{},
+			expected: policiesCfg{
+				CORSHeaders: []version2.AddHeader{}, // Will be overwritten with empty slice
+				CORSMap:     nil,
+			},
+		},
+		{
+			name: "single wildcard subdomain CORS",
+			cors: &conf_v1.CORS{
+				AllowOrigin:  []string{"https://*.example.com"},
+				AllowMethods: []string{"GET", "POST"},
+			},
+			expected: policiesCfg{
+				CORSHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_test_vs_default_cors_policy_default_cors_policy"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST"}, Always: true},
+				},
+				CORSMap: &version2.Map{
+					Source:   "$http_origin",
+					Variable: "$cors_origin_default_test_vs_default_cors_policy_default_cors_policy",
+					Parameters: []version2.Parameter{
+						{Value: "default", Result: `""`},
+						{Value: "~^https://[^.]+\\.example\\.com$", Result: "$http_origin"},
+					},
+				},
+			},
+		},
+		{
+			name: "mixed exact and wildcard origins",
+			cors: &conf_v1.CORS{
+				AllowOrigin:  []string{"https://api.example.com", "https://*.dev.example.com"},
+				AllowMethods: []string{"GET", "POST", "PUT"},
+				AllowHeaders: []string{"Content-Type", "Authorization"},
+			},
+			expected: policiesCfg{
+				CORSHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_test_vs_default_cors_policy_default_cors_policy"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST, PUT"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Headers", Value: "Content-Type, Authorization"}, Always: true},
+				},
+				CORSMap: &version2.Map{
+					Source:   "$http_origin",
+					Variable: "$cors_origin_default_test_vs_default_cors_policy_default_cors_policy",
+					Parameters: []version2.Parameter{
+						{Value: "default", Result: `""`},
+						{Value: `"https://api.example.com"`, Result: "https://api.example.com"},
+						{Value: "~^https://[^.]+\\.dev\\.example\\.com$", Result: "$http_origin"},
+					},
+				},
+			},
+		},
+		{
+			name: "HTTP wildcard subdomain CORS",
+			cors: &conf_v1.CORS{
+				AllowOrigin: []string{"http://*.localhost.dev"},
+			},
+			expected: policiesCfg{
+				CORSHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_test_vs_default_cors_policy_default_cors_policy"}, Always: true},
+				},
+				CORSMap: &version2.Map{
+					Source:   "$http_origin",
+					Variable: "$cors_origin_default_test_vs_default_cors_policy_default_cors_policy",
+					Parameters: []version2.Parameter{
+						{Value: "default", Result: `""`},
+						{Value: "~^http://[^.]+\\.localhost\\.dev$", Result: "$http_origin"},
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := &policiesCfg{}
+			polKey := "default/cors-policy"
+			res := config.addCORSConfig(test.cors, polKey, "default", "test-vs", "default", "cors-policy")
+
+			// Check that no validation errors occurred
+			if len(res.warnings) > 0 {
+				t.Errorf("Unexpected warnings: %v", res.warnings)
+			}
+
+			// Compare CORS headers - handle nil vs empty slice
+			expectedCORS := test.expected.CORSHeaders
+			actualCORS := config.CORSHeaders
+
+			// For empty CORS policy
+			if test.name == "empty CORS policy" {
+				if len(actualCORS) != 0 || len(expectedCORS) != 0 {
+					t.Errorf("Expected both CORS headers to be empty, but got actual=%d expected=%d", len(actualCORS), len(expectedCORS))
+				}
+			} else {
+				if !reflect.DeepEqual(actualCORS, expectedCORS) {
+					t.Errorf("CORS headers mismatch.\nExpected: %+v\nGot: %+v", expectedCORS, actualCORS)
+				}
+			}
+
+			// Compare CORS map
+			if !reflect.DeepEqual(config.CORSMap, test.expected.CORSMap) {
+				t.Errorf("CORS map mismatch.\nExpected: %+v\nGot: %+v", test.expected.CORSMap, config.CORSMap)
+			}
+		})
+	}
+}
+
+func TestGenerateCORSPolicy(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	tests := []struct {
+		name       string
+		owner      policyOwnerDetails
+		path       string
+		policyRefs []conf_v1.PolicyReference
+		policies   map[string]*conf_v1.Policy
+		expected   policiesCfg
+		msg        string
+	}{
+		{
+			name: "VirtualServer with single origin CORS policy",
+			owner: policyOwnerDetails{
+				ownerNamespace:  "default",
+				ownerName:       "test-vs",
+				parentNamespace: "default",
+				parentName:      "test-vs",
+			},
+			path: "/",
+			policyRefs: []conf_v1.PolicyReference{
+				{Name: "cors-policy", Namespace: "default"},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/cors-policy": {
+					Spec: conf_v1.PolicySpec{
+						CORS: &conf_v1.CORS{
+							AllowOrigin:  []string{"https://trusted.example.com"},
+							AllowMethods: []string{"GET", "POST"},
+							AllowHeaders: []string{"Content-Type"},
+							MaxAge:       createPointerFromInt(3600),
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				CORSHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "https://trusted.example.com"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Headers", Value: "Content-Type"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Max-Age", Value: "3600"}, Always: true},
+				},
+			},
+			msg: "VirtualServer CORS policy with single origin",
+		},
+		{
+			name: "VirtualServer with multiple origins CORS policy",
+			owner: policyOwnerDetails{
+				ownerNamespace:  "default",
+				ownerName:       "test-vs",
+				parentNamespace: "default",
+				parentName:      "test-vs",
+			},
+			path: "/",
+			policyRefs: []conf_v1.PolicyReference{
+				{Name: "multi-origin-cors"},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/multi-origin-cors": {
+					Spec: conf_v1.PolicySpec{
+						CORS: &conf_v1.CORS{
+							AllowOrigin:      []string{"https://app.example.com", "https://admin.example.com"},
+							AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+							AllowHeaders:     []string{"Content-Type", "Authorization", "X-Requested-With"},
+							ExposeHeaders:    []string{"X-Total-Count", "X-RateLimit-Remaining"},
+							AllowCredentials: createPointerFromBool(true),
+							MaxAge:           createPointerFromInt(86400),
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				CORSHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_test_vs_default_multi_origin_cors"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST, PUT, DELETE, OPTIONS"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Headers", Value: "Content-Type, Authorization, X-Requested-With"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Credentials", Value: "true"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Expose-Headers", Value: "X-Total-Count, X-RateLimit-Remaining"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Max-Age", Value: "86400"}, Always: true},
+				},
+				CORSMap: &version2.Map{
+					Source:   "$http_origin",
+					Variable: "$cors_origin_default_test_vs_default_multi_origin_cors",
+					Parameters: []version2.Parameter{
+						{Value: "default", Result: `""`},
+						{Value: `"https://app.example.com"`, Result: "https://app.example.com"},
+						{Value: `"https://admin.example.com"`, Result: "https://admin.example.com"},
+					},
+				},
+			},
+			msg: "VirtualServer CORS policy with multiple origins generates map",
+		},
+		{
+			name: "VirtualServer with wildcard CORS policy",
+			owner: policyOwnerDetails{
+				ownerNamespace:  "default",
+				ownerName:       "test-vs",
+				parentNamespace: "default",
+				parentName:      "test-vs",
+			},
+			path: "/",
+			policyRefs: []conf_v1.PolicyReference{
+				{Name: "wildcard-cors", Namespace: "default"},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/wildcard-cors": {
+					Spec: conf_v1.PolicySpec{
+						CORS: &conf_v1.CORS{
+							AllowOrigin:  []string{"*"},
+							AllowMethods: []string{"GET", "POST", "OPTIONS"},
+							AllowHeaders: []string{"Content-Type", "Accept"},
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				CORSHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "*"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST, OPTIONS"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Headers", Value: "Content-Type, Accept"}, Always: true},
+				},
+			},
+			msg: "VirtualServer wildcard CORS policy does not generate map",
+		},
+		{
+			name: "VirtualServerRoute with CORS policy",
+			owner: policyOwnerDetails{
+				ownerNamespace:  "app-namespace",
+				ownerName:       "test-vsr",
+				parentNamespace: "default",
+				parentName:      "parent-vs",
+			},
+			path: "/api/v1",
+			policyRefs: []conf_v1.PolicyReference{
+				{Name: "vsr-cors-policy", Namespace: "app-namespace"},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"app-namespace/vsr-cors-policy": {
+					Spec: conf_v1.PolicySpec{
+						CORS: &conf_v1.CORS{
+							AllowOrigin:   []string{"https://app.example.com"},
+							AllowMethods:  []string{"GET", "POST", "PUT"},
+							AllowHeaders:  []string{"Content-Type", "X-API-Key"},
+							ExposeHeaders: []string{"X-Request-ID"},
+							MaxAge:        createPointerFromInt(7200),
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				CORSHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "https://app.example.com"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST, PUT"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Headers", Value: "Content-Type, X-API-Key"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Expose-Headers", Value: "X-Request-ID"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Max-Age", Value: "7200"}, Always: true},
+				},
+			},
+			msg: "VirtualServerRoute CORS policy with single origin",
+		},
+		{
+			name: "VirtualServerRoute with cross-namespace CORS policy",
+			owner: policyOwnerDetails{
+				ownerNamespace:  "app-namespace",
+				ownerName:       "test-vsr",
+				parentNamespace: "default",
+				parentName:      "parent-vs",
+			},
+			path: "/api/v1",
+			policyRefs: []conf_v1.PolicyReference{
+				{Name: "shared-cors", Namespace: "shared-policies"},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"shared-policies/shared-cors": {
+					Spec: conf_v1.PolicySpec{
+						CORS: &conf_v1.CORS{
+							AllowOrigin:      []string{"https://api.example.com", "https://dashboard.example.com"},
+							AllowMethods:     []string{"GET", "POST", "DELETE"},
+							AllowHeaders:     []string{"Authorization", "Content-Type"},
+							AllowCredentials: createPointerFromBool(true),
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				CORSHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_parent_vs_app_namespace_test_vsr_shared_policies_shared_cors"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST, DELETE"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Headers", Value: "Authorization, Content-Type"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Credentials", Value: "true"}, Always: true},
+				},
+				CORSMap: &version2.Map{
+					Source:   "$http_origin",
+					Variable: "$cors_origin_default_parent_vs_app_namespace_test_vsr_shared_policies_shared_cors",
+					Parameters: []version2.Parameter{
+						{Value: "default", Result: `""`},
+						{Value: `"https://api.example.com"`, Result: "https://api.example.com"},
+						{Value: `"https://dashboard.example.com"`, Result: "https://dashboard.example.com"},
+					},
+				},
+			},
+			msg: "VirtualServerRoute cross-namespace CORS policy with multiple origins",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			result, _ := generatePolicies(
+				ctx,
+				test.owner,
+				test.policyRefs,
+				test.policies,
+				"http",
+				test.path,
+				policyOptions{tls: false},
+				nil,
+			)
+
+			if !reflect.DeepEqual(result.CORSHeaders, test.expected.CORSHeaders) {
+				t.Errorf("%s: CORS headers mismatch.\nExpected: %+v\nGot: %+v", test.msg, test.expected.CORSHeaders, result.CORSHeaders)
+			}
+
+			if !reflect.DeepEqual(result.CORSMap, test.expected.CORSMap) {
+				t.Errorf("%s: CORS map mismatch.\nExpected: %+v\nGot: %+v", test.msg, test.expected.CORSMap, result.CORSMap)
+			}
+
+			if result.Context != test.expected.Context {
+				t.Errorf("%s: Context mismatch.\nExpected: %+v\nGot: %+v", test.msg, test.expected.Context, result.Context)
+			}
+		})
+	}
+}
+
 func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 	t.Parallel()
 

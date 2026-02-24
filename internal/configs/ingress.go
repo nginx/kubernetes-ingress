@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/nginx/kubernetes-ingress/internal/k8s/policies"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
 
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
@@ -38,6 +40,7 @@ type IngressEx struct {
 	Ingress          *networking.Ingress
 	Endpoints        map[string][]string
 	HealthChecks     map[string]*api_v1.Probe
+	Policies         map[string]*conf_v1.Policy
 	ExternalNameSvcs map[string]bool
 	PodsByIP         map[string]PodInfo
 	ValidHosts       map[string]bool
@@ -140,6 +143,47 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 	var servers []version1.Server
 	var limitReqZones []version1.LimitReqZone
 
+	// Run generate Policies
+	var policyRefs []conf_v1.PolicyReference
+	if ncp.ingEx.Policies != nil {
+		policyRefs = policies.GetPolicyRefsFromPolicies(ncp.ingEx.Policies)
+	}
+
+	var policyCfg policiesCfg
+	if len(policyRefs) > 0 {
+		var warnings Warnings
+		ownerDetails := policyOwnerDetails{
+			owner:          ncp.ingEx.Ingress,
+			ownerName:      ncp.ingEx.Ingress.Name,
+			ownerNamespace: ncp.ingEx.Ingress.Namespace,
+		}
+		if ncp.isMinion {
+			ownerDetails.parentName = ncp.mergeableIngs.Master.Ingress.Name
+			ownerDetails.parentNamespace = ncp.mergeableIngs.Master.Ingress.Namespace
+		}
+		policyCfg, warnings = generatePolicies(
+			ncp.BaseCfgParams.Context,
+			ownerDetails,
+			policyRefs,
+			ncp.ingEx.Policies,
+			"spec",
+			"",
+			policyOptions{
+				tls:             ncp.ingEx.Ingress.Spec.TLS != nil,
+				zoneSync:        ncp.BaseCfgParams.ZoneSync.Enable,
+				secretRefs:      ncp.ingEx.SecretRefs,
+				apResources:     nil,
+				defaultCABundle: ncp.staticParams.DefaultCABundle,
+				replicas:        ncp.ingressControllerReplicas,
+				oidcPolicyName:  "",
+			},
+			nil,
+		)
+		allWarnings.Add(warnings)
+	}
+
+	// TODO: Remove this debug line when policyCfg is used in the code below
+	nl.Debug(l, policyCfg)
 	for _, rule := range ncp.ingEx.Ingress.Spec.Rules {
 		// skipping invalid hosts
 		if !ncp.ingEx.ValidHosts[rule.Host] {
@@ -209,19 +253,22 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			server.AppProtectDosLogConfFile = ncp.dosResource.AppProtectDosLogConfFile
 		}
 
-		if !ncp.isMinion && cfgParams.JWTKey != "" {
-			jwtAuth, redirectLoc, warnings := generateJWTConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams, getNameForRedirectLocation(ncp.ingEx.Ingress))
-			server.JWTAuth = jwtAuth
-			if redirectLoc != nil {
-				server.JWTRedirectLocations = append(server.JWTRedirectLocations, *redirectLoc)
+		if !ncp.isMinion {
+			if cfgParams.JWTKey != "" {
+				jwtAuth, redirectLoc, warnings := generateJWTConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams, getNameForRedirectLocation(ncp.ingEx.Ingress))
+				server.JWTAuth = jwtAuth
+				if redirectLoc != nil {
+					server.JWTRedirectLocations = append(server.JWTRedirectLocations, *redirectLoc)
+				}
+				allWarnings.Add(warnings)
 			}
-			allWarnings.Add(warnings)
-		}
 
-		if !ncp.isMinion && cfgParams.BasicAuthSecret != "" {
-			basicAuth, warnings := generateBasicAuthConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams)
-			server.BasicAuth = basicAuth
-			allWarnings.Add(warnings)
+			if cfgParams.BasicAuthSecret != "" {
+				basicAuth, warnings := generateBasicAuthConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams)
+				server.BasicAuth = basicAuth
+				allWarnings.Add(warnings)
+			}
+
 		}
 
 		var locations []version1.Location
@@ -266,19 +313,26 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			loc := createLocation(pathOrDefault(path.Path), upstreams[upsName], &cfgParams, wsServices[path.Backend.Service.Name], rewrites[path.Backend.Service.Name],
 				ssl, grpcServices[path.Backend.Service.Name], proxySSLName, path.PathType, path.Backend.Service.Name, rewriteTarget)
 
-			if ncp.isMinion && cfgParams.JWTKey != "" {
-				jwtAuth, redirectLoc, warnings := generateJWTConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams, getNameForRedirectLocation(ncp.ingEx.Ingress))
-				loc.JWTAuth = jwtAuth
-				if redirectLoc != nil {
-					server.JWTRedirectLocations = append(server.JWTRedirectLocations, *redirectLoc)
+			if ncp.isMinion {
+				if cfgParams.JWTKey != "" {
+					jwtAuth, redirectLoc, warnings := generateJWTConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams, getNameForRedirectLocation(ncp.ingEx.Ingress))
+					loc.JWTAuth = jwtAuth
+					if redirectLoc != nil {
+						server.JWTRedirectLocations = append(server.JWTRedirectLocations, *redirectLoc)
+					}
+					allWarnings.Add(warnings)
 				}
-				allWarnings.Add(warnings)
-			}
 
-			if ncp.isMinion && cfgParams.BasicAuthSecret != "" {
-				basicAuth, warnings := generateBasicAuthConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams)
-				loc.BasicAuth = basicAuth
-				allWarnings.Add(warnings)
+				if cfgParams.BasicAuthSecret != "" {
+					basicAuth, warnings := generateBasicAuthConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams)
+					loc.BasicAuth = basicAuth
+					allWarnings.Add(warnings)
+					if cfgParams.BasicAuthSecret != "" {
+						basicAuth, warnings := generateBasicAuthConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams)
+						loc.BasicAuth = basicAuth
+						allWarnings.Add(warnings)
+					}
+				}
 			}
 
 			if cfgParams.LimitReqRate != "" {
@@ -371,7 +425,10 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 	}, allWarnings
 }
 
-func generateJWTConfig(owner runtime.Object, secretRefs map[string]*secrets.SecretReference, cfgParams *ConfigParams,
+func generateJWTConfig(
+	owner runtime.Object,
+	secretRefs map[string]*secrets.SecretReference,
+	cfgParams *ConfigParams,
 	redirectLocationName string,
 ) (*version1.JWTAuth, *version1.JWTRedirectLocation, Warnings) {
 	warnings := newWarnings()
@@ -722,6 +779,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 		dummyApResources := &AppProtectResources{}
 		dummyDosResource := &appProtectDosResource{}
 		minionNginxCfg, minionWarnings := generateNginxCfg(NginxCfgParams{
+			mergeableIngs:             ncp.mergeableIngs,
 			staticParams:              ncp.staticParams,
 			ingEx:                     minion,
 			apResources:               dummyApResources,

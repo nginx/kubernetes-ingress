@@ -1,6 +1,7 @@
 package validation
 
 import (
+	"strings"
 	"testing"
 
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
@@ -3104,4 +3105,288 @@ func TestValidatePolicy_IsValidCachePolicy(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateCORS(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		cors      *v1.CORS
+		expectErr bool
+		errMsg    string
+	}{
+		{
+			name: "Valid CORS configuration",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com", "https://app.com"},
+				AllowMethods: []string{"GET", "POST", "PUT"},
+				AllowHeaders: []string{"Content-Type", "Authorization"},
+				MaxAge:       intPtr(86400),
+			},
+			expectErr: false,
+		},
+		{
+			name: "Valid CORS with wildcard origin (no credentials)",
+			cors: &v1.CORS{
+				AllowOrigin:      []string{"*"},
+				AllowMethods:     []string{"GET", "POST"},
+				AllowCredentials: boolPtr(false),
+			},
+			expectErr: false,
+		},
+		{
+			name: "Valid CORS with wildcard subdomain",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://*.example.com"},
+				AllowMethods: []string{"GET", "POST"},
+			},
+			expectErr: false,
+		},
+		{
+			name: "Valid CORS with multiple wildcard subdomains",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://*.app.com", "https://*.api.example.org"},
+				AllowMethods: []string{"GET", "POST"},
+			},
+			expectErr: false,
+		},
+		{
+			name: "Valid CORS with mixed exact and wildcard origins",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com", "https://*.dev.example.com"},
+				AllowMethods: []string{"GET", "POST"},
+			},
+			expectErr: false,
+		},
+		{
+			name: "Valid CORS with HTTP wildcard subdomain",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"http://*.localhost.com"},
+				AllowMethods: []string{"GET", "POST"},
+			},
+			expectErr: false,
+		},
+		{
+			name: "Invalid origin format - missing protocol",
+			cors: &v1.CORS{
+				AllowOrigin: []string{"example.com"}, // Missing http:// or https://
+			},
+			expectErr: true,
+			errMsg:    "must start with http:// or https://",
+		},
+		{
+			name: "Invalid wildcard subdomain - empty domain",
+			cors: &v1.CORS{
+				AllowOrigin: []string{"https://*."}, // Empty domain after wildcard
+			},
+			expectErr: true,
+			errMsg:    "wildcard subdomain cannot be empty",
+		},
+		{
+			name: "Valid wildcard subdomain - single domain",
+			cors: &v1.CORS{
+				AllowOrigin: []string{"https://*.dev"}, // Single-label domain is valid per k8s DNS rules
+			},
+			expectErr: false,
+		},
+		{
+			name: "Invalid wildcard subdomain - multiple wildcards",
+			cors: &v1.CORS{
+				AllowOrigin: []string{"https://*.*.example.com"}, // Multiple wildcards not supported
+			},
+			expectErr: true,
+			errMsg:    "only single-level wildcard subdomains are supported",
+		},
+		{
+			name: "Invalid wildcard subdomain - wildcard in domain",
+			cors: &v1.CORS{
+				AllowOrigin: []string{"https://*.exam*le.com"}, // Wildcard in domain part
+			},
+			expectErr: true,
+			errMsg:    "only single-level wildcard subdomains are supported",
+		},
+		{
+			name: "Invalid wildcard position",
+			cors: &v1.CORS{
+				AllowOrigin: []string{"https://example.*.com"}, // Wildcard not at subdomain position
+			},
+			expectErr: true,
+			errMsg:    "wildcards are only supported in subdomain format",
+		},
+		{
+			name: "Invalid wildcard subdomain - invalid domain character",
+			cors: &v1.CORS{
+				AllowOrigin: []string{"https://*.exam@ple.com"}, // Parsed as user@host
+			},
+			expectErr: true,
+			errMsg:    "origin must not include @",
+		},
+		{
+			name: "Invalid header name - non-RFC compliant",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com"},
+				AllowHeaders: []string{"Content@Type"}, // @ not allowed in header names
+			},
+			expectErr: true,
+			errMsg:    "RFC 7230 violation",
+		},
+		{
+			name: "Invalid expose header name - non-RFC compliant",
+			cors: &v1.CORS{
+				AllowOrigin:   []string{"https://example.com"},
+				ExposeHeaders: []string{"X-Custom-Header", "Invalid Header Name"}, // Space not allowed
+			},
+			expectErr: true,
+			errMsg:    "RFC 7230 violation",
+		},
+		{
+			name: "Duplicate origins - should be blocked",
+			cors: &v1.CORS{
+				AllowOrigin: []string{"https://example.com", "https://test.com", "https://example.com"}, // Duplicate origin
+			},
+			expectErr: true,
+			errMsg:    "Duplicate value",
+		},
+		{
+			name: "Valid with all HTTP methods",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com"},
+				AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"}, // Removed HEAD to avoid redundancy warning
+			},
+			expectErr: false,
+		},
+		{
+			name: "Forbidden request header - Host",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com"},
+				AllowHeaders: []string{"Host"}, // Forbidden header
+			},
+			expectErr: true,
+			errMsg:    "forbidden request header",
+		},
+		{
+			name: "Forbidden request header - Cookie",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com"},
+				AllowHeaders: []string{"Cookie"}, // Forbidden header
+			},
+			expectErr: true,
+			errMsg:    "forbidden request header",
+		},
+		{
+			name: "Forbidden request header - Sec- prefix",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com"},
+				AllowHeaders: []string{"Sec-WebSocket-Key"}, // Forbidden header
+			},
+			expectErr: true,
+			errMsg:    "forbidden request header",
+		},
+		{
+			name: "Forbidden response header - Set-Cookie",
+			cors: &v1.CORS{
+				AllowOrigin:   []string{"https://example.com"},
+				ExposeHeaders: []string{"Set-Cookie"}, // Forbidden response header per CORS spec
+			},
+			expectErr: true,
+			errMsg:    "forbidden response header",
+		},
+		{
+			name: "Invalid method combination - HEAD with GET",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com"},
+				AllowMethods: []string{"GET", "HEAD", "POST"}, // HEAD redundant when GET present
+			},
+			expectErr: true,
+			errMsg:    "HEAD method should not be explicitly listed",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fieldPath := field.NewPath("spec").Child("cors")
+			errs := validateCORS(test.cors, fieldPath)
+
+			if test.expectErr {
+				if len(errs) == 0 {
+					t.Errorf("Expected error but got none")
+				} else {
+					found := false
+					for _, err := range errs {
+						if strings.Contains(err.Error(), test.errMsg) {
+							found = true
+							break
+						}
+					}
+					if !found {
+						t.Errorf("Expected error message containing '%s' not found in errors: %v", test.errMsg, errs)
+					}
+				}
+			} else {
+				if len(errs) > 0 {
+					t.Errorf("Expected no errors but got: %v", errs)
+				}
+			}
+		})
+	}
+}
+
+// TestCORSMDNCompliance tests that our CORS implementation follows MDN guidelines
+func TestCORSMDNCompliance(t *testing.T) {
+	t.Parallel()
+
+	validConfigs := []struct {
+		name        string
+		cors        *v1.CORS
+		description string
+	}{
+		{
+			name: "Simple request configuration",
+			cors: &v1.CORS{
+				AllowOrigin:      []string{"*"},
+				AllowMethods:     []string{"GET", "POST"}, // Removed HEAD as it's redundant when GET is present
+				AllowHeaders:     []string{"Accept", "Accept-Language", "Content-Language", "Content-Type"},
+				AllowCredentials: boolPtr(false),
+			},
+			description: "MDN simple request: wildcard allowed without credentials",
+		},
+		{
+			name: "Credentialed request configuration",
+			cors: &v1.CORS{
+				AllowOrigin:      []string{"https://example.com"},
+				AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+				AllowHeaders:     []string{"Content-Type", "Authorization"},
+				AllowCredentials: boolPtr(true),
+			},
+			description: "MDN credentialed request: explicit origin required",
+		},
+		{
+			name: "Complex request configuration",
+			cors: &v1.CORS{
+				AllowOrigin:   []string{"https://app.example.com"},
+				AllowMethods:  []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"},
+				AllowHeaders:  []string{"Content-Type", "Authorization", "X-Requested-With"},
+				ExposeHeaders: []string{"X-Total-Count", "X-RateLimit-Remaining"},
+				MaxAge:        createPointerFromInt(3600),
+			},
+			description: "MDN complex request: comprehensive header configuration",
+		},
+	}
+
+	for _, config := range validConfigs {
+		t.Run(config.name, func(t *testing.T) {
+			fieldPath := field.NewPath("cors")
+			errs := validateCORS(config.cors, fieldPath)
+
+			if len(errs) != 0 {
+				t.Errorf("Expected no validation errors for %s, but got: %v", config.description, errs)
+			}
+		})
+	}
+}
+
+// Helper functions for CORS tests
+func boolPtr(b bool) *bool {
+	return &b
 }

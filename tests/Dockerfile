@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1.21
 FROM python:3.14-trixie@sha256:abc08a893f14b116d97079a69f1a8c0b5c33df65a7e5af8ff6356aa6d41d40aa
-
+ARG ARCH=amd64
 
 RUN apt-get update \
-	&& apt-get install -y curl git apache2-utils \
+	&& apt-get install -y curl git apache2-utils ca-certificates \
 	&& rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace/tests
@@ -15,9 +15,14 @@ COPY --link config /workspace/config
 COPY --link tests /workspace/tests
 COPY --link pyproject.toml /workspace/pyproject.toml
 
-RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl \
+RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/${ARCH}/kubectl \
 	&& install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl \
-    && curl https://get.docker.com/builds/Linux/x86_64/docker-latest.tgz | tar xvz -C /tmp/ && mv /tmp/docker/docker /usr/bin/docker
+	&& install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc \
+    && chmod a+r /etc/apt/keyrings/docker.asc \
+	&& printf "Types: deb\nURIs: https://download.docker.com/linux/debian\nSuites: %s\nComponents: stable\nSigned-By: /etc/apt/keyrings/docker.asc\n" "$( . /etc/os-release && echo "$VERSION_CODENAME" )" > /etc/apt/sources.list.d/docker.sources \
+	&& apt update \
+    && apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
 RUN pip install --require-hashes -r requirements.txt --no-deps
 RUN playwright install chromium
