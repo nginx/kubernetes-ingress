@@ -2,6 +2,7 @@ name: External PR Handler
 on:
   issue_comment:
     types: [created]
+  workflow_dispatch:
 
 permissions:
     contents: write
