@@ -192,6 +192,7 @@ tests/data/oidc/keycloak-tls-secret.yaml
 common-secrets/cafe-passwd-basic-auth-secret.yaml
 examples/ingress-resources/basic-auth/cafe-passwd.yaml
 examples/custom-resources/basic-auth/cafe-passwd.yaml
+examples/custom-resources/access-control/cafe-passwd.yaml
 common-secrets/auth-basic-master-htpasswd-basic-auth-secret.yaml
 tests/data/auth-basic-auth-mergeable/auth-basic-master-secret.yaml
 common-secrets/auth-basic-master-htpasswd-basic-auth-secret-updated.yaml
