@@ -278,7 +278,7 @@ scout-all:
 		out="$(REPORT_DIR)/$${safe}-critical-high.sarif.json"; \
 		echo "Scanning $$image -> $$out"; \
 		docker scout cves --only-severity critical,high --format sarif \
-		  -o "$$out" "$$image" || exit $$?; \
+		  -o "$$out" "$$image" || exit 1; \
 	done
 
 .PHONY: patch-os
