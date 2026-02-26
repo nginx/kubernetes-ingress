@@ -29,7 +29,7 @@ We value community input and would love to see you at the next community call. A
 
 **Passcode:** `982193`
 
-**When**: 16:00 GMT / [Convert to your timezone](https://dateful.com/convert/gmt?t=16), every other Monday.
+**When**: 16:00 GMT / [Convert to your timezone](https://dateful.com/convert/gmt?t=16), every other Monday or whenever.
 
 | **Community Call Dates** |
 | ------------------------ |
@@ -43,7 +43,6 @@ We value community input and would love to see you at the next community call. A
 | **2026-06-02**           |
 | **2026-06-15**           |
 | **2026-06-29**           |
-
 
 You can also join the [NGINX Community Forum](https://community.nginx.org) to chat about the NGINX Ingress Controller.
 
