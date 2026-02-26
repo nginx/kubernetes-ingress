@@ -1,16 +1,15 @@
 name: External PR Handler
 on:
   issue_comment:
-    types: [created]
-  workflow_dispatch:
+    types: [ created ]
 
 permissions:
-    contents: write
-    pull-requests: write
-    issues: write
+  contents: write
+  pull-requests: write
+  issues: write
 
 jobs:
-  create-branch:
+  approve-pipeline-run:
     if: >
       github.event.issue.pull_request &&
       contains(github.event.comment.body, '/approve-pipeline-run')
@@ -62,6 +61,23 @@ jobs:
           echo "Not from fork - skipping"
           exit 0
 
+      - name: Azure login
+        if: steps.pr-info.outputs.is_fork == 'true'
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_COMMON_VAULT_SUBSCRIPTION_ID }}
+
+      - name: Setup secrets
+        if: steps.pr-info.outputs.is_fork == 'true'
+        id: secrets
+        run: |
+          echo "Setting secrets for job"
+          NGINX_PAT=$(az keyvault secret show --name nginx-bot-pat --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$NGINX_PAT"
+          echo "NGINX_PAT=$NGINX_PAT" >> $GITHUB_OUTPUT
+
       - name: Checkout fork branch
         if: steps.pr-info.outputs.is_fork == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -70,24 +86,18 @@ jobs:
           ref: ${{ steps.pr-info.outputs.branch }}
           fetch-depth: 0
 
-      - name: Configure Git
-        if: steps.pr-info.outputs.is_fork == 'true'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
       - name: Create and push branch
         if: steps.pr-info.outputs.is_fork == 'true'
         id: branch
         run: |
-          git remote add upstream https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          git remote add upstream https://x-access-token:${{ steps.secrets.outputs.NGINX_PAT }}@github.com/${{ github.repository }}.git
           git fetch upstream
 
           CONTRIBUTOR="${{ steps.pr-info.outputs.contributor }}"
           BRANCH_NAME="${{ steps.pr-info.outputs.branch }}"
           PR_NUM="${{ steps.pr-info.outputs.pr_number }}"
 
-          INTERNAL_BRANCH="${CONTRIBUTOR}-${BRANCH_NAME}-pr${PR_NUM}"
+          INTERNAL_BRANCH="$${BRANCH_NAME}-do-not-merge"
 
           # Check if branch already exists
           if git ls-remote --heads upstream "$INTERNAL_BRANCH" | grep -q "$INTERNAL_BRANCH"; then
@@ -106,6 +116,7 @@ jobs:
         if: steps.pr-info.outputs.is_fork == 'true'
         uses: actions/github-script@v8
         with:
+          github-token: ${{ steps.secrets.outputs.NGINX_PAT}}
           script: |
             await github.rest.pulls.create({
               owner: context.repo.owner,
