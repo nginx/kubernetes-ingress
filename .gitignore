@@ -50,6 +50,9 @@ default.pem
 # Platform specific CRD schema generation scripts
 hack/controller-gen-*
 
+# Temporary downloads folder for cve automation
+hack/cve-automation/downloads/
+
 # trivy container scanning cache
 .trivycache/
 
@@ -64,6 +67,10 @@ package.json
 # kind kube-config
 kube-local
 venv/
+
+# hack/cve-automation generated files
+hack/cve-automation/reports/*
+hack/cve-automation/downloads/*
 
 # AUTO GENERATED SECTION BY CERTGEN (hack/secrets-gen/gitignore-gen.go), DO NOT EDIT BELOW
 

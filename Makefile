@@ -62,6 +62,13 @@ export DOCKER_BUILDKIT = 1
 
 .DEFAULT_GOAL:=help
 
+IMAGES := alpine-image alpine-image-nap-plus-fips alpine-image-nap-v5-plus-fips \
+          alpine-image-plus alpine-image-plus-fips \
+          debian-image debian-image-dos-plus debian-image-nap-dos-plus \
+          debian-image-nap-plus debian-image-nap-v5-plus debian-image-plus \
+          ubi-image ubi-image-dos-plus ubi-image-nap-dos-plus ubi-image-nap-plus \
+          ubi-image-nap-v5-plus ubi-image-plus ubi8-image-nap-plus ubi8-image-nap-v5-plus
+
 .PHONY: help
 help: Makefile ## Display this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "; printf "Usage:\n\n    make \033[36m<target>\033[0m [VARIABLE=value...]\n\nTargets:\n\n"}; {printf "    \033[36m%-30s\033[0m %s\n", $$1, $$2}'
@@ -253,10 +260,25 @@ ubi-image-nap-dos-plus: build ## Create Docker image for Ingress Controller (UBI
 
 .PHONY: all-images ## Create all the Docker images for Ingress Controller
 all-images:
-	docker builder prune -af; \
-	images="alpine-image alpine-image-nap-plus-fips alpine-image-nap-v5-plus-fips alpine-image-plus alpine-image-plus-fips debian-image debian-image-dos-plus debian-image-nap-dos-plus debian-image-nap-plus debian-image-nap-v5-plus debian-image-plus ubi-image ubi-image-dos-plus ubi-image-nap-dos-plus ubi-image-nap-plus ubi-image-nap-v5-plus ubi-image-plus ubi8-image-nap-v5-plus"; \
-	for img in $$images; do \
-		TAG="$(strip $(TAG))-$$img" make $$img; \
+	docker builder prune -af
+	for img in $(IMAGES); do \
+		$(MAKE) $$img TAG="$(strip $(TAG))-$$img"; \
+	done
+
+REPORT_DIR ?= reports
+IMAGE_REPO ?= nginx/nginx-ingress
+
+.PHONY: scout-all
+scout-all:
+	@test -n "$(TAG)" || { echo "Usage: make scout-all TAG=<tagprefix>"; exit 1; }
+	@mkdir -p "$(REPORT_DIR)"
+	@for img in $(IMAGES); do \
+		image="$(IMAGE_REPO):$(TAG)-$$img"; \
+		safe=$$(printf '%s' "$$image" | tr '/:' '__'); \
+		out="$(REPORT_DIR)/$${safe}-critical-high.sarif.json"; \
+		echo "Scanning $$image -> $$out"; \
+		docker scout cves --only-severity critical,high --format sarif \
+		  -o "$$out" "$$image" || exit 1; \
 	done
 
 .PHONY: patch-os
