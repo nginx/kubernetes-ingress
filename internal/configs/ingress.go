@@ -153,9 +153,11 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 	if len(policyRefs) > 0 {
 		var warnings Warnings
 		ownerDetails := policyOwnerDetails{
-			owner:          ncp.ingEx.Ingress,
-			ownerName:      ncp.ingEx.Ingress.Name,
-			ownerNamespace: ncp.ingEx.Ingress.Namespace,
+			owner:           ncp.ingEx.Ingress,
+			ownerName:       ncp.ingEx.Ingress.Name,
+			ownerNamespace:  ncp.ingEx.Ingress.Namespace,
+			parentName:      ncp.ingEx.Ingress.Name,
+			parentNamespace: ncp.ingEx.Ingress.Namespace,
 		}
 		if ncp.isMinion {
 			ownerDetails.parentName = ncp.mergeableIngs.Master.Ingress.Name
@@ -327,11 +329,6 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 					basicAuth, warnings := generateBasicAuthConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams)
 					loc.BasicAuth = basicAuth
 					allWarnings.Add(warnings)
-					if cfgParams.BasicAuthSecret != "" {
-						basicAuth, warnings := generateBasicAuthConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams)
-						loc.BasicAuth = basicAuth
-						allWarnings.Add(warnings)
-					}
 				}
 			}
 
