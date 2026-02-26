@@ -16,23 +16,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check commenter permissions
-        uses: actions/github-script@v8
-        id: pr
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const { data: permission } = await github.rest.repos.getCollaboratorPermissionLevel({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              username: context.actor
-            });
-
-            const allowed = ["admin", "write", "maintain"].includes(permission.permission);
-            if (!allowed) {
-              core.setFailed("User is not authorized to approve pipeline run.");
-            }
-
       - name: Get PR details
         uses: actions/github-script@v8
         id: pr-info
@@ -60,6 +43,24 @@ jobs:
         run: |
           echo "Not from fork - skipping"
           exit 0
+
+      - name: Check commenter permissions
+        if: steps.pr-info.outputs.is_fork == 'true'
+        uses: actions/github-script@v8
+        id: pr
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { data: permission } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: context.actor
+            });
+
+            const allowed = ["admin", "write", "maintain"].includes(permission.permission);
+            if (!allowed) {
+              core.setFailed("User is not authorized to approve pipeline run.");
+            }
 
       - name: Azure login
         if: steps.pr-info.outputs.is_fork == 'true'
