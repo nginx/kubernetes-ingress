@@ -61,7 +61,7 @@ DOCKER_CMD = docker build --platform linux/$(strip $(ARCH)) $(strip $(DOCKER_BUI
 
 export DOCKER_BUILDKIT = 1
 
-GO_SRCS := $(shell find . -type f -name '*.go') go.mod go.sum
+GO_SRCS := $(shell git ls-files '*.go' go.mod go.sum)
 
 .DEFAULT_GOAL:=help
 
