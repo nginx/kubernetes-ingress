@@ -160,6 +160,114 @@ func TestExecuteTemplate_ForIngressForNGINX(t *testing.T) {
 	snaps.MatchSnapshot(t, buf.String())
 }
 
+func TestExecuteTemplate_ForIngressForNGINXWithACPolicyAllow(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithPolicyAnnotationForAccessControlAllow)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+	wantedStrings := []string{
+		"allow 10.0.0.0/8;",
+		"deny all;",
+	}
+
+	for _, want := range wantedStrings {
+		if !strings.Contains(bufString, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithACPolicyDeny(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithPolicyAnnotationForAccessControlDeny)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+	wantedStrings := []string{
+		"deny 10.0.0.0/8;",
+		"allow all;",
+	}
+
+	for _, want := range wantedStrings {
+		if !strings.Contains(bufString, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithACPolicyAllow(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithPolicyAnnotationForAccessControlAllow)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+	wantedStrings := []string{
+		"allow 10.0.0.0/8;",
+		"deny all;",
+	}
+
+	for _, want := range wantedStrings {
+		if !strings.Contains(bufString, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithACPolicyDeny(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithPolicyAnnotationForAccessControlDeny)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+	wantedStrings := []string{
+		"deny 10.0.0.0/8;",
+		"allow all;",
+	}
+
+	for _, want := range wantedStrings {
+		if !strings.Contains(bufString, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
 func TestExecuteTemplate_ForIngressForNGINXWithHTTPRedirectCode(t *testing.T) {
 	t.Parallel()
 
@@ -1815,6 +1923,333 @@ func TestExecuteTemplate_ForMergeableIngressForNGINXMasterMinionsWithMultipleDif
 	}
 }
 
+func TestExecuteTemplate_ForMergeableIngressMasterPolicy(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+
+	tests := []struct {
+		name              string
+		masterAnnotations map[string]string
+		allow             []string
+		deny              []string
+		wanted            []string
+	}{
+		{
+			name: "Mergeable Ingress Master Policy with AccessControl Policy Annotation - Allow",
+			masterAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "master",
+				"nginx.org/policies":               "test-access-control-policy",
+			},
+			allow: []string{"10.0.0.0/16"},
+			deny:  []string{},
+			wanted: []string{
+				"allow 10.0.0.0/16;",
+				"deny all;",
+			},
+		},
+		{
+			name: "Mergeable Ingress Master Policy with AccessControl Policy Annotation - Deny",
+			masterAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "master",
+				"nginx.org/policies":               "test-access-control-policy",
+			},
+			allow: []string{},
+			deny:  []string{"10.0.0.0/16"},
+			wanted: []string{
+				"deny 10.0.0.0/16;",
+				"allow all;",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		buf := &bytes.Buffer{}
+		ingressCfg := createProxySetHeaderIngressConfig(
+			tt.masterAnnotations,
+			nil,
+			nil,
+		)
+
+		for s := range ingressCfg.Servers {
+			ingressCfg.Servers[s].Allow = tt.allow
+			ingressCfg.Servers[s].Deny = tt.deny
+		}
+
+		err := tmpl.Execute(buf, ingressCfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, want := range tt.wanted {
+			if !strings.Contains(buf.String(), want) {
+				t.Errorf("expected directive %q not found in generated config for test case %q", want, tt.name)
+			}
+		}
+		snaps.MatchSnapshot(t, buf.String())
+		t.Log(buf.String())
+	}
+}
+
+func TestExecuteTemplate_ForMergeableIngressMinionPolicy(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+
+	tests := []struct {
+		name              string
+		minionAnnotations map[string]string
+		allow             []string
+		deny              []string
+		wanted            []string
+	}{
+		{
+			name: "Mergeable Ingress Master Policy with AccessControl Policy Annotation - Allow",
+			minionAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "minion",
+				"nginx.org/policies":               "test-access-control-policy",
+			},
+			allow: []string{"10.0.0.0/16"},
+			deny:  []string{},
+			wanted: []string{
+				"allow 10.0.0.0/16;",
+				"deny all;",
+			},
+		},
+		{
+			name: "Mergeable Ingress Master Policy with AccessControl Policy Annotation - Deny",
+			minionAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "minion",
+				"nginx.org/policies":               "test-access-control-policy",
+			},
+			allow: []string{},
+			deny:  []string{"10.0.0.0/16"},
+			wanted: []string{
+				"deny 10.0.0.0/16;",
+				"allow all;",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		buf := &bytes.Buffer{}
+		ingressCfg := createProxySetHeaderIngressConfig(
+			map[string]string{ // master annotations
+				"nginx.org/mergeable-ingress-type": "master",
+			},
+			tt.minionAnnotations,
+			nil,
+		)
+
+		for s := range ingressCfg.Servers {
+			for l := range ingressCfg.Servers[s].Locations {
+				ingressCfg.Servers[s].Locations[l].Allow = tt.allow
+				ingressCfg.Servers[s].Locations[l].Deny = tt.deny
+			}
+		}
+
+		err := tmpl.Execute(buf, ingressCfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, want := range tt.wanted {
+			if !strings.Contains(buf.String(), want) {
+				t.Errorf("expected directive %q not found in generated config for test case %q", want, tt.name)
+			}
+		}
+		snaps.MatchSnapshot(t, buf.String())
+		t.Log(buf.String())
+	}
+}
+
+func TestExecuteTemplate_ForMergeableIngressMasterMinionPolicy(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+
+	tests := []struct {
+		name              string
+		masterAnnotations map[string]string
+		minionAnnotations map[string]string
+		masterAllow       []string
+		masterDeny        []string
+		minionAllow       []string
+		minionDeny        []string
+		wantedMaster      []string
+		wantedMinion      []string
+	}{
+		{
+			name: "Mergeable Ingress Master + Minion Policy with AccessControl Policy Annotation - Allow",
+			masterAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "master",
+				"nginx.org/policies":               "master-access-control-policy",
+			},
+			minionAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "minion",
+				"nginx.org/policies":               "minion-access-control-policy",
+			},
+			masterAllow: []string{"10.0.0.0/16"},
+			masterDeny:  []string{},
+			minionAllow: []string{"10.1.1.1/16"},
+			minionDeny:  []string{},
+			wantedMaster: []string{
+				"allow 10.0.0.0/16;",
+				"deny all;",
+			},
+			wantedMinion: []string{
+				"allow 10.1.1.1/16",
+				"deny all;",
+			},
+		},
+		{
+			name: "Mergeable Ingress Master + Minion Policy with AccessControl Policy Annotation - Deny",
+			masterAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "master",
+				"nginx.org/policies":               "master-access-control-policy",
+			},
+			minionAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "minion",
+				"nginx.org/policies":               "test-access-control-policy",
+			},
+			masterAllow: []string{},
+			masterDeny:  []string{"10.0.0.0/16"},
+			minionAllow: []string{},
+			minionDeny:  []string{"10.1.1.1/16"},
+			wantedMaster: []string{
+				"deny 10.0.0.0/16;",
+				"allow all;",
+			},
+			wantedMinion: []string{
+				"deny 10.1.1.1/16",
+				"allow all;",
+			},
+		},
+		{
+			name: "Mergeable Ingress Master + Minion Policy with AccessControl Policy Annotation - Master Allow Minion Deny",
+			masterAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "master",
+				"nginx.org/policies":               "master-access-control-policy",
+			},
+			minionAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "minion",
+				"nginx.org/policies":               "test-access-control-policy",
+			},
+			masterAllow: []string{"10.0.0.0/16"},
+			masterDeny:  []string{},
+			minionAllow: []string{},
+			minionDeny:  []string{"10.1.1.1/16"},
+			wantedMaster: []string{
+				"allow 10.0.0.0/16;",
+				"deny all;",
+			},
+			wantedMinion: []string{
+				"deny 10.1.1.1/16",
+				"allow all;",
+			},
+		},
+		{
+			name: "Mergeable Ingress Master + Minion Policy with AccessControl Policy Annotation - Master Deny Minion Allow",
+			masterAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "master",
+				"nginx.org/policies":               "master-access-control-policy",
+			},
+			minionAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "minion",
+				"nginx.org/policies":               "test-access-control-policy",
+			},
+			masterAllow: []string{},
+			masterDeny:  []string{"10.0.0.0/16"},
+			minionAllow: []string{"10.1.1.1/16"},
+			minionDeny:  []string{},
+			wantedMaster: []string{
+				"deny 10.0.0.0/16;",
+				"allow all;",
+			},
+			wantedMinion: []string{
+				"allow 10.1.1.1/16",
+				"deny all;",
+			},
+		},
+		{
+			name: "Mergeable Ingress Master + Minion Policy with AccessControl Policy Annotation - Mixed + Reused AccessControl Policy",
+			masterAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "master",
+				"nginx.org/policies":               "master-access-control-policy, another-policy",
+			},
+			minionAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "minion",
+				"nginx.org/policies":               "test-access-control-policy, another-policy",
+			},
+			masterAllow: []string{"10.2.0.0/16"},
+			masterDeny:  []string{"10.0.0.0/16"},
+			minionAllow: []string{"10.1.0.0/16", "10.2.0.0/16"},
+			minionDeny:  []string{},
+			wantedMaster: []string{
+				"allow 10.2.0.0/16;",
+				"deny all;",
+				"deny 10.0.0.0/16;",
+				"allow all;",
+			},
+			wantedMinion: []string{
+				"allow 10.1.0.0/16",
+				"allow 10.2.0.0/16",
+				"deny all;",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		buf := &bytes.Buffer{}
+		ingressCfg := createProxySetHeaderIngressConfig(
+			map[string]string{ // master annotations
+				"nginx.org/mergeable-ingress-type": "master",
+			},
+			tt.minionAnnotations,
+			nil,
+		)
+
+		for s := range ingressCfg.Servers {
+			ingressCfg.Servers[s].Allow = tt.masterAllow
+			ingressCfg.Servers[s].Deny = tt.masterDeny
+			for l := range ingressCfg.Servers[s].Locations {
+				ingressCfg.Servers[s].Locations[l].Path = "/"
+				ingressCfg.Servers[s].Locations[l].Allow = tt.minionAllow
+				ingressCfg.Servers[s].Locations[l].Deny = tt.minionDeny
+			}
+		}
+
+		err := tmpl.Execute(buf, ingressCfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		sections := strings.Split(buf.String(), "location / {")
+
+		serverBlock := sections[0]
+		locationBlock := sections[1]
+
+		for _, want := range tt.wantedMaster {
+			if !strings.Contains(serverBlock, want) {
+				t.Errorf("expected directive %q not found in generated config for test case %q", want, tt.name)
+			}
+		}
+
+		for _, want := range tt.wantedMinion {
+			if !strings.Contains(locationBlock, want) {
+				t.Errorf("expected directive %q not found in generated config for test case %q", want, tt.name)
+			}
+		}
+
+		snaps.MatchSnapshot(t, buf.String())
+		t.Log(buf.String())
+	}
+}
+
+/* Need to add
+* Mergable Ingress Master & minion Policy
+ */
+
 func TestExecuteTemplate_ForIngressForNGINXWithProxyNextUpstreamTimeout(t *testing.T) {
 	t.Parallel()
 
@@ -2350,6 +2785,63 @@ var (
 		},
 	}
 
+	// Ingress Config example with access-control Allow Policy via annotation
+	ingressCfgWithPolicyAnnotationForAccessControlAllow = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "test.example.com",
+				ServerTokens: "off",
+				StatusZone:   "test.example.com",
+				Locations: []Location{
+					{
+						Path:     "/tea",
+						Upstream: testUpstream,
+					},
+				},
+				Allow: []string{
+					"10.0.0.0/8",
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"nginx.org/policies": "access-control-policy",
+			},
+		},
+	}
+
+	// Ingress Config example with access-control Deny Policy via annotation
+	ingressCfgWithPolicyAnnotationForAccessControlDeny = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "test.example.com",
+				ServerTokens: "off",
+				StatusZone:   "test.example.com",
+				Locations: []Location{
+					{
+						Path:     "/tea",
+						Upstream: testUpstream,
+					},
+				},
+				Deny: []string{
+					"10.0.0.0/8",
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"nginx.org/policies": "access-control-policy",
+			},
+		},
+	}
+
+	// Ingress Config example with client-body-buffer-size annotation value "16k"
 	ingressCfgWithClientBodyBufferSize = IngressNginxConfig{
 		Servers: []Server{
 			{
