@@ -55,7 +55,9 @@ spec:
     protocol: TCP
     name: {{ .Values.controller.service.httpPort.name }}
   {{- if or (eq .Values.controller.service.type "LoadBalancer") (eq .Values.controller.service.type "NodePort") }}
-    nodePort: {{ .Values.controller.service.httpPort.nodePort }}
+    {{- with .Values.controller.service.httpPort.nodePort }}
+    nodePort: {{ . }}
+    {{- end }}
   {{- end }}
 {{- end }}
 {{- if .Values.controller.service.httpsPort.enable }}
@@ -64,7 +66,9 @@ spec:
     protocol: TCP
     name: {{ .Values.controller.service.httpsPort.name }}
   {{- if or (eq .Values.controller.service.type "LoadBalancer") (eq .Values.controller.service.type "NodePort") }}
-    nodePort: {{ .Values.controller.service.httpsPort.nodePort }}
+    {{- with .Values.controller.service.httpsPort.nodePort }}
+    nodePort: {{ . }}
+    {{- end }}
   {{- end }}
 {{- end }}
   selector:
