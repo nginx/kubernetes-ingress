@@ -117,24 +117,33 @@ func (c *CmController) newNamespacedInformer(ns string) *namespacedInformer {
 	nsi.kubeSharedInformerFactory = kubeinformers.NewSharedInformerFactoryWithOptions(c.kubeClient, resyncPeriod, kubeinformers.WithNamespace(ns))
 	nsi.vsSharedInformerFactory = vsinformers.NewSharedInformerFactoryWithOptions(c.vsClient, resyncPeriod, vsinformers.WithNamespace(ns))
 
-	c.addHandlers(nsi)
+	if err := c.addHandlers(nsi); err != nil {
+		// Log error but continue - this is better than crashing the entire controller
+		l := nl.LoggerFromContext(c.ctx)
+		nl.Warn(l, "Failed to add event handlers for namespace", "namespace", ns, "error", err)
+	}
 
 	c.informerGroup[ns] = nsi
 	return nsi
 }
 
-func (c *CmController) addHandlers(nsi *namespacedInformer) {
+func (c *CmController) addHandlers(nsi *namespacedInformer) error {
 	nsi.vsLister = nsi.vsSharedInformerFactory.K8s().V1().VirtualServers().Lister()
-	nsi.vsSharedInformerFactory.K8s().V1().VirtualServers().Informer().AddEventHandler(&controllerpkg.QueuingEventHandler{
+	if _, err := nsi.vsSharedInformerFactory.K8s().V1().VirtualServers().Informer().AddEventHandler(&controllerpkg.QueuingEventHandler{
 		Queue: c.queue,
-	})
+	}); err != nil {
+		return fmt.Errorf("failed to add VirtualServer event handler: %w", err)
+	}
 	nsi.mustSync = append(nsi.mustSync, nsi.vsSharedInformerFactory.K8s().V1().VirtualServers().Informer().HasSynced)
 
-	nsi.cmSharedInformerFactory.Certmanager().V1().Certificates().Informer().AddEventHandler(&controllerpkg.BlockingEventHandler{
+	if _, err := nsi.cmSharedInformerFactory.Certmanager().V1().Certificates().Informer().AddEventHandler(&controllerpkg.BlockingEventHandler{
 		WorkFunc: certificateHandler(c.queue),
-	})
+	}); err != nil {
+		return fmt.Errorf("failed to add Certificate event handler: %w", err)
+	}
 	nsi.cmLister = nsi.cmSharedInformerFactory.Certmanager().V1().Certificates().Lister()
 	nsi.mustSync = append(nsi.mustSync, nsi.cmSharedInformerFactory.Certmanager().V1().Certificates().Informer().HasSynced)
+	return nil
 }
 
 func (c *CmController) processItem(ctx context.Context, key types.NamespacedName) error {

@@ -305,7 +305,9 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 	isDynamicNs := input.WatchNamespaceLabel != ""
 
 	if isDynamicNs {
-		lbc.addNamespaceHandler(createNamespaceHandlers(lbc), input.WatchNamespaceLabel)
+		if err := lbc.addNamespaceHandler(createNamespaceHandlers(lbc), input.WatchNamespaceLabel); err != nil {
+			nl.Fatalf(lbc.Logger, "Failed to add namespace handler: %v", err)
+		}
 	}
 
 	if input.CertManagerEnabled {
@@ -324,7 +326,9 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 			// no initial namespaces with watched label - skip creating informers for now
 			break
 		}
-		lbc.newNamespacedInformer(ns)
+		if _, err := lbc.newNamespacedInformer(ns); err != nil {
+			nl.Fatalf(lbc.Logger, "Failed to create namespaced informer for namespace %s: %v", ns, err)
+		}
 	}
 
 	if lbc.areCustomResourcesEnabled {
@@ -357,7 +361,9 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 
 	if input.IngressLink != "" {
 		lbc.watchIngressLink = true
-		lbc.addIngressLinkHandler(createIngressLinkHandlers(lbc), input.IngressLink)
+		if err := lbc.addIngressLinkHandler(createIngressLinkHandlers(lbc), input.IngressLink); err != nil {
+			nl.Fatalf(lbc.Logger, "Failed to add ingress link handler: %v", err)
+		}
 	}
 
 	if input.IsLeaderElectionEnabled {
@@ -476,16 +482,22 @@ type namespacedInformer struct {
 	cacheSyncs                   []cache.InformerSynced
 }
 
-func (lbc *LoadBalancerController) newNamespacedInformer(ns string) *namespacedInformer {
+func (lbc *LoadBalancerController) newNamespacedInformer(ns string) (*namespacedInformer, error) {
 	nsi := &namespacedInformer{}
 	nsi.stopCh = make(chan struct{})
 	nsi.namespace = ns
 	nsi.sharedInformerFactory = informers.NewSharedInformerFactoryWithOptions(lbc.client, lbc.resync, informers.WithNamespace(ns))
 
 	// create handlers for resources we care about
-	nsi.addIngressHandler(createIngressHandlers(lbc))
-	nsi.addServiceHandler(createServiceHandlers(lbc))
-	nsi.addEndpointSliceHandler(createEndpointSliceHandlers(lbc))
+	if err := nsi.addIngressHandler(createIngressHandlers(lbc)); err != nil {
+		return nil, fmt.Errorf("failed to add ingress handler for namespace %s: %w", ns, err)
+	}
+	if err := nsi.addServiceHandler(createServiceHandlers(lbc)); err != nil {
+		return nil, fmt.Errorf("failed to add service handler for namespace %s: %w", ns, err)
+	}
+	if err := nsi.addEndpointSliceHandler(createEndpointSliceHandlers(lbc)); err != nil {
+		return nil, fmt.Errorf("failed to add endpoint slice handler for namespace %s: %w", ns, err)
+	}
 	nsi.addPodHandler()
 
 	secretsTweakListOptionsFunc := func(options *meta_v1.ListOptions) {
@@ -505,7 +517,9 @@ func (lbc *LoadBalancerController) newNamespacedInformer(ns string) *namespacedI
 		if v == "" || v == ns {
 			nsi.isSecretsEnabledNamespace = true
 			nsi.secretInformerFactory = informers.NewSharedInformerFactoryWithOptions(lbc.client, lbc.resync, informers.WithNamespace(ns), informers.WithTweakListOptions(secretsTweakListOptionsFunc))
-			nsi.addSecretHandler(createSecretHandlers(lbc))
+			if err := nsi.addSecretHandler(createSecretHandlers(lbc)); err != nil {
+				return nil, fmt.Errorf("failed to add secret handler for namespace %s: %w", ns, err)
+			}
 			break
 		}
 	}
@@ -514,10 +528,18 @@ func (lbc *LoadBalancerController) newNamespacedInformer(ns string) *namespacedI
 		nsi.areCustomResourcesEnabled = true
 		nsi.confSharedInformerFactory = k8s_nginx_informers.NewSharedInformerFactoryWithOptions(lbc.confClient, lbc.resync, k8s_nginx_informers.WithNamespace(ns))
 
-		nsi.addVirtualServerHandler(createVirtualServerHandlers(lbc))
-		nsi.addVirtualServerRouteHandler(createVirtualServerRouteHandlers(lbc))
-		nsi.addTransportServerHandler(createTransportServerHandlers(lbc))
-		nsi.addPolicyHandler(createPolicyHandlers(lbc))
+		if err := nsi.addVirtualServerHandler(createVirtualServerHandlers(lbc)); err != nil {
+			return nil, fmt.Errorf("failed to add virtual server handler for namespace %s: %w", ns, err)
+		}
+		if err := nsi.addVirtualServerRouteHandler(createVirtualServerRouteHandlers(lbc)); err != nil {
+			return nil, fmt.Errorf("failed to add virtual server route handler for namespace %s: %w", ns, err)
+		}
+		if err := nsi.addTransportServerHandler(createTransportServerHandlers(lbc)); err != nil {
+			return nil, fmt.Errorf("failed to add transport server handler for namespace %s: %w", ns, err)
+		}
+		if err := nsi.addPolicyHandler(createPolicyHandlers(lbc)); err != nil {
+			return nil, fmt.Errorf("failed to add policy handler for namespace %s: %w", ns, err)
+		}
 
 	}
 
@@ -525,21 +547,33 @@ func (lbc *LoadBalancerController) newNamespacedInformer(ns string) *namespacedI
 		nsi.dynInformerFactory = dynamicinformer.NewFilteredDynamicSharedInformerFactory(lbc.dynClient, 0, ns, nil)
 		if lbc.appProtectEnabled {
 			nsi.appProtectEnabled = true
-			nsi.addAppProtectPolicyHandler(createAppProtectPolicyHandlers(lbc))
-			nsi.addAppProtectLogConfHandler(createAppProtectLogConfHandlers(lbc))
-			nsi.addAppProtectUserSigHandler(createAppProtectUserSigHandlers(lbc))
+			if err := nsi.addAppProtectPolicyHandler(createAppProtectPolicyHandlers(lbc)); err != nil {
+				return nil, fmt.Errorf("failed to add app protect policy handler for namespace %s: %w", ns, err)
+			}
+			if err := nsi.addAppProtectLogConfHandler(createAppProtectLogConfHandlers(lbc)); err != nil {
+				return nil, fmt.Errorf("failed to add app protect log conf handler for namespace %s: %w", ns, err)
+			}
+			if err := nsi.addAppProtectUserSigHandler(createAppProtectUserSigHandlers(lbc)); err != nil {
+				return nil, fmt.Errorf("failed to add app protect user sig handler for namespace %s: %w", ns, err)
+			}
 		}
 
 		if lbc.appProtectDosEnabled {
 			nsi.appProtectDosEnabled = true
-			nsi.addAppProtectDosPolicyHandler(createAppProtectDosPolicyHandlers(lbc))
-			nsi.addAppProtectDosLogConfHandler(createAppProtectDosLogConfHandlers(lbc))
-			nsi.addAppProtectDosProtectedResourceHandler(createAppProtectDosProtectedResourceHandlers(lbc))
+			if err := nsi.addAppProtectDosPolicyHandler(createAppProtectDosPolicyHandlers(lbc)); err != nil {
+				return nil, fmt.Errorf("failed to add app protect dos policy handler for namespace %s: %w", ns, err)
+			}
+			if err := nsi.addAppProtectDosLogConfHandler(createAppProtectDosLogConfHandlers(lbc)); err != nil {
+				return nil, fmt.Errorf("failed to add app protect dos log conf handler for namespace %s: %w", ns, err)
+			}
+			if err := nsi.addAppProtectDosProtectedResourceHandler(createAppProtectDosProtectedResourceHandlers(lbc)); err != nil {
+				return nil, fmt.Errorf("failed to add app protect dos protected resource handler for namespace %s: %w", ns, err)
+			}
 		}
 	}
 
 	lbc.namespacedInformers[ns] = nsi
-	return nsi
+	return nsi, nil
 }
 
 // AddSyncQueue enqueues the provided item on the sync queue
@@ -548,21 +582,27 @@ func (lbc *LoadBalancerController) AddSyncQueue(item interface{}) {
 }
 
 // addSecretHandler adds the handler for secrets to the controller
-func (nsi *namespacedInformer) addSecretHandler(handlers cache.ResourceEventHandlerFuncs) {
+func (nsi *namespacedInformer) addSecretHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.secretInformerFactory.Core().V1().Secrets().Informer()
-	informer.AddEventHandler(handlers)
+	if _, err := informer.AddEventHandler(handlers); err != nil {
+		return fmt.Errorf("failed to add Secret event handler: %w", err)
+	}
 	nsi.secretLister = informer.GetStore()
 
 	nsi.cacheSyncs = append(nsi.cacheSyncs, informer.HasSynced)
+	return nil
 }
 
 // addIngressHandler adds the handler for ingresses to the controller
-func (nsi *namespacedInformer) addIngressHandler(handlers cache.ResourceEventHandlerFuncs) {
+func (nsi *namespacedInformer) addIngressHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.sharedInformerFactory.Networking().V1().Ingresses().Informer()
-	informer.AddEventHandler(handlers)
+	if _, err := informer.AddEventHandler(handlers); err != nil {
+		return fmt.Errorf("failed to add Ingress event handler: %w", err)
+	}
 	nsi.ingressLister = storeToIngressLister{Store: informer.GetStore()}
 
 	nsi.cacheSyncs = append(nsi.cacheSyncs, informer.HasSynced)
+	return nil
 }
 
 func (nsi *namespacedInformer) addPodHandler() {
@@ -572,20 +612,26 @@ func (nsi *namespacedInformer) addPodHandler() {
 	nsi.cacheSyncs = append(nsi.cacheSyncs, informer.HasSynced)
 }
 
-func (nsi *namespacedInformer) addVirtualServerHandler(handlers cache.ResourceEventHandlerFuncs) {
+func (nsi *namespacedInformer) addVirtualServerHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.confSharedInformerFactory.K8s().V1().VirtualServers().Informer()
-	informer.AddEventHandler(handlers)
+	if _, err := informer.AddEventHandler(handlers); err != nil {
+		return fmt.Errorf("failed to add VirtualServer event handler: %w", err)
+	}
 	nsi.virtualServerLister = informer.GetStore()
 
 	nsi.cacheSyncs = append(nsi.cacheSyncs, informer.HasSynced)
+	return nil
 }
 
-func (nsi *namespacedInformer) addVirtualServerRouteHandler(handlers cache.ResourceEventHandlerFuncs) {
+func (nsi *namespacedInformer) addVirtualServerRouteHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.confSharedInformerFactory.K8s().V1().VirtualServerRoutes().Informer()
-	informer.AddEventHandler(handlers)
+	if _, err := informer.AddEventHandler(handlers); err != nil {
+		return fmt.Errorf("failed to add VirtualServerRoute event handler: %w", err)
+	}
 	nsi.virtualServerRouteLister = informer.GetStore()
 
 	nsi.cacheSyncs = append(nsi.cacheSyncs, informer.HasSynced)
+	return nil
 }
 
 // Run starts the loadbalancer controller
