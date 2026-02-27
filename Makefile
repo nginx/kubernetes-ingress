@@ -1,6 +1,7 @@
 # variables that should not be overridden by the user
 VER = $(shell grep IC_VERSION .github/data/version.txt | cut -d '=' -f 2)
 GIT_TAG = $(shell git describe --exact-match --tags || echo untagged)
+BINARY_NAME = nginx-ingress
 VERSION = $(VER)-SNAPSHOT
 # renovate: datasource=docker depName=nginx/nginx
 NGINX_OSS_VERSION             ?= 1.29.5
@@ -59,6 +60,8 @@ endif
 DOCKER_CMD = docker build --platform linux/$(strip $(ARCH)) $(strip $(DOCKER_BUILD_OPTIONS)) --target $(strip $(TARGET)) -f build/Dockerfile -t $(BUILD_IMAGE) .
 
 export DOCKER_BUILDKIT = 1
+
+GO_SRCS := $(shell find . -type f -name '*.go') go.mod go.sum
 
 .DEFAULT_GOAL:=help
 
@@ -135,17 +138,20 @@ telemetry-schema: ## Generate the telemetry Schema
 	go generate internal/telemetry/exporter.go
 	gofumpt -w internal/telemetry/*_generated.go
 
+$(BINARY_NAME): $(GO_SRCS) ## Build Ingress Controller binary (local)
+	@go version || (code=$$?; printf "\033[0;31mError\033[0m: unable to build locally, try using the parameter TARGET=container or TARGET=download\n"; exit $$code)
+	CGO_ENABLED=0 GOOS=$(strip $(GOOS)) GOARCH=$(strip $(ARCH)) go build -trimpath -ldflags "$(GO_LINKER_FLAGS)" -o $(BINARY_NAME) github.com/nginx/kubernetes-ingress/cmd/nginx-ingress
+
 .PHONY: build
 build: ## Build Ingress Controller binary
 	@docker -v || (code=$$?; printf "\033[0;31mError\033[0m: there was a problem with Docker\n"; exit $$code)
 ifeq ($(strip $(TARGET)),local)
-	@go version || (code=$$?; printf "\033[0;31mError\033[0m: unable to build locally, try using the parameter TARGET=container or TARGET=download\n"; exit $$code)
-	CGO_ENABLED=0 GOOS=$(strip $(GOOS)) GOARCH=$(strip $(ARCH)) go build -trimpath -ldflags "$(GO_LINKER_FLAGS)" -o nginx-ingress github.com/nginx/kubernetes-ingress/cmd/nginx-ingress
+	@$(MAKE) $(BINARY_NAME)
 else ifeq ($(strip $(TARGET)),download)
 	@$(MAKE) download-binary-docker
 else ifeq ($(strip $(TARGET)),debug)
 	@go version || (code=$$?; printf "\033[0;31mError\033[0m: unable to build locally, try using the parameter TARGET=container or TARGET=download\n"; exit $$code)
-	CGO_ENABLED=0 GOOS=$(strip $(GOOS)) GOARCH=$(strip $(ARCH)) go build -ldflags "$(DEBUG_GO_LINKER_FLAGS)" -gcflags "$(DEBUG_GO_GC_FLAGS)" -o nginx-ingress github.com/nginx/kubernetes-ingress/cmd/nginx-ingress
+	CGO_ENABLED=0 GOOS=$(strip $(GOOS)) GOARCH=$(strip $(ARCH)) go build -ldflags "$(DEBUG_GO_LINKER_FLAGS)" -gcflags "$(DEBUG_GO_GC_FLAGS)" -o $(BINARY_NAME) github.com/nginx/kubernetes-ingress/cmd/nginx-ingress
 endif
 
 .PHONY: download-binary-docker
@@ -269,7 +275,7 @@ push: ## Docker push to PREFIX and TAG
 
 .PHONY: clean
 clean:  ## Remove nginx-ingress binary
-	-rm -f nginx-ingress
+	-rm -f $(BINARY_NAME)
 	-rm -rf dist
 
 .PHONY: deps
