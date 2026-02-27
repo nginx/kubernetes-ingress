@@ -61,7 +61,7 @@ DOCKER_CMD = docker build --platform linux/$(strip $(ARCH)) $(strip $(DOCKER_BUI
 
 export DOCKER_BUILDKIT = 1
 
-GO_SRCS := $(shell git ls-files '*.go' go.mod go.sum)
+GO_SRCS := $(shell git ls-files '*.go' go.mod go.sum .github/data/version.txt)
 
 .DEFAULT_GOAL:=help
 
@@ -138,20 +138,22 @@ telemetry-schema: ## Generate the telemetry Schema
 	go generate internal/telemetry/exporter.go
 	gofumpt -w internal/telemetry/*_generated.go
 
-$(BINARY_NAME): $(GO_SRCS) ## Build Ingress Controller binary (local)
+$(BINARY_NAME)-$(ARCH): $(GO_SRCS) ## Build Ingress Controller binary (local)
 	@go version || (code=$$?; printf "\033[0;31mError\033[0m: unable to build locally, try using the parameter TARGET=container or TARGET=download\n"; exit $$code)
-	CGO_ENABLED=0 GOOS=$(strip $(GOOS)) GOARCH=$(strip $(ARCH)) go build -trimpath -ldflags "$(GO_LINKER_FLAGS)" -o $(BINARY_NAME) github.com/nginx/kubernetes-ingress/cmd/nginx-ingress
+	CGO_ENABLED=0 GOOS=$(strip $(GOOS)) GOARCH=$(strip $(ARCH)) go build -trimpath -ldflags "$(GO_LINKER_FLAGS)" -o $(BINARY_NAME)-$(ARCH) github.com/nginx/kubernetes-ingress/cmd/nginx-ingress
+	@cp $(BINARY_NAME)-$(ARCH) $(BINARY_NAME)
 
 .PHONY: build
 build: ## Build Ingress Controller binary
 	@docker -v || (code=$$?; printf "\033[0;31mError\033[0m: there was a problem with Docker\n"; exit $$code)
 ifeq ($(strip $(TARGET)),local)
-	@$(MAKE) $(BINARY_NAME)
+	@$(MAKE) $(BINARY_NAME)-$(ARCH)
 else ifeq ($(strip $(TARGET)),download)
 	@$(MAKE) download-binary-docker
 else ifeq ($(strip $(TARGET)),debug)
 	@go version || (code=$$?; printf "\033[0;31mError\033[0m: unable to build locally, try using the parameter TARGET=container or TARGET=download\n"; exit $$code)
-	CGO_ENABLED=0 GOOS=$(strip $(GOOS)) GOARCH=$(strip $(ARCH)) go build -ldflags "$(DEBUG_GO_LINKER_FLAGS)" -gcflags "$(DEBUG_GO_GC_FLAGS)" -o $(BINARY_NAME) github.com/nginx/kubernetes-ingress/cmd/nginx-ingress
+	CGO_ENABLED=0 GOOS=$(strip $(GOOS)) GOARCH=$(strip $(ARCH)) go build -ldflags "$(DEBUG_GO_LINKER_FLAGS)" -gcflags "$(DEBUG_GO_GC_FLAGS)" -o $(BINARY_NAME)-$(ARCH) github.com/nginx/kubernetes-ingress/cmd/nginx-ingress
+	@cp $(BINARY_NAME)-$(ARCH) $(BINARY_NAME)
 endif
 
 .PHONY: download-binary-docker
@@ -275,7 +277,7 @@ push: ## Docker push to PREFIX and TAG
 
 .PHONY: clean
 clean:  ## Remove $(BINARY_NAME) binary
-	-rm -f $(BINARY_NAME)
+	-rm -f $(BINARY_NAME) $(BINARY_NAME)-*
 	-rm -rf dist
 
 .PHONY: deps
