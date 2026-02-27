@@ -154,8 +154,11 @@ func generateNginxCfg(p NginxCfgParams) (version1.IngressNginxConfig, Warnings) 
 		var warnings Warnings
 		ownerDetails := policyOwnerDetails{
 			owner:          p.ingEx.Ingress,
+			ownerType:      "ingress",
 			ownerName:      p.ingEx.Ingress.Name,
 			ownerNamespace: p.ingEx.Ingress.Namespace,
+			vsName:         p.ingEx.Ingress.Name,
+			vsNamespace:    p.ingEx.Ingress.Namespace,
 		}
 		if p.isMinion {
 			ownerDetails.vsName = p.mergeableIngs.Master.Ingress.Name

@@ -426,6 +426,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	ownerDetails := policyOwnerDetails{
 		owner:          vsEx.VirtualServer,
+		ownerType:      "virtualserver",
 		ownerName:      vsEx.VirtualServer.Name,
 		ownerNamespace: vsEx.VirtualServer.Namespace,
 		vsNamespace:    vsEx.VirtualServer.Namespace,
@@ -614,6 +615,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		vsLocSnippets := r.LocationSnippets
 		ownerDetails := policyOwnerDetails{
 			owner:          vsEx.VirtualServer,
+			ownerType:      "virtualserver",
 			ownerName:      vsEx.VirtualServer.Name,
 			ownerNamespace: vsEx.VirtualServer.Namespace,
 			vsNamespace:    vsEx.VirtualServer.Namespace,
@@ -779,6 +781,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				// use the VirtualServer route policies if the route does not define any
 				ownerDetails = policyOwnerDetails{
 					owner:          vsEx.VirtualServer,
+					ownerType:      "virtualserver",
 					ownerName:      vsEx.VirtualServer.Name,
 					ownerNamespace: vsEx.VirtualServer.Namespace,
 					vsNamespace:    vsEx.VirtualServer.Namespace,
@@ -789,6 +792,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			} else {
 				ownerDetails = policyOwnerDetails{
 					owner:          vsr,
+					ownerType:      "virtualserverroute",
 					ownerName:      vsr.Name,
 					ownerNamespace: vsr.Namespace,
 					vsNamespace:    vsEx.VirtualServer.Namespace,
@@ -1061,6 +1065,7 @@ func generateUpstreams(
 
 type policyOwnerDetails struct {
 	owner          runtime.Object
+	ownerType      string
 	ownerName      string
 	ownerNamespace string
 	vsNamespace    string

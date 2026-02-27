@@ -6186,7 +6186,7 @@ func TestGenerateVirtualServerConfigAPIKeyPolicy(t *testing.T) {
 		Maps: []version2.Map{
 			{
 				Source:   "$apikey_auth_token",
-				Variable: "$apikey_auth_client_name_default_cafe_api_key_policy_route",
+				Variable: "$apikey_auth_client_name_default_cafe_virtualserver_api_key_policy_route",
 				Parameters: []version2.Parameter{
 					{
 						Value:  "default",
@@ -6200,7 +6200,7 @@ func TestGenerateVirtualServerConfigAPIKeyPolicy(t *testing.T) {
 			},
 			{
 				Source:   "$apikey_auth_token",
-				Variable: "$apikey_auth_client_name_default_cafe_api_key_policy_spec",
+				Variable: "$apikey_auth_client_name_default_cafe_virtualserver_api_key_policy_spec",
 				Parameters: []version2.Parameter{
 					{
 						Value:  "default",
@@ -6266,7 +6266,7 @@ func TestGenerateVirtualServerConfigAPIKeyPolicy(t *testing.T) {
 			APIKey: &version2.APIKey{
 				Header:  []string{"X-API-Key"},
 				Query:   []string{"apikey"},
-				MapName: "apikey_auth_client_name_default_cafe_api_key_policy_spec",
+				MapName: "apikey_auth_client_name_default_cafe_virtualserver_api_key_policy_spec",
 			},
 			Locations: []version2.Location{
 				{
@@ -6293,7 +6293,7 @@ func TestGenerateVirtualServerConfigAPIKeyPolicy(t *testing.T) {
 					ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
 					ServiceName:              "coffee-svc",
 					APIKey: &version2.APIKey{
-						MapName: "apikey_auth_client_name_default_cafe_api_key_policy_route",
+						MapName: "apikey_auth_client_name_default_cafe_virtualserver_api_key_policy_route",
 						Query:   []string{"api-key"},
 					},
 				},
@@ -6435,19 +6435,19 @@ func TestGenerateVirtualServerConfigAPIKeyClientMaps(t *testing.T) {
 	}
 
 	expectedAPIKey1 := &version2.APIKey{
-		MapName: "apikey_auth_client_name_default_cafe_api_key_policy_1",
+		MapName: "apikey_auth_client_name_default_cafe_virtualserver_api_key_policy_1",
 		Header:  []string{"X-API-Key"},
 		Query:   []string{"apikey"},
 	}
 
 	expectedAPIKey2 := &version2.APIKey{
-		MapName: "apikey_auth_client_name_default_cafe_api_key_policy_2",
+		MapName: "apikey_auth_client_name_default_cafe_virtualserver_api_key_policy_2",
 		Header:  []string{"api-key"},
 	}
 
 	expectedMap1 := version2.Map{
 		Source:   "$apikey_auth_token",
-		Variable: "$apikey_auth_client_name_default_cafe_api_key_policy_1",
+		Variable: "$apikey_auth_client_name_default_cafe_virtualserver_api_key_policy_1",
 		Parameters: []version2.Parameter{
 			{
 				Value:  "default",
@@ -6462,7 +6462,7 @@ func TestGenerateVirtualServerConfigAPIKeyClientMaps(t *testing.T) {
 
 	expectedMap2 := version2.Map{
 		Source:   "$apikey_auth_token",
-		Variable: "$apikey_auth_client_name_default_cafe_api_key_policy_2",
+		Variable: "$apikey_auth_client_name_default_cafe_virtualserver_api_key_policy_2",
 		Parameters: []version2.Parameter{
 			{
 				Value:  "default",
@@ -9149,7 +9149,7 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 					},
 					{
 						Source:   "$apikey_auth_token",
-						Variable: "$apikey_auth_client_name_default_cafe_api_key_policy",
+						Variable: "$apikey_auth_client_name_default_cafe_virtualserver_api_key_policy",
 						Parameters: []version2.Parameter{
 							{
 								Value:  "default",
@@ -9266,7 +9266,7 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 					APIKey: &version2.APIKey{
 						Header:  []string{"X-API-Key"},
 						Query:   []string{"api-key"},
-						MapName: "apikey_auth_client_name_default_cafe_api_key_policy",
+						MapName: "apikey_auth_client_name_default_cafe_virtualserver_api_key_policy",
 					},
 				},
 			},
@@ -9445,7 +9445,7 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 					},
 					{
 						Source:   "$apikey_auth_token",
-						Variable: "$apikey_auth_client_name_default_cafe_api_key_policy",
+						Variable: "$apikey_auth_client_name_default_cafe_virtualserver_api_key_policy",
 						Parameters: []version2.Parameter{
 							{
 								Value:  "default",
@@ -9560,7 +9560,7 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 					APIKey: &version2.APIKey{
 						Header:  []string{"X-API-Key"},
 						Query:   []string{"api-key"},
-						MapName: "apikey_auth_client_name_default_cafe_api_key_policy",
+						MapName: "apikey_auth_client_name_default_cafe_virtualserver_api_key_policy",
 					},
 				},
 			},
@@ -9744,7 +9744,7 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 					},
 					{
 						Source:   "$apikey_auth_token",
-						Variable: "$apikey_auth_client_name_default_cafe_api_key_policy",
+						Variable: "$apikey_auth_client_name_default_cafe_virtualserver_api_key_policy",
 						Parameters: []version2.Parameter{
 							{
 								Value:  "default",
@@ -9860,7 +9860,7 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 					APIKey: &version2.APIKey{
 						Header:  []string{"X-API-Key"},
 						Query:   []string{"api-key"},
-						MapName: "apikey_auth_client_name_default_cafe_api_key_policy",
+						MapName: "apikey_auth_client_name_default_cafe_virtualserver_api_key_policy",
 					},
 				},
 			},
@@ -10046,7 +10046,7 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 					},
 					{
 						Source:   "$apikey_auth_token",
-						Variable: "$apikey_auth_client_name_default_cafe_api_key_policy",
+						Variable: "$apikey_auth_client_name_default_cafe_virtualserver_api_key_policy",
 						Parameters: []version2.Parameter{
 							{
 								Value:  "default",
@@ -10163,7 +10163,7 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 					APIKey: &version2.APIKey{
 						Header:  []string{"X-API-Key"},
 						Query:   []string{"api-key"},
-						MapName: "apikey_auth_client_name_default_cafe_api_key_policy",
+						MapName: "apikey_auth_client_name_default_cafe_virtualserver_api_key_policy",
 					},
 				},
 			},
@@ -10311,7 +10311,7 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 				Maps: []version2.Map{
 					{
 						Source:   "$apikey_auth_token",
-						Variable: "$apikey_auth_client_name_default_cafe_api_key_policy",
+						Variable: "$apikey_auth_client_name_default_cafe_virtualserver_api_key_policy",
 						Parameters: []version2.Parameter{
 							{
 								Value:  "default",
@@ -10529,7 +10529,7 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 					APIKey: &version2.APIKey{
 						Header:  []string{"X-API-Key"},
 						Query:   []string{"api-key"},
-						MapName: "apikey_auth_client_name_default_cafe_api_key_policy",
+						MapName: "apikey_auth_client_name_default_cafe_virtualserver_api_key_policy",
 					},
 				},
 			},
@@ -10688,7 +10688,7 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 				Maps: []version2.Map{
 					{
 						Source:   "$apikey_auth_token",
-						Variable: "$apikey_auth_client_name_default_cafe_api_key_policy",
+						Variable: "$apikey_auth_client_name_default_cafe_virtualserver_api_key_policy",
 						Parameters: []version2.Parameter{
 							{
 								Value:  "default",
@@ -10854,7 +10854,7 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 					APIKey: &version2.APIKey{
 						Header:  []string{"X-API-Key"},
 						Query:   []string{"api-key"},
-						MapName: "apikey_auth_client_name_default_cafe_api_key_policy",
+						MapName: "apikey_auth_client_name_default_cafe_virtualserver_api_key_policy",
 					},
 				},
 			},
@@ -11021,7 +11021,7 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 				Maps: []version2.Map{
 					{
 						Source:   "$apikey_auth_token",
-						Variable: "$apikey_auth_client_name_default_cafe_api_key_policy",
+						Variable: "$apikey_auth_client_name_default_cafe_virtualserver_api_key_policy",
 						Parameters: []version2.Parameter{
 							{
 								Value:  "default",
@@ -11242,7 +11242,7 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 					APIKey: &version2.APIKey{
 						Header:  []string{"X-API-Key"},
 						Query:   []string{"api-key"},
-						MapName: "apikey_auth_client_name_default_cafe_api_key_policy",
+						MapName: "apikey_auth_client_name_default_cafe_virtualserver_api_key_policy",
 					},
 				},
 			},
@@ -11669,9 +11669,9 @@ func TestGenerateVirtualServerConfigCache(t *testing.T) {
 				LimitReqZones: []version2.LimitReqZone{},
 				CacheZones: []version2.CacheZone{
 					{
-						Name:   "default_cafe_my-cache",
+						Name:   "default_cafe_virtualserver_my-cache",
 						Size:   "10m",
-						Path:   "/var/cache/nginx/default_cafe_my-cache",
+						Path:   "/var/cache/nginx/default_cafe_virtualserver_my-cache",
 						Levels: "",
 					},
 				},
@@ -11682,7 +11682,7 @@ func TestGenerateVirtualServerConfigCache(t *testing.T) {
 					VSNamespace:  "default",
 					VSName:       "cafe",
 					Cache: &version2.Cache{
-						ZoneName:              "default_cafe_my-cache",
+						ZoneName:              "default_cafe_virtualserver_my-cache",
 						ZoneSize:              "10m",
 						Time:                  "1h",
 						Valid:                 map[string]string{},
@@ -11825,9 +11825,9 @@ func TestGenerateVirtualServerConfigCache(t *testing.T) {
 				LimitReqZones: []version2.LimitReqZone{},
 				CacheZones: []version2.CacheZone{
 					{
-						Name:   "default_cafe_route-cache",
+						Name:   "default_cafe_virtualserver_route-cache",
 						Size:   "5m",
-						Path:   "/var/cache/nginx/default_cafe_route-cache",
+						Path:   "/var/cache/nginx/default_cafe_virtualserver_route-cache",
 						Levels: "",
 					},
 				},
@@ -11849,7 +11849,7 @@ func TestGenerateVirtualServerConfigCache(t *testing.T) {
 							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
 							ServiceName:              "tea-svc",
 							Cache: &version2.Cache{
-								ZoneName:              "default_cafe_route-cache",
+								ZoneName:              "default_cafe_virtualserver_route-cache",
 								ZoneSize:              "5m",
 								Time:                  "30m",
 								Valid:                 map[string]string{"200": "30m", "404": "30m"},
@@ -12029,9 +12029,9 @@ func TestGenerateVirtualServerConfigCache(t *testing.T) {
 				LimitReqZones: []version2.LimitReqZone{},
 				CacheZones: []version2.CacheZone{
 					{
-						Name:    "default_cafe_default_tea-vsr_vsr-cache",
+						Name:    "default_cafe_default_tea-vsr_virtualserverroute_vsr-cache",
 						Size:    "20m",
-						Path:    "/var/cache/nginx/default_cafe_default_tea-vsr_vsr-cache",
+						Path:    "/var/cache/nginx/default_cafe_default_tea-vsr_virtualserverroute_vsr-cache",
 						Levels:  "2:2",
 						MinFree: "100m",
 					},
@@ -12057,7 +12057,7 @@ func TestGenerateVirtualServerConfigCache(t *testing.T) {
 							VSRName:                  "tea-vsr",
 							VSRNamespace:             "default",
 							Cache: &version2.Cache{
-								ZoneName:              "default_cafe_default_tea-vsr_vsr-cache",
+								ZoneName:              "default_cafe_default_tea-vsr_virtualserverroute_vsr-cache",
 								ZoneSize:              "20m",
 								Time:                  "2h",
 								Valid:                 map[string]string{},
@@ -12190,9 +12190,9 @@ func TestGenerateVirtualServerConfigCache(t *testing.T) {
 				LimitReqZones: []version2.LimitReqZone{},
 				CacheZones: []version2.CacheZone{
 					{
-						Name:             "default_extended-cache_extended-cache",
+						Name:             "default_extended-cache_virtualserver_extended-cache",
 						Size:             "100m",
-						Path:             "/var/cache/nginx/default_extended-cache_extended-cache",
+						Path:             "/var/cache/nginx/default_extended-cache_virtualserver_extended-cache",
 						Levels:           "",
 						Inactive:         "7d",
 						UseTempPath:      false,
@@ -12210,7 +12210,7 @@ func TestGenerateVirtualServerConfigCache(t *testing.T) {
 					VSNamespace:  "default",
 					VSName:       "extended-cache",
 					Cache: &version2.Cache{
-						ZoneName:              "default_extended-cache_extended-cache",
+						ZoneName:              "default_extended-cache_virtualserver_extended-cache",
 						ZoneSize:              "100m",
 						Levels:                "",
 						Inactive:              "7d",
@@ -20454,7 +20454,7 @@ func TestGenerateVirtualServerConfigWithRouteSelector(t *testing.T) {
 				Maps: []version2.Map{
 					{
 						Source:   "$apikey_auth_token",
-						Variable: "$apikey_auth_client_name_default_cafe_api_key_policy",
+						Variable: "$apikey_auth_client_name_default_cafe_virtualserver_api_key_policy",
 						Parameters: []version2.Parameter{
 							{
 								Value:  "default",
@@ -20481,7 +20481,7 @@ func TestGenerateVirtualServerConfigWithRouteSelector(t *testing.T) {
 					APIKey: &version2.APIKey{
 						Header:  []string{"X-API-Key"},
 						Query:   []string{"apikey"},
-						MapName: "apikey_auth_client_name_default_cafe_api_key_policy",
+						MapName: "apikey_auth_client_name_default_cafe_virtualserver_api_key_policy",
 					},
 					ServerName:   "cafe.example.com",
 					StatusZone:   "cafe.example.com",
