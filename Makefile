@@ -274,7 +274,7 @@ push: ## Docker push to PREFIX and TAG
 	docker push $(strip $(PREFIX)):$(strip $(TAG))
 
 .PHONY: clean
-clean:  ## Remove nginx-ingress binary
+clean:  ## Remove $(BINARY_NAME) binary
 	-rm -f $(BINARY_NAME)
 	-rm -rf dist
 
