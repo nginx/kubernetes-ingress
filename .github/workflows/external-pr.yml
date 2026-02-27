@@ -5,6 +5,9 @@ on:
 
 jobs:
   pr-details:
+    if: >
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '/approve-pipeline-run')
     runs-on: ubuntu-24.04
     outputs:
         is_fork: ${{ steps.pr-info.outputs.is_fork }}
@@ -43,11 +46,8 @@ jobs:
   create-internal-pr-mirror:
     needs: pr-details
     if: >
-      github.event.issue.pull_request &&
-      contains(github.event.comment.body, '/approve-pipeline-run') &&
       needs.pr-details.outputs.is_fork == 'true'
     runs-on: ubuntu-24.04
-
     steps:
       - name: Check commenter permissions
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
