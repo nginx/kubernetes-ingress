@@ -114,6 +114,10 @@ var (
 		`Path to the TransportServer NGINX configuration template for a TransportServer resource.
 	(default for NGINX "nginx.transportserver.tmpl"; default for NGINX Plus "nginx-plus.transportserver.tmpl")`)
 
+	oidcTemplatePath = flag.String("oidc-template-path", "",
+		`Path to the OIDC NGINX configuration template.
+	(default for NGINX Plus "oidc.tmpl")`)
+
 	externalService = flag.String("external-service", "",
 		`Specifies the name of the service with the type LoadBalancer through which the Ingress Controller pods are exposed externally.
 	The external address of the service is used when reporting the status of Ingress, VirtualServer and VirtualServerRoute resources. For Ingress resources only: Requires -report-ingress-status.`)
@@ -429,7 +433,7 @@ func mustValidateFlags(ctx context.Context) {
 		nl.Fatal(l, "ingresslink and external-service cannot both be set")
 	}
 
-	if *nginxPlus && *mgmtConfigMap == "" {
+	if *nginxPlus && *mgmtConfigMap == "" && *proxyURL == "" {
 		nl.Fatal(l, "NGINX Plus requires a mgmt ConfigMap to be set")
 	}
 }

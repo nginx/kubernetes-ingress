@@ -90,7 +90,10 @@ func main() {
 	ctx := initLogger(*logFormat, logLevels[*logLevel], os.Stdout)
 	l := nl.LoggerFromContext(ctx)
 
-	cleanupSocketFiles(l)
+	// TODO: Use fake manager
+	if *proxyURL == "" {
+		cleanupSocketFiles(l)
+	}
 
 	initValidate(ctx)
 	parsedFlags := os.Args[1:]
@@ -103,10 +106,36 @@ func main() {
 	if err := validateKubernetesVersionInfo(ctx, kubeClient); err != nil {
 		nl.Fatal(l, err)
 	}
-	pod, err := kubeClient.CoreV1().Pods(controllerNamespace).Get(context.TODO(), podName, meta_v1.GetOptions{})
-	if err != nil {
-		nl.Fatalf(l, "Failed to get pod: %v", err)
+
+	var pod *api_v1.Pod
+
+	if *proxyURL != "" {
+		if controllerNamespace == "" {
+			controllerNamespace = "nginx-ingress"
+		}
+		if podName == "" {
+			podName = "nginx-ingress-controller-proxy-mode"
+		}
+		pod = &api_v1.Pod{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      podName,
+				Namespace: controllerNamespace,
+				OwnerReferences: []meta_v1.OwnerReference{
+					{
+						Kind: "Deployment",
+						Name: "nginx-ingress-controller-proxy-mode",
+					},
+				},
+			},
+		}
+	} else {
+		var err error
+		pod, err = kubeClient.CoreV1().Pods(controllerNamespace).Get(context.TODO(), podName, meta_v1.GetOptions{})
+		if err != nil {
+			nl.Fatalf(l, "Failed to get pod: %v", err)
+		}
 	}
+
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(func(format string, args ...interface{}) {
 		nl.Infof(l, format, args...)
@@ -129,13 +158,13 @@ func main() {
 
 	var licenseReporter *license_reporting.LicenseReporter
 
-	if *nginxPlus {
+	if *nginxPlus && *proxyURL == "" {
 		licenseReporter = license_reporting.NewLicenseReporter(kubeClient, eventRecorder, pod)
 	}
 
 	var deploymentMetadata *metadata.Metadata
 
-	if *agent {
+	if *agent && *proxyURL == "" {
 		deploymentMetadata = metadata.NewMetadataReporter(kubeClient, pod, version)
 	}
 
@@ -156,15 +185,28 @@ func main() {
 	}
 
 	var agentVersion string
-	if *agent {
+	if *agent && *proxyURL == "" {
 		agentVersion = getAgentVersionInfo(nginxManager)
 	}
 
-	go updateSelfWithVersionInfo(ctx, eventRecorder, kubeClient, version, appProtectVersion, agentVersion, nginxVersion, 10, time.Second*5)
+	// Skip pod label updates in proxy mode since the pod may not exist or be accessible
+	if *proxyURL == "" {
+		go updateSelfWithVersionInfo(ctx, eventRecorder, kubeClient, version, appProtectVersion, agentVersion, nginxVersion, 10, time.Second*5)
+	}
 
 	var mgmtCfgParams *configs.MGMTConfigParams
 	if *nginxPlus {
-		mgmtCfgParams = processMGMTConfigMap(kubeClient, configs.NewDefaultMGMTConfigParams(ctx), eventRecorder, pod)
+		if *proxyURL == "" {
+			mgmtCfgParams = processMGMTConfigMap(kubeClient, configs.NewDefaultMGMTConfigParams(ctx), eventRecorder, pod)
+		} else {
+			// In proxy mode, also process the mgmt configmap if specified
+			if *mgmtConfigMap != "" {
+				mgmtCfgParams = processMGMTConfigMap(kubeClient, configs.NewDefaultMGMTConfigParams(ctx), eventRecorder, pod)
+			} else {
+				mgmtCfgParams = configs.NewDefaultMGMTConfigParams(ctx)
+			}
+		}
+
 		if err := processLicenseSecret(kubeClient, nginxManager, mgmtCfgParams, controllerNamespace); err != nil {
 			logEventAndExit(ctx, eventRecorder, pod, secretErrorReason, err)
 		}
@@ -176,7 +218,6 @@ func main() {
 		if err := processClientAuthSecret(kubeClient, nginxManager, mgmtCfgParams, controllerNamespace); err != nil {
 			logEventAndExit(ctx, eventRecorder, pod, secretErrorReason, err)
 		}
-
 	}
 
 	templateExecutor, templateExecutorV2 := createTemplateExecutors(ctx)
@@ -236,12 +277,10 @@ func main() {
 		DefaultCABundle:                caBundlePath,
 	}
 
-	if *nginxPlus {
-		if cfgParams.ZoneSync.Enable && cfgParams.ZoneSync.Port != 0 {
-			err := createAndValidateHeadlessService(ctx, kubeClient, cfgParams, controllerNamespace, pod)
-			if err != nil {
-				logEventAndExit(ctx, eventRecorder, pod, nl.EventReasonServiceFailedToCreate, err)
-			}
+	if *nginxPlus && cfgParams.ZoneSync.Enable && cfgParams.ZoneSync.Port != 0 {
+		err := createAndValidateHeadlessService(ctx, kubeClient, cfgParams, controllerNamespace, pod)
+		if err != nil {
+			logEventAndExit(ctx, eventRecorder, pod, nl.EventReasonServiceFailedToCreate, err)
 		}
 	}
 
@@ -255,7 +294,7 @@ func main() {
 	process := startChildProcesses(nginxManager, appProtectV5)
 
 	plusClient := createPlusClient(ctx, *nginxPlus, useFakeNginxManager, nginxManager)
-	if *nginxPlus {
+	if *nginxPlus && *proxyURL == "" {
 		licenseReporter.Config.PlusClient = plusClient
 	}
 
@@ -570,6 +609,9 @@ func createTemplateExecutors(ctx context.Context) (*version1.TemplateExecutor, *
 	if *transportServerTemplatePath != "" {
 		nginxTransportServerTemplatePath = *transportServerTemplatePath
 	}
+	if *oidcTemplatePath != "" {
+		nginxOIDCConfTemplatePath = *oidcTemplatePath
+	}
 
 	templateExecutor, err := version1.NewTemplateExecutor(nginxConfTemplatePath, nginxIngressTemplatePath)
 	if err != nil {
@@ -588,7 +630,7 @@ func createNginxManager(ctx context.Context, managerCollector collectors.Manager
 	useFakeNginxManager := *proxyURL != ""
 	var nginxManager nginx.Manager
 	if useFakeNginxManager {
-		nginxManager = nginx.NewFakeManager("/etc/nginx")
+		nginxManager = nginx.NewFakeManager(ctx, "/etc/nginx")
 	} else {
 		timeout := time.Duration(*nginxReloadTimeout) * time.Millisecond
 		nginxManager = nginx.NewLocalManager(ctx, "/etc/nginx/", *nginxDebug, managerCollector, licenseReporter, deploymentMetadata, timeout, *nginxPlus)
