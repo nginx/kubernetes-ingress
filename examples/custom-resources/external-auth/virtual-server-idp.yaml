@@ -5,13 +5,15 @@ metadata:
 spec:
   host: keycloak.example.com
   tls:
-    secret: keycloak-tls-secret
+    secret: tls-secret
     redirect:
       enable: true
   upstreams:
     - name: keycloak
       service: keycloak
-      port: 8080
+      port: 8443
+      tls:
+        enable: true
   routes:
     - path: /
       action:
