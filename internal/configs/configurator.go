@@ -145,6 +145,7 @@ type Configurator struct {
 	isReloadsEnabled          bool
 	isDynamicSSLReloadEnabled bool
 	ingressControllerReplicas int
+	isPLMMode                 bool
 }
 
 // ConfiguratorParams is a collection of parameters used for the
@@ -165,6 +166,7 @@ type ConfiguratorParams struct {
 	IsDynamicSSLReloadEnabled           bool
 	IsDynamicWeightChangesReloadEnabled bool
 	NginxVersion                        nginx.Version
+	IsPLMMode                           bool
 }
 
 // NewConfigurator creates a new Configurator.
@@ -203,6 +205,7 @@ func NewConfigurator(p ConfiguratorParams) *Configurator {
 		isLatencyMetricsEnabled:   p.IsLatencyMetricsEnabled,
 		isDynamicSSLReloadEnabled: p.IsDynamicSSLReloadEnabled,
 		isReloadsEnabled:          false,
+		isPLMMode:                 p.IsPLMMode,
 	}
 	return &cnf
 }
@@ -634,6 +637,8 @@ func (cnf *Configurator) addOrUpdateVirtualServer(virtualServerEx *VirtualServer
 
 	vsc := newVirtualServerConfigurator(cnf.CfgParams, cnf.isPlus, cnf.IsResolverConfigured(), cnf.staticCfgParams, cnf.isWildcardEnabled, nil)
 	vsc.IngressControllerReplicas = cnf.ingressControllerReplicas
+	vsc.isPLMMode = cnf.isPLMMode
+	vsc.bundlePath = cnf.staticCfgParams.AppProtectBundlePath
 	vsCfg, warnings := vsc.GenerateVirtualServerConfig(virtualServerEx, apResources, dosResources)
 	content, err := cnf.templateExecutorV2.ExecuteVirtualServerTemplate(&vsCfg)
 	if err != nil {
@@ -1865,6 +1870,18 @@ func generateApDosAllowListFileContent(allowList []v1beta1.AllowListEntry) []byt
 	}
 
 	return data
+}
+
+// WritePLMBundle writes a compiled PLM bundle to disk at the configured bundle path.
+// bundleName must be in the format "namespace_name.tgz".
+func (cnf *Configurator) WritePLMBundle(bundleName string, data []byte) {
+	bundlePath := cnf.staticCfgParams.AppProtectBundlePath + bundleName
+	cnf.nginxManager.CreateAppProtectResourceFile(bundlePath, data)
+}
+
+// GetBundlePath returns the configured App Protect bundle directory path.
+func (cnf *Configurator) GetBundlePath() string {
+	return cnf.staticCfgParams.AppProtectBundlePath
 }
 
 // ResourceOperation represents a function that changes configuration in relation to an unstructured resource.

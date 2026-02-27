@@ -32,6 +32,20 @@ var (
 		Version:  "v1beta1",
 		Resource: "appolicies",
 	}
+
+	// PLMPolicyGVR is the v1 group version resource for APPolicy (used with PLM)
+	PLMPolicyGVR = schema.GroupVersionResource{
+		Group:    "appprotect.f5.com",
+		Version:  "v1",
+		Resource: "appolicies",
+	}
+
+	// PLMLogConfGVR is the v1 group version resource for APLogConf (used with PLM)
+	PLMLogConfGVR = schema.GroupVersionResource{
+		Group:    "appprotect.f5.com",
+		Version:  "v1",
+		Resource: "aplogconfs",
+	}
 	// PolicyGVK is the group version kind of the appprotect policy
 	PolicyGVK = schema.GroupVersionKind{
 		Group:   "appprotect.f5.com",

@@ -115,6 +115,21 @@ controller:
           drop:
             - all
 
+    ## Configures PLM (Policy Life Cycle Manager) storage for App Protect v5 bundle download.
+    ## When plm.storageUrl is set, the controller watches APPolicy/APLogConf v1 resources
+    ## and automatically downloads compiled bundles from PLM storage (SeaweedFS/S3-compatible).
+    plm:
+      ## URL of the PLM storage service. Accepts host or host:port (e.g. "seaweedfs.example.com:8333").
+      storageUrl: "my-plm-f5-waf-seaweed-filer.plm.svc.cluster.local:8333"
+      ## Secret name containing S3 credentials (must have a seaweedfs_admin_secret field).
+      storageCredentialsSecret: "plm/my-plm-f5-waf-seaweedfs-auth"
+      ## Secret name for the TLS CA certificate used to verify PLM storage connections.
+      # storageCaSecret: "${NAP_NAMESPACE}/my-plm-f5-waf-seaweedfs-auth"
+      ## Secret name for the mutual TLS client certificate used when connecting to PLM storage.
+      # storageClientSslSecret: ""
+      ## Skip TLS certificate verification when connecting to PLM storage. Not recommended for production.
+      storageSkipVerify: true
+
   ## Support for App Protect DoS
   appprotectdos:
     ## Enable the App Protect DoS module in the Ingress Controller.

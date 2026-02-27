@@ -125,6 +125,9 @@ func (nsi *namespacedInformer) addAppProtectUserSigHandler(handlers cache.Resour
 }
 
 func (lbc *LoadBalancerController) syncAppProtectPolicy(task task) {
+	if lbc.wafFetcher != nil {
+		return
+	}
 	key := task.Key
 	nl.Debugf(lbc.Logger, "Syncing AppProtectPolicy %v", key)
 
@@ -157,6 +160,9 @@ func (lbc *LoadBalancerController) syncAppProtectPolicy(task task) {
 }
 
 func (lbc *LoadBalancerController) syncAppProtectLogConf(task task) {
+	if lbc.wafFetcher != nil {
+		return
+	}
 	key := task.Key
 	nl.Debugf(lbc.Logger, "Syncing AppProtectLogConf %v", key)
 	var obj interface{}
@@ -188,6 +194,9 @@ func (lbc *LoadBalancerController) syncAppProtectLogConf(task task) {
 }
 
 func (lbc *LoadBalancerController) syncAppProtectUserSig(task task) {
+	if lbc.wafFetcher != nil {
+		return
+	}
 	key := task.Key
 	nl.Debugf(lbc.Logger, "Syncing AppProtectUserSig %v", key)
 	var obj interface{}

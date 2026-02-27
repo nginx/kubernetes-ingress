@@ -198,6 +198,15 @@ func main() {
 		logEventAndExit(ctx, eventRecorder, pod, fileErrorReason, err)
 	}
 
+	plmCfg := k8s.PLMStorageConfig{
+		URL:                    *plmStorageURL,
+		CredentialsSecretName:  *plmStorageCredentialsSecret,
+		TLSCACertSecretName:    *plmStorageCASecret,
+		TLSClientSSLSecretName: *plmStorageClientSSLSecret,
+		TLSInsecureSkipVerify:  *plmStorageSkipVerify,
+	}
+	wafFetcher := createWAFFetcher(ctx, kubeClient, plmCfg, controllerNamespace)
+
 	globalConfigurationValidator := createGlobalConfigurationValidator()
 
 	mustProcessGlobalConfiguration(ctx)
@@ -276,6 +285,7 @@ func main() {
 		IsDynamicSSLReloadEnabled:           *enableDynamicSSLReload,
 		IsDynamicWeightChangesReloadEnabled: *enableDynamicWeightChangesReload,
 		NginxVersion:                        nginxVersion,
+		IsPLMMode:                           wafFetcher != nil,
 	})
 
 	transportServerValidator := cr_validation.NewTransportServerValidator(*enableTLSPassthrough, *enableSnippets, *nginxPlus)
@@ -306,7 +316,9 @@ func main() {
 		AppProtectEnabled:            *appProtect,
 		AppProtectDosEnabled:         *appProtectDos,
 		AppProtectVersion:            appProtectVersion,
-		IsNginxPlus:                  *nginxPlus,
+		PLMStorageConfig: plmCfg,
+		WAFFetcher:       wafFetcher,
+		IsNginxPlus:      *nginxPlus,
 		IngressClass:                 *ingressClass,
 		ExternalServiceName:          *externalService,
 		IngressLink:                  *ingressLink,

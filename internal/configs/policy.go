@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/url"
+	"os"
+	"path"
 	"strings"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
@@ -63,6 +65,10 @@ type policiesCfg struct {
 	Cache           *version2.Cache
 	ErrorReturn     *version2.Return
 	BundleValidator bundleValidator
+	// isPLMMode indicates the controller is in PLM mode: apPolicy references are resolved to
+	// pre-downloaded bundles on disk rather than in-cluster compiled JSON policy files.
+	isPLMMode  bool
+	bundlePath string
 }
 
 func newPoliciesConfig(bv bundleValidator) *policiesCfg {
@@ -650,12 +656,25 @@ func (p *policiesCfg) addWAFConfig(
 			apPolKey = fmt.Sprintf("%v/%v", polNamespace, apPolKey)
 		}
 
-		if apPolPath, exists := apResources.Policies[apPolKey]; exists {
-			p.WAF.ApPolicy = apPolPath
+		if p.isPLMMode {
+			// PLM mode: the bundle is downloaded by the controller to disk; use it as apBundle.
+			parts := strings.SplitN(apPolKey, "/", 2)
+			ns, name := parts[0], parts[1]
+			bundleFilePath := path.Join(p.bundlePath, ns+"_"+name+".tgz")
+			if _, err := os.Stat(bundleFilePath); err != nil {
+				res.addWarningf("PLM bundle for WAF policy %s not yet available at %s", apPolKey, bundleFilePath)
+				res.isError = true
+				return res
+			}
+			p.WAF.ApBundle = bundleFilePath
 		} else {
-			res.addWarningf("WAF policy %s references an invalid or non-existing App Protect policy %s", polKey, apPolKey)
-			res.isError = true
-			return res
+			if apPolPath, exists := apResources.Policies[apPolKey]; exists {
+				p.WAF.ApPolicy = apPolPath
+			} else {
+				res.addWarningf("WAF policy %s references an invalid or non-existing App Protect policy %s", polKey, apPolKey)
+				res.isError = true
+				return res
+			}
 		}
 	}
 
@@ -684,11 +703,24 @@ func (p *policiesCfg) addWAFConfig(
 				if !nsutils.HasNamespace(logConfKey) {
 					logConfKey = fmt.Sprintf("%v/%v", polNamespace, logConfKey)
 				}
-				if logConfPath, ok := apResources.LogConfs[logConfKey]; ok {
-					p.WAF.ApLogConf = append(p.WAF.ApLogConf, fmt.Sprintf("%s %s", logConfPath, logDest))
+				if p.isPLMMode {
+					// PLM mode: resolve ApLogConf reference to a downloaded bundle on disk.
+					parts := strings.SplitN(logConfKey, "/", 2)
+					ns, name := parts[0], parts[1]
+					bundleFilePath := path.Join(p.bundlePath, ns+"_"+name+".tgz")
+					if _, err := os.Stat(bundleFilePath); err != nil {
+						res.addWarningf("PLM bundle for log config %s not yet available at %s", logConfKey, bundleFilePath)
+						res.isError = true
+					} else {
+						p.WAF.ApLogConf = append(p.WAF.ApLogConf, fmt.Sprintf("%s %s", bundleFilePath, logDest))
+					}
 				} else {
-					res.addWarningf("WAF policy %s references an invalid or non-existing log config %s", polKey, logConfKey)
-					res.isError = true
+					if logConfPath, ok := apResources.LogConfs[logConfKey]; ok {
+						p.WAF.ApLogConf = append(p.WAF.ApLogConf, fmt.Sprintf("%s %s", logConfPath, logDest))
+					} else {
+						res.addWarningf("WAF policy %s references an invalid or non-existing log config %s", polKey, logConfKey)
+						res.isError = true
+					}
 				}
 			}
 
@@ -735,6 +767,8 @@ func generatePolicies(
 	warnings := make(Warnings)
 	config := newPoliciesConfig(bundleValidator)
 	config.Context = ctx
+	config.isPLMMode = policyOpts.isPLMMode
+	config.bundlePath = policyOpts.bundlePath
 
 	for _, p := range policyRefs {
 		polNamespace := p.Namespace

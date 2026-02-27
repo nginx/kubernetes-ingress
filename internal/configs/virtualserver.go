@@ -301,6 +301,8 @@ type virtualServerConfigurator struct {
 	DynamicWeightChangesReload bool
 	bundleValidator            bundleValidator
 	IngressControllerReplicas  int
+	isPLMMode                  bool
+	bundlePath                 string
 }
 
 func (vsc *virtualServerConfigurator) addWarningf(obj runtime.Object, msgFmt string, args ...interface{}) {
@@ -422,6 +424,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		apResources:     apResources,
 		defaultCABundle: vsc.CABundlePath,
 		replicas:        vsc.IngressControllerReplicas,
+		isPLMMode:       vsc.isPLMMode,
+		bundlePath:      vsc.bundlePath,
 	}
 
 	ownerDetails := policyOwnerDetails{
@@ -1051,6 +1055,9 @@ type policyOptions struct {
 	defaultCABundle string
 	replicas        int
 	oidcPolicyName  string
+	// isPLMMode indicates the controller is in PLM mode.
+	isPLMMode  bool
+	bundlePath string
 }
 
 func generateAPIKeyClientMap(mapName string, apiKeyClients []apiKeyClient) *version2.Map {

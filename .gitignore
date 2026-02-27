@@ -98,7 +98,6 @@ examples/ingress-resources/proxy-set-headers/standard-ingress/cafe-secret.yaml
 examples/ingress-resources/rate-limit/cafe-secret.yaml
 examples/ingress-resources/security-monitoring/cafe-secret.yaml
 examples/custom-resources/basic-configuration-vsr/cafe-secret.yaml
-examples/custom-resources/vsr-route-selector-policies/cafe-secret.yaml
 tests/data/dos/tls-secret.yaml
 tests/data/hsts/mergeable-tls/tls-secret.yaml
 tests/data/hsts/standard-tls/tls-secret.yaml

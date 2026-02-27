@@ -130,6 +130,8 @@ const (
 	appProtectDosLogConf
 	appProtectDosProtectedResource
 	ingressLink
+	plmPolicy
+	plmLogConf
 )
 
 // task is an element of a taskQueue

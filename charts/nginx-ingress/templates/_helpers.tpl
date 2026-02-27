@@ -281,6 +281,21 @@ Build the args for the service binary.
 - -app-protect-dos-max-workers={{ .Values.controller.appprotectdos.maxWorkers }}
 - -app-protect-dos-memory={{ .Values.controller.appprotectdos.memory }}
 {{ end }}
+{{- if .Values.controller.appprotect.plm.storageUrl }}
+- -plm-storage-url={{ .Values.controller.appprotect.plm.storageUrl }}
+{{- end }}
+{{- if .Values.controller.appprotect.plm.storageCredentialsSecret }}
+- -plm-storage-credentials-secret={{ .Values.controller.appprotect.plm.storageCredentialsSecret }}
+{{- end }}
+{{- if .Values.controller.appprotect.plm.storageCaSecret }}
+- -plm-storage-ca-secret={{ .Values.controller.appprotect.plm.storageCaSecret }}
+{{- end }}
+{{- if .Values.controller.appprotect.plm.storageClientSslSecret }}
+- -plm-storage-client-ssl-secret={{ .Values.controller.appprotect.plm.storageClientSslSecret }}
+{{- end }}
+{{- if .Values.controller.appprotect.plm.storageSkipVerify }}
+- -plm-storage-skip-verify={{ .Values.controller.appprotect.plm.storageSkipVerify }}
+{{- end }}
 - -nginx-configmaps=$(POD_NAMESPACE)/{{ include "nginx-ingress.configName" . }}
 {{- if .Values.controller.nginxplus }}
 - -mgmt-configmap=$(POD_NAMESPACE)/{{ include "nginx-ingress.mgmtConfigName" . }}

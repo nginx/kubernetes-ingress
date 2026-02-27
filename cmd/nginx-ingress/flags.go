@@ -79,6 +79,21 @@ var (
 	appProtectEnforcerAddress = flag.String("app-protect-enforcer-address", appProtectEnforcerAddrDefault,
 		`Sets address for App Protect v5 Enforcer. Requires -nginx-plus and -enable-app-protect.`)
 
+	plmStorageURL = flag.String("plm-storage-url", "",
+		`The URL of the PLM storage service. Accepts host, host:port, or IP formats.`)
+
+	plmStorageCredentialsSecret = flag.String("plm-storage-credentials-secret", "",
+		`The name of the Kubernetes Secret containing S3 credentials for PLM storage. The Secret should have the seaweedfs_admin_secret data field.`)
+
+	plmStorageCASecret = flag.String("plm-storage-ca-secret", "",
+		`The name of the Secret for TLS CA certificate verification when communicating with PLM storage service.`)
+
+	plmStorageClientSSLSecret = flag.String("plm-storage-client-ssl-secret", "",
+		`The name of the Secret for mutual TLS (client cert) with PLM storage service.`)
+
+	plmStorageSkipVerify = flag.Bool("plm-storage-skip-verify", false,
+		`Skip TLS certificate verification when communicating with PLM storage service. Not recommended for production.`)
+
 	agent              = flag.Bool("agent", false, "Enable NGINX Agent")
 	agentInstanceGroup = flag.String("agent-instance-group", "nginx-ingress-controller", "Grouping used to associate NGINX Ingress Controller instances")
 
@@ -431,6 +446,12 @@ func mustValidateFlags(ctx context.Context) {
 
 	if *nginxPlus && *mgmtConfigMap == "" {
 		nl.Fatal(l, "NGINX Plus requires a mgmt ConfigMap to be set")
+	}
+
+	if *plmStorageURL != "" {
+		if err := internalValidation.ValidateHost(*plmStorageURL); err != nil {
+			nl.Fatalf(l, "Invalid value for plm-storage-url: %v", err)
+		}
 	}
 }
 

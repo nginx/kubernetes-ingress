@@ -51,6 +51,7 @@ import (
 	cm_controller "github.com/nginx/kubernetes-ingress/internal/certmanager"
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	ed_controller "github.com/nginx/kubernetes-ingress/internal/externaldns"
+	"github.com/nginx/kubernetes-ingress/internal/fetch"
 	"github.com/nginx/kubernetes-ingress/internal/metrics/collectors"
 
 	api_v1 "k8s.io/api/core/v1"
@@ -186,9 +187,19 @@ type LoadBalancerController struct {
 	nginxConfigMapName            string
 	mgmtConfigMapName             string
 	ShuttingDown                  bool
+	wafFetcher                    fetch.Fetcher
 }
 
 var keyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
+
+// PLMStorageConfig holds configuration for the PLM storage service.
+type PLMStorageConfig struct {
+	URL                    string
+	CredentialsSecretName  string
+	TLSCACertSecretName    string
+	TLSClientSSLSecretName string
+	TLSInsecureSkipVerify  bool
+}
 
 // NewLoadBalancerControllerInput holds the input needed to call NewLoadBalancerController.
 type NewLoadBalancerControllerInput struct {
@@ -206,6 +217,8 @@ type NewLoadBalancerControllerInput struct {
 	AppProtectEnabled            bool
 	AppProtectDosEnabled         bool
 	AppProtectVersion            string
+	PLMStorageConfig             PLMStorageConfig
+	WAFFetcher                   fetch.Fetcher
 	IsNginxPlus                  bool
 	IngressClass                 string
 	ExternalServiceName          string
@@ -290,6 +303,7 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		nginxConfigMapName:           input.ConfigMaps,
 		mgmtConfigMapName:            input.MGMTConfigMap,
 		ShuttingDown:                 input.ShuttingDown,
+		wafFetcher:                   input.WAFFetcher,
 	}
 
 	lbc.syncQueue = newTaskQueue(lbc.Logger, lbc.sync)
@@ -466,10 +480,13 @@ type namespacedInformer struct {
 	appProtectUserSigLister      cache.Store
 	transportServerLister        cache.Store
 	policyLister                 cache.Store
+	plmPolicyLister              cache.Store
+	plmLogConfLister             cache.Store
 	isSecretsEnabledNamespace    bool
 	areCustomResourcesEnabled    bool
 	appProtectEnabled            bool
 	appProtectDosEnabled         bool
+	plmEnabled                   bool
 	stopCh                       chan struct{}
 	lock                         sync.RWMutex
 	cacheSyncs                   []cache.InformerSynced
@@ -535,6 +552,15 @@ func (lbc *LoadBalancerController) newNamespacedInformer(ns string) *namespacedI
 			nsi.addAppProtectDosLogConfHandler(createAppProtectDosLogConfHandlers(lbc))
 			nsi.addAppProtectDosProtectedResourceHandler(createAppProtectDosProtectedResourceHandlers(lbc))
 		}
+	}
+
+	if lbc.wafFetcher != nil {
+		nsi.plmEnabled = true
+		if nsi.dynInformerFactory == nil {
+			nsi.dynInformerFactory = dynamicinformer.NewFilteredDynamicSharedInformerFactory(lbc.dynClient, 0, ns, nil)
+		}
+		nsi.addPLMPolicyHandler(createPLMPolicyHandlers(lbc))
+		nsi.addPLMLogConfHandler(createPLMLogConfHandlers(lbc))
 	}
 
 	lbc.namespacedInformers[ns] = nsi
@@ -705,7 +731,7 @@ func (nsi *namespacedInformer) start() {
 		go nsi.confSharedInformerFactory.Start(nsi.stopCh)
 	}
 
-	if nsi.appProtectEnabled || nsi.appProtectDosEnabled {
+	if nsi.appProtectEnabled || nsi.appProtectDosEnabled || nsi.plmEnabled {
 		go nsi.dynInformerFactory.Start(nsi.stopCh)
 	}
 }
@@ -1079,6 +1105,10 @@ func (lbc *LoadBalancerController) sync(task task) {
 		lbc.syncDosProtectedResource(task)
 	case ingressLink:
 		lbc.syncIngressLink(task)
+	case plmPolicy:
+		lbc.syncPLMPolicy(task)
+	case plmLogConf:
+		lbc.syncPLMLogConf(task)
 	}
 
 	if lbc.isNginxPlus && lbc.isNginxReady {
@@ -2434,9 +2464,11 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 		nl.Warnf(lbc.Logger, "Error getting APIKey secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
 	}
 
-	err = lbc.addWAFPolicyRefs(virtualServerEx.ApPolRefs, virtualServerEx.LogConfRefs, policies)
-	if err != nil {
-		nl.Warnf(lbc.Logger, "Error getting App Protect resource for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
+	if lbc.wafFetcher == nil {
+		err = lbc.addWAFPolicyRefs(virtualServerEx.ApPolRefs, virtualServerEx.LogConfRefs, policies)
+		if err != nil {
+			nl.Warnf(lbc.Logger, "Error getting App Protect resource for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
+		}
 	}
 
 	if virtualServer.Spec.Dos != "" {
@@ -2544,9 +2576,11 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 			nl.Warnf(lbc.Logger, "Error getting JWT trusted cert secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
 		}
 
-		err = lbc.addWAFPolicyRefs(virtualServerEx.ApPolRefs, virtualServerEx.LogConfRefs, vsRoutePolicies)
-		if err != nil {
-			nl.Warnf(lbc.Logger, "Error getting WAF policies for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
+		if lbc.wafFetcher == nil {
+			err = lbc.addWAFPolicyRefs(virtualServerEx.ApPolRefs, virtualServerEx.LogConfRefs, vsRoutePolicies)
+			if err != nil {
+				nl.Warnf(lbc.Logger, "Error getting WAF policies for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
+			}
 		}
 
 		if r.Dos != "" {
@@ -2616,9 +2650,11 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 				nl.Warnf(lbc.Logger, "Error getting APIKey secrets for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
 			}
 
-			err = lbc.addWAFPolicyRefs(virtualServerEx.ApPolRefs, virtualServerEx.LogConfRefs, vsrSubroutePolicies)
-			if err != nil {
-				nl.Warnf(lbc.Logger, "Error getting WAF policies for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
+			if lbc.wafFetcher == nil {
+				err = lbc.addWAFPolicyRefs(virtualServerEx.ApPolRefs, virtualServerEx.LogConfRefs, vsrSubroutePolicies)
+				if err != nil {
+					nl.Warnf(lbc.Logger, "Error getting WAF policies for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
+				}
 			}
 
 			if sr.Dos != "" {
