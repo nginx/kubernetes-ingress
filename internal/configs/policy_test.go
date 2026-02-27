@@ -22,12 +22,12 @@ func TestGeneratePolicies(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	ownerDetails := policyOwnerDetails{
-		owner:          nil, // nil is OK for the unit test
-		ownerType:      "virtualserver",
-		ownerNamespace: "default",
-		vsNamespace:    "default",
-		vsName:         "test",
-		ownerName:      "test",
+		owner:           nil, // nil is OK for the unit test
+		ownerType:       "virtualserver",
+		ownerNamespace:  "default",
+		parentNamespace: "default",
+		parentName:      "test",
+		ownerName:       "test",
 	}
 	mTLSCertPath := "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crt"
 	mTLSCrlPath := "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crl"
@@ -1487,11 +1487,11 @@ func TestGenerateCORSPolicy(t *testing.T) {
 		{
 			name: "VirtualServer with single origin CORS policy",
 			owner: policyOwnerDetails{
-				ownerType:      "virtualserver",
-				ownerNamespace: "default",
-				ownerName:      "test-vs",
-				vsNamespace:    "default",
-				vsName:         "test-vs",
+				ownerType:       "virtualserver",
+				ownerNamespace:  "default",
+				ownerName:       "test-vs",
+				parentNamespace: "default",
+				parentName:      "test-vs",
 			},
 			path: "/",
 			policyRefs: []conf_v1.PolicyReference{
@@ -1524,11 +1524,11 @@ func TestGenerateCORSPolicy(t *testing.T) {
 		{
 			name: "VirtualServer with multiple origins CORS policy",
 			owner: policyOwnerDetails{
-				ownerType:      "virtualserver",
-				ownerNamespace: "default",
-				ownerName:      "test-vs",
-				vsNamespace:    "default",
-				vsName:         "test-vs",
+				ownerType:       "virtualserver",
+				ownerNamespace:  "default",
+				ownerName:       "test-vs",
+				parentNamespace: "default",
+				parentName:      "test-vs",
 			},
 			path: "/",
 			policyRefs: []conf_v1.PolicyReference{
@@ -1574,11 +1574,11 @@ func TestGenerateCORSPolicy(t *testing.T) {
 		{
 			name: "VirtualServer with wildcard CORS policy",
 			owner: policyOwnerDetails{
-				ownerType:      "virtualserver",
-				ownerNamespace: "default",
-				ownerName:      "test-vs",
-				vsNamespace:    "default",
-				vsName:         "test-vs",
+				ownerType:       "virtualserver",
+				ownerNamespace:  "default",
+				ownerName:       "test-vs",
+				parentNamespace: "default",
+				parentName:      "test-vs",
 			},
 			path: "/",
 			policyRefs: []conf_v1.PolicyReference{
@@ -1608,11 +1608,11 @@ func TestGenerateCORSPolicy(t *testing.T) {
 		{
 			name: "VirtualServerRoute with CORS policy",
 			owner: policyOwnerDetails{
-				ownerType:      "virtualserverroute",
-				ownerNamespace: "app-namespace",
-				ownerName:      "test-vsr",
-				vsNamespace:    "default",
-				vsName:         "parent-vs",
+				ownerType:       "virtualserverroute",
+				ownerNamespace:  "app-namespace",
+				ownerName:       "test-vsr",
+				parentNamespace: "default",
+				parentName:      "parent-vs",
 			},
 			path: "/api/v1",
 			policyRefs: []conf_v1.PolicyReference{
@@ -1647,11 +1647,11 @@ func TestGenerateCORSPolicy(t *testing.T) {
 		{
 			name: "VirtualServerRoute with cross-namespace CORS policy",
 			owner: policyOwnerDetails{
-				ownerType:      "virtualserverroute",
-				ownerNamespace: "app-namespace",
-				ownerName:      "test-vsr",
-				vsNamespace:    "default",
-				vsName:         "parent-vs",
+				ownerType:       "virtualserverroute",
+				ownerNamespace:  "app-namespace",
+				ownerName:       "test-vsr",
+				parentNamespace: "default",
+				parentName:      "parent-vs",
 			},
 			path: "/api/v1",
 			policyRefs: []conf_v1.PolicyReference{
@@ -1726,11 +1726,11 @@ func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 	t.Parallel()
 
 	ownerDetails := policyOwnerDetails{
-		owner:          nil, // nil is OK for the unit test
-		ownerType:      "virtualserver",
-		ownerNamespace: "default",
-		vsNamespace:    "default",
-		vsName:         "test",
+		owner:           nil, // nil is OK for the unit test
+		ownerType:       "virtualserver",
+		ownerNamespace:  "default",
+		parentNamespace: "default",
+		parentName:      "test",
 	}
 
 	tests := []struct {
@@ -1822,12 +1822,12 @@ func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 func TestGeneratePoliciesFails(t *testing.T) {
 	t.Parallel()
 	ownerDetails := policyOwnerDetails{
-		owner:          nil, // nil is OK for the unit test
-		ownerType:      "virtualserver",
-		ownerName:      "test",
-		ownerNamespace: "default",
-		vsNamespace:    "default",
-		vsName:         "test",
+		owner:           nil, // nil is OK for the unit test
+		ownerType:       "virtualserver",
+		ownerName:       "test",
+		ownerNamespace:  "default",
+		parentNamespace: "default",
+		parentName:      "test",
 	}
 
 	dryRunOverride := true
@@ -3524,22 +3524,22 @@ func TestGenerateLRZPolicyGroupMap(t *testing.T) {
 	}{
 		{
 			lrz: version2.LimitReqZone{
-				ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
-				Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
-				PolicyValue:   "rl_vsnamespace_vsname_match_gold",
-				GroupVariable: "$rl_vsnamespace_vsname_group_sub_spec",
+				ZoneName:      "pol_rl_polnamespace_my-zone_parentNamespace_parentName",
+				Key:           "$pol_rl_polnamespace_my_zone_parentNamespace_parentName",
+				PolicyValue:   "rl_parentNamespace_parentName_match_gold",
+				GroupVariable: "$rl_parentNamespace_parentName_group_sub_spec",
 				PolicyResult:  "$jwt_claim_sub",
 			},
 			expected: &version2.Map{
-				Source:   "$rl_vsnamespace_vsname_group_sub_spec",
-				Variable: "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+				Source:   "$rl_parentNamespace_parentName_group_sub_spec",
+				Variable: "$pol_rl_polnamespace_my_zone_parentNamespace_parentName",
 				Parameters: []version2.Parameter{
 					{
 						Value:  "default",
 						Result: "''",
 					},
 					{
-						Value:  "rl_vsnamespace_vsname_match_gold",
+						Value:  "rl_parentNamespace_parentName_match_gold",
 						Result: "Val$jwt_claim_sub",
 					},
 				},
@@ -3564,54 +3564,54 @@ func TestGenerateLRZGroupMaps(t *testing.T) {
 		{
 			lrzs: []version2.LimitReqZone{
 				{
-					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
-					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					ZoneName:      "pol_rl_polnamespace_my-zone_parentNamespace_parentName",
+					Key:           "$pol_rl_polnamespace_my_zone_parentNamespace_parentName",
 					GroupValue:    "Gold",
-					GroupVariable: "$rl_vsnamespace_vsname_group_sub_spec",
-					PolicyValue:   "rl_vsnamespace_vsname_match_gold",
+					GroupVariable: "$rl_parentNamespace_parentName_group_sub_spec",
+					PolicyValue:   "rl_parentNamespace_parentName_match_gold",
 					PolicyResult:  "$jwt_claim_sub",
-					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+					GroupSource:   "$jwt_parentNamespace_parentName_sub",
 				},
 				{
-					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
-					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					ZoneName:      "pol_rl_polnamespace_my-zone_parentNamespace_parentName",
+					Key:           "$pol_rl_polnamespace_my_zone_parentNamespace_parentName",
 					GroupValue:    "Silver",
-					GroupVariable: "$rl_vsnamespace_vsname_group_sub_spec",
-					PolicyValue:   "rl_vsnamespace_vsname_match_silver",
+					GroupVariable: "$rl_parentNamespace_parentName_group_sub_spec",
+					PolicyValue:   "rl_parentNamespace_parentName_match_silver",
 					PolicyResult:  "$jwt_claim_sub",
-					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+					GroupSource:   "$jwt_parentNamespace_parentName_sub",
 				},
 				{
-					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
-					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					ZoneName:      "pol_rl_polnamespace_my-zone_parentNamespace_parentName",
+					Key:           "$pol_rl_polnamespace_my_zone_parentNamespace_parentName",
 					GroupValue:    "Bronze",
-					GroupVariable: "$rl_vsnamespace_vsname_group_sub_spec",
-					PolicyValue:   "rl_vsnamespace_vsname_match_bronze",
+					GroupVariable: "$rl_parentNamespace_parentName_group_sub_spec",
+					PolicyValue:   "rl_parentNamespace_parentName_match_bronze",
 					PolicyResult:  "$jwt_claim_sub",
 					GroupDefault:  true,
-					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+					GroupSource:   "$jwt_parentNamespace_parentName_sub",
 				},
 			},
 			expected: map[string]*version2.Map{
-				"$rl_vsnamespace_vsname_group_sub_spec": {
-					Source:   "$jwt_vsnamespace_vsname_sub",
-					Variable: "$rl_vsnamespace_vsname_group_sub_spec",
+				"$rl_parentNamespace_parentName_group_sub_spec": {
+					Source:   "$jwt_parentNamespace_parentName_sub",
+					Variable: "$rl_parentNamespace_parentName_group_sub_spec",
 					Parameters: []version2.Parameter{
 						{
 							Value:  "default",
-							Result: "rl_vsnamespace_vsname_match_bronze",
+							Result: "rl_parentNamespace_parentName_match_bronze",
 						},
 						{
 							Value:  "Gold",
-							Result: "rl_vsnamespace_vsname_match_gold",
+							Result: "rl_parentNamespace_parentName_match_gold",
 						},
 						{
 							Value:  "Silver",
-							Result: "rl_vsnamespace_vsname_match_silver",
+							Result: "rl_parentNamespace_parentName_match_silver",
 						},
 						{
 							Value:  "Bronze",
-							Result: "rl_vsnamespace_vsname_match_bronze",
+							Result: "rl_parentNamespace_parentName_match_bronze",
 						},
 					},
 				},
@@ -3620,104 +3620,104 @@ func TestGenerateLRZGroupMaps(t *testing.T) {
 		{
 			lrzs: []version2.LimitReqZone{
 				{
-					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
-					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					ZoneName:      "pol_rl_polnamespace_my-zone_parentNamespace_parentName",
+					Key:           "$pol_rl_polnamespace_my_zone_parentNamespace_parentName",
 					GroupValue:    "Gold",
-					GroupVariable: "$rl_vsnamespace_vsname_group_sub_spec",
-					PolicyValue:   "rl_vsnamespace_vsname_match_gold",
+					GroupVariable: "$rl_parentNamespace_parentName_group_sub_spec",
+					PolicyValue:   "rl_parentNamespace_parentName_match_gold",
 					PolicyResult:  "$jwt_claim_sub",
-					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+					GroupSource:   "$jwt_parentNamespace_parentName_sub",
 				},
 				{
-					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
-					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					ZoneName:      "pol_rl_polnamespace_my-zone_parentNamespace_parentName",
+					Key:           "$pol_rl_polnamespace_my_zone_parentNamespace_parentName",
 					GroupValue:    "Silver",
-					GroupVariable: "$rl_vsnamespace_vsname_group_sub_spec",
-					PolicyValue:   "rl_vsnamespace_vsname_match_silver",
+					GroupVariable: "$rl_parentNamespace_parentName_group_sub_spec",
+					PolicyValue:   "rl_parentNamespace_parentName_match_silver",
 					PolicyResult:  "$jwt_claim_sub",
-					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+					GroupSource:   "$jwt_parentNamespace_parentName_sub",
 				},
 				{
-					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
-					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					ZoneName:      "pol_rl_polnamespace_my-zone_parentNamespace_parentName",
+					Key:           "$pol_rl_polnamespace_my_zone_parentNamespace_parentName",
 					GroupValue:    "Bronze",
-					GroupVariable: "$rl_vsnamespace_vsname_group_sub_spec",
-					PolicyValue:   "rl_vsnamespace_vsname_match_bronze",
+					GroupVariable: "$rl_parentNamespace_parentName_group_sub_spec",
+					PolicyValue:   "rl_parentNamespace_parentName_match_bronze",
 					PolicyResult:  "$jwt_claim_sub",
 					GroupDefault:  true,
-					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+					GroupSource:   "$jwt_parentNamespace_parentName_sub",
 				},
 				{
-					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
-					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					ZoneName:      "pol_rl_polnamespace_my-zone_parentNamespace_parentName",
+					Key:           "$pol_rl_polnamespace_my_zone_parentNamespace_parentName",
 					GroupValue:    "Gold",
-					GroupVariable: "$rl_vsnamespace_vsname_group_sub_subroute",
-					PolicyValue:   "rl_vsnamespace_vsname_match_gold",
+					GroupVariable: "$rl_parentNamespace_parentName_group_sub_subroute",
+					PolicyValue:   "rl_parentNamespace_parentName_match_gold",
 					PolicyResult:  "$jwt_claim_sub",
-					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+					GroupSource:   "$jwt_parentNamespace_parentName_sub",
 				},
 				{
-					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
-					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					ZoneName:      "pol_rl_polnamespace_my-zone_parentNamespace_parentName",
+					Key:           "$pol_rl_polnamespace_my_zone_parentNamespace_parentName",
 					GroupValue:    "Silver",
-					GroupVariable: "$rl_vsnamespace_vsname_group_sub_subroute",
-					PolicyValue:   "rl_vsnamespace_vsname_match_silver",
+					GroupVariable: "$rl_parentNamespace_parentName_group_sub_subroute",
+					PolicyValue:   "rl_parentNamespace_parentName_match_silver",
 					PolicyResult:  "$jwt_claim_sub",
-					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+					GroupSource:   "$jwt_parentNamespace_parentName_sub",
 				},
 				{
-					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
-					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					ZoneName:      "pol_rl_polnamespace_my-zone_parentNamespace_parentName",
+					Key:           "$pol_rl_polnamespace_my_zone_parentNamespace_parentName",
 					GroupValue:    "Bronze",
-					GroupVariable: "$rl_vsnamespace_vsname_group_sub_subroute",
-					PolicyValue:   "rl_vsnamespace_vsname_match_bronze",
+					GroupVariable: "$rl_parentNamespace_parentName_group_sub_subroute",
+					PolicyValue:   "rl_parentNamespace_parentName_match_bronze",
 					PolicyResult:  "$jwt_claim_sub",
 					GroupDefault:  true,
-					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+					GroupSource:   "$jwt_parentNamespace_parentName_sub",
 				},
 			},
 			expected: map[string]*version2.Map{
-				"$rl_vsnamespace_vsname_group_sub_spec": {
-					Source:   "$jwt_vsnamespace_vsname_sub",
-					Variable: "$rl_vsnamespace_vsname_group_sub_spec",
+				"$rl_parentNamespace_parentName_group_sub_spec": {
+					Source:   "$jwt_parentNamespace_parentName_sub",
+					Variable: "$rl_parentNamespace_parentName_group_sub_spec",
 					Parameters: []version2.Parameter{
 						{
 							Value:  "default",
-							Result: "rl_vsnamespace_vsname_match_bronze",
+							Result: "rl_parentNamespace_parentName_match_bronze",
 						},
 						{
 							Value:  "Gold",
-							Result: "rl_vsnamespace_vsname_match_gold",
+							Result: "rl_parentNamespace_parentName_match_gold",
 						},
 						{
 							Value:  "Silver",
-							Result: "rl_vsnamespace_vsname_match_silver",
+							Result: "rl_parentNamespace_parentName_match_silver",
 						},
 						{
 							Value:  "Bronze",
-							Result: "rl_vsnamespace_vsname_match_bronze",
+							Result: "rl_parentNamespace_parentName_match_bronze",
 						},
 					},
 				},
-				"$rl_vsnamespace_vsname_group_sub_subroute": {
-					Source:   "$jwt_vsnamespace_vsname_sub",
-					Variable: "$rl_vsnamespace_vsname_group_sub_subroute",
+				"$rl_parentNamespace_parentName_group_sub_subroute": {
+					Source:   "$jwt_parentNamespace_parentName_sub",
+					Variable: "$rl_parentNamespace_parentName_group_sub_subroute",
 					Parameters: []version2.Parameter{
 						{
 							Value:  "default",
-							Result: "rl_vsnamespace_vsname_match_bronze",
+							Result: "rl_parentNamespace_parentName_match_bronze",
 						},
 						{
 							Value:  "Gold",
-							Result: "rl_vsnamespace_vsname_match_gold",
+							Result: "rl_parentNamespace_parentName_match_gold",
 						},
 						{
 							Value:  "Silver",
-							Result: "rl_vsnamespace_vsname_match_silver",
+							Result: "rl_parentNamespace_parentName_match_silver",
 						},
 						{
 							Value:  "Bronze",
-							Result: "rl_vsnamespace_vsname_match_bronze",
+							Result: "rl_parentNamespace_parentName_match_bronze",
 						},
 					},
 				},
@@ -3726,41 +3726,41 @@ func TestGenerateLRZGroupMaps(t *testing.T) {
 		{
 			lrzs: []version2.LimitReqZone{
 				{
-					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
-					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					ZoneName:      "pol_rl_polnamespace_my-zone_parentNamespace_parentName",
+					Key:           "$pol_rl_polnamespace_my_zone_parentNamespace_parentName",
 					GroupValue:    "Premium",
-					GroupVariable: "$rl_vsnamespace_vsname_group_sub_route",
-					PolicyValue:   "rl_vsnamespace_vsname_match_premium",
+					GroupVariable: "$rl_parentNamespace_parentName_group_sub_route",
+					PolicyValue:   "rl_parentNamespace_parentName_match_premium",
 					PolicyResult:  "$jwt_claim_sub",
-					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+					GroupSource:   "$jwt_parentNamespace_parentName_sub",
 				},
 				{
-					ZoneName:      "pol_rl_polnamespace_my-zone_vsnamespace_vsname",
-					Key:           "$pol_rl_polnamespace_my_zone_vsnamespace_vsname",
+					ZoneName:      "pol_rl_polnamespace_my-zone_parentNamespace_parentName",
+					Key:           "$pol_rl_polnamespace_my_zone_parentNamespace_parentName",
 					GroupValue:    "Basic",
-					GroupVariable: "$rl_vsnamespace_vsname_group_sub_route",
-					PolicyValue:   "rl_vsnamespace_vsname_match_basic",
+					GroupVariable: "$rl_parentNamespace_parentName_group_sub_route",
+					PolicyValue:   "rl_parentNamespace_parentName_match_basic",
 					PolicyResult:  "$jwt_claim_sub",
 					GroupDefault:  true,
-					GroupSource:   "$jwt_vsnamespace_vsname_sub",
+					GroupSource:   "$jwt_parentNamespace_parentName_sub",
 				},
 			},
 			expected: map[string]*version2.Map{
-				"$rl_vsnamespace_vsname_group_sub_route": {
-					Source:   "$jwt_vsnamespace_vsname_sub",
-					Variable: "$rl_vsnamespace_vsname_group_sub_route",
+				"$rl_parentNamespace_parentName_group_sub_route": {
+					Source:   "$jwt_parentNamespace_parentName_sub",
+					Variable: "$rl_parentNamespace_parentName_group_sub_route",
 					Parameters: []version2.Parameter{
 						{
 							Value:  "default",
-							Result: "rl_vsnamespace_vsname_match_basic",
+							Result: "rl_parentNamespace_parentName_match_basic",
 						},
 						{
 							Value:  "Premium",
-							Result: "rl_vsnamespace_vsname_match_premium",
+							Result: "rl_parentNamespace_parentName_match_premium",
 						},
 						{
 							Value:  "Basic",
-							Result: "rl_vsnamespace_vsname_match_basic",
+							Result: "rl_parentNamespace_parentName_match_basic",
 						},
 					},
 				},
