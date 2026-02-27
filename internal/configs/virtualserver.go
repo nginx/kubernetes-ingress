@@ -425,11 +425,11 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	}
 
 	ownerDetails := policyOwnerDetails{
-		owner:          vsEx.VirtualServer,
-		ownerName:      vsEx.VirtualServer.Name,
-		ownerNamespace: vsEx.VirtualServer.Namespace,
-		vsNamespace:    vsEx.VirtualServer.Namespace,
-		vsName:         vsEx.VirtualServer.Name,
+		owner:           vsEx.VirtualServer,
+		ownerName:       vsEx.VirtualServer.Name,
+		ownerNamespace:  vsEx.VirtualServer.Namespace,
+		parentNamespace: vsEx.VirtualServer.Namespace,
+		parentName:      vsEx.VirtualServer.Name,
 	}
 	policiesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, vsEx.VirtualServer.Spec.Policies, vsEx.Policies, specContext, "/", policyOpts, vsc.bundleValidator)
 	if len(warnings) > 0 {
@@ -613,11 +613,11 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 		vsLocSnippets := r.LocationSnippets
 		ownerDetails := policyOwnerDetails{
-			owner:          vsEx.VirtualServer,
-			ownerName:      vsEx.VirtualServer.Name,
-			ownerNamespace: vsEx.VirtualServer.Namespace,
-			vsNamespace:    vsEx.VirtualServer.Namespace,
-			vsName:         vsEx.VirtualServer.Name,
+			owner:           vsEx.VirtualServer,
+			ownerName:       vsEx.VirtualServer.Name,
+			ownerNamespace:  vsEx.VirtualServer.Namespace,
+			parentNamespace: vsEx.VirtualServer.Namespace,
+			parentName:      vsEx.VirtualServer.Name,
 		}
 		routePoliciesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, r.Policies, vsEx.Policies, routeContext, r.Path, policyOpts, vsc.bundleValidator)
 
@@ -778,21 +778,21 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			if len(r.Policies) == 0 {
 				// use the VirtualServer route policies if the route does not define any
 				ownerDetails = policyOwnerDetails{
-					owner:          vsEx.VirtualServer,
-					ownerName:      vsEx.VirtualServer.Name,
-					ownerNamespace: vsEx.VirtualServer.Namespace,
-					vsNamespace:    vsEx.VirtualServer.Namespace,
-					vsName:         vsEx.VirtualServer.Name,
+					owner:           vsEx.VirtualServer,
+					ownerName:       vsEx.VirtualServer.Name,
+					ownerNamespace:  vsEx.VirtualServer.Namespace,
+					parentNamespace: vsEx.VirtualServer.Namespace,
+					parentName:      vsEx.VirtualServer.Name,
 				}
 				policyRefs = vsrPoliciesFromVs[vsrNamespaceName]
 				context = routeContext
 			} else {
 				ownerDetails = policyOwnerDetails{
-					owner:          vsr,
-					ownerName:      vsr.Name,
-					ownerNamespace: vsr.Namespace,
-					vsNamespace:    vsEx.VirtualServer.Namespace,
-					vsName:         vsEx.VirtualServer.Name,
+					owner:           vsr,
+					ownerName:       vsr.Name,
+					ownerNamespace:  vsr.Namespace,
+					parentNamespace: vsEx.VirtualServer.Namespace,
+					parentName:      vsEx.VirtualServer.Name,
 				}
 				policyRefs = r.Policies
 				context = subRouteContext
@@ -1057,24 +1057,6 @@ func generateUpstreams(
 		}
 	}
 	return upstreams, healthChecks, statusMatches
-}
-
-type policyOwnerDetails struct {
-	owner          runtime.Object
-	ownerName      string
-	ownerNamespace string
-	vsNamespace    string
-	vsName         string
-}
-
-type policyOptions struct {
-	tls             bool
-	zoneSync        bool
-	secretRefs      map[string]*secrets.SecretReference
-	apResources     *appProtectResourcesForVS
-	defaultCABundle string
-	replicas        int
-	oidcPolicyName  string
 }
 
 func generateAPIKeyClientMap(mapName string, apiKeyClients []apiKeyClient) *version2.Map {

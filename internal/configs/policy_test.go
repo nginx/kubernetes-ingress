@@ -22,11 +22,11 @@ func TestGeneratePolicies(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	ownerDetails := policyOwnerDetails{
-		owner:          nil, // nil is OK for the unit test
-		ownerNamespace: "default",
-		vsNamespace:    "default",
-		vsName:         "test",
-		ownerName:      "test",
+		owner:           nil, // nil is OK for the unit test
+		ownerNamespace:  "default",
+		parentNamespace: "default",
+		parentName:      "test",
+		ownerName:       "test",
 	}
 	mTLSCertPath := "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crt"
 	mTLSCrlPath := "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crl"
@@ -1486,10 +1486,10 @@ func TestGenerateCORSPolicy(t *testing.T) {
 		{
 			name: "VirtualServer with single origin CORS policy",
 			owner: policyOwnerDetails{
-				ownerNamespace: "default",
-				ownerName:      "test-vs",
-				vsNamespace:    "default",
-				vsName:         "test-vs",
+				ownerNamespace:  "default",
+				ownerName:       "test-vs",
+				parentNamespace: "default",
+				parentName:      "test-vs",
 			},
 			path: "/",
 			policyRefs: []conf_v1.PolicyReference{
@@ -1522,10 +1522,10 @@ func TestGenerateCORSPolicy(t *testing.T) {
 		{
 			name: "VirtualServer with multiple origins CORS policy",
 			owner: policyOwnerDetails{
-				ownerNamespace: "default",
-				ownerName:      "test-vs",
-				vsNamespace:    "default",
-				vsName:         "test-vs",
+				ownerNamespace:  "default",
+				ownerName:       "test-vs",
+				parentNamespace: "default",
+				parentName:      "test-vs",
 			},
 			path: "/",
 			policyRefs: []conf_v1.PolicyReference{
@@ -1571,10 +1571,10 @@ func TestGenerateCORSPolicy(t *testing.T) {
 		{
 			name: "VirtualServer with wildcard CORS policy",
 			owner: policyOwnerDetails{
-				ownerNamespace: "default",
-				ownerName:      "test-vs",
-				vsNamespace:    "default",
-				vsName:         "test-vs",
+				ownerNamespace:  "default",
+				ownerName:       "test-vs",
+				parentNamespace: "default",
+				parentName:      "test-vs",
 			},
 			path: "/",
 			policyRefs: []conf_v1.PolicyReference{
@@ -1604,10 +1604,10 @@ func TestGenerateCORSPolicy(t *testing.T) {
 		{
 			name: "VirtualServerRoute with CORS policy",
 			owner: policyOwnerDetails{
-				ownerNamespace: "app-namespace",
-				ownerName:      "test-vsr",
-				vsNamespace:    "default",
-				vsName:         "parent-vs",
+				ownerNamespace:  "app-namespace",
+				ownerName:       "test-vsr",
+				parentNamespace: "default",
+				parentName:      "parent-vs",
 			},
 			path: "/api/v1",
 			policyRefs: []conf_v1.PolicyReference{
@@ -1642,10 +1642,10 @@ func TestGenerateCORSPolicy(t *testing.T) {
 		{
 			name: "VirtualServerRoute with cross-namespace CORS policy",
 			owner: policyOwnerDetails{
-				ownerNamespace: "app-namespace",
-				ownerName:      "test-vsr",
-				vsNamespace:    "default",
-				vsName:         "parent-vs",
+				ownerNamespace:  "app-namespace",
+				ownerName:       "test-vsr",
+				parentNamespace: "default",
+				parentName:      "parent-vs",
 			},
 			path: "/api/v1",
 			policyRefs: []conf_v1.PolicyReference{
@@ -1720,10 +1720,10 @@ func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 	t.Parallel()
 
 	ownerDetails := policyOwnerDetails{
-		owner:          nil, // nil is OK for the unit test
-		ownerNamespace: "default",
-		vsNamespace:    "default",
-		vsName:         "test",
+		owner:           nil, // nil is OK for the unit test
+		ownerNamespace:  "default",
+		parentNamespace: "default",
+		parentName:      "test",
 	}
 
 	tests := []struct {
@@ -1815,11 +1815,11 @@ func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 func TestGeneratePoliciesFails(t *testing.T) {
 	t.Parallel()
 	ownerDetails := policyOwnerDetails{
-		owner:          nil, // nil is OK for the unit test
-		ownerName:      "test",
-		ownerNamespace: "default",
-		vsNamespace:    "default",
-		vsName:         "test",
+		owner:           nil, // nil is OK for the unit test
+		ownerName:       "test",
+		ownerNamespace:  "default",
+		parentNamespace: "default",
+		parentName:      "test",
 	}
 
 	dryRunOverride := true
