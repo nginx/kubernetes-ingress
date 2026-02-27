@@ -99,6 +99,7 @@ examples/ingress-resources/rate-limit/cafe-secret.yaml
 examples/ingress-resources/security-monitoring/cafe-secret.yaml
 examples/custom-resources/basic-configuration-vsr/cafe-secret.yaml
 examples/custom-resources/external-auth/tls-secret.yaml
+examples/ingress-resources/external-auth/tls-secret.yaml
 tests/data/dos/tls-secret.yaml
 tests/data/hsts/mergeable-tls/tls-secret.yaml
 tests/data/hsts/standard-tls/tls-secret.yaml
@@ -186,6 +187,7 @@ tests/data/oidc/keycloak-ca-secret.yaml
 tests/data/oidc/keycloak-ca-secret-crl.yaml
 examples/custom-resources/oidc/keycloak-tls-secret.yaml
 examples/custom-resources/external-auth/keycloak-tls-secret.yaml
+examples/ingress-resources/external-auth/keycloak-tls-secret.yaml
 tests/data/oidc/keycloak-tls-secret.yaml
 
 # TLS Certificate secrets
@@ -214,6 +216,7 @@ common-secrets/auth-basic-secrets-htpasswd-secret-invalid.yaml
 tests/data/auth-basic-secrets/auth-basic-secret-invalid.yaml
 common-secrets/htpasswd-secret-external-auth.yaml
 examples/custom-resources/external-auth/htpasswd-secret.yaml
+examples/ingress-resources/external-auth/htpasswd-secret.yaml
 
 # Jwks secrets
 common-secrets/example-jwt-jwks-secret.yaml

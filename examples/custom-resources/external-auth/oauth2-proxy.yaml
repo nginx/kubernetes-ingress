@@ -5,20 +5,22 @@ metadata:
   name: oauth2-proxy-config
 data:
   oauth2-proxy.cfg: |
-    http_address = "0.0.0.0:4180"
-    upstreams = ["static://200"]
-    email_domains = ["*"]
-    cookie_secure = false
-    cookie_secret = "OQINaROshtE9TcZkNAm-5Zs2Pv3xaWytBmc5W7sPX4="
     provider = "keycloak-oidc"
     provider_display_name = "Keycloak"
+    client_id = "nginx-plus"
+    client_secret = "oauth2-proxy-client-secret"
     redirect_url = "https://cafe.example.com:443/_oauth2/callback"
-    oidc_issuer_url = "https://keycloak.example.com/realms/master"
+    oidc_issuer_url = "https://keycloak:8443/realms/master"
+    email_domains = ["*"]
+    upstreams = ["static://200"]
+    http_address = "0.0.0.0:4180"
     ssl_insecure_skip_verify = true
     skip_provider_button = true
     pass_access_token = true
     set_xauthrequest = true
     cookie_name = "_oauth2_proxy"
+    cookie_secure = false
+    cookie_secret = "rmXYk59eajf5Mm2y19gjwA=="
 ---
 apiVersion: apps/v1
 kind: Deployment
