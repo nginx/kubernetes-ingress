@@ -4,4 +4,4 @@ metadata:
   name: external-auth-basic-policy
 spec:
   externalAuth:
-    authUrl: "/basic-auth"
+    authURL: "/basic-auth"

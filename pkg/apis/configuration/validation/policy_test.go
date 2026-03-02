@@ -3390,3 +3390,475 @@ func TestCORSMDNCompliance(t *testing.T) {
 func boolPtr(b bool) *bool {
 	return &b
 }
+
+func TestValidateExternalAuth_PassesOnValidInput(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		externalAuth *v1.ExternalAuth
+		msg          string
+	}{
+		{
+			name: "valid HTTP authURL only",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "http://auth-svc.default.svc.cluster.local:8080/auth",
+			},
+			msg: "valid HTTP absolute URL for authURL with no authSigninURL",
+		},
+		{
+			name: "valid HTTPS authURL only",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "https://auth-server.example.com:443/validate",
+			},
+			msg: "valid HTTPS absolute URL for authURL with no authSigninURL",
+		},
+		{
+			name: "valid authURL with path only",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "/auth/validate",
+			},
+			msg: "valid relative path for authURL",
+		},
+		{
+			name: "valid authURL with complex path",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "/api/v1/auth/validate-user",
+			},
+			msg: "valid relative path with multiple segments",
+		},
+		{
+			name: "valid authURL and authSigninURL with HTTP URLs",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL:       "http://auth-svc.default.svc.cluster.local:8080/auth",
+				AuthSigninURL: "http://auth-svc.default.svc.cluster.local:8080/signin",
+			},
+			msg: "both authURL and authSigninURL as valid HTTP URLs",
+		},
+		{
+			name: "valid authURL and authSigninURL with HTTPS URLs",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL:       "https://auth.example.com/validate",
+				AuthSigninURL: "https://auth.example.com/oauth2/signin",
+			},
+			msg: "both authURL and authSigninURL as valid HTTPS URLs",
+		},
+		{
+			name: "valid authURL and authSigninURL with paths",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL:       "/auth/validate",
+				AuthSigninURL: "/auth/signin",
+			},
+			msg: "both authURL and authSigninURL as valid relative paths",
+		},
+		{
+			name: "valid mixed authURL as URL and authSigninURL as path",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL:       "https://auth.example.com/validate",
+				AuthSigninURL: "/signin",
+			},
+			msg: "authURL as absolute URL and authSigninURL as relative path",
+		},
+		{
+			name: "valid mixed authURL as path and authSigninURL as URL",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL:       "/auth/validate",
+				AuthSigninURL: "https://auth.example.com/signin",
+			},
+			msg: "authURL as relative path and authSigninURL as absolute URL",
+		},
+		{
+			name: "valid authURL with port",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "http://auth-server:9090/auth",
+			},
+			msg: "authURL with custom port number",
+		},
+		{
+			name: "valid authURL with query parameters",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "https://auth.example.com/validate?client_id=123",
+			},
+			msg: "authURL with query string parameters",
+		},
+		{
+			name: "valid authURL with subdomain",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "https://oauth.auth.example.com/validate",
+			},
+			msg: "authURL with multiple subdomain levels",
+		},
+		{
+			name: "valid localhost authURL",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "http://localhost:8080/auth",
+			},
+			msg: "authURL using localhost",
+		},
+		{
+			name: "valid IP address authURL",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "http://192.168.1.100:8080/auth",
+			},
+			msg: "authURL using IP address",
+		},
+		{
+			name: "valid root path authURL",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "/",
+			},
+			msg: "authURL with just root path",
+		},
+		{
+			name: "valid path with dashes and underscores",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "/auth/validate-user_session",
+			},
+			msg: "authURL path with dashes and underscores",
+		},
+		{
+			name: "valid path with numbers",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "/api/v2/auth/validate",
+			},
+			msg: "authURL path with version numbers",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			fieldPath := field.NewPath("spec").Child("externalAuth")
+			allErrs := validateExternalAuth(test.externalAuth, fieldPath)
+			if len(allErrs) > 0 {
+				t.Errorf("validateExternalAuth() returned errors %v for valid input for the case of %v", allErrs, test.msg)
+			}
+		})
+	}
+}
+
+func TestValidateExternalAuth_FailsOnInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		externalAuth *v1.ExternalAuth
+		msg          string
+		errCount     int
+	}{
+		{
+			name: "empty authURL",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "",
+			},
+			msg:      "empty authURL should fail (required field)",
+			errCount: 1,
+		},
+		{
+			name: "authURL with only whitespace",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "   ",
+			},
+			msg:      "authURL with whitespace should fail path validation",
+			errCount: 1,
+		},
+		{
+			name: "authURL path with invalid characters - braces",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "/auth/{user}/validate",
+			},
+			msg:      "authURL path containing curly braces should fail",
+			errCount: 1,
+		},
+		{
+			name: "authURL path with invalid characters - semicolon",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "/auth;validate",
+			},
+			msg:      "authURL path containing semicolon should fail",
+			errCount: 1,
+		},
+		{
+			name: "authURL path with invalid characters - whitespace",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "/auth validate",
+			},
+			msg:      "authURL path containing whitespace should fail",
+			errCount: 1,
+		},
+		{
+			name: "authURL path with invalid characters - backslash",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "/auth\\validate",
+			},
+			msg:      "authURL path containing backslash should fail",
+			errCount: 1,
+		},
+		{
+			name: "authURL missing scheme",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "auth-server.example.com/validate",
+			},
+			msg:      "authURL without http(s):// scheme should fail path validation",
+			errCount: 1,
+		},
+		{
+			name: "authURL with invalid scheme",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "ftp://auth-server.example.com/validate",
+			},
+			msg:      "authURL with unsupported scheme should fail path validation",
+			errCount: 1,
+		},
+		{
+			name: "authURL URL without path",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "http://auth-server.example.com",
+			},
+			msg:      "authURL URL without path should fail",
+			errCount: 1,
+		},
+		{
+			name: "authURL URL with invalid hostname",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "http://_invalid_hostname/auth",
+			},
+			msg:      "authURL with invalid hostname should fail",
+			errCount: 1,
+		},
+		{
+			name: "authURL URL with invalid port",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "http://auth-server:99999/auth",
+			},
+			msg:      "authURL with invalid port number should fail",
+			errCount: 1,
+		},
+		{
+			name: "authURL path not starting with slash",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "auth/validate",
+			},
+			msg:      "authURL path not starting with / should fail",
+			errCount: 1,
+		},
+		{
+			name: "authSigninURL with only whitespace",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL:       "http://auth-server.example.com/auth",
+				AuthSigninURL: "   ",
+			},
+			msg:      "authSigninURL with only whitespace should fail (not empty, so it's validated)",
+			errCount: 1,
+		},
+		{
+			name: "invalid authSigninURL path with braces",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL:       "http://auth-server.example.com/auth",
+				AuthSigninURL: "/signin/{user}",
+			},
+			msg:      "authSigninURL path containing curly braces should fail",
+			errCount: 1,
+		},
+		{
+			name: "invalid authSigninURL path with semicolon",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL:       "http://auth-server.example.com/auth",
+				AuthSigninURL: "/signin;redirect",
+			},
+			msg:      "authSigninURL path containing semicolon should fail",
+			errCount: 1,
+		},
+		{
+			name: "invalid authSigninURL URL without path",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL:       "http://auth-server.example.com/auth",
+				AuthSigninURL: "http://auth-server.example.com",
+			},
+			msg:      "authSigninURL URL without path should fail",
+			errCount: 1,
+		},
+		{
+			name: "invalid authSigninURL URL with invalid hostname",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL:       "http://auth-server.example.com/auth",
+				AuthSigninURL: "http://_invalid_hostname/signin",
+			},
+			msg:      "authSigninURL with invalid hostname should fail",
+			errCount: 1,
+		},
+		{
+			name: "both authURL and authSigninURL invalid",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL:       "/auth/{user}",
+				AuthSigninURL: "/signin/{redirect}",
+			},
+			msg:      "both fields invalid should return multiple errors",
+			errCount: 2,
+		},
+		{
+			name: "authURL URL malformed",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "http://auth server.com/validate",
+			},
+			msg:      "authURL with space in hostname should fail",
+			errCount: 1,
+		},
+		{
+			name: "authURL path with backslash and brace",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "/auth\\{user}",
+			},
+			msg:      "authURL path with multiple invalid characters should fail",
+			errCount: 1,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			fieldPath := field.NewPath("spec").Child("externalAuth")
+			allErrs := validateExternalAuth(test.externalAuth, fieldPath)
+			if len(allErrs) == 0 {
+				t.Errorf("validateExternalAuth() returned no errors for invalid input for the case of %v", test.msg)
+			} else if test.errCount > 0 && len(allErrs) != test.errCount {
+				t.Errorf("validateExternalAuth() returned %d errors, expected %d errors for the case of %v. Errors: %v", len(allErrs), test.errCount, test.msg, allErrs)
+			}
+		})
+	}
+}
+
+func TestValidateExternalAuth_EdgeCases(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		externalAuth *v1.ExternalAuth
+		expectError  bool
+		msg          string
+	}{
+		{
+			name: "empty authSigninURL is valid (optional field)",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL:       "http://auth-server.example.com/auth",
+				AuthSigninURL: "",
+			},
+			expectError: false,
+			msg:         "empty authSigninURL should be valid as it's an optional field",
+		},
+		{
+			name: "authURL with very long path",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "/very/long/path/with/many/segments/to/validate/authentication/request/from/client",
+			},
+			expectError: false,
+			msg:         "authURL with very long path should be valid",
+		},
+		{
+			name: "authURL with special characters in query string",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "https://auth.example.com/validate?redirect_uri=http://example.com&state=abc123",
+			},
+			expectError: false,
+			msg:         "authURL with query parameters containing special characters should be valid",
+		},
+		{
+			name: "authURL with fragment",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "https://auth.example.com/validate#section",
+			},
+			expectError: false,
+			msg:         "authURL with fragment should be valid",
+		},
+		{
+			name: "authURL with encoded characters in path",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "/auth/validate%20user",
+			},
+			expectError: false,
+			msg:         "authURL with URL-encoded characters should be valid",
+		},
+		{
+			name: "authURL with dots in path",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "/auth/v1.0/validate",
+			},
+			expectError: false,
+			msg:         "authURL with dots in path should be valid",
+		},
+		{
+			name: "authURL with multiple slashes",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "/auth//validate",
+			},
+			expectError: false,
+			msg:         "authURL with consecutive slashes should be valid (NGINX handles this)",
+		},
+		{
+			name: "authURL with trailing slash",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "/auth/validate/",
+			},
+			expectError: false,
+			msg:         "authURL with trailing slash should be valid",
+		},
+		{
+			name: "authSigninURL with complex OAuth2 redirect",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL:       "/auth",
+				AuthSigninURL: "/oauth2/start?rd=$scheme://$host$request_uri",
+			},
+			expectError: false,
+			msg:         "authSigninURL with NGINX variables should be valid",
+		},
+		{
+			name: "authURL kubernetes service name",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "http://my-auth-service.my-namespace.svc.cluster.local:8080/validate",
+			},
+			expectError: false,
+			msg:         "authURL with full Kubernetes service DNS name should be valid",
+		},
+		{
+			name: "authURL with authentication in URL",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "http://user:pass@auth-server.example.com/validate",
+			},
+			expectError: false,
+			msg:         "authURL with user info should be valid (though not recommended)",
+		},
+		{
+			name: "IPv6 addresses don't pass RFC 1123 hostname validation",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "http://[::1]:8080/auth",
+			},
+			expectError: true,
+			msg:         "IPv6 addresses in URLs fail hostname validation (expected behavior)",
+		},
+		{
+			name: "nil externalAuth",
+			externalAuth: &v1.ExternalAuth{
+				AuthURL: "http://auth.example.com/validate",
+			},
+			expectError: false,
+			msg:         "normal case for sanity check",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			fieldPath := field.NewPath("spec").Child("externalAuth")
+			allErrs := validateExternalAuth(test.externalAuth, fieldPath)
+
+			if test.expectError && len(allErrs) == 0 {
+				t.Errorf("validateExternalAuth() returned no errors for case that should fail: %v", test.msg)
+			} else if !test.expectError && len(allErrs) > 0 {
+				t.Errorf("validateExternalAuth() returned errors %v for valid input for the case of %v", allErrs, test.msg)
+			}
+		})
+	}
+}

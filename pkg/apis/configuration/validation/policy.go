@@ -103,8 +103,13 @@ func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, isPlus, enab
 		fieldCount++
 	}
 
+	if spec.ExternalAuth != nil {
+		allErrs = append(allErrs, validateExternalAuth(spec.ExternalAuth, fieldPath.Child("externalAuth"))...)
+		fieldCount++
+	}
+
 	if fieldCount != 1 {
-		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`"
+		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`"
 		if isPlus {
 			msg = fmt.Sprint(msg, ", `jwt`, `oidc`, `waf`")
 		}
@@ -1213,4 +1218,34 @@ func containsDangerousChars(value string) bool {
 		}
 	}
 	return false
+}
+
+func validateExternalAuth(externalAuth *v1.ExternalAuth, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	// Validate AuthURL
+	allErrs = append(allErrs, validateAuthURL(externalAuth.AuthURL, fieldPath.Child("authURL"))...)
+
+	// Validate AuthSigninURL
+	if externalAuth.AuthSigninURL != "" {
+		allErrs = append(allErrs, validateAuthURL(externalAuth.AuthSigninURL, fieldPath.Child("authSignInURL"))...)
+	}
+
+	return allErrs
+}
+
+func validateAuthURL(authURL string, child *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if authURL == "" {
+		return append(allErrs, field.Required(child, "authURL is required"))
+	}
+
+	if strings.HasPrefix(authURL, "http://") || strings.HasPrefix(authURL, "https://") {
+		allErrs = append(allErrs, validateURL(authURL, child)...)
+	} else {
+		allErrs = append(allErrs, validatePath(authURL, child)...)
+	}
+
+	return allErrs
 }

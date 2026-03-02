@@ -1,11 +1,11 @@
 apiVersion: k8s.nginx.org/v1
 kind: Policy
 metadata:
-  name: external-auth-oauth2-policy
+  name: external-auth-oauth2-snippets-policy
 spec:
   externalAuth:
-    authUrl: "http://oauth2-proxy-svc/auth"
-    authSigninUrl: "/oauth2/signin?rd=$scheme://$host$request_uri"
+    authURL: "http://oauth2-proxy-svc/auth"
+    authSigninURL: "/oauth2/signin?rd=$scheme://$host$request_uri"
     authSnippets: |
       auth_request_set $auth_user $upstream_http_x_auth_request_user;
       auth_request_set $auth_email $upstream_http_x_auth_request_email;
