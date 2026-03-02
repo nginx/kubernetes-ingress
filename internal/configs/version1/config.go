@@ -112,6 +112,7 @@ type Server struct {
 	RealIPRecursive bool
 
 	JWTAuth              *JWTAuth
+	ExternalAuth         *version2.ExternalAuth
 	BasicAuth            *BasicAuth
 	JWTRedirectLocations []JWTRedirectLocation
 
@@ -193,6 +194,7 @@ type Location struct {
 	ProxyMaxTempFileSize string
 	ProxySSLName         string
 	JWTAuth              *JWTAuth
+	ExternalAuth         *version2.ExternalAuth
 	BasicAuth            *BasicAuth
 	ServiceName          string
 	LimitReq             *LimitReq

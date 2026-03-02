@@ -56,6 +56,7 @@ type policiesCfg struct {
 	Deny            []string
 	RateLimit       rateLimit
 	JWTAuth         jwtAuth
+	ExternalAuth    *version2.ExternalAuth
 	BasicAuth       *version2.BasicAuth
 	IngressMTLS     *version2.IngressMTLS
 	EgressMTLS      *version2.EgressMTLS
@@ -257,6 +258,50 @@ func (p *policiesCfg) addJWTAuthConfig(
 		p.JWTAuth.JWKSEnabled = true
 		return res
 	}
+	return res
+}
+
+func (p *policiesCfg) addExternalAuthConfig(
+	externalAuth *conf_v1.ExternalAuth,
+	polKey string,
+) *validationResults {
+	res := newValidationResults()
+	if p.ExternalAuth != nil {
+		res.addWarningf("Multiple external auth policies in the same context is not valid. External auth policy %s will be ignored", polKey)
+	} else {
+		uri, err := url.Parse(externalAuth.AuthURL)
+		if err != nil {
+			res.addWarningf("Invalid external auth URL %s: %v", externalAuth.AuthURL, err)
+			res.isError = true
+			return res
+		}
+		p.ExternalAuth = &version2.ExternalAuth{
+			URI: version2.AuthURI{
+				Scheme: uri.Scheme,
+				Host:   uri.Hostname(),
+				Port:   uri.Port(),
+				Path:   uri.Path,
+			},
+		}
+		if externalAuth.AuthSigninURL != "" {
+			signinURI, err := url.Parse(externalAuth.AuthSigninURL)
+			if err != nil {
+				res.addWarningf("Invalid external auth signin URL %s: %v", externalAuth.AuthSigninURL, err)
+				res.isError = true
+				return res
+			}
+			p.ExternalAuth.SigninURL = version2.AuthURI{
+				Scheme: signinURI.Scheme,
+				Host:   signinURI.Hostname(),
+				Port:   signinURI.Port(),
+				Path:   signinURI.Path,
+			}
+		}
+		if externalAuth.AuthSnippets != "" {
+			p.ExternalAuth.Snippets = externalAuth.AuthSnippets
+		}
+	}
+
 	return res
 }
 
@@ -1009,6 +1054,8 @@ func generatePolicies(
 				)
 			case pol.Spec.JWTAuth != nil:
 				res = config.addJWTAuthConfig(pol.Spec.JWTAuth, key, polNamespace, policyOpts.secretRefs)
+			case pol.Spec.ExternalAuth != nil:
+				res = config.addExternalAuthConfig(pol.Spec.ExternalAuth, key)
 			case pol.Spec.BasicAuth != nil:
 				res = config.addBasicAuthConfig(pol.Spec.BasicAuth, key, polNamespace, policyOpts.secretRefs)
 			case pol.Spec.IngressMTLS != nil:

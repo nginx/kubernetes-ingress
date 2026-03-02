@@ -95,6 +95,7 @@ type Server struct {
 	JWTAuth                   *JWTAuth
 	JWTAuthList               map[string]*JWTAuth
 	JWKSAuthEnabled           bool
+	ExternalAuth              *ExternalAuth
 	BasicAuth                 *BasicAuth
 	IngressMTLS               *IngressMTLS
 	EgressMTLS                *EgressMTLS
@@ -230,6 +231,7 @@ type Location struct {
 	LimitReqOptions          LimitReqOptions
 	LimitReqs                []LimitReq
 	JWTAuth                  *JWTAuth
+	ExternalAuth             *ExternalAuth
 	BasicAuth                *BasicAuth
 	EgressMTLS               *EgressMTLS
 	OIDC                     bool
@@ -458,6 +460,21 @@ type JwksURI struct {
 	SSLVerify      bool
 	TrustedCert    string
 	SSLVerifyDepth int
+}
+
+// ExternalAuth holds external authentication configuration.
+type ExternalAuth struct {
+	URI       AuthURI
+	SigninURL AuthURI
+	Snippets  string
+}
+
+// AuthURI defines the components of an AuthURI
+type AuthURI struct {
+	Scheme string
+	Host   string
+	Port   string
+	Path   string
 }
 
 // BasicAuth refers to basic HTTP authentication mechanism options

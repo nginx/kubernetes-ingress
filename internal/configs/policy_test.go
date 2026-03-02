@@ -1728,6 +1728,427 @@ func TestGenerateCORSPolicy(t *testing.T) {
 	}
 }
 
+func TestAddExternalAuthConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		extAuth     *conf_v1.ExternalAuth
+		expected    *version2.ExternalAuth
+		wantWarning bool
+		msg         string
+	}{
+		{
+			name: "basic auth URL only",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURL: "http://auth-svc.default.svc.cluster.local:8080/auth",
+			},
+			expected: &version2.ExternalAuth{
+				URI: version2.AuthURI{
+					Scheme: "http",
+					Host:   "auth-svc.default.svc.cluster.local",
+					Port:   "8080",
+					Path:   "/auth",
+				},
+			},
+			msg: "basic external auth with URL only",
+		},
+		{
+			name: "auth URL with signin URL",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURL:       "https://auth.example.com/verify",
+				AuthSigninURL: "https://auth.example.com/signin",
+			},
+			expected: &version2.ExternalAuth{
+				URI: version2.AuthURI{
+					Scheme: "https",
+					Host:   "auth.example.com",
+					Port:   "",
+					Path:   "/verify",
+				},
+				SigninURL: version2.AuthURI{
+					Scheme: "https",
+					Host:   "auth.example.com",
+					Port:   "",
+					Path:   "/signin",
+				},
+			},
+			msg: "external auth with signin URL",
+		},
+		{
+			name: "auth URL with snippets",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURL:      "http://auth-svc:8080/check",
+				AuthSnippets: "proxy_set_header X-Forwarded-Host $host;",
+			},
+			expected: &version2.ExternalAuth{
+				URI: version2.AuthURI{
+					Scheme: "http",
+					Host:   "auth-svc",
+					Port:   "8080",
+					Path:   "/check",
+				},
+				Snippets: "proxy_set_header X-Forwarded-Host $host;",
+			},
+			msg: "external auth with snippets",
+		},
+		{
+			name: "full external auth config",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURL:       "https://oauth2-proxy.default.svc.cluster.local:4180/oauth2/auth",
+				AuthSigninURL: "https://oauth2-proxy.default.svc.cluster.local:4180/oauth2/start",
+				AuthSnippets:  "proxy_set_header X-Auth-Request-Redirect $request_uri;",
+			},
+			expected: &version2.ExternalAuth{
+				URI: version2.AuthURI{
+					Scheme: "https",
+					Host:   "oauth2-proxy.default.svc.cluster.local",
+					Port:   "4180",
+					Path:   "/oauth2/auth",
+				},
+				SigninURL: version2.AuthURI{
+					Scheme: "https",
+					Host:   "oauth2-proxy.default.svc.cluster.local",
+					Port:   "4180",
+					Path:   "/oauth2/start",
+				},
+				Snippets: "proxy_set_header X-Auth-Request-Redirect $request_uri;",
+			},
+			msg: "full external auth with URL, signin URL, and snippets",
+		},
+		{
+			name: "auth URL without port",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURL: "https://auth.example.com/validate",
+			},
+			expected: &version2.ExternalAuth{
+				URI: version2.AuthURI{
+					Scheme: "https",
+					Host:   "auth.example.com",
+					Port:   "",
+					Path:   "/validate",
+				},
+			},
+			msg: "external auth URL without explicit port",
+		},
+		{
+			name: "empty signin URL is not set",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURL:       "http://auth-svc:8080/auth",
+				AuthSigninURL: "",
+			},
+			expected: &version2.ExternalAuth{
+				URI: version2.AuthURI{
+					Scheme: "http",
+					Host:   "auth-svc",
+					Port:   "8080",
+					Path:   "/auth",
+				},
+			},
+			msg: "empty signin URL should not be set",
+		},
+		{
+			name: "empty snippets are not set",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURL:      "http://auth-svc:8080/auth",
+				AuthSnippets: "",
+			},
+			expected: &version2.ExternalAuth{
+				URI: version2.AuthURI{
+					Scheme: "http",
+					Host:   "auth-svc",
+					Port:   "8080",
+					Path:   "/auth",
+				},
+			},
+			msg: "empty snippets should not be set",
+		},
+		{
+			name: "duplicate external auth produces warning",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURL: "http://auth-svc:8080/auth",
+			},
+			expected: &version2.ExternalAuth{
+				URI: version2.AuthURI{
+					Scheme: "http",
+					Host:   "first-auth-svc",
+					Port:   "9090",
+					Path:   "/first",
+				},
+			},
+			wantWarning: true,
+			msg:         "duplicate external auth policy should produce warning and be ignored",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := &policiesCfg{}
+			polKey := "default/ext-auth-policy"
+
+			// For the duplicate test, set up a pre-existing ExternalAuth
+			if test.wantWarning {
+				config.ExternalAuth = &version2.ExternalAuth{
+					URI: version2.AuthURI{
+						Scheme: "http",
+						Host:   "first-auth-svc",
+						Port:   "9090",
+						Path:   "/first",
+					},
+				}
+			}
+
+			res := config.addExternalAuthConfig(test.extAuth, polKey)
+
+			if test.wantWarning {
+				if len(res.warnings) == 0 {
+					t.Errorf("%s: expected warnings but got none", test.msg)
+				}
+			} else {
+				if len(res.warnings) > 0 {
+					t.Errorf("%s: unexpected warnings: %v", test.msg, res.warnings)
+				}
+			}
+
+			if !reflect.DeepEqual(config.ExternalAuth, test.expected) {
+				t.Errorf("%s: ExternalAuth mismatch.\nExpected: %+v\nGot: %+v", test.msg, test.expected, config.ExternalAuth)
+			}
+		})
+	}
+}
+
+func TestGenerateExternalAuthPolicy(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	tests := []struct {
+		name       string
+		owner      policyOwnerDetails
+		path       string
+		policyRefs []conf_v1.PolicyReference
+		policies   map[string]*conf_v1.Policy
+		expected   policiesCfg
+		msg        string
+	}{
+		{
+			name: "VirtualServer with basic external auth policy",
+			owner: policyOwnerDetails{
+				ownerNamespace: "default",
+				ownerName:      "test-vs",
+				vsNamespace:    "default",
+				vsName:         "test-vs",
+			},
+			path: "/",
+			policyRefs: []conf_v1.PolicyReference{
+				{Name: "ext-auth-policy", Namespace: "default"},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/ext-auth-policy": {
+					Spec: conf_v1.PolicySpec{
+						ExternalAuth: &conf_v1.ExternalAuth{
+							AuthURL: "http://auth-svc.default.svc.cluster.local:8080/auth",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				ExternalAuth: &version2.ExternalAuth{
+					URI: version2.AuthURI{
+						Scheme: "http",
+						Host:   "auth-svc.default.svc.cluster.local",
+						Port:   "8080",
+						Path:   "/auth",
+					},
+				},
+			},
+			msg: "VirtualServer with basic external auth URL",
+		},
+		{
+			name: "VirtualServer with full external auth policy",
+			owner: policyOwnerDetails{
+				ownerNamespace: "default",
+				ownerName:      "test-vs",
+				vsNamespace:    "default",
+				vsName:         "test-vs",
+			},
+			path: "/",
+			policyRefs: []conf_v1.PolicyReference{
+				{Name: "full-ext-auth"},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/full-ext-auth": {
+					Spec: conf_v1.PolicySpec{
+						ExternalAuth: &conf_v1.ExternalAuth{
+							AuthURL:       "https://oauth2-proxy.default.svc.cluster.local:4180/oauth2/auth",
+							AuthSigninURL: "https://oauth2-proxy.default.svc.cluster.local:4180/oauth2/start",
+							AuthSnippets:  "proxy_set_header X-Auth-Request-Redirect $request_uri;",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				ExternalAuth: &version2.ExternalAuth{
+					URI: version2.AuthURI{
+						Scheme: "https",
+						Host:   "oauth2-proxy.default.svc.cluster.local",
+						Port:   "4180",
+						Path:   "/oauth2/auth",
+					},
+					SigninURL: version2.AuthURI{
+						Scheme: "https",
+						Host:   "oauth2-proxy.default.svc.cluster.local",
+						Port:   "4180",
+						Path:   "/oauth2/start",
+					},
+					Snippets: "proxy_set_header X-Auth-Request-Redirect $request_uri;",
+				},
+			},
+			msg: "VirtualServer with full external auth including signin URL and snippets",
+		},
+		{
+			name: "VirtualServer with HTTPS external auth",
+			owner: policyOwnerDetails{
+				ownerNamespace: "default",
+				ownerName:      "test-vs",
+				vsNamespace:    "default",
+				vsName:         "test-vs",
+			},
+			path: "/",
+			policyRefs: []conf_v1.PolicyReference{
+				{Name: "https-ext-auth", Namespace: "default"},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/https-ext-auth": {
+					Spec: conf_v1.PolicySpec{
+						ExternalAuth: &conf_v1.ExternalAuth{
+							AuthURL: "https://auth.example.com/validate",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				ExternalAuth: &version2.ExternalAuth{
+					URI: version2.AuthURI{
+						Scheme: "https",
+						Host:   "auth.example.com",
+						Port:   "",
+						Path:   "/validate",
+					},
+				},
+			},
+			msg: "VirtualServer with HTTPS external auth URL without port",
+		},
+		{
+			name: "VirtualServerRoute with external auth policy",
+			owner: policyOwnerDetails{
+				ownerNamespace: "app-namespace",
+				ownerName:      "test-vsr",
+				vsNamespace:    "default",
+				vsName:         "parent-vs",
+			},
+			path: "/api/v1",
+			policyRefs: []conf_v1.PolicyReference{
+				{Name: "vsr-ext-auth", Namespace: "app-namespace"},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"app-namespace/vsr-ext-auth": {
+					Spec: conf_v1.PolicySpec{
+						ExternalAuth: &conf_v1.ExternalAuth{
+							AuthURL:       "http://auth-svc.app-namespace.svc.cluster.local:8080/verify",
+							AuthSigninURL: "http://auth-svc.app-namespace.svc.cluster.local:8080/login",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				ExternalAuth: &version2.ExternalAuth{
+					URI: version2.AuthURI{
+						Scheme: "http",
+						Host:   "auth-svc.app-namespace.svc.cluster.local",
+						Port:   "8080",
+						Path:   "/verify",
+					},
+					SigninURL: version2.AuthURI{
+						Scheme: "http",
+						Host:   "auth-svc.app-namespace.svc.cluster.local",
+						Port:   "8080",
+						Path:   "/login",
+					},
+				},
+			},
+			msg: "VirtualServerRoute with external auth policy including signin URL",
+		},
+		{
+			name: "VirtualServerRoute with cross-namespace external auth policy",
+			owner: policyOwnerDetails{
+				ownerNamespace: "app-namespace",
+				ownerName:      "test-vsr",
+				vsNamespace:    "default",
+				vsName:         "parent-vs",
+			},
+			path: "/api/v1",
+			policyRefs: []conf_v1.PolicyReference{
+				{Name: "shared-ext-auth", Namespace: "shared-policies"},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"shared-policies/shared-ext-auth": {
+					Spec: conf_v1.PolicySpec{
+						ExternalAuth: &conf_v1.ExternalAuth{
+							AuthURL:      "https://central-auth.shared-policies.svc.cluster.local:443/auth",
+							AuthSnippets: "proxy_set_header X-Original-URI $request_uri;\nproxy_set_header X-Forwarded-Host $host;",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				ExternalAuth: &version2.ExternalAuth{
+					URI: version2.AuthURI{
+						Scheme: "https",
+						Host:   "central-auth.shared-policies.svc.cluster.local",
+						Port:   "443",
+						Path:   "/auth",
+					},
+					Snippets: "proxy_set_header X-Original-URI $request_uri;\nproxy_set_header X-Forwarded-Host $host;",
+				},
+			},
+			msg: "VirtualServerRoute cross-namespace external auth policy with snippets",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			result, _ := generatePolicies(
+				ctx,
+				test.owner,
+				test.policyRefs,
+				test.policies,
+				"http",
+				test.path,
+				policyOptions{tls: false},
+				nil,
+			)
+
+			if !reflect.DeepEqual(result.ExternalAuth, test.expected.ExternalAuth) {
+				t.Errorf("%s: ExternalAuth mismatch.\nExpected: %+v\nGot: %+v", test.msg, test.expected.ExternalAuth, result.ExternalAuth)
+			}
+
+			if result.Context != test.expected.Context {
+				t.Errorf("%s: Context mismatch.\nExpected: %+v\nGot: %+v", test.msg, test.expected.Context, result.Context)
+			}
+		})
+	}
+}
+
 func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 	t.Parallel()
 
