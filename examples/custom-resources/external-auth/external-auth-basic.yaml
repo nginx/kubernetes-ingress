@@ -1,0 +1,7 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: external-auth-basic-policy
+spec:
+  externalAuth:
+    authUrl: "/basic-auth"
