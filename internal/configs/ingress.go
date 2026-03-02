@@ -154,6 +154,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		var warnings Warnings
 		ownerDetails := policyOwnerDetails{
 			owner:           ncp.ingEx.Ingress,
+			ownerType:       "ingress",
 			ownerName:       ncp.ingEx.Ingress.Name,
 			ownerNamespace:  ncp.ingEx.Ingress.Namespace,
 			parentName:      ncp.ingEx.Ingress.Name,
