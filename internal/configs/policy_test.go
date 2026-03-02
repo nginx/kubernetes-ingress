@@ -23,7 +23,7 @@ func TestGeneratePolicies(t *testing.T) {
 	ctx := context.Background()
 	ownerDetails := policyOwnerDetails{
 		owner:           nil, // nil is OK for the unit test
-		ownerType:       "virtualserver",
+		ownerType:       "vs",
 		ownerNamespace:  "default",
 		parentNamespace: "default",
 		parentName:      "test",
@@ -910,7 +910,7 @@ func TestGeneratePolicies(t *testing.T) {
 					Key: &version2.APIKey{
 						Header:  []string{"X-API-Key"},
 						Query:   []string{"api-key"},
-						MapName: "apikey_auth_client_name_default_test_virtualserver_api_key_policy",
+						MapName: "apikey_auth_client_name_default_test_vs_api_key_policy",
 					},
 					Enabled:   true,
 					ClientMap: nil,
@@ -954,7 +954,7 @@ func TestGeneratePolicies(t *testing.T) {
 					Key: &version2.APIKey{
 						Header:  []string{"X-API-Key"},
 						Query:   []string{"api-key"},
-						MapName: "apikey_auth_client_name_default_test_virtualserver_api_key_policy",
+						MapName: "apikey_auth_client_name_default_test_vs_api_key_policy",
 					},
 					Enabled:   true,
 					ClientMap: nil,
@@ -1027,7 +1027,7 @@ func TestGeneratePolicies(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				Cache: &version2.Cache{
-					ZoneName: "default_test_virtualserver_basic-cache",
+					ZoneName: "default_test_vs_basic-cache",
 					ZoneSize: "10m",
 					Valid:    map[string]string{},
 					CacheKey: "$scheme$proxy_host$request_uri",
@@ -1088,7 +1088,7 @@ func TestGeneratePolicies(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				Cache: &version2.Cache{
-					ZoneName:              "default_test_virtualserver_full-cache",
+					ZoneName:              "default_test_vs_full-cache",
 					ZoneSize:              "100m",
 					Time:                  "1h",
 					Valid:                 map[string]string{"any": "1h"},
@@ -1147,7 +1147,7 @@ func TestGeneratePolicies(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				Cache: &version2.Cache{
-					ZoneName: "default_test_virtualserver_status-cache",
+					ZoneName: "default_test_vs_status-cache",
 					ZoneSize: "50m",
 					Time:     "30m",
 					Valid: map[string]string{
@@ -1186,7 +1186,7 @@ func TestGeneratePolicies(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				Cache: &version2.Cache{
-					ZoneName:       "default_test_virtualserver_methods-cache",
+					ZoneName:       "default_test_vs_methods-cache",
 					ZoneSize:       "25m",
 					Valid:          map[string]string{},
 					AllowedMethods: []string{"GET", "HEAD"},
@@ -1221,7 +1221,7 @@ func TestGeneratePolicies(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				Cache: &version2.Cache{
-					ZoneName:        "default_test_virtualserver_purge-cache",
+					ZoneName:        "default_test_vs_purge-cache",
 					ZoneSize:        "75m",
 					Valid:           map[string]string{},
 					CachePurgeAllow: []string{"192.168.1.0/24", "10.0.0.1"},
@@ -1254,7 +1254,7 @@ func TestGeneratePolicies(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				Cache: &version2.Cache{
-					ZoneName: "default_test_virtualserver_implicit-cache",
+					ZoneName: "default_test_vs_implicit-cache",
 					ZoneSize: "15m",
 					Time:     "45m",
 					Valid:    map[string]string{},
@@ -1339,7 +1339,7 @@ func TestAddCORSConfig(t *testing.T) {
 			expected: policiesCfg{
 				CORSHeaders: []version2.AddHeader{
 					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
-					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_test_vs_default_cors_policy_virtualserver_default_cors_policy"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_test_vs_default_cors_policy_vs_default_cors_policy"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST, PUT, DELETE"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Headers", Value: "Content-Type"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Credentials", Value: "true"}, Always: true},
@@ -1348,7 +1348,7 @@ func TestAddCORSConfig(t *testing.T) {
 				},
 				CORSMap: &version2.Map{
 					Source:   "$http_origin",
-					Variable: "$cors_origin_default_test_vs_default_cors_policy_virtualserver_default_cors_policy",
+					Variable: "$cors_origin_default_test_vs_default_cors_policy_vs_default_cors_policy",
 					Parameters: []version2.Parameter{
 						{Value: "default", Result: `""`},
 						{Value: `"https://app.example.com"`, Result: "https://app.example.com"},
@@ -1374,12 +1374,12 @@ func TestAddCORSConfig(t *testing.T) {
 			expected: policiesCfg{
 				CORSHeaders: []version2.AddHeader{
 					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
-					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_test_vs_default_cors_policy_virtualserver_default_cors_policy"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_test_vs_default_cors_policy_vs_default_cors_policy"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST"}, Always: true},
 				},
 				CORSMap: &version2.Map{
 					Source:   "$http_origin",
-					Variable: "$cors_origin_default_test_vs_default_cors_policy_virtualserver_default_cors_policy",
+					Variable: "$cors_origin_default_test_vs_default_cors_policy_vs_default_cors_policy",
 					Parameters: []version2.Parameter{
 						{Value: "default", Result: `""`},
 						{Value: "~^https://[^.]+\\.example\\.com$", Result: "$http_origin"},
@@ -1397,13 +1397,13 @@ func TestAddCORSConfig(t *testing.T) {
 			expected: policiesCfg{
 				CORSHeaders: []version2.AddHeader{
 					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
-					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_test_vs_default_cors_policy_virtualserver_default_cors_policy"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_test_vs_default_cors_policy_vs_default_cors_policy"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST, PUT"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Headers", Value: "Content-Type, Authorization"}, Always: true},
 				},
 				CORSMap: &version2.Map{
 					Source:   "$http_origin",
-					Variable: "$cors_origin_default_test_vs_default_cors_policy_virtualserver_default_cors_policy",
+					Variable: "$cors_origin_default_test_vs_default_cors_policy_vs_default_cors_policy",
 					Parameters: []version2.Parameter{
 						{Value: "default", Result: `""`},
 						{Value: `"https://api.example.com"`, Result: "https://api.example.com"},
@@ -1420,11 +1420,11 @@ func TestAddCORSConfig(t *testing.T) {
 			expected: policiesCfg{
 				CORSHeaders: []version2.AddHeader{
 					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
-					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_test_vs_default_cors_policy_virtualserver_default_cors_policy"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_test_vs_default_cors_policy_vs_default_cors_policy"}, Always: true},
 				},
 				CORSMap: &version2.Map{
 					Source:   "$http_origin",
-					Variable: "$cors_origin_default_test_vs_default_cors_policy_virtualserver_default_cors_policy",
+					Variable: "$cors_origin_default_test_vs_default_cors_policy_vs_default_cors_policy",
 					Parameters: []version2.Parameter{
 						{Value: "default", Result: `""`},
 						{Value: "~^http://[^.]+\\.localhost\\.dev$", Result: "$http_origin"},
@@ -1440,7 +1440,14 @@ func TestAddCORSConfig(t *testing.T) {
 
 			config := &policiesCfg{}
 			polKey := "default/cors-policy"
-			res := config.addCORSConfig(test.cors, polKey, "default", "test-vs", "default", "cors-policy", "virtualserver")
+			ownerDetails := policyOwnerDetails{
+				ownerType:       "vs",
+				ownerNamespace:  "default",
+				ownerName:       "cors-policy",
+				parentNamespace: "default",
+				parentName:      "test-vs",
+			}
+			res := config.addCORSConfig(test.cors, polKey, ownerDetails)
 
 			// Check that no validation errors occurred
 			if len(res.warnings) > 0 {
@@ -1487,7 +1494,7 @@ func TestGenerateCORSPolicy(t *testing.T) {
 		{
 			name: "VirtualServer with single origin CORS policy",
 			owner: policyOwnerDetails{
-				ownerType:       "virtualserver",
+				ownerType:       "vs",
 				ownerNamespace:  "default",
 				ownerName:       "test-vs",
 				parentNamespace: "default",
@@ -1524,7 +1531,7 @@ func TestGenerateCORSPolicy(t *testing.T) {
 		{
 			name: "VirtualServer with multiple origins CORS policy",
 			owner: policyOwnerDetails{
-				ownerType:       "virtualserver",
+				ownerType:       "vs",
 				ownerNamespace:  "default",
 				ownerName:       "test-vs",
 				parentNamespace: "default",
@@ -1552,7 +1559,7 @@ func TestGenerateCORSPolicy(t *testing.T) {
 				Context: ctx,
 				CORSHeaders: []version2.AddHeader{
 					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
-					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_test_vs_virtualserver_default_multi_origin_cors"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_test_vs_vs_default_multi_origin_cors"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST, PUT, DELETE, OPTIONS"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Headers", Value: "Content-Type, Authorization, X-Requested-With"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Credentials", Value: "true"}, Always: true},
@@ -1561,7 +1568,7 @@ func TestGenerateCORSPolicy(t *testing.T) {
 				},
 				CORSMap: &version2.Map{
 					Source:   "$http_origin",
-					Variable: "$cors_origin_default_test_vs_virtualserver_default_multi_origin_cors",
+					Variable: "$cors_origin_default_test_vs_vs_default_multi_origin_cors",
 					Parameters: []version2.Parameter{
 						{Value: "default", Result: `""`},
 						{Value: `"https://app.example.com"`, Result: "https://app.example.com"},
@@ -1574,7 +1581,7 @@ func TestGenerateCORSPolicy(t *testing.T) {
 		{
 			name: "VirtualServer with wildcard CORS policy",
 			owner: policyOwnerDetails{
-				ownerType:       "virtualserver",
+				ownerType:       "vs",
 				ownerNamespace:  "default",
 				ownerName:       "test-vs",
 				parentNamespace: "default",
@@ -1608,7 +1615,7 @@ func TestGenerateCORSPolicy(t *testing.T) {
 		{
 			name: "VirtualServerRoute with CORS policy",
 			owner: policyOwnerDetails{
-				ownerType:       "virtualserverroute",
+				ownerType:       "vsr",
 				ownerNamespace:  "app-namespace",
 				ownerName:       "test-vsr",
 				parentNamespace: "default",
@@ -1647,7 +1654,7 @@ func TestGenerateCORSPolicy(t *testing.T) {
 		{
 			name: "VirtualServerRoute with cross-namespace CORS policy",
 			owner: policyOwnerDetails{
-				ownerType:       "virtualserverroute",
+				ownerType:       "vsr",
 				ownerNamespace:  "app-namespace",
 				ownerName:       "test-vsr",
 				parentNamespace: "default",
@@ -1673,14 +1680,14 @@ func TestGenerateCORSPolicy(t *testing.T) {
 				Context: ctx,
 				CORSHeaders: []version2.AddHeader{
 					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
-					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_parent_vs_app_namespace_test_vsr_virtualserverroute_shared_policies_shared_cors"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_parent_vs_app_namespace_test_vsr_vsr_shared_policies_shared_cors"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST, DELETE"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Headers", Value: "Authorization, Content-Type"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Credentials", Value: "true"}, Always: true},
 				},
 				CORSMap: &version2.Map{
 					Source:   "$http_origin",
-					Variable: "$cors_origin_default_parent_vs_app_namespace_test_vsr_virtualserverroute_shared_policies_shared_cors",
+					Variable: "$cors_origin_default_parent_vs_app_namespace_test_vsr_vsr_shared_policies_shared_cors",
 					Parameters: []version2.Parameter{
 						{Value: "default", Result: `""`},
 						{Value: `"https://api.example.com"`, Result: "https://api.example.com"},
@@ -1727,7 +1734,7 @@ func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 
 	ownerDetails := policyOwnerDetails{
 		owner:           nil, // nil is OK for the unit test
-		ownerType:       "virtualserver",
+		ownerType:       "vs",
 		ownerNamespace:  "default",
 		parentNamespace: "default",
 		parentName:      "test",
@@ -1823,7 +1830,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 	t.Parallel()
 	ownerDetails := policyOwnerDetails{
 		owner:           nil, // nil is OK for the unit test
-		ownerType:       "virtualserver",
+		ownerType:       "vs",
 		ownerName:       "test",
 		ownerNamespace:  "default",
 		parentNamespace: "default",

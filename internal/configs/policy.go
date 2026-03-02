@@ -599,9 +599,7 @@ func (p *policiesCfg) addAPIKeyConfig(
 	apiKey *conf_v1.APIKey,
 	polKey string,
 	polNamespace string,
-	parentNamespace string,
-	parentName string,
-	ownerType string,
+	ownerDetails policyOwnerDetails,
 	secretRefs map[string]*secrets.SecretReference,
 ) *validationResults {
 	res := newValidationResults()
@@ -632,11 +630,11 @@ func (p *policiesCfg) addAPIKeyConfig(
 
 	p.APIKey.Clients = generateAPIKeyClients(secretRef.Secret.Data)
 
-	ownerTypeName := formatOwnerType(ownerType)
+	ownerTypeName := formatOwnerType(ownerDetails.ownerType)
 	mapName := fmt.Sprintf(
 		"apikey_auth_client_name_%s_%s_%s_%s",
-		rfc1123ToSnake(parentNamespace),
-		rfc1123ToSnake(parentName),
+		rfc1123ToSnake(ownerDetails.parentNamespace),
+		rfc1123ToSnake(ownerDetails.parentName),
 		ownerTypeName,
 		strings.Split(rfc1123ToSnake(polKey), "/")[1],
 	)
@@ -735,7 +733,7 @@ func (p *policiesCfg) addWAFConfig(
 func (p *policiesCfg) addCacheConfig(
 	cache *conf_v1.Cache,
 	polKey string,
-	parentNamespace, parentName, ownerNamespace, ownerName, ownerType string,
+	ownerDetails policyOwnerDetails,
 ) *validationResults {
 	res := newValidationResults()
 	if p.Cache != nil {
@@ -743,31 +741,31 @@ func (p *policiesCfg) addCacheConfig(
 		return res
 	}
 
-	p.Cache = generateCacheConfig(cache, parentNamespace, parentName, ownerNamespace, ownerName, ownerType)
+	p.Cache = generateCacheConfig(cache, ownerDetails)
 	return res
 }
 
 // generateCORSVariableName creates a unique variable name for CORS map based on VS/VSR owner details.
-func generateCORSVariableName(polKey, parentNamespace, parentName, ownerNamespace, ownerName, ownerType string) string {
+func generateCORSVariableName(polKey string, ownerDetails policyOwnerDetails) string {
 	polNamespace, polName, ok := strings.Cut(polKey, "/")
-	ownerTypeName := formatOwnerType(ownerType)
+	ownerTypeName := formatOwnerType(ownerDetails.ownerType)
 	if !ok || polNamespace == "" || polName == "" {
-		if parentNamespace == ownerNamespace && parentName == ownerName {
-			return fmt.Sprintf("cors_origin_%s_%s_%s", rfc1123ToSnake(parentNamespace), rfc1123ToSnake(parentName), ownerTypeName)
+		if ownerDetails.parentNamespace == ownerDetails.ownerNamespace && ownerDetails.parentName == ownerDetails.ownerName {
+			return fmt.Sprintf("cors_origin_%s_%s_%s", rfc1123ToSnake(ownerDetails.parentNamespace), rfc1123ToSnake(ownerDetails.parentName), ownerTypeName)
 		}
 		return fmt.Sprintf("cors_origin_%s_%s_%s_%s_%s",
-			rfc1123ToSnake(parentNamespace),
-			rfc1123ToSnake(parentName),
-			rfc1123ToSnake(ownerNamespace),
-			rfc1123ToSnake(ownerName),
+			rfc1123ToSnake(ownerDetails.parentNamespace),
+			rfc1123ToSnake(ownerDetails.parentName),
+			rfc1123ToSnake(ownerDetails.ownerNamespace),
+			rfc1123ToSnake(ownerDetails.ownerName),
 			ownerTypeName,
 		)
 	}
 
-	if parentNamespace == ownerNamespace && parentName == ownerName {
+	if ownerDetails.parentNamespace == ownerDetails.ownerNamespace && ownerDetails.parentName == ownerDetails.ownerName {
 		return fmt.Sprintf("cors_origin_%s_%s_%s_%s_%s",
-			rfc1123ToSnake(parentNamespace),
-			rfc1123ToSnake(parentName),
+			rfc1123ToSnake(ownerDetails.parentNamespace),
+			rfc1123ToSnake(ownerDetails.parentName),
 			ownerTypeName,
 			rfc1123ToSnake(polNamespace),
 			rfc1123ToSnake(polName),
@@ -775,10 +773,10 @@ func generateCORSVariableName(polKey, parentNamespace, parentName, ownerNamespac
 	}
 
 	return fmt.Sprintf("cors_origin_%s_%s_%s_%s_%s_%s_%s",
-		rfc1123ToSnake(parentNamespace),
-		rfc1123ToSnake(parentName),
-		rfc1123ToSnake(ownerNamespace),
-		rfc1123ToSnake(ownerName),
+		rfc1123ToSnake(ownerDetails.parentNamespace),
+		rfc1123ToSnake(ownerDetails.parentName),
+		rfc1123ToSnake(ownerDetails.ownerNamespace),
+		rfc1123ToSnake(ownerDetails.ownerName),
 		ownerTypeName,
 		rfc1123ToSnake(polNamespace),
 		rfc1123ToSnake(polName),
@@ -943,11 +941,7 @@ func generateCORSHeaders(cors *conf_v1.CORS, originValue string) []version2.AddH
 func (p *policiesCfg) addCORSConfig(
 	cors *conf_v1.CORS,
 	polKey string,
-	parentNamespace,
-	parentName,
-	ownerNamespace,
-	ownerName,
-	ownerType string,
+	ownerDetails policyOwnerDetails,
 ) *validationResults {
 	res := newValidationResults()
 
@@ -958,7 +952,7 @@ func (p *policiesCfg) addCORSConfig(
 		} else if len(cors.AllowOrigin) == 1 && !isWildcardOrigin(cors.AllowOrigin[0]) {
 			originValue = escapeNginxString(cors.AllowOrigin[0])
 		} else {
-			policyVarName := generateCORSVariableName(polKey, parentNamespace, parentName, ownerNamespace, ownerName, ownerType)
+			policyVarName := generateCORSVariableName(polKey, ownerDetails)
 			originValue = fmt.Sprintf("$%s", policyVarName)
 			p.CORSMap = generateCORSOriginMap(cors.AllowOrigin, policyVarName)
 		}
@@ -1024,14 +1018,13 @@ func generatePolicies(
 			case pol.Spec.OIDC != nil:
 				res = config.addOIDCConfig(pol.Spec.OIDC, key, polNamespace, policyOpts)
 			case pol.Spec.APIKey != nil:
-				res = config.addAPIKeyConfig(pol.Spec.APIKey, key, polNamespace, ownerDetails.parentNamespace,
-					ownerDetails.parentName, ownerDetails.ownerType, policyOpts.secretRefs)
+				res = config.addAPIKeyConfig(pol.Spec.APIKey, key, polNamespace, ownerDetails, policyOpts.secretRefs)
 			case pol.Spec.WAF != nil:
 				res = config.addWAFConfig(ctx, pol.Spec.WAF, key, polNamespace, policyOpts.apResources)
 			case pol.Spec.Cache != nil:
-				res = config.addCacheConfig(pol.Spec.Cache, key, ownerDetails.parentNamespace, ownerDetails.parentName, ownerDetails.ownerNamespace, ownerDetails.ownerName, ownerDetails.ownerType)
+				res = config.addCacheConfig(pol.Spec.Cache, key, ownerDetails)
 			case pol.Spec.CORS != nil:
-				res = config.addCORSConfig(pol.Spec.CORS, key, ownerDetails.parentNamespace, ownerDetails.parentName, ownerDetails.ownerNamespace, ownerDetails.ownerName, ownerDetails.ownerType)
+				res = config.addCORSConfig(pol.Spec.CORS, key, ownerDetails)
 			default:
 				res = newValidationResults()
 			}
@@ -1264,25 +1257,25 @@ func generateAuthJwtClaimSet(jwtCondition conf_v1.JWTCondition, owner policyOwne
 	}
 }
 
-func generateAuthJwtClaimSetVariable(claim string, parentNamespace string, parentName string) string {
-	return strings.ReplaceAll(fmt.Sprintf("$jwt_%v_%v_%v", parentNamespace, parentName, strings.Join(strings.Split(claim, "."), "_")), "-", "_")
+func generateAuthJwtClaimSetVariable(claim string, namespace string, name string) string {
+	return strings.ReplaceAll(fmt.Sprintf("$jwt_%v_%v_%v", namespace, name, strings.Join(strings.Split(claim, "."), "_")), "-", "_")
 }
 
 func generateAuthJwtClaimSetClaim(claim string) string {
 	return strings.Join(strings.Split(claim, "."), " ")
 }
 
-func generateCacheConfig(cache *conf_v1.Cache, parentNamespace, parentName, ownerNamespace, ownerName, ownerType string) *version2.Cache {
+func generateCacheConfig(cache *conf_v1.Cache, ownerDetails policyOwnerDetails) *version2.Cache {
 	// Create unique zone name including VS namespace/name and owner namespace/name for policy reuse
 	// This ensures that the same cache policy can be safely reused across different VS/VSR
-	ownerTypeName := formatOwnerType(ownerType)
+	ownerTypeName := formatOwnerType(ownerDetails.ownerType)
 	var uniqueZoneName string
-	if parentNamespace == ownerNamespace && parentName == ownerName {
+	if ownerDetails.parentNamespace == ownerDetails.ownerNamespace && ownerDetails.parentName == ownerDetails.ownerName {
 		// Policy is applied directly to VirtualServer, use VS namespace/name only
-		uniqueZoneName = fmt.Sprintf("%s_%s_%s_%s", parentNamespace, parentName, ownerTypeName, cache.CacheZoneName)
+		uniqueZoneName = fmt.Sprintf("%s_%s_%s_%s", ownerDetails.parentNamespace, ownerDetails.parentName, ownerTypeName, cache.CacheZoneName)
 	} else {
 		// Policy is applied to VirtualServerRoute, include both VS and owner info
-		uniqueZoneName = fmt.Sprintf("%s_%s_%s_%s_%s_%s", parentNamespace, parentName, ownerNamespace, ownerName, ownerTypeName, cache.CacheZoneName)
+		uniqueZoneName = fmt.Sprintf("%s_%s_%s_%s_%s_%s", ownerDetails.parentNamespace, ownerDetails.parentName, ownerDetails.ownerNamespace, ownerDetails.ownerName, ownerTypeName, cache.CacheZoneName)
 	}
 
 	// Set cache key with default if not provided
