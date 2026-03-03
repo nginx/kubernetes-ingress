@@ -11469,7 +11469,7 @@ func TestGenerateVirtualServerConfigWithRateLimitGroupsWarning(t *testing.T) {
 		LimitReqZones: []version2.LimitReqZone{
 			{
 				Key:           "$pol_rl_default_premium_rate_limit_policy_default_cafe_vs",
-				ZoneName:      "pol_rl_default_premium-rate-limit-policy_default_cafe",
+				ZoneName:      "pol_rl_default_premium-rate-limit-policy_default_cafe_vs",
 				ZoneSize:      "10M",
 				Rate:          "10r/s",
 				PolicyResult:  "$jwt_claim_sub",
