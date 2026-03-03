@@ -72,11 +72,7 @@ def policy_setup(request, kube_apis, test_namespace) -> None:
     :param test_namespace: example namespace
     """
     pol_path = request.param
-
-    print(f"------------- Create policy --------------")
-    pol_name = apply_and_wait_for_valid_policy(kube_apis, test_namespace, pol_path)
-    if not pol_name:
-        pytest.fail(f"Failed to create policy from {pol_path}")
+    pol_name = get_name_from_yaml(pol_path)
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
@@ -84,6 +80,9 @@ def policy_setup(request, kube_apis, test_namespace) -> None:
             delete_policy(kube_apis.custom_objects, pol_name, test_namespace)
 
     request.addfinalizer(fin)
+
+    print(f"------------- Create policy --------------")
+    apply_and_wait_for_valid_policy(kube_apis, test_namespace, pol_path)
 
 
 @pytest.fixture(scope="function")
