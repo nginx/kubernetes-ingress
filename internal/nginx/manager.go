@@ -181,6 +181,7 @@ func (lm *LocalManager) CreateMainConfig(content []byte) (bool, error) {
 	return configChanged, nil
 }
 
+// CreateConfig creates a configuration file. If the file already exists, it will be overridden.
 func (lm *LocalManager) CreateConfig(name string, content []byte) (bool, error) {
 	return createConfig(lm.logger, lm.getFilenameForConfig(name), content), nil
 }
