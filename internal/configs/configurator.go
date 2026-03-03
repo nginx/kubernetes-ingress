@@ -12,6 +12,7 @@ import (
 	"github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
 
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
+
 	"github.com/nginx/nginx-prometheus-exporter/collector"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 
@@ -1386,14 +1387,16 @@ func (cnf *Configurator) updateStreamServersInPlus(upstream string, servers []st
 // UpdateConfig updates NGINX configuration parameters.
 //
 //gocyclo:ignore
-func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, error) {
+func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, ResourceErrors, error) {
 	allWarnings := newWarnings()
 	allWeightUpdates := []WeightUpdate{}
+	resourceErrors := make(ResourceErrors)
+	_, isRollbackManager := cnf.nginxManager.(*nginx.ConfigRollbackManager)
 
 	if cnf.CfgParams.MainServerSSLDHParamFileContent != nil {
 		fileName, err := cnf.nginxManager.CreateDHParam(*cnf.CfgParams.MainServerSSLDHParamFileContent)
 		if err != nil {
-			return allWarnings, fmt.Errorf("error when updating dhparams: %w", err)
+			return allWarnings, nil, fmt.Errorf("error when updating dhparams: %w", err)
 		}
 		cnf.CfgParams.MainServerSSLDHParam = fileName
 	}
@@ -1402,7 +1405,7 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, er
 	if cnf.CfgParams.MainTemplate != nil {
 		err := cnf.templateExecutor.UpdateMainTemplate(cnf.CfgParams.MainTemplate)
 		if err != nil {
-			return allWarnings, fmt.Errorf("error when parsing the main template: %w", err)
+			return allWarnings, nil, fmt.Errorf("error when parsing the main template: %w", err)
 		}
 	} else {
 		// Reverse to default Main template parsed at NIC startup.
@@ -1412,7 +1415,7 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, er
 	if cnf.CfgParams.IngressTemplate != nil {
 		err := cnf.templateExecutor.UpdateIngressTemplate(cnf.CfgParams.IngressTemplate)
 		if err != nil {
-			return allWarnings, fmt.Errorf("error when parsing the ingress template: %w", err)
+			return allWarnings, nil, fmt.Errorf("error when parsing the ingress template: %w", err)
 		}
 	} else {
 		// Reverse to default Ingress template parsed at NIC startup.
@@ -1422,7 +1425,7 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, er
 	if cnf.CfgParams.VirtualServerTemplate != nil {
 		err := cnf.templateExecutorV2.UpdateVirtualServerTemplate(cnf.CfgParams.VirtualServerTemplate)
 		if err != nil {
-			return allWarnings, fmt.Errorf("error when parsing the VirtualServer template: %w", err)
+			return allWarnings, nil, fmt.Errorf("error when parsing the VirtualServer template: %w", err)
 		}
 	} else {
 		// Reverse to default TransportServer template parsed at NIC startup.
@@ -1432,7 +1435,7 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, er
 	if cnf.CfgParams.TransportServerTemplate != nil {
 		err := cnf.templateExecutorV2.UpdateTransportServerTemplate(cnf.CfgParams.TransportServerTemplate)
 		if err != nil {
-			return allWarnings, fmt.Errorf("error when parsing the TransportServer template: %w", err)
+			return allWarnings, nil, fmt.Errorf("error when parsing the TransportServer template: %w", err)
 		}
 	} else {
 		// Reverse to default TransportServer template parsed at NIC startup.
@@ -1442,30 +1445,50 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, er
 	mainCfg := GenerateNginxMainConfig(cnf.staticCfgParams, cnf.CfgParams, cnf.MgmtCfgParams)
 	mainCfgContent, err := cnf.templateExecutor.ExecuteMainConfigTemplate(mainCfg)
 	if err != nil {
-		return allWarnings, fmt.Errorf("error when writing main Config")
+		return allWarnings, nil, fmt.Errorf("error when writing main Config")
 	}
 	if _, err := cnf.nginxManager.CreateMainConfig(mainCfgContent); err != nil {
-		return allWarnings, err
+		if isRollbackManager {
+			l := nl.LoggerFromContext(cnf.CfgParams.Context)
+			nl.Warnf(l, "Main config was rolled back: %v", err)
+		} else {
+			return allWarnings, nil, err
+		}
 	}
 
 	for _, ingEx := range resources.IngressExes {
 		_, warnings, err := cnf.addOrUpdateIngress(ingEx)
 		if err != nil {
-			return allWarnings, err
+			if isRollbackManager {
+				key := fmt.Sprintf("%s/%s", ingEx.Ingress.Namespace, ingEx.Ingress.Name)
+				resourceErrors[key] = fmt.Errorf("error when updating config from ConfigMap: %w", err)
+				continue
+			}
+			return allWarnings, nil, err
 		}
 		allWarnings.Add(warnings)
 	}
 	for _, mergeableIng := range resources.MergeableIngresses {
 		_, warnings, err := cnf.addOrUpdateMergeableIngress(mergeableIng)
 		if err != nil {
-			return allWarnings, err
+			if isRollbackManager {
+				key := fmt.Sprintf("%s/%s", mergeableIng.Master.Ingress.Namespace, mergeableIng.Master.Ingress.Name)
+				resourceErrors[key] = fmt.Errorf("error when updating config from ConfigMap: %w", err)
+				continue
+			}
+			return allWarnings, nil, err
 		}
 		allWarnings.Add(warnings)
 	}
 	for _, vsEx := range resources.VirtualServerExes {
 		_, warnings, weightUpdates, err := cnf.addOrUpdateVirtualServer(vsEx)
 		if err != nil {
-			return allWarnings, err
+			if isRollbackManager {
+				key := fmt.Sprintf("%s/%s", vsEx.VirtualServer.Namespace, vsEx.VirtualServer.Name)
+				resourceErrors[key] = fmt.Errorf("error when updating config from ConfigMap: %w", err)
+				continue
+			}
+			return allWarnings, nil, err
 		}
 		allWarnings.Add(warnings)
 		allWeightUpdates = append(allWeightUpdates, weightUpdates...)
@@ -1474,20 +1497,29 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, er
 	for _, tsEx := range resources.TransportServerExes {
 		_, warnings, err := cnf.addOrUpdateTransportServer(tsEx)
 		if err != nil {
-			return allWarnings, err
+			if isRollbackManager {
+				key := fmt.Sprintf("%s/%s", tsEx.TransportServer.Namespace, tsEx.TransportServer.Name)
+				resourceErrors[key] = fmt.Errorf("error when updating config from ConfigMap: %w", err)
+				continue
+			}
+			return allWarnings, nil, err
 		}
 		allWarnings.Add(warnings)
 	}
 
 	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
-		return allWarnings, fmt.Errorf("error when updating config from ConfigMap: %w", err)
+		return allWarnings, resourceErrors, fmt.Errorf("error when updating config from ConfigMap: %w", err)
 	}
 
 	for _, weightUpdate := range allWeightUpdates {
 		cnf.nginxManager.UpsertSplitClientsKeyVal(weightUpdate.Zone, weightUpdate.Key, weightUpdate.Value)
 	}
 
-	return allWarnings, nil
+	if len(resourceErrors) > 0 {
+		return allWarnings, resourceErrors, nil
+	}
+
+	return allWarnings, nil, nil
 }
 
 // ReloadForBatchUpdates reloads NGINX after a batch event.
