@@ -2196,20 +2196,6 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 		}
 	}
 
-	if policyNames != "" {
-		allPolicies := strings.Split(policyNames, ",")
-		for _, policyName := range allPolicies {
-			policyName = strings.TrimSpace(policyName)
-			if policyName == "" {
-				continue
-			}
-			policyRef := conf_v1.PolicyReference{
-				Name:      policyName,
-				Namespace: ing.Namespace,
-			}
-			policyRefs = append(policyRefs, policyRef)
-		}
-	}
 	if lbc.isNginxPlus {
 		if jwtKey, exists := ingEx.Ingress.Annotations[configs.JWTKeyAnnotation]; exists {
 			secretName := jwtKey
