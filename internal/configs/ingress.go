@@ -158,6 +158,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			ownerNamespace:  ncp.ingEx.Ingress.Namespace,
 			parentName:      ncp.ingEx.Ingress.Name,
 			parentNamespace: ncp.ingEx.Ingress.Namespace,
+			parentType:      "ing",
 		}
 		if ncp.isMinion {
 			ownerDetails.parentName = ncp.mergeableIngs.Master.Ingress.Name
