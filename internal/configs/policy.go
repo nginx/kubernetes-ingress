@@ -71,11 +71,11 @@ type policiesCfg struct {
 
 type policyOwnerDetails struct {
 	owner           runtime.Object
-	parentType      string
 	ownerName       string
 	ownerNamespace  string
 	parentNamespace string
 	parentName      string
+	parentType      string
 }
 
 type policyOptions struct {
