@@ -1,6 +1,7 @@
 import pytest
 import requests
 from settings import DEPLOYMENTS, TEST_DATA
+from suite.fixtures.fixtures import PublicEndpoint
 from suite.utils.custom_resources_utils import read_custom_resource
 from suite.utils.policy_resources_utils import apply_and_wait_for_valid_policy, create_policy_from_yaml, delete_policy
 from suite.utils.resources_utils import (
