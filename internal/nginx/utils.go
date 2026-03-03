@@ -2,6 +2,7 @@ package nginx
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -44,7 +45,7 @@ func nginxTestError(l *slog.Logger, debug bool) error {
 
 	nl.Debugf(l, "executing nginx -t")
 
-	cmd := exec.Command(binaryFilename, "-t", "-q")
+	cmd := exec.CommandContext(context.Background(), binaryFilename, "-t", "-q") // #nosec G204
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
