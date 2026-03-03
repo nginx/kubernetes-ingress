@@ -79,7 +79,7 @@ def policy_setup(request, kube_apis, test_namespace) -> None:
     print(f"------------- Create policy --------------")
     pol_name = apply_and_wait_for_valid_policy(kube_apis, test_namespace, pol_path)
     if not pol_name:
-        pytest.skip(f"Failed to create policy from {pol_path}")
+        pytest.fail(f"Failed to create policy from {pol_path}")
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
