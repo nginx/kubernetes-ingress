@@ -233,6 +233,10 @@ server {
     proxy_ssl_name {{ .SSLName }};
     {{- end }}
 
+    {{- if $s.ExternalAuth }}
+    auth_request {{ $s.ExternalAuth.ProxyURL }};
+	{{- end }}
+
     {{- range $snippet := $s.Snippets }}
     {{ $snippet }}
     {{- end }}
@@ -280,6 +284,10 @@ server {
         {{- end }}
         {{- range $snippet := $l.Snippets }}
         {{ $snippet }}
+        {{- end }}
+
+        {{- if $l.ExternalAuth }}
+        auth_request {{ $l.ExternalAuth.ProxyURL }};
         {{- end }}
 
         {{- with $l.PoliciesErrorReturn }}

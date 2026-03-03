@@ -1750,6 +1750,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 					Port:   "8080",
 					Path:   "/auth",
 				},
+				ProxyURL: "/pol_ea_default_test_vs_default_ext_auth_policy",
 			},
 			msg: "basic external auth with URL only",
 		},
@@ -1766,6 +1767,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 					Port:   "",
 					Path:   "/verify",
 				},
+				ProxyURL: "/pol_ea_default_test_vs_default_ext_auth_policy",
 				SigninURL: version2.AuthURI{
 					Scheme: "https",
 					Host:   "auth.example.com",
@@ -1788,6 +1790,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 					Port:   "8080",
 					Path:   "/check",
 				},
+				ProxyURL: "/pol_ea_default_test_vs_default_ext_auth_policy",
 				Snippets: "proxy_set_header X-Forwarded-Host $host;",
 			},
 			msg: "external auth with snippets",
@@ -1806,6 +1809,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 					Port:   "4180",
 					Path:   "/oauth2/auth",
 				},
+				ProxyURL: "/pol_ea_default_test_vs_default_ext_auth_policy",
 				SigninURL: version2.AuthURI{
 					Scheme: "https",
 					Host:   "oauth2-proxy.default.svc.cluster.local",
@@ -1828,6 +1832,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 					Port:   "",
 					Path:   "/validate",
 				},
+				ProxyURL: "/pol_ea_default_test_vs_default_ext_auth_policy",
 			},
 			msg: "external auth URL without explicit port",
 		},
@@ -1844,6 +1849,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 					Port:   "8080",
 					Path:   "/auth",
 				},
+				ProxyURL: "/pol_ea_default_test_vs_default_ext_auth_policy",
 			},
 			msg: "empty signin URL should not be set",
 		},
@@ -1860,6 +1866,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 					Port:   "8080",
 					Path:   "/auth",
 				},
+				ProxyURL: "/pol_ea_default_test_vs_default_ext_auth_policy",
 			},
 			msg: "empty snippets should not be set",
 		},
@@ -1886,7 +1893,14 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			t.Parallel()
 
 			config := &policiesCfg{}
-			polKey := "default/ext-auth-policy"
+			polNamespace := "default"
+			polName := "ext-auth-policy"
+			ownerDetails := policyOwnerDetails{
+				ownerNamespace: "default",
+				ownerName:      "test-vs",
+				vsNamespace:    "default",
+				vsName:         "test-vs",
+			}
 
 			// For the duplicate test, set up a pre-existing ExternalAuth
 			if test.wantWarning {
@@ -1900,7 +1914,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 				}
 			}
 
-			res := config.addExternalAuthConfig(test.extAuth, polKey)
+			res := config.addExternalAuthConfig(test.extAuth, polNamespace, polName, ownerDetails)
 
 			if test.wantWarning {
 				if len(res.warnings) == 0 {

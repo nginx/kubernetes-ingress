@@ -263,11 +263,13 @@ func (p *policiesCfg) addJWTAuthConfig(
 
 func (p *policiesCfg) addExternalAuthConfig(
 	externalAuth *conf_v1.ExternalAuth,
-	polKey string,
+	polNamespace string,
+	polName string,
+	ownerDetails policyOwnerDetails,
 ) *validationResults {
 	res := newValidationResults()
 	if p.ExternalAuth != nil {
-		res.addWarningf("Multiple external auth policies in the same context is not valid. External auth policy %s will be ignored", polKey)
+		res.addWarningf("Multiple external auth policies in the same context is not valid. External auth policy %s will be ignored", polNamespace+"/"+polName)
 	} else {
 		uri, err := url.Parse(externalAuth.AuthURL)
 		if err != nil {
@@ -282,6 +284,7 @@ func (p *policiesCfg) addExternalAuthConfig(
 				Port:   uri.Port(),
 				Path:   uri.Path,
 			},
+			ProxyURL: rfc1123ToSnake(fmt.Sprintf("/pol_ea_%v_%v_%v_%v", ownerDetails.ownerNamespace, ownerDetails.ownerName, polNamespace, polName)),
 		}
 		if externalAuth.AuthSigninURL != "" {
 			signinURI, err := url.Parse(externalAuth.AuthSigninURL)
@@ -1055,7 +1058,7 @@ func generatePolicies(
 			case pol.Spec.JWTAuth != nil:
 				res = config.addJWTAuthConfig(pol.Spec.JWTAuth, key, polNamespace, policyOpts.secretRefs)
 			case pol.Spec.ExternalAuth != nil:
-				res = config.addExternalAuthConfig(pol.Spec.ExternalAuth, key)
+				res = config.addExternalAuthConfig(pol.Spec.ExternalAuth, polNamespace, p.Name, ownerDetails)
 			case pol.Spec.BasicAuth != nil:
 				res = config.addBasicAuthConfig(pol.Spec.BasicAuth, key, polNamespace, policyOpts.secretRefs)
 			case pol.Spec.IngressMTLS != nil:

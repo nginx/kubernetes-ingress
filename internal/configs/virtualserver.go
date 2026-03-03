@@ -988,6 +988,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			LimitReqOptions:           policiesCfg.RateLimit.Options,
 			LimitReqs:                 policiesCfg.RateLimit.Reqs,
 			JWTAuth:                   policiesCfg.JWTAuth.Auth,
+			ExternalAuth:              policiesCfg.ExternalAuth,
 			BasicAuth:                 policiesCfg.BasicAuth,
 			JWTAuthList:               policiesCfg.JWTAuth.List,
 			JWKSAuthEnabled:           policiesCfg.JWTAuth.JWKSEnabled,
@@ -1184,6 +1185,7 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 	location.LimitReqOptions = cfg.RateLimit.Options
 	location.LimitReqs = cfg.RateLimit.Reqs
 	location.JWTAuth = cfg.JWTAuth.Auth
+	location.ExternalAuth = cfg.ExternalAuth
 	location.BasicAuth = cfg.BasicAuth
 	location.EgressMTLS = cfg.EgressMTLS
 	if cfg.OIDC != nil {

@@ -3,6 +3,8 @@ kind: VirtualServer
 metadata:
   name: cafe
 spec:
+  policies:
+    - name: external-auth-basic-policy
   host: cafe.example.com
   tls:
     secret: tls-secret
@@ -24,10 +26,10 @@ spec:
   routes:
   # Basic-auth protected route
   - path: /tea
-    location-snippets: |
-      auth_request /basic-auth;
     action:
       pass: tea
+    policies:
+      - name: external-auth-oauth2-policy
   # OAuth2 proxy protected route
   - path: /coffee
     location-snippets: |

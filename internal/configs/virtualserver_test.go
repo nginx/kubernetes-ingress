@@ -20568,3 +20568,195 @@ func TestGenerateVirtualServerConfigWithRouteSelector(t *testing.T) {
 		}
 	}
 }
+
+func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
+	t.Parallel()
+
+	virtualServerEx := VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "cafe.example.com",
+				Policies: []conf_v1.PolicyReference{
+					{
+						Name:      "external-auth-policy",
+						Namespace: "default",
+					},
+				},
+				Upstreams: []conf_v1.Upstream{
+					{
+						Name:    "tea",
+						Service: "tea-svc",
+						Port:    80,
+					},
+					{
+						Name:    "coffee",
+						Service: "coffee-svc",
+						Port:    80,
+					},
+				},
+				Routes: []conf_v1.Route{
+					{
+						Path: "/tea",
+						Action: &conf_v1.Action{
+							Pass: "tea",
+						},
+					},
+					{
+						Path: "/coffee",
+						Action: &conf_v1.Action{
+							Pass: "coffee",
+						},
+					},
+				},
+			},
+		},
+		Policies: map[string]*conf_v1.Policy{
+			"default/external-auth-policy": {
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "external-auth-policy",
+					Namespace: "default",
+				},
+				Spec: conf_v1.PolicySpec{
+					ExternalAuth: &conf_v1.ExternalAuth{
+						AuthURL:       "http://auth-server.default.svc.cluster.local:8080/auth",
+						AuthSigninURL: "http://auth-server.default.svc.cluster.local:8080/signin?rd=$scheme://$host$request_uri",
+						AuthSnippets:  "proxy_set_header X-Custom-Header \"custom-value\";",
+					},
+				},
+			},
+		},
+		Endpoints: map[string][]string{
+			"default/tea-svc:80": {
+				"10.0.0.20:80",
+			},
+			"default/coffee-svc:80": {
+				"10.0.0.30:80",
+			},
+		},
+	}
+
+	expected := version2.VirtualServerConfig{
+		Upstreams: []version2.Upstream{
+			{
+				UpstreamLabels: version2.UpstreamLabels{
+					Service:           "coffee-svc",
+					ResourceType:      "virtualserver",
+					ResourceName:      "cafe",
+					ResourceNamespace: "default",
+				},
+				Name: "vs_default_cafe_coffee",
+				Servers: []version2.UpstreamServer{
+					{
+						Address: "10.0.0.30:80",
+					},
+				},
+				Keepalive: 16,
+			},
+			{
+				UpstreamLabels: version2.UpstreamLabels{
+					Service:           "tea-svc",
+					ResourceType:      "virtualserver",
+					ResourceName:      "cafe",
+					ResourceNamespace: "default",
+				},
+				Name: "vs_default_cafe_tea",
+				Servers: []version2.UpstreamServer{
+					{
+						Address: "10.0.0.20:80",
+					},
+				},
+				Keepalive: 16,
+			},
+		},
+		HTTPSnippets:  []string{},
+		LimitReqZones: []version2.LimitReqZone{},
+		Server: version2.Server{
+			ServerName:      "cafe.example.com",
+			StatusZone:      "cafe.example.com",
+			ProxyProtocol:   true,
+			ServerTokens:    "off",
+			RealIPHeader:    "X-Real-IP",
+			SetRealIPFrom:   []string{"0.0.0.0/0"},
+			RealIPRecursive: true,
+			Snippets:        []string{"# server snippet"},
+			TLSPassthrough:  true,
+			VSNamespace:     "default",
+			VSName:          "cafe",
+			ExternalAuth: &version2.ExternalAuth{
+				URI: version2.AuthURI{
+					Scheme: "http",
+					Host:   "auth-server.default.svc.cluster.local",
+					Port:   "8080",
+					Path:   "/auth",
+				},
+				SigninURL: version2.AuthURI{
+					Scheme: "http",
+					Host:   "auth-server.default.svc.cluster.local",
+					Port:   "8080",
+					Path:   "/signin",
+				},
+				Snippets: "proxy_set_header X-Custom-Header \"custom-value\";",
+			},
+			Locations: []version2.Location{
+				{
+					Path:                     "/tea",
+					ProxyPass:                "http://vs_default_cafe_tea",
+					ProxyNextUpstream:        "error timeout",
+					ProxyNextUpstreamTimeout: "0s",
+					ProxyNextUpstreamTries:   0,
+					HasKeepalive:             true,
+					ProxySSLName:             "tea-svc.default.svc",
+					ProxyPassRequestHeaders:  true,
+					ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+					ServiceName:              "tea-svc",
+				},
+				{
+					Path:                     "/coffee",
+					ProxyPass:                "http://vs_default_cafe_coffee",
+					ProxyNextUpstream:        "error timeout",
+					ProxyNextUpstreamTimeout: "0s",
+					ProxyNextUpstreamTries:   0,
+					HasKeepalive:             true,
+					ProxySSLName:             "coffee-svc.default.svc",
+					ProxyPassRequestHeaders:  true,
+					ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+					ServiceName:              "coffee-svc",
+				},
+			},
+		},
+	}
+
+	baseCfgParams := ConfigParams{
+		Context:         context.Background(),
+		ServerTokens:    "off",
+		Keepalive:       16,
+		ServerSnippets:  []string{"# server snippet"},
+		ProxyProtocol:   true,
+		SetRealIPFrom:   []string{"0.0.0.0/0"},
+		RealIPHeader:    "X-Real-IP",
+		RealIPRecursive: true,
+	}
+
+	vsc := newVirtualServerConfigurator(
+		&baseCfgParams,
+		false,
+		false,
+		&StaticConfigParams{TLSPassthrough: true},
+		false,
+		&fakeBV,
+	)
+
+	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("GenerateVirtualServerConfig() mismatch (-want +got):\n%s", diff)
+	}
+
+	if len(warnings) != 0 {
+		t.Errorf("GenerateVirtualServerConfig returned warnings: %v", vsc.warnings)
+	}
+}

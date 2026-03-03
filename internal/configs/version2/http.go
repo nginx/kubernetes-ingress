@@ -465,6 +465,7 @@ type JwksURI struct {
 // ExternalAuth holds external authentication configuration.
 type ExternalAuth struct {
 	URI       AuthURI
+	ProxyURL  string
 	SigninURL AuthURI
 	Snippets  string
 }
