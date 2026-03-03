@@ -98,7 +98,7 @@ jobs:
           BRANCH_NAME="${{ needs.pr-details.outputs.branch }}"
           PR_NUM="${{ needs.pr-details.outputs.pr_number }}"
 
-          INTERNAL_BRANCH="$${BRANCH_NAME}-do-not-merge"
+          INTERNAL_BRANCH="${BRANCH_NAME}-do-not-merge"
 
           # Check if branch already exists
           if git ls-remote --heads upstream "$INTERNAL_BRANCH" | grep -q "$INTERNAL_BRANCH"; then
