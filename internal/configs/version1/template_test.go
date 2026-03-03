@@ -2246,10 +2246,6 @@ func TestExecuteTemplate_ForMergeableIngressMasterMinionPolicy(t *testing.T) {
 	}
 }
 
-/* Need to add
-* Mergable Ingress Master & minion Policy
- */
-
 func TestExecuteTemplate_ForIngressForNGINXWithProxyNextUpstreamTimeout(t *testing.T) {
 	t.Parallel()
 
