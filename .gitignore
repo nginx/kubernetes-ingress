@@ -71,6 +71,10 @@ venv/
 # hack/cve-automation generated files
 hack/cve-automation/reports/*
 hack/cve-automation/downloads/*
+hack/cve-automation/cve-automation
+hack/cve-automation/app.log
+hack/cve-automation/**/*.sarif
+hack/cve-automation/**/*.sarif.json
 
 # AUTO GENERATED SECTION BY CERTGEN (hack/secrets-gen/gitignore-gen.go), DO NOT EDIT BELOW
 
