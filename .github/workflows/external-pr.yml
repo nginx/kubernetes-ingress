@@ -4,6 +4,7 @@ on:
     types: [ created ]
 
 permissions:
+  contents: read
   issues: read
   pull-requests: read
 
@@ -45,6 +46,8 @@ jobs:
 
   create-internal-pr-mirror:
     needs: pr-details
+    permissions:
+      id-token: write
     if: >
       needs.pr-details.outputs.is_fork == 'true'
     runs-on: ubuntu-24.04
@@ -102,7 +105,7 @@ jobs:
           INTERNAL_BRANCH="${BRANCH_NAME}-${SHORT_SHA}-do-not-merge"
 
           git checkout -b "${INTERNAL_BRANCH}"
-          git push --force upstream "${INTERNAL_BRANCH}"
+          git push upstream "${INTERNAL_BRANCH}"
           echo "Branch updated: ${INTERNAL_BRANCH}"
 
           echo "internal_branch=${INTERNAL_BRANCH}" >> $GITHUB_OUTPUT
