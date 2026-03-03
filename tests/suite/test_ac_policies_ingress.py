@@ -12,12 +12,10 @@ from suite.utils.resources_utils import (
     ensure_connection_to_public_endpoint,
     get_first_pod_name,
     get_reload_count,
-    get_test_file_name,
     replace_configmap_from_yaml,
     wait_before_test,
     wait_for_reload,
     wait_until_all_pods_are_ready,
-    write_to_json,
 )
 from suite.utils.yaml_utils import (
     get_first_ingress_host_from_yaml,
@@ -30,8 +28,6 @@ test_cm_src = f"{TEST_DATA}/access-control/configmap/nginx-config.yaml"
 deny_pol_src = f"{TEST_DATA}/access-control/policies/access-control-policy-deny.yaml"
 allow_pol_src = f"{TEST_DATA}/access-control/policies/access-control-policy-allow.yaml"
 invalid_pol_src = f"{TEST_DATA}/access-control/policies/access-control-policy-invalid.yaml"
-
-reload_times = {}
 
 
 class IngressSetup:
@@ -187,7 +183,6 @@ def config_setup(request, kube_apis, ingress_controller_prerequisites) -> None:
                 ingress_controller_prerequisites.namespace,
                 std_cm_src,
             )
-            write_to_json(f"reload-{get_test_file_name(request.node.fspath)}.json", reload_times)
 
     request.addfinalizer(fin)
 
