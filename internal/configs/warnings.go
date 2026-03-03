@@ -9,6 +9,11 @@ import (
 // Warnings stores a list of warnings for a given runtime k8s object in a map
 type Warnings map[runtime.Object][]string
 
+// ResourceErrors maps resource keys (namespace/name) to errors for per-resource error reporting.
+// This is used when individual resource configs fail validation but other configs succeed,
+// e.g. during ConfigMap updates where only some generated configs are invalid.
+type ResourceErrors map[string]error
+
 func newWarnings() Warnings {
 	return make(map[runtime.Object][]string)
 }

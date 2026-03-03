@@ -28,11 +28,8 @@ func NewConfigRollbackManager(ctx context.Context, confPath string, debug bool, 
 func (cm *ConfigRollbackManager) testConfig() error {
 	nl.Debugf(cm.logger, "Testing nginx configuration")
 
-	binaryFilename := getBinaryFileName(cm.debug)
-	testCmd := fmt.Sprintf("%v -t -q", binaryFilename)
-
-	if err := shellOut(cm.logger, testCmd); err != nil {
-		return fmt.Errorf("nginx configuration test failed: %w", err)
+	if err := nginxTestError(cm.logger, cm.debug); err != nil {
+		return err
 	}
 
 	nl.Debugf(cm.logger, "Nginx configuration test passed")
@@ -88,7 +85,7 @@ func (cm *ConfigRollbackManager) createConfigWithRollback(name string, configPat
 				} else {
 					nl.Infof(cm.logger, "Successfully reloaded nginx after rollback, workers restarted")
 				}
-				return false, fmt.Errorf("configuration validation failed for %s, rolled back to previous working config", name)
+				return false, fmt.Errorf("configuration validation failed for %s, rolled back to previous working config: %w", name, err)
 			}
 			testErr := cm.testConfig()
 			nl.Warnf(cm.logger, "Rollback of %s didn't resolve validation issues: %v", name, testErr)
