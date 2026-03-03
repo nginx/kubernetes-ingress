@@ -42,12 +42,16 @@ jobs:
             core.setOutput('sha', pr.data.head.sha);
             core.setOutput('base_branch', pr.data.base.ref);
             core.setOutput('title', pr.data.title);
-            core.setOutput('body', pr.data.body);
+            const body = pr.data.body ?? '';
+            core.setOutput('body', body);
 
   create-internal-pr-mirror:
     needs: pr-details
     permissions:
       id-token: write
+      contents: read
+      issues: read
+      pull-requests: read
     if: >
       needs.pr-details.outputs.is_fork == 'true'
     runs-on: ubuntu-24.04
