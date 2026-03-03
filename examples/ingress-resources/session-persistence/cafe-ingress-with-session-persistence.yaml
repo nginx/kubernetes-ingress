@@ -5,6 +5,7 @@ metadata:
   annotations:
     nginx.com/sticky-cookie-services: "serviceName=coffee-svc srv_id expires=1h path=/coffee;serviceName=tea-svc srv_id expires=2h path=/tea"
 spec:
+  ingressClassName: nginx
   rules:
   - host: cafe.example.com
     http:

@@ -360,7 +360,7 @@ var (
 			validateRewriteTargetAnnotation,
 		},
 		stickyCookieServicesAnnotation: {
-			validatePlusOnlyAnnotation,
+			// validatePlusOnlyAnnotation,
 			validateRequiredAnnotation,
 			validateStickyServiceListAnnotation,
 		},

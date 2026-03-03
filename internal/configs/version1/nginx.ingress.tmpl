@@ -2,13 +2,21 @@
 # configuration for {{.Ingress.Namespace}}/{{.Ingress.Name}}
 {{- range $upstream := .Upstreams}}
 upstream {{$upstream.Name}} {
-	{{- if ne $upstream.UpstreamZoneSize "0"}}zone {{$upstream.Name}} {{$upstream.UpstreamZoneSize}};{{end}}
-	{{- if $upstream.LBMethod }}
+	{{- if $upstream.StickyCookie}}
+	sticky cookie {{$upstream.StickyCookie}};
+	{{- end}}
+	{{- if ne $upstream.UpstreamZoneSize "0"}}
+	zone {{$upstream.Name}} {{$upstream.UpstreamZoneSize}};
+	{{- end}}
+	{{- if $upstream.LBMethod}}
 	{{$upstream.LBMethod}};
 	{{- end}}
 	{{- range $server := $upstream.UpstreamServers}}
-	server {{$server.Address}} max_fails={{$server.MaxFails}} fail_timeout={{$server.FailTimeout}} max_conns={{$server.MaxConns}};{{end}}
-	{{- if $.Keepalive}}keepalive {{$.Keepalive}};{{end}}
+	server {{$server.Address}} max_fails={{$server.MaxFails}} fail_timeout={{$server.FailTimeout}} max_conns={{$server.MaxConns}};
+	{{- end}}
+	{{- if $.Keepalive}}
+	keepalive {{$.Keepalive}};
+	{{- end}}
 }
 {{end -}}
 
@@ -117,11 +125,11 @@ server {
 	{{- range $value := $server.ServerSnippets}}
 	{{$value}}{{- end}}
 
-    {{- if $server.AppRoot }}
-    if ($uri = /) {
-        return 302 $scheme://$http_host{{ $server.AppRoot }};
-    }
-    {{- end }}
+	{{- if $server.AppRoot }}
+	if ($uri = /) {
+		return 302 $scheme://$http_host{{ $server.AppRoot }};
+	}
+	{{- end }}
 
 	{{- range $location := $server.Locations}}
 	location {{  makeLocationPath $location $.Ingress.Annotations | printf }} {
