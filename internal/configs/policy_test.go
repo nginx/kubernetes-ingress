@@ -1896,10 +1896,11 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			polNamespace := "default"
 			polName := "ext-auth-policy"
 			ownerDetails := policyOwnerDetails{
-				ownerNamespace: "default",
-				ownerName:      "test-vs",
-				vsNamespace:    "default",
-				vsName:         "test-vs",
+				ownerNamespace:  "default",
+				ownerName:       "test-vs",
+				parentNamespace: "default",
+				parentName:      "test-vs",
+				parentType:      "vs",
 			}
 
 			// For the duplicate test, set up a pre-existing ExternalAuth
@@ -1950,10 +1951,11 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 		{
 			name: "VirtualServer with basic external auth policy",
 			owner: policyOwnerDetails{
-				ownerNamespace: "default",
-				ownerName:      "test-vs",
-				vsNamespace:    "default",
-				vsName:         "test-vs",
+				ownerNamespace:  "default",
+				ownerName:       "test-vs",
+				parentNamespace: "default",
+				parentName:      "test-vs",
+				parentType:      "vs",
 			},
 			path: "/",
 			policyRefs: []conf_v1.PolicyReference{
@@ -1985,10 +1987,11 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 		{
 			name: "VirtualServer with full external auth policy",
 			owner: policyOwnerDetails{
-				ownerNamespace: "default",
-				ownerName:      "test-vs",
-				vsNamespace:    "default",
-				vsName:         "test-vs",
+				ownerNamespace:  "default",
+				ownerName:       "test-vs",
+				parentNamespace: "default",
+				parentName:      "test-vs",
+				parentType:      "vs",
 			},
 			path: "/",
 			policyRefs: []conf_v1.PolicyReference{
@@ -2029,10 +2032,11 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 		{
 			name: "VirtualServer with HTTPS external auth",
 			owner: policyOwnerDetails{
-				ownerNamespace: "default",
-				ownerName:      "test-vs",
-				vsNamespace:    "default",
-				vsName:         "test-vs",
+				ownerNamespace:  "default",
+				ownerName:       "test-vs",
+				parentNamespace: "default",
+				parentName:      "test-vs",
+				parentType:      "vs",
 			},
 			path: "/",
 			policyRefs: []conf_v1.PolicyReference{
@@ -2064,10 +2068,11 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 		{
 			name: "VirtualServerRoute with external auth policy",
 			owner: policyOwnerDetails{
-				ownerNamespace: "app-namespace",
-				ownerName:      "test-vsr",
-				vsNamespace:    "default",
-				vsName:         "parent-vs",
+				ownerNamespace:  "app-namespace",
+				ownerName:       "test-vsr",
+				parentNamespace: "default",
+				parentName:      "parent-vs",
+				parentType:      "vs",
 			},
 			path: "/api/v1",
 			policyRefs: []conf_v1.PolicyReference{
@@ -2106,10 +2111,11 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 		{
 			name: "VirtualServerRoute with cross-namespace external auth policy",
 			owner: policyOwnerDetails{
-				ownerNamespace: "app-namespace",
-				ownerName:      "test-vsr",
-				vsNamespace:    "default",
-				vsName:         "parent-vs",
+				ownerNamespace:  "app-namespace",
+				ownerName:       "test-vsr",
+				parentNamespace: "default",
+				parentName:      "parent-vs",
+				parentType:      "vs",
 			},
 			path: "/api/v1",
 			policyRefs: []conf_v1.PolicyReference{
