@@ -21,6 +21,13 @@ upstream {{$upstream.Name}} {
 }
 {{- end}}
 
+{{- range $m := .Maps}}
+map {{ $m.Source }} {{ $m.Variable }} {
+	{{- range $p := $m.Parameters }}
+	{{ $p.Value }} {{ $p.Result }};
+	{{- end }}
+}
+{{- end}}
 {{range $limitReqZone := .LimitReqZones}}
 limit_req_zone {{ $limitReqZone.Key }} zone={{ $limitReqZone.Name }}:{{$limitReqZone.Size}} rate={{$limitReqZone.Rate}}{{- if $limitReqZone.Sync }} sync{{- end }};
 {{end}}
@@ -373,6 +380,22 @@ server {
 		proxy_pass http://{{$location.Upstream.Name}}{{$location.Rewrite}};
 		{{- end}}
 		{{- end}}
+
+		{{- range $h := $location.AddHeaders }}
+		add_header {{ $h.Name }} "{{ $h.Value }}" {{ if $h.Always }}always{{ end }};
+		{{- end }}
+		{{- if $location.CORSEnabled }}
+		# CORS configuration per enable-cors.org
+		# Handle CORS preflight OPTIONS requests
+		if ($request_method = 'OPTIONS') {
+			{{- range $h := $location.AddHeaders }}
+			add_header {{ $h.Name }} "{{ $h.Value }}";
+			{{- end }}
+			add_header Content-Type text/plain;
+			add_header Content-Length 0;
+			return 204;
+		}
+		{{- end }}
 
 		{{with $location.LimitReq}}
 		limit_req zone={{ $location.LimitReq.Zone }}{{- if $location.LimitReq.Burst }} burst={{$location.LimitReq.Burst}}{{- end }}{{- if $location.LimitReq.NoDelay }} nodelay{{- else if $location.LimitReq.Delay }} delay={{$location.LimitReq.Delay}}{{- end }};
