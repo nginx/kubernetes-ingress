@@ -129,6 +129,24 @@ jobs:
         with:
           github-token: ${{ steps.secrets.outputs.NGINX_PAT}}
           script: |
+            // Check for existing PR
+            const { data: existingPRs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head: `${context.repo.owner}:${process.env.HEAD_BRANCH}`,
+              state: 'open'
+            });
+
+            if (existingPRs.length > 0) {
+              core.setFailed(
+                `PR already exists: #${existingPRs[0].number}\n` +
+                `URL: ${existingPRs[0].html_url}\n` +
+                `Close existing PR before creating a new one.`
+              );
+              return;
+            }
+
+            // Create new PR
             await github.rest.pulls.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
