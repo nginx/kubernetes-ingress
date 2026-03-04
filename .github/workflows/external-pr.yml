@@ -96,8 +96,12 @@ jobs:
         env:
           PR_BRANCH: ${{ needs.pr-details.outputs.branch }}
           SHA: ${{ needs.pr-details.outputs.sha }}
+          NGINX_PAT: ${{ steps.secrets.outputs.NGINX_PAT }}
         run: |
-          git remote add upstream https://x-access-token:${{ steps.secrets.outputs.NGINX_PAT }}@github.com/${{ github.repository }}.git
+          git config --global credential.helper store
+          echo "https://x-access-token:${NGINX_PAT}@github.com" > ~/.git-credentials
+
+          git remote add upstream https://github.com/${{ github.repository }}.git
           git fetch upstream
 
           BRANCH_NAME="$PR_BRANCH"
@@ -108,6 +112,7 @@ jobs:
           git push upstream "${INTERNAL_BRANCH}"
           echo "Branch updated: ${INTERNAL_BRANCH}"
 
+          rm ~/.git-credentials
           echo "internal_branch=${INTERNAL_BRANCH}" >> $GITHUB_OUTPUT
 
       - name: Open internal PR
