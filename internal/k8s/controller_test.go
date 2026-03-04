@@ -3722,3 +3722,459 @@ func TestIsPodMarkedForDeletion(t *testing.T) {
 		})
 	}
 }
+
+func TestGenerateExternalAuthEndpoints(t *testing.T) {
+	t.Parallel()
+
+	endpointPort80 := int32(8080)
+	endpointPort443 := int32(8443)
+	endpointPort9000 := int32(9000)
+	endpointReady := true
+
+	// buildLBC creates a LoadBalancerController wired with the given services and endpoint slices
+	// in the specified namespace. Passing nil slices creates an empty cache.
+	buildLBC := func(t *testing.T, namespace string, svcs []*api_v1.Service, endpointSlices []*discovery_v1.EndpointSlice) *LoadBalancerController {
+		t.Helper()
+		svcStore := cache.NewStore(cache.MetaNamespaceKeyFunc)
+		for _, svc := range svcs {
+			if err := svcStore.Add(svc); err != nil {
+				t.Fatalf("error adding service: %v", err)
+			}
+		}
+		esStore := cache.NewStore(cache.MetaNamespaceKeyFunc)
+		for _, es := range endpointSlices {
+			if err := esStore.Add(es); err != nil {
+				t.Fatalf("error adding endpoint slice: %v", err)
+			}
+		}
+		nsi := &namespacedInformer{
+			svcLister:           svcStore,
+			endpointSliceLister: storeToEndpointSliceLister{Store: esStore},
+			podLister:           indexerToPodLister{Indexer: cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})},
+		}
+		return &LoadBalancerController{
+			client:              fake.NewClientset(),
+			isNginxPlus:         false,
+			Logger:              nl.LoggerFromContext(context.Background()),
+			metricsCollector:    collectors.NewControllerFakeCollector(),
+			namespacedInformers: map[string]*namespacedInformer{namespace: nsi},
+		}
+	}
+
+	// Shared fixtures
+	defaultVSEx := configs.VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{Name: "test-vs", Namespace: "default"},
+		},
+	}
+
+	authSvc := &api_v1.Service{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "auth-svc", Namespace: "default"},
+		Spec: api_v1.ServiceSpec{
+			Ports: []api_v1.ServicePort{
+				{Name: "http", Port: 80, TargetPort: intstr.FromInt(8080)},
+				{Name: "https", Port: 443, TargetPort: intstr.FromInt(8443)},
+				{Name: "custom", Port: 9000, TargetPort: intstr.FromInt(9000)},
+			},
+			Selector: map[string]string{"app": "auth"},
+		},
+	}
+
+	authES80 := &discovery_v1.EndpointSlice{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name: "auth-svc-abc", Namespace: "default",
+			Labels: map[string]string{discovery_v1.LabelServiceName: "auth-svc"},
+		},
+		Ports: []discovery_v1.EndpointPort{{Port: &endpointPort80}},
+		Endpoints: []discovery_v1.Endpoint{
+			{Addresses: []string{"10.0.0.1"}, Conditions: discovery_v1.EndpointConditions{Ready: &endpointReady}},
+			{Addresses: []string{"10.0.0.2"}, Conditions: discovery_v1.EndpointConditions{Ready: &endpointReady}},
+		},
+	}
+
+	authES443 := &discovery_v1.EndpointSlice{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name: "auth-svc-https", Namespace: "default",
+			Labels: map[string]string{discovery_v1.LabelServiceName: "auth-svc"},
+		},
+		Ports: []discovery_v1.EndpointPort{{Port: &endpointPort443}},
+		Endpoints: []discovery_v1.Endpoint{
+			{Addresses: []string{"10.0.0.3"}, Conditions: discovery_v1.EndpointConditions{Ready: &endpointReady}},
+		},
+	}
+
+	authES9000 := &discovery_v1.EndpointSlice{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name: "auth-svc-custom", Namespace: "default",
+			Labels: map[string]string{discovery_v1.LabelServiceName: "auth-svc"},
+		},
+		Ports: []discovery_v1.EndpointPort{{Port: &endpointPort9000}},
+		Endpoints: []discovery_v1.Endpoint{
+			{Addresses: []string{"10.0.0.5"}, Conditions: discovery_v1.EndpointConditions{Ready: &endpointReady}},
+		},
+	}
+
+	tests := []struct {
+		name              string
+		setupLBC          func(t *testing.T) *LoadBalancerController
+		vsEx              configs.VirtualServerEx
+		policies          []*conf_v1.Policy
+		initialEndpoints  map[string][]string
+		expectedEndpoints map[string][]string
+	}{
+		{
+			name:              "nil policies produces no endpoints",
+			setupLBC:          func(t *testing.T) *LoadBalancerController { return buildLBC(t, "default", nil, nil) },
+			vsEx:              defaultVSEx,
+			policies:          nil,
+			expectedEndpoints: map[string][]string{},
+		},
+		{
+			name:              "empty policies slice produces no endpoints",
+			setupLBC:          func(t *testing.T) *LoadBalancerController { return buildLBC(t, "default", nil, nil) },
+			vsEx:              defaultVSEx,
+			policies:          []*conf_v1.Policy{},
+			expectedEndpoints: map[string][]string{},
+		},
+		{
+			name:     "policy with nil ExternalAuth is skipped",
+			setupLBC: func(t *testing.T) *LoadBalancerController { return buildLBC(t, "default", nil, nil) },
+			vsEx:     defaultVSEx,
+			policies: []*conf_v1.Policy{
+				{ObjectMeta: meta_v1.ObjectMeta{Name: "p1", Namespace: "default"}, Spec: conf_v1.PolicySpec{}},
+			},
+			expectedEndpoints: map[string][]string{},
+		},
+		{
+			name:     "policy with empty AuthURL is skipped",
+			setupLBC: func(t *testing.T) *LoadBalancerController { return buildLBC(t, "default", nil, nil) },
+			vsEx:     defaultVSEx,
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "p1", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: ""}},
+				},
+			},
+			expectedEndpoints: map[string][]string{},
+		},
+		{
+			name:     "invalid URL is skipped",
+			setupLBC: func(t *testing.T) *LoadBalancerController { return buildLBC(t, "default", nil, nil) },
+			vsEx:     defaultVSEx,
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "p1", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "://invalid-url"}},
+				},
+			},
+			expectedEndpoints: map[string][]string{},
+		},
+		{
+			name: "http URL without port defaults to port 80",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES80})
+			},
+			vsEx: defaultVSEx,
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "http://auth-svc/check"}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/auth-svc:80": {"10.0.0.1:8080", "10.0.0.2:8080"},
+			},
+		},
+		{
+			name: "https URL without port defaults to port 443",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES443})
+			},
+			vsEx: defaultVSEx,
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "https://auth-svc/secure-check"}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/auth-svc:443": {"10.0.0.3:8443"},
+			},
+		},
+		{
+			name: "URL with explicit port uses that port",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES9000})
+			},
+			vsEx: defaultVSEx,
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "http://auth-svc:9000/verify"}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/auth-svc:9000": {"10.0.0.5:9000"},
+			},
+		},
+		{
+			name:     "unknown scheme without port defaults to port 0",
+			setupLBC: func(t *testing.T) *LoadBalancerController { return buildLBC(t, "default", nil, nil) },
+			vsEx:     defaultVSEx,
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "p1", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "ftp://auth-svc/data"}},
+				},
+			},
+			expectedEndpoints: map[string][]string{},
+		},
+		{
+			name:     "getEndpointsForUpstream error is handled gracefully",
+			setupLBC: func(t *testing.T) *LoadBalancerController { return buildLBC(t, "default", nil, nil) },
+			vsEx:     defaultVSEx,
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "http://nonexistent-svc/auth"}},
+				},
+			},
+			expectedEndpoints: map[string][]string{},
+		},
+		{
+			name: "multiple policies with mixed configurations",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES80})
+			},
+			vsEx: defaultVSEx,
+			policies: []*conf_v1.Policy{
+				{ObjectMeta: meta_v1.ObjectMeta{Name: "p-nil", Namespace: "default"}, Spec: conf_v1.PolicySpec{}},
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "p-empty", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: ""}},
+				},
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "p-invalid", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "://bad"}},
+				},
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "p-valid", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "http://auth-svc/check"}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/auth-svc:80": {"10.0.0.1:8080", "10.0.0.2:8080"},
+			},
+		},
+		{
+			name: "duplicate policies with same AuthURL produce single endpoint key",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES80})
+			},
+			vsEx: defaultVSEx,
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-1", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "http://auth-svc/check"}},
+				},
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-2", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "http://auth-svc/check"}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/auth-svc:80": {"10.0.0.1:8080", "10.0.0.2:8080"},
+			},
+		},
+		{
+			name: "existing endpoints in map are preserved",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES80})
+			},
+			vsEx: defaultVSEx,
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "http://auth-svc/check"}},
+				},
+			},
+			initialEndpoints: map[string][]string{
+				"default/existing-svc:8080": {"192.168.1.1:8080"},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/existing-svc:8080": {"192.168.1.1:8080"},
+				"default/auth-svc:80":       {"10.0.0.1:8080", "10.0.0.2:8080"},
+			},
+		},
+		{
+			name: "endpoint key uses VirtualServer namespace",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				svc := &api_v1.Service{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-svc", Namespace: "custom-ns"},
+					Spec: api_v1.ServiceSpec{
+						Ports:    []api_v1.ServicePort{{Name: "http", Port: 80, TargetPort: intstr.FromInt(8080)}},
+						Selector: map[string]string{"app": "auth"},
+					},
+				}
+				es := &discovery_v1.EndpointSlice{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "auth-svc-ns", Namespace: "custom-ns",
+						Labels: map[string]string{discovery_v1.LabelServiceName: "auth-svc"},
+					},
+					Ports: []discovery_v1.EndpointPort{{Port: &endpointPort80}},
+					Endpoints: []discovery_v1.Endpoint{
+						{Addresses: []string{"10.1.0.1"}, Conditions: discovery_v1.EndpointConditions{Ready: &endpointReady}},
+					},
+				}
+				return buildLBC(t, "custom-ns", []*api_v1.Service{svc}, []*discovery_v1.EndpointSlice{es})
+			},
+			vsEx: configs.VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "vs", Namespace: "custom-ns"},
+				},
+			},
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "custom-ns"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "http://auth-svc/check"}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"custom-ns/auth-svc:80": {"10.1.0.1:8080"},
+			},
+		},
+		{
+			name:     "port out of uint16 range falls back to 0",
+			setupLBC: func(t *testing.T) *LoadBalancerController { return buildLBC(t, "default", nil, nil) },
+			vsEx:     defaultVSEx,
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "p1", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "http://auth-svc:99999/check"}},
+				},
+			},
+			expectedEndpoints: map[string][]string{},
+		},
+		{
+			name: "two policies with different services produce two endpoint keys",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				svcA := &api_v1.Service{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-a", Namespace: "default"},
+					Spec: api_v1.ServiceSpec{
+						Ports:    []api_v1.ServicePort{{Name: "http", Port: 80, TargetPort: intstr.FromInt(8080)}},
+						Selector: map[string]string{"app": "auth-a"},
+					},
+				}
+				svcB := &api_v1.Service{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-b", Namespace: "default"},
+					Spec: api_v1.ServiceSpec{
+						Ports:    []api_v1.ServicePort{{Name: "http", Port: 80, TargetPort: intstr.FromInt(8080)}},
+						Selector: map[string]string{"app": "auth-b"},
+					},
+				}
+				esA := &discovery_v1.EndpointSlice{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "auth-a-es", Namespace: "default",
+						Labels: map[string]string{discovery_v1.LabelServiceName: "auth-a"},
+					},
+					Ports: []discovery_v1.EndpointPort{{Port: &endpointPort80}},
+					Endpoints: []discovery_v1.Endpoint{
+						{Addresses: []string{"10.0.1.1"}, Conditions: discovery_v1.EndpointConditions{Ready: &endpointReady}},
+					},
+				}
+				esB := &discovery_v1.EndpointSlice{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "auth-b-es", Namespace: "default",
+						Labels: map[string]string{discovery_v1.LabelServiceName: "auth-b"},
+					},
+					Ports: []discovery_v1.EndpointPort{{Port: &endpointPort80}},
+					Endpoints: []discovery_v1.Endpoint{
+						{Addresses: []string{"10.0.2.1"}, Conditions: discovery_v1.EndpointConditions{Ready: &endpointReady}},
+					},
+				}
+				return buildLBC(t, "default", []*api_v1.Service{svcA, svcB}, []*discovery_v1.EndpointSlice{esA, esB})
+			},
+			vsEx: defaultVSEx,
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-a-pol", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "http://auth-a/check"}},
+				},
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-b-pol", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "http://auth-b/check"}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/auth-a:80": {"10.0.1.1:8080"},
+				"default/auth-b:80": {"10.0.2.1:8080"},
+			},
+		},
+		{
+			name: "valid policy followed by error policy still adds valid entry",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES80})
+			},
+			vsEx: defaultVSEx,
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "good", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "http://auth-svc/check"}},
+				},
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "bad", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "http://nonexistent-svc/auth"}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/auth-svc:80": {"10.0.0.1:8080", "10.0.0.2:8080"},
+			},
+		},
+		{
+			name: "URL with path and query string still extracts correct hostname and port",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES9000})
+			},
+			vsEx: defaultVSEx,
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "http://auth-svc:9000/api/v1/auth?redirect=true&scope=openid"}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/auth-svc:9000": {"10.0.0.5:9000"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			lbc := tc.setupLBC(t)
+
+			endpoints := make(map[string][]string)
+			for k, v := range tc.initialEndpoints {
+				endpoints[k] = v
+			}
+
+			lbc.generateExternalAuthEndpoints(tc.policies, tc.vsEx, endpoints)
+
+			if len(endpoints) != len(tc.expectedEndpoints) {
+				t.Fatalf("expected %d endpoint entries, got %d: %v", len(tc.expectedEndpoints), len(endpoints), endpoints)
+			}
+			for key, expectedEps := range tc.expectedEndpoints {
+				gotEps, exists := endpoints[key]
+				if !exists {
+					t.Errorf("expected key %q in endpoints map, got: %v", key, endpoints)
+					continue
+				}
+				sort.Strings(gotEps)
+				sort.Strings(expectedEps)
+				if !reflect.DeepEqual(gotEps, expectedEps) {
+					t.Errorf("key %q: expected %v, got %v", key, expectedEps, gotEps)
+				}
+			}
+		})
+	}
+}

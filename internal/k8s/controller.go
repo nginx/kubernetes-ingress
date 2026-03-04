@@ -2693,6 +2693,18 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 		}
 	}
 
+	lbc.generateExternalAuthEndpoints(policies, virtualServerEx, endpoints)
+
+	virtualServerEx.Endpoints = endpoints
+	virtualServerEx.VirtualServerRoutes = virtualServerRoutes
+	virtualServerEx.ExternalNameSvcs = externalNameSvcs
+	virtualServerEx.Policies = createPolicyMap(policies)
+	virtualServerEx.PodsByIP = podsByIP
+
+	return &virtualServerEx
+}
+
+func (lbc *LoadBalancerController) generateExternalAuthEndpoints(policies []*conf_v1.Policy, virtualServerEx configs.VirtualServerEx, endpoints map[string][]string) {
 	for _, p := range policies {
 		if p.Spec.ExternalAuth != nil {
 			if p.Spec.ExternalAuth.AuthURL != "" {
@@ -2709,14 +2721,14 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 					case "https":
 						port = "443"
 					default:
-						nl.Warnf(lbc.Logger, "No port specified in ExternalAuth URI and cannot infer from scheme for policy %v/%v. ExternalAuth location will be generated without a port.", p.Namespace, p.Name)
-						continue
+						nl.Warnf(lbc.Logger, "No port specified in ExternalAuth URI and cannot infer from scheme for policy %v/%v. ExternalAuth location will be generated with a port of 0.", p.Namespace, p.Name)
+						port = "0"
 					}
 				}
 				port64, err := strconv.ParseUint(port, 10, 16)
 				if err != nil {
-					nl.Warnf(lbc.Logger, "Invalid port in ExternalAuth URI: %v. ExternalAuth location will be generated without a port. Error: %v", u.Port(), err)
-					continue
+					nl.Warnf(lbc.Logger, "Invalid port in ExternalAuth URI: %v. ExternalAuth location will be generated with a port of 0. Error: %v", u.Port(), err)
+					port64 = 0
 				}
 				port16 := uint16(port64)
 				authEndPs, _, err := lbc.getEndpointsForUpstream(virtualServerEx.VirtualServer.Namespace, u.Hostname(), port16)
@@ -2728,14 +2740,6 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 			}
 		}
 	}
-
-	virtualServerEx.Endpoints = endpoints
-	virtualServerEx.VirtualServerRoutes = virtualServerRoutes
-	virtualServerEx.ExternalNameSvcs = externalNameSvcs
-	virtualServerEx.Policies = createPolicyMap(policies)
-	virtualServerEx.PodsByIP = podsByIP
-
-	return &virtualServerEx
 }
 
 func createPolicyMap(policies []*conf_v1.Policy) map[string]*conf_v1.Policy {
