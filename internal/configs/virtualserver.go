@@ -544,49 +544,21 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	VariableNamer := NewVSVariableNamer(vsEx.VirtualServer)
 
+	// generate config for external auth if referenced in policiesCfg, adds an upstream for the
+	// external auth server and a location for the external auth requests
 	if policiesCfg.ExternalAuth != nil {
-		proxyURLUpstreamName := virtualServerUpstreamNamer.GetNameForUpstream("external_auth")
+		const externalAuthName = "external_auth"
+		proxyURLUpstreamName := virtualServerUpstreamNamer.GetNameForUpstream(externalAuthName)
 		proxyURLUpstream := conf_v1.Upstream{
-			Name:    "external_auth",
+			Name:    externalAuthName,
 			Service: policiesCfg.ExternalAuth.URI.Host,
-		}
-		if policiesCfg.ExternalAuth.URI.Port != "" {
-			value, err := strconv.ParseUint(policiesCfg.ExternalAuth.URI.Port, 10, 16)
-			if err != nil {
-				vsc.addWarningf(vsEx.VirtualServer, "Invalid port in ExternalAuth URI: %v. ExternalAuth location will be generated without a port. Error: %v", policiesCfg.ExternalAuth.URI.Port, err)
-			} else {
-				proxyURLUpstream.Port = uint16(value)
-			}
-		} else {
-			proxyURLUpstream.Port = 80
+			Port:    vsc.getProxyURLPort(policiesCfg, vsEx),
 		}
 		if policiesCfg.ExternalAuth.URI.Scheme == "https" {
 			proxyURLUpstream.TLS = conf_v1.UpstreamTLS{Enable: true}
-			if proxyURLUpstream.Port == 80 { // if the port was not set or was set to 80, change it to 443 for https
-				proxyURLUpstream.Port = 443
-			}
 		}
 
-		specExAuthLoc := version2.Location{
-			Path:                    generatePath(policiesCfg.ExternalAuth.ProxyURL),
-			Internal:                true,
-			Snippets:                []string{policiesCfg.ExternalAuth.Snippets},
-			ProxyPass:               fmt.Sprintf("%v://%v", generateProxyPassProtocol(policiesCfg.ExternalAuth.URI.Scheme == "https"), proxyURLUpstreamName),
-			ProxyPassRequestHeaders: true,
-			ProxyPassRequestBody:    false,
-			ProxySetHeaders: []version2.Header{
-				{Name: "Content-Length", Value: "0"},
-			},
-			ProxyConnectTimeout:      generateTimeWithDefault(vsc.cfgParams.ProxyConnectTimeout, vsc.cfgParams.ProxyConnectTimeout),
-			ProxyReadTimeout:         generateTimeWithDefault(vsc.cfgParams.ProxyReadTimeout, vsc.cfgParams.ProxyReadTimeout),
-			ProxySendTimeout:         generateTimeWithDefault(vsc.cfgParams.ProxySendTimeout, vsc.cfgParams.ProxySendTimeout),
-			ClientMaxBodySize:        "0",
-			ProxyNextUpstream:        "error timeout",
-			ProxyNextUpstreamTimeout: generateTimeWithDefault(vsc.cfgParams.ProxyNextUpstreamTimeout, "0s"),
-			ServiceName:              policiesCfg.ExternalAuth.URI.Host,
-			IsVSR:                    false,
-		}
-		locations = append(locations, specExAuthLoc)
+		locations = append(locations, vsc.generateExternalAuthLocation(policiesCfg, proxyURLUpstreamName))
 
 		upstreams, healthChecks, statusMatches = generateUpstreams(
 			sslConfig,
@@ -1075,6 +1047,49 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	}
 
 	return vsCfg, vsc.warnings
+}
+
+func (vsc *virtualServerConfigurator) generateExternalAuthLocation(policiesCfg policiesCfg, proxyURLUpstreamName string) version2.Location {
+	specExAuthLoc := version2.Location{
+		Path:                    generatePath(policiesCfg.ExternalAuth.ProxyURL),
+		Internal:                true,
+		Snippets:                []string{policiesCfg.ExternalAuth.Snippets},
+		ProxyPass:               fmt.Sprintf("%v://%v", generateProxyPassProtocol(policiesCfg.ExternalAuth.URI.Scheme == "https"), proxyURLUpstreamName),
+		ProxyPassRequestHeaders: true,
+		ProxyPassRequestBody:    false,
+		ProxySetHeaders: []version2.Header{
+			{Name: "Content-Length", Value: "0"},
+		},
+		ProxyConnectTimeout:      generateTimeWithDefault(vsc.cfgParams.ProxyConnectTimeout, vsc.cfgParams.ProxyConnectTimeout),
+		ProxyReadTimeout:         generateTimeWithDefault(vsc.cfgParams.ProxyReadTimeout, vsc.cfgParams.ProxyReadTimeout),
+		ProxySendTimeout:         generateTimeWithDefault(vsc.cfgParams.ProxySendTimeout, vsc.cfgParams.ProxySendTimeout),
+		ClientMaxBodySize:        "0",
+		ProxyNextUpstream:        "error timeout",
+		ProxyNextUpstreamTimeout: generateTimeWithDefault(vsc.cfgParams.ProxyNextUpstreamTimeout, "0s"),
+		ServiceName:              policiesCfg.ExternalAuth.URI.Host,
+		IsVSR:                    false,
+	}
+	return specExAuthLoc
+}
+
+func (vsc *virtualServerConfigurator) getProxyURLPort(policiesCfg policiesCfg, vsEx *VirtualServerEx) uint16 {
+	var proxyPort uint16
+	if policiesCfg.ExternalAuth.URI.Port != "" {
+		value, err := strconv.ParseUint(policiesCfg.ExternalAuth.URI.Port, 10, 16)
+		if err != nil {
+			vsc.addWarningf(vsEx.VirtualServer, "Invalid port in ExternalAuth URI: %v. ExternalAuth location will be generated without a port. Error: %v", policiesCfg.ExternalAuth.URI.Port, err)
+		} else {
+			proxyPort = uint16(value)
+		}
+	} else {
+		proxyPort = 80
+	}
+	if policiesCfg.ExternalAuth.URI.Scheme == "https" {
+		if proxyPort == 80 { // if the port was not set or was set to 80, change it to 443 for https
+			proxyPort = 443
+		}
+	}
+	return proxyPort
 }
 
 func (vsc *virtualServerConfigurator) mergeWarnings(routeWarnings Warnings) {
