@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
+	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 )
 
 const emptyHost = ""
@@ -142,6 +143,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 
 	var servers []version1.Server
 	var limitReqZones []version1.LimitReqZone
+	var maps []version2.Map
 
 	// Run generate Policies
 	var policyRefs []conf_v1.PolicyReference
@@ -185,8 +187,11 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		allWarnings.Add(warnings)
 	}
 
-	// TODO: Remove this debug line when policyCfg is used in the code below
-	nl.Debug(l, policyCfg)
+	if policyCfg.CORSMap != nil {
+		// CORS origin validation map is rendered at http{} level and consumed by location headers.
+		maps = append(maps, *policyCfg.CORSMap)
+	}
+
 	for _, rule := range ncp.ingEx.Ingress.Spec.Rules {
 		// skipping invalid hosts
 		if !ncp.ingEx.ValidHosts[rule.Host] {
@@ -333,6 +338,12 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 				}
 			}
 
+			if !loc.CORSEnabled && len(policyCfg.CORSHeaders) > 0 {
+				// Apply Ingress-level CORS headers to every generated location unless already set.
+				loc.AddHeaders = append(loc.AddHeaders, policyCfg.CORSHeaders...)
+				loc.CORSEnabled = true
+			}
+
 			if cfgParams.LimitReqRate != "" {
 				zoneName := ncp.ingEx.Ingress.Namespace + "/" + ncp.ingEx.Ingress.Name
 				if ncp.ingEx.ZoneSync {
@@ -382,6 +393,11 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 
 			loc := createLocation(pathOrDefault("/"), upstreams[upsName], &cfgParams, wsServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], rewrites[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name],
 				ssl, grpcServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], proxySSLName, &pathtype, ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name, rewriteTarget)
+			if !loc.CORSEnabled && len(policyCfg.CORSHeaders) > 0 {
+				// Keep default-backend location behavior consistent with path locations for CORS.
+				loc.AddHeaders = append(loc.AddHeaders, policyCfg.CORSHeaders...)
+				loc.CORSEnabled = true
+			}
 			locations = append(locations, loc)
 
 			if cfgParams.HealthCheckEnabled {
@@ -408,9 +424,10 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 	}
 
 	return version1.IngressNginxConfig{
-		Upstreams: upstreamMapToSlice(upstreams),
-		Servers:   servers,
-		Keepalive: keepalive,
+		Upstreams:   upstreamMapToSlice(upstreams),
+		Servers:     servers,
+		Keepalive:   keepalive,
+		CORSHeaders: policyCfg.CORSHeaders,
 		Ingress: version1.Ingress{
 			Name:        ncp.ingEx.Ingress.Name,
 			Namespace:   ncp.ingEx.Ingress.Namespace,
@@ -420,6 +437,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		DynamicSSLReloadEnabled: ncp.staticParams.DynamicSSLReload,
 		StaticSSLPath:           ncp.staticParams.StaticSSLPath,
 		LimitReqZones:           limitReqZones,
+		Maps:                    removeDuplicateMaps(maps),
 	}, allWarnings
 }
 
@@ -712,6 +730,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 	var upstreams []version1.Upstream
 	healthChecks := make(map[string]version1.HealthCheck)
 	var limitReqZones []version1.LimitReqZone
+	var maps []version2.Map
 	var keepalive string
 
 	// replace master with a deepcopy because we will modify it
@@ -747,8 +766,10 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 
 	masterServer = masterNginxCfg.Servers[0]
 	masterServer.Locations = []version1.Location{}
+	masterPolicyCfg := policiesCfg{CORSHeaders: masterNginxCfg.CORSHeaders}
 
 	upstreams = append(upstreams, masterNginxCfg.Upstreams...)
+	maps = append(maps, masterNginxCfg.Maps...)
 
 	if masterNginxCfg.Keepalive != "" {
 		keepalive = masterNginxCfg.Keepalive
@@ -800,6 +821,11 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 
 		for _, server := range minionNginxCfg.Servers {
 			for _, loc := range server.Locations {
+				if !loc.CORSEnabled && len(masterPolicyCfg.CORSHeaders) > 0 {
+					// Mergeable mode fallback: master CORS applies when minion location has no own CORS.
+					loc.AddHeaders = append(loc.AddHeaders, masterPolicyCfg.CORSHeaders...)
+					loc.CORSEnabled = true
+				}
 				loc.MinionIngress = &minionNginxCfg.Ingress
 				locations = append(locations, loc)
 			}
@@ -811,6 +837,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 
 		upstreams = append(upstreams, minionNginxCfg.Upstreams...)
 		limitReqZones = append(limitReqZones, minionNginxCfg.LimitReqZones...)
+		maps = append(maps, minionNginxCfg.Maps...)
 	}
 
 	masterServer.HealthChecks = healthChecks
@@ -825,6 +852,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 		DynamicSSLReloadEnabled: ncp.staticParams.DynamicSSLReload,
 		StaticSSLPath:           ncp.staticParams.StaticSSLPath,
 		LimitReqZones:           limitReqZones,
+		Maps:                    removeDuplicateMaps(maps),
 	}, warnings
 }
 

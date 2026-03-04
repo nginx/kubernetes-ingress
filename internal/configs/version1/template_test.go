@@ -11,6 +11,7 @@ import (
 
 	"github.com/gkampitakis/go-snaps/snaps"
 	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
+	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
 )
 
@@ -158,6 +159,101 @@ func TestExecuteTemplate_ForIngressForNGINX(t *testing.T) {
 		t.Fatal(err)
 	}
 	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForIngressWithCORS(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *template.Template
+	}{
+		{
+			name:    "nginx",
+			newTmpl: newNGINXIngressTmpl,
+		},
+		{
+			name:    "nginx-plus",
+			newTmpl: newNGINXPlusIngressTmpl,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+
+			err := tmpl.Execute(buf, ingressCfgWithCORS)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			cfg := buf.String()
+			// Validate both map rendering and preflight rendering in one compact assertion set.
+			wantedStrings := []string{
+				"map $http_origin $cors_origin_default_cafe_ingress_ing_default_cors_policy {",
+				`add_header Access-Control-Allow-Origin "$cors_origin_default_cafe_ingress_ing_default_cors_policy" always;`,
+				"if ($request_method = 'OPTIONS') {",
+				"add_header Content-Length 0;",
+				"return 204;",
+			}
+
+			for _, want := range wantedStrings {
+				if !strings.Contains(cfg, want) {
+					t.Errorf("want %q in generated config", want)
+				}
+			}
+
+			snaps.MatchSnapshot(t, cfg)
+		})
+	}
+}
+
+func TestExecuteTemplate_ForIngressWithHeadersOnlyNoCORS(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *template.Template
+	}{
+		{
+			name:    "nginx",
+			newTmpl: newNGINXIngressTmpl,
+		},
+		{
+			name:    "nginx-plus",
+			newTmpl: newNGINXPlusIngressTmpl,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+
+			err := tmpl.Execute(buf, ingressCfgWithHeadersOnlyNoCORS)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			cfg := buf.String()
+			if !strings.Contains(cfg, `add_header X-Test-Header "enabled" always;`) {
+				t.Errorf("want %q in generated config", `add_header X-Test-Header "enabled" always;`)
+			}
+			// CORSEnabled=false must not emit the OPTIONS preflight block.
+			if strings.Contains(cfg, "if ($request_method = 'OPTIONS') {") {
+				t.Errorf("did not expect CORS preflight block when CORSEnabled is false")
+			}
+
+			snaps.MatchSnapshot(t, cfg)
+		})
+	}
 }
 
 func TestExecuteTemplate_ForIngressForNGINXWithHTTPRedirectCode(t *testing.T) {
@@ -2340,6 +2436,92 @@ var (
 				AppProtectDosName:            "testdos",
 				AppProtectDosAccessLogDst:    "/var/log/dos",
 				AppProtectDosAllowListPath:   "/etc/nginx/dos/allowlist/default_test.example.com",
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+
+	// Ingress Config example with CORS map + headers
+	ingressCfgWithCORS = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "test.example.com",
+				ServerTokens: "off",
+				StatusZone:   "test.example.com",
+				Locations: []Location{
+					{
+						Path:                "/tea",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "10s",
+						ProxyReadTimeout:    "10s",
+						ProxySendTimeout:    "10s",
+						ClientMaxBodySize:   "2m",
+						CORSEnabled:         true,
+						AddHeaders: []version2.AddHeader{
+							{
+								Header: version2.Header{Name: "Vary", Value: "Origin"},
+								Always: true,
+							},
+							{
+								Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_cafe_ingress_ing_default_cors_policy"},
+								Always: true,
+							},
+							{
+								Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST, OPTIONS"},
+								Always: true,
+							},
+						},
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Maps: []version2.Map{
+			{
+				Source:   "$http_origin",
+				Variable: "$cors_origin_default_cafe_ingress_ing_default_cors_policy",
+				Parameters: []version2.Parameter{
+					{Value: "default", Result: `""`},
+					{Value: `"https://example.com"`, Result: "https://example.com"},
+				},
+			},
+		},
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+
+	// Ingress Config example with custom headers only (CORSEnabled=false)
+	ingressCfgWithHeadersOnlyNoCORS = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "test.example.com",
+				ServerTokens: "off",
+				StatusZone:   "test.example.com",
+				Locations: []Location{
+					{
+						Path:                "/tea",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "10s",
+						ProxyReadTimeout:    "10s",
+						ProxySendTimeout:    "10s",
+						ClientMaxBodySize:   "2m",
+						CORSEnabled:         false,
+						AddHeaders: []version2.AddHeader{
+							{
+								Header: version2.Header{Name: "X-Test-Header", Value: "enabled"},
+								Always: true,
+							},
+						},
+					},
+				},
 			},
 		},
 		Upstreams: []Upstream{testUpstream},
