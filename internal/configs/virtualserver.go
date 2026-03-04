@@ -582,7 +582,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			ProxySendTimeout:         generateTimeWithDefault(vsc.cfgParams.ProxySendTimeout, vsc.cfgParams.ProxySendTimeout),
 			ClientMaxBodySize:        "0",
 			ProxyNextUpstream:        "error timeout",
-			ProxyNextUpstreamTimeout: generateTimeWithDefault(vsc.cfgParams.ProxyNextUpstreamTimeout, "10s"),
+			ProxyNextUpstreamTimeout: generateTimeWithDefault(vsc.cfgParams.ProxyNextUpstreamTimeout, "0s"),
 			ServiceName:              policiesCfg.ExternalAuth.URI.Host,
 			IsVSR:                    false,
 		}

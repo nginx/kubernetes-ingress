@@ -20722,12 +20722,16 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 			},
 			Locations: []version2.Location{
 				{
-					Path:                    "/pol_exauth_default_cafe_default_external_auth_policy",
-					Internal:                true,
-					Snippets:                []string{`proxy_set_header X-Custom-Header "custom-value";`},
-					ProxyPass:               "http://vs_default_cafe_external_auth",
-					ProxyPassRequestHeaders: false,
-					ServiceName:             "auth-server",
+					Path:                     "/pol_exauth_default_cafe_default_external_auth_policy",
+					Internal:                 true,
+					Snippets:                 []string{`proxy_set_header X-Custom-Header "custom-value";`},
+					ProxyPass:                "http://vs_default_cafe_external_auth",
+					ProxyPassRequestHeaders:  true,
+					ProxySetHeaders:          []version2.Header{{Name: "Content-Length", Value: "0"}},
+					ProxyNextUpstream:        "error timeout",
+					ProxyNextUpstreamTimeout: "0s",
+					ServiceName:              "auth-server",
+					ClientMaxBodySize:        "0",
 				},
 				{
 					Path:                     "/tea",
