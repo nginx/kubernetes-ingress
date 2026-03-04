@@ -433,6 +433,7 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers {{ if $l.ProxyPassRequestHeaders }}on{{ else }}off{{ end }};
+        proxy_pass_request_body {{ if $l.ProxyPassRequestBody }}on{{ else }}off{{ end }};
             {{- end }}
 
         {{- $custom_headers := $l.ProxySetHeaders | headerListToCIMap }}
