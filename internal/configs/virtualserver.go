@@ -430,6 +430,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		ownerNamespace:  vsEx.VirtualServer.Namespace,
 		parentNamespace: vsEx.VirtualServer.Namespace,
 		parentName:      vsEx.VirtualServer.Name,
+		parentType:      "vs",
 	}
 	policiesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, vsEx.VirtualServer.Spec.Policies, vsEx.Policies, specContext, "/", policyOpts, vsc.bundleValidator)
 	if len(warnings) > 0 {
@@ -618,6 +619,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			ownerNamespace:  vsEx.VirtualServer.Namespace,
 			parentNamespace: vsEx.VirtualServer.Namespace,
 			parentName:      vsEx.VirtualServer.Name,
+			parentType:      "vs",
 		}
 		routePoliciesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, r.Policies, vsEx.Policies, routeContext, r.Path, policyOpts, vsc.bundleValidator)
 
@@ -783,6 +785,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 					ownerNamespace:  vsEx.VirtualServer.Namespace,
 					parentNamespace: vsEx.VirtualServer.Namespace,
 					parentName:      vsEx.VirtualServer.Name,
+					parentType:      "vs",
 				}
 				policyRefs = vsrPoliciesFromVs[vsrNamespaceName]
 				context = routeContext
@@ -793,6 +796,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 					ownerNamespace:  vsr.Namespace,
 					parentNamespace: vsEx.VirtualServer.Namespace,
 					parentName:      vsEx.VirtualServer.Name,
+					parentType:      "vs",
 				}
 				policyRefs = r.Policies
 				context = subRouteContext

@@ -60,6 +60,26 @@ def delete_policy(custom_objects: CustomObjectsApi, name, namespace) -> None:
     print(f"Policy was removed with name '{name}'")
 
 
+def apply_and_wait_for_valid_policy(kube_apis, namespace, policy_yaml, retry_count=30, interval=1) -> str:
+    pol_name = create_policy_from_yaml(kube_apis.custom_objects, policy_yaml, namespace)
+
+    policy_info = {}
+    for _ in range(retry_count):
+        policy_info = read_custom_resource(kube_apis.custom_objects, namespace, "policies", pol_name)
+        if (
+            "status" in policy_info
+            and policy_info["status"]["reason"] == "AddedOrUpdated"
+            and policy_info["status"]["state"] == "Valid"
+        ):
+            return pol_name
+        wait_before_test(interval)
+
+    raise TimeoutError(
+        f"Policy '{pol_name}' failed to become Valid after {retry_count * interval}s. "
+        f"Last observed status: {policy_info.get('status', 'no status field')}"
+    )
+
+
 def apply_and_assert_valid_policy(kube_apis, namespace, policy_yaml, debug=False) -> str:
     pol_name = create_policy_from_yaml(kube_apis.custom_objects, policy_yaml, namespace)
     wait_before_test(1)

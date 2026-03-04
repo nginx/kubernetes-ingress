@@ -11,6 +11,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -167,6 +168,44 @@ func TestGenerateNginxCfgForAppRoot(t *testing.T) {
 	}
 	if len(warnings) != 0 {
 		t.Errorf("generateNginxCfg returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgForAccessControl(t *testing.T) {
+	t.Parallel()
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations["nginx.org/policies"] = "my-test-policy"
+	cafeIngressEx.Policies = map[string]*conf_v1.Policy{
+		"default/my-test-policy": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "my-test-policy",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				AccessControl: &conf_v1.AccessControl{
+					Allow: []string{"10.1.0.0/24"},
+				},
+			},
+		},
+	}
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+	expected := createExpectedConfigForCafeIngressEx(isPlus)
+	expected.Servers[0].Allow = []string{"10.1.0.0/24"}
+	expected.Ingress.Annotations["nginx.org/policies"] = "my-test-policy"
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:  &StaticConfigParams{},
+		ingEx:         &cafeIngressEx,
+		isPlus:        isPlus,
+		BaseCfgParams: configParams,
+	})
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateNginxCfg() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
 	}
 }
 
@@ -694,6 +733,103 @@ func TestGenerateNginxCfgForMergeableIngressesForBasicAuth(t *testing.T) {
 	}
 	if len(warnings) != 0 {
 		t.Errorf("generateNginxCfgForMergeableIngresses returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgForMergeableIngressesMasterWithAccessControl(t *testing.T) {
+	t.Parallel()
+	mergeableIngresses := createMergeableCafeIngress()
+	mergeableIngresses.Master.Ingress.Annotations["nginx.org/policies"] = "my-test-policy"
+	mergeableIngresses.Master.Policies = map[string]*conf_v1.Policy{
+		"default/my-test-policy": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "my-test-policy",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				AccessControl: &conf_v1.AccessControl{
+					Allow: []string{"10.0.0.1/24"},
+				},
+			},
+		},
+	}
+	isPlus := false
+
+	expected := createExpectedConfigForMergeableCafeIngress(isPlus)
+	expected.Ingress.Annotations["nginx.org/policies"] = "my-test-policy"
+	expected.Servers[0].Allow = []string{"10.0.0.1/24"}
+
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs:        mergeableIngresses,
+		apResources:          nil,
+		dosResource:          nil,
+		BaseCfgParams:        configParams,
+		isPlus:               isPlus,
+		isResolverConfigured: false,
+		staticParams:         &StaticConfigParams{},
+		isWildcardEnabled:    false,
+	})
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgForMergeableIngressesMinionWithAccessControl(t *testing.T) {
+	t.Parallel()
+	mergeableIngresses := createMergeableCafeIngress()
+
+	for i, m := range mergeableIngresses.Minions {
+		if strings.Contains(m.Ingress.Name, "coffee") {
+			mergeableIngresses.Minions[i].Ingress.Annotations["nginx.org/policies"] = "my-test-policy"
+		}
+	}
+
+	mergeableIngresses.Minions[0].Policies = map[string]*conf_v1.Policy{
+		"default/my-test-policy": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "my-test-policy",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				AccessControl: &conf_v1.AccessControl{
+					Allow: []string{"10.0.0.1/24"},
+				},
+			},
+		},
+	}
+	isPlus := false
+
+	expected := createExpectedConfigForMergeableCafeIngress(isPlus)
+
+	for i := range expected.Servers[0].Locations {
+		if expected.Servers[0].Locations[i].MinionIngress.Name == "cafe-ingress-coffee-minion" {
+			expected.Servers[0].Locations[i].MinionIngress.Annotations["nginx.org/policies"] = "my-test-policy"
+			expected.Servers[0].Locations[i].Allow = []string{"10.0.0.1/24"}
+		}
+	}
+
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs:        mergeableIngresses,
+		apResources:          nil,
+		dosResource:          nil,
+		BaseCfgParams:        configParams,
+		isPlus:               isPlus,
+		isResolverConfigured: false,
+		staticParams:         &StaticConfigParams{},
+		isWildcardEnabled:    false,
+	})
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
 	}
 }
 
