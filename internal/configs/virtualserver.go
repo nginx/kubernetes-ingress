@@ -545,24 +545,65 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	VariableNamer := NewVSVariableNamer(vsEx.VirtualServer)
 
 	if policiesCfg.ExternalAuth != nil {
-		specExAuthLoc, _ := generateLocation(
-			policiesCfg.ExternalAuth.ProxyURL,
-			"",
-			conf_v1.Upstream{},                // no upstream for external auth, the location will use proxy_pass with the URL from the policy
-			&conf_v1.Action{},                 // no action for external auth, the location will be returned as an InternalRedirectLocation and referenced in the auth_request directive of the locations generated for the routes, so it doesn't need an action
-			vsc.cfgParams,                     // no cfgParams for external auth, we don't want to add any of the default parameters to this location
-			errorPageDetails{},                // no errorPages for external auth, we don't want to add any error pages to this location
-			true,                              // internal location
-			"",                                // no proxySSLName for external auth
-			"",                                // no originalPath for external auth
-			policiesCfg.ExternalAuth.Snippets, // pass the snippets from the ExternalAuth policy to be added to the location
-			true,                              // enable snippets for external auth location only if there are snippets in the policy, if there are no snippets, we don't need to enable snippets for this location
-			0,                                 // not interested in the returned location index for external auth
-			false,                             // not a VirtualServerRoute
-			"",                                // no VirtualServerRoute name for external auth
-			"",                                // no VirtualServerRoute namespace for external auth
-			vsc.warnings)
+		proxyURLUpstreamName := virtualServerUpstreamNamer.GetNameForUpstream("external_auth")
+		proxyURLUpstream := conf_v1.Upstream{
+			Name:    "external_auth",
+			Service: policiesCfg.ExternalAuth.URI.Host,
+		}
+		if policiesCfg.ExternalAuth.URI.Port != "" {
+			value, err := strconv.ParseUint(policiesCfg.ExternalAuth.URI.Port, 10, 16)
+			if err != nil {
+				vsc.addWarningf(vsEx.VirtualServer, "Invalid port in ExternalAuth URI: %v. ExternalAuth location will be generated without a port. Error: %v", policiesCfg.ExternalAuth.URI.Port, err)
+			} else {
+				proxyURLUpstream.Port = uint16(value)
+			}
+		} else {
+			proxyURLUpstream.Port = 80
+		}
+		if policiesCfg.ExternalAuth.URI.Scheme == "https" {
+			proxyURLUpstream.TLS = conf_v1.UpstreamTLS{Enable: true}
+			if proxyURLUpstream.Port == 80 { // if the port was not set or was set to 80, change it to 443 for https
+				proxyURLUpstream.Port = 443
+			}
+		}
+
+		specExAuthLoc := version2.Location{
+			Path:                     generatePath(policiesCfg.ExternalAuth.ProxyURL),
+			Internal:                 true,
+			Snippets:                 []string{policiesCfg.ExternalAuth.Snippets},
+			ProxyPass:                fmt.Sprintf("%v://%v", generateProxyPassProtocol(policiesCfg.ExternalAuth.URI.Scheme == "https"), proxyURLUpstreamName),
+			ProxyPassRequestHeaders:  false,
+			ProxyPassRequestBody:     false,
+			ProxyConnectTimeout:      generateTimeWithDefault(vsc.cfgParams.ProxyConnectTimeout, vsc.cfgParams.ProxyConnectTimeout),
+			ProxyReadTimeout:         generateTimeWithDefault(vsc.cfgParams.ProxyReadTimeout, vsc.cfgParams.ProxyReadTimeout),
+			ProxySendTimeout:         generateTimeWithDefault(vsc.cfgParams.ProxySendTimeout, vsc.cfgParams.ProxySendTimeout),
+			ClientMaxBodySize:        "0",
+			ProxyNextUpstream:        "error timeout",
+			ProxyNextUpstreamTimeout: generateTimeWithDefault(vsc.cfgParams.ProxyNextUpstreamTimeout, "10s"),
+
+			ServiceName: policiesCfg.ExternalAuth.URI.Host,
+			IsVSR:       false,
+		}
 		locations = append(locations, specExAuthLoc)
+
+		upstreams, healthChecks, statusMatches = generateUpstreams(
+			sslConfig,
+			vsc,
+			proxyURLUpstream,
+			vsEx.VirtualServer,
+			vsEx.VirtualServer.Namespace,
+			virtualServerUpstreamNamer,
+			vsEx,
+			upstreams,
+			crUpstreams,
+			healthChecks,
+			statusMatches,
+		)
+		// //getendpoints
+		// endpoints := vsc.generateEndpointsForUpstream(vsEx.VirtualServer, vsEx.VirtualServer.Namespace, proxyURLUpstream, vsEx)
+		// ups := vsc.generateUpstream(vsEx.VirtualServer, proxyURLUpstreamName, proxyURLUpstream, false, endpoints, make([]string, 0))
+		// upstreams = append(upstreams, ups)
+		// crUpstreams[proxyURLUpstreamName] = proxyURLUpstream
 	}
 
 	// generates config for VirtualServer routes

@@ -20622,8 +20622,8 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 				},
 				Spec: conf_v1.PolicySpec{
 					ExternalAuth: &conf_v1.ExternalAuth{
-						AuthURL:       "http://auth-server.default.svc.cluster.local:8080/auth",
-						AuthSigninURL: "http://auth-server.default.svc.cluster.local:8080/signin?rd=$scheme://$host$request_uri",
+						AuthURL:       "http://auth-server:8080/auth",
+						AuthSigninURL: "http://auth-server:8080/signin?rd=$scheme://$host$request_uri",
 						AuthSnippets:  "proxy_set_header X-Custom-Header \"custom-value\";",
 					},
 				},
@@ -20635,6 +20635,9 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 			},
 			"default/coffee-svc:80": {
 				"10.0.0.30:80",
+			},
+			"default/auth-server:8080": {
+				"10.0.0.40:80",
 			},
 		},
 	}
@@ -20652,6 +20655,21 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 				Servers: []version2.UpstreamServer{
 					{
 						Address: "10.0.0.30:80",
+					},
+				},
+				Keepalive: 16,
+			},
+			{
+				UpstreamLabels: version2.UpstreamLabels{
+					Service:           "auth-server",
+					ResourceType:      "virtualserver",
+					ResourceName:      "cafe",
+					ResourceNamespace: "default",
+				},
+				Name: "vs_default_cafe_external_auth",
+				Servers: []version2.UpstreamServer{
+					{
+						Address: "10.0.0.40:80",
 					},
 				},
 				Keepalive: 16,
@@ -20690,13 +20708,13 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 				ProxyURL: "/pol_exauth_default_cafe_default_external_auth_policy",
 				URI: version2.AuthURI{
 					Scheme: "http",
-					Host:   "auth-server.default.svc.cluster.local",
+					Host:   "auth-server",
 					Port:   "8080",
 					Path:   "/auth",
 				},
 				SigninURL: version2.AuthURI{
 					Scheme: "http",
-					Host:   "auth-server.default.svc.cluster.local",
+					Host:   "auth-server",
 					Port:   "8080",
 					Path:   "/signin",
 				},
@@ -20704,15 +20722,12 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 			},
 			Locations: []version2.Location{
 				{
-					Path:                     "/pol_exauth_default_cafe_default_external_auth_policy",
-					Internal:                 true,
-					Snippets:                 []string{`proxy_set_header X-Custom-Header "custom-value";`},
-					ProxyPass:                "http://$request_uri",
-					ProxyNextUpstream:        "error timeout",
-					ProxyNextUpstreamTimeout: "0s",
-					ProxyPassRequestHeaders:  true,
-					ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
-					HasKeepalive:             true,
+					Path:                    "/pol_exauth_default_cafe_default_external_auth_policy",
+					Internal:                true,
+					Snippets:                []string{`proxy_set_header X-Custom-Header "custom-value";`},
+					ProxyPass:               "http://vs_default_cafe_external_auth",
+					ProxyPassRequestHeaders: false,
+					ServiceName:             "auth-server",
 				},
 				{
 					Path:                     "/tea",
