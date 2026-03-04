@@ -2025,6 +2025,27 @@ def get_reload_count(req_url) -> int:
     return count
 
 
+def wait_for_reload(metrics_url, count_before, timeout=60) -> None:
+    """
+    Wait until the NGINX reload count has incremented beyond count_before.
+
+    :param metrics_url: the full Prometheus metrics URL, e.g. http://<ip>:9113/metrics
+    :param count_before: the reload count captured before the change that should trigger a reload
+    :param timeout: maximum number of seconds to wait (default 60)
+    """
+    for i in range(timeout):
+        try:
+            if get_reload_count(metrics_url) - count_before > 0:
+                print(f"Reload detected after {i + 1} attempt(s)")
+                return
+        except (requests.exceptions.ConnectionError, AssertionError) as e:
+            print(f"Attempt {i + 1}/{timeout}: metrics not ready yet ({e})")
+        time.sleep(1)
+    assert (
+        get_reload_count(metrics_url) - count_before > 0
+    ), f"Timed out after {timeout}s waiting for NGINX reload (count_before={count_before})"
+
+
 def get_test_file_name(path) -> str:
     """
     :param path: full path to the test file

@@ -238,6 +238,8 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			SpiffeCerts:            cfgParams.SpiffeServerCerts,
 			DisableIPV6:            ncp.staticParams.DisableIPV6,
 			AppRoot:                cfgParams.AppRoot,
+			Allow:                  policyCfg.Allow,
+			Deny:                   policyCfg.Deny,
 		}
 
 		warnings := addSSLConfig(&server, ncp.ingEx.Ingress, rule.Host, ncp.ingEx.Ingress.Spec.TLS, ncp.ingEx.SecretRefs, ncp.isWildcardEnabled)
@@ -336,6 +338,14 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 					loc.BasicAuth = basicAuth
 					allWarnings.Add(warnings)
 				}
+
+				if policyCfg.Allow != nil {
+					loc.Allow = policyCfg.Allow
+				}
+				if policyCfg.Deny != nil {
+					loc.Deny = policyCfg.Deny
+				}
+
 			}
 
 			if !loc.CORSEnabled && len(policyCfg.CORSHeaders) > 0 {

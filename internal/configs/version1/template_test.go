@@ -256,6 +256,114 @@ func TestExecuteTemplate_ForIngressWithHeadersOnlyNoCORS(t *testing.T) {
 	}
 }
 
+func TestExecuteTemplate_ForIngressForNGINXWithACPolicyAllow(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithPolicyAnnotationForAccessControlAllow)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+	wantedStrings := []string{
+		"allow 10.0.0.0/8;",
+		"deny all;",
+	}
+
+	for _, want := range wantedStrings {
+		if !strings.Contains(bufString, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithACPolicyDeny(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithPolicyAnnotationForAccessControlDeny)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+	wantedStrings := []string{
+		"deny 10.0.0.0/8;",
+		"allow all;",
+	}
+
+	for _, want := range wantedStrings {
+		if !strings.Contains(bufString, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithACPolicyAllow(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithPolicyAnnotationForAccessControlAllow)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+	wantedStrings := []string{
+		"allow 10.0.0.0/8;",
+		"deny all;",
+	}
+
+	for _, want := range wantedStrings {
+		if !strings.Contains(bufString, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithACPolicyDeny(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithPolicyAnnotationForAccessControlDeny)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+	wantedStrings := []string{
+		"deny 10.0.0.0/8;",
+		"allow all;",
+	}
+
+	for _, want := range wantedStrings {
+		if !strings.Contains(bufString, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
 func TestExecuteTemplate_ForIngressForNGINXWithHTTPRedirectCode(t *testing.T) {
 	t.Parallel()
 
@@ -2498,6 +2606,34 @@ var (
 		},
 	}
 
+	// Ingress Config example with access-control Allow Policy via annotation
+	ingressCfgWithPolicyAnnotationForAccessControlAllow = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "test.example.com",
+				ServerTokens: "off",
+				StatusZone:   "test.example.com",
+				Locations: []Location{
+					{
+						Path:     "/tea",
+						Upstream: testUpstream,
+					},
+				},
+				Allow: []string{
+					"10.0.0.0/8",
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"nginx.org/policies": "access-control-policy",
+			},
+		},
+	}
+
 	// Ingress Config example with custom headers only (CORSEnabled=false)
 	ingressCfgWithHeadersOnlyNoCORS = IngressNginxConfig{
 		Servers: []Server{
@@ -2529,6 +2665,34 @@ var (
 		Ingress: Ingress{
 			Name:      "cafe-ingress",
 			Namespace: "default",
+		},
+	}
+
+	// Ingress Config example with access-control Deny Policy via annotation
+	ingressCfgWithPolicyAnnotationForAccessControlDeny = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "test.example.com",
+				ServerTokens: "off",
+				StatusZone:   "test.example.com",
+				Locations: []Location{
+					{
+						Path:     "/tea",
+						Upstream: testUpstream,
+					},
+				},
+				Deny: []string{
+					"10.0.0.0/8",
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"nginx.org/policies": "access-control-policy",
+			},
 		},
 	}
 
