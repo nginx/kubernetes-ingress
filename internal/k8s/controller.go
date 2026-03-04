@@ -2171,17 +2171,6 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 		ingEx.SecretRefs[secretName] = secretRef
 	}
 
-	var policyRefs []conf_v1.PolicyReference
-	if ingEx.Ingress.Annotations[configs.PoliciesAnnotation] != "" {
-		policyRefs = k8spolicies.GetPolicyRefsFromAnnotation(ingEx.Ingress.Annotations[configs.PoliciesAnnotation], ing.Namespace)
-	}
-	policies, policyErrors := lbc.getPolicies(policyRefs, ing.Namespace)
-	if len(policyErrors) > 0 {
-		for _, err := range policyErrors {
-			nl.Warnf(lbc.Logger, "Error trying to get the policies for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
-		}
-	}
-
 	if basicAuth, exists := ingEx.Ingress.Annotations[configs.BasicAuthSecretAnnotation]; exists {
 		secretName := basicAuth
 		secretKey := ing.Namespace + "/" + secretName
@@ -2192,6 +2181,19 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 		}
 
 		ingEx.SecretRefs[secretName] = secretRef
+	}
+
+	var policyNames string
+	var policyRefs []conf_v1.PolicyReference
+	if ingEx.Ingress.Annotations[configs.PoliciesAnnotation] != "" {
+		policyNames = ingEx.Ingress.Annotations[configs.PoliciesAnnotation]
+		policyRefs = k8spolicies.GetPolicyRefsFromAnnotation(policyNames, ing.Namespace)
+	}
+	policies, policyErrors := lbc.getPolicies(policyRefs, ing.Namespace)
+	if len(policyErrors) > 0 {
+		for _, err := range policyErrors {
+			nl.Warnf(lbc.Logger, "Error trying to get the policies for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
+		}
 	}
 
 	if lbc.isNginxPlus {
