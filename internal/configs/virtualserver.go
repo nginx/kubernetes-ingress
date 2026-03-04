@@ -544,6 +544,27 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	VariableNamer := NewVSVariableNamer(vsEx.VirtualServer)
 
+	if policiesCfg.ExternalAuth != nil {
+		specExAuthLoc, _ := generateLocation(
+			policiesCfg.ExternalAuth.ProxyURL,
+			"",
+			conf_v1.Upstream{},                // no upstream for external auth, the location will use proxy_pass with the URL from the policy
+			&conf_v1.Action{},                 // no action for external auth, the location will be returned as an InternalRedirectLocation and referenced in the auth_request directive of the locations generated for the routes, so it doesn't need an action
+			vsc.cfgParams,                     // no cfgParams for external auth, we don't want to add any of the default parameters to this location
+			errorPageDetails{},                // no errorPages for external auth, we don't want to add any error pages to this location
+			true,                              // internal location
+			"",                                // no proxySSLName for external auth
+			"",                                // no originalPath for external auth
+			policiesCfg.ExternalAuth.Snippets, // pass the snippets from the ExternalAuth policy to be added to the location
+			true,                              // enable snippets for external auth location only if there are snippets in the policy, if there are no snippets, we don't need to enable snippets for this location
+			0,                                 // not interested in the returned location index for external auth
+			false,                             // not a VirtualServerRoute
+			"",                                // no VirtualServerRoute name for external auth
+			"",                                // no VirtualServerRoute namespace for external auth
+			vsc.warnings)
+		locations = append(locations, specExAuthLoc)
+	}
+
 	// generates config for VirtualServer routes
 	for _, r := range vsEx.VirtualServer.Spec.Routes {
 		errorPages := generateErrorPageDetails(r.ErrorPages, errorPageLocations, vsEx.VirtualServer)

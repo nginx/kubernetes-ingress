@@ -20687,6 +20687,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 			VSNamespace:     "default",
 			VSName:          "cafe",
 			ExternalAuth: &version2.ExternalAuth{
+				ProxyURL: "/pol_exauth_default_cafe_default_external_auth_policy",
 				URI: version2.AuthURI{
 					Scheme: "http",
 					Host:   "auth-server.default.svc.cluster.local",
@@ -20702,6 +20703,17 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 				Snippets: "proxy_set_header X-Custom-Header \"custom-value\";",
 			},
 			Locations: []version2.Location{
+				{
+					Path:                     "/pol_exauth_default_cafe_default_external_auth_policy",
+					Internal:                 true,
+					Snippets:                 []string{`proxy_set_header X-Custom-Header "custom-value";`},
+					ProxyPass:                "http://$request_uri",
+					ProxyNextUpstream:        "error timeout",
+					ProxyNextUpstreamTimeout: "0s",
+					ProxyPassRequestHeaders:  true,
+					ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+					HasKeepalive:             true,
+				},
 				{
 					Path:                     "/tea",
 					ProxyPass:                "http://vs_default_cafe_tea",

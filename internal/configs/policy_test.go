@@ -1750,7 +1750,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 					Port:   "8080",
 					Path:   "/auth",
 				},
-				ProxyURL: "/pol_ea_default_test_vs_default_ext_auth_policy",
+				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
 			},
 			msg: "basic external auth with URL only",
 		},
@@ -1767,7 +1767,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 					Port:   "",
 					Path:   "/verify",
 				},
-				ProxyURL: "/pol_ea_default_test_vs_default_ext_auth_policy",
+				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
 				SigninURL: version2.AuthURI{
 					Scheme: "https",
 					Host:   "auth.example.com",
@@ -1790,7 +1790,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 					Port:   "8080",
 					Path:   "/check",
 				},
-				ProxyURL: "/pol_ea_default_test_vs_default_ext_auth_policy",
+				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
 				Snippets: "proxy_set_header X-Forwarded-Host $host;",
 			},
 			msg: "external auth with snippets",
@@ -1809,7 +1809,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 					Port:   "4180",
 					Path:   "/oauth2/auth",
 				},
-				ProxyURL: "/pol_ea_default_test_vs_default_ext_auth_policy",
+				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
 				SigninURL: version2.AuthURI{
 					Scheme: "https",
 					Host:   "oauth2-proxy.default.svc.cluster.local",
@@ -1832,7 +1832,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 					Port:   "",
 					Path:   "/validate",
 				},
-				ProxyURL: "/pol_ea_default_test_vs_default_ext_auth_policy",
+				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
 			},
 			msg: "external auth URL without explicit port",
 		},
@@ -1849,7 +1849,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 					Port:   "8080",
 					Path:   "/auth",
 				},
-				ProxyURL: "/pol_ea_default_test_vs_default_ext_auth_policy",
+				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
 			},
 			msg: "empty signin URL should not be set",
 		},
@@ -1866,7 +1866,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 					Port:   "8080",
 					Path:   "/auth",
 				},
-				ProxyURL: "/pol_ea_default_test_vs_default_ext_auth_policy",
+				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
 			},
 			msg: "empty snippets should not be set",
 		},
@@ -1971,6 +1971,7 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				ExternalAuth: &version2.ExternalAuth{
+					ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
 					URI: version2.AuthURI{
 						Scheme: "http",
 						Host:   "auth-svc.default.svc.cluster.local",
@@ -2007,6 +2008,7 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				ExternalAuth: &version2.ExternalAuth{
+					ProxyURL: "/pol_exauth_default_test_vs_default_full_ext_auth",
 					URI: version2.AuthURI{
 						Scheme: "https",
 						Host:   "oauth2-proxy.default.svc.cluster.local",
@@ -2048,6 +2050,7 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				ExternalAuth: &version2.ExternalAuth{
+					ProxyURL: "/pol_exauth_default_test_vs_default_https_ext_auth",
 					URI: version2.AuthURI{
 						Scheme: "https",
 						Host:   "auth.example.com",
@@ -2083,6 +2086,7 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				ExternalAuth: &version2.ExternalAuth{
+					ProxyURL: "/pol_exauth_app_namespace_test_vsr_app_namespace_vsr_ext_auth",
 					URI: version2.AuthURI{
 						Scheme: "http",
 						Host:   "auth-svc.app-namespace.svc.cluster.local",
@@ -2124,6 +2128,7 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				ExternalAuth: &version2.ExternalAuth{
+					ProxyURL: "/pol_exauth_app_namespace_test_vsr_shared_policies_shared_ext_auth",
 					URI: version2.AuthURI{
 						Scheme: "https",
 						Host:   "central-auth.shared-policies.svc.cluster.local",
