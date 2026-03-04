@@ -68,7 +68,8 @@ const (
 	grpcServicesAnnotation                = "nginx.org/grpc-services"
 	rewritesAnnotation                    = "nginx.org/rewrites"
 	rewriteTargetAnnotation               = "nginx.org/rewrite-target"
-	stickyCookieServicesAnnotation        = "nginx.com/sticky-cookie-services"
+	stickyCookieServicesAnnotation        = "nginx.org/sticky-cookie-services"
+	stickyCookieServicesAnnotationPlus    = "nginx.com/sticky-cookie-services"
 	pathRegexAnnotation                   = "nginx.org/path-regex"
 	useClusterIPAnnotation                = "nginx.org/use-cluster-ip"
 	httpRedirectCodeAnnotation            = "nginx.org/http-redirect-code"
@@ -361,6 +362,10 @@ var (
 		},
 		stickyCookieServicesAnnotation: {
 			// validatePlusOnlyAnnotation,
+			validateRequiredAnnotation,
+			validateStickyServiceListAnnotation,
+		},
+		stickyCookieServicesAnnotationPlus: {
 			validateRequiredAnnotation,
 			validateStickyServiceListAnnotation,
 		},

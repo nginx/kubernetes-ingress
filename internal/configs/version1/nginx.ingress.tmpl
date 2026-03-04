@@ -2,9 +2,6 @@
 # configuration for {{.Ingress.Namespace}}/{{.Ingress.Name}}
 {{- range $upstream := .Upstreams}}
 upstream {{$upstream.Name}} {
-	{{- if $upstream.StickyCookie}}
-	sticky cookie {{$upstream.StickyCookie}};
-	{{- end}}
 	{{- if ne $upstream.UpstreamZoneSize "0"}}
 	zone {{$upstream.Name}} {{$upstream.UpstreamZoneSize}};
 	{{- end}}
@@ -16,6 +13,9 @@ upstream {{$upstream.Name}} {
 	{{- end}}
 	{{- if $.Keepalive}}
 	keepalive {{$.Keepalive}};
+	{{- end}}
+	{{- if $upstream.StickyCookie}}
+	sticky cookie {{$upstream.StickyCookie}};
 	{{- end}}
 }
 {{end -}}
