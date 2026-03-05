@@ -235,7 +235,7 @@ server {
 
     {{- if $s.ExternalAuth }}
     auth_request {{ $s.ExternalAuth.ProxyURL }};
-	{{- end }}
+    {{- end }}
 
     {{- range $snippet := $s.Snippets }}
     {{ $snippet }}
