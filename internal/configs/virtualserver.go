@@ -544,9 +544,13 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	VariableNamer := NewVSVariableNamer(vsEx.VirtualServer)
 
+	// Track generated ExternalAuth proxy URLs to avoid duplicate upstream/location generation
+	generatedExternalAuthURLs := make(map[string]bool)
+
 	// generate config for external auth if referenced in policiesCfg, adds an upstream for the
 	// external auth server and a location for the external auth requests
 	if policiesCfg.ExternalAuth != nil {
+		generatedExternalAuthURLs[policiesCfg.ExternalAuth.ProxyURL] = true
 		const externalAuthName = "external_auth"
 		proxyURLUpstreamName := virtualServerUpstreamNamer.GetNameForUpstream(externalAuthName)
 		proxyURLUpstream := conf_v1.Upstream{
@@ -697,6 +701,40 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			}
 			if _, exists := policiesCfg.APIKey.ClientMap[apiMapName]; !exists {
 				policiesCfg.APIKey.ClientMap[apiMapName] = routePoliciesCfg.APIKey.Clients
+			}
+		}
+
+		// generate config for route-level external auth if referenced in routePoliciesCfg,
+		// adds an upstream for the external auth server and a location for the external auth requests
+		if routePoliciesCfg.ExternalAuth != nil {
+			if !generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.ProxyURL] {
+				generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.ProxyURL] = true
+				externalAuthName := strings.TrimPrefix(routePoliciesCfg.ExternalAuth.ProxyURL, "/")
+				proxyURLUpstreamName := virtualServerUpstreamNamer.GetNameForUpstream(externalAuthName)
+				proxyURLUpstream := conf_v1.Upstream{
+					Name:    externalAuthName,
+					Service: routePoliciesCfg.ExternalAuth.URI.Host,
+					Port:    vsc.getProxyURLPort(routePoliciesCfg, vsEx),
+				}
+				if routePoliciesCfg.ExternalAuth.URI.Scheme == "https" {
+					proxyURLUpstream.TLS = conf_v1.UpstreamTLS{Enable: true}
+				}
+
+				locations = append(locations, vsc.generateExternalAuthLocation(routePoliciesCfg, proxyURLUpstreamName))
+
+				upstreams, healthChecks, statusMatches = generateUpstreams(
+					sslConfig,
+					vsc,
+					proxyURLUpstream,
+					vsEx.VirtualServer,
+					vsEx.VirtualServer.Namespace,
+					virtualServerUpstreamNamer,
+					vsEx,
+					upstreams,
+					crUpstreams,
+					healthChecks,
+					statusMatches,
+				)
 			}
 		}
 
@@ -880,6 +918,40 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				}
 			}
 
+			// generate config for subroute-level external auth if referenced in routePoliciesCfg,
+			// adds an upstream for the external auth server and a location for the external auth requests
+			if routePoliciesCfg.ExternalAuth != nil {
+				if !generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.ProxyURL] {
+					generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.ProxyURL] = true
+					externalAuthName := strings.TrimPrefix(routePoliciesCfg.ExternalAuth.ProxyURL, "/")
+					proxyURLUpstreamName := upstreamNamer.GetNameForUpstream(externalAuthName)
+					proxyURLUpstream := conf_v1.Upstream{
+						Name:    externalAuthName,
+						Service: routePoliciesCfg.ExternalAuth.URI.Host,
+						Port:    vsc.getProxyURLPort(routePoliciesCfg, vsEx),
+					}
+					if routePoliciesCfg.ExternalAuth.URI.Scheme == "https" {
+						proxyURLUpstream.TLS = conf_v1.UpstreamTLS{Enable: true}
+					}
+
+					locations = append(locations, vsc.generateExternalAuthLocation(routePoliciesCfg, proxyURLUpstreamName))
+
+					upstreams, healthChecks, statusMatches = generateUpstreams(
+						sslConfig,
+						vsc,
+						proxyURLUpstream,
+						vsr,
+						vsr.Namespace,
+						upstreamNamer,
+						vsEx,
+						upstreams,
+						crUpstreams,
+						healthChecks,
+						statusMatches,
+					)
+				}
+			}
+
 			if len(routePoliciesCfg.RateLimit.GroupMaps) > 0 {
 				maps = append(maps, routePoliciesCfg.RateLimit.GroupMaps...)
 			}
@@ -1053,7 +1125,7 @@ func (vsc *virtualServerConfigurator) generateExternalAuthLocation(policiesCfg p
 	specExAuthLoc := version2.Location{
 		Path:                    generatePath(policiesCfg.ExternalAuth.ProxyURL),
 		Internal:                true,
-		Snippets:                []string{policiesCfg.ExternalAuth.Snippets},
+		Snippets:                strings.Split(policiesCfg.ExternalAuth.Snippets, "\n"),
 		ProxyPass:               fmt.Sprintf("%v://%v", generateProxyPassProtocol(policiesCfg.ExternalAuth.URI.Scheme == "https"), proxyURLUpstreamName),
 		ProxyPassRequestHeaders: true,
 		ProxyPassRequestBody:    false,
