@@ -1164,7 +1164,8 @@ server {
 
 [TestExecuteVirtualServerTemplateWithCachePolicyOSS - 1]
 
-upstream test-upstream {zone test-upstream ;
+upstream test-upstream {
+    zone test-upstream ;
     server 10.0.0.20:8001 max_fails=0 fail_timeout= max_conns=0;
 }
 
@@ -3307,17 +3308,20 @@ server {
 
 [TestVirtualServerForNginx - 1]
 
-upstream test-upstream {zone test-upstream 256k;
+upstream test-upstream {
+    zone test-upstream 256k;
     random;
     server 10.0.0.20:8001 max_fails=4 fail_timeout=10s max_conns=31;
     keepalive 32;
 }
 
-upstream coffee-v1 {zone coffee-v1 256k;
+upstream coffee-v1 {
+    zone coffee-v1 256k;
     server 10.0.0.31:8001 max_fails=8 fail_timeout=15s max_conns=2;
 }
 
-upstream coffee-v2 {zone coffee-v2 256k;
+upstream coffee-v2 {
+    zone coffee-v2 256k;
     server 10.0.0.32:8001 max_fails=12 fail_timeout=20s max_conns=4;
 }
 
@@ -4534,17 +4538,20 @@ server {
 
 [TestVirtualServerForNginxWithServiceBeforeRedirect - 1]
 
-upstream test-upstream {zone test-upstream 256k;
+upstream test-upstream {
+    zone test-upstream 256k;
     random;
     server 10.0.0.20:8001 max_fails=4 fail_timeout=10s max_conns=31;
     keepalive 32;
 }
 
-upstream coffee-v1 {zone coffee-v1 256k;
+upstream coffee-v1 {
+    zone coffee-v1 256k;
     server 10.0.0.31:8001 max_fails=8 fail_timeout=15s max_conns=2;
 }
 
-upstream coffee-v2 {zone coffee-v2 256k;
+upstream coffee-v2 {
+    zone coffee-v2 256k;
     server 10.0.0.32:8001 max_fails=12 fail_timeout=20s max_conns=4;
 }
 
