@@ -27,3 +27,5 @@ spec:
   - path: /coffee
     action:
       pass: coffee
+    policies:
+      - name: external-auth-basic-policy
