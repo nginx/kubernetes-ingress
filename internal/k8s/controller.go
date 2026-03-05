@@ -943,7 +943,7 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 	resources := lbc.configuration.GetResources()
 	nl.Debugf(lbc.Logger, "Updating %v resources", len(resources))
 	resourceExes := lbc.createExtendedResources(resources)
-	warnings, updateErr := lbc.configurator.UpdateConfig(resourceExes)
+	warnings, resourceErrors, updateErr := lbc.configurator.UpdateConfig(resourceExes)
 
 	eventTitle := nl.EventReasonUpdated
 	eventType := api_v1.EventTypeNormal
@@ -961,7 +961,12 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 
 	if lbc.configMap != nil {
 		if isNGINXConfigValid {
-			lbc.recorder.Event(lbc.configMap, api_v1.EventTypeNormal, nl.EventReasonUpdated, fmt.Sprintf("ConfigMap %s/%s updated without error", lbc.configMap.GetNamespace(), lbc.configMap.GetName()))
+			if len(resourceErrors) > 0 {
+				lbc.recorder.Event(lbc.configMap, api_v1.EventTypeWarning, nl.EventReasonUpdatedWithError,
+					fmt.Sprintf("ConfigMap %s/%s was updated but some resource configs failed validation", lbc.configMap.GetNamespace(), lbc.configMap.GetName()))
+			} else {
+				lbc.recorder.Event(lbc.configMap, api_v1.EventTypeNormal, nl.EventReasonUpdated, fmt.Sprintf("ConfigMap %s/%s updated without error", lbc.configMap.GetNamespace(), lbc.configMap.GetName()))
+			}
 		} else {
 			lbc.recorder.Event(lbc.configMap, api_v1.EventTypeWarning, nl.EventReasonUpdatedWithError, fmt.Sprintf("ConfigMap %s/%s updated with errors. Ignoring invalid values", lbc.configMap.GetNamespace(), lbc.configMap.GetName()))
 		}
@@ -981,7 +986,18 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 		lbc.recorder.Eventf(gc, eventType, eventTitle, fmt.Sprintf("GlobalConfiguration %s was updated %s", key, eventWarningMessage))
 	}
 
-	lbc.updateResourcesStatusAndEvents(resources, warnings, updateErr)
+	if len(resourceErrors) > 0 {
+		for _, r := range resources {
+			key := getResourceKey(r.GetObjectMeta())
+			resErr := updateErr
+			if perResErr, ok := resourceErrors[key]; ok {
+				resErr = perResErr
+			}
+			lbc.updateResourcesStatusAndEvents([]Resource{r}, warnings, resErr)
+		}
+	} else {
+		lbc.updateResourcesStatusAndEvents(resources, warnings, updateErr)
+	}
 }
 
 // preSyncSecrets adds Secret resources to the SecretStore.

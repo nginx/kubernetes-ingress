@@ -71,8 +71,8 @@ type ServerConfig struct {
 // The Manager interface updates NGINX configuration, starts, reloads and quits NGINX,
 // updates NGINX Plus upstream servers.
 type Manager interface {
-	CreateMainConfig(content []byte) bool
-	CreateConfig(name string, content []byte) bool
+	CreateMainConfig(content []byte) (bool, error)
+	CreateConfig(name string, content []byte) (bool, error)
 	DeleteConfig(name string)
 	CreateStreamConfig(name string, content []byte) bool
 	DeleteStreamConfig(name string)
@@ -169,7 +169,7 @@ func NewLocalManager(ctx context.Context, confPath string, debug bool, mc collec
 }
 
 // CreateMainConfig creates the main NGINX configuration file. If the file already exists, it will be overridden.
-func (lm *LocalManager) CreateMainConfig(content []byte) bool {
+func (lm *LocalManager) CreateMainConfig(content []byte) (bool, error) {
 	nl.Debugf(lm.logger, "Writing main config to %v", lm.mainConfFilename)
 	nl.Debug(lm.logger, string(content))
 
@@ -178,12 +178,12 @@ func (lm *LocalManager) CreateMainConfig(content []byte) bool {
 	if err != nil {
 		nl.Fatalf(lm.logger, "Failed to write main config: %v", err)
 	}
-	return configChanged
+	return configChanged, nil
 }
 
 // CreateConfig creates a configuration file. If the file already exists, it will be overridden.
-func (lm *LocalManager) CreateConfig(name string, content []byte) bool {
-	return createConfig(lm.logger, lm.getFilenameForConfig(name), content)
+func (lm *LocalManager) CreateConfig(name string, content []byte) (bool, error) {
+	return createConfig(lm.logger, lm.getFilenameForConfig(name), content), nil
 }
 
 // CreateOIDCConfig creates an OIDC configuration file. If the file already exists, it will be overridden.
