@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.21
+# syntax=docker/dockerfile:1.22
 FROM redhat/ubi9:9.7-1771346757@sha256:cecb1cde7bda7c8165ae27841c2335667f8a3665a349c0d051329c61660a496c AS rpm-build
 RUN mkdir -p /rpms/ \
     && dnf install rpm-build gcc make cmake -y \
