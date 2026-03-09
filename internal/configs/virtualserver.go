@@ -1304,7 +1304,7 @@ func getServerErrorPages(cfg policiesCfg) []version2.ErrorPage {
 			{
 				Name:         cfg.ExternalAuth.SigninProxyURL,
 				Codes:        "401",
-				ResponseCode: -1,
+				ResponseCode: 0,
 			},
 		}
 	}
@@ -1493,7 +1493,7 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 		location.ErrorPages = append(location.ErrorPages, version2.ErrorPage{
 			Name:         cfg.ExternalAuth.SigninProxyURL,
 			Codes:        "401",
-			ResponseCode: -1,
+			ResponseCode: 0,
 		})
 		location.ProxyInterceptErrors = true
 	}
