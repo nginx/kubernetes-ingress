@@ -479,6 +479,7 @@ type AuthURI struct {
 	Host   string
 	Port   string
 	Path   string
+	Query  string
 }
 
 // BasicAuth refers to basic HTTP authentication mechanism options

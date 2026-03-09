@@ -1261,7 +1261,7 @@ func (vsc *virtualServerConfigurator) generateExternalAuthSigninLocation(policie
 	return version2.Location{
 		Path:                    generatePath(policiesCfg.ExternalAuth.SigninProxyURL),
 		Internal:                true,
-		ProxyPass:               fmt.Sprintf("%s://%s/%s?rd=$scheme://$host$request_uri", generateProxyPassProtocol(policiesCfg.ExternalAuth.SigninURL.Scheme == "https"), signinUpstreamName, strings.TrimPrefix(policiesCfg.ExternalAuth.SigninURL.Path, "/")),
+		ProxyPass:               fmt.Sprintf("%s://%s/%s?%s", generateProxyPassProtocol(policiesCfg.ExternalAuth.SigninURL.Scheme == "https"), signinUpstreamName, strings.TrimPrefix(policiesCfg.ExternalAuth.SigninURL.Path, "/"), policiesCfg.ExternalAuth.SigninURL.Query),
 		ProxyPassRequestHeaders: true,
 		ProxyPassRequestBody:    false,
 		ProxySetHeaders: []version2.Header{
