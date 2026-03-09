@@ -1220,7 +1220,7 @@ func (vsc *virtualServerConfigurator) generateExternalAuthLocation(policiesCfg p
 		Path:                    generatePath(policiesCfg.ExternalAuth.ProxyURL),
 		Internal:                true,
 		Snippets:                strings.Split(policiesCfg.ExternalAuth.Snippets, "\n"),
-		ProxyPass:               fmt.Sprintf("%v://%v", generateProxyPassProtocol(policiesCfg.ExternalAuth.URI.Scheme == "https"), proxyURLUpstreamName),
+		ProxyPass:               fmt.Sprintf("%s://%s/%s", generateProxyPassProtocol(policiesCfg.ExternalAuth.URI.Scheme == "https"), proxyURLUpstreamName, strings.TrimPrefix(policiesCfg.ExternalAuth.URI.Path, "/")),
 		ProxyPassRequestHeaders: true,
 		ProxyPassRequestBody:    false,
 		ProxySetHeaders: []version2.Header{
