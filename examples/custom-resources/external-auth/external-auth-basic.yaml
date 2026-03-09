@@ -4,6 +4,7 @@ metadata:
   name: external-auth-basic-policy
 spec:
   externalAuth:
-    authURL: "http://basic-auth-svc/auth"
+    authURI: "/auth"
+    authServiceName: "default/basic-auth-svc"
     authSnippets: |
       # Example snippets

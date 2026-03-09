@@ -1264,13 +1264,21 @@ type CORS struct {
 // ExternalAuth defines an external authentication policy for authenticating client requests using an external authentication server, which can be used for example with the oauth2-proxy or any custom authentication server that requires redirection for authentication.
 type ExternalAuth struct {
 	// +kubebuilder:validation:Required
-	// +kubebuilder:default="http://auth-svc.default.svc.cluster.local:8080"
-	// AuthURL is the URL of the external authentication server to which the request will be sent for authentication. The URL can be an absolute URL, for example http://auth-server/auth, or a relative URL, for example /auth, in which case it will be resolved against the ingress controller's address.
-	AuthURL string `json:"authURL"`
+	// +kubebuilder:default="/"
+	// AuthURI is the URI of the external authentication server to which the request will be sent for authentication. The URI is a relative URI, for example /auth.
+	AuthURI string `json:"authURI"`
+
+	// +kubebuilder:validation:Required
+	// AuthServiceName is the name of the Kubernetes service to which the request will be sent for authentication.  It can be in the same namespace as the Policy resource or in a different namespace. If the service is in a different namespace, it should be specified in the format <namespace>/<service>. For example, auth-service or auth-namespace/auth-service.
+	AuthServiceName string `json:"authServiceName"`
 
 	// +kubebuilder:validation:Optional
-	// AuthSigninURL is the URL which requests will be redirected to if the external authentication server determines that the client needs to be authenticated. This is typically used when the external authentication server is an oauth2-proxy or any custom authentication server that requires redirection for authentication. The URL can be an absolute URL, for example http://auth-server/signin, or a relative URL, for example /signin, in which case it will be resolved against the ingress controller's address.
-	AuthSigninURL string `json:"authSigninURL,omitempty"`
+	// AuthServicePort is the port of the Kubernetes service to which the request will be sent for authentication. If not specified, the ports will be looked up from the service definition.
+	AuthServicePorts []int `json:"authServicePorts,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// AuthSigninURI is the URI which requests will be redirected to if the external authentication server determines that the client needs to be authenticated. This is typically used when the external authentication server is an oauth2-proxy or any custom authentication server that requires redirection for authentication. The URI is a relative URI, for example /signin.
+	AuthSigninURI string `json:"authSigninURI,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	// AuthSnippets can be used to add custom configuration snippets to the location block of the external authentication configuration. This can be used for example to add additional headers to the request sent to the external authentication server, or to configure additional parameters for the auth_request module. The content of this field will be added as-is to the location block, so it must be a valid NGINX configuration snippet.

@@ -3543,3 +3543,97 @@ func TestGenerateTimeWithDefault(t *testing.T) {
 		}
 	}
 }
+
+func TestGetProxyURLPort(t *testing.T) {
+	t.Parallel()
+
+	vsEx := &VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{Name: "test-vs", Namespace: "default"},
+		},
+	}
+
+	tests := []struct {
+		name     string
+		cfg      policiesCfg
+		expected uint16
+	}{
+		{
+			name: "Ports from policy spec takes precedence over URI port",
+			cfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					URI:   version2.AuthURI{Port: "80"},
+					Ports: []int{9000},
+				},
+			},
+			expected: 9000,
+		},
+		{
+			name: "first port from Ports is used",
+			cfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					Ports: []int{8080, 9000},
+				},
+			},
+			expected: 8080,
+		},
+		{
+			name: "falls back to URI port when Ports is empty",
+			cfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					URI:   version2.AuthURI{Port: "8443"},
+					Ports: []int{},
+				},
+			},
+			expected: 8443,
+		},
+		{
+			name: "falls back to URI port when Ports is nil",
+			cfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					URI: version2.AuthURI{Port: "3000"},
+				},
+			},
+			expected: 3000,
+		},
+		{
+			name: "defaults to 80 when no Ports and no URI port",
+			cfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					URI: version2.AuthURI{},
+				},
+			},
+			expected: 80,
+		},
+		{
+			name: "defaults to 443 for https when no Ports and no URI port",
+			cfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					URI: version2.AuthURI{Scheme: "https"},
+				},
+			},
+			expected: 443,
+		},
+		{
+			name: "Ports overrides https default",
+			cfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					URI:   version2.AuthURI{Scheme: "https"},
+					Ports: []int{8443},
+				},
+			},
+			expected: 8443,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			vsc := newVirtualServerConfigurator(&ConfigParams{}, false, false, &StaticConfigParams{}, false, &fakeBV)
+			got := vsc.getProxyURLPort(tc.cfg, vsEx)
+			if got != tc.expected {
+				t.Errorf("getProxyURLPort() = %d, want %d", got, tc.expected)
+			}
+		})
+	}
+}

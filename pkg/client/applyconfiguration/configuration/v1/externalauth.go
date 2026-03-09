@@ -7,10 +7,14 @@ package v1
 //
 // ExternalAuth defines an external authentication policy for authenticating client requests using an external authentication server, which can be used for example with the oauth2-proxy or any custom authentication server that requires redirection for authentication.
 type ExternalAuthApplyConfiguration struct {
-	// AuthURL is the URL of the external authentication server to which the request will be sent for authentication. The URL can be an absolute URL, for example http://auth-server/auth, or a relative URL, for example /auth, in which case it will be resolved against the ingress controller's address.
-	AuthURL *string `json:"authURL,omitempty"`
-	// AuthSigninURL is the URL which requests will be redirected to if the external authentication server determines that the client needs to be authenticated. This is typically used when the external authentication server is an oauth2-proxy or any custom authentication server that requires redirection for authentication. The URL can be an absolute URL, for example http://auth-server/signin, or a relative URL, for example /signin, in which case it will be resolved against the ingress controller's address.
-	AuthSigninURL *string `json:"authSigninURL,omitempty"`
+	// AuthURI is the URI of the external authentication server to which the request will be sent for authentication. The URI is a relative URI, for example /auth.
+	AuthURI *string `json:"authURI,omitempty"`
+	// AuthServiceName is the name of the Kubernetes service to which the request will be sent for authentication.  It can be in the same namespace as the Policy resource or in a different namespace. If the service is in a different namespace, it should be specified in the format <namespace>/<service>. For example, auth-service or auth-namespace/auth-service.
+	AuthServiceName *string `json:"authServiceName,omitempty"`
+	// AuthServicePort is the port of the Kubernetes service to which the request will be sent for authentication. If not specified, the ports will be looked up from the service definition.
+	AuthServicePorts []int `json:"authServicePorts,omitempty"`
+	// AuthSigninURI is the URI which requests will be redirected to if the external authentication server determines that the client needs to be authenticated. This is typically used when the external authentication server is an oauth2-proxy or any custom authentication server that requires redirection for authentication. The URI is a relative URI, for example /signin.
+	AuthSigninURI *string `json:"authSigninURI,omitempty"`
 	// AuthSnippets can be used to add custom configuration snippets to the location block of the external authentication configuration. This can be used for example to add additional headers to the request sent to the external authentication server, or to configure additional parameters for the auth_request module. The content of this field will be added as-is to the location block, so it must be a valid NGINX configuration snippet.
 	AuthSnippets *string `json:"authSnippets,omitempty"`
 }
@@ -21,19 +25,37 @@ func ExternalAuth() *ExternalAuthApplyConfiguration {
 	return &ExternalAuthApplyConfiguration{}
 }
 
-// WithAuthURL sets the AuthURL field in the declarative configuration to the given value
+// WithAuthURI sets the AuthURI field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the AuthURL field is set to the value of the last call.
-func (b *ExternalAuthApplyConfiguration) WithAuthURL(value string) *ExternalAuthApplyConfiguration {
-	b.AuthURL = &value
+// If called multiple times, the AuthURI field is set to the value of the last call.
+func (b *ExternalAuthApplyConfiguration) WithAuthURI(value string) *ExternalAuthApplyConfiguration {
+	b.AuthURI = &value
 	return b
 }
 
-// WithAuthSigninURL sets the AuthSigninURL field in the declarative configuration to the given value
+// WithAuthServiceName sets the AuthServiceName field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the AuthSigninURL field is set to the value of the last call.
-func (b *ExternalAuthApplyConfiguration) WithAuthSigninURL(value string) *ExternalAuthApplyConfiguration {
-	b.AuthSigninURL = &value
+// If called multiple times, the AuthServiceName field is set to the value of the last call.
+func (b *ExternalAuthApplyConfiguration) WithAuthServiceName(value string) *ExternalAuthApplyConfiguration {
+	b.AuthServiceName = &value
+	return b
+}
+
+// WithAuthServicePorts adds the given value to the AuthServicePorts field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the AuthServicePorts field.
+func (b *ExternalAuthApplyConfiguration) WithAuthServicePorts(values ...int) *ExternalAuthApplyConfiguration {
+	for i := range values {
+		b.AuthServicePorts = append(b.AuthServicePorts, values[i])
+	}
+	return b
+}
+
+// WithAuthSigninURI sets the AuthSigninURI field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the AuthSigninURI field is set to the value of the last call.
+func (b *ExternalAuthApplyConfiguration) WithAuthSigninURI(value string) *ExternalAuthApplyConfiguration {
+	b.AuthSigninURI = &value
 	return b
 }
 

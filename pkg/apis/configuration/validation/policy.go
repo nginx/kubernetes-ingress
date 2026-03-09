@@ -1223,29 +1223,54 @@ func containsDangerousChars(value string) bool {
 func validateExternalAuth(externalAuth *v1.ExternalAuth, fieldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	// Validate AuthURL
-	allErrs = append(allErrs, validateAuthURL(externalAuth.AuthURL, fieldPath.Child("authURL"))...)
+	// Validate AuthURI
+	allErrs = append(allErrs, validateAuthURI(externalAuth.AuthURI, fieldPath.Child("authURI"))...)
 
-	// Validate AuthSigninURL
-	if externalAuth.AuthSigninURL != "" {
-		allErrs = append(allErrs, validateAuthURL(externalAuth.AuthSigninURL, fieldPath.Child("authSignInURL"))...)
+	// Validate AuthServiceName
+	parts := strings.Split(externalAuth.AuthServiceName, "/")
+	if len(parts) > 2 || len(parts) < 1 {
+		return field.ErrorList{field.Invalid(fieldPath, externalAuth.AuthServiceName, " service reference must be in the format service-name or namespace/service-name")}
+	}
+	ns := ""
+	if len(parts) == 2 {
+		ns = parts[0]
+	}
+	name := parts[len(parts)-1]
+	if ns != "" {
+		allErrs = append(allErrs, validateDNS1123Label(ns, fieldPath.Child("authServiceName").Child("namespace"))...)
+	}
+	allErrs = append(allErrs, validateServiceName(name, fieldPath.Child("authServiceName").Child("name"))...)
+
+	// Validate AuthServicePorts
+	allErrs = append(allErrs, validateServicePorts(externalAuth.AuthServicePorts, fieldPath.Child("authServicePorts"))...)
+
+	// Validate AuthSigninURI
+	if externalAuth.AuthSigninURI != "" {
+		allErrs = append(allErrs, validateAuthURI(externalAuth.AuthSigninURI, fieldPath.Child("authSigninURI"))...)
 	}
 
 	return allErrs
 }
 
-func validateAuthURL(authURL string, child *field.Path) field.ErrorList {
+// validateServicePorts validates the authServicePorts field to ensure it contains valid port numbers
+func validateServicePorts(ports []int, fieldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	if authURL == "" {
-		return append(allErrs, field.Required(child, "authURL is required"))
+	for i, port := range ports {
+		allErrs = append(allErrs, validatePortNumber(strconv.Itoa(port), fieldPath.Index(i))...)
+	}
+	return allErrs
+}
+
+// validateAuthURI validates that the authURI is a valid path and not empty
+func validateAuthURI(authURI string, child *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if authURI == "" {
+		return append(allErrs, field.Required(child, "authURI is required"))
 	}
 
-	if strings.HasPrefix(authURL, "http://") || strings.HasPrefix(authURL, "https://") {
-		allErrs = append(allErrs, validateURL(authURL, child)...)
-	} else {
-		allErrs = append(allErrs, validatePath(authURL, child)...)
-	}
+	allErrs = append(allErrs, validatePath(authURI, child)...)
 
 	return allErrs
 }

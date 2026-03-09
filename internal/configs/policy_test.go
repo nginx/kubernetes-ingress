@@ -1739,57 +1739,51 @@ func TestAddExternalAuthConfig(t *testing.T) {
 		msg         string
 	}{
 		{
-			name: "basic auth URL only",
+			name: "basic auth URI only",
 			extAuth: &conf_v1.ExternalAuth{
-				AuthURL: "http://auth-svc.default.svc.cluster.local:8080/auth",
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
 			},
 			expected: &version2.ExternalAuth{
 				URI: version2.AuthURI{
-					Scheme: "http",
-					Host:   "auth-svc.default.svc.cluster.local",
-					Port:   "8080",
-					Path:   "/auth",
+					Host: "auth-svc",
+					Path: "/auth",
 				},
 				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
 			},
-			msg: "basic external auth with URL only",
+			msg: "basic external auth with URI only",
 		},
 		{
-			name: "auth URL with signin URL",
+			name: "auth URI with signin URI",
 			extAuth: &conf_v1.ExternalAuth{
-				AuthURL:       "https://auth.example.com/verify",
-				AuthSigninURL: "https://auth.example.com/signin",
+				AuthURI:         "/verify",
+				AuthServiceName: "auth-svc",
+				AuthSigninURI:   "/signin",
 			},
 			expected: &version2.ExternalAuth{
 				URI: version2.AuthURI{
-					Scheme: "https",
-					Host:   "auth.example.com",
-					Port:   "",
-					Path:   "/verify",
+					Host: "auth-svc",
+					Path: "/verify",
 				},
 				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
 				SigninURL: version2.AuthURI{
-					Scheme: "https",
-					Host:   "auth.example.com",
-					Port:   "",
-					Path:   "/signin",
+					Path: "/signin",
 				},
 				SigninProxyURL: "/pol_exauth_signin_default_test_vs_default_ext_auth_policy",
 			},
-			msg: "external auth with signin URL",
+			msg: "external auth with signin URI",
 		},
 		{
-			name: "auth URL with snippets",
+			name: "auth URI with snippets",
 			extAuth: &conf_v1.ExternalAuth{
-				AuthURL:      "http://auth-svc:8080/check",
-				AuthSnippets: "proxy_set_header X-Forwarded-Host $host;",
+				AuthURI:         "/check",
+				AuthServiceName: "auth-svc",
+				AuthSnippets:    "proxy_set_header X-Forwarded-Host $host;",
 			},
 			expected: &version2.ExternalAuth{
 				URI: version2.AuthURI{
-					Scheme: "http",
-					Host:   "auth-svc",
-					Port:   "8080",
-					Path:   "/check",
+					Host: "auth-svc",
+					Path: "/check",
 				},
 				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
 				Snippets: "proxy_set_header X-Forwarded-Host $host;",
@@ -1799,74 +1793,67 @@ func TestAddExternalAuthConfig(t *testing.T) {
 		{
 			name: "full external auth config",
 			extAuth: &conf_v1.ExternalAuth{
-				AuthURL:       "https://oauth2-proxy.default.svc.cluster.local:4180/oauth2/auth",
-				AuthSigninURL: "https://oauth2-proxy.default.svc.cluster.local:4180/oauth2/start",
-				AuthSnippets:  "proxy_set_header X-Auth-Request-Redirect $request_uri;",
+				AuthURI:         "/oauth2/auth",
+				AuthServiceName: "oauth2-proxy",
+				AuthSigninURI:   "/oauth2/start",
+				AuthSnippets:    "proxy_set_header X-Auth-Request-Redirect $request_uri;",
 			},
 			expected: &version2.ExternalAuth{
 				URI: version2.AuthURI{
-					Scheme: "https",
-					Host:   "oauth2-proxy.default.svc.cluster.local",
-					Port:   "4180",
-					Path:   "/oauth2/auth",
+					Host: "oauth2-proxy",
+					Path: "/oauth2/auth",
 				},
 				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
 				SigninURL: version2.AuthURI{
-					Scheme: "https",
-					Host:   "oauth2-proxy.default.svc.cluster.local",
-					Port:   "4180",
-					Path:   "/oauth2/start",
+					Path: "/oauth2/start",
 				},
 				SigninProxyURL: "/pol_exauth_signin_default_test_vs_default_ext_auth_policy",
 				Snippets:       "proxy_set_header X-Auth-Request-Redirect $request_uri;",
 			},
-			msg: "full external auth with URL, signin URL, and snippets",
+			msg: "full external auth with URI, signin URI, and snippets",
 		},
 		{
-			name: "auth URL without port",
+			name: "auth URI with service name containing namespace",
 			extAuth: &conf_v1.ExternalAuth{
-				AuthURL: "https://auth.example.com/validate",
+				AuthURI:         "/validate",
+				AuthServiceName: "auth-ns/auth-svc",
 			},
 			expected: &version2.ExternalAuth{
 				URI: version2.AuthURI{
-					Scheme: "https",
-					Host:   "auth.example.com",
-					Port:   "",
-					Path:   "/validate",
+					Host: "auth-ns/auth-svc",
+					Path: "/validate",
 				},
 				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
 			},
-			msg: "external auth URL without explicit port",
+			msg: "external auth with namespaced service name",
 		},
 		{
-			name: "empty signin URL is not set",
+			name: "empty signin URI is not set",
 			extAuth: &conf_v1.ExternalAuth{
-				AuthURL:       "http://auth-svc:8080/auth",
-				AuthSigninURL: "",
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+				AuthSigninURI:   "",
 			},
 			expected: &version2.ExternalAuth{
 				URI: version2.AuthURI{
-					Scheme: "http",
-					Host:   "auth-svc",
-					Port:   "8080",
-					Path:   "/auth",
+					Host: "auth-svc",
+					Path: "/auth",
 				},
 				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
 			},
-			msg: "empty signin URL should not be set",
+			msg: "empty signin URI should not be set",
 		},
 		{
 			name: "empty snippets are not set",
 			extAuth: &conf_v1.ExternalAuth{
-				AuthURL:      "http://auth-svc:8080/auth",
-				AuthSnippets: "",
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+				AuthSnippets:    "",
 			},
 			expected: &version2.ExternalAuth{
 				URI: version2.AuthURI{
-					Scheme: "http",
-					Host:   "auth-svc",
-					Port:   "8080",
-					Path:   "/auth",
+					Host: "auth-svc",
+					Path: "/auth",
 				},
 				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
 			},
@@ -1875,18 +1862,68 @@ func TestAddExternalAuthConfig(t *testing.T) {
 		{
 			name: "duplicate external auth produces warning",
 			extAuth: &conf_v1.ExternalAuth{
-				AuthURL: "http://auth-svc:8080/auth",
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
 			},
 			expected: &version2.ExternalAuth{
 				URI: version2.AuthURI{
-					Scheme: "http",
-					Host:   "first-auth-svc",
-					Port:   "9090",
-					Path:   "/first",
+					Host: "first-auth-svc",
+					Path: "/first",
 				},
 			},
 			wantWarning: true,
 			msg:         "duplicate external auth policy should produce warning and be ignored",
+		},
+		{
+			name: "auth with single AuthServicePort",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURI:          "/check",
+				AuthServiceName:  "auth-svc",
+				AuthServicePorts: []int{9000},
+			},
+			expected: &version2.ExternalAuth{
+				URI: version2.AuthURI{
+					Host: "auth-svc",
+					Path: "/check",
+				},
+				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
+				Ports:    []int{9000},
+			},
+			msg: "external auth with single AuthServicePort",
+		},
+		{
+			name: "auth with multiple AuthServicePorts",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURI:          "/check",
+				AuthServiceName:  "auth-svc",
+				AuthServicePorts: []int{80, 9000},
+			},
+			expected: &version2.ExternalAuth{
+				URI: version2.AuthURI{
+					Host: "auth-svc",
+					Path: "/check",
+				},
+				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
+				Ports:    []int{80, 9000},
+			},
+			msg: "external auth with multiple AuthServicePorts",
+		},
+		{
+			name: "auth with empty AuthServicePorts",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURI:          "/check",
+				AuthServiceName:  "auth-svc",
+				AuthServicePorts: []int{},
+			},
+			expected: &version2.ExternalAuth{
+				URI: version2.AuthURI{
+					Host: "auth-svc",
+					Path: "/check",
+				},
+				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
+				Ports:    []int{},
+			},
+			msg: "external auth with empty AuthServicePorts should still be set",
 		},
 	}
 
@@ -1909,10 +1946,8 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			if test.wantWarning {
 				config.ExternalAuth = &version2.ExternalAuth{
 					URI: version2.AuthURI{
-						Scheme: "http",
-						Host:   "first-auth-svc",
-						Port:   "9090",
-						Path:   "/first",
+						Host: "first-auth-svc",
+						Path: "/first",
 					},
 				}
 			}
@@ -1967,7 +2002,8 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				"default/ext-auth-policy": {
 					Spec: conf_v1.PolicySpec{
 						ExternalAuth: &conf_v1.ExternalAuth{
-							AuthURL: "http://auth-svc.default.svc.cluster.local:8080/auth",
+							AuthURI:         "/auth",
+							AuthServiceName: "auth-svc",
 						},
 					},
 				},
@@ -1977,14 +2013,12 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				ExternalAuth: &version2.ExternalAuth{
 					ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
 					URI: version2.AuthURI{
-						Scheme: "http",
-						Host:   "auth-svc.default.svc.cluster.local",
-						Port:   "8080",
-						Path:   "/auth",
+						Host: "auth-svc",
+						Path: "/auth",
 					},
 				},
 			},
-			msg: "VirtualServer with basic external auth URL",
+			msg: "VirtualServer with basic external auth URI",
 		},
 		{
 			name: "VirtualServer with full external auth policy",
@@ -2003,9 +2037,10 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				"default/full-ext-auth": {
 					Spec: conf_v1.PolicySpec{
 						ExternalAuth: &conf_v1.ExternalAuth{
-							AuthURL:       "https://oauth2-proxy.default.svc.cluster.local:4180/oauth2/auth",
-							AuthSigninURL: "https://oauth2-proxy.default.svc.cluster.local:4180/oauth2/start",
-							AuthSnippets:  "proxy_set_header X-Auth-Request-Redirect $request_uri;",
+							AuthURI:         "/oauth2/auth",
+							AuthServiceName: "oauth2-proxy",
+							AuthSigninURI:   "/oauth2/start",
+							AuthSnippets:    "proxy_set_header X-Auth-Request-Redirect $request_uri;",
 						},
 					},
 				},
@@ -2015,22 +2050,17 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				ExternalAuth: &version2.ExternalAuth{
 					ProxyURL: "/pol_exauth_default_test_vs_default_full_ext_auth",
 					URI: version2.AuthURI{
-						Scheme: "https",
-						Host:   "oauth2-proxy.default.svc.cluster.local",
-						Port:   "4180",
-						Path:   "/oauth2/auth",
+						Host: "oauth2-proxy",
+						Path: "/oauth2/auth",
 					},
 					SigninURL: version2.AuthURI{
-						Scheme: "https",
-						Host:   "oauth2-proxy.default.svc.cluster.local",
-						Port:   "4180",
-						Path:   "/oauth2/start",
+						Path: "/oauth2/start",
 					},
 					SigninProxyURL: "/pol_exauth_signin_default_test_vs_default_full_ext_auth",
 					Snippets:       "proxy_set_header X-Auth-Request-Redirect $request_uri;",
 				},
 			},
-			msg: "VirtualServer with full external auth including signin URL and snippets",
+			msg: "VirtualServer with full external auth including signin URI and snippets",
 		},
 		{
 			name: "VirtualServer with HTTPS external auth",
@@ -2049,7 +2079,8 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				"default/https-ext-auth": {
 					Spec: conf_v1.PolicySpec{
 						ExternalAuth: &conf_v1.ExternalAuth{
-							AuthURL: "https://auth.example.com/validate",
+							AuthURI:         "/validate",
+							AuthServiceName: "auth-svc",
 						},
 					},
 				},
@@ -2059,14 +2090,12 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				ExternalAuth: &version2.ExternalAuth{
 					ProxyURL: "/pol_exauth_default_test_vs_default_https_ext_auth",
 					URI: version2.AuthURI{
-						Scheme: "https",
-						Host:   "auth.example.com",
-						Port:   "",
-						Path:   "/validate",
+						Host: "auth-svc",
+						Path: "/validate",
 					},
 				},
 			},
-			msg: "VirtualServer with HTTPS external auth URL without port",
+			msg: "VirtualServer with external auth URI",
 		},
 		{
 			name: "VirtualServerRoute with external auth policy",
@@ -2085,8 +2114,9 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				"app-namespace/vsr-ext-auth": {
 					Spec: conf_v1.PolicySpec{
 						ExternalAuth: &conf_v1.ExternalAuth{
-							AuthURL:       "http://auth-svc.app-namespace.svc.cluster.local:8080/verify",
-							AuthSigninURL: "http://auth-svc.app-namespace.svc.cluster.local:8080/login",
+							AuthURI:         "/verify",
+							AuthServiceName: "auth-svc",
+							AuthSigninURI:   "/login",
 						},
 					},
 				},
@@ -2096,21 +2126,16 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				ExternalAuth: &version2.ExternalAuth{
 					ProxyURL: "/pol_exauth_app_namespace_test_vsr_app_namespace_vsr_ext_auth",
 					URI: version2.AuthURI{
-						Scheme: "http",
-						Host:   "auth-svc.app-namespace.svc.cluster.local",
-						Port:   "8080",
-						Path:   "/verify",
+						Host: "auth-svc",
+						Path: "/verify",
 					},
 					SigninURL: version2.AuthURI{
-						Scheme: "http",
-						Host:   "auth-svc.app-namespace.svc.cluster.local",
-						Port:   "8080",
-						Path:   "/login",
+						Path: "/login",
 					},
 					SigninProxyURL: "/pol_exauth_signin_app_namespace_test_vsr_app_namespace_vsr_ext_auth",
 				},
 			},
-			msg: "VirtualServerRoute with external auth policy including signin URL",
+			msg: "VirtualServerRoute with external auth policy including signin URI",
 		},
 		{
 			name: "VirtualServerRoute with cross-namespace external auth policy",
@@ -2129,8 +2154,9 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				"shared-policies/shared-ext-auth": {
 					Spec: conf_v1.PolicySpec{
 						ExternalAuth: &conf_v1.ExternalAuth{
-							AuthURL:      "https://central-auth.shared-policies.svc.cluster.local:443/auth",
-							AuthSnippets: "proxy_set_header X-Original-URI $request_uri;\nproxy_set_header X-Forwarded-Host $host;",
+							AuthURI:         "/auth",
+							AuthServiceName: "central-auth",
+							AuthSnippets:    "proxy_set_header X-Original-URI $request_uri;\nproxy_set_header X-Forwarded-Host $host;",
 						},
 					},
 				},
@@ -2140,10 +2166,8 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				ExternalAuth: &version2.ExternalAuth{
 					ProxyURL: "/pol_exauth_app_namespace_test_vsr_shared_policies_shared_ext_auth",
 					URI: version2.AuthURI{
-						Scheme: "https",
-						Host:   "central-auth.shared-policies.svc.cluster.local",
-						Port:   "443",
-						Path:   "/auth",
+						Host: "central-auth",
+						Path: "/auth",
 					},
 					Snippets: "proxy_set_header X-Original-URI $request_uri;\nproxy_set_header X-Forwarded-Host $host;",
 				},

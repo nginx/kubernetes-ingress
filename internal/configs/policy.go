@@ -270,41 +270,25 @@ func (p *policiesCfg) addExternalAuthConfig(
 	res := newValidationResults()
 	if p.ExternalAuth != nil {
 		res.addWarningf("Multiple external auth policies in the same context is not valid. External auth policy %s will be ignored", polNamespace+"/"+polName)
-	} else {
-		uri, err := url.Parse(externalAuth.AuthURL)
-		if err != nil {
-			res.addWarningf("Invalid external auth URL %s: %v", externalAuth.AuthURL, err)
-			res.isError = true
-			return res
+		return res
+	}
+
+	p.ExternalAuth = &version2.ExternalAuth{
+		URI: version2.AuthURI{
+			Host: externalAuth.AuthServiceName,
+			Path: externalAuth.AuthURI,
+		},
+		ProxyURL: rfc1123ToSnake(fmt.Sprintf("/pol_exauth_%v_%v_%v_%v", ownerDetails.ownerNamespace, ownerDetails.ownerName, polNamespace, polName)),
+		Ports:    externalAuth.AuthServicePorts,
+	}
+	if externalAuth.AuthSigninURI != "" {
+		p.ExternalAuth.SigninURL = version2.AuthURI{
+			Path: externalAuth.AuthSigninURI,
 		}
-		p.ExternalAuth = &version2.ExternalAuth{
-			URI: version2.AuthURI{
-				Scheme: uri.Scheme,
-				Host:   uri.Hostname(),
-				Port:   uri.Port(),
-				Path:   uri.Path,
-			},
-			ProxyURL: rfc1123ToSnake(fmt.Sprintf("/pol_exauth_%v_%v_%v_%v", ownerDetails.ownerNamespace, ownerDetails.ownerName, polNamespace, polName)),
-		}
-		if externalAuth.AuthSigninURL != "" {
-			signinURI, err := url.Parse(externalAuth.AuthSigninURL)
-			if err != nil {
-				res.addWarningf("Invalid external auth signin URL %s: %v", externalAuth.AuthSigninURL, err)
-				res.isError = true
-				return res
-			}
-			p.ExternalAuth.SigninURL = version2.AuthURI{
-				Scheme: signinURI.Scheme,
-				Host:   signinURI.Hostname(),
-				Port:   signinURI.Port(),
-				Path:   signinURI.Path,
-				Query:  signinURI.RawQuery,
-			}
-			p.ExternalAuth.SigninProxyURL = rfc1123ToSnake(fmt.Sprintf("/pol_exauth_signin_%v_%v_%v_%v", ownerDetails.ownerNamespace, ownerDetails.ownerName, polNamespace, polName))
-		}
-		if externalAuth.AuthSnippets != "" {
-			p.ExternalAuth.Snippets = externalAuth.AuthSnippets
-		}
+		p.ExternalAuth.SigninProxyURL = rfc1123ToSnake(fmt.Sprintf("/pol_exauth_signin_%v_%v_%v_%v", ownerDetails.ownerNamespace, ownerDetails.ownerName, polNamespace, polName))
+	}
+	if externalAuth.AuthSnippets != "" {
+		p.ExternalAuth.Snippets = externalAuth.AuthSnippets
 	}
 
 	return res

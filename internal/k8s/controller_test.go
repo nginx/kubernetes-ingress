@@ -26,6 +26,7 @@ import (
 	api_v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
@@ -3727,7 +3728,6 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 	t.Parallel()
 
 	endpointPort80 := int32(8080)
-	endpointPort443 := int32(8443)
 	endpointPort9000 := int32(9000)
 	endpointReady := true
 
@@ -3752,8 +3752,12 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			endpointSliceLister: storeToEndpointSliceLister{Store: esStore},
 			podLister:           indexerToPodLister{Indexer: cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})},
 		}
+		objs := make([]runtime.Object, 0, len(svcs))
+		for _, svc := range svcs {
+			objs = append(objs, svc)
+		}
 		return &LoadBalancerController{
-			client:              fake.NewClientset(),
+			client:              fake.NewClientset(objs...),
 			isNginxPlus:         false,
 			Logger:              nl.LoggerFromContext(context.Background()),
 			metricsCollector:    collectors.NewControllerFakeCollector(),
@@ -3773,8 +3777,6 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 		Spec: api_v1.ServiceSpec{
 			Ports: []api_v1.ServicePort{
 				{Name: "http", Port: 80, TargetPort: intstr.FromInt(8080)},
-				{Name: "https", Port: 443, TargetPort: intstr.FromInt(8443)},
-				{Name: "custom", Port: 9000, TargetPort: intstr.FromInt(9000)},
 			},
 			Selector: map[string]string{"app": "auth"},
 		},
@@ -3792,25 +3794,36 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 		},
 	}
 
-	authES443 := &discovery_v1.EndpointSlice{
-		ObjectMeta: meta_v1.ObjectMeta{
-			Name: "auth-svc-https", Namespace: "default",
-			Labels: map[string]string{discovery_v1.LabelServiceName: "auth-svc"},
-		},
-		Ports: []discovery_v1.EndpointPort{{Port: &endpointPort443}},
-		Endpoints: []discovery_v1.Endpoint{
-			{Addresses: []string{"10.0.0.3"}, Conditions: discovery_v1.EndpointConditions{Ready: &endpointReady}},
+	multiPortSvc := &api_v1.Service{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "multi-port-svc", Namespace: "default"},
+		Spec: api_v1.ServiceSpec{
+			Ports: []api_v1.ServicePort{
+				{Name: "http", Port: 80, TargetPort: intstr.FromInt(8080)},
+				{Name: "custom", Port: 9000, TargetPort: intstr.FromInt(9000)},
+			},
+			Selector: map[string]string{"app": "multi"},
 		},
 	}
 
-	authES9000 := &discovery_v1.EndpointSlice{
+	multiPortES80 := &discovery_v1.EndpointSlice{
 		ObjectMeta: meta_v1.ObjectMeta{
-			Name: "auth-svc-custom", Namespace: "default",
-			Labels: map[string]string{discovery_v1.LabelServiceName: "auth-svc"},
+			Name: "multi-port-svc-http", Namespace: "default",
+			Labels: map[string]string{discovery_v1.LabelServiceName: "multi-port-svc"},
+		},
+		Ports: []discovery_v1.EndpointPort{{Port: &endpointPort80}},
+		Endpoints: []discovery_v1.Endpoint{
+			{Addresses: []string{"10.0.0.10"}, Conditions: discovery_v1.EndpointConditions{Ready: &endpointReady}},
+		},
+	}
+
+	multiPortES9000 := &discovery_v1.EndpointSlice{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name: "multi-port-svc-custom", Namespace: "default",
+			Labels: map[string]string{discovery_v1.LabelServiceName: "multi-port-svc"},
 		},
 		Ports: []discovery_v1.EndpointPort{{Port: &endpointPort9000}},
 		Endpoints: []discovery_v1.Endpoint{
-			{Addresses: []string{"10.0.0.5"}, Conditions: discovery_v1.EndpointConditions{Ready: &endpointReady}},
+			{Addresses: []string{"10.0.0.11"}, Conditions: discovery_v1.EndpointConditions{Ready: &endpointReady}},
 		},
 	}
 
@@ -3846,31 +3859,19 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			expectedEndpoints: map[string][]string{},
 		},
 		{
-			name:     "policy with empty AuthURL is skipped",
+			name:     "policy with empty AuthServiceName is skipped",
 			setupLBC: func(t *testing.T) *LoadBalancerController { return buildLBC(t, "default", nil, nil) },
 			vsEx:     defaultVSEx,
 			policies: []*conf_v1.Policy{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "p1", Namespace: "default"},
-					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: ""}},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/check", AuthServiceName: ""}},
 				},
 			},
 			expectedEndpoints: map[string][]string{},
 		},
 		{
-			name:     "invalid URL is skipped",
-			setupLBC: func(t *testing.T) *LoadBalancerController { return buildLBC(t, "default", nil, nil) },
-			vsEx:     defaultVSEx,
-			policies: []*conf_v1.Policy{
-				{
-					ObjectMeta: meta_v1.ObjectMeta{Name: "p1", Namespace: "default"},
-					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "://invalid-url"}},
-				},
-			},
-			expectedEndpoints: map[string][]string{},
-		},
-		{
-			name: "http URL without port defaults to port 80",
+			name: "AuthServiceName resolves service endpoints",
 			setupLBC: func(t *testing.T) *LoadBalancerController {
 				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES80})
 			},
@@ -3878,7 +3879,7 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			policies: []*conf_v1.Policy{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
-					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "http://auth-svc/check"}},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/check", AuthServiceName: "auth-svc"}},
 				},
 			},
 			expectedEndpoints: map[string][]string{
@@ -3886,57 +3887,30 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			},
 		},
 		{
-			name: "https URL without port defaults to port 443",
+			name: "multi-port service resolves endpoints for all ports",
 			setupLBC: func(t *testing.T) *LoadBalancerController {
-				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES443})
+				return buildLBC(t, "default", []*api_v1.Service{multiPortSvc}, []*discovery_v1.EndpointSlice{multiPortES80, multiPortES9000})
 			},
 			vsEx: defaultVSEx,
 			policies: []*conf_v1.Policy{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
-					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "https://auth-svc/secure-check"}},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/check", AuthServiceName: "multi-port-svc"}},
 				},
 			},
 			expectedEndpoints: map[string][]string{
-				"default/auth-svc:443": {"10.0.0.3:8443"},
+				"default/multi-port-svc:80":   {"10.0.0.10:8080"},
+				"default/multi-port-svc:9000": {"10.0.0.11:9000"},
 			},
 		},
 		{
-			name: "URL with explicit port uses that port",
-			setupLBC: func(t *testing.T) *LoadBalancerController {
-				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES9000})
-			},
-			vsEx: defaultVSEx,
-			policies: []*conf_v1.Policy{
-				{
-					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
-					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "http://auth-svc:9000/verify"}},
-				},
-			},
-			expectedEndpoints: map[string][]string{
-				"default/auth-svc:9000": {"10.0.0.5:9000"},
-			},
-		},
-		{
-			name:     "unknown scheme without port defaults to port 0",
-			setupLBC: func(t *testing.T) *LoadBalancerController { return buildLBC(t, "default", nil, nil) },
-			vsEx:     defaultVSEx,
-			policies: []*conf_v1.Policy{
-				{
-					ObjectMeta: meta_v1.ObjectMeta{Name: "p1", Namespace: "default"},
-					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "ftp://auth-svc/data"}},
-				},
-			},
-			expectedEndpoints: map[string][]string{},
-		},
-		{
-			name:     "getEndpointsForUpstream error is handled gracefully",
+			name:     "service not found is handled gracefully",
 			setupLBC: func(t *testing.T) *LoadBalancerController { return buildLBC(t, "default", nil, nil) },
 			vsEx:     defaultVSEx,
 			policies: []*conf_v1.Policy{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
-					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "http://nonexistent-svc/auth"}},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/auth", AuthServiceName: "nonexistent-svc"}},
 				},
 			},
 			expectedEndpoints: map[string][]string{},
@@ -3951,15 +3925,11 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 				{ObjectMeta: meta_v1.ObjectMeta{Name: "p-nil", Namespace: "default"}, Spec: conf_v1.PolicySpec{}},
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "p-empty", Namespace: "default"},
-					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: ""}},
-				},
-				{
-					ObjectMeta: meta_v1.ObjectMeta{Name: "p-invalid", Namespace: "default"},
-					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "://bad"}},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/check", AuthServiceName: ""}},
 				},
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "p-valid", Namespace: "default"},
-					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "http://auth-svc/check"}},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/check", AuthServiceName: "auth-svc"}},
 				},
 			},
 			expectedEndpoints: map[string][]string{
@@ -3967,7 +3937,7 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			},
 		},
 		{
-			name: "duplicate policies with same AuthURL produce single endpoint key",
+			name: "duplicate policies with same AuthServiceName produce single endpoint set",
 			setupLBC: func(t *testing.T) *LoadBalancerController {
 				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES80})
 			},
@@ -3975,11 +3945,11 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			policies: []*conf_v1.Policy{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-1", Namespace: "default"},
-					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "http://auth-svc/check"}},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/check", AuthServiceName: "auth-svc"}},
 				},
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-2", Namespace: "default"},
-					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "http://auth-svc/check"}},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/verify", AuthServiceName: "auth-svc"}},
 				},
 			},
 			expectedEndpoints: map[string][]string{
@@ -3995,7 +3965,7 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			policies: []*conf_v1.Policy{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
-					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "http://auth-svc/check"}},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/check", AuthServiceName: "auth-svc"}},
 				},
 			},
 			initialEndpoints: map[string][]string{
@@ -4007,7 +3977,7 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			},
 		},
 		{
-			name: "endpoint key uses VirtualServer namespace",
+			name: "endpoint key uses VirtualServer namespace for ParseServiceReference",
 			setupLBC: func(t *testing.T) *LoadBalancerController {
 				svc := &api_v1.Service{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-svc", Namespace: "custom-ns"},
@@ -4036,7 +4006,7 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			policies: []*conf_v1.Policy{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "custom-ns"},
-					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "http://auth-svc/check"}},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/check", AuthServiceName: "auth-svc"}},
 				},
 			},
 			expectedEndpoints: map[string][]string{
@@ -4044,19 +4014,7 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			},
 		},
 		{
-			name:     "port out of uint16 range falls back to 0",
-			setupLBC: func(t *testing.T) *LoadBalancerController { return buildLBC(t, "default", nil, nil) },
-			vsEx:     defaultVSEx,
-			policies: []*conf_v1.Policy{
-				{
-					ObjectMeta: meta_v1.ObjectMeta{Name: "p1", Namespace: "default"},
-					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "http://auth-svc:99999/check"}},
-				},
-			},
-			expectedEndpoints: map[string][]string{},
-		},
-		{
-			name: "two policies with different services produce two endpoint keys",
+			name: "two policies with different services produce separate endpoint keys",
 			setupLBC: func(t *testing.T) *LoadBalancerController {
 				svcA := &api_v1.Service{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-a", Namespace: "default"},
@@ -4098,11 +4056,11 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			policies: []*conf_v1.Policy{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-a-pol", Namespace: "default"},
-					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "http://auth-a/check"}},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/check", AuthServiceName: "auth-a"}},
 				},
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-b-pol", Namespace: "default"},
-					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "http://auth-b/check"}},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/check", AuthServiceName: "auth-b"}},
 				},
 			},
 			expectedEndpoints: map[string][]string{
@@ -4111,7 +4069,7 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			},
 		},
 		{
-			name: "valid policy followed by error policy still adds valid entry",
+			name: "valid policy followed by error policy still adds valid entries",
 			setupLBC: func(t *testing.T) *LoadBalancerController {
 				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES80})
 			},
@@ -4119,11 +4077,11 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			policies: []*conf_v1.Policy{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "good", Namespace: "default"},
-					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "http://auth-svc/check"}},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/check", AuthServiceName: "auth-svc"}},
 				},
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "bad", Namespace: "default"},
-					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "http://nonexistent-svc/auth"}},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/auth", AuthServiceName: "nonexistent-svc"}},
 				},
 			},
 			expectedEndpoints: map[string][]string{
@@ -4131,60 +4089,48 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			},
 		},
 		{
-			name: "URL with path and query string still extracts correct hostname and port",
+			name: "AuthServicePorts uses policy-specified port instead of service ports",
 			setupLBC: func(t *testing.T) *LoadBalancerController {
-				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES9000})
-			},
-			vsEx: defaultVSEx,
-			policies: []*conf_v1.Policy{
-				{
-					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
-					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURL: "http://auth-svc:9000/api/v1/auth?redirect=true&scope=openid"}},
-				},
-			},
-			expectedEndpoints: map[string][]string{
-				"default/auth-svc:9000": {"10.0.0.5:9000"},
-			},
-		},
-		{
-			name: "policy with AuthSigninURL generates signin endpoint",
-			setupLBC: func(t *testing.T) *LoadBalancerController {
-				signinSvc := &api_v1.Service{
-					ObjectMeta: meta_v1.ObjectMeta{Name: "oauth2-proxy", Namespace: "default"},
-					Spec: api_v1.ServiceSpec{
-						Ports:    []api_v1.ServicePort{{Name: "http", Port: 4180, TargetPort: intstr.FromInt(4180)}},
-						Selector: map[string]string{"app": "oauth2-proxy"},
-					},
-				}
-				signinES := &discovery_v1.EndpointSlice{
-					ObjectMeta: meta_v1.ObjectMeta{
-						Name: "oauth2-proxy-es", Namespace: "default",
-						Labels: map[string]string{discovery_v1.LabelServiceName: "oauth2-proxy"},
-					},
-					Ports: []discovery_v1.EndpointPort{{Port: func() *int32 { p := int32(4180); return &p }()}},
-					Endpoints: []discovery_v1.Endpoint{
-						{Addresses: []string{"10.0.1.1"}, Conditions: discovery_v1.EndpointConditions{Ready: &endpointReady}},
-					},
-				}
-				return buildLBC(t, "default", []*api_v1.Service{authSvc, signinSvc}, []*discovery_v1.EndpointSlice{authES80, signinES})
+				return buildLBC(t, "default", []*api_v1.Service{multiPortSvc}, []*discovery_v1.EndpointSlice{multiPortES80, multiPortES9000})
 			},
 			vsEx: defaultVSEx,
 			policies: []*conf_v1.Policy{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
 					Spec: conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{
-						AuthURL:       "http://auth-svc/check",
-						AuthSigninURL: "http://oauth2-proxy:4180/oauth2/start",
+						AuthURI:          "/check",
+						AuthServiceName:  "multi-port-svc",
+						AuthServicePorts: []int{9000},
 					}},
 				},
 			},
 			expectedEndpoints: map[string][]string{
-				"default/auth-svc:80":       {"10.0.0.1:8080", "10.0.0.2:8080"},
-				"default/oauth2-proxy:4180": {"10.0.1.1:4180"},
+				"default/multi-port-svc:9000": {"10.0.0.11:9000"},
 			},
 		},
 		{
-			name: "policy with AuthSigninURL on same service as AuthURL",
+			name: "AuthServicePorts with multiple ports resolves each specified port",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				return buildLBC(t, "default", []*api_v1.Service{multiPortSvc}, []*discovery_v1.EndpointSlice{multiPortES80, multiPortES9000})
+			},
+			vsEx: defaultVSEx,
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{
+						AuthURI:          "/check",
+						AuthServiceName:  "multi-port-svc",
+						AuthServicePorts: []int{80, 9000},
+					}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/multi-port-svc:80":   {"10.0.0.10:8080"},
+				"default/multi-port-svc:9000": {"10.0.0.11:9000"},
+			},
+		},
+		{
+			name: "AuthServicePorts with single port on single-port service",
 			setupLBC: func(t *testing.T) *LoadBalancerController {
 				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES80})
 			},
@@ -4193,8 +4139,9 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
 					Spec: conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{
-						AuthURL:       "http://auth-svc/check",
-						AuthSigninURL: "http://auth-svc/signin",
+						AuthURI:          "/check",
+						AuthServiceName:  "auth-svc",
+						AuthServicePorts: []int{80},
 					}},
 				},
 			},
@@ -4203,7 +4150,7 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			},
 		},
 		{
-			name: "policy with relative AuthSigninURL is skipped for signin endpoints",
+			name: "AuthServicePorts with nonexistent port is handled gracefully",
 			setupLBC: func(t *testing.T) *LoadBalancerController {
 				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES80})
 			},
@@ -4212,68 +4159,58 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
 					Spec: conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{
-						AuthURL:       "http://auth-svc/check",
-						AuthSigninURL: "/oauth2/signin?rd=$scheme://$host$request_uri",
+						AuthURI:          "/check",
+						AuthServiceName:  "auth-svc",
+						AuthServicePorts: []int{9999},
 					}},
 				},
 			},
+			expectedEndpoints: map[string][]string{},
+		},
+		{
+			name: "AuthServicePorts mixed with policy without AuthServicePorts",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				return buildLBC(t, "default", []*api_v1.Service{authSvc, multiPortSvc}, []*discovery_v1.EndpointSlice{authES80, multiPortES80, multiPortES9000})
+			},
+			vsEx: defaultVSEx,
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "policy-with-ports", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{
+						AuthURI:          "/check",
+						AuthServiceName:  "multi-port-svc",
+						AuthServicePorts: []int{9000},
+					}},
+				},
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "policy-without-ports", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/check", AuthServiceName: "auth-svc"}},
+				},
+			},
 			expectedEndpoints: map[string][]string{
-				"default/auth-svc:80": {"10.0.0.1:8080", "10.0.0.2:8080"},
+				"default/multi-port-svc:9000": {"10.0.0.11:9000"},
+				"default/auth-svc:80":         {"10.0.0.1:8080", "10.0.0.2:8080"},
 			},
 		},
 		{
-			name: "policy with only AuthSigninURL and no AuthURL generates only signin endpoint",
+			name: "empty AuthServicePorts slice falls back to service ports",
 			setupLBC: func(t *testing.T) *LoadBalancerController {
-				signinSvc := &api_v1.Service{
-					ObjectMeta: meta_v1.ObjectMeta{Name: "oauth2-proxy", Namespace: "default"},
-					Spec: api_v1.ServiceSpec{
-						Ports:    []api_v1.ServicePort{{Name: "http", Port: 4180, TargetPort: intstr.FromInt(4180)}},
-						Selector: map[string]string{"app": "oauth2-proxy"},
-					},
-				}
-				signinES := &discovery_v1.EndpointSlice{
-					ObjectMeta: meta_v1.ObjectMeta{
-						Name: "oauth2-proxy-es", Namespace: "default",
-						Labels: map[string]string{discovery_v1.LabelServiceName: "oauth2-proxy"},
-					},
-					Ports: []discovery_v1.EndpointPort{{Port: func() *int32 { p := int32(4180); return &p }()}},
-					Endpoints: []discovery_v1.Endpoint{
-						{Addresses: []string{"10.0.1.1"}, Conditions: discovery_v1.EndpointConditions{Ready: &endpointReady}},
-					},
-				}
-				return buildLBC(t, "default", []*api_v1.Service{signinSvc}, []*discovery_v1.EndpointSlice{signinES})
+				return buildLBC(t, "default", []*api_v1.Service{multiPortSvc}, []*discovery_v1.EndpointSlice{multiPortES80, multiPortES9000})
 			},
 			vsEx: defaultVSEx,
 			policies: []*conf_v1.Policy{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
 					Spec: conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{
-						AuthSigninURL: "http://oauth2-proxy:4180/oauth2/start",
+						AuthURI:          "/check",
+						AuthServiceName:  "multi-port-svc",
+						AuthServicePorts: []int{},
 					}},
 				},
 			},
 			expectedEndpoints: map[string][]string{
-				"default/oauth2-proxy:4180": {"10.0.1.1:4180"},
-			},
-		},
-		{
-			name: "https AuthSigninURL without port defaults to 443",
-			setupLBC: func(t *testing.T) *LoadBalancerController {
-				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES80, authES443})
-			},
-			vsEx: defaultVSEx,
-			policies: []*conf_v1.Policy{
-				{
-					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
-					Spec: conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{
-						AuthURL:       "http://auth-svc/check",
-						AuthSigninURL: "https://auth-svc/signin",
-					}},
-				},
-			},
-			expectedEndpoints: map[string][]string{
-				"default/auth-svc:80":  {"10.0.0.1:8080", "10.0.0.2:8080"},
-				"default/auth-svc:443": {"10.0.0.3:8443"},
+				"default/multi-port-svc:80":   {"10.0.0.10:8080"},
+				"default/multi-port-svc:9000": {"10.0.0.11:9000"},
 			},
 		},
 	}

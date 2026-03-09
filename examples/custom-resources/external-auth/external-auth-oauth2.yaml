@@ -4,5 +4,6 @@ metadata:
   name: external-auth-oauth2-policy
 spec:
   externalAuth:
-    authURL: "http://oauth2-proxy-svc/auth"
-    authSigninURL: "/oauth2/signin?rd=$scheme://$host$request_uri"
+    authURI: "/auth"
+    authServiceName: "default/oauth2-proxy-svc"
+    authSigninURI: "/oauth2/signin?rd=$scheme://$host$request_uri"

@@ -22,7 +22,6 @@ import (
 	"log/slog"
 	"maps"
 	"net"
-	"net/url"
 	"os"
 	"slices"
 	"strconv"
@@ -2706,55 +2705,46 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 
 func (lbc *LoadBalancerController) generateExternalAuthEndpoints(policies []*conf_v1.Policy, virtualServerEx configs.VirtualServerEx, endpoints map[string][]string) {
 	for _, p := range policies {
-		if p.Spec.ExternalAuth == nil {
+		if p.Spec.ExternalAuth == nil || p.Spec.ExternalAuth.AuthServiceName == "" {
 			continue
 		}
 
-		if p.Spec.ExternalAuth.AuthURL != "" {
-			lbc.resolveExternalAuthURLEndpoints(p.Spec.ExternalAuth.AuthURL, "AuthURL", p, virtualServerEx, endpoints)
+		ns, name := configs.ParseServiceReference(p.Spec.ExternalAuth.AuthServiceName, virtualServerEx.VirtualServer.Namespace)
+
+		svc, err := lbc.client.CoreV1().Services(ns).Get(lbc.ctx, name, meta_v1.GetOptions{})
+		if err != nil {
+			nl.Warnf(lbc.Logger, "Error getting Service for ExternalAuth %v in policy %v/%v: %v", p.Spec.ExternalAuth.AuthServiceName, p.Namespace, p.Name, err)
+			continue
 		}
 
-		if p.Spec.ExternalAuth.AuthSigninURL != "" {
-			lbc.resolveExternalAuthURLEndpoints(p.Spec.ExternalAuth.AuthSigninURL, "AuthSigninURL", p, virtualServerEx, endpoints)
+		ports := collectAuthPorts(p, svc)
+		for _, port := range ports {
+			endps, _, err := lbc.getEndpointsForUpstream(ns, name, uint16(port))
+			if err != nil {
+				nl.Warnf(lbc.Logger, "Error getting Endpoints for ExternalAuth service %v in policy %v/%v: %v", p.Spec.ExternalAuth.AuthServiceName, p.Namespace, p.Name, err)
+				continue
+			}
+			endpoints[fmt.Sprintf("%s/%s:%d", ns, name, port)] = getIPAddressesFromEndpoints(endps)
 		}
 	}
 }
 
-func (lbc *LoadBalancerController) resolveExternalAuthURLEndpoints(rawURL, urlType string, p *conf_v1.Policy, virtualServerEx configs.VirtualServerEx, endpoints map[string][]string) {
-	u, err := url.Parse(rawURL)
-	if err != nil {
-		nl.Warnf(lbc.Logger, "Error parsing %s %v for ExternalAuth in policy %v/%v: %v", urlType, rawURL, p.Namespace, p.Name, err)
-		return
-	}
-
-	if u.Hostname() == "" {
-		return
-	}
-
-	port := u.Port()
-	if port == "" {
-		switch u.Scheme {
-		case "http":
-			port = "80"
-		case "https":
-			port = "443"
-		default:
-			nl.Warnf(lbc.Logger, "No port specified in ExternalAuth %s and cannot infer from scheme for policy %v/%v. ExternalAuth location will be generated with a port of 0.", urlType, p.Namespace, p.Name)
-			port = "0"
+// collectAuthPorts returns the list of ports to resolve for an ExternalAuth policy.
+// If AuthServicePorts is specified on the policy, those are used; otherwise the ports
+// are read from the Kubernetes Service definition.
+func collectAuthPorts(p *conf_v1.Policy, svc *api_v1.Service) []int32 {
+	if len(p.Spec.ExternalAuth.AuthServicePorts) > 0 {
+		ports := make([]int32, 0, len(p.Spec.ExternalAuth.AuthServicePorts))
+		for _, port := range p.Spec.ExternalAuth.AuthServicePorts {
+			ports = append(ports, int32(port))
 		}
+		return ports
 	}
-	port64, err := strconv.ParseUint(port, 10, 16)
-	if err != nil {
-		nl.Warnf(lbc.Logger, "Invalid port in ExternalAuth %s: %v. ExternalAuth location will be generated with a port of 0. Error: %v", urlType, u.Port(), err)
-		port64 = 0
+	ports := make([]int32, 0, len(svc.Spec.Ports))
+	for _, port := range svc.Spec.Ports {
+		ports = append(ports, port.Port)
 	}
-	port16 := uint16(port64)
-	authEndPs, _, err := lbc.getEndpointsForUpstream(virtualServerEx.VirtualServer.Namespace, u.Hostname(), port16)
-	if err != nil {
-		nl.Warnf(lbc.Logger, "Error getting endpoints for ExternalAuth %s in policy %v/%v: %v", urlType, p.Namespace, p.Name, err)
-		return
-	}
-	endpoints[fmt.Sprintf("%s/%s:%d", virtualServerEx.VirtualServer.Namespace, u.Hostname(), port16)] = getIPAddressesFromEndpoints(authEndPs)
+	return ports
 }
 
 func createPolicyMap(policies []*conf_v1.Policy) map[string]*conf_v1.Policy {

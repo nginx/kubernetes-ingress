@@ -18,7 +18,6 @@ spec:
   #   service: coffee-svc
   #   port: 80
   routes:
-  # Basic-auth protected route
   - path: /tea
     action:
       pass: tea

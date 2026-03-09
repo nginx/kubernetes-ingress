@@ -471,6 +471,7 @@ type ExternalAuth struct {
 	SigninURL      AuthURI
 	SigninProxyURL string
 	Snippets       string
+	Ports          []int
 }
 
 // AuthURI defines the components of an AuthURI
