@@ -373,6 +373,10 @@ server {
     auth_request {{ $s.ExternalAuth.ProxyURL }};
     {{- end }}
 
+    {{- range $e := $s.ErrorPages }}
+    error_page {{ $e.Codes }} {{ if ne 0 $e.ResponseCode }}={{ end }}{{ if gt $e.ResponseCode 0 }}{{ $e.ResponseCode }} {{ end }}"{{ $e.Name }}";
+    {{- end }}
+
     {{- with $s.APIKey}}
     js_var $header_query_value {{ makeHeaderQueryValue $s.APIKey | printf }};
     js_var $apikey_auth_local_map "{{ .MapName}}";
@@ -682,7 +686,7 @@ server {
         {{- end }}
 
         {{- range $e := $l.ErrorPages }}
-        error_page {{ $e.Codes }} {{ if ne 0 $e.ResponseCode }}={{ $e.ResponseCode }}{{ end }} "{{ $e.Name }}";
+        error_page {{ $e.Codes }} {{ if ne 0 $e.ResponseCode }}={{ end }}{{ if gt $e.ResponseCode 0 }}{{ $e.ResponseCode }} {{ end }}"{{ $e.Name }}";
         {{- end }}
 
         {{- if $l.ProxyInterceptErrors }}

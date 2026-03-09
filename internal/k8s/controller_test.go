@@ -4146,6 +4146,136 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 				"default/auth-svc:9000": {"10.0.0.5:9000"},
 			},
 		},
+		{
+			name: "policy with AuthSigninURL generates signin endpoint",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				signinSvc := &api_v1.Service{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "oauth2-proxy", Namespace: "default"},
+					Spec: api_v1.ServiceSpec{
+						Ports:    []api_v1.ServicePort{{Name: "http", Port: 4180, TargetPort: intstr.FromInt(4180)}},
+						Selector: map[string]string{"app": "oauth2-proxy"},
+					},
+				}
+				signinES := &discovery_v1.EndpointSlice{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "oauth2-proxy-es", Namespace: "default",
+						Labels: map[string]string{discovery_v1.LabelServiceName: "oauth2-proxy"},
+					},
+					Ports: []discovery_v1.EndpointPort{{Port: func() *int32 { p := int32(4180); return &p }()}},
+					Endpoints: []discovery_v1.Endpoint{
+						{Addresses: []string{"10.0.1.1"}, Conditions: discovery_v1.EndpointConditions{Ready: &endpointReady}},
+					},
+				}
+				return buildLBC(t, "default", []*api_v1.Service{authSvc, signinSvc}, []*discovery_v1.EndpointSlice{authES80, signinES})
+			},
+			vsEx: defaultVSEx,
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{
+						AuthURL:       "http://auth-svc/check",
+						AuthSigninURL: "http://oauth2-proxy:4180/oauth2/start",
+					}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/auth-svc:80":       {"10.0.0.1:8080", "10.0.0.2:8080"},
+				"default/oauth2-proxy:4180": {"10.0.1.1:4180"},
+			},
+		},
+		{
+			name: "policy with AuthSigninURL on same service as AuthURL",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES80})
+			},
+			vsEx: defaultVSEx,
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{
+						AuthURL:       "http://auth-svc/check",
+						AuthSigninURL: "http://auth-svc/signin",
+					}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/auth-svc:80": {"10.0.0.1:8080", "10.0.0.2:8080"},
+			},
+		},
+		{
+			name: "policy with relative AuthSigninURL is skipped for signin endpoints",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES80})
+			},
+			vsEx: defaultVSEx,
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{
+						AuthURL:       "http://auth-svc/check",
+						AuthSigninURL: "/oauth2/signin?rd=$scheme://$host$request_uri",
+					}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/auth-svc:80": {"10.0.0.1:8080", "10.0.0.2:8080"},
+			},
+		},
+		{
+			name: "policy with only AuthSigninURL and no AuthURL generates only signin endpoint",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				signinSvc := &api_v1.Service{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "oauth2-proxy", Namespace: "default"},
+					Spec: api_v1.ServiceSpec{
+						Ports:    []api_v1.ServicePort{{Name: "http", Port: 4180, TargetPort: intstr.FromInt(4180)}},
+						Selector: map[string]string{"app": "oauth2-proxy"},
+					},
+				}
+				signinES := &discovery_v1.EndpointSlice{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "oauth2-proxy-es", Namespace: "default",
+						Labels: map[string]string{discovery_v1.LabelServiceName: "oauth2-proxy"},
+					},
+					Ports: []discovery_v1.EndpointPort{{Port: func() *int32 { p := int32(4180); return &p }()}},
+					Endpoints: []discovery_v1.Endpoint{
+						{Addresses: []string{"10.0.1.1"}, Conditions: discovery_v1.EndpointConditions{Ready: &endpointReady}},
+					},
+				}
+				return buildLBC(t, "default", []*api_v1.Service{signinSvc}, []*discovery_v1.EndpointSlice{signinES})
+			},
+			vsEx: defaultVSEx,
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{
+						AuthSigninURL: "http://oauth2-proxy:4180/oauth2/start",
+					}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/oauth2-proxy:4180": {"10.0.1.1:4180"},
+			},
+		},
+		{
+			name: "https AuthSigninURL without port defaults to 443",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES80, authES443})
+			},
+			vsEx: defaultVSEx,
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{
+						AuthURL:       "http://auth-svc/check",
+						AuthSigninURL: "https://auth-svc/signin",
+					}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/auth-svc:80":  {"10.0.0.1:8080", "10.0.0.2:8080"},
+				"default/auth-svc:443": {"10.0.0.3:8443"},
+			},
+		},
 	}
 
 	for _, tc := range tests {

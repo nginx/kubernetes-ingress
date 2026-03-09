@@ -96,6 +96,7 @@ type Server struct {
 	JWTAuthList               map[string]*JWTAuth
 	JWKSAuthEnabled           bool
 	ExternalAuth              *ExternalAuth
+	ErrorPages                []ErrorPage
 	BasicAuth                 *BasicAuth
 	IngressMTLS               *IngressMTLS
 	EgressMTLS                *EgressMTLS
@@ -465,10 +466,11 @@ type JwksURI struct {
 
 // ExternalAuth holds external authentication configuration.
 type ExternalAuth struct {
-	URI       AuthURI
-	ProxyURL  string
-	SigninURL AuthURI
-	Snippets  string
+	URI            AuthURI
+	ProxyURL       string
+	SigninURL      AuthURI
+	SigninProxyURL string
+	Snippets       string
 }
 
 // AuthURI defines the components of an AuthURI

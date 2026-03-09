@@ -3,8 +3,8 @@ kind: VirtualServer
 metadata:
   name: cafe
 spec:
-  policies:
-    - name: external-auth-basic-policy
+  # policies:
+  #   - name: external-auth-basic-policy
   host: cafe.example.com
   tls:
     secret: tls-secret
@@ -14,9 +14,9 @@ spec:
   - name: tea
     service: tea-svc
     port: 80
-  - name: coffee
-    service: coffee-svc
-    port: 80
+  # - name: coffee
+  #   service: coffee-svc
+  #   port: 80
   routes:
   # Basic-auth protected route
   - path: /tea
@@ -24,8 +24,8 @@ spec:
       pass: tea
     policies:
       - name: external-auth-oauth2-snippets-policy
-  - path: /coffee
-    action:
-      pass: coffee
-    policies:
-      - name: external-auth-basic-policy
+  # - path: /coffee
+  #   action:
+  #     pass: coffee
+  #   policies:
+  #     - name: external-auth-basic-policy

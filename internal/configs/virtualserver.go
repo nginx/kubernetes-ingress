@@ -577,6 +577,37 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			healthChecks,
 			statusMatches,
 		)
+
+		// generate config for external auth signin URL if configured
+		if policiesCfg.ExternalAuth.SigninProxyURL != "" {
+			generatedExternalAuthURLs[policiesCfg.ExternalAuth.SigninProxyURL] = true
+			const signinAuthName = "external_auth_signin"
+			signinUpstreamName := virtualServerUpstreamNamer.GetNameForUpstream(signinAuthName)
+			signinUpstream := conf_v1.Upstream{
+				Name:    signinAuthName,
+				Service: policiesCfg.ExternalAuth.SigninURL.Host,
+				Port:    vsc.getSigninURLPort(policiesCfg, vsEx),
+			}
+			if policiesCfg.ExternalAuth.SigninURL.Scheme == "https" {
+				signinUpstream.TLS = conf_v1.UpstreamTLS{Enable: true}
+			}
+
+			locations = append(locations, vsc.generateExternalAuthSigninLocation(policiesCfg, signinUpstreamName))
+
+			upstreams, healthChecks, statusMatches = generateUpstreams(
+				sslConfig,
+				vsc,
+				signinUpstream,
+				vsEx.VirtualServer,
+				vsEx.VirtualServer.Namespace,
+				virtualServerUpstreamNamer,
+				vsEx,
+				upstreams,
+				crUpstreams,
+				healthChecks,
+				statusMatches,
+			)
+		}
 	}
 
 	// generates config for VirtualServer routes
@@ -726,6 +757,37 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 					sslConfig,
 					vsc,
 					proxyURLUpstream,
+					vsEx.VirtualServer,
+					vsEx.VirtualServer.Namespace,
+					virtualServerUpstreamNamer,
+					vsEx,
+					upstreams,
+					crUpstreams,
+					healthChecks,
+					statusMatches,
+				)
+			}
+
+			// generate config for route-level external auth signin URL if configured
+			if routePoliciesCfg.ExternalAuth.SigninProxyURL != "" && !generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.SigninProxyURL] {
+				generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.SigninProxyURL] = true
+				signinAuthName := strings.TrimPrefix(routePoliciesCfg.ExternalAuth.SigninProxyURL, "/")
+				signinUpstreamName := virtualServerUpstreamNamer.GetNameForUpstream(signinAuthName)
+				signinUpstream := conf_v1.Upstream{
+					Name:    signinAuthName,
+					Service: routePoliciesCfg.ExternalAuth.SigninURL.Host,
+					Port:    vsc.getSigninURLPort(routePoliciesCfg, vsEx),
+				}
+				if routePoliciesCfg.ExternalAuth.SigninURL.Scheme == "https" {
+					signinUpstream.TLS = conf_v1.UpstreamTLS{Enable: true}
+				}
+
+				locations = append(locations, vsc.generateExternalAuthSigninLocation(routePoliciesCfg, signinUpstreamName))
+
+				upstreams, healthChecks, statusMatches = generateUpstreams(
+					sslConfig,
+					vsc,
+					signinUpstream,
 					vsEx.VirtualServer,
 					vsEx.VirtualServer.Namespace,
 					virtualServerUpstreamNamer,
@@ -950,6 +1012,37 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 						statusMatches,
 					)
 				}
+
+				// generate config for subroute-level external auth signin URL if configured
+				if routePoliciesCfg.ExternalAuth.SigninProxyURL != "" && !generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.SigninProxyURL] {
+					generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.SigninProxyURL] = true
+					signinAuthName := strings.TrimPrefix(routePoliciesCfg.ExternalAuth.SigninProxyURL, "/")
+					signinUpstreamName := upstreamNamer.GetNameForUpstream(signinAuthName)
+					signinUpstream := conf_v1.Upstream{
+						Name:    signinAuthName,
+						Service: routePoliciesCfg.ExternalAuth.SigninURL.Host,
+						Port:    vsc.getSigninURLPort(routePoliciesCfg, vsEx),
+					}
+					if routePoliciesCfg.ExternalAuth.SigninURL.Scheme == "https" {
+						signinUpstream.TLS = conf_v1.UpstreamTLS{Enable: true}
+					}
+
+					locations = append(locations, vsc.generateExternalAuthSigninLocation(routePoliciesCfg, signinUpstreamName))
+
+					upstreams, healthChecks, statusMatches = generateUpstreams(
+						sslConfig,
+						vsc,
+						signinUpstream,
+						vsr,
+						vsr.Namespace,
+						upstreamNamer,
+						vsEx,
+						upstreams,
+						crUpstreams,
+						healthChecks,
+						statusMatches,
+					)
+				}
 			}
 
 			if len(routePoliciesCfg.RateLimit.GroupMaps) > 0 {
@@ -1092,6 +1185,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			LimitReqs:                 policiesCfg.RateLimit.Reqs,
 			JWTAuth:                   policiesCfg.JWTAuth.Auth,
 			ExternalAuth:              policiesCfg.ExternalAuth,
+			ErrorPages:                getServerErrorPages(policiesCfg),
 			BasicAuth:                 policiesCfg.BasicAuth,
 			JWTAuthList:               policiesCfg.JWTAuth.List,
 			JWKSAuthEnabled:           policiesCfg.JWTAuth.JWKSEnabled,
@@ -1122,7 +1216,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 }
 
 func (vsc *virtualServerConfigurator) generateExternalAuthLocation(policiesCfg policiesCfg, proxyURLUpstreamName string) version2.Location {
-	specExAuthLoc := version2.Location{
+	return version2.Location{
 		Path:                    generatePath(policiesCfg.ExternalAuth.ProxyURL),
 		Internal:                true,
 		Snippets:                strings.Split(policiesCfg.ExternalAuth.Snippets, "\n"),
@@ -1141,7 +1235,6 @@ func (vsc *virtualServerConfigurator) generateExternalAuthLocation(policiesCfg p
 		ServiceName:              policiesCfg.ExternalAuth.URI.Host,
 		IsVSR:                    false,
 	}
-	return specExAuthLoc
 }
 
 func (vsc *virtualServerConfigurator) getProxyURLPort(policiesCfg policiesCfg, vsEx *VirtualServerEx) uint16 {
@@ -1162,6 +1255,60 @@ func (vsc *virtualServerConfigurator) getProxyURLPort(policiesCfg policiesCfg, v
 		}
 	}
 	return proxyPort
+}
+
+func (vsc *virtualServerConfigurator) generateExternalAuthSigninLocation(policiesCfg policiesCfg, signinUpstreamName string) version2.Location {
+	return version2.Location{
+		Path:                    generatePath(policiesCfg.ExternalAuth.SigninProxyURL),
+		Internal:                true,
+		ProxyPass:               fmt.Sprintf("%s://%s/%s?rd=$scheme://$host$request_uri", generateProxyPassProtocol(policiesCfg.ExternalAuth.SigninURL.Scheme == "https"), signinUpstreamName, strings.TrimPrefix(policiesCfg.ExternalAuth.SigninURL.Path, "/")),
+		ProxyPassRequestHeaders: true,
+		ProxyPassRequestBody:    false,
+		ProxySetHeaders: []version2.Header{
+			{Name: "Content-Length", Value: "0"},
+		},
+		ProxyConnectTimeout:      generateTimeWithDefault(vsc.cfgParams.ProxyConnectTimeout, vsc.cfgParams.ProxyConnectTimeout),
+		ProxyReadTimeout:         generateTimeWithDefault(vsc.cfgParams.ProxyReadTimeout, vsc.cfgParams.ProxyReadTimeout),
+		ProxySendTimeout:         generateTimeWithDefault(vsc.cfgParams.ProxySendTimeout, vsc.cfgParams.ProxySendTimeout),
+		ClientMaxBodySize:        "0",
+		ProxyNextUpstream:        "error timeout",
+		ProxyNextUpstreamTimeout: generateTimeWithDefault(vsc.cfgParams.ProxyNextUpstreamTimeout, "0s"),
+		ServiceName:              policiesCfg.ExternalAuth.SigninURL.Host,
+		IsVSR:                    false,
+	}
+}
+
+func (vsc *virtualServerConfigurator) getSigninURLPort(policiesCfg policiesCfg, vsEx *VirtualServerEx) uint16 {
+	var proxyPort uint16
+	if policiesCfg.ExternalAuth.SigninURL.Port != "" {
+		value, err := strconv.ParseUint(policiesCfg.ExternalAuth.SigninURL.Port, 10, 16)
+		if err != nil {
+			vsc.addWarningf(vsEx.VirtualServer, "Invalid port in ExternalAuth SigninURL: %v. Signin location will be generated without a port. Error: %v", policiesCfg.ExternalAuth.SigninURL.Port, err)
+		} else {
+			proxyPort = uint16(value)
+		}
+	} else {
+		proxyPort = 80
+	}
+	if policiesCfg.ExternalAuth.SigninURL.Scheme == "https" {
+		if proxyPort == 80 {
+			proxyPort = 443
+		}
+	}
+	return proxyPort
+}
+
+func getServerErrorPages(cfg policiesCfg) []version2.ErrorPage {
+	if cfg.ExternalAuth != nil && cfg.ExternalAuth.SigninProxyURL != "" {
+		return []version2.ErrorPage{
+			{
+				Name:         cfg.ExternalAuth.SigninProxyURL,
+				Codes:        "401",
+				ResponseCode: -1,
+			},
+		}
+	}
+	return nil
 }
 
 func (vsc *virtualServerConfigurator) mergeWarnings(routeWarnings Warnings) {
@@ -1341,6 +1488,15 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 	location.APIKey = cfg.APIKey.Key
 	location.Cache = cfg.Cache
 	location.PoliciesErrorReturn = cfg.ErrorReturn
+
+	if cfg.ExternalAuth != nil && cfg.ExternalAuth.SigninProxyURL != "" {
+		location.ErrorPages = append(location.ErrorPages, version2.ErrorPage{
+			Name:         cfg.ExternalAuth.SigninProxyURL,
+			Codes:        "401",
+			ResponseCode: -1,
+		})
+		location.ProxyInterceptErrors = true
+	}
 
 	// Add CORS headers if present
 	if len(cfg.CORSHeaders) > 0 {

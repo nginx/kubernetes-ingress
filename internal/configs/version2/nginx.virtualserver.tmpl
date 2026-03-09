@@ -237,6 +237,10 @@ server {
     auth_request {{ $s.ExternalAuth.ProxyURL }};
     {{- end }}
 
+    {{- range $e := $s.ErrorPages }}
+    error_page {{ $e.Codes }} {{ if ne 0 $e.ResponseCode }}={{ end }}{{ if gt $e.ResponseCode 0 }}{{ $e.ResponseCode }} {{ end }}"{{ $e.Name }}";
+    {{- end }}
+
     {{- range $snippet := $s.Snippets }}
     {{ $snippet }}
     {{- end }}
@@ -385,7 +389,7 @@ server {
         {{- end }}
 
         {{- range $e := $l.ErrorPages }}
-        error_page {{ $e.Codes }} {{ if ne 0 $e.ResponseCode }}={{ $e.ResponseCode }}{{ end }} "{{ $e.Name }}";
+        error_page {{ $e.Codes }} {{ if ne 0 $e.ResponseCode }}={{ end }}{{ if gt $e.ResponseCode 0 }}{{ $e.ResponseCode }} {{ end }}"{{ $e.Name }}";
         {{- end }}
 
         {{- if $l.ProxyInterceptErrors }}

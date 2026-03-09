@@ -440,7 +440,7 @@ server {
         
         set $header_query_value "${http_x_header_name}${http_other_header}${arg_myQuery}${arg_myOtherQuery}";
         error_page 400 500 =200 "@error_page_1";
-        error_page 500  "@error_page_2";
+        error_page 500 "@error_page_2";
         proxy_intercept_errors on;
         set $default_connection_header close;
         proxy_connect_timeout 30s;
@@ -866,7 +866,7 @@ server {
 
         
         error_page 400 500 =200 "@error_page_1";
-        error_page 500  "@error_page_2";
+        error_page 500 "@error_page_2";
         proxy_intercept_errors on;
         set $default_connection_header close;
         proxy_connect_timeout 30s;
@@ -3470,7 +3470,7 @@ server {
 
         
         error_page 400 500 =200 "@error_page_1";
-        error_page 500  "@error_page_2";
+        error_page 500 "@error_page_2";
         proxy_intercept_errors on;
         set $default_connection_header close;
         proxy_connect_timeout 30s;
@@ -3875,7 +3875,7 @@ server {
 
         
         error_page 400 500 =200 "@error_page_1";
-        error_page 500  "@error_page_2";
+        error_page 500 "@error_page_2";
         proxy_intercept_errors on;
         set $default_connection_header close;
         proxy_connect_timeout 30s;
@@ -4285,7 +4285,7 @@ server {
 
         
         error_page 400 500 =200 "@error_page_1";
-        error_page 500  "@error_page_2";
+        error_page 500 "@error_page_2";
         proxy_intercept_errors on;
         set $default_connection_header close;
         proxy_connect_timeout 30s;
@@ -4700,7 +4700,7 @@ server {
 
         
         error_page 400 500 =200 "@error_page_1";
-        error_page 500  "@error_page_2";
+        error_page 500 "@error_page_2";
         proxy_intercept_errors on;
         set $default_connection_header close;
         proxy_connect_timeout 30s;

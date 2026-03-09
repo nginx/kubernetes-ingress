@@ -299,6 +299,7 @@ func (p *policiesCfg) addExternalAuthConfig(
 				Port:   signinURI.Port(),
 				Path:   signinURI.Path,
 			}
+			p.ExternalAuth.SigninProxyURL = rfc1123ToSnake(fmt.Sprintf("/pol_exauth_signin_%v_%v_%v_%v", ownerDetails.ownerNamespace, ownerDetails.ownerName, polNamespace, polName))
 		}
 		if externalAuth.AuthSnippets != "" {
 			p.ExternalAuth.Snippets = externalAuth.AuthSnippets

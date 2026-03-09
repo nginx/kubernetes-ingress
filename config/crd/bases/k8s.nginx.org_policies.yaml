@@ -451,7 +451,6 @@ spec:
                   server.
                 properties:
                   authSigninURL:
-                    default: /oauth2/signin?rd=$scheme://$host$request_uri
                     description: AuthSigninURL is the URL which requests will be redirected
                       to if the external authentication server determines that the
                       client needs to be authenticated. This is typically used when

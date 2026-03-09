@@ -5,7 +5,7 @@ metadata:
 spec:
   externalAuth:
     authURL: "http://oauth2-proxy-svc/auth"
-    authSigninURL: "/oauth2/signin?rd=$scheme://$host$request_uri"
+    authSigninURL: "http://oauth2-proxy-svc/signin?rd=$scheme://$host$request_uri"
     authSnippets: |
       auth_request_set $auth_user $upstream_http_x_auth_request_user;
       auth_request_set $auth_email $upstream_http_x_auth_request_email;

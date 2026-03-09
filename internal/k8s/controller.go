@@ -2706,40 +2706,55 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 
 func (lbc *LoadBalancerController) generateExternalAuthEndpoints(policies []*conf_v1.Policy, virtualServerEx configs.VirtualServerEx, endpoints map[string][]string) {
 	for _, p := range policies {
-		if p.Spec.ExternalAuth != nil {
-			if p.Spec.ExternalAuth.AuthURL != "" {
-				u, err := url.Parse(p.Spec.ExternalAuth.AuthURL)
-				if err != nil {
-					nl.Warnf(lbc.Logger, "Error parsing URL %v for ExternalAuth in policy %v/%v: %v", p.Spec.ExternalAuth.AuthURL, p.Namespace, p.Name, err)
-					continue
-				}
-				port := u.Port()
-				if port == "" {
-					switch u.Scheme {
-					case "http":
-						port = "80"
-					case "https":
-						port = "443"
-					default:
-						nl.Warnf(lbc.Logger, "No port specified in ExternalAuth URI and cannot infer from scheme for policy %v/%v. ExternalAuth location will be generated with a port of 0.", p.Namespace, p.Name)
-						port = "0"
-					}
-				}
-				port64, err := strconv.ParseUint(port, 10, 16)
-				if err != nil {
-					nl.Warnf(lbc.Logger, "Invalid port in ExternalAuth URI: %v. ExternalAuth location will be generated with a port of 0. Error: %v", u.Port(), err)
-					port64 = 0
-				}
-				port16 := uint16(port64)
-				authEndPs, _, err := lbc.getEndpointsForUpstream(virtualServerEx.VirtualServer.Namespace, u.Hostname(), port16)
-				if err != nil {
-					nl.Warnf(lbc.Logger, "Error getting endpoints for ExternalAuth in policy %v/%v: %v", p.Namespace, p.Name, err)
-					continue
-				}
-				endpoints[fmt.Sprintf("%s/%s:%d", virtualServerEx.VirtualServer.Namespace, u.Hostname(), port16)] = getIPAddressesFromEndpoints(authEndPs)
-			}
+		if p.Spec.ExternalAuth == nil {
+			continue
+		}
+
+		if p.Spec.ExternalAuth.AuthURL != "" {
+			lbc.resolveExternalAuthURLEndpoints(p.Spec.ExternalAuth.AuthURL, "AuthURL", p, virtualServerEx, endpoints)
+		}
+
+		if p.Spec.ExternalAuth.AuthSigninURL != "" {
+			lbc.resolveExternalAuthURLEndpoints(p.Spec.ExternalAuth.AuthSigninURL, "AuthSigninURL", p, virtualServerEx, endpoints)
 		}
 	}
+}
+
+func (lbc *LoadBalancerController) resolveExternalAuthURLEndpoints(rawURL, urlType string, p *conf_v1.Policy, virtualServerEx configs.VirtualServerEx, endpoints map[string][]string) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		nl.Warnf(lbc.Logger, "Error parsing %s %v for ExternalAuth in policy %v/%v: %v", urlType, rawURL, p.Namespace, p.Name, err)
+		return
+	}
+
+	if u.Hostname() == "" {
+		return
+	}
+
+	port := u.Port()
+	if port == "" {
+		switch u.Scheme {
+		case "http":
+			port = "80"
+		case "https":
+			port = "443"
+		default:
+			nl.Warnf(lbc.Logger, "No port specified in ExternalAuth %s and cannot infer from scheme for policy %v/%v. ExternalAuth location will be generated with a port of 0.", urlType, p.Namespace, p.Name)
+			port = "0"
+		}
+	}
+	port64, err := strconv.ParseUint(port, 10, 16)
+	if err != nil {
+		nl.Warnf(lbc.Logger, "Invalid port in ExternalAuth %s: %v. ExternalAuth location will be generated with a port of 0. Error: %v", urlType, u.Port(), err)
+		port64 = 0
+	}
+	port16 := uint16(port64)
+	authEndPs, _, err := lbc.getEndpointsForUpstream(virtualServerEx.VirtualServer.Namespace, u.Hostname(), port16)
+	if err != nil {
+		nl.Warnf(lbc.Logger, "Error getting endpoints for ExternalAuth %s in policy %v/%v: %v", urlType, p.Namespace, p.Name, err)
+		return
+	}
+	endpoints[fmt.Sprintf("%s/%s:%d", virtualServerEx.VirtualServer.Namespace, u.Hostname(), port16)] = getIPAddressesFromEndpoints(authEndPs)
 }
 
 func createPolicyMap(policies []*conf_v1.Policy) map[string]*conf_v1.Policy {
