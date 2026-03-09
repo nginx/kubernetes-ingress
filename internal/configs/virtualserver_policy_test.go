@@ -463,7 +463,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusRoute(t *testing.T) {
 				{
 					Path:                    "/pol_exauth_signin_default_cafe_default_external_auth_policy_route",
 					Internal:                true,
-					ProxyPass:               "http://vs_default_cafe_pol_exauth_signin_default_cafe_default_external_auth_policy_route",
+					ProxyPass:               "http://vs_default_cafe_pol_exauth_signin_default_cafe_default_external_auth_policy_route/signin?rd=$scheme://$host$request_uri",
 					ProxyPassRequestHeaders: true,
 					ProxySetHeaders: []version2.Header{
 						{Name: "Content-Length", Value: "0"},
@@ -791,7 +791,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusSubroute(t *testing.T)
 				{
 					Path:                    "/pol_exauth_signin_default_tea_vsr_default_external_auth_policy_subroute",
 					Internal:                true,
-					ProxyPass:               "http://vs_default_cafe_vsr_default_tea-vsr_pol_exauth_signin_default_tea_vsr_default_external_auth_policy_subroute",
+					ProxyPass:               "http://vs_default_cafe_vsr_default_tea-vsr_pol_exauth_signin_default_tea_vsr_default_external_auth_policy_subroute/signin?rd=$scheme://$host$request_uri",
 					ProxyPassRequestHeaders: true,
 					ProxySetHeaders: []version2.Header{
 						{Name: "Content-Length", Value: "0"},
@@ -3898,7 +3898,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 				{
 					Path:                     "/pol_exauth_signin_default_cafe_default_external_auth_policy",
 					Internal:                 true,
-					ProxyPass:                "http://vs_default_cafe_external_auth_signin",
+					ProxyPass:                "http://vs_default_cafe_external_auth_signin/signin?rd=$scheme://$host$request_uri",
 					ProxyPassRequestHeaders:  true,
 					ProxySetHeaders:          []version2.Header{{Name: "Content-Length", Value: "0"}},
 					ProxyNextUpstream:        "error timeout",
