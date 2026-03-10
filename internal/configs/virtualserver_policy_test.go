@@ -348,9 +348,9 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusRoute(t *testing.T) {
 				},
 				Spec: conf_v1.PolicySpec{
 					ExternalAuth: &conf_v1.ExternalAuth{
-						AuthURI:         "/auth",
+						AuthURI:         "/oauth2/auth",
 						AuthServiceName: "auth-server",
-						AuthSigninURI:   "/signin",
+						AuthSigninURI:   "/oauth2/signin",
 						AuthSnippets:    "proxy_set_header X-Custom-Header \"custom-value\";",
 					},
 				},
@@ -433,10 +433,10 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusRoute(t *testing.T) {
 			VSName:          "cafe",
 			Locations: []version2.Location{
 				{
-					Path:                    "/pol_exauth_default_cafe_default_external_auth_policy_route",
+					Path:                    "/oauth2/auth",
 					Internal:                true,
 					Snippets:                []string{`proxy_set_header X-Custom-Header "custom-value";`},
-					ProxyPass:               "http://vs_default_cafe_pol_exauth_default_cafe_default_external_auth_policy_route/auth",
+					ProxyPass:               "http://vs_default_cafe_pol_exauth_default_cafe_default_external_auth_policy_route",
 					ProxyPassRequestHeaders: true,
 					ProxySetHeaders: []version2.Header{
 						{Name: "Content-Length", Value: "0"},
@@ -447,22 +447,9 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusRoute(t *testing.T) {
 					ClientMaxBodySize:        "0",
 				},
 				{
-					Path:                    "/pol_exauth_signin_default_cafe_default_external_auth_policy_route",
-					Internal:                true,
-					ProxyPass:               "http://vs_default_cafe_pol_exauth_default_cafe_default_external_auth_policy_route/signin?",
-					ProxyPassRequestHeaders: true,
-					ProxySetHeaders: []version2.Header{
-						{Name: "Content-Length", Value: "0"},
-					},
-					ProxyNextUpstream:        "error timeout",
-					ProxyNextUpstreamTimeout: "0s",
-					ServiceName:              "",
-					ClientMaxBodySize:        "0",
-				},
-				{
 					Path:                     "/oauth2",
 					ClientMaxBodySize:        "0",
-					ProxyPass:                "http://vs_default_cafe_pol_exauth_default_cafe_default_external_auth_policy_route/signin?",
+					ProxyPass:                "http://vs_default_cafe_pol_exauth_default_cafe_default_external_auth_policy_route/oauth2/signin?",
 					ProxyNextUpstream:        "error timeout",
 					ProxyNextUpstreamTimeout: "0s",
 					ProxySetHeaders:          []version2.Header{{Name: "X-Auth-Request-Redirect", Value: "$request_uri"}},
@@ -477,7 +464,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusRoute(t *testing.T) {
 					HasKeepalive:             true,
 					ErrorPages: []version2.ErrorPage{
 						{
-							Name:         "/pol_exauth_signin_default_cafe_default_external_auth_policy_route",
+							Name:         "/oauth2/signin",
 							Codes:        "401",
 							ResponseCode: 0,
 						},
@@ -488,15 +475,14 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusRoute(t *testing.T) {
 					ServiceName:             "tea-svc",
 					ExternalAuth: &version2.ExternalAuth{
 						ProxyURL: "/pol_exauth_default_cafe_default_external_auth_policy_route",
-						URI: version2.AuthURI{
+						URI: &version2.AuthURI{
 							Host: "auth-server",
-							Path: "/auth",
+							Path: "/oauth2/auth",
 						},
-						SigninURL: version2.AuthURI{
-							Path: "/signin",
+						SigninURL: &version2.AuthURI{
+							Path: "/oauth2/signin",
 						},
-						SigninProxyURL: "/pol_exauth_signin_default_cafe_default_external_auth_policy_route",
-						Snippets:       "proxy_set_header X-Custom-Header \"custom-value\";",
+						Snippets: "proxy_set_header X-Custom-Header \"custom-value\";",
 					},
 				},
 				{
@@ -873,10 +859,10 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusSubroute(t *testing.T)
 					ServiceName:              "coffee-svc",
 				},
 				{
-					Path:                    "/pol_exauth_default_tea_vsr_default_external_auth_policy_subroute",
+					Path:                    "/oauth2/auth",
 					Internal:                true,
 					Snippets:                []string{`proxy_set_header X-Custom-Header "custom-value";`},
-					ProxyPass:               "http://vs_default_cafe_vsr_default_tea-vsr_pol_exauth_default_tea_vsr_default_external_auth_policy_subroute/auth",
+					ProxyPass:               "http://vs_default_cafe_vsr_default_tea-vsr_pol_exauth_default_tea_vsr_default_external_auth_policy_subroute",
 					ProxyPassRequestHeaders: true,
 					ProxySetHeaders: []version2.Header{
 						{Name: "Content-Length", Value: "0"},
@@ -887,25 +873,15 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusSubroute(t *testing.T)
 					ClientMaxBodySize:        "0",
 				},
 				{
-					Path:                    "/pol_exauth_signin_default_tea_vsr_default_external_auth_policy_subroute",
-					Internal:                true,
-					ProxyPass:               "http://vs_default_cafe_vsr_default_tea-vsr_pol_exauth_default_tea_vsr_default_external_auth_policy_subroute/signin?",
-					ProxyPassRequestHeaders: true,
+					Path:      "/oauth2",
+					ProxyPass: "http://vs_default_cafe_vsr_default_tea-vsr_pol_exauth_default_tea_vsr_default_external_auth_policy_subroute/signin?",
 					ProxySetHeaders: []version2.Header{
-						{Name: "Content-Length", Value: "0"},
+						{Name: "X-Auth-Request-Redirect", Value: "$request_uri"},
 					},
 					ProxyNextUpstream:        "error timeout",
 					ProxyNextUpstreamTimeout: "0s",
 					ServiceName:              "",
 					ClientMaxBodySize:        "0",
-				},
-				{
-					Path:                     "/oauth2",
-					ClientMaxBodySize:        "0",
-					ProxyPass:                "http://vs_default_cafe_vsr_default_tea-vsr_pol_exauth_default_tea_vsr_default_external_auth_policy_subroute/signin?",
-					ProxyNextUpstream:        "error timeout",
-					ProxyNextUpstreamTimeout: "0s",
-					ProxySetHeaders:          []version2.Header{{Name: "X-Auth-Request-Redirect", Value: "$request_uri"}},
 				},
 				{
 					Path:                     "/tea/v1",
@@ -917,7 +893,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusSubroute(t *testing.T)
 					HasKeepalive:             true,
 					ErrorPages: []version2.ErrorPage{
 						{
-							Name:         "/pol_exauth_signin_default_tea_vsr_default_external_auth_policy_subroute",
+							Name:         "/oauth2/signin",
 							Codes:        "401",
 							ResponseCode: 0,
 						},
@@ -931,15 +907,14 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusSubroute(t *testing.T)
 					VSRNamespace:            "default",
 					ExternalAuth: &version2.ExternalAuth{
 						ProxyURL: "/pol_exauth_default_tea_vsr_default_external_auth_policy_subroute",
-						URI: version2.AuthURI{
+						URI: &version2.AuthURI{
 							Host: "auth-server",
 							Path: "/auth",
 						},
-						SigninURL: version2.AuthURI{
+						SigninURL: &version2.AuthURI{
 							Path: "/signin",
 						},
-						SigninProxyURL: "/pol_exauth_signin_default_tea_vsr_default_external_auth_policy_subroute",
-						Snippets:       "proxy_set_header X-Custom-Header \"custom-value\";",
+						Snippets: "proxy_set_header X-Custom-Header \"custom-value\";",
 					},
 				},
 				{
@@ -3947,29 +3922,28 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 			VSName:          "cafe",
 			ExternalAuth: &version2.ExternalAuth{
 				ProxyURL: "/pol_exauth_default_cafe_default_external_auth_policy",
-				URI: version2.AuthURI{
+				URI: &version2.AuthURI{
 					Host: "auth-server",
 					Path: "/auth",
 				},
-				SigninURL: version2.AuthURI{
+				SigninURL: &version2.AuthURI{
 					Path: "/signin",
 				},
-				SigninProxyURL: "/pol_exauth_signin_default_cafe_default_external_auth_policy",
-				Snippets:       "proxy_set_header X-Custom-Header \"custom-value\";",
+				Snippets: "proxy_set_header X-Custom-Header \"custom-value\";",
 			},
 			ErrorPages: []version2.ErrorPage{
 				{
-					Name:         "/pol_exauth_signin_default_cafe_default_external_auth_policy",
+					Name:         "/signin",
 					Codes:        "401",
 					ResponseCode: 0,
 				},
 			},
 			Locations: []version2.Location{
 				{
-					Path:                     "/pol_exauth_default_cafe_default_external_auth_policy",
+					Path:                     "/auth",
 					Internal:                 true,
 					Snippets:                 []string{`proxy_set_header X-Custom-Header "custom-value";`},
-					ProxyPass:                "http://vs_default_cafe_external_auth/auth",
+					ProxyPass:                "http://vs_default_cafe_external_auth",
 					ProxyPassRequestHeaders:  true,
 					ProxySetHeaders:          []version2.Header{{Name: "Content-Length", Value: "0"}},
 					ProxyNextUpstream:        "error timeout",
@@ -3978,18 +3952,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 					ClientMaxBodySize:        "0",
 				},
 				{
-					Path:                     "/pol_exauth_signin_default_cafe_default_external_auth_policy",
-					Internal:                 true,
-					ProxyPass:                "http://vs_default_cafe_external_auth/signin?",
-					ProxyPassRequestHeaders:  true,
-					ProxySetHeaders:          []version2.Header{{Name: "Content-Length", Value: "0"}},
-					ProxyNextUpstream:        "error timeout",
-					ProxyNextUpstreamTimeout: "0s",
-					ServiceName:              "",
-					ClientMaxBodySize:        "0",
-				},
-				{
-					Path:                     "/oauth2",
+					Path:                     "/signin",
 					ClientMaxBodySize:        "0",
 					ProxyPass:                "http://vs_default_cafe_external_auth/signin?",
 					ProxyNextUpstream:        "error timeout",

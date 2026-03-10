@@ -1745,7 +1745,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 				AuthServiceName: "auth-svc",
 			},
 			expected: &version2.ExternalAuth{
-				URI: version2.AuthURI{
+				URI: &version2.AuthURI{
 					Host: "auth-svc",
 					Path: "/auth",
 				},
@@ -1756,20 +1756,19 @@ func TestAddExternalAuthConfig(t *testing.T) {
 		{
 			name: "auth URI with signin URI",
 			extAuth: &conf_v1.ExternalAuth{
-				AuthURI:         "/verify",
+				AuthURI:         "/oauth2/auth",
 				AuthServiceName: "auth-svc",
-				AuthSigninURI:   "/signin",
+				AuthSigninURI:   "/oauth2/signin",
 			},
 			expected: &version2.ExternalAuth{
-				URI: version2.AuthURI{
+				URI: &version2.AuthURI{
 					Host: "auth-svc",
-					Path: "/verify",
+					Path: "/oauth2/auth",
 				},
 				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
-				SigninURL: version2.AuthURI{
-					Path: "/signin",
+				SigninURL: &version2.AuthURI{
+					Path: "/oauth2/signin",
 				},
-				SigninProxyURL: "/pol_exauth_signin_default_test_vs_default_ext_auth_policy",
 			},
 			msg: "external auth with signin URI",
 		},
@@ -1781,7 +1780,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 				AuthSnippets:    "proxy_set_header X-Forwarded-Host $host;",
 			},
 			expected: &version2.ExternalAuth{
-				URI: version2.AuthURI{
+				URI: &version2.AuthURI{
 					Host: "auth-svc",
 					Path: "/check",
 				},
@@ -1799,16 +1798,15 @@ func TestAddExternalAuthConfig(t *testing.T) {
 				AuthSnippets:    "proxy_set_header X-Auth-Request-Redirect $request_uri;",
 			},
 			expected: &version2.ExternalAuth{
-				URI: version2.AuthURI{
+				URI: &version2.AuthURI{
 					Host: "oauth2-proxy",
 					Path: "/oauth2/auth",
 				},
 				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
-				SigninURL: version2.AuthURI{
+				SigninURL: &version2.AuthURI{
 					Path: "/oauth2/start",
 				},
-				SigninProxyURL: "/pol_exauth_signin_default_test_vs_default_ext_auth_policy",
-				Snippets:       "proxy_set_header X-Auth-Request-Redirect $request_uri;",
+				Snippets: "proxy_set_header X-Auth-Request-Redirect $request_uri;",
 			},
 			msg: "full external auth with URI, signin URI, and snippets",
 		},
@@ -1819,7 +1817,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 				AuthServiceName: "auth-ns/auth-svc",
 			},
 			expected: &version2.ExternalAuth{
-				URI: version2.AuthURI{
+				URI: &version2.AuthURI{
 					Host: "auth-ns/auth-svc",
 					Path: "/validate",
 				},
@@ -1835,7 +1833,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 				AuthSigninURI:   "",
 			},
 			expected: &version2.ExternalAuth{
-				URI: version2.AuthURI{
+				URI: &version2.AuthURI{
 					Host: "auth-svc",
 					Path: "/auth",
 				},
@@ -1851,7 +1849,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 				AuthSnippets:    "",
 			},
 			expected: &version2.ExternalAuth{
-				URI: version2.AuthURI{
+				URI: &version2.AuthURI{
 					Host: "auth-svc",
 					Path: "/auth",
 				},
@@ -1866,7 +1864,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 				AuthServiceName: "auth-svc",
 			},
 			expected: &version2.ExternalAuth{
-				URI: version2.AuthURI{
+				URI: &version2.AuthURI{
 					Host: "first-auth-svc",
 					Path: "/first",
 				},
@@ -1882,7 +1880,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 				AuthServicePorts: []int{9000},
 			},
 			expected: &version2.ExternalAuth{
-				URI: version2.AuthURI{
+				URI: &version2.AuthURI{
 					Host: "auth-svc",
 					Path: "/check",
 				},
@@ -1899,7 +1897,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 				AuthServicePorts: []int{80, 9000},
 			},
 			expected: &version2.ExternalAuth{
-				URI: version2.AuthURI{
+				URI: &version2.AuthURI{
 					Host: "auth-svc",
 					Path: "/check",
 				},
@@ -1916,7 +1914,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 				AuthServicePorts: []int{},
 			},
 			expected: &version2.ExternalAuth{
-				URI: version2.AuthURI{
+				URI: &version2.AuthURI{
 					Host: "auth-svc",
 					Path: "/check",
 				},
@@ -1945,7 +1943,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			// For the duplicate test, set up a pre-existing ExternalAuth
 			if test.wantWarning {
 				config.ExternalAuth = &version2.ExternalAuth{
-					URI: version2.AuthURI{
+					URI: &version2.AuthURI{
 						Host: "first-auth-svc",
 						Path: "/first",
 					},
@@ -2012,7 +2010,7 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				Context: ctx,
 				ExternalAuth: &version2.ExternalAuth{
 					ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
-					URI: version2.AuthURI{
+					URI: &version2.AuthURI{
 						Host: "auth-svc",
 						Path: "/auth",
 					},
@@ -2049,15 +2047,14 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				Context: ctx,
 				ExternalAuth: &version2.ExternalAuth{
 					ProxyURL: "/pol_exauth_default_test_vs_default_full_ext_auth",
-					URI: version2.AuthURI{
+					URI: &version2.AuthURI{
 						Host: "oauth2-proxy",
 						Path: "/oauth2/auth",
 					},
-					SigninURL: version2.AuthURI{
+					SigninURL: &version2.AuthURI{
 						Path: "/oauth2/start",
 					},
-					SigninProxyURL: "/pol_exauth_signin_default_test_vs_default_full_ext_auth",
-					Snippets:       "proxy_set_header X-Auth-Request-Redirect $request_uri;",
+					Snippets: "proxy_set_header X-Auth-Request-Redirect $request_uri;",
 				},
 			},
 			msg: "VirtualServer with full external auth including signin URI and snippets",
@@ -2089,7 +2086,7 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				Context: ctx,
 				ExternalAuth: &version2.ExternalAuth{
 					ProxyURL: "/pol_exauth_default_test_vs_default_https_ext_auth",
-					URI: version2.AuthURI{
+					URI: &version2.AuthURI{
 						Host: "auth-svc",
 						Path: "/validate",
 					},
@@ -2114,9 +2111,9 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				"app-namespace/vsr-ext-auth": {
 					Spec: conf_v1.PolicySpec{
 						ExternalAuth: &conf_v1.ExternalAuth{
-							AuthURI:         "/verify",
+							AuthURI:         "/oauth2/auth",
 							AuthServiceName: "auth-svc",
-							AuthSigninURI:   "/login",
+							AuthSigninURI:   "/oauth2/signin",
 						},
 					},
 				},
@@ -2125,14 +2122,13 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				Context: ctx,
 				ExternalAuth: &version2.ExternalAuth{
 					ProxyURL: "/pol_exauth_app_namespace_test_vsr_app_namespace_vsr_ext_auth",
-					URI: version2.AuthURI{
+					URI: &version2.AuthURI{
 						Host: "auth-svc",
-						Path: "/verify",
+						Path: "/oauth2/auth",
 					},
-					SigninURL: version2.AuthURI{
-						Path: "/login",
+					SigninURL: &version2.AuthURI{
+						Path: "/oauth2/signin",
 					},
-					SigninProxyURL: "/pol_exauth_signin_app_namespace_test_vsr_app_namespace_vsr_ext_auth",
 				},
 			},
 			msg: "VirtualServerRoute with external auth policy including signin URI",
@@ -2154,7 +2150,7 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				"shared-policies/shared-ext-auth": {
 					Spec: conf_v1.PolicySpec{
 						ExternalAuth: &conf_v1.ExternalAuth{
-							AuthURI:         "/auth",
+							AuthURI:         "/oauth2/auth",
 							AuthServiceName: "central-auth",
 							AuthSnippets:    "proxy_set_header X-Original-URI $request_uri;\nproxy_set_header X-Forwarded-Host $host;",
 						},
@@ -2165,9 +2161,9 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				Context: ctx,
 				ExternalAuth: &version2.ExternalAuth{
 					ProxyURL: "/pol_exauth_app_namespace_test_vsr_shared_policies_shared_ext_auth",
-					URI: version2.AuthURI{
+					URI: &version2.AuthURI{
 						Host: "central-auth",
-						Path: "/auth",
+						Path: "/oauth2/auth",
 					},
 					Snippets: "proxy_set_header X-Original-URI $request_uri;\nproxy_set_header X-Forwarded-Host $host;",
 				},

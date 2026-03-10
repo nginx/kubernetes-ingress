@@ -4,8 +4,8 @@ metadata:
   name: external-auth-oauth2-snippets-policy
 spec:
   externalAuth:
-    authURI: "/auth"
-    authSigninURI: "/signin?rd=$scheme://$host$request_uri"
+    authURI: "/oauth2/auth"
+    authSigninURI: "/oauth2/signin?rd=$scheme://$host$request_uri"
     authServiceName: "default/oauth2-proxy-svc"
     authSnippets: |
       auth_request_set $auth_user $upstream_http_x_auth_request_user;

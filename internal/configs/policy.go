@@ -274,7 +274,7 @@ func (p *policiesCfg) addExternalAuthConfig(
 	}
 
 	p.ExternalAuth = &version2.ExternalAuth{
-		URI: version2.AuthURI{
+		URI: &version2.AuthURI{
 			Host: externalAuth.AuthServiceName,
 			Path: externalAuth.AuthURI,
 		},
@@ -282,10 +282,9 @@ func (p *policiesCfg) addExternalAuthConfig(
 		Ports:    externalAuth.AuthServicePorts,
 	}
 	if externalAuth.AuthSigninURI != "" {
-		p.ExternalAuth.SigninURL = version2.AuthURI{
+		p.ExternalAuth.SigninURL = &version2.AuthURI{
 			Path: externalAuth.AuthSigninURI,
 		}
-		p.ExternalAuth.SigninProxyURL = rfc1123ToSnake(fmt.Sprintf("/pol_exauth_signin_%v_%v_%v_%v", ownerDetails.ownerNamespace, ownerDetails.ownerName, polNamespace, polName))
 	}
 	if externalAuth.AuthSnippets != "" {
 		p.ExternalAuth.Snippets = externalAuth.AuthSnippets

@@ -3562,7 +3562,7 @@ func TestGetProxyURLPort(t *testing.T) {
 			name: "Ports from policy spec takes precedence over URI port",
 			cfg: policiesCfg{
 				ExternalAuth: &version2.ExternalAuth{
-					URI:   version2.AuthURI{Port: "80"},
+					URI:   &version2.AuthURI{Port: "80"},
 					Ports: []int{9000},
 				},
 			},
@@ -3581,7 +3581,7 @@ func TestGetProxyURLPort(t *testing.T) {
 			name: "falls back to URI port when Ports is empty",
 			cfg: policiesCfg{
 				ExternalAuth: &version2.ExternalAuth{
-					URI:   version2.AuthURI{Port: "8443"},
+					URI:   &version2.AuthURI{Port: "8443"},
 					Ports: []int{},
 				},
 			},
@@ -3591,7 +3591,7 @@ func TestGetProxyURLPort(t *testing.T) {
 			name: "falls back to URI port when Ports is nil",
 			cfg: policiesCfg{
 				ExternalAuth: &version2.ExternalAuth{
-					URI: version2.AuthURI{Port: "3000"},
+					URI: &version2.AuthURI{Port: "3000"},
 				},
 			},
 			expected: 3000,
@@ -3600,7 +3600,7 @@ func TestGetProxyURLPort(t *testing.T) {
 			name: "defaults to 80 when no Ports and no URI port",
 			cfg: policiesCfg{
 				ExternalAuth: &version2.ExternalAuth{
-					URI: version2.AuthURI{},
+					URI: &version2.AuthURI{},
 				},
 			},
 			expected: 80,
@@ -3609,7 +3609,7 @@ func TestGetProxyURLPort(t *testing.T) {
 			name: "defaults to 443 for https when no Ports and no URI port",
 			cfg: policiesCfg{
 				ExternalAuth: &version2.ExternalAuth{
-					URI: version2.AuthURI{Scheme: "https"},
+					URI: &version2.AuthURI{Scheme: "https"},
 				},
 			},
 			expected: 443,
@@ -3618,7 +3618,7 @@ func TestGetProxyURLPort(t *testing.T) {
 			name: "Ports overrides https default",
 			cfg: policiesCfg{
 				ExternalAuth: &version2.ExternalAuth{
-					URI:   version2.AuthURI{Scheme: "https"},
+					URI:   &version2.AuthURI{Scheme: "https"},
 					Ports: []int{8443},
 				},
 			},
