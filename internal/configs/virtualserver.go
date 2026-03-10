@@ -582,7 +582,6 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		if policiesCfg.ExternalAuth.SigninURL != nil {
 			generatedExternalAuthURLs[policiesCfg.ExternalAuth.SigninURL.Path] = true
 
-			// locations = append(locations, vsc.generateExternalAuthSigninLocation(policiesCfg, proxyURLUpstreamName))
 			if !generatedOAuth2Location {
 				locations = append(locations, vsc.generateExternalAuthOAuth2Location(policiesCfg, proxyPassUpstream))
 				generatedOAuth2Location = true
@@ -749,7 +748,6 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				if routePoliciesCfg.ExternalAuth.SigninURL != nil {
 					generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.SigninURL.Path] = true
 
-					// locations = append(locations, vsc.generateExternalAuthSigninLocation(routePoliciesCfg, proxyURLUpstreamName))
 					if !generatedOAuth2Location {
 						locations = append(locations, vsc.generateExternalAuthOAuth2Location(routePoliciesCfg, proxyPassUpstream))
 						generatedOAuth2Location = true
@@ -971,7 +969,6 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 					if routePoliciesCfg.ExternalAuth.SigninURL != nil {
 						generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.SigninURL.Path] = true
 
-						// locations = append(locations, vsc.generateExternalAuthSigninLocation(routePoliciesCfg, proxyURLUpstreamName))
 						if !generatedOAuth2Location {
 							locations = append(locations, vsc.generateExternalAuthOAuth2Location(routePoliciesCfg, proxyPassUpstream))
 							generatedOAuth2Location = true
@@ -1154,7 +1151,7 @@ func (vsc *virtualServerConfigurator) generateExternalAuthLocation(policiesCfg p
 	var svcName string
 	_, svcName = ParseServiceReference(policiesCfg.ExternalAuth.URI.Service, "")
 	return version2.Location{
-		Path:                    "/oauth2/auth",
+		Path:                    policiesCfg.ExternalAuth.URI.Path,
 		Internal:                true,
 		Snippets:                strings.Split(policiesCfg.ExternalAuth.Snippets, "\n"),
 		ProxyPass:               fmt.Sprintf("%s://%s", generateProxyPassProtocol(false), proxyURLUpstreamName),

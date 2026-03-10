@@ -1282,5 +1282,5 @@ type ExternalAuth struct {
 
 	// +kubebuilder:validation:Optional
 	// AuthSnippets can be used to add custom configuration snippets to the location block of the external authentication configuration. This can be used for example to add additional headers to the request sent to the external authentication server, or to configure additional parameters for the auth_request module. The content of this field will be added as-is to the location block, so it must be a valid NGINX configuration snippet.
-	AuthSnippets string `json:"authSnippets"`
+	AuthSnippets string `json:"authSnippets,omitempty"`
 }

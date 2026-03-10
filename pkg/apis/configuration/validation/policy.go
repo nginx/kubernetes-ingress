@@ -17,13 +17,21 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
+// PolicyValidationConfig holds configuration flags needed for policy validation.
+type PolicyValidationConfig struct {
+	IsPlus           bool
+	EnableOIDC       bool
+	EnableAppProtect bool
+	EnableSnippets   bool
+}
+
 // ValidatePolicy validates a Policy.
-func ValidatePolicy(policy *v1.Policy, isPlus, enableOIDC, enableAppProtect bool) error {
-	allErrs := validatePolicySpec(&policy.Spec, field.NewPath("spec"), isPlus, enableOIDC, enableAppProtect)
+func ValidatePolicy(policy *v1.Policy, cfg PolicyValidationConfig) error {
+	allErrs := validatePolicySpec(&policy.Spec, field.NewPath("spec"), cfg)
 	return allErrs.ToAggregate()
 }
 
-func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, isPlus, enableOIDC, enableAppProtect bool) field.ErrorList {
+func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, cfg PolicyValidationConfig) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	fieldCount := 0
@@ -34,12 +42,12 @@ func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, isPlus, enab
 	}
 
 	if spec.RateLimit != nil {
-		allErrs = append(allErrs, validateRateLimit(spec.RateLimit, fieldPath.Child("rateLimit"), isPlus)...)
+		allErrs = append(allErrs, validateRateLimit(spec.RateLimit, fieldPath.Child("rateLimit"), cfg.IsPlus)...)
 		fieldCount++
 	}
 
 	if spec.JWTAuth != nil {
-		if !isPlus {
+		if !cfg.IsPlus {
 			return append(allErrs, field.Forbidden(fieldPath.Child("jwt"), "jwt secrets are only supported in NGINX Plus"))
 		}
 
@@ -63,11 +71,11 @@ func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, isPlus, enab
 	}
 
 	if spec.OIDC != nil {
-		if !enableOIDC {
+		if !cfg.EnableOIDC {
 			allErrs = append(allErrs, field.Forbidden(fieldPath.Child("oidc"),
 				"OIDC must be enabled via cli argument -enable-oidc to use OIDC policy"))
 		}
-		if !isPlus {
+		if !cfg.IsPlus {
 			return append(allErrs, field.Forbidden(fieldPath.Child("oidc"), "OIDC is only supported in NGINX Plus"))
 		}
 
@@ -81,10 +89,10 @@ func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, isPlus, enab
 	}
 
 	if spec.WAF != nil {
-		if !isPlus {
+		if !cfg.IsPlus {
 			allErrs = append(allErrs, field.Forbidden(fieldPath.Child("waf"), "WAF is only supported in NGINX Plus"))
 		}
-		if !enableAppProtect {
+		if !cfg.EnableAppProtect {
 			allErrs = append(allErrs, field.Forbidden(fieldPath.Child("waf"),
 				"App Protect must be enabled via cli argument -enable-app-protect to use WAF policy"))
 		}
@@ -94,7 +102,7 @@ func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, isPlus, enab
 	}
 
 	if spec.Cache != nil {
-		allErrs = append(allErrs, validateCache(spec.Cache, fieldPath.Child("cache"), isPlus)...)
+		allErrs = append(allErrs, validateCache(spec.Cache, fieldPath.Child("cache"), cfg.IsPlus)...)
 		fieldCount++
 	}
 
@@ -104,13 +112,13 @@ func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, isPlus, enab
 	}
 
 	if spec.ExternalAuth != nil {
-		allErrs = append(allErrs, validateExternalAuth(spec.ExternalAuth, fieldPath.Child("externalAuth"))...)
+		allErrs = append(allErrs, validateExternalAuth(spec.ExternalAuth, fieldPath.Child("externalAuth"), cfg.EnableSnippets)...)
 		fieldCount++
 	}
 
 	if fieldCount != 1 {
 		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`"
-		if isPlus {
+		if cfg.IsPlus {
 			msg = fmt.Sprint(msg, ", `jwt`, `oidc`, `waf`")
 		}
 		allErrs = append(allErrs, field.Invalid(fieldPath, "", msg))
@@ -1220,8 +1228,14 @@ func containsDangerousChars(value string) bool {
 	return false
 }
 
-func validateExternalAuth(externalAuth *v1.ExternalAuth, fieldPath *field.Path) field.ErrorList {
+func validateExternalAuth(externalAuth *v1.ExternalAuth, fieldPath *field.Path, enableSnippets bool) field.ErrorList {
 	allErrs := field.ErrorList{}
+
+	// Validate AuthSnippets requires enableSnippets
+	if externalAuth.AuthSnippets != "" && !enableSnippets {
+		allErrs = append(allErrs, field.Forbidden(fieldPath.Child("authSnippets"),
+			"snippets must be enabled via cli argument -enable-snippets to use authSnippets"))
+	}
 
 	// Validate AuthURI
 	allErrs = append(allErrs, validateAuthURI(externalAuth.AuthURI, fieldPath.Child("authURI"))...)

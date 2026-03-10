@@ -870,7 +870,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusSubroute(t *testing.T)
 					ServiceName:              "coffee-svc",
 				},
 				{
-					Path:                    "/oauth2/auth",
+					Path:                    "/auth",
 					Internal:                true,
 					Snippets:                []string{`proxy_set_header X-Custom-Header "custom-value";`},
 					ProxyPass:               "http://vs_default_cafe_vsr_default_tea-vsr_vs_exauth_default_external-auth-policy-subroute",
@@ -3962,7 +3962,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 			},
 			Locations: []version2.Location{
 				{
-					Path:                    "/oauth2/auth",
+					Path:                    "/auth",
 					Internal:                true,
 					Snippets:                []string{`proxy_set_header X-Custom-Header "custom-value";`},
 					ProxyPass:               "http://vs_default_cafe_vs_exauth_default_external-auth-policy",

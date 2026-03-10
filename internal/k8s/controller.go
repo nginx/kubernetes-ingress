@@ -2758,6 +2758,18 @@ func createPolicyMap(policies []*conf_v1.Policy) map[string]*conf_v1.Policy {
 	return result
 }
 
+func (lbc *LoadBalancerController) policyValidationConfig() validation.PolicyValidationConfig {
+	cfg := validation.PolicyValidationConfig{
+		IsPlus:           lbc.isNginxPlus,
+		EnableOIDC:       lbc.enableOIDC,
+		EnableAppProtect: lbc.appProtectEnabled,
+	}
+	if lbc.configuration != nil {
+		cfg.EnableSnippets = lbc.configuration.snippetsEnabled
+	}
+	return cfg
+}
+
 func (lbc *LoadBalancerController) getAllPolicies() []*conf_v1.Policy {
 	var policies []*conf_v1.Policy
 
@@ -2765,7 +2777,7 @@ func (lbc *LoadBalancerController) getAllPolicies() []*conf_v1.Policy {
 		for _, obj := range nsi.policyLister.List() {
 			pol := obj.(*conf_v1.Policy)
 
-			err := validation.ValidatePolicy(pol, lbc.isNginxPlus, lbc.enableOIDC, lbc.appProtectEnabled)
+			err := validation.ValidatePolicy(pol, lbc.policyValidationConfig())
 			if err != nil {
 				nl.Debugf(lbc.Logger, "Skipping invalid Policy %s/%s: %v", pol.Namespace, pol.Name, err)
 				continue
@@ -2818,7 +2830,7 @@ func (lbc *LoadBalancerController) getPolicies(policies []conf_v1.PolicyReferenc
 			continue
 		}
 
-		err = validation.ValidatePolicy(policy, lbc.isNginxPlus, lbc.enableOIDC, lbc.appProtectEnabled)
+		err = validation.ValidatePolicy(policy, lbc.policyValidationConfig())
 		if err != nil {
 			errors = append(errors, fmt.Errorf("policy %s is invalid: %w", policyKey, err))
 			continue
