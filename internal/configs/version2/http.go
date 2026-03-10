@@ -467,7 +467,6 @@ type JwksURI struct {
 // ExternalAuth holds external authentication configuration.
 type ExternalAuth struct {
 	URI       *AuthURI
-	ProxyURL  string
 	SigninURL *AuthURI
 	Snippets  string
 	Ports     []int
@@ -475,11 +474,10 @@ type ExternalAuth struct {
 
 // AuthURI defines the components of an AuthURI
 type AuthURI struct {
-	Scheme string
-	Host   string
-	Port   string
-	Path   string
-	Query  string
+	Service  string
+	Upstream string
+	Port     string
+	Path     string
 }
 
 // BasicAuth refers to basic HTTP authentication mechanism options

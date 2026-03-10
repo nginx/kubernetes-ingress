@@ -3458,14 +3458,6 @@ func TestValidateExternalAuth_PassesOnValidInput(t *testing.T) {
 			msg: "authSigninURI with multi-segment path",
 		},
 		{
-			name: "valid authServiceName with full DNS name",
-			externalAuth: &v1.ExternalAuth{
-				AuthURI:         "/auth",
-				AuthServiceName: "auth-svc.auth-namespace.svc.cluster.local",
-			},
-			msg: "authServiceName with full k8s DNS name",
-		},
-		{
 			name: "valid authSigninURI omitted",
 			externalAuth: &v1.ExternalAuth{
 				AuthURI:         "/auth",
@@ -3733,8 +3725,8 @@ func TestValidateExternalAuth_EdgeCases(t *testing.T) {
 				AuthURI:         "/validate",
 				AuthServiceName: "my-auth-service.my-namespace.svc.cluster.local",
 			},
-			expectError: false,
-			msg:         "authServiceName with full Kubernetes service DNS name should be valid",
+			expectError: true,
+			msg:         "authServiceName with full Kubernetes service DNS name should not be valid",
 		},
 		{
 			name: "empty authServiceName is valid",
@@ -3742,8 +3734,8 @@ func TestValidateExternalAuth_EdgeCases(t *testing.T) {
 				AuthURI:         "/auth",
 				AuthServiceName: "",
 			},
-			expectError: false,
-			msg:         "empty authServiceName should be valid (optional field)",
+			expectError: true,
+			msg:         "empty authServiceName should not be valid (required field)",
 		},
 		{
 			name: "sanity check with all fields valid",

@@ -370,7 +370,7 @@ server {
     {{- end }}
 
     {{- if $s.ExternalAuth }}
-    auth_request {{ $s.ExternalAuth.ProxyURL }};
+    auth_request {{ $s.ExternalAuth.URI.Path }};
     {{- end }}
 
     {{- range $e := $s.ErrorPages }}
@@ -516,7 +516,7 @@ server {
         {{- end }}
 
         {{- if $l.ExternalAuth }}
-        auth_request {{ $l.ExternalAuth.ProxyURL }};
+        auth_request {{ $l.ExternalAuth.URI.Path }};
         {{- end }}
 
         {{- with $l.PoliciesErrorReturn }}

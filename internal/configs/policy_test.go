@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"sort"
 	"testing"
 
@@ -1275,8 +1274,8 @@ func TestGeneratePolicies(t *testing.T) {
 
 			result.BundleValidator = nil
 
-			if !reflect.DeepEqual(tc.expected, result) {
-				t.Error(cmp.Diff(tc.expected, result, cmpopts.IgnoreFields(policiesCfg{}, "Context")))
+			if diff := cmp.Diff(tc.expected, result, cmpopts.IgnoreFields(policiesCfg{}, "Context")); diff != "" {
+				t.Error(diff)
 			}
 			if len(warnings) > 0 {
 				t.Errorf("generatePolicies() returned unexpected warnings %v for the case of %s", warnings, tc.msg)
@@ -1463,14 +1462,14 @@ func TestAddCORSConfig(t *testing.T) {
 					t.Errorf("Expected both CORS headers to be empty, but got actual=%d expected=%d", len(actualCORS), len(expectedCORS))
 				}
 			} else {
-				if !reflect.DeepEqual(actualCORS, expectedCORS) {
-					t.Errorf("CORS headers mismatch.\nExpected: %+v\nGot: %+v", expectedCORS, actualCORS)
+				if diff := cmp.Diff(expectedCORS, actualCORS); diff != "" {
+					t.Errorf("CORS headers mismatch (-want +got):\n%s", diff)
 				}
 			}
 
 			// Compare CORS map
-			if !reflect.DeepEqual(config.CORSMap, test.expected.CORSMap) {
-				t.Errorf("CORS map mismatch.\nExpected: %+v\nGot: %+v", test.expected.CORSMap, config.CORSMap)
+			if diff := cmp.Diff(test.expected.CORSMap, config.CORSMap); diff != "" {
+				t.Errorf("CORS map mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -1713,12 +1712,12 @@ func TestGenerateCORSPolicy(t *testing.T) {
 				nil,
 			)
 
-			if !reflect.DeepEqual(result.CORSHeaders, test.expected.CORSHeaders) {
-				t.Errorf("%s: CORS headers mismatch.\nExpected: %+v\nGot: %+v", test.msg, test.expected.CORSHeaders, result.CORSHeaders)
+			if diff := cmp.Diff(test.expected.CORSHeaders, result.CORSHeaders); diff != "" {
+				t.Errorf("%s: CORS headers mismatch (-want +got):\n%s", test.msg, diff)
 			}
 
-			if !reflect.DeepEqual(result.CORSMap, test.expected.CORSMap) {
-				t.Errorf("%s: CORS map mismatch.\nExpected: %+v\nGot: %+v", test.msg, test.expected.CORSMap, result.CORSMap)
+			if diff := cmp.Diff(test.expected.CORSMap, result.CORSMap); diff != "" {
+				t.Errorf("%s: CORS map mismatch (-want +got):\n%s", test.msg, diff)
 			}
 
 			if result.Context != test.expected.Context {
@@ -1746,10 +1745,11 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			},
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
-					Host: "auth-svc",
-					Path: "/auth",
+					Service:  "auth-svc",
+					Upstream: "vs_exauth_default_ext-auth-policy_default_test-vs",
+					Path:     "/auth",
 				},
-				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
+				Ports: nil,
 			},
 			msg: "basic external auth with URI only",
 		},
@@ -1762,13 +1762,16 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			},
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
-					Host: "auth-svc",
-					Path: "/oauth2/auth",
+					Service:  "auth-svc",
+					Upstream: "vs_exauth_default_ext-auth-policy_default_test-vs",
+					Path:     "/oauth2/auth",
 				},
-				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
 				SigninURL: &version2.AuthURI{
-					Path: "/oauth2/signin",
+					Service:  "auth-svc",
+					Upstream: "vs_exauth_default_ext-auth-policy_default_test-vs",
+					Path:     "/oauth2/signin",
 				},
+				Ports: nil,
 			},
 			msg: "external auth with signin URI",
 		},
@@ -1781,11 +1784,12 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			},
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
-					Host: "auth-svc",
-					Path: "/check",
+					Service:  "auth-svc",
+					Upstream: "vs_exauth_default_ext-auth-policy_default_test-vs",
+					Path:     "/check",
 				},
-				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
 				Snippets: "proxy_set_header X-Forwarded-Host $host;",
+				Ports:    nil,
 			},
 			msg: "external auth with snippets",
 		},
@@ -1799,14 +1803,17 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			},
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
-					Host: "oauth2-proxy",
-					Path: "/oauth2/auth",
+					Service:  "oauth2-proxy",
+					Upstream: "vs_exauth_default_ext-auth-policy_default_test-vs",
+					Path:     "/oauth2/auth",
 				},
-				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
 				SigninURL: &version2.AuthURI{
-					Path: "/oauth2/start",
+					Service:  "oauth2-proxy",
+					Upstream: "vs_exauth_default_ext-auth-policy_default_test-vs",
+					Path:     "/oauth2/start",
 				},
 				Snippets: "proxy_set_header X-Auth-Request-Redirect $request_uri;",
+				Ports:    nil,
 			},
 			msg: "full external auth with URI, signin URI, and snippets",
 		},
@@ -1818,10 +1825,11 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			},
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
-					Host: "auth-ns/auth-svc",
-					Path: "/validate",
+					Service:  "auth-ns/auth-svc",
+					Upstream: "vs_exauth_default_ext-auth-policy_default_test-vs",
+					Path:     "/validate",
 				},
-				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
+				Ports: nil,
 			},
 			msg: "external auth with namespaced service name",
 		},
@@ -1834,10 +1842,11 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			},
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
-					Host: "auth-svc",
-					Path: "/auth",
+					Service:  "auth-svc",
+					Upstream: "vs_exauth_default_ext-auth-policy_default_test-vs",
+					Path:     "/auth",
 				},
-				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
+				Ports: nil,
 			},
 			msg: "empty signin URI should not be set",
 		},
@@ -1850,10 +1859,11 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			},
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
-					Host: "auth-svc",
-					Path: "/auth",
+					Service:  "auth-svc",
+					Upstream: "vs_exauth_default_ext-auth-policy_default_test-vs",
+					Path:     "/auth",
 				},
-				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
+				Ports: nil,
 			},
 			msg: "empty snippets should not be set",
 		},
@@ -1865,9 +1875,11 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			},
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
-					Host: "first-auth-svc",
-					Path: "/first",
+					Service:  "first-auth-svc",
+					Upstream: "first-auth-svc",
+					Path:     "/first",
 				},
+				Ports: nil,
 			},
 			wantWarning: true,
 			msg:         "duplicate external auth policy should produce warning and be ignored",
@@ -1881,11 +1893,11 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			},
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
-					Host: "auth-svc",
-					Path: "/check",
+					Service:  "auth-svc",
+					Upstream: "vs_exauth_default_ext-auth-policy_default_test-vs",
+					Path:     "/check",
 				},
-				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
-				Ports:    []int{9000},
+				Ports: []int{9000},
 			},
 			msg: "external auth with single AuthServicePort",
 		},
@@ -1898,11 +1910,11 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			},
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
-					Host: "auth-svc",
-					Path: "/check",
+					Service:  "auth-svc",
+					Upstream: "vs_exauth_default_ext-auth-policy_default_test-vs",
+					Path:     "/check",
 				},
-				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
-				Ports:    []int{80, 9000},
+				Ports: []int{80, 9000},
 			},
 			msg: "external auth with multiple AuthServicePorts",
 		},
@@ -1915,11 +1927,11 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			},
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
-					Host: "auth-svc",
-					Path: "/check",
+					Service:  "auth-svc",
+					Upstream: "vs_exauth_default_ext-auth-policy_default_test-vs",
+					Path:     "/check",
 				},
-				ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
-				Ports:    []int{},
+				Ports: []int{},
 			},
 			msg: "external auth with empty AuthServicePorts should still be set",
 		},
@@ -1944,8 +1956,9 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			if test.wantWarning {
 				config.ExternalAuth = &version2.ExternalAuth{
 					URI: &version2.AuthURI{
-						Host: "first-auth-svc",
-						Path: "/first",
+						Service:  "first-auth-svc",
+						Upstream: "first-auth-svc",
+						Path:     "/first",
 					},
 				}
 			}
@@ -1962,8 +1975,8 @@ func TestAddExternalAuthConfig(t *testing.T) {
 				}
 			}
 
-			if !reflect.DeepEqual(config.ExternalAuth, test.expected) {
-				t.Errorf("%s: ExternalAuth mismatch.\nExpected: %+v\nGot: %+v", test.msg, test.expected, config.ExternalAuth)
+			if diff := cmp.Diff(test.expected, config.ExternalAuth); diff != "" {
+				t.Errorf("%s: ExternalAuth mismatch (-want +got):\n%s", test.msg, diff)
 			}
 		})
 	}
@@ -2009,11 +2022,12 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				ExternalAuth: &version2.ExternalAuth{
-					ProxyURL: "/pol_exauth_default_test_vs_default_ext_auth_policy",
 					URI: &version2.AuthURI{
-						Host: "auth-svc",
-						Path: "/auth",
+						Service:  "auth-svc",
+						Upstream: "vs_exauth_default_ext-auth-policy_default_test-vs",
+						Path:     "/auth",
 					},
+					Ports: nil,
 				},
 			},
 			msg: "VirtualServer with basic external auth URI",
@@ -2046,15 +2060,18 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				ExternalAuth: &version2.ExternalAuth{
-					ProxyURL: "/pol_exauth_default_test_vs_default_full_ext_auth",
 					URI: &version2.AuthURI{
-						Host: "oauth2-proxy",
-						Path: "/oauth2/auth",
+						Service:  "oauth2-proxy",
+						Upstream: "vs_exauth_default_full-ext-auth_default_test-vs",
+						Path:     "/oauth2/auth",
 					},
 					SigninURL: &version2.AuthURI{
-						Path: "/oauth2/start",
+						Service:  "oauth2-proxy",
+						Upstream: "vs_exauth_default_full-ext-auth_default_test-vs",
+						Path:     "/oauth2/start",
 					},
 					Snippets: "proxy_set_header X-Auth-Request-Redirect $request_uri;",
+					Ports:    nil,
 				},
 			},
 			msg: "VirtualServer with full external auth including signin URI and snippets",
@@ -2085,11 +2102,12 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				ExternalAuth: &version2.ExternalAuth{
-					ProxyURL: "/pol_exauth_default_test_vs_default_https_ext_auth",
 					URI: &version2.AuthURI{
-						Host: "auth-svc",
-						Path: "/validate",
+						Service:  "auth-svc",
+						Upstream: "vs_exauth_default_https-ext-auth_default_test-vs",
+						Path:     "/validate",
 					},
+					Ports: nil,
 				},
 			},
 			msg: "VirtualServer with external auth URI",
@@ -2121,14 +2139,17 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				ExternalAuth: &version2.ExternalAuth{
-					ProxyURL: "/pol_exauth_app_namespace_test_vsr_app_namespace_vsr_ext_auth",
 					URI: &version2.AuthURI{
-						Host: "auth-svc",
-						Path: "/oauth2/auth",
+						Service:  "auth-svc",
+						Upstream: "vs_exauth_app-namespace_vsr-ext-auth_default_parent-vs",
+						Path:     "/oauth2/auth",
 					},
 					SigninURL: &version2.AuthURI{
-						Path: "/oauth2/signin",
+						Service:  "auth-svc",
+						Upstream: "vs_exauth_app-namespace_vsr-ext-auth_default_parent-vs",
+						Path:     "/oauth2/signin",
 					},
+					Ports: nil,
 				},
 			},
 			msg: "VirtualServerRoute with external auth policy including signin URI",
@@ -2160,12 +2181,13 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				ExternalAuth: &version2.ExternalAuth{
-					ProxyURL: "/pol_exauth_app_namespace_test_vsr_shared_policies_shared_ext_auth",
 					URI: &version2.AuthURI{
-						Host: "central-auth",
-						Path: "/oauth2/auth",
+						Service:  "central-auth",
+						Upstream: "vs_exauth_shared-policies_shared-ext-auth_default_parent-vs",
+						Path:     "/oauth2/auth",
 					},
 					Snippets: "proxy_set_header X-Original-URI $request_uri;\nproxy_set_header X-Forwarded-Host $host;",
+					Ports:    nil,
 				},
 			},
 			msg: "VirtualServerRoute cross-namespace external auth policy with snippets",
@@ -2187,8 +2209,8 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				nil,
 			)
 
-			if !reflect.DeepEqual(result.ExternalAuth, test.expected.ExternalAuth) {
-				t.Errorf("%s: ExternalAuth mismatch.\nExpected: %+v\nGot: %+v", test.msg, test.expected.ExternalAuth, result.ExternalAuth)
+			if diff := cmp.Diff(test.expected.ExternalAuth, result.ExternalAuth); diff != "" {
+				t.Errorf("%s: ExternalAuth mismatch (-want +got):\n%s", test.msg, diff)
 			}
 
 			if result.Context != test.expected.Context {
@@ -2284,8 +2306,8 @@ func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			res, warnings := generatePolicies(ctx, ownerDetails, tc.policyRefs, tc.policies, tc.context, tc.path, policyOptions{apResources: &appProtectResourcesForVS{}, replicas: 1, oidcPolicyName: ""}, &fakeBV)
 			res.BundleValidator = nil
-			if !reflect.DeepEqual(tc.want, res) {
-				t.Error(cmp.Diff(tc.want, res))
+			if diff := cmp.Diff(tc.want, res, cmpopts.IgnoreFields(policiesCfg{}, "Context")); diff != "" {
+				t.Error(diff)
 			}
 			if len(warnings) > 0 {
 				t.Errorf("generatePolicies() returned unexpected warnings %v for the case of %s", warnings, tc.name)
@@ -3976,15 +3998,14 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			result, warnings := generatePolicies(ctx, ownerDetails, test.policyRefs, test.policies, test.context, test.path, test.policyOpts, &fakeBV)
 			result.BundleValidator = nil
 
-			if !reflect.DeepEqual(test.expected, result) {
-				t.Errorf("generatePolicies() '%v' mismatch (-want +got):\n%s", test.msg, cmp.Diff(test.expected, result, cmpopts.IgnoreFields(policiesCfg{}, "Context")))
+			if diff := cmp.Diff(test.expected, result, cmpopts.IgnoreFields(policiesCfg{}, "Context")); diff != "" {
+				t.Errorf("generatePolicies() '%v' mismatch (-want +got):\n%s", test.msg, diff)
 			}
-			if !reflect.DeepEqual(warnings, test.expectedWarnings) {
+			if diff := cmp.Diff(test.expectedWarnings, warnings); diff != "" {
 				t.Errorf(
-					"generatePolicies() returned warnings of \n%v but expected \n%v for the case of %s",
-					warnings,
-					test.expectedWarnings,
+					"generatePolicies() warnings mismatch (-want +got) for the case of %s:\n%s",
 					test.msg,
+					diff,
 				)
 			}
 		})
@@ -4024,8 +4045,8 @@ func TestGenerateLRZPolicyGroupMap(t *testing.T) {
 
 	for _, test := range tests {
 		result := generateLRZPolicyGroupMap(test.lrz)
-		if !reflect.DeepEqual(result, test.expected) {
-			t.Errorf("generateLRZPolicyGroupMap() returned \n%v, but expected \n%v", result, test.expected)
+		if diff := cmp.Diff(test.expected, result); diff != "" {
+			t.Errorf("generateLRZPolicyGroupMap() mismatch (-want +got):\n%s", diff)
 		}
 	}
 }
@@ -4248,8 +4269,8 @@ func TestGenerateLRZGroupMaps(t *testing.T) {
 		for k, v := range test.expected {
 			sort.Slice(v.Parameters, func(i, j int) bool { return v.Parameters[i].Value < v.Parameters[j].Value })
 			sort.Slice(result[k].Parameters, func(i, j int) bool { return result[k].Parameters[i].Value < result[k].Parameters[j].Value })
-			if !reflect.DeepEqual(result[k], v) {
-				t.Errorf("generateLRZGroupMaps() returned \n%v, but expected \n%v", result, test.expected)
+			if diff := cmp.Diff(v, result[k]); diff != "" {
+				t.Errorf("generateLRZGroupMaps() mismatch (-want +got):\n%s", diff)
 			}
 		}
 	}

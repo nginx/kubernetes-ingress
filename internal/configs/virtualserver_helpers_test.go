@@ -3544,7 +3544,7 @@ func TestGenerateTimeWithDefault(t *testing.T) {
 	}
 }
 
-func TestGetProxyURLPort(t *testing.T) {
+func TestGetExAuthServicePort(t *testing.T) {
 	t.Parallel()
 
 	vsEx := &VirtualServerEx{
@@ -3605,34 +3605,15 @@ func TestGetProxyURLPort(t *testing.T) {
 			},
 			expected: 80,
 		},
-		{
-			name: "defaults to 443 for https when no Ports and no URI port",
-			cfg: policiesCfg{
-				ExternalAuth: &version2.ExternalAuth{
-					URI: &version2.AuthURI{Scheme: "https"},
-				},
-			},
-			expected: 443,
-		},
-		{
-			name: "Ports overrides https default",
-			cfg: policiesCfg{
-				ExternalAuth: &version2.ExternalAuth{
-					URI:   &version2.AuthURI{Scheme: "https"},
-					Ports: []int{8443},
-				},
-			},
-			expected: 8443,
-		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			vsc := newVirtualServerConfigurator(&ConfigParams{}, false, false, &StaticConfigParams{}, false, &fakeBV)
-			got := vsc.getProxyURLPort(tc.cfg, vsEx)
+			got := vsc.getExAuthServicePort(tc.cfg, vsEx)
 			if got != tc.expected {
-				t.Errorf("getProxyURLPort() = %d, want %d", got, tc.expected)
+				t.Errorf("getExAuthServicePort() = %d, want %d", got, tc.expected)
 			}
 		})
 	}
