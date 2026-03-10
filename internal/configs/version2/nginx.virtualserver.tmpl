@@ -438,7 +438,7 @@ server {
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers {{ if $l.ProxyPassRequestHeaders }}on{{ else }}off{{ end }};
         {{- if $l.ProxyPassRequestBody }}
-        proxy_pass_request_body on;
+        proxy_pass_request_body {{ $l.ProxyPassRequestBody }};
         {{- end }}
             {{- end }}
 

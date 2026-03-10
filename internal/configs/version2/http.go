@@ -216,7 +216,7 @@ type Location struct {
 	ProxyNextUpstreamTries   int
 	ProxyInterceptErrors     bool
 	ProxyPassRequestHeaders  bool
-	ProxyPassRequestBody     bool
+	ProxyPassRequestBody     string
 	ProxySetHeaders          []Header
 	ProxyHideHeaders         []string
 	ProxyPassHeaders         []string

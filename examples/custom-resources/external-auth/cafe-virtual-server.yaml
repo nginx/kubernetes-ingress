@@ -21,6 +21,8 @@ spec:
   - path: /tea
     action:
       pass: tea
+    location-snippets: |
+      # test
     policies:
       - name: external-auth-oauth2-snippets-policy
   # - path: /coffee

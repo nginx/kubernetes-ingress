@@ -1159,9 +1159,11 @@ func (vsc *virtualServerConfigurator) generateExternalAuthLocation(policiesCfg p
 		Snippets:                strings.Split(policiesCfg.ExternalAuth.Snippets, "\n"),
 		ProxyPass:               fmt.Sprintf("%s://%s", generateProxyPassProtocol(false), proxyURLUpstreamName),
 		ProxyPassRequestHeaders: true,
-		ProxyPassRequestBody:    false,
+		ProxyPassRequestBody:    "off",
 		ProxySetHeaders: []version2.Header{
 			{Name: "Content-Length", Value: "0"},
+			{Name: "Host", Value: "$host"},
+			{Name: "X-Scheme", Value: "$scheme"},
 		},
 		ProxyConnectTimeout:      generateTimeWithDefault(vsc.cfgParams.ProxyConnectTimeout, vsc.cfgParams.ProxyConnectTimeout),
 		ProxyReadTimeout:         generateTimeWithDefault(vsc.cfgParams.ProxyReadTimeout, vsc.cfgParams.ProxyReadTimeout),
@@ -1193,33 +1195,14 @@ func (vsc *virtualServerConfigurator) getExAuthServicePort(cfg policiesCfg, vsEx
 	return proxyPort
 }
 
-// func (vsc *virtualServerConfigurator) generateExternalAuthSigninLocation(policiesCfg policiesCfg, signinUpstreamName string) version2.Location {
-// 	return version2.Location{
-// 		Path:                    "/oauth2/signin",
-// 		Internal:                true,
-// 		ProxyPass:               fmt.Sprintf("%s://%s/%s?%s", generateProxyPassProtocol(policiesCfg.ExternalAuth.SigninURL.Scheme == "https"), signinUpstreamName, strings.TrimPrefix(policiesCfg.ExternalAuth.SigninURL.Path, "/"), policiesCfg.ExternalAuth.SigninURL.Query),
-// 		ProxyPassRequestHeaders: true,
-// 		ProxyPassRequestBody:    false,
-// 		ProxySetHeaders: []version2.Header{
-// 			{Name: "Content-Length", Value: "0"},
-// 		},
-// 		ProxyConnectTimeout:      generateTimeWithDefault(vsc.cfgParams.ProxyConnectTimeout, vsc.cfgParams.ProxyConnectTimeout),
-// 		ProxyReadTimeout:         generateTimeWithDefault(vsc.cfgParams.ProxyReadTimeout, vsc.cfgParams.ProxyReadTimeout),
-// 		ProxySendTimeout:         generateTimeWithDefault(vsc.cfgParams.ProxySendTimeout, vsc.cfgParams.ProxySendTimeout),
-// 		ClientMaxBodySize:        "0",
-// 		ProxyNextUpstream:        "error timeout",
-// 		ProxyNextUpstreamTimeout: generateTimeWithDefault(vsc.cfgParams.ProxyNextUpstreamTimeout, "0s"),
-// 		ServiceName:              policiesCfg.ExternalAuth.SigninURL.Host,
-// 		IsVSR:                    false,
-// 	}
-// }
-
 func (vsc *virtualServerConfigurator) generateExternalAuthOAuth2Location(policiesCfg policiesCfg, signinUpstreamName string) version2.Location {
 	return version2.Location{
 		Path:      "/oauth2",
 		ProxyPass: fmt.Sprintf("%s://%s", generateProxyPassProtocol(false), signinUpstreamName),
 		ProxySetHeaders: []version2.Header{
 			{Name: "X-Auth-Request-Redirect", Value: "$request_uri"},
+			{Name: "Host", Value: "$host"},
+			{Name: "X-Scheme", Value: "$scheme"},
 		},
 		ProxyConnectTimeout:      generateTimeWithDefault(vsc.cfgParams.ProxyConnectTimeout, vsc.cfgParams.ProxyConnectTimeout),
 		ProxyReadTimeout:         generateTimeWithDefault(vsc.cfgParams.ProxyReadTimeout, vsc.cfgParams.ProxyReadTimeout),
@@ -1238,7 +1221,7 @@ func getServerErrorPages(cfg policiesCfg) []version2.ErrorPage {
 			{
 				Name:         cfg.ExternalAuth.SigninURL.Path,
 				Codes:        "401",
-				ResponseCode: -1,
+				ResponseCode: 0,
 			},
 		}
 	}
@@ -1427,7 +1410,7 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 		location.ErrorPages = append(location.ErrorPages, version2.ErrorPage{
 			Name:         cfg.ExternalAuth.SigninURL.Path,
 			Codes:        "401",
-			ResponseCode: -1,
+			ResponseCode: 0,
 		})
 		location.ProxyInterceptErrors = true
 	}
