@@ -1212,6 +1212,7 @@ func (vsc *virtualServerConfigurator) generateExternalAuthOAuth2Location(policie
 		ProxyNextUpstreamTimeout: generateTimeWithDefault(vsc.cfgParams.ProxyNextUpstreamTimeout, "0s"),
 		ServiceName:              policiesCfg.ExternalAuth.SigninURL.Upstream,
 		IsVSR:                    false,
+		ProxyPassRequestHeaders:  true,
 	}
 }
 

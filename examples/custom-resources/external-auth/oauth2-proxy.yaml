@@ -11,7 +11,8 @@ data:
     upstreams = ["file:///dev/null"]
     http_address = "0.0.0.0:4180"
     redirect_url = "https://cafe.example.com/oauth2/callback"
-    cookie_secure = false
+    cookie_secure = true
+    whitelist_domains = ["cafe.example.com"]
 ---
 apiVersion: apps/v1
 kind: Deployment

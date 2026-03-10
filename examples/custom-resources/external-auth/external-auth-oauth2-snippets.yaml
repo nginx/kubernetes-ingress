@@ -7,3 +7,5 @@ spec:
     authURI: "/oauth2/auth"
     authSigninURI: "/oauth2/signin"
     authServiceName: "default/oauth2-proxy-svc"
+    authSnippets: |
+      # additional auth snippets
