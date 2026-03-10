@@ -555,12 +555,14 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		generatedExternalAuthURLs[policiesCfg.ExternalAuth.URI.Path] = true
 		proxyURLUpstreamName := policiesCfg.ExternalAuth.URI.Upstream
 		proxyURLUpstream := conf_v1.Upstream{
-			Name:    externalAuthName,
+			Name:    proxyURLUpstreamName,
 			Service: policiesCfg.ExternalAuth.URI.Service,
 			Port:    vsc.getExAuthServicePort(policiesCfg, vsEx),
 		}
 
-		locations = append(locations, vsc.generateExternalAuthLocation(policiesCfg, proxyURLUpstreamName))
+		proxyPassUpstream := virtualServerUpstreamNamer.GetNameForUpstream(proxyURLUpstreamName)
+
+		locations = append(locations, vsc.generateExternalAuthLocation(policiesCfg, proxyPassUpstream))
 
 		upstreams, healthChecks, statusMatches = generateUpstreams(
 			sslConfig,
@@ -582,7 +584,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 			// locations = append(locations, vsc.generateExternalAuthSigninLocation(policiesCfg, proxyURLUpstreamName))
 			if !generatedOAuth2Location {
-				locations = append(locations, vsc.generateExternalAuthOAuth2Location(policiesCfg, proxyURLUpstreamName))
+				locations = append(locations, vsc.generateExternalAuthOAuth2Location(policiesCfg, proxyPassUpstream))
 				generatedOAuth2Location = true
 			}
 		}
@@ -718,15 +720,16 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		if routePoliciesCfg.ExternalAuth != nil {
 			if !generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.URI.Path] {
 				generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.URI.Path] = true
-				externalAuthName := strings.TrimPrefix(routePoliciesCfg.ExternalAuth.URI.Path, "/")
 				proxyURLUpstreamName := routePoliciesCfg.ExternalAuth.URI.Upstream
 				proxyURLUpstream := conf_v1.Upstream{
-					Name:    externalAuthName,
+					Name:    proxyURLUpstreamName,
 					Service: routePoliciesCfg.ExternalAuth.URI.Service,
 					Port:    vsc.getExAuthServicePort(routePoliciesCfg, vsEx),
 				}
 
-				locations = append(locations, vsc.generateExternalAuthLocation(routePoliciesCfg, proxyURLUpstreamName))
+				proxyPassUpstream := virtualServerUpstreamNamer.GetNameForUpstream(proxyURLUpstreamName)
+
+				locations = append(locations, vsc.generateExternalAuthLocation(routePoliciesCfg, proxyPassUpstream))
 
 				upstreams, healthChecks, statusMatches = generateUpstreams(
 					sslConfig,
@@ -748,7 +751,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 					// locations = append(locations, vsc.generateExternalAuthSigninLocation(routePoliciesCfg, proxyURLUpstreamName))
 					if !generatedOAuth2Location {
-						locations = append(locations, vsc.generateExternalAuthOAuth2Location(routePoliciesCfg, proxyURLUpstreamName))
+						locations = append(locations, vsc.generateExternalAuthOAuth2Location(routePoliciesCfg, proxyPassUpstream))
 						generatedOAuth2Location = true
 					}
 				}
@@ -940,15 +943,16 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			if routePoliciesCfg.ExternalAuth != nil {
 				if !generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.URI.Path] {
 					generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.URI.Path] = true
-					externalAuthName := strings.TrimPrefix(routePoliciesCfg.ExternalAuth.URI.Path, "/")
 					proxyURLUpstreamName := routePoliciesCfg.ExternalAuth.URI.Upstream
 					proxyURLUpstream := conf_v1.Upstream{
-						Name:    externalAuthName,
+						Name:    proxyURLUpstreamName,
 						Service: routePoliciesCfg.ExternalAuth.URI.Service,
 						Port:    vsc.getExAuthServicePort(routePoliciesCfg, vsEx),
 					}
 
-					locations = append(locations, vsc.generateExternalAuthLocation(routePoliciesCfg, proxyURLUpstreamName))
+					proxyPassUpstream := upstreamNamer.GetNameForUpstream(proxyURLUpstreamName)
+
+					locations = append(locations, vsc.generateExternalAuthLocation(routePoliciesCfg, proxyPassUpstream))
 
 					upstreams, healthChecks, statusMatches = generateUpstreams(
 						sslConfig,
@@ -969,7 +973,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 						// locations = append(locations, vsc.generateExternalAuthSigninLocation(routePoliciesCfg, proxyURLUpstreamName))
 						if !generatedOAuth2Location {
-							locations = append(locations, vsc.generateExternalAuthOAuth2Location(routePoliciesCfg, proxyURLUpstreamName))
+							locations = append(locations, vsc.generateExternalAuthOAuth2Location(routePoliciesCfg, proxyPassUpstream))
 							generatedOAuth2Location = true
 						}
 					}
@@ -1213,7 +1217,7 @@ func (vsc *virtualServerConfigurator) getExAuthServicePort(cfg policiesCfg, vsEx
 func (vsc *virtualServerConfigurator) generateExternalAuthOAuth2Location(policiesCfg policiesCfg, signinUpstreamName string) version2.Location {
 	return version2.Location{
 		Path:      "/oauth2",
-		ProxyPass: fmt.Sprintf("%s://%s/%s", generateProxyPassProtocol(false), signinUpstreamName, strings.TrimPrefix(policiesCfg.ExternalAuth.SigninURL.Path, "/")),
+		ProxyPass: fmt.Sprintf("%s://%s", generateProxyPassProtocol(false), signinUpstreamName),
 		ProxySetHeaders: []version2.Header{
 			{Name: "X-Auth-Request-Redirect", Value: "$request_uri"},
 		},
@@ -1234,7 +1238,7 @@ func getServerErrorPages(cfg policiesCfg) []version2.ErrorPage {
 			{
 				Name:         cfg.ExternalAuth.SigninURL.Path,
 				Codes:        "401",
-				ResponseCode: 0,
+				ResponseCode: -1,
 			},
 		}
 	}
@@ -1423,7 +1427,7 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 		location.ErrorPages = append(location.ErrorPages, version2.ErrorPage{
 			Name:         cfg.ExternalAuth.SigninURL.Path,
 			Codes:        "401",
-			ResponseCode: 0,
+			ResponseCode: -1,
 		})
 		location.ProxyInterceptErrors = true
 	}

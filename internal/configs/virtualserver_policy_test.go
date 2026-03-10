@@ -467,7 +467,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusRoute(t *testing.T) {
 						{
 							Name:         "/oauth2/signin",
 							Codes:        "401",
-							ResponseCode: 0,
+							ResponseCode: -1,
 						},
 					},
 					ProxySSLName:            "tea-svc.default.svc",
@@ -899,7 +899,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusSubroute(t *testing.T)
 						{
 							Name:         "/signin",
 							Codes:        "401",
-							ResponseCode: 0,
+							ResponseCode: -1,
 						},
 					},
 					ProxySSLName:            "tea-v1-svc.default.svc",
@@ -3945,7 +3945,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 				{
 					Name:         "/signin",
 					Codes:        "401",
-					ResponseCode: 0,
+					ResponseCode: -1,
 				},
 			},
 			Locations: []version2.Location{

@@ -273,7 +273,7 @@ func (p *policiesCfg) addExternalAuthConfig(
 		return res
 	}
 
-	upstreamName := fmt.Sprintf("%s_%s_%s_%s_%s", "vs_exauth", polNamespace, polName, ownerDetails.parentNamespace, ownerDetails.parentName)
+	upstreamName := fmt.Sprintf("%s_%s_%s", "vs_exauth", polNamespace, polName)
 
 	p.ExternalAuth = &version2.ExternalAuth{
 		URI: &version2.AuthURI{
