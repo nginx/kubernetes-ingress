@@ -25,7 +25,7 @@ IC_EXTRA_ARGS = [
     "-enable-leader-election=false",
 ]
 
-
+@pytest.mark.rollback
 @pytest.mark.vs
 @pytest.mark.vsr
 @pytest.mark.parametrize(

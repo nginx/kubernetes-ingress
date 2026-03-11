@@ -39,6 +39,7 @@ IC_EXTRA_ARGS = [
 ]
 
 
+@pytest.mark.rollback
 @pytest.mark.vs
 @pytest.mark.parametrize(
     "crd_ingress_controller, transport_server_setup",
