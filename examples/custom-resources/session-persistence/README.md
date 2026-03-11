@@ -6,9 +6,9 @@ It is often required that the requests from a client are always passed to the sa
 such behavior with [Session Persistence](https://www.nginx.com/products/session-persistence/), available in the NGINX
 Plus Ingress Controller.
 
-NGINX Plus supports *the sticky cookie* method. With this method, NGINX Plus adds a session cookie to the first response
+NGINX supports *the sticky cookie* method. With this method, NGINX adds a session cookie to the first response
 from the backend container, identifying the container that sent the response. When a client issues the next request, it
-will send the cookie value and NGINX Plus will route the request to the same container.
+will send the cookie value and NGINX will route the request to the same container.
 
 ## Syntax
 
@@ -94,5 +94,5 @@ server {
 
 ## Notes
 
-Session persistence **works** even in the case where you have more than one replicas of the NGINX Plus Ingress
+Session persistence **works** even in the case where you have more than one replicas of the NGINX Ingress
 Controller running.

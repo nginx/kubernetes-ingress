@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.21
 ARG BUILD_OS=debian
 # renovate: datasource=docker depName=nginx/nginx
-ARG NGINX_OSS_VERSION=1.29.5
+ARG NGINX_OSS_VERSION=1.29.6
 ARG NGINX_PLUS_VERSION=R36
 ARG NAP_WAF_VERSION=36+5.575
 ARG NAP_WAF_COMMON_VERSION=11.608
@@ -87,7 +87,7 @@ USER 101
 
 
 ############################################# Base image for Alpine #############################################
-FROM nginx:1.29.5-alpine3.23@sha256:1d13701a5f9f3fb01aaa88cef2344d65b6b5bf6b7d9fa4cf0dca557a8d7702ba AS alpine
+FROM nginx:1.29.6-alpine3.23 AS alpine
 ARG PACKAGE_REPO
 ARG NGINX_OSS_VERSION
 ARG NGINX_AGENT_VERSION
