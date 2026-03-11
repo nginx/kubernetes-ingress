@@ -3,6 +3,7 @@ package configs
 import (
 	"context"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -433,10 +434,10 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusRoute(t *testing.T) {
 			VSName:          "cafe",
 			Locations: []version2.Location{
 				{
-					Path:                    "/oauth2/auth",
+					Path:                    "/_external_auth/oauth2/auth",
 					Internal:                true,
 					Snippets:                []string{`proxy_set_header X-Custom-Header "custom-value";`},
-					ProxyPass:               "http://vs_default_cafe_vs_exauth_default_external-auth-policy-route",
+					ProxyPass:               "http://vs_default_cafe_vs_exauth_default_external-auth-policy-route/oauth2/auth",
 					ProxyPassRequestHeaders: true,
 					ProxyPassRequestBody:    "off",
 					ProxySetHeaders: []version2.Header{
@@ -485,9 +486,10 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusRoute(t *testing.T) {
 					ServiceName:             "tea-svc",
 					ExternalAuth: &version2.ExternalAuth{
 						URI: &version2.AuthURI{
-							Service:  "auth-server",
-							Upstream: "vs_exauth_default_external-auth-policy-route",
-							Path:     "/oauth2/auth",
+							Service:      "auth-server",
+							Upstream:     "vs_exauth_default_external-auth-policy-route",
+							Path:         "/oauth2/auth",
+							InternalPath: "/_external_auth/oauth2/auth",
 						},
 						SigninURL: "/oauth2/signin",
 						Snippets:  "proxy_set_header X-Custom-Header \"custom-value\";",
@@ -653,7 +655,7 @@ func TestGenerateVirtualServerConfigExternalAuthMultipleRoutesNoDuplicateOAuth2(
 		&fakeBV,
 	)
 
-	result, _ := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
 
 	// Count /oauth2 locations — there must be exactly one
 	oauth2Count := 0
@@ -664,6 +666,23 @@ func TestGenerateVirtualServerConfigExternalAuthMultipleRoutesNoDuplicateOAuth2(
 	}
 	if oauth2Count != 1 {
 		t.Errorf("expected exactly 1 /oauth2 location, got %d", oauth2Count)
+	}
+
+	// Check for the expected duplicate external auth URI warning for the /coffee route
+	vsWarnings := warnings[virtualServerEx.VirtualServer]
+	if len(vsWarnings) == 0 {
+		t.Errorf("expected warning for duplicate external auth URI, but got none")
+	} else {
+		found := false
+		for _, warning := range vsWarnings {
+			if strings.Contains(warning, "Duplicate external auth URI /auth") && strings.Contains(warning, "/coffee") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected warning about 'Duplicate external auth URI /auth' for route '/coffee', got: %v", vsWarnings)
+		}
 	}
 }
 
@@ -868,10 +887,10 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusSubroute(t *testing.T)
 					ServiceName:              "coffee-svc",
 				},
 				{
-					Path:                    "/auth",
+					Path:                    "/_external_auth/auth",
 					Internal:                true,
 					Snippets:                []string{`proxy_set_header X-Custom-Header "custom-value";`},
-					ProxyPass:               "http://vs_default_cafe_vsr_default_tea-vsr_vs_exauth_default_external-auth-policy-subroute",
+					ProxyPass:               "http://vs_default_cafe_vsr_default_tea-vsr_vs_exauth_default_external-auth-policy-subroute/auth",
 					ProxyPassRequestHeaders: true,
 					ProxyPassRequestBody:    "off",
 					ProxySetHeaders: []version2.Header{
@@ -923,9 +942,10 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusSubroute(t *testing.T)
 					VSRNamespace:            "default",
 					ExternalAuth: &version2.ExternalAuth{
 						URI: &version2.AuthURI{
-							Service:  "auth-server",
-							Upstream: "vs_exauth_default_external-auth-policy-subroute",
-							Path:     "/auth",
+							Service:      "auth-server",
+							Upstream:     "vs_exauth_default_external-auth-policy-subroute",
+							Path:         "/auth",
+							InternalPath: "/_external_auth/auth",
 						},
 						SigninURL: "/signin",
 						Snippets:  "proxy_set_header X-Custom-Header \"custom-value\";",
@@ -3937,9 +3957,10 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 			VSName:          "cafe",
 			ExternalAuth: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
-					Service:  "auth-server",
-					Upstream: "vs_exauth_default_external-auth-policy",
-					Path:     "/auth",
+					Service:      "auth-server",
+					Upstream:     "vs_exauth_default_external-auth-policy",
+					Path:         "/auth",
+					InternalPath: "/_external_auth/auth",
 				},
 				SigninURL: "/signin",
 				Snippets:  "proxy_set_header X-Custom-Header \"custom-value\";",
@@ -3954,10 +3975,10 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 			},
 			Locations: []version2.Location{
 				{
-					Path:                    "/auth",
+					Path:                    "/_external_auth/auth",
 					Internal:                true,
 					Snippets:                []string{`proxy_set_header X-Custom-Header "custom-value";`},
-					ProxyPass:               "http://vs_default_cafe_vs_exauth_default_external-auth-policy",
+					ProxyPass:               "http://vs_default_cafe_vs_exauth_default_external-auth-policy/auth",
 					ProxyPassRequestHeaders: true,
 					ProxyPassRequestBody:    "off",
 					ProxySetHeaders: []version2.Header{

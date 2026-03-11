@@ -1745,9 +1745,10 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			},
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
-					Service:  "auth-svc",
-					Upstream: "vs_exauth_default_ext-auth-policy",
-					Path:     "/auth",
+					Service:      "auth-svc",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/auth",
+					InternalPath: "/_external_auth/auth",
 				},
 				Ports: nil,
 			},
@@ -1762,9 +1763,10 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			},
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
-					Service:  "auth-svc",
-					Upstream: "vs_exauth_default_ext-auth-policy",
-					Path:     "/oauth2/auth",
+					Service:      "auth-svc",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/oauth2/auth",
+					InternalPath: "/_external_auth/oauth2/auth",
 				},
 				SigninURL: "/oauth2/signin",
 				Ports:     nil,
@@ -1780,9 +1782,10 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			},
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
-					Service:  "auth-svc",
-					Upstream: "vs_exauth_default_ext-auth-policy",
-					Path:     "/check",
+					Service:      "auth-svc",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/check",
+					InternalPath: "/_external_auth/check",
 				},
 				Snippets: "proxy_set_header X-Forwarded-Host $host;",
 				Ports:    nil,
@@ -1799,9 +1802,10 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			},
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
-					Service:  "oauth2-proxy",
-					Upstream: "vs_exauth_default_ext-auth-policy",
-					Path:     "/oauth2/auth",
+					Service:      "oauth2-proxy",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/oauth2/auth",
+					InternalPath: "/_external_auth/oauth2/auth",
 				},
 				SigninURL: "/oauth2/start",
 				Snippets:  "proxy_set_header X-Auth-Request-Redirect $request_uri;",
@@ -1817,9 +1821,10 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			},
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
-					Service:  "auth-ns/auth-svc",
-					Upstream: "vs_exauth_default_ext-auth-policy",
-					Path:     "/validate",
+					Service:      "auth-ns/auth-svc",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/validate",
+					InternalPath: "/_external_auth/validate",
 				},
 				Ports: nil,
 			},
@@ -1834,9 +1839,10 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			},
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
-					Service:  "auth-svc",
-					Upstream: "vs_exauth_default_ext-auth-policy",
-					Path:     "/auth",
+					Service:      "auth-svc",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/auth",
+					InternalPath: "/_external_auth/auth",
 				},
 				Ports: nil,
 			},
@@ -1851,9 +1857,10 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			},
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
-					Service:  "auth-svc",
-					Upstream: "vs_exauth_default_ext-auth-policy",
-					Path:     "/auth",
+					Service:      "auth-svc",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/auth",
+					InternalPath: "/_external_auth/auth",
 				},
 				Ports: nil,
 			},
@@ -1885,9 +1892,10 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			},
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
-					Service:  "auth-svc",
-					Upstream: "vs_exauth_default_ext-auth-policy",
-					Path:     "/check",
+					Service:      "auth-svc",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/check",
+					InternalPath: "/_external_auth/check",
 				},
 				Ports: []int{9000},
 			},
@@ -1902,9 +1910,10 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			},
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
-					Service:  "auth-svc",
-					Upstream: "vs_exauth_default_ext-auth-policy",
-					Path:     "/check",
+					Service:      "auth-svc",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/check",
+					InternalPath: "/_external_auth/check",
 				},
 				Ports: []int{80, 9000},
 			},
@@ -1919,9 +1928,10 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			},
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
-					Service:  "auth-svc",
-					Upstream: "vs_exauth_default_ext-auth-policy",
-					Path:     "/check",
+					Service:      "auth-svc",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/check",
+					InternalPath: "/_external_auth/check",
 				},
 				Ports: []int{},
 			},
@@ -2015,9 +2025,10 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				Context: ctx,
 				ExternalAuth: &version2.ExternalAuth{
 					URI: &version2.AuthURI{
-						Service:  "auth-svc",
-						Upstream: "vs_exauth_default_ext-auth-policy",
-						Path:     "/auth",
+						Service:      "auth-svc",
+						Upstream:     "vs_exauth_default_ext-auth-policy",
+						Path:         "/auth",
+						InternalPath: "/_external_auth/auth",
 					},
 					Ports: nil,
 				},
@@ -2053,9 +2064,10 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				Context: ctx,
 				ExternalAuth: &version2.ExternalAuth{
 					URI: &version2.AuthURI{
-						Service:  "oauth2-proxy",
-						Upstream: "vs_exauth_default_full-ext-auth",
-						Path:     "/oauth2/auth",
+						Service:      "oauth2-proxy",
+						Upstream:     "vs_exauth_default_full-ext-auth",
+						Path:         "/oauth2/auth",
+						InternalPath: "/_external_auth/oauth2/auth",
 					},
 					SigninURL: "/oauth2/start",
 					Snippets:  "proxy_set_header X-Auth-Request-Redirect $request_uri;",
@@ -2091,9 +2103,10 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				Context: ctx,
 				ExternalAuth: &version2.ExternalAuth{
 					URI: &version2.AuthURI{
-						Service:  "auth-svc",
-						Upstream: "vs_exauth_default_https-ext-auth",
-						Path:     "/validate",
+						Service:      "auth-svc",
+						Upstream:     "vs_exauth_default_https-ext-auth",
+						Path:         "/validate",
+						InternalPath: "/_external_auth/validate",
 					},
 					Ports: nil,
 				},
@@ -2128,9 +2141,10 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				Context: ctx,
 				ExternalAuth: &version2.ExternalAuth{
 					URI: &version2.AuthURI{
-						Service:  "auth-svc",
-						Upstream: "vs_exauth_app-namespace_vsr-ext-auth",
-						Path:     "/oauth2/auth",
+						Service:      "auth-svc",
+						Upstream:     "vs_exauth_app-namespace_vsr-ext-auth",
+						Path:         "/oauth2/auth",
+						InternalPath: "/_external_auth/oauth2/auth",
 					},
 					SigninURL: "/oauth2/signin",
 					Ports:     nil,
@@ -2166,9 +2180,10 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				Context: ctx,
 				ExternalAuth: &version2.ExternalAuth{
 					URI: &version2.AuthURI{
-						Service:  "central-auth",
-						Upstream: "vs_exauth_shared-policies_shared-ext-auth",
-						Path:     "/oauth2/auth",
+						Service:      "central-auth",
+						Upstream:     "vs_exauth_shared-policies_shared-ext-auth",
+						Path:         "/oauth2/auth",
+						InternalPath: "/_external_auth/oauth2/auth",
 					},
 					Snippets: "proxy_set_header X-Original-URI $request_uri;\nproxy_set_header X-Forwarded-Host $host;",
 					Ports:    nil,

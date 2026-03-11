@@ -475,10 +475,11 @@ type ExternalAuth struct {
 
 // AuthURI defines the components of an AuthURI
 type AuthURI struct {
-	Service  string
-	Upstream string
-	Port     string
-	Path     string
+	Service      string
+	Upstream     string
+	Port         string
+	Path         string
+	InternalPath string
 }
 
 // BasicAuth refers to basic HTTP authentication mechanism options

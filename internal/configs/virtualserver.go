@@ -555,7 +555,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	// generate config for external auth if referenced in policiesCfg, adds an upstream for the
 	// external auth server and a location for the external auth requests
 	if policiesCfg.ExternalAuth != nil {
-		generatedExternalAuthURLs[policiesCfg.ExternalAuth.URI.Path] = true
+		generatedExternalAuthURLs[policiesCfg.ExternalAuth.URI.InternalPath] = true
 		proxyURLUpstreamName := policiesCfg.ExternalAuth.URI.Upstream
 		proxyURLUpstream := conf_v1.Upstream{
 			Name:    proxyURLUpstreamName,
@@ -720,8 +720,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		// generate config for route-level external auth if referenced in routePoliciesCfg,
 		// adds an upstream for the external auth server and a location for the external auth requests
 		if routePoliciesCfg.ExternalAuth != nil {
-			if !generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.URI.Path] {
-				generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.URI.Path] = true
+			if !generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.URI.InternalPath] {
+				generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.URI.InternalPath] = true
 				proxyURLUpstreamName := routePoliciesCfg.ExternalAuth.URI.Upstream
 				proxyURLUpstream := conf_v1.Upstream{
 					Name:    proxyURLUpstreamName,
@@ -756,6 +756,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 						generatedOAuth2Location = true
 					}
 				}
+			} else {
+				vsc.addWarningf(vsEx.VirtualServer, "Duplicate external auth URI %s on this VirtualServer; external auth URI for route %s will be ignored.", routePoliciesCfg.ExternalAuth.URI.Path, r.Path)
 			}
 		}
 
@@ -942,8 +944,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			// generate config for subroute-level external auth if referenced in routePoliciesCfg,
 			// adds an upstream for the external auth server and a location for the external auth requests
 			if routePoliciesCfg.ExternalAuth != nil {
-				if !generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.URI.Path] {
-					generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.URI.Path] = true
+				if !generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.URI.InternalPath] {
+					generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.URI.InternalPath] = true
 					proxyURLUpstreamName := routePoliciesCfg.ExternalAuth.URI.Upstream
 					proxyURLUpstream := conf_v1.Upstream{
 						Name:    proxyURLUpstreamName,
@@ -977,6 +979,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 							generatedOAuth2Location = true
 						}
 					}
+				} else {
+					vsc.addWarningf(vsr, "Duplicate external auth URI %s on this VirtualServer; external auth URI for route %s will be ignored.", routePoliciesCfg.ExternalAuth.URI.Path, r.Path)
 				}
 			}
 
@@ -1154,10 +1158,10 @@ func (vsc *virtualServerConfigurator) generateExternalAuthLocation(policiesCfg p
 	var svcName string
 	_, svcName = ParseServiceReference(policiesCfg.ExternalAuth.URI.Service, "")
 	return version2.Location{
-		Path:                    policiesCfg.ExternalAuth.URI.Path,
+		Path:                    policiesCfg.ExternalAuth.URI.InternalPath,
 		Internal:                true,
 		Snippets:                strings.Split(policiesCfg.ExternalAuth.Snippets, "\n"),
-		ProxyPass:               fmt.Sprintf("%s://%s", generateProxyPassProtocol(false), proxyURLUpstreamName),
+		ProxyPass:               fmt.Sprintf("%s://%s%s", generateProxyPassProtocol(false), proxyURLUpstreamName, policiesCfg.ExternalAuth.URI.Path),
 		ProxyPassRequestHeaders: true,
 		ProxyPassRequestBody:    "off",
 		ProxySetHeaders: []version2.Header{
