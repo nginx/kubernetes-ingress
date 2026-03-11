@@ -1181,8 +1181,8 @@ func (vsc *virtualServerConfigurator) generateExternalAuthLocation(policiesCfg p
 }
 
 func (vsc *virtualServerConfigurator) getExAuthServicePort(cfg policiesCfg, vsEx *VirtualServerEx) uint16 {
-	if len(cfg.ExternalAuth.Ports) > 0 {
-		return uint16(cfg.ExternalAuth.Ports[0])
+	if len(cfg.ExternalAuth.ServicePorts) > 0 {
+		return uint16(cfg.ExternalAuth.ServicePorts[0])
 	}
 
 	var proxyPort uint16

@@ -11,7 +11,7 @@ type ExternalAuthApplyConfiguration struct {
 	AuthURI *string `json:"authURI,omitempty"`
 	// AuthServiceName is the name of the Kubernetes service to which the request will be sent for authentication.  It can be in the same namespace as the Policy resource or in a different namespace. If the service is in a different namespace, it should be specified in the format <namespace>/<service>. For example, auth-service or auth-namespace/auth-service.
 	AuthServiceName *string `json:"authServiceName,omitempty"`
-	// AuthServicePort is the port of the Kubernetes service to which the request will be sent for authentication. If not specified, the ports will be looked up from the service definition.
+	// AuthServicePort is the port of the Kubernetes service to which the request will be sent for authentication. If not specified, the ports will be looked up from the service definition. This field is only required if the user wants to choose a specific port from the service definition, otherwise the first port will be used by default.
 	AuthServicePorts []int `json:"authServicePorts,omitempty"`
 	// AuthSigninURI is the URI which requests will be redirected to if the external authentication server determines that the client needs to be authenticated. This is typically used when the external authentication server is an oauth2-proxy or any custom authentication server that requires redirection for authentication. The URI is a relative URI, for example /signin.
 	AuthSigninURI *string `json:"authSigninURI,omitempty"`

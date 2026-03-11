@@ -3565,8 +3565,8 @@ func TestGetExAuthServicePort(t *testing.T) {
 			name: "Ports from policy spec takes precedence over URI port",
 			cfg: policiesCfg{
 				ExternalAuth: &version2.ExternalAuth{
-					URI:   &version2.AuthURI{Port: "80"},
-					Ports: []int{9000},
+					URI:          &version2.AuthURI{Port: "80"},
+					ServicePorts: []int{9000},
 				},
 			},
 			expected: 9000,
@@ -3575,7 +3575,7 @@ func TestGetExAuthServicePort(t *testing.T) {
 			name: "first port from Ports is used",
 			cfg: policiesCfg{
 				ExternalAuth: &version2.ExternalAuth{
-					Ports: []int{8080, 9000},
+					ServicePorts: []int{8080, 9000},
 				},
 			},
 			expected: 8080,
@@ -3584,8 +3584,8 @@ func TestGetExAuthServicePort(t *testing.T) {
 			name: "falls back to URI port when Ports is empty",
 			cfg: policiesCfg{
 				ExternalAuth: &version2.ExternalAuth{
-					URI:   &version2.AuthURI{Port: "8443"},
-					Ports: []int{},
+					URI:          &version2.AuthURI{Port: "8443"},
+					ServicePorts: []int{},
 				},
 			},
 			expected: 8443,

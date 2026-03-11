@@ -491,9 +491,9 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusRoute(t *testing.T) {
 							Path:         "/oauth2/auth",
 							InternalPath: "/_external_auth/oauth2/auth",
 						},
-						SigninURL: "/oauth2/signin",
-						Snippets:  "proxy_set_header X-Custom-Header \"custom-value\";",
-						Ports:     nil,
+						SigninURL:    "/oauth2/signin",
+						Snippets:     "proxy_set_header X-Custom-Header \"custom-value\";",
+						ServicePorts: nil,
 					},
 				},
 				{
@@ -947,9 +947,9 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusSubroute(t *testing.T)
 							Path:         "/auth",
 							InternalPath: "/_external_auth/auth",
 						},
-						SigninURL: "/signin",
-						Snippets:  "proxy_set_header X-Custom-Header \"custom-value\";",
-						Ports:     nil,
+						SigninURL:    "/signin",
+						Snippets:     "proxy_set_header X-Custom-Header \"custom-value\";",
+						ServicePorts: nil,
 					},
 				},
 				{
@@ -3962,9 +3962,9 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 					Path:         "/auth",
 					InternalPath: "/_external_auth/auth",
 				},
-				SigninURL: "/signin",
-				Snippets:  "proxy_set_header X-Custom-Header \"custom-value\";",
-				Ports:     nil,
+				SigninURL:    "/signin",
+				Snippets:     "proxy_set_header X-Custom-Header \"custom-value\";",
+				ServicePorts: nil,
 			},
 			ErrorPages: []version2.ErrorPage{
 				{

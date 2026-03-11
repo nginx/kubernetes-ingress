@@ -1275,7 +1275,7 @@ type ExternalAuth struct {
 	AuthServiceName string `json:"authServiceName"`
 
 	// +kubebuilder:validation:Optional
-	// AuthServicePort is the port of the Kubernetes service to which the request will be sent for authentication. If not specified, the ports will be looked up from the service definition.
+	// AuthServicePort is the port of the Kubernetes service to which the request will be sent for authentication. If not specified, the ports will be looked up from the service definition. This field is only required if the user wants to choose a specific port from the service definition, otherwise the first port will be used by default.
 	AuthServicePorts []int `json:"authServicePorts,omitempty"`
 
 	// +kubebuilder:validation:Optional
