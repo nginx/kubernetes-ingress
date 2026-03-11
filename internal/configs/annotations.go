@@ -717,27 +717,32 @@ func getGrpcServices(ingEx *IngressEx) map[string]bool {
 func getSessionPersistenceServices(ctx context.Context, ingEx *IngressEx) map[string]string {
 	l := nl.LoggerFromContext(ctx)
 
-	// sticky cookie is being added to nginx OSS, so we need to check for both annotations to maintain compatibility
-	// with existing users of the nginx.com annotation. If both annotations are present, the nginx.com annotation will
-	// take precedence.
+	// Check for both annotations to maintain compatibility with existing users of the nginx.com
+	// annotation. If both annotations are present, the nginx.com annotation takes precedence.
+	valuePlus, plusExists := ingEx.Ingress.Annotations[StickyCookieServicesAnnotationPlus]
+	valueOrg, orgExists := ingEx.Ingress.Annotations[StickyCookieServicesAnnotation]
 
-	if value, exists := ingEx.Ingress.Annotations[StickyCookieServicesAnnotationPlus]; exists {
-		services, err := ParseStickyServiceList(value)
-		if err != nil {
-			nl.Error(l, err)
-		}
-		return services
+	if !plusExists && !orgExists {
+		return nil
 	}
 
-	if value, exists := ingEx.Ingress.Annotations[StickyCookieServicesAnnotation]; exists {
-		services, err := ParseStickyServiceList(value)
-		if err != nil {
-			nl.Error(l, err)
-		}
-		return services
+	if plusExists && orgExists {
+		nl.Warnf(l, "Ingress %s/%s: both %s and %s annotations are set; using %s",
+			ingEx.Ingress.Namespace, ingEx.Ingress.Name,
+			StickyCookieServicesAnnotation, StickyCookieServicesAnnotationPlus,
+			StickyCookieServicesAnnotationPlus)
 	}
 
-	return nil
+	value := valueOrg
+	if plusExists {
+		value = valuePlus
+	}
+
+	services, err := ParseStickyServiceList(value)
+	if err != nil {
+		nl.Error(l, err)
+	}
+	return services
 }
 
 func filterMasterAnnotations(annotations map[string]string) []string {

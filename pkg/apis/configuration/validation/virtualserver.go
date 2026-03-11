@@ -1636,10 +1636,6 @@ func rejectPlusResourcesInOSS(upstream v1.Upstream, idxPath *field.Path, isPlus 
 		allErrs = append(allErrs, field.Forbidden(idxPath.Child("slow-start"), "slow start is only supported in NGINX Plus"))
 	}
 
-	// if upstream.SessionCookie != nil {
-	// 	allErrs = append(allErrs, field.Forbidden(idxPath.Child("sessionCookie"), "sticky cookies are only supported in NGINX Plus"))
-	// }
-
 	if upstream.Queue != nil {
 		allErrs = append(allErrs, field.Forbidden(idxPath.Child("queue"), "queue is only supported in NGINX Plus"))
 	}

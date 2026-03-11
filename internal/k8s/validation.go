@@ -361,7 +361,6 @@ var (
 			validateRewriteTargetAnnotation,
 		},
 		stickyCookieServicesAnnotation: {
-			// validatePlusOnlyAnnotation,
 			validateRequiredAnnotation,
 			validateStickyServiceListAnnotation,
 		},

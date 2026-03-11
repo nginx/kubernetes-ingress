@@ -71,6 +71,69 @@ func TestParseStickyServiceInvalidFormat(t *testing.T) {
 	}
 }
 
+func TestGetSessionPersistenceServices(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		expected    map[string]string
+	}{
+		{
+			name: "nginx.org annotation only",
+			annotations: map[string]string{
+				StickyCookieServicesAnnotation: "serviceName=service-1 srv_id expires=1h path=/",
+			},
+			expected: map[string]string{
+				"service-1": "srv_id expires=1h path=/",
+			},
+		},
+		{
+			name: "nginx.com annotation only",
+			annotations: map[string]string{
+				StickyCookieServicesAnnotationPlus: "serviceName=service-1 srv_id expires=2h path=/app",
+			},
+			expected: map[string]string{
+				"service-1": "srv_id expires=2h path=/app",
+			},
+		},
+		{
+			name: "both annotations present, nginx.com takes precedence",
+			annotations: map[string]string{
+				StickyCookieServicesAnnotation:     "serviceName=service-1 srv_id expires=1h path=/",
+				StickyCookieServicesAnnotationPlus: "serviceName=service-1 srv_id expires=2h path=/app",
+			},
+			expected: map[string]string{
+				"service-1": "srv_id expires=2h path=/app",
+			},
+		},
+		{
+			name:        "no annotation set",
+			annotations: map[string]string{},
+			expected:    nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ingEx := &IngressEx{
+				Ingress: &networking.Ingress{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: tt.annotations,
+						Name:        "test-ingress",
+						Namespace:   "default",
+					},
+				},
+			}
+			result := getSessionPersistenceServices(context.Background(), ingEx)
+			if !reflect.DeepEqual(result, tt.expected) {
+				t.Errorf("getSessionPersistenceServices() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
 func TestFilterMasterAnnotations(t *testing.T) {
 	t.Parallel()
 	masterAnnotations := map[string]string{
