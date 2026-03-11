@@ -805,6 +805,16 @@ func (lbc *LoadBalancerController) virtualServerRequiresEndpointsUpdate(vsEx *co
 		}
 	}
 
+	// Check external auth services referenced by policies
+	for _, p := range vsEx.Policies {
+		if p.Spec.ExternalAuth != nil && p.Spec.ExternalAuth.AuthServiceName != "" {
+			_, resolvedName := configs.ParseServiceReference(p.Spec.ExternalAuth.AuthServiceName, vsEx.VirtualServer.Namespace)
+			if resolvedName == serviceName {
+				return true
+			}
+		}
+	}
+
 	return false
 }
 

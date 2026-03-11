@@ -433,6 +433,7 @@ func NewConfiguration(
 	isIPV6Disabled bool,
 	isDirectiveAutoadjustEnabled bool,
 ) *Configuration {
+	policyServiceRefs := make(map[string]string)
 	return &Configuration{
 		hosts:                        make(map[string]Resource),
 		listenerHosts:                make(map[listenerHostKey]*TransportServerConfiguration),
@@ -446,8 +447,8 @@ func NewConfiguration(
 		globalConfigurationValidator: globalConfigurationValidator,
 		transportServerValidator:     transportServerValidator,
 		secretReferenceChecker:       newSecretReferenceChecker(isPlus),
-		serviceReferenceChecker:      newServiceReferenceChecker(false),
-		endpointReferenceChecker:     newServiceReferenceChecker(true),
+		serviceReferenceChecker:      newServiceReferenceChecker(false, policyServiceRefs),
+		endpointReferenceChecker:     newServiceReferenceChecker(true, policyServiceRefs),
 		policyReferenceChecker:       newPolicyReferenceChecker(),
 		appPolicyReferenceChecker:    newAppProtectResourceReferenceChecker(configs.AppProtectPolicyAnnotation),
 		appLogConfReferenceChecker:   newAppProtectResourceReferenceChecker(configs.AppProtectLogConfAnnotation),
@@ -971,6 +972,22 @@ func (c *Configuration) FindResourcesForSecret(secretNamespace string, secretNam
 // FindResourcesForPolicy finds resources that reference the specified policy.
 func (c *Configuration) FindResourcesForPolicy(policyNamespace string, policyName string) []Resource {
 	return c.findResourcesForResourceReference(policyNamespace, policyName, c.policyReferenceChecker)
+}
+
+// UpdatePolicyServiceRef tracks an external auth service reference for a policy.
+// This allows service/endpoint changes to be correlated back to VirtualServers
+// that reference the auth service via the policy.
+func (c *Configuration) UpdatePolicyServiceRef(policyNamespace, policyName, authServiceName string) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.serviceReferenceChecker.policyServices[policyNamespace+"/"+policyName] = authServiceName
+}
+
+// DeletePolicyServiceRef removes the external auth service reference tracking for a policy.
+func (c *Configuration) DeletePolicyServiceRef(policyNamespace, policyName string) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	delete(c.serviceReferenceChecker.policyServices, policyNamespace+"/"+policyName)
 }
 
 // FindResourcesForAppProtectPolicyAnnotation finds resources that reference the specified AppProtect policy via annotation.
