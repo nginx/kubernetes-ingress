@@ -1,6 +1,6 @@
 # Session Persistence
 
-*As of version 1.29.6 this feature is also available in NGINX OSS.*
+*As of NGINX 1.29.6 this feature is also available in NGINX OSS.*
 
 It is often required that the requests from a client are always passed to the same backend container. You can enable
 such behavior with [Session Persistence](https://www.nginx.com/products/session-persistence/), available in the NGINX
