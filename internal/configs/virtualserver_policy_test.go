@@ -455,6 +455,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusRoute(t *testing.T) {
 					ProxyPass:                "http://vs_default_cafe_vs_exauth_default_external-auth-policy-route",
 					ProxyNextUpstream:        "error timeout",
 					ProxyNextUpstreamTimeout: "0s",
+					ProxyPassRequestHeaders:  true,
 					ProxySetHeaders: []version2.Header{
 						{Name: "X-Auth-Request-Redirect", Value: "$request_uri"},
 						{Name: "Host", Value: "$host"},
@@ -887,8 +888,9 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusSubroute(t *testing.T)
 					ClientMaxBodySize:        "0",
 				},
 				{
-					Path:      "/oauth2",
-					ProxyPass: "http://vs_default_cafe_vsr_default_tea-vsr_vs_exauth_default_external-auth-policy-subroute",
+					Path:                    "/oauth2",
+					ProxyPass:               "http://vs_default_cafe_vsr_default_tea-vsr_vs_exauth_default_external-auth-policy-subroute",
+					ProxyPassRequestHeaders: true,
 					ProxySetHeaders: []version2.Header{
 						{Name: "X-Auth-Request-Redirect", Value: "$request_uri"},
 						{Name: "Host", Value: "$host"},
@@ -3984,6 +3986,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 					ProxyPass:                "http://vs_default_cafe_vs_exauth_default_external-auth-policy",
 					ProxyNextUpstream:        "error timeout",
 					ProxyNextUpstreamTimeout: "0s",
+					ProxyPassRequestHeaders:  true,
 					ProxySetHeaders: []version2.Header{
 						{Name: "X-Auth-Request-Redirect", Value: "$request_uri"},
 						{Name: "Host", Value: "$host"},
