@@ -396,7 +396,6 @@ server {
 			return 204;
 		}
 		{{- end }}
-
 		{{with $location.LimitReq}}
 		limit_req zone={{ $location.LimitReq.Zone }}{{- if $location.LimitReq.Burst }} burst={{$location.LimitReq.Burst}}{{- end }}{{- if $location.LimitReq.NoDelay }} nodelay{{- else if $location.LimitReq.Delay }} delay={{$location.LimitReq.Delay}}{{- end }};
 		{{if $location.LimitReq.DryRun}}limit_req_dry_run on;{{end}}
