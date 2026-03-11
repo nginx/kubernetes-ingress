@@ -1264,11 +1264,13 @@ type CORS struct {
 // ExternalAuth defines an external authentication policy for authenticating client requests using an external authentication server, which can be used for example with the oauth2-proxy or any custom authentication server that requires redirection for authentication.
 type ExternalAuth struct {
 	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^/.*$`
 	// +kubebuilder:default="/"
 	// AuthURI is the URI of the external authentication server to which the request will be sent for authentication. The URI is a relative URI, for example /auth.
 	AuthURI string `json:"authURI"`
 
 	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?\/)?[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
 	// AuthServiceName is the name of the Kubernetes service to which the request will be sent for authentication.  It can be in the same namespace as the Policy resource or in a different namespace. If the service is in a different namespace, it should be specified in the format <namespace>/<service>. For example, auth-service or auth-namespace/auth-service.
 	AuthServiceName string `json:"authServiceName"`
 
@@ -1277,6 +1279,7 @@ type ExternalAuth struct {
 	AuthServicePorts []int `json:"authServicePorts,omitempty"`
 
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^/.*$`
 	// AuthSigninURI is the URI which requests will be redirected to if the external authentication server determines that the client needs to be authenticated. This is typically used when the external authentication server is an oauth2-proxy or any custom authentication server that requires redirection for authentication. The URI is a relative URI, for example /signin.
 	AuthSigninURI string `json:"authSigninURI,omitempty"`
 

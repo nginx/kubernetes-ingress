@@ -457,6 +457,7 @@ spec:
                       namespace. If the service is in a different namespace, it should
                       be specified in the format <namespace>/<service>. For example,
                       auth-service or auth-namespace/auth-service.
+                    pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?\/)?[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                     type: string
                   authServicePorts:
                     description: AuthServicePort is the port of the Kubernetes service
@@ -472,6 +473,7 @@ spec:
                       the external authentication server is an oauth2-proxy or any
                       custom authentication server that requires redirection for authentication.
                       The URI is a relative URI, for example /signin.
+                    pattern: ^/.*$
                     type: string
                   authSnippets:
                     description: AuthSnippets can be used to add custom configuration
@@ -487,6 +489,7 @@ spec:
                     description: AuthURI is the URI of the external authentication
                       server to which the request will be sent for authentication.
                       The URI is a relative URI, for example /auth.
+                    pattern: ^/.*$
                     type: string
                 required:
                 - authServiceName
