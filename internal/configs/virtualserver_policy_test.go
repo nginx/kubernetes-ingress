@@ -461,8 +461,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusRoute(t *testing.T) {
 						{Name: "Host", Value: "$host"},
 						{Name: "X-Scheme", Value: "$scheme"},
 					},
-					ServiceName:             "vs_exauth_default_external-auth-policy-route",
-					ProxyPassRequestHeaders: true,
+					ServiceName: "vs_exauth_default_external-auth-policy-route",
 				},
 				{
 					Path:                     "/tea",
@@ -897,7 +896,6 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusSubroute(t *testing.T)
 					ProxyNextUpstreamTimeout: "0s",
 					ServiceName:              "vs_exauth_default_external-auth-policy-subroute",
 					ClientMaxBodySize:        "0",
-					ProxyPassRequestHeaders:  true,
 				},
 				{
 					Path:                     "/tea/v1",
@@ -3982,8 +3980,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 						{Name: "Host", Value: "$host"},
 						{Name: "X-Scheme", Value: "$scheme"},
 					},
-					ServiceName:             "vs_exauth_default_external-auth-policy",
-					ProxyPassRequestHeaders: true,
+					ServiceName: "vs_exauth_default_external-auth-policy",
 				},
 				{
 					Path:                     "/tea",
