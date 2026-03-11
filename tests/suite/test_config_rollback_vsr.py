@@ -52,8 +52,14 @@ class TestConfigRollbackVSRoute:
 
     @pytest.mark.parametrize("target", ["vs", "vsr"])
     def test_vsr_rollback(
-        self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller,
-        v_s_route_setup, v_s_route_app_setup, transport_server_setup, target,
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        crd_ingress_controller,
+        v_s_route_setup,
+        v_s_route_app_setup,
+        transport_server_setup,
+        target,
     ):
         """Patch a VS or VSR with an invalid snippet — VS and all VSRs become Invalid, traffic rolls back."""
         ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
@@ -63,12 +69,10 @@ class TestConfigRollbackVSRoute:
 
         # Step 1: verify traffic on both VSR routes
         backend1_url = (
-            f"http://{vs_setup.public_endpoint.public_ip}"
-            f":{vs_setup.public_endpoint.port}{route_m.paths[0]}"
+            f"http://{vs_setup.public_endpoint.public_ip}" f":{vs_setup.public_endpoint.port}{route_m.paths[0]}"
         )
         backend2_url = (
-            f"http://{vs_setup.public_endpoint.public_ip}"
-            f":{vs_setup.public_endpoint.port}{route_s.paths[0]}"
+            f"http://{vs_setup.public_endpoint.public_ip}" f":{vs_setup.public_endpoint.port}{route_s.paths[0]}"
         )
         wait_and_assert_status_code(200, backend1_url, vs_setup.vs_host)
         wait_and_assert_status_code(200, backend2_url, vs_setup.vs_host)
@@ -76,7 +80,9 @@ class TestConfigRollbackVSRoute:
         # Step 2: patch either VS or VSR with invalid snippet (snippet-only directives)
         if target == "vs":
             patch_virtual_server(
-                kube_apis.custom_objects, vs_setup.vs_name, vs_setup.namespace,
+                kube_apis.custom_objects,
+                vs_setup.vs_name,
+                vs_setup.namespace,
                 {
                     "metadata": {"name": vs_setup.vs_name},
                     "spec": {"server-snippets": "sub_filter_once invalid;"},
@@ -84,7 +90,9 @@ class TestConfigRollbackVSRoute:
             )
         else:
             patch_v_s_route(
-                kube_apis.custom_objects, route_m.name, route_m.namespace,
+                kube_apis.custom_objects,
+                route_m.name,
+                route_m.namespace,
                 {
                     "metadata": {"name": route_m.name},
                     "spec": {
@@ -104,8 +112,11 @@ class TestConfigRollbackVSRoute:
         wait_and_assert_status_code(200, backend1_url, vs_setup.vs_host)
         wait_and_assert_status_code(200, backend2_url, vs_setup.vs_host)
         conf = get_vs_nginx_template_conf(
-            kube_apis.v1, vs_setup.namespace, vs_setup.vs_name,
-            ic_pod, ingress_controller_prerequisites.namespace,
+            kube_apis.v1,
+            vs_setup.namespace,
+            vs_setup.vs_name,
+            ic_pod,
+            ingress_controller_prerequisites.namespace,
         )
         assert "sub_filter_once" not in conf
 
