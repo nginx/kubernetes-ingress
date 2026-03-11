@@ -125,11 +125,6 @@ func (cm *ConfigRollbackManager) CreateConfig(name string, content []byte) (bool
 
 // CreateStreamConfig creates a stream configuration file after validating it won't break nginx.
 // If validation fails, attempts rollback to previous working config.
-func (cm *ConfigRollbackManager) CreateStreamConfig(name string, content []byte) bool {
-	changed, err := cm.createConfigWithRollback(name, cm.getFilenameForStreamConfig(name), content, false)
-	if err != nil {
-		nl.Warnf(cm.logger, "CreateStreamConfig for %s failed: %v", name, err)
-		return false
-	}
-	return changed
+func (cm *ConfigRollbackManager) CreateStreamConfig(name string, content []byte) (bool, error) {
+	return cm.createConfigWithRollback(name, cm.getFilenameForStreamConfig(name), content, false)
 }

@@ -843,7 +843,10 @@ func (cnf *Configurator) addOrUpdateTransportServer(transportServerEx *Transport
 	if cnf.isPlus && cnf.isPrometheusEnabled {
 		cnf.updateTransportServerMetricsLabels(transportServerEx, tsCfg.Upstreams)
 	}
-	changed := cnf.nginxManager.CreateStreamConfig(name, content)
+	changed, err := cnf.nginxManager.CreateStreamConfig(name, content)
+	if err != nil {
+		return false, nil, fmt.Errorf("error validating TransportServer config %v: %w", name, err)
+	}
 
 	cnf.transportServers[name] = transportServerEx
 

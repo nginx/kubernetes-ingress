@@ -74,7 +74,7 @@ type Manager interface {
 	CreateMainConfig(content []byte) (bool, error)
 	CreateConfig(name string, content []byte) (bool, error)
 	DeleteConfig(name string)
-	CreateStreamConfig(name string, content []byte) bool
+	CreateStreamConfig(name string, content []byte) (bool, error)
 	DeleteStreamConfig(name string)
 	CreateTLSPassthroughHostsConfig(content []byte) bool
 	CreateOIDCConfig(name string, content []byte) bool
@@ -231,8 +231,8 @@ func (lm *LocalManager) getFilenameForOIDCConfig(name string) string {
 
 // CreateStreamConfig creates a configuration file for stream module.
 // If the file already exists, it will be overridden.
-func (lm *LocalManager) CreateStreamConfig(name string, content []byte) bool {
-	return createConfig(lm.logger, lm.getFilenameForStreamConfig(name), content)
+func (lm *LocalManager) CreateStreamConfig(name string, content []byte) (bool, error) {
+	return createConfig(lm.logger, lm.getFilenameForStreamConfig(name), content), nil
 }
 
 // DeleteStreamConfig deletes the configuration file from the stream-conf.d folder.
