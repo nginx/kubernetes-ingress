@@ -284,11 +284,7 @@ func (p *policiesCfg) addExternalAuthConfig(
 		Ports: externalAuth.AuthServicePorts,
 	}
 	if externalAuth.AuthSigninURI != "" {
-		p.ExternalAuth.SigninURL = &version2.AuthURI{
-			Service:  externalAuth.AuthServiceName,
-			Upstream: upstreamName,
-			Path:     externalAuth.AuthSigninURI,
-		}
+		p.ExternalAuth.SigninURL = externalAuth.AuthSigninURI
 	}
 	if externalAuth.AuthSnippets != "" {
 		p.ExternalAuth.Snippets = externalAuth.AuthSnippets

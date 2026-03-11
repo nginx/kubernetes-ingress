@@ -461,7 +461,8 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusRoute(t *testing.T) {
 						{Name: "Host", Value: "$host"},
 						{Name: "X-Scheme", Value: "$scheme"},
 					},
-					ServiceName: "vs_exauth_default_external-auth-policy-route",
+					ServiceName:             "vs_exauth_default_external-auth-policy-route",
+					ProxyPassRequestHeaders: true,
 				},
 				{
 					Path:                     "/tea",
@@ -488,13 +489,9 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusRoute(t *testing.T) {
 							Upstream: "vs_exauth_default_external-auth-policy-route",
 							Path:     "/oauth2/auth",
 						},
-						SigninURL: &version2.AuthURI{
-							Service:  "auth-server",
-							Upstream: "vs_exauth_default_external-auth-policy-route",
-							Path:     "/oauth2/signin",
-						},
-						Snippets: "proxy_set_header X-Custom-Header \"custom-value\";",
-						Ports:    nil,
+						SigninURL: "/oauth2/signin",
+						Snippets:  "proxy_set_header X-Custom-Header \"custom-value\";",
+						Ports:     nil,
 					},
 				},
 				{
@@ -900,6 +897,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusSubroute(t *testing.T)
 					ProxyNextUpstreamTimeout: "0s",
 					ServiceName:              "vs_exauth_default_external-auth-policy-subroute",
 					ClientMaxBodySize:        "0",
+					ProxyPassRequestHeaders:  true,
 				},
 				{
 					Path:                     "/tea/v1",
@@ -929,13 +927,9 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusSubroute(t *testing.T)
 							Upstream: "vs_exauth_default_external-auth-policy-subroute",
 							Path:     "/auth",
 						},
-						SigninURL: &version2.AuthURI{
-							Service:  "auth-server",
-							Upstream: "vs_exauth_default_external-auth-policy-subroute",
-							Path:     "/signin",
-						},
-						Snippets: "proxy_set_header X-Custom-Header \"custom-value\";",
-						Ports:    nil,
+						SigninURL: "/signin",
+						Snippets:  "proxy_set_header X-Custom-Header \"custom-value\";",
+						Ports:     nil,
 					},
 				},
 				{
@@ -3947,13 +3941,9 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 					Upstream: "vs_exauth_default_external-auth-policy",
 					Path:     "/auth",
 				},
-				SigninURL: &version2.AuthURI{
-					Service:  "auth-server",
-					Upstream: "vs_exauth_default_external-auth-policy",
-					Path:     "/signin",
-				},
-				Snippets: "proxy_set_header X-Custom-Header \"custom-value\";",
-				Ports:    nil,
+				SigninURL: "/signin",
+				Snippets:  "proxy_set_header X-Custom-Header \"custom-value\";",
+				Ports:     nil,
 			},
 			ErrorPages: []version2.ErrorPage{
 				{
@@ -3992,7 +3982,8 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 						{Name: "Host", Value: "$host"},
 						{Name: "X-Scheme", Value: "$scheme"},
 					},
-					ServiceName: "vs_exauth_default_external-auth-policy",
+					ServiceName:             "vs_exauth_default_external-auth-policy",
+					ProxyPassRequestHeaders: true,
 				},
 				{
 					Path:                     "/tea",

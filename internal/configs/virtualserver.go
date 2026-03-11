@@ -579,8 +579,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		)
 
 		// generate config for external auth signin URL if configured
-		if policiesCfg.ExternalAuth.SigninURL != nil {
-			generatedExternalAuthURLs[policiesCfg.ExternalAuth.SigninURL.Path] = true
+		if policiesCfg.ExternalAuth.SigninURL != "" {
+			generatedExternalAuthURLs[policiesCfg.ExternalAuth.SigninURL] = true
 
 			if !generatedOAuth2Location {
 				locations = append(locations, vsc.generateExternalAuthOAuth2Location(policiesCfg, proxyPassUpstream))
@@ -745,8 +745,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				)
 
 				// generate config for route-level external auth signin URL if configured
-				if routePoliciesCfg.ExternalAuth.SigninURL != nil {
-					generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.SigninURL.Path] = true
+				if routePoliciesCfg.ExternalAuth.SigninURL != "" {
+					generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.SigninURL] = true
 
 					if !generatedOAuth2Location {
 						locations = append(locations, vsc.generateExternalAuthOAuth2Location(routePoliciesCfg, proxyPassUpstream))
@@ -966,8 +966,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 						statusMatches,
 					)
 					// generate config for subroute-level external auth signin URL if configured
-					if routePoliciesCfg.ExternalAuth.SigninURL != nil {
-						generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.SigninURL.Path] = true
+					if routePoliciesCfg.ExternalAuth.SigninURL != "" {
+						generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.SigninURL] = true
 
 						if !generatedOAuth2Location {
 							locations = append(locations, vsc.generateExternalAuthOAuth2Location(routePoliciesCfg, proxyPassUpstream))
@@ -1207,17 +1207,17 @@ func (vsc *virtualServerConfigurator) generateExternalAuthOAuth2Location(policie
 		ClientMaxBodySize:        "0",
 		ProxyNextUpstream:        "error timeout",
 		ProxyNextUpstreamTimeout: generateTimeWithDefault(vsc.cfgParams.ProxyNextUpstreamTimeout, "0s"),
-		ServiceName:              policiesCfg.ExternalAuth.SigninURL.Upstream,
+		ServiceName:              policiesCfg.ExternalAuth.URI.Upstream,
 		IsVSR:                    false,
 		ProxyPassRequestHeaders:  true,
 	}
 }
 
 func getServerErrorPages(cfg policiesCfg) []version2.ErrorPage {
-	if cfg.ExternalAuth != nil && cfg.ExternalAuth.SigninURL != nil {
+	if cfg.ExternalAuth != nil && cfg.ExternalAuth.SigninURL != "" {
 		return []version2.ErrorPage{
 			{
-				Name:         cfg.ExternalAuth.SigninURL.Path,
+				Name:         cfg.ExternalAuth.SigninURL,
 				Codes:        "401",
 				ResponseCode: 0,
 			},
@@ -1404,9 +1404,9 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 	location.Cache = cfg.Cache
 	location.PoliciesErrorReturn = cfg.ErrorReturn
 
-	if cfg.ExternalAuth != nil && cfg.ExternalAuth.SigninURL != nil {
+	if cfg.ExternalAuth != nil && cfg.ExternalAuth.SigninURL != "" {
 		location.ErrorPages = append(location.ErrorPages, version2.ErrorPage{
-			Name:         cfg.ExternalAuth.SigninURL.Path,
+			Name:         cfg.ExternalAuth.SigninURL,
 			Codes:        "401",
 			ResponseCode: 0,
 		})
