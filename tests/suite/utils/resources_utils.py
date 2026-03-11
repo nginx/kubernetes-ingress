@@ -1057,19 +1057,20 @@ def get_ingress_nginx_template_conf(v1: CoreV1Api, ingress_namespace, ingress_na
     return get_file_contents(v1, file_path, pod_name, pod_namespace)
 
 
-def get_vs_nginx_template_conf(v1: CoreV1Api, vs_namespace, vs_name, pod_name, pod_namespace) -> str:
+def get_vs_nginx_template_conf(v1: CoreV1Api, vs_namespace, vs_name, pod_name, pod_namespace, print_log=True) -> str:
     """
-    Get contents of /etc/nginx/conf.d/vs_{namespace}_{ingress_name}.conf in the pod.
+    Get contents of /etc/nginx/conf.d/vs_{namespace}_{vs_name}.conf in the pod.
 
     :param v1: CoreV1Api
-    :param ingress_namespace:
-    :param ingress_name:
+    :param vs_namespace:
+    :param vs_name:
     :param pod_name:
     :param pod_namespace:
+    :param print_log:
     :return: str
     """
     file_path = f"/etc/nginx/conf.d/vs_{vs_namespace}_{vs_name}.conf"
-    return get_file_contents(v1, file_path, pod_name, pod_namespace)
+    return get_file_contents(v1, file_path, pod_name, pod_namespace, print_log)
 
 
 def get_ts_nginx_template_conf(v1: CoreV1Api, resource_namespace, resource_name, pod_name, pod_namespace) -> str:

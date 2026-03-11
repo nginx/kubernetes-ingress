@@ -9,8 +9,14 @@ from suite.utils.custom_assertions import (
     assert_no_new_events,
     assert_response_codes,
 )
-from suite.utils.resources_utils import ensure_response_from_backend, get_events, get_first_pod_name, wait_before_test
-from suite.utils.vs_vsr_resources_utils import get_vs_nginx_template_conf, patch_virtual_server_from_yaml
+from suite.utils.resources_utils import (
+    ensure_response_from_backend,
+    get_events,
+    get_first_pod_name,
+    get_vs_nginx_template_conf,
+    wait_before_test,
+)
+from suite.utils.vs_vsr_resources_utils import patch_virtual_server_from_yaml
 
 
 @pytest.mark.flaky(max_runs=3)

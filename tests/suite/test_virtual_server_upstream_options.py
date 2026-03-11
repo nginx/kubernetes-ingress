@@ -414,7 +414,11 @@ class TestVirtualServerUpstreamOptionValidation:
 
         assert_event_starts_with_text_and_contains_errors(vs_event_text, vs_events, invalid_fields)
         assert_vs_conf_not_exists(
-            kube_apis, ic_pod_name, ingress_controller_prerequisites.namespace, virtual_server_setup
+            kube_apis,
+            ic_pod_name,
+            ingress_controller_prerequisites.namespace,
+            virtual_server_setup.namespace,
+            virtual_server_setup.vs_name,
         )
 
     def test_openapi_validation_flow(
@@ -746,7 +750,11 @@ class TestOptionsSpecificForPlus:
 
         assert_event_starts_with_text_and_contains_errors(vs_event_text, vs_events, invalid_fields)
         assert_vs_conf_not_exists(
-            kube_apis, ic_pod_name, ingress_controller_prerequisites.namespace, virtual_server_setup
+            kube_apis,
+            ic_pod_name,
+            ingress_controller_prerequisites.namespace,
+            virtual_server_setup.namespace,
+            virtual_server_setup.vs_name,
         )
 
     def test_openapi_validation_flow(

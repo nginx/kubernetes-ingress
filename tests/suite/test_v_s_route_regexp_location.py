@@ -123,7 +123,13 @@ class TestRegexpLocation:
         wait_before_test(2)
 
         vs_events = get_events(kube_apis.v1, v_s_route_setup.namespace)
-        assert_vs_conf_not_exists(kube_apis, ic_pod_name, ingress_controller_prerequisites.namespace, v_s_route_setup)
+        assert_vs_conf_not_exists(
+            kube_apis,
+            ic_pod_name,
+            ingress_controller_prerequisites.namespace,
+            v_s_route_setup.namespace,
+            v_s_route_setup.vs_name,
+        )
         assert_event(vs_event_text, vs_events)
 
     def test_flow_for_invalid_vsr(
@@ -377,7 +383,11 @@ class TestVSRSelectorRegexpLocation:
 
         vs_events = get_events(kube_apis.v1, v_s_route_selector_setup.namespace)
         assert_vs_conf_not_exists(
-            kube_apis, ic_pod_name, ingress_controller_prerequisites.namespace, v_s_route_selector_setup
+            kube_apis,
+            ic_pod_name,
+            ingress_controller_prerequisites.namespace,
+            v_s_route_selector_setup.namespace,
+            v_s_route_selector_setup.vs_name,
         )
         assert_event(vs_event_text, vs_events)
 
