@@ -31,100 +31,196 @@ func ValidatePolicy(policy *v1.Policy, cfg PolicyValidationConfig) error {
 	return allErrs.ToAggregate()
 }
 
+// policyGate represents a feature-gate check for a policy type.
+type policyGate struct {
+	// blocked returns true when the required feature is not enabled.
+	blocked func(PolicyValidationConfig) bool
+	// message is the error message when the gate is violated.
+	message string
+	// fatal means return immediately without continuing validation.
+	fatal bool
+}
+
+// policyEntry defines a single policy type for table-driven validation.
+type policyEntry struct {
+	// name is used in the "must specify exactly one" error message.
+	name string
+	// fieldName is the fieldPath child name for error paths.
+	fieldName string
+	// plusOnly means this policy is only listed in the message when IsPlus is true.
+	plusOnly bool
+	// isSet returns true if this policy type is configured in the spec.
+	isSet func(*v1.PolicySpec) bool
+	// gates are feature-gate checks run before validation.
+	gates []policyGate
+	// validate performs the actual field validation.
+	validate func(*v1.PolicySpec, *field.Path, PolicyValidationConfig) field.ErrorList
+}
+
+// policyEntries defines all policy types in message-display order.
+// Non-Plus policies are listed first, then Plus-only policies.
+var policyEntries = []policyEntry{
+	{
+		name: "accessControl", fieldName: "accessControl",
+		isSet: func(s *v1.PolicySpec) bool { return s.AccessControl != nil },
+		validate: func(s *v1.PolicySpec, fp *field.Path, _ PolicyValidationConfig) field.ErrorList {
+			return validateAccessControl(s.AccessControl, fp.Child("accessControl"))
+		},
+	},
+	{
+		name: "rateLimit", fieldName: "rateLimit",
+		isSet: func(s *v1.PolicySpec) bool { return s.RateLimit != nil },
+		validate: func(s *v1.PolicySpec, fp *field.Path, cfg PolicyValidationConfig) field.ErrorList {
+			return validateRateLimit(s.RateLimit, fp.Child("rateLimit"), cfg.IsPlus)
+		},
+	},
+	{
+		name: "ingressMTLS", fieldName: "ingressMTLS",
+		isSet: func(s *v1.PolicySpec) bool { return s.IngressMTLS != nil },
+		validate: func(s *v1.PolicySpec, fp *field.Path, _ PolicyValidationConfig) field.ErrorList {
+			return validateIngressMTLS(s.IngressMTLS, fp.Child("ingressMTLS"))
+		},
+	},
+	{
+		name: "egressMTLS", fieldName: "egressMTLS",
+		isSet: func(s *v1.PolicySpec) bool { return s.EgressMTLS != nil },
+		validate: func(s *v1.PolicySpec, fp *field.Path, _ PolicyValidationConfig) field.ErrorList {
+			return validateEgressMTLS(s.EgressMTLS, fp.Child("egressMTLS"))
+		},
+	},
+	{
+		name: "basicAuth", fieldName: "basicAuth",
+		isSet: func(s *v1.PolicySpec) bool { return s.BasicAuth != nil },
+		validate: func(s *v1.PolicySpec, fp *field.Path, _ PolicyValidationConfig) field.ErrorList {
+			return validateBasic(s.BasicAuth, fp.Child("basicAuth"))
+		},
+	},
+	{
+		name: "apiKey", fieldName: "apiKey",
+		isSet: func(s *v1.PolicySpec) bool { return s.APIKey != nil },
+		validate: func(s *v1.PolicySpec, fp *field.Path, _ PolicyValidationConfig) field.ErrorList {
+			return validateAPIKey(s.APIKey, fp.Child("apiKey"))
+		},
+	},
+	{
+		name: "cache", fieldName: "cache",
+		isSet: func(s *v1.PolicySpec) bool { return s.Cache != nil },
+		validate: func(s *v1.PolicySpec, fp *field.Path, cfg PolicyValidationConfig) field.ErrorList {
+			return validateCache(s.Cache, fp.Child("cache"), cfg.IsPlus)
+		},
+	},
+	{
+		name: "cors", fieldName: "cors",
+		isSet: func(s *v1.PolicySpec) bool { return s.CORS != nil },
+		validate: func(s *v1.PolicySpec, fp *field.Path, _ PolicyValidationConfig) field.ErrorList {
+			return validateCORS(s.CORS, fp.Child("cors"))
+		},
+	},
+	{
+		name: "externalAuth", fieldName: "externalAuth",
+		isSet: func(s *v1.PolicySpec) bool { return s.ExternalAuth != nil },
+		validate: func(s *v1.PolicySpec, fp *field.Path, cfg PolicyValidationConfig) field.ErrorList {
+			return validateExternalAuth(s.ExternalAuth, fp.Child("externalAuth"), cfg.EnableSnippets)
+		},
+	},
+	{
+		name: "jwt", fieldName: "jwt", plusOnly: true,
+		isSet: func(s *v1.PolicySpec) bool { return s.JWTAuth != nil },
+		gates: []policyGate{
+			{
+				blocked: func(cfg PolicyValidationConfig) bool { return !cfg.IsPlus },
+				message: "jwt secrets are only supported in NGINX Plus",
+				fatal:   true,
+			},
+		},
+		validate: func(s *v1.PolicySpec, fp *field.Path, _ PolicyValidationConfig) field.ErrorList {
+			return validateJWT(s.JWTAuth, fp.Child("jwt"))
+		},
+	},
+	{
+		name: "oidc", fieldName: "oidc", plusOnly: true,
+		isSet: func(s *v1.PolicySpec) bool { return s.OIDC != nil },
+		gates: []policyGate{
+			{
+				blocked: func(cfg PolicyValidationConfig) bool { return !cfg.EnableOIDC },
+				message: "OIDC must be enabled via cli argument -enable-oidc to use OIDC policy",
+				fatal:   false,
+			},
+			{
+				blocked: func(cfg PolicyValidationConfig) bool { return !cfg.IsPlus },
+				message: "OIDC is only supported in NGINX Plus",
+				fatal:   true,
+			},
+		},
+		validate: func(s *v1.PolicySpec, fp *field.Path, _ PolicyValidationConfig) field.ErrorList {
+			return validateOIDC(s.OIDC, fp.Child("oidc"))
+		},
+	},
+	{
+		name: "waf", fieldName: "waf", plusOnly: true,
+		isSet: func(s *v1.PolicySpec) bool { return s.WAF != nil },
+		gates: []policyGate{
+			{
+				blocked: func(cfg PolicyValidationConfig) bool { return !cfg.IsPlus },
+				message: "WAF is only supported in NGINX Plus",
+				fatal:   false,
+			},
+			{
+				blocked: func(cfg PolicyValidationConfig) bool { return !cfg.EnableAppProtect },
+				message: "App Protect must be enabled via cli argument -enable-app-protect to use WAF policy",
+				fatal:   false,
+			},
+		},
+		validate: func(s *v1.PolicySpec, fp *field.Path, _ PolicyValidationConfig) field.ErrorList {
+			return validateWAF(s.WAF, fp.Child("waf"))
+		},
+	},
+}
+
 func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, cfg PolicyValidationConfig) field.ErrorList {
 	allErrs := field.ErrorList{}
-
 	fieldCount := 0
 
-	if spec.AccessControl != nil {
-		allErrs = append(allErrs, validateAccessControl(spec.AccessControl, fieldPath.Child("accessControl"))...)
-		fieldCount++
-	}
-
-	if spec.RateLimit != nil {
-		allErrs = append(allErrs, validateRateLimit(spec.RateLimit, fieldPath.Child("rateLimit"), cfg.IsPlus)...)
-		fieldCount++
-	}
-
-	if spec.JWTAuth != nil {
-		if !cfg.IsPlus {
-			return append(allErrs, field.Forbidden(fieldPath.Child("jwt"), "jwt secrets are only supported in NGINX Plus"))
+	for _, entry := range policyEntries {
+		if !entry.isSet(spec) {
+			continue
 		}
 
-		allErrs = append(allErrs, validateJWT(spec.JWTAuth, fieldPath.Child("jwt"))...)
-		fieldCount++
-	}
-
-	if spec.BasicAuth != nil {
-		allErrs = append(allErrs, validateBasic(spec.BasicAuth, fieldPath.Child("basicAuth"))...)
-		fieldCount++
-	}
-
-	if spec.IngressMTLS != nil {
-		allErrs = append(allErrs, validateIngressMTLS(spec.IngressMTLS, fieldPath.Child("ingressMTLS"))...)
-		fieldCount++
-	}
-
-	if spec.EgressMTLS != nil {
-		allErrs = append(allErrs, validateEgressMTLS(spec.EgressMTLS, fieldPath.Child("egressMTLS"))...)
-		fieldCount++
-	}
-
-	if spec.OIDC != nil {
-		if !cfg.EnableOIDC {
-			allErrs = append(allErrs, field.Forbidden(fieldPath.Child("oidc"),
-				"OIDC must be enabled via cli argument -enable-oidc to use OIDC policy"))
+		fatalGate := false
+		for _, gate := range entry.gates {
+			if gate.blocked(cfg) {
+				allErrs = append(allErrs, field.Forbidden(fieldPath.Child(entry.fieldName), gate.message))
+				if gate.fatal {
+					fatalGate = true
+					break
+				}
+			}
 		}
-		if !cfg.IsPlus {
-			return append(allErrs, field.Forbidden(fieldPath.Child("oidc"), "OIDC is only supported in NGINX Plus"))
+		if fatalGate {
+			return allErrs
 		}
 
-		allErrs = append(allErrs, validateOIDC(spec.OIDC, fieldPath.Child("oidc"))...)
-		fieldCount++
-	}
-
-	if spec.APIKey != nil {
-		allErrs = append(allErrs, validateAPIKey(spec.APIKey, fieldPath.Child("apiKey"))...)
-		fieldCount++
-	}
-
-	if spec.WAF != nil {
-		if !cfg.IsPlus {
-			allErrs = append(allErrs, field.Forbidden(fieldPath.Child("waf"), "WAF is only supported in NGINX Plus"))
-		}
-		if !cfg.EnableAppProtect {
-			allErrs = append(allErrs, field.Forbidden(fieldPath.Child("waf"),
-				"App Protect must be enabled via cli argument -enable-app-protect to use WAF policy"))
-		}
-
-		allErrs = append(allErrs, validateWAF(spec.WAF, fieldPath.Child("waf"))...)
-		fieldCount++
-	}
-
-	if spec.Cache != nil {
-		allErrs = append(allErrs, validateCache(spec.Cache, fieldPath.Child("cache"), cfg.IsPlus)...)
-		fieldCount++
-	}
-
-	if spec.CORS != nil {
-		allErrs = append(allErrs, validateCORS(spec.CORS, fieldPath.Child("cors"))...)
-		fieldCount++
-	}
-
-	if spec.ExternalAuth != nil {
-		allErrs = append(allErrs, validateExternalAuth(spec.ExternalAuth, fieldPath.Child("externalAuth"), cfg.EnableSnippets)...)
+		allErrs = append(allErrs, entry.validate(spec, fieldPath, cfg)...)
 		fieldCount++
 	}
 
 	if fieldCount != 1 {
-		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`"
-		if cfg.IsPlus {
-			msg = fmt.Sprint(msg, ", `jwt`, `oidc`, `waf`")
-		}
-		allErrs = append(allErrs, field.Invalid(fieldPath, "", msg))
+		allErrs = append(allErrs, field.Invalid(fieldPath, "", buildPolicySpecMsg(cfg)))
 	}
 
 	return allErrs
+}
+
+// buildPolicySpecMsg generates the "must specify exactly one of" error message
+// from the policyEntries table, filtering Plus-only entries when not running Plus.
+func buildPolicySpecMsg(cfg PolicyValidationConfig) string {
+	names := make([]string, 0, len(policyEntries))
+	for _, entry := range policyEntries {
+		if !entry.plusOnly || cfg.IsPlus {
+			names = append(names, "`"+entry.name+"`")
+		}
+	}
+	return "must specify exactly one of: " + strings.Join(names, ", ")
 }
 
 func validateAccessControl(accessControl *v1.AccessControl, fieldPath *field.Path) field.ErrorList {
