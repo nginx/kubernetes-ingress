@@ -12,6 +12,7 @@ upstream {{$upstream.Name}} {
 }
 {{end -}}
 
+{{- if .Maps}}
 {{- range $m := .Maps}}
 map {{ $m.Source }} {{ $m.Variable }} {
 	{{- range $p := $m.Parameters }}
@@ -19,6 +20,7 @@ map {{ $m.Source }} {{ $m.Variable }} {
 	{{- end }}
 }
 {{- end}}
+{{- end -}}
 {{range $limitReqZone := .LimitReqZones}}
 limit_req_zone {{ $limitReqZone.Key }} zone={{ $limitReqZone.Name }}:{{$limitReqZone.Size}} rate={{$limitReqZone.Rate}};
 {{end}}
@@ -288,6 +290,7 @@ server {
 		{{- end}}
 		{{- end}}
 
+		{{- if or $location.CORSEnabled (gt (len $location.AddHeaders) 0) }}
 		{{- range $h := $location.AddHeaders }}
 		add_header {{ $h.Name }} "{{ $h.Value }}" {{ if $h.Always }}always{{ end }};
 		{{- end }}
@@ -302,6 +305,7 @@ server {
 			add_header Content-Length 0;
 			return 204;
 		}
+		{{- end }}
 		{{- end }}
 		{{with $location.LimitReq}}
 		limit_req zone={{ $location.LimitReq.Zone }} {{if $location.LimitReq.Burst}}burst={{$location.LimitReq.Burst}}{{end}} {{if $location.LimitReq.NoDelay}}nodelay{{else if $location.LimitReq.Delay}}delay={{$location.LimitReq.Delay}}{{end}};
