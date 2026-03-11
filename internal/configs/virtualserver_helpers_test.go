@@ -2256,6 +2256,7 @@ func TestGenerateEndpointsForUpstream(t *testing.T) {
 			isPlus:               false,
 			isResolverConfigured: false,
 			expected:             []string{nginx502Server},
+			warningsExpected:     true,
 			msg:                  "Service with no endpoints",
 		},
 		{
@@ -2275,6 +2276,7 @@ func TestGenerateEndpointsForUpstream(t *testing.T) {
 			isPlus:               true,
 			isResolverConfigured: false,
 			expected:             nil,
+			warningsExpected:     true,
 			msg:                  "Service with no endpoints",
 		},
 		{
@@ -2319,6 +2321,7 @@ func TestGenerateEndpointsForUpstream(t *testing.T) {
 			isPlus:               false,
 			isResolverConfigured: false,
 			expected:             []string{nginx502Server},
+			warningsExpected:     true,
 			msg:                  "Upstream with subselector, without a matching endpoint",
 		},
 	}

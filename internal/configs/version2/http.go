@@ -233,6 +233,7 @@ type Location struct {
 	LimitReqOptions          LimitReqOptions
 	LimitReqs                []LimitReq
 	JWTAuth                  *JWTAuth
+	AuthRequestOff           bool
 	ExternalAuth             *ExternalAuth
 	BasicAuth                *BasicAuth
 	EgressMTLS               *EgressMTLS

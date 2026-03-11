@@ -290,7 +290,9 @@ server {
         {{ $snippet }}
         {{- end }}
 
-        {{- if $l.ExternalAuth }}
+        {{- if $l.AuthRequestOff }}
+        auth_request off;
+        {{- else if $l.ExternalAuth }}
         auth_request {{ $l.ExternalAuth.URI.Path }};
         {{- end }}
 

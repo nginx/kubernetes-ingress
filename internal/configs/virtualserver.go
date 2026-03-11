@@ -359,6 +359,9 @@ func (vsc *virtualServerConfigurator) generateEndpointsForUpstream(
 	endpointsKey := GenerateEndpointsKey(serviceNamespace, serviceName, upstream.Subselector, upstream.Port)
 	externalNameSvcKey := GenerateExternalNameSvcKey(namespace, upstream.Service)
 	endpoints := virtualServerEx.Endpoints[endpointsKey]
+	if len(endpoints) == 0 {
+		vsc.addWarningf(owner, "No endpoints found for service %v", upstream.Service)
+	}
 	if !vsc.isPlus && len(endpoints) == 0 {
 		return []string{nginx502Server}
 	}
@@ -1194,8 +1197,9 @@ func (vsc *virtualServerConfigurator) getExAuthServicePort(cfg policiesCfg, vsEx
 
 func (vsc *virtualServerConfigurator) generateExternalAuthOAuth2Location(policiesCfg policiesCfg, signinUpstreamName string) version2.Location {
 	return version2.Location{
-		Path:      "/oauth2",
-		ProxyPass: fmt.Sprintf("%s://%s", generateProxyPassProtocol(false), signinUpstreamName),
+		Path:           "/oauth2",
+		AuthRequestOff: true,
+		ProxyPass:      fmt.Sprintf("%s://%s", generateProxyPassProtocol(false), signinUpstreamName),
 		ProxySetHeaders: []version2.Header{
 			{Name: "X-Auth-Request-Redirect", Value: "$request_uri"},
 			{Name: "Host", Value: "$host"},

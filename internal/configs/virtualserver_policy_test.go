@@ -451,6 +451,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusRoute(t *testing.T) {
 				},
 				{
 					Path:                     "/oauth2",
+					AuthRequestOff:           true,
 					ClientMaxBodySize:        "0",
 					ProxyPass:                "http://vs_default_cafe_vs_exauth_default_external-auth-policy-route",
 					ProxyNextUpstream:        "error timeout",
@@ -885,6 +886,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusSubroute(t *testing.T)
 				},
 				{
 					Path:                    "/oauth2",
+					AuthRequestOff:          true,
 					ProxyPass:               "http://vs_default_cafe_vsr_default_tea-vsr_vs_exauth_default_external-auth-policy-subroute",
 					ProxyPassRequestHeaders: true,
 					ProxySetHeaders: []version2.Header{
@@ -3970,6 +3972,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 				},
 				{
 					Path:                     "/oauth2",
+					AuthRequestOff:           true,
 					ClientMaxBodySize:        "0",
 					ProxyPass:                "http://vs_default_cafe_vs_exauth_default_external-auth-policy",
 					ProxyNextUpstream:        "error timeout",
