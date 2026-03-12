@@ -4,7 +4,7 @@
 
 It is often required that the requests from a client are always passed to the same backend container. You can enable
 such behavior with [Session Persistence](https://www.nginx.com/products/session-persistence/), available in the NGINX
-Plus Ingress Controller.
+Ingress Controller.
 
 NGINX supports *the sticky cookie* method. With this method, NGINX adds a session cookie to the first response
 from the backend container, identifying the container that sent the response. When a client issues the next request, it
