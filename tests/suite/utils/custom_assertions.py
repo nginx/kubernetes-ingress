@@ -359,24 +359,26 @@ def assert_crd_status(
         print(f"{crd_plural} '{name}' status not ready on retry {count}, retrying...")
         wait_before_test(wait_time)
 
-    # Provide a detailed failure message
-    if resource_info and "status" in resource_info and resource_info["status"].get("state") == expected_state:
+    # Build failure message
+    status = resource_info.get("status") if resource_info else None
+    if status and status.get("state") == expected_state:
         details = []
-        if expected_reason and resource_info["status"].get("reason") != expected_reason:
-            details.append(f"expected reason '{expected_reason}', got '{resource_info['status'].get('reason')}'")
+        if expected_reason and status.get("reason") != expected_reason:
+            details.append(f"expected reason '{expected_reason}', got '{status.get('reason')}'")
         if expected_messages:
             for msg in expected_messages:
-                if msg not in resource_info["status"].get("message", ""):
+                if msg not in status.get("message", ""):
                     details.append(f"expected '{msg}' in status message")
-        pytest.fail(
+        fail_msg = (
             f"{crd_plural} '{name}' reached state '{expected_state}' but {'; '.join(details)}. "
-            f"Current status: {resource_info.get('status')}"
+            f"Current status: {status}"
         )
     else:
-        pytest.fail(
+        fail_msg = (
             f"{crd_plural} '{name}' did not reach state '{expected_state}'. "
-            f"Current status: {resource_info.get('status') if resource_info else 'N/A'}"
+            f"Current status: {status if status else 'No status found'}"
         )
+    pytest.fail(fail_msg)
     return None
 
 

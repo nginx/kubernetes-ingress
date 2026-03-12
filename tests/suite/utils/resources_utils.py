@@ -943,7 +943,7 @@ def delete_testing_namespaces(v1: CoreV1Api) -> []:
         delete_namespace(v1, namespace.metadata.name)
 
 
-def get_file_contents(v1: CoreV1Api, file_path, pod_name, pod_namespace, print_log=True) -> str:
+def get_file_contents(v1: CoreV1Api, file_path, pod_name, pod_namespace, print_log=False) -> str:
     """
     Execute 'cat file_path' command in a pod.
 
@@ -1028,18 +1028,19 @@ def clear_file_contents(v1: CoreV1Api, file_path, pod_name, pod_namespace):
     )
 
 
-def get_nginx_template_conf(v1: CoreV1Api, ingress_namespace, ic_pod_name=None, print_log=True) -> str:
+def get_nginx_template_conf(v1: CoreV1Api, ic_namespace, ic_pod_name=None, print_log=False) -> str:
     """
     Get contents of /etc/nginx/nginx.conf in the pod
     :param v1: CoreV1Api
-    :param ingress_namespace: str
+    :param ic_namespace: str
     :param ic_pod_name: str
+    :param print_log:
     :return: str
     """
     if ic_pod_name is None:
-        ic_pod_name = get_first_pod_name(v1, ingress_namespace)
+        ic_pod_name = get_first_pod_name(v1, ic_namespace)
     file_path = "/etc/nginx/nginx.conf"
-    return get_file_contents(v1, file_path, ic_pod_name, ingress_namespace, print_log)
+    return get_file_contents(v1, file_path, ic_pod_name, ic_namespace, print_log)
 
 
 def get_ingress_nginx_template_conf(v1: CoreV1Api, ingress_namespace, ingress_name, pod_name, pod_namespace) -> str:
@@ -1057,7 +1058,7 @@ def get_ingress_nginx_template_conf(v1: CoreV1Api, ingress_namespace, ingress_na
     return get_file_contents(v1, file_path, pod_name, pod_namespace)
 
 
-def get_vs_nginx_template_conf(v1: CoreV1Api, vs_namespace, vs_name, pod_name, pod_namespace, print_log=True) -> str:
+def get_vs_nginx_template_conf(v1: CoreV1Api, vs_namespace, vs_name, pod_name, pod_namespace, print_log=False) -> str:
     """
     Get contents of /etc/nginx/conf.d/vs_{namespace}_{vs_name}.conf in the pod.
 
@@ -1073,7 +1074,7 @@ def get_vs_nginx_template_conf(v1: CoreV1Api, vs_namespace, vs_name, pod_name, p
     return get_file_contents(v1, file_path, pod_name, pod_namespace, print_log)
 
 
-def get_ts_nginx_template_conf(v1: CoreV1Api, resource_namespace, resource_name, pod_name, pod_namespace) -> str:
+def get_ts_nginx_template_conf(v1: CoreV1Api, resource_namespace, resource_name, pod_name, pod_namespace, print_log=False) -> str:
     """
     Get contents of /etc/nginx/stream-conf.d/ts_{namespace}-{resource_name}.conf in the pod.
 
@@ -1082,10 +1083,11 @@ def get_ts_nginx_template_conf(v1: CoreV1Api, resource_namespace, resource_name,
     :param resource_name:
     :param pod_name:
     :param pod_namespace:
+    :param print_log:
     :return: str
     """
     file_path = f"/etc/nginx/stream-conf.d/ts_{resource_namespace}_{resource_name}.conf"
-    return get_file_contents(v1, file_path, pod_name, pod_namespace)
+    return get_file_contents(v1, file_path, pod_name, pod_namespace, print_log)
 
 
 def extract_block(nginx_config, block_name):
