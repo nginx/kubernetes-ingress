@@ -7,13 +7,13 @@ from suite.utils.resources_utils import (
     ensure_response_from_backend,
     get_events,
     get_first_pod_name,
+    get_vs_nginx_template_conf,
     wait_before_test,
     wait_until_all_pods_are_ready,
 )
 from suite.utils.vs_vsr_resources_utils import (
     create_v_s_route_from_yaml,
     create_virtual_server_from_yaml,
-    get_vs_nginx_template_conf,
     patch_v_s_route_from_yaml,
     patch_virtual_server_from_yaml,
 )
