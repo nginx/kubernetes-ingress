@@ -18,6 +18,8 @@ type IngressNginxConfig struct {
 	Upstreams               []Upstream
 	Servers                 []Server
 	Keepalive               string
+	Maps                    []version2.Map
+	CORSHeaders             []version2.AddHeader
 	Ingress                 Ingress
 	SpiffeClientCerts       bool
 	DynamicSSLReloadEnabled bool
@@ -192,10 +194,12 @@ type Location struct {
 	ProxyBusyBuffersSize string
 	ProxyMaxTempFileSize string
 	ProxySSLName         string
+	AddHeaders           []version2.AddHeader
 	JWTAuth              *JWTAuth
 	BasicAuth            *BasicAuth
 	ServiceName          string
 	LimitReq             *LimitReq
+	CORSEnabled          bool
 
 	MinionIngress *Ingress
 
