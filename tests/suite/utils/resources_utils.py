@@ -1074,7 +1074,9 @@ def get_vs_nginx_template_conf(v1: CoreV1Api, vs_namespace, vs_name, pod_name, p
     return get_file_contents(v1, file_path, pod_name, pod_namespace, print_log)
 
 
-def get_ts_nginx_template_conf(v1: CoreV1Api, resource_namespace, resource_name, pod_name, pod_namespace, print_log=False) -> str:
+def get_ts_nginx_template_conf(
+    v1: CoreV1Api, resource_namespace, resource_name, pod_name, pod_namespace, print_log=False
+) -> str:
     """
     Get contents of /etc/nginx/stream-conf.d/ts_{namespace}-{resource_name}.conf in the pod.
 
