@@ -42,6 +42,7 @@ type IngressEx struct {
 	Endpoints        map[string][]string
 	HealthChecks     map[string]*api_v1.Probe
 	Policies         map[string]*conf_v1.Policy
+	PolicyWarnings   []string
 	ExternalNameSvcs map[string]bool
 	PodsByIP         map[string]PodInfo
 	ValidHosts       map[string]bool

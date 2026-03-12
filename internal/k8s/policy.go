@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/nginx/kubernetes-ingress/internal/configs"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
@@ -132,19 +133,32 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 	resourceExes := lbc.createExtendedResources(resources)
 
 	// Only VirtualServers and Ingresses support policies
-	if len(resourceExes.VirtualServerExes) == 0 && len(resourceExes.IngressExes) == 0 {
+	if len(resourceExes.VirtualServerExes) == 0 && len(resourceExes.IngressExes) == 0 && len(resourceExes.MergeableIngresses) == 0 {
 		return
 	}
 
+	var allWarnings configs.Warnings
+	var lastErr error
+
 	if len(resourceExes.VirtualServerExes) > 0 {
 		warnings, updateErr := lbc.configurator.AddOrUpdateVirtualServers(resourceExes.VirtualServerExes)
-		lbc.updateResourcesStatusAndEvents(resources, warnings, updateErr)
+		allWarnings = mergeWarningsMaps(allWarnings, warnings)
+		if updateErr != nil {
+			lastErr = updateErr
+		}
 	}
 
-	if len(resourceExes.IngressExes) > 0 {
+	if len(resourceExes.IngressExes) > 0 || len(resourceExes.MergeableIngresses) > 0 {
 		warnings, updateErr := lbc.configurator.AddOrUpdateIngresses(resourceExes.IngressExes)
-		lbc.updateResourcesStatusAndEvents(resources, warnings, updateErr)
+		allWarnings = mergeWarningsMaps(allWarnings, warnings)
+		if updateErr != nil {
+			lastErr = updateErr
+		}
 	}
+
+	// Merge policy warnings from extended resources back into resources
+	resourcesWithWarnings := mergeExtendedResourceWarnings(resources, resourceExes)
+	lbc.updateResourcesStatusAndEvents(resourcesWithWarnings, allWarnings, lastErr)
 
 	// Note: updating the status of a policy based on a reload is not needed.
 }

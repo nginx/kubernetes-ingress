@@ -981,7 +981,8 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 		lbc.recorder.Eventf(gc, eventType, eventTitle, fmt.Sprintf("GlobalConfiguration %s was updated %s", key, eventWarningMessage))
 	}
 
-	lbc.updateResourcesStatusAndEvents(resources, warnings, updateErr)
+	resourcesWithWarnings := mergeExtendedResourceWarnings(resources, resourceExes)
+	lbc.updateResourcesStatusAndEvents(resourcesWithWarnings, warnings, updateErr)
 }
 
 // preSyncSecrets adds Secret resources to the SecretStore.
@@ -1291,13 +1292,15 @@ func (lbc *LoadBalancerController) processChanges(changes []ResourceChange) {
 					mergeableIng := lbc.createMergeableIngresses(impl)
 
 					warnings, addOrUpdateErr := lbc.configurator.AddOrUpdateMergeableIngress(mergeableIng)
-					lbc.updateMergeableIngressStatusAndEvents(impl, warnings, addOrUpdateErr)
+					ingForEvent := mergeIngressPolicyWarnings(impl, mergeableIng.Master, mergeableIng.Minions)
+					lbc.updateMergeableIngressStatusAndEvents(ingForEvent, warnings, addOrUpdateErr)
 				} else {
 					// for regular Ingress, validMinionPaths is nil
 					ingEx := lbc.createIngressEx(impl.Ingress, impl.ValidHosts, nil)
 
 					warnings, addOrUpdateErr := lbc.configurator.AddOrUpdateIngress(ingEx)
-					lbc.updateRegularIngressStatusAndEvents(impl, warnings, addOrUpdateErr)
+					ingForEvent := mergeIngressPolicyWarnings(impl, ingEx, nil)
+					lbc.updateRegularIngressStatusAndEvents(ingForEvent, warnings, addOrUpdateErr)
 				}
 			case *TransportServerConfiguration:
 				tsEx := lbc.createTransportServerEx(impl.TransportServer, impl.ListenerPort, impl.IPv4, impl.IPv6)
@@ -2133,6 +2136,107 @@ func getIPAddressesFromEndpoints(endpoints []podEndpoint) []string {
 	return endps
 }
 
+func mergeWarningsMaps(dst, src configs.Warnings) configs.Warnings {
+	if src == nil {
+		return dst
+	}
+
+	if dst == nil {
+		return src
+	}
+
+	for key, value := range src {
+		dst[key] = value
+	}
+
+	return dst
+}
+
+// mergeIngressPolicyWarnings merges PolicyWarnings from IngressEx objects into IngressConfiguration.
+// It returns a new IngressConfiguration with warnings properly merged from the master and all minions.
+func mergeIngressPolicyWarnings(ingConfig *IngressConfiguration, masterEx *configs.IngressEx, minionExes []*configs.IngressEx) *IngressConfiguration {
+	result := *ingConfig
+
+	// Copy base warnings
+	result.Warnings = append([]string{}, ingConfig.Warnings...)
+
+	// Add master policy warnings
+	if len(masterEx.PolicyWarnings) > 0 {
+		result.Warnings = append(result.Warnings, masterEx.PolicyWarnings...)
+	}
+
+	// Initialize or prepare ChildWarnings
+	if result.ChildWarnings == nil {
+		result.ChildWarnings = make(map[string][]string)
+	} else if len(minionExes) > 0 {
+		// Only clone if we have minions with warnings to add
+		needsClone := false
+		for _, minionEx := range minionExes {
+			if len(minionEx.PolicyWarnings) > 0 {
+				needsClone = true
+				break
+			}
+		}
+		if needsClone {
+			result.ChildWarnings = maps.Clone(ingConfig.ChildWarnings)
+		}
+	}
+
+	// Add minion policy warnings
+	for _, minionEx := range minionExes {
+		if len(minionEx.PolicyWarnings) == 0 {
+			continue
+		}
+
+		key := getResourceKey(&minionEx.Ingress.ObjectMeta)
+		result.ChildWarnings[key] = append(result.ChildWarnings[key], minionEx.PolicyWarnings...)
+	}
+
+	return &result
+}
+
+// mergeExtendedResourceWarnings merges PolicyWarnings from ExtendedResources back into Resources.
+// It returns a new slice of Resources with warnings properly merged for Ingress resources.
+func mergeExtendedResourceWarnings(resources []Resource, exResources configs.ExtendedResources) []Resource {
+	result := make([]Resource, 0, len(resources))
+
+	// Track indices for each extended resource type
+	ingressIdx := 0
+	mergeableIdx := 0
+
+	for _, r := range resources {
+		switch impl := r.(type) {
+		case *IngressConfiguration:
+			if impl.IsMaster {
+				// Get corresponding MergeableIngresses
+				if mergeableIdx < len(exResources.MergeableIngresses) {
+					mergeableIng := exResources.MergeableIngresses[mergeableIdx]
+					merged := mergeIngressPolicyWarnings(impl, mergeableIng.Master, mergeableIng.Minions)
+					result = append(result, merged)
+					mergeableIdx++
+				} else {
+					result = append(result, impl)
+				}
+			} else {
+				// Get corresponding IngressEx
+				if ingressIdx < len(exResources.IngressExes) {
+					ingEx := exResources.IngressExes[ingressIdx]
+					merged := mergeIngressPolicyWarnings(impl, ingEx, nil)
+					result = append(result, merged)
+					ingressIdx++
+				} else {
+					result = append(result, impl)
+				}
+			}
+		default:
+			// Other resource types pass through unchanged
+			result = append(result, r)
+		}
+	}
+
+	return result
+}
+
 func (lbc *LoadBalancerController) createMergeableIngresses(ingConfig *IngressConfiguration) *configs.MergeableIngresses {
 	// for master Ingress, validMinionPaths are nil
 	masterIngressEx := lbc.createIngressEx(ingConfig.Ingress, ingConfig.ValidHosts, nil)
@@ -2192,7 +2296,9 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 	policies, policyErrors := lbc.getPolicies(policyRefs, ing.Namespace)
 	if len(policyErrors) > 0 {
 		for _, err := range policyErrors {
-			nl.Warnf(lbc.Logger, "Error trying to get the policies for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
+			msg := fmt.Sprintf("Policy error for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
+			nl.Warnf(lbc.Logger, "%s", msg)
+			ingEx.PolicyWarnings = append(ingEx.PolicyWarnings, msg)
 		}
 	}
 
