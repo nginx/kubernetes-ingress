@@ -367,6 +367,7 @@ def assert_crd_status(
         f"{crd_plural} '{name}' did not reach state '{expected_state}'. "
         f"Current status: {resource_info.get('status') if resource_info else 'N/A'}"
     )
+    return None
 
 
 def assert_vs_status(kube_apis, namespace, name, expected_state, **kwargs):
