@@ -102,10 +102,10 @@ jobs:
           SHA: ${{ needs.pr-details.outputs.sha }}
           NGINX_PAT: ${{ steps.secrets.outputs.NGINX_PAT }}
         run: |
-          git config --global credential.helper store
-          echo "https://x-access-token:${NGINX_PAT}@github.com" > ~/.git-credentials
+          git config --global user.name "nginx-bot"
+          git config --global user.email "integrations@nginx.com"
 
-          git remote add upstream https://github.com/${{ github.repository }}.git
+          git remote add upstream https://x-access-token:${NGINX_PAT}@github.com/${{ github.repository }}.git
           git fetch upstream
 
           BRANCH_NAME="$PR_BRANCH"
@@ -116,7 +116,6 @@ jobs:
           git push upstream "${INTERNAL_BRANCH}"
           echo "Branch updated: ${INTERNAL_BRANCH}"
 
-          rm ~/.git-credentials
           echo "internal_branch=${INTERNAL_BRANCH}" >> $GITHUB_OUTPUT
 
       - name: Open internal PR
