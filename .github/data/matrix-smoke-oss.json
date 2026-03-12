@@ -39,7 +39,7 @@
       "label": "policies 1/4",
       "image": "alpine",
       "type": "oss",
-      "marker": "'policies and not policies_rl and not policies_ac and not policies_jwt and not policies_mtls and not policies_cache'",
+      "marker": "'policies and not policies_rl and not policies_ac and not policies_jwt and not policies_mtls and not policies_cache and not policies_cors'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
@@ -53,7 +53,7 @@
       "label": "policies 3/4",
       "image": "alpine",
       "type": "oss",
-      "marker": "'policies_rl'",
+      "marker": "'policies_rl or policies_cors'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {

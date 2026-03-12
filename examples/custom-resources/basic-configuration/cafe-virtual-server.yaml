@@ -5,7 +5,7 @@ metadata:
 spec:
   host: cafe.example.com
   tls:
-    secret: app-tls-secret
+    secret: tls-secret
   upstreams:
   - name: tea
     service: tea-svc

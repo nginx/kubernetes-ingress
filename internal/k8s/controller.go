@@ -35,6 +35,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/rest"
 
+	k8spolicies "github.com/nginx/kubernetes-ingress/internal/k8s/policies"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	"github.com/nginxinc/nginx-service-mesh/pkg/spiffe"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
@@ -2182,6 +2183,19 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 		ingEx.SecretRefs[secretName] = secretRef
 	}
 
+	var policyNames string
+	var policyRefs []conf_v1.PolicyReference
+	if ingEx.Ingress.Annotations[configs.PoliciesAnnotation] != "" {
+		policyNames = ingEx.Ingress.Annotations[configs.PoliciesAnnotation]
+		policyRefs = k8spolicies.GetPolicyRefsFromAnnotation(policyNames, ing.Namespace)
+	}
+	policies, policyErrors := lbc.getPolicies(policyRefs, ing.Namespace)
+	if len(policyErrors) > 0 {
+		for _, err := range policyErrors {
+			nl.Warnf(lbc.Logger, "Error trying to get the policies for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
+		}
+	}
+
 	if lbc.isNginxPlus {
 		if jwtKey, exists := ingEx.Ingress.Annotations[configs.JWTKeyAnnotation]; exists {
 			secretName := jwtKey
@@ -2234,6 +2248,7 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 	ingEx.Endpoints = make(map[string][]string)
 	ingEx.HealthChecks = make(map[string]*api_v1.Probe)
 	ingEx.ExternalNameSvcs = make(map[string]bool)
+	ingEx.Policies = createPolicyMap(policies)
 	ingEx.PodsByIP = make(map[string]configs.PodInfo)
 	hasUseClusterIP := ingEx.Ingress.Annotations[configs.UseClusterIPAnnotation] == "true"
 
@@ -2424,6 +2439,10 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 	err = lbc.addOIDCSecretRefs(virtualServerEx.SecretRefs, policies)
 	if err != nil {
 		nl.Warnf(lbc.Logger, "Error getting OIDC secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
+	}
+	err = lbc.addOIDCTrustedCertSecretRefs(virtualServerEx.SecretRefs, policies)
+	if err != nil {
+		nl.Warnf(lbc.Logger, "Error getting OIDC trusted cert secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
 	}
 	err = lbc.addAPIKeySecretRefs(virtualServerEx.SecretRefs, policies)
 	if err != nil {
@@ -2746,7 +2765,16 @@ func (lbc *LoadBalancerController) getPolicies(policies []conf_v1.PolicyReferenc
 			continue
 		}
 
-		policy := policyObj.(*conf_v1.Policy)
+		policy, ok := policyObj.(*conf_v1.Policy)
+		if !ok {
+			errors = append(errors, fmt.Errorf("policy %s has unexpected type %T", policyKey, policyObj))
+			continue
+		}
+
+		if policy == nil {
+			errors = append(errors, fmt.Errorf("policy %s is nil", policyKey))
+			continue
+		}
 
 		if !lbc.HasCorrectIngressClass(policy) {
 			errors = append(errors, fmt.Errorf("referenced policy %s has incorrect ingress class: %s (controller ingress class: %s)", policyKey, policy.Spec.IngressClass, lbc.ingressClass))

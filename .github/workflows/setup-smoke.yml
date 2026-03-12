@@ -162,7 +162,7 @@ jobs:
         if: ${{ inputs.authenticated  }}
 
       - name: Build Pytest-Runner Container
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           file: tests/Dockerfile
           context: "."
@@ -174,7 +174,7 @@ jobs:
         if: ${{ ( !inputs.authenticated || steps.check-image.outcome == 'failure' )  }}
 
       - name: Build ${{ inputs.image }} Container
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           file: build/Dockerfile
           context: "."
@@ -196,7 +196,7 @@ jobs:
 
       - name: Generate WAF v5 tgz from JSON
         run: |
-          docker run --rm --user root -v /var/run/docker.sock:/var/run/docker.sock -v ${{ github.workspace }}/tests/data/ap-waf-v5:/data gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/nap/waf-compiler:5.11.0 -p /data/wafv5.json -o /data/wafv5.tgz
+          docker run --rm --user root -v /var/run/docker.sock:/var/run/docker.sock -v ${{ github.workspace }}/tests/data/ap-waf-v5:/data gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/nap/waf-compiler:5.11.2 -p /data/wafv5.json -o /data/wafv5.tgz
         if: ${{ contains(inputs.image, 'nap-v5')}}
 
       - name: Run Smoke Tests

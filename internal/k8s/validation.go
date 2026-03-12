@@ -102,7 +102,7 @@ type annotationValidationContext struct {
 	internalRoutesEnabled bool
 	fieldPath             *field.Path
 	snippetsEnabled       bool
-	directiveAutoadjust   bool
+	directiveAutoAdjust   bool
 }
 
 type (
@@ -377,9 +377,55 @@ var (
 		appRootAnnotation: {
 			validateAppRootAnnotation,
 		},
+		configs.PoliciesAnnotation: {
+			validateRequiredAnnotation,
+			validateCommaSeparatedList,
+			validatePolicyNames,
+		},
 	}
 	annotationNames = sortedAnnotationNames(annotationValidations)
 )
+
+func validateCommaSeparatedList(context *annotationValidationContext) field.ErrorList {
+	items := strings.Split(context.value, commaDelimiter)
+	var allErrs field.ErrorList
+	for _, item := range items {
+		item = strings.TrimSpace(item)
+		if !validAnnotationValueRegex.MatchString(item) {
+			allErrs = append(allErrs, field.Invalid(context.fieldPath, item, annotationValueFmtErrMsg))
+		}
+	}
+	return allErrs
+}
+
+func validatePolicyNames(context *annotationValidationContext) field.ErrorList {
+	var allErrs field.ErrorList
+	for policy := range strings.SplitSeq(context.value, commaDelimiter) {
+		policy = strings.TrimSpace(policy)
+		var dnsErrs []string
+		policyName := policy
+		if strings.Contains(policy, "/") {
+			parts := strings.SplitN(policy, "/", 2)
+			namespace := parts[0]
+			if namespace == "" {
+				allErrs = append(allErrs, field.Invalid(context.fieldPath, policy, "policy namespace cannot be empty"))
+			}
+			dnsErrs = validation.IsDNS1123Subdomain(namespace)
+			if len(dnsErrs) > 0 {
+				allErrs = append(allErrs, field.Invalid(context.fieldPath, policy, fmt.Sprintf("policy namespace must be a valid DNS subdomain: %s", strings.Join(dnsErrs, "; "))))
+			}
+			policyName = parts[1]
+		}
+		if policyName == "" {
+			allErrs = append(allErrs, field.Invalid(context.fieldPath, policy, "policy name cannot be empty"))
+		}
+		dnsErrs = validation.IsDNS1123Subdomain(policyName)
+		if len(dnsErrs) > 0 {
+			allErrs = append(allErrs, field.Invalid(context.fieldPath, policy, fmt.Sprintf("policy name must be a valid DNS subdomain: %s", strings.Join(dnsErrs, "; "))))
+		}
+	}
+	return allErrs
+}
 
 func validatePathRegex(context *annotationValidationContext) field.ErrorList {
 	switch context.value {
@@ -589,18 +635,20 @@ func validateIngress(
 	appProtectDosEnabled bool,
 	internalRoutesEnabled bool,
 	snippetsEnabled bool,
-	directiveAutoadjust bool,
+	directiveAutoAdjust bool,
 ) field.ErrorList {
 	allErrs := validateIngressAnnotations(
+		IngressOpts{
+			isPlus:                isPlus,
+			appProtectEnabled:     appProtectEnabled,
+			appProtectDosEnabled:  appProtectDosEnabled,
+			internalRoutesEnabled: internalRoutesEnabled,
+			snippetsEnabled:       snippetsEnabled,
+			directiveAutoAdjust:   directiveAutoAdjust,
+		},
 		ing.Annotations,
 		getSpecServices(ing.Spec),
-		isPlus,
-		appProtectEnabled,
-		appProtectDosEnabled,
-		internalRoutesEnabled,
 		field.NewPath("annotations"),
-		snippetsEnabled,
-		directiveAutoadjust,
 	)
 
 	allErrs = append(allErrs, validateIngressSpec(&ing.Spec, field.NewPath("spec"))...)
@@ -641,16 +689,21 @@ func validateChallengeIngress(spec *networking.IngressSpec, fieldPath *field.Pat
 	return allErrs
 }
 
+// IngressOpts contains options that affect how Ingress annotations are validated. This is used to avoid passing a long list of parameters to the validation functions.
+type IngressOpts struct {
+	isPlus                bool
+	appProtectEnabled     bool
+	appProtectDosEnabled  bool
+	internalRoutesEnabled bool
+	snippetsEnabled       bool
+	directiveAutoAdjust   bool
+}
+
 func validateIngressAnnotations(
+	ingOpts IngressOpts,
 	annotations map[string]string,
 	specServices map[string]bool,
-	isPlus bool,
-	appProtectEnabled bool,
-	appProtectDosEnabled bool,
-	internalRoutesEnabled bool,
 	fieldPath *field.Path,
-	snippetsEnabled bool,
-	directiveAutoadjust bool,
 ) field.ErrorList {
 	allErrs := field.ErrorList{}
 
@@ -661,13 +714,13 @@ func validateIngressAnnotations(
 				specServices:          specServices,
 				name:                  name,
 				value:                 value,
-				isPlus:                isPlus,
-				appProtectEnabled:     appProtectEnabled,
-				appProtectDosEnabled:  appProtectDosEnabled,
-				internalRoutesEnabled: internalRoutesEnabled,
+				isPlus:                ingOpts.isPlus,
+				appProtectEnabled:     ingOpts.appProtectEnabled,
+				appProtectDosEnabled:  ingOpts.appProtectDosEnabled,
+				internalRoutesEnabled: ingOpts.internalRoutesEnabled,
 				fieldPath:             fieldPath.Child(name),
-				snippetsEnabled:       snippetsEnabled,
-				directiveAutoadjust:   directiveAutoadjust,
+				snippetsEnabled:       ingOpts.snippetsEnabled,
+				directiveAutoAdjust:   ingOpts.directiveAutoAdjust,
 			}
 			allErrs = append(allErrs, validateIngressAnnotation(context)...)
 		}
