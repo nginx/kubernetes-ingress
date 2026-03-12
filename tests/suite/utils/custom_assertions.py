@@ -348,25 +348,35 @@ def assert_crd_status(
         )
 
         if "status" in resource_info and resource_info["status"].get("state") == expected_state:
-            if expected_reason:
-                assert (
-                    resource_info["status"].get("reason") == expected_reason
-                ), f"Expected reason '{expected_reason}', got '{resource_info['status'].get('reason')}'"
-            if expected_messages:
-                for msg in expected_messages:
-                    assert msg in resource_info["status"].get(
-                        "message", ""
-                    ), f"Expected '{msg}' in status message: {resource_info['status'].get('message')}"
-            return resource_info
+            reason_ok = not expected_reason or resource_info["status"].get("reason") == expected_reason
+            messages_ok = not expected_messages or all(
+                msg in resource_info["status"].get("message", "") for msg in expected_messages
+            )
+            if reason_ok and messages_ok:
+                return resource_info
 
         count += 1
-        print(f"{crd_plural} '{name}' status not '{expected_state}' on retry {count}, retrying...")
+        print(f"{crd_plural} '{name}' status not ready on retry {count}, retrying...")
         wait_before_test(wait_time)
 
-    pytest.fail(
-        f"{crd_plural} '{name}' did not reach state '{expected_state}'. "
-        f"Current status: {resource_info.get('status') if resource_info else 'N/A'}"
-    )
+    # Provide a detailed failure message
+    if resource_info and "status" in resource_info and resource_info["status"].get("state") == expected_state:
+        details = []
+        if expected_reason and resource_info["status"].get("reason") != expected_reason:
+            details.append(f"expected reason '{expected_reason}', got '{resource_info['status'].get('reason')}'")
+        if expected_messages:
+            for msg in expected_messages:
+                if msg not in resource_info["status"].get("message", ""):
+                    details.append(f"expected '{msg}' in status message")
+        pytest.fail(
+            f"{crd_plural} '{name}' reached state '{expected_state}' but {'; '.join(details)}. "
+            f"Current status: {resource_info.get('status')}"
+        )
+    else:
+        pytest.fail(
+            f"{crd_plural} '{name}' did not reach state '{expected_state}'. "
+            f"Current status: {resource_info.get('status') if resource_info else 'N/A'}"
+        )
     return None
 
 
