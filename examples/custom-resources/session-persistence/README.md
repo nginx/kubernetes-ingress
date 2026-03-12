@@ -71,7 +71,7 @@ kubectl apply -f examples/custom-resources/session-persistence/cafe-vs-with-sess
 Check the nginx configuration to verify that the session cookie is configured correctly:
 
 ```shell
-~ $> kubectl exec -it <nginx-plus-ingress-controller-pod> -- cat /etc/nginx/conf.d/vs_default_cafe.conf
+~ $> kubectl exec -it <nginx-ingress-controller-pod> -- cat /etc/nginx/conf.d/vs_default_cafe.conf
 
 upstream vs_default_cafe_coffee {
     random two least_conn;

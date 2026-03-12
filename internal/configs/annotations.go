@@ -727,7 +727,7 @@ func getSessionPersistenceServices(ctx context.Context, ingEx *IngressEx) map[st
 	}
 
 	if plusExists && orgExists {
-		nl.Warnf(l, "Ingress %s/%s: both %s and %s annotations are set; using %s",
+		nl.Infof(l, "Ingress %s/%s: both %s and %s annotations are set; using %s",
 			ingEx.Ingress.Namespace, ingEx.Ingress.Name,
 			StickyCookieServicesAnnotation, StickyCookieServicesAnnotationPlus,
 			StickyCookieServicesAnnotationPlus)
