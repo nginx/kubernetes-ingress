@@ -116,6 +116,8 @@ jobs:
           git push upstream "${INTERNAL_BRANCH}"
           echo "Branch updated: ${INTERNAL_BRANCH}"
 
+          git remote remove upstream
+
           echo "internal_branch=${INTERNAL_BRANCH}" >> $GITHUB_OUTPUT
 
       - name: Open internal PR
