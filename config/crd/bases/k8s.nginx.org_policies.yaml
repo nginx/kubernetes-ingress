@@ -469,6 +469,13 @@ spec:
                     items:
                       type: integer
                     type: array
+                  authSigninRedirectBasePath:
+                    description: AuthSigninRedirectBasePath is the base path for the
+                      NGINX location block that handles sign-in redirect requests
+                      from the external authentication server. For example, oauth2-proxy
+                      expects /oauth2. If not specified, defaults to /oauth2.
+                    pattern: ^/[a-zA-Z0-9._~:/?#\[\]@!$&'()*+,;=-]*$
+                    type: string
                   authSigninURI:
                     description: AuthSigninURI is the URI which requests will be redirected
                       to if the external authentication server determines that the

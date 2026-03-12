@@ -1359,6 +1359,11 @@ func validateExternalAuth(externalAuth *v1.ExternalAuth, fieldPath *field.Path, 
 		allErrs = append(allErrs, validateAuthURI(externalAuth.AuthSigninURI, fieldPath.Child("authSigninURI"))...)
 	}
 
+	// Validate AuthSigninRedirectBasePath
+	if externalAuth.AuthSigninRedirectBasePath != "" {
+		allErrs = append(allErrs, validateAuthURI(externalAuth.AuthSigninRedirectBasePath, fieldPath.Child("authSigninRedirectBasePath"))...)
+	}
+
 	return allErrs
 }
 

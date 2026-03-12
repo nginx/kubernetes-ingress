@@ -3440,6 +3440,15 @@ func TestValidateExternalAuth_PassesOnValidInput(t *testing.T) {
 			},
 			msg: "authSigninURI is optional and can be omitted",
 		},
+		{
+			name: "valid authSigninRedirectBasePath",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:                    "/auth",
+				AuthServiceName:            "auth-svc",
+				AuthSigninRedirectBasePath: "/custom-oauth",
+			},
+			msg: "authSigninRedirectBasePath with valid path should pass",
+		},
 	}
 
 	for _, test := range tests {
@@ -3601,6 +3610,16 @@ func TestValidateExternalAuth_FailsOnInvalidInput(t *testing.T) {
 				AuthServiceName: "auth-svc",
 			},
 			msg:      "authURI path with multiple invalid characters should fail",
+			errCount: 1,
+		},
+		{
+			name: "invalid authSigninRedirectBasePath with braces",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:                    "/auth",
+				AuthServiceName:            "auth-svc",
+				AuthSigninRedirectBasePath: "/signin/{redirect}",
+			},
+			msg:      "authSigninRedirectBasePath with curly braces should fail",
 			errCount: 1,
 		},
 	}

@@ -1201,7 +1201,7 @@ func (vsc *virtualServerConfigurator) getExAuthServicePort(cfg policiesCfg, vsEx
 
 func (vsc *virtualServerConfigurator) generateExternalAuthOAuth2Location(policiesCfg policiesCfg, signinUpstreamName string) version2.Location {
 	return version2.Location{
-		Path:           "/oauth2",
+		Path:           policiesCfg.ExternalAuth.SigninRedirectBasePath,
 		AuthRequestOff: true,
 		ProxyPass:      fmt.Sprintf("%s://%s", generateProxyPassProtocol(false), signinUpstreamName),
 		ProxySetHeaders: []version2.Header{

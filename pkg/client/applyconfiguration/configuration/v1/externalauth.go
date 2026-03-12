@@ -17,6 +17,8 @@ type ExternalAuthApplyConfiguration struct {
 	AuthSigninURI *string `json:"authSigninURI,omitempty"`
 	// AuthSnippets can be used to add custom configuration snippets to the location block of the external authentication configuration. This can be used for example to add additional headers to the request sent to the external authentication server, or to configure additional parameters for the auth_request module. The content of this field will be added as-is to the location block, so it must be a valid NGINX configuration snippet.
 	AuthSnippets *string `json:"authSnippets,omitempty"`
+	// AuthSigninRedirectBasePath is the base path for the NGINX location block that handles sign-in redirect requests from the external authentication server. For example, oauth2-proxy expects /oauth2. If not specified, defaults to /oauth2.
+	AuthSigninRedirectBasePath *string `json:"authSigninRedirectBasePath,omitempty"`
 }
 
 // ExternalAuthApplyConfiguration constructs a declarative configuration of the ExternalAuth type for use with
@@ -64,5 +66,13 @@ func (b *ExternalAuthApplyConfiguration) WithAuthSigninURI(value string) *Extern
 // If called multiple times, the AuthSnippets field is set to the value of the last call.
 func (b *ExternalAuthApplyConfiguration) WithAuthSnippets(value string) *ExternalAuthApplyConfiguration {
 	b.AuthSnippets = &value
+	return b
+}
+
+// WithAuthSigninRedirectBasePath sets the AuthSigninRedirectBasePath field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the AuthSigninRedirectBasePath field is set to the value of the last call.
+func (b *ExternalAuthApplyConfiguration) WithAuthSigninRedirectBasePath(value string) *ExternalAuthApplyConfiguration {
+	b.AuthSigninRedirectBasePath = &value
 	return b
 }

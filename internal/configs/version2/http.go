@@ -467,10 +467,11 @@ type JwksURI struct {
 
 // ExternalAuth holds external authentication configuration.
 type ExternalAuth struct {
-	URI          *AuthURI
-	SigninURL    string
-	Snippets     string
-	ServicePorts []int
+	URI                    *AuthURI
+	SigninURL              string
+	Snippets               string
+	ServicePorts           []int
+	SigninRedirectBasePath string // Base path for OAuth2/signin redirect location, defaults to /oauth2
 }
 
 // AuthURI defines the components of an AuthURI

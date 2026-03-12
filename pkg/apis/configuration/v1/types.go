@@ -1286,4 +1286,9 @@ type ExternalAuth struct {
 	// +kubebuilder:validation:Optional
 	// AuthSnippets can be used to add custom configuration snippets to the location block of the external authentication configuration. This can be used for example to add additional headers to the request sent to the external authentication server, or to configure additional parameters for the auth_request module. The content of this field will be added as-is to the location block, so it must be a valid NGINX configuration snippet.
 	AuthSnippets string `json:"authSnippets,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^/[a-zA-Z0-9._~:/?#\[\]@!$&'()*+,;=-]*$`
+	// AuthSigninRedirectBasePath is the base path for the NGINX location block that handles sign-in redirect requests from the external authentication server. For example, oauth2-proxy expects /oauth2. If not specified, defaults to /oauth2.
+	AuthSigninRedirectBasePath string `json:"authSigninRedirectBasePath,omitempty"`
 }

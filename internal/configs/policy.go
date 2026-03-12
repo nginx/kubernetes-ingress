@@ -20,6 +20,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
+// DefaultSigninRedirectBasePath is the default base path for the NGINX location
+// that handles sign-in redirect requests (e.g. oauth2-proxy expects /oauth2).
+const DefaultSigninRedirectBasePath = "/oauth2"
+
 // rateLimit hold the configuration for the ratelimiting Policy
 type rateLimit struct {
 	Reqs             []version2.LimitReq
@@ -287,6 +291,12 @@ func (p *policiesCfg) addExternalAuthConfig(
 	}
 	if externalAuth.AuthSigninURI != "" {
 		p.ExternalAuth.SigninURL = externalAuth.AuthSigninURI
+
+		// Set the SigninRedirectBasePath to the default value, and override it if the user has specified a custom value. This is needed to ensure that the correct default path is used when the user specifies a custom signin URI but does not specify a custom signin redirect base path.
+		p.ExternalAuth.SigninRedirectBasePath = DefaultSigninRedirectBasePath
+		if externalAuth.AuthSigninRedirectBasePath != "" {
+			p.ExternalAuth.SigninRedirectBasePath = externalAuth.AuthSigninRedirectBasePath
+		}
 	}
 	if externalAuth.AuthSnippets != "" {
 		p.ExternalAuth.Snippets = externalAuth.AuthSnippets
