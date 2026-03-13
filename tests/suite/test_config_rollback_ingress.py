@@ -11,8 +11,11 @@ from suite.utils.custom_assertions import (
 from suite.utils.resources_utils import (
     create_example_app,
     create_ingress_from_yaml,
+    create_items_from_yaml,
     delete_common_app,
     delete_ingress,
+    delete_items_from_yaml,
+    ensure_connection_to_public_endpoint,
     get_events_for_object,
     get_first_pod_name,
     get_ingress_nginx_template_conf,
@@ -22,6 +25,25 @@ from suite.utils.resources_utils import (
     wait_before_test,
     wait_until_all_pods_are_ready,
 )
+from suite.utils.yaml_utils import get_name_from_yaml
+
+
+class IngressSetup:
+    """Encapsulate ingress_setup details.
+
+    Attributes:
+        ingress_name (str): name of the created Ingress resource
+        ingress_host (str): first hostname from the Ingress spec
+        ingress_pod_name (str): IC pod name at fixture creation time
+        namespace (str): test namespace
+    """
+
+    def __init__(self, ingress_name, ingress_host, ingress_pod_name, namespace):
+        self.ingress_name = ingress_name
+        self.ingress_host = ingress_host
+        self.ingress_pod_name = ingress_pod_name
+        self.namespace = namespace
+
 
 ingress_src = f"{TEST_DATA}/config-rollback/ingress/ingress.yaml"
 ingress_invalid_snippet_src = f"{TEST_DATA}/config-rollback/ingress/ingress-invalid-snippet.yaml"
@@ -69,9 +91,12 @@ class TestConfigRollbackIngressCreate:
         wait_before_test()
 
         # Step 2: conf file removed — no traffic served
-        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
         assert_ingress_conf_not_exists(
-            kube_apis, ic_pod, ingress_controller_prerequisites.namespace, test_namespace, ingress_name
+            kube_apis,
+            get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace),
+            ingress_controller_prerequisites.namespace,
+            test_namespace,
+            ingress_name,
         )
         wait_and_assert_status_code(
             404,
@@ -80,8 +105,7 @@ class TestConfigRollbackIngressCreate:
         )
 
         # Step 3: event contains actual nginx error, but no "rolled back" (nothing to roll back to)
-        ing_events = get_events_for_object(kube_apis.v1, test_namespace, ingress_name)
-        latest = ing_events[-1]
+        latest = get_events_for_object(kube_apis.v1, test_namespace, ingress_name)[-1]
         assert "AddedOrUpdatedWithError" in latest.reason
         assert "but was not applied" in latest.message
         assert 'invalid value "invalid" in "sub_filter_once" directive' in latest.message
@@ -115,29 +139,34 @@ class TestConfigRollbackIngress:
     @pytest.fixture(scope="class")
     def ingress_setup(
         self,
+        request,
         kube_apis,
         ingress_controller_prerequisites,
         crd_ingress_controller,
-        transport_server_setup,
+        ingress_controller_endpoint,
         test_namespace,
-    ):
+    ) -> IngressSetup:
         """Create an Ingress with a backend app for the test class."""
-        ingress_name = create_ingress_from_yaml(
-            kube_apis.networking_v1,
-            test_namespace,
-            ingress_src,
-        )
+        create_items_from_yaml(kube_apis, ingress_src, test_namespace)
+        ingress_name = get_name_from_yaml(ingress_src)
         create_example_app(kube_apis, "simple", test_namespace)
         wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
-        wait_before_test()
-        yield {
-            "ingress_name": ingress_name,
-        }
-        try:
-            delete_ingress(kube_apis.networking_v1, ingress_name, test_namespace)
-        except Exception:
-            pass
-        delete_common_app(kube_apis, "simple", test_namespace)
+        ensure_connection_to_public_endpoint(
+            ingress_controller_endpoint.public_ip,
+            ingress_controller_endpoint.port,
+            ingress_controller_endpoint.port_ssl,
+        )
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+
+        def fin():
+            if request.config.getoption("--skip-fixture-teardown") == "no":
+                delete_common_app(kube_apis, "simple", test_namespace)
+                delete_items_from_yaml(kube_apis, ingress_src, test_namespace)
+
+        request.addfinalizer(fin)
+        with open(ingress_src) as f:
+            ingress_host = yaml.safe_load(f)["spec"]["rules"][0]["host"]
+        return IngressSetup(ingress_name, ingress_host, ic_pod_name, test_namespace)
 
     @pytest.mark.parametrize(
         "annotations,expected_conf_absent,expected_nginx_error",
@@ -181,13 +210,10 @@ class TestConfigRollbackIngress:
         expected_nginx_error,
     ):
         """Patch an existing valid Ingress with an invalid annotation — config rolls back."""
-        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
-        ingress_name = ingress_setup["ingress_name"]
-        ingress_host = "config-rollback-ingress.example.com"
         ingress_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/backend1"
 
         # Step 1: Ingress serves traffic
-        wait_and_assert_status_code(200, ingress_url, ingress_host)
+        wait_and_assert_status_code(200, ingress_url, ingress_setup.ingress_host)
 
         # Step 2: patch Ingress with invalid annotation(s)
         with open(ingress_src) as f:
@@ -195,24 +221,22 @@ class TestConfigRollbackIngress:
         if "annotations" not in ingress_body["metadata"]:
             ingress_body["metadata"]["annotations"] = {}
         ingress_body["metadata"]["annotations"].update(annotations)
-        replace_ingress(kube_apis.networking_v1, ingress_name, test_namespace, ingress_body)
+        replace_ingress(kube_apis.networking_v1, ingress_setup.ingress_name, test_namespace, ingress_body)
         wait_before_test()
 
         # Step 3: traffic still works — invalid config rolled back
-        wait_and_assert_status_code(200, ingress_url, ingress_host)
+        wait_and_assert_status_code(200, ingress_url, ingress_setup.ingress_host)
         # Step 3a: confirm rolled-back nginx conf does NOT contain the invalid directive
-        conf = get_ingress_nginx_template_conf(
+        assert expected_conf_absent not in get_ingress_nginx_template_conf(
             kube_apis.v1,
             test_namespace,
-            ingress_name,
-            ic_pod,
+            ingress_setup.ingress_name,
+            ingress_setup.ingress_pod_name,
             ingress_controller_prerequisites.namespace,
         )
-        assert expected_conf_absent not in conf
 
         # Step 4: event contains actual nginx error and rollback confirmation
-        ing_events = get_events_for_object(kube_apis.v1, test_namespace, ingress_name)
-        latest = ing_events[-1]
+        latest = get_events_for_object(kube_apis.v1, test_namespace, ingress_setup.ingress_name)[-1]
         assert "AddedOrUpdatedWithError" in latest.reason
         assert "but was not applied" in latest.message
         assert "rolled back to previous working config" in latest.message
@@ -221,7 +245,7 @@ class TestConfigRollbackIngress:
         # Cleanup: restore original Ingress
         with open(ingress_src) as f:
             original_body = yaml.safe_load(f)
-        replace_ingress(kube_apis.networking_v1, ingress_name, test_namespace, original_body)
+        replace_ingress(kube_apis.networking_v1, ingress_setup.ingress_name, test_namespace, original_body)
         wait_before_test()
 
     @pytest.mark.parametrize(
@@ -260,18 +284,15 @@ class TestConfigRollbackIngress:
         Note: log-format-escaping only takes effect when log-format is also set, so the
         escaping case passes both keys together.
         """
-        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
-        ingress_setup["ingress_name"]
-        ingress_host = "config-rollback-ingress.example.com"
         ingress_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/backend1"
 
         # Step 1: Ingress serves traffic, capture TS config
-        wait_and_assert_status_code(200, ingress_url, ingress_host)
+        wait_and_assert_status_code(200, ingress_url, ingress_setup.ingress_host)
         ts_conf_before = get_ts_nginx_template_conf(
             kube_apis.v1,
             transport_server_setup.namespace,
             transport_server_setup.name,
-            ic_pod,
+            ingress_setup.ingress_pod_name,
             ingress_controller_prerequisites.namespace,
         )
 
@@ -293,30 +314,27 @@ class TestConfigRollbackIngress:
         # scope the log read to since_seconds=30 to avoid matching a rollback from a previous
         # parametrized test case (we cannot rely on the ConfigMap event to distinguish runs).
         ic_logs = kube_apis.v1.read_namespaced_pod_log(
-            ic_pod, ingress_controller_prerequisites.namespace, since_seconds=30
+            ingress_setup.ingress_pod_name, ingress_controller_prerequisites.namespace, since_seconds=30
         )
         assert "Main config was rolled back" in ic_logs
         assert expected_log_error in ic_logs
-        cm_events = get_events_for_object(
+        assert get_events_for_object(
             kube_apis.v1,
             ingress_controller_prerequisites.namespace,
             ingress_controller_prerequisites.config_map["metadata"]["name"],
-        )
-        latest_cm = cm_events[-1]
-        assert latest_cm.reason == "Updated"
+        )[-1].reason == "Updated"
 
         # Step 4: Ingress still responds
-        wait_and_assert_status_code(200, ingress_url, ingress_host)
+        wait_and_assert_status_code(200, ingress_url, ingress_setup.ingress_host)
 
         # Step 5: TS config unchanged
-        ts_conf_after = get_ts_nginx_template_conf(
+        assert get_ts_nginx_template_conf(
             kube_apis.v1,
             transport_server_setup.namespace,
             transport_server_setup.name,
-            ic_pod,
+            ingress_setup.ingress_pod_name,
             ingress_controller_prerequisites.namespace,
-        )
-        assert ts_conf_before == ts_conf_after
+        ) == ts_conf_before
         assert_valid_ts(kube_apis, transport_server_setup.namespace, transport_server_setup.name)
 
     @pytest.mark.parametrize(
@@ -342,21 +360,15 @@ class TestConfigRollbackIngress:
         Parametrized with protect_ingress=ingress1/ingress2 to test both orderings, so we don't
         rely on alphabetical resource processing order.
         """
-        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
-        ingress1_name = ingress_setup["ingress_name"]
-        ingress1_host = "config-rollback-ingress.example.com"
         ingress1_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/backend1"
 
         # Step 1: both Ingresses start without own location-snippets annotations
         # Ingress1 = fixture Ingress, Ingress2 = created from plain YAML
-        wait_and_assert_status_code(200, ingress1_url, ingress1_host)
-        ingress2_name = create_ingress_from_yaml(
-            kube_apis.networking_v1,
-            test_namespace,
-            ingress_2_src,
-        )
+        wait_and_assert_status_code(200, ingress1_url, ingress_setup.ingress_host)
+        ingress2_name = create_ingress_from_yaml(kube_apis.networking_v1, test_namespace, ingress_2_src)
         wait_before_test()
-        ingress2_host = "config-rollback-ingress2.example.com"
+        with open(ingress_2_src) as f:
+            ingress2_host = yaml.safe_load(f)["spec"]["rules"][0]["host"]
         ingress2_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/backend1"
         wait_and_assert_status_code(200, ingress2_url, ingress2_host)
 
@@ -368,7 +380,7 @@ class TestConfigRollbackIngress:
             if "annotations" not in body["metadata"]:
                 body["metadata"]["annotations"] = {}
             body["metadata"]["annotations"]["nginx.org/location-snippets"] = "sub_filter_once off;"
-            replace_ingress(kube_apis.networking_v1, ingress1_name, test_namespace, body)
+            replace_ingress(kube_apis.networking_v1, ingress_setup.ingress_name, test_namespace, body)
         else:
             with open(ingress_2_src) as f:
                 body = yaml.safe_load(f)
@@ -383,7 +395,7 @@ class TestConfigRollbackIngress:
             kube_apis.v1,
             transport_server_setup.namespace,
             transport_server_setup.name,
-            ic_pod,
+            ingress_setup.ingress_pod_name,
             ingress_controller_prerequisites.namespace,
         )
 
@@ -402,17 +414,15 @@ class TestConfigRollbackIngress:
         # the PROTECTED Ingress remains valid (own annotation overrides ConfigMap)
         if protect_ingress == "ingress1":
             # Ingress2 is unprotected → event shows error
-            ing2_events = get_events_for_object(kube_apis.v1, test_namespace, ingress2_name)
-            latest2 = ing2_events[-1]
+            latest2 = get_events_for_object(kube_apis.v1, test_namespace, ingress2_name)[-1]
             assert "AddedOrUpdatedWithError" in latest2.reason
             assert "but was not applied" in latest2.message
             assert 'invalid number of arguments in "add_header" directive' in latest2.message
             # Ingress1 is protected → still serves traffic
-            wait_and_assert_status_code(200, ingress1_url, ingress1_host)
+            wait_and_assert_status_code(200, ingress1_url, ingress_setup.ingress_host)
         else:
             # Ingress1 is unprotected → event shows error
-            ing1_events = get_events_for_object(kube_apis.v1, test_namespace, ingress1_name)
-            latest1 = ing1_events[-1]
+            latest1 = get_events_for_object(kube_apis.v1, test_namespace, ingress_setup.ingress_name)[-1]
             assert "AddedOrUpdatedWithError" in latest1.reason
             assert "but was not applied" in latest1.message
             assert 'invalid number of arguments in "add_header" directive' in latest1.message
@@ -420,14 +430,13 @@ class TestConfigRollbackIngress:
             wait_and_assert_status_code(200, ingress2_url, ingress2_host)
 
         # Step 6: TS config unchanged (stream blocks not affected by location-snippets)
-        ts_conf_after = get_ts_nginx_template_conf(
+        assert get_ts_nginx_template_conf(
             kube_apis.v1,
             transport_server_setup.namespace,
             transport_server_setup.name,
-            ic_pod,
+            ingress_setup.ingress_pod_name,
             ingress_controller_prerequisites.namespace,
-        )
-        assert ts_conf_before == ts_conf_after
+        ) == ts_conf_before
         assert_valid_ts(kube_apis, transport_server_setup.namespace, transport_server_setup.name)
 
         # Step 7: ConfigMap event reflects partial failure
@@ -444,5 +453,5 @@ class TestConfigRollbackIngress:
         delete_ingress(kube_apis.networking_v1, ingress2_name, test_namespace)
         with open(ingress_src) as f:
             original_body = yaml.safe_load(f)
-        replace_ingress(kube_apis.networking_v1, ingress1_name, test_namespace, original_body)
+        replace_ingress(kube_apis.networking_v1, ingress_setup.ingress_name, test_namespace, original_body)
         wait_before_test()
