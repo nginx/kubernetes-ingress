@@ -30,7 +30,7 @@ metadata:
     app.kubernetes.io/name: "cert-manager"
     app.kubernetes.io/instance: "cert-manager"
     app.kubernetes.io/component: "crds"
-    app.kubernetes.io/version: "v1.19.2"
+    app.kubernetes.io/version: "v1.20.0"
 spec:
   group: acme.cert-manager.io
   names:
@@ -13254,7 +13254,7 @@ spec:
         app.kubernetes.io/name: cainjector
         app.kubernetes.io/instance: cert-manager
         app.kubernetes.io/component: "cainjector"
-        app.kubernetes.io/version: "v1.19.2"
+        app.kubernetes.io/version: "v1.20.0"
       annotations:
         prometheus.io/path: "/metrics"
         prometheus.io/scrape: 'true'
