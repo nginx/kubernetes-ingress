@@ -70,7 +70,7 @@ func generateTransportServerConfig(p transportServerConfigParams) (*version2.Tra
 
 	var proxyRequests, proxyResponses *int
 	var connectTimeout, nextUpstreamTimeout string
-	var nextUpstream bool
+	var nextUpstream, proxyProtocolUpstream bool
 	var nextUpstreamTries int
 	if p.transportServerEx.TransportServer.Spec.UpstreamParameters != nil {
 		proxyRequests = p.transportServerEx.TransportServer.Spec.UpstreamParameters.UDPRequests
@@ -83,6 +83,7 @@ func generateTransportServerConfig(p transportServerConfigParams) (*version2.Tra
 		}
 
 		connectTimeout = p.transportServerEx.TransportServer.Spec.UpstreamParameters.ConnectTimeout
+		proxyProtocolUpstream = p.transportServerEx.TransportServer.Spec.UpstreamParameters.ProxyProtocol
 	}
 
 	var proxyTimeout string
@@ -102,6 +103,7 @@ func generateTransportServerConfig(p transportServerConfigParams) (*version2.Tra
 	isTLSPassthrough := p.transportServerEx.TransportServer.Spec.Listener.Name == conf_v1.TLSPassthroughListenerName
 	serverName := generateServerName(host, isTLSPassthrough)
 	isUDP := p.transportServerEx.TransportServer.Spec.Listener.Protocol == "UDP"
+	isProxyProtocol := p.transportServerEx.TransportServer.Spec.Listener.Protocol == "PROXY"
 
 	tsConfig := &version2.TransportServerConfig{
 		Server: version2.StreamServer{
@@ -111,6 +113,7 @@ func generateTransportServerConfig(p transportServerConfigParams) (*version2.Tra
 			Port:                     p.listenerPort,
 			UDP:                      isUDP,
 			StatusZone:               statusZone,
+			ProxyProtocolListener:    isProxyProtocol,
 			ProxyRequests:            proxyRequests,
 			ProxyResponses:           proxyResponses,
 			ProxyPass:                upstreamNamer.GetNameForUpstream(p.transportServerEx.TransportServer.Spec.Action.Pass),
@@ -121,6 +124,7 @@ func generateTransportServerConfig(p transportServerConfigParams) (*version2.Tra
 			ProxyNextUpstream:        nextUpstream,
 			ProxyNextUpstreamTimeout: generateTimeWithDefault(nextUpstreamTimeout, "0s"),
 			ProxyNextUpstreamTries:   nextUpstreamTries,
+			ProxyProtocolUpstream:    proxyProtocolUpstream,
 			HealthCheck:              healthCheck,
 			ServerSnippets:           serverSnippets,
 			DisableIPV6:              p.transportServerEx.DisableIPV6,
