@@ -5,20 +5,14 @@ metadata:
   name: oauth2-proxy-config
 data:
   oauth2-proxy.cfg: |
-    http_address = "0.0.0.0:4180"
-    upstreams = ["static://200"]
+    provider = "github"
+    provider_display_name = "GitHub"
     email_domains = ["*"]
-    cookie_secure = false
-    cookie_secret = "OQINaROshtE9TcZkNAm-5Zs2Pv3xaWytBmc5W7sPX4="
-    provider = "keycloak-oidc"
-    provider_display_name = "Keycloak"
-    redirect_url = "https://cafe.example.com:443/_oauth2/callback"
-    oidc_issuer_url = "https://keycloak.example.com/realms/master"
-    ssl_insecure_skip_verify = true
-    skip_provider_button = true
-    pass_access_token = true
-    set_xauthrequest = true
-    cookie_name = "_oauth2_proxy"
+    upstreams = ["file:///dev/null"]
+    http_address = "0.0.0.0:4180"
+    redirect_url = "https://cafe.example.com/oauth2/callback"
+    cookie_secure = true
+    whitelist_domains = ["cafe.example.com"]
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -39,14 +33,16 @@ spec:
           image: quay.io/oauth2-proxy/oauth2-proxy:v7.7.1
           args:
             - --config=/etc/oauth2-proxy/oauth2-proxy.cfg
-            - --client-id=nginx-plus
-            - --client-secret=$(CLIENT_SECRET)
           env:
-            - name: CLIENT_SECRET
+            - name: OAUTH2_PROXY_CLIENT_ID
+              value: "Ov23liKJNUduyDlvmztp"
+            - name: OAUTH2_PROXY_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: oauth2-proxy-client-secret
                   key: client-secret
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              value: "rmXYk59eajf5Mm2y19gjwA=="
           ports:
             - containerPort: 4180
               name: http

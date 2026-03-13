@@ -4,21 +4,6 @@ metadata:
   name: cafe-ingress-master
   annotations:
     nginx.org/mergeable-ingress-type: "master"
-    nginx.org/server-snippets: |
-      # Internal basic-auth subrequest endpoint
-      location /basic-auth {
-          internal;
-          proxy_set_header Content-Length "";
-          proxy_pass_request_body off;
-          proxy_pass http://basic-auth-svc.default.svc.cluster.local;
-      }
-      # Internal oauth2-proxy auth subrequest endpoint
-      location /_oauth2/auth {
-          internal;
-          proxy_set_header Content-Length "";
-          proxy_pass_request_body off;
-          proxy_pass http://oauth2-proxy-svc.default.svc.cluster.local;
-      }
 spec:
   ingressClassName: nginx
   tls:

@@ -173,31 +173,38 @@ type LimitReq struct {
 
 // Location describes an NGINX location.
 type Location struct {
-	LocationSnippets     []string
-	Path                 string
-	Upstream             Upstream
-	ProxyConnectTimeout  string
-	ProxyReadTimeout     string
-	ProxySendTimeout     string
-	ProxySetHeaders      []version2.Header
-	ClientMaxBodySize    string
-	ClientBodyBufferSize string
-	Websocket            bool
-	Rewrite              string
-	RewriteTarget        string
-	SSL                  bool
-	GRPC                 bool
-	ProxyBuffering       bool
-	ProxyBuffers         string
-	ProxyBufferSize      string
-	ProxyBusyBuffersSize string
-	ProxyMaxTempFileSize string
-	ProxySSLName         string
-	JWTAuth              *JWTAuth
-	ExternalAuth         *version2.ExternalAuth
-	BasicAuth            *BasicAuth
-	ServiceName          string
-	LimitReq             *LimitReq
+	LocationSnippets        []string
+	Path                    string
+	Upstream                Upstream
+	ProxyPass               string
+	ProxyPassRequestBody    string
+	ProxyPassRequestHeaders bool
+	ProxyConnectTimeout     string
+	ProxyReadTimeout        string
+	ProxySendTimeout        string
+	ProxySetHeaders         []version2.Header
+	ClientMaxBodySize       string
+	ClientBodyBufferSize    string
+	Websocket               bool
+	Rewrite                 string
+	RewriteTarget           string
+	SSL                     bool
+	GRPC                    bool
+	ProxyBuffering          bool
+	ProxyBuffers            string
+	ProxyBufferSize         string
+	ProxyBusyBuffersSize    string
+	ProxyMaxTempFileSize    string
+	ProxySSLName            string
+	JWTAuth                 *JWTAuth
+	ExternalAuth            *version2.ExternalAuth
+	BasicAuth               *BasicAuth
+	ServiceName             string
+	LimitReq                *LimitReq
+
+	AuthSnippets   []string
+	AuthRequestOff bool
+	Internal       bool
 
 	MinionIngress *Ingress
 

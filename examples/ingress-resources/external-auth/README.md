@@ -3,9 +3,13 @@
 In this example we deploy a web application, configure load balancing using Ingress resources with the
 master/minion (mergeable) pattern, and apply external authentication using two different methods:
 
-1. **HTTP Basic Auth** — using an NGINX service that validates credentials from an htpasswd file.
-2. **OAuth2 Proxy with Keycloak** — using [oauth2-proxy](https://oauth2-proxy.github.io/oauth2-proxy/) to authenticate
-   users against a [Keycloak](https://www.keycloak.org/) OpenID Connect provider.
+1. **HTTP Basic Auth** -- using an NGINX service that validates credentials from an htpasswd file.
+2. **OAuth2 Proxy with GitHub** -- using [oauth2-proxy](https://oauth2-proxy.github.io/oauth2-proxy/) to authenticate
+   users via [GitHub OAuth2](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app).
+
+Both methods use the ExternalAuth Policy CRD (`k8s.nginx.org/v1 Policy`) referenced from minion Ingress resources via
+the `nginx.org/policies` annotation. The controller automatically generates the required internal auth subrequest
+locations and upstreams -- no `server-snippets` or `location-snippets` are needed.
 
 ## Prerequisites
 
@@ -19,32 +23,18 @@ master/minion (mergeable) pattern, and apply external authentication using two d
 
     This creates the TLS and htpasswd secrets as symlinks via `hack/secrets-gen`.
 
-3. Save the public IP address of the Ingress Controller into a shell variable:
-
-    ```shell
-    IC_IP=XXX.YYY.ZZZ.III
-    ```
-
-4. Save the HTTPS port of the Ingress Controller into a shell variable:
-
-    ```shell
-    IC_HTTPS_PORT=<port number>
-    ```
-
-5. Add the following entries to `/etc/hosts`:
+3. Save the public IP address of the Ingress Controller into `/etc/hosts` of your machine:
 
     ```text
     XXX.YYY.ZZZ.III cafe.example.com
-    XXX.YYY.ZZZ.III keycloak.example.com
     ```
 
-## Step 1 - Deploy TLS Secrets
+## Step 1 - Deploy TLS Secret
 
-Apply the generated TLS secrets:
+Apply the generated TLS secret:
 
 ```shell
 kubectl apply -f tls-secret.yaml
-kubectl apply -f keycloak-tls-secret.yaml
 ```
 
 ## Step 2 - Deploy the Web Application
@@ -64,38 +54,40 @@ kubectl apply -f htpasswd-secret.yaml
 kubectl apply -f basic-auth.yaml
 ```
 
-## Step 4 - Deploy Keycloak
+## Step 4 - Create a GitHub OAuth App
 
-Deploy Keycloak and expose it via an Ingress resource:
+Register a new OAuth application in GitHub to use as the identity provider:
 
-```shell
-kubectl apply -f keycloak.yaml
-kubectl apply -f keycloak-ingress.yaml
-```
+1. Go to **GitHub -> Settings -> Developer settings ->
+   [OAuth Apps](https://github.com/settings/developers)** and click **New OAuth App**.
+2. Fill in the form:
 
-Wait for Keycloak to become ready:
+   | Field | Value |
+   | ----- | ----- |
+   | **Application name** | `nginx-ingress-demo` (or any name you prefer) |
+   | **Homepage URL** | `https://cafe.example.com` |
+   | **Authorization callback URL** | `https://cafe.example.com/oauth2/callback` |
 
-```shell
-kubectl wait --for=condition=Ready pod -l app=keycloak --timeout=120s
-```
+3. Click **Register application**.
+4. On the next page, note the **Client ID**.
+5. Click **Generate a new client secret** and copy the generated secret immediately -- you will not
+   be able to see it again.
 
-Then configure Keycloak by following the steps in [keycloak_setup.md](keycloak_setup.md).
-
-When creating the client in Keycloak, make sure to:
-
-- Set the **Client ID** to `nginx-plus`.
-- Set **Valid Redirect URIs** to `https://cafe.example.com:443/_oauth2/callback`.
-- Enable **Client authentication** to generate a client secret.
+> **Tip:** For organisation-owned apps, navigate to your organisation's **Settings -> Developer
+> settings -> OAuth Apps** instead.
 
 ## Step 5 - Deploy OAuth2 Proxy
 
-1. Update the client secret in `oauth2-proxy-client-secret.yaml` with the secret obtained from Keycloak:
+1. Base64-encode the GitHub client secret and update `oauth2-proxy-client-secret.yaml`:
 
     ```shell
-    echo -n '<your-keycloak-client-secret>' | base64
+    echo -n '<your-github-client-secret>' | base64
     ```
 
-    Replace the value of `client-secret` in the file, then apply:
+    Replace the value of `client-secret` in the file. If your Client ID differs from the one
+    already in `oauth2-proxy.yaml`, also update the `OAUTH2_PROXY_CLIENT_ID` environment variable.
+
+    Apply the secret:
 
     ```shell
     kubectl apply -f oauth2-proxy-client-secret.yaml
@@ -107,68 +99,80 @@ When creating the client in Keycloak, make sure to:
     kubectl apply -f oauth2-proxy.yaml
     ```
 
-## Step 6 - Deploy the Ingress Resources
+## Step 6 - Deploy the ExternalAuth Policies
 
-Deploy the master Ingress that configures TLS and the internal auth subrequest endpoints via `server-snippets`:
+Deploy the ExternalAuth policies that the Ingress resources will reference:
+
+```shell
+kubectl apply -f external-auth-basic.yaml
+kubectl apply -f external-auth-oauth2.yaml
+```
+
+## Step 7 - Deploy the Ingress Resources
+
+Deploy the master Ingress that configures the host and TLS:
 
 ```shell
 kubectl apply -f cafe-ingress-master.yaml
 ```
 
-Deploy the minion Ingress for `/tea` (protected by basic-auth):
+Deploy the minion Ingress for `/tea` (protected by basic-auth via the `external-auth-basic-policy`):
 
 ```shell
 kubectl apply -f tea-minion.yaml
 ```
 
-Deploy the minion Ingress for `/coffee` (protected by oauth2-proxy):
+Deploy the minion Ingress for `/coffee` (protected by OAuth2 Proxy via the `external-auth-oauth2-policy`):
 
 ```shell
 kubectl apply -f coffee-minion.yaml
-```
-
-Deploy the minion Ingress for `/_oauth2` (oauth2-proxy callback and start endpoints):
-
-```shell
-kubectl apply -f oauth2-proxy-minion.yaml
 ```
 
 ## Testing
 
 ### Basic Auth Route (`/tea`)
 
-Access `https://cafe.example.com/tea`. You will be prompted for credentials.
-Use the credentials from the htpasswd secret (default: `foo` / `bar`):
+Access `https://cafe.example.com/tea`. Use the credentials from the htpasswd secret (default: `foo` / `bar`):
 
 ```shell
-curl --resolve cafe.example.com:$IC_HTTPS_PORT:$IC_IP \
-  https://cafe.example.com:$IC_HTTPS_PORT/tea -u foo:bar --insecure
+curl -k -u foo:bar https://cafe.example.com/tea
 ```
 
-### OAuth2 Proxy Route (`/coffee`)
+Requests without credentials will be rejected with a `401`:
 
-Open `https://cafe.example.com/coffee` in a browser. You will be redirected to Keycloak to log in.
-After successful authentication, you will be redirected back to the application.
+```shell
+curl -k https://cafe.example.com/tea
+```
 
-Use the Keycloak user credentials (`nginx-user` / `test` if you followed the Keycloak setup guide).
+### OAuth2 (GitHub) Route (`/coffee`)
 
-### Unprotected Route (`/_oauth2`)
+Open `https://cafe.example.com/coffee` in a browser. You will be redirected to GitHub to authorize the
+OAuth App. After granting access, GitHub redirects you back to the application and the page loads
+normally.
 
-The `/_oauth2` path routes to oauth2-proxy for handling OAuth2 callbacks and is not directly user-facing.
+> **Note:** Because this flow requires browser interaction (GitHub login + OAuth consent), it cannot
+> be fully tested with `curl`. Use a browser for the initial login. Once authenticated, the
+> `_oauth2_proxy` cookie allows subsequent requests -- including `curl` -- to pass through.
 
 ## Architecture
 
 This example uses the [Mergeable Ingress](https://docs.nginx.com/nginx-ingress-controller/configuration/ingress-resources/cross-namespace-configuration/)
 pattern to split the configuration across multiple Ingress resources:
 
-- **Master** (`cafe-ingress-master.yaml`) — Defines the host, TLS termination, and `server-snippets` containing
-  internal subrequest locations for basic-auth and oauth2-proxy authentication checks.
-- **Tea Minion** (`tea-minion.yaml`) — Routes `/tea` to the tea service, using `location-snippets` to add
-  `auth_request /basic-auth;` for HTTP basic authentication.
-- **Coffee Minion** (`coffee-minion.yaml`) — Routes `/coffee` to the coffee service, using `location-snippets` to
-  add `auth_request /_oauth2/auth;` and related directives for OAuth2 authentication.
-- **OAuth2 Proxy Minion** (`oauth2-proxy-minion.yaml`) — Routes `/_oauth2` to oauth2-proxy for handling the
-  OAuth2 callback and start flow.
+- **Master** (`cafe-ingress-master.yaml`) -- Defines the host and TLS termination.
+- **Tea Minion** (`tea-minion.yaml`) -- Routes `/tea` to the tea service, referencing the
+  `external-auth-basic-policy` via the `nginx.org/policies` annotation.
+- **Coffee Minion** (`coffee-minion.yaml`) -- Routes `/coffee` to the coffee service, referencing the
+  `external-auth-oauth2-policy` via the `nginx.org/policies` annotation.
+
+The ExternalAuth policies tell the controller which external auth service to use. The controller automatically:
+
+1. Creates an upstream for the auth service.
+2. Generates an internal subrequest location (`/_external_auth/...`).
+3. Adds `auth_request` directives to the matching locations.
+4. For OAuth2 policies with `authSigninURI`, generates a signin redirect location and `error_page 401` handler.
+
+No manual `server-snippets` or `location-snippets` are required.
 
 ## File Overview
 
@@ -177,14 +181,11 @@ pattern to split the configuration across multiple Ingress resources:
 | `cafe.yaml` | Tea and coffee backend deployments and services |
 | `basic-auth.yaml` | NGINX basic-auth deployment, ConfigMap, and service |
 | `htpasswd-secret.yaml` | htpasswd secret with user credentials |
-| `keycloak.yaml` | Keycloak deployment and service |
-| `keycloak-tls-secret.yaml` | TLS secret for Keycloak |
-| `keycloak_setup.md` | Guide to configure Keycloak users and clients |
-| `keycloak-ingress.yaml` | Ingress exposing Keycloak |
-| `oauth2-proxy.yaml` | oauth2-proxy deployment, ConfigMap, and service |
-| `oauth2-proxy-client-secret.yaml` | Secret holding the Keycloak client secret for oauth2-proxy |
+| `oauth2-proxy.yaml` | oauth2-proxy deployment, ConfigMap, and service (configured for GitHub) |
+| `oauth2-proxy-client-secret.yaml` | Secret holding the GitHub OAuth App client secret for oauth2-proxy |
 | `tls-secret.yaml` | TLS secret for cafe.example.com |
-| `cafe-ingress-master.yaml` | Master Ingress with TLS and auth subrequest server-snippets |
-| `tea-minion.yaml` | Minion Ingress for `/tea` with basic-auth |
-| `coffee-minion.yaml` | Minion Ingress for `/coffee` with oauth2-proxy |
-| `oauth2-proxy-minion.yaml` | Minion Ingress for `/_oauth2` callback handling |
+| `external-auth-basic.yaml` | ExternalAuth policy for HTTP basic-auth |
+| `external-auth-oauth2.yaml` | ExternalAuth policy for OAuth2 Proxy (GitHub) |
+| `cafe-ingress-master.yaml` | Master Ingress with host and TLS configuration |
+| `tea-minion.yaml` | Minion Ingress for `/tea` with basic-auth policy |
+| `coffee-minion.yaml` | Minion Ingress for `/coffee` with OAuth2 policy |

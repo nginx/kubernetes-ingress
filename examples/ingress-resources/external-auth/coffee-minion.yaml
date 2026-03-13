@@ -4,13 +4,7 @@ metadata:
   name: cafe-ingress-coffee-minion
   annotations:
     nginx.org/mergeable-ingress-type: "minion"
-    nginx.org/location-snippets: |
-      auth_request /_oauth2/auth;
-      auth_request_set $auth_user $upstream_http_x_auth_request_user;
-      auth_request_set $auth_email $upstream_http_x_auth_request_email;
-      proxy_set_header X-Auth-Request-User $auth_user;
-      proxy_set_header X-Auth-Request-Email $auth_email;
-      error_page 401 = /_oauth2/start?rd=$scheme://$host$request_uri;
+    nginx.org/policies: "external-auth-oauth2-policy"
 spec:
   ingressClassName: nginx
   rules:

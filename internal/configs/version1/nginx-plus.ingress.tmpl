@@ -173,6 +173,14 @@ server {
     auth_basic_user_file {{ .Secret }};
 	{{- end }}
 
+	{{- if $server.ExternalAuth }}
+	auth_request {{ $server.ExternalAuth.URI.InternalPath }};
+	{{- if $server.ExternalAuth.SigninURL }}
+	proxy_intercept_errors on;
+	error_page 401 "{{ $server.ExternalAuth.SigninURL }}";
+	{{- end }}
+	{{- end }}
+
 	{{with $jwt := $server.JWTAuth}}
 	auth_jwt_key_file {{$jwt.Key}};
 	auth_jwt "{{.Realm}}"{{if $jwt.Token}} token={{$jwt.Token}}{{end}};
@@ -214,15 +222,29 @@ server {
 	}
 	{{end -}}
 
-	{{range $location := $server.Locations}}
+	{{- range $location := $server.Locations}}
 	location {{  makeLocationPath $location $.Ingress.Annotations | printf }} {
 		set $service "{{$location.ServiceName}}";
+		{{- if and (not $location.Internal) (not $location.AuthRequestOff)}}
 		status_zone "{{ $location.ServiceName }}";
+		{{- end}}
+		{{- if $location.Internal}}
+		internal;
+		{{- end}}
 		{{- with $location.MinionIngress}}
 		# location for minion {{$location.MinionIngress.Namespace}}/{{$location.MinionIngress.Name}}
 		set $resource_name "{{$location.MinionIngress.Name}}";
 		set $resource_namespace "{{$location.MinionIngress.Namespace}}";
 		{{- end}}
+		{{- if $location.AuthRequestOff}}
+		auth_request off;
+		{{- else if $location.ExternalAuth }}
+		auth_request {{ $location.ExternalAuth.URI.InternalPath }};
+		{{- if $location.ExternalAuth.SigninURL }}
+		proxy_intercept_errors on;
+		error_page 401 "{{ $location.ExternalAuth.SigninURL }}";
+		{{- end }}
+		{{- end }}
 		{{- range $allow := $location.Allow }}
 		allow {{ $allow }};
 		{{- end }}
@@ -256,8 +278,12 @@ server {
 		error_page 504 @grpcerror504;
 		{{- end}}
 
+		{{- if not $location.Internal}}{{- if not $location.AuthRequestOff}}
 		{{- range $value := $location.LocationSnippets}}
 		{{$value}}{{end}}
+		{{- end}}{{- end}}
+		{{- range $value := $location.AuthSnippets}}
+		{{$value}}{{- end}}
 
 		{{- with $jwt := $location.JWTAuth}}
 		auth_jwt_key_file {{$jwt.Key}};
@@ -305,7 +331,11 @@ server {
 		{{- if $.Keepalive}}
 		proxy_set_header Connection "";{{end}}
 		{{- end}}
+		{{- if not $location.Internal}}{{- if not $location.AuthRequestOff}}
 		{{- range $value := $location.LocationSnippets}}
+		{{$value}}{{- end}}
+		{{- end}}{{- end}}
+		{{- range $value := $location.AuthSnippets}}
 		{{$value}}{{- end}}
 
 		{{- with $jwt := $location.JWTAuth }}
@@ -328,7 +358,14 @@ server {
 		{{- if $location.ClientBodyBufferSize }}
 		client_body_buffer_size {{$location.ClientBodyBufferSize}};
 		{{- end}}
-		{{- $proxySetHeaders := generateProxySetHeaders $location $.Ingress.Annotations }}
+		proxy_pass_request_headers {{ if $location.ProxyPassRequestHeaders }}on{{ else }}off{{ end }};
+		{{- if $location.ProxyPassRequestBody}}
+		proxy_pass_request_body {{$location.ProxyPassRequestBody}};
+		{{- end}}
+		{{- range $header := $location.ProxySetHeaders}}
+		proxy_set_header {{ $header.Name }} {{ $header.Value }};
+		{{- end}}
+		{{- $proxySetHeaders := generateProxySetHeaders $location $.Ingress.Annotations -}}
 		{{$proxySetHeaders}}
 		proxy_set_header Host $host;
 		proxy_set_header X-Real-IP $remote_addr;
@@ -367,7 +404,9 @@ server {
 		{{- if $location.ProxyNextUpstreamTries}}
 		proxy_next_upstream_tries {{ $location.ProxyNextUpstreamTries }};
 		{{- end }}
-		{{- if $location.SSL}}
+		{{- if $location.ProxyPass}}
+		proxy_pass {{$location.ProxyPass}};
+		{{- else if $location.SSL}}
 		proxy_pass https://{{$location.Upstream.Name}}{{$location.Rewrite}};
 		{{- else}}
 		proxy_pass http://{{$location.Upstream.Name}}{{$location.Rewrite}};

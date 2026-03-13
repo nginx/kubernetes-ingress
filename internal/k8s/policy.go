@@ -128,6 +128,7 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 			case pol.Spec.AccessControl != nil:
 				// Access Control policy is supported on Ingress
 				continue
+			case pol.Spec.ExternalAuth != nil:
 			default: // Unsupported policy type on Ingress
 				msg := fmt.Sprintf("Policy %s/%s has unsupported type on Ingress resource %s/%s",
 					pol.Namespace, pol.Name, impl.Ingress.Namespace, impl.Ingress.Name)
@@ -142,7 +143,7 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 	resourceExes := lbc.createExtendedResources(resources)
 
 	// Only VirtualServers and Ingresses support policies
-	if len(resourceExes.VirtualServerExes) == 0 && len(resourceExes.IngressExes) == 0 {
+	if len(resourceExes.VirtualServerExes) == 0 && len(resourceExes.IngressExes) == 0 && len(resourceExes.MergeableIngresses) == 0 {
 		return
 	}
 
@@ -153,6 +154,11 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 
 	if len(resourceExes.IngressExes) > 0 {
 		warnings, updateErr := lbc.configurator.AddOrUpdateIngresses(resourceExes.IngressExes)
+		lbc.updateResourcesStatusAndEvents(resources, warnings, updateErr)
+	}
+
+	if len(resourceExes.MergeableIngresses) > 0 {
+		warnings, updateErr := lbc.configurator.AddOrUpdateMergeableIngresses(resourceExes.MergeableIngresses)
 		lbc.updateResourcesStatusAndEvents(resources, warnings, updateErr)
 	}
 

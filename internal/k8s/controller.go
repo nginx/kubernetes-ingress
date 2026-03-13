@@ -2383,6 +2383,8 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 		}
 	}
 
+	lbc.generateExternalAuthEndpoints(policies, ing.Namespace, ingEx.Endpoints)
+
 	return ingEx
 }
 
@@ -2702,7 +2704,7 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 		}
 	}
 
-	lbc.generateExternalAuthEndpoints(policies, virtualServerEx, endpoints)
+	lbc.generateExternalAuthEndpoints(policies, virtualServerEx.VirtualServer.Namespace, endpoints)
 
 	virtualServerEx.Endpoints = endpoints
 	virtualServerEx.VirtualServerRoutes = virtualServerRoutes
@@ -2713,13 +2715,13 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 	return &virtualServerEx
 }
 
-func (lbc *LoadBalancerController) generateExternalAuthEndpoints(policies []*conf_v1.Policy, virtualServerEx configs.VirtualServerEx, endpoints map[string][]string) {
+func (lbc *LoadBalancerController) generateExternalAuthEndpoints(policies []*conf_v1.Policy, defaultNamespace string, endpoints map[string][]string) {
 	for _, p := range policies {
 		if p.Spec.ExternalAuth == nil || p.Spec.ExternalAuth.AuthServiceName == "" {
 			continue
 		}
 
-		ns, name := configs.ParseServiceReference(p.Spec.ExternalAuth.AuthServiceName, virtualServerEx.VirtualServer.Namespace)
+		ns, name := configs.ParseServiceReference(p.Spec.ExternalAuth.AuthServiceName, defaultNamespace)
 
 		svc, err := lbc.client.CoreV1().Services(ns).Get(lbc.ctx, name, meta_v1.GetOptions{})
 		if err != nil {

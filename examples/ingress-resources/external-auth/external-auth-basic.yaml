@@ -1,0 +1,10 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: external-auth-basic-policy
+spec:
+  externalAuth:
+    authURI: "/auth"
+    authServiceName: "default/basic-auth-svc"
+    authSnippets: |
+      # this is basic auth snippets
