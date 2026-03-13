@@ -94,7 +94,6 @@ class TestConfigRollbackVSCreate:
         delete_virtual_server(kube_apis.custom_objects, vs_name, test_namespace)
 
 
-@pytest.mark.rollback
 @pytest.mark.vs
 @pytest.mark.vs_config_map
 @pytest.mark.parametrize(

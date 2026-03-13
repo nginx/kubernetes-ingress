@@ -51,7 +51,6 @@ secure_app_secret_yaml = f"{TEST_DATA}/transport-server-tls-passthrough/standard
 
 
 @pytest.mark.ts
-@pytest.mark.rollback
 @pytest.mark.parametrize(
     "crd_ingress_controller",
     [

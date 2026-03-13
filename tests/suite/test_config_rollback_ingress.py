@@ -91,7 +91,6 @@ class TestConfigRollbackIngressCreate:
 
 
 @pytest.mark.ingresses
-@pytest.mark.rollback
 @pytest.mark.parametrize(
     "crd_ingress_controller, transport_server_setup",
     [
