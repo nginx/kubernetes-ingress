@@ -586,16 +586,15 @@ func createTemplateExecutors(ctx context.Context) (*version1.TemplateExecutor, *
 
 func createNginxManager(ctx context.Context, managerCollector collectors.ManagerCollector, licenseReporter *license_reporting.LicenseReporter, deploymentMetadata *metadata.Metadata) (nginx.Manager, bool) {
 	useFakeNginxManager := *proxyURL != ""
+	timeout := time.Duration(*nginxReloadTimeout) * time.Millisecond
 	var nginxManager nginx.Manager
-	if useFakeNginxManager {
+	switch {
+	case useFakeNginxManager:
 		nginxManager = nginx.NewFakeManager("/etc/nginx")
-	} else {
-		timeout := time.Duration(*nginxReloadTimeout) * time.Millisecond
-		if *enableConfigSafety {
-			nginxManager = nginx.NewConfigRollbackManager(ctx, "/etc/nginx/", *nginxDebug, managerCollector, licenseReporter, deploymentMetadata, timeout, *nginxPlus)
-		} else {
-			nginxManager = nginx.NewLocalManager(ctx, "/etc/nginx/", *nginxDebug, managerCollector, licenseReporter, deploymentMetadata, timeout, *nginxPlus)
-		}
+	case *enableConfigSafety:
+		nginxManager = nginx.NewConfigRollbackManager(ctx, "/etc/nginx/", *nginxDebug, managerCollector, licenseReporter, deploymentMetadata, timeout, *nginxPlus)
+	default:
+		nginxManager = nginx.NewLocalManager(ctx, "/etc/nginx/", *nginxDebug, managerCollector, licenseReporter, deploymentMetadata, timeout, *nginxPlus)
 	}
 	return nginxManager, useFakeNginxManager
 }

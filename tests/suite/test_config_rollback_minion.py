@@ -31,7 +31,7 @@ mergeable_ingress_src = f"{TEST_DATA}/config-rollback/ingress/mergeable-ingress.
                 "type": "complete",
                 "extra_args": [
                     "-enable-custom-resources",
-                    "-enable-config-rollback",
+                    "-enable-config-safety",
                     "-enable-snippets",
                     "-global-configuration=nginx-ingress/nginx-configuration",
                     "-enable-leader-election=false",

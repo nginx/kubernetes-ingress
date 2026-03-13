@@ -27,7 +27,7 @@ from suite.utils.vs_vsr_resources_utils import (
                 "type": "complete",
                 "extra_args": [
                     "-enable-custom-resources",
-                    "-enable-config-rollback",
+                    "-enable-config-safety",
                     "-enable-snippets",
                     "-global-configuration=nginx-ingress/nginx-configuration",
                     "-enable-leader-election=false",

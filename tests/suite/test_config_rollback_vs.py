@@ -41,7 +41,7 @@ vs_2_src = f"{TEST_DATA}/config-rollback/virtual-server/virtual-server-2.yaml"
                 "type": "complete",
                 "extra_args": [
                     "-enable-custom-resources",
-                    "-enable-config-rollback",
+                    "-enable-config-safety",
                     "-enable-snippets",
                     "-global-configuration=nginx-ingress/nginx-configuration",
                 ],
@@ -107,7 +107,7 @@ class TestConfigRollbackVSCreate:
                 "type": "complete",
                 "extra_args": [
                     "-enable-custom-resources",
-                    "-enable-config-rollback",
+                    "-enable-config-safety",
                     "-enable-snippets",
                     "-global-configuration=nginx-ingress/nginx-configuration",
                 ],

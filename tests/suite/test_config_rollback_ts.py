@@ -58,7 +58,7 @@ secure_app_secret_yaml = f"{TEST_DATA}/transport-server-tls-passthrough/standard
             "type": "complete",
             "extra_args": [
                 "-enable-custom-resources",
-                "-enable-config-rollback",
+                "-enable-config-safety",
                 "-enable-snippets",
                 "-enable-tls-passthrough",
                 "-global-configuration=nginx-ingress/nginx-configuration",
@@ -213,7 +213,7 @@ class TestConfigRollbackTSCreate:
                 "type": "complete",
                 "extra_args": [
                     "-enable-custom-resources",
-                    "-enable-config-rollback",
+                    "-enable-config-safety",
                     "-enable-snippets",
                     "-enable-tls-passthrough",
                     "-global-configuration=nginx-ingress/nginx-configuration",

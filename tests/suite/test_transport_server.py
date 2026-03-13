@@ -61,7 +61,6 @@ class TestTransportServer:
         assert "# a comment is allowed in snippets" in conf_lines  # comments are allowed in server snippets
         assert 'add_header X-test-header "test-value";' in conf_lines  # new line in server-snippets on separate line
 
-    # TODO: test nginx reload failure
     def test_configurable_timeout_directives(
         self, kube_apis, crd_ingress_controller, transport_server_setup, ingress_controller_prerequisites
     ):

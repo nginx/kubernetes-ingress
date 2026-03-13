@@ -989,7 +989,7 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 	resourcesWithWarnings := mergeExtendedResourceWarnings(resources, resourceExes)
 	if len(resourceErrors) > 0 {
 		for _, r := range resourcesWithWarnings {
-			key := getResourceKey(r.GetObjectMeta())
+			key := r.GetKeyWithKind()
 			resErr := updateErr
 			if perResErr, ok := resourceErrors[key]; ok {
 				resErr = perResErr

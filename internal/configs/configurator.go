@@ -9,9 +9,8 @@ import (
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 
-	"github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
-
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
+	"github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
 
 	"github.com/nginx/nginx-prometheus-exporter/collector"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
@@ -1482,7 +1481,7 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 		_, warnings, err := cnf.addOrUpdateIngress(ingEx)
 		if err != nil {
 			if isRollbackManager {
-				key := fmt.Sprintf("%s/%s", ingEx.Ingress.Namespace, ingEx.Ingress.Name)
+				key := MakeResourceErrorKey("Ingress", ingEx.Ingress.Namespace, ingEx.Ingress.Name)
 				resourceErrors[key] = fmt.Errorf("error when updating config from ConfigMap: %w", err)
 				continue
 			}
@@ -1494,7 +1493,7 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 		_, warnings, err := cnf.addOrUpdateMergeableIngress(mergeableIng)
 		if err != nil {
 			if isRollbackManager {
-				key := fmt.Sprintf("%s/%s", mergeableIng.Master.Ingress.Namespace, mergeableIng.Master.Ingress.Name)
+				key := MakeResourceErrorKey("Ingress", mergeableIng.Master.Ingress.Namespace, mergeableIng.Master.Ingress.Name)
 				resourceErrors[key] = fmt.Errorf("error when updating config from ConfigMap: %w", err)
 				continue
 			}
@@ -1506,7 +1505,7 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 		_, warnings, weightUpdates, err := cnf.addOrUpdateVirtualServer(vsEx)
 		if err != nil {
 			if isRollbackManager {
-				key := fmt.Sprintf("%s/%s", vsEx.VirtualServer.Namespace, vsEx.VirtualServer.Name)
+				key := MakeResourceErrorKey("VirtualServer", vsEx.VirtualServer.Namespace, vsEx.VirtualServer.Name)
 				resourceErrors[key] = fmt.Errorf("error when updating config from ConfigMap: %w", err)
 				continue
 			}
@@ -1520,7 +1519,7 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 		_, warnings, err := cnf.addOrUpdateTransportServer(tsEx)
 		if err != nil {
 			if isRollbackManager {
-				key := fmt.Sprintf("%s/%s", tsEx.TransportServer.Namespace, tsEx.TransportServer.Name)
+				key := MakeResourceErrorKey("TransportServer", tsEx.TransportServer.Namespace, tsEx.TransportServer.Name)
 				resourceErrors[key] = fmt.Errorf("error when updating config from ConfigMap: %w", err)
 				continue
 			}
