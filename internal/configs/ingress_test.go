@@ -172,6 +172,227 @@ func TestGenerateNginxCfgForAppRoot(t *testing.T) {
 	}
 }
 
+func TestGenerateNginxCfgForCORSPolicy(t *testing.T) {
+	t.Parallel()
+
+	allowCredentials := true
+	maxAge := 3600
+
+	tests := []struct {
+		name           string
+		allowOrigin    []string
+		wantMap        bool
+		wantOrigin     string
+		wantVaryHeader bool
+	}{
+		{
+			// Single exact origin should produce direct header value (no map).
+			name:           "single origin without map",
+			allowOrigin:    []string{"https://example.com"},
+			wantMap:        false,
+			wantOrigin:     "https://example.com",
+			wantVaryHeader: true,
+		},
+		{
+			// Multiple/wildcard origins should be validated through a generated map variable.
+			name:           "multiple origins with map",
+			allowOrigin:    []string{"https://example.com", "https://*.example.com"},
+			wantMap:        true,
+			wantVaryHeader: true,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			cafeIngressEx := createCafeIngressEx()
+			cafeIngressEx.Policies = map[string]*conf_v1.Policy{
+				"default/cors-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cors-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						CORS: &conf_v1.CORS{
+							AllowOrigin:      test.allowOrigin,
+							AllowMethods:     []string{"GET", "POST", "OPTIONS"},
+							AllowHeaders:     []string{"Authorization", "Content-Type"},
+							AllowCredentials: &allowCredentials,
+							MaxAge:           &maxAge,
+						},
+					},
+				},
+			}
+
+			isPlus := false
+			configParams := NewDefaultConfigParams(context.Background(), isPlus)
+			result, warnings := generateNginxCfg(NginxCfgParams{
+				staticParams:         &StaticConfigParams{},
+				ingEx:                &cafeIngressEx,
+				isPlus:               isPlus,
+				BaseCfgParams:        configParams,
+				isResolverConfigured: false,
+				isWildcardEnabled:    false,
+			})
+
+			if len(warnings) != 0 {
+				t.Fatalf("generateNginxCfg() returned warnings: %v", warnings)
+			}
+
+			if test.wantMap && len(result.Maps) != 1 {
+				t.Fatalf("expected 1 CORS map, got %d", len(result.Maps))
+			}
+			if !test.wantMap && len(result.Maps) != 0 {
+				t.Fatalf("expected no CORS map, got %d", len(result.Maps))
+			}
+
+			originValue := test.wantOrigin
+			if test.wantMap {
+				if result.Maps[0].Source != "$http_origin" {
+					t.Fatalf("unexpected map source: %s", result.Maps[0].Source)
+				}
+				originValue = result.Maps[0].Variable
+			}
+
+			for _, server := range result.Servers {
+				for _, loc := range server.Locations {
+					if !loc.CORSEnabled {
+						t.Fatalf("location %s should have CORS enabled", loc.Path)
+					}
+
+					originHeader, ok := getHeaderValue(loc.AddHeaders, "Access-Control-Allow-Origin")
+					if !ok {
+						t.Fatalf("location %s missing Access-Control-Allow-Origin header", loc.Path)
+					}
+					if originHeader != originValue {
+						t.Fatalf("location %s origin header = %q, want %q", loc.Path, originHeader, originValue)
+					}
+
+					_, hasVary := getHeaderValue(loc.AddHeaders, "Vary")
+					if hasVary != test.wantVaryHeader {
+						t.Fatalf("location %s vary header present = %v, want %v", loc.Path, hasVary, test.wantVaryHeader)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestGenerateNginxCfgForMergeableIngressesCORSPolicy(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                 string
+		masterOrigin         string
+		coffeeMinionOrigin   string
+		expectCoffeeFromMin  bool
+		expectedTeaOriginVal string
+	}{
+		{
+			// Master policy should flow to minion locations when minion has no CORS policy.
+			name:                 "inherits master cors in all minions",
+			masterOrigin:         "https://master.example.com",
+			expectCoffeeFromMin:  false,
+			expectedTeaOriginVal: "https://master.example.com",
+		},
+		{
+			// Minion policy should override master fallback for that minion only.
+			name:                 "keeps minion cors when configured",
+			masterOrigin:         "https://master.example.com",
+			coffeeMinionOrigin:   "https://coffee.example.com",
+			expectCoffeeFromMin:  true,
+			expectedTeaOriginVal: "https://master.example.com",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			mergeableIngresses := createMergeableCafeIngress()
+			mergeableIngresses.Master.Policies = map[string]*conf_v1.Policy{
+				"default/master-cors": {
+					ObjectMeta: meta_v1.ObjectMeta{Name: "master-cors", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{
+						CORS: &conf_v1.CORS{AllowOrigin: []string{test.masterOrigin}},
+					},
+				},
+			}
+
+			if test.coffeeMinionOrigin != "" {
+				mergeableIngresses.Minions[0].Policies = map[string]*conf_v1.Policy{
+					"default/coffee-cors": {
+						ObjectMeta: meta_v1.ObjectMeta{Name: "coffee-cors", Namespace: "default"},
+						Spec: conf_v1.PolicySpec{
+							CORS: &conf_v1.CORS{AllowOrigin: []string{test.coffeeMinionOrigin}},
+						},
+					},
+				}
+			}
+
+			isPlus := false
+			configParams := NewDefaultConfigParams(context.Background(), isPlus)
+			result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+				mergeableIngs:        mergeableIngresses,
+				BaseCfgParams:        configParams,
+				isPlus:               isPlus,
+				isResolverConfigured: false,
+				staticParams:         &StaticConfigParams{},
+				isWildcardEnabled:    false,
+			})
+
+			if len(warnings) != 0 {
+				t.Fatalf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
+			}
+
+			if len(result.Maps) != 0 {
+				t.Fatalf("expected no CORS maps for single-origin policies, got %d", len(result.Maps))
+			}
+
+			for _, loc := range result.Servers[0].Locations {
+				if !loc.CORSEnabled {
+					t.Fatalf("location %s should have CORS enabled", loc.Path)
+				}
+
+				originHeader, ok := getHeaderValue(loc.AddHeaders, "Access-Control-Allow-Origin")
+				if !ok {
+					t.Fatalf("location %s missing Access-Control-Allow-Origin header", loc.Path)
+				}
+
+				switch loc.MinionIngress.Name {
+				case "cafe-ingress-coffee-minion":
+					expectedCoffeeOrigin := test.masterOrigin
+					if test.expectCoffeeFromMin {
+						expectedCoffeeOrigin = test.coffeeMinionOrigin
+					}
+					if originHeader != expectedCoffeeOrigin {
+						t.Fatalf("coffee minion origin = %q, want %q", originHeader, expectedCoffeeOrigin)
+					}
+				case "cafe-ingress-tea-minion":
+					if originHeader != test.expectedTeaOriginVal {
+						t.Fatalf("tea minion origin = %q, want %q", originHeader, test.expectedTeaOriginVal)
+					}
+				default:
+					t.Fatalf("unexpected minion %s", loc.MinionIngress.Name)
+				}
+			}
+		})
+	}
+}
+
+func getHeaderValue(headers []version2.AddHeader, headerName string) (string, bool) {
+	for _, header := range headers {
+		if header.Name == headerName {
+			return header.Value, true
+		}
+	}
+
+	return "", false
+}
+
 func TestGenerateNginxCfgForAccessControl(t *testing.T) {
 	t.Parallel()
 	cafeIngressEx := createCafeIngressEx()

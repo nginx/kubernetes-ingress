@@ -11,9 +11,14 @@ from suite.utils.custom_assertions import (
     assert_vs_conf_not_exists,
 )
 from suite.utils.custom_resources_utils import generate_item_with_upstream_options
-from suite.utils.resources_utils import get_events, get_first_pod_name, replace_configmap_from_yaml, wait_before_test
-from suite.utils.vs_vsr_resources_utils import (
+from suite.utils.resources_utils import (
+    get_events,
+    get_first_pod_name,
     get_vs_nginx_template_conf,
+    replace_configmap_from_yaml,
+    wait_before_test,
+)
+from suite.utils.vs_vsr_resources_utils import (
     patch_virtual_server,
     patch_virtual_server_from_yaml,
 )
@@ -414,7 +419,11 @@ class TestVirtualServerUpstreamOptionValidation:
 
         assert_event_starts_with_text_and_contains_errors(vs_event_text, vs_events, invalid_fields)
         assert_vs_conf_not_exists(
-            kube_apis, ic_pod_name, ingress_controller_prerequisites.namespace, virtual_server_setup
+            kube_apis,
+            ic_pod_name,
+            ingress_controller_prerequisites.namespace,
+            virtual_server_setup.namespace,
+            virtual_server_setup.vs_name,
         )
 
     def test_openapi_validation_flow(
@@ -746,7 +755,11 @@ class TestOptionsSpecificForPlus:
 
         assert_event_starts_with_text_and_contains_errors(vs_event_text, vs_events, invalid_fields)
         assert_vs_conf_not_exists(
-            kube_apis, ic_pod_name, ingress_controller_prerequisites.namespace, virtual_server_setup
+            kube_apis,
+            ic_pod_name,
+            ingress_controller_prerequisites.namespace,
+            virtual_server_setup.namespace,
+            virtual_server_setup.vs_name,
         )
 
     def test_openapi_validation_flow(

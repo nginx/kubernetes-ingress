@@ -6,6 +6,7 @@ from suite.utils.resources_utils import (
     create_service_from_yaml,
     delete_service,
     get_first_pod_name,
+    get_vs_nginx_template_conf,
     patch_rbac,
     read_service,
     replace_service,
@@ -14,7 +15,6 @@ from suite.utils.resources_utils import (
 from suite.utils.vs_vsr_resources_utils import (
     create_virtual_server_from_yaml,
     delete_virtual_server,
-    get_vs_nginx_template_conf,
     patch_virtual_server_from_yaml,
 )
 from suite.utils.yaml_utils import get_first_host_from_yaml, get_name_from_yaml, get_paths_from_vs_yaml

@@ -125,6 +125,9 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 			}
 			pol := obj.(*conf_v1.Policy)
 			switch {
+			case pol.Spec.CORS != nil:
+				// CORS policy is supported on Ingress
+				continue
 			case pol.Spec.AccessControl != nil:
 				// Access Control policy is supported on Ingress
 				continue

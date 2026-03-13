@@ -98,6 +98,7 @@ examples/ingress-resources/proxy-set-headers/mergeable-ingress/cafe-secret.yaml
 examples/ingress-resources/proxy-set-headers/standard-ingress/cafe-secret.yaml
 examples/ingress-resources/rate-limit/cafe-secret.yaml
 examples/ingress-resources/security-monitoring/cafe-secret.yaml
+examples/ingress-resources/cors/cafe-secret.yaml
 examples/custom-resources/basic-configuration-vsr/cafe-secret.yaml
 examples/custom-resources/external-auth/tls-secret.yaml
 examples/custom-resources/external-auth-advanced-routing/tls-secret.yaml

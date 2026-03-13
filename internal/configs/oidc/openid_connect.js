@@ -46,7 +46,7 @@ async function auth(r, afterSyncCheck) {
 
     // Determine session ID and store session data
     const sessionId = getSessionId(r, false);
-    storeSessionData(r, sessionId, claims, tokenset, true);
+    storeSessionData(r, sessionId, claims, tokenset, false);
 
     r.log("OIDC success, refreshing session " + sessionId);
 
@@ -309,7 +309,7 @@ async function refreshTokens(r) {
 }
 
 // Logout handler
-function logout(r) {
+async function logout(r) {
     r.log("OIDC RP-Initiated Logout for " + (r.variables.cookie_auth_token || "unknown"));
 
     function getLogoutRedirectUrl(base, redirect) {
@@ -342,7 +342,8 @@ function logout(r) {
         // If no ID token but refresh token present, attempt to re-auth to get ID token
         if ((!r.variables.session_jwt || r.variables.session_jwt === '-')
             && r.variables.refresh_token && r.variables.refresh_token !== '-') {
-            auth(r, 0);
+            await auth(r, 0);
+            return;
         } else if (!r.variables.session_jwt || r.variables.session_jwt === '-') {
             performLogout(logoutRedirectUrl);
             return;
