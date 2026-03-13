@@ -144,7 +144,7 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 	var ingressErr error
 
 	var mergeableIngressWarnings configs.Warnings
-	var mergeableIngressErr error
+	mergeableIngressErrors := make(map[string]error)
 
 	if len(resourceExes.VirtualServerExes) > 0 {
 		warnings, updateErr := lbc.configurator.AddOrUpdateVirtualServers(resourceExes.VirtualServerExes)
@@ -163,10 +163,12 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 	}
 
 	if len(resourceExes.MergeableIngresses) > 0 {
-		warnings, updateErr := lbc.configurator.AddOrUpdateMergeableIngresses(resourceExes.MergeableIngresses)
-		mergeableIngressWarnings = mergeWarningsMaps(mergeableIngressWarnings, warnings)
-		if updateErr != nil {
-			mergeableIngressErr = updateErr
+		for _, mergeableIngress := range resourceExes.MergeableIngresses {
+			warnings, updateErr := lbc.configurator.AddOrUpdateMergeableIngress(mergeableIngress)
+			mergeableIngressWarnings = mergeWarningsMaps(mergeableIngressWarnings, warnings)
+			if updateErr != nil {
+				mergeableIngressErrors[getResourceKey(&mergeableIngress.Master.Ingress.ObjectMeta)] = updateErr
+			}
 		}
 	}
 
@@ -192,7 +194,11 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 
 	lbc.updateResourcesStatusAndEvents(virtualServerResources, virtualServerWarnings, virtualServerErr)
 	lbc.updateResourcesStatusAndEvents(ingressResources, ingressWarnings, ingressErr)
-	lbc.updateResourcesStatusAndEvents(mergeableIngressResources, mergeableIngressWarnings, mergeableIngressErr)
+	for _, mergeableIngressResource := range mergeableIngressResources {
+		ingressCfg := mergeableIngressResource.(*IngressConfiguration)
+		mergeableIngressErr := mergeableIngressErrors[getResourceKey(&ingressCfg.Ingress.ObjectMeta)]
+		lbc.updateResourcesStatusAndEvents([]Resource{mergeableIngressResource}, mergeableIngressWarnings, mergeableIngressErr)
+	}
 
 	// Note: updating the status of a policy based on a reload is not needed.
 }
