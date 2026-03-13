@@ -137,28 +137,64 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 		return
 	}
 
-	var allWarnings configs.Warnings
-	var lastErr error
+	var virtualServerWarnings configs.Warnings
+	var virtualServerErr error
+
+	var ingressWarnings configs.Warnings
+	var ingressErr error
+
+	var mergeableIngressWarnings configs.Warnings
+	var mergeableIngressErr error
 
 	if len(resourceExes.VirtualServerExes) > 0 {
 		warnings, updateErr := lbc.configurator.AddOrUpdateVirtualServers(resourceExes.VirtualServerExes)
-		allWarnings = mergeWarningsMaps(allWarnings, warnings)
+		virtualServerWarnings = mergeWarningsMaps(virtualServerWarnings, warnings)
 		if updateErr != nil {
-			lastErr = updateErr
+			virtualServerErr = updateErr
 		}
 	}
 
-	if len(resourceExes.IngressExes) > 0 || len(resourceExes.MergeableIngresses) > 0 {
+	if len(resourceExes.IngressExes) > 0 {
 		warnings, updateErr := lbc.configurator.AddOrUpdateIngresses(resourceExes.IngressExes)
-		allWarnings = mergeWarningsMaps(allWarnings, warnings)
+		ingressWarnings = mergeWarningsMaps(ingressWarnings, warnings)
 		if updateErr != nil {
-			lastErr = updateErr
+			ingressErr = updateErr
+		}
+	}
+
+	if len(resourceExes.MergeableIngresses) > 0 {
+		for _, mergeableIngress := range resourceExes.MergeableIngresses {
+			warnings, updateErr := lbc.configurator.AddOrUpdateMergeableIngress(mergeableIngress)
+			mergeableIngressWarnings = mergeWarningsMaps(mergeableIngressWarnings, warnings)
+			if updateErr != nil {
+				mergeableIngressErr = updateErr
+			}
 		}
 	}
 
 	// Merge policy warnings from extended resources back into resources
 	resourcesWithWarnings := mergeExtendedResourceWarnings(resources, resourceExes)
-	lbc.updateResourcesStatusAndEvents(resourcesWithWarnings, allWarnings, lastErr)
+
+	var virtualServerResources []Resource
+	var ingressResources []Resource
+	var mergeableIngressResources []Resource
+
+	for _, res := range resourcesWithWarnings {
+		switch impl := res.(type) {
+		case *VirtualServerConfiguration:
+			virtualServerResources = append(virtualServerResources, res)
+		case *IngressConfiguration:
+			if impl.IsMaster {
+				mergeableIngressResources = append(mergeableIngressResources, res)
+				continue
+			}
+			ingressResources = append(ingressResources, res)
+		}
+	}
+
+	lbc.updateResourcesStatusAndEvents(virtualServerResources, virtualServerWarnings, virtualServerErr)
+	lbc.updateResourcesStatusAndEvents(ingressResources, ingressWarnings, ingressErr)
+	lbc.updateResourcesStatusAndEvents(mergeableIngressResources, mergeableIngressWarnings, mergeableIngressErr)
 
 	// Note: updating the status of a policy based on a reload is not needed.
 }
