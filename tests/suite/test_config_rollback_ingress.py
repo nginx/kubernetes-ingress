@@ -140,17 +140,30 @@ class TestConfigRollbackIngress:
         delete_common_app(kube_apis, "simple", test_namespace)
 
     @pytest.mark.parametrize(
-        "snippet_key,snippet_value,expected_error",
+        "annotations,expected_conf_absent,expected_nginx_error",
         [
             (
-                "server-snippets",
-                "sub_filter_once invalid;",
+                {"nginx.org/server-snippets": "sub_filter_once invalid;"},
+                "sub_filter_once",
                 'invalid value "invalid" in "sub_filter_once" directive',
             ),
             (
-                "location-snippets",
-                "add_header;",
+                {"nginx.org/location-snippets": "add_header;"},
+                "add_header",
                 'invalid number of arguments in "add_header" directive',
+            ),
+            # proxy-buffer-size alone (default proxy_buffers = 4 4k = 16k total):
+            # proxy_busy_buffers_size must be < pool minus one buffer = 12k, but 16k > 12k
+            (
+                {"nginx.org/proxy-buffer-size": "16k"},
+                "proxy_buffer_size 16k",
+                '"proxy_busy_buffers_size" must be less than the size of all "proxy_buffers" minus one buffer',
+            ),
+            # both set explicitly but incompatible: pool = 2 * 4k = 8k, buffer_size = 32k > 4k
+            (
+                {"nginx.org/proxy-buffer-size": "32k", "nginx.org/proxy-buffers": "2 4k"},
+                "proxy_buffer_size 32k",
+                '"proxy_busy_buffers_size" must be less than the size of all "proxy_buffers" minus one buffer',
             ),
         ],
     )
@@ -163,11 +176,11 @@ class TestConfigRollbackIngress:
         ingress_controller_endpoint,
         ingress_setup,
         test_namespace,
-        snippet_key,
-        snippet_value,
-        expected_error,
+        annotations,
+        expected_conf_absent,
+        expected_nginx_error,
     ):
-        """Patch an existing valid Ingress with an invalid snippet — config rolls back."""
+        """Patch an existing valid Ingress with an invalid annotation — config rolls back."""
         ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
         ingress_name = ingress_setup["ingress_name"]
         ingress_host = "config-rollback-ingress.example.com"
@@ -176,17 +189,18 @@ class TestConfigRollbackIngress:
         # Step 1: Ingress serves traffic
         wait_and_assert_status_code(200, ingress_url, ingress_host)
 
-        # Step 2: patch Ingress with invalid snippet
+        # Step 2: patch Ingress with invalid annotation(s)
         with open(ingress_src) as f:
             ingress_body = yaml.safe_load(f)
         if "annotations" not in ingress_body["metadata"]:
             ingress_body["metadata"]["annotations"] = {}
-        ingress_body["metadata"]["annotations"][f"nginx.org/{snippet_key}"] = snippet_value
+        ingress_body["metadata"]["annotations"].update(annotations)
         replace_ingress(kube_apis.networking_v1, ingress_name, test_namespace, ingress_body)
         wait_before_test()
 
         # Step 3: traffic still works — invalid config rolled back
         wait_and_assert_status_code(200, ingress_url, ingress_host)
+        # Step 3a: confirm rolled-back nginx conf does NOT contain the invalid directive
         conf = get_ingress_nginx_template_conf(
             kube_apis.v1,
             test_namespace,
@@ -194,7 +208,7 @@ class TestConfigRollbackIngress:
             ic_pod,
             ingress_controller_prerequisites.namespace,
         )
-        assert snippet_value.split(";")[0].split()[0] not in conf
+        assert expected_conf_absent not in conf
 
         # Step 4: event contains actual nginx error and rollback confirmation
         ing_events = get_events_for_object(kube_apis.v1, test_namespace, ingress_name)
@@ -202,7 +216,7 @@ class TestConfigRollbackIngress:
         assert "AddedOrUpdatedWithError" in latest.reason
         assert "but was not applied" in latest.message
         assert "rolled back to previous working config" in latest.message
-        assert expected_error in latest.message
+        assert expected_nginx_error in latest.message
 
         # Cleanup: restore original Ingress
         with open(ingress_src) as f:

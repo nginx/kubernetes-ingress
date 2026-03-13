@@ -49,7 +49,7 @@ class TestConfigRollbackVSRoute:
 
     @pytest.mark.parametrize("target", ["vs", "vsr"])
     @pytest.mark.parametrize(
-        "snippet_value,expected_error",
+        "snippet_value,expected_nginx_error",
         [
             (
                 "sub_filter_once invalid;",
@@ -71,7 +71,7 @@ class TestConfigRollbackVSRoute:
         transport_server_setup,
         target,
         snippet_value,
-        expected_error,
+        expected_nginx_error,
     ):
         """Patch a VS or VSR with an invalid snippet — VS and all VSRs become Invalid, traffic rolls back."""
         ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
@@ -138,7 +138,7 @@ class TestConfigRollbackVSRoute:
             expected_messages=[
                 "but was not applied",
                 "rolled back to previous working config",
-                expected_error,
+                expected_nginx_error,
             ],
         )
         assert_vsr_status(
@@ -150,7 +150,7 @@ class TestConfigRollbackVSRoute:
             expected_messages=[
                 "but was not applied",
                 "rolled back to previous working config",
-                expected_error,
+                expected_nginx_error,
             ],
         )
         assert_vsr_status(
@@ -162,6 +162,6 @@ class TestConfigRollbackVSRoute:
             expected_messages=[
                 "but was not applied",
                 "rolled back to previous working config",
-                expected_error,
+                expected_nginx_error,
             ],
         )

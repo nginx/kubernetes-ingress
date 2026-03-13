@@ -89,7 +89,7 @@ class TestConfigRollbackTSCreate:
         delete_gc(kube_apis.custom_objects, gc_resource, "nginx-ingress")
 
     @pytest.mark.parametrize(
-        "valid_ts_yaml,invalid_ts_yaml,expected_error,traffic_port_attr,sni_hostname",
+        "valid_ts_yaml,invalid_ts_yaml,expected_nginx_error,traffic_port_attr,sni_hostname",
         [
             (
                 ts_valid_tcp_src,
@@ -118,7 +118,7 @@ class TestConfigRollbackTSCreate:
         test_namespace,
         valid_ts_yaml,
         invalid_ts_yaml,
-        expected_error,
+        expected_nginx_error,
         traffic_port_attr,
         sni_hostname,
     ):
@@ -171,7 +171,7 @@ class TestConfigRollbackTSCreate:
             expected_reason="AddedOrUpdatedWithError",
             expected_messages=[
                 "but was not applied",
-                expected_error,
+                expected_nginx_error,
             ],
         )
 
@@ -229,7 +229,7 @@ class TestConfigRollbackTransportServer:
     """Tests that require existing valid VS and TS with app."""
 
     @pytest.mark.parametrize(
-        "snippet_value,expected_error",
+        "snippet_value,expected_nginx_error",
         [
             (
                 "proxy_upload_rate invalid;",
@@ -249,7 +249,7 @@ class TestConfigRollbackTransportServer:
         virtual_server_setup,
         transport_server_setup,
         snippet_value,
-        expected_error,
+        expected_nginx_error,
     ):
         """Patch an existing valid TS with an invalid stream snippet — config rolls back,
         traffic still works, VS unaffected.
@@ -308,7 +308,7 @@ class TestConfigRollbackTransportServer:
             expected_messages=[
                 "but was not applied",
                 "rolled back to previous working config",
-                expected_error,
+                expected_nginx_error,
             ],
         )
 

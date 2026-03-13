@@ -87,7 +87,7 @@ class TestConfigRollbackMinion:
 
     @pytest.mark.parametrize("target", ["master", "minion"])
     @pytest.mark.parametrize(
-        "snippet_value,expected_error",
+        "snippet_value,expected_nginx_error",
         [
             (
                 "sub_filter_once invalid;",
@@ -108,7 +108,7 @@ class TestConfigRollbackMinion:
         test_namespace,
         target,
         snippet_value,
-        expected_error,
+        expected_nginx_error,
     ):
         """Patch a master or minion with an invalid snippet — master + minions get error events, traffic rolls back."""
         ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
@@ -166,8 +166,8 @@ class TestConfigRollbackMinion:
         latest_master = master_events[-1]
         assert latest_master.reason == "AddedOrUpdatedWithError"
         assert "but was not applied" in latest_master.message
-        assert expected_error in latest_master.message
         assert "rolled back to previous working config" in latest_master.message
+        assert expected_nginx_error in latest_master.message
 
         # Step 5: both minions have error events
         minion1_events = get_events_for_object(kube_apis.v1, test_namespace, mergeable_setup["minion1_name"])
@@ -175,14 +175,14 @@ class TestConfigRollbackMinion:
         assert latest_m1.reason == "AddedOrUpdatedWithError"
         assert "but was not applied" in latest_m1.message
         assert "rolled back to previous working config" in latest_m1.message
-        assert expected_error in latest_m1.message
+        assert expected_nginx_error in latest_m1.message
 
         minion2_events = get_events_for_object(kube_apis.v1, test_namespace, mergeable_setup["minion2_name"])
         latest_m2 = minion2_events[-1]
         assert latest_m2.reason == "AddedOrUpdatedWithError"
         assert "but was not applied" in latest_m2.message
         assert "rolled back to previous working config" in latest_m2.message
-        assert expected_error in latest_m2.message
+        assert expected_nginx_error in latest_m2.message
 
         # Step 6: restore originals
         with open(mergeable_ingress_src) as f:

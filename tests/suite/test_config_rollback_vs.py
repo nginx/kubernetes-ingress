@@ -1,6 +1,9 @@
 """Tests for config rollback with VirtualServer resources."""
 
+import copy
+
 import pytest
+import yaml
 from settings import TEST_DATA
 from suite.utils.custom_assertions import (
     assert_valid_ts,
@@ -119,17 +122,36 @@ class TestConfigRollbackVirtualServer:
     """Tests that require the virtual_server_setup fixture (existing valid VS with app)."""
 
     @pytest.mark.parametrize(
-        "snippet_key,snippet_value,expected_error",
+        "apply_patch,expected_conf_absent,expected_nginx_error",
         [
-            (
-                "server-snippets",
-                "sub_filter_once invalid;",
+            pytest.param(
+                lambda vs: vs["spec"].update({"server-snippets": "sub_filter_once invalid;"}),
+                "sub_filter_once",
                 'invalid value "invalid" in "sub_filter_once" directive',
+                id="server-snippets",
             ),
-            (
-                "location-snippets",
-                "add_header;",
+            pytest.param(
+                lambda vs: vs["spec"]["routes"][0].update({"location-snippets": "add_header;"}),
+                "add_header",
                 'invalid number of arguments in "add_header" directive',
+                id="location-snippets",
+            ),
+            # buffer-size alone (default proxy_buffers = 4 4k = 16k total):
+            # proxy_busy_buffers_size must be < pool minus one buffer = 12k, but 16k > 12k
+            pytest.param(
+                lambda vs: vs["spec"]["upstreams"][0].update({"buffer-size": "16k"}),
+                "proxy_buffer_size 16k",
+                '"proxy_busy_buffers_size" must be less than the size of all "proxy_buffers" minus one buffer',
+                id="buffer-size",
+            ),
+            # both set explicitly but incompatible: pool = 2 * 4k = 8k, buffer_size = 32k > 4k
+            pytest.param(
+                lambda vs: vs["spec"]["upstreams"][0].update(
+                    {"buffer-size": "32k", "buffers": {"number": 2, "size": "4k"}}
+                ),
+                "proxy_buffer_size 32k",
+                '"proxy_busy_buffers_size" must be less than the size of all "proxy_buffers" minus one buffer',
+                id="buffer-size-and-buffers",
             ),
         ],
     )
@@ -140,42 +162,33 @@ class TestConfigRollbackVirtualServer:
         crd_ingress_controller,
         virtual_server_setup,
         transport_server_setup,
-        snippet_key,
-        snippet_value,
-        expected_error,
+        apply_patch,
+        expected_conf_absent,
+        expected_nginx_error,
     ):
-        """Patch an existing valid VS with an invalid snippet — config rolls back."""
+        """Patch an existing valid VS with an invalid spec — config rolls back.
+
+        Parametrized across snippet fields (server-snippets, location-snippets) and
+        upstream proxy buffer fields (buffer-size alone or with incompatible buffers),
+        covering nginx errors from different config directive types.
+        """
         ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
         # Step 1: valid VS serves traffic
         wait_and_assert_status_code(200, virtual_server_setup.backend_1_url, virtual_server_setup.vs_host)
-        # Step 2: apply invalid snippet (server-snippets or location-snippets)
-        if snippet_key == "server-snippets":
-            patch = {
-                "metadata": {"name": virtual_server_setup.vs_name},
-                "spec": {"server-snippets": snippet_value},
-            }
-        else:
-            patch = {
-                "metadata": {"name": virtual_server_setup.vs_name},
-                "spec": {
-                    "routes": [
-                        {
-                            "path": "/backend1",
-                            "location-snippets": snippet_value,
-                            "action": {"pass": "backend1"},
-                        }
-                    ]
-                },
-            }
+        # Step 2: load VS YAML, apply invalid patch, send to cluster
+        with open(std_vs_src) as f:
+            vs_body = copy.deepcopy(yaml.safe_load(f))
+        apply_patch(vs_body)
         patch_virtual_server(
             kube_apis.custom_objects,
             virtual_server_setup.vs_name,
             virtual_server_setup.namespace,
-            patch,
+            vs_body,
         )
         wait_before_test()
         # Step 3: traffic still works — invalid config was rolled back
         wait_and_assert_status_code(200, virtual_server_setup.backend_1_url, virtual_server_setup.vs_host)
+        # Step 3a: confirm rolled-back nginx conf does NOT contain the invalid directive
         conf = get_vs_nginx_template_conf(
             kube_apis.v1,
             virtual_server_setup.namespace,
@@ -183,7 +196,7 @@ class TestConfigRollbackVirtualServer:
             ic_pod,
             ingress_controller_prerequisites.namespace,
         )
-        assert snippet_value.split(";")[0].split()[0] not in conf
+        assert expected_conf_absent not in conf
         # Step 4: VS is Invalid, status contains actual nginx error and rollback confirmation
         assert_vs_status(
             kube_apis,
@@ -194,7 +207,7 @@ class TestConfigRollbackVirtualServer:
             expected_messages=[
                 "but was not applied",
                 "rolled back to previous working config",
-                expected_error,
+                expected_nginx_error,
             ],
         )
         # Step 5: add new VS to prove nginx -t still passes after rollback
