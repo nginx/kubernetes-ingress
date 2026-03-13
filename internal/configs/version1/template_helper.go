@@ -95,90 +95,68 @@ func splitHeaders(header string) ([]string, string) {
 	return headerParts, headerName
 }
 
-// minionProxySetHeaders takes a location and a bool map
-// and generates proxy_set_header headers for minions based on the nginx.org/proxy-set-headers annotation in a mergeable ingress.
-// It returns a string containing the generated proxy headers and a map to verify that the header exists
-func minionProxySetHeaders(loc *Location, minionHeaders map[string]bool) (string, map[string]bool, error) {
-	proxySetHeaders, ok := loc.MinionIngress.Annotations["nginx.org/proxy-set-headers"]
-	if !ok {
-		return "", nil, nil
-	}
-	var combinedMinions string
+func genProxySetHeaders(result string, existingHeaders map[string]bool, proxySetHeaders string) (string, map[string]bool, error) {
+
 	headers := strings.Split(proxySetHeaders, ",")
 	for _, header := range headers {
 		headerParts, headerName := splitHeaders(header)
-		err := validateProxySetHeader(headerName)
-		if err != nil {
+		if _, ok := existingHeaders[headerName]; ok {
+			continue
+		}
+
+		if err := validateProxySetHeader(headerName); err != nil {
 			return "", nil, err
 		}
 		if len(headerParts) > 1 {
 			output := headersGreaterThanOne(headerParts, headerName)
-			minionHeaders[headerName] = true
-			combinedMinions += output
-		} else {
-			output := defaultHeaderValues(headerParts, headerName)
-			combinedMinions += output
-		}
-	}
-	return combinedMinions, minionHeaders, nil
-}
-
-// standardIngressOrMasterProxySetHeaders takes two strings, two bools and a bool map
-// and generates proxy_set_header headers based on the nginx.org/proxy-set-headers annotation in a standard ingress.
-// It returns a string containing the generated proxy headers for either standardIngress/NonMergeable or Master.
-func standardIngressOrMasterProxySetHeaders(result string, minionHeaders map[string]bool, proxySetHeaders string, ok bool, isMergeable bool) (string, error) {
-	if !ok {
-		return "", nil
-	}
-	headers := strings.Split(proxySetHeaders, ",")
-	for _, header := range headers {
-		headerParts, headerName := splitHeaders(header)
-		if isMergeable {
-			if _, ok := minionHeaders[headerName]; ok {
-				continue
-			}
-		}
-		if err := validateProxySetHeader(headerName); err != nil {
-			return "", err
-		}
-		if len(headerParts) > 1 {
-			output := headersGreaterThanOne(headerParts, headerName)
+			existingHeaders[headerName] = true
 			result += output
 		} else {
 			output := defaultHeaderValues(headerParts, headerName)
 			result += output
 		}
 	}
-	return result, nil
+	return result, existingHeaders, nil
 }
 
 // generateProxySetHeaders takes a location and an ingress annotations map
 // and generates proxy_set_header directives based on the nginx.org/proxy-set-headers annotation.
 // It returns a string containing the generated Nginx configuration to the template.
 func generateProxySetHeaders(loc *Location, ingressAnnotations map[string]string) (string, error) {
-	proxySetHeaders, ok := ingressAnnotations["nginx.org/proxy-set-headers"]
-	var ingressResult string
-	minionHeaders := make(map[string]bool)
+
+	var proxySetHeaders string
+	var combinedHeaders string
+	var err error
+	var ok bool
+
 	isMergeable := loc.MinionIngress != nil
-	if !isMergeable {
-		ingressResult, err := standardIngressOrMasterProxySetHeaders(ingressResult, minionHeaders, proxySetHeaders, ok, isMergeable)
+
+	existingHeaders := make(map[string]bool)
+	// minion if exists
+	if isMergeable {
+		proxySetHeaders, ok = loc.MinionIngress.Annotations["nginx.org/proxy-set-headers"]
+		if ok {
+			combinedHeaders, existingHeaders, err = genProxySetHeaders(combinedHeaders, existingHeaders, proxySetHeaders)
+			if err != nil {
+				return "", err
+			}
+		}
+	}
+
+	// Master or standard ingress
+	proxySetHeaders, ok = ingressAnnotations["nginx.org/proxy-set-headers"]
+	if ok {
+		combinedHeaders, existingHeaders, err = genProxySetHeaders(combinedHeaders, existingHeaders, proxySetHeaders)
 		if err != nil {
 			return "", err
 		}
-		return ingressResult, nil
 	}
-	combinedHeaders, minionHeaders, err := minionProxySetHeaders(loc, minionHeaders)
-	if err != nil {
-		return "", err
+
+	// Add default Host header if not already set by either Master or Minion Ingress
+	if !existingHeaders["Host"] {
+		combinedHeaders += "\n\t\tproxy_set_header Host $host;"
 	}
-	proxySetHeaders, ok = ingressAnnotations["nginx.org/proxy-set-headers"]
-	if !ok {
-		return combinedHeaders, nil
-	}
-	combinedHeaders, err = standardIngressOrMasterProxySetHeaders(combinedHeaders, minionHeaders, proxySetHeaders, ok, isMergeable)
-	if err != nil {
-		return "", err
-	}
+
 	return combinedHeaders, nil
 }
 
