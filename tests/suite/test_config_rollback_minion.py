@@ -185,7 +185,7 @@ class TestConfigRollbackMinion:
         assert "rolled back to previous working config" in latest_m2.message
         assert expected_error in latest_m2.message
 
-    # Step 6: restore originals
+        # Step 6: restore originals
         with open(mergeable_ingress_src) as f:
             docs = list(yaml.safe_load_all(f))
         if target == "master":
