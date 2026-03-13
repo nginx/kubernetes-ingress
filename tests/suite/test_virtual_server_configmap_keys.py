@@ -6,10 +6,10 @@ from suite.utils.resources_utils import (
     get_file_contents,
     get_first_pod_name,
     get_pods_amount,
+    get_vs_nginx_template_conf,
     replace_configmap_from_yaml,
     wait_before_test,
 )
-from suite.utils.vs_vsr_resources_utils import get_vs_nginx_template_conf
 from suite.utils.yaml_utils import get_configmap_fields_from_yaml
 
 

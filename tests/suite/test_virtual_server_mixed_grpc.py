@@ -14,11 +14,11 @@ from suite.utils.resources_utils import (
     delete_common_app,
     delete_items_from_yaml,
     get_first_pod_name,
+    get_vs_nginx_template_conf,
     replace_configmap_from_yaml,
     wait_until_all_pods_are_ready,
 )
 from suite.utils.ssl_utils import get_certificate
-from suite.utils.vs_vsr_resources_utils import get_vs_nginx_template_conf
 
 
 @pytest.fixture(scope="function")

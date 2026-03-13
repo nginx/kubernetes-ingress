@@ -6,24 +6,24 @@ from suite.utils.custom_assertions import (
     assert_event_and_count,
     assert_event_and_get_count,
     assert_event_with_full_equality_and_count,
+    assert_valid_vs,
+    assert_valid_vsr,
 )
 from suite.utils.resources_utils import (
     create_service_with_name,
     delete_service,
     get_events,
     get_first_pod_name,
+    get_vs_nginx_template_conf,
     read_service,
     replace_service,
     wait_before_test,
 )
 from suite.utils.vs_vsr_resources_utils import (
-    assert_valid_vs,
-    assert_valid_vsr,
     create_v_s_route_from_yaml,
     create_virtual_server_from_yaml,
     delete_v_s_route,
     delete_virtual_server,
-    get_vs_nginx_template_conf,
     patch_v_s_route_from_yaml,
 )
 from suite.utils.yaml_utils import get_paths_from_vsr_yaml
