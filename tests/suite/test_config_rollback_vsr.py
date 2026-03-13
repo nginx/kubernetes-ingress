@@ -142,5 +142,27 @@ class TestConfigRollbackVSRoute:
                 expected_error,
             ],
         )
-        assert_vsr_status(kube_apis, route_m.namespace, route_m.name, "Invalid")
-        assert_vsr_status(kube_apis, route_s.namespace, route_s.name, "Invalid")
+        assert_vsr_status(
+            kube_apis,
+            route_m.namespace,
+            route_m.name,
+            "Invalid",
+            expected_reason="AddedOrUpdatedWithError",
+            expected_messages=[
+                "but was not applied",
+                "rolled back to previous working config",
+                expected_error,
+            ],
+        )
+        assert_vsr_status(
+            kube_apis,
+            route_s.namespace,
+            route_s.name,
+            "Invalid",
+            expected_reason="AddedOrUpdatedWithError",
+            expected_messages=[
+                "but was not applied",
+                "rolled back to previous working config",
+                expected_error,
+            ],
+        )

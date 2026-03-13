@@ -175,13 +175,17 @@ class TestConfigRollbackMinion:
         latest_m1 = minion1_events[-1]
         assert latest_m1.reason == "AddedOrUpdatedWithError"
         assert "but was not applied" in latest_m1.message
+        assert "rolled back to previous working config" in latest_m1.message
+        assert expected_error in latest_m1.message
 
         minion2_events = get_events_for_object(kube_apis.v1, test_namespace, mergeable_setup["minion2_name"])
         latest_m2 = minion2_events[-1]
         assert latest_m2.reason == "AddedOrUpdatedWithError"
         assert "but was not applied" in latest_m2.message
+        assert "rolled back to previous working config" in latest_m2.message
+        assert expected_error in latest_m2.message
 
-        # Step 6: restore originals
+    # Step 6: restore originals
         with open(mergeable_ingress_src) as f:
             docs = list(yaml.safe_load_all(f))
         if target == "master":
