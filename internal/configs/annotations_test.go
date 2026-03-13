@@ -91,20 +91,20 @@ func TestGetSessionPersistenceServices(t *testing.T) {
 		{
 			name: "nginx.com annotation only",
 			annotations: map[string]string{
-				StickyCookieServicesAnnotationPlus: "serviceName=service-1 srv_id expires=2h path=/app",
+				StickyCookieServicesAnnotationPlus: "serviceName=service-2 srv_id expires=2h path=/app",
 			},
 			expected: map[string]string{
-				"service-1": "srv_id expires=2h path=/app",
+				"service-2": "srv_id expires=2h path=/app",
 			},
 		},
 		{
-			name: "both annotations present, nginx.com takes precedence",
+			name: "both annotations present, nginx.org takes precedence",
 			annotations: map[string]string{
 				StickyCookieServicesAnnotation:     "serviceName=service-1 srv_id expires=1h path=/",
-				StickyCookieServicesAnnotationPlus: "serviceName=service-1 srv_id expires=2h path=/app",
+				StickyCookieServicesAnnotationPlus: "serviceName=service-2 srv_id expires=2h path=/app",
 			},
 			expected: map[string]string{
-				"service-1": "srv_id expires=2h path=/app",
+				"service-1": "srv_id expires=1h path=/",
 			},
 		},
 		{

@@ -718,24 +718,26 @@ func getSessionPersistenceServices(ctx context.Context, ingEx *IngressEx) map[st
 	l := nl.LoggerFromContext(ctx)
 
 	// Check for both annotations to maintain compatibility with existing users of the nginx.com
-	// annotation. If both annotations are present, the nginx.com annotation takes precedence.
+	// annotation. If both annotations are present, the nginx.org annotation takes precedence.
 	valuePlus, plusExists := ingEx.Ingress.Annotations[StickyCookieServicesAnnotationPlus]
 	valueOrg, orgExists := ingEx.Ingress.Annotations[StickyCookieServicesAnnotation]
-
 	if !plusExists && !orgExists {
 		return nil
 	}
 
-	if plusExists && orgExists {
-		nl.Infof(l, "Ingress %s/%s: both %s and %s annotations are set; using %s",
-			ingEx.Ingress.Namespace, ingEx.Ingress.Name,
-			StickyCookieServicesAnnotation, StickyCookieServicesAnnotationPlus,
-			StickyCookieServicesAnnotationPlus)
-	}
-
-	value := valueOrg
+	var value string
 	if plusExists {
 		value = valuePlus
+	}
+	if orgExists {
+		value = valueOrg
+	}
+
+	if plusExists && orgExists {
+		nl.Warnf(l, "Ingress %s/%s: both %s and %s annotations are set; using %s",
+			ingEx.Ingress.Namespace, ingEx.Ingress.Name,
+			StickyCookieServicesAnnotation, StickyCookieServicesAnnotationPlus,
+			StickyCookieServicesAnnotation)
 	}
 
 	services, err := ParseStickyServiceList(value)
