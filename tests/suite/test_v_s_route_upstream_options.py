@@ -11,8 +11,17 @@ from suite.utils.custom_assertions import (
     wait_for_event_count_increases,
 )
 from suite.utils.custom_resources_utils import generate_item_with_upstream_options
-from suite.utils.resources_utils import get_events, get_first_pod_name, replace_configmap_from_yaml, wait_before_test
-from suite.utils.vs_vsr_resources_utils import get_vs_nginx_template_conf, patch_v_s_route, patch_v_s_route_from_yaml
+from suite.utils.resources_utils import (
+    get_events,
+    get_first_pod_name,
+    get_vs_nginx_template_conf,
+    replace_configmap_from_yaml,
+    wait_before_test,
+)
+from suite.utils.vs_vsr_resources_utils import (
+    patch_v_s_route,
+    patch_v_s_route_from_yaml,
+)
 
 
 @pytest.mark.parametrize(

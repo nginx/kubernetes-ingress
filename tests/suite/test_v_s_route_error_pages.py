@@ -5,9 +5,13 @@ import requests
 from kubernetes.client.rest import ApiException
 from settings import TEST_DATA
 from suite.utils.custom_assertions import assert_event_starts_with_text_and_contains_errors, wait_and_assert_status_code
-from suite.utils.resources_utils import get_events, get_first_pod_name, wait_before_test
-from suite.utils.vs_vsr_resources_utils import (
+from suite.utils.resources_utils import (
+    get_events,
+    get_first_pod_name,
     get_vs_nginx_template_conf,
+    wait_before_test,
+)
+from suite.utils.vs_vsr_resources_utils import (
     patch_v_s_route_from_yaml,
     patch_virtual_server_from_yaml,
 )

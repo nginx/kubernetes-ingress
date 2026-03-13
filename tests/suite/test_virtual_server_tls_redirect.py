@@ -2,8 +2,8 @@ import pytest
 import requests
 from kubernetes.client.rest import ApiException
 from settings import TEST_DATA
-from suite.utils.resources_utils import get_first_pod_name, wait_before_test
-from suite.utils.vs_vsr_resources_utils import get_vs_nginx_template_conf, patch_virtual_server_from_yaml
+from suite.utils.resources_utils import get_first_pod_name, get_vs_nginx_template_conf, wait_before_test
+from suite.utils.vs_vsr_resources_utils import patch_virtual_server_from_yaml
 
 
 @pytest.mark.vs
