@@ -17,7 +17,6 @@ from suite.utils.vs_vsr_resources_utils import (
 )
 
 
-@pytest.mark.rollback
 @pytest.mark.vs
 @pytest.mark.vsr
 @pytest.mark.parametrize(

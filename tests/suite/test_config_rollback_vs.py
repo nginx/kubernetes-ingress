@@ -29,7 +29,6 @@ vs_invalid_snippet_src = f"{TEST_DATA}/config-rollback/virtual-server/virtual-se
 vs_2_src = f"{TEST_DATA}/config-rollback/virtual-server/virtual-server-2.yaml"
 
 
-@pytest.mark.rollback
 @pytest.mark.vs
 @pytest.mark.parametrize(
     "crd_ingress_controller, transport_server_setup",

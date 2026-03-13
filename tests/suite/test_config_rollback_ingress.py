@@ -29,7 +29,6 @@ ingress_2_src = f"{TEST_DATA}/config-rollback/ingress/ingress-2.yaml"
 
 
 @pytest.mark.ingresses
-@pytest.mark.rollback
 @pytest.mark.parametrize(
     "crd_ingress_controller, transport_server_setup",
     [
