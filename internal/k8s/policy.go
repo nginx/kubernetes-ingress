@@ -163,12 +163,10 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 	}
 
 	if len(resourceExes.MergeableIngresses) > 0 {
-		for _, mergeableIngress := range resourceExes.MergeableIngresses {
-			warnings, updateErr := lbc.configurator.AddOrUpdateMergeableIngress(mergeableIngress)
-			mergeableIngressWarnings = mergeWarningsMaps(mergeableIngressWarnings, warnings)
-			if updateErr != nil {
-				mergeableIngressErr = updateErr
-			}
+		warnings, updateErr := lbc.configurator.AddOrUpdateMergeableIngresses(resourceExes.MergeableIngresses)
+		mergeableIngressWarnings = mergeWarningsMaps(mergeableIngressWarnings, warnings)
+		if updateErr != nil {
+			mergeableIngressErr = updateErr
 		}
 	}
 
