@@ -180,7 +180,7 @@ type Location struct {
 	Upstream                Upstream
 	ProxyPass               string
 	ProxyPassRequestBody    string
-	ProxyPassRequestHeaders bool
+	ProxyPassRequestHeaders string
 	ProxyConnectTimeout     string
 	ProxyReadTimeout        string
 	ProxySendTimeout        string
@@ -206,7 +206,6 @@ type Location struct {
 	LimitReq                *LimitReq
 	CORSEnabled             bool
 
-	AuthSnippets   []string
 	AuthRequestOff bool
 	Internal       bool
 

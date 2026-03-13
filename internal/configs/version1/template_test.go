@@ -2356,6 +2356,7 @@ func TestExecuteTemplate_ForIngressForNGINXWithProxyNextUpstreamTimeout(t *testi
 					{
 						ProxyNextUpstreamTimeout: "",
 						Upstream:                 testUpstream,
+						ProxyPass:                "http://test",
 					},
 				},
 			},
@@ -2399,6 +2400,7 @@ func TestExecuteTemplate_ForIngressForNGINXWithProxyNextUpstreamTries(t *testing
 					{
 						ProxyNextUpstreamTries: nil,
 						Upstream:               testUpstream,
+						ProxyPass:              "http://test",
 					},
 				},
 			},
@@ -2841,6 +2843,7 @@ var (
 							Name:      "tea-minion",
 							Namespace: "default",
 						},
+						ProxyPass: "http://test",
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
@@ -2907,6 +2910,7 @@ var (
 								Always: true,
 							},
 						},
+						ProxyPass: "http://test",
 					},
 				},
 			},
@@ -2938,8 +2942,9 @@ var (
 				StatusZone:   "test.example.com",
 				Locations: []Location{
 					{
-						Path:     "/tea",
-						Upstream: testUpstream,
+						Path:      "/tea",
+						Upstream:  testUpstream,
+						ProxyPass: "http://test",
 					},
 				},
 				Allow: []string{
@@ -2979,6 +2984,7 @@ var (
 								Always: true,
 							},
 						},
+						ProxyPass: "http://test",
 					},
 				},
 			},
@@ -3000,8 +3006,9 @@ var (
 				StatusZone:   "test.example.com",
 				Locations: []Location{
 					{
-						Path:     "/tea",
-						Upstream: testUpstream,
+						Path:      "/tea",
+						Upstream:  testUpstream,
+						ProxyPass: "http://test",
 					},
 				},
 				Deny: []string{
@@ -3055,6 +3062,7 @@ var (
 							Name:      "tea-minion",
 							Namespace: "default",
 						},
+						ProxyPass: "http://test",
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
@@ -3113,6 +3121,7 @@ var (
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
 						ClientMaxBodySize:   "2m",
+						ProxyPass:           "http://test",
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
@@ -3162,6 +3171,7 @@ var (
 							Name:      "tea-minion",
 							Namespace: "default",
 						},
+						ProxyPass: "http://test",
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
@@ -3218,6 +3228,7 @@ var (
 							Name:      "tea-minion",
 							Namespace: "default",
 						},
+						ProxyPass: "http://test",
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
@@ -3274,6 +3285,7 @@ var (
 							Name:      "tea-minion",
 							Namespace: "default",
 						},
+						ProxyPass: "http://test",
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
@@ -4387,6 +4399,7 @@ var (
 							Name:      "tea-minion",
 							Namespace: "default",
 						},
+						ProxyPass: "http://test",
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
@@ -4450,6 +4463,7 @@ var (
 							DryRun:     true,
 							LogLevel:   "info",
 						},
+						ProxyPass: "http://test",
 					},
 					{
 						Path:                "/coffee",
@@ -4471,6 +4485,7 @@ var (
 							DryRun:     true,
 							LogLevel:   "info",
 						},
+						ProxyPass: "http://test",
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
@@ -4539,6 +4554,7 @@ var (
 							DryRun:     true,
 							RejectCode: 429,
 						},
+						ProxyPass: "http://test",
 					},
 					{
 						Path:                "/coffee",
@@ -4563,6 +4579,7 @@ var (
 							LogLevel:   "error",
 							RejectCode: 503,
 						},
+						ProxyPass: "http://test",
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
@@ -4628,6 +4645,7 @@ func createProxySetHeaderIngressConfig(masterAnnotations map[string]string, coff
 							Namespace:   "default",
 							Annotations: coffeeAnnotations,
 						},
+						ProxyPass: "http://test",
 					},
 					{
 						MinionIngress: &Ingress{
@@ -4635,6 +4653,7 @@ func createProxySetHeaderIngressConfig(masterAnnotations map[string]string, coff
 							Namespace:   "default",
 							Annotations: teamAnnotations,
 						},
+						ProxyPass: "http://test",
 					},
 				},
 			},
@@ -4662,8 +4681,9 @@ func TestExecuteTemplate_ForIngressForNGINXWithSSLCiphers(t *testing.T) {
 				SSLPreferServerCiphers: true,
 				Locations: []Location{
 					{
-						Path:     "/",
-						Upstream: testUpstream,
+						Path:      "/",
+						Upstream:  testUpstream,
+						ProxyPass: "http://test",
 					},
 				},
 			},
@@ -4709,8 +4729,9 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithSSLCiphers(t *testing.T) {
 				SSLPreferServerCiphers: true,
 				Locations: []Location{
 					{
-						Path:     "/",
-						Upstream: testUpstream,
+						Path:      "/",
+						Upstream:  testUpstream,
+						ProxyPass: "http://test",
 					},
 				},
 			},
@@ -4756,8 +4777,9 @@ func TestExecuteTemplate_ForIngressForNGINXWithSSLCiphersDisabled(t *testing.T) 
 				SSLPreferServerCiphers: false,
 				Locations: []Location{
 					{
-						Path:     "/",
-						Upstream: testUpstream,
+						Path:      "/",
+						Upstream:  testUpstream,
+						ProxyPass: "http://test",
 					},
 				},
 			},
@@ -4812,6 +4834,7 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 								Path:          "/(coffee|tea)",
 								RewriteTarget: "/beverages/$1",
 								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
 							},
 						},
 					},
@@ -4844,6 +4867,7 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 								Path:          "/(latte|espresso)",
 								RewriteTarget: "/drinks/$1",
 								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
 							},
 						},
 					},
@@ -4876,6 +4900,7 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 								Path:          "/cappuccino",
 								RewriteTarget: "/special/cappuccino",
 								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
 							},
 						},
 					},
@@ -4909,6 +4934,7 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 								Path:          "/mocha",
 								RewriteTarget: "/hot-drinks/mocha",
 								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
 							},
 						},
 					},
@@ -4936,8 +4962,9 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 						ServerTokens: "off",
 						Locations: []Location{
 							{
-								Path:     "/americano",
-								Upstream: testUpstream,
+								Path:      "/americano",
+								Upstream:  testUpstream,
+								ProxyPass: "http://test",
 								// RewriteTarget is empty - should not generate rewrite directive
 							},
 						},
@@ -4969,6 +4996,7 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 								Path:          "/menu/(hot|cold)/(coffee|tea)",
 								RewriteTarget: "/drinks/$1/$2",
 								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
 							},
 						},
 					},

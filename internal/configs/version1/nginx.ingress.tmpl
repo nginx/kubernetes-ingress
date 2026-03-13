@@ -211,8 +211,6 @@ server {
 		{{- range $value := $location.LocationSnippets}}
 		{{$value}}{{- end}}
 		{{- end}}{{- end}}
-		{{- range $value := $location.AuthSnippets}}
-		{{$value}}{{- end}}
 
 		{{- with $location.BasicAuth }}
 		auth_basic {{ printf "%q" .Realm }};
@@ -259,8 +257,6 @@ server {
 		{{- range $value := $location.LocationSnippets}}
 		{{$value}}{{- end}}
 		{{- end}}{{- end}}
-		{{- range $value := $location.AuthSnippets}}
-		{{$value}}{{- end}}
 		{{- with $location.BasicAuth }}
 		auth_basic {{ printf "%q" .Realm }};
 		auth_basic_user_file {{ .Secret }};
@@ -272,9 +268,11 @@ server {
 		{{- if $location.ClientBodyBufferSize }}
 		client_body_buffer_size {{$location.ClientBodyBufferSize}};
 		{{- end}}
-		proxy_pass_request_headers {{ if $location.ProxyPassRequestHeaders }}on{{ else }}off{{ end }};
-		{{- if $location.ProxyPassRequestBody}}
-		proxy_pass_request_body {{$location.ProxyPassRequestBody}};
+		{{- if $location.ProxyPassRequestHeaders }}
+		proxy_pass_request_headers {{ $location.ProxyPassRequestHeaders }};
+		{{- end }}
+		{{- if $location.ProxyPassRequestBody }}
+		proxy_pass_request_body {{ $location.ProxyPassRequestBody }};
 		{{- end}}
 		{{- range $header := $location.ProxySetHeaders}}
 		proxy_set_header {{ $header.Name }} {{ $header.Value }};

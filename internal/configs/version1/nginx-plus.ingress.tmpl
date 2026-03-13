@@ -291,8 +291,6 @@ server {
 		{{- range $value := $location.LocationSnippets}}
 		{{$value}}{{end}}
 		{{- end}}{{- end}}
-		{{- range $value := $location.AuthSnippets}}
-		{{$value}}{{- end}}
 
 		{{- with $jwt := $location.JWTAuth}}
 		auth_jwt_key_file {{$jwt.Key}};
@@ -344,8 +342,6 @@ server {
 		{{- range $value := $location.LocationSnippets}}
 		{{$value}}{{- end}}
 		{{- end}}{{- end}}
-		{{- range $value := $location.AuthSnippets}}
-		{{$value}}{{- end}}
 
 		{{- with $jwt := $location.JWTAuth }}
 		auth_jwt_key_file {{$jwt.Key}};
@@ -367,9 +363,11 @@ server {
 		{{- if $location.ClientBodyBufferSize }}
 		client_body_buffer_size {{$location.ClientBodyBufferSize}};
 		{{- end}}
-		proxy_pass_request_headers {{ if $location.ProxyPassRequestHeaders }}on{{ else }}off{{ end }};
-		{{- if $location.ProxyPassRequestBody}}
-		proxy_pass_request_body {{$location.ProxyPassRequestBody}};
+		{{- if $location.ProxyPassRequestHeaders }}
+		proxy_pass_request_headers {{ $location.ProxyPassRequestHeaders }};
+		{{- end }}
+		{{- if $location.ProxyPassRequestBody }}
+		proxy_pass_request_body {{ $location.ProxyPassRequestBody }};
 		{{- end}}
 		{{- range $header := $location.ProxySetHeaders}}
 		proxy_set_header {{ $header.Name }} {{ $header.Value }};

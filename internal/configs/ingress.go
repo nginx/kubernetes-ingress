@@ -598,12 +598,11 @@ func generateIngressExternalAuthLocation(externalAuth *version2.ExternalAuth, up
 		ProxyConnectTimeout:      generateTimeWithDefault(cfg.ProxyConnectTimeout, cfg.ProxyConnectTimeout),
 		ProxyReadTimeout:         generateTimeWithDefault(cfg.ProxyReadTimeout, cfg.ProxyReadTimeout),
 		ProxySendTimeout:         generateTimeWithDefault(cfg.ProxySendTimeout, cfg.ProxySendTimeout),
-		ProxyPassRequestHeaders:  true,
 		ProxyPassRequestBody:     "off",
 		ClientMaxBodySize:        "0",
 		ProxyNextUpstream:        "error timeout",
 		ProxyNextUpstreamTimeout: generateTimeWithDefault(cfg.ProxyNextUpstreamTimeout, "0s"),
-		AuthSnippets:             splitSnippets(externalAuth.Snippets),
+		LocationSnippets:         splitSnippets(externalAuth.Snippets),
 		ServiceName:              svcName,
 	}
 }
@@ -624,9 +623,9 @@ func generateIngressExternalAuthOAuth2Location(externalAuth *version2.ExternalAu
 		ClientMaxBodySize:        "0",
 		ProxyNextUpstream:        "error timeout",
 		ProxyNextUpstreamTimeout: generateTimeWithDefault(cfg.ProxyNextUpstreamTimeout, "0s"),
-		AuthSnippets:             splitSnippets(externalAuth.Snippets),
+		LocationSnippets:         splitSnippets(externalAuth.Snippets),
 		ServiceName:              svcName,
-		ProxyPassRequestHeaders:  true,
+		ProxyPassRequestHeaders:  "on",
 	}
 }
 

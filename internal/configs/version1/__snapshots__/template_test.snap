@@ -781,7 +781,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -803,7 +803,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -889,7 +889,6 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -934,7 +933,6 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -979,7 +977,6 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1024,7 +1021,6 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1069,7 +1065,6 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1114,7 +1109,6 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1158,7 +1152,6 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1208,7 +1201,6 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1258,7 +1250,6 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1352,7 +1343,6 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1425,7 +1415,6 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1516,7 +1505,6 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1594,7 +1582,6 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1672,7 +1659,6 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1750,7 +1736,6 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1822,7 +1807,6 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1850,7 +1834,6 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1932,7 +1915,6 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1963,7 +1945,6 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -2014,7 +1995,6 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -2067,7 +2047,6 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -2113,7 +2092,6 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -2207,7 +2185,6 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -2801,7 +2778,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -2823,7 +2800,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -3114,7 +3091,8 @@ server {
 
 [TestExecuteTemplate_ForIngressWithCORS/nginx - 1]
 # configuration for default/cafe-ingress
-upstream test {zone test 256k;
+upstream test {
+    zone test 256k;
     server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;keepalive 16;
 }
 
@@ -3207,7 +3185,6 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -3315,7 +3292,6 @@ server {
         proxy_send_timeout 10s;
         client_max_body_size 2m;
         client_body_buffer_size 16k;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -3333,7 +3309,8 @@ server {
 
 [TestExecuteTemplate_ForIngressWithHeadersOnlyNoCORS/nginx - 1]
 # configuration for default/cafe-ingress
-upstream test {zone test 256k;
+upstream test {
+    zone test 256k;
     server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;keepalive 16;
 }
 
@@ -3406,7 +3383,6 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7111,7 +7087,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7134,7 +7110,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7178,7 +7154,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7203,7 +7179,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7243,7 +7219,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7265,7 +7241,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7305,7 +7281,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7327,7 +7303,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7367,7 +7343,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7389,7 +7365,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7429,7 +7405,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7451,7 +7427,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7507,7 +7483,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7531,7 +7506,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7595,7 +7569,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7619,7 +7592,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7683,7 +7655,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7707,7 +7678,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7771,7 +7741,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7795,7 +7764,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7859,7 +7827,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7883,7 +7850,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7931,7 +7897,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7953,7 +7919,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8009,7 +7975,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header X-Forwarded-ABC "coffee";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -8034,7 +7999,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header X-Forwarded-ABC "tea";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -8086,7 +8050,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8109,7 +8073,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8152,7 +8116,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8175,8 +8139,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
-
+        proxy_pass http://test;
         
     }
     
@@ -8219,8 +8182,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
-
+        proxy_pass http://test;
         
     }
     
@@ -8243,8 +8205,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
-
+        proxy_pass http://test;
         
     }
     
@@ -8287,8 +8248,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
-
+        proxy_pass http://test;
         
     }
     
@@ -8311,8 +8271,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
-
+        proxy_pass http://test;
         
     }
     
@@ -8358,8 +8317,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
-
+        proxy_pass http://test;
         
     }
     
@@ -8383,8 +8341,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
-
+        proxy_pass http://test;
         
     }
     
@@ -8425,8 +8382,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
-
+        proxy_pass http://test;
         
     }
     
@@ -8447,8 +8403,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
-
+        proxy_pass http://test;
         
     }
     
@@ -8489,8 +8444,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
-
+        proxy_pass http://test;
         
     }
     
@@ -8511,8 +8465,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
-
+        proxy_pass http://test;
         
     }
     
@@ -8553,8 +8506,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
-
+        proxy_pass http://test;
         
     }
     
@@ -8577,8 +8529,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
-
+        proxy_pass http://test;
         
     }
     
@@ -8619,8 +8570,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
-
+        proxy_pass http://test;
         
     }
     
@@ -8643,8 +8593,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
-
+        proxy_pass http://test;
         
     }
     
@@ -8664,8 +8613,6 @@ upstream default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80 {
     random two least_conn;
     server 10.0.0.2:80 max_fails=1 fail_timeout=10s max_conns=0;
 }
-
-
 
 
 server {
@@ -8702,7 +8649,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -8711,7 +8657,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering on;
         proxy_pass http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80;
-
         
     }
     
@@ -8727,7 +8672,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -8736,7 +8680,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering on;
         proxy_pass http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80;
-
         
     }
     
@@ -8756,8 +8699,6 @@ upstream default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80 {
     random two least_conn;
     server 10.0.0.2:80 max_fails=1 fail_timeout=10s max_conns=0;
 }
-
-
 
 
 server {
@@ -8794,7 +8735,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -8803,7 +8743,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering on;
         proxy_pass http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80;
-
         
     }
     
@@ -8819,7 +8758,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -8828,7 +8766,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering on;
         proxy_pass http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80;
-
         
     }
     
