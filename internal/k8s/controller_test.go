@@ -44,7 +44,7 @@ func newTrackingNginxManager() *trackingNginxManager {
 	}
 }
 
-func (m *trackingNginxManager) CreateConfig(name string, content []byte) bool {
+func (m *trackingNginxManager) CreateConfig(name string, content []byte) (bool, error) {
 	m.createdConfigNames = append(m.createdConfigNames, name)
 	return m.FakeManager.CreateConfig(name, content)
 }

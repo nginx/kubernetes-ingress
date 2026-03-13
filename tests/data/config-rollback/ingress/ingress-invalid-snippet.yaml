@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: config-rollback-invalid-ingress
+  annotations:
+    nginx.org/server-snippets: "sub_filter_once invalid;"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: config-rollback-invalid-ingress.example.com
+    http:
+      paths:
+      - path: /backend1
+        pathType: Prefix
+        backend:
+          service:
+            name: backend1-svc
+            port:
+              number: 80
