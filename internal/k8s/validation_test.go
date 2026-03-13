@@ -3615,7 +3615,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 
 		{
 			annotations: map[string]string{
-				configs.StickyCookieServicesAnnotation: "serviceName=service-1 srv_id expires=1h path=/service-1",
+				"nginx.org/sticky-cookie-services": "serviceName=service-1 srv_id expires=1h path=/service-1",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -3627,7 +3627,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
-				configs.StickyCookieServicesAnnotation: "serviceName=service-1 srv_id expires=1h path=/service-1;serviceName=service-2 srv_id expires=2h path=/service-2",
+				"nginx.org/sticky-cookie-services": "serviceName=service-1 srv_id expires=1h path=/service-1;serviceName=service-2 srv_id expires=2h path=/service-2",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -3639,7 +3639,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
-				configs.StickyCookieServicesAnnotation: `serviceName=service-1 srv_id expires=1h path=/service-1\;serviceName=service-2 srv_id expires=2h path=/service-2`,
+				"nginx.org/sticky-cookie-services": `serviceName=service-1 srv_id expires=1h path=/service-1\;serviceName=service-2 srv_id expires=2h path=/service-2`,
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -3653,7 +3653,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
-				configs.StickyCookieServicesAnnotation: `serviceName=service-1 srv_id expires=1h path=/service-1;serviceName=service-2 srv_id expires=2h path=/service-2\`,
+				"nginx.org/sticky-cookie-services": `serviceName=service-1 srv_id expires=1h path=/service-1;serviceName=service-2 srv_id expires=2h path=/service-2\`,
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -3667,7 +3667,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
-				configs.StickyCookieServicesAnnotation: `serviceName=service-1 srv_id expires=1h path=/service-1\`,
+				"nginx.org/sticky-cookie-services": `serviceName=service-1 srv_id expires=1h path=/service-1\`,
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -3681,7 +3681,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
-				configs.StickyCookieServicesAnnotation: `serviceName=service-1 srv_id expires=1h path=/service-1$`,
+				"nginx.org/sticky-cookie-services": `serviceName=service-1 srv_id expires=1h path=/service-1$`,
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -3695,7 +3695,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
-				configs.StickyCookieServicesAnnotation: `serviceName=service-1 srv_id expires=1h path=/service-1;serviceName=service-2 srv_id expires=2h path=/service-2$`,
+				"nginx.org/sticky-cookie-services": `serviceName=service-1 srv_id expires=1h path=/service-1;serviceName=service-2 srv_id expires=2h path=/service-2$`,
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -3709,7 +3709,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
-				configs.StickyCookieServicesAnnotation: "not_a_rewrite",
+				"nginx.org/sticky-cookie-services": "not_a_rewrite",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -3724,7 +3724,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		// Test cases for nginx.com/sticky-cookie-services annotation
 		{
 			annotations: map[string]string{
-				configs.StickyCookieServicesAnnotationPlus: "true",
+				"nginx.com/sticky-cookie-services": "true",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -3738,7 +3738,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
-				configs.StickyCookieServicesAnnotationPlus: "serviceName=service-1 srv_id expires=1h path=/service-1",
+				"nginx.com/sticky-cookie-services": "serviceName=service-1 srv_id expires=1h path=/service-1",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -3750,7 +3750,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
-				configs.StickyCookieServicesAnnotationPlus: "serviceName=service-1 srv_id expires=1h path=/service-1;serviceName=service-2 srv_id expires=2h path=/service-2",
+				"nginx.com/sticky-cookie-services": "serviceName=service-1 srv_id expires=1h path=/service-1;serviceName=service-2 srv_id expires=2h path=/service-2",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -3762,7 +3762,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
-				configs.StickyCookieServicesAnnotationPlus: `serviceName=service-1 srv_id expires=1h path=/service-1\;serviceName=service-2 srv_id expires=2h path=/service-2`,
+				"nginx.com/sticky-cookie-services": `serviceName=service-1 srv_id expires=1h path=/service-1\;serviceName=service-2 srv_id expires=2h path=/service-2`,
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -3776,7 +3776,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
-				configs.StickyCookieServicesAnnotationPlus: `serviceName=service-1 srv_id expires=1h path=/service-1;serviceName=service-2 srv_id expires=2h path=/service-2\`,
+				"nginx.com/sticky-cookie-services": `serviceName=service-1 srv_id expires=1h path=/service-1;serviceName=service-2 srv_id expires=2h path=/service-2\`,
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -3790,7 +3790,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
-				configs.StickyCookieServicesAnnotationPlus: `serviceName=service-1 srv_id expires=1h path=/service-1\`,
+				"nginx.com/sticky-cookie-services": `serviceName=service-1 srv_id expires=1h path=/service-1\`,
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -3804,7 +3804,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
-				configs.StickyCookieServicesAnnotationPlus: `serviceName=service-1 srv_id expires=1h path=/service-1$`,
+				"nginx.com/sticky-cookie-services": `serviceName=service-1 srv_id expires=1h path=/service-1$`,
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -3818,7 +3818,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
-				configs.StickyCookieServicesAnnotationPlus: `serviceName=service-1 srv_id expires=1h path=/service-1;serviceName=service-2 srv_id expires=2h path=/service-2$`,
+				"nginx.com/sticky-cookie-services": `serviceName=service-1 srv_id expires=1h path=/service-1;serviceName=service-2 srv_id expires=2h path=/service-2$`,
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,
@@ -3832,7 +3832,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
-				configs.StickyCookieServicesAnnotationPlus: "not_a_rewrite",
+				"nginx.com/sticky-cookie-services": "not_a_rewrite",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                true,

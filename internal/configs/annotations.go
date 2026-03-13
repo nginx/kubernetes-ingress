@@ -725,10 +725,7 @@ func getSessionPersistenceServices(ctx context.Context, ingEx *IngressEx) map[st
 		return nil
 	}
 
-	var value string
-	if plusExists {
-		value = valuePlus
-	}
+	value := valuePlus
 	if orgExists {
 		value = valueOrg
 	}
