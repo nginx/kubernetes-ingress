@@ -156,7 +156,7 @@ controller:
   nginxDebug: false
 
   ## Enable config validation and rollback protection via the ConfigRollbackManager.
-  enableConfigRollback: false
+  enableConfigSafety: false
 
   ## Share process namespace between containers in the Ingress Controller pod.
   shareProcessNamespace: false

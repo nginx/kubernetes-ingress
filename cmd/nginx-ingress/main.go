@@ -591,7 +591,7 @@ func createNginxManager(ctx context.Context, managerCollector collectors.Manager
 		nginxManager = nginx.NewFakeManager("/etc/nginx")
 	} else {
 		timeout := time.Duration(*nginxReloadTimeout) * time.Millisecond
-		if *enableConfigRollback {
+		if *enableConfigSafety {
 			nginxManager = nginx.NewConfigRollbackManager(ctx, "/etc/nginx/", *nginxDebug, managerCollector, licenseReporter, deploymentMetadata, timeout, *nginxPlus)
 		} else {
 			nginxManager = nginx.NewLocalManager(ctx, "/etc/nginx/", *nginxDebug, managerCollector, licenseReporter, deploymentMetadata, timeout, *nginxPlus)
