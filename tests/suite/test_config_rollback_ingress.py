@@ -116,7 +116,12 @@ class TestConfigRollbackIngress:
 
     @pytest.fixture(scope="class")
     def ingress_setup(
-        self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, transport_server_setup, test_namespace
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        crd_ingress_controller,
+        transport_server_setup,
+        test_namespace,
     ):
         """Create an Ingress with a backend app for the test class."""
         ingress_name = create_ingress_from_yaml(
@@ -168,9 +173,7 @@ class TestConfigRollbackIngress:
         ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
         ingress_name = ingress_setup["ingress_name"]
         ingress_host = "config-rollback-ingress.example.com"
-        ingress_url = (
-            f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/backend1"
-        )
+        ingress_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/backend1"
 
         # Step 1: Ingress serves traffic
         wait_and_assert_status_code(200, ingress_url, ingress_host)
@@ -219,7 +222,10 @@ class TestConfigRollbackIngress:
             # http log_format: unknown variable (no $ in error message)
             ({"log-format": "$invalid_nonexistent_var"}, 'unknown "invalid_nonexistent_var" variable'),
             # http log_format: must set log-format too, otherwise escaping is never rendered
-            ({"log-format": "$remote_addr", "log-format-escaping": "invalid_escape_value"}, 'unknown log format escaping "invalid_escape_value"'),
+            (
+                {"log-format": "$remote_addr", "log-format-escaping": "invalid_escape_value"},
+                'unknown log format escaping "invalid_escape_value"',
+            ),
         ],
     )
     def test_configmap_main_snippet_rollback(
@@ -243,11 +249,9 @@ class TestConfigRollbackIngress:
         escaping case passes both keys together.
         """
         ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
-        ingress_name = ingress_setup["ingress_name"]
+        ingress_setup["ingress_name"]
         ingress_host = "config-rollback-ingress.example.com"
-        ingress_url = (
-            f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/backend1"
-        )
+        ingress_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/backend1"
 
         # Step 1: Ingress serves traffic, capture TS config
         wait_and_assert_status_code(200, ingress_url, ingress_host)
@@ -329,9 +333,7 @@ class TestConfigRollbackIngress:
         ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
         ingress1_name = ingress_setup["ingress_name"]
         ingress1_host = "config-rollback-ingress.example.com"
-        ingress1_url = (
-            f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/backend1"
-        )
+        ingress1_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/backend1"
 
         # Step 1: both Ingresses start without own location-snippets annotations
         # Ingress1 = fixture Ingress, Ingress2 = created from plain YAML
@@ -343,9 +345,7 @@ class TestConfigRollbackIngress:
         )
         wait_before_test()
         ingress2_host = "config-rollback-ingress2.example.com"
-        ingress2_url = (
-            f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/backend1"
-        )
+        ingress2_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/backend1"
         wait_and_assert_status_code(200, ingress2_url, ingress2_host)
 
         # Step 2: protect one Ingress by adding a valid location-snippet annotation

@@ -451,4 +451,3 @@ def assert_valid_ts(kube_apis, namespace, name, retry_count=30, wait_time=1):
         retry_count=retry_count,
         wait_time=wait_time,
     )
-

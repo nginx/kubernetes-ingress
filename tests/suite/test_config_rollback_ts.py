@@ -337,7 +337,10 @@ class TestConfigRollbackTransportServer:
             # stream log_format with an unknown nginx variable (no $ in the error message)
             ({"stream-log-format": "$invalid_nonexistent_var"}, 'unknown "invalid_nonexistent_var" variable'),
             # stream log_format: must set stream-log-format too, otherwise escaping is never rendered
-            ({"stream-log-format": "$remote_addr", "stream-log-format-escaping": "invalid_escape_value"}, 'unknown log format escaping "invalid_escape_value"'),
+            (
+                {"stream-log-format": "$remote_addr", "stream-log-format-escaping": "invalid_escape_value"},
+                'unknown log format escaping "invalid_escape_value"',
+            ),
         ],
     )
     def test_configmap_main_snippet_rollback(

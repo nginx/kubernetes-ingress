@@ -16,6 +16,7 @@ from suite.utils.vs_vsr_resources_utils import (
     patch_virtual_server,
 )
 
+
 @pytest.mark.rollback
 @pytest.mark.vs
 @pytest.mark.vsr

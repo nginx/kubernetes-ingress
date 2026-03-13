@@ -28,6 +28,7 @@ std_vs_src = f"{TEST_DATA}/virtual-server/standard/virtual-server.yaml"
 vs_invalid_snippet_src = f"{TEST_DATA}/config-rollback/virtual-server/virtual-server-invalid-snippet.yaml"
 vs_2_src = f"{TEST_DATA}/config-rollback/virtual-server/virtual-server-2.yaml"
 
+
 @pytest.mark.rollback
 @pytest.mark.vs
 @pytest.mark.parametrize(
@@ -82,7 +83,9 @@ class TestConfigRollbackVSCreate:
         )
         # Step 3: conf file was removed — no traffic served for this host
         ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
-        assert_vs_conf_not_exists(kube_apis, ic_pod, ingress_controller_prerequisites.namespace, test_namespace, vs_name)
+        assert_vs_conf_not_exists(
+            kube_apis, ic_pod, ingress_controller_prerequisites.namespace, test_namespace, vs_name
+        )
         wait_and_assert_status_code(
             404,
             f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/backend1",
@@ -226,7 +229,10 @@ class TestConfigRollbackVirtualServer:
             # http log_format: unknown variable (no $ in error message)
             ({"log-format": "$invalid_nonexistent_var"}, 'unknown "invalid_nonexistent_var" variable'),
             # http log_format: must set log-format too, otherwise escaping is never rendered
-            ({"log-format": "$remote_addr", "log-format-escaping": "invalid_escape_value"}, 'unknown log format escaping "invalid_escape_value"'),
+            (
+                {"log-format": "$remote_addr", "log-format-escaping": "invalid_escape_value"},
+                'unknown log format escaping "invalid_escape_value"',
+            ),
         ],
     )
     def test_configmap_main_snippet_rollback(
