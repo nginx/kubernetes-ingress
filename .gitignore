@@ -219,6 +219,7 @@ common-secrets/htpasswd-secret-external-auth.yaml
 examples/custom-resources/external-auth/htpasswd-secret.yaml
 examples/custom-resources/external-auth-advanced-routing/htpasswd-secret.yaml
 examples/ingress-resources/external-auth/htpasswd-secret.yaml
+tests/data/external-auth-policy/backend/htpasswd-secret.yaml
 
 # Jwks secrets
 common-secrets/example-jwt-jwks-secret.yaml
