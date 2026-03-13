@@ -8,13 +8,7 @@ spec:
   - name: backend1
     service: backend1-svc
     port: 80
-  - name: backend2
-    service: backend2-svc
-    port: 80
   routes:
   - path: "/backend1"
     action:
       pass: backend1
-  - path: "/backend2"
-    action:
-      pass: backend2
