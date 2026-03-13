@@ -23,17 +23,19 @@ spec:
 {{- end }}
   metrics:
     {{- if .Values.controller.autoscaling.targetMemoryUtilizationPercentage }}
-    - type: Resource
-      resource:
+    - type: ContainerResource
+      containerResource:
         name: memory
+        container: {{ include "nginx-ingress.name" . }}
         target:
           type: Utilization
           averageUtilization: {{ .Values.controller.autoscaling.targetMemoryUtilizationPercentage }}
     {{- end }}
     {{- if .Values.controller.autoscaling.targetCPUUtilizationPercentage }}
-    - type: Resource
-      resource:
+    - type: ContainerResource
+      containerResource:
         name: cpu
+        container: {{ include "nginx-ingress.name" . }}
         target:
           type: Utilization
           averageUtilization: {{ .Values.controller.autoscaling.targetCPUUtilizationPercentage }}
