@@ -316,7 +316,7 @@ server {
 		{{- if $location.ProxyNextUpstreamTries}}
 		proxy_next_upstream_tries {{ $location.ProxyNextUpstreamTries }};
 		{{- end }}
-		proxy_pass {{$location.ProxyPass}};
+		proxy_pass {{ $location.ProxyPass }}{{ $location.Rewrite }};
 		{{- end}}
 
 		{{- if or $location.CORSEnabled (gt (len $location.AddHeaders) 0) }}
