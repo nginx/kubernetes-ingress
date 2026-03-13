@@ -2179,6 +2179,9 @@ func mergeIngressPolicyWarnings(ingConfig *IngressConfiguration, masterEx *confi
 		}
 		if needsClone {
 			result.ChildWarnings = maps.Clone(ingConfig.ChildWarnings)
+			for key, warnings := range result.ChildWarnings {
+				result.ChildWarnings[key] = append([]string{}, warnings...)
+			}
 		}
 	}
 
