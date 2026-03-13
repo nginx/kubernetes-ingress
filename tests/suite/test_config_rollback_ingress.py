@@ -318,23 +318,29 @@ class TestConfigRollbackIngress:
         )
         assert "Main config was rolled back" in ic_logs
         assert expected_log_error in ic_logs
-        assert get_events_for_object(
-            kube_apis.v1,
-            ingress_controller_prerequisites.namespace,
-            ingress_controller_prerequisites.config_map["metadata"]["name"],
-        )[-1].reason == "Updated"
+        assert (
+            get_events_for_object(
+                kube_apis.v1,
+                ingress_controller_prerequisites.namespace,
+                ingress_controller_prerequisites.config_map["metadata"]["name"],
+            )[-1].reason
+            == "Updated"
+        )
 
         # Step 4: Ingress still responds
         wait_and_assert_status_code(200, ingress_url, ingress_setup.ingress_host)
 
         # Step 5: TS config unchanged
-        assert get_ts_nginx_template_conf(
-            kube_apis.v1,
-            transport_server_setup.namespace,
-            transport_server_setup.name,
-            ingress_setup.ingress_pod_name,
-            ingress_controller_prerequisites.namespace,
-        ) == ts_conf_before
+        assert (
+            get_ts_nginx_template_conf(
+                kube_apis.v1,
+                transport_server_setup.namespace,
+                transport_server_setup.name,
+                ingress_setup.ingress_pod_name,
+                ingress_controller_prerequisites.namespace,
+            )
+            == ts_conf_before
+        )
         assert_valid_ts(kube_apis, transport_server_setup.namespace, transport_server_setup.name)
 
     @pytest.mark.parametrize(
@@ -430,13 +436,16 @@ class TestConfigRollbackIngress:
             wait_and_assert_status_code(200, ingress2_url, ingress2_host)
 
         # Step 6: TS config unchanged (stream blocks not affected by location-snippets)
-        assert get_ts_nginx_template_conf(
-            kube_apis.v1,
-            transport_server_setup.namespace,
-            transport_server_setup.name,
-            ingress_setup.ingress_pod_name,
-            ingress_controller_prerequisites.namespace,
-        ) == ts_conf_before
+        assert (
+            get_ts_nginx_template_conf(
+                kube_apis.v1,
+                transport_server_setup.namespace,
+                transport_server_setup.name,
+                ingress_setup.ingress_pod_name,
+                ingress_controller_prerequisites.namespace,
+            )
+            == ts_conf_before
+        )
         assert_valid_ts(kube_apis, transport_server_setup.namespace, transport_server_setup.name)
 
         # Step 7: ConfigMap event reflects partial failure
