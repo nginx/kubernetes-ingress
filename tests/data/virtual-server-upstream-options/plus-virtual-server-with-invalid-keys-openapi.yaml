@@ -8,13 +8,6 @@ spec:
   - name: backend2
     service: backend2-svc
     port: 80
-    sessionCookie:
-      name: True
-      path: 100
-      expires: False
-      domain: 0
-      httpOnly: "yes"
-      secure: "no"
     healthCheck:
       enable: "yes"
       path: 200
@@ -38,13 +31,6 @@ spec:
   - name: backend1
     service: backend1-svc
     port: 80
-    sessionCookie:
-      name: True
-      path: 100
-      expires: False
-      domain: 0
-      httpOnly: "yes"
-      secure: "no"
     healthCheck:
       enable: "yes"
       path: 200

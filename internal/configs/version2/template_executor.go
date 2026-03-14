@@ -20,10 +20,11 @@ type TemplateExecutor struct {
 	virtualServerTemplate          *template.Template
 	transportServerTemplate        *template.Template
 	tlsPassthroughHostsTemplate    *template.Template
+	oidcTemplate                   *template.Template
 }
 
 // NewTemplateExecutor creates a TemplateExecutor.
-func NewTemplateExecutor(virtualServerTemplatePath string, transportServerTemplatePath string) (*TemplateExecutor, error) {
+func NewTemplateExecutor(virtualServerTemplatePath string, transportServerTemplatePath string, oidcTemplatePath string) (*TemplateExecutor, error) {
 	// template names  must be the base name of the template file https://golang.org/pkg/text/template/#Template.ParseFiles
 
 	vsTemplate, err := template.New(path.Base(virtualServerTemplatePath)).Funcs(helperFunctions).ParseFiles(virtualServerTemplatePath)
@@ -41,12 +42,20 @@ func NewTemplateExecutor(virtualServerTemplatePath string, transportServerTempla
 		return nil, err
 	}
 
+	var oidcTemplate *template.Template
+	if oidcTemplatePath != "" {
+		oidcTemplate, err = template.New(path.Base(oidcTemplatePath)).Funcs(helperFunctions).ParseFiles(oidcTemplatePath)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return &TemplateExecutor{
 		originalVirtualServerTemplate:  vsTemplate,
 		originalTrasportServerTemplate: tsTemplate,
 		virtualServerTemplate:          vsTemplate,
 		transportServerTemplate:        tsTemplate,
 		tlsPassthroughHostsTemplate:    tlsPassthroughHostsTemplate,
+		oidcTemplate:                   oidcTemplate,
 	}, nil
 }
 
@@ -105,6 +114,15 @@ func (te *TemplateExecutor) UseOriginalTStemplate() {
 func (te *TemplateExecutor) ExecuteTLSPassthroughHostsTemplate(cfg *TLSPassthroughHostsConfig) ([]byte, error) {
 	var configBuffer bytes.Buffer
 	if err := te.tlsPassthroughHostsTemplate.Execute(&configBuffer, cfg); err != nil {
+		return nil, err
+	}
+	return configBuffer.Bytes(), nil
+}
+
+// ExecuteOIDCTemplate generates the content of an OIDC configuration file.
+func (te *TemplateExecutor) ExecuteOIDCTemplate(cfg *OIDC) ([]byte, error) {
+	var configBuffer bytes.Buffer
+	if err := te.oidcTemplate.Execute(&configBuffer, cfg); err != nil {
 		return nil, err
 	}
 	return configBuffer.Bytes(), nil

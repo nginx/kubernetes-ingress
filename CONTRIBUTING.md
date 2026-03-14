@@ -28,7 +28,7 @@ Please reserve GitHub issues for feature requests and bugs rather than general q
 
 ## Getting Started
 
-Follow our [Installation Guide](https://docs.nginx.com/nginx-ingress-controller/installation/) to
+Follow our [Installation Guide](https://docs.nginx.com/nginx-ingress-controller/install/) to
 get NGINX Ingress Controller up and running.
 
 Read the [documentation](https://docs.nginx.com/nginx-ingress-controller) and

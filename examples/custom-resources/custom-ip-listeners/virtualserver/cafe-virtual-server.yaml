@@ -8,7 +8,7 @@ spec:
     https: ip-listener-2-https
   host: cafe.example.com
   tls:
-    secret: cafe-secret
+    secret: tls-secret
   upstreams:
   - name: tea
     service: tea-svc

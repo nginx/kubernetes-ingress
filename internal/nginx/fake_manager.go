@@ -44,6 +44,13 @@ func (fm *FakeManager) CreateConfig(name string, content []byte) bool {
 	return true
 }
 
+// CreateOIDCConfig provides a fake implementation of CreateOIDCConfig.
+func (fm *FakeManager) CreateOIDCConfig(name string, content []byte) bool {
+	nl.Debugf(fm.logger, "Writing OIDC config %v", name)
+	nl.Debug(fm.logger, string(content))
+	return true
+}
+
 // CreateAppProtectResourceFile provides a fake implementation of CreateAppProtectResourceFile
 func (fm *FakeManager) CreateAppProtectResourceFile(name string, content []byte) {
 	nl.Debugf(fm.logger, "Writing Ap Resource File %v", name)
@@ -63,6 +70,11 @@ func (fm *FakeManager) ClearAppProtectFolder(name string) {
 // DeleteConfig provides a fake implementation of DeleteConfig.
 func (fm *FakeManager) DeleteConfig(name string) {
 	nl.Debugf(fm.logger, "Deleting config %v", name)
+}
+
+// DeleteOIDCConfig provides a fake implementation of DeleteOIDCConfig.
+func (fm *FakeManager) DeleteOIDCConfig(name string) {
+	nl.Debugf(fm.logger, "Deleting OIDC config %v", name)
 }
 
 // CreateStreamConfig provides a fake implementation of CreateStreamConfig.
@@ -196,4 +208,10 @@ func (fm *FakeManager) UpsertSplitClientsKeyVal(_ string, _ string, _ string) {
 // DeleteKeyValStateFiles is a fake implementation of DeleteKeyValStateFiles
 func (fm *FakeManager) DeleteKeyValStateFiles(_ string) {
 	nl.Debugf(fm.logger, "Deleting keyval state files")
+}
+
+// GetOSCABundlePath is a fake implementation of GetOSCABundlePath
+func (fm *FakeManager) GetOSCABundlePath() (string, error) {
+	nl.Debugf(fm.logger, "Getting OS CA Bundle Path")
+	return "/etc/ssl/certs/ca-certificates.crt", nil
 }

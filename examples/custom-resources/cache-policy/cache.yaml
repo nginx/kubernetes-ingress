@@ -9,6 +9,32 @@ spec:
     allowedCodes: ["any"] # Optional ["any"] or [200, 301, ...], "any" cannot be combined with specific codes
     allowedMethods: ["GET", "HEAD", "POST"] # Optional
     time: "30m" # Optional # e.g. "15m", "1h", "2d". Default is "10m"
-    overrideUpstreamCache: true # Optional, default is false
+    overrideUpstreamCache: true # Optional, default is false - whether to respect upstream cache-control headers (Cache-Control Expires Set-Cookie Vary X-Accel-Expires)
     # levels: "1:2" # Optional, default is "1:1" , see https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_cache_path for more details
     # cachePurgeAllow: [""] # Optional, If set allows cache purging from the specified IPs or CIDR ranges. Nginx Plus only.
+    inactive: "60m"                             # Optional - proxy_cache_path (inactive parameter)
+    useTempPath: false                          # Optional, false by default - proxy_cache_path (use_temp_path=off)
+    maxSize: "10g"                              # Optional - proxy_cache_path (max_size)
+    minFree: "1g"                               # Optional - proxy_cache_path (min_free)
+    manager:                                    # Optional - proxy_cache_path manager settings
+      files: 100                               # manager_files
+      sleep: "50ms"                            # manager_sleep
+      threshold: "200ms"                       # manager_threshold
+
+    # Advanced cache behavior settings
+    cacheKey: "$scheme$host$request_uri$request_method" # Optional - proxy_cache_key (custom cache key)
+    cacheUseStale: [ "error", "timeout", "updating", "http_500" ] # Optional - proxy_cache_use_stale (serve stale conditions)
+    cacheRevalidate: true                       # Optional, false by default - proxy_cache_revalidate
+    cacheBackgroundUpdate: true                 # Optional, false by default - proxy_cache_background_update
+    cacheMinUses: 3                             # Optional - proxy_cache_min_uses (requests before caching)
+
+    # Cache locking settings
+    lock:                                       # Optional - proxy_cache_lock settings
+      enable: true                             # proxy_cache_lock
+      timeout: "5s"                            # proxy_cache_lock_timeout
+      age: "30s"                               # proxy_cache_lock_age
+
+    # Conditional caching settings
+    conditions:                                 # Optional - cache condition settings
+      noCache: [ "$cookie_nocache", "$arg_nocache" ] # proxy_no_cache (skip caching conditions)
+      bypass: [ "$http_authorization" ]        # proxy_cache_bypass (bypass cache conditions)

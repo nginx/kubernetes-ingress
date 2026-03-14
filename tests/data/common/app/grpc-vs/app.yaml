@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: greeter
-        image: ghcr.io/nginxinc/kic-test-grpc-server:0.2.1
+        image: ghcr.io/nginx/kic-test-grpc-server:0.2.6
         ports:
         - containerPort: 50051
 ---
@@ -47,7 +47,7 @@ spec:
     spec:
       containers:
       - name: greeter
-        image: ghcr.io/nginxinc/kic-test-grpc-server:0.2.1
+        image: ghcr.io/nginx/kic-test-grpc-server:0.2.6
         ports:
         - containerPort: 50051
 ---

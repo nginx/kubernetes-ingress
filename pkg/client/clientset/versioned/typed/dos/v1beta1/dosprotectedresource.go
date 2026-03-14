@@ -6,6 +6,7 @@ import (
 	context "context"
 
 	dosv1beta1 "github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
+	applyconfigurationdosv1beta1 "github.com/nginx/kubernetes-ingress/pkg/client/applyconfiguration/dos/v1beta1"
 	scheme "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -29,18 +30,19 @@ type DosProtectedResourceInterface interface {
 	List(ctx context.Context, opts v1.ListOptions) (*dosv1beta1.DosProtectedResourceList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
 	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *dosv1beta1.DosProtectedResource, err error)
+	Apply(ctx context.Context, dosProtectedResource *applyconfigurationdosv1beta1.DosProtectedResourceApplyConfiguration, opts v1.ApplyOptions) (result *dosv1beta1.DosProtectedResource, err error)
 	DosProtectedResourceExpansion
 }
 
 // dosProtectedResources implements DosProtectedResourceInterface
 type dosProtectedResources struct {
-	*gentype.ClientWithList[*dosv1beta1.DosProtectedResource, *dosv1beta1.DosProtectedResourceList]
+	*gentype.ClientWithListAndApply[*dosv1beta1.DosProtectedResource, *dosv1beta1.DosProtectedResourceList, *applyconfigurationdosv1beta1.DosProtectedResourceApplyConfiguration]
 }
 
 // newDosProtectedResources returns a DosProtectedResources
 func newDosProtectedResources(c *AppprotectdosV1beta1Client, namespace string) *dosProtectedResources {
 	return &dosProtectedResources{
-		gentype.NewClientWithList[*dosv1beta1.DosProtectedResource, *dosv1beta1.DosProtectedResourceList](
+		gentype.NewClientWithListAndApply[*dosv1beta1.DosProtectedResource, *dosv1beta1.DosProtectedResourceList, *applyconfigurationdosv1beta1.DosProtectedResourceApplyConfiguration](
 			"dosprotectedresources",
 			c.RESTClient(),
 			scheme.ParameterCodec,

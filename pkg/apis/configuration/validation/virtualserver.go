@@ -8,8 +8,10 @@ import (
 
 	"github.com/dlclark/regexp2"
 	"github.com/nginx/kubernetes-ingress/internal/configs"
+	"github.com/nginx/kubernetes-ingress/internal/nsutils"
 	internalValidation "github.com/nginx/kubernetes-ingress/internal/validation"
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -621,7 +623,7 @@ func (vsv *VirtualServerValidator) validateUpstreams(upstreams []v1.Upstream, fi
 			allErrs = append(allErrs, validateLabels(u.Subselector, idxPath.Child("subselector"))...)
 		}
 
-		allErrs = append(allErrs, validateServiceName(u.Service, idxPath.Child("service"))...)
+		allErrs = append(allErrs, validateVirtualServerServiceName(u.Service, idxPath.Child("service"))...)
 		allErrs = append(allErrs, validateTime(u.ProxyConnectTimeout, idxPath.Child("connect-timeout"))...)
 		allErrs = append(allErrs, validateTime(u.ProxyReadTimeout, idxPath.Child("read-timeout"))...)
 		allErrs = append(allErrs, validateTime(u.ProxySendTimeout, idxPath.Child("send-timeout"))...)
@@ -735,6 +737,30 @@ func validateServiceName(name string, fieldPath *field.Path) field.ErrorList {
 	return validateDNS1035Label(name, fieldPath)
 }
 
+// validateVirtualServerServiceName checks if a namespaced service name is valid for VirtualServer upstreams.
+func validateVirtualServerServiceName(name string, fieldPath *field.Path) field.ErrorList {
+	if nsutils.HasNamespace(name) {
+		parts := strings.Split(name, "/")
+		if len(parts) != 2 {
+			return field.ErrorList{field.Invalid(fieldPath, name, " service reference must be in the format namespace/service-name")}
+		}
+
+		namespaceErrs := validateDNS1123Label(parts[0], fieldPath)
+		if len(namespaceErrs) > 0 {
+			return field.ErrorList{field.Invalid(fieldPath, name, "invalid namespace in service reference")}
+		}
+
+		serviceErrs := validateServiceName(parts[1], fieldPath)
+		if len(serviceErrs) > 0 {
+			return field.ErrorList{field.Invalid(fieldPath, name, "invalid service name in service reference")}
+		}
+
+		return field.ErrorList{}
+	}
+
+	return validateServiceName(name, fieldPath)
+}
+
 func validateDNS1035Label(name string, fieldPath *field.Path) field.ErrorList {
 	if name == "" {
 		return field.ErrorList{field.Required(fieldPath, "")}
@@ -742,6 +768,18 @@ func validateDNS1035Label(name string, fieldPath *field.Path) field.ErrorList {
 
 	allErrs := field.ErrorList{}
 	for _, msg := range validation.IsDNS1035Label(name) {
+		allErrs = append(allErrs, field.Invalid(fieldPath, name, msg))
+	}
+	return allErrs
+}
+
+func validateDNS1123Label(name string, fieldPath *field.Path) field.ErrorList {
+	if name == "" {
+		return field.ErrorList{field.Required(fieldPath, "")}
+	}
+
+	allErrs := field.ErrorList{}
+	for _, msg := range validation.IsDNS1123Label(name) {
 		allErrs = append(allErrs, field.Invalid(fieldPath, name, msg))
 	}
 	return allErrs
@@ -792,6 +830,11 @@ func (vsv *VirtualServerValidator) validateRoute(route v1.Route, fieldPath *fiel
 		}
 	}
 
+	if route.RouteSelector != nil {
+		allErrs = append(allErrs, vsv.validateRouteSelector(route.RouteSelector, fieldPath.Child("routeSelector"))...)
+		fieldCount++
+	}
+
 	for i, e := range route.ErrorPages {
 		allErrs = append(allErrs, vsv.validateErrorPage(e, fieldPath.Child("errorPages").Index(i))...)
 	}
@@ -806,7 +849,7 @@ func (vsv *VirtualServerValidator) validateRoute(route v1.Route, fieldPath *fiel
 	}
 
 	if fieldCount != 1 {
-		msg := "must specify exactly one of `action`, `splits` or `route`"
+		msg := "must specify exactly one of `action`, `splits`, `route` or `routeSelector`"
 		if isRouteFieldForbidden || len(route.Matches) > 0 {
 			msg = "must specify exactly one of `action` or `splits`"
 		}
@@ -1593,10 +1636,6 @@ func rejectPlusResourcesInOSS(upstream v1.Upstream, idxPath *field.Path, isPlus 
 		allErrs = append(allErrs, field.Forbidden(idxPath.Child("slow-start"), "slow start is only supported in NGINX Plus"))
 	}
 
-	if upstream.SessionCookie != nil {
-		allErrs = append(allErrs, field.Forbidden(idxPath.Child("sessionCookie"), "sticky cookies are only supported in NGINX Plus"))
-	}
-
 	if upstream.Queue != nil {
 		allErrs = append(allErrs, field.Forbidden(idxPath.Child("queue"), "queue is only supported in NGINX Plus"))
 	}
@@ -1640,6 +1679,24 @@ func validateLabels(labels map[string]string, fieldPath *field.Path) field.Error
 		allErrs = append(allErrs, isValidLabelName(labelName, fieldPath)...)
 		for _, msg := range validation.IsValidLabelValue(labelValue) {
 			allErrs = append(allErrs, field.Invalid(fieldPath, labelValue, msg))
+		}
+	}
+
+	return allErrs
+}
+
+func (vsv *VirtualServerValidator) validateRouteSelector(routeSelector *metav1.LabelSelector, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if len(routeSelector.MatchLabels) == 0 {
+		allErrs = append(allErrs, field.Required(fieldPath.Child("matchLabels"), "must specify at least one label"))
+	} else {
+		allErrs = append(allErrs, validateLabels(routeSelector.MatchLabels, fieldPath.Child("matchLabels"))...)
+		for k, v := range routeSelector.MatchLabels {
+			if v == "" {
+				msg := "label value must be non-empty"
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("matchLabels").Key(k), v, msg))
+			}
 		}
 	}
 

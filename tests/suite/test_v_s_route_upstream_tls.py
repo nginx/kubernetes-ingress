@@ -15,10 +15,11 @@ from suite.utils.resources_utils import (
     ensure_response_from_backend,
     get_events,
     get_first_pod_name,
+    get_vs_nginx_template_conf,
     wait_before_test,
     wait_until_all_pods_are_ready,
 )
-from suite.utils.vs_vsr_resources_utils import get_vs_nginx_template_conf, patch_v_s_route_from_yaml
+from suite.utils.vs_vsr_resources_utils import patch_v_s_route_from_yaml
 
 
 @pytest.fixture(scope="class")
@@ -40,6 +41,9 @@ def v_s_route_secure_app_setup(request, kube_apis, v_s_route_setup) -> None:
     )
 
     create_items_from_yaml(
+        kube_apis, f"{TEST_DATA}/common/app/secure/app-tls-secret.yaml", v_s_route_setup.route_s.namespace
+    )
+    create_items_from_yaml(
         kube_apis, f"{TEST_DATA}/common/app/vsr/secure/single.yaml", v_s_route_setup.route_s.namespace
     )
 
@@ -51,6 +55,11 @@ def v_s_route_secure_app_setup(request, kube_apis, v_s_route_setup) -> None:
             print("Clean up the Application:")
             delete_items_from_yaml(
                 kube_apis, f"{TEST_DATA}/common/app/vsr/secure/multiple.yaml", v_s_route_setup.route_m.namespace
+            )
+            delete_items_from_yaml(
+                kube_apis,
+                f"{TEST_DATA}/common/app/secure/app-tls-secret.yaml",
+                v_s_route_setup.route_s.namespace,
             )
             delete_items_from_yaml(
                 kube_apis, f"{TEST_DATA}/common/app/vsr/secure/single.yaml", v_s_route_setup.route_s.namespace

@@ -10,28 +10,27 @@
   'Dependencies': '⬆️ Dependencies'
 } %}
 {%- set icons = {
-  'Breaking Changes': 'fa-bomb',
-  'Features': 'fa-rocket',
-  'Fixes': 'fa-bug-slash',
-  'Helm Chart': 'fa-box',
-  'Dependencies': 'fa-upload'
+  'Breaking Changes': 'bomb',
+  'Features': 'rocket',
+  'Fixes': 'bug',
+  'Helm Chart': 'package',
+  'Dependencies': 'arrow-up'
 } %}
 {%- for category, key in category_map.items() %}
-{%- if sections.get(key) %}
+{%- if sections.get(category) or sections.get(key) %}
+{%- set section_data = sections.get(category, sections.get(key, [])) %}
 
-### <i class="fa-solid {{ icons[category] }}"></i> {{ category }}
-{%- for change in sections[key] %}
+### {{ '{{% icon ' + icons[category] + ' %}' }}{{ '}' }} {{ category }}
+{%- for change in section_data %}
 - {{ change }}
 {%- endfor %}
 {%- endif %}
 {%- endfor %}
 
-### <i class="fa-solid fa-download"></i> Upgrade
+### {{ '{{% icon download %}' }}{{ '}' }} Upgrade
 - For NGINX, use the {{ version }} images from our [DockerHub](https://hub.docker.com/r/nginx/nginx-ingress/tags?page=1&ordering=last_updated&name={{ version }}), [GitHub Container](https://github.com/nginx/kubernetes-ingress/pkgs/container/kubernetes-ingress), [Amazon ECR Public Gallery](https://gallery.ecr.aws/nginx/nginx-ingress) or [Quay.io](https://quay.io/repository/nginx/nginx-ingress).
 - For NGINX Plus, use the {{ version }} images from the F5 Container registry or build your own image using the {{ version }} source code.
 - For Helm, use version {{ HELM_CHART_VERSION }} of the chart.
 
-### <i class="fa-solid fa-life-ring"></i> Supported Platforms
+### {{ '{{% icon life-buoy %}' }}{{ '}' }} Supported Platforms
 We will provide technical support for NGINX Ingress Controller on any Kubernetes platform that is currently supported by its provider and that passes the Kubernetes conformance tests. This release was fully tested on the following Kubernetes versions: {{ K8S_VERSIONS }}.
-
----

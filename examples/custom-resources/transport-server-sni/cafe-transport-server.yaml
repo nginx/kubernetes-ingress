@@ -8,7 +8,7 @@ spec:
     name: tcp-listener
     protocol: TCP
   tls:
-    secret: cafe-secret
+    secret: tls-secret
   upstreams:
     - name: tcp-echo
       service: tcp-echo-service

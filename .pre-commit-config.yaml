@@ -36,36 +36,32 @@ repos:
 
   - repo: local
     hooks:
-      - id: golang-diff
-        name: create-go-diff
-        entry: bash -c 'git diff -p origin/main > /tmp/diff.patch'
-        language: system
+      - id: golangci-lint
+        name: golangci-lint
+        description: Fast linters runner for Go. Note that only modified files are linted, so linters like 'unused' that need to scan all files won't work as expected.
+        entry: golangci-lint run --new-from-rev HEAD --fix
         types: [go]
+        language: golang
+        require_serial: true
         pass_filenames: false
 
-  - repo: https://github.com/golangci/golangci-lint
-    rev: v2.4.0
-    hooks:
-      - id: golangci-lint
-        args: [--new-from-patch=/tmp/diff.patch]
-
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.20.0
+    rev: v3.21.2
     hooks:
       - id: pyupgrade
 
   - repo: https://github.com/PyCQA/isort
-    rev: 6.0.1
+    rev: 8.0.1
     hooks:
       - id: isort
 
-  - repo: https://github.com/psf/black
-    rev: 25.1.0
+  - repo: https://github.com/psf/black-pre-commit-mirror
+    rev: 26.3.1
     hooks:
       - id: black
 
   - repo: https://github.com/PyCQA/autoflake
-    rev: v2.3.1
+    rev: v2.3.3
     hooks:
       - id: autoflake
         files: tests/.*\.py$
@@ -77,7 +73,7 @@ repos:
           ]
 
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0.33.3
+    rev: 0.37.0
     hooks:
       - id: check-jsonschema
         name: "Check Helm Chart JSON Schema"
@@ -86,12 +82,12 @@ repos:
         args: ["--schemafile", "charts/nginx-ingress/values.schema.json"]
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.18.1
+    rev: v0.21.0
     hooks:
       - id: markdownlint-cli2
 
   - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.7
+    rev: v1.7.11
     hooks:
       - id: actionlint
         name: Lint GitHub Actions workflow files
@@ -103,4 +99,5 @@ repos:
         args: ["-shellcheck", ""]
 
 ci:
-  skip: [golang-diff, golangci-lint, check-jsonschema, markdownlint-cli2]
+  skip: [golangci-lint, check-jsonschema, markdownlint-cli2]
+  autoupdate_schedule: quarterly # We use renovate for more frequent updates and there's no way to disable autoupdate

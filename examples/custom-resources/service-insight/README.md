@@ -2,6 +2,8 @@
 
   > The Service Insight feature is available only for F5 NGINX Plus.
 
+Before using this example, run `make secrets` command to generate the necessary secrets.
+
 To use the [Service Insight](https://docs.nginx.com/nginx-ingress-controller/logging-and-monitoring/service-insight/)
 feature provided by F5 NGINX Ingress Controller you must enable it by setting `serviceInsight.create=true` in your `helm
 install/upgrade...` command OR  [manifest](../../../deployments/deployment/nginx-plus-ingress.yaml) depending on your
@@ -32,7 +34,7 @@ spec:
       securityContext:
       ...
       containers:
-      - image: nginx-plus-ingress:5.2.0
+      - image: nginx-plus-ingress:5.3.4
         imagePullPolicy: IfNotPresent
         name: nginx-plus-ingress
         ports:
@@ -68,7 +70,7 @@ spec:
 ## Deployment
 
 [Install NGINX Ingress
-Controller](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/), and uncomment
+Controller](https://docs.nginx.com/nginx-ingress-controller/install/manifests), and uncomment
 the `-enable-service-insight` option: this will allow Service Insight to interact with it.
 
 The examples below use the `nodeport` service.
@@ -199,7 +201,7 @@ Response:
 ## Transport Servers
 
 [Install NGINX Ingress
-Controller](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/), and uncomment
+Controller](https://docs.nginx.com/nginx-ingress-controller/install/manifests), and uncomment
 the `-enable-service-insight`, `-enable-custom-resources`, and `-enable-tls-passthrough` options.
 
 The examples below use the `nodeport` service.
@@ -321,7 +323,7 @@ spec:
       securityContext:
       ...
       containers:
-      - image: nginx-plus-ingress:5.2.0
+      - image: nginx-plus-ingress:5.3.4
         imagePullPolicy: IfNotPresent
         name: nginx-plus-ingress
         ports:

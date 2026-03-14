@@ -35,6 +35,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/rest"
 
+	k8spolicies "github.com/nginx/kubernetes-ingress/internal/k8s/policies"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	"github.com/nginxinc/nginx-service-mesh/pkg/spiffe"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
@@ -864,7 +865,7 @@ func (lbc *LoadBalancerController) createExtendedResources(resources []Resource)
 		switch impl := r.(type) {
 		case *VirtualServerConfiguration:
 			vs := impl.VirtualServer
-			vsEx := lbc.createVirtualServerEx(vs, impl.VirtualServerRoutes)
+			vsEx := lbc.createVirtualServerEx(vs, impl.VirtualServerRoutes, impl.VirtualServerRouteSelectors)
 			result.VirtualServerExes = append(result.VirtualServerExes, vsEx)
 		case *IngressConfiguration:
 
@@ -980,7 +981,8 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 		lbc.recorder.Eventf(gc, eventType, eventTitle, fmt.Sprintf("GlobalConfiguration %s was updated %s", key, eventWarningMessage))
 	}
 
-	lbc.updateResourcesStatusAndEvents(resources, warnings, updateErr)
+	resourcesWithWarnings := mergeExtendedResourceWarnings(resources, resourceExes)
+	lbc.updateResourcesStatusAndEvents(resourcesWithWarnings, warnings, updateErr)
 }
 
 // preSyncSecrets adds Secret resources to the SecretStore.
@@ -1281,7 +1283,7 @@ func (lbc *LoadBalancerController) processChanges(changes []ResourceChange) {
 		if c.Op == AddOrUpdate {
 			switch impl := c.Resource.(type) {
 			case *VirtualServerConfiguration:
-				vsEx := lbc.createVirtualServerEx(impl.VirtualServer, impl.VirtualServerRoutes)
+				vsEx := lbc.createVirtualServerEx(impl.VirtualServer, impl.VirtualServerRoutes, impl.VirtualServerRouteSelectors)
 
 				warnings, addOrUpdateErr := lbc.configurator.AddOrUpdateVirtualServer(vsEx)
 				lbc.updateVirtualServerStatusAndEvents(impl, warnings, addOrUpdateErr)
@@ -1290,13 +1292,15 @@ func (lbc *LoadBalancerController) processChanges(changes []ResourceChange) {
 					mergeableIng := lbc.createMergeableIngresses(impl)
 
 					warnings, addOrUpdateErr := lbc.configurator.AddOrUpdateMergeableIngress(mergeableIng)
-					lbc.updateMergeableIngressStatusAndEvents(impl, warnings, addOrUpdateErr)
+					ingForEvent := mergeIngressPolicyWarnings(impl, mergeableIng.Master, mergeableIng.Minions)
+					lbc.updateMergeableIngressStatusAndEvents(ingForEvent, warnings, addOrUpdateErr)
 				} else {
 					// for regular Ingress, validMinionPaths is nil
 					ingEx := lbc.createIngressEx(impl.Ingress, impl.ValidHosts, nil)
 
 					warnings, addOrUpdateErr := lbc.configurator.AddOrUpdateIngress(ingEx)
-					lbc.updateRegularIngressStatusAndEvents(impl, warnings, addOrUpdateErr)
+					ingForEvent := mergeIngressPolicyWarnings(impl, ingEx, nil)
+					lbc.updateRegularIngressStatusAndEvents(ingForEvent, warnings, addOrUpdateErr)
 				}
 			case *TransportServerConfiguration:
 				tsEx := lbc.createTransportServerEx(impl.TransportServer, impl.ListenerPort, impl.IPv4, impl.IPv6)
@@ -2132,6 +2136,110 @@ func getIPAddressesFromEndpoints(endpoints []podEndpoint) []string {
 	return endps
 }
 
+func mergeWarningsMaps(dst, src configs.Warnings) configs.Warnings {
+	if src == nil {
+		return dst
+	}
+
+	if dst == nil {
+		return src
+	}
+
+	for key, value := range src {
+		dst[key] = value
+	}
+
+	return dst
+}
+
+// mergeIngressPolicyWarnings merges PolicyWarnings from IngressEx objects into IngressConfiguration.
+// It returns a new IngressConfiguration with warnings properly merged from the master and all minions.
+func mergeIngressPolicyWarnings(ingConfig *IngressConfiguration, masterEx *configs.IngressEx, minionExes []*configs.IngressEx) *IngressConfiguration {
+	result := *ingConfig
+
+	// Copy base warnings
+	result.Warnings = append([]string{}, ingConfig.Warnings...)
+
+	// Add master policy warnings
+	if len(masterEx.PolicyWarnings) > 0 {
+		result.Warnings = append(result.Warnings, masterEx.PolicyWarnings...)
+	}
+
+	// Initialize or prepare ChildWarnings
+	if result.ChildWarnings == nil {
+		result.ChildWarnings = make(map[string][]string)
+	} else if len(minionExes) > 0 {
+		// Only clone if we have minions with warnings to add
+		needsClone := false
+		for _, minionEx := range minionExes {
+			if len(minionEx.PolicyWarnings) > 0 {
+				needsClone = true
+				break
+			}
+		}
+		if needsClone {
+			result.ChildWarnings = maps.Clone(ingConfig.ChildWarnings)
+			for key, warnings := range result.ChildWarnings {
+				result.ChildWarnings[key] = append([]string{}, warnings...)
+			}
+		}
+	}
+
+	// Add minion policy warnings
+	for _, minionEx := range minionExes {
+		if len(minionEx.PolicyWarnings) == 0 {
+			continue
+		}
+
+		key := getResourceKey(&minionEx.Ingress.ObjectMeta)
+		result.ChildWarnings[key] = append(result.ChildWarnings[key], minionEx.PolicyWarnings...)
+	}
+
+	return &result
+}
+
+// mergeExtendedResourceWarnings merges PolicyWarnings from ExtendedResources back into Resources.
+// It returns a new slice of Resources with warnings properly merged for Ingress resources.
+func mergeExtendedResourceWarnings(resources []Resource, exResources configs.ExtendedResources) []Resource {
+	result := make([]Resource, 0, len(resources))
+
+	// Track indices for each extended resource type
+	ingressIdx := 0
+	mergeableIdx := 0
+
+	for _, r := range resources {
+		switch impl := r.(type) {
+		case *IngressConfiguration:
+			if impl.IsMaster {
+				// Get corresponding MergeableIngresses
+				if mergeableIdx < len(exResources.MergeableIngresses) {
+					mergeableIng := exResources.MergeableIngresses[mergeableIdx]
+					merged := mergeIngressPolicyWarnings(impl, mergeableIng.Master, mergeableIng.Minions)
+					result = append(result, merged)
+					mergeableIdx++
+				} else {
+					result = append(result, impl)
+				}
+			} else {
+				// Get corresponding IngressEx
+				if ingressIdx < len(exResources.IngressExes) {
+					ingEx := exResources.IngressExes[ingressIdx]
+					merged := mergeIngressPolicyWarnings(impl, ingEx, nil)
+					result = append(result, merged)
+					ingressIdx++
+				} else {
+					result = append(result, impl)
+				}
+			}
+		default:
+			// Other resource types pass through unchanged
+			result = append(result, r)
+		}
+	}
+
+	return result
+}
+
 func (lbc *LoadBalancerController) createMergeableIngresses(ingConfig *IngressConfiguration) *configs.MergeableIngresses {
 	// for master Ingress, validMinionPaths are nil
 	masterIngressEx := lbc.createIngressEx(ingConfig.Ingress, ingConfig.ValidHosts, nil)
@@ -2180,6 +2288,21 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 		}
 
 		ingEx.SecretRefs[secretName] = secretRef
+	}
+
+	var policyNames string
+	var policyRefs []conf_v1.PolicyReference
+	if ingEx.Ingress.Annotations[configs.PoliciesAnnotation] != "" {
+		policyNames = ingEx.Ingress.Annotations[configs.PoliciesAnnotation]
+		policyRefs = k8spolicies.GetPolicyRefsFromAnnotation(policyNames, ing.Namespace)
+	}
+	policies, policyErrors := lbc.getPolicies(policyRefs, ing.Namespace)
+	if len(policyErrors) > 0 {
+		for _, err := range policyErrors {
+			msg := fmt.Sprintf("Policy error for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
+			nl.Warnf(lbc.Logger, "%s", msg)
+			ingEx.PolicyWarnings = append(ingEx.PolicyWarnings, msg)
+		}
 	}
 
 	if lbc.isNginxPlus {
@@ -2234,6 +2357,7 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 	ingEx.Endpoints = make(map[string][]string)
 	ingEx.HealthChecks = make(map[string]*api_v1.Probe)
 	ingEx.ExternalNameSvcs = make(map[string]bool)
+	ingEx.Policies = createPolicyMap(policies)
 	ingEx.PodsByIP = make(map[string]configs.PodInfo)
 	hasUseClusterIP := ingEx.Ingress.Annotations[configs.UseClusterIPAnnotation] == "true"
 
@@ -2361,13 +2485,15 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 	return ingEx
 }
 
-func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.VirtualServer, virtualServerRoutes []*conf_v1.VirtualServerRoute) *configs.VirtualServerEx {
+// nolint:gocyclo
+func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.VirtualServer, virtualServerRoutes []*conf_v1.VirtualServerRoute, selectorMap map[string][]string) *configs.VirtualServerEx {
 	virtualServerEx := configs.VirtualServerEx{
-		VirtualServer:  virtualServer,
-		SecretRefs:     make(map[string]*secrets.SecretReference),
-		ApPolRefs:      make(map[string]*unstructured.Unstructured),
-		LogConfRefs:    make(map[string]*unstructured.Unstructured),
-		DosProtectedEx: make(map[string]*configs.DosEx),
+		VirtualServer:               virtualServer,
+		VirtualServerSelectorRoutes: selectorMap,
+		SecretRefs:                  make(map[string]*secrets.SecretReference),
+		ApPolRefs:                   make(map[string]*unstructured.Unstructured),
+		LogConfRefs:                 make(map[string]*unstructured.Unstructured),
+		DosProtectedEx:              make(map[string]*configs.DosEx),
 	}
 	if lbc.configurator != nil && lbc.configurator.CfgParams != nil {
 		virtualServerEx.ZoneSync = lbc.configurator.CfgParams.ZoneSync.Enable
@@ -2415,9 +2541,17 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 	if err != nil {
 		nl.Warnf(lbc.Logger, "Error getting EgressMTLS secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
 	}
+	err = lbc.addJWTTrustedCertSecretRefs(virtualServerEx.SecretRefs, policies)
+	if err != nil {
+		nl.Warnf(lbc.Logger, "Error getting JWT trusted cert secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
+	}
 	err = lbc.addOIDCSecretRefs(virtualServerEx.SecretRefs, policies)
 	if err != nil {
 		nl.Warnf(lbc.Logger, "Error getting OIDC secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
+	}
+	err = lbc.addOIDCTrustedCertSecretRefs(virtualServerEx.SecretRefs, policies)
+	if err != nil {
+		nl.Warnf(lbc.Logger, "Error getting OIDC trusted cert secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
 	}
 	err = lbc.addAPIKeySecretRefs(virtualServerEx.SecretRefs, policies)
 	if err != nil {
@@ -2463,11 +2597,12 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 	}
 
 	for _, u := range virtualServer.Spec.Upstreams {
-		endpointsKey := configs.GenerateEndpointsKey(virtualServer.Namespace, u.Service, u.Subselector, u.Port)
+		serviceNamespace, serviceName := configs.ParseServiceReference(u.Service, virtualServer.Namespace)
+		endpointsKey := configs.GenerateEndpointsKey(serviceNamespace, serviceName, u.Subselector, u.Port)
 
 		var endps []string
 		if u.UseClusterIP {
-			s, err := lbc.getServiceForUpstream(virtualServer.Namespace, u.Service, u.Port)
+			s, err := lbc.getServiceForUpstream(serviceNamespace, serviceName, u.Port)
 			if err != nil {
 				nl.Warnf(lbc.Logger, "Error getting Service for Upstream %v: %v", u.Service, err)
 			} else {
@@ -2479,13 +2614,13 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 			var err error
 
 			if len(u.Subselector) > 0 {
-				podEndps, err = lbc.getEndpointsForSubselector(virtualServer.Namespace, u)
+				podEndps, err = lbc.getEndpointsForSubselector(serviceNamespace, serviceName, u.Port, u.Subselector)
 			} else {
 				var external bool
-				podEndps, external, err = lbc.getEndpointsForUpstream(virtualServer.Namespace, u.Service, u.Port)
+				podEndps, external, err = lbc.getEndpointsForUpstream(serviceNamespace, serviceName, u.Port)
 
 				if err == nil && external && lbc.isNginxPlus {
-					externalNameSvcs[configs.GenerateExternalNameSvcKey(virtualServer.Namespace, u.Service)] = true
+					externalNameSvcs[configs.GenerateExternalNameSvcKey(serviceNamespace, serviceName)] = true
 				}
 			}
 
@@ -2528,6 +2663,10 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 		if err != nil {
 			nl.Warnf(lbc.Logger, "Error getting EgressMTLS secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
 		}
+		err = lbc.addJWTTrustedCertSecretRefs(virtualServerEx.SecretRefs, vsRoutePolicies)
+		if err != nil {
+			nl.Warnf(lbc.Logger, "Error getting JWT trusted cert secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
+		}
 
 		err = lbc.addWAFPolicyRefs(virtualServerEx.ApPolRefs, virtualServerEx.LogConfRefs, vsRoutePolicies)
 		if err != nil {
@@ -2545,6 +2684,11 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 		err = lbc.addOIDCSecretRefs(virtualServerEx.SecretRefs, vsRoutePolicies)
 		if err != nil {
 			nl.Warnf(lbc.Logger, "Error getting OIDC secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
+		}
+
+		err = lbc.addOIDCTrustedCertSecretRefs(virtualServerEx.SecretRefs, vsRoutePolicies)
+		if err != nil {
+			nl.Warnf(lbc.Logger, "Error getting OIDC trusted cert secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
 		}
 
 		err = lbc.addAPIKeySecretRefs(virtualServerEx.SecretRefs, vsRoutePolicies)
@@ -2576,10 +2720,19 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 			if err != nil {
 				nl.Warnf(lbc.Logger, "Error getting EgressMTLS secrets for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
 			}
+			err = lbc.addJWTTrustedCertSecretRefs(virtualServerEx.SecretRefs, vsrSubroutePolicies)
+			if err != nil {
+				nl.Warnf(lbc.Logger, "Error getting JWT trusted cert secrets for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
+			}
 
 			err = lbc.addOIDCSecretRefs(virtualServerEx.SecretRefs, vsrSubroutePolicies)
 			if err != nil {
 				nl.Warnf(lbc.Logger, "Error getting OIDC secrets for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
+			}
+
+			err = lbc.addOIDCTrustedCertSecretRefs(virtualServerEx.SecretRefs, vsrSubroutePolicies)
+			if err != nil {
+				nl.Warnf(lbc.Logger, "Error getting OIDC trusted cert secrets for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
 			}
 
 			err = lbc.addAPIKeySecretRefs(virtualServerEx.SecretRefs, vsrSubroutePolicies)
@@ -2602,11 +2755,12 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 		}
 
 		for _, u := range vsr.Spec.Upstreams {
-			endpointsKey := configs.GenerateEndpointsKey(vsr.Namespace, u.Service, u.Subselector, u.Port)
+			serviceNamespace, serviceName := configs.ParseServiceReference(u.Service, vsr.Namespace)
+			endpointsKey := configs.GenerateEndpointsKey(serviceNamespace, serviceName, u.Subselector, u.Port)
 
 			var endps []string
 			if u.UseClusterIP {
-				s, err := lbc.getServiceForUpstream(vsr.Namespace, u.Service, u.Port)
+				s, err := lbc.getServiceForUpstream(serviceNamespace, serviceName, u.Port)
 				if err != nil {
 					nl.Warnf(lbc.Logger, "Error getting Service for Upstream %v: %v", u.Service, err)
 				} else {
@@ -2617,13 +2771,13 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 				var podEndps []podEndpoint
 				var err error
 				if len(u.Subselector) > 0 {
-					podEndps, err = lbc.getEndpointsForSubselector(vsr.Namespace, u)
+					podEndps, err = lbc.getEndpointsForSubselector(serviceNamespace, serviceName, u.Port, u.Subselector)
 				} else {
 					var external bool
-					podEndps, external, err = lbc.getEndpointsForUpstream(vsr.Namespace, u.Service, u.Port)
+					podEndps, external, err = lbc.getEndpointsForUpstream(serviceNamespace, serviceName, u.Port)
 
 					if err == nil && external && lbc.isNginxPlus {
-						externalNameSvcs[configs.GenerateExternalNameSvcKey(vsr.Namespace, u.Service)] = true
+						externalNameSvcs[configs.GenerateExternalNameSvcKey(serviceNamespace, serviceName)] = true
 					}
 				}
 				if err != nil {
@@ -2720,7 +2874,16 @@ func (lbc *LoadBalancerController) getPolicies(policies []conf_v1.PolicyReferenc
 			continue
 		}
 
-		policy := policyObj.(*conf_v1.Policy)
+		policy, ok := policyObj.(*conf_v1.Policy)
+		if !ok {
+			errors = append(errors, fmt.Errorf("policy %s has unexpected type %T", policyKey, policyObj))
+			continue
+		}
+
+		if policy == nil {
+			errors = append(errors, fmt.Errorf("policy %s is nil", policyKey))
+			continue
+		}
 
 		if !lbc.HasCorrectIngressClass(policy) {
 			errors = append(errors, fmt.Errorf("referenced policy %s has incorrect ingress class: %s (controller ingress class: %s)", policyKey, policy.Spec.IngressClass, lbc.ingressClass))
@@ -2828,6 +2991,26 @@ func (lbc *LoadBalancerController) addEgressMTLSSecretRefs(secretRefs map[string
 	return nil
 }
 
+func (lbc *LoadBalancerController) addJWTTrustedCertSecretRefs(secretRefs map[string]*secrets.SecretReference, policies []*conf_v1.Policy) error {
+	for _, pol := range policies {
+		if pol.Spec.JWTAuth == nil {
+			continue
+		}
+		if pol.Spec.JWTAuth.TrustedCertSecret != "" {
+			secretKey := fmt.Sprintf("%v/%v", pol.Namespace, pol.Spec.JWTAuth.TrustedCertSecret)
+			secretRef := lbc.secretStore.GetSecret(secretKey)
+
+			secretRefs[secretKey] = secretRef
+
+			if secretRef.Error != nil {
+				return secretRef.Error
+			}
+		}
+	}
+
+	return nil
+}
+
 func (lbc *LoadBalancerController) addOIDCSecretRefs(secretRefs map[string]*secrets.SecretReference, policies []*conf_v1.Policy) error {
 	for _, pol := range policies {
 		if pol.Spec.OIDC == nil {
@@ -2847,6 +3030,26 @@ func (lbc *LoadBalancerController) addOIDCSecretRefs(secretRefs map[string]*secr
 			return secretRef.Error
 		}
 	}
+	return nil
+}
+
+func (lbc *LoadBalancerController) addOIDCTrustedCertSecretRefs(secretRefs map[string]*secrets.SecretReference, policies []*conf_v1.Policy) error {
+	for _, pol := range policies {
+		if pol.Spec.OIDC == nil {
+			continue
+		}
+		if pol.Spec.OIDC.TrustedCertSecret != "" {
+			secretKey := fmt.Sprintf("%v/%v", pol.Namespace, pol.Spec.OIDC.TrustedCertSecret)
+			secretRef := lbc.secretStore.GetSecret(secretKey)
+
+			secretRefs[secretKey] = secretRef
+
+			if secretRef.Error != nil {
+				return secretRef.Error
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -2881,6 +3084,8 @@ func findPoliciesForSecret(policies []*conf_v1.Policy, secretNamespace string, s
 			res = append(res, pol)
 		} else if pol.Spec.JWTAuth != nil && pol.Spec.JWTAuth.Secret == secretName && pol.Namespace == secretNamespace {
 			res = append(res, pol)
+		} else if pol.Spec.JWTAuth != nil && pol.Spec.JWTAuth.TrustedCertSecret == secretName && pol.Namespace == secretNamespace {
+			res = append(res, pol)
 		} else if pol.Spec.BasicAuth != nil && pol.Spec.BasicAuth.Secret == secretName && pol.Namespace == secretNamespace {
 			res = append(res, pol)
 		} else if pol.Spec.EgressMTLS != nil && pol.Spec.EgressMTLS.TLSSecret == secretName && pol.Namespace == secretNamespace {
@@ -2888,6 +3093,8 @@ func findPoliciesForSecret(policies []*conf_v1.Policy, secretNamespace string, s
 		} else if pol.Spec.EgressMTLS != nil && pol.Spec.EgressMTLS.TrustedCertSecret == secretName && pol.Namespace == secretNamespace {
 			res = append(res, pol)
 		} else if pol.Spec.OIDC != nil && pol.Spec.OIDC.ClientSecret == secretName && pol.Namespace == secretNamespace {
+			res = append(res, pol)
+		} else if pol.Spec.OIDC != nil && pol.Spec.OIDC.TrustedCertSecret == secretName && pol.Namespace == secretNamespace {
 			res = append(res, pol)
 		} else if pol.Spec.APIKey != nil && pol.Spec.APIKey.ClientSecret == secretName && pol.Namespace == secretNamespace {
 			res = append(res, pol)
@@ -2933,31 +3140,31 @@ func (lbc *LoadBalancerController) getEndpointsForUpstream(namespace string, ups
 	return endps, isExternal, err
 }
 
-func (lbc *LoadBalancerController) getEndpointsForSubselector(namespace string, upstream conf_v1.Upstream) (endps []podEndpoint, err error) {
-	svc, err := lbc.getServiceForUpstream(namespace, upstream.Service, upstream.Port)
+func (lbc *LoadBalancerController) getEndpointsForSubselector(namespace string, serviceName string, servicePort uint16, subselector map[string]string) (endps []podEndpoint, err error) {
+	svc, err := lbc.getServiceForUpstream(namespace, serviceName, servicePort)
 	if err != nil {
-		return nil, fmt.Errorf("error getting service %v: %w", upstream.Service, err)
+		return nil, fmt.Errorf("error getting service %v: %w", serviceName, err)
 	}
 
 	var targetPort int32
 
 	for _, port := range svc.Spec.Ports {
-		if port.Port == int32(upstream.Port) {
+		if port.Port == int32(servicePort) {
 			targetPort, err = lbc.getTargetPort(port, svc)
 			if err != nil {
-				return nil, fmt.Errorf("error determining target port for port %v in service %v: %w", upstream.Port, svc.Name, err)
+				return nil, fmt.Errorf("error determining target port for port %v in service %v: %w", servicePort, svc.Name, err)
 			}
 			break
 		}
 	}
 
 	if targetPort == 0 {
-		return nil, fmt.Errorf("no port %v in service %s", upstream.Port, svc.Name)
+		return nil, fmt.Errorf("no port %v in service %s", servicePort, svc.Name)
 	}
 
-	endps, err = lbc.getEndpointsForServiceWithSubselector(targetPort, upstream.Subselector, svc)
+	endps, err = lbc.getEndpointsForServiceWithSubselector(targetPort, subselector, svc)
 	if err != nil {
-		return nil, fmt.Errorf("error retrieving endpoints for the service %v: %w", upstream.Service, err)
+		return nil, fmt.Errorf("error retrieving endpoints for the service %v: %w", serviceName, err)
 	}
 
 	return endps, err
@@ -3616,7 +3823,7 @@ func (lbc *LoadBalancerController) haltIfVSRConfigInvalid(vsrNew *conf_v1.Virtua
 		if c.Op == AddOrUpdate {
 			switch impl := c.Resource.(type) {
 			case *VirtualServerConfiguration:
-				vsEx = lbc.createVirtualServerEx(impl.VirtualServer, impl.VirtualServerRoutes)
+				vsEx = lbc.createVirtualServerEx(impl.VirtualServer, impl.VirtualServerRoutes, impl.VirtualServerRouteSelectors)
 				lbc.updateVirtualServerStatusAndEvents(impl, configs.Warnings{}, nil)
 			}
 		}

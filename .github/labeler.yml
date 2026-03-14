@@ -29,7 +29,7 @@ documentation:
   - head-branch: ['^docs?/']
 
 dependencies:
-  - head-branch: ['^deps?/', '^dependabot/', '^renovate/', 'pre-commit-ci-update-config']
+  - head-branch: ['^deps?/', '^dependabot/', '^renovate/', '^mend/', 'pre-commit-ci-update-config']
 
 helm_chart:
   - head-branch: ['^helm/', '^chart/']

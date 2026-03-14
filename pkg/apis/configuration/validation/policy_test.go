@@ -1,12 +1,17 @@
 package validation
 
 import (
+	"strings"
 	"testing"
 
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
+
+func intPtr(n int) *int {
+	return &n
+}
 
 func TestValidatePolicy_JWTIsNotValidOn(t *testing.T) {
 	t.Parallel()
@@ -188,6 +193,62 @@ func TestValidatePolicy_JWTIsNotValidOn(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "SSL verification enabled but no trusted cert secret",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:     "My Product API",
+						JwksURI:   "https://myjwksuri.com",
+						KeyCache:  "1h",
+						SSLVerify: true,
+					},
+				},
+			},
+		},
+		{
+			name: "Trusted cert secret provided but SSL verification disabled",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:             "My Product API",
+						JwksURI:           "https://myjwksuri.com",
+						KeyCache:          "1h",
+						SSLVerify:         false,
+						TrustedCertSecret: "my-ca-secret",
+					},
+				},
+			},
+		},
+		{
+			name: "Invalid SSL verify depth",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:             "My Product API",
+						JwksURI:           "https://myjwksuri.com",
+						KeyCache:          "1h",
+						SSLVerify:         true,
+						TrustedCertSecret: "my-ca-secret",
+						SSLVerifyDepth:    intPtr(0),
+					},
+				},
+			},
+		},
+		{
+			name: "Invalid trusted cert secret name with special characters",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:             "My Product API",
+						JwksURI:           "https://myjwksuri.com",
+						KeyCache:          "1h",
+						SSLVerify:         true,
+						TrustedCertSecret: "my-ca-secret.invalid!",
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range tt {
@@ -280,6 +341,51 @@ func TestValidatePolicy_IsValidOnJWTPolicy(t *testing.T) {
 						JwksURI:    "https://login.mydomain.com/keys",
 						SNIEnabled: true,
 						SNIName:    "https://example.org",
+					},
+				},
+			},
+		},
+		{
+			name: "with SSL verification and trusted cert secret",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:             "My Product API",
+						KeyCache:          "1h",
+						JwksURI:           "https://login.mydomain.com/keys",
+						SSLVerify:         true,
+						TrustedCertSecret: "my-ca-secret",
+					},
+				},
+			},
+		},
+		{
+			name: "with SSL verification and custom verify depth",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:             "My Product API",
+						KeyCache:          "1h",
+						JwksURI:           "https://login.mydomain.com/keys",
+						SSLVerify:         true,
+						TrustedCertSecret: "my-ca-secret",
+						SSLVerifyDepth:    intPtr(2),
+					},
+				},
+			},
+		},
+		{
+			name: "with SSL verification and SNI",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:             "My Product API",
+						KeyCache:          "1h",
+						JwksURI:           "https://login.mydomain.com/keys",
+						SSLVerify:         true,
+						TrustedCertSecret: "my-ca-secret",
+						SNIEnabled:        true,
+						SNIName:           "login.mydomain.com",
 					},
 				},
 			},
@@ -1150,7 +1256,7 @@ func TestValidatePositiveInt_PassesOnValidInput(t *testing.T) {
 	for _, input := range validInput {
 		allErrs := validatePositiveInt(input, field.NewPath("int"))
 		if len(allErrs) > 0 {
-			t.Errorf("validatePositiveInt(%q) returned errors %v for valid input", input, allErrs)
+			t.Errorf("validatePositiveInt(%d) returned errors %v for valid input", input, allErrs)
 		}
 	}
 }
@@ -1163,7 +1269,7 @@ func TestValidatePositiveInt_ErrorsOnInvalidInput(t *testing.T) {
 	for _, input := range invalidInput {
 		allErrs := validatePositiveInt(input, field.NewPath("int"))
 		if len(allErrs) == 0 {
-			t.Errorf("validatePositiveInt(%q) returned no errors for invalid input", input)
+			t.Errorf("validatePositiveInt(%d) returned no errors for invalid input", input)
 		}
 	}
 }
@@ -2538,6 +2644,151 @@ func TestValidatePolicy_IsNotValidCachePolicy(t *testing.T) {
 			},
 			isPlus: false,
 		},
+		{
+			name: "cache policy with invalid minUses (zero)",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "minuses",
+						CacheZoneSize: "10m",
+						CacheMinUses:  intPtr(0),
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with invalid manager files (zero)",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "managerbad",
+						CacheZoneSize: "10m",
+						Manager: &v1.CacheManager{
+							Files:     intPtr(0),
+							Sleep:     "100ms",
+							Threshold: "500ms",
+						},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with invalid manager sleep format",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "managersleep",
+						CacheZoneSize: "10m",
+						Manager: &v1.CacheManager{
+							Files:     intPtr(100),
+							Sleep:     "invalid",
+							Threshold: "500ms",
+						},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with invalid manager threshold format",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "managerthreshold",
+						CacheZoneSize: "10m",
+						Manager: &v1.CacheManager{
+							Files:     intPtr(100),
+							Sleep:     "100ms",
+							Threshold: "bad-time",
+						},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with invalid lock timeout format",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "locktimeout",
+						CacheZoneSize: "10m",
+						Lock: &v1.CacheLock{
+							Enable:  true,
+							Timeout: "invalid-timeout",
+						},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with invalid inactive format",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "inactive",
+						CacheZoneSize: "10m",
+						Inactive:      "bad-duration",
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with invalid max size format",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "maxsize",
+						CacheZoneSize: "10m",
+						MaxSize:       "invalid-size",
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with invalid cacheUseStale parameter",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "invalidstaleparameter",
+						CacheZoneSize: "10m",
+						CacheUseStale: []string{"error", "invalid_param", "timeout"},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with duplicate cacheUseStale parameters",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "duplicatestale",
+						CacheZoneSize: "10m",
+						CacheUseStale: []string{"error", "timeout", "error"},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with invalid cache key ending with $",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "invalidkey",
+						CacheZoneSize: "10m",
+						CacheKey:      "$scheme$host$request_uri$", // Invalid: ends with $
+					},
+				},
+			},
+			isPlus: false,
+		},
 	}
 
 	for _, tc := range tt {
@@ -2667,6 +2918,181 @@ func TestValidatePolicy_IsValidCachePolicy(t *testing.T) {
 			},
 			isPlus: false,
 		},
+		{
+			name: "cache policy with extended cache key configuration",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "extended",
+						CacheZoneSize: "20m",
+						CacheKey:      "${scheme}${host}${request_uri}${args}",
+						CacheMinUses:  intPtr(5),
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with full manager configuration",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "managercache",
+						CacheZoneSize: "30m",
+						Manager: &v1.CacheManager{
+							Files:     intPtr(200),
+							Sleep:     "100ms",
+							Threshold: "500ms",
+						},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with lock configuration",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "lockcache",
+						CacheZoneSize: "15m",
+						Lock: &v1.CacheLock{
+							Enable:  true,
+							Timeout: "30s",
+						},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with conditions configuration",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "conditioncache",
+						CacheZoneSize: "25m",
+						Conditions: &v1.CacheConditions{
+							NoCache: []string{"$cookie_nocache", "$arg_nocache"},
+							Bypass:  []string{"$http_pragma", "$http_authorization"},
+						},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with all extended fields",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "fullextended",
+						CacheZoneSize: "100m",
+						CacheKey:      "${scheme}${host}${request_uri}",
+						CacheMinUses:  intPtr(3),
+						UseTempPath:   false,
+						MaxSize:       "2g",
+						Inactive:      "7d",
+						Manager: &v1.CacheManager{
+							Files:     intPtr(500),
+							Sleep:     "200ms",
+							Threshold: "1s",
+						},
+						Lock: &v1.CacheLock{
+							Enable:  true,
+							Timeout: "60s",
+						},
+						Conditions: &v1.CacheConditions{
+							NoCache: []string{"$cookie_admin"},
+							Bypass:  []string{"$http_cache_control"},
+						},
+						CacheBackgroundUpdate: true,
+						CacheRevalidate:       true,
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with valid cacheUseStale parameters",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "validstale",
+						CacheZoneSize: "10m",
+						CacheUseStale: []string{"error", "timeout", "http_502"},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with updating parameter (cache specific)",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "staleupdate",
+						CacheZoneSize: "10m",
+						CacheUseStale: []string{"error", "timeout", "updating"},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with all valid cacheUseStale parameters",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "stallall",
+						CacheZoneSize: "10m",
+						CacheUseStale: []string{"error", "timeout", "invalid_header", "updating", "http_500", "http_502", "http_503", "http_504"},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with empty cacheUseStale (should be valid)",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "emptystale",
+						CacheZoneSize: "10m",
+						CacheUseStale: []string{},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with unbraced cache key variables",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "unbraced",
+						CacheZoneSize: "10m",
+						CacheKey:      "$scheme$host$request_uri", // Test unbraced NGINX variable format
+						Time:          "15m",
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cache policy with mixed braced and unbraced cache key variables",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: "mixed",
+						CacheZoneSize: "10m",
+						CacheKey:      "$scheme${host}$request_uri", // Test mixed format
+						Time:          "20m",
+					},
+				},
+			},
+			isPlus: false,
+		},
 	}
 
 	for _, tc := range tt {
@@ -2679,4 +3105,288 @@ func TestValidatePolicy_IsValidCachePolicy(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateCORS(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		cors      *v1.CORS
+		expectErr bool
+		errMsg    string
+	}{
+		{
+			name: "Valid CORS configuration",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com", "https://app.com"},
+				AllowMethods: []string{"GET", "POST", "PUT"},
+				AllowHeaders: []string{"Content-Type", "Authorization"},
+				MaxAge:       intPtr(86400),
+			},
+			expectErr: false,
+		},
+		{
+			name: "Valid CORS with wildcard origin (no credentials)",
+			cors: &v1.CORS{
+				AllowOrigin:      []string{"*"},
+				AllowMethods:     []string{"GET", "POST"},
+				AllowCredentials: boolPtr(false),
+			},
+			expectErr: false,
+		},
+		{
+			name: "Valid CORS with wildcard subdomain",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://*.example.com"},
+				AllowMethods: []string{"GET", "POST"},
+			},
+			expectErr: false,
+		},
+		{
+			name: "Valid CORS with multiple wildcard subdomains",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://*.app.com", "https://*.api.example.org"},
+				AllowMethods: []string{"GET", "POST"},
+			},
+			expectErr: false,
+		},
+		{
+			name: "Valid CORS with mixed exact and wildcard origins",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com", "https://*.dev.example.com"},
+				AllowMethods: []string{"GET", "POST"},
+			},
+			expectErr: false,
+		},
+		{
+			name: "Valid CORS with HTTP wildcard subdomain",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"http://*.localhost.com"},
+				AllowMethods: []string{"GET", "POST"},
+			},
+			expectErr: false,
+		},
+		{
+			name: "Invalid origin format - missing protocol",
+			cors: &v1.CORS{
+				AllowOrigin: []string{"example.com"}, // Missing http:// or https://
+			},
+			expectErr: true,
+			errMsg:    "must start with http:// or https://",
+		},
+		{
+			name: "Invalid wildcard subdomain - empty domain",
+			cors: &v1.CORS{
+				AllowOrigin: []string{"https://*."}, // Empty domain after wildcard
+			},
+			expectErr: true,
+			errMsg:    "wildcard subdomain cannot be empty",
+		},
+		{
+			name: "Valid wildcard subdomain - single domain",
+			cors: &v1.CORS{
+				AllowOrigin: []string{"https://*.dev"}, // Single-label domain is valid per k8s DNS rules
+			},
+			expectErr: false,
+		},
+		{
+			name: "Invalid wildcard subdomain - multiple wildcards",
+			cors: &v1.CORS{
+				AllowOrigin: []string{"https://*.*.example.com"}, // Multiple wildcards not supported
+			},
+			expectErr: true,
+			errMsg:    "only single-level wildcard subdomains are supported",
+		},
+		{
+			name: "Invalid wildcard subdomain - wildcard in domain",
+			cors: &v1.CORS{
+				AllowOrigin: []string{"https://*.exam*le.com"}, // Wildcard in domain part
+			},
+			expectErr: true,
+			errMsg:    "only single-level wildcard subdomains are supported",
+		},
+		{
+			name: "Invalid wildcard position",
+			cors: &v1.CORS{
+				AllowOrigin: []string{"https://example.*.com"}, // Wildcard not at subdomain position
+			},
+			expectErr: true,
+			errMsg:    "wildcards are only supported in subdomain format",
+		},
+		{
+			name: "Invalid wildcard subdomain - invalid domain character",
+			cors: &v1.CORS{
+				AllowOrigin: []string{"https://*.exam@ple.com"}, // Parsed as user@host
+			},
+			expectErr: true,
+			errMsg:    "origin must not include @",
+		},
+		{
+			name: "Invalid header name - non-RFC compliant",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com"},
+				AllowHeaders: []string{"Content@Type"}, // @ not allowed in header names
+			},
+			expectErr: true,
+			errMsg:    "RFC 7230 violation",
+		},
+		{
+			name: "Invalid expose header name - non-RFC compliant",
+			cors: &v1.CORS{
+				AllowOrigin:   []string{"https://example.com"},
+				ExposeHeaders: []string{"X-Custom-Header", "Invalid Header Name"}, // Space not allowed
+			},
+			expectErr: true,
+			errMsg:    "RFC 7230 violation",
+		},
+		{
+			name: "Duplicate origins - should be blocked",
+			cors: &v1.CORS{
+				AllowOrigin: []string{"https://example.com", "https://test.com", "https://example.com"}, // Duplicate origin
+			},
+			expectErr: true,
+			errMsg:    "Duplicate value",
+		},
+		{
+			name: "Valid with all HTTP methods",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com"},
+				AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"}, // Removed HEAD to avoid redundancy warning
+			},
+			expectErr: false,
+		},
+		{
+			name: "Forbidden request header - Host",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com"},
+				AllowHeaders: []string{"Host"}, // Forbidden header
+			},
+			expectErr: true,
+			errMsg:    "forbidden request header",
+		},
+		{
+			name: "Forbidden request header - Cookie",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com"},
+				AllowHeaders: []string{"Cookie"}, // Forbidden header
+			},
+			expectErr: true,
+			errMsg:    "forbidden request header",
+		},
+		{
+			name: "Forbidden request header - Sec- prefix",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com"},
+				AllowHeaders: []string{"Sec-WebSocket-Key"}, // Forbidden header
+			},
+			expectErr: true,
+			errMsg:    "forbidden request header",
+		},
+		{
+			name: "Forbidden response header - Set-Cookie",
+			cors: &v1.CORS{
+				AllowOrigin:   []string{"https://example.com"},
+				ExposeHeaders: []string{"Set-Cookie"}, // Forbidden response header per CORS spec
+			},
+			expectErr: true,
+			errMsg:    "forbidden response header",
+		},
+		{
+			name: "Invalid method combination - HEAD with GET",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com"},
+				AllowMethods: []string{"GET", "HEAD", "POST"}, // HEAD redundant when GET present
+			},
+			expectErr: true,
+			errMsg:    "HEAD method should not be explicitly listed",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fieldPath := field.NewPath("spec").Child("cors")
+			errs := validateCORS(test.cors, fieldPath)
+
+			if test.expectErr {
+				if len(errs) == 0 {
+					t.Errorf("Expected error but got none")
+				} else {
+					found := false
+					for _, err := range errs {
+						if strings.Contains(err.Error(), test.errMsg) {
+							found = true
+							break
+						}
+					}
+					if !found {
+						t.Errorf("Expected error message containing '%s' not found in errors: %v", test.errMsg, errs)
+					}
+				}
+			} else {
+				if len(errs) > 0 {
+					t.Errorf("Expected no errors but got: %v", errs)
+				}
+			}
+		})
+	}
+}
+
+// TestCORSMDNCompliance tests that our CORS implementation follows MDN guidelines
+func TestCORSMDNCompliance(t *testing.T) {
+	t.Parallel()
+
+	validConfigs := []struct {
+		name        string
+		cors        *v1.CORS
+		description string
+	}{
+		{
+			name: "Simple request configuration",
+			cors: &v1.CORS{
+				AllowOrigin:      []string{"*"},
+				AllowMethods:     []string{"GET", "POST"}, // Removed HEAD as it's redundant when GET is present
+				AllowHeaders:     []string{"Accept", "Accept-Language", "Content-Language", "Content-Type"},
+				AllowCredentials: boolPtr(false),
+			},
+			description: "MDN simple request: wildcard allowed without credentials",
+		},
+		{
+			name: "Credentialed request configuration",
+			cors: &v1.CORS{
+				AllowOrigin:      []string{"https://example.com"},
+				AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+				AllowHeaders:     []string{"Content-Type", "Authorization"},
+				AllowCredentials: boolPtr(true),
+			},
+			description: "MDN credentialed request: explicit origin required",
+		},
+		{
+			name: "Complex request configuration",
+			cors: &v1.CORS{
+				AllowOrigin:   []string{"https://app.example.com"},
+				AllowMethods:  []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"},
+				AllowHeaders:  []string{"Content-Type", "Authorization", "X-Requested-With"},
+				ExposeHeaders: []string{"X-Total-Count", "X-RateLimit-Remaining"},
+				MaxAge:        createPointerFromInt(3600),
+			},
+			description: "MDN complex request: comprehensive header configuration",
+		},
+	}
+
+	for _, config := range validConfigs {
+		t.Run(config.name, func(t *testing.T) {
+			fieldPath := field.NewPath("cors")
+			errs := validateCORS(config.cors, fieldPath)
+
+			if len(errs) != 0 {
+				t.Errorf("Expected no validation errors for %s, but got: %v", config.description, errs)
+			}
+		})
+	}
+}
+
+// Helper functions for CORS tests
+func boolPtr(b bool) *bool {
+	return &b
 }

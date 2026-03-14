@@ -13,6 +13,12 @@ upstream {{ $u.Name }} {
     {{- if $u.Keepalive }}
     keepalive {{ $u.Keepalive }};
     {{- end }}
+
+	{{- with $u.SessionCookie }}
+		{{- if .Enable }}
+    sticky cookie {{ .Name }}{{ if .Expires }} expires={{ .Expires }}{{ end }}{{ if .Domain }} domain={{ .Domain }}{{ end }}{{ if .HTTPOnly }} httponly{{ end }}{{ if .SameSite}} samesite={{.SameSite | toLower }}{{ end }}{{ if .Secure }} secure{{ end }}{{ if .Path }} path={{ .Path }}{{ end }};
+		{{- end }}
+	{{- end }}
 }
 {{ end }}
 
@@ -41,7 +47,7 @@ limit_req_zone {{ $z.Key }} zone={{ $z.ZoneName }}:{{ $z.ZoneSize }} rate={{ $z.
 {{- end }}
 
 {{- range $c := .CacheZones }}
-proxy_cache_path {{ $c.Path }}{{ if $c.Levels }} levels={{ $c.Levels }}{{ end }} keys_zone={{ $c.Name }}:{{ $c.Size }};
+proxy_cache_path {{ $c.Path }}{{ if $c.Levels }} levels={{ $c.Levels }}{{ end }} keys_zone={{ $c.Name }}:{{ $c.Size }}{{ if $c.Inactive }} inactive={{ $c.Inactive }}{{ end }}{{ if $c.MaxSize }} max_size={{ $c.MaxSize }}{{ end }}{{ if $c.MinFree }} min_free={{ $c.MinFree }}{{ end }}{{ if $c.ManagerFiles }} manager_files={{ $c.ManagerFiles }}{{ end }}{{ if $c.ManagerSleep }} manager_sleep={{ $c.ManagerSleep }}{{ end }}{{ if $c.ManagerThreshold }} manager_threshold={{ $c.ManagerThreshold }}{{ end }}{{ if not $c.UseTempPath }} use_temp_path=off{{ end }};
 {{- end }}
 
 {{- $s := .Server }}
@@ -56,6 +62,7 @@ server {
     set $resource_type "virtualserver";
     set $resource_name "{{$s.VSName}}";
     set $resource_namespace "{{$s.VSNamespace}}";
+    set $service "-";
 
     {{- with $ssl := $s.SSL }}
         {{- if $s.TLSPassthrough }}
@@ -121,7 +128,7 @@ server {
     {{- with $s.Cache }}
     # Server-level cache configuration
     proxy_cache {{ $s.Cache.ZoneName }};
-    proxy_cache_key $scheme$proxy_host$request_uri;
+    proxy_cache_key {{ $s.Cache.CacheKey }};
             {{- if $s.Cache.OverrideUpstreamCache }}
     proxy_ignore_headers Cache-Control Expires Set-Cookie Vary X-Accel-Expires;
             {{- end }}
@@ -133,6 +140,33 @@ server {
             {{- end }}
             {{- if $s.Cache.AllowedMethods }}
     proxy_cache_methods{{ range $s.Cache.AllowedMethods }} {{ . }}{{ end }};
+            {{- end }}
+            {{- if $s.Cache.CacheUseStale }}
+    proxy_cache_use_stale{{ range $s.Cache.CacheUseStale }} {{ . }}{{ end }};
+            {{- end }}
+            {{- if $s.Cache.CacheRevalidate }}
+    proxy_cache_revalidate on;
+            {{- end }}
+            {{- if $s.Cache.CacheBackgroundUpdate }}
+    proxy_cache_background_update on;
+            {{- end }}
+            {{- if $s.Cache.CacheMinUses }}
+    proxy_cache_min_uses {{ $s.Cache.CacheMinUses }};
+            {{- end }}
+            {{- if $s.Cache.CacheLock }}
+    proxy_cache_lock on;
+            {{- end }}
+            {{- if $s.Cache.CacheLockTimeout }}
+    proxy_cache_lock_timeout {{ $s.Cache.CacheLockTimeout }};
+            {{- end }}
+            {{- if $s.Cache.CacheLockAge }}
+    proxy_cache_lock_age {{ $s.Cache.CacheLockAge }};
+            {{- end }}
+            {{- if $s.Cache.NoCacheConditions }}
+    proxy_no_cache{{ range $s.Cache.NoCacheConditions }} {{ . }}{{ end }};
+            {{- end }}
+            {{- if $s.Cache.CacheBypassConditions }}
+    proxy_cache_bypass{{ range $s.Cache.CacheBypassConditions }} {{ . }}{{ end }};
             {{- end }}
     {{- end }}
 
@@ -368,6 +402,9 @@ server {
         {{ $proxyOrGRPC }}_read_timeout {{ $l.ProxyReadTimeout }};
         {{ $proxyOrGRPC }}_send_timeout {{ $l.ProxySendTimeout }};
         client_max_body_size {{ $l.ClientMaxBodySize }};
+        {{- if $l.ClientBodyBufferSize }}
+        client_body_buffer_size {{ $l.ClientBodyBufferSize }};
+        {{- end }}
 
             {{- if $l.ProxyMaxTempFileSize }}
         proxy_max_temp_file_size {{ $l.ProxyMaxTempFileSize }};
@@ -446,7 +483,7 @@ server {
 
         {{- with $l.Cache }}
         proxy_cache {{ $l.Cache.ZoneName }};
-        proxy_cache_key $scheme$proxy_host$request_uri;
+        proxy_cache_key {{ $l.Cache.CacheKey }};
                 {{- if $l.Cache.OverrideUpstreamCache }}
         proxy_ignore_headers Cache-Control Expires Set-Cookie Vary X-Accel-Expires;
                 {{- end }}
@@ -459,6 +496,46 @@ server {
                 {{- if $l.Cache.AllowedMethods }}
         proxy_cache_methods{{ range $l.Cache.AllowedMethods }} {{ . }}{{ end }};
                 {{- end }}
+                {{- if $l.Cache.CacheUseStale }}
+        proxy_cache_use_stale{{ range $l.Cache.CacheUseStale }} {{ . }}{{ end }};
+                {{- end }}
+                {{- if $l.Cache.CacheRevalidate }}
+        proxy_cache_revalidate on;
+                {{- end }}
+                {{- if $l.Cache.CacheBackgroundUpdate }}
+        proxy_cache_background_update on;
+                {{- end }}
+                {{- if $l.Cache.CacheMinUses }}
+        proxy_cache_min_uses {{ $l.Cache.CacheMinUses }};
+                {{- end }}
+                {{- if $l.Cache.CacheLock }}
+        proxy_cache_lock on;
+                {{- end }}
+                {{- if $l.Cache.CacheLockTimeout }}
+        proxy_cache_lock_timeout {{ $l.Cache.CacheLockTimeout }};
+                {{- end }}
+                {{- if $l.Cache.CacheLockAge }}
+        proxy_cache_lock_age {{ $l.Cache.CacheLockAge }};
+                {{- end }}
+                {{- if $l.Cache.NoCacheConditions }}
+        proxy_no_cache{{ range $l.Cache.NoCacheConditions }} {{ . }}{{ end }};
+                {{- end }}
+                {{- if $l.Cache.CacheBypassConditions }}
+        proxy_cache_bypass{{ range $l.Cache.CacheBypassConditions }} {{ . }}{{ end }};
+                {{- end }}
+        {{- end }}
+
+        {{- if $l.CORSEnabled }}
+        # CORS configuration per enable-cors.org
+        # Handle CORS preflight OPTIONS requests
+        if ($request_method = 'OPTIONS') {
+            {{- range $h := $l.AddHeaders }}
+            add_header {{ $h.Name }} "{{ $h.Value }}";
+            {{- end }}
+            add_header Content-Type text/plain;
+            add_header Content-Length 0;
+            return 204;
+        }
         {{- end }}
 
             {{-  if $l.GRPCPass }}

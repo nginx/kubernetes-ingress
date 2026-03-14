@@ -559,6 +559,11 @@ command:
   tls:
     skip_verify: {{ .Values.nginxAgent.tlsSkipVerify | default false }}
 
+## collector settings
+collector:
+  log:
+    path: "stdout"
+
 {{- else }}
 log:
   level: {{ .Values.nginxAgent.logLevel }}
@@ -585,7 +590,7 @@ tls:
 features:
   - registration
   - nginx-counting
-  - metrics-sender
+  - metrics
   - dataplane-status
 extensions:
   - nginx-app-protect

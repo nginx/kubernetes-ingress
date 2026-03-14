@@ -18,6 +18,8 @@ type IngressNginxConfig struct {
 	Upstreams               []Upstream
 	Servers                 []Server
 	Keepalive               string
+	Maps                    []version2.Map
+	CORSHeaders             []version2.AddHeader
 	Ingress                 Ingress
 	SpiffeClientCerts       bool
 	DynamicSSLReloadEnabled bool
@@ -78,27 +80,32 @@ type LimitReqZone struct {
 
 // Server describes an NGINX server.
 type Server struct {
-	ServerSnippets        []string
-	Name                  string
-	ServerTokens          string
-	Locations             []Location
-	SSL                   bool
-	SSLCertificate        string
-	SSLCertificateKey     string
-	SSLRejectHandshake    bool
-	TLSPassthrough        bool
-	GRPCOnly              bool
-	StatusZone            string
-	HTTP2                 bool
-	RedirectToHTTPS       bool
-	SSLRedirect           bool
-	ProxyProtocol         bool
-	HSTS                  bool
-	HSTSMaxAge            int64
-	HSTSIncludeSubdomains bool
-	HSTSBehindProxy       bool
-	ProxyHideHeaders      []string
-	ProxyPassHeaders      []string
+	ServerSnippets         []string
+	Name                   string
+	ServerTokens           string
+	Locations              []Location
+	SSL                    bool
+	SSLCertificate         string
+	SSLCertificateKey      string
+	SSLCiphers             string
+	SSLPreferServerCiphers bool
+	SSLRejectHandshake     bool
+	TLSPassthrough         bool
+	GRPCOnly               bool
+	StatusZone             string
+	HTTP2                  bool
+	RedirectToHTTPS        bool
+	SSLRedirect            bool
+	HTTPRedirectCode       int
+	ProxyProtocol          bool
+	HSTS                   bool
+	HSTSMaxAge             int64
+	HSTSIncludeSubdomains  bool
+	HSTSBehindProxy        bool
+	ProxyHideHeaders       []string
+	ProxyPassHeaders       []string
+	Allow                  []string
+	Deny                   []string
 
 	HealthChecks map[string]HealthCheck
 
@@ -130,6 +137,8 @@ type Server struct {
 	SpiffeCerts bool
 
 	DisableIPV6 bool
+
+	AppRoot string
 }
 
 // JWTRedirectLocation describes a location for redirecting client requests to a login URL for JWT Authentication.
@@ -173,8 +182,10 @@ type Location struct {
 	ProxySendTimeout     string
 	ProxySetHeaders      []version2.Header
 	ClientMaxBodySize    string
+	ClientBodyBufferSize string
 	Websocket            bool
 	Rewrite              string
+	RewriteTarget        string
 	SSL                  bool
 	GRPC                 bool
 	ProxyBuffering       bool
@@ -183,12 +194,20 @@ type Location struct {
 	ProxyBusyBuffersSize string
 	ProxyMaxTempFileSize string
 	ProxySSLName         string
+	AddHeaders           []version2.AddHeader
 	JWTAuth              *JWTAuth
 	BasicAuth            *BasicAuth
 	ServiceName          string
 	LimitReq             *LimitReq
+	CORSEnabled          bool
 
 	MinionIngress *Ingress
+
+	ProxyNextUpstream        string
+	ProxyNextUpstreamTimeout string
+	ProxyNextUpstreamTries   *uint64
+	Allow                    []string
+	Deny                     []string
 }
 
 // ZoneSyncConfig is tbe configuration for the zone_sync directives for state sharing.
@@ -200,6 +219,21 @@ type ZoneSyncConfig struct {
 	// Time the resolver is valid. Go time string format: "5s", "10s".
 	ResolverValid string
 	ResolverIPV6  *bool
+}
+
+// OIDCConfig allows to configure OIDC parameters.
+type OIDCConfig struct {
+	Enable          bool
+	PKCETimeout     string
+	PKCEZoneSize    string
+	IDTokenTimeout  string
+	IDTokenZoneSize string
+	AccessTimeout   string
+	AccessZoneSize  string
+	RefreshTimeout  string
+	RefreshZoneSize string
+	SIDSTimeout     string
+	SIDSZoneSize    string
 }
 
 // MGMTConfig is tbe configuration for the MGMT block.
@@ -259,6 +293,7 @@ type MainConfig struct {
 	ServerNamesHashMaxSize             string
 	MapHashBucketSize                  string
 	MapHashMaxSize                     string
+	ClientBodyBufferSize               string
 	ServerTokens                       string
 	SSLRejectHandshake                 bool
 	SSLCiphers                         string
@@ -295,7 +330,7 @@ type MainConfig struct {
 	InternalRouteServerName            string
 	LatencyMetrics                     bool
 	ZoneSyncConfig                     ZoneSyncConfig
-	OIDC                               bool
+	OIDC                               OIDCConfig
 	DynamicSSLReloadEnabled            bool
 	StaticSSLPath                      string
 	NginxVersion                       nginx.Version

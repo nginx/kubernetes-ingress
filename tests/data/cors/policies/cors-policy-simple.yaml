@@ -1,0 +1,20 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: cors-policy-simple
+spec:
+  cors:
+    allowOrigin:
+    - "https://example.com"
+    - "https://app.example.com"
+    allowMethods:
+    - "GET"
+    - "POST"
+    - "PUT"
+    allowHeaders:
+    - "Content-Type"
+    - "Authorization"
+    exposeHeaders:
+    - "X-Custom-Header"
+    allowCredentials: true
+    maxAge: 3600

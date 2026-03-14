@@ -378,6 +378,356 @@ func TestSecretIsReferencedByTransportServer(t *testing.T) {
 	}
 }
 
+func TestPolicyIsReferencedByIngress(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		ing             *networking.Ingress
+		policyNamespace string
+		policyName      string
+		expected        bool
+		msg             string
+	}{
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+					Annotations: map[string]string{
+						configs.PoliciesAnnotation: "test-policy",
+					},
+				},
+			},
+			policyNamespace: "default",
+			policyName:      "test-policy",
+			expected:        true,
+			msg:             "policy is referenced by name only",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+					Annotations: map[string]string{
+						configs.PoliciesAnnotation: "default/test-policy",
+					},
+				},
+			},
+			policyNamespace: "default",
+			policyName:      "test-policy",
+			expected:        true,
+			msg:             "policy is referenced by namespace and name",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+					Annotations: map[string]string{
+						configs.PoliciesAnnotation: "test-policy",
+					},
+				},
+			},
+			policyNamespace: "default",
+			policyName:      "test-policy",
+			expected:        true,
+			msg:             "policy is referenced",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "ing-namespace",
+					Annotations: map[string]string{
+						configs.PoliciesAnnotation: "default/test-policy",
+					},
+				},
+			},
+			policyNamespace: "default",
+			policyName:      "test-policy",
+			expected:        true,
+			msg:             "policy is referenced in different namespace to ingress",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+					Annotations: map[string]string{
+						configs.PoliciesAnnotation: "test-policy,test-policy2,test-policy3",
+					},
+				},
+			},
+			policyNamespace: "default",
+			policyName:      "test-policy2",
+			expected:        true,
+			msg:             "policy is one of multiple policies referenced by name only",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+					Annotations: map[string]string{
+						configs.PoliciesAnnotation: "test-policy,default/test-policy2,test-policy3",
+					},
+				},
+			},
+			policyNamespace: "default",
+			policyName:      "test-policy2",
+			expected:        true,
+			msg:             "policy is one of multiple policies referenced, referenced by namespace/name",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "ing-namespace",
+					Annotations: map[string]string{
+						configs.PoliciesAnnotation: "test-policy",
+					},
+				},
+			},
+			policyNamespace: "default",
+			policyName:      "test-policy",
+			expected:        false,
+			msg:             "policy referenced by name only but is in the wrong namespace to where it is expected",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "ing-namespace",
+					Annotations: map[string]string{
+						configs.PoliciesAnnotation: "badns/test-policy",
+					},
+				},
+			},
+			policyNamespace: "default",
+			policyName:      "test-policy",
+			expected:        false,
+			msg:             "policy is in the wrong namespace to where it is expected",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+					Annotations: map[string]string{
+						configs.PoliciesAnnotation: "default/test-policy",
+					},
+				},
+			},
+			policyNamespace: "default",
+			policyName:      "some-policy",
+			expected:        false,
+			msg:             "wrong name for policy",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+					Annotations: map[string]string{
+						configs.PoliciesAnnotation: "wrongns/test-policy",
+					},
+				},
+			},
+			policyNamespace: "some-namespace",
+			policyName:      "test-policy",
+			expected:        false,
+			msg:             "wrong namespace for policy",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+					Annotations: map[string]string{
+						configs.PoliciesAnnotation: "test-policy,wrongns/test-policy2,test-policy3",
+					},
+				},
+			},
+			policyNamespace: "default",
+			policyName:      "test-policy2",
+			expected:        false,
+			msg:             "policy is referenced by namespace/name and is one of multiple policies referenced, the referenced policy has the wrong namespace",
+		},
+	}
+
+	for _, test := range tests {
+		rc := newPolicyReferenceChecker()
+
+		result := rc.IsReferencedByIngress(test.policyNamespace, test.policyName, test.ing)
+		if result != test.expected {
+			t.Errorf("IsReferencedByIngress() returned %v but expected %v for the case of %s", result, test.expected, test.msg)
+		}
+	}
+}
+
+func TestPolicyIsReferencedByMinion(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		ing             *networking.Ingress
+		policyNamespace string
+		policyName      string
+		expected        bool
+		msg             string
+	}{
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+					Annotations: map[string]string{
+						configs.PoliciesAnnotation: "test-policy",
+					},
+				},
+			},
+			policyNamespace: "default",
+			policyName:      "test-policy",
+			expected:        true,
+			msg:             "policy is referenced by name only",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+					Annotations: map[string]string{
+						configs.PoliciesAnnotation: "default/test-policy",
+					},
+				},
+			},
+			policyNamespace: "default",
+			policyName:      "test-policy",
+			expected:        true,
+			msg:             "policy is referenced by namespace and name",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+					Annotations: map[string]string{
+						configs.PoliciesAnnotation: "test-policy",
+					},
+				},
+			},
+			policyNamespace: "default",
+			policyName:      "test-policy",
+			expected:        true,
+			msg:             "policy is referenced",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "ing-namespace",
+					Annotations: map[string]string{
+						configs.PoliciesAnnotation: "default/test-policy",
+					},
+				},
+			},
+			policyNamespace: "default",
+			policyName:      "test-policy",
+			expected:        true,
+			msg:             "policy is referenced in different namespace to ingress",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+					Annotations: map[string]string{
+						configs.PoliciesAnnotation: "test-policy,test-policy2,test-policy3",
+					},
+				},
+			},
+			policyNamespace: "default",
+			policyName:      "test-policy2",
+			expected:        true,
+			msg:             "policy is one of multiple policies referenced by name only",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+					Annotations: map[string]string{
+						configs.PoliciesAnnotation: "test-policy,default/test-policy2,test-policy3",
+					},
+				},
+			},
+			policyNamespace: "default",
+			policyName:      "test-policy2",
+			expected:        true,
+			msg:             "policy is one of multiple policies referenced, referenced by namespace/name",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "ing-namespace",
+					Annotations: map[string]string{
+						configs.PoliciesAnnotation: "test-policy",
+					},
+				},
+			},
+			policyNamespace: "default",
+			policyName:      "test-policy",
+			expected:        false,
+			msg:             "policy referenced by name only but is in the wrong namespace to where it is expected",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "ing-namespace",
+					Annotations: map[string]string{
+						configs.PoliciesAnnotation: "badns/test-policy",
+					},
+				},
+			},
+			policyNamespace: "default",
+			policyName:      "test-policy",
+			expected:        false,
+			msg:             "policy is in the wrong namespace to where it is expected",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+					Annotations: map[string]string{
+						configs.PoliciesAnnotation: "default/test-policy",
+					},
+				},
+			},
+			policyNamespace: "default",
+			policyName:      "some-policy",
+			expected:        false,
+			msg:             "wrong name for policy",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+					Annotations: map[string]string{
+						configs.PoliciesAnnotation: "wrongns/test-policy",
+					},
+				},
+			},
+			policyNamespace: "some-namespace",
+			policyName:      "test-policy",
+			expected:        false,
+			msg:             "wrong namespace for policy",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+					Annotations: map[string]string{
+						configs.PoliciesAnnotation: "test-policy,wrongns/test-policy2,test-policy3",
+					},
+				},
+			},
+			policyNamespace: "default",
+			policyName:      "test-policy2",
+			expected:        false,
+			msg:             "policy is referenced by namespace/name and is one of multiple policies referenced, the referenced policy has the wrong namespace",
+		},
+	}
+
+	for _, test := range tests {
+		rc := newPolicyReferenceChecker()
+
+		result := rc.IsReferencedByMinion(test.policyNamespace, test.policyName, test.ing)
+		if result != test.expected {
+			t.Errorf("IsReferencedByMinion() returned %v but expected %v for the case of %s", result, test.expected, test.msg)
+		}
+	}
+}
+
 func TestServiceIsReferencedByIngressAndMinion(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -854,21 +1204,11 @@ func TestBackupServiceIsReferencedByTransportServer(t *testing.T) {
 	}
 }
 
-func TestPolicyIsReferencedByIngressesAndTransportServers(t *testing.T) {
+func TestPolicyIsReferencedByTransportServers(t *testing.T) {
 	t.Parallel()
 	rc := newPolicyReferenceChecker()
 
-	result := rc.IsReferencedByIngress("", "", nil)
-	if result {
-		t.Error("IsReferencedByIngress() returned true but expected false")
-	}
-
-	result = rc.IsReferencedByMinion("", "", nil)
-	if result {
-		t.Error("IsReferencedByMinion() returned true but expected false")
-	}
-
-	result = rc.IsReferencedByTransportServer("", "", nil)
+	result := rc.IsReferencedByTransportServer("", "", nil)
 	if result {
 		t.Error("IsReferencedByTransportServer() returned true but expected false")
 	}

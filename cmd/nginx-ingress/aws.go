@@ -15,13 +15,19 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/marketplacemetering"
 	"github.com/aws/aws-sdk-go-v2/service/marketplacemetering/types"
 
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 var (
 	productCode   string
 	pubKeyVersion int32 = 1
 	pubKeyString  string
+)
+
+var (
+	ErrMissingProductCode = errors.New("token doesn't include the ProductCode")
+	ErrMissingNonce       = errors.New("token doesn't include the Nonce")
+	ErrMissingKeyVersion  = errors.New("token doesn't include the PublicKeyVersion")
 )
 
 func init() {
@@ -95,21 +101,18 @@ type claims struct {
 	jwt.RegisteredClaims
 }
 
-func (c claims) Valid() error {
+var _ jwt.ClaimsValidator = (*claims)(nil)
+
+func (c claims) Validate() error {
 	if c.Nonce == "" {
-		return jwt.NewValidationError("token doesn't include the Nonce", jwt.ValidationErrorClaimsInvalid)
+		return ErrMissingNonce
 	}
 	if c.ProductCode == "" {
-		return jwt.NewValidationError("token doesn't include the ProductCode", jwt.ValidationErrorClaimsInvalid)
+		return ErrMissingProductCode
 	}
 	if c.PublicKeyVersion == 0 {
-		return jwt.NewValidationError("token doesn't include the PublicKeyVersion", jwt.ValidationErrorClaimsInvalid)
+		return ErrMissingKeyVersion
 	}
-
-	if err := c.RegisteredClaims.Valid(); err != nil {
-		return err
-	}
-
 	return nil
 }
 

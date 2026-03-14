@@ -1,0 +1,22 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: cron-scaledobject
+  namespace: nginx-ingress
+spec:
+  scaleTargetRef:
+    name: nginx-ingress
+  minReplicaCount: 0
+  maxReplicaCount: 4
+  cooldownPeriod: 300
+  triggers:
+    - type: cron
+      metadata:
+        timezone: Europe/London
+        start: 0 09 * * *
+        end: 30 17 * * *
+        desiredReplicas: "1"
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: "80"

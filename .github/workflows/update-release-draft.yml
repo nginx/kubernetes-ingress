@@ -29,12 +29,12 @@ jobs:
       chart_version: ${{ steps.vars.outputs.chart_version }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ inputs.branch }}
 
       - name: Setup Golang Environment
-        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: go.mod
 
@@ -56,12 +56,12 @@ jobs:
       contents: write
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ inputs.branch }}
 
       - name: Create/Update Draft
-        uses: lucacome/draft-release@00f74370c044c322da6cb52acc707d62c7762c71 # v1.2.4
+        uses: lucacome/draft-release@4fce6cb19a9f95acacf9730efa42f7b8140d6fb6 # v2.0.4
         id: release-notes
         with:
           minor-label: "enhancement"
@@ -79,5 +79,5 @@ jobs:
             ## Resources
             - Documentation -- https://docs.nginx.com/nginx-ingress-controller/
             - Configuration examples -- https://github.com/nginx/kubernetes-ingress/tree/{{version}}/examples
-            - Helm Chart -- https://github.com/nginx/kubernetes-ingress/tree/{{version}}/deployments/helm-chart
+            - Helm Chart -- https://github.com/nginx/kubernetes-ingress/tree/{{version}}/charts/nginx-ingress
             - Operator -- https://github.com/nginx/nginx-ingress-helm-operator

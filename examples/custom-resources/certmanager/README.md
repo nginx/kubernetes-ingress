@@ -10,7 +10,7 @@ that application using the VirtualServer resource.
 1. Deploy cert manager and all dependent resources:
 
     ```console
-    kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.8.0/cert-manager.yaml
+    kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.20.0/cert-manager.yaml
     ```
 
 2. Deploy a self-signed certificate issuer:
@@ -23,7 +23,7 @@ that application using the VirtualServer resource.
 
 ## 1. Deploy the Ingress Controller
 
-1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
+1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
    instructions to deploy the Ingress Controller.
    - Set the
      [`-enable-custom-resources`](https://docs.nginx.com/nginx-ingress-controller/configuration/global-configuration/command-line-arguments/#cmdoption-enable-custom-resources)

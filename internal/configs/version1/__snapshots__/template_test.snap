@@ -21,7 +21,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -701,8 +700,10 @@ mgmt {
 
 [TestExecuteTemplate_ForIngressForNGINX - 1]
 # configuration for default/cafe-ingress
-upstream test {zone test 256k;
-    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;keepalive 16;
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+    keepalive 16;
 }
 
 
@@ -719,6 +720,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
+    set $service "-";
     if ($scheme = http) {
         return 301 https://$host:443$request_uri;
     }
@@ -741,7 +743,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://test;
-
         
     }
     
@@ -762,6 +763,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
+    set $service "-";
     location  {
         set $service "";
         # location for minion default/cafe-ingress-coffee-minion
@@ -781,7 +783,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://;
-
         
     }
     
@@ -804,7 +805,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://;
-
         
     }
     
@@ -820,8 +820,6 @@ upstream test {
 }
 
 
-
-
 server {
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
@@ -835,6 +833,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
+    set $service "-";
     app_protect_enable on;
     app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
     app_protect_security_log_enable on;
@@ -900,7 +899,375 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://test;
+        
+    }
+    
+}
 
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget/case_insensitive_regex_rewrite - 1]
+# configuration for default/cafe-ingress
+
+
+server {
+
+    server_tokens "off";
+
+    server_name cafe.example.com;
+
+    status_zone ;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location ~* "^/(latte|espresso)" {
+        set $service "";
+        status_zone "";
+        rewrite (?i)^/(latte|espresso) /drinks/$1 break;
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget/case_sensitive_regex_rewrite - 1]
+# configuration for default/cafe-ingress
+
+
+server {
+
+    server_tokens "off";
+
+    server_name cafe.example.com;
+
+    status_zone ;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location ~ "^/(coffee|tea)" {
+        set $service "";
+        status_zone "";
+        rewrite ^/(coffee|tea) /beverages/$1 break;
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget/complex_regex_pattern - 1]
+# configuration for default/cafe-menu-ingress
+
+
+server {
+
+    server_tokens "off";
+
+    server_name cafe.example.com;
+
+    status_zone ;
+    set $resource_type "ingress";
+    set $resource_name "cafe-menu-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location ~ "^/menu/(hot|cold)/(coffee|tea)" {
+        set $service "";
+        status_zone "";
+        rewrite ^/menu/(hot|cold)/(coffee|tea) /drinks/$1/$2 break;
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget/exact_match_rewrite - 1]
+# configuration for default/cafe-ingress
+
+
+server {
+
+    server_tokens "off";
+
+    server_name cafe.example.com;
+
+    status_zone ;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location = "/cappuccino" {
+        set $service "";
+        status_zone "";
+        rewrite /cappuccino /special/cappuccino break;
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget/no_path_regex_annotation - 1]
+# configuration for default/cafe-ingress
+
+
+server {
+
+    server_tokens "off";
+
+    server_name cafe.example.com;
+
+    status_zone ;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location /mocha {
+        set $service "";
+        status_zone "";
+        rewrite /mocha /hot-drinks/mocha break;
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget/no_rewrite_target - 1]
+# configuration for default/cafe-ingress
+
+
+server {
+
+    server_tokens "off";
+
+    server_name cafe.example.com;
+
+    status_zone ;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location ~ "^/americano" {
+        set $service "";
+        status_zone "";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusWithACPolicyAllow - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;
+}
+
+
+server {
+        allow 10.0.0.0/8;
+        deny all;
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location /tea {
+        set $service "";
+        status_zone "";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusWithACPolicyDeny - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;
+}
+
+
+server {
+        deny 10.0.0.0/8;
+        allow all;
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location /tea {
+        set $service "";
+        status_zone "";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
         
     }
     
@@ -916,8 +1283,6 @@ upstream test {
 }
 
 
-
-
 server {
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
@@ -931,6 +1296,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
+    set $service "-";
     app_protect_enable on;
     app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
     app_protect_security_log_enable on;
@@ -996,7 +1362,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://test;
-
         
     }
     
@@ -1010,8 +1375,6 @@ upstream test {
     zone test 256k;
     server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
 }
-
-
 
 
 server {
@@ -1028,6 +1391,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
+    set $service "-";
 
     
     if ($scheme = http) {
@@ -1071,7 +1435,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://test;
-
         
     }
     
@@ -1100,8 +1463,6 @@ upstream test {
 }
 
 
-
-
 server {
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
@@ -1115,6 +1476,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
+    set $service "-";
 
     
     if ($scheme = http) {
@@ -1164,7 +1526,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://test;
-
         
     }
     
@@ -1180,8 +1541,6 @@ upstream test {
 }
 
 
-
-
 server {
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
@@ -1195,6 +1554,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
+    set $service "-";
 
     
     if ($scheme = http) {
@@ -1244,7 +1604,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://test;
-
         
     }
     
@@ -1260,8 +1619,6 @@ upstream test {
 }
 
 
-
-
 server {
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
@@ -1275,6 +1632,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
+    set $service "-";
 
     
     if ($scheme = http) {
@@ -1324,7 +1682,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://test;
-
         
     }
     
@@ -1340,8 +1697,6 @@ upstream test {
 }
 
 
-
-
 server {
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
@@ -1355,6 +1710,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
+    set $service "-";
 
     
     if ($scheme = http) {
@@ -1404,7 +1760,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://test;
-
         
     }
     
@@ -1414,8 +1769,6 @@ server {
 
 [TestExecuteTemplate_ForIngressForNGINXPlusWithRequestRateLimit - 1]
 # configuration for default/myingress
-
-
 limit_req_zone ${binary_remote_addr} zone=default/myingress:10m rate=200r/s;
 
 
@@ -1433,6 +1786,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "myingress";
     set $resource_namespace "default";
+    set $service "-";
 
     
     if ($scheme = http) {
@@ -1478,7 +1832,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://test;
-
         
         limit_req zone=default/myingress burst=100 delay=50;
         limit_req_dry_run on;
@@ -1507,7 +1860,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://test;
-
         
         limit_req zone=default/myingress burst=100 delay=50;
         limit_req_dry_run on;
@@ -1522,8 +1874,6 @@ server {
 
 [TestExecuteTemplate_ForIngressForNGINXPlusWithRequestRateLimitMinions - 1]
 # configuration for default/myingress
-
-
 limit_req_zone ${binary_remote_addr} zone=default/tea-minion:10m rate=200r/s;
 
 limit_req_zone ${binary_remote_addr} zone=default/coffee-minion:20m rate=400r/s;
@@ -1543,6 +1893,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "myingress";
     set $resource_namespace "default";
+    set $service "-";
 
     
     if ($scheme = http) {
@@ -1591,7 +1942,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://test;
-
         
         limit_req zone=default/tea-minion burst=100 delay=10;
         limit_req_dry_run on;
@@ -1623,7 +1973,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://test;
-
         
         limit_req zone=default/coffee-minion burst=200 nodelay;
         
@@ -1638,8 +1987,6 @@ server {
 
 [TestExecuteTemplate_ForIngressForNGINXPlusWithRequestRateLimitZoneSync - 1]
 # configuration for default/myingress
-
-
 limit_req_zone ${binary_remote_addr} zone=default/zone1_sync:10m rate=200r/s sync;
 
 
@@ -1654,6 +2001,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "myingress";
     set $resource_namespace "default";
+    set $service "-";
 
     
 
@@ -1676,7 +2024,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://test;
-
         
         limit_req zone=default/myingress_sync burst=100;
         
@@ -1689,10 +2036,507 @@ server {
 
 ---
 
+[TestExecuteTemplate_ForIngressForNGINXPlusWithSSLCiphers - 1]
+# configuration for default/test-ingress
+
+
+server {
+    ssl_certificate ;
+    ssl_certificate_key ;
+    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256;
+    ssl_prefer_server_ciphers on;
+
+    server_tokens "";
+
+    server_name test.example.com;
+
+    status_zone ;
+    set $resource_type "ingress";
+    set $resource_name "test-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location / {
+        set $service "";
+        status_zone "";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusWithSSLCiphersDisabled - 1]
+# configuration for default/test-ingress
+
+
+server {
+    ssl_certificate ;
+    ssl_certificate_key ;
+
+    server_tokens "";
+
+    server_name test.example.com;
+
+    status_zone ;
+    set $resource_type "ingress";
+    set $resource_name "test-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location / {
+        set $service "";
+        status_zone "";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusWithServiceBeforeRedirect - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
+}
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    app_protect_enable on;
+    app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
+    app_protect_security_log_enable on;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf syslog:server=127.0.0.1:514;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf2;
+    
+    app_protect_dos_enable on;
+    app_protect_dos_policy_file /test/policy.json;
+    app_protect_dos_security_log_enable on;
+    app_protect_dos_security_log /test/logConf.json;
+    set $loggable '0';
+    # app-protect-dos module will set it to '1'  if a request doesn't pass the rate limit
+    access_log /var/log/dos log_dos if=$loggable;
+    app_protect_dos_monitor uri=/path/to/monitor protocol=http1 timeout=30;
+    app_protect_dos_name "testdos";
+    app_protect_dos_access_file "/etc/nginx/dos/allowlist/default_test.example.com";
+
+    
+    if ($scheme = http) {
+        return 301 https://$host:443$request_uri;
+    }
+
+    
+    auth_jwt_key_file /etc/nginx/secrets/key.jwk;
+    auth_jwt "closed site" token=$cookie_auth_token;
+    error_page 401 @login_url-default-cafe-ingress;
+    
+    location @hc-test {
+        proxy_set_header Test-Header "test-header-value";
+        proxy_connect_timeout 0s;
+        proxy_read_timeout 0s;
+        proxy_send_timeout 0s;
+        proxy_pass ://test;
+        health_check uri= interval=1s fails=1 passes=1;
+    }
+    
+    location @login_url-default-cafe-ingress {
+        internal;
+        return 302 https://test.example.com/login;
+    }
+    
+    location /tea {
+        set $service "";
+        status_zone "";
+        # location for minion default/tea-minion
+        set $resource_name "tea-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        auth_jwt_key_file /etc/nginx/secrets/location-key.jwk;
+        auth_jwt "closed site" token=$cookie_auth_token;
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXRewriteTarget/case_insensitive_regex_rewrite - 1]
+# configuration for default/cafe-ingress
+
+
+server {
+
+    server_tokens off;
+
+    server_name cafe.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location ~* "^/(latte|espresso)" {
+        set $service "";
+        rewrite (?i)^/(latte|espresso) /drinks/$1 break;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXRewriteTarget/case_sensitive_regex_rewrite - 1]
+# configuration for default/cafe-ingress
+
+
+server {
+
+    server_tokens off;
+
+    server_name cafe.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location ~ "^/(coffee|tea)" {
+        set $service "";
+        rewrite ^/(coffee|tea) /beverages/$1 break;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXRewriteTarget/complex_regex_pattern - 1]
+# configuration for default/cafe-menu-ingress
+
+
+server {
+
+    server_tokens off;
+
+    server_name cafe.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-menu-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location ~ "^/menu/(hot|cold)/(coffee|tea)" {
+        set $service "";
+        rewrite ^/menu/(hot|cold)/(coffee|tea) /drinks/$1/$2 break;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXRewriteTarget/exact_match_rewrite - 1]
+# configuration for default/cafe-ingress
+
+
+server {
+
+    server_tokens off;
+
+    server_name cafe.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location = "/cappuccino" {
+        set $service "";
+        rewrite /cappuccino /special/cappuccino break;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXRewriteTarget/no_path_regex_annotation - 1]
+# configuration for default/cafe-ingress
+
+
+server {
+
+    server_tokens off;
+
+    server_name cafe.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location /mocha {
+        set $service "";
+        rewrite /mocha /hot-drinks/mocha break;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXRewriteTarget/no_rewrite_target - 1]
+# configuration for default/cafe-ingress
+
+
+server {
+
+    server_tokens off;
+
+    server_name cafe.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location ~ "^/americano" {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXWithACPolicyAllow - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+}
+
+
+
+server {
+        allow 10.0.0.0/8;
+        deny all;
+
+    server_tokens off;
+
+    server_name test.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location /tea {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXWithACPolicyDeny - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+}
+
+
+
+server {
+        deny 10.0.0.0/8;
+        allow all;
+
+    server_tokens off;
+
+    server_name test.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location /tea {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
 [TestExecuteTemplate_ForIngressForNGINXWithHTTP2Off - 1]
 # configuration for default/cafe-ingress
-upstream test {zone test 256k;
-    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;keepalive 16;
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+    keepalive 16;
 }
 
 
@@ -1709,6 +2553,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
+    set $service "-";
     if ($scheme = http) {
         return 301 https://$host:443$request_uri;
     }
@@ -1731,7 +2576,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://test;
-
         
     }
     
@@ -1741,8 +2585,10 @@ server {
 
 [TestExecuteTemplate_ForIngressForNGINXWithHTTP2On - 1]
 # configuration for default/cafe-ingress
-upstream test {zone test 256k;
-    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;keepalive 16;
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+    keepalive 16;
 }
 
 
@@ -1760,6 +2606,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
+    set $service "-";
     if ($scheme = http) {
         return 301 https://$host:443$request_uri;
     }
@@ -1782,7 +2629,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://test;
-
         
     }
     
@@ -1803,6 +2649,130 @@ server {
 
 ---
 
+[TestExecuteTemplate_ForIngressForNGINXWithHTTPRedirectCode - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+    keepalive 16;
+}
+
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens off;
+
+    server_name test.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    if ($scheme = http) {
+        return 308 https://$host:443$request_uri;
+    }
+    if ($http_x_forwarded_proto = 'http') {
+        return 308 https://$host$request_uri;
+    }
+    location /tea {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXWithProxyNextUpstreamTimeout - 1]
+# configuration for default/test-ingress
+
+
+server {
+
+    server_tokens ;
+
+    server_name test.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "test-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location  {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXWithProxyNextUpstreamTries - 1]
+# configuration for default/test-ingress
+
+
+server {
+
+    server_tokens ;
+
+    server_name test.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "test-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location  {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
 [TestExecuteTemplate_ForIngressForNGINXWithProxySetHeadersAnnotationWithDefaultValue - 1]
 # configuration for default/cafe-ingress-master
 
@@ -1816,6 +2786,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
+    set $service "-";
     location  {
         set $service "";
         # location for minion default/cafe-ingress-coffee-minion
@@ -1835,7 +2806,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://;
-
         
     }
     
@@ -1858,7 +2828,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://;
-
         
     }
     
@@ -1884,6 +2853,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "myingress";
     set $resource_namespace "default";
+    set $service "-";
     if ($scheme = http) {
         return 301 https://$host:443$request_uri;
     }
@@ -1902,7 +2872,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://test;
-
         
         limit_req zone=default/myingress burst=100 delay=50;
         limit_req_dry_run on;
@@ -1926,7 +2895,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://test;
-
         
         limit_req zone=default/myingress burst=100 delay=50;
         limit_req_dry_run on;
@@ -1959,6 +2927,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "myingress";
     set $resource_namespace "default";
+    set $service "-";
     if ($scheme = http) {
         return 301 https://$host:443$request_uri;
     }
@@ -1980,7 +2949,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://test;
-
         
         limit_req zone=default/tea-minion burst=100 delay=10;
         limit_req_dry_run on;
@@ -2007,12 +2975,456 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://test;
-
         
         limit_req zone=default/coffee-minion burst=200 nodelay;
         
         limit_req_log_level error;
         limit_req_status 503;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXWithSSLCiphers - 1]
+# configuration for default/test-ingress
+
+
+server {
+    ssl_certificate ;
+    ssl_certificate_key ;
+    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256;
+    ssl_prefer_server_ciphers on;
+
+    server_tokens ;
+
+    server_name test.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "test-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location / {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXWithSSLCiphersDisabled - 1]
+# configuration for default/test-ingress
+
+
+server {
+    ssl_certificate ;
+    ssl_certificate_key ;
+
+    server_tokens ;
+
+    server_name test.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "test-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location / {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXWithServiceBeforeRedirect - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+    keepalive 16;
+}
+
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens off;
+
+    server_name test.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    if ($scheme = http) {
+        return 301 https://$host:443$request_uri;
+    }
+    location /tea {
+        set $service "";
+        # location for minion default/tea-minion
+        set $resource_name "tea-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressWithCORS/nginx - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+    keepalive 16;
+}
+
+map $http_origin $cors_origin_default_cafe_ingress_ing_default_cors_policy {
+    default "";
+    "https://example.com" https://example.com;
+}
+
+
+server {
+
+    server_tokens off;
+
+    server_name test.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location /tea {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        add_header Vary "Origin" always;
+        add_header Access-Control-Allow-Origin "$cors_origin_default_cafe_ingress_ing_default_cors_policy" always;
+        add_header Access-Control-Allow-Methods "GET, POST, OPTIONS" always;
+        # CORS configuration per enable-cors.org
+        # Handle CORS preflight OPTIONS requests
+        if ($request_method = 'OPTIONS') {
+            add_header Vary "Origin";
+            add_header Access-Control-Allow-Origin "$cors_origin_default_cafe_ingress_ing_default_cors_policy";
+            add_header Access-Control-Allow-Methods "GET, POST, OPTIONS";
+            add_header Content-Type text/plain;
+            add_header Content-Length 0;
+            return 204;
+        }
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressWithCORS/nginx-plus - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
+}
+map $http_origin $cors_origin_default_cafe_ingress_ing_default_cors_policy {
+    default "";
+    "https://example.com" https://example.com;
+}
+
+
+server {
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location /tea {
+        set $service "";
+        status_zone "";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        add_header Vary "Origin" always;
+        add_header Access-Control-Allow-Origin "$cors_origin_default_cafe_ingress_ing_default_cors_policy" always;
+        add_header Access-Control-Allow-Methods "GET, POST, OPTIONS" always;
+        # CORS configuration per enable-cors.org
+        # Handle CORS preflight OPTIONS requests
+        if ($request_method = 'OPTIONS') {
+            add_header Vary "Origin";
+            add_header Access-Control-Allow-Origin "$cors_origin_default_cafe_ingress_ing_default_cors_policy";
+            add_header Access-Control-Allow-Methods "GET, POST, OPTIONS";
+            add_header Content-Type text/plain;
+            add_header Content-Length 0;
+            return 204;
+        }
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressWithClientBodyBufferSize - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
+}
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    app_protect_enable on;
+    app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
+    app_protect_security_log_enable on;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf syslog:server=127.0.0.1:514;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf2;
+    
+    app_protect_dos_enable on;
+    app_protect_dos_policy_file /test/policy.json;
+    app_protect_dos_security_log_enable on;
+    app_protect_dos_security_log /test/logConf.json;
+    set $loggable '0';
+    # app-protect-dos module will set it to '1'  if a request doesn't pass the rate limit
+    access_log /var/log/dos log_dos if=$loggable;
+    app_protect_dos_monitor uri=/path/to/monitor protocol=http1 timeout=30;
+    app_protect_dos_name "testdos";
+    app_protect_dos_access_file "/etc/nginx/dos/allowlist/default_test.example.com";
+
+    
+    if ($scheme = http) {
+        return 301 https://$host:443$request_uri;
+    }
+
+    
+    auth_jwt_key_file /etc/nginx/secrets/key.jwk;
+    auth_jwt "closed site" token=$cookie_auth_token;
+    error_page 401 @login_url-default-cafe-ingress;
+    
+    location @hc-test {
+        proxy_set_header Test-Header "test-header-value";
+        proxy_connect_timeout 0s;
+        proxy_read_timeout 0s;
+        proxy_send_timeout 0s;
+        proxy_pass ://test;
+        health_check uri= interval=1s fails=1 passes=1;
+    }
+    
+    location @login_url-default-cafe-ingress {
+        internal;
+        return 302 https://test.example.com/login;
+    }
+    
+    location /tea {
+        set $service "";
+        status_zone "";
+        # location for minion default/tea-minion
+        set $resource_name "tea-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        auth_jwt_key_file /etc/nginx/secrets/location-key.jwk;
+        auth_jwt "closed site" token=$cookie_auth_token;
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        client_body_buffer_size 16k;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressWithHeadersOnlyNoCORS/nginx - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+    keepalive 16;
+}
+
+
+
+server {
+
+    server_tokens off;
+
+    server_name test.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location /tea {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        add_header X-Test-Header "enabled" always;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressWithHeadersOnlyNoCORS/nginx-plus - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
+}
+
+
+server {
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location /tea {
+        set $service "";
+        status_zone "";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        add_header X-Test-Header "enabled" always;
         
     }
     
@@ -3075,6 +4487,294 @@ mgmt {
 
 ---
 
+[TestExecuteTemplate_ForMainForNGINXPlusWithOIDCTimeoutCustom - 1]
+worker_processes  ;
+
+daemon off;
+
+error_log  stderr ;
+pid        /var/lib/nginx/nginx.pid;
+load_module modules/ngx_fips_check_module.so;
+
+load_module modules/ngx_http_js_module.so;
+
+events {
+    worker_connections  ;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    map_hash_max_size ;
+    map_hash_bucket_size ;
+
+    js_import /etc/nginx/njs/apikey_auth.js;
+    js_set $apikey_auth_hash apikey_auth.hash;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    map $upstream_trailer_grpc_status $grpc_status {
+        default $upstream_trailer_grpc_status;
+        '' $sent_http_grpc_status;
+    }
+
+    access_log ;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    keepalive_timeout ;
+    keepalive_requests 0;
+
+    #gzip  on;
+
+    server_names_hash_max_size ;
+    
+
+    variables_hash_bucket_size 0;
+    variables_hash_max_size 0;
+
+    map $request_uri $request_uri_no_args {
+        "~^(?P<path>[^?]*)(\?.*)?$" $path;
+    }
+
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+    map $http_upgrade $vs_connection_header {
+        default upgrade;
+        ''      $default_connection_header;
+    }
+
+    
+    
+    keyval_zone zone=oidc_pkce:512K timeout=2m sync;
+    keyval_zone zone=oidc_id_tokens:2M timeout=2h sync;
+    keyval_zone zone=oidc_access_tokens:3M timeout=30m sync;
+    keyval_zone zone=refresh_tokens:4M timeout=1h sync;
+    keyval_zone zone=oidc_sids:5M timeout=120s sync;
+    include oidc/oidc_common.conf;
+
+    server {
+        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
+        set $default_connection_header "";
+        set $resource_type "";
+        set $resource_name "";
+        set $resource_namespace "";
+        set $service "";
+
+        listen 0 default_server;listen [::]:0 default_server;
+        listen 0 ssl default_server;
+        listen [::]:0 ssl default_server;
+        ssl_certificate /etc/nginx/secrets/default;
+        ssl_certificate_key /etc/nginx/secrets/default;
+
+        server_name _;
+        server_tokens "";
+
+        location / {
+            return ;
+        }
+    }
+
+    # NGINX Plus API over unix socket
+    server {
+        listen unix:/var/lib/nginx/nginx-plus-api.sock;
+        access_log off;
+
+        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
+        location /configVersionCheck {
+            if ($config_version_mismatch) {
+                return 503;
+            }
+            return 200;
+        }
+
+        location /api {
+            api write=on;
+        }
+    }
+
+    include /etc/nginx/config-version.conf;
+    include /etc/nginx/conf.d/*.conf;
+
+    server {
+        listen unix:/var/lib/nginx/nginx-418-server.sock;
+        access_log off;
+
+        return 418;
+    }
+}
+
+stream {
+    log_format  stream-main  '$remote_addr [$time_local] '
+                      '$protocol $status $bytes_sent $bytes_received '
+                      '$session_time "$ssl_preread_server_name"';
+
+    access_log  /dev/stdout  stream-main;
+    
+    
+
+    map_hash_max_size ;
+    
+    include /etc/nginx/stream-conf.d/*.conf;
+}
+
+mgmt {
+    license_token /license.jwt;
+    enforce_initial_report off;
+    deployment_context /etc/nginx/reporting/tracking.info;
+}
+
+---
+
+[TestExecuteTemplate_ForMainForNGINXPlusWithOIDCTimeoutDefault - 1]
+worker_processes  ;
+
+daemon off;
+
+error_log  stderr ;
+pid        /var/lib/nginx/nginx.pid;
+load_module modules/ngx_fips_check_module.so;
+
+load_module modules/ngx_http_js_module.so;
+
+events {
+    worker_connections  ;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    map_hash_max_size ;
+    map_hash_bucket_size ;
+
+    js_import /etc/nginx/njs/apikey_auth.js;
+    js_set $apikey_auth_hash apikey_auth.hash;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    map $upstream_trailer_grpc_status $grpc_status {
+        default $upstream_trailer_grpc_status;
+        '' $sent_http_grpc_status;
+    }
+
+    access_log ;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    keepalive_timeout ;
+    keepalive_requests 0;
+
+    #gzip  on;
+
+    server_names_hash_max_size ;
+    
+
+    variables_hash_bucket_size 0;
+    variables_hash_max_size 0;
+
+    map $request_uri $request_uri_no_args {
+        "~^(?P<path>[^?]*)(\?.*)?$" $path;
+    }
+
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+    map $http_upgrade $vs_connection_header {
+        default upgrade;
+        ''      $default_connection_header;
+    }
+
+    
+    
+    keyval_zone zone=oidc_pkce:128K timeout=90s sync;
+    keyval_zone zone=oidc_id_tokens:1M timeout=1h sync;
+    keyval_zone zone=oidc_access_tokens:1M timeout=1h sync;
+    keyval_zone zone=refresh_tokens:1M timeout=8h sync;
+    keyval_zone zone=oidc_sids:1M timeout=8h sync;
+    include oidc/oidc_common.conf;
+
+    server {
+        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
+        set $default_connection_header "";
+        set $resource_type "";
+        set $resource_name "";
+        set $resource_namespace "";
+        set $service "";
+
+        listen 0 default_server;listen [::]:0 default_server;
+        listen 0 ssl default_server;
+        listen [::]:0 ssl default_server;
+        ssl_certificate /etc/nginx/secrets/default;
+        ssl_certificate_key /etc/nginx/secrets/default;
+
+        server_name _;
+        server_tokens "";
+
+        location / {
+            return ;
+        }
+    }
+
+    # NGINX Plus API over unix socket
+    server {
+        listen unix:/var/lib/nginx/nginx-plus-api.sock;
+        access_log off;
+
+        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
+        location /configVersionCheck {
+            if ($config_version_mismatch) {
+                return 503;
+            }
+            return 200;
+        }
+
+        location /api {
+            api write=on;
+        }
+    }
+
+    include /etc/nginx/config-version.conf;
+    include /etc/nginx/conf.d/*.conf;
+
+    server {
+        listen unix:/var/lib/nginx/nginx-418-server.sock;
+        access_log off;
+
+        return 418;
+    }
+}
+
+stream {
+    log_format  stream-main  '$remote_addr [$time_local] '
+                      '$protocol $status $bytes_sent $bytes_received '
+                      '$session_time "$ssl_preread_server_name"';
+
+    access_log  /dev/stdout  stream-main;
+    
+    
+
+    map_hash_max_size ;
+    
+    include /etc/nginx/stream-conf.d/*.conf;
+}
+
+mgmt {
+    license_token /license.jwt;
+    enforce_initial_report off;
+    deployment_context /etc/nginx/reporting/tracking.info;
+}
+
+---
+
 [TestExecuteTemplate_ForMainForNGINXPlusWithoutCustomDefaultHTTPAndHTTPSListenerPorts - 1]
 worker_processes  auto;
 worker_rlimit_nofile 65536;
@@ -3418,7 +5118,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -3538,7 +5237,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -3660,7 +5358,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -3781,7 +5478,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -3901,7 +5597,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -4042,7 +5737,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -4162,7 +5856,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -4919,9 +6612,9 @@ http {
         set $resource_namespace "";
         set $service "";
 
-        listen 0 default_server;listen [::]:0 default_server;
+        listen 0 default_server;
         listen 0 ssl default_server;
-        listen [::]:0 ssl default_server;
+        
         ssl_certificate /etc/nginx/secrets/default;
         ssl_certificate_key /etc/nginx/secrets/default;
 
@@ -4975,7 +6668,6 @@ stream {
     
     server {
         listen 1223;
-        listen [::]:1223;
         resolver example.com valid=20s ipv6=off;
         zone_sync;
         zone_sync_server nginx-ingress-headless.nginx-ingress.svc.cluster.local:1223 resolve;
@@ -5158,7 +6850,6 @@ http {
     map_hash_max_size ;
     map_hash_bucket_size ;
 
-
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -5278,7 +6969,6 @@ http {
     default_type  application/octet-stream;
     map_hash_max_size ;
     map_hash_bucket_size ;
-
 
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
@@ -5410,6 +7100,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
+    set $service "-";
     location  {
         set $service "";
         # location for minion default/cafe-ingress-coffee-minion
@@ -5430,7 +7121,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://;
-
         
     }
     
@@ -5454,7 +7144,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://;
-
         
     }
     
@@ -5475,6 +7164,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
+    set $service "-";
     location  {
         set $service "";
         # location for minion default/cafe-ingress-coffee-minion
@@ -5498,7 +7188,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://;
-
         
     }
     
@@ -5524,7 +7213,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://;
-
         
     }
     
@@ -5545,6 +7233,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
+    set $service "-";
     location  {
         set $service "";
         # location for minion default/cafe-ingress-coffee-minion
@@ -5564,7 +7253,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://;
-
         
     }
     
@@ -5587,7 +7275,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://;
-
         
     }
     
@@ -5608,6 +7295,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
+    set $service "-";
     location  {
         set $service "";
         # location for minion default/cafe-ingress-coffee-minion
@@ -5627,7 +7315,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://;
-
         
     }
     
@@ -5650,7 +7337,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://;
-
         
     }
     
@@ -5671,6 +7357,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
+    set $service "-";
     location  {
         set $service "";
         # location for minion default/cafe-ingress-coffee-minion
@@ -5690,7 +7377,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://;
-
         
     }
     
@@ -5713,7 +7399,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://;
-
         
     }
     
@@ -5734,6 +7419,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
+    set $service "-";
     location  {
         set $service "";
         # location for minion default/cafe-ingress-coffee-minion
@@ -5753,7 +7439,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://;
-
         
     }
     
@@ -5776,7 +7461,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://;
-
         
     }
     
@@ -5798,8 +7482,6 @@ upstream default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80 {
 }
 
 
-
-
 server {
     listen 80;listen [::]:80;
     listen 443 ssl;listen [::]:443 ssl;
@@ -5814,6 +7496,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
+    set $service "-";
 
     
     if ($scheme = http) {
@@ -5842,7 +7525,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering on;
         proxy_pass http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80;
-
         
     }
     
@@ -5867,7 +7549,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering on;
         proxy_pass http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80;
-
         
     }
     
@@ -5889,8 +7570,6 @@ upstream default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80 {
 }
 
 
-
-
 server {
     listen 80;listen [::]:80;
     listen 443 ssl;listen [::]:443 ssl;
@@ -5905,6 +7584,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
+    set $service "-";
 
     
     if ($scheme = http) {
@@ -5933,7 +7613,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering on;
         proxy_pass http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80;
-
         
     }
     
@@ -5958,7 +7637,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering on;
         proxy_pass http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80;
-
         
     }
     
@@ -5980,8 +7658,6 @@ upstream default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80 {
 }
 
 
-
-
 server {
     listen 80;listen [::]:80;
     listen 443 ssl;listen [::]:443 ssl;
@@ -5996,6 +7672,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
+    set $service "-";
 
     
     if ($scheme = http) {
@@ -6024,7 +7701,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering on;
         proxy_pass http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80;
-
         
     }
     
@@ -6049,7 +7725,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering on;
         proxy_pass http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80;
-
         
     }
     
@@ -6071,8 +7746,6 @@ upstream default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80 {
 }
 
 
-
-
 server {
     listen 80;listen [::]:80;
     listen 443 ssl;listen [::]:443 ssl;
@@ -6087,6 +7760,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
+    set $service "-";
 
     
     if ($scheme = http) {
@@ -6115,7 +7789,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering on;
         proxy_pass http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80;
-
         
     }
     
@@ -6140,7 +7813,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering on;
         proxy_pass http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80;
-
         
     }
     
@@ -6162,8 +7834,6 @@ upstream default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80 {
 }
 
 
-
-
 server {
     listen 80;listen [::]:80;
     listen 443 ssl;listen [::]:443 ssl;
@@ -6178,6 +7848,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
+    set $service "-";
 
     
     if ($scheme = http) {
@@ -6206,7 +7877,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering on;
         proxy_pass http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80;
-
         
     }
     
@@ -6231,7 +7901,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering on;
         proxy_pass http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80;
-
         
     }
     
@@ -6252,6 +7921,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
+    set $service "-";
     location  {
         set $service "";
         # location for minion default/cafe-ingress-coffee-minion
@@ -6271,7 +7941,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://;
-
         
     }
     
@@ -6294,7 +7963,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://;
-
         
     }
     
@@ -6316,8 +7984,6 @@ upstream default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80 {
 }
 
 
-
-
 server {
     listen 80;listen [::]:80;
     listen 443 ssl;listen [::]:443 ssl;
@@ -6332,6 +7998,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
+    set $service "-";
 
     
     if ($scheme = http) {
@@ -6361,7 +8028,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering on;
         proxy_pass http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80;
-
         
     }
     
@@ -6387,7 +8053,790 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering on;
         proxy_pass http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80;
+        
+    }
+    
+}
 
+---
+
+[TestExecuteTemplate_ForMergeableIngressMasterMinionPolicy - 1]
+# configuration for default/cafe-ingress-master
+
+
+server {
+        allow 10.0.0.0/16;
+        deny all;
+
+    server_tokens ;
+
+    server_name cafe.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress-master";
+    set $resource_namespace "default";
+    set $service "-";
+    location / {
+        set $service "";
+        # location for minion default/cafe-ingress-coffee-minion
+        set $resource_name "cafe-ingress-coffee-minion";
+        set $resource_namespace "default";
+        allow 10.1.1.1/16;
+        deny all;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://;
+        
+    }
+    
+    location / {
+        set $service "";
+        # location for minion default/cafe-ingress-tea-minion
+        set $resource_name "cafe-ingress-tea-minion";
+        set $resource_namespace "default";
+        allow 10.1.1.1/16;
+        deny all;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForMergeableIngressMasterMinionPolicy - 2]
+# configuration for default/cafe-ingress-master
+
+
+server {
+        deny 10.0.0.0/16;
+        allow all;
+
+    server_tokens ;
+
+    server_name cafe.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress-master";
+    set $resource_namespace "default";
+    set $service "-";
+    location / {
+        set $service "";
+        # location for minion default/cafe-ingress-coffee-minion
+        set $resource_name "cafe-ingress-coffee-minion";
+        set $resource_namespace "default";
+        deny 10.1.1.1/16;
+        allow all;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://;
+        
+    }
+    
+    location / {
+        set $service "";
+        # location for minion default/cafe-ingress-tea-minion
+        set $resource_name "cafe-ingress-tea-minion";
+        set $resource_namespace "default";
+        deny 10.1.1.1/16;
+        allow all;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForMergeableIngressMasterMinionPolicy - 3]
+# configuration for default/cafe-ingress-master
+
+
+server {
+        allow 10.0.0.0/16;
+        deny all;
+
+    server_tokens ;
+
+    server_name cafe.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress-master";
+    set $resource_namespace "default";
+    set $service "-";
+    location / {
+        set $service "";
+        # location for minion default/cafe-ingress-coffee-minion
+        set $resource_name "cafe-ingress-coffee-minion";
+        set $resource_namespace "default";
+        deny 10.1.1.1/16;
+        allow all;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://;
+        
+    }
+    
+    location / {
+        set $service "";
+        # location for minion default/cafe-ingress-tea-minion
+        set $resource_name "cafe-ingress-tea-minion";
+        set $resource_namespace "default";
+        deny 10.1.1.1/16;
+        allow all;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForMergeableIngressMasterMinionPolicy - 4]
+# configuration for default/cafe-ingress-master
+
+
+server {
+        deny 10.0.0.0/16;
+        allow all;
+
+    server_tokens ;
+
+    server_name cafe.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress-master";
+    set $resource_namespace "default";
+    set $service "-";
+    location / {
+        set $service "";
+        # location for minion default/cafe-ingress-coffee-minion
+        set $resource_name "cafe-ingress-coffee-minion";
+        set $resource_namespace "default";
+        allow 10.1.1.1/16;
+        deny all;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://;
+        
+    }
+    
+    location / {
+        set $service "";
+        # location for minion default/cafe-ingress-tea-minion
+        set $resource_name "cafe-ingress-tea-minion";
+        set $resource_namespace "default";
+        allow 10.1.1.1/16;
+        deny all;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForMergeableIngressMasterMinionPolicy - 4]
+# configuration for default/cafe-ingress-master
+
+
+server {
+        deny 10.0.0.0/16;
+        allow all;
+
+    server_tokens ;
+
+    server_name cafe.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress-master";
+    set $resource_namespace "default";
+    set $service "-";
+    location / {
+        set $service "";
+        # location for minion default/cafe-ingress-coffee-minion
+        set $resource_name "cafe-ingress-coffee-minion";
+        set $resource_namespace "default";
+        allow 10.1.1.1/16;
+        deny all;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://;
+        
+    }
+    
+    location / {
+        set $service "";
+        # location for minion default/cafe-ingress-tea-minion
+        set $resource_name "cafe-ingress-tea-minion";
+        set $resource_namespace "default";
+        allow 10.1.1.1/16;
+        deny all;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForMergeableIngressMasterMinionPolicy - 5]
+# configuration for default/cafe-ingress-master
+
+
+server {
+        allow 10.2.0.0/16;
+        deny all;
+        deny 10.0.0.0/16;
+        allow all;
+
+    server_tokens ;
+
+    server_name cafe.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress-master";
+    set $resource_namespace "default";
+    set $service "-";
+    location / {
+        set $service "";
+        # location for minion default/cafe-ingress-coffee-minion
+        set $resource_name "cafe-ingress-coffee-minion";
+        set $resource_namespace "default";
+        allow 10.1.0.0/16;
+        allow 10.2.0.0/16;
+        deny all;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://;
+        
+    }
+    
+    location / {
+        set $service "";
+        # location for minion default/cafe-ingress-tea-minion
+        set $resource_name "cafe-ingress-tea-minion";
+        set $resource_namespace "default";
+        allow 10.1.0.0/16;
+        allow 10.2.0.0/16;
+        deny all;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForMergeableIngressMasterMinionPolicy - 5]
+# configuration for default/cafe-ingress-master
+
+
+server {
+        allow 10.2.0.0/16;
+        deny all;
+        deny 10.0.0.0/16;
+        allow all;
+
+    server_tokens ;
+
+    server_name cafe.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress-master";
+    set $resource_namespace "default";
+    set $service "-";
+    location / {
+        set $service "";
+        # location for minion default/cafe-ingress-coffee-minion
+        set $resource_name "cafe-ingress-coffee-minion";
+        set $resource_namespace "default";
+        allow 10.1.0.0/16;
+        allow 10.2.0.0/16;
+        deny all;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://;
+        
+    }
+    
+    location / {
+        set $service "";
+        # location for minion default/cafe-ingress-tea-minion
+        set $resource_name "cafe-ingress-tea-minion";
+        set $resource_namespace "default";
+        allow 10.1.0.0/16;
+        allow 10.2.0.0/16;
+        deny all;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForMergeableIngressMasterPolicy - 1]
+# configuration for default/cafe-ingress-master
+
+
+server {
+        allow 10.0.0.0/16;
+        deny all;
+
+    server_tokens ;
+
+    server_name cafe.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress-master";
+    set $resource_namespace "default";
+    set $service "-";
+    location  {
+        set $service "";
+        # location for minion default/cafe-ingress-coffee-minion
+        set $resource_name "cafe-ingress-coffee-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://;
+        
+    }
+    
+    location  {
+        set $service "";
+        # location for minion default/cafe-ingress-tea-minion
+        set $resource_name "cafe-ingress-tea-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForMergeableIngressMasterPolicy - 1]
+# configuration for default/cafe-ingress-master
+
+
+server {
+        allow 10.0.0.0/16;
+        deny all;
+
+    server_tokens ;
+
+    server_name cafe.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress-master";
+    set $resource_namespace "default";
+    set $service "-";
+    location  {
+        set $service "";
+        # location for minion default/cafe-ingress-coffee-minion
+        set $resource_name "cafe-ingress-coffee-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://;
+        
+    }
+    
+    location  {
+        set $service "";
+        # location for minion default/cafe-ingress-tea-minion
+        set $resource_name "cafe-ingress-tea-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForMergeableIngressMasterPolicy - 2]
+# configuration for default/cafe-ingress-master
+
+
+server {
+        deny 10.0.0.0/16;
+        allow all;
+
+    server_tokens ;
+
+    server_name cafe.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress-master";
+    set $resource_namespace "default";
+    set $service "-";
+    location  {
+        set $service "";
+        # location for minion default/cafe-ingress-coffee-minion
+        set $resource_name "cafe-ingress-coffee-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://;
+        
+    }
+    
+    location  {
+        set $service "";
+        # location for minion default/cafe-ingress-tea-minion
+        set $resource_name "cafe-ingress-tea-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForMergeableIngressMinionPolicy - 1]
+# configuration for default/cafe-ingress-master
+
+
+server {
+
+    server_tokens ;
+
+    server_name cafe.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress-master";
+    set $resource_namespace "default";
+    set $service "-";
+    location  {
+        set $service "";
+        # location for minion default/cafe-ingress-coffee-minion
+        set $resource_name "cafe-ingress-coffee-minion";
+        set $resource_namespace "default";
+        allow 10.0.0.0/16;
+        deny all;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://;
+        
+    }
+    
+    location  {
+        set $service "";
+        # location for minion default/cafe-ingress-tea-minion
+        set $resource_name "cafe-ingress-tea-minion";
+        set $resource_namespace "default";
+        allow 10.0.0.0/16;
+        deny all;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForMergeableIngressMinionPolicy - 2]
+# configuration for default/cafe-ingress-master
+
+
+server {
+
+    server_tokens ;
+
+    server_name cafe.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress-master";
+    set $resource_namespace "default";
+    set $service "-";
+    location  {
+        set $service "";
+        # location for minion default/cafe-ingress-coffee-minion
+        set $resource_name "cafe-ingress-coffee-minion";
+        set $resource_namespace "default";
+        deny 10.0.0.0/16;
+        allow all;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://;
+        
+    }
+    
+    location  {
+        set $service "";
+        # location for minion default/cafe-ingress-tea-minion
+        set $resource_name "cafe-ingress-tea-minion";
+        set $resource_namespace "default";
+        deny 10.0.0.0/16;
+        allow all;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://;
         
     }
     
@@ -6409,8 +8858,6 @@ upstream default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80 {
 }
 
 
-
-
 server {
     listen 80;listen [::]:80;
     listen 443 ssl;listen [::]:443 ssl;
@@ -6425,6 +8872,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
+    set $service "-";
 
     
     if ($scheme = http) {
@@ -6453,7 +8901,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering on;
         proxy_pass http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80;
-
         
     }
     
@@ -6478,7 +8925,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering on;
         proxy_pass http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80;
-
         
     }
     
@@ -6500,8 +8946,6 @@ upstream default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80 {
 }
 
 
-
-
 server {
     listen 80;listen [::]:80;
     listen 443 ssl;listen [::]:443 ssl;
@@ -6516,6 +8960,7 @@ server {
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
+    set $service "-";
 
     
     if ($scheme = http) {
@@ -6544,7 +8989,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering on;
         proxy_pass http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80;
-
         
     }
     
@@ -6569,7 +9013,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering on;
         proxy_pass http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80;
-
         
     }
     

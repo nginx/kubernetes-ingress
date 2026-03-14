@@ -926,3 +926,152 @@ func TestMakeResolver(t *testing.T) {
 		})
 	}
 }
+
+func TestMakeRewritePattern_WithRegexCaseSensitiveModifier(t *testing.T) {
+	t.Parallel()
+
+	want := "^/(hello|hi)"
+	got := makeRewritePattern(
+		&Location{Path: "/(hello|hi)"},
+		map[string]string{"nginx.org/path-regex": "case_sensitive"},
+	)
+	if got != want {
+		t.Errorf("makeRewritePattern() = %q; want %q", got, want)
+	}
+}
+
+func TestMakeRewritePattern_WithRegexCaseInsensitiveModifier(t *testing.T) {
+	t.Parallel()
+
+	want := "(?i)^/(hello|hi)"
+	got := makeRewritePattern(
+		&Location{Path: "/(hello|hi)"},
+		map[string]string{"nginx.org/path-regex": "case_insensitive"},
+	)
+	if got != want {
+		t.Errorf("makeRewritePattern() = %q; want %q", got, want)
+	}
+}
+
+func TestMakeRewritePattern_WithRegexExactModifier(t *testing.T) {
+	t.Parallel()
+
+	want := "/coffee"
+	got := makeRewritePattern(
+		&Location{Path: "/coffee"},
+		map[string]string{"nginx.org/path-regex": "exact"},
+	)
+	if got != want {
+		t.Errorf("makeRewritePattern() = %q; want %q", got, want)
+	}
+}
+
+func TestMakeRewritePattern_WithBogusRegexModifier(t *testing.T) {
+	t.Parallel()
+
+	want := "/(hello|hi)"
+	got := makeRewritePattern(
+		&Location{Path: "/(hello|hi)"},
+		map[string]string{"nginx.org/path-regex": "bogus"},
+	)
+	if got != want {
+		t.Errorf("makeRewritePattern() = %q; want %q", got, want)
+	}
+}
+
+func TestMakeRewritePattern_WithoutRegexModifier(t *testing.T) {
+	t.Parallel()
+
+	want := "/coffee"
+	got := makeRewritePattern(
+		&Location{Path: "/coffee"},
+		map[string]string{},
+	)
+	if got != want {
+		t.Errorf("makeRewritePattern() = %q; want %q", got, want)
+	}
+}
+
+func TestMakeRewritePattern_WithMergableIngress(t *testing.T) {
+	t.Parallel()
+
+	// Test with minion ingress having path-regex annotation
+	want := "^/coffee/[A-Z0-9]{3}"
+	got := makeRewritePattern(
+		&Location{
+			Path: "/coffee/[A-Z0-9]{3}",
+			MinionIngress: &Ingress{
+				Annotations: map[string]string{
+					"nginx.org/mergeable-ingress-type": "minion",
+					"nginx.org/path-regex":             "case_sensitive",
+				},
+			},
+		},
+		map[string]string{"nginx.org/path-regex": "case_insensitive"}, // Should be ignored
+	)
+	if got != want {
+		t.Errorf("makeRewritePattern() = %q; want %q", got, want)
+	}
+}
+
+func TestMakeRewritePattern_WithComplexPatterns(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		path      string
+		pathRegex string
+		expected  string
+	}{
+		{
+			name:      "Simple path with case sensitive regex",
+			path:      "/api/(v1|v2)",
+			pathRegex: "case_sensitive",
+			expected:  "^/api/(v1|v2)",
+		},
+		{
+			name:      "Complex regex pattern with case insensitive",
+			path:      "/user/([0-9]+)/(profile|settings)",
+			pathRegex: "case_insensitive",
+			expected:  "(?i)^/user/([0-9]+)/(profile|settings)",
+		},
+		{
+			name:      "Exact match pattern",
+			path:      "/health",
+			pathRegex: "exact",
+			expected:  "/health",
+		},
+		{
+			name:      "Pattern with special characters",
+			path:      "/api/v1/([a-zA-Z0-9_-]+)/data",
+			pathRegex: "case_sensitive",
+			expected:  "^/api/v1/([a-zA-Z0-9_-]+)/data",
+		},
+		{
+			name:      "Path with no regex annotation",
+			path:      "/static/assets",
+			pathRegex: "",
+			expected:  "/static/assets",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			annotations := map[string]string{}
+			if tt.pathRegex != "" {
+				annotations["nginx.org/path-regex"] = tt.pathRegex
+			}
+
+			got := makeRewritePattern(
+				&Location{Path: tt.path},
+				annotations,
+			)
+			if got != tt.expected {
+				t.Errorf("Test %q: makeRewritePattern() = %q; want %q", tt.name, got, tt.expected)
+			}
+		})
+	}
+}

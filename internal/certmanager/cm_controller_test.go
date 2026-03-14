@@ -49,7 +49,7 @@ func Test_controller_Register(t *testing.T) {
 			name: "virtualserver is re-queued when an 'Added' event is received for this virtualserver",
 			givenCall: func(t *testing.T, _ cmclient.Interface, c k8s_nginx.Interface) {
 				_, err := c.K8sV1().VirtualServers("namespace-1").Create(context.Background(), &vsapi.VirtualServer{ObjectMeta: metav1.ObjectMeta{
-					Namespace: "namespace-1", Name: "vs-1",
+					Namespace: "namespace-1", Name: "vs-1", UID: "vs-uid-1",
 				}}, metav1.CreateOptions{})
 				require.NoError(t, err)
 			},
@@ -58,11 +58,11 @@ func Test_controller_Register(t *testing.T) {
 		{
 			name: "virtualserver is re-queued when an 'Updated' event is received for this virtualserver",
 			existingVsObjects: []runtime.Object{&vsapi.VirtualServer{ObjectMeta: metav1.ObjectMeta{
-				Namespace: "namespace-1", Name: "vs-1",
+				Namespace: "namespace-1", Name: "vs-1", UID: "vs-uid-1",
 			}}},
 			givenCall: func(t *testing.T, _ cmclient.Interface, c k8s_nginx.Interface) {
 				_, err := c.K8sV1().VirtualServers("namespace-1").Update(context.Background(), &vsapi.VirtualServer{ObjectMeta: metav1.ObjectMeta{
-					Namespace: "namespace-1", Name: "vs-1",
+					Namespace: "namespace-1", Name: "vs-1", UID: "vs-uid-1",
 				}}, metav1.UpdateOptions{})
 				require.NoError(t, err)
 			},

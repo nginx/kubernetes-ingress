@@ -7,7 +7,8 @@ limit for the group.
 
 ## Prerequisites
 
-1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
+1. Run `make secrets` command to generate the necessary secrets for the example.
+1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
    instructions to deploy the Ingress Controller.
 1. Save the public IP address of the Ingress Controller into a shell variable:
 
@@ -23,7 +24,13 @@ limit for the group.
 
 ## Step 1 - Deploy a Web Application
 
-Create the application deployments and services:
+1. Create the secret with the TLS certificate and key:
+
+```console
+kubectl create -f cafe-secret.yaml
+```
+
+1. Create the application deployments and services:
 
 ```console
 kubectl apply -f coffee.yaml

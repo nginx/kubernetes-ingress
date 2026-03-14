@@ -12,6 +12,7 @@ import (
 	validation2 "github.com/nginx/kubernetes-ingress/internal/validation"
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
@@ -97,8 +98,13 @@ func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, isPlus, enab
 		fieldCount++
 	}
 
+	if spec.CORS != nil {
+		allErrs = append(allErrs, validateCORS(spec.CORS, fieldPath.Child("cors"))...)
+		fieldCount++
+	}
+
 	if fieldCount != 1 {
-		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`"
+		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`"
 		if isPlus {
 			msg = fmt.Sprint(msg, ", `jwt`, `oidc`, `waf`")
 		}
@@ -244,6 +250,14 @@ func validateJWT(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
 				validation2.WithDefaultScheme("https"))
 			if err != nil {
 				allErrs = append(allErrs, field.Invalid(fieldPath.Child("sniServerName"), jwt.SNIName, "sniServerName is not a valid URI"))
+			}
+		}
+
+		if jwt.TrustedCertSecret != "" {
+			allErrs = append(allErrs, validateSecretName(jwt.TrustedCertSecret, fieldPath.Child("trustedCertSecret"))...)
+			// If trustedCertSecret is set but sslVerify is false, warn user
+			if !jwt.SSLVerify {
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("sslVerify"), jwt.SSLVerify, "sslVerify should be enabled when trustedCertSecret is specified"))
 			}
 		}
 	}
@@ -430,7 +444,85 @@ func validateCache(cache *v1.Cache, fieldPath *field.Path, isPlus bool) field.Er
 
 	allErrs = append(allErrs, validateCacheAllowedCodes(cache, fieldPath)...)
 
+	// Validate NGINX Plus features
 	allErrs = append(allErrs, validateCachePlusFeatures(cache, fieldPath, isPlus)...)
+
+	// Validate time fields
+	if cache.Inactive != "" {
+		allErrs = append(allErrs, validateTime(cache.Inactive, fieldPath.Child("inactive"))...)
+	}
+
+	// Validate size fields
+	if cache.MaxSize != "" {
+		allErrs = append(allErrs, validateOffset(cache.MaxSize, fieldPath.Child("maxSize"))...)
+	}
+	if cache.MinFree != "" {
+		allErrs = append(allErrs, validateOffset(cache.MinFree, fieldPath.Child("minFree"))...)
+	}
+
+	// Validate manager fields
+	if cache.Manager != nil {
+		managerPath := fieldPath.Child("manager")
+		if cache.Manager.Files != nil && *cache.Manager.Files <= 0 {
+			allErrs = append(allErrs, field.Invalid(managerPath.Child("files"), *cache.Manager.Files, "must be a positive integer"))
+		}
+		if cache.Manager.Sleep != "" {
+			allErrs = append(allErrs, validateTime(cache.Manager.Sleep, managerPath.Child("sleep"))...)
+		}
+		if cache.Manager.Threshold != "" {
+			allErrs = append(allErrs, validateTime(cache.Manager.Threshold, managerPath.Child("threshold"))...)
+		}
+	}
+
+	// Validate cache min uses
+	if cache.CacheMinUses != nil && *cache.CacheMinUses <= 0 {
+		allErrs = append(allErrs, field.Invalid(fieldPath.Child("cacheMinUses"), *cache.CacheMinUses, "must be a positive integer"))
+	}
+
+	// Validate lock fields
+	if cache.Lock != nil {
+		lockPath := fieldPath.Child("lock")
+		if cache.Lock.Timeout != "" {
+			allErrs = append(allErrs, validateTime(cache.Lock.Timeout, lockPath.Child("timeout"))...)
+		}
+		if cache.Lock.Age != "" {
+			allErrs = append(allErrs, validateTime(cache.Lock.Age, lockPath.Child("age"))...)
+		}
+	}
+
+	// Validate cache key
+	if cache.CacheKey != "" {
+		if err := ValidateEscapedString(cache.CacheKey); err != nil {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("cacheKey"), cache.CacheKey, err.Error()))
+		}
+		// Cache keys support both ${var} and $var NGINX syntax, so we skip variable braces validation
+		// but still validate basic syntax rules like not ending with $
+		if strings.HasSuffix(cache.CacheKey, "$") {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("cacheKey"), cache.CacheKey, "must not end with $"))
+		}
+	}
+
+	// Validate conditions
+	if cache.Conditions != nil {
+		conditionsPath := fieldPath.Child("conditions")
+		for i, condition := range cache.Conditions.NoCache {
+			if condition != "" {
+				if err := ValidateEscapedString(condition); err != nil {
+					allErrs = append(allErrs, field.Invalid(conditionsPath.Child("noCache").Index(i), condition, err.Error()))
+				}
+			}
+		}
+		for i, condition := range cache.Conditions.Bypass {
+			if condition != "" {
+				if err := ValidateEscapedString(condition); err != nil {
+					allErrs = append(allErrs, field.Invalid(conditionsPath.Child("bypass").Index(i), condition, err.Error()))
+				}
+			}
+		}
+	}
+
+	// Validate use stale
+	allErrs = append(allErrs, validateCacheUseStale(cache, fieldPath)...)
 
 	return allErrs
 }
@@ -501,6 +593,30 @@ func validateCachePlusFeatures(cache *v1.Cache, fieldPath *field.Path, isPlus bo
 		}
 	}
 
+	return allErrs
+}
+
+// validateCacheUseStale validates the cacheUseStale field values
+// The directive's parameters match the parameters of the proxy_next_upstream directive plus "updating"
+func validateCacheUseStale(cache *v1.Cache, fieldPath *field.Path) field.ErrorList {
+	if len(cache.CacheUseStale) == 0 {
+		return nil
+	}
+
+	allErrs := field.ErrorList{}
+	allParams := sets.Set[string]{}
+
+	for _, para := range cache.CacheUseStale {
+		// Check if parameter is valid (either from validNextUpstreamParams or "updating" which is specific to cache)
+		if !validNextUpstreamParams[para] && para != "updating" {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("cacheUseStale"), para, "not a valid parameter"))
+		}
+		if allParams.Has(para) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("cacheUseStale"), para, "can not have duplicate parameters"))
+		} else {
+			allParams.Insert(para)
+		}
+	}
 	return allErrs
 }
 
@@ -813,4 +929,288 @@ func validatePositiveInt(n int, fieldPath *field.Path) field.ErrorList {
 		return field.ErrorList{field.Invalid(fieldPath, n, "must be positive")}
 	}
 	return nil
+}
+
+func validateCORS(cors *v1.CORS, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	// Validate origins
+	allErrs = append(allErrs, validateCORSOrigins(cors.AllowOrigin, fieldPath.Child("allowOrigin"))...)
+
+	// Validate allow headers
+	allErrs = append(allErrs, validateCORSAllowHeaders(cors.AllowHeaders, fieldPath.Child("allowHeaders"))...)
+
+	// Validate methods
+	allErrs = append(allErrs, validateCORSMethods(cors.AllowMethods, fieldPath.Child("allowMethods"))...)
+
+	// Validate expose headers
+	allErrs = append(allErrs, validateCORSExposeHeaders(cors.ExposeHeaders, fieldPath.Child("exposeHeaders"))...)
+
+	return allErrs
+}
+
+// validateCORSOrigins validates the allowOrigin field
+func validateCORSOrigins(origins []string, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	originSet := make(map[string]int) // Track origins and their first occurrence index
+
+	for i, origin := range origins {
+		// Check for duplicates
+		if firstIndex, exists := originSet[origin]; exists {
+			allErrs = append(allErrs, field.Duplicate(fieldPath.Index(i),
+				fmt.Sprintf("origin '%s' already specified at index %d, duplicates cause nginx configuration conflicts", origin, firstIndex)))
+		} else {
+			originSet[origin] = i
+		}
+
+		// Validate origin format - must be wildcard, exact URL, or wildcard subdomain pattern
+		if err := validateOriginFormat(origin); err != nil {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), origin, err.Error()))
+		}
+
+		// Check for dangerous characters that could cause nginx injection
+		if containsDangerousChars(origin) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), origin, "origin contains dangerous characters that could cause nginx configuration injection"))
+		}
+	}
+
+	return allErrs
+}
+
+// validateOriginFormat validates a single origin format
+func validateOriginFormat(origin string) error {
+	// Global wildcard
+	if origin == "*" {
+		return nil
+	}
+
+	parsedOrigin, err := url.Parse(origin)
+	if err != nil {
+		return fmt.Errorf("invalid origin URL format")
+	}
+
+	if err := validateParsedOriginBase(parsedOrigin); err != nil {
+		return err
+	}
+
+	host := parsedOrigin.Host
+	if strings.HasPrefix(host, "*.") {
+		return validateWildcardOriginHost(origin, host)
+	}
+
+	return validateExactOriginHost(host)
+}
+
+func validateParsedOriginBase(parsedOrigin *url.URL) error {
+	// Must have protocol
+	if parsedOrigin.Scheme != "http" && parsedOrigin.Scheme != "https" {
+		return fmt.Errorf("origin must start with http:// or https:// (or be '*')")
+	}
+
+	// Origin must contain only scheme://host[:port]
+	if parsedOrigin.Host == "" {
+		return fmt.Errorf("origin host cannot be empty")
+	}
+	if parsedOrigin.User != nil {
+		return fmt.Errorf("origin must not include @")
+	}
+	if parsedOrigin.Path != "" && parsedOrigin.Path != "/" {
+		return fmt.Errorf("origin must not include a path")
+	}
+	if parsedOrigin.RawQuery != "" {
+		return fmt.Errorf("origin must not include query parameters")
+	}
+	if parsedOrigin.Fragment != "" {
+		return fmt.Errorf("origin must not include a fragment")
+	}
+
+	return nil
+}
+
+func validateWildcardOriginHost(origin, host string) error {
+	// Validate wildcard subdomain format
+	domain := host[2:] // Remove "*."
+	if domain == "" {
+		return fmt.Errorf("wildcard subdomain cannot be empty (invalid format: %s)", origin)
+	}
+
+	// Ensure domain doesn't contain additional wildcards
+	if strings.Contains(domain, "*") {
+		return fmt.Errorf("only single-level wildcard subdomains are supported (invalid: %s)", origin)
+	}
+
+	// Split domain and port if port exists
+	domainPart, port, hasPort := strings.Cut(domain, ":")
+	if hasPort {
+		if port == "" {
+			return fmt.Errorf("port cannot be empty when colon is present (invalid: %s)", origin)
+		}
+		// Validate port is numeric and in valid range
+		if _, err := strconv.Atoi(port); err != nil {
+			return fmt.Errorf("port must be numeric (invalid: %s)", origin)
+		}
+	}
+
+	// Validate domain part using Kubernetes DNS validation
+	if errs := validation.IsDNS1123Subdomain(domainPart); len(errs) > 0 {
+		return fmt.Errorf("wildcard subdomain is not a valid DNS name: %s (invalid: %s)", strings.Join(errs, ", "), origin)
+	}
+
+	return nil
+}
+
+func validateExactOriginHost(host string) error {
+	// For exact origins, basic validation that host is not empty
+	if host == "" {
+		return fmt.Errorf("origin host cannot be empty")
+	}
+
+	// Check for any wildcards in non-wildcard origins
+	if strings.Contains(host, "*") {
+		return fmt.Errorf("wildcards are only supported in subdomain format (*.domain.com), not in other positions")
+	}
+
+	return nil
+}
+
+// validateCORSAllowHeaders validates the allowHeaders field
+func validateCORSAllowHeaders(headers []string, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	for i, header := range headers {
+		allErrs = append(allErrs, validateHeaderName(header, fieldPath.Index(i))...)
+
+		// Check for wildcard
+		if strings.Contains(header, "*") {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), header, "wildcard '*' is not allowed in individual header names"))
+		}
+
+		// Check for forbidden request headers that cannot be set by JavaScript
+		if isForbiddenRequestHeader(header) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), header, "forbidden request header cannot be set by JavaScript and should not be listed in allowHeaders"))
+		}
+	}
+
+	return allErrs
+}
+
+// validateCORSMethods validates the allowMethods field
+func validateCORSMethods(methods []string, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	validMethods := map[string]bool{"GET": true, "HEAD": true, "POST": true, "PUT": true, "DELETE": true, "OPTIONS": true, "PATCH": true}
+	hasGet := false
+	hasHead := false
+
+	for i, method := range methods {
+		// Check for dangerous characters
+		if containsDangerousChars(method) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), method, "method contains dangerous characters that could cause nginx configuration injection"))
+		}
+
+		// Check for valid HTTP methods using map lookup (O(1) vs O(n))
+		if !validMethods[method] {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), method, "allowed methods must be valid HTTP methods"))
+		}
+
+		// Track GET/HEAD for redundancy check
+		switch method {
+		case "GET":
+			hasGet = true
+		case "HEAD":
+			hasHead = true
+		}
+	}
+
+	// Check for redundant HEAD method when GET is present
+	if hasGet && hasHead && len(methods) > 1 {
+		allErrs = append(allErrs, field.Invalid(fieldPath, methods, "HEAD method should not be explicitly listed when GET is present as browsers automatically support HEAD for GET endpoints"))
+	}
+
+	return allErrs
+}
+
+// validateCORSExposeHeaders validates the exposeHeaders field
+func validateCORSExposeHeaders(headers []string, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	for i, header := range headers {
+		allErrs = append(allErrs, validateHeaderName(header, fieldPath.Index(i))...)
+
+		// Check for wildcard
+		if strings.Contains(header, "*") {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), header, "wildcard '*' is not allowed in individual header names for exposeHeaders"))
+		}
+
+		// Check for forbidden response headers that cannot be exposed
+		if isForbiddenResponseHeader(header) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), header, "forbidden response header cannot be exposed via CORS and should not be listed in exposeHeaders"))
+		}
+	}
+
+	return allErrs
+}
+
+// validateHeaderName validates a header name for RFC compliance and security
+func validateHeaderName(header string, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if !isValidHeaderName(header) {
+		allErrs = append(allErrs, field.Invalid(fieldPath, header, "RFC 7230 violation: invalid header name, must contain only letters, digits, hyphens"))
+	}
+
+	// Check for dangerous characters that could cause nginx injection
+	if containsDangerousChars(header) {
+		allErrs = append(allErrs, field.Invalid(fieldPath, header, "header name contains dangerous characters that could cause nginx configuration injection"))
+	}
+
+	return allErrs
+}
+
+// isForbiddenRequestHeader checks if a header is forbidden for request headers according to MDN spec
+// https://developer.mozilla.org/en-US/docs/Glossary/Forbidden_request_header
+func isForbiddenRequestHeader(header string) bool {
+	lower := strings.ToLower(header)
+
+	// Map of forbidden request headers that browsers control (as per MDN spec) for O(1) lookup
+	forbiddenHeaders := map[string]bool{
+		"accept-charset": true, "accept-encoding": true, "access-control-request-headers": true, "access-control-request-method": true,
+		"connection": true, "content-length": true, "cookie": true, "date": true, "dnt": true, "expect": true, "host": true, "keep-alive": true,
+		"origin": true, "referer": true, "set-cookie": true, "te": true, "trailer": true, "transfer-encoding": true, "upgrade": true, "via": true,
+	}
+
+	if forbiddenHeaders[lower] {
+		return true
+	}
+
+	// Headers starting with proxy- or sec- are also forbidden per MDN spec
+	return strings.HasPrefix(lower, "proxy-") || strings.HasPrefix(lower, "sec-")
+}
+
+// isForbiddenResponseHeader checks if a header is forbidden for response headers according to CORS spec
+func isForbiddenResponseHeader(header string) bool {
+	lower := strings.ToLower(header)
+
+	// Set-Cookie headers cannot be exposed via CORS (per MDN specification)
+	return lower == "set-cookie" || lower == "set-cookie2"
+}
+
+// containsDangerousChars checks if a string contains characters that could cause nginx injection
+func containsDangerousChars(value string) bool {
+	// Map of dangerous characters for O(1) lookup per character
+	dangerousChars := map[rune]bool{
+		';':  true, // End nginx directive - NEVER ALLOWED
+		'{':  true, // Start nginx block - NEVER ALLOWED
+		'}':  true, // End nginx block - NEVER ALLOWED
+		'\n': true, // Line break - NEVER ALLOWED
+		'\r': true, // Carriage return - NEVER ALLOWED
+		'$':  true, // Variable expansion in nginx - NEVER ALLOWED
+		'`':  true, // Command substitution - NEVER ALLOWED
+	}
+
+	for _, char := range value {
+		if dangerousChars[char] {
+			return true
+		}
+	}
+	return false
 }

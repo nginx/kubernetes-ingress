@@ -10,7 +10,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
+	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -47,10 +49,10 @@ func TestGenerateNginxCfg(t *testing.T) {
 func TestGenerateNginxCfgForJWT(t *testing.T) {
 	t.Parallel()
 	cafeIngressEx := createCafeIngressEx()
-	cafeIngressEx.Ingress.Annotations["nginx.com/jwt-key"] = "cafe-jwk"
-	cafeIngressEx.Ingress.Annotations["nginx.com/jwt-realm"] = "Cafe App"
-	cafeIngressEx.Ingress.Annotations["nginx.com/jwt-token"] = "$cookie_auth_token"
-	cafeIngressEx.Ingress.Annotations["nginx.com/jwt-login-url"] = "https://login.example.com"
+	cafeIngressEx.Ingress.Annotations[JWTKeyAnnotation] = "cafe-jwk"
+	cafeIngressEx.Ingress.Annotations[JWTRealmAnnotation] = "Cafe App"
+	cafeIngressEx.Ingress.Annotations[JWTTokenAnnotation] = "$cookie_auth_token"
+	cafeIngressEx.Ingress.Annotations[JWTLoginURLAnnotation] = "https://login.example.com"
 	cafeIngressEx.SecretRefs["cafe-jwk"] = &secrets.SecretReference{
 		Secret: &v1.Secret{
 			Type: secrets.SecretTypeJWK,
@@ -136,6 +138,296 @@ func TestGenerateNginxCfgForBasicAuth(t *testing.T) {
 	}
 	if len(warnings) != 0 {
 		t.Errorf("generateNginxCfg returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgForAppRoot(t *testing.T) {
+	t.Parallel()
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations["nginx.org/app-root"] = "/coffee"
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	expected := createExpectedConfigForCafeIngressEx(isPlus)
+	expected.Servers[0].AppRoot = "/coffee"
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:         &StaticConfigParams{},
+		ingEx:                &cafeIngressEx,
+		apResources:          nil,
+		dosResource:          nil,
+		isMinion:             false,
+		isPlus:               isPlus,
+		BaseCfgParams:        configParams,
+		isResolverConfigured: false,
+		isWildcardEnabled:    false,
+	})
+
+	if result.Servers[0].AppRoot != expected.Servers[0].AppRoot {
+		t.Errorf("generateNginxCfg returned AppRoot %v, but expected %v", result.Servers[0].AppRoot, expected.Servers[0].AppRoot)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfg returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgForCORSPolicy(t *testing.T) {
+	t.Parallel()
+
+	allowCredentials := true
+	maxAge := 3600
+
+	tests := []struct {
+		name           string
+		allowOrigin    []string
+		wantMap        bool
+		wantOrigin     string
+		wantVaryHeader bool
+	}{
+		{
+			// Single exact origin should produce direct header value (no map).
+			name:           "single origin without map",
+			allowOrigin:    []string{"https://example.com"},
+			wantMap:        false,
+			wantOrigin:     "https://example.com",
+			wantVaryHeader: true,
+		},
+		{
+			// Multiple/wildcard origins should be validated through a generated map variable.
+			name:           "multiple origins with map",
+			allowOrigin:    []string{"https://example.com", "https://*.example.com"},
+			wantMap:        true,
+			wantVaryHeader: true,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			cafeIngressEx := createCafeIngressEx()
+			cafeIngressEx.Policies = map[string]*conf_v1.Policy{
+				"default/cors-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cors-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						CORS: &conf_v1.CORS{
+							AllowOrigin:      test.allowOrigin,
+							AllowMethods:     []string{"GET", "POST", "OPTIONS"},
+							AllowHeaders:     []string{"Authorization", "Content-Type"},
+							AllowCredentials: &allowCredentials,
+							MaxAge:           &maxAge,
+						},
+					},
+				},
+			}
+
+			isPlus := false
+			configParams := NewDefaultConfigParams(context.Background(), isPlus)
+			result, warnings := generateNginxCfg(NginxCfgParams{
+				staticParams:         &StaticConfigParams{},
+				ingEx:                &cafeIngressEx,
+				isPlus:               isPlus,
+				BaseCfgParams:        configParams,
+				isResolverConfigured: false,
+				isWildcardEnabled:    false,
+			})
+
+			if len(warnings) != 0 {
+				t.Fatalf("generateNginxCfg() returned warnings: %v", warnings)
+			}
+
+			if test.wantMap && len(result.Maps) != 1 {
+				t.Fatalf("expected 1 CORS map, got %d", len(result.Maps))
+			}
+			if !test.wantMap && len(result.Maps) != 0 {
+				t.Fatalf("expected no CORS map, got %d", len(result.Maps))
+			}
+
+			originValue := test.wantOrigin
+			if test.wantMap {
+				if result.Maps[0].Source != "$http_origin" {
+					t.Fatalf("unexpected map source: %s", result.Maps[0].Source)
+				}
+				originValue = result.Maps[0].Variable
+			}
+
+			for _, server := range result.Servers {
+				for _, loc := range server.Locations {
+					if !loc.CORSEnabled {
+						t.Fatalf("location %s should have CORS enabled", loc.Path)
+					}
+
+					originHeader, ok := getHeaderValue(loc.AddHeaders, "Access-Control-Allow-Origin")
+					if !ok {
+						t.Fatalf("location %s missing Access-Control-Allow-Origin header", loc.Path)
+					}
+					if originHeader != originValue {
+						t.Fatalf("location %s origin header = %q, want %q", loc.Path, originHeader, originValue)
+					}
+
+					_, hasVary := getHeaderValue(loc.AddHeaders, "Vary")
+					if hasVary != test.wantVaryHeader {
+						t.Fatalf("location %s vary header present = %v, want %v", loc.Path, hasVary, test.wantVaryHeader)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestGenerateNginxCfgForMergeableIngressesCORSPolicy(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                 string
+		masterOrigin         string
+		coffeeMinionOrigin   string
+		expectCoffeeFromMin  bool
+		expectedTeaOriginVal string
+	}{
+		{
+			// Master policy should flow to minion locations when minion has no CORS policy.
+			name:                 "inherits master cors in all minions",
+			masterOrigin:         "https://master.example.com",
+			expectCoffeeFromMin:  false,
+			expectedTeaOriginVal: "https://master.example.com",
+		},
+		{
+			// Minion policy should override master fallback for that minion only.
+			name:                 "keeps minion cors when configured",
+			masterOrigin:         "https://master.example.com",
+			coffeeMinionOrigin:   "https://coffee.example.com",
+			expectCoffeeFromMin:  true,
+			expectedTeaOriginVal: "https://master.example.com",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			mergeableIngresses := createMergeableCafeIngress()
+			mergeableIngresses.Master.Policies = map[string]*conf_v1.Policy{
+				"default/master-cors": {
+					ObjectMeta: meta_v1.ObjectMeta{Name: "master-cors", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{
+						CORS: &conf_v1.CORS{AllowOrigin: []string{test.masterOrigin}},
+					},
+				},
+			}
+
+			if test.coffeeMinionOrigin != "" {
+				mergeableIngresses.Minions[0].Policies = map[string]*conf_v1.Policy{
+					"default/coffee-cors": {
+						ObjectMeta: meta_v1.ObjectMeta{Name: "coffee-cors", Namespace: "default"},
+						Spec: conf_v1.PolicySpec{
+							CORS: &conf_v1.CORS{AllowOrigin: []string{test.coffeeMinionOrigin}},
+						},
+					},
+				}
+			}
+
+			isPlus := false
+			configParams := NewDefaultConfigParams(context.Background(), isPlus)
+			result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+				mergeableIngs:        mergeableIngresses,
+				BaseCfgParams:        configParams,
+				isPlus:               isPlus,
+				isResolverConfigured: false,
+				staticParams:         &StaticConfigParams{},
+				isWildcardEnabled:    false,
+			})
+
+			if len(warnings) != 0 {
+				t.Fatalf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
+			}
+
+			if len(result.Maps) != 0 {
+				t.Fatalf("expected no CORS maps for single-origin policies, got %d", len(result.Maps))
+			}
+
+			for _, loc := range result.Servers[0].Locations {
+				if !loc.CORSEnabled {
+					t.Fatalf("location %s should have CORS enabled", loc.Path)
+				}
+
+				originHeader, ok := getHeaderValue(loc.AddHeaders, "Access-Control-Allow-Origin")
+				if !ok {
+					t.Fatalf("location %s missing Access-Control-Allow-Origin header", loc.Path)
+				}
+
+				switch loc.MinionIngress.Name {
+				case "cafe-ingress-coffee-minion":
+					expectedCoffeeOrigin := test.masterOrigin
+					if test.expectCoffeeFromMin {
+						expectedCoffeeOrigin = test.coffeeMinionOrigin
+					}
+					if originHeader != expectedCoffeeOrigin {
+						t.Fatalf("coffee minion origin = %q, want %q", originHeader, expectedCoffeeOrigin)
+					}
+				case "cafe-ingress-tea-minion":
+					if originHeader != test.expectedTeaOriginVal {
+						t.Fatalf("tea minion origin = %q, want %q", originHeader, test.expectedTeaOriginVal)
+					}
+				default:
+					t.Fatalf("unexpected minion %s", loc.MinionIngress.Name)
+				}
+			}
+		})
+	}
+}
+
+func getHeaderValue(headers []version2.AddHeader, headerName string) (string, bool) {
+	for _, header := range headers {
+		if header.Name == headerName {
+			return header.Value, true
+		}
+	}
+
+	return "", false
+}
+
+func TestGenerateNginxCfgForAccessControl(t *testing.T) {
+	t.Parallel()
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations["nginx.org/policies"] = "my-test-policy"
+	cafeIngressEx.Policies = map[string]*conf_v1.Policy{
+		"default/my-test-policy": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "my-test-policy",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				AccessControl: &conf_v1.AccessControl{
+					Allow: []string{"10.1.0.0/24"},
+				},
+			},
+		},
+	}
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+	expected := createExpectedConfigForCafeIngressEx(isPlus)
+	expected.Servers[0].Allow = []string{"10.1.0.0/24"}
+	expected.Ingress.Annotations["nginx.org/policies"] = "my-test-policy"
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:  &StaticConfigParams{},
+		ingEx:         &cafeIngressEx,
+		isPlus:        isPlus,
+		BaseCfgParams: configParams,
+	})
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateNginxCfg() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
 	}
 }
 
@@ -379,6 +671,7 @@ func createExpectedConfigForCafeIngressEx(isPlus bool) version1.IngressNginxConf
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]version1.HealthCheck),
 			},
 		},
@@ -531,10 +824,10 @@ func TestGenerateNginxConfigForCrossNamespaceMergeableIngresses(t *testing.T) {
 func TestGenerateNginxCfgForMergeableIngressesForJWT(t *testing.T) {
 	t.Parallel()
 	mergeableIngresses := createMergeableCafeIngress()
-	mergeableIngresses.Master.Ingress.Annotations["nginx.com/jwt-key"] = "cafe-jwk"
-	mergeableIngresses.Master.Ingress.Annotations["nginx.com/jwt-realm"] = "Cafe"
-	mergeableIngresses.Master.Ingress.Annotations["nginx.com/jwt-token"] = "$cookie_auth_token"
-	mergeableIngresses.Master.Ingress.Annotations["nginx.com/jwt-login-url"] = "https://login.example.com"
+	mergeableIngresses.Master.Ingress.Annotations[JWTKeyAnnotation] = "cafe-jwk"
+	mergeableIngresses.Master.Ingress.Annotations[JWTRealmAnnotation] = "Cafe"
+	mergeableIngresses.Master.Ingress.Annotations[JWTTokenAnnotation] = "$cookie_auth_token"
+	mergeableIngresses.Master.Ingress.Annotations[JWTLoginURLAnnotation] = "https://login.example.com"
 	mergeableIngresses.Master.SecretRefs["cafe-jwk"] = &secrets.SecretReference{
 		Secret: &v1.Secret{
 			Type: secrets.SecretTypeJWK,
@@ -542,10 +835,10 @@ func TestGenerateNginxCfgForMergeableIngressesForJWT(t *testing.T) {
 		Path: "/etc/nginx/secrets/default-cafe-jwk",
 	}
 
-	mergeableIngresses.Minions[0].Ingress.Annotations["nginx.com/jwt-key"] = "coffee-jwk"
-	mergeableIngresses.Minions[0].Ingress.Annotations["nginx.com/jwt-realm"] = "Coffee"
-	mergeableIngresses.Minions[0].Ingress.Annotations["nginx.com/jwt-token"] = "$cookie_auth_token_coffee"
-	mergeableIngresses.Minions[0].Ingress.Annotations["nginx.com/jwt-login-url"] = "https://login.coffee.example.com"
+	mergeableIngresses.Minions[0].Ingress.Annotations[JWTKeyAnnotation] = "coffee-jwk"
+	mergeableIngresses.Minions[0].Ingress.Annotations[JWTRealmAnnotation] = "Coffee"
+	mergeableIngresses.Minions[0].Ingress.Annotations[JWTTokenAnnotation] = "$cookie_auth_token_coffee"
+	mergeableIngresses.Minions[0].Ingress.Annotations[JWTLoginURLAnnotation] = "https://login.coffee.example.com"
 	mergeableIngresses.Minions[0].SecretRefs["coffee-jwk"] = &secrets.SecretReference{
 		Secret: &v1.Secret{
 			Type: secrets.SecretTypeJWK,
@@ -665,6 +958,103 @@ func TestGenerateNginxCfgForMergeableIngressesForBasicAuth(t *testing.T) {
 	}
 }
 
+func TestGenerateNginxCfgForMergeableIngressesMasterWithAccessControl(t *testing.T) {
+	t.Parallel()
+	mergeableIngresses := createMergeableCafeIngress()
+	mergeableIngresses.Master.Ingress.Annotations["nginx.org/policies"] = "my-test-policy"
+	mergeableIngresses.Master.Policies = map[string]*conf_v1.Policy{
+		"default/my-test-policy": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "my-test-policy",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				AccessControl: &conf_v1.AccessControl{
+					Allow: []string{"10.0.0.1/24"},
+				},
+			},
+		},
+	}
+	isPlus := false
+
+	expected := createExpectedConfigForMergeableCafeIngress(isPlus)
+	expected.Ingress.Annotations["nginx.org/policies"] = "my-test-policy"
+	expected.Servers[0].Allow = []string{"10.0.0.1/24"}
+
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs:        mergeableIngresses,
+		apResources:          nil,
+		dosResource:          nil,
+		BaseCfgParams:        configParams,
+		isPlus:               isPlus,
+		isResolverConfigured: false,
+		staticParams:         &StaticConfigParams{},
+		isWildcardEnabled:    false,
+	})
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgForMergeableIngressesMinionWithAccessControl(t *testing.T) {
+	t.Parallel()
+	mergeableIngresses := createMergeableCafeIngress()
+
+	for i, m := range mergeableIngresses.Minions {
+		if strings.Contains(m.Ingress.Name, "coffee") {
+			mergeableIngresses.Minions[i].Ingress.Annotations["nginx.org/policies"] = "my-test-policy"
+		}
+	}
+
+	mergeableIngresses.Minions[0].Policies = map[string]*conf_v1.Policy{
+		"default/my-test-policy": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "my-test-policy",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				AccessControl: &conf_v1.AccessControl{
+					Allow: []string{"10.0.0.1/24"},
+				},
+			},
+		},
+	}
+	isPlus := false
+
+	expected := createExpectedConfigForMergeableCafeIngress(isPlus)
+
+	for i := range expected.Servers[0].Locations {
+		if expected.Servers[0].Locations[i].MinionIngress.Name == "cafe-ingress-coffee-minion" {
+			expected.Servers[0].Locations[i].MinionIngress.Annotations["nginx.org/policies"] = "my-test-policy"
+			expected.Servers[0].Locations[i].Allow = []string{"10.0.0.1/24"}
+		}
+	}
+
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs:        mergeableIngresses,
+		apResources:          nil,
+		dosResource:          nil,
+		BaseCfgParams:        configParams,
+		isPlus:               isPlus,
+		isResolverConfigured: false,
+		staticParams:         &StaticConfigParams{},
+		isWildcardEnabled:    false,
+	})
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
+	}
+}
+
 func TestGenerateNginxCfgForMergeableIngressesWithUseClusterIP(t *testing.T) {
 	t.Parallel()
 	mergeableIngresses := createMergeableCafeIngress()
@@ -780,6 +1170,7 @@ func createExpectedConfigForMergeableCafeIngressWithUseClusterIP() version1.Ingr
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]version1.HealthCheck),
 			},
 		},
@@ -868,6 +1259,7 @@ func createExpectedConfigForCafeIngressWithUseClusterIPNamedPorts() version1.Ing
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]version1.HealthCheck),
 			},
 		},
@@ -955,6 +1347,7 @@ func createExpectedConfigForCafeIngressWithUseClusterIP() version1.IngressNginxC
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]version1.HealthCheck),
 			},
 		},
@@ -1693,6 +2086,7 @@ func createExpectedConfigForMergeableCafeIngress(isPlus bool) version1.IngressNg
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]version1.HealthCheck),
 			},
 		},
@@ -1793,6 +2187,7 @@ func createExpectedConfigForCrossNamespaceMergeableCafeIngress() version1.Ingres
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]version1.HealthCheck),
 			},
 		},
@@ -1870,6 +2265,78 @@ func TestGenerateNginxCfgForInternalRoute(t *testing.T) {
 	}
 	if len(warnings) != 0 {
 		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgForSSLCiphers(t *testing.T) {
+	t.Parallel()
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations["nginx.org/ssl-ciphers"] = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256"
+	cafeIngressEx.Ingress.Annotations["nginx.org/ssl-prefer-server-ciphers"] = "true"
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	expected := createExpectedConfigForCafeIngressEx(isPlus)
+	expected.Servers[0].SSLCiphers = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256"
+	expected.Servers[0].SSLPreferServerCiphers = true
+	expected.Ingress.Annotations["nginx.org/ssl-ciphers"] = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256"
+	expected.Ingress.Annotations["nginx.org/ssl-prefer-server-ciphers"] = "true"
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:         &StaticConfigParams{},
+		ingEx:                &cafeIngressEx,
+		apResources:          nil,
+		dosResource:          nil,
+		isMinion:             false,
+		isPlus:               isPlus,
+		BaseCfgParams:        configParams,
+		isResolverConfigured: false,
+		isWildcardEnabled:    false,
+	})
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateNginxCfg() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgForMergeableIngressesSSLCiphers(t *testing.T) {
+	t.Parallel()
+	mergeableIngresses := createMergeableCafeIngress()
+	mergeableIngresses.Master.Ingress.Annotations["nginx.org/ssl-ciphers"] = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256"
+	mergeableIngresses.Master.Ingress.Annotations["nginx.org/ssl-prefer-server-ciphers"] = "true"
+
+	// Add SSL cipher annotations to minions - they should be ignored
+	mergeableIngresses.Minions[0].Ingress.Annotations["nginx.org/ssl-ciphers"] = "INVALID_CIPHER"
+	mergeableIngresses.Minions[0].Ingress.Annotations["nginx.org/ssl-prefer-server-ciphers"] = "false"
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	expected := createExpectedConfigForMergeableCafeIngress(isPlus)
+	expected.Servers[0].SSLCiphers = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256"
+	expected.Servers[0].SSLPreferServerCiphers = true
+	expected.Ingress.Annotations["nginx.org/ssl-ciphers"] = "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256"
+	expected.Ingress.Annotations["nginx.org/ssl-prefer-server-ciphers"] = "true"
+
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs:        mergeableIngresses,
+		apResources:          nil,
+		dosResource:          nil,
+		BaseCfgParams:        configParams,
+		isPlus:               isPlus,
+		isResolverConfigured: false,
+		staticParams:         &StaticConfigParams{},
+		isWildcardEnabled:    false,
+	})
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
 	}
 }
 
@@ -2628,6 +3095,71 @@ func TestScaleRatelimit(t *testing.T) {
 		scaled := scaleRatelimit(testcase.input, testcase.pods)
 		if scaled != testcase.expected {
 			t.Errorf("scaleRatelimit(%s,%d) returned %s but expected %s", testcase.input, testcase.pods, scaled, testcase.expected)
+		}
+	}
+}
+
+func TestGenerateNginxCfgForSSLRedirectDeprecationWarnings(t *testing.T) {
+	t.Parallel()
+
+	cafeIngressEx := createCafeIngressEx()
+
+	tests := []struct {
+		annotations      map[string]string
+		expectedWarnings Warnings
+		msg              string
+	}{
+		{
+			annotations: map[string]string{
+				"ingress.kubernetes.io/ssl-redirect": "true",
+			},
+			expectedWarnings: Warnings{
+				cafeIngressEx.Ingress: {"The annotation 'ingress.kubernetes.io/ssl-redirect' is deprecated and will be removed. Please use 'nginx.org/ssl-redirect' instead."},
+			},
+			msg: "deprecated annotation generates warning",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/ssl-redirect": "true",
+			},
+			expectedWarnings: Warnings{},
+			msg:              "new annotation does not generate warning",
+		},
+		{
+			annotations: map[string]string{
+				"ingress.kubernetes.io/ssl-redirect": "true",
+				"nginx.org/ssl-redirect":             "false",
+			},
+			expectedWarnings: Warnings{
+				cafeIngressEx.Ingress: {"The annotation 'ingress.kubernetes.io/ssl-redirect' is deprecated and will be removed. Please use 'nginx.org/ssl-redirect' instead."},
+			},
+			msg: "both annotations present generates warning",
+		},
+		{
+			annotations:      map[string]string{},
+			expectedWarnings: Warnings{},
+			msg:              "no ssl-redirect annotations",
+		},
+	}
+
+	for _, test := range tests {
+		cafeIngressEx.Ingress.Annotations = test.annotations
+		configParams := NewDefaultConfigParams(context.Background(), false)
+
+		_, warnings := generateNginxCfg(NginxCfgParams{
+			staticParams:         &StaticConfigParams{},
+			ingEx:                &cafeIngressEx,
+			apResources:          nil,
+			dosResource:          nil,
+			isMinion:             false,
+			isPlus:               false,
+			BaseCfgParams:        configParams,
+			isResolverConfigured: false,
+			isWildcardEnabled:    false,
+		})
+
+		if !reflect.DeepEqual(test.expectedWarnings, warnings) {
+			t.Errorf("generateNginxCfg() returned %v but expected %v for the case of %s", warnings, test.expectedWarnings, test.msg)
 		}
 	}
 }

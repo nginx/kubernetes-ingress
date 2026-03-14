@@ -481,7 +481,7 @@ func validateLogLevel(logLevel string) error {
 // validateLogFormat makes sure a given logFormat is one of the allowed values
 func validateLogFormat(logFormat string) error {
 	switch strings.ToLower(logFormat) {
-	case "glog", "json", "text":
+	case "glog", "json", "text", "json-unix", "json-unix-ms", "text-unix", "text-unix-ms":
 		return nil
 	}
 	return fmt.Errorf("invalid log format: %v", logFormat)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/nginx/kubernetes-ingress/internal/configs"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
@@ -99,15 +100,105 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 	namespace, name, _ := ParseNamespaceName(key)
 
 	resources := lbc.configuration.FindResourcesForPolicy(namespace, name)
+
+	// Loop through the resources that reference this policy and check if the policy type is supported on the resource. If not, log an error and emit an event.
+	// Note: if we ever support all policy types on all resources, this loop can be removed.
+	for _, res := range resources {
+		switch impl := res.(type) {
+		// We only check for Ingress resources because VirtualServer and VirtualServerRoute support all policy types.
+		//   If a new resource type is added that supports a subset of policy types, a new case should be added here to check for supported policy types on that resource.
+		case *IngressConfiguration:
+			if !polExists {
+				continue
+			}
+			pol := obj.(*conf_v1.Policy)
+			switch {
+			case pol.Spec.CORS != nil:
+				// CORS policy is supported on Ingress
+				continue
+			case pol.Spec.AccessControl != nil:
+				// Access Control policy is supported on Ingress
+				continue
+			default: // Unsupported policy type on Ingress
+				msg := fmt.Sprintf("Policy %s/%s has unsupported type on Ingress resource %s/%s",
+					pol.Namespace, pol.Name, impl.Ingress.Namespace, impl.Ingress.Name)
+				nl.Error(lbc.Logger, msg)
+				lbc.recorder.Eventf(impl.Ingress, api_v1.EventTypeWarning, nl.EventReasonRejected, msg)
+			}
+		default:
+			continue
+		}
+	}
+
 	resourceExes := lbc.createExtendedResources(resources)
 
-	// Only VirtualServers support policies
-	if len(resourceExes.VirtualServerExes) == 0 {
+	// Only VirtualServers and Ingresses support policies
+	if len(resourceExes.VirtualServerExes) == 0 && len(resourceExes.IngressExes) == 0 && len(resourceExes.MergeableIngresses) == 0 {
 		return
 	}
 
-	warnings, updateErr := lbc.configurator.AddOrUpdateVirtualServers(resourceExes.VirtualServerExes)
-	lbc.updateResourcesStatusAndEvents(resources, warnings, updateErr)
+	var virtualServerWarnings configs.Warnings
+	var virtualServerErr error
+
+	var ingressWarnings configs.Warnings
+	var ingressErr error
+
+	var mergeableIngressWarnings configs.Warnings
+	mergeableIngressErrors := make(map[string]error)
+
+	if len(resourceExes.VirtualServerExes) > 0 {
+		warnings, updateErr := lbc.configurator.AddOrUpdateVirtualServers(resourceExes.VirtualServerExes)
+		virtualServerWarnings = mergeWarningsMaps(virtualServerWarnings, warnings)
+		if updateErr != nil {
+			virtualServerErr = updateErr
+		}
+	}
+
+	if len(resourceExes.IngressExes) > 0 {
+		warnings, updateErr := lbc.configurator.AddOrUpdateIngresses(resourceExes.IngressExes)
+		ingressWarnings = mergeWarningsMaps(ingressWarnings, warnings)
+		if updateErr != nil {
+			ingressErr = updateErr
+		}
+	}
+
+	if len(resourceExes.MergeableIngresses) > 0 {
+		for _, mergeableIngress := range resourceExes.MergeableIngresses {
+			warnings, updateErr := lbc.configurator.AddOrUpdateMergeableIngress(mergeableIngress)
+			mergeableIngressWarnings = mergeWarningsMaps(mergeableIngressWarnings, warnings)
+			if updateErr != nil {
+				mergeableIngressErrors[getResourceKey(&mergeableIngress.Master.Ingress.ObjectMeta)] = updateErr
+			}
+		}
+	}
+
+	// Merge policy warnings from extended resources back into resources
+	resourcesWithWarnings := mergeExtendedResourceWarnings(resources, resourceExes)
+
+	var virtualServerResources []Resource
+	var ingressResources []Resource
+	var mergeableIngressResources []Resource
+
+	for _, res := range resourcesWithWarnings {
+		switch impl := res.(type) {
+		case *VirtualServerConfiguration:
+			virtualServerResources = append(virtualServerResources, res)
+		case *IngressConfiguration:
+			if impl.IsMaster {
+				mergeableIngressResources = append(mergeableIngressResources, res)
+				continue
+			}
+			ingressResources = append(ingressResources, res)
+		}
+	}
+
+	lbc.updateResourcesStatusAndEvents(virtualServerResources, virtualServerWarnings, virtualServerErr)
+	lbc.updateResourcesStatusAndEvents(ingressResources, ingressWarnings, ingressErr)
+	for _, mergeableIngressResource := range mergeableIngressResources {
+		ingressCfg := mergeableIngressResource.(*IngressConfiguration)
+		mergeableIngressErr := mergeableIngressErrors[getResourceKey(&ingressCfg.Ingress.ObjectMeta)]
+		lbc.updateResourcesStatusAndEvents([]Resource{mergeableIngressResource}, mergeableIngressWarnings, mergeableIngressErr)
+	}
 
 	// Note: updating the status of a policy based on a reload is not needed.
 }

@@ -1,0 +1,4 @@
+controller:
+  kind: deployment
+  autoscaling:
+    enabled: true

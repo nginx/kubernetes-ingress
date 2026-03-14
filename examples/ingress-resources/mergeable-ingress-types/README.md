@@ -33,7 +33,9 @@ Minions cannot contain the following annotations:
 - nginx.org/proxy-hide-headers
 - nginx.org/proxy-pass-headers
 - nginx.org/redirect-to-https
-- ingress.kubernetes.io/ssl-redirect
+- nginx.org/ssl-redirect
+- ingress.kubernetes.io/ssl-redirect (deprecated, use nginx.org/ssl-redirect instead)
+- nginx.org/http-redirect-code
 - nginx.org/hsts
 - nginx.org/hsts-max-age
 - nginx.org/hsts-include-subdomains
@@ -85,16 +87,18 @@ that application using Ingress resources with the `nginx.org/mergeable-ingress-t
 
 ## 1. Deploy the Ingress Controller
 
-1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
+1. Run `make secrets` command to generate the necessary secrets for the example.
+
+2. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
    instructions to deploy the Ingress Controller.
 
-2. Save the public IP address of the Ingress Controller into a shell variable:
+3. Save the public IP address of the Ingress Controller into a shell variable:
 
     ```console
     IC_IP=XXX.YYY.ZZZ.III
     ```
 
-3. Save the HTTPS port of the Ingress Controller into a shell variable:
+4. Save the HTTPS port of the Ingress Controller into a shell variable:
 
     ```console
     IC_HTTPS_PORT=<port number>

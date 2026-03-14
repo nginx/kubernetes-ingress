@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
+	"github.com/nginx/kubernetes-ingress/internal/nsutils"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	networking "k8s.io/api/networking/v1"
 )
@@ -192,12 +193,21 @@ func newPolicyReferenceChecker() *policyReferenceChecker {
 	return &policyReferenceChecker{}
 }
 
-func (rc *policyReferenceChecker) IsReferencedByIngress(_ string, _ string, _ *networking.Ingress) bool {
+func (rc *policyReferenceChecker) IsReferencedByIngress(policyNamespace string, policyName string, ing *networking.Ingress) bool {
+	if value, exists := ing.Annotations[configs.PoliciesAnnotation]; exists {
+		for _, p := range strings.Split(value, ",") {
+			p = strings.TrimSpace(p)
+			if p == nsutils.FormatResourceReference(policyNamespace, policyName) || (policyNamespace == ing.Namespace && p == policyName) {
+				return true
+			}
+		}
+	}
+
 	return false
 }
 
-func (rc *policyReferenceChecker) IsReferencedByMinion(_ string, _ string, _ *networking.Ingress) bool {
-	return false
+func (rc *policyReferenceChecker) IsReferencedByMinion(policyNamespace string, policyName string, ing *networking.Ingress) bool {
+	return rc.IsReferencedByIngress(policyNamespace, policyName, ing)
 }
 
 func (rc *policyReferenceChecker) IsReferencedByVirtualServer(policyNamespace string, policyName string, vs *conf_v1.VirtualServer) bool {

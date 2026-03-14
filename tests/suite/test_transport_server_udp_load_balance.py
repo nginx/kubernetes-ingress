@@ -42,6 +42,7 @@ def ipfamily_from_host(host):
 
 
 @pytest.mark.ts
+@pytest.mark.ts_udp
 @pytest.mark.skip_for_loadbalancer
 @pytest.mark.parametrize(
     "crd_ingress_controller, transport_server_setup",

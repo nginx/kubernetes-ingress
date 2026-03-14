@@ -37,6 +37,10 @@ http {
     map_hash_max_size {{.MapHashMaxSize}};
     map_hash_bucket_size {{.MapHashBucketSize}};
 
+    {{- if .ClientBodyBufferSize }}
+    client_body_buffer_size {{.ClientBodyBufferSize}};
+    {{- end }}
+
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
@@ -162,7 +166,12 @@ http {
     {{ makeResolver .ResolverAddresses .ResolverValid $resolverIPV6HTTPBool }}
     {{if .ResolverTimeout}}resolver_timeout {{.ResolverTimeout}};{{end}}
 
-    {{- if .OIDC}}
+    {{- if .OIDC.Enable}}
+    keyval_zone zone=oidc_pkce:{{.OIDC.PKCEZoneSize}} timeout={{.OIDC.PKCETimeout}} sync;
+    keyval_zone zone=oidc_id_tokens:{{.OIDC.IDTokenZoneSize}} timeout={{.OIDC.IDTokenTimeout}} sync;
+    keyval_zone zone=oidc_access_tokens:{{.OIDC.AccessZoneSize}} timeout={{.OIDC.AccessTimeout}} sync;
+    keyval_zone zone=refresh_tokens:{{.OIDC.RefreshZoneSize}} timeout={{.OIDC.RefreshTimeout}} sync;
+    keyval_zone zone=oidc_sids:{{.OIDC.SIDSZoneSize}} timeout={{.OIDC.SIDSTimeout}} sync;
     include oidc/oidc_common.conf;
     {{- end}}
 
@@ -344,7 +353,9 @@ stream {
     {{- if .ZoneSyncConfig.Enable }}
     server {
         listen {{ .ZoneSyncConfig.Port }};
-        {{ if not .DisableIPV6}}listen [::]:{{ .ZoneSyncConfig.Port }}{{end}};
+        {{- if not .DisableIPV6 }}
+        listen [::]:{{ .ZoneSyncConfig.Port }};
+        {{- end }}
         {{ makeResolver .ZoneSyncConfig.ResolverAddresses .ZoneSyncConfig.ResolverValid .ZoneSyncConfig.ResolverIPV6 }}
         zone_sync;
         zone_sync_server {{ .ZoneSyncConfig.Domain }}:{{ .ZoneSyncConfig.Port }} resolve;

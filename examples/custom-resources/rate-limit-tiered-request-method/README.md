@@ -5,7 +5,7 @@ limit Policies, grouped in a tier, using the client IP address as the key to the
 
 ## Prerequisites
 
-1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
+1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
    instructions to deploy NGINX Ingress Controller.
 2. Save the public IP address of NGINX Ingress Controller into a shell variable:
 

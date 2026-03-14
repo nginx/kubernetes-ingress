@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: tcp-service
-          image: ghcr.io/nginxinc/kic-test-tcp-server:0.2.1
+          image: ghcr.io/nginx/kic-test-tcp-server:0.2.6
           ports:
             - containerPort: 3333
               name: tcp-server

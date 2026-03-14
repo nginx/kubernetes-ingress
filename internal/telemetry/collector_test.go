@@ -276,6 +276,13 @@ func TestCollectPolicyCountOnCustomResourcesEnabled(t *testing.T) {
 			want: 1,
 		},
 		{
+			name: "CORSPolicy",
+			policies: func() []*conf_v1.Policy {
+				return []*conf_v1.Policy{corsPolicy}
+			},
+			want: 1,
+		},
+		{
 			name: "MultiplePolicies",
 			policies: func() []*conf_v1.Policy {
 				return []*conf_v1.Policy{rateLimitPolicy, wafPolicy, oidcPolicy}
@@ -427,6 +434,7 @@ func TestCollectPoliciesReportOnEnabledCustomResources(t *testing.T) {
 				wafPolicy,
 				oidcPolicy,
 				cachePolicy,
+				corsPolicy,
 			}
 		},
 		CustomResourcesEnabled: true,
@@ -454,6 +462,7 @@ func TestCollectPoliciesReportOnEnabledCustomResources(t *testing.T) {
 		OIDCPolicies:       1,
 		EgressMTLSPolicies: 2,
 		CachePolicies:      1,
+		CORSPolicies:       1,
 	}
 
 	td := telemetry.Data{
@@ -830,6 +839,7 @@ func TestStandardIngressAnnotations(t *testing.T) {
 	annotations := map[string]string{
 		"appprotect.f5.com/app-protect-enable": "False",
 		"nginx.org/proxy-set-header":           "X-Forwarded-ABC",
+		"nginx.org/ssl-redirect":               "True",
 		"ingress.kubernetes.io/ssl-redirect":   "True",
 		"nginx.com/slow-start":                 "0s",
 	}
@@ -851,6 +861,7 @@ func TestStandardIngressAnnotations(t *testing.T) {
 	expectedAnnotations := []string{
 		"appprotect.f5.com/app-protect-enable",
 		"nginx.org/proxy-set-header",
+		"nginx.org/ssl-redirect",
 		"nginx.com/slow-start",
 		"ingress.kubernetes.io/ssl-redirect",
 	}
@@ -902,6 +913,36 @@ func TestInvalidStandardIngressAnnotations(t *testing.T) {
 		if strings.Contains(got, expectedAnnotation) {
 			t.Errorf("expected %v in %v", expectedAnnotation, got)
 		}
+	}
+}
+
+func TestAppRootAnnotationTelemetry(t *testing.T) {
+	t.Parallel()
+
+	buf := &bytes.Buffer{}
+	exp := &telemetry.StdoutExporter{Endpoint: buf}
+
+	annotations := map[string]string{
+		"nginx.org/app-root": "/coffee",
+	}
+
+	configurator := newConfiguratorWithIngressWithCustomAnnotations(t, annotations)
+
+	cfg := telemetry.CollectorConfig{
+		Configurator:    configurator,
+		K8sClientReader: newTestClientset(node1, kubeNS),
+		Version:         telemetryNICData.ProjectVersion,
+	}
+
+	c, err := telemetry.NewCollector(cfg, telemetry.WithExporter(exp))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Collect(context.Background())
+
+	got := buf.String()
+	if !strings.Contains(got, "nginx.org/app-root") {
+		t.Errorf("expected app-root annotation to be collected in telemetry, got: %v", got)
 	}
 }
 
@@ -2646,7 +2687,7 @@ func newConfigurator(t *testing.T) *configs.Configurator {
 		t.Fatal(err)
 	}
 
-	templateExecutorV2, err := version2.NewTemplateExecutor(virtualServerTemplatePath, transportServerTemplatePath)
+	templateExecutorV2, err := version2.NewTemplateExecutor(virtualServerTemplatePath, transportServerTemplatePath, oidcTemplatePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2700,7 +2741,7 @@ func newSecretStore(t *testing.T) *secrets.LocalSecretStore {
 //	  Platform     string
 //	}
 func newTestClientset(objects ...k8sruntime.Object) *testClient.Clientset {
-	client := testClient.NewSimpleClientset(objects...)
+	client := testClient.NewClientset(objects...)
 	client.Discovery().(*fakediscovery.FakeDiscovery).FakedServerVersion = &version.Info{
 		GitVersion: "v1.30.0",
 	}
@@ -2712,6 +2753,7 @@ const (
 	ingressTemplatePath         = "../configs/version1/nginx-plus.ingress.tmpl"
 	virtualServerTemplatePath   = "../configs/version2/nginx-plus.virtualserver.tmpl"
 	transportServerTemplatePath = "../configs/version2/nginx-plus.transportserver.tmpl"
+	oidcTemplatePath            = "../configs/version2/oidc.tmpl"
 )
 
 // telemetryNICData holds static test data for telemetry tests.
@@ -2857,6 +2899,21 @@ var (
 		},
 		Spec: conf_v1.PolicySpec{
 			Cache: &conf_v1.Cache{},
+		},
+		Status: conf_v1.PolicyStatus{},
+	}
+
+	corsPolicy = &conf_v1.Policy{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Policy",
+			APIVersion: "k8s.nginx.org/v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      "cors-policy",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			CORS: &conf_v1.CORS{},
 		},
 		Status: conf_v1.PolicyStatus{},
 	}

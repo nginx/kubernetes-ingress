@@ -23,21 +23,27 @@ This repo provides an implementation of an Ingress Controller for NGINX and NGIN
 
 We value community input and would love to see you at the next community call. At these calls, we discuss PRs by community members as well as issues, discussions and feature requests.
 
-**Microsoft Teams Link**: [NIC - GitHub Issues Triage](https://teams.microsoft.com/l/meetup-join/19%3ameeting_OTRhZjFhMDMtZTQwOC00NDA4LWJiOGItZjhhMmE5NzgyMDY0%40thread.v2/0?context=%7b%22Tid%22%3a%22dd3dfd2f-6a3b-40d1-9be0-bf8327d81c50%22%2c%22Oid%22%3a%22ea616cee-2e02-45f5-8e4c-c24967346491%22%7d)
+**Zoom**: [NGINX Ingress Controller - Community Call](https://f5.zoom.us/j/98544055687?pwd=q4sGaaeWM0DawJTePBGbCngtfLJxgq.1&from=addon)
 
-**Meeting ID:** `298 140 979 789`
+**Meeting ID:** `985 4405 5687`
 
-**Passcode:** `jpx5TM`
+**Passcode:** `982193`
 
-**When**: 16:00 Irish Time / [Convert to your timezone](https://dateful.com/convert/irish-summer-time-ist?t=16), every other Monday.
+**When**: 16:00 GMT / [Convert to your timezone](https://dateful.com/convert/gmt?t=16), every other Monday.
 
 | **Community Call Dates** |
 | ------------------------ |
-| **2025-07-28**           |
-| **2025-08-11**           |
-| **2025-08-25**           |
-| **2025-09-08**           |
-| **2025-09-22**           |
+| **2026-02-23**           |
+| **2026-03-09**           |
+| **2026-03-23**           |
+| **2026-04-07**           |
+| **2026-04-20**           |
+| **2026-05-05**           |
+| **2026-05-18**           |
+| **2026-06-02**           |
+| **2026-06-15**           |
+| **2026-06-29**           |
+
 
 You can also join the [NGINX Community Forum](https://community.nginx.org) to chat about the NGINX Ingress Controller.
 
@@ -105,8 +111,8 @@ In the case of NGINX, the Ingress Controller is deployed in a pod along with the
 > page](https://github.com/nginx/kubernetes-ingress/releases) of the GitHub repository.
 
 1. Install NGINX Ingress Controller using the [Helm
-   chart](https://docs.nginx.com/nginx-ingress-controller/installation/installing-nic/installation-with-helm/) or the Kubernetes
-   [manifests](https://docs.nginx.com/nginx-ingress-controller/installation/installing-nic/installation-with-manifests/).
+   chart](https://docs.nginx.com/nginx-ingress-controller/install/helm/) or the Kubernetes
+   [manifests](https://docs.nginx.com/nginx-ingress-controller/install/manifests/).
 1. Configure load balancing for a simple web application:
     - Use the Ingress resource. See the [Cafe
       example](https://github.com/nginx/kubernetes-ingress/tree/main/examples/ingress-resources/complete-example).
@@ -122,7 +128,7 @@ In the case of NGINX, the Ingress Controller is deployed in a pod along with the
 We publish NGINX Ingress Controller releases on GitHub. See our [releases
 page](https://github.com/nginx/kubernetes-ingress/releases).
 
-The latest stable release is [5.2.0](https://github.com/nginx/kubernetes-ingress/releases/tag/v5.2.0). For production
+The latest stable release is [5.3.4](https://github.com/nginx/kubernetes-ingress/releases/tag/v5.3.4). For production
 use, we recommend that you choose the latest stable release.
 
 The edge version is useful for experimenting with new features that are not yet published in a stable release. To use
@@ -140,10 +146,10 @@ It is important that the versions of those things above match.
 The table below summarizes the options regarding the images, Helm chart, manifests, documentation and examples and gives
 your links to the correct versions:
 
-| Version | Description |  Image for NGINX | Image for NGINX Plus | Installation Manifests and Helm Chart | Documentation and Examples |
-| ------- | ----------- | --------------- | -------------------- | ---------------------------------------| -------------------------- |
-| Latest stable release | For production use | Use the 5.2.0 images from [DockerHub](https://hub.docker.com/r/nginx/nginx-ingress/), [GitHub Container](https://github.com/nginx/kubernetes-ingress/pkgs/container/kubernetes-ingress), [Amazon ECR Public Gallery](https://gallery.ecr.aws/nginx/nginx-ingress) or [Quay.io](https://quay.io/repository/nginx/nginx-ingress) or [build your own image](https://docs.nginx.com/nginx-ingress-controller/installation/build-nginx-ingress-controller/). | Use the 5.2.0 images from the [F5 Container Registry](https://docs.nginx.com/nginx-ingress-controller/installation/nic-images/registry-download/) or [Build your own image](https://docs.nginx.com/nginx-ingress-controller/installation/build-nginx-ingress-controller/). | [Manifests](https://github.com/nginx/kubernetes-ingress/tree/v5.2.0/deployments). [Helm chart](https://github.com/nginx/kubernetes-ingress/tree/v5.2.0/charts/nginx-ingress). | [Documentation](https://docs.nginx.com/nginx-ingress-controller/). [Examples](https://docs.nginx.com/nginx-ingress-controller/configuration/configuration-examples/). |
-| Edge/Nightly | For testing and experimenting | Use the edge or nightly images from [DockerHub](https://hub.docker.com/r/nginx/nginx-ingress/), [GitHub Container](https://github.com/nginx/kubernetes-ingress/pkgs/container/kubernetes-ingress), [Amazon ECR Public Gallery](https://gallery.ecr.aws/nginx/nginx-ingress) or [Quay.io](https://quay.io/repository/nginx/nginx-ingress) or [build your own image](https://docs.nginx.com/nginx-ingress-controller/installation/build-nginx-ingress-controller/). | [Build your own image](https://docs.nginx.com/nginx-ingress-controller/installation/build-nginx-ingress-controller/). | [Manifests](https://github.com/nginx/kubernetes-ingress/tree/main/deployments). [Helm chart](https://github.com/nginx/kubernetes-ingress/tree/main/charts/nginx-ingress). | [Documentation](https://docs.nginx.com/nginx-ingress-controller). [Examples](https://github.com/nginx/kubernetes-ingress/tree/main/examples). |
+| Version | Description | Image for NGINX | Image for NGINX Plus | Installation Manifests and Helm Chart | Documentation and Examples |
+| ------- | ----------- | --------------- | -------------------- | --------------------------------------- | -------------------------- |
+| Latest stable release | For production use | Use the 5.3.4 images from [DockerHub](https://hub.docker.com/r/nginx/nginx-ingress/), [GitHub Container](https://github.com/nginx/kubernetes-ingress/pkgs/container/kubernetes-ingress), [Amazon ECR Public Gallery](https://gallery.ecr.aws/nginx/nginx-ingress) or [Quay.io](https://quay.io/repository/nginx/nginx-ingress) or [build your own image](https://docs.nginx.com/nginx-ingress-controller/install/build/). | Use the 5.3.4 images from the [F5 Container Registry](https://docs.nginx.com/nginx-ingress-controller/install/images/registry-download/) or [Build your own image](https://docs.nginx.com/nginx-ingress-controller/install/build). | [Manifests](https://github.com/nginx/kubernetes-ingress/tree/v5.3.4/deployments). [Helm chart](https://github.com/nginx/kubernetes-ingress/tree/v5.3.4/charts/nginx-ingress). | [Documentation](https://docs.nginx.com/nginx-ingress-controller/). [Examples](https://docs.nginx.com/nginx-ingress-controller/configuration/configuration-examples/). |
+| Edge/Nightly | For testing and experimenting | Use the edge or nightly images from [DockerHub](https://hub.docker.com/r/nginx/nginx-ingress/), [GitHub Container](https://github.com/nginx/kubernetes-ingress/pkgs/container/kubernetes-ingress), [Amazon ECR Public Gallery](https://gallery.ecr.aws/nginx/nginx-ingress) or [Quay.io](https://quay.io/repository/nginx/nginx-ingress) or [build your own image](https://docs.nginx.com/nginx-ingress-controller/install/build/). | [Build your own image](https://docs.nginx.com/nginx-ingress-controller/install/build/). | [Manifests](https://github.com/nginx/kubernetes-ingress/tree/main/deployments). [Helm chart](https://github.com/nginx/kubernetes-ingress/tree/main/charts/nginx-ingress). | [Documentation](https://docs.nginx.com/nginx-ingress-controller). [Examples](https://github.com/nginx/kubernetes-ingress/tree/main/examples). |
 
 ## SBOM (Software Bill of Materials)
 

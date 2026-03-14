@@ -3,7 +3,7 @@ ROOT_DIR                    = $(shell git rev-parse --show-toplevel)
 CONTEXT                     =
 PULL_POLICY                 ?= IfNotPresent
 DEPLOYMENT_TYPE             = deployment
-SERVICE                     = nodeport
+SERVICE                     ?= nodeport
 NODE_IP                     =
 TEST_PREFIX                 = test-runner
 KUBE_CONFIG_FOLDER          = ${HOME}/.kube
@@ -12,22 +12,31 @@ MINIKUBE_KUBE_CONFIG_FOLDER = $(KUBE_CONFIG_FOLDER)/minikube
 DOCKERFILEPATH              := ${ROOT_DIR}/tests/Dockerfile
 PYTHON                      ?= python3
 IP_FAMILY                   = dual
-IC_TYPE                     ?= nginx-ingress ## The Ingress Controller type to use, "nginx-ingress" or "nginx-plus-ingress".  Defaults to "nginx-ingress"
+IC_TYPE                     ?= nginx-ingress ## The Ingress Controller type to use, "nginx-ingress" or "nginx-plus-ingress".  Defaults to "nginx-ingress"
 SHOW_IC_LOGS                ?= no ## Should the tests show the Ingress Controller logs on failure, "yes" or "no". Defaults to "no"
-TEST_TAG                    ?= latest ## The Tag to use for the test image. e.g. commitsha
+TEST_TAG                    ?= latest ## The Tag to use for the test image. e.g. commitsha
 REGISTRY                    ?= docker.io ## The registry where the image is located. For example, docker.io
 PREFIX                      ?= nginx/nginx-ingress ## The name of the image. For example, nginx/nginx-ingress
 TAG                         ?= edge ## The tag of the image. For example, edge
-K8S_CLUSTER_NAME            ?= local ## The name used when creating/using a Kind Kubernetes cluster
-K8S_CLUSTER_VERSION         ?= $(shell grep -m1 'FROM kindest/node' < ${DOCKERFILEPATH} | cut -d ':' -f 2 | sed -e 's/^v//' | cut -d '@' -f 1) ## The version used when creating a Kind Kubernetes cluster
+K8S_CLUSTER_NAME            ?= local ## The name used when creating/using a Kind Kubernetes cluster
+# renovate: datasource=docker depName=kindest/node
+K8S_CLUSTER_VERSION         ?= v1.35.1
 K8S_TIMEOUT                 ?= 75s ## The timeout used when creating a Kind Kubernetes cluster
-AD_SECRET                   ?=
 PLUS_JWT                    ?=
 PYTEST_ARGS                 ?=
 ifeq (${REGISTRY},)
 BUILD_IMAGE                 := $(strip $(PREFIX)):$(strip $(TAG))
 else
 BUILD_IMAGE                 := $(strip $(REGISTRY))/$(strip $(PREFIX)):$(strip $(TAG))
+endif
+# Dynamically determine architecture
+UNAME_M := $(shell uname -m)
+ifeq ($(UNAME_M),arm64)
+    ARCH ?= arm64
+else ifeq ($(UNAME_M),x86_64)
+    ARCH ?= amd64
+else
+    ARCH ?= $(UNAME_M)
 endif
 
 .PHONY: help ## Show this help
@@ -37,7 +46,7 @@ help: ## Show available make targets
 
 .PHONY: build
 build: ## Run build
-	docker build -t $(TEST_PREFIX):$(TEST_TAG) -f $(DOCKERFILEPATH) $(ROOT_DIR)
+	docker build --build-arg ARCH=$(ARCH) -t $(TEST_PREFIX):$(TEST_TAG) -f $(DOCKERFILEPATH) $(ROOT_DIR)
 
 
 $(KUBE_CONFIG_FOLDER):
@@ -66,7 +75,7 @@ clean-venv:
 
 
 .PHONY: run-local-tests
-run-local-tests: ## Run tests
+run-local-tests: secrets ## Run tests
 	source $(ROOT_DIR)/tests/venv/bin/activate \
 	&& pytest \
 		--image=$(BUILD_IMAGE) \
@@ -82,7 +91,7 @@ run-local-tests: ## Run tests
 
 
 .PHONY: run-tests
-run-tests: ## Run tests
+run-tests: secrets ## Run tests
 	docker run --rm -v $(KUBE_CONFIG_FOLDER):/root/.kube \
 		$(TEST_PREFIX):$(TEST_TAG) \
 		--context=$(CONTEXT) \
@@ -98,11 +107,11 @@ run-tests: ## Run tests
 
 
 .PHONY: run-tests-in-kind
-run-tests-in-kind: ## Run tests in Kind
+run-tests-in-kind: secrets ## Run tests in Kind
 	docker run --network=kind --rm \
 		-v $(KIND_KUBE_CONFIG_FOLDER):/root/.kube \
 		-v $(ROOT_DIR)/tests:/workspace/tests \
-		-v $(ROOT_DIR)/examples/common-secrets:/workspace/examples/common-secrets \
+		-v $(ROOT_DIR)/common-secrets:/workspace/common-secrets \
 		-v $(ROOT_DIR)/deployments:/workspace/deployments \
 		-v $(ROOT_DIR)/config:/workspace/config \
 		-v $(ROOT_DIR)/pyproject.toml:/workspace/pyproject.toml \
@@ -119,10 +128,10 @@ run-tests-in-kind: ## Run tests in Kind
 
 
 .PHONY: create-kind-cluster
-create-kind-cluster: $(KIND_KUBE_CONFIG_FOLDER) ## Create a Kind K8S cluster
+create-kind-cluster: $(KIND_KUBE_CONFIG_FOLDER) ## Create a Kind K8S cluster
 	@kind create cluster \
 		--name $(K8S_CLUSTER_NAME) \
-		--image=kindest/node:v$(K8S_CLUSTER_VERSION) \
+		--image=kindest/node:$(K8S_CLUSTER_VERSION) \
 		--config=<(sed 's/dual/${IP_FAMILY}/' $(ROOT_DIR)/tests/ci-files/ci-kind-config.yaml) \
 		--wait $(K8S_TIMEOUT)
 	@kind get kubeconfig --name $(K8S_CLUSTER_NAME) --internal > $(KIND_KUBE_CONFIG_FOLDER)/config
@@ -135,17 +144,20 @@ delete-kind-cluster: ## Delete a Kind K8S cluster
 
 
 .PHONY: image-load
-image-load: ## Load the image into the Kind K8S cluster
-	@kind load docker-image $(BUILD_IMAGE) --name $(K8S_CLUSTER_NAME)
+image-load: ## Load the image into the Kind K8S cluster
+	@docker save $(BUILD_IMAGE) | \
+		docker exec --privileged -i $(K8S_CLUSTER_NAME)-control-plane \
+			ctr --namespace=k8s.io images import -
 
 
 .PHONY: run-tests-in-minikube
-run-tests-in-minikube: ## Run tests in Minikube
+run-tests-in-minikube: secrets ## Run tests in Minikube
 	docker run --network=minikube --rm \
 		-v $(MINIKUBE_KUBE_CONFIG_FOLDER):/root/.kube \
 		-v $(ROOT_DIR)/tests:/workspace/tests \
 		-v $$HOME/.minikube:$$HOME/.minikube \
-		-v $(ROOT_DIR)/examples/common-secrets:/workspace/examples/common-secrets \
+		-v $(ROOT_DIR)/common-secrets:/workspace/common-secrets \
+		-v $(ROOT_DIR)/charts:/workspace/charts \
 		-v $(ROOT_DIR)/deployments:/workspace/deployments \
 		-v $(ROOT_DIR)/config:/workspace/config \
 		-v $(ROOT_DIR)/pyproject.toml:/workspace/pyproject.toml \
@@ -162,8 +174,8 @@ run-tests-in-minikube: ## Run tests in Minikube
 
 
 .PHONY: create-mini-cluster
-create-mini-cluster: $(MINIKUBE_KUBE_CONFIG_FOLDER) ## Create a Minikube K8S cluster
-	@minikube start --kubernetes-version=v$(K8S_CLUSTER_VERSION) \
+create-mini-cluster: $(MINIKUBE_KUBE_CONFIG_FOLDER) ## Create a Minikube K8S cluster
+	@minikube start --kubernetes-version=$(K8S_CLUSTER_VERSION) \
 	&& KUBECONFIG=$(MINIKUBE_KUBE_CONFIG_FOLDER)/config minikube update-context \
 	&& KUBECONFIG=$(MINIKUBE_KUBE_CONFIG_FOLDER)/config kubectl config set-cluster minikube --server=https://minikube:8443
 
@@ -175,7 +187,7 @@ delete-mini-cluster: ## Delete a Minikube K8S cluster
 
 
 .PHONY: mini-image-load
-mini-image-load: ## Load the image into the Minikube K8S cluster
+mini-image-load: ## Load the image into the Minikube K8S cluster
 	@minikube image load $(BUILD_IMAGE)
 
 
@@ -190,3 +202,11 @@ upgrade-resources:
 ## Create and delete resources for upgrade tests e.g. `make upgrade-resources PYTEST_ARGS="create OR delete"`
 	pip install -r ../tests/requirements.txt --no-deps
 	pytest -v -s -m $(PYTEST_ARGS)
+
+.PHONY: secrets-clean
+secrets-clean: ## Clean just in time TLS certificates etc needed for tests
+	@make -C $(ROOT_DIR) secrets-clean
+
+.PHONY: secrets
+secrets: ## Create just in time TLS certificates etc needed for tests
+	@make -C $(ROOT_DIR) secrets

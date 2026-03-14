@@ -6,7 +6,8 @@ server. In this example, we deploy an ExternalDNS deployment with the AWS provid
 
 ## Prerequisites
 
-1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
+1. Run `make secrets` command to generate the necessary secrets for the example.
+1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
    instructions to deploy the Ingress Controller with custom resources enabled. Additionally, the Ingress Controller
    must be configured to report the VirtualServer status by setting either the `external-service` command line argument,
    or setting the `external-status-address` key in the ConfigMap resource (see the [Reporting Resources Status

@@ -19,6 +19,7 @@ from suite.utils.yaml_utils import get_secret_name_from_vs_or_ts_yaml
 
 
 @pytest.mark.ts
+@pytest.mark.ts_tcp
 @pytest.mark.skip_for_loadbalancer
 @pytest.mark.parametrize(
     "crd_ingress_controller, transport_server_setup",

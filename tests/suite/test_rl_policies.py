@@ -100,6 +100,7 @@ rl_pol_read_no_default_variables_request_method = (
 
 @pytest.mark.policies
 @pytest.mark.policies_rl
+@pytest.mark.policies_rl_vs
 @pytest.mark.parametrize(
     "crd_ingress_controller, virtual_server_setup",
     [
@@ -571,7 +572,7 @@ class TestRateLimitingPolicies:
         )
 
         policy = read_policy(kube_apis.custom_objects, test_namespace, pol_name)
-        expected_conf_line = f"limit_req_zone {policy["spec"]["rateLimit"]["key"]} zone=pol_rl_{policy["metadata"]["namespace"].replace("-", "_", -1)}_{pol_name.replace("-", "_", -1)}_{virtual_server_setup.namespace.replace("-", "_", -1)}_{virtual_server_setup.vs_name.replace("-", "_", -1)}_sync:{policy["spec"]["rateLimit"]["zoneSize"]} rate={policy["spec"]["rateLimit"]["rate"]} sync;"
+        expected_conf_line = f"limit_req_zone {policy["spec"]["rateLimit"]["key"]} zone=pol_rl_{policy["metadata"]["namespace"].replace("-", "_", -1)}_{pol_name.replace("-", "_", -1)}_{virtual_server_setup.namespace.replace("-", "_", -1)}_{virtual_server_setup.vs_name.replace("-", "_", -1)}_vs_sync:{policy["spec"]["rateLimit"]["zoneSize"]} rate={policy["spec"]["rateLimit"]["rate"]} sync;"
         assert expected_conf_line in vs_config
 
         # revert changes
@@ -636,6 +637,7 @@ class TestRateLimitingPolicies:
 
 @pytest.mark.policies
 @pytest.mark.policies_rl
+@pytest.mark.policies_rl_vs
 @pytest.mark.parametrize(
     "crd_ingress_controller, virtual_server_setup",
     [
