@@ -155,7 +155,7 @@ controller:
   ## Enables debugging for NGINX. Uses the nginx-debug binary. Requires error-log-level: debug in the ConfigMap via `controller.config.entries`.
   nginxDebug: false
 
-  ## Enable config validation and rollback protection via the ConfigRollbackManager.
+  ## Enable config validation prior to reloading NGINX.
   enableConfigSafety: false
 
   ## Share process namespace between containers in the Ingress Controller pod.
