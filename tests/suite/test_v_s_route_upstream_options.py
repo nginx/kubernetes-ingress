@@ -135,6 +135,22 @@ class TestVSRouteUpstreamOptions:
                     "proxy_next_upstream_tries 10;",
                 ],
             ),
+            (
+                {
+                    "sessionCookie": {
+                        "enable": True,
+                        "name": "TestCookie",
+                        "path": "/some-valid/path",
+                        "expires": "max",
+                        "domain": "virtual-server-route.example.com",
+                        "httpOnly": True,
+                        "secure": True,
+                    },
+                },
+                [
+                    "sticky cookie TestCookie expires=max domain=virtual-server-route.example.com httponly secure path=/some-valid/path;",
+                ],
+            ),
         ],
     )
     def test_when_option_in_v_s_r_only(
@@ -434,6 +450,10 @@ class TestVSRouteUpstreamOptionsValidation:
             "upstreams[0].buffers.number",
             "upstreams[0].buffers.size",
             "upstreams[0].buffer-size",
+            "upstreams[0].sessionCookie.name",
+            "upstreams[0].sessionCookie.path",
+            "upstreams[0].sessionCookie.expires",
+            "upstreams[0].sessionCookie.domain",
         ]
         invalid_fields_m = [
             "upstreams[0].lb-method",
@@ -451,6 +471,10 @@ class TestVSRouteUpstreamOptionsValidation:
             "upstreams[0].buffers.number",
             "upstreams[0].buffers.size",
             "upstreams[0].buffer-size",
+            "upstreams[0].sessionCookie.name",
+            "upstreams[0].sessionCookie.path",
+            "upstreams[0].sessionCookie.expires",
+            "upstreams[0].sessionCookie.domain",
             "upstreams[1].lb-method",
             "upstreams[1].fail-timeout",
             "upstreams[1].max-fails",
@@ -466,6 +490,10 @@ class TestVSRouteUpstreamOptionsValidation:
             "upstreams[1].buffers.number",
             "upstreams[1].buffers.size",
             "upstreams[1].buffer-size",
+            "upstreams[1].sessionCookie.name",
+            "upstreams[1].sessionCookie.path",
+            "upstreams[1].sessionCookie.expires",
+            "upstreams[1].sessionCookie.domain",
         ]
         text_s = f"{v_s_route_setup.route_s.namespace}/{v_s_route_setup.route_s.name}"
         text_m = f"{v_s_route_setup.route_m.namespace}/{v_s_route_setup.route_m.name}"
@@ -521,6 +549,12 @@ class TestVSRouteUpstreamOptionsValidation:
             "buffer-size",
             "buffering",
             "tls",
+            "sessionCookie.name",
+            "sessionCookie.path",
+            "sessionCookie.expires",
+            "sessionCookie.domain",
+            "sessionCookie.httpOnly",
+            "sessionCookie.secure",
         ]
         config_old = get_vs_nginx_template_conf(
             kube_apis.v1,
@@ -577,21 +611,11 @@ class TestOptionsSpecificForPlus:
                     "healthCheck": {"enable": True, "port": 8080},
                     "slow-start": "3h",
                     "queue": {"size": 100},
-                    "sessionCookie": {
-                        "enable": True,
-                        "name": "TestCookie",
-                        "path": "/some-valid/path",
-                        "expires": "max",
-                        "domain": "virtual-server-route.example.com",
-                        "httpOnly": True,
-                        "secure": True,
-                    },
                 },
                 [
                     "health_check uri=/  port=8080 interval=5s jitter=0s fails=1 passes=1 keepalive_time=60s;",
                     "slow_start=3h",
                     "queue 100 timeout=60s;",
-                    "sticky cookie TestCookie expires=max domain=virtual-server-route.example.com httponly secure path=/some-valid/path;",
                 ],
             ),
             (
@@ -755,10 +779,6 @@ class TestOptionsSpecificForPlus:
             "upstreams[0].slow-start",
             "upstreams[0].queue.size",
             "upstreams[0].queue.timeout",
-            "upstreams[0].sessionCookie.name",
-            "upstreams[0].sessionCookie.path",
-            "upstreams[0].sessionCookie.expires",
-            "upstreams[0].sessionCookie.domain",
         ]
         invalid_fields_m = [
             "upstreams[0].healthCheck.path",
@@ -775,10 +795,6 @@ class TestOptionsSpecificForPlus:
             "upstreams[0].slow-start",
             "upstreams[0].queue.size",
             "upstreams[0].queue.timeout",
-            "upstreams[0].sessionCookie.name",
-            "upstreams[0].sessionCookie.path",
-            "upstreams[0].sessionCookie.expires",
-            "upstreams[0].sessionCookie.domain",
             "upstreams[1].healthCheck.path",
             "upstreams[1].healthCheck.interval",
             "upstreams[1].healthCheck.jitter",
@@ -793,10 +809,6 @@ class TestOptionsSpecificForPlus:
             "upstreams[1].slow-start",
             "upstreams[1].queue.size",
             "upstreams[1].queue.timeout",
-            "upstreams[1].sessionCookie.name",
-            "upstreams[1].sessionCookie.path",
-            "upstreams[1].sessionCookie.expires",
-            "upstreams[1].sessionCookie.domain",
         ]
         text_s = f"{v_s_route_setup.route_s.namespace}/{v_s_route_setup.route_s.name}"
         text_m = f"{v_s_route_setup.route_m.namespace}/{v_s_route_setup.route_m.name}"
@@ -849,12 +861,6 @@ class TestOptionsSpecificForPlus:
             "slow-start",
             "queue.size",
             "queue.timeout",
-            "sessionCookie.name",
-            "sessionCookie.path",
-            "sessionCookie.expires",
-            "sessionCookie.domain",
-            "sessionCookie.httpOnly",
-            "sessionCookie.secure",
         ]
         config_old = get_vs_nginx_template_conf(
             kube_apis.v1,

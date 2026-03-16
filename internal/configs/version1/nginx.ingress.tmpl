@@ -2,13 +2,21 @@
 # configuration for {{.Ingress.Namespace}}/{{.Ingress.Name}}
 {{- range $upstream := .Upstreams}}
 upstream {{$upstream.Name}} {
-	{{- if ne $upstream.UpstreamZoneSize "0"}}zone {{$upstream.Name}} {{$upstream.UpstreamZoneSize}};{{end}}
-	{{- if $upstream.LBMethod }}
+	{{- if ne $upstream.UpstreamZoneSize "0"}}
+	zone {{$upstream.Name}} {{$upstream.UpstreamZoneSize}};
+	{{- end}}
+	{{- if $upstream.LBMethod}}
 	{{$upstream.LBMethod}};
 	{{- end}}
 	{{- range $server := $upstream.UpstreamServers}}
-	server {{$server.Address}} max_fails={{$server.MaxFails}} fail_timeout={{$server.FailTimeout}} max_conns={{$server.MaxConns}};{{end}}
-	{{- if $.Keepalive}}keepalive {{$.Keepalive}};{{end}}
+	server {{$server.Address}} max_fails={{$server.MaxFails}} fail_timeout={{$server.FailTimeout}} max_conns={{$server.MaxConns}};
+	{{- end}}
+	{{- if $.Keepalive}}
+	keepalive {{$.Keepalive}};
+	{{- end}}
+	{{- if $upstream.StickyCookie}}
+	sticky cookie {{$upstream.StickyCookie}};
+	{{- end}}
 }
 {{end -}}
 

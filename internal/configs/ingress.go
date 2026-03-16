@@ -42,6 +42,7 @@ type IngressEx struct {
 	Endpoints        map[string][]string
 	HealthChecks     map[string]*api_v1.Probe
 	Policies         map[string]*conf_v1.Policy
+	PolicyWarnings   []string
 	ExternalNameSvcs map[string]bool
 	PodsByIP         map[string]PodInfo
 	ValidHosts       map[string]bool
@@ -635,7 +636,7 @@ func createUpstream(ingEx *IngressEx, name string, backend *networking.IngressBa
 	l := nl.LoggerFromContext(cfg.Context)
 	if isPlus {
 		queue, timeout := upstreamRequiresQueue(backend.Service.Name+GetBackendPortAsString(backend.Service.Port), ingEx, cfg)
-		ups = version1.Upstream{Name: name, StickyCookie: stickyCookie, Queue: queue, QueueTimeout: timeout, UpstreamLabels: labels}
+		ups = version1.Upstream{Name: name, Queue: queue, QueueTimeout: timeout, UpstreamLabels: labels}
 	} else {
 		ups = version1.NewUpstreamWithDefaultServer(name)
 		if isLatencyMetricsEnabled {
@@ -673,6 +674,7 @@ func createUpstream(ingEx *IngressEx, name string, backend *networking.IngressBa
 
 	ups.LBMethod = cfg.LBMethod
 	ups.UpstreamZoneSize = cfg.UpstreamZoneSize
+	ups.StickyCookie = stickyCookie
 	return ups
 }
 

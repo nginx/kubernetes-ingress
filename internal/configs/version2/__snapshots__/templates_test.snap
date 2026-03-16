@@ -3311,6 +3311,7 @@ upstream test-upstream {zone test-upstream 256k;
     random;
     server 10.0.0.20:8001 max_fails=4 fail_timeout=10s max_conns=31;
     keepalive 32;
+    sticky cookie test expires=25s path=/tea;
 }
 
 upstream coffee-v1 {zone coffee-v1 256k;
@@ -4538,6 +4539,7 @@ upstream test-upstream {zone test-upstream 256k;
     random;
     server 10.0.0.20:8001 max_fails=4 fail_timeout=10s max_conns=31;
     keepalive 32;
+    sticky cookie test expires=25s path=/tea;
 }
 
 upstream coffee-v1 {zone coffee-v1 256k;
