@@ -478,6 +478,25 @@ func (cnf *Configurator) AddOrUpdateMergeableIngress(mergeableIngs *MergeableIng
 	return warnings, nil
 }
 
+// AddOrUpdateMergeableIngresses adds or updates NGINX configuration for the list of mergeable Ingress resources.
+func (cnf *Configurator) AddOrUpdateMergeableIngresses(mergeableIngs []*MergeableIngresses) (Warnings, error) {
+	allWarnings := newWarnings()
+
+	for _, mergeableIng := range mergeableIngs {
+		_, warnings, err := cnf.addOrUpdateMergeableIngress(mergeableIng)
+		if err != nil {
+			return allWarnings, err
+		}
+		allWarnings.Add(warnings)
+	}
+
+	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
+		return allWarnings, fmt.Errorf("error when reloading NGINX when updating mergeable Ingresses: %w", err)
+	}
+
+	return allWarnings, nil
+}
+
 func (cnf *Configurator) addOrUpdateMergeableIngress(mergeableIngs *MergeableIngresses) (bool, Warnings, error) {
 	apResources := cnf.updateApResources(mergeableIngs.Master)
 	cnf.updateDosResource(mergeableIngs.Master.DosEx)

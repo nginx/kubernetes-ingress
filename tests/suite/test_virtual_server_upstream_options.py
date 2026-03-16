@@ -11,9 +11,14 @@ from suite.utils.custom_assertions import (
     assert_vs_conf_not_exists,
 )
 from suite.utils.custom_resources_utils import generate_item_with_upstream_options
-from suite.utils.resources_utils import get_events, get_first_pod_name, replace_configmap_from_yaml, wait_before_test
-from suite.utils.vs_vsr_resources_utils import (
+from suite.utils.resources_utils import (
+    get_events,
+    get_first_pod_name,
     get_vs_nginx_template_conf,
+    replace_configmap_from_yaml,
+    wait_before_test,
+)
+from suite.utils.vs_vsr_resources_utils import (
     patch_virtual_server,
     patch_virtual_server_from_yaml,
 )
@@ -128,6 +133,57 @@ class TestVirtualServerUpstreamOptions:
                     "proxy_next_upstream error timeout non_idempotent;",
                     "proxy_next_upstream_timeout 5s;",
                     "proxy_next_upstream_tries 10;",
+                ],
+            ),
+            (
+                {
+                    "sessionCookie": {
+                        "enable": True,
+                        "name": "TestCookie",
+                        "path": "/some-valid/path",
+                        "expires": "max",
+                        "domain": "virtual-server-route.example.com",
+                        "httpOnly": True,
+                        "secure": True,
+                        "samesite": "strict",
+                    },
+                },
+                [
+                    "sticky cookie TestCookie expires=max domain=virtual-server-route.example.com httponly samesite=strict secure path=/some-valid/path;",
+                ],
+            ),
+            (
+                {
+                    "sessionCookie": {
+                        "enable": True,
+                        "name": "TestCookie",
+                        "path": "/some-valid/path",
+                        "expires": "max",
+                        "domain": "virtual-server-route.example.com",
+                        "httpOnly": True,
+                        "secure": True,
+                        "samesite": "lax",
+                    },
+                },
+                [
+                    "sticky cookie TestCookie expires=max domain=virtual-server-route.example.com httponly samesite=lax secure path=/some-valid/path;",
+                ],
+            ),
+            (
+                {
+                    "sessionCookie": {
+                        "enable": True,
+                        "name": "TestCookie",
+                        "path": "/some-valid/path",
+                        "expires": "max",
+                        "domain": "virtual-server-route.example.com",
+                        "httpOnly": True,
+                        "secure": True,
+                        "samesite": "none",
+                    },
+                },
+                [
+                    "sticky cookie TestCookie expires=max domain=virtual-server-route.example.com httponly samesite=none secure path=/some-valid/path;",
                 ],
             ),
         ],
@@ -386,6 +442,10 @@ class TestVirtualServerUpstreamOptionValidation:
             "upstreams[0].buffers.number",
             "upstreams[0].buffers.size",
             "upstreams[0].buffer-size",
+            "upstreams[0].sessionCookie.name",
+            "upstreams[0].sessionCookie.path",
+            "upstreams[0].sessionCookie.expires",
+            "upstreams[0].sessionCookie.domain",
             "upstreams[1].lb-method",
             "upstreams[1].fail-timeout",
             "upstreams[1].max-fails",
@@ -401,6 +461,10 @@ class TestVirtualServerUpstreamOptionValidation:
             "upstreams[1].buffers.number",
             "upstreams[1].buffers.size",
             "upstreams[1].buffer-size",
+            "upstreams[1].sessionCookie.name",
+            "upstreams[1].sessionCookie.path",
+            "upstreams[1].sessionCookie.expires",
+            "upstreams[1].sessionCookie.domain",
         ]
         text = f"{virtual_server_setup.namespace}/{virtual_server_setup.vs_name}"
         vs_event_text = f"VirtualServer {text} was rejected with error:"
@@ -414,7 +478,11 @@ class TestVirtualServerUpstreamOptionValidation:
 
         assert_event_starts_with_text_and_contains_errors(vs_event_text, vs_events, invalid_fields)
         assert_vs_conf_not_exists(
-            kube_apis, ic_pod_name, ingress_controller_prerequisites.namespace, virtual_server_setup
+            kube_apis,
+            ic_pod_name,
+            ingress_controller_prerequisites.namespace,
+            virtual_server_setup.namespace,
+            virtual_server_setup.vs_name,
         )
 
     def test_openapi_validation_flow(
@@ -439,6 +507,12 @@ class TestVirtualServerUpstreamOptionValidation:
             "buffer-size",
             "buffering",
             "tls",
+            "sessionCookie.name",
+            "sessionCookie.path",
+            "sessionCookie.expires",
+            "sessionCookie.domain",
+            "sessionCookie.httpOnly",
+            "sessionCookie.secure",
         ]
         config_old = get_vs_nginx_template_conf(
             kube_apis.v1,
@@ -496,16 +570,6 @@ class TestOptionsSpecificForPlus:
                     "slow-start": "3h",
                     "queue": {"size": 100},
                     "ntlm": True,
-                    "sessionCookie": {
-                        "enable": True,
-                        "name": "TestCookie",
-                        "path": "/some-valid/path",
-                        "expires": "max",
-                        "domain": "virtual-server-route.example.com",
-                        "httpOnly": True,
-                        "secure": True,
-                        "samesite": "strict",
-                    },
                 },
                 [
                     "health_check uri=/ interval=5s jitter=0s",
@@ -515,65 +579,6 @@ class TestOptionsSpecificForPlus:
                     "slow_start=3h",
                     "queue 100 timeout=60s;",
                     "ntlm;",
-                    "sticky cookie TestCookie expires=max domain=virtual-server-route.example.com httponly samesite=strict secure path=/some-valid/path;",
-                ],
-            ),
-            (
-                {
-                    "lb-method": "least_conn",
-                    "healthCheck": {"enable": True, "mandatory": True, "persistent": True},
-                    "slow-start": "3h",
-                    "queue": {"size": 100},
-                    "ntlm": True,
-                    "sessionCookie": {
-                        "enable": True,
-                        "name": "TestCookie",
-                        "path": "/some-valid/path",
-                        "expires": "max",
-                        "domain": "virtual-server-route.example.com",
-                        "httpOnly": True,
-                        "secure": True,
-                        "samesite": "lax",
-                    },
-                },
-                [
-                    "health_check uri=/ interval=5s jitter=0s",
-                    "fails=1 passes=1",
-                    "mandatory  persistent",
-                    "keepalive_time=60s;",
-                    "slow_start=3h",
-                    "queue 100 timeout=60s;",
-                    "ntlm;",
-                    "sticky cookie TestCookie expires=max domain=virtual-server-route.example.com httponly samesite=lax secure path=/some-valid/path;",
-                ],
-            ),
-            (
-                {
-                    "lb-method": "least_conn",
-                    "healthCheck": {"enable": True, "mandatory": True, "persistent": True},
-                    "slow-start": "3h",
-                    "queue": {"size": 100},
-                    "ntlm": True,
-                    "sessionCookie": {
-                        "enable": True,
-                        "name": "TestCookie",
-                        "path": "/some-valid/path",
-                        "expires": "max",
-                        "domain": "virtual-server-route.example.com",
-                        "httpOnly": True,
-                        "secure": True,
-                        "samesite": "none",
-                    },
-                },
-                [
-                    "health_check uri=/ interval=5s jitter=0s",
-                    "fails=1 passes=1",
-                    "mandatory  persistent",
-                    "keepalive_time=60s;",
-                    "slow_start=3h",
-                    "queue 100 timeout=60s;",
-                    "ntlm;",
-                    "sticky cookie TestCookie expires=max domain=virtual-server-route.example.com httponly samesite=none secure path=/some-valid/path;",
                 ],
             ),
             (
@@ -710,10 +715,6 @@ class TestOptionsSpecificForPlus:
             "upstreams[0].slow-start",
             "upstreams[0].queue.size",
             "upstreams[0].queue.timeout",
-            "upstreams[0].sessionCookie.name",
-            "upstreams[0].sessionCookie.path",
-            "upstreams[0].sessionCookie.expires",
-            "upstreams[0].sessionCookie.domain",
             "upstreams[1].healthCheck.path",
             "upstreams[1].healthCheck.interval",
             "upstreams[1].healthCheck.jitter",
@@ -729,10 +730,6 @@ class TestOptionsSpecificForPlus:
             "upstreams[1].slow-start",
             "upstreams[1].queue.size",
             "upstreams[1].queue.timeout",
-            "upstreams[1].sessionCookie.name",
-            "upstreams[1].sessionCookie.path",
-            "upstreams[1].sessionCookie.expires",
-            "upstreams[1].sessionCookie.domain",
         ]
         text = f"{virtual_server_setup.namespace}/{virtual_server_setup.vs_name}"
         vs_event_text = f"VirtualServer {text} was rejected with error:"
@@ -746,7 +743,11 @@ class TestOptionsSpecificForPlus:
 
         assert_event_starts_with_text_and_contains_errors(vs_event_text, vs_events, invalid_fields)
         assert_vs_conf_not_exists(
-            kube_apis, ic_pod_name, ingress_controller_prerequisites.namespace, virtual_server_setup
+            kube_apis,
+            ic_pod_name,
+            ingress_controller_prerequisites.namespace,
+            virtual_server_setup.namespace,
+            virtual_server_setup.vs_name,
         )
 
     def test_openapi_validation_flow(
@@ -769,12 +770,6 @@ class TestOptionsSpecificForPlus:
             "slow-start",
             "queue.size",
             "queue.timeout",
-            "sessionCookie.name",
-            "sessionCookie.path",
-            "sessionCookie.expires",
-            "sessionCookie.domain",
-            "sessionCookie.httpOnly",
-            "sessionCookie.secure",
         ]
         config_old = get_vs_nginx_template_conf(
             kube_apis.v1,

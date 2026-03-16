@@ -3,7 +3,7 @@ VER = $(shell grep IC_VERSION .github/data/version.txt | cut -d '=' -f 2)
 GIT_TAG = $(shell git describe --exact-match --tags || echo untagged)
 VERSION = $(VER)-SNAPSHOT
 # renovate: datasource=docker depName=nginx/nginx
-NGINX_OSS_VERSION             ?= 1.29.5
+NGINX_OSS_VERSION             ?= 1.29.6
 NGINX_PLUS_VERSION            ?= R36
 NAP_WAF_VERSION               ?= 36+5.575
 NAP_WAF_COMMON_VERSION        ?= 11.608
@@ -37,7 +37,7 @@ TELEMETRY_ENDPOINT            ?= oss.edge.df.f5.com:443
 # renovate: datasource=docker depName=golangci/golangci-lint
 GOLANGCI_LINT_VERSION         ?= v2.11.3 ## The version of golangci-lint to use
 # renovate: datasource=go depName=golang.org/x/tools
-GOIMPORTS_VERSION             ?= v0.42.0 ## The version of goimports to use
+GOIMPORTS_VERSION             ?= v0.43.0 ## The version of goimports to use
 # renovate: datasource=go depName=mvdan.cc/gofumpt
 GOFUMPT_VERSION               ?= v0.9.2 ## The version of gofumpt to use
 

@@ -26,6 +26,7 @@ from suite.utils.resources_utils import (
     delete_common_app,
     ensure_response_from_backend,
     get_file_contents,
+    get_vs_nginx_template_conf,
     nginx_reload,
     replace_configmap_from_yaml,
     wait_before_test,
@@ -34,7 +35,6 @@ from suite.utils.resources_utils import (
 from suite.utils.vs_vsr_resources_utils import (
     create_virtual_server_from_yaml,
     delete_virtual_server,
-    get_vs_nginx_template_conf,
 )
 from suite.utils.yaml_utils import get_first_host_from_yaml, get_paths_from_vs_yaml
 

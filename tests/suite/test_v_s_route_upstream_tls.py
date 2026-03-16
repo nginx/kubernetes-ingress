@@ -15,10 +15,11 @@ from suite.utils.resources_utils import (
     ensure_response_from_backend,
     get_events,
     get_first_pod_name,
+    get_vs_nginx_template_conf,
     wait_before_test,
     wait_until_all_pods_are_ready,
 )
-from suite.utils.vs_vsr_resources_utils import get_vs_nginx_template_conf, patch_v_s_route_from_yaml
+from suite.utils.vs_vsr_resources_utils import patch_v_s_route_from_yaml
 
 
 @pytest.fixture(scope="class")

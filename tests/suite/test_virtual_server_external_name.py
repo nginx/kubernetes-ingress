@@ -17,13 +17,13 @@ from suite.utils.resources_utils import (
     ensure_response_from_backend,
     get_events,
     get_first_pod_name,
+    get_vs_nginx_template_conf,
     read_service,
     replace_configmap,
     replace_configmap_from_yaml,
     replace_service,
     wait_before_test,
 )
-from suite.utils.vs_vsr_resources_utils import get_vs_nginx_template_conf
 
 
 class ExternalNameSetup:
