@@ -410,7 +410,7 @@ class TestConfigRollbackTransportServer:
         ic_logs = kube_apis.v1.read_namespaced_pod_log(
             ic_pod, ingress_controller_prerequisites.namespace, since_seconds=30
         )
-        assert "Main config was rolled back" in ic_logs
+        assert "Main config validation failed" in ic_logs
         assert expected_log_error in ic_logs
 
         # Step 5: VS still serves traffic — Valid status

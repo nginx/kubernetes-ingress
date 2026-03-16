@@ -1471,7 +1471,7 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 	if _, err := cnf.nginxManager.CreateMainConfig(mainCfgContent); err != nil {
 		if isRollbackManager {
 			l := nl.LoggerFromContext(cnf.CfgParams.Context)
-			nl.Warnf(l, "Main config was rolled back: %v", err)
+			nl.Warnf(l, "Main config validation failed: %v", err)
 		} else {
 			return allWarnings, nil, err
 		}

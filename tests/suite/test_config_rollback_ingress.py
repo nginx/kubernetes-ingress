@@ -4,6 +4,7 @@ import pytest
 import yaml
 from settings import TEST_DATA
 from suite.utils.custom_assertions import (
+    assert_event,
     assert_ingress_conf_not_exists,
     assert_valid_ts,
     wait_and_assert_status_code,
@@ -317,7 +318,7 @@ class TestConfigRollbackIngress:
         ic_logs = kube_apis.v1.read_namespaced_pod_log(
             ingress_setup.ingress_pod_name, ingress_controller_prerequisites.namespace, since_seconds=30
         )
-        assert "Main config was rolled back" in ic_logs
+        assert "Main config validation failed" in ic_logs
         assert expected_log_error in ic_logs
         cm_events = get_events_for_object(
             kube_apis.v1,
@@ -402,6 +403,18 @@ class TestConfigRollbackIngress:
             ingress_controller_prerequisites.namespace,
         )
 
+        # Step 3a: capture initial event counts before ConfigMap change
+        if protect_ingress == "ingress1":
+            protected_name = ingress_setup.ingress_name
+            protected_url, protected_host = ingress1_url, ingress_setup.ingress_host
+            unprotected_name = ingress2_name
+        else:
+            protected_name = ingress2_name
+            protected_url, protected_host = ingress2_url, ingress2_host
+            unprotected_name = ingress_setup.ingress_name
+
+        initial_num_protected_events = len(get_events_for_object(kube_apis.v1, test_namespace, protected_name))
+
         # Step 4: apply ConfigMap with invalid location-snippets
         config_map = ingress_controller_prerequisites.config_map.copy()
         config_map["data"] = {"location-snippets": "add_header;"}
@@ -415,24 +428,18 @@ class TestConfigRollbackIngress:
 
         # Step 5: the UNPROTECTED Ingress fails validation and rolls back,
         # the PROTECTED Ingress remains valid (own annotation overrides ConfigMap)
-        if protect_ingress == "ingress1":
-            # Ingress2 is unprotected → event shows error
-            ing2_events = get_events_for_object(kube_apis.v1, test_namespace, ingress2_name)
-            latest2 = ing2_events[-1]
-            assert "AddedOrUpdatedWithError" in latest2.reason
-            assert "but was not applied" in latest2.message
-            assert 'invalid number of arguments in "add_header" directive' in latest2.message
-            # Ingress1 is protected → still serves traffic
-            wait_and_assert_status_code(200, ingress1_url, ingress_setup.ingress_host)
-        else:
-            # Ingress1 is unprotected → event shows error
-            ing1_events = get_events_for_object(kube_apis.v1, test_namespace, ingress_setup.ingress_name)
-            latest1 = ing1_events[-1]
-            assert "AddedOrUpdatedWithError" in latest1.reason
-            assert "but was not applied" in latest1.message
-            assert 'invalid number of arguments in "add_header" directive' in latest1.message
-            # Ingress2 is protected → still serves traffic
-            wait_and_assert_status_code(200, ingress2_url, ingress2_host)
+        # Unprotected Ingress → event shows error
+        unprotected_events = get_events_for_object(kube_apis.v1, test_namespace, unprotected_name)
+        assert_event("but was not applied", unprotected_events)
+        assert_event('invalid number of arguments in "add_header" directive', unprotected_events)
+
+        # Protected Ingress → no new event types (Normal/AddedOrUpdated coalesced), still serves traffic
+        new_protected_events = get_events_for_object(kube_apis.v1, test_namespace, protected_name)
+        assert len(new_protected_events) == initial_num_protected_events, (
+            f"Expected no new event objects for protected Ingress '{protected_name}', "
+            f"but event count changed from {initial_num_protected_events} to {len(new_protected_events)}"
+        )
+        wait_and_assert_status_code(200, protected_url, protected_host)
 
         # Step 6: TS config unchanged (stream blocks not affected by location-snippets)
         ts_conf_after = get_ts_nginx_template_conf(

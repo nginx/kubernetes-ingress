@@ -300,7 +300,7 @@ class TestConfigRollbackVirtualServer:
         ic_logs = kube_apis.v1.read_namespaced_pod_log(
             ic_pod, ingress_controller_prerequisites.namespace, since_seconds=30
         )
-        assert "Main config was rolled back" in ic_logs
+        assert "Main config validation failed" in ic_logs
         assert expected_log_error in ic_logs
         # Step 4: VS still responds — nginx.conf was rolled back, VS not affected
         wait_and_assert_status_code(200, virtual_server_setup.backend_1_url, virtual_server_setup.vs_host)
