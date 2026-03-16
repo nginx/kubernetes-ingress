@@ -3185,18 +3185,21 @@ func TestCreateExternalAuthUpstream(t *testing.T) {
 		upsName   string
 		endpoints []string
 		expected  version1.Upstream
+		warning   bool
 	}{
 		{
 			name:      "no endpoints returns default server",
 			upsName:   "ext_auth_default_my-auth",
 			endpoints: nil,
 			expected:  version1.NewUpstreamWithDefaultServer("ext_auth_default_my-auth"),
+			warning:   true,
 		},
 		{
 			name:      "empty endpoints returns default server",
 			upsName:   "ext_auth_default_my-auth",
 			endpoints: []string{},
 			expected:  version1.NewUpstreamWithDefaultServer("ext_auth_default_my-auth"),
+			warning:   true,
 		},
 		{
 			name:      "single endpoint",
@@ -3209,6 +3212,7 @@ func TestCreateExternalAuthUpstream(t *testing.T) {
 					{Address: "10.0.0.1:8080", MaxFails: 1, MaxConns: 0, FailTimeout: "10s"},
 				},
 			},
+			warning: false,
 		},
 		{
 			name:      "multiple endpoints sorted",
@@ -3223,15 +3227,19 @@ func TestCreateExternalAuthUpstream(t *testing.T) {
 					{Address: "10.0.0.3:8080", MaxFails: 1, MaxConns: 0, FailTimeout: "10s"},
 				},
 			},
+			warning: false,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			result := createExternalAuthUpstream(test.upsName, test.endpoints)
+			result, warning := createExternalAuthUpstream(test.upsName, test.endpoints)
 			if diff := cmp.Diff(test.expected, result); diff != "" {
 				t.Errorf("createExternalAuthUpstream() mismatch (-want +got):\n%s", diff)
+			}
+			if (warning != "") != test.warning {
+				t.Errorf("createExternalAuthUpstream() warning mismatch (-want +got):\n%s", warning)
 			}
 		})
 	}

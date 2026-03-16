@@ -189,7 +189,6 @@ examples/custom-resources/oidc/keycloak-ca-secret-crl.yaml
 tests/data/oidc/keycloak-ca-secret.yaml
 tests/data/oidc/keycloak-ca-secret-crl.yaml
 examples/custom-resources/oidc/keycloak-tls-secret.yaml
-examples/ingress-resources/external-auth/keycloak-tls-secret.yaml
 tests/data/oidc/keycloak-tls-secret.yaml
 
 # TLS Certificate secrets

@@ -958,6 +958,26 @@ func (c *Configuration) FindResourcesForService(svcNamespace string, svcName str
 	return c.findResourcesForResourceReference(svcNamespace, svcName, c.serviceReferenceChecker)
 }
 
+// IsServiceReferencedByVirtualServer checks if the specified service is referenced by the VirtualServer.
+func (c *Configuration) IsServiceReferencedByVirtualServer(svcNamespace, svcName string, vs *conf_v1.VirtualServer) bool {
+	return c.serviceReferenceChecker.IsReferencedByVirtualServer(svcNamespace, svcName, vs)
+}
+
+// IsServiceReferencedByVirtualServerRoute checks if the specified service is referenced by the VirtualServerRoute.
+func (c *Configuration) IsServiceReferencedByVirtualServerRoute(svcNamespace, svcName string, vsr *conf_v1.VirtualServerRoute) bool {
+	return c.serviceReferenceChecker.IsReferencedByVirtualServerRoute(svcNamespace, svcName, vsr)
+}
+
+// IsServiceReferencedByIngress checks if the specified service is referenced by the Ingress.
+func (c *Configuration) IsServiceReferencedByIngress(svcNamespace, svcName string, ing *networking.Ingress) bool {
+	return c.serviceReferenceChecker.IsReferencedByIngress(svcNamespace, svcName, ing)
+}
+
+// IsServiceReferencedByMinion checks if the specified service is referenced by the minion Ingress.
+func (c *Configuration) IsServiceReferencedByMinion(svcNamespace, svcName string, ing *networking.Ingress) bool {
+	return c.serviceReferenceChecker.IsReferencedByMinion(svcNamespace, svcName, ing)
+}
+
 // FindResourcesForEndpoints finds resources that reference the specified endpoints.
 func (c *Configuration) FindResourcesForEndpoints(endpointsNamespace string, endpointsName string) []Resource {
 	// Resources reference not endpoints but the corresponding service, which has the same namespace and name

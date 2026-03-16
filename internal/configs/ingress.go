@@ -538,9 +538,9 @@ func generateBasicAuthConfig(owner runtime.Object, secretRefs map[string]*secret
 
 // createExternalAuthUpstream creates a version1.Upstream for the external auth service
 // from the resolved endpoints.
-func createExternalAuthUpstream(name string, endpoints []string) version1.Upstream {
+func createExternalAuthUpstream(name string, endpoints []string) (version1.Upstream, string) {
 	if len(endpoints) == 0 {
-		return version1.NewUpstreamWithDefaultServer(name)
+		return version1.NewUpstreamWithDefaultServer(name), fmt.Sprintf("No endpoints found for service %v", name)
 	}
 	upsServers := make([]version1.UpstreamServer, 0, len(endpoints))
 	for _, ep := range endpoints {
@@ -558,7 +558,7 @@ func createExternalAuthUpstream(name string, endpoints []string) version1.Upstre
 		Name:             name,
 		UpstreamServers:  upsServers,
 		UpstreamZoneSize: "256k",
-	}
+	}, ""
 }
 
 // resolveExternalAuth resolves the external auth upstream and generates the
@@ -570,19 +570,21 @@ func resolveExternalAuth(
 	endpoints map[string][]string,
 	cfgParams *ConfigParams,
 ) (version1.Upstream, []version1.Location, string) {
-	port, portWarning := getExternalAuthServicePort(exAuth)
+	port, warning := getExternalAuthServicePort(exAuth)
 	ns, svcName := ParseServiceReference(exAuth.URI.Service, ingress.Namespace)
 	upsName := exAuth.URI.Upstream
 	endpointKey := fmt.Sprintf("%s/%s:%d", ns, svcName, port)
-	authUps := createExternalAuthUpstream(upsName, endpoints[endpointKey])
-
+	authUps, upsWarning := createExternalAuthUpstream(upsName, endpoints[endpointKey])
+	if upsWarning != "" {
+		warning = fmt.Sprintf("%s. %s", warning, upsWarning)
+	}
 	var locs []version1.Location
 	locs = append(locs, generateIngressExternalAuthLocation(exAuth, upsName, cfgParams))
 	if exAuth.SigninURL != "" {
 		locs = append(locs, generateIngressExternalAuthOAuth2Location(exAuth, upsName, cfgParams))
 	}
 
-	return authUps, locs, portWarning
+	return authUps, locs, warning
 }
 
 // generateIngressExternalAuthLocation builds a version1.Location for the
