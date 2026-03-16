@@ -98,7 +98,6 @@ class TestConfigRollbackVSCreate:
 
 
 @pytest.mark.vs
-@pytest.mark.vs_config_map
 @pytest.mark.parametrize(
     "crd_ingress_controller, virtual_server_setup, transport_server_setup",
     [
