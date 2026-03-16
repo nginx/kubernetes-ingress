@@ -46,12 +46,13 @@ func (cm *ConfigRollbackManager) createConfigWithRollback(name string, configPat
 	// #nosec G304 -- configPath is constructed from safe internal paths
 	if existingContent, readErr := os.ReadFile(configPath); readErr == nil {
 		if bytes.Equal(existingContent, content) {
-			if testErr := cm.testConfig(); testErr == nil {
+			testErr := cm.testConfig()
+			if testErr == nil {
 				nl.Debugf(cm.logger, "Configuration %s is already applied and working", name)
 				return false, nil
 			}
-			nl.Warnf(cm.logger, "Configuration %s was already validated and found invalid", name)
-			return false, fmt.Errorf("configuration %s was already validated and found invalid", name)
+			nl.Warnf(cm.logger, "Configuration %s was already validated and found invalid: %v", name, testErr)
+			return false, fmt.Errorf("configuration %s was already validated and found invalid: %w", name, testErr)
 		}
 
 		if testErr := cm.testConfig(); testErr == nil {
