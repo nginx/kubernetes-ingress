@@ -841,6 +841,16 @@ func (lbc *LoadBalancerController) ingressRequiresEndpointsUpdate(ingressEx *con
 		}
 	}
 
+	// Check external auth services referenced by policies
+	for _, p := range ingressEx.Policies {
+		if p.Spec.ExternalAuth != nil && p.Spec.ExternalAuth.AuthServiceName != "" {
+			_, resolvedName := configs.ParseServiceReference(p.Spec.ExternalAuth.AuthServiceName, ingressEx.Ingress.Namespace)
+			if resolvedName == serviceName {
+				return true
+			}
+		}
+	}
+
 	return false
 }
 
