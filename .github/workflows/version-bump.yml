@@ -49,6 +49,10 @@ jobs:
           IC_VERSION: ${{ inputs.ic_version }}
           CHART_VERSION: ${{ inputs.helm_chart_version }}
 
+      - name: Generate test secrets
+        run: |
+          make secrets
+
       - name: Update Snapshots
         run: |
           make test-update-snaps
