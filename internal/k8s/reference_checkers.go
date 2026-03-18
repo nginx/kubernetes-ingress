@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
+	k8spolicies "github.com/nginx/kubernetes-ingress/internal/k8s/policies"
 	"github.com/nginx/kubernetes-ingress/internal/nsutils"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	networking "k8s.io/api/networking/v1"
@@ -116,23 +117,28 @@ func newServiceReferenceChecker(hasClusterIP bool, policyServices map[string]str
 }
 
 func (rc *serviceReferenceChecker) IsReferencedByIngress(svcNamespace string, svcName string, ing *networking.Ingress) bool {
-	if ing.Namespace != svcNamespace {
-		return false
-	}
+	if ing.Namespace == svcNamespace {
 
-	if ing.Spec.DefaultBackend != nil {
-		if ing.Spec.DefaultBackend.Service.Name == svcName {
-			return true
-		}
-	}
-	for _, rules := range ing.Spec.Rules {
-		if rules.IngressRuleValue.HTTP == nil {
-			continue
-		}
-		for _, p := range rules.IngressRuleValue.HTTP.Paths {
-			if p.Backend.Service.Name == svcName {
+		if ing.Spec.DefaultBackend != nil {
+			if ing.Spec.DefaultBackend.Service.Name == svcName {
 				return true
 			}
+		}
+		for _, rules := range ing.Spec.Rules {
+			if rules.HTTP == nil {
+				continue
+			}
+			for _, p := range rules.HTTP.Paths {
+				if p.Backend.Service.Name == svcName {
+					return true
+				}
+			}
+		}
+	}
+
+	if value, exists := ing.Annotations[configs.PoliciesAnnotation]; exists {
+		if rc.isPolicyServiceReferenced(svcNamespace, svcName, k8spolicies.GetPolicyRefsFromAnnotation(value, ing.Namespace), ing.Namespace) {
+			return true
 		}
 	}
 
