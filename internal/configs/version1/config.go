@@ -18,6 +18,8 @@ type IngressNginxConfig struct {
 	Upstreams               []Upstream
 	Servers                 []Server
 	Keepalive               string
+	Maps                    []version2.Map
+	CORSHeaders             []version2.AddHeader
 	Ingress                 Ingress
 	SpiffeClientCerts       bool
 	DynamicSSLReloadEnabled bool
@@ -102,6 +104,8 @@ type Server struct {
 	HSTSBehindProxy        bool
 	ProxyHideHeaders       []string
 	ProxyPassHeaders       []string
+	Allow                  []string
+	Deny                   []string
 
 	HealthChecks map[string]HealthCheck
 
@@ -190,16 +194,20 @@ type Location struct {
 	ProxyBusyBuffersSize string
 	ProxyMaxTempFileSize string
 	ProxySSLName         string
+	AddHeaders           []version2.AddHeader
 	JWTAuth              *JWTAuth
 	BasicAuth            *BasicAuth
 	ServiceName          string
 	LimitReq             *LimitReq
+	CORSEnabled          bool
 
 	MinionIngress *Ingress
 
 	ProxyNextUpstream        string
 	ProxyNextUpstreamTimeout string
 	ProxyNextUpstreamTries   *uint64
+	Allow                    []string
+	Deny                     []string
 }
 
 // ZoneSyncConfig is tbe configuration for the zone_sync directives for state sharing.

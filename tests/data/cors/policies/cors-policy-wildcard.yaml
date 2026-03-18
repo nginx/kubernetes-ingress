@@ -1,0 +1,22 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: cors-policy-wildcard
+spec:
+  cors:
+    allowOrigin:
+    - "https://*.example.com"
+    - "http://localhost:3000"
+    allowMethods:
+    - "GET"
+    - "POST"
+    - "DELETE"
+    allowHeaders:
+    - "Content-Type"
+    - "Authorization"
+    - "X-Custom-Header"
+    exposeHeaders:
+    - "X-Request-ID"
+    - "X-Custom-Header"
+    allowCredentials: true
+    maxAge: 7200

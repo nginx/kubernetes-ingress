@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -29,7 +30,58 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/record"
 )
+
+type trackingNginxManager struct {
+	*nginx.FakeManager
+	createdConfigNames []string
+}
+
+func newTrackingNginxManager() *trackingNginxManager {
+	return &trackingNginxManager{
+		FakeManager: nginx.NewFakeManager("/etc/nginx"),
+	}
+}
+
+func (m *trackingNginxManager) CreateConfig(name string, content []byte) (bool, error) {
+	m.createdConfigNames = append(m.createdConfigNames, name)
+	return m.FakeManager.CreateConfig(name, content)
+}
+
+func createTestPolicySyncConfigurator(t *testing.T, manager nginx.Manager) *configs.Configurator {
+	t.Helper()
+
+	templateExecutor, err := version1.NewTemplateExecutor(
+		filepath.Join("..", "configs", "version1", "nginx-plus.tmpl"),
+		filepath.Join("..", "configs", "version1", "nginx-plus.ingress.tmpl"),
+	)
+	if err != nil {
+		t.Fatalf("failed to create v1 template executor: %v", err)
+	}
+
+	templateExecutorV2, err := version2.NewTemplateExecutor(
+		filepath.Join("..", "configs", "version2", "nginx-plus.virtualserver.tmpl"),
+		filepath.Join("..", "configs", "version2", "nginx-plus.transportserver.tmpl"),
+		filepath.Join("..", "configs", "version2", "oidc.tmpl"),
+	)
+	if err != nil {
+		t.Fatalf("failed to create v2 template executor: %v", err)
+	}
+
+	return configs.NewConfigurator(configs.ConfiguratorParams{
+		NginxManager:            manager,
+		StaticCfgParams:         &configs.StaticConfigParams{NginxVersion: nginx.NewVersion("nginx version: nginx/1.25.3 (nginx-plus-r31)")},
+		Config:                  configs.NewDefaultConfigParams(context.Background(), false),
+		MGMTCfgParams:           configs.NewDefaultMGMTConfigParams(context.Background()),
+		TemplateExecutor:        templateExecutor,
+		TemplateExecutorV2:      templateExecutorV2,
+		IsPlus:                  false,
+		IsWildcardEnabled:       false,
+		IsPrometheusEnabled:     false,
+		IsLatencyMetricsEnabled: false,
+	})
+}
 
 func TestHasCorrectIngressClass(t *testing.T) {
 	t.Parallel()
@@ -2109,7 +2161,7 @@ func TestGetPoliciesGlobalWatch(t *testing.T) {
 
 	expectedPolicies := []*conf_v1.Policy{validPolicy}
 	expectedErrors := []error{
-		errors.New("policy default/invalid-policy is invalid: spec: Invalid value: \"\": must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `jwt`, `oidc`, `waf`"),
+		errors.New("policy default/invalid-policy is invalid: spec: Invalid value: \"\": must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `jwt`, `oidc`, `waf`"),
 		errors.New("policy nginx-ingress/valid-policy doesn't exist"),
 		errors.New("failed to get policy nginx-ingress/some-policy: GetByKey error"),
 		errors.New("referenced policy default/valid-policy-ingress-class has incorrect ingress class: test-class (controller ingress class: )"),
@@ -2207,7 +2259,7 @@ func TestGetPoliciesNamespacedWatch(t *testing.T) {
 
 	expectedPolicies := []*conf_v1.Policy{validPolicy}
 	expectedErrors := []error{
-		errors.New("policy default/invalid-policy is invalid: spec: Invalid value: \"\": must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `jwt`, `oidc`, `waf`"),
+		errors.New("policy default/invalid-policy is invalid: spec: Invalid value: \"\": must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `jwt`, `oidc`, `waf`"),
 		errors.New("failed to get namespace nginx-ingress"),
 		errors.New("referenced policy default/valid-policy-ingress-class has incorrect ingress class: test-class (controller ingress class: )"),
 	}
@@ -2274,6 +2326,122 @@ func TestCreatePolicyMap(t *testing.T) {
 	result := createPolicyMap(policies)
 	if !reflect.DeepEqual(result, expected) {
 		t.Errorf("createPolicyMap() returned \n%s but expected \n%s", policyMapToString(result), policyMapToString(expected))
+	}
+}
+
+func TestCreateIngressEx_SetsWarningWhenReferencedPolicyMissing(t *testing.T) {
+	t.Parallel()
+
+	ing := createTestIngress("ing-with-missing-policy", "example.com")
+	ing.Annotations[configs.PoliciesAnnotation] = "missing-policy"
+
+	policyLister := &cache.FakeCustomStore{
+		GetByKeyFunc: func(_ string) (item interface{}, exists bool, err error) {
+			return nil, false, nil
+		},
+	}
+
+	lbc := LoadBalancerController{
+		namespacedInformers: map[string]*namespacedInformer{
+			"default": {policyLister: policyLister},
+		},
+		Logger: nl.LoggerFromContext(context.Background()),
+	}
+
+	ingEx := lbc.createIngressEx(ing, map[string]bool{"example.com": true}, nil)
+	if len(ingEx.PolicyWarnings) == 0 {
+		t.Fatalf("expected policy warning when referenced policy is missing")
+	}
+
+	if !strings.Contains(ingEx.PolicyWarnings[0], "doesn't exist") {
+		t.Fatalf("expected missing policy warning, got: %v", ingEx.PolicyWarnings[0])
+	}
+
+	ingConfig := NewRegularIngressConfiguration(ing)
+	ingForEvent := mergeIngressPolicyWarnings(ingConfig, ingEx, nil)
+	if len(ingForEvent.Warnings) == 0 {
+		t.Fatalf("expected ingress warnings to include policy warning for event/status updates")
+	}
+}
+
+func TestSyncPolicy_UpdatesMergeableIngressesWhenPolicyChanges(t *testing.T) {
+	t.Parallel()
+
+	master := createTestIngressMaster("master-ingress", "example.com")
+	minion := createTestIngressMinion("minion-ingress", "example.com", "/")
+	minion.Spec.Rules[0].IngressRuleValue.HTTP.Paths[0].Backend = networking.IngressBackend{
+		Service: &networking.IngressServiceBackend{
+			Name: "svc",
+			Port: networking.ServiceBackendPort{Number: 80},
+		},
+	}
+	minion.Annotations[configs.PoliciesAnnotation] = "test-policy"
+
+	configuration := createTestConfiguration()
+	configuration.AddOrUpdateIngress(master)
+	configuration.AddOrUpdateIngress(minion)
+
+	pol := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "test-policy",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			IngressClass: "different-class",
+			AccessControl: &conf_v1.AccessControl{
+				Allow: []string{"127.0.0.1"},
+			},
+		},
+	}
+
+	policyLister := &cache.FakeCustomStore{
+		GetByKeyFunc: func(key string) (item interface{}, exists bool, err error) {
+			if key == "default/test-policy" {
+				return pol, true, nil
+			}
+			return nil, false, nil
+		},
+	}
+
+	svcLister := &cache.FakeCustomStore{
+		GetByKeyFunc: func(_ string) (item interface{}, exists bool, err error) {
+			return nil, false, nil
+		},
+	}
+
+	trackingManager := newTrackingNginxManager()
+	cnf := createTestPolicySyncConfigurator(t, trackingManager)
+
+	lbc := LoadBalancerController{
+		namespacedInformers: map[string]*namespacedInformer{
+			"default": {
+				policyLister: policyLister,
+				svcLister:    svcLister,
+			},
+		},
+		configuration: configuration,
+		configurator:  cnf,
+		recorder:      record.NewFakeRecorder(100),
+		ingressClass:  "nginx",
+		Logger:        nl.LoggerFromContext(context.Background()),
+	}
+
+	lbc.syncPolicy(task{Key: "default/test-policy"})
+
+	if len(trackingManager.createdConfigNames) == 0 {
+		t.Fatalf("expected mergeable ingress config to be created on policy update")
+	}
+
+	foundMasterConfig := false
+	for _, name := range trackingManager.createdConfigNames {
+		if name == "default-master-ingress" {
+			foundMasterConfig = true
+			break
+		}
+	}
+
+	if !foundMasterConfig {
+		t.Fatalf("expected config for mergeable master ingress to be updated, got configs: %v", trackingManager.createdConfigNames)
 	}
 }
 

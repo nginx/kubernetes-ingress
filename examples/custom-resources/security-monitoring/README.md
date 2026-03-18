@@ -1,7 +1,7 @@
 # WAF
 
 This example describes how to deploy the NGINX Plus Ingress Controller with [NGINX App
-Protect](https://www.nginx.com/products/nginx-app-protect/) and [NGINX Agent](https://docs.nginx.com/nginx-agent/overview/) in order to integrate with [NGINX Management Suite Security Monitoring](https://docs.nginx.com/nginx-management-suite/security/). It involves deploying a simple web application, then configure load balancing and WAF protection for the application using the VirtualServer resource. Afterwards, we configure NGINX App Protect to send logs to the NGINX Agent syslog listener, which is then sent to the Security Monitoring dashboard in NGINX Instance Manager.
+Protect](https://www.nginx.com/products/nginx-app-protect/) and [NGINX Agent](https://docs.nginx.com/nginx-agent/overview/) in order to integrate with [NGINX Instance Manager Security Monitoring](https://docs.nginx.com/nginx-instance-manager/security-monitoring/). It involves deploying a simple web application, then configure load balancing and WAF protection for the application using the VirtualServer resource. Afterwards, we configure NGINX App Protect to send logs to the NGINX Agent syslog listener, which is then sent to the Security Monitoring dashboard in NGINX Instance Manager.
 
 ## Prerequisites
 

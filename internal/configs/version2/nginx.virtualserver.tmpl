@@ -13,6 +13,12 @@ upstream {{ $u.Name }} {
     {{- if $u.Keepalive }}
     keepalive {{ $u.Keepalive }};
     {{- end }}
+
+	{{- with $u.SessionCookie }}
+		{{- if .Enable }}
+    sticky cookie {{ .Name }}{{ if .Expires }} expires={{ .Expires }}{{ end }}{{ if .Domain }} domain={{ .Domain }}{{ end }}{{ if .HTTPOnly }} httponly{{ end }}{{ if .SameSite}} samesite={{.SameSite | toLower }}{{ end }}{{ if .Secure }} secure{{ end }}{{ if .Path }} path={{ .Path }}{{ end }};
+		{{- end }}
+	{{- end }}
 }
 {{ end }}
 
@@ -517,6 +523,19 @@ server {
                 {{- if $l.Cache.CacheBypassConditions }}
         proxy_cache_bypass{{ range $l.Cache.CacheBypassConditions }} {{ . }}{{ end }};
                 {{- end }}
+        {{- end }}
+
+        {{- if $l.CORSEnabled }}
+        # CORS configuration per enable-cors.org
+        # Handle CORS preflight OPTIONS requests
+        if ($request_method = 'OPTIONS') {
+            {{- range $h := $l.AddHeaders }}
+            add_header {{ $h.Name }} "{{ $h.Value }}";
+            {{- end }}
+            add_header Content-Type text/plain;
+            add_header Content-Length 0;
+            return 204;
+        }
         {{- end }}
 
             {{-  if $l.GRPCPass }}

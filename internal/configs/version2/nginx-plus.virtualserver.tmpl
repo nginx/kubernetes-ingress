@@ -762,6 +762,20 @@ server {
             {{- range $h := $l.AddHeaders }}
         add_header {{ $h.Name }} "{{ $h.Value }}" {{ if $h.Always }}always{{ end }};
             {{- end }}
+
+        {{- if $l.CORSEnabled }}
+        # CORS configuration per enable-cors.org
+        # Handle CORS preflight OPTIONS requests
+        if ($request_method = 'OPTIONS') {
+            {{- range $h := $l.AddHeaders }}
+            add_header {{ $h.Name }} "{{ $h.Value }}";
+            {{- end }}
+            add_header Content-Type text/plain;
+            add_header Content-Length 0;
+            return 204;
+        }
+        {{- end }}
+
             {{- if $.SpiffeClientCerts }}
         {{ $proxyOrGRPC }}_ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
         {{ $proxyOrGRPC }}_ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};

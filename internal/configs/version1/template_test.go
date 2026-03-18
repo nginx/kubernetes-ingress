@@ -11,6 +11,7 @@ import (
 
 	"github.com/gkampitakis/go-snaps/snaps"
 	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
+	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
 )
 
@@ -158,6 +159,209 @@ func TestExecuteTemplate_ForIngressForNGINX(t *testing.T) {
 		t.Fatal(err)
 	}
 	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForIngressWithCORS(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *template.Template
+	}{
+		{
+			name:    "nginx",
+			newTmpl: newNGINXIngressTmpl,
+		},
+		{
+			name:    "nginx-plus",
+			newTmpl: newNGINXPlusIngressTmpl,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+
+			err := tmpl.Execute(buf, ingressCfgWithCORS)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			cfg := buf.String()
+			// Validate both map rendering and preflight rendering in one compact assertion set.
+			wantedStrings := []string{
+				"map $http_origin $cors_origin_default_cafe_ingress_ing_default_cors_policy {",
+				`add_header Access-Control-Allow-Origin "$cors_origin_default_cafe_ingress_ing_default_cors_policy" always;`,
+				"if ($request_method = 'OPTIONS') {",
+				"add_header Content-Length 0;",
+				"return 204;",
+			}
+
+			for _, want := range wantedStrings {
+				if !strings.Contains(cfg, want) {
+					t.Errorf("want %q in generated config", want)
+				}
+			}
+
+			snaps.MatchSnapshot(t, cfg)
+		})
+	}
+}
+
+func TestExecuteTemplate_ForIngressWithHeadersOnlyNoCORS(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *template.Template
+	}{
+		{
+			name:    "nginx",
+			newTmpl: newNGINXIngressTmpl,
+		},
+		{
+			name:    "nginx-plus",
+			newTmpl: newNGINXPlusIngressTmpl,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+
+			err := tmpl.Execute(buf, ingressCfgWithHeadersOnlyNoCORS)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			cfg := buf.String()
+			if !strings.Contains(cfg, `add_header X-Test-Header "enabled" always;`) {
+				t.Errorf("want %q in generated config", `add_header X-Test-Header "enabled" always;`)
+			}
+			// CORSEnabled=false must not emit the OPTIONS preflight block.
+			if strings.Contains(cfg, "if ($request_method = 'OPTIONS') {") {
+				t.Errorf("did not expect CORS preflight block when CORSEnabled is false")
+			}
+
+			snaps.MatchSnapshot(t, cfg)
+		})
+	}
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithACPolicyAllow(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithPolicyAnnotationForAccessControlAllow)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+	wantedStrings := []string{
+		"allow 10.0.0.0/8;",
+		"deny all;",
+	}
+
+	for _, want := range wantedStrings {
+		if !strings.Contains(bufString, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithACPolicyDeny(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithPolicyAnnotationForAccessControlDeny)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+	wantedStrings := []string{
+		"deny 10.0.0.0/8;",
+		"allow all;",
+	}
+
+	for _, want := range wantedStrings {
+		if !strings.Contains(bufString, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithACPolicyAllow(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithPolicyAnnotationForAccessControlAllow)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+	wantedStrings := []string{
+		"allow 10.0.0.0/8;",
+		"deny all;",
+	}
+
+	for _, want := range wantedStrings {
+		if !strings.Contains(bufString, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithACPolicyDeny(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithPolicyAnnotationForAccessControlDeny)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+	wantedStrings := []string{
+		"deny 10.0.0.0/8;",
+		"allow all;",
+	}
+
+	for _, want := range wantedStrings {
+		if !strings.Contains(bufString, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
 }
 
 func TestExecuteTemplate_ForIngressForNGINXWithHTTPRedirectCode(t *testing.T) {
@@ -1251,12 +1455,23 @@ func TestExecuteTemplate_ForMainForNGINXWithZoneSyncEnabledCustomResolverAddress
 		"zone_sync_server nginx-ingress-headless.nginx-ingress.svc.cluster.local:1223 resolve;",
 	}
 
+	unwantedDirectives := []string{
+		"listen [::]:1223;",
+	}
+
 	mainConf := buf.String()
 	for _, want := range wantDirectives {
 		if !strings.Contains(mainConf, want) {
 			t.Errorf("want %q in generated config", want)
 		}
 	}
+
+	for _, unwanted := range unwantedDirectives {
+		if strings.Contains(mainConf, unwanted) {
+			t.Errorf("do not want %q in generated config", unwanted)
+		}
+	}
+
 	snaps.MatchSnapshot(t, buf.String())
 }
 
@@ -1804,6 +2019,329 @@ func TestExecuteTemplate_ForMergeableIngressForNGINXMasterMinionsWithMultipleDif
 	}
 }
 
+func TestExecuteTemplate_ForMergeableIngressMasterPolicy(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+
+	tests := []struct {
+		name              string
+		masterAnnotations map[string]string
+		allow             []string
+		deny              []string
+		wanted            []string
+	}{
+		{
+			name: "Mergeable Ingress Master Policy with AccessControl Policy Annotation - Allow",
+			masterAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "master",
+				"nginx.org/policies":               "test-access-control-policy",
+			},
+			allow: []string{"10.0.0.0/16"},
+			deny:  []string{},
+			wanted: []string{
+				"allow 10.0.0.0/16;",
+				"deny all;",
+			},
+		},
+		{
+			name: "Mergeable Ingress Master Policy with AccessControl Policy Annotation - Deny",
+			masterAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "master",
+				"nginx.org/policies":               "test-access-control-policy",
+			},
+			allow: []string{},
+			deny:  []string{"10.0.0.0/16"},
+			wanted: []string{
+				"deny 10.0.0.0/16;",
+				"allow all;",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		buf := &bytes.Buffer{}
+		ingressCfg := createProxySetHeaderIngressConfig(
+			tt.masterAnnotations,
+			nil,
+			nil,
+		)
+
+		for s := range ingressCfg.Servers {
+			ingressCfg.Servers[s].Allow = tt.allow
+			ingressCfg.Servers[s].Deny = tt.deny
+		}
+
+		err := tmpl.Execute(buf, ingressCfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, want := range tt.wanted {
+			if !strings.Contains(buf.String(), want) {
+				t.Errorf("expected directive %q not found in generated config for test case %q", want, tt.name)
+			}
+		}
+		snaps.MatchSnapshot(t, buf.String())
+		t.Log(buf.String())
+	}
+}
+
+func TestExecuteTemplate_ForMergeableIngressMinionPolicy(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+
+	tests := []struct {
+		name              string
+		minionAnnotations map[string]string
+		allow             []string
+		deny              []string
+		wanted            []string
+	}{
+		{
+			name: "Mergeable Ingress Master Policy with AccessControl Policy Annotation - Allow",
+			minionAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "minion",
+				"nginx.org/policies":               "test-access-control-policy",
+			},
+			allow: []string{"10.0.0.0/16"},
+			deny:  []string{},
+			wanted: []string{
+				"allow 10.0.0.0/16;",
+				"deny all;",
+			},
+		},
+		{
+			name: "Mergeable Ingress Master Policy with AccessControl Policy Annotation - Deny",
+			minionAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "minion",
+				"nginx.org/policies":               "test-access-control-policy",
+			},
+			allow: []string{},
+			deny:  []string{"10.0.0.0/16"},
+			wanted: []string{
+				"deny 10.0.0.0/16;",
+				"allow all;",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		buf := &bytes.Buffer{}
+		ingressCfg := createProxySetHeaderIngressConfig(
+			map[string]string{ // master annotations
+				"nginx.org/mergeable-ingress-type": "master",
+			},
+			tt.minionAnnotations,
+			nil,
+		)
+
+		for s := range ingressCfg.Servers {
+			for l := range ingressCfg.Servers[s].Locations {
+				ingressCfg.Servers[s].Locations[l].Allow = tt.allow
+				ingressCfg.Servers[s].Locations[l].Deny = tt.deny
+			}
+		}
+
+		err := tmpl.Execute(buf, ingressCfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, want := range tt.wanted {
+			if !strings.Contains(buf.String(), want) {
+				t.Errorf("expected directive %q not found in generated config for test case %q", want, tt.name)
+			}
+		}
+		snaps.MatchSnapshot(t, buf.String())
+		t.Log(buf.String())
+	}
+}
+
+func TestExecuteTemplate_ForMergeableIngressMasterMinionPolicy(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+
+	tests := []struct {
+		name              string
+		masterAnnotations map[string]string
+		minionAnnotations map[string]string
+		masterAllow       []string
+		masterDeny        []string
+		minionAllow       []string
+		minionDeny        []string
+		wantedMaster      []string
+		wantedMinion      []string
+	}{
+		{
+			name: "Mergeable Ingress Master + Minion Policy with AccessControl Policy Annotation - Allow",
+			masterAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "master",
+				"nginx.org/policies":               "master-access-control-policy",
+			},
+			minionAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "minion",
+				"nginx.org/policies":               "minion-access-control-policy",
+			},
+			masterAllow: []string{"10.0.0.0/16"},
+			masterDeny:  []string{},
+			minionAllow: []string{"10.1.1.1/16"},
+			minionDeny:  []string{},
+			wantedMaster: []string{
+				"allow 10.0.0.0/16;",
+				"deny all;",
+			},
+			wantedMinion: []string{
+				"allow 10.1.1.1/16",
+				"deny all;",
+			},
+		},
+		{
+			name: "Mergeable Ingress Master + Minion Policy with AccessControl Policy Annotation - Deny",
+			masterAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "master",
+				"nginx.org/policies":               "master-access-control-policy",
+			},
+			minionAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "minion",
+				"nginx.org/policies":               "test-access-control-policy",
+			},
+			masterAllow: []string{},
+			masterDeny:  []string{"10.0.0.0/16"},
+			minionAllow: []string{},
+			minionDeny:  []string{"10.1.1.1/16"},
+			wantedMaster: []string{
+				"deny 10.0.0.0/16;",
+				"allow all;",
+			},
+			wantedMinion: []string{
+				"deny 10.1.1.1/16",
+				"allow all;",
+			},
+		},
+		{
+			name: "Mergeable Ingress Master + Minion Policy with AccessControl Policy Annotation - Master Allow Minion Deny",
+			masterAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "master",
+				"nginx.org/policies":               "master-access-control-policy",
+			},
+			minionAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "minion",
+				"nginx.org/policies":               "test-access-control-policy",
+			},
+			masterAllow: []string{"10.0.0.0/16"},
+			masterDeny:  []string{},
+			minionAllow: []string{},
+			minionDeny:  []string{"10.1.1.1/16"},
+			wantedMaster: []string{
+				"allow 10.0.0.0/16;",
+				"deny all;",
+			},
+			wantedMinion: []string{
+				"deny 10.1.1.1/16",
+				"allow all;",
+			},
+		},
+		{
+			name: "Mergeable Ingress Master + Minion Policy with AccessControl Policy Annotation - Master Deny Minion Allow",
+			masterAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "master",
+				"nginx.org/policies":               "master-access-control-policy",
+			},
+			minionAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "minion",
+				"nginx.org/policies":               "test-access-control-policy",
+			},
+			masterAllow: []string{},
+			masterDeny:  []string{"10.0.0.0/16"},
+			minionAllow: []string{"10.1.1.1/16"},
+			minionDeny:  []string{},
+			wantedMaster: []string{
+				"deny 10.0.0.0/16;",
+				"allow all;",
+			},
+			wantedMinion: []string{
+				"allow 10.1.1.1/16",
+				"deny all;",
+			},
+		},
+		{
+			name: "Mergeable Ingress Master + Minion Policy with AccessControl Policy Annotation - Mixed + Reused AccessControl Policy",
+			masterAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "master",
+				"nginx.org/policies":               "master-access-control-policy, another-policy",
+			},
+			minionAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "minion",
+				"nginx.org/policies":               "test-access-control-policy, another-policy",
+			},
+			masterAllow: []string{"10.2.0.0/16"},
+			masterDeny:  []string{"10.0.0.0/16"},
+			minionAllow: []string{"10.1.0.0/16", "10.2.0.0/16"},
+			minionDeny:  []string{},
+			wantedMaster: []string{
+				"allow 10.2.0.0/16;",
+				"deny all;",
+				"deny 10.0.0.0/16;",
+				"allow all;",
+			},
+			wantedMinion: []string{
+				"allow 10.1.0.0/16",
+				"allow 10.2.0.0/16",
+				"deny all;",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		buf := &bytes.Buffer{}
+		ingressCfg := createProxySetHeaderIngressConfig(
+			map[string]string{ // master annotations
+				"nginx.org/mergeable-ingress-type": "master",
+			},
+			tt.minionAnnotations,
+			nil,
+		)
+
+		for s := range ingressCfg.Servers {
+			ingressCfg.Servers[s].Allow = tt.masterAllow
+			ingressCfg.Servers[s].Deny = tt.masterDeny
+			for l := range ingressCfg.Servers[s].Locations {
+				ingressCfg.Servers[s].Locations[l].Path = "/"
+				ingressCfg.Servers[s].Locations[l].Allow = tt.minionAllow
+				ingressCfg.Servers[s].Locations[l].Deny = tt.minionDeny
+			}
+		}
+
+		err := tmpl.Execute(buf, ingressCfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		sections := strings.Split(buf.String(), "location / {")
+
+		serverBlock := sections[0]
+		locationBlock := sections[1]
+
+		for _, want := range tt.wantedMaster {
+			if !strings.Contains(serverBlock, want) {
+				t.Errorf("expected directive %q not found in generated config for test case %q", want, tt.name)
+			}
+		}
+
+		for _, want := range tt.wantedMinion {
+			if !strings.Contains(locationBlock, want) {
+				t.Errorf("expected directive %q not found in generated config for test case %q", want, tt.name)
+			}
+		}
+
+		snaps.MatchSnapshot(t, buf.String())
+		t.Log(buf.String())
+	}
+}
+
 func TestExecuteTemplate_ForIngressForNGINXWithProxyNextUpstreamTimeout(t *testing.T) {
 	t.Parallel()
 
@@ -2336,6 +2874,148 @@ var (
 		Ingress: Ingress{
 			Name:      "cafe-ingress",
 			Namespace: "default",
+		},
+	}
+
+	// Ingress Config example with CORS map + headers
+	ingressCfgWithCORS = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "test.example.com",
+				ServerTokens: "off",
+				StatusZone:   "test.example.com",
+				Locations: []Location{
+					{
+						Path:                "/tea",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "10s",
+						ProxyReadTimeout:    "10s",
+						ProxySendTimeout:    "10s",
+						ClientMaxBodySize:   "2m",
+						CORSEnabled:         true,
+						AddHeaders: []version2.AddHeader{
+							{
+								Header: version2.Header{Name: "Vary", Value: "Origin"},
+								Always: true,
+							},
+							{
+								Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_cafe_ingress_ing_default_cors_policy"},
+								Always: true,
+							},
+							{
+								Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST, OPTIONS"},
+								Always: true,
+							},
+						},
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Maps: []version2.Map{
+			{
+				Source:   "$http_origin",
+				Variable: "$cors_origin_default_cafe_ingress_ing_default_cors_policy",
+				Parameters: []version2.Parameter{
+					{Value: "default", Result: `""`},
+					{Value: `"https://example.com"`, Result: "https://example.com"},
+				},
+			},
+		},
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+
+	// Ingress Config example with access-control Allow Policy via annotation
+	ingressCfgWithPolicyAnnotationForAccessControlAllow = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "test.example.com",
+				ServerTokens: "off",
+				StatusZone:   "test.example.com",
+				Locations: []Location{
+					{
+						Path:     "/tea",
+						Upstream: testUpstream,
+					},
+				},
+				Allow: []string{
+					"10.0.0.0/8",
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"nginx.org/policies": "access-control-policy",
+			},
+		},
+	}
+
+	// Ingress Config example with custom headers only (CORSEnabled=false)
+	ingressCfgWithHeadersOnlyNoCORS = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "test.example.com",
+				ServerTokens: "off",
+				StatusZone:   "test.example.com",
+				Locations: []Location{
+					{
+						Path:                "/tea",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "10s",
+						ProxyReadTimeout:    "10s",
+						ProxySendTimeout:    "10s",
+						ClientMaxBodySize:   "2m",
+						CORSEnabled:         false,
+						AddHeaders: []version2.AddHeader{
+							{
+								Header: version2.Header{Name: "X-Test-Header", Value: "enabled"},
+								Always: true,
+							},
+						},
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+
+	// Ingress Config example with access-control Deny Policy via annotation
+	ingressCfgWithPolicyAnnotationForAccessControlDeny = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "test.example.com",
+				ServerTokens: "off",
+				StatusZone:   "test.example.com",
+				Locations: []Location{
+					{
+						Path:     "/tea",
+						Upstream: testUpstream,
+					},
+				},
+				Deny: []string{
+					"10.0.0.0/8",
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"nginx.org/policies": "access-control-policy",
+			},
 		},
 	}
 
@@ -2987,6 +3667,7 @@ var (
 	}
 
 	mainCfgWithZoneSyncEnabledCustomResolverAddressAndValidAndIPV6Off = MainConfig{
+		DisableIPV6: true,
 		ZoneSyncConfig: ZoneSyncConfig{
 			Enable:            true,
 			Port:              1223,

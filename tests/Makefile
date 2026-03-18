@@ -20,7 +20,7 @@ PREFIX                      ?= nginx/nginx-ingress ## The name of the image. For
 TAG                         ?= edge ## The tag of the image. For example, edge
 K8S_CLUSTER_NAME            ?= local ## The name used when creating/using a Kind Kubernetes cluster
 # renovate: datasource=docker depName=kindest/node
-K8S_CLUSTER_VERSION         ?= v1.35.0
+K8S_CLUSTER_VERSION         ?= v1.35.1
 K8S_TIMEOUT                 ?= 75s ## The timeout used when creating a Kind Kubernetes cluster
 PLUS_JWT                    ?=
 PYTEST_ARGS                 ?=
@@ -28,6 +28,15 @@ ifeq (${REGISTRY},)
 BUILD_IMAGE                 := $(strip $(PREFIX)):$(strip $(TAG))
 else
 BUILD_IMAGE                 := $(strip $(REGISTRY))/$(strip $(PREFIX)):$(strip $(TAG))
+endif
+# Dynamically determine architecture
+UNAME_M := $(shell uname -m)
+ifeq ($(UNAME_M),arm64)
+    ARCH ?= arm64
+else ifeq ($(UNAME_M),x86_64)
+    ARCH ?= amd64
+else
+    ARCH ?= $(UNAME_M)
 endif
 
 .PHONY: help ## Show this help
@@ -37,7 +46,7 @@ help: ## Show available make targets
 
 .PHONY: build
 build: ## Run build
-	docker build -t $(TEST_PREFIX):$(TEST_TAG) -f $(DOCKERFILEPATH) $(ROOT_DIR)
+	docker build --build-arg ARCH=$(ARCH) -t $(TEST_PREFIX):$(TEST_TAG) -f $(DOCKERFILEPATH) $(ROOT_DIR)
 
 
 $(KUBE_CONFIG_FOLDER):
