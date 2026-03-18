@@ -83,6 +83,11 @@ def pytest_addoption(parser) -> None:
         help="The public IP of a cluster node. Not required if you use the loadbalancer service (see --service argument).",
     )
     parser.addoption(
+        "--lb-ip",
+        action="store",
+        help="The public IP for LoadBalancer service (e.g., 127.0.0.1 for k3d). If not provided, waits for external IP from cluster.",
+    )
+    parser.addoption(
         "--kubeconfig",
         action="store",
         default=os.path.expanduser(KUBE_CONFIG_DEFAULT_LOCATION),

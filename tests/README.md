@@ -131,7 +131,8 @@ The table below shows various configuration options for the tests. If you use Py
 | `--deployment-type` | `DEPLOYMENT_TYPE` | The type of the IC deployment: deployment, daemon-set or stateful-set. | `deployment` |
 | `--ic-type` | `IC_TYPE` | The type of the Ingress Controller: nginx-ingress or nginx-plus-ingress. | `nginx-ingress` |
 | `--service` | `SERVICE`, not supported by `run-tests-in-kind` target. | The type of the Ingress Controller service: nodeport or loadbalancer. | `nodeport` |
-| `--node-ip` | `NODE_IP`, not supported by `run-tests-in-kind` target. | The public IP of a cluster node. Not required if you use the loadbalancer service (see --service argument). | `""` |
+| `--node-ip` | `NODE_IP`, not supported by `run-tests-in-kind` target. | The public IP of a cluster node. Required when using nodeport service. | `""` |
+| `--lb-ip` | `LB_IP` | The public IP for LoadBalancer service (e.g., 127.0.0.1 for k3d). If not provided, waits for external IP from cluster. | `""` |
 | `--kubeconfig` | `N/A` | An absolute path to a kubeconfig file. | `~/.kube/config` or the value of the `KUBECONFIG` env variable |
 | `N/A` | `KUBE_CONFIG_FOLDER`, not supported by `run-tests-in-kind` target. | A path to a folder with a kubeconfig file. | `~/.kube/` |
 | `--show-ic-logs` | `SHOW_IC_LOGS` | A flag to control accumulating IC logs in stdout. | `no` |
