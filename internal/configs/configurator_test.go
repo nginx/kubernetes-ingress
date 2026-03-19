@@ -361,12 +361,12 @@ func TestUpdateEndpoints(t *testing.T) {
 	ingress := createCafeIngressEx()
 	ingresses := []*IngressEx{&ingress}
 
-	err := cnf.UpdateEndpoints(ingresses)
+	_, err := cnf.UpdateEndpoints(ingresses)
 	if err != nil {
 		t.Errorf("UpdateEndpoints returned\n%v, but expected \n%v", err, nil)
 	}
 
-	err = cnf.UpdateEndpoints(ingresses)
+	_, err = cnf.UpdateEndpoints(ingresses)
 	if err != nil {
 		t.Errorf("UpdateEndpoints returned\n%v, but expected \n%v", err, nil)
 	}
@@ -379,12 +379,12 @@ func TestUpdateEndpointsMergeableIngress(t *testing.T) {
 	mergeableIngress := createMergeableCafeIngress()
 	mergeableIngresses := []*MergeableIngresses{mergeableIngress}
 
-	err := cnf.UpdateEndpointsMergeableIngress(mergeableIngresses)
+	_, err := cnf.UpdateEndpointsMergeableIngress(mergeableIngresses)
 	if err != nil {
 		t.Errorf("UpdateEndpointsMergeableIngress returned \n%v, but expected \n%v", err, nil)
 	}
 
-	err = cnf.UpdateEndpointsMergeableIngress(mergeableIngresses)
+	_, err = cnf.UpdateEndpointsMergeableIngress(mergeableIngresses)
 	if err != nil {
 		t.Errorf("UpdateEndpointsMergeableIngress returned \n%v, but expected \n%v", err, nil)
 	}
@@ -397,7 +397,7 @@ func TestUpdateEndpointsFailsWithInvalidTemplate(t *testing.T) {
 	ingress := createCafeIngressEx()
 	ingresses := []*IngressEx{&ingress}
 
-	err := cnf.UpdateEndpoints(ingresses)
+	_, err := cnf.UpdateEndpoints(ingresses)
 	if err == nil {
 		t.Errorf("UpdateEndpoints returned\n%v, but expected \n%v", nil, "template execution error")
 	}
@@ -410,7 +410,7 @@ func TestUpdateEndpointsMergeableIngressFailsWithInvalidTemplate(t *testing.T) {
 	mergeableIngress := createMergeableCafeIngress()
 	mergeableIngresses := []*MergeableIngresses{mergeableIngress}
 
-	err := cnf.UpdateEndpointsMergeableIngress(mergeableIngresses)
+	_, err := cnf.UpdateEndpointsMergeableIngress(mergeableIngresses)
 	if err == nil {
 		t.Errorf("UpdateEndpointsMergeableIngress returned \n%v, but expected \n%v", nil, "template execution error")
 	}

@@ -89,11 +89,11 @@ func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
 			if lbc.ingressRequiresEndpointsUpdate(ingEx, svcName) {
 				resourcesFound = true
 				nl.Debugf(lbc.Logger, "Updating EndpointSlices for %v", resourceExes.IngressExes)
-				err = lbc.configurator.UpdateEndpoints(resourceExes.IngressExes)
+				cfgWarnings, err := lbc.configurator.UpdateEndpoints(resourceExes.IngressExes)
 				if err != nil {
 					nl.Errorf(lbc.Logger, "Error updating EndpointSlices for %v: %v", resourceExes.IngressExes, err)
 				}
-				lbc.updateResourceStatusOnEndpointSliceChange(svcResource, endpointSlice, svcName)
+				lbc.updateResourceStatusOnEndpointSliceChangeWithWarnings(svcResource, endpointSlice, svcName, cfgWarnings)
 				break
 			}
 		}
@@ -104,11 +104,11 @@ func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
 			if lbc.mergeableIngressRequiresEndpointsUpdate(mergeableIngresses, svcName) {
 				resourcesFound = true
 				nl.Debugf(lbc.Logger, "Updating EndpointSlices for %v", resourceExes.MergeableIngresses)
-				err = lbc.configurator.UpdateEndpointsMergeableIngress(resourceExes.MergeableIngresses)
+				cfgWarnings, err := lbc.configurator.UpdateEndpointsMergeableIngress(resourceExes.MergeableIngresses)
 				if err != nil {
 					nl.Errorf(lbc.Logger, "Error updating EndpointSlices for %v: %v", resourceExes.MergeableIngresses, err)
 				}
-				lbc.updateResourceStatusOnEndpointSliceChange(svcResource, endpointSlice, svcName)
+				lbc.updateResourceStatusOnEndpointSliceChangeWithWarnings(svcResource, endpointSlice, svcName, cfgWarnings)
 				break
 			}
 		}
@@ -120,11 +120,11 @@ func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
 				if lbc.virtualServerRequiresEndpointsUpdate(vsEx, svcName) {
 					resourcesFound = true
 					nl.Debugf(lbc.Logger, "Updating EndpointSlices for %v", resourceExes.VirtualServerExes)
-					err := lbc.configurator.UpdateEndpointsForVirtualServers(resourceExes.VirtualServerExes)
+					cfgWarnings, err := lbc.configurator.UpdateEndpointsForVirtualServers(resourceExes.VirtualServerExes)
 					if err != nil {
 						nl.Errorf(lbc.Logger, "Error updating EndpointSlices for %v: %v", resourceExes.VirtualServerExes, err)
 					}
-					lbc.updateResourceStatusOnEndpointSliceChange(svcResource, endpointSlice, svcName)
+					lbc.updateResourceStatusOnEndpointSliceChangeWithWarnings(svcResource, endpointSlice, svcName, cfgWarnings)
 					break
 				}
 			}
@@ -142,20 +142,26 @@ func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
 	return resourcesFound
 }
 
-// updateResourceStatusOnEndpointSliceChange updates the status and events for resources
-// affected by an EndpointSlice change. If the EndpointSlice has no endpoints, warnings
-// are generated only for the specific resources that reference the service.
-func (lbc *LoadBalancerController) updateResourceStatusOnEndpointSliceChange(
+// updateResourceStatusOnEndpointSliceChangeWithWarnings updates the status and events for
+// resources affected by an EndpointSlice change. It merges configuration warnings (e.g. from
+// policy/secret validation) with any "no endpoints" warnings so that resource status
+// accurately reflects all issues, not just endpoint availability.
+func (lbc *LoadBalancerController) updateResourceStatusOnEndpointSliceChangeWithWarnings(
 	svcResources []Resource,
 	endpointSlice *discovery_v1.EndpointSlice,
 	svcName string,
+	cfgWarnings configs.Warnings,
 ) {
 	hasEndpoints := len(endpointSlice.Endpoints) > 0
 
 	for _, r := range svcResources {
-		var warnings configs.Warnings
+		warnings := make(configs.Warnings)
+		warnings.Add(cfgWarnings)
 		if !hasEndpoints {
-			warnings = lbc.buildNoEndpointWarnings(r, endpointSlice.Namespace, svcName)
+			noEndpointWarnings := lbc.buildNoEndpointWarnings(r, endpointSlice.Namespace, svcName)
+			for obj, msgs := range noEndpointWarnings {
+				warnings[obj] = append(warnings[obj], msgs...)
+			}
 		}
 		lbc.updateResourcesStatusAndEvents([]Resource{r}, warnings, nil)
 	}

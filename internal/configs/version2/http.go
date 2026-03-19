@@ -479,7 +479,7 @@ type ExternalAuth struct {
 	SSLVerify              bool
 	SSLVerifyDepth         int
 	SSLTrustedCert         string // Path to the CA certificate file for upstream verification
-	SSLServerName          string // Server name for SNI and certificate verification
+	SNIName                string // Server name for SNI and certificate verification
 }
 
 // AuthURI defines the components of an AuthURI

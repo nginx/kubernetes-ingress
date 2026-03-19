@@ -25,10 +25,10 @@ type ExternalAuthApplyConfiguration struct {
 	SSLVerify *bool `json:"sslVerify,omitempty"`
 	// SSLVerifyDepth sets the verification depth in the external authentication server certificates chain. Default is 1.
 	SSLVerifyDepth *int `json:"sslVerifyDepth,omitempty"`
-	// SSLTrustedCertsSecret is the name of the Kubernetes secret that stores the CA certificate for external authentication server certificate verification. It can be in the same namespace as the Policy resource or in a different namespace specified as <namespace>/<secret>. The secret must be of the type nginx.org/ca, and the certificate must be stored under the key ca.crt.
-	SSLTrustedCertsSecret *string `json:"sslTrustedCertsSecret,omitempty"`
-	// SSLServerName sets the server name used for SNI and certificate verification when connecting to the external authentication server over TLS. If not specified, defaults to <service-name>.<namespace>.svc derived from authServiceName.
-	SSLServerName *string `json:"sslServerName,omitempty"`
+	// TrustedCertSecret is the name of the Kubernetes secret that stores the CA certificate for external authentication server certificate verification. It can be in the same namespace as the Policy resource or in a different namespace specified as <namespace>/<secret>. The secret must be of the type nginx.org/ca, and the certificate must be stored under the key ca.crt.
+	TrustedCertSecret *string `json:"trustedCertSecret,omitempty"`
+	// SNIName sets the server name used for SNI and certificate verification when connecting to the external authentication server over TLS. If not specified, defaults to <service-name>.<namespace>.svc derived from authServiceName.
+	SNIName *string `json:"sniName,omitempty"`
 }
 
 // ExternalAuthApplyConfiguration constructs a declarative configuration of the ExternalAuth type for use with
@@ -111,18 +111,18 @@ func (b *ExternalAuthApplyConfiguration) WithSSLVerifyDepth(value int) *External
 	return b
 }
 
-// WithSSLTrustedCertsSecret sets the SSLTrustedCertsSecret field in the declarative configuration to the given value
+// WithTrustedCertSecret sets the TrustedCertSecret field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the SSLTrustedCertsSecret field is set to the value of the last call.
-func (b *ExternalAuthApplyConfiguration) WithSSLTrustedCertsSecret(value string) *ExternalAuthApplyConfiguration {
-	b.SSLTrustedCertsSecret = &value
+// If called multiple times, the TrustedCertSecret field is set to the value of the last call.
+func (b *ExternalAuthApplyConfiguration) WithTrustedCertSecret(value string) *ExternalAuthApplyConfiguration {
+	b.TrustedCertSecret = &value
 	return b
 }
 
-// WithSSLServerName sets the SSLServerName field in the declarative configuration to the given value
+// WithSNIName sets the SNIName field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the SSLServerName field is set to the value of the last call.
-func (b *ExternalAuthApplyConfiguration) WithSSLServerName(value string) *ExternalAuthApplyConfiguration {
-	b.SSLServerName = &value
+// If called multiple times, the SNIName field is set to the value of the last call.
+func (b *ExternalAuthApplyConfiguration) WithSNIName(value string) *ExternalAuthApplyConfiguration {
+	b.SNIName = &value
 	return b
 }

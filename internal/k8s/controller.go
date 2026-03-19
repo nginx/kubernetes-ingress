@@ -3048,8 +3048,9 @@ func (lbc *LoadBalancerController) addExternalAuthTrustedCertSecretRefs(secretRe
 		if pol.Spec.ExternalAuth == nil {
 			continue
 		}
-		if pol.Spec.ExternalAuth.SSLTrustedCertsSecret != "" {
-			secretKey := fmt.Sprintf("%v/%v", pol.Namespace, pol.Spec.ExternalAuth.SSLTrustedCertsSecret)
+		if pol.Spec.ExternalAuth.TrustedCertSecret != "" {
+			secretNS, secretName := configs.ParseServiceReference(pol.Spec.ExternalAuth.TrustedCertSecret, pol.Namespace)
+			secretKey := fmt.Sprintf("%v/%v", secretNS, secretName)
 			secretRef := lbc.secretStore.GetSecret(secretKey)
 
 			secretRefs[secretKey] = secretRef
@@ -3106,7 +3107,7 @@ func findPoliciesForSecret(policies []*conf_v1.Policy, secretNamespace string, s
 			res = append(res, pol)
 		} else if pol.Spec.OIDC != nil && pol.Spec.OIDC.TrustedCertSecret == secretName && pol.Namespace == secretNamespace {
 			res = append(res, pol)
-		} else if pol.Spec.ExternalAuth != nil && pol.Spec.ExternalAuth.SSLTrustedCertsSecret == secretName && pol.Namespace == secretNamespace {
+		} else if pol.Spec.ExternalAuth != nil && pol.Spec.ExternalAuth.TrustedCertSecret == secretName && pol.Namespace == secretNamespace {
 			res = append(res, pol)
 		} else if pol.Spec.APIKey != nil && pol.Spec.APIKey.ClientSecret == secretName && pol.Namespace == secretNamespace {
 			res = append(res, pol)

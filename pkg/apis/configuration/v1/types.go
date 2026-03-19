@@ -1310,10 +1310,10 @@ type ExternalAuth struct {
 
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?\/)?[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
-	// SSLTrustedCertsSecret is the name of the Kubernetes secret that stores the CA certificate for external authentication server certificate verification. It can be in the same namespace as the Policy resource or in a different namespace specified as <namespace>/<secret>. The secret must be of the type nginx.org/ca, and the certificate must be stored under the key ca.crt.
-	SSLTrustedCertsSecret string `json:"sslTrustedCertsSecret,omitempty"`
+	// TrustedCertSecret is the name of the Kubernetes secret that stores the CA certificate for external authentication server certificate verification. It can be in the same namespace as the Policy resource or in a different namespace specified as <namespace>/<secret>. The secret must be of the type nginx.org/ca, and the certificate must be stored under the key ca.crt.
+	TrustedCertSecret string `json:"trustedCertSecret,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	// SSLServerName sets the server name used for SNI and certificate verification when connecting to the external authentication server over TLS. If not specified, defaults to <service-name>.<namespace>.svc derived from authServiceName.
-	SSLServerName string `json:"sslServerName,omitempty"`
+	// SNIName sets the server name used for SNI and certificate verification when connecting to the external authentication server over TLS. If not specified, defaults to <service-name>.<namespace>.svc derived from authServiceName.
+	SNIName string `json:"sniName,omitempty"`
 }

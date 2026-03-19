@@ -16,11 +16,6 @@ spec:
     service: coffee-svc
     port: 80
   routes:
-  - path: /tea
-    action:
-      pass: tea
-    policies:
-      - name: external-auth-oauth2-snippets-policy
   - path: /coffee
     action:
       pass: coffee

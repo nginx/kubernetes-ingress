@@ -143,13 +143,18 @@ func GenerateEndpointsKey(
 
 // ParseServiceReference returns the namespace and name from a service reference.
 func ParseServiceReference(serviceRef, defaultNamespace string) (namespace, serviceName string) {
-	if nsutils.HasNamespace(serviceRef) {
-		parts := strings.Split(serviceRef, "/")
+	return ParseResourceReference(serviceRef, defaultNamespace)
+}
+
+// ParseResourceReference returns the namespace and name from a resource reference.
+func ParseResourceReference(resourceRef, defaultNamespace string) (namespace, resourceName string) {
+	if nsutils.HasNamespace(resourceRef) {
+		parts := strings.Split(resourceRef, "/")
 		if len(parts) == 2 {
 			return parts[0], parts[1]
 		}
 	}
-	return defaultNamespace, serviceRef
+	return defaultNamespace, resourceRef
 }
 
 type upstreamNamer struct {
@@ -1182,7 +1187,7 @@ func (vsc *virtualServerConfigurator) generateExternalAuthLocation(policiesCfg p
 		loc.ProxySSLVerify = true
 		loc.ProxySSLVerifyDepth = policiesCfg.ExternalAuth.SSLVerifyDepth
 		loc.ProxySSLTrustedCertificate = policiesCfg.ExternalAuth.SSLTrustedCert
-		loc.ProxySSLName = policiesCfg.ExternalAuth.SSLServerName
+		loc.ProxySSLName = policiesCfg.ExternalAuth.SNIName
 	}
 	return loc
 }
@@ -1232,7 +1237,7 @@ func (vsc *virtualServerConfigurator) generateExternalAuthOAuth2Location(policie
 		loc.ProxySSLVerify = true
 		loc.ProxySSLVerifyDepth = policiesCfg.ExternalAuth.SSLVerifyDepth
 		loc.ProxySSLTrustedCertificate = policiesCfg.ExternalAuth.SSLTrustedCert
-		loc.ProxySSLName = policiesCfg.ExternalAuth.SSLServerName
+		loc.ProxySSLName = policiesCfg.ExternalAuth.SNIName
 	}
 	return loc
 }

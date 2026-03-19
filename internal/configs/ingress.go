@@ -611,7 +611,7 @@ func generateIngressExternalAuthLocation(externalAuth *version2.ExternalAuth, up
 		loc.ProxySSLVerify = true
 		loc.ProxySSLVerifyDepth = externalAuth.SSLVerifyDepth
 		loc.ProxySSLTrustedCertificate = externalAuth.SSLTrustedCert
-		loc.ProxySSLName = externalAuth.SSLServerName
+		loc.ProxySSLName = externalAuth.SNIName
 	}
 	return loc
 }
@@ -640,7 +640,7 @@ func generateIngressExternalAuthOAuth2Location(externalAuth *version2.ExternalAu
 		loc.ProxySSLVerify = true
 		loc.ProxySSLVerifyDepth = externalAuth.SSLVerifyDepth
 		loc.ProxySSLTrustedCertificate = externalAuth.SSLTrustedCert
-		loc.ProxySSLName = externalAuth.SSLServerName
+		loc.ProxySSLName = externalAuth.SNIName
 	}
 	return loc
 }

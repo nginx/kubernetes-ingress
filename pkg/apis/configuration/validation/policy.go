@@ -1369,8 +1369,16 @@ func validateExternalAuth(externalAuth *v1.ExternalAuth, fieldPath *field.Path, 
 		allErrs = append(allErrs, field.Invalid(fieldPath.Child("sslVerify"), externalAuth.SSLVerify, "sslEnabled must be true when sslVerify is true"))
 	}
 
-	if externalAuth.SSLTrustedCertsSecret != "" && !externalAuth.SSLVerify {
-		allErrs = append(allErrs, field.Invalid(fieldPath.Child("sslTrustedCertsSecret"), externalAuth.SSLTrustedCertsSecret, "sslVerify must be true when sslTrustedCertsSecret is set"))
+	if externalAuth.TrustedCertSecret != "" && !externalAuth.SSLVerify {
+		allErrs = append(allErrs, field.Invalid(fieldPath.Child("trustedCertSecret"), externalAuth.TrustedCertSecret, "sslVerify must be true when trustedCertSecret is set"))
+	}
+
+	if externalAuth.TrustedCertSecret != "" && !externalAuth.SSLEnabled {
+		allErrs = append(allErrs, validateSecretName(externalAuth.TrustedCertSecret, fieldPath.Child("trustedCertSecret"))...)
+		// If trustedCertSecret is set but sslVerify is false, warn user
+		if !externalAuth.SSLVerify {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("sslVerify"), externalAuth.SSLVerify, "sslVerify should be enabled when trustedCertSecret is specified"))
+		}
 	}
 
 	if externalAuth.SSLVerifyDepth != nil {

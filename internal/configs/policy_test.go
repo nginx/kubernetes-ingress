@@ -1981,7 +1981,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			msg: "empty AuthSigninRedirectBasePath should default to /oauth2",
 		},
 		{
-			name: "SSL verify derives SSLServerName from authServiceName in same namespace",
+			name: "SSL verify derives SNIName from authServiceName in same namespace",
 			extAuth: &conf_v1.ExternalAuth{
 				AuthURI:         "/auth",
 				AuthServiceName: "auth-tls-svc",
@@ -1998,12 +1998,12 @@ func TestAddExternalAuthConfig(t *testing.T) {
 				SSLEnabled:     true,
 				SSLVerify:      true,
 				SSLVerifyDepth: 1,
-				SSLServerName:  "auth-tls-svc.default.svc",
+				SNIName:        "auth-tls-svc.default.svc",
 			},
-			msg: "SSLServerName should be derived as <svc>.<ns>.svc when not explicitly set",
+			msg: "SNIName should be derived as <svc>.<ns>.svc when not explicitly set",
 		},
 		{
-			name: "SSL verify derives SSLServerName from cross-namespace authServiceName",
+			name: "SSL verify derives SNIName from cross-namespace authServiceName",
 			extAuth: &conf_v1.ExternalAuth{
 				AuthURI:         "/auth",
 				AuthServiceName: "other-ns/auth-tls-svc",
@@ -2020,18 +2020,18 @@ func TestAddExternalAuthConfig(t *testing.T) {
 				SSLEnabled:     true,
 				SSLVerify:      true,
 				SSLVerifyDepth: 1,
-				SSLServerName:  "auth-tls-svc.other-ns.svc",
+				SNIName:        "auth-tls-svc.other-ns.svc",
 			},
-			msg: "SSLServerName should use the namespace from the cross-namespace service reference",
+			msg: "SNIName should use the namespace from the cross-namespace service reference",
 		},
 		{
-			name: "SSL verify uses explicit SSLServerName when set",
+			name: "SSL verify uses explicit SNIName when set",
 			extAuth: &conf_v1.ExternalAuth{
 				AuthURI:         "/auth",
 				AuthServiceName: "auth-tls-svc",
 				SSLEnabled:      true,
 				SSLVerify:       true,
-				SSLServerName:   "auth.example.com",
+				SNIName:         "auth.example.com",
 			},
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
@@ -2043,9 +2043,9 @@ func TestAddExternalAuthConfig(t *testing.T) {
 				SSLEnabled:     true,
 				SSLVerify:      true,
 				SSLVerifyDepth: 1,
-				SSLServerName:  "auth.example.com",
+				SNIName:        "auth.example.com",
 			},
-			msg: "explicit SSLServerName should override the derived default",
+			msg: "explicit SNIName should override the derived default",
 		},
 	}
 
@@ -2056,13 +2056,6 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			config := &policiesCfg{}
 			polNamespace := "default"
 			polName := "ext-auth-policy"
-			ownerDetails := policyOwnerDetails{
-				ownerNamespace:  "default",
-				ownerName:       "test-vs",
-				parentNamespace: "default",
-				parentName:      "test-vs",
-				parentType:      "vs",
-			}
 
 			// For the duplicate test, set up a pre-existing ExternalAuth
 			if test.wantWarning {
@@ -2076,7 +2069,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			}
 
 			polKey := polNamespace + "/" + polName
-			res := config.addExternalAuthConfig(test.extAuth, polKey, polNamespace, polName, ownerDetails, nil, policyOptions{})
+			res := config.addExternalAuthConfig(test.extAuth, polKey, polNamespace, polName, nil, policyOptions{})
 
 			if test.wantWarning {
 				if len(res.warnings) == 0 {
