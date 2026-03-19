@@ -49,6 +49,11 @@ jobs:
           IC_VERSION: ${{ inputs.ic_version }}
           CHART_VERSION: ${{ inputs.helm_chart_version }}
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
       - name: Generate test secrets
         run: |
           make secrets
