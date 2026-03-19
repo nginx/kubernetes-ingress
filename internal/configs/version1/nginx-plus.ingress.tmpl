@@ -413,6 +413,15 @@ server {
 		{{- end }}
 		proxy_pass {{ $location.ProxyPass }}{{ $location.Rewrite }};
 		{{- end}}
+		{{- if $location.ProxySSLVerify }}
+		proxy_ssl_verify on;
+		proxy_ssl_verify_depth {{ $location.ProxySSLVerifyDepth }};
+		proxy_ssl_server_name on;
+		proxy_ssl_name {{ $location.ProxySSLName }};
+		{{- end }}
+		{{- if $location.ProxySSLTrustedCertificate }}
+		proxy_ssl_trusted_certificate {{ $location.ProxySSLTrustedCertificate }};
+		{{- end }}
 
 		{{- if or $location.CORSEnabled (gt (len $location.AddHeaders) 0) }}
 		{{- range $h := $location.AddHeaders }}

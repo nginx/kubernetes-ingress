@@ -1157,11 +1157,11 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 func (vsc *virtualServerConfigurator) generateExternalAuthLocation(policiesCfg policiesCfg, proxyURLUpstreamName string) version2.Location {
 	var svcName string
 	_, svcName = ParseServiceReference(policiesCfg.ExternalAuth.URI.Service, "")
-	return version2.Location{
+	loc := version2.Location{
 		Path:                    policiesCfg.ExternalAuth.URI.InternalPath,
 		Internal:                true,
 		Snippets:                strings.Split(policiesCfg.ExternalAuth.Snippets, "\n"),
-		ProxyPass:               fmt.Sprintf("%s://%s%s", generateProxyPassProtocol(false), proxyURLUpstreamName, policiesCfg.ExternalAuth.URI.Path),
+		ProxyPass:               fmt.Sprintf("%s://%s%s", generateProxyPassProtocol(policiesCfg.ExternalAuth.SSLEnabled), proxyURLUpstreamName, policiesCfg.ExternalAuth.URI.Path),
 		ProxyPassRequestHeaders: true,
 		ProxyPassRequestBody:    "off",
 		ProxySetHeaders: []version2.Header{
@@ -1178,6 +1178,13 @@ func (vsc *virtualServerConfigurator) generateExternalAuthLocation(policiesCfg p
 		ServiceName:              svcName,
 		IsVSR:                    false,
 	}
+	if policiesCfg.ExternalAuth.SSLVerify {
+		loc.ProxySSLVerify = true
+		loc.ProxySSLVerifyDepth = policiesCfg.ExternalAuth.SSLVerifyDepth
+		loc.ProxySSLTrustedCertificate = policiesCfg.ExternalAuth.SSLTrustedCert
+		loc.ProxySSLName = policiesCfg.ExternalAuth.SSLServerName
+	}
+	return loc
 }
 
 func (vsc *virtualServerConfigurator) getExAuthServicePort(cfg policiesCfg, vsEx *VirtualServerEx) uint16 {
@@ -1193,6 +1200,8 @@ func (vsc *virtualServerConfigurator) getExAuthServicePort(cfg policiesCfg, vsEx
 		} else {
 			proxyPort = uint16(value)
 		}
+	} else if cfg.ExternalAuth.SSLEnabled {
+		proxyPort = 443
 	} else {
 		proxyPort = 80
 	}
@@ -1200,10 +1209,10 @@ func (vsc *virtualServerConfigurator) getExAuthServicePort(cfg policiesCfg, vsEx
 }
 
 func (vsc *virtualServerConfigurator) generateExternalAuthOAuth2Location(policiesCfg policiesCfg, signinUpstreamName string) version2.Location {
-	return version2.Location{
+	loc := version2.Location{
 		Path:           policiesCfg.ExternalAuth.SigninRedirectBasePath,
 		AuthRequestOff: true,
-		ProxyPass:      fmt.Sprintf("%s://%s", generateProxyPassProtocol(false), signinUpstreamName),
+		ProxyPass:      fmt.Sprintf("%s://%s", generateProxyPassProtocol(policiesCfg.ExternalAuth.SSLEnabled), signinUpstreamName),
 		ProxySetHeaders: []version2.Header{
 			{Name: "X-Auth-Request-Redirect", Value: "$request_uri"},
 			{Name: "Host", Value: "$host"},
@@ -1219,6 +1228,13 @@ func (vsc *virtualServerConfigurator) generateExternalAuthOAuth2Location(policie
 		IsVSR:                    false,
 		ProxyPassRequestHeaders:  true,
 	}
+	if policiesCfg.ExternalAuth.SSLVerify {
+		loc.ProxySSLVerify = true
+		loc.ProxySSLVerifyDepth = policiesCfg.ExternalAuth.SSLVerifyDepth
+		loc.ProxySSLTrustedCertificate = policiesCfg.ExternalAuth.SSLTrustedCert
+		loc.ProxySSLName = policiesCfg.ExternalAuth.SSLServerName
+	}
+	return loc
 }
 
 func getServerErrorPages(cfg policiesCfg) []version2.ErrorPage {

@@ -267,9 +267,12 @@ func (p *policiesCfg) addJWTAuthConfig(
 
 func (p *policiesCfg) addExternalAuthConfig(
 	externalAuth *conf_v1.ExternalAuth,
+	polKey string,
 	polNamespace string,
 	polName string,
 	ownerDetails policyOwnerDetails,
+	secretRefs map[string]*secrets.SecretReference,
+	policyOpts policyOptions,
 ) *validationResults {
 	res := newValidationResults()
 	if p.ExternalAuth != nil {
@@ -288,6 +291,7 @@ func (p *policiesCfg) addExternalAuthConfig(
 			InternalPath: internalPath,
 		},
 		ServicePorts: externalAuth.AuthServicePorts,
+		SSLEnabled:   externalAuth.SSLEnabled,
 	}
 	if externalAuth.AuthSigninURI != "" {
 		p.ExternalAuth.SigninURL = externalAuth.AuthSigninURI
@@ -300,6 +304,56 @@ func (p *policiesCfg) addExternalAuthConfig(
 	}
 	if externalAuth.AuthSnippets != "" {
 		p.ExternalAuth.Snippets = externalAuth.AuthSnippets
+	}
+
+	// Handle SSL verification for external auth
+	if externalAuth.SSLEnabled && externalAuth.SSLVerify {
+		p.ExternalAuth.SSLVerify = true
+
+		sslVerifyDepth := 1
+		if externalAuth.SSLVerifyDepth != nil {
+			sslVerifyDepth = *externalAuth.SSLVerifyDepth
+		}
+		p.ExternalAuth.SSLVerifyDepth = sslVerifyDepth
+
+		trustedCertPath := policyOpts.defaultCABundle
+		if externalAuth.SSLTrustedCertsSecret != "" {
+			trustedCertSecretKey := fmt.Sprintf("%s/%s", polNamespace, externalAuth.SSLTrustedCertsSecret)
+			trustedCertSecretRef := secretRefs[trustedCertSecretKey]
+
+			if trustedCertSecretRef == nil {
+				res.addWarningf("ExternalAuth policy %s references a non-existent trusted cert secret %s", polKey, trustedCertSecretKey)
+				res.isError = true
+				return res
+			}
+
+			var secretType api_v1.SecretType
+			if trustedCertSecretRef.Secret != nil {
+				secretType = trustedCertSecretRef.Secret.Type
+			}
+			if secretType != "" && secretType != secrets.SecretTypeCA {
+				res.addWarningf("ExternalAuth policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, trustedCertSecretKey, secretType, secrets.SecretTypeCA)
+				res.isError = true
+				return res
+			} else if trustedCertSecretRef.Error != nil {
+				res.addWarningf("ExternalAuth policy %s references an invalid trusted cert secret %s: %v", polKey, trustedCertSecretKey, trustedCertSecretRef.Error)
+				res.isError = true
+				return res
+			}
+
+			caFields := strings.Fields(trustedCertSecretRef.Path)
+			if len(caFields) > 0 {
+				trustedCertPath = caFields[0]
+			}
+		}
+		p.ExternalAuth.SSLTrustedCert = trustedCertPath
+
+		if externalAuth.SSLServerName != "" {
+			p.ExternalAuth.SSLServerName = externalAuth.SSLServerName
+		} else {
+			svcNs, svcName := ParseServiceReference(externalAuth.AuthServiceName, polNamespace)
+			p.ExternalAuth.SSLServerName = fmt.Sprintf("%s.%s.svc", svcName, svcNs)
+		}
 	}
 
 	return res
@@ -1055,7 +1109,7 @@ func generatePolicies(
 			case pol.Spec.JWTAuth != nil:
 				res = config.addJWTAuthConfig(pol.Spec.JWTAuth, key, polNamespace, policyOpts.secretRefs)
 			case pol.Spec.ExternalAuth != nil:
-				res = config.addExternalAuthConfig(pol.Spec.ExternalAuth, polNamespace, p.Name, ownerDetails)
+				res = config.addExternalAuthConfig(pol.Spec.ExternalAuth, key, polNamespace, p.Name, ownerDetails, policyOpts.secretRefs, policyOpts)
 			case pol.Spec.BasicAuth != nil:
 				res = config.addBasicAuthConfig(pol.Spec.BasicAuth, key, polNamespace, policyOpts.secretRefs)
 			case pol.Spec.IngressMTLS != nil:

@@ -1980,6 +1980,73 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			},
 			msg: "empty AuthSigninRedirectBasePath should default to /oauth2",
 		},
+		{
+			name: "SSL verify derives SSLServerName from authServiceName in same namespace",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-tls-svc",
+				SSLEnabled:      true,
+				SSLVerify:       true,
+			},
+			expected: &version2.ExternalAuth{
+				URI: &version2.AuthURI{
+					Service:      "auth-tls-svc",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/auth",
+					InternalPath: "/_external_auth/auth",
+				},
+				SSLEnabled:     true,
+				SSLVerify:      true,
+				SSLVerifyDepth: 1,
+				SSLServerName:  "auth-tls-svc.default.svc",
+			},
+			msg: "SSLServerName should be derived as <svc>.<ns>.svc when not explicitly set",
+		},
+		{
+			name: "SSL verify derives SSLServerName from cross-namespace authServiceName",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "other-ns/auth-tls-svc",
+				SSLEnabled:      true,
+				SSLVerify:       true,
+			},
+			expected: &version2.ExternalAuth{
+				URI: &version2.AuthURI{
+					Service:      "other-ns/auth-tls-svc",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/auth",
+					InternalPath: "/_external_auth/auth",
+				},
+				SSLEnabled:     true,
+				SSLVerify:      true,
+				SSLVerifyDepth: 1,
+				SSLServerName:  "auth-tls-svc.other-ns.svc",
+			},
+			msg: "SSLServerName should use the namespace from the cross-namespace service reference",
+		},
+		{
+			name: "SSL verify uses explicit SSLServerName when set",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-tls-svc",
+				SSLEnabled:      true,
+				SSLVerify:       true,
+				SSLServerName:   "auth.example.com",
+			},
+			expected: &version2.ExternalAuth{
+				URI: &version2.AuthURI{
+					Service:      "auth-tls-svc",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/auth",
+					InternalPath: "/_external_auth/auth",
+				},
+				SSLEnabled:     true,
+				SSLVerify:      true,
+				SSLVerifyDepth: 1,
+				SSLServerName:  "auth.example.com",
+			},
+			msg: "explicit SSLServerName should override the derived default",
+		},
 	}
 
 	for _, test := range tests {
@@ -2008,7 +2075,8 @@ func TestAddExternalAuthConfig(t *testing.T) {
 				}
 			}
 
-			res := config.addExternalAuthConfig(test.extAuth, polNamespace, polName, ownerDetails)
+			polKey := polNamespace + "/" + polName
+			res := config.addExternalAuthConfig(test.extAuth, polKey, polNamespace, polName, ownerDetails, nil, policyOptions{})
 
 			if test.wantWarning {
 				if len(res.warnings) == 0 {

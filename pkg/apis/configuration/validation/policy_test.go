@@ -3900,3 +3900,112 @@ func TestValidatePolicy_ExternalAuthWithSnippets(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateExternalAuth_SSLFields(t *testing.T) {
+	t.Parallel()
+
+	validVerifyDepth := 2
+
+	tests := []struct {
+		name         string
+		externalAuth *v1.ExternalAuth
+		expectError  bool
+		msg          string
+	}{
+		{
+			name: "valid SSL configuration with all fields",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:               "/auth",
+				AuthServiceName:       "auth-svc",
+				SSLEnabled:            true,
+				SSLVerify:             true,
+				SSLVerifyDepth:        &validVerifyDepth,
+				SSLTrustedCertsSecret: "ca-secret",
+			},
+			expectError: false,
+			msg:         "valid SSL configuration with sslEnabled, sslVerify, sslVerifyDepth, and sslTrustedCertsSecret",
+		},
+		{
+			name: "valid SSL configuration with sslEnabled only",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+				SSLEnabled:      true,
+			},
+			expectError: false,
+			msg:         "SSL enabled without verification is valid",
+		},
+		{
+			name: "sslVerify without sslEnabled should fail",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+				SSLEnabled:      false,
+				SSLVerify:       true,
+			},
+			expectError: true,
+			msg:         "sslVerify requires sslEnabled to be true",
+		},
+		{
+			name: "sslTrustedCertsSecret without sslVerify should fail",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:               "/auth",
+				AuthServiceName:       "auth-svc",
+				SSLEnabled:            true,
+				SSLVerify:             false,
+				SSLTrustedCertsSecret: "ca-secret",
+			},
+			expectError: true,
+			msg:         "sslTrustedCertsSecret requires sslVerify to be true",
+		},
+		{
+			name: "valid sslEnabled and sslVerify without sslTrustedCertsSecret",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+				SSLEnabled:      true,
+				SSLVerify:       true,
+			},
+			expectError: false,
+			msg:         "sslVerify without sslTrustedCertsSecret is valid (uses default CA bundle)",
+		},
+		{
+			name: "valid sslTrustedCertsSecret with namespace prefix",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:               "/auth",
+				AuthServiceName:       "auth-svc",
+				SSLEnabled:            true,
+				SSLVerify:             true,
+				SSLTrustedCertsSecret: "other-ns/ca-secret",
+			},
+			expectError: false,
+			msg:         "sslTrustedCertsSecret with namespace prefix is valid",
+		},
+		{
+			name: "valid sslServerName with SSL enabled and verify",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+				SSLEnabled:      true,
+				SSLVerify:       true,
+				SSLServerName:   "auth.example.com",
+			},
+			expectError: false,
+			msg:         "explicit sslServerName is valid when sslVerify is enabled",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			fieldPath := field.NewPath("spec").Child("externalAuth")
+			allErrs := validateExternalAuth(test.externalAuth, fieldPath, false)
+			if test.expectError && len(allErrs) == 0 {
+				t.Errorf("validateExternalAuth() returned no errors for case: %v", test.msg)
+			} else if !test.expectError && len(allErrs) > 0 {
+				t.Errorf("validateExternalAuth() returned errors %v for case: %v", allErrs, test.msg)
+			}
+		})
+	}
+}

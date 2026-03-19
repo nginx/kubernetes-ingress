@@ -1291,4 +1291,29 @@ type ExternalAuth struct {
 	// +kubebuilder:validation:Pattern=`^/[a-zA-Z0-9._~:/?#\[\]@!$&'()*+,;=-]*$`
 	// AuthSigninRedirectBasePath is the base path for the NGINX location block that handles sign-in redirect requests from the external authentication server. For example, oauth2-proxy expects /oauth2. If not specified, defaults to /oauth2.
 	AuthSigninRedirectBasePath string `json:"authSigninRedirectBasePath,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:=false
+	// SSLEnabled enables HTTPS when proxying requests to the external authentication server. Default is false.
+	SSLEnabled bool `json:"sslEnabled"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:=false
+	// SSLVerify enables verification of the external authentication server's SSL certificate. Default is false.
+	SSLVerify bool `json:"sslVerify"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:default:=1
+	// SSLVerifyDepth sets the verification depth in the external authentication server certificates chain. Default is 1.
+	SSLVerifyDepth *int `json:"sslVerifyDepth,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?\/)?[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	// SSLTrustedCertsSecret is the name of the Kubernetes secret that stores the CA certificate for external authentication server certificate verification. It can be in the same namespace as the Policy resource or in a different namespace specified as <namespace>/<secret>. The secret must be of the type nginx.org/ca, and the certificate must be stored under the key ca.crt.
+	SSLTrustedCertsSecret string `json:"sslTrustedCertsSecret,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// SSLServerName sets the server name used for SNI and certificate verification when connecting to the external authentication server over TLS. If not specified, defaults to <service-name>.<namespace>.svc derived from authServiceName.
+	SSLServerName string `json:"sslServerName,omitempty"`
 }

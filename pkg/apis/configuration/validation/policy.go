@@ -1364,6 +1364,21 @@ func validateExternalAuth(externalAuth *v1.ExternalAuth, fieldPath *field.Path, 
 		allErrs = append(allErrs, validateAuthURI(externalAuth.AuthSigninRedirectBasePath, fieldPath.Child("authSigninRedirectBasePath"))...)
 	}
 
+	// Validate SSL fields
+	if externalAuth.SSLVerify && !externalAuth.SSLEnabled {
+		allErrs = append(allErrs, field.Invalid(fieldPath.Child("sslVerify"), externalAuth.SSLVerify, "sslEnabled must be true when sslVerify is true"))
+	}
+
+	if externalAuth.SSLTrustedCertsSecret != "" && !externalAuth.SSLVerify {
+		allErrs = append(allErrs, field.Invalid(fieldPath.Child("sslTrustedCertsSecret"), externalAuth.SSLTrustedCertsSecret, "sslVerify must be true when sslTrustedCertsSecret is set"))
+	}
+
+	if externalAuth.SSLVerifyDepth != nil {
+		if *externalAuth.SSLVerifyDepth < 0 {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("sslVerifyDepth"), *externalAuth.SSLVerifyDepth, "must be a non-negative integer"))
+		}
+	}
+
 	return allErrs
 }
 

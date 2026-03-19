@@ -554,6 +554,15 @@ server {
             {{- else }}
         proxy_pass {{ $l.ProxyPass }}{{ $l.ProxyPassRewrite }};
             {{- end }}
+        {{- if $l.ProxySSLVerify }}
+        proxy_ssl_verify on;
+        proxy_ssl_verify_depth {{ $l.ProxySSLVerifyDepth }};
+        proxy_ssl_server_name on;
+        proxy_ssl_name {{ $l.ProxySSLName }};
+        {{- end }}
+        {{- if $l.ProxySSLTrustedCertificate }}
+        proxy_ssl_trusted_certificate {{ $l.ProxySSLTrustedCertificate }};
+        {{- end }}
         {{ $proxyOrGRPC }}_next_upstream {{ $l.ProxyNextUpstream }};
         {{ $proxyOrGRPC }}_next_upstream_timeout {{ $l.ProxyNextUpstreamTimeout }};
         {{ $proxyOrGRPC }}_next_upstream_tries {{ $l.ProxyNextUpstreamTries }};

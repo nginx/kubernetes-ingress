@@ -19,6 +19,16 @@ type ExternalAuthApplyConfiguration struct {
 	AuthSnippets *string `json:"authSnippets,omitempty"`
 	// AuthSigninRedirectBasePath is the base path for the NGINX location block that handles sign-in redirect requests from the external authentication server. For example, oauth2-proxy expects /oauth2. If not specified, defaults to /oauth2.
 	AuthSigninRedirectBasePath *string `json:"authSigninRedirectBasePath,omitempty"`
+	// SSLEnabled enables HTTPS when proxying requests to the external authentication server. Default is false.
+	SSLEnabled *bool `json:"sslEnabled,omitempty"`
+	// SSLVerify enables verification of the external authentication server's SSL certificate. Default is false.
+	SSLVerify *bool `json:"sslVerify,omitempty"`
+	// SSLVerifyDepth sets the verification depth in the external authentication server certificates chain. Default is 1.
+	SSLVerifyDepth *int `json:"sslVerifyDepth,omitempty"`
+	// SSLTrustedCertsSecret is the name of the Kubernetes secret that stores the CA certificate for external authentication server certificate verification. It can be in the same namespace as the Policy resource or in a different namespace specified as <namespace>/<secret>. The secret must be of the type nginx.org/ca, and the certificate must be stored under the key ca.crt.
+	SSLTrustedCertsSecret *string `json:"sslTrustedCertsSecret,omitempty"`
+	// SSLServerName sets the server name used for SNI and certificate verification when connecting to the external authentication server over TLS. If not specified, defaults to <service-name>.<namespace>.svc derived from authServiceName.
+	SSLServerName *string `json:"sslServerName,omitempty"`
 }
 
 // ExternalAuthApplyConfiguration constructs a declarative configuration of the ExternalAuth type for use with
@@ -74,5 +84,45 @@ func (b *ExternalAuthApplyConfiguration) WithAuthSnippets(value string) *Externa
 // If called multiple times, the AuthSigninRedirectBasePath field is set to the value of the last call.
 func (b *ExternalAuthApplyConfiguration) WithAuthSigninRedirectBasePath(value string) *ExternalAuthApplyConfiguration {
 	b.AuthSigninRedirectBasePath = &value
+	return b
+}
+
+// WithSSLEnabled sets the SSLEnabled field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the SSLEnabled field is set to the value of the last call.
+func (b *ExternalAuthApplyConfiguration) WithSSLEnabled(value bool) *ExternalAuthApplyConfiguration {
+	b.SSLEnabled = &value
+	return b
+}
+
+// WithSSLVerify sets the SSLVerify field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the SSLVerify field is set to the value of the last call.
+func (b *ExternalAuthApplyConfiguration) WithSSLVerify(value bool) *ExternalAuthApplyConfiguration {
+	b.SSLVerify = &value
+	return b
+}
+
+// WithSSLVerifyDepth sets the SSLVerifyDepth field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the SSLVerifyDepth field is set to the value of the last call.
+func (b *ExternalAuthApplyConfiguration) WithSSLVerifyDepth(value int) *ExternalAuthApplyConfiguration {
+	b.SSLVerifyDepth = &value
+	return b
+}
+
+// WithSSLTrustedCertsSecret sets the SSLTrustedCertsSecret field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the SSLTrustedCertsSecret field is set to the value of the last call.
+func (b *ExternalAuthApplyConfiguration) WithSSLTrustedCertsSecret(value string) *ExternalAuthApplyConfiguration {
+	b.SSLTrustedCertsSecret = &value
+	return b
+}
+
+// WithSSLServerName sets the SSLServerName field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the SSLServerName field is set to the value of the last call.
+func (b *ExternalAuthApplyConfiguration) WithSSLServerName(value string) *ExternalAuthApplyConfiguration {
+	b.SSLServerName = &value
 	return b
 }

@@ -592,10 +592,10 @@ func resolveExternalAuth(
 func generateIngressExternalAuthLocation(externalAuth *version2.ExternalAuth, upstreamName string, cfg *ConfigParams) version1.Location {
 	var svcName string
 	_, svcName = ParseServiceReference(externalAuth.URI.Service, "")
-	return version1.Location{
+	loc := version1.Location{
 		Path:                     externalAuth.URI.InternalPath,
 		Internal:                 true,
-		ProxyPass:                fmt.Sprintf("%s://%s%s", generateProxyPassProtocol(false), upstreamName, externalAuth.URI.Path),
+		ProxyPass:                fmt.Sprintf("%s://%s%s", generateProxyPassProtocol(externalAuth.SSLEnabled), upstreamName, externalAuth.URI.Path),
 		ProxySetHeaders:          []version2.Header{{Name: "Content-Length", Value: "0"}, {Name: "X-Scheme", Value: "$scheme"}},
 		ProxyConnectTimeout:      generateTimeWithDefault(cfg.ProxyConnectTimeout, cfg.ProxyConnectTimeout),
 		ProxyReadTimeout:         generateTimeWithDefault(cfg.ProxyReadTimeout, cfg.ProxyReadTimeout),
@@ -607,6 +607,13 @@ func generateIngressExternalAuthLocation(externalAuth *version2.ExternalAuth, up
 		LocationSnippets:         splitSnippets(externalAuth.Snippets),
 		ServiceName:              svcName,
 	}
+	if externalAuth.SSLVerify {
+		loc.ProxySSLVerify = true
+		loc.ProxySSLVerifyDepth = externalAuth.SSLVerifyDepth
+		loc.ProxySSLTrustedCertificate = externalAuth.SSLTrustedCert
+		loc.ProxySSLName = externalAuth.SSLServerName
+	}
+	return loc
 }
 
 // generateIngressExternalAuthOAuth2Location builds a version1.Location
@@ -614,10 +621,10 @@ func generateIngressExternalAuthLocation(externalAuth *version2.ExternalAuth, up
 func generateIngressExternalAuthOAuth2Location(externalAuth *version2.ExternalAuth, upstreamName string, cfg *ConfigParams) version1.Location {
 	var svcName string
 	_, svcName = ParseServiceReference(externalAuth.URI.Service, "")
-	return version1.Location{
+	loc := version1.Location{
 		Path:                     externalAuth.SigninRedirectBasePath,
 		AuthRequestOff:           true,
-		ProxyPass:                fmt.Sprintf("%s://%s", generateProxyPassProtocol(false), upstreamName),
+		ProxyPass:                fmt.Sprintf("%s://%s", generateProxyPassProtocol(externalAuth.SSLEnabled), upstreamName),
 		ProxySetHeaders:          []version2.Header{{Name: "X-Auth-Request-Redirect", Value: "$request_uri"}, {Name: "X-Scheme", Value: "$scheme"}},
 		ProxyConnectTimeout:      generateTimeWithDefault(cfg.ProxyConnectTimeout, cfg.ProxyConnectTimeout),
 		ProxyReadTimeout:         generateTimeWithDefault(cfg.ProxyReadTimeout, cfg.ProxyReadTimeout),
@@ -629,6 +636,13 @@ func generateIngressExternalAuthOAuth2Location(externalAuth *version2.ExternalAu
 		ServiceName:              svcName,
 		ProxyPassRequestHeaders:  "on",
 	}
+	if externalAuth.SSLVerify {
+		loc.ProxySSLVerify = true
+		loc.ProxySSLVerifyDepth = externalAuth.SSLVerifyDepth
+		loc.ProxySSLTrustedCertificate = externalAuth.SSLTrustedCert
+		loc.ProxySSLName = externalAuth.SSLServerName
+	}
+	return loc
 }
 
 // splitSnippets splits a snippets string by newline, returning nil for empty input.
@@ -651,6 +665,9 @@ func getExternalAuthServicePort(externalAuth *version2.ExternalAuth) (uint16, st
 			return 0, fmt.Sprintf("Invalid port in ExternalAuth URI: %v. ExternalAuth location will be generated without a port. Error: %v", externalAuth.URI.Port, err)
 		}
 		return uint16(value), ""
+	}
+	if externalAuth.SSLEnabled {
+		return 443, ""
 	}
 	return 80, ""
 }

@@ -211,11 +211,14 @@ type Location struct {
 
 	MinionIngress *Ingress
 
-	ProxyNextUpstream        string
-	ProxyNextUpstreamTimeout string
-	ProxyNextUpstreamTries   *uint64
-	Allow                    []string
-	Deny                     []string
+	ProxyNextUpstream          string
+	ProxyNextUpstreamTimeout   string
+	ProxyNextUpstreamTries     *uint64
+	Allow                      []string
+	Deny                       []string
+	ProxySSLVerify             bool
+	ProxySSLVerifyDepth        int
+	ProxySSLTrustedCertificate string
 }
 
 // ZoneSyncConfig is tbe configuration for the zone_sync directives for state sharing.
