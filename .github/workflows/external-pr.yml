@@ -94,6 +94,7 @@ jobs:
           repository: ${{ needs.pr-details.outputs.fork_owner }}/${{ needs.pr-details.outputs.fork_repo }}
           ref: ${{ needs.pr-details.outputs.sha }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Create and push branch
         id: branch
