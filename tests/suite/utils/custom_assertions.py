@@ -8,6 +8,7 @@ from suite.utils.custom_resources_utils import read_custom_resource
 from suite.utils.resources_utils import (
     get_events,
     get_ingress_nginx_template_conf,
+    get_ts_nginx_template_conf,
     get_vs_nginx_template_conf,
     wait_before_test,
 )
@@ -189,6 +190,12 @@ def assert_vs_conf_exists(kube_apis, ic_pod_name, ic_namespace, vs_namespace, vs
     """Assert that the VS nginx config file exists in the pod."""
     response = get_vs_nginx_template_conf(kube_apis.v1, vs_namespace, vs_name, ic_pod_name, ic_namespace)
     assert "No such file or directory" not in response
+
+
+def assert_ts_conf_not_exists(kube_apis, ic_pod_name, ic_namespace, ts_namespace, ts_name):
+    """Assert that the TS nginx config file does not exist in the pod."""
+    response = get_ts_nginx_template_conf(kube_apis.v1, ts_namespace, ts_name, ic_pod_name, ic_namespace)
+    assert "No such file or directory" in response
 
 
 def assert_ingress_conf_not_exists(kube_apis, ic_pod_name, ic_namespace, ingress_namespace, ingress_name):
@@ -431,3 +438,16 @@ def assert_invalid_vs(kube_apis, namespace, name, retry_count=30, wait_time=1):
 def assert_invalid_vsr(kube_apis, namespace, name, retry_count=30, wait_time=1):
     """Assert that a VirtualServerRoute reaches Invalid state."""
     return assert_vsr_status(kube_apis, namespace, name, "Invalid", retry_count=retry_count, wait_time=wait_time)
+
+
+def assert_valid_ts(kube_apis, namespace, name, retry_count=30, wait_time=1):
+    """Assert that a TransportServer reaches Valid state with AddedOrUpdated reason."""
+    return assert_ts_status(
+        kube_apis,
+        namespace,
+        name,
+        "Valid",
+        expected_reason="AddedOrUpdated",
+        retry_count=retry_count,
+        wait_time=wait_time,
+    )

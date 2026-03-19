@@ -415,6 +415,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -883,6 +884,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -1419,6 +1421,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -1906,6 +1909,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -2487,6 +2491,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -2939,6 +2944,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -3377,6 +3383,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -3843,6 +3850,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -4308,6 +4316,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -4751,6 +4760,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -5227,6 +5237,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -5671,6 +5682,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -6137,6 +6149,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -6600,6 +6613,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -7072,6 +7086,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -7517,6 +7532,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -7961,6 +7977,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -8465,6 +8482,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -8924,6 +8942,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -9392,6 +9411,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -9870,6 +9890,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -10329,6 +10350,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -10788,6 +10810,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -11257,6 +11280,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -11774,6 +11798,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -12292,6 +12317,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -12745,6 +12771,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -13193,6 +13220,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -13655,6 +13683,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -14118,6 +14147,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -14597,6 +14627,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
