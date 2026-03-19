@@ -111,7 +111,7 @@ jobs:
 
           BRANCH_NAME="$PR_BRANCH"
           SHORT_SHA="${SHA:0:8}"
-          INTERNAL_BRANCH="${BRANCH_NAME}-${SHORT_SHA}-do-not-merge"
+          INTERNAL_BRANCH="chore/${BRANCH_NAME}-${SHORT_SHA}-do-not-merge"
 
           git checkout -b "${INTERNAL_BRANCH}"
           git push upstream "${INTERNAL_BRANCH}"
