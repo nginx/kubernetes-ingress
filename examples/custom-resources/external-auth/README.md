@@ -1,11 +1,18 @@
-# External Authentication
+# External Authentication with Basic Auth
 
-In this example we deploy a web application, configure load balancing with a VirtualServer, and apply external
-authentication using two different methods:
+In this example we deploy a web application, configure load balancing with a VirtualServer, and protect all routes with
+external authentication using HTTP Basic Auth.
 
-1. **HTTP Basic Auth** — using an NGINX service that validates credentials from an htpasswd file.
-2. **OAuth2 Proxy with GitHub** — using [oauth2-proxy](https://oauth2-proxy.github.io/oauth2-proxy/) to authenticate
-   users via [GitHub OAuth2](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app).
+The basic-auth backend is an NGINX service that validates credentials from an htpasswd file. The ExternalAuth Policy CRD
+(`k8s.nginx.org/v1 Policy`) is applied at the VirtualServer `spec.policies` level, so all routes inherit the policy
+automatically. The controller generates the required internal auth subrequest locations and upstreams -- no
+`server-snippets` or `location-snippets` are needed.
+
+> **Note:** This example uses **TLS** between the Ingress Controller and the basic-auth backend (`sslEnabled: true` in
+> the policy). For a plain **HTTP flow**, remove `sslEnabled` from `basic-auth-policy.yaml`.
+
+For a more advanced example that combines basic-auth and OAuth2 Proxy with per-route policies, see
+[external-auth-oauth2](../external-auth-oauth2/).
 
 ## Prerequisites
 
@@ -25,12 +32,13 @@ authentication using two different methods:
     XXX.YYY.ZZZ.III cafe.example.com
     ```
 
-## Step 1 - Deploy TLS Secret
+## Step 1 - Deploy Secrets
 
-Apply the generated TLS secret:
+Apply the generated TLS secret for the VirtualServer and the TLS secret used by the basic-auth backend:
 
 ```shell
 kubectl apply -f tls-secret.yaml
+kubectl apply -f external-auth-server-tls-secret.yaml
 ```
 
 ## Step 2 - Deploy the Web Application
@@ -50,57 +58,18 @@ kubectl apply -f htpasswd-secret.yaml
 kubectl apply -f basic-auth.yaml
 ```
 
-## Step 4 - Create a GitHub OAuth App
+## Step 4 - Deploy the ExternalAuth Policy
 
-Register a new OAuth application in GitHub to use as the identity provider:
+Deploy the ExternalAuth policy that the VirtualServer will reference:
 
-1. Go to **GitHub → Settings → Developer settings →
-   [OAuth Apps](https://github.com/settings/developers)** and click **New OAuth App**.
-2. Fill in the form:
+```shell
+kubectl apply -f basic-auth-policy.yaml
+```
 
-   | Field | Value |
-   | ----- | ----- |
-   | **Application name** | `nginx-ingress-demo` (or any name you prefer) |
-   | **Homepage URL** | `https://cafe.example.com` |
-   | **Authorization callback URL** | `https://cafe.example.com/oauth2/callback` |
+## Step 5 - Deploy the VirtualServer
 
-3. Click **Register application**.
-4. On the next page, note the **Client ID**.
-5. Click **Generate a new client secret** and copy the generated secret immediately — you will not
-   be able to see it again.
-
-> **Tip:** For organisation-owned apps, navigate to your organisation's **Settings → Developer
-> settings → OAuth Apps** instead.
-
-## Step 5 - Deploy OAuth2 Proxy
-
-1. Base64-encode the GitHub client secret and update `oauth2-proxy-client-secret.yaml`:
-
-    ```shell
-    echo -n '<your-github-client-secret>' | base64
-    ```
-
-    Replace the value of `client-secret` in the file. If your Client ID differs from the one
-    already in `oauth2-proxy.yaml`, also update the `OAUTH2_PROXY_CLIENT_ID` environment variable.
-
-    Apply the secret:
-
-    ```shell
-    kubectl apply -f oauth2-proxy-client-secret.yaml
-    ```
-
-2. Deploy oauth2-proxy:
-
-    ```shell
-    kubectl apply -f oauth2-proxy.yaml
-    ```
-
-## Step 6 - Deploy the VirtualServer
-
-Deploy the VirtualServer that ties everything together. The basic-auth policy is applied at the
-VirtualServer `spec` level, so **all routes are protected by basic-auth by default** (including `/`).
-Individual routes can override this — `/tea` replaces it with OAuth2 Proxy (GitHub), while `/coffee`
-explicitly re-applies basic-auth:
+Deploy the VirtualServer that ties everything together. The basic-auth policy is applied at the `spec.policies` level,
+so **all routes are protected by basic-auth**:
 
 ```shell
 kubectl apply -f cafe-virtual-server.yaml
@@ -108,46 +77,27 @@ kubectl apply -f cafe-virtual-server.yaml
 
 ## Testing
 
-### Basic Auth Routes (`/coffee` and `/`)
-
-The root path (`/`) and `/coffee` are both protected by basic-auth via the spec-level policy.
-Use the credentials from the htpasswd secret (default: `foo` / `bar`):
+All routes are protected by basic-auth. Use the credentials from the htpasswd secret (default: `foo` / `bar`):
 
 ```shell
+curl -k -u foo:bar https://cafe.example.com/tea
 curl -k -u foo:bar https://cafe.example.com/coffee
-```
-
-```shell
-curl -k -u foo:bar https://cafe.example.com/
 ```
 
 Requests without credentials will be rejected with a `401`:
 
 ```shell
-curl -k https://cafe.example.com/
+curl -k https://cafe.example.com/tea
 ```
-
-### OAuth2 (GitHub) Route (`/tea`)
-
-Open `https://cafe.example.com/tea` in a browser. You will be redirected to GitHub to authorize the
-OAuth App. After granting access, GitHub redirects you back to the application and the page loads
-normally.
-
-> **Note:** Because this flow requires browser interaction (GitHub login + OAuth consent), it cannot
-> be fully tested with `curl`. Use a browser for the initial login. Once authenticated, the
-> `_oauth2_proxy` cookie allows subsequent requests — including `curl` — to pass through.
 
 ## File Overview
 
 | File | Description |
-| ------ | ------------- |
+| ---- | ----------- |
 | `cafe.yaml` | Tea and coffee backend deployments and services |
 | `basic-auth.yaml` | NGINX basic-auth deployment, ConfigMap, and service |
-| `htpasswd-secret.yaml` | htpasswd secret with user credentials |
-| `oauth2-proxy.yaml` | oauth2-proxy deployment, ConfigMap, and service (configured for GitHub) |
-| `oauth2-proxy-client-secret.yaml` | Secret holding the GitHub OAuth App client secret for oauth2-proxy |
-| `tls-secret.yaml` | TLS secret for cafe.example.com |
-| `cafe-virtual-server.yaml` | VirtualServer with basic-auth and oauth2-proxy routes |
-| `external-auth-basic.yaml` | ExternalAuth policy for HTTP basic-auth |
-| `external-auth-oauth2.yaml` | ExternalAuth policy for oauth2-proxy |
-| `external-auth-oauth2-snippets.yaml` | ExternalAuth policy for oauth2-proxy with auth snippets |
+| `basic-auth-policy.yaml` | ExternalAuth policy for HTTP basic-auth |
+| `cafe-virtual-server.yaml` | VirtualServer with spec-level basic-auth policy protecting all routes |
+| `htpasswd-secret.yaml` | htpasswd secret with user credentials (generated by `make secrets`) |
+| `tls-secret.yaml` | TLS secret for cafe.example.com (generated by `make secrets`) |
+| `external-auth-server-tls-secret.yaml` | TLS secret for the basic-auth backend (generated by `make secrets`) |

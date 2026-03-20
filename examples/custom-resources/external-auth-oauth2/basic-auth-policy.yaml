@@ -3,13 +3,11 @@ kind: Policy
 metadata:
   name: external-auth-basic-policy
 spec:
-externalAuth:
+  externalAuth:
     authURI: "/auth"
     authServiceName: "default/basic-auth-svc"
     sslEnabled: true
     sslVerify: true
     sslVerifyDepth: 2
-    sslServerName: "basic-auth-tls-svc.default.svc.cluster.local"
-    sslTrustedCertsSecret: "basic-auth-tls-secret"
-    authSnippets: |
-      # Example snippets
+    sniName: "external-auth-tls"
+    trustedCertSecret: "external-auth-ca-secret"

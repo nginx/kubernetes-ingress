@@ -1,9 +1,0 @@
-apiVersion: k8s.nginx.org/v1
-kind: Policy
-metadata:
-  name: external-auth-oauth2-policy
-spec:
-  externalAuth:
-    authURI: "/auth"
-    authServiceName: "default/oauth2-proxy-svc"
-    authSigninURI: "/oauth2/signin?rd=$scheme://$host$request_uri"

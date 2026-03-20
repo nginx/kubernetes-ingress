@@ -1,15 +1,18 @@
-# External Authentication
+# External Authentication with Basic Auth
 
-In this example we deploy a web application, configure load balancing using Ingress resources with the
-master/minion (mergeable) pattern, and apply external authentication using two different methods:
+In this example we deploy a web application, configure load balancing with an Ingress resource, and protect all routes
+with external authentication using HTTP Basic Auth.
 
-1. **HTTP Basic Auth** -- using an NGINX service that validates credentials from an htpasswd file.
-2. **OAuth2 Proxy with GitHub** -- using [oauth2-proxy](https://oauth2-proxy.github.io/oauth2-proxy/) to authenticate
-   users via [GitHub OAuth2](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app).
+The basic-auth backend is an NGINX service that validates credentials from an htpasswd file. The ExternalAuth Policy CRD
+(`k8s.nginx.org/v1 Policy`) is referenced from the Ingress resource via the `nginx.org/policies` annotation. The
+controller automatically generates the required internal auth subrequest locations and upstreams -- no `server-snippets`
+or `location-snippets` are needed.
 
-Both methods use the ExternalAuth Policy CRD (`k8s.nginx.org/v1 Policy`) referenced from minion Ingress resources via
-the `nginx.org/policies` annotation. The controller automatically generates the required internal auth subrequest
-locations and upstreams -- no `server-snippets` or `location-snippets` are needed.
+> **Note:** This example uses **TLS** between the Ingress Controller and the basic-auth backend (`sslEnabled: true` in
+> the policy). For a plain **HTTP flow**, remove `sslEnabled` from `basic-auth-policy.yaml`.
+
+For a more advanced example that combines basic-auth and OAuth2 Proxy with per-route policies using the Mergeable
+Ingress pattern, see [external-auth-mergeable](../external-auth-mergeable/).
 
 ## Prerequisites
 
@@ -29,12 +32,13 @@ locations and upstreams -- no `server-snippets` or `location-snippets` are neede
     XXX.YYY.ZZZ.III cafe.example.com
     ```
 
-## Step 1 - Deploy TLS Secret
+## Step 1 - Deploy Secrets
 
-Apply the generated TLS secret:
+Apply the generated TLS secret for the Ingress and the TLS secret used by the basic-auth backend:
 
 ```shell
 kubectl apply -f tls-secret.yaml
+kubectl apply -f external-auth-server-tls-secret.yaml
 ```
 
 ## Step 2 - Deploy the Web Application
@@ -54,88 +58,30 @@ kubectl apply -f htpasswd-secret.yaml
 kubectl apply -f basic-auth.yaml
 ```
 
-## Step 4 - Create a GitHub OAuth App
+## Step 4 - Deploy the ExternalAuth Policy
 
-Register a new OAuth application in GitHub to use as the identity provider:
-
-1. Go to **GitHub -> Settings -> Developer settings ->
-   [OAuth Apps](https://github.com/settings/developers)** and click **New OAuth App**.
-2. Fill in the form:
-
-   | Field | Value |
-   | ----- | ----- |
-   | **Application name** | `nginx-ingress-demo` (or any name you prefer) |
-   | **Homepage URL** | `https://cafe.example.com` |
-   | **Authorization callback URL** | `https://cafe.example.com/oauth2/callback` |
-
-3. Click **Register application**.
-4. On the next page, note the **Client ID**.
-5. Click **Generate a new client secret** and copy the generated secret immediately -- you will not
-   be able to see it again.
-
-> **Tip:** For organisation-owned apps, navigate to your organisation's **Settings -> Developer
-> settings -> OAuth Apps** instead.
-
-## Step 5 - Deploy OAuth2 Proxy
-
-1. Base64-encode the GitHub client secret and update `oauth2-proxy-client-secret.yaml`:
-
-    ```shell
-    echo -n '<your-github-client-secret>' | base64
-    ```
-
-    Replace the value of `client-secret` in the file. If your Client ID differs from the one
-    already in `oauth2-proxy.yaml`, also update the `OAUTH2_PROXY_CLIENT_ID` environment variable.
-
-    Apply the secret:
-
-    ```shell
-    kubectl apply -f oauth2-proxy-client-secret.yaml
-    ```
-
-2. Deploy oauth2-proxy:
-
-    ```shell
-    kubectl apply -f oauth2-proxy.yaml
-    ```
-
-## Step 6 - Deploy the ExternalAuth Policies
-
-Deploy the ExternalAuth policies that the Ingress resources will reference:
+Deploy the ExternalAuth policy that the Ingress resource will reference:
 
 ```shell
-kubectl apply -f external-auth-basic.yaml
-kubectl apply -f external-auth-oauth2.yaml
+kubectl apply -f basic-auth-policy.yaml
 ```
 
-## Step 7 - Deploy the Ingress Resources
+## Step 5 - Deploy the Ingress Resource
 
-Deploy the master Ingress that configures the host and TLS:
-
-```shell
-kubectl apply -f cafe-ingress-master.yaml
-```
-
-Deploy the minion Ingress for `/tea` (protected by basic-auth via the `external-auth-basic-policy`):
+Deploy the Ingress that configures the host, TLS, and routes for `/tea` and `/coffee`. The
+`nginx.org/policies` annotation applies the basic-auth policy to all routes:
 
 ```shell
-kubectl apply -f tea-minion.yaml
-```
-
-Deploy the minion Ingress for `/coffee` (protected by OAuth2 Proxy via the `external-auth-oauth2-policy`):
-
-```shell
-kubectl apply -f coffee-minion.yaml
+kubectl apply -f cafe-ingress.yaml
 ```
 
 ## Testing
 
-### Basic Auth Route (`/tea`)
-
-Access `https://cafe.example.com/tea`. Use the credentials from the htpasswd secret (default: `foo` / `bar`):
+All routes are protected by basic-auth. Use the credentials from the htpasswd secret (default: `foo` / `bar`):
 
 ```shell
 curl -k -u foo:bar https://cafe.example.com/tea
+curl -k -u foo:bar https://cafe.example.com/coffee
 ```
 
 Requests without credentials will be rejected with a `401`:
@@ -144,48 +90,14 @@ Requests without credentials will be rejected with a `401`:
 curl -k https://cafe.example.com/tea
 ```
 
-### OAuth2 (GitHub) Route (`/coffee`)
-
-Open `https://cafe.example.com/coffee` in a browser. You will be redirected to GitHub to authorize the
-OAuth App. After granting access, GitHub redirects you back to the application and the page loads
-normally.
-
-> **Note:** Because this flow requires browser interaction (GitHub login + OAuth consent), it cannot
-> be fully tested with `curl`. Use a browser for the initial login. Once authenticated, the
-> `_oauth2_proxy` cookie allows subsequent requests -- including `curl` -- to pass through.
-
-## Architecture
-
-This example uses the [Mergeable Ingress](https://docs.nginx.com/nginx-ingress-controller/configuration/ingress-resources/cross-namespace-configuration/)
-pattern to split the configuration across multiple Ingress resources:
-
-- **Master** (`cafe-ingress-master.yaml`) -- Defines the host and TLS termination.
-- **Tea Minion** (`tea-minion.yaml`) -- Routes `/tea` to the tea service, referencing the
-  `external-auth-basic-policy` via the `nginx.org/policies` annotation.
-- **Coffee Minion** (`coffee-minion.yaml`) -- Routes `/coffee` to the coffee service, referencing the
-  `external-auth-oauth2-policy` via the `nginx.org/policies` annotation.
-
-The ExternalAuth policies tell the controller which external auth service to use. The controller automatically:
-
-1. Creates an upstream for the auth service.
-2. Generates an internal subrequest location (`/_external_auth/...`).
-3. Adds `auth_request` directives to the matching locations.
-4. For OAuth2 policies with `authSigninURI`, generates a signin redirect location and `error_page 401` handler.
-
-No manual `server-snippets` or `location-snippets` are required.
-
 ## File Overview
 
 | File | Description |
-| ------ | ------------- |
+| ---- | ----------- |
 | `cafe.yaml` | Tea and coffee backend deployments and services |
 | `basic-auth.yaml` | NGINX basic-auth deployment, ConfigMap, and service |
-| `htpasswd-secret.yaml` | htpasswd secret with user credentials |
-| `oauth2-proxy.yaml` | oauth2-proxy deployment, ConfigMap, and service (configured for GitHub) |
-| `oauth2-proxy-client-secret.yaml` | Secret holding the GitHub OAuth App client secret for oauth2-proxy |
-| `tls-secret.yaml` | TLS secret for cafe.example.com |
-| `external-auth-basic.yaml` | ExternalAuth policy for HTTP basic-auth |
-| `external-auth-oauth2.yaml` | ExternalAuth policy for OAuth2 Proxy (GitHub) |
-| `cafe-ingress-master.yaml` | Master Ingress with host and TLS configuration |
-| `tea-minion.yaml` | Minion Ingress for `/tea` with basic-auth policy |
-| `coffee-minion.yaml` | Minion Ingress for `/coffee` with OAuth2 policy |
+| `basic-auth-policy.yaml` | ExternalAuth policy for HTTP basic-auth |
+| `cafe-ingress.yaml` | Ingress with host, TLS, and routes referencing the basic-auth policy |
+| `htpasswd-secret.yaml` | htpasswd secret with user credentials (generated by `make secrets`) |
+| `tls-secret.yaml` | TLS secret for cafe.example.com (generated by `make secrets`) |
+| `external-auth-server-tls-secret.yaml` | TLS secret for the basic-auth backend (generated by `make secrets`) |
