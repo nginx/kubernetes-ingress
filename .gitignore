@@ -102,7 +102,7 @@ examples/ingress-resources/cors/cafe-secret.yaml
 examples/ingress-resources/session-persistence/cafe-secret.yaml
 examples/custom-resources/basic-configuration-vsr/cafe-secret.yaml
 examples/custom-resources/external-auth/tls-secret.yaml
-examples/custom-resources/external-auth/tls/tls-secret.yaml
+examples/ingress-resources/external-auth/tls-secret.yaml
 examples/custom-resources/external-auth-advanced-routing/tls-secret.yaml
 examples/custom-resources/vsr-route-selector-policies/cafe-secret.yaml
 tests/data/dos/tls-secret.yaml
@@ -195,9 +195,12 @@ tests/data/oidc/keycloak-tls-secret.yaml
 common-secrets/external-auth-ca-secret.yaml
 common-secrets/external-auth-server-tls-secret.yaml
 common-secrets/external-auth-ca-secret-crl.yaml
-examples/custom-resources/external-auth/tls/external-auth-ca-secret.yaml
-examples/custom-resources/external-auth/tls/external-auth-ca-secret-crl.yaml
-examples/custom-resources/external-auth/tls/external-auth-server-tls-secret.yaml
+examples/custom-resources/external-auth/external-auth-ca-secret.yaml
+examples/custom-resources/external-auth/external-auth-ca-secret-crl.yaml
+examples/ingress-resources/external-auth/external-auth-ca-secret.yaml
+examples/ingress-resources/external-auth/external-auth-ca-secret-crl.yaml
+examples/custom-resources/external-auth/external-auth-server-tls-secret.yaml
+examples/ingress-resources/external-auth/external-auth-server-tls-secret.yaml
 
 # TLS Certificate secrets
 common-secrets/cafe-passwd-basic-auth-secret.yaml
@@ -225,7 +228,6 @@ common-secrets/auth-basic-secrets-htpasswd-secret-invalid.yaml
 tests/data/auth-basic-secrets/auth-basic-secret-invalid.yaml
 common-secrets/htpasswd-secret-external-auth.yaml
 examples/custom-resources/external-auth/htpasswd-secret.yaml
-examples/custom-resources/external-auth/tls/htpasswd-secret.yaml
 examples/custom-resources/external-auth-advanced-routing/htpasswd-secret.yaml
 examples/ingress-resources/external-auth/htpasswd-secret.yaml
 tests/data/external-auth-policy/backend/htpasswd-secret.yaml
