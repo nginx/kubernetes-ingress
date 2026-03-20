@@ -106,7 +106,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk
 
 
 ############################################# Base image for Debian #############################################
-FROM nginx:1.29.6@sha256:bc45d248c4e1d1709321de61566eb2b64d4f0e32765239d66573666be7f13349 AS debian
+FROM nginx:1.29.6@sha256:dec7a90bd0973b076832dc56933fe876bc014929e14b4ec49923951405370112 AS debian
 ARG NGINX_OSS_VERSION
 ARG NGINX_AGENT_VERSION
 
@@ -511,7 +511,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 
 
 ############################################# Base image for UBI8 with NGINX Plus and App Protect WAF #############################################
-FROM redhat/ubi8@sha256:7dee295fba93ab1a9dfcb6e94e47e1050c6b51242449c33421ea3244d977e802 AS ubi-8-plus-nap
+FROM redhat/ubi8@sha256:2360104caaba3aba0126dd711fedb8d23594a2567b5f5e27d189bc3b3f97dca6 AS ubi-8-plus-nap
 ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
 ARG BUILD_OS
@@ -552,7 +552,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 
 
 ############################################# Base image for UBI8 with NGINX Plus and App Protect WAFv5  #############################################
-FROM redhat/ubi8@sha256:7dee295fba93ab1a9dfcb6e94e47e1050c6b51242449c33421ea3244d977e802 AS ubi-8-plus-nap-v5
+FROM redhat/ubi8@sha256:2360104caaba3aba0126dd711fedb8d23594a2567b5f5e27d189bc3b3f97dca6 AS ubi-8-plus-nap-v5
 ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
 ARG NAP_AGENT_VERSION
