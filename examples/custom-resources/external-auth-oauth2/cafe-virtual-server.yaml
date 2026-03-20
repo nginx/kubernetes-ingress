@@ -9,12 +9,20 @@ spec:
     redirect:
       enable: true
   upstreams:
+  - name: tea
+    service: tea-svc
+    port: 80
   - name: coffee
     service: coffee-svc
     port: 80
   routes:
+  - path: /tea
+    action:
+      pass: tea
+    policies:
+      - name: external-auth-basic-policy
   - path: /coffee
     action:
       pass: coffee
     policies:
-      - name: external-auth-basic-policy
+      - name: external-auth-oauth2-policy
