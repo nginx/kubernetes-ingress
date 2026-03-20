@@ -93,7 +93,7 @@ func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
 				if err != nil {
 					nl.Errorf(lbc.Logger, "Error updating EndpointSlices for %v: %v", resourceExes.IngressExes, err)
 				}
-				lbc.updateResourceStatusOnEndpointSliceChangeWithWarnings(svcResource, endpointSlice, svcName, cfgWarnings)
+				lbc.updateResourceStatusOnEndpointSliceChangeWithWarnings(svcResource, resourceExes, endpointSlice, svcName, cfgWarnings)
 				break
 			}
 		}
@@ -108,7 +108,7 @@ func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
 				if err != nil {
 					nl.Errorf(lbc.Logger, "Error updating EndpointSlices for %v: %v", resourceExes.MergeableIngresses, err)
 				}
-				lbc.updateResourceStatusOnEndpointSliceChangeWithWarnings(svcResource, endpointSlice, svcName, cfgWarnings)
+				lbc.updateResourceStatusOnEndpointSliceChangeWithWarnings(svcResource, resourceExes, endpointSlice, svcName, cfgWarnings)
 				break
 			}
 		}
@@ -124,7 +124,7 @@ func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
 					if err != nil {
 						nl.Errorf(lbc.Logger, "Error updating EndpointSlices for %v: %v", resourceExes.VirtualServerExes, err)
 					}
-					lbc.updateResourceStatusOnEndpointSliceChangeWithWarnings(svcResource, endpointSlice, svcName, cfgWarnings)
+					lbc.updateResourceStatusOnEndpointSliceChangeWithWarnings(svcResource, resourceExes, endpointSlice, svcName, cfgWarnings)
 					break
 				}
 			}
@@ -148,13 +148,15 @@ func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
 // accurately reflects all issues, not just endpoint availability.
 func (lbc *LoadBalancerController) updateResourceStatusOnEndpointSliceChangeWithWarnings(
 	svcResources []Resource,
+	resourceExes configs.ExtendedResources,
 	endpointSlice *discovery_v1.EndpointSlice,
 	svcName string,
 	cfgWarnings configs.Warnings,
 ) {
 	hasEndpoints := len(endpointSlice.Endpoints) > 0
+	resourcesWithWarnings := mergeExtendedResourceWarnings(svcResources, resourceExes)
 
-	for _, r := range svcResources {
+	for _, r := range resourcesWithWarnings {
 		warnings := make(configs.Warnings)
 		warnings.Add(cfgWarnings)
 		if !hasEndpoints {

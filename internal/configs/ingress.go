@@ -378,12 +378,6 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 				loc.CORSEnabled = true
 			}
 
-			if !loc.CORSEnabled && len(policyCfg.CORSHeaders) > 0 {
-				// Apply Ingress-level CORS headers to every generated location unless already set.
-				loc.AddHeaders = append(loc.AddHeaders, policyCfg.CORSHeaders...)
-				loc.CORSEnabled = true
-			}
-
 			if cfgParams.LimitReqRate != "" {
 				zoneName := ncp.ingEx.Ingress.Namespace + "/" + ncp.ingEx.Ingress.Name
 				if ncp.ingEx.ZoneSync {
