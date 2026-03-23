@@ -37,31 +37,25 @@ std_vs_src = f"{TEST_DATA}/virtual-server-route/standard/virtual-server.yaml"
 std_vsr_src = f"{TEST_DATA}/virtual-server-route/route-multiple.yaml"
 
 # VSR spec file paths
-ext_auth_vsr_valid_src = f"{TEST_DATA}/external-auth-policy/route-subroute/virtual-server-route-valid-subroute.yaml"
+ext_auth_vsr_valid_src = f"{TEST_DATA}/external-auth/route-subroute/virtual-server-route-valid-subroute.yaml"
 ext_auth_vsr_valid_multi_src = (
-    f"{TEST_DATA}/external-auth-policy/route-subroute/virtual-server-route-valid-subroute-multi.yaml"
+    f"{TEST_DATA}/external-auth/route-subroute/virtual-server-route-valid-subroute-multi.yaml"
 )
 ext_auth_vsr_invalid_svc_src = (
-    f"{TEST_DATA}/external-auth-policy/route-subroute/virtual-server-route-invalid-svc-subroute.yaml"
+    f"{TEST_DATA}/external-auth/route-subroute/virtual-server-route-invalid-svc-subroute.yaml"
 )
-ext_auth_vsr_override_src = (
-    f"{TEST_DATA}/external-auth-policy/route-subroute/virtual-server-route-override-subroute.yaml"
-)
-ext_auth_vs_override_spec_src = f"{TEST_DATA}/external-auth-policy/route-subroute/virtual-server-vsr-spec-override.yaml"
-ext_auth_vs_override_route_src = (
-    f"{TEST_DATA}/external-auth-policy/route-subroute/virtual-server-vsr-route-override.yaml"
-)
+ext_auth_vsr_override_src = f"{TEST_DATA}/external-auth/route-subroute/virtual-server-route-override-subroute.yaml"
+ext_auth_vs_override_spec_src = f"{TEST_DATA}/external-auth/route-subroute/virtual-server-vsr-spec-override.yaml"
+ext_auth_vs_override_route_src = f"{TEST_DATA}/external-auth/route-subroute/virtual-server-vsr-route-override.yaml"
 
 # TLS VSR specs
-ext_auth_vsr_tls_src = f"{TEST_DATA}/external-auth-policy/route-subroute/virtual-server-route-tls-subroute.yaml"
-ext_auth_vsr_tls_multi_src = (
-    f"{TEST_DATA}/external-auth-policy/route-subroute/virtual-server-route-tls-multi-subroute.yaml"
-)
+ext_auth_vsr_tls_src = f"{TEST_DATA}/external-auth/route-subroute/virtual-server-route-tls-subroute.yaml"
+ext_auth_vsr_tls_multi_src = f"{TEST_DATA}/external-auth/route-subroute/virtual-server-route-tls-multi-subroute.yaml"
 ext_auth_vs_tls_spec_override_src = (
-    f"{TEST_DATA}/external-auth-policy/route-subroute/virtual-server-vsr-tls-spec-override.yaml"
+    f"{TEST_DATA}/external-auth/route-subroute/virtual-server-vsr-tls-spec-override.yaml"
 )
 ext_auth_vs_tls_route_override_src = (
-    f"{TEST_DATA}/external-auth-policy/route-subroute/virtual-server-vsr-tls-route-override.yaml"
+    f"{TEST_DATA}/external-auth/route-subroute/virtual-server-vsr-tls-route-override.yaml"
 )
 
 
