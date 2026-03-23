@@ -1,0 +1,16 @@
+apiVersion: k8s.nginx.org/v1
+kind: TransportServer
+metadata:
+  name: transport-server-invalid-snippet
+spec:
+  listener:
+    name: tls-passthrough
+    protocol: TLS_PASSTHROUGH
+  host: ts-invalid-snippet.example.com
+  serverSnippets: "proxy_upload_rate invalid;"
+  upstreams:
+    - name: secure-app
+      service: secure-app
+      port: 8443
+  action:
+    pass: secure-app

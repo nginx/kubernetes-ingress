@@ -76,12 +76,19 @@ const AppProtectDosProtectedAnnotation = "appprotectdos.f5.com/app-protect-dos-r
 // nginxMeshInternalRoute specifies if the ingress resource is an internal route.
 const nginxMeshInternalRouteAnnotation = "nsm.nginx.com/internal-route"
 
+// StickyCookieServicesAnnotation is the annotation where the sticky cookie configuration is specified.
+const StickyCookieServicesAnnotation = "nginx.org/sticky-cookie-services"
+
+// StickyCookieServicesAnnotationPlus is the annotation where the sticky cookie configuration is specified for NGINX Plus.
+const StickyCookieServicesAnnotationPlus = "nginx.com/sticky-cookie-services"
+
 var masterDenylist = map[string]bool{
 	"nginx.org/rewrites":                      true,
 	"nginx.org/ssl-services":                  true,
 	"nginx.org/grpc-services":                 true,
 	"nginx.org/websocket-services":            true,
-	"nginx.com/sticky-cookie-services":        true,
+	StickyCookieServicesAnnotation:            true,
+	StickyCookieServicesAnnotationPlus:        true,
 	"nginx.com/health-checks":                 true,
 	"nginx.com/health-checks-mandatory":       true,
 	"nginx.com/health-checks-mandatory-queue": true,
@@ -709,14 +716,32 @@ func getGrpcServices(ingEx *IngressEx) map[string]bool {
 
 func getSessionPersistenceServices(ctx context.Context, ingEx *IngressEx) map[string]string {
 	l := nl.LoggerFromContext(ctx)
-	if value, exists := ingEx.Ingress.Annotations["nginx.com/sticky-cookie-services"]; exists {
-		services, err := ParseStickyServiceList(value)
-		if err != nil {
-			nl.Error(l, err)
-		}
-		return services
+
+	// Check for both annotations to maintain compatibility with existing users of the nginx.com
+	// annotation. If both annotations are present, the nginx.org annotation takes precedence.
+	valuePlus, plusExists := ingEx.Ingress.Annotations[StickyCookieServicesAnnotationPlus]
+	valueOrg, orgExists := ingEx.Ingress.Annotations[StickyCookieServicesAnnotation]
+	if !plusExists && !orgExists {
+		return nil
 	}
-	return nil
+
+	value := valuePlus
+	if orgExists {
+		value = valueOrg
+	}
+
+	if plusExists && orgExists {
+		nl.Warnf(l, "Ingress %s/%s: both %s and %s annotations are set; using %s",
+			ingEx.Ingress.Namespace, ingEx.Ingress.Name,
+			StickyCookieServicesAnnotation, StickyCookieServicesAnnotationPlus,
+			StickyCookieServicesAnnotation)
+	}
+
+	services, err := ParseStickyServiceList(value)
+	if err != nil {
+		nl.Error(l, err)
+	}
+	return services
 }
 
 func filterMasterAnnotations(annotations map[string]string) []string {
