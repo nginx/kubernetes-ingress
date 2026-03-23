@@ -6,7 +6,15 @@ import yaml
 from kubernetes.client import CustomObjectsApi
 from kubernetes.client.rest import ApiException
 from suite.utils.custom_resources_utils import read_custom_resource
-from suite.utils.resources_utils import ensure_item_removal, wait_before_test
+from suite.utils.resources_utils import (
+    create_items_from_yaml,
+    create_secret_from_yaml,
+    delete_items_from_yaml,
+    delete_secret,
+    ensure_item_removal,
+    wait_before_test,
+    wait_until_all_pods_are_ready,
+)
 
 
 def read_policy(custom_objects: CustomObjectsApi, namespace, name) -> object:
@@ -78,6 +86,70 @@ def apply_and_wait_for_valid_policy(kube_apis, namespace, policy_yaml, retry_cou
         f"Policy '{pol_name}' failed to become Valid after {retry_count * interval}s. "
         f"Last observed status: {policy_info.get('status', 'no status field')}"
     )
+
+
+def setup_policy_backend(kube_apis, namespace, *, secret_yamls, backend_yaml, policy_yamls, validate_policies=True):
+    """Deploy a backend with secrets and create policies.
+
+    Generic setup function that can be used for any policy type (external-auth,
+    rate-limit, etc.) with any combination of secrets and backends.
+
+    Args:
+        kube_apis: KubeApis instance.
+        namespace: Kubernetes namespace.
+        secret_yamls: List of YAML file paths for secrets to create.
+        backend_yaml: YAML file path for backend deployment (ConfigMap + Deployment + Service).
+        policy_yamls: List of YAML file paths for policies to create.
+        validate_policies: If True (default), wait for each policy to reach Valid state.
+            Set to False for tests that expect the policy to be Invalid/Rejected.
+
+    Returns:
+        (secret_names, policy_names) -- lists of created resource names.
+    """
+    secret_names = []
+    for yaml_path in secret_yamls:
+        print(f"Create secret from {yaml_path}")
+        name = create_secret_from_yaml(kube_apis.v1, namespace, yaml_path)
+        secret_names.append(name)
+
+    print(f"Deploy backend from {backend_yaml}")
+    create_items_from_yaml(kube_apis, backend_yaml, namespace)
+    wait_until_all_pods_are_ready(kube_apis.v1, namespace)
+
+    policy_names = []
+    for yaml_path in policy_yamls:
+        print(f"Create policy from {yaml_path}")
+        if validate_policies:
+            name = apply_and_wait_for_valid_policy(kube_apis, namespace, yaml_path)
+        else:
+            name = create_policy_from_yaml(kube_apis.custom_objects, yaml_path, namespace)
+        policy_names.append(name)
+
+    return secret_names, policy_names
+
+
+def teardown_policy_backend(kube_apis, namespace, *, backend_yaml, secret_names, policy_names):
+    """Delete policies, backend, and secrets.
+
+    Generic teardown counterpart to setup_policy_backend.
+
+    Args:
+        kube_apis: KubeApis instance.
+        namespace: Kubernetes namespace.
+        backend_yaml: YAML file path used to deploy the backend (for deletion).
+        secret_names: List of secret names to delete.
+        policy_names: List of policy names to delete.
+    """
+    for pol_name in policy_names:
+        print(f"Delete policy: {pol_name}")
+        delete_policy(kube_apis.custom_objects, pol_name, namespace)
+
+    print(f"Delete backend from {backend_yaml}")
+    delete_items_from_yaml(kube_apis, backend_yaml, namespace)
+
+    for secret_name in secret_names:
+        print(f"Delete secret: {secret_name}")
+        delete_secret(kube_apis.v1, secret_name, namespace)
 
 
 def apply_and_assert_valid_policy(kube_apis, namespace, policy_yaml, debug=False) -> str:

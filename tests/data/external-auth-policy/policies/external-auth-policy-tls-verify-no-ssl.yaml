@@ -1,0 +1,10 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: external-auth-policy-tls
+spec:
+  externalAuth:
+    authURI: "/auth"
+    authServiceName: "external-auth-svc"
+    sslEnabled: false
+    sslVerify: true
