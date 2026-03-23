@@ -3300,11 +3300,6 @@ func TestRejectPlusResourcesInOSS(t *testing.T) {
 		},
 		{
 			upstream: &v1.Upstream{
-				SessionCookie: &v1.SessionCookie{},
-			},
-		},
-		{
-			upstream: &v1.Upstream{
 				Queue: &v1.UpstreamQueue{},
 			},
 		},

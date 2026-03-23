@@ -155,6 +155,9 @@ controller:
   ## Enables debugging for NGINX. Uses the nginx-debug binary. Requires error-log-level: debug in the ConfigMap via `controller.config.entries`.
   nginxDebug: false
 
+  ## Enable config validation prior to reloading NGINX.
+  enableConfigSafety: false
+
   ## Share process namespace between containers in the Ingress Controller pod.
   shareProcessNamespace: false
 
@@ -176,7 +179,7 @@ controller:
     repository: nginx/nginx-ingress
 
     ## The tag of the Ingress Controller image. If not specified the appVersion from Chart.yaml is used as a tag.
-    # tag: "5.3.4"
+    # tag: "5.4.0"
     ## The digest of the Ingress Controller image.
     ## If digest is specified it has precedence over tag and will be used instead
     # digest: "sha256:CHANGEME"

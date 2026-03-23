@@ -1275,6 +1275,7 @@ func (vsc *virtualServerConfigurator) generateUpstream(
 		Servers:          upsServers,
 		Resolve:          isExternalNameSvc,
 		LBMethod:         lbMethod,
+		SessionCookie:    generateSessionCookie(upstream.SessionCookie),
 		Keepalive:        generateIntFromPointer(upstream.Keepalive, vsc.cfgParams.Keepalive),
 		MaxFails:         generateIntFromPointer(upstream.MaxFails, vsc.cfgParams.MaxFails),
 		FailTimeout:      generateTimeWithDefault(upstream.FailTimeout, vsc.cfgParams.FailTimeout),
@@ -1286,7 +1287,6 @@ func (vsc *virtualServerConfigurator) generateUpstream(
 	if vsc.isPlus {
 		ups.SlowStart = vsc.generateSlowStartForPlus(owner, upstream, lbMethod)
 		ups.Queue = generateQueueForPlus(upstream.Queue, "60s")
-		ups.SessionCookie = generateSessionCookie(upstream.SessionCookie)
 		ups.NTLM = upstream.NTLM
 	}
 

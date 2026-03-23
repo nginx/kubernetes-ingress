@@ -13,6 +13,12 @@ upstream {{ $u.Name }} {
     {{- if $u.Keepalive }}
     keepalive {{ $u.Keepalive }};
     {{- end }}
+
+	{{- with $u.SessionCookie }}
+		{{- if .Enable }}
+    sticky cookie {{ .Name }}{{ if .Expires }} expires={{ .Expires }}{{ end }}{{ if .Domain }} domain={{ .Domain }}{{ end }}{{ if .HTTPOnly }} httponly{{ end }}{{ if .SameSite}} samesite={{.SameSite | toLower }}{{ end }}{{ if .Secure }} secure{{ end }}{{ if .Path }} path={{ .Path }}{{ end }};
+		{{- end }}
+	{{- end }}
 }
 {{ end }}
 
