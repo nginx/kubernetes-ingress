@@ -10,54 +10,42 @@ from suite.utils.policy_resources_utils import setup_policy_backend, teardown_po
 # ---------------------------------------------------------------------------
 
 # HTTP backend and credentials
-ext_auth_backend_secret_src = f"{TEST_DATA}/external-auth-policy/backend/htpasswd-secret.yaml"
-ext_auth_backend_src = f"{TEST_DATA}/external-auth-policy/backend/external-auth-backend.yaml"
-valid_credentials = f"{TEST_DATA}/external-auth-policy/credentials.txt"
-invalid_credentials = f"{TEST_DATA}/external-auth-policy/invalid-credentials.txt"
+ext_auth_backend_secret_src = f"{TEST_DATA}/external-auth/backend/htpasswd-secret.yaml"
+ext_auth_backend_src = f"{TEST_DATA}/external-auth/backend/external-auth-backend.yaml"
+valid_credentials = f"{TEST_DATA}/external-auth/credentials.txt"
+invalid_credentials = f"{TEST_DATA}/external-auth/invalid-credentials.txt"
 
 # HTTP policies (no TLS)
-ext_auth_pol_valid_src = f"{TEST_DATA}/external-auth-policy/policies/external-auth-policy-valid.yaml"
-ext_auth_pol_valid_multi_src = f"{TEST_DATA}/external-auth-policy/policies/external-auth-policy-valid-multi.yaml"
-ext_auth_pol_invalid_src = f"{TEST_DATA}/external-auth-policy/policies/external-auth-policy-invalid.yaml"
-ext_auth_pol_invalid_svc_src = f"{TEST_DATA}/external-auth-policy/policies/external-auth-policy-invalid-svc.yaml"
-ext_auth_pol_cross_ns_src = f"{TEST_DATA}/external-auth-policy/policies/external-auth-policy-cross-ns.yaml"
-ext_auth_pol_signin_src = f"{TEST_DATA}/external-auth-policy/policies/external-auth-policy-signin.yaml"
-ext_auth_pol_custom_port_src = f"{TEST_DATA}/external-auth-policy/policies/external-auth-policy-custom-port.yaml"
+ext_auth_pol_valid_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-valid.yaml"
+ext_auth_pol_valid_multi_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-valid-multi.yaml"
+ext_auth_pol_invalid_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-invalid.yaml"
+ext_auth_pol_invalid_svc_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-invalid-svc.yaml"
+ext_auth_pol_cross_ns_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-cross-ns.yaml"
+ext_auth_pol_signin_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-signin.yaml"
+ext_auth_pol_custom_port_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-custom-port.yaml"
 
 # TLS backend and secrets
-ext_auth_tls_backend_src = f"{TEST_DATA}/external-auth-policy/backend/external-auth-backend-tls.yaml"
-ext_auth_tls_server_secret_src = f"{TEST_DATA}/external-auth-policy/backend/external-auth-server-tls-secret.yaml"
-ext_auth_tls_ca_secret_src = f"{TEST_DATA}/external-auth-policy/backend/external-auth-ca-secret.yaml"
-ext_auth_tls_wrong_ca_src = f"{TEST_DATA}/external-auth-policy/backend/wrong-type-ca-secret.yaml"
+ext_auth_tls_backend_src = f"{TEST_DATA}/external-auth/backend/external-auth-backend-tls.yaml"
+ext_auth_tls_server_secret_src = f"{TEST_DATA}/external-auth/backend/external-auth-server-tls-secret.yaml"
+ext_auth_tls_ca_secret_src = f"{TEST_DATA}/external-auth/backend/external-auth-ca-secret.yaml"
+ext_auth_tls_wrong_ca_src = f"{TEST_DATA}/external-auth/backend/wrong-type-ca-secret.yaml"
 
 # TLS policies
-ext_auth_pol_tls_basic_src = f"{TEST_DATA}/external-auth-policy/policies/external-auth-policy-tls-basic.yaml"
-ext_auth_pol_tls_full_src = f"{TEST_DATA}/external-auth-policy/policies/external-auth-policy-tls-full.yaml"
-ext_auth_pol_tls_nonexistent_ca_src = (
-    f"{TEST_DATA}/external-auth-policy/policies/external-auth-policy-tls-nonexistent-ca.yaml"
-)
-ext_auth_pol_tls_wrong_ca_type_src = (
-    f"{TEST_DATA}/external-auth-policy/policies/external-auth-policy-tls-wrong-ca-type.yaml"
-)
-ext_auth_pol_tls_bad_sni_src = f"{TEST_DATA}/external-auth-policy/policies/external-auth-policy-tls-bad-sni.yaml"
-ext_auth_pol_tls_cross_ns_ca_src = (
-    f"{TEST_DATA}/external-auth-policy/policies/external-auth-policy-tls-cross-ns-ca.yaml"
-)
+ext_auth_pol_tls_basic_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-basic.yaml"
+ext_auth_pol_tls_full_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-full.yaml"
+ext_auth_pol_tls_nonexistent_ca_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-nonexistent-ca.yaml"
+ext_auth_pol_tls_wrong_ca_type_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-wrong-ca-type.yaml"
+ext_auth_pol_tls_bad_sni_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-bad-sni.yaml"
+ext_auth_pol_tls_cross_ns_ca_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-cross-ns-ca.yaml"
 ext_auth_pol_tls_no_trusted_cert_src = (
-    f"{TEST_DATA}/external-auth-policy/policies/external-auth-policy-tls-no-trusted-cert.yaml"
+    f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-no-trusted-cert.yaml"
 )
-ext_auth_pol_tls_default_sni_src = (
-    f"{TEST_DATA}/external-auth-policy/policies/external-auth-policy-tls-default-sni.yaml"
-)
-ext_auth_pol_tls_verify_no_ssl_src = (
-    f"{TEST_DATA}/external-auth-policy/policies/external-auth-policy-tls-verify-no-ssl.yaml"
-)
-ext_auth_pol_tls_custom_port_src = (
-    f"{TEST_DATA}/external-auth-policy/policies/external-auth-policy-tls-custom-port.yaml"
-)
-ext_auth_pol_tls_signin_src = f"{TEST_DATA}/external-auth-policy/policies/external-auth-policy-tls-signin.yaml"
-ext_auth_pol_tls_disabled_src = f"{TEST_DATA}/external-auth-policy/policies/external-auth-policy-tls-disabled.yaml"
-ext_auth_pol_tls_full_multi_src = f"{TEST_DATA}/external-auth-policy/policies/external-auth-policy-tls-full-multi.yaml"
+ext_auth_pol_tls_default_sni_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-default-sni.yaml"
+ext_auth_pol_tls_verify_no_ssl_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-verify-no-ssl.yaml"
+ext_auth_pol_tls_custom_port_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-custom-port.yaml"
+ext_auth_pol_tls_signin_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-signin.yaml"
+ext_auth_pol_tls_disabled_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-disabled.yaml"
+ext_auth_pol_tls_full_multi_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-full-multi.yaml"
 
 
 # ---------------------------------------------------------------------------

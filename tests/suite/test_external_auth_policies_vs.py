@@ -49,20 +49,18 @@ from suite.utils.vs_vsr_resources_utils import (
 std_vs_src = f"{TEST_DATA}/virtual-server/standard/virtual-server.yaml"
 
 # VS spec file paths
-ext_auth_vs_single_src = f"{TEST_DATA}/external-auth-policy/spec/virtual-server-policy-single.yaml"
-ext_auth_vs_single_invalid_svc_src = (
-    f"{TEST_DATA}/external-auth-policy/spec/virtual-server-policy-single-invalid-svc.yaml"
-)
-ext_auth_vs_multi_1_src = f"{TEST_DATA}/external-auth-policy/spec/virtual-server-policy-multi-1.yaml"
-ext_auth_vs_multi_2_src = f"{TEST_DATA}/external-auth-policy/spec/virtual-server-policy-multi-2.yaml"
-ext_auth_vs_cross_ns_src = f"{TEST_DATA}/external-auth-policy/spec/virtual-server-policy-cross-ns.yaml"
-ext_auth_vs_signin_src = f"{TEST_DATA}/external-auth-policy/spec/virtual-server-policy-signin.yaml"
-ext_auth_vs_custom_port_src = f"{TEST_DATA}/external-auth-policy/spec/virtual-server-policy-custom-port.yaml"
+ext_auth_vs_single_src = f"{TEST_DATA}/external-auth/spec/virtual-server-policy-single.yaml"
+ext_auth_vs_single_invalid_svc_src = f"{TEST_DATA}/external-auth/spec/virtual-server-policy-single-invalid-svc.yaml"
+ext_auth_vs_multi_1_src = f"{TEST_DATA}/external-auth/spec/virtual-server-policy-multi-1.yaml"
+ext_auth_vs_multi_2_src = f"{TEST_DATA}/external-auth/spec/virtual-server-policy-multi-2.yaml"
+ext_auth_vs_cross_ns_src = f"{TEST_DATA}/external-auth/spec/virtual-server-policy-cross-ns.yaml"
+ext_auth_vs_signin_src = f"{TEST_DATA}/external-auth/spec/virtual-server-policy-signin.yaml"
+ext_auth_vs_custom_port_src = f"{TEST_DATA}/external-auth/spec/virtual-server-policy-custom-port.yaml"
 
 # TLS VS specs
-ext_auth_vs_tls_src = f"{TEST_DATA}/external-auth-policy/spec/virtual-server-policy-tls.yaml"
-ext_auth_vs_tls_multi_1_src = f"{TEST_DATA}/external-auth-policy/spec/virtual-server-policy-tls-multi-1.yaml"
-ext_auth_vs_tls_multi_2_src = f"{TEST_DATA}/external-auth-policy/spec/virtual-server-policy-tls-multi-2.yaml"
+ext_auth_vs_tls_src = f"{TEST_DATA}/external-auth/spec/virtual-server-policy-tls.yaml"
+ext_auth_vs_tls_multi_1_src = f"{TEST_DATA}/external-auth/spec/virtual-server-policy-tls-multi-1.yaml"
+ext_auth_vs_tls_multi_2_src = f"{TEST_DATA}/external-auth/spec/virtual-server-policy-tls-multi-2.yaml"
 
 
 @pytest.mark.policies
