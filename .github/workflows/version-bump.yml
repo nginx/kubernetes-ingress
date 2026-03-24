@@ -50,7 +50,7 @@ jobs:
           CHART_VERSION: ${{ inputs.helm_chart_version }}
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
 
