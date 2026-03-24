@@ -94,7 +94,7 @@ jobs:
           ref: ${{ needs.checks.outputs.branch }}
 
       - name: Azure login
-        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
         with:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
@@ -109,7 +109,7 @@ jobs:
           echo "CODECOV_TOKEN=$CODECOV_TOKEN" >> $GITHUB_OUTPUT
 
       - name: Setup Helm
-        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
         with:
           version: 'v3.18.6'
 
@@ -153,12 +153,12 @@ jobs:
           ref: ${{ needs.checks.outputs.branch }}
 
       - name: Setup Helm
-        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
         with:
           version: 'v3.18.6'
 
       - name: Azure login
-        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
         with:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
@@ -291,7 +291,7 @@ jobs:
           echo "tag=${{ needs.checks.outputs.stable_tag }}${{ contains(matrix.images.image, 'ubi') && '-ubi' || '' }}${{ contains(matrix.images.image, 'alpine') && '-alpine' || '' }}${{ contains(matrix.images.target, 'aws') && '-mktpl' || '' }}${{ contains(matrix.images.image, 'fips') && '-fips' || ''}}" >> $GITHUB_OUTPUT
 
       - name: Azure login
-        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
         with:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
