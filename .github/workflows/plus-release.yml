@@ -84,7 +84,7 @@ jobs:
           ref: ${{ inputs.branch }}
 
       - name: Azure login
-        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
         with:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
@@ -140,7 +140,7 @@ jobs:
           ref: ${{ inputs.branch }}
 
       - name: Azure login
-        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
         with:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
@@ -211,7 +211,7 @@ jobs:
           ref: ${{ inputs.branch }}
 
       - name: Azure login
-        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
         with:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
@@ -276,7 +276,7 @@ jobs:
           ref: ${{ inputs.branch }}
 
       - name: Azure login
-        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
         with:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
@@ -346,7 +346,7 @@ jobs:
           ref: ${{ inputs.branch }}
 
       - name: Azure login
-        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
         with:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
@@ -379,7 +379,7 @@ jobs:
           password: ${{ steps.gcr-auth.outputs.access_token }}
 
       - name: Azure login
-        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
         with:
           client-id: ${{ secrets.AZURE_MKTPL_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_MKTPL_TENANT_ID }}
