@@ -9,7 +9,7 @@ NAP_WAF_VERSION               ?= 36+5.575
 NAP_WAF_COMMON_VERSION        ?= 11.608
 NAP_WAF_PLUGIN_VERSION        ?= 6.25
 NAP_AGENT_VERSION             ?= 2
-NGINX_AGENT_VERSION           ?= 3.7
+NGINX_AGENT_VERSION           ?= 3.8
 PLUS_ARGS = --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --secret id=nginx-repo.crt,src=nginx-repo.crt --secret id=nginx-repo.key,src=nginx-repo.key
 
 # Variables that can be overridden
@@ -35,7 +35,7 @@ ARCH                          ?= amd64 ## The architecture of the image or binar
 GOOS                          ?= linux ## The OS of the binary. For example linux, darwin
 TELEMETRY_ENDPOINT            ?= oss.edge.df.f5.com:443
 # renovate: datasource=docker depName=golangci/golangci-lint
-GOLANGCI_LINT_VERSION         ?= v2.11.3 ## The version of golangci-lint to use
+GOLANGCI_LINT_VERSION         ?= v2.11.4 ## The version of golangci-lint to use
 # renovate: datasource=go depName=golang.org/x/tools
 GOIMPORTS_VERSION             ?= v0.43.0 ## The version of goimports to use
 # renovate: datasource=go depName=mvdan.cc/gofumpt
