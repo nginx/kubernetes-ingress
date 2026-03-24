@@ -2962,7 +2962,7 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;
+        proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -2984,7 +2984,7 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;
+        proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7274,7 +7274,7 @@ server {
         proxy_send_timeout ;
         client_max_body_size ;
         proxy_set_header X-Forwarded-Coffee "espresso";
-        proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;
+        proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7297,7 +7297,7 @@ server {
         proxy_send_timeout ;
         client_max_body_size ;
         proxy_set_header X-Forwarded-Tea "chai";
-        proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;
+        proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7340,8 +7340,8 @@ server {
         proxy_set_header X-Forwarded-Coffee "espresso";
         proxy_set_header X-Forwarded-Minion "coffee";
         proxy_set_header Location "minion";
-        proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;
-        proxy_set_header BVC $http_bvc;
+        proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";
+        proxy_set_header BVC "$http_bvc";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7364,8 +7364,8 @@ server {
         proxy_send_timeout ;
         client_max_body_size ;
         proxy_set_header X-Forwarded-Tea "chai";
-        proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;
-        proxy_set_header BVC $http_bvc;
+        proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";
+        proxy_set_header BVC "$http_bvc";
         proxy_set_header Location "master";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -7406,7 +7406,7 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;
+        proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7428,7 +7428,7 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;
+        proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7530,7 +7530,7 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        proxy_set_header X-Forwarded-Coffee $http_x_forwarded_coffee;
+        proxy_set_header X-Forwarded-Coffee "$http_x_forwarded_coffee";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7552,7 +7552,7 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        proxy_set_header X-Forwarded-Tea $http_x_forwarded_tea;
+        proxy_set_header X-Forwarded-Tea "$http_x_forwarded_tea";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -8106,7 +8106,7 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;
+        proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

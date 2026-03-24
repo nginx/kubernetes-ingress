@@ -293,10 +293,8 @@ server {
 		proxy_pass_request_body {{ $location.ProxyPassRequestBody }};
 		{{- end}}
 		{{- range $header := $location.ProxySetHeaders}}
-		proxy_set_header {{ $header.Name }} {{ $header.Value }};
+		proxy_set_header {{ $header.Name }} "{{ $header.Value }}";
 		{{- end}}
-		{{- $proxySetHeaders := generateProxySetHeaders $location $.Ingress.Annotations -}}
-		{{$proxySetHeaders}}
 		proxy_set_header Host $host;
 		proxy_set_header X-Real-IP $remote_addr;
 		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

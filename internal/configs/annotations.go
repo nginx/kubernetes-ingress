@@ -279,9 +279,8 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		cfgParams.ProxyPassHeaders = proxyPassHeaders
 	}
 
-	if proxySetHeaders, exists := GetMapKeyAsStringSlice(ingEx.Ingress.Annotations, "nginx.org/proxy-set-headers", ingEx.Ingress, ","); exists {
-		parsedHeaders := parseProxySetHeaders(proxySetHeaders)
-		cfgParams.ProxySetHeaders = parsedHeaders
+	if proxySetHeaders, exists := ingEx.Ingress.Annotations["nginx.org/proxy-set-headers"]; exists {
+		cfgParams.ProxySetHeaders = ParseProxySetHeaders(proxySetHeaders)
 	}
 
 	if proxyNextUpstream, exists := ingEx.Ingress.Annotations[ProxyNextUpstreamAnnotation]; exists {
