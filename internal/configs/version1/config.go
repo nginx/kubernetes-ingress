@@ -218,6 +218,7 @@ type Location struct {
 	ProxyNextUpstreamTries     *uint64
 	Allow                      []string
 	Deny                       []string
+	PoliciesErrorReturn        *version2.Return
 	ProxySSLVerify             bool
 	ProxySSLVerifyDepth        int
 	ProxySSLTrustedCertificate string

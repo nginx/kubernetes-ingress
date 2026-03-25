@@ -536,7 +536,6 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 					loc.ExternalAuth = exAuth
 					locations = append(locations, authLocs...)
 				}
-
 			}
 
 			if !loc.CORSEnabled && len(policyCfg.CORSHeaders) > 0 {
