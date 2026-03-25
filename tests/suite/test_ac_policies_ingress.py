@@ -293,7 +293,7 @@ class TestAccessControlPoliciesIngress:
         test_namespace,
     ):
         """
-        Test if invalid policy is applied then response is not affected (500) and policy status is Rejected/Invalid.
+        Test that when an invalid policy is applied, the response returns 500 and the policy status is Rejected/Invalid.
         """
         print(f"\nSend request with invalid policy applied")
         resp = requests.get(
