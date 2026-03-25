@@ -132,6 +132,7 @@ def _delete_ingress_setup(kube_apis, ingress_setup):
             "extra_args": [
                 f"-enable-custom-resources",
                 f"-enable-leader-election=false",
+                f"-enable-prometheus-metrics",
             ],
         },
     ],
@@ -776,6 +777,7 @@ class TestExternalAuthPoliciesIngress:
             "extra_args": [
                 f"-enable-custom-resources",
                 f"-enable-leader-election=false",
+                f"-enable-prometheus-metrics",
             ],
         },
     ],
