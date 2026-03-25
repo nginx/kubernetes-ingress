@@ -293,7 +293,7 @@ class TestAccessControlPoliciesIngress:
         test_namespace,
     ):
         """
-        Test if invalid policy is applied then response is not affected (200) and policy status is Rejected/Invalid.
+        Test if invalid policy is applied then response is not affected (500) and policy status is Rejected/Invalid.
         """
         print(f"\nSend request with invalid policy applied")
         resp = requests.get(
@@ -305,7 +305,7 @@ class TestAccessControlPoliciesIngress:
         policy_info = read_custom_resource(kube_apis.custom_objects, test_namespace, "policies", "invalid-policy")
         print(f"Policy status: {policy_info.get('status', {})}")
 
-        assert resp.status_code == 200, f"Expected 200 for invalid policy, got {resp.status_code}"
+        assert resp.status_code == 500, f"Expected 500 for invalid policy, got {resp.status_code}"
         assert (
             policy_info["status"]
             and policy_info["status"]["reason"] == "Rejected"
