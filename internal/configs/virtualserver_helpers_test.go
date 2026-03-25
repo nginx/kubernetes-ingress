@@ -136,42 +136,49 @@ func TestParseResourceReference(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		name             string
 		resourceRef      string
 		defaultNamespace string
 		expectedNS       string
 		expectedResource string
 	}{
 		{
+			name:             "coffee service without namespace",
 			resourceRef:      "coffee-svc",
 			defaultNamespace: "coffee",
 			expectedNS:       "coffee",
 			expectedResource: "coffee-svc",
 		},
 		{
+			name:             "tea service with namespace",
 			resourceRef:      "tea/tea-svc",
 			defaultNamespace: "cafe",
 			expectedNS:       "tea",
 			expectedResource: "tea-svc",
 		},
 		{
+			name:             "tls secret with namespace",
 			resourceRef:      "default/tls-secret",
 			defaultNamespace: "cafe",
 			expectedNS:       "default",
 			expectedResource: "tls-secret",
 		},
 		{
+			name:             "tls secret without namespace",
 			resourceRef:      "tls-secret",
 			defaultNamespace: "cafe",
 			expectedNS:       "cafe",
 			expectedResource: "tls-secret",
 		},
 		{
+			name:             "policy without namespace",
 			resourceRef:      "access-control-policy",
 			defaultNamespace: "default",
 			expectedNS:       "default",
 			expectedResource: "access-control-policy",
 		},
 		{
+			name:             "policy with namespace",
 			resourceRef:      "ac-ns/access-control-policy",
 			defaultNamespace: "default",
 			expectedNS:       "ac-ns",
