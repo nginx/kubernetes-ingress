@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -425,6 +427,295 @@ func TestGenerateNginxCfgForAccessControl(t *testing.T) {
 
 	if diff := cmp.Diff(expected, result); diff != "" {
 		t.Errorf("generateNginxCfg() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgForWAFPolicyApPolicy(t *testing.T) {
+	t.Parallel()
+
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations[PoliciesAnnotationPlus] = "waf-policy"
+	cafeIngressEx.Policies = map[string]*conf_v1.Policy{
+		"default/waf-policy": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "waf-policy",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				WAF: &conf_v1.WAF{
+					Enable:   true,
+					ApPolicy: "dataguard-alarm",
+					SecurityLogs: []*conf_v1.SecurityLog{
+						{
+							Enable:    true,
+							ApLogConf: "logconf",
+							LogDest:   "syslog:server=127.0.0.1:514",
+						},
+					},
+				},
+			},
+		},
+	}
+	cafeIngressEx.ApPolRefs = map[string]*unstructured.Unstructured{
+		"default/dataguard-alarm": {
+			Object: map[string]interface{}{},
+		},
+	}
+	cafeIngressEx.ApPolRefs["default/dataguard-alarm"].SetNamespace("default")
+	cafeIngressEx.ApPolRefs["default/dataguard-alarm"].SetName("dataguard-alarm")
+	cafeIngressEx.LogConfRefs = map[string]*unstructured.Unstructured{
+		"default/logconf": {
+			Object: map[string]interface{}{},
+		},
+	}
+	cafeIngressEx.LogConfRefs["default/logconf"].SetNamespace("default")
+	cafeIngressEx.LogConfRefs["default/logconf"].SetName("logconf")
+
+	configParams := NewDefaultConfigParams(context.Background(), true)
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:         &StaticConfigParams{},
+		ingEx:                &cafeIngressEx,
+		isPlus:               true,
+		BaseCfgParams:        configParams,
+		isResolverConfigured: false,
+		isWildcardEnabled:    false,
+	})
+
+	expectedWAF := &version2.WAF{
+		Enable:              "on",
+		ApPolicy:            "/etc/nginx/waf/nac-policies/default_dataguard-alarm",
+		ApSecurityLogEnable: true,
+		ApLogConf:           []string{"/etc/nginx/waf/nac-logconfs/default_logconf syslog:server=127.0.0.1:514"},
+	}
+
+	if diff := cmp.Diff(expectedWAF, result.Servers[0].WAF); diff != "" {
+		t.Errorf("generateNginxCfg() returned unexpected WAF config (-want +got):\n%s", diff)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgRejectsPoliciesRequiringPlusAnnotationFromNginxOrgPolicies(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		annotations      map[string]string
+		expectWarning    bool
+		expectWAFApplied bool
+	}{
+		{
+			name: "waf policy via nginx.org/policies is rejected",
+			annotations: map[string]string{
+				PoliciesAnnotation: "waf-policy",
+			},
+			expectWarning:    true,
+			expectWAFApplied: false,
+		},
+		{
+			name: "waf policy via both annotations is rejected",
+			annotations: map[string]string{
+				PoliciesAnnotation:     "waf-policy",
+				PoliciesAnnotationPlus: "waf-policy",
+			},
+			expectWarning:    true,
+			expectWAFApplied: false,
+		},
+		{
+			name: "waf policy via nginx.com/policies is accepted",
+			annotations: map[string]string{
+				PoliciesAnnotationPlus: "waf-policy",
+			},
+			expectWarning:    false,
+			expectWAFApplied: true,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			cafeIngressEx := createCafeIngressEx()
+			for key, value := range test.annotations {
+				cafeIngressEx.Ingress.Annotations[key] = value
+			}
+			cafeIngressEx.Policies = map[string]*conf_v1.Policy{
+				"default/waf-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "waf-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						WAF: &conf_v1.WAF{
+							Enable:   true,
+							ApPolicy: "dataguard-alarm",
+						},
+					},
+				},
+			}
+			cafeIngressEx.ApPolRefs = map[string]*unstructured.Unstructured{
+				"default/dataguard-alarm": {
+					Object: map[string]interface{}{},
+				},
+			}
+			cafeIngressEx.ApPolRefs["default/dataguard-alarm"].SetNamespace("default")
+			cafeIngressEx.ApPolRefs["default/dataguard-alarm"].SetName("dataguard-alarm")
+
+			result, warnings := generateNginxCfg(NginxCfgParams{
+				staticParams:         &StaticConfigParams{},
+				ingEx:                &cafeIngressEx,
+				isPlus:               true,
+				BaseCfgParams:        NewDefaultConfigParams(context.Background(), true),
+				isResolverConfigured: false,
+				isWildcardEnabled:    false,
+			})
+
+			ingressWarnings := warnings[cafeIngressEx.Ingress]
+			if test.expectWarning {
+				if len(ingressWarnings) != 1 {
+					t.Fatalf("expected 1 ingress warning, got %d: %v", len(ingressWarnings), ingressWarnings)
+				}
+				if !strings.Contains(ingressWarnings[0], "WAF policy default/waf-policy is not supported in annotation nginx.org/policies") {
+					t.Fatalf("expected nginx.org/policies warning, got: %v", ingressWarnings[0])
+				}
+			} else if len(ingressWarnings) != 0 {
+				t.Fatalf("expected no ingress warnings, got: %v", ingressWarnings)
+			}
+
+			hasWAF := result.Servers[0].WAF != nil
+			if hasWAF != test.expectWAFApplied {
+				t.Fatalf("expected WAF applied=%v, got %v", test.expectWAFApplied, hasWAF)
+			}
+		})
+	}
+}
+
+func TestGenerateNginxCfgAppliesWAFAndCORSFromDifferentPolicyAnnotations(t *testing.T) {
+	t.Parallel()
+
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations[PoliciesAnnotation] = "cors-policy"
+	cafeIngressEx.Ingress.Annotations[PoliciesAnnotationPlus] = "waf-policy"
+	cafeIngressEx.Policies = map[string]*conf_v1.Policy{
+		"default/cors-policy": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cors-policy",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				CORS: &conf_v1.CORS{
+					AllowOrigin: []string{"https://example.com"},
+				},
+			},
+		},
+		"default/waf-policy": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "waf-policy",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				WAF: &conf_v1.WAF{
+					Enable:   true,
+					ApPolicy: "dataguard-alarm",
+				},
+			},
+		},
+	}
+	cafeIngressEx.ApPolRefs = map[string]*unstructured.Unstructured{
+		"default/dataguard-alarm": {
+			Object: map[string]interface{}{},
+		},
+	}
+	cafeIngressEx.ApPolRefs["default/dataguard-alarm"].SetNamespace("default")
+	cafeIngressEx.ApPolRefs["default/dataguard-alarm"].SetName("dataguard-alarm")
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:         &StaticConfigParams{},
+		ingEx:                &cafeIngressEx,
+		isPlus:               true,
+		BaseCfgParams:        NewDefaultConfigParams(context.Background(), true),
+		isResolverConfigured: false,
+		isWildcardEnabled:    false,
+	})
+
+	if len(warnings) != 0 {
+		t.Fatalf("generateNginxCfg() returned warnings: %v", warnings)
+	}
+
+	if result.Servers[0].WAF == nil {
+		t.Fatal("expected WAF config to be generated")
+	}
+	if result.Servers[0].WAF.ApPolicy != "/etc/nginx/waf/nac-policies/default_dataguard-alarm" {
+		t.Fatalf("expected WAF policy file path to be set, got %q", result.Servers[0].WAF.ApPolicy)
+	}
+
+	for _, loc := range result.Servers[0].Locations {
+		if !loc.CORSEnabled {
+			t.Fatalf("location %s should have CORS enabled", loc.Path)
+		}
+		originHeader, ok := getHeaderValue(loc.AddHeaders, "Access-Control-Allow-Origin")
+		if !ok {
+			t.Fatalf("location %s missing Access-Control-Allow-Origin header", loc.Path)
+		}
+		if originHeader != "https://example.com" {
+			t.Fatalf("location %s origin header = %q, want %q", loc.Path, originHeader, "https://example.com")
+		}
+	}
+}
+
+func TestGenerateNginxCfgForWAFPolicyApBundle(t *testing.T) {
+	t.Parallel()
+
+	bundleDir := t.TempDir()
+	bundleName := "wafv5.tgz"
+	bundlePath := filepath.Join(bundleDir, bundleName)
+
+	if err := os.WriteFile(bundlePath, []byte("bundle"), 0o600); err != nil {
+		t.Fatalf("failed to create test bundle file: %v", err)
+	}
+
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations[PoliciesAnnotationPlus] = "waf-policy"
+	cafeIngressEx.Policies = map[string]*conf_v1.Policy{
+		"default/waf-policy": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "waf-policy",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				WAF: &conf_v1.WAF{
+					Enable:   true,
+					ApBundle: bundleName,
+				},
+			},
+		},
+	}
+
+	configParams := NewDefaultConfigParams(context.Background(), true)
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams: &StaticConfigParams{
+			AppProtectBundlePath: bundleDir,
+		},
+		ingEx:                &cafeIngressEx,
+		isPlus:               true,
+		BaseCfgParams:        configParams,
+		isResolverConfigured: false,
+		isWildcardEnabled:    false,
+	})
+
+	if result.Servers[0].WAF == nil {
+		t.Fatal("expected WAF config to be generated")
+	}
+	if result.Servers[0].WAF.ApBundle != bundlePath {
+		t.Errorf("expected ApBundle %q, got %q", bundlePath, result.Servers[0].WAF.ApBundle)
+	}
+	if result.Servers[0].WAF.Enable != "on" {
+		t.Errorf("expected WAF enable to be \"on\", got %q", result.Servers[0].WAF.Enable)
 	}
 	if len(warnings) != 0 {
 		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)

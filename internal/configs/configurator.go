@@ -1825,6 +1825,20 @@ func (cnf *Configurator) AddOrUpdateSpiffeCerts(svidResponse *workloadapi.X509Co
 func (cnf *Configurator) updateApResources(ingEx *IngressEx) *AppProtectResources {
 	var apResources AppProtectResources
 
+	// Policy attached WAF resources must exist on disk before template rendering/reload.
+	for _, apPol := range ingEx.ApPolRefs {
+		policyFileName := appProtectPolicyFileNameFromUnstruct(apPol)
+		policyContent := generateApResourceFileContent(apPol)
+		cnf.nginxManager.CreateAppProtectResourceFile(policyFileName, policyContent)
+	}
+
+	for _, logConf := range ingEx.LogConfRefs {
+		logConfFileName := appProtectLogConfFileNameFromUnstruct(logConf)
+		logConfContent := generateApResourceFileContent(logConf)
+		cnf.nginxManager.CreateAppProtectResourceFile(logConfFileName, logConfContent)
+	}
+
+	// annotation attached WAF resources must exist on disk before template rendering/reload.
 	if ingEx.AppProtectPolicy != nil {
 		policyFileName := appProtectPolicyFileNameFromUnstruct(ingEx.AppProtectPolicy)
 		policyContent := generateApResourceFileContent(ingEx.AppProtectPolicy)
