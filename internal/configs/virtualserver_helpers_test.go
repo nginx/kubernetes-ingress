@@ -132,6 +132,62 @@ func TestParseServiceReference(t *testing.T) {
 	}
 }
 
+func TestParseResourceReference(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		resourceRef      string
+		defaultNamespace string
+		expectedNS       string
+		expectedResource string
+	}{
+		{
+			resourceRef:      "coffee-svc",
+			defaultNamespace: "coffee",
+			expectedNS:       "coffee",
+			expectedResource: "coffee-svc",
+		},
+		{
+			resourceRef:      "tea/tea-svc",
+			defaultNamespace: "cafe",
+			expectedNS:       "tea",
+			expectedResource: "tea-svc",
+		},
+		{
+			resourceRef:      "default/tls-secret",
+			defaultNamespace: "cafe",
+			expectedNS:       "default",
+			expectedResource: "tls-secret",
+		},
+		{
+			resourceRef:      "tls-secret",
+			defaultNamespace: "cafe",
+			expectedNS:       "cafe",
+			expectedResource: "tls-secret",
+		},
+		{
+			resourceRef:      "access-control-policy",
+			defaultNamespace: "default",
+			expectedNS:       "default",
+			expectedResource: "access-control-policy",
+		},
+		{
+			resourceRef:      "ac-ns/access-control-policy",
+			defaultNamespace: "default",
+			expectedNS:       "ac-ns",
+			expectedResource: "access-control-policy",
+		},
+	}
+
+	for _, test := range tests {
+		namespace, resourceName := ParseResourceReference(test.resourceRef, test.defaultNamespace)
+		if namespace != test.expectedNS || resourceName != test.expectedResource {
+			t.Errorf("ParseResourceReference(%q, %q) returned (%q, %q) but expected (%q, %q)",
+				test.resourceRef, test.defaultNamespace, namespace, resourceName, test.expectedNS, test.expectedResource)
+		}
+	}
+}
+
 func TestUpstreamNamerForVirtualServer(t *testing.T) {
 	t.Parallel()
 	virtualServer := conf_v1.VirtualServer{
