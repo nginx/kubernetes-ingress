@@ -65,6 +65,7 @@ ext_auth_vs_tls_multi_2_src = f"{TEST_DATA}/external-auth/spec/virtual-server-po
 
 @pytest.mark.policies
 @pytest.mark.policies_external_auth
+@pytest.mark.policies_external_auth_vs
 @pytest.mark.parametrize(
     "crd_ingress_controller, virtual_server_setup",
     [
@@ -556,6 +557,7 @@ class TestExternalAuthPolicies:
 
 @pytest.mark.policies
 @pytest.mark.policies_external_auth
+@pytest.mark.policies_external_auth_vs
 @pytest.mark.parametrize(
     "crd_ingress_controller, virtual_server_setup",
     [

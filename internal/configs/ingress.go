@@ -942,6 +942,10 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 	}
 
 	masterServer = masterNginxCfg.Servers[0]
+	// Preserve internal locations (e.g. /_external_auth/...) from the master
+	// config. These are needed for server-level auth_request subrequests set
+	// by policies on the master Ingress. Minion locations are added later.
+	masterInternalLocations := filterInternalLocations(masterServer.Locations)
 	masterServer.Locations = []version1.Location{}
 	masterPolicyCfg := policiesCfg{CORSHeaders: masterNginxCfg.CORSHeaders}
 
@@ -998,6 +1002,21 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 
 		for _, server := range minionNginxCfg.Servers {
 			for _, loc := range server.Locations {
+				// Skip internal auth locations that duplicate the master's.
+				// The master already generated these for server-level auth_request.
+				if loc.Internal && isMasterInternalLocation(loc, masterInternalLocations) {
+					continue
+				}
+
+				// If the minion location references the same external auth policy
+				// as the master, clear the location-level ExternalAuth. The
+				// server-level auth_request directive from the master already
+				// covers this location via NGINX directive inheritance.
+				if loc.ExternalAuth != nil && masterServer.ExternalAuth != nil &&
+					loc.ExternalAuth.URI.Upstream == masterServer.ExternalAuth.URI.Upstream {
+					loc.ExternalAuth = nil
+				}
+
 				if !loc.CORSEnabled && len(masterPolicyCfg.CORSHeaders) > 0 {
 					// Mergeable mode fallback: master CORS applies when minion location has no own CORS.
 					loc.AddHeaders = append(loc.AddHeaders, masterPolicyCfg.CORSHeaders...)
@@ -1026,7 +1045,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 	}
 
 	masterServer.HealthChecks = healthChecks
-	masterServer.Locations = locations
+	masterServer.Locations = append(masterInternalLocations, locations...)
 
 	return version1.IngressNginxConfig{
 		Servers:                 []version1.Server{masterServer},
@@ -1039,6 +1058,32 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 		LimitReqZones:           limitReqZones,
 		Maps:                    removeDuplicateMaps(maps),
 	}, warnings
+}
+
+// filterInternalLocations returns only the locations marked as Internal.
+// This preserves internal auth subrequest locations (e.g. /_external_auth/...)
+// from the master config when clearing master locations for mergeable ingresses.
+func filterInternalLocations(locations []version1.Location) []version1.Location {
+	var internal []version1.Location
+	for _, loc := range locations {
+		if loc.Internal {
+			internal = append(internal, loc)
+		}
+	}
+	return internal
+}
+
+// isMasterInternalLocation reports whether loc is a duplicate of one of the
+// master's internal locations (matched by Path). This is used to avoid
+// emitting duplicate internal auth subrequest locations when a minion
+// references the same external auth policy as the master.
+func isMasterInternalLocation(loc version1.Location, masterInternalLocs []version1.Location) bool {
+	for _, masterLoc := range masterInternalLocs {
+		if loc.Path == masterLoc.Path {
+			return true
+		}
+	}
+	return false
 }
 
 func limitReqZoneExists(zones []version1.LimitReqZone, zoneName string) bool {

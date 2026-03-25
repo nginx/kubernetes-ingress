@@ -61,6 +61,7 @@ ext_auth_vs_tls_route_override_src = (
 
 @pytest.mark.policies
 @pytest.mark.policies_external_auth
+@pytest.mark.policies_external_auth_vs
 @pytest.mark.parametrize(
     "crd_ingress_controller, v_s_route_setup",
     [
@@ -444,6 +445,7 @@ class TestExternalAuthPoliciesVsr:
 
 @pytest.mark.policies
 @pytest.mark.policies_external_auth
+@pytest.mark.policies_external_auth_vs
 @pytest.mark.parametrize(
     "crd_ingress_controller, v_s_route_setup",
     [

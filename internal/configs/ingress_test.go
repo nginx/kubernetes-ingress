@@ -3766,3 +3766,248 @@ func TestGenerateNginxCfgForMergeableIngressesWithExternalAuth(t *testing.T) {
 	if len(warnings) != 0 {
 		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
 	}
+}
+
+func TestGenerateNginxCfgForMergeableIngressesWithExternalAuthOnMaster(t *testing.T) {
+	t.Parallel()
+	mergeableIngresses := createMergeableCafeIngress()
+
+	// Add ExternalAuth policy to the master
+	mergeableIngresses.Master.Ingress.Annotations["nginx.org/policies"] = "master-ext-auth"
+	mergeableIngresses.Master.Endpoints["default/auth-svc:8080"] = []string{"10.0.0.5:8080"}
+	mergeableIngresses.Master.Policies = map[string]*conf_v1.Policy{
+		"default/master-ext-auth": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "master-ext-auth",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				ExternalAuth: &conf_v1.ExternalAuth{
+					AuthServiceName:  "auth-svc",
+					AuthServicePorts: []int{8080},
+					AuthURI:          "/auth",
+				},
+			},
+		},
+	}
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs: mergeableIngresses,
+		staticParams:  &StaticConfigParams{},
+		isPlus:        isPlus,
+		BaseCfgParams: configParams,
+	})
+
+	server := result.Servers[0]
+
+	// The server should have ExternalAuth set (server-level auth_request)
+	if server.ExternalAuth == nil {
+		t.Fatal("server ExternalAuth should not be nil when policy is on master")
+	}
+
+	// There should be an internal auth location preserved from the master
+	authLocFound := false
+	for _, loc := range server.Locations {
+		if loc.Internal {
+			authLocFound = true
+			break
+		}
+	}
+	if !authLocFound {
+		t.Error("should have an internal auth location preserved from master for server-level auth_request")
+	}
+
+	// Minion locations should NOT have location-level ExternalAuth set
+	// (they inherit the server-level auth_request directive)
+	for _, loc := range server.Locations {
+		if loc.Internal {
+			continue
+		}
+		if loc.ExternalAuth != nil {
+			t.Errorf("minion location %s should not have location-level ExternalAuth (inherits from server)", loc.Path)
+		}
+	}
+
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgForMergeableIngressesWithSameExternalAuthOnMasterAndMinion(t *testing.T) {
+	t.Parallel()
+	mergeableIngresses := createMergeableCafeIngress()
+
+	extAuthPolicy := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "shared-ext-auth",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			ExternalAuth: &conf_v1.ExternalAuth{
+				AuthServiceName:  "auth-svc",
+				AuthServicePorts: []int{8080},
+				AuthURI:          "/auth",
+			},
+		},
+	}
+
+	// Apply the same external auth policy on the master
+	mergeableIngresses.Master.Ingress.Annotations["nginx.org/policies"] = "shared-ext-auth"
+	mergeableIngresses.Master.Endpoints["default/auth-svc:8080"] = []string{"10.0.0.5:8080"}
+	mergeableIngresses.Master.Policies = map[string]*conf_v1.Policy{
+		"default/shared-ext-auth": extAuthPolicy,
+	}
+
+	// Apply the same external auth policy on the coffee minion
+	mergeableIngresses.Minions[0].Ingress.Annotations["nginx.org/policies"] = "shared-ext-auth"
+	mergeableIngresses.Minions[0].Endpoints["default/auth-svc:8080"] = []string{"10.0.0.5:8080"}
+	mergeableIngresses.Minions[0].Policies = map[string]*conf_v1.Policy{
+		"default/shared-ext-auth": extAuthPolicy,
+	}
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs: mergeableIngresses,
+		staticParams:  &StaticConfigParams{},
+		isPlus:        isPlus,
+		BaseCfgParams: configParams,
+	})
+
+	server := result.Servers[0]
+
+	// Server should have ExternalAuth from the master
+	if server.ExternalAuth == nil {
+		t.Fatal("server ExternalAuth should not be nil when policy is on master")
+	}
+
+	// Count internal auth locations — should be exactly 1 (from master, not duplicated by minion)
+	internalCount := 0
+	for _, loc := range server.Locations {
+		if loc.Internal {
+			internalCount++
+		}
+	}
+	if internalCount != 1 {
+		t.Errorf("expected exactly 1 internal auth location, got %d", internalCount)
+	}
+
+	// The coffee minion location should NOT have location-level ExternalAuth
+	// since it's the same policy as the master (deduped, inherits from server level)
+	for _, loc := range server.Locations {
+		if loc.Path == "/coffee" {
+			if loc.ExternalAuth != nil {
+				t.Error("coffee location should not have location-level ExternalAuth when same policy is on master")
+			}
+			break
+		}
+	}
+
+	// The tea minion location should NOT have ExternalAuth either (no policy on tea minion)
+	for _, loc := range server.Locations {
+		if loc.Path == "/tea" {
+			if loc.ExternalAuth != nil {
+				t.Error("tea location should not have ExternalAuth")
+			}
+			break
+		}
+	}
+
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgForMergeableIngressesWithDifferentExternalAuthOnMasterAndMinion(t *testing.T) {
+	t.Parallel()
+	mergeableIngresses := createMergeableCafeIngress()
+
+	// Master uses one external auth policy
+	mergeableIngresses.Master.Ingress.Annotations["nginx.org/policies"] = "master-ext-auth"
+	mergeableIngresses.Master.Endpoints["default/auth-svc:8080"] = []string{"10.0.0.5:8080"}
+	mergeableIngresses.Master.Policies = map[string]*conf_v1.Policy{
+		"default/master-ext-auth": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "master-ext-auth",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				ExternalAuth: &conf_v1.ExternalAuth{
+					AuthServiceName:  "auth-svc",
+					AuthServicePorts: []int{8080},
+					AuthURI:          "/auth",
+				},
+			},
+		},
+	}
+
+	// Coffee minion uses a different external auth policy
+	mergeableIngresses.Minions[0].Ingress.Annotations["nginx.org/policies"] = "minion-ext-auth"
+	mergeableIngresses.Minions[0].Endpoints["default/other-auth-svc:9090"] = []string{"10.0.0.6:9090"}
+	mergeableIngresses.Minions[0].Policies = map[string]*conf_v1.Policy{
+		"default/minion-ext-auth": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "minion-ext-auth",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				ExternalAuth: &conf_v1.ExternalAuth{
+					AuthServiceName:  "other-auth-svc",
+					AuthServicePorts: []int{9090},
+					AuthURI:          "/verify",
+				},
+			},
+		},
+	}
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs: mergeableIngresses,
+		staticParams:  &StaticConfigParams{},
+		isPlus:        isPlus,
+		BaseCfgParams: configParams,
+	})
+
+	server := result.Servers[0]
+
+	// Server should have ExternalAuth from the master
+	if server.ExternalAuth == nil {
+		t.Fatal("server ExternalAuth should not be nil")
+	}
+
+	// Should have 2 internal auth locations: one from master, one from minion (different policies)
+	internalCount := 0
+	for _, loc := range server.Locations {
+		if loc.Internal {
+			internalCount++
+		}
+	}
+	if internalCount != 2 {
+		t.Errorf("expected 2 internal auth locations (master + minion with different policies), got %d", internalCount)
+	}
+
+	// Coffee minion location should have its own location-level ExternalAuth (different policy)
+	coffeeFound := false
+	for _, loc := range server.Locations {
+		if loc.Path == "/coffee" {
+			coffeeFound = true
+			if loc.ExternalAuth == nil {
+				t.Error("coffee location should have its own ExternalAuth (different policy from master)")
+			}
+			break
+		}
+	}
+	if !coffeeFound {
+		t.Error("coffee location not found")
+	}
+
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
+	}
+}
