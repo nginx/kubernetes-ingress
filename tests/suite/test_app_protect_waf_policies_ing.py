@@ -108,7 +108,7 @@ def appprotect_v4_resources(request, kube_apis, test_namespace):
 
 @pytest.mark.skip_for_nginx_oss
 @pytest.mark.appprotect
-@pytest.mark.appprotect_waf_policies
+@pytest.mark.appprotect_waf_policies_ing
 @pytest.mark.parametrize(
     "crd_ingress_controller_with_ap",
     [
@@ -124,7 +124,14 @@ def appprotect_v4_resources(request, kube_apis, test_namespace):
     indirect=True,
 )
 class TestAppProtectWAFPolicyIngress:
-    def run_waf_policy_test(self, kube_apis, ingress_setup, test_namespace):
+    def test_waf_policy_v4_on_ingress(
+        self,
+        kube_apis,
+        crd_ingress_controller_with_ap,
+        test_namespace,
+        appprotect_v4_resources,
+        ingress_setup,
+    ):
         create_policy_from_yaml(kube_apis.custom_objects, POLICY_SRC, test_namespace)
         wait_before_test()
 
@@ -134,20 +141,10 @@ class TestAppProtectWAFPolicyIngress:
         delete_policy(kube_apis.custom_objects, "waf-policy", test_namespace)
         assert_waf_rejected(response)
 
-    def test_waf_policy_v4_on_ingress(
-        self,
-        kube_apis,
-        crd_ingress_controller_with_ap,
-        test_namespace,
-        appprotect_v4_resources,
-        ingress_setup,
-    ):
-        self.run_waf_policy_test(kube_apis, ingress_setup, test_namespace)
-
 
 @pytest.mark.skip_for_nginx_oss
 @pytest.mark.appprotect
-@pytest.mark.appprotect_waf_policies
+@pytest.mark.appprotect_waf_policies_ing
 @pytest.mark.parametrize(
     "crd_ingress_controller_with_ap",
     [

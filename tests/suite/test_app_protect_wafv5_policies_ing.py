@@ -79,6 +79,7 @@ def mergeable_ingress_setup(kube_apis, ingress_controller_endpoint, test_namespa
 
 @pytest.mark.skip_for_nginx_oss
 @pytest.mark.appprotect_waf_v5
+@pytest.mark.appprotect_waf_policies_ing_v5
 @pytest.mark.parametrize(
     "crd_ingress_controller_with_waf_v5",
     [
@@ -94,7 +95,13 @@ def mergeable_ingress_setup(kube_apis, ingress_controller_endpoint, test_namespa
     indirect=True,
 )
 class TestAppProtectWAFv5PolicyIngress:
-    def run_waf_policy_test(self, kube_apis, ingress_setup, test_namespace):
+    def test_waf_policy_v5_on_ingress(
+        self,
+        kube_apis,
+        crd_ingress_controller_with_waf_v5,
+        test_namespace,
+        ingress_setup,
+    ):
         create_policy_from_yaml(kube_apis.custom_objects, policy_src, test_namespace)
         wait_before_test()
 
@@ -104,18 +111,10 @@ class TestAppProtectWAFv5PolicyIngress:
         delete_policy(kube_apis.custom_objects, "waf-policy", test_namespace)
         assert_waf_rejected(response)
 
-    def test_waf_policy_v5_on_ingress(
-        self,
-        kube_apis,
-        crd_ingress_controller_with_waf_v5,
-        test_namespace,
-        ingress_setup,
-    ):
-        self.run_waf_policy_test(kube_apis, ingress_setup, test_namespace)
-
 
 @pytest.mark.skip_for_nginx_oss
 @pytest.mark.appprotect_waf_v5
+@pytest.mark.appprotect_waf_policies_ing_v5
 @pytest.mark.parametrize(
     "crd_ingress_controller_with_waf_v5",
     [
