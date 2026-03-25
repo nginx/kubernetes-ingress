@@ -187,11 +187,14 @@ func TestParseResourceReference(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		namespace, resourceName := ParseResourceReference(test.resourceRef, test.defaultNamespace)
-		if namespace != test.expectedNS || resourceName != test.expectedResource {
-			t.Errorf("ParseResourceReference(%q, %q) returned (%q, %q) but expected (%q, %q)",
-				test.resourceRef, test.defaultNamespace, namespace, resourceName, test.expectedNS, test.expectedResource)
-		}
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			namespace, resourceName := ParseResourceReference(test.resourceRef, test.defaultNamespace)
+			if namespace != test.expectedNS || resourceName != test.expectedResource {
+				t.Errorf("ParseResourceReference(%q, %q) returned (%q, %q) but expected (%q, %q)",
+					test.resourceRef, test.defaultNamespace, namespace, resourceName, test.expectedNS, test.expectedResource)
+			}
+		})
 	}
 }
 
