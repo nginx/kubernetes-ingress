@@ -3039,8 +3039,9 @@ var (
 				},
 				Locations: []Location{
 					{
-						Path:     "/tea",
-						Upstream: testUpstream,
+						Path:      "/tea",
+						Upstream:  testUpstream,
+						ProxyPass: "http://test",
 					},
 				},
 			},
@@ -3076,6 +3077,7 @@ var (
 						PoliciesErrorReturn: &version2.Return{
 							Code: 500,
 						},
+						ProxyPass: "http://test",
 					},
 				},
 			},
