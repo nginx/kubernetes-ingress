@@ -296,18 +296,56 @@ func ParseProxyBuffersSpec(s string) (string, error) {
 	return "", errors.New("invalid proxy buffers string")
 }
 
-// parseProxySetHeaders ensures that the string colon-separated list of headers and values
-func parseProxySetHeaders(proxySetHeaders []string) []version2.Header {
+// ParseProxySetHeaders splits a comma-separated proxy-set-headers annotation
+// value into name/value pairs, trimming whitespace from each component.
+// When no value is provided for a header (no colon separator), it derives
+// the default NGINX $http_ variable value from the header name
+// (e.g. "X-Forwarded-ABC" → "$http_x_forwarded_abc").
+func ParseProxySetHeaders(annotation string) []version2.Header {
 	var headers []version2.Header
-	for _, header := range proxySetHeaders {
-		parts := strings.SplitN(header, ":", 2)
-		if len(parts) == 1 {
-			headers = append(headers, version2.Header{Name: parts[0], Value: ""})
-		} else {
-			headers = append(headers, version2.Header{Name: parts[0], Value: parts[1]})
+	for _, entry := range strings.Split(annotation, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
 		}
+		parts := strings.SplitN(entry, ":", 2)
+		name := strings.TrimSpace(parts[0])
+		if name == "" {
+			continue
+		}
+		var value string
+		if len(parts) == 2 {
+			value = strings.TrimSpace(parts[1])
+		} else {
+			// Derive default value: X-Forwarded-ABC → $http_x_forwarded_abc
+			value = "$http_" + strings.ToLower(strings.ReplaceAll(name, "-", "_"))
+		}
+		headers = append(headers, version2.Header{Name: name, Value: value})
 	}
 	return headers
+}
+
+// MergeProxySetHeaders combines minion and master proxy-set-headers,
+// with minion headers taking priority over master headers of the same name.
+func MergeProxySetHeaders(masterAnnotation, minionAnnotation string) []version2.Header {
+	minionHeaders := ParseProxySetHeaders(minionAnnotation)
+	masterHeaders := ParseProxySetHeaders(masterAnnotation)
+
+	seen := make(map[string]bool)
+	var merged []version2.Header
+
+	for _, h := range minionHeaders {
+		seen[h.Name] = true
+		merged = append(merged, h)
+	}
+
+	for _, h := range masterHeaders {
+		if !seen[h.Name] {
+			merged = append(merged, h)
+		}
+	}
+
+	return merged
 }
 
 // ParsePortList ensures that the string is a comma-separated list of port numbers
