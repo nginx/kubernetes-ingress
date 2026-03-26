@@ -584,6 +584,9 @@ func validateProxySetHeaderAnnotation(context *annotationValidationContext) fiel
 			if strings.Contains(value, "$") {
 				allErrs = append(allErrs, field.Invalid(context.fieldPath, entry, "invalid character in value: $"))
 			}
+			if err := ValidateEscapedString(value); err != nil {
+				allErrs = append(allErrs, field.Invalid(context.fieldPath, entry, err.Error()))
+			}
 		}
 	}
 
