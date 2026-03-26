@@ -148,8 +148,8 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 
 	// Run generate Policies
 	var policyRefs []conf_v1.PolicyReference
-	if ncp.ingEx.Policies != nil {
-		policyRefs = policies.GetPolicyRefsFromPolicies(ncp.ingEx.Policies)
+	if _, exists := ncp.ingEx.Ingress.Annotations[PoliciesAnnotation]; exists {
+		policyRefs = policies.GetPolicyRefsFromAnnotation(ncp.ingEx.Ingress.Annotations[PoliciesAnnotation], ncp.ingEx.Ingress.Namespace)
 	}
 
 	var policyCfg policiesCfg
@@ -241,6 +241,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			AppRoot:                cfgParams.AppRoot,
 			Allow:                  policyCfg.Allow,
 			Deny:                   policyCfg.Deny,
+			PoliciesErrorReturn:    policyCfg.ErrorReturn,
 		}
 
 		warnings := addSSLConfig(&server, ncp.ingEx.Ingress, rule.Host, ncp.ingEx.Ingress.Spec.TLS, ncp.ingEx.SecretRefs, ncp.isWildcardEnabled)
@@ -347,6 +348,9 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 					loc.Deny = policyCfg.Deny
 				}
 
+				if policyCfg.ErrorReturn != nil {
+					loc.PoliciesErrorReturn = policyCfg.ErrorReturn
+				}
 			}
 
 			if !loc.CORSEnabled && len(policyCfg.CORSHeaders) > 0 {
