@@ -210,6 +210,7 @@ func TestGenerateNginxCfgForCORSPolicy(t *testing.T) {
 			t.Parallel()
 
 			cafeIngressEx := createCafeIngressEx()
+			cafeIngressEx.Ingress.Annotations["nginx.org/policies"] = "cors-policy"
 			cafeIngressEx.Policies = map[string]*conf_v1.Policy{
 				"default/cors-policy": {
 					ObjectMeta: meta_v1.ObjectMeta{
@@ -315,6 +316,7 @@ func TestGenerateNginxCfgForMergeableIngressesCORSPolicy(t *testing.T) {
 			t.Parallel()
 
 			mergeableIngresses := createMergeableCafeIngress()
+			mergeableIngresses.Master.Ingress.Annotations["nginx.org/policies"] = "master-cors"
 			mergeableIngresses.Master.Policies = map[string]*conf_v1.Policy{
 				"default/master-cors": {
 					ObjectMeta: meta_v1.ObjectMeta{Name: "master-cors", Namespace: "default"},
@@ -325,6 +327,7 @@ func TestGenerateNginxCfgForMergeableIngressesCORSPolicy(t *testing.T) {
 			}
 
 			if test.coffeeMinionOrigin != "" {
+				mergeableIngresses.Minions[0].Ingress.Annotations["nginx.org/policies"] = "coffee-cors"
 				mergeableIngresses.Minions[0].Policies = map[string]*conf_v1.Policy{
 					"default/coffee-cors": {
 						ObjectMeta: meta_v1.ObjectMeta{Name: "coffee-cors", Namespace: "default"},
