@@ -4927,6 +4927,39 @@ func TestValidateProxySetHeaderAnnotation(t *testing.T) {
 				`annotations.nginx.org/proxy-set-headers: Invalid value: ": $value": empty header name`,
 			},
 		},
+
+		// ── Valid: properly escaped quotes and backslashes ──────────
+		{
+			name:           "valid header with escaped double quote",
+			value:          `X-Header: value with \"escaped quote\"`,
+			expectedErrors: nil,
+		},
+		{
+			name:           "valid header with escaped backslash",
+			value:          `X-Path: C:\\Windows\\path`,
+			expectedErrors: nil,
+		},
+		{
+			name:           "valid header with mixed escaped chars",
+			value:          `X-Header: path\\to\\\"file\"`,
+			expectedErrors: nil,
+		},
+
+		// ── Invalid: unescaped quotes and backslashes ─────────────────
+		{
+			name:  "invalid header with unescaped double quote",
+			value: `X-Bad: "unquoted value"`,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "X-Bad: \"unquoted value\"": must have all '"' (double quotes) escaped and must not end with an unescaped '\' (backslash) (regex used for validation is '([^"\\]|\\.)*')`,
+			},
+		},
+		{
+			name:  "invalid header with unescaped backslash at end",
+			value: `X-Bad: value\`,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "X-Bad: value\\": must have all '"' (double quotes) escaped and must not end with an unescaped '\' (backslash) (regex used for validation is '([^"\\]|\\.)*')`,
+			},
+		},
 	}
 
 	for _, tc := range tests {
