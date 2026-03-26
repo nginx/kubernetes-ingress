@@ -6,15 +6,15 @@
       "packages": [
         {
           "name": "nginx",
-          "version": "1.29.6"
+          "version": "1.29.7"
         },
         {
           "name": "nginx-module-njs",
-          "version": "1.29.6"
+          "version": "1.29.7"
         },
         {
           "name": "nginx-module-otel",
-          "version": "1.29.6"
+          "version": "1.29.7"
         },
         {
           "name": "nginx-agent",
@@ -33,7 +33,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-3"
+          "version": "36-4"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -64,7 +64,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-3"
+          "version": "36-4"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -80,11 +80,11 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36+5.575"
+          "version": "36+5.607"
         },
         {
           "name": "app-protect",
-          "version": "36+5.575"
+          "version": "36+5.607"
         },
         {
           "name": "app-protect-attack-signatures",
@@ -110,7 +110,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-3"
+          "version": "36-4"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -126,15 +126,15 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36+5.575"
+          "version": "36+5.607"
         },
         {
           "name": "app-protect-module-plus",
-          "version": "36+5.575"
+          "version": "36+5.607"
         },
         {
           "name": "app-protect-plugin",
-          "version": "6.25"
+          "version": "6.28"
         },
         {
           "name": "nginx-agent",
@@ -152,7 +152,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-3"
+          "version": "36-4"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -186,7 +186,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-3"
+          "version": "36-4"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -202,11 +202,11 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36+5.575"
+          "version": "36+5.607"
         },
         {
           "name": "app-protect",
-          "version": "36+5.575"
+          "version": "36+5.607"
         },
         {
           "name": "app-protect-attack-signatures",
@@ -240,15 +240,15 @@
       "packages": [
         {
           "name": "nginx",
-          "version": "1.29.6"
+          "version": "1.29.7"
         },
         {
           "name": "nginx-module-njs",
-          "version": "1.29.6"
+          "version": "1.29.7"
         },
         {
           "name": "nginx-module-otel",
-          "version": "1.29.6"
+          "version": "1.29.7"
         },
         {
           "name": "nginx-agent",
@@ -267,7 +267,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-r3"
+          "version": "36-r4"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -298,7 +298,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-r3"
+          "version": "36-r4"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -329,7 +329,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-r3"
+          "version": "36-r4"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -349,11 +349,11 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36.5.575"
+          "version": "36.5.607"
         },
         {
           "name": "app-protect",
-          "version": "36.5.575"
+          "version": "36.5.607"
         },
         {
           "name": "app-protect-attack-signatures",
@@ -375,7 +375,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-r3"
+          "version": "36-r4"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -395,15 +395,15 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36.5.575"
+          "version": "36.5.607"
         },
         {
           "name": "app-protect-module-plus",
-          "version": "36.5.575"
+          "version": "36.5.607"
         },
         {
           "name": "app-protect-plugin",
-          "version": "6.25"
+          "version": "6.28"
         }
       ],
       "system": "alpine",
@@ -417,15 +417,15 @@
       "packages": [
         {
           "name": "nginx",
-          "version": "1.29.6"
+          "version": "1.29.7"
         },
         {
           "name": "nginx-module-njs",
-          "version": "1.29.6"
+          "version": "1.29.7"
         },
         {
           "name": "nginx-module-otel",
-          "version": "1.29.6"
+          "version": "1.29.7"
         },
         {
           "name": "nginx-agent",
@@ -444,7 +444,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-3"
+          "version": "36-4"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -475,7 +475,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-3"
+          "version": "36-4"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -495,11 +495,11 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36+5.575"
+          "version": "36+5.607"
         },
         {
           "name": "app-protect",
-          "version": "36+5.575"
+          "version": "36+5.607"
         },
         {
           "name": "app-protect-attack-signatures",
@@ -521,7 +521,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-3"
+          "version": "36-4"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -541,15 +541,15 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36+5.575"
+          "version": "36+5.607"
         },
         {
           "name": "app-protect-module-plus",
-          "version": "36+5.575"
+          "version": "36+5.607"
         },
         {
           "name": "app-protect-plugin",
-          "version": "6.25"
+          "version": "6.28"
         }
       ],
       "system": "ubi",
@@ -563,7 +563,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-3"
+          "version": "36-4"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -583,11 +583,11 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36+5.575"
+          "version": "36+5.607"
         },
         {
           "name": "app-protect",
-          "version": "36+5.575"
+          "version": "36+5.607"
         },
         {
           "name": "app-protect-attack-signatures",
@@ -609,7 +609,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-3"
+          "version": "36-4"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -629,15 +629,15 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36+5.575"
+          "version": "36+5.607"
         },
         {
           "name": "app-protect-module-plus",
-          "version": "36+5.575"
+          "version": "36+5.607"
         },
         {
           "name": "app-protect-plugin",
-          "version": "6.25"
+          "version": "6.28"
         }
       ],
       "system": "ubi",
@@ -651,7 +651,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-3"
+          "version": "36-4"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -685,7 +685,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-3"
+          "version": "36-4"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -701,7 +701,7 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36+5.575"
+          "version": "36+5.607"
         },
         {
           "name": "nginx-plus-module-appprotectdos",
@@ -713,7 +713,7 @@
         },
         {
           "name": "app-protect",
-          "version": "36+5.575"
+          "version": "36+5.607"
         },
         {
           "name": "app-protect-attack-signatures",
