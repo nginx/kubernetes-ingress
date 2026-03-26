@@ -335,12 +335,14 @@ func MergeProxySetHeaders(masterAnnotation, minionAnnotation string) []version2.
 	var merged []version2.Header
 
 	for _, h := range minionHeaders {
-		seen[h.Name] = true
+		key := strings.ToLower(h.Name)
+		seen[key] = true
 		merged = append(merged, h)
 	}
 
 	for _, h := range masterHeaders {
-		if !seen[h.Name] {
+		key := strings.ToLower(h.Name)
+		if !seen[key] {
 			merged = append(merged, h)
 		}
 	}
