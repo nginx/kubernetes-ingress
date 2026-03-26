@@ -782,7 +782,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -804,7 +804,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -2805,7 +2805,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -2827,7 +2827,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7120,7 +7120,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7143,7 +7143,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7187,7 +7187,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7212,7 +7212,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7252,7 +7252,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7274,7 +7274,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7314,7 +7314,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7336,7 +7336,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7376,7 +7376,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7398,7 +7398,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7438,7 +7438,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7460,7 +7460,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7940,7 +7940,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7962,7 +7962,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8095,7 +8095,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8118,7 +8118,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8161,7 +8161,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8184,7 +8184,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8227,7 +8227,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8250,7 +8250,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8293,7 +8293,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8316,7 +8316,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8359,7 +8359,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8382,7 +8382,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8428,7 +8428,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8452,7 +8452,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8498,7 +8498,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8522,7 +8522,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8563,7 +8563,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8584,7 +8584,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8625,7 +8625,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8646,7 +8646,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8687,7 +8687,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8708,7 +8708,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8749,7 +8749,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8772,7 +8772,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8813,7 +8813,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8836,7 +8836,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     

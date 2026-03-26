@@ -177,6 +177,7 @@ type Location struct {
 	LocationSnippets     []string
 	Path                 string
 	Upstream             Upstream
+	ProxyPass            string
 	ProxyConnectTimeout  string
 	ProxyReadTimeout     string
 	ProxySendTimeout     string
