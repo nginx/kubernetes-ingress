@@ -209,7 +209,7 @@ server {
 	{{- range $healthCheck := $server.HealthChecks}}
 	location @hc-{{$healthCheck.UpstreamName}} {
 		{{- range $name, $header := $healthCheck.Headers}}
-		proxy_set_header {{$name}} "{{$header}}";
+		proxy_set_header {{$name}} {{ printf "%q" $header }};
 		{{- end }}
 		proxy_connect_timeout {{$healthCheck.TimeoutSeconds}}s;
 		proxy_read_timeout {{$healthCheck.TimeoutSeconds}}s;
@@ -347,7 +347,7 @@ server {
 		client_body_buffer_size {{$location.ClientBodyBufferSize}};
 		{{- end}}
 		{{- range $header := $location.ProxySetHeaders}}
-		proxy_set_header {{ $header.Name }} "{{ $header.Value }}";
+		proxy_set_header {{ $header.Name }} {{ printf "%q" $header.Value }};
 		{{- end}}
 		proxy_set_header Host $host;
 		proxy_set_header X-Real-IP $remote_addr;
@@ -395,14 +395,14 @@ server {
 
 		{{- if or $location.CORSEnabled (gt (len $location.AddHeaders) 0) }}
 		{{- range $h := $location.AddHeaders }}
-		add_header {{ $h.Name }} "{{ $h.Value }}" {{ if $h.Always }}always{{ end }};
+		add_header {{ $h.Name }} {{ printf "%q" $h.Value }} {{ if $h.Always }}always{{ end }};
 		{{- end }}
 		{{- if $location.CORSEnabled }}
 		# CORS configuration per enable-cors.org
 		# Handle CORS preflight OPTIONS requests
 		if ($request_method = 'OPTIONS') {
 			{{- range $h := $location.AddHeaders }}
-			add_header {{ $h.Name }} "{{ $h.Value }}";
+			add_header {{ $h.Name }} {{ printf "%q" $h.Value }};
 			{{- end }}
 			add_header Content-Type text/plain;
 			add_header Content-Length 0;
