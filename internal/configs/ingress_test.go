@@ -722,6 +722,58 @@ func TestGenerateNginxCfgForWAFPolicyApBundle(t *testing.T) {
 	}
 }
 
+// TestGenerateNginxCfgWithMissingOrInvalidPolicy verifies that a standard Ingress referencing a
+// policy that is absent from the Policies map (either deleted or excluded by validation) sets
+// Server.PoliciesErrorReturn to 500. Both missing and invalid policies converge to the same
+// code path in generatePolicies because getPolicies excludes invalid policies from the map.
+// This branch extends the same logic to nginx.com/policies without changing its current behavior.
+func TestGenerateNginxCfgWithMissingOrInvalidPolicy(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		annotation string
+	}{
+		{
+			name:       "missing policy via nginx.org/policies",
+			annotation: PoliciesAnnotation,
+		},
+		{
+			name:       "missing policy via nginx.com/policies",
+			annotation: PoliciesAnnotationPlus,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			cafeIngressEx := createCafeIngressEx()
+			cafeIngressEx.Ingress.Annotations[test.annotation] = "missing-policy"
+			// Policies map is intentionally empty: the referenced policy is not present.
+			cafeIngressEx.Policies = map[string]*conf_v1.Policy{}
+
+			result, warnings := generateNginxCfg(NginxCfgParams{
+				staticParams:  &StaticConfigParams{},
+				ingEx:         &cafeIngressEx,
+				isPlus:        true,
+				BaseCfgParams: NewDefaultConfigParams(context.Background(), true),
+			})
+
+			expectedPoliciesErrorReturn := &version2.Return{Code: 500}
+			if diff := cmp.Diff(expectedPoliciesErrorReturn, result.Servers[0].PoliciesErrorReturn); diff != "" {
+				t.Errorf("Server.PoliciesErrorReturn mismatch (-want +got):\n%s", diff)
+			}
+
+			const expectedWarning = "Policy default/missing-policy is missing or invalid"
+			if !warningsContain(warnings, expectedWarning) {
+				t.Fatalf("expected warning containing %q, got %v", expectedWarning, warnings)
+			}
+		})
+	}
+}
+
 func TestGenerateNginxCfgWithMissingTLSSecret(t *testing.T) {
 	t.Parallel()
 	cafeIngressEx := createCafeIngressEx()
@@ -869,6 +921,20 @@ func TestGenerateIngressPath(t *testing.T) {
 			t.Errorf("generateIngressPath(%v, %v) returned %v, but expected %v", test.path, test.pathType, result, test.expected)
 		}
 	}
+}
+
+// warningsContain checks whether any warning message across all objects in the
+// Warnings map contains the given substring. This avoids pointer-identity issues
+// with runtime.Object keys when comparing mergeable ingress warnings.
+func warningsContain(w Warnings, substr string) bool {
+	for _, msgs := range w {
+		for _, msg := range msgs {
+			if strings.Contains(msg, substr) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func createExpectedConfigForCafeIngressEx(isPlus bool) version1.IngressNginxConfig {
@@ -1343,6 +1409,115 @@ func TestGenerateNginxCfgForMergeableIngressesMinionWithAccessControl(t *testing
 	}
 	if len(warnings) != 0 {
 		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
+	}
+}
+
+// TestGenerateNginxCfgForMergeableIngressesMasterWithMissingOrInvalidPolicy verifies that a
+// master Ingress referencing a policy absent from the Policies map sets Server.PoliciesErrorReturn
+// to 500. Both missing and invalid policies converge to the same code path.
+// This branch extends the same logic to nginx.com/policies without changing its current behavior.
+func TestGenerateNginxCfgForMergeableIngressesMasterWithMissingOrInvalidPolicy(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		annotation string
+	}{
+		{
+			name:       "master missing policy via nginx.org/policies",
+			annotation: PoliciesAnnotation,
+		},
+		{
+			name:       "master missing policy via nginx.com/policies",
+			annotation: PoliciesAnnotationPlus,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			mergeableIngresses := createMergeableCafeIngress()
+			mergeableIngresses.Master.Ingress.Annotations[test.annotation] = "missing-policy"
+			mergeableIngresses.Master.Policies = map[string]*conf_v1.Policy{}
+
+			result, resultWarnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+				mergeableIngs: mergeableIngresses,
+				BaseCfgParams: NewDefaultConfigParams(context.Background(), true),
+				isPlus:        true,
+				staticParams:  &StaticConfigParams{},
+			})
+
+			expectedPoliciesErrorReturn := &version2.Return{Code: 500}
+			if diff := cmp.Diff(expectedPoliciesErrorReturn, result.Servers[0].PoliciesErrorReturn); diff != "" {
+				t.Errorf("Server.PoliciesErrorReturn mismatch (-want +got):\n%s", diff)
+			}
+
+			const expectedWarning = "Policy default/missing-policy is missing or invalid"
+			if !warningsContain(resultWarnings, expectedWarning) {
+				t.Fatalf("expected warning containing %q, got %v", expectedWarning, resultWarnings)
+			}
+		})
+	}
+}
+
+// TestGenerateNginxCfgForMergeableIngressesMinionWithMissingOrInvalidPolicy verifies that a
+// minion Ingress referencing a policy absent from the Policies map sets
+// Location.PoliciesErrorReturn to 500 on the corresponding location.
+// This branch extends the same logic to nginx.com/policies without changing its current behavior.
+func TestGenerateNginxCfgForMergeableIngressesMinionWithMissingOrInvalidPolicy(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		annotation string
+	}{
+		{
+			name:       "minion missing policy via nginx.org/policies",
+			annotation: PoliciesAnnotation,
+		},
+		{
+			name:       "minion missing policy via nginx.com/policies",
+			annotation: PoliciesAnnotationPlus,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			mergeableIngresses := createMergeableCafeIngress()
+			mergeableIngresses.Minions[0].Ingress.Annotations[test.annotation] = "missing-policy"
+			mergeableIngresses.Minions[0].Policies = map[string]*conf_v1.Policy{}
+
+			result, resultWarnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+				mergeableIngs: mergeableIngresses,
+				BaseCfgParams: NewDefaultConfigParams(context.Background(), true),
+				isPlus:        true,
+				staticParams:  &StaticConfigParams{},
+			})
+
+			expectedPoliciesErrorReturn := &version2.Return{Code: 500}
+			var found bool
+			for _, loc := range result.Servers[0].Locations {
+				if loc.MinionIngress != nil && loc.MinionIngress.Name == "cafe-ingress-coffee-minion" {
+					found = true
+					if diff := cmp.Diff(expectedPoliciesErrorReturn, loc.PoliciesErrorReturn); diff != "" {
+						t.Errorf("Location.PoliciesErrorReturn mismatch for coffee minion (-want +got):\n%s", diff)
+					}
+				}
+			}
+			if !found {
+				t.Fatal("coffee minion location not found in result")
+			}
+
+			const expectedWarning = "Policy default/missing-policy is missing or invalid"
+			if !warningsContain(resultWarnings, expectedWarning) {
+				t.Fatalf("expected warning containing %q, got %v", expectedWarning, resultWarnings)
+			}
+		})
 	}
 }
 

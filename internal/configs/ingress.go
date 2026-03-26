@@ -176,6 +176,32 @@ func policyRefKey(ref conf_v1.PolicyReference, defaultNamespace string) string {
 	return fmt.Sprintf("%s/%s", namespace, ref.Name)
 }
 
+func getIngressPolicyRefs(ingEx *IngressEx) []conf_v1.PolicyReference {
+	if ingEx == nil || ingEx.Ingress == nil {
+		return nil
+	}
+
+	var policyRefs []conf_v1.PolicyReference
+	seenPolicyRefs := make(map[string]bool)
+	for _, annotation := range []string{PoliciesAnnotation, PoliciesAnnotationPlus} {
+		policyNames := strings.TrimSpace(ingEx.Ingress.Annotations[annotation])
+		if policyNames == "" {
+			continue
+		}
+
+		for _, ref := range policies.GetPolicyRefsFromAnnotation(policyNames, ingEx.Ingress.Namespace) {
+			key := policyRefKey(ref, ingEx.Ingress.Namespace)
+			if seenPolicyRefs[key] {
+				continue
+			}
+			seenPolicyRefs[key] = true
+			policyRefs = append(policyRefs, ref)
+		}
+	}
+
+	return policyRefs
+}
+
 func resolveIngressAppProtectResources(ingEx *IngressEx, apResources *AppProtectResources, policyCfg policiesCfg) (*AppProtectResources, Warnings) {
 	warnings := newWarnings()
 	if ingEx == nil || ingEx.Ingress == nil || policyCfg.WAF == nil {
@@ -252,10 +278,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 	var maps []version2.Map
 
 	// Run generate Policies
-	var policyRefs []conf_v1.PolicyReference
-	if ncp.ingEx.Policies != nil {
-		policyRefs = policies.GetPolicyRefsFromPolicies(ncp.ingEx.Policies)
-	}
+	policyRefs := getIngressPolicyRefs(ncp.ingEx)
 	policyRefs, annotationPolicyWarnings := filterIngressPolicyRefs(policyRefs, ncp.ingEx)
 	allWarnings.Add(annotationPolicyWarnings)
 
@@ -366,6 +389,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			Allow:                  policyCfg.Allow,
 			Deny:                   policyCfg.Deny,
 			WAF:                    policyCfg.WAF,
+			PoliciesErrorReturn:    policyCfg.ErrorReturn,
 		}
 
 		warnings := addSSLConfig(&server, ncp.ingEx.Ingress, rule.Host, ncp.ingEx.Ingress.Spec.TLS, ncp.ingEx.SecretRefs, ncp.isWildcardEnabled)
@@ -476,6 +500,10 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 
 				if policyCfg.WAF != nil {
 					loc.WAF = policyCfg.WAF
+				}
+
+				if policyCfg.ErrorReturn != nil {
+					loc.PoliciesErrorReturn = policyCfg.ErrorReturn
 				}
 
 			}

@@ -99,6 +99,10 @@ server {
 
 	server_tokens "{{$server.ServerTokens}}";
 
+	{{- with $server.PoliciesErrorReturn }}
+	return {{ .Code }};
+	{{- end }}
+
 	server_name {{$server.Name}};
 
 	status_zone {{$server.StatusZone}};
@@ -248,6 +252,11 @@ server {
 		set $resource_name "{{$location.MinionIngress.Name}}";
 		set $resource_namespace "{{$location.MinionIngress.Namespace}}";
 		{{- end}}
+
+		{{- with $location.PoliciesErrorReturn }}
+		return {{ .Code }};
+		{{- end }}
+
 		{{- range $allow := $location.Allow }}
 		allow {{ $allow }};
 		{{- end }}
