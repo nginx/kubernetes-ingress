@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	"github.com/nginx/kubernetes-ingress/internal/validation"
 )
@@ -283,7 +284,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 	}
 
 	if proxySetHeaders, exists := ingEx.Ingress.Annotations[ProxySetHeadersAnnotation]; exists {
-		cfgParams.ProxySetHeaders = ParseProxySetHeaders(proxySetHeaders)
+		cfgParams.ProxySetHeaders = version1.ParseProxySetHeaders(proxySetHeaders)
 	}
 
 	if proxyNextUpstream, exists := ingEx.Ingress.Annotations[ProxyNextUpstreamAnnotation]; exists {

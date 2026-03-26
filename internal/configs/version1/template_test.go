@@ -4678,50 +4678,6 @@ var (
 	}
 )
 
-// parseTestProxySetHeaders is a test-only copy of the parsing logic from
-// configs.ParseProxySetHeaders, used to populate Location.ProxySetHeaders
-// in template tests without creating a circular import.
-func parseTestProxySetHeaders(annotation string) []version2.Header {
-	var headers []version2.Header
-	for _, entry := range strings.Split(annotation, ",") {
-		entry = strings.TrimSpace(entry)
-		if entry == "" {
-			continue
-		}
-		parts := strings.SplitN(entry, ":", 2)
-		name := strings.TrimSpace(parts[0])
-		if name == "" {
-			continue
-		}
-		var value string
-		if len(parts) == 2 {
-			value = strings.TrimSpace(parts[1])
-		} else {
-			value = "$http_" + strings.ToLower(strings.ReplaceAll(name, "-", "_"))
-		}
-		headers = append(headers, version2.Header{Name: name, Value: value})
-	}
-	return headers
-}
-
-// mergeTestProxySetHeaders merges the proxy set headers from the master and minion annotations.
-func mergeTestProxySetHeaders(masterAnnotation, minionAnnotation string) []version2.Header {
-	minionHeaders := parseTestProxySetHeaders(minionAnnotation)
-	masterHeaders := parseTestProxySetHeaders(masterAnnotation)
-	seen := make(map[string]bool)
-	var merged []version2.Header
-	for _, h := range minionHeaders {
-		seen[h.Name] = true
-		merged = append(merged, h)
-	}
-	for _, h := range masterHeaders {
-		if !seen[h.Name] {
-			merged = append(merged, h)
-		}
-	}
-	return merged
-}
-
 func createProxySetHeaderIngressConfig(masterAnnotations map[string]string, coffeeAnnotations map[string]string, teamAnnotations map[string]string) IngressNginxConfig {
 	masterPSH := masterAnnotations["nginx.org/proxy-set-headers"]
 	coffeePSH := coffeeAnnotations["nginx.org/proxy-set-headers"]
@@ -4738,7 +4694,7 @@ func createProxySetHeaderIngressConfig(masterAnnotations map[string]string, coff
 							Namespace:   "default",
 							Annotations: coffeeAnnotations,
 						},
-						ProxySetHeaders: mergeTestProxySetHeaders(masterPSH, coffeePSH),
+						ProxySetHeaders: MergeProxySetHeaders(masterPSH, coffeePSH),
 					},
 					{
 						MinionIngress: &Ingress{
@@ -4746,7 +4702,7 @@ func createProxySetHeaderIngressConfig(masterAnnotations map[string]string, coff
 							Namespace:   "default",
 							Annotations: teamAnnotations,
 						},
-						ProxySetHeaders: mergeTestProxySetHeaders(masterPSH, teaPSH),
+						ProxySetHeaders: MergeProxySetHeaders(masterPSH, teaPSH),
 					},
 				},
 			},
