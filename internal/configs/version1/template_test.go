@@ -3019,6 +3019,66 @@ var (
 		},
 	}
 
+	// Ingress Config with PoliciesErrorReturn at server level (missing/invalid policy returns 500)
+	ingressCfgWithPoliciesErrorReturnServer = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "test.example.com",
+				ServerTokens: "off",
+				StatusZone:   "test.example.com",
+				PoliciesErrorReturn: &version2.Return{
+					Code: 500,
+				},
+				Locations: []Location{
+					{
+						Path:     "/tea",
+						Upstream: testUpstream,
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"nginx.org/policies": "missing-policy",
+			},
+		},
+	}
+
+	// Ingress Config with PoliciesErrorReturn at location level (minion with missing/invalid policy)
+	ingressCfgWithPoliciesErrorReturnLocation = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "test.example.com",
+				ServerTokens: "off",
+				StatusZone:   "test.example.com",
+				Locations: []Location{
+					{
+						Path:     "/tea",
+						Upstream: testUpstream,
+						MinionIngress: &Ingress{
+							Name:      "tea-minion",
+							Namespace: "default",
+							Annotations: map[string]string{
+								"nginx.org/policies": "missing-policy",
+							},
+						},
+						PoliciesErrorReturn: &version2.Return{
+							Code: 500,
+						},
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+
 	ingressCfgWithClientBodyBufferSize = IngressNginxConfig{
 		Servers: []Server{
 			{
@@ -5305,4 +5365,98 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithSSLCiphersDisabled(t *testing
 		}
 	}
 	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithPoliciesErrorReturnServer(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithPoliciesErrorReturnServer)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+	if !strings.Contains(bufString, "return 500;") {
+		t.Error("want \"return 500;\" in generated server-level config")
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithPoliciesErrorReturnServer(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithPoliciesErrorReturnServer)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+	if !strings.Contains(bufString, "return 500;") {
+		t.Error("want \"return 500;\" in generated server-level config")
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithPoliciesErrorReturnLocation(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithPoliciesErrorReturnLocation)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+	if !strings.Contains(bufString, "return 500;") {
+		t.Error("want \"return 500;\" in generated location-level config")
+	}
+
+	// Verify return 500 appears within the location block, not at server level.
+	locIdx := strings.Index(bufString, "location /tea")
+	retIdx := strings.Index(bufString, "return 500;")
+	if locIdx == -1 || retIdx == -1 || retIdx < locIdx {
+		t.Error("\"return 500;\" should appear inside the location block, after \"location /tea\"")
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithPoliciesErrorReturnLocation(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithPoliciesErrorReturnLocation)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+	if !strings.Contains(bufString, "return 500;") {
+		t.Error("want \"return 500;\" in generated location-level config")
+	}
+
+	// Verify return 500 appears within the location block, not at server level.
+	locIdx := strings.Index(bufString, "location /tea")
+	retIdx := strings.Index(bufString, "return 500;")
+	if locIdx == -1 || retIdx == -1 || retIdx < locIdx {
+		t.Error("\"return 500;\" should appear inside the location block, after \"location /tea\"")
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
 }
