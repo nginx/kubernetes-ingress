@@ -2,7 +2,7 @@
 
 In this example we deploy the NGINX Plus Ingress Controller with [NGINX App
 Protect WAF version 5](https://www.nginx.com/products/nginx-app-protect/), a simple web application and then configure load balancing
-and WAF protection for that application using the VirtualServer resource.
+and WAF protection for that application using an Ingress resource with the `nginx.com/policies` annotation.
 
 Before applying a policy and security log configuration, a WAF v5 policy and logconf bundle must be created, then copied to a volume mounted to `/etc/app_protect/bundles`.
 
@@ -71,10 +71,8 @@ of a request with `cafe.example.com`.
     Server name: tea-86c974779-wcjmw
     Date: 25/Mar/2026:17:25:11 +0000
     URI: /tea
-    Request ID: a71dbc6ada4e1be2a974fd874726ca78
-    ```
-
-1. Send a request with a suspicious URL::
+    Request ID: a71dbc6ada4e1be2a974726ca78
+    
 
     ```console
     curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP "http://cafe.example.com:$IC_HTTP_PORT/tea/<script>" --insecure
