@@ -846,7 +846,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 				masterAnnotation := ncp.mergeableIngs.Master.Ingress.Annotations[ProxySetHeadersAnnotation]
 				minionAnnotation := minion.Ingress.Annotations[ProxySetHeadersAnnotation]
 				if masterAnnotation != "" || minionAnnotation != "" {
-					loc.ProxySetHeaders = MergeProxySetHeaders(masterAnnotation, minionAnnotation)
+					loc.ProxySetHeaders = version1.MergeProxySetHeaders(masterAnnotation, minionAnnotation)
 				}
 				locations = append(locations, loc)
 			}
