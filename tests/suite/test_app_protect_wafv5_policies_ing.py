@@ -2,7 +2,7 @@ import pytest
 import requests
 from settings import TEST_DATA
 from suite.fixtures.fixtures import PublicEndpoint
-from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_policy
+from suite.utils.policy_resources_utils import apply_and_wait_for_valid_policy, delete_policy
 from suite.utils.resources_utils import (
     create_example_app,
     create_items_from_yaml,
@@ -102,8 +102,7 @@ class TestAppProtectWAFv5PolicyIngress:
         test_namespace,
         ingress_setup,
     ):
-        create_policy_from_yaml(kube_apis.custom_objects, policy_src, test_namespace)
-        wait_before_test()
+        apply_and_wait_for_valid_policy(kube_apis, test_namespace, policy_src)
 
         request_url = f"http://{ingress_setup.public_endpoint.public_ip}:{ingress_setup.public_endpoint.port}/backend1"
         response = send_malicious_request_with_retry(request_url, ingress_setup.ingress_host)
@@ -137,8 +136,7 @@ class TestAppProtectWAFv5PolicyMergeableIngress:
         test_namespace,
         mergeable_ingress_setup,
     ):
-        create_policy_from_yaml(kube_apis.custom_objects, policy_src, test_namespace)
-        wait_before_test()
+        apply_and_wait_for_valid_policy(kube_apis, test_namespace, policy_src)
 
         request_url = (
             f"http://{mergeable_ingress_setup.public_endpoint.public_ip}:"

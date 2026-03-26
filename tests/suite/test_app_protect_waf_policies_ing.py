@@ -10,7 +10,7 @@ from suite.utils.ap_resources_utils import (
     delete_ap_policy,
     delete_ap_usersig,
 )
-from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_policy
+from suite.utils.policy_resources_utils import apply_and_wait_for_valid_policy, delete_policy
 from suite.utils.resources_utils import (
     create_example_app,
     create_items_from_yaml,
@@ -132,8 +132,7 @@ class TestAppProtectWAFPolicyIngress:
         appprotect_v4_resources,
         ingress_setup,
     ):
-        create_policy_from_yaml(kube_apis.custom_objects, POLICY_SRC, test_namespace)
-        wait_before_test()
+        apply_and_wait_for_valid_policy(kube_apis, test_namespace, POLICY_SRC)
 
         request_url = f"http://{ingress_setup.public_endpoint.public_ip}:{ingress_setup.public_endpoint.port}/backend1"
         response = send_malicious_request_with_retry(request_url, ingress_setup.ingress_host)
@@ -168,8 +167,7 @@ class TestAppProtectWAFPolicyMergeableIngress:
         appprotect_v4_resources,
         mergeable_ingress_setup,
     ):
-        create_policy_from_yaml(kube_apis.custom_objects, POLICY_SRC, test_namespace)
-        wait_before_test()
+        apply_and_wait_for_valid_policy(kube_apis, test_namespace, POLICY_SRC)
 
         request_url = (
             f"http://{mergeable_ingress_setup.public_endpoint.public_ip}:"
