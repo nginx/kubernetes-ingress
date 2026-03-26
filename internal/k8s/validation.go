@@ -563,6 +563,7 @@ func validateProxySetHeaderAnnotation(context *annotationValidationContext) fiel
 	for _, entry := range strings.Split(context.value, commaDelimiter) {
 		entry = strings.TrimSpace(entry)
 		if entry == "" {
+			allErrs = append(allErrs, field.Invalid(context.fieldPath, entry, "empty header name"))
 			continue
 		}
 

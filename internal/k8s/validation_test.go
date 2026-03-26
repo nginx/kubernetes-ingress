@@ -4844,11 +4844,6 @@ func TestValidateProxySetHeaderAnnotation(t *testing.T) {
 
 		// ── Edge: empty entries are skipped ───────────────────────────
 		{
-			name:           "empty string input is skipped",
-			value:          "",
-			expectedErrors: nil,
-		},
-		{
 			name:  "colon only - empty name",
 			value: ":",
 			expectedErrors: []string{
@@ -4863,14 +4858,21 @@ func TestValidateProxySetHeaderAnnotation(t *testing.T) {
 			},
 		},
 		{
-			name:           "empty header between commas is skipped",
-			value:          "Header-1,,Header-2",
-			expectedErrors: nil,
+			name:  "empty header between commas is skipped",
+			value: "Header-1,,Header-2",
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "": empty header name`,
+			},
 		},
 		{
-			name:           "multiple commas only - all empty entries skipped",
-			value:          ",,,",
-			expectedErrors: nil,
+			name:  "multiple commas only - all empty entries skipped",
+			value: ",,,",
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "": empty header name`,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "": empty header name`,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "": empty header name`,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "": empty header name`,
+			},
 		},
 
 		// ── Multiple errors in one annotation ────────────────────────
