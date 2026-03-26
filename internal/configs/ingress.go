@@ -843,8 +843,8 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 				}
 				loc.MinionIngress = &minionNginxCfg.Ingress
 				// Merge proxy-set-headers: minion headers take priority over master headers.
-				masterAnnotation := ncp.mergeableIngs.Master.Ingress.Annotations["nginx.org/proxy-set-headers"]
-				minionAnnotation := minion.Ingress.Annotations["nginx.org/proxy-set-headers"]
+				masterAnnotation := ncp.mergeableIngs.Master.Ingress.Annotations[ProxySetHeadersAnnotation]
+				minionAnnotation := minion.Ingress.Annotations[ProxySetHeadersAnnotation]
 				if masterAnnotation != "" || minionAnnotation != "" {
 					loc.ProxySetHeaders = MergeProxySetHeaders(masterAnnotation, minionAnnotation)
 				}
