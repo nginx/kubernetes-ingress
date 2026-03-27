@@ -186,6 +186,16 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "list-configs",
 			namespace:   "default",
 		},
+		"agentMode": {
+			valuesFile:  "testdata/agent-mode.yaml",
+			releaseName: "agent-mode",
+			namespace:   "default",
+		},
+		"agentModeTLS": {
+			valuesFile:  "testdata/agent-mode-tls.yaml",
+			releaseName: "agent-mode-tls",
+			namespace:   "default",
+		},
 	}
 
 	// Path to the helm chart we will test
@@ -245,6 +255,18 @@ func TestHelmNICTemplateNegative(t *testing.T) {
 			releaseName:       "global-config-empty-name",
 			namespace:         "default",
 			expectedErrorMsgs: []string{"globalConfiguration.customName namespace and name parts cannot be empty (e.g., \"my-namespace/my-global-config\")"},
+		},
+		"agentModeConfigSafetyConflict": {
+			valuesFile:        "testdata/agent-mode-config-safety-conflict.yaml",
+			releaseName:       "agent-mode-conflict",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"'controller.agentMode.enable' and 'controller.enableConfigSafety' are mutually exclusive"},
+		},
+		"agentModeTLSNoSecret": {
+			valuesFile:        "testdata/agent-mode-tls-no-secret.yaml",
+			releaseName:       "agent-mode-tls-no-secret",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"'controller.agentMode.tlsSecret' is required when 'controller.agentMode.tls' is true"},
 		},
 	}
 

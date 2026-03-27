@@ -147,6 +147,20 @@ var (
 	enableConfigSafety = flag.Bool("enable-config-safety", false,
 		"Enable config validation prior to reloading NGINX.")
 
+	agentMode = flag.Bool("agent-mode", false,
+		`Use nginx-agent for NGINX management via gRPC MPI. In this mode, NIC communicates with
+	nginx-agent running in a sidecar container over a Unix socket. NGINX process management
+	(start, reload, quit) is handled by the nginx-agent container, not by NIC directly.`)
+
+	agentTLS = flag.Bool("agent-tls", false,
+		`Use TCP+TLS instead of a Unix socket for the gRPC connection to nginx-agent.
+	When set, NIC loads TLS certs from a Kubernetes Secret mounted at --agent-tls-path
+	and listens on localhost:8443 with TLS. Both containers mount the same Secret.
+	Works with the unmodified nginx-agent. Requires --agent-mode.`)
+
+	agentTLSPath = flag.String("agent-tls-path", "/etc/nginx-agent/certs",
+		`Path where the agent TLS Secret is mounted. Must contain tls.crt, tls.key, and ca.crt.`)
+
 	nginxReloadTimeout = flag.Int("nginx-reload-timeout", 60000,
 		`The timeout in milliseconds which the Ingress Controller will wait for a successful NGINX reload after a change or at the initial start. (default 60000)`)
 
@@ -252,6 +266,14 @@ func initValidate(ctx context.Context) {
 	logLevelValidationError := validateLogLevel(*logLevel)
 	if logLevelValidationError != nil {
 		nl.Warnf(l, "Invalid log level: %s. Valid options are: trace, debug, info, warning, error, fatal. Falling back to default: %s", *logLevel, logLevelDefault)
+	}
+
+	if *agentMode && *enableConfigSafety {
+		nl.Fatalf(l, "agent-mode and enable-config-safety are mutually exclusive, disable one of them")
+	}
+
+	if *agentTLS && !*agentMode {
+		nl.Fatalf(l, "agent-tls requires agent-mode to be enabled")
 	}
 
 	if *enableLatencyMetrics && !*enablePrometheusMetrics {

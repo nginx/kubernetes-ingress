@@ -1,0 +1,9 @@
+controller:
+  agentMode:
+    enable: true
+    tls: true
+    tlsSecret: agent-grpc-tls
+    image:
+      repository: nginx/nginx-ingress
+      tag: "edge-agent"
+      pullPolicy: IfNotPresent

@@ -1,0 +1,35 @@
+# syntax=docker/dockerfile:1.22
+# Dockerfile for the NGINX + nginx-agent sidecar container.
+# This container runs alongside the NIC controller in the same pod.
+# NIC communicates with nginx-agent via a Unix socket shared through an emptyDir volume.
+
+FROM scratch AS nginx-files
+
+ADD --link --chown=101:1001 https://cs.nginx.com/static/keys/nginx_signing.rsa.pub nginx_signing.rsa.pub
+
+FROM nginx:1.27.5-alpine-otel
+
+# renovate: datasource=github-tags depName=nginx/agent
+ARG NGINX_AGENT_VERSION=v3.8.0
+
+RUN --mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk/keys/nginx_signing.rsa.pub \
+    printf "%s\n" "https://packages.nginx.org/nginx-agent/alpine/v$(egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
+    && apk add --no-cache nginx-agent=${NGINX_AGENT_VERSION#v}
+
+RUN apk add --no-cache bash \
+    && mkdir -p /usr/lib/nginx/modules \
+    && mkdir -p /var/run/nginx \
+    # forward request and error logs to docker log collector
+    && ln -sf /dev/stdout /var/log/nginx/access.log \
+    && ln -sf /dev/stderr /var/log/nginx/error.log
+
+COPY build/entrypoint.sh /agent/entrypoint.sh
+
+# Create empty /run/.containerenv file so agent can identify that it's running in a container
+RUN mkdir -p /run && touch /run/.containerenv
+
+RUN chown -R 101:1001 /etc/nginx /var/cache/nginx /var/run/nginx
+
+USER 101:1001
+
+ENTRYPOINT ["/agent/entrypoint.sh"]

@@ -30,6 +30,7 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/metrics"
 	"github.com/nginx/kubernetes-ingress/internal/metrics/collectors"
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
+	agentgrpc "github.com/nginx/kubernetes-ingress/internal/nginx/agent/grpc"
 	cr_validation "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
 	k8s_nginx "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned"
 	conf_scheme "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/scheme"
@@ -90,7 +91,9 @@ func main() {
 	ctx := initLogger(*logFormat, logLevels[*logLevel], os.Stdout)
 	l := nl.LoggerFromContext(ctx)
 
-	cleanupSocketFiles(l)
+	if !*agentMode {
+		cleanupSocketFiles(l)
+	}
 
 	initValidate(ctx)
 	parsedFlags := os.Args[1:]
@@ -591,6 +594,14 @@ func createNginxManager(ctx context.Context, managerCollector collectors.Manager
 	switch {
 	case useFakeNginxManager:
 		nginxManager = nginx.NewFakeManager("/etc/nginx")
+	case *agentMode && *agentTLS:
+		nginxManager = nginx.NewTLSAgentManager(ctx, managerCollector, *nginxPlus, &agentgrpc.TLSConfig{
+			CertPath: filepath.Join(*agentTLSPath, "tls.crt"),
+			KeyPath:  filepath.Join(*agentTLSPath, "tls.key"),
+			CAPath:   filepath.Join(*agentTLSPath, "ca.crt"),
+		})
+	case *agentMode:
+		nginxManager = nginx.NewAgentManager(ctx, managerCollector, *nginxPlus)
 	case *enableConfigSafety:
 		nginxManager = nginx.NewConfigRollbackManager(ctx, "/etc/nginx/", *nginxDebug, managerCollector, licenseReporter, deploymentMetadata, timeout, *nginxPlus)
 	default:
@@ -603,6 +614,12 @@ func getNginxVersionInfo(ctx context.Context, nginxManager nginx.Manager) nginx.
 	l := nl.LoggerFromContext(ctx)
 	nginxInfo := nginxManager.Version()
 	nl.Infof(l, "Using %s", nginxInfo.String())
+
+	// In agent mode, NGINX runs in a separate container so we can't check
+	// the binary directly. Skip the Plus binary validation.
+	if *agentMode {
+		return nginxInfo
+	}
 
 	if *nginxPlus && !nginxInfo.IsPlus {
 		nl.Fatalf(l, "NGINX Plus flag enabled (-nginx-plus) without NGINX Plus binary")

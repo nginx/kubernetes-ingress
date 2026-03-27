@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-ingress
+  namespace: nginx-ingress
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx-ingress
+  template:
+    metadata:
+      labels:
+        app: nginx-ingress
+        app.kubernetes.io/name: nginx-ingress
+    spec:
+      serviceAccountName: nginx-ingress
+      automountServiceAccountToken: true
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+      # Shared volume for Unix socket between NIC controller and nginx-agent
+      - name: agent-socket
+        emptyDir: {}
+      containers:
+      # Container 1: NIC Controller (agent-mode)
+      - name: nginx-ingress
+        image: nginx/nginx-ingress:edge
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 80
+        - name: https
+          containerPort: 443
+        - name: readiness-port
+          containerPort: 8081
+        - name: prometheus
+          containerPort: 9113
+        readinessProbe:
+          httpGet:
+            path: /nginx-ready
+            port: readiness-port
+          periodSeconds: 1
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsUser: 101
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - NET_BIND_SERVICE
+        volumeMounts:
+        - name: agent-socket
+          mountPath: /var/run/nginx
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        args:
+          - -nginx-configmaps=$(POD_NAMESPACE)/nginx-config
+          - -agent-mode
+          - -report-ingress-status
+          - -external-service=nginx-ingress
+         #- -nginx-plus
+         #- -mgmt-configmap=$(POD_NAMESPACE)/nginx-plus-mgmt
+         #- -default-server-tls-secret=$(POD_NAMESPACE)/default-server-secret
+         #- -enable-cert-manager
+         #- -enable-external-dns
+
+      # Container 2: NGINX + nginx-agent sidecar
+      - name: nginx-agent
+        image: nginx/nginx-ingress:edge-agent  # The nginx+agent image built from Dockerfile.nginx-agent
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsUser: 101
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - NET_BIND_SERVICE
+        volumeMounts:
+        - name: agent-socket
+          mountPath: /var/run/nginx
+        env:
+        # Configure nginx-agent to connect to NIC's gRPC MPI server via Unix socket.
+        # Features are set in nginx-agent.conf (Viper StringSlice doesn't parse
+        # comma-separated env vars correctly).
+        - name: NGINX_AGENT_COMMAND_SERVER_SOCKET
+          value: /var/run/nginx/agent.sock
+        - name: NGINX_AGENT_COMMAND_SERVER_TYPE
+          value: grpc

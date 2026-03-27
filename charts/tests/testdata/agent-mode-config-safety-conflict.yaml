@@ -1,0 +1,4 @@
+controller:
+  agentMode:
+    enable: true
+  enableConfigSafety: true

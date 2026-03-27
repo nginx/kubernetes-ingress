@@ -1,0 +1,7 @@
+controller:
+  agentMode:
+    enable: true
+    image:
+      repository: nginx/nginx-ingress
+      tag: "edge-agent"
+      pullPolicy: IfNotPresent

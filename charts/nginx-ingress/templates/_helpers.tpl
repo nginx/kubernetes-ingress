@@ -251,6 +251,12 @@ Create the global configuration custom namespace from the globalConfiguration.cu
 Build the args for the service binary.
 */}}
 {{- define "nginx-ingress.args" -}}
+{{- if and .Values.controller.agentMode.enable .Values.controller.enableConfigSafety }}
+{{- fail "Error: 'controller.agentMode.enable' and 'controller.enableConfigSafety' are mutually exclusive. Disable one of them." }}
+{{- end }}
+{{- if and .Values.controller.agentMode.tls (eq .Values.controller.agentMode.tlsSecret "") }}
+{{- fail "Error: 'controller.agentMode.tlsSecret' is required when 'controller.agentMode.tls' is true. Create a Secret with tls.crt, tls.key, and ca.crt." }}
+{{- end }}
 {{- if and .Values.controller.debug .Values.controller.debug.enable }}
 - --listen=:2345
 - --headless=true
@@ -370,6 +376,12 @@ Build the args for the service binary.
 - -agent-instance-group={{ default (include "nginx-ingress.controller.fullname" .) .Values.nginxAgent.instanceGroup }}
 {{- end }}
 {{- end }}
+{{- if .Values.controller.agentMode.enable }}
+- -agent-mode
+{{- if .Values.controller.agentMode.tls }}
+- -agent-tls
+{{- end }}
+{{- end }}
 {{- end -}}
 
 {{/*
@@ -409,6 +421,15 @@ List of volumes for controller.
 {{- end }}
 {{- if .Values.controller.volumes }}
 {{ toYaml .Values.controller.volumes }}
+{{- end }}
+{{- if .Values.controller.agentMode.enable }}
+- name: agent-socket
+  emptyDir: {}
+{{- if and .Values.controller.agentMode.tls .Values.controller.agentMode.tlsSecret }}
+- name: agent-tls
+  secret:
+    secretName: {{ .Values.controller.agentMode.tlsSecret }}
+{{- end }}
 {{- end }}
 {{- if .Values.nginxAgent.enable }}
 - name: agent-conf
@@ -476,6 +497,15 @@ volumeMounts:
 - name: app-protect-bundles
   mountPath: /etc/app_protect/bundles
 {{- end }}
+{{- if .Values.controller.agentMode.enable }}
+- name: agent-socket
+  mountPath: /var/run/nginx
+{{- if and .Values.controller.agentMode.tls .Values.controller.agentMode.tlsSecret }}
+- name: agent-tls
+  mountPath: /etc/nginx-agent/certs
+  readOnly: true
+{{- end }}
+{{- end }}
 {{- if .Values.controller.volumeMounts }}
 {{ toYaml .Values.controller.volumeMounts }}
 {{- end }}
@@ -530,6 +560,56 @@ volumeMounts:
     - name: app-protect-bundles
       mountPath: /etc/app_protect/bundles
 {{- end}}
+{{- end -}}
+
+{{/*
+Agent mode sidecar container: NGINX + nginx-agent.
+Runs alongside the NIC controller in the same pod.
+Communicates via Unix socket at /var/run/nginx/agent.sock.
+*/}}
+{{- define "nginx-ingress.agentMode.sidecar" -}}
+{{- if .Values.controller.agentMode.enable }}
+- name: nginx-agent
+  image: {{ .Values.controller.agentMode.image.repository }}:{{ .Values.controller.agentMode.image.tag }}
+  imagePullPolicy: "{{ .Values.controller.agentMode.image.pullPolicy }}"
+{{- if .Values.controller.agentMode.securityContext }}
+  securityContext:
+{{ toYaml .Values.controller.agentMode.securityContext | nindent 4 }}
+{{- end }}
+{{- if .Values.controller.agentMode.resources }}
+  resources:
+{{ toYaml .Values.controller.agentMode.resources | nindent 4 }}
+{{- end }}
+  volumeMounts:
+  - name: agent-socket
+    mountPath: /var/run/nginx
+{{- if and .Values.controller.agentMode.tls .Values.controller.agentMode.tlsSecret }}
+  - name: agent-tls
+    mountPath: /etc/nginx-agent/certs
+    readOnly: true
+{{- end }}
+  env:
+{{- if .Values.controller.agentMode.tls }}
+  - name: NGINX_AGENT_COMMAND_SERVER_HOST
+    value: "127.0.0.1"
+  - name: NGINX_AGENT_COMMAND_SERVER_PORT
+    value: "8443"
+  - name: NGINX_AGENT_COMMAND_SERVER_TYPE
+    value: grpc
+  - name: NGINX_AGENT_COMMAND_TLS_CA
+    value: /etc/nginx-agent/certs/ca.crt
+  - name: NGINX_AGENT_COMMAND_TLS_SKIP_VERIFY
+    value: "false"
+{{- else }}
+  - name: NGINX_AGENT_COMMAND_SERVER_SOCKET
+    value: /var/run/nginx/agent.sock
+  - name: NGINX_AGENT_COMMAND_SERVER_TYPE
+    value: grpc
+{{- end }}
+{{- if .Values.controller.agentMode.env }}
+{{ toYaml .Values.controller.agentMode.env | nindent 2 }}
+{{- end }}
+{{- end }}
 {{- end -}}
 
 {{- define "nginx-ingress.agentConfiguration" -}}

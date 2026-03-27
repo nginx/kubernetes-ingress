@@ -158,6 +158,52 @@ controller:
   ## Enable config validation prior to reloading NGINX.
   enableConfigSafety: false
 
+  ## Agent Mode: NIC controller runs in one container, NGINX + nginx-agent in another (same pod).
+  ## When enabled, NIC uses the AgentManager instead of LocalManager for NGINX management.
+  agentMode:
+    ## Enable agent-mode architecture (two-container pod).
+    enable: false
+
+    ## Use TCP+TLS instead of a Unix socket for the gRPC connection to nginx-agent.
+    ## When true, NIC loads certs from a Kubernetes Secret (tlsSecret) mounted into
+    ## both containers, and listens on localhost:8443 with TLS.
+    ## Works with the unmodified nginx-agent. When false, a Unix socket is used
+    ## (requires the unix-socket patch in the agent).
+    tls: false
+
+    ## Name of the Kubernetes TLS Secret containing tls.crt, tls.key, and ca.crt.
+    ## Both the NIC controller and nginx-agent containers mount this Secret.
+    ## Required when tls is true.
+    tlsSecret: ""
+
+    ## The nginx + nginx-agent sidecar image.
+    image:
+      repository: nginx/nginx-ingress
+      tag: "edge-agent"
+      pullPolicy: IfNotPresent
+
+    ## Resources for the nginx-agent sidecar container.
+    resources: {}
+    #  requests:
+    #    cpu: "100m"
+    #    memory: "128Mi"
+
+    ## Security context for the nginx-agent sidecar container.
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsUser: 101
+      runAsNonRoot: true
+      capabilities:
+        drop:
+        - ALL
+        add:
+        - NET_BIND_SERVICE
+
+    ## Extra environment variables for the nginx-agent sidecar container.
+    env: []
+    # - name: NGINX_AGENT_LOG_LEVEL
+    #   value: "debug"
+
   ## Share process namespace between containers in the Ingress Controller pod.
   shareProcessNamespace: false
 
