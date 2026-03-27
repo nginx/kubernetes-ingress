@@ -251,7 +251,9 @@ func TestValidatePolicy_JWTIsNotValidOn(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			err := ValidatePolicy(tc.policy, true, false, false)
+			err := ValidatePolicy(tc.policy, PolicyValidationConfig{
+				IsPlus: true,
+			})
 			if err == nil {
 				t.Errorf("got no errors on invalid JWTAuth policy spec input")
 			}
@@ -392,7 +394,9 @@ func TestValidatePolicy_IsValidOnJWTPolicy(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			err := ValidatePolicy(tc.policy, true, false, false)
+			err := ValidatePolicy(tc.policy, PolicyValidationConfig{
+				IsPlus: true,
+			})
 			if err != nil {
 				t.Errorf("want no errors, got %+v\n", err)
 			}
@@ -461,7 +465,9 @@ func TestValidatePolicy_RequiresKeyCacheValueForJWTPolicy(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			err := ValidatePolicy(tc.policy, true, false, false)
+			err := ValidatePolicy(tc.policy, PolicyValidationConfig{
+				IsPlus: true,
+			})
 			if err != nil {
 				t.Errorf("got error on valid JWT policy: %+v\n", err)
 			}
@@ -543,7 +549,11 @@ func TestValidatePolicy_PassesOnValidInput(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		err := ValidatePolicy(test.policy, test.isPlus, test.enableOIDC, test.enableAppProtect)
+		err := ValidatePolicy(test.policy, PolicyValidationConfig{
+			IsPlus:           test.isPlus,
+			EnableOIDC:       test.enableOIDC,
+			EnableAppProtect: test.enableAppProtect,
+		})
 		if err != nil {
 			t.Errorf("ValidatePolicy() returned error %v for valid input for the case of %v", err, test.msg)
 		}
@@ -713,7 +723,11 @@ func TestValidatePolicy_FailsOnInvalidInput(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		err := ValidatePolicy(test.policy, test.isPlus, test.enableOIDC, test.enableAppProtect)
+		err := ValidatePolicy(test.policy, PolicyValidationConfig{
+			IsPlus:           test.isPlus,
+			EnableOIDC:       test.enableOIDC,
+			EnableAppProtect: test.enableAppProtect,
+		})
 		if err == nil {
 			t.Errorf("ValidatePolicy() returned no error for invalid input")
 		}
@@ -2788,7 +2802,9 @@ func TestValidatePolicy_IsNotValidCachePolicy(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			err := ValidatePolicy(tc.policy, tc.isPlus, false, false)
+			err := ValidatePolicy(tc.policy, PolicyValidationConfig{
+				IsPlus: tc.isPlus,
+			})
 			if err == nil {
 				t.Errorf("got no errors on invalid Cache policy spec input")
 			}
@@ -3092,7 +3108,9 @@ func TestValidatePolicy_IsValidCachePolicy(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			err := ValidatePolicy(tc.policy, tc.isPlus, false, false)
+			err := ValidatePolicy(tc.policy, PolicyValidationConfig{
+				IsPlus: tc.isPlus,
+			})
 			if err != nil {
 				t.Errorf("want no errors, got %+v\n", err)
 			}
