@@ -1835,9 +1835,6 @@ func TestGeneratePoliciesFails(t *testing.T) {
 		parentType:      "vs",
 	}
 
-	dryRunOverride := true
-	rejectCodeOverride := 505
-
 	ingressMTLSCertPath := "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crt"
 	ingressMTLSCrlPath := "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crl"
 
@@ -1946,9 +1943,9 @@ func TestGeneratePoliciesFails(t *testing.T) {
 							Key:        "test2",
 							ZoneSize:   "20M",
 							Rate:       "20r/s",
-							DryRun:     &dryRunOverride,
+							DryRun:     new(true),
 							LogLevel:   "info",
-							RejectCode: &rejectCodeOverride,
+							RejectCode: new(505),
 						},
 					},
 				},

@@ -793,9 +793,6 @@ func TestValidateAccessControl_FailsOnInvalidInput(t *testing.T) {
 
 func TestValidateRateLimit_PassesOnValidInput(t *testing.T) {
 	t.Parallel()
-	dryRun := true
-	noDelay := false
-
 	tests := []struct {
 		rateLimit *v1.RateLimit
 		isPlus    bool
@@ -815,10 +812,10 @@ func TestValidateRateLimit_PassesOnValidInput(t *testing.T) {
 				Rate:       "30r/m",
 				Key:        "${request_uri}",
 				Delay:      createPointerFromInt(5),
-				NoDelay:    &noDelay,
+				NoDelay:    new(false),
 				Burst:      createPointerFromInt(10),
 				ZoneSize:   "10M",
-				DryRun:     &dryRun,
+				DryRun:     new(true),
 				LogLevel:   "info",
 				RejectCode: createPointerFromInt(505),
 			},
