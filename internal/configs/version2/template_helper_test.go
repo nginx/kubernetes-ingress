@@ -489,6 +489,15 @@ func TestMakeTransportListener(t *testing.T) {
 			Port:        5353,
 		}, expected: "listen 5353;\n"},
 		{server: StreamServer{
+			ProxyProtocolListener: true,
+			SSL: &StreamSSL{
+				Enabled: false,
+			},
+			UDP:         false,
+			DisableIPV6: true,
+			Port:        5353,
+		}, expected: "listen 5353 proxy_protocol;\n"},
+		{server: StreamServer{
 			UDP: true,
 			SSL: &StreamSSL{
 				Enabled: false,
