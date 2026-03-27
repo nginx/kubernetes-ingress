@@ -1,0 +1,8 @@
+{{% bootstrap-table "table table-bordered table-striped table-responsive" %}}
+| NIC version | Kubernetes versions tested  | NIC Helm Chart version | NIC Operator version | NGINX / NGINX Plus version | End of Technical Support |
+| --- | --- | --- | --- | --- | --- |
+| {{ ic_version }} | {{ k8s_versions }} | {{ helm_chart_version }} | {{ operator_version }} | {{ nginx_version }} / R{{ nginx_plus_version }} | - |
+{% for row in previous_versions -%}
+| {{ row.ic_version }} | {{ row.k8s_versions }} | {{ row.helm_chart_version }} | {{ row.operator_version }} | {{ row.nginx_version }} / R{{ row.nginx_plus_version }} | {{ row.eots }} |
+{% endfor %}
+{{% /bootstrap-table %}}

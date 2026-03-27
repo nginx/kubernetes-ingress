@@ -82,7 +82,7 @@ regex_operator="s#$escaped_current_operator_version#$new_operator_version#g"
 mv "${HELM_CHART_PATH}/values.schema.json" "${TMPDIR}/"
 jq --arg version "${new_ic_version}" \
     '.properties.controller.properties.image.properties.tag.default = $version | .properties.controller.properties.image.properties.tag.examples[0] = $version | .properties.controller.examples[0].image.tag = $version | .properties.controller.properties.image.examples[0].tag = $version | .examples[0].controller.image.tag = $version' \
-    ${TMPDIR}/values.schema.json \
+    "${TMPDIR}/values.schema.json" \
     > "${HELM_CHART_PATH}/values.schema.json"
 rc=$?
 if [ $rc -ne 0 ]; then
@@ -136,5 +136,21 @@ for i in ${example_files}; do
         exit 2
     fi
 done
+
+# insert new IC version into bug report template immediately after the "- edge" entry
+bug_report="${ROOTDIR}/.github/ISSUE_TEMPLATE/BUG-REPORT.yml"
+if [ -f "${bug_report}" ]; then
+    if [ "${DEBUG}" != "false" ]; then
+        echo "Processing ${bug_report}"
+    fi
+    file_name=$(basename "${bug_report}")
+    mv "${bug_report}" "${TMPDIR}/${file_name}"
+    sed -e "/^        - edge$/a\\        - ${new_ic_version}" "${TMPDIR}/${file_name}" > "${bug_report}"
+    if [ $? -ne 0 ]; then
+        echo "ERROR: failed processing ${bug_report}"
+        mv "${TMPDIR}/${file_name}" "${bug_report}"
+        exit 2
+    fi
+fi
 
 make test-update-snaps

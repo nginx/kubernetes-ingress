@@ -14,7 +14,7 @@ RELEASE_BRANCH_PREFIX=${RELEASE_BRANCH_PREFIX:-"nic-release-"}
 export GH_TOKEN=${GITHUB_TOKEN:-""}
 
  usage() {
-    echo "Usage: $0 <ic_version> <helm_chart_version> <operator_version> <k8s_versions> <release_date>"
+    echo "Usage: $0 <ic_version> <helm_chart_version> <operator_version> <k8s_versions> <nginx_version> <release_date> [<nap_waf_version>] [<nap_waf_release_version>]"
     exit 1
  }
 
@@ -26,7 +26,10 @@ ic_version=$1
 helm_chart_version=$2
 operator_version=$3
 k8s_versions=$4
-release_date=$5
+nginx_version=$5
+release_date=$6
+NAP_WAF_VERSION=${7:-}
+NAP_WAF_RELEASE_VERSION=${8:-}
 
 if [ -z "${ic_version}" ]; then
     usage
@@ -40,8 +43,16 @@ if [ -z "${k8s_versions}" ]; then
     usage
 fi
 
+if [ -z "${operator_version}" ]; then
+    usage
+fi
+
 if [ -z "${release_date}" ]; then
     usage
+fi
+
+if [ -n "${NAP_WAF_VERSION}" ]; then
+    echo "INFO: NAP WAF version provided: ${NAP_WAF_VERSION}"
 fi
 
 if [ -z "${GH_TOKEN}" ]; then
@@ -65,13 +76,16 @@ if [ "${DEBUG}" != "false" ]; then
     echo "DEBUG: GITHUB_USERNAME: ${GITHUB_USERNAME}"
     echo "DEBUG: GITHUB_EMAIL: ${GITHUB_EMAIL}"
     echo "DEBUG: RELEASE_BRANCH_PREFIX: ${RELEASE_BRANCH_PREFIX}"
-    echo "DEBUG: GH_TOKEN: ****$(echo -n $GH_TOKEN | tail -c 4)"
+    echo "DEBUG: GH_TOKEN: ${GH_TOKEN:0:4}****${GH_TOKEN: -4}"
     echo "DEBUG: DOCS_FOLDER: ${DOCS_FOLDER}"
     echo "DEBUG: ic_version: ${ic_version}"
     echo "DEBUG: helm_chart_version: ${helm_chart_version}"
     echo "DEBUG: operator_version: ${operator_version}"
     echo "DEBUG: k8s_versions: ${k8s_versions}"
     echo "DEBUG: release_date: ${release_date}"
+    echo "DEBUG: nginx_version: ${nginx_version}"
+    echo "DEBUG: NAP_WAF_VERSION: ${NAP_WAF_VERSION}"
+    echo "DEBUG: NAP_WAF_RELEASE_VERSION: ${NAP_WAF_RELEASE_VERSION}"
 fi
 
 echo "INFO: Generating release notes from github draft release"
@@ -112,6 +126,7 @@ if [ $? -ne 0 ]; then
 fi
 
 cd ${DOCS_FOLDER} || exit 2
+
 if [ "${DEBUG}" != "false" ]; then
     echo "DEBUG: Cloned doc repo to ${DOCS_FOLDER} and changed directory"
 fi
@@ -298,8 +313,49 @@ if [ $? -ne 0 ]; then
     exit 2
 fi
 
+# Update the technical specifications and NAP compatibility table
+if [ -n "${nginx_version}" ]; then
+    echo "INFO: Updating technical specifications"
+
+    if [ -n "${NAP_WAF_VERSION}" ]; then
+        echo "INFO: NAP compatibility table will also be updated with version: ${NAP_WAF_VERSION}"
+    fi
+
+    # Run the consolidated tech specs update script
+    python3 ${ROOTDIR}/.github/scripts/tech-specs-update.py \
+        "${ic_version}" "${k8s_versions}" "${nginx_version}" "${DOCS_FOLDER}" \
+        ${NAP_WAF_VERSION:+"${NAP_WAF_VERSION}"} \
+        ${NAP_WAF_RELEASE_VERSION:+"${NAP_WAF_RELEASE_VERSION}"} \
+        ${NAP_WAF_RELEASE_VERSION:+"${NAP_WAF_RELEASE_VERSION}"}
+
+    if [ $? -ne 0 ]; then
+        echo "ERROR: Failed to update technical specifications"
+        exit 1
+    fi
+
+    echo "INFO: Technical specifications updated"
+    if [ "${DEBUG}" != "false" ]; then
+        echo "DEBUG: Updated technical specifications content:"
+        cat "${DOCS_FOLDER}/content/nic/technical-specifications.md"
+    fi
+
+    # Stage tech specs and, if NAP args were provided, the NAP compatibility table
+    git add "${DOCS_FOLDER}/content/nic/technical-specifications.md"
+    if [ -n "${NAP_WAF_VERSION}" ]; then
+        nap_table_file="${DOCS_FOLDER}/content/includes/nic/compatibility-tables/nic-nap.md"
+        if [ -f "${nap_table_file}" ]; then
+            git add "${nap_table_file}"
+        fi
+        git commit -m "Update technical specifications and NAP compatibility table for ${ic_version}"
+    else
+        git commit -m "Update technical specifications for ${ic_version}"
+    fi
+else
+    echo "INFO: nginx_version not set, skipping tech specs update"
+fi
+
 echo "INFO: Updating shortcodes in the documentation repository"
-${ROOTDIR}/.github/scripts/docs-shortcode-update.sh "${DOCS_FOLDER}" "${ic_version}" "${helm_chart_version}" "${operator_version}"
+${ROOTDIR}/.github/scripts/docs-shortcode-update.sh "${DOCS_FOLDER}" "${ic_version}" "${helm_chart_version}" "${operator_version}" "${NAP_WAF_VERSION}" "${NAP_WAF_RELEASE_VERSION}"
 if [ $? -ne 0 ]; then
     echo "ERROR: failed updating shortcodes"
     exit 2
@@ -321,13 +377,43 @@ if [ "${DRY_RUN}" == "false" ]; then
     fi
 
     echo "INFO: Pushing changes to the documentation repository"
-    git push origin "${branch}"
-    if [ $? -ne 0 ]; then
-        echo "ERROR: failed pushing changes to the docs repo"
-        exit 2
+    if git push origin "${branch}" 2>&1; then
+        # Direct push succeeded — create PR in the same repo
+        echo "INFO: Creating pull request for the documentation repository"
+        gh pr create --title "Update release notes for ${ic_version}" \
+            --body "Update release notes for ${ic_version}" \
+            --head "${branch}" --draft
+    else
+        # Push failed (no write access) — fork and push there instead
+        echo "INFO: Direct push failed, forking repository and retrying"
+        gh repo fork --remote --remote-name fork
+        if [ $? -ne 0 ]; then
+            echo "ERROR: failed forking ${DOCS_REPO}"
+            exit 2
+        fi
+
+        git push fork "${branch}"
+        if [ $? -ne 0 ]; then
+            echo "ERROR: failed pushing to fork"
+            exit 2
+        fi
+
+        # Determine fork owner from the fork remote URL
+        fork_url=$(git remote get-url fork)
+        fork_full_name=$(echo "${fork_url}" | sed -E 's#.*/([^/]+/[^/]+?)(\.git)?$#\1#')
+        fork_owner=$(echo "${fork_full_name}" | cut -d'/' -f1)
+
+        if [ "${DEBUG}" != "false" ]; then
+            echo "DEBUG: Fork remote URL: ${fork_url}"
+            echo "DEBUG: Fork owner: ${fork_owner}"
+        fi
+
+        echo "INFO: Creating pull request from fork against ${DOCS_REPO}"
+        gh pr create --repo "${DOCS_REPO}" \
+            --title "Update release notes for ${ic_version}" \
+            --body "Update release notes for ${ic_version}" \
+            --head "${fork_owner}:${branch}" --draft
     fi
-    echo "INFO: Creating pull request for the documentation repository"
-    gh pr create --title "Update release notes for ${ic_version}" --body "Update release notes for ${ic_version}" --head "${branch}" --draft
 else
     echo "INFO: DRY_RUN: Showing what would be committed:"
     git status --porcelain
