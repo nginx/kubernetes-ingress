@@ -998,37 +998,47 @@ func (c *Configuration) findResourcesForResourceReference(namespace string, name
 	defer c.lock.RUnlock()
 
 	var result []Resource
+	seen := make(map[string]struct{})
 
 	for _, h := range getSortedResourceKeys(c.hosts) {
 		r := c.hosts[h]
+		key := r.GetKeyWithKind()
+		if _, ok := seen[key]; ok {
+			continue
+		}
 
 		switch impl := r.(type) {
 		case *IngressConfiguration:
 			if checker.IsReferencedByIngress(namespace, name, impl.Ingress) {
+				seen[key] = struct{}{}
 				result = append(result, r)
 				continue
 			}
 
 			for _, fm := range impl.Minions {
 				if checker.IsReferencedByMinion(namespace, name, fm.Ingress) {
+					seen[key] = struct{}{}
 					result = append(result, r)
 					break
 				}
 			}
 		case *VirtualServerConfiguration:
 			if checker.IsReferencedByVirtualServer(namespace, name, impl.VirtualServer) {
+				seen[key] = struct{}{}
 				result = append(result, r)
 				continue
 			}
 
 			for _, vsr := range impl.VirtualServerRoutes {
 				if checker.IsReferencedByVirtualServerRoute(namespace, name, vsr) {
+					seen[key] = struct{}{}
 					result = append(result, r)
 					break
 				}
 			}
 		case *TransportServerConfiguration:
 			if checker.IsReferencedByTransportServer(namespace, name, impl.TransportServer) {
+				seen[key] = struct{}{}
 				result = append(result, r)
 				continue
 			}
@@ -1037,8 +1047,13 @@ func (c *Configuration) findResourcesForResourceReference(namespace string, name
 
 	for _, lh := range getSortedListenerHostKeys(c.listenerHosts) {
 		tsConfig := c.listenerHosts[lh]
+		key := tsConfig.GetKeyWithKind()
+		if _, ok := seen[key]; ok {
+			continue
+		}
 
 		if checker.IsReferencedByTransportServer(namespace, name, tsConfig.TransportServer) {
+			seen[key] = struct{}{}
 			result = append(result, tsConfig)
 			continue
 		}
