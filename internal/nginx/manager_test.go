@@ -6,10 +6,6 @@ import (
 	"github.com/nginx/nginx-plus-go-client/v3/client"
 )
 
-// Helper functions to create pointers
-func ptrInt(i int) *int    { return &i }
-func ptrBool(b bool) *bool { return &b }
-
 func TestFormatUpdateServersInPlusLog(t *testing.T) {
 	tests := []struct {
 		name     string

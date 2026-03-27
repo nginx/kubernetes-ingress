@@ -133,10 +133,6 @@ func TestValidateFailsOnMissingBackupPort(t *testing.T) {
 	}
 }
 
-func createPointerFromUInt16(port uint16) *uint16 {
-	return &port
-}
-
 func TestValidateFailsOnMissingBackupName(t *testing.T) {
 	t.Parallel()
 

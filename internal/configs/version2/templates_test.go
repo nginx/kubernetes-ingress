@@ -20,10 +20,6 @@ func TestMain(m *testing.M) {
 	os.Exit(v)
 }
 
-func createPointerFromInt(n int) *int {
-	return &n
-}
-
 func newTmplExecutorNGINXPlus(t *testing.T) *TemplateExecutor {
 	t.Helper()
 	executor, err := NewTemplateExecutor("nginx-plus.virtualserver.tmpl", "nginx-plus.transportserver.tmpl", "oidc.tmpl")

@@ -9,10 +9,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
-func intPtr(n int) *int {
-	return &n
-}
-
 func TestValidatePolicy_JWTIsNotValidOn(t *testing.T) {
 	t.Parallel()
 
@@ -3381,9 +3377,4 @@ func TestCORSMDNCompliance(t *testing.T) {
 			}
 		})
 	}
-}
-
-// Helper functions for CORS tests
-func boolPtr(b bool) *bool {
-	return &b
 }

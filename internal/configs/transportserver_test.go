@@ -1796,10 +1796,6 @@ func TestGenerateHealthCheckMatch(t *testing.T) {
 	}
 }
 
-func intPointer(value int) *int {
-	return &value
-}
-
 func TestGenerateTsSSLConfig(t *testing.T) {
 	t.Parallel()
 	validTests := []struct {
