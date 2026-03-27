@@ -230,7 +230,7 @@ func TestValidatePolicy_JWTIsNotValidOn(t *testing.T) {
 						KeyCache:          "1h",
 						SSLVerify:         true,
 						TrustedCertSecret: "my-ca-secret",
-						SSLVerifyDepth:    intPtr(0),
+						SSLVerifyDepth:    new(0),
 					},
 				},
 			},
@@ -369,7 +369,7 @@ func TestValidatePolicy_IsValidOnJWTPolicy(t *testing.T) {
 						JwksURI:           "https://login.mydomain.com/keys",
 						SSLVerify:         true,
 						TrustedCertSecret: "my-ca-secret",
-						SSLVerifyDepth:    intPtr(2),
+						SSLVerifyDepth:    new(2),
 					},
 				},
 			},
@@ -523,7 +523,7 @@ func TestValidatePolicy_PassesOnValidInput(t *testing.T) {
 						ClientID:              "random-string",
 						ClientSecret:          "random-secret",
 						Scope:                 "openid",
-						ZoneSyncLeeway:        createPointerFromInt(10),
+						ZoneSyncLeeway:        new(10),
 						AccessTokenEnable:     true,
 					},
 				},
@@ -685,7 +685,7 @@ func TestValidatePolicy_FailsOnInvalidInput(t *testing.T) {
 						ClientID:              "random-string",
 						ClientSecret:          "random-secret",
 						Scope:                 "openid",
-						ZoneSyncLeeway:        createPointerFromInt(-1),
+						ZoneSyncLeeway:        new(-1),
 						AccessTokenEnable:     false,
 					},
 				},
@@ -811,13 +811,13 @@ func TestValidateRateLimit_PassesOnValidInput(t *testing.T) {
 			rateLimit: &v1.RateLimit{
 				Rate:       "30r/m",
 				Key:        "${request_uri}",
-				Delay:      createPointerFromInt(5),
+				Delay:      new(5),
 				NoDelay:    new(false),
-				Burst:      createPointerFromInt(10),
+				Burst:      new(10),
 				ZoneSize:   "10M",
 				DryRun:     new(true),
 				LogLevel:   "info",
-				RejectCode: createPointerFromInt(505),
+				RejectCode: new(505),
 			},
 			isPlus: false,
 			msg:    "ratelimit all fields set",
@@ -881,14 +881,14 @@ func TestValidateRateLimit_FailsOnInvalidInput(t *testing.T) {
 		},
 		{
 			rateLimit: createInvalidRateLimit(func(r *v1.RateLimit) {
-				r.Delay = createPointerFromInt(0)
+				r.Delay = new(0)
 			}),
 			isPlus: false,
 			msg:    "invalid rateLimit delay",
 		},
 		{
 			rateLimit: createInvalidRateLimit(func(r *v1.RateLimit) {
-				r.Burst = createPointerFromInt(0)
+				r.Burst = new(0)
 			}),
 			isPlus: false,
 			msg:    "invalid rateLimit burst",
@@ -902,7 +902,7 @@ func TestValidateRateLimit_FailsOnInvalidInput(t *testing.T) {
 		},
 		{
 			rateLimit: createInvalidRateLimit(func(r *v1.RateLimit) {
-				r.RejectCode = createPointerFromInt(600)
+				r.RejectCode = new(600)
 			}),
 			isPlus: false,
 			msg:    "invalid rateLimit rejectCode",
@@ -1418,7 +1418,7 @@ func TestValidateIngressMTLS_PassesOnValidInput(t *testing.T) {
 			ing: &v1.IngressMTLS{
 				ClientCertSecret: "mtls-secret",
 				VerifyClient:     "on",
-				VerifyDepth:      createPointerFromInt(1),
+				VerifyDepth:      new(1),
 			},
 			msg: "all parameters with default value",
 		},
@@ -1426,7 +1426,7 @@ func TestValidateIngressMTLS_PassesOnValidInput(t *testing.T) {
 			ing: &v1.IngressMTLS{
 				ClientCertSecret: "ingress-mtls-secret",
 				VerifyClient:     "optional",
-				VerifyDepth:      createPointerFromInt(2),
+				VerifyDepth:      new(2),
 			},
 			msg: "optional parameters",
 		},
@@ -1468,7 +1468,7 @@ func TestValidateIngressMTLS_FailsOnInvalidInput(t *testing.T) {
 			ing: &v1.IngressMTLS{
 				ClientCertSecret: "ingress-mtls-secret",
 				VerifyClient:     "on",
-				VerifyDepth:      createPointerFromInt(-1),
+				VerifyDepth:      new(-1),
 			},
 			msg: "invalid depth",
 		},
@@ -1521,7 +1521,7 @@ func TestValidateEgressMTLS_PassesOnValidInput(t *testing.T) {
 			eg: &v1.EgressMTLS{
 				TrustedCertSecret: "tls-secret",
 				VerifyServer:      true,
-				VerifyDepth:       createPointerFromInt(2),
+				VerifyDepth:       new(2),
 				ServerName:        false,
 			},
 			msg: "verify server set to true",
@@ -1569,7 +1569,7 @@ func TestValidateEgressMTLS_FailsOnInvalidInput(t *testing.T) {
 			eg: &v1.EgressMTLS{
 				TrustedCertSecret: "ingress-mtls-secret",
 				VerifyServer:      true,
-				VerifyDepth:       createPointerFromInt(-1),
+				VerifyDepth:       new(-1),
 			},
 			msg: "invalid depth",
 		},
@@ -1607,7 +1607,7 @@ func TestValidateOIDC_PassesOnValidOIDC(t *testing.T) {
 				ClientSecret:          "random-secret",
 				Scope:                 "openid",
 				RedirectURI:           "/foo",
-				ZoneSyncLeeway:        createPointerFromInt(20),
+				ZoneSyncLeeway:        new(20),
 				AccessTokenEnable:     true,
 			},
 			msg: "verify full oidc",
@@ -1928,7 +1928,7 @@ func TestValidateOIDC_FailsOnInvalidOIDC(t *testing.T) {
 				RedirectURI:           "/_codexch", ClientID: "foobar",
 				ClientSecret:      "secret",
 				Scope:             "openid",
-				ZoneSyncLeeway:    createPointerFromInt(-1),
+				ZoneSyncLeeway:    new(-1),
 				AccessTokenEnable: true,
 			},
 			fieldPath: "oidc.zoneSyncLeeway",
@@ -2648,7 +2648,7 @@ func TestValidatePolicy_IsNotValidCachePolicy(t *testing.T) {
 					Cache: &v1.Cache{
 						CacheZoneName: "minuses",
 						CacheZoneSize: "10m",
-						CacheMinUses:  intPtr(0),
+						CacheMinUses:  new(0),
 					},
 				},
 			},
@@ -2662,7 +2662,7 @@ func TestValidatePolicy_IsNotValidCachePolicy(t *testing.T) {
 						CacheZoneName: "managerbad",
 						CacheZoneSize: "10m",
 						Manager: &v1.CacheManager{
-							Files:     intPtr(0),
+							Files:     new(0),
 							Sleep:     "100ms",
 							Threshold: "500ms",
 						},
@@ -2679,7 +2679,7 @@ func TestValidatePolicy_IsNotValidCachePolicy(t *testing.T) {
 						CacheZoneName: "managersleep",
 						CacheZoneSize: "10m",
 						Manager: &v1.CacheManager{
-							Files:     intPtr(100),
+							Files:     new(100),
 							Sleep:     "invalid",
 							Threshold: "500ms",
 						},
@@ -2696,7 +2696,7 @@ func TestValidatePolicy_IsNotValidCachePolicy(t *testing.T) {
 						CacheZoneName: "managerthreshold",
 						CacheZoneSize: "10m",
 						Manager: &v1.CacheManager{
-							Files:     intPtr(100),
+							Files:     new(100),
 							Sleep:     "100ms",
 							Threshold: "bad-time",
 						},
@@ -2923,7 +2923,7 @@ func TestValidatePolicy_IsValidCachePolicy(t *testing.T) {
 						CacheZoneName: "extended",
 						CacheZoneSize: "20m",
 						CacheKey:      "${scheme}${host}${request_uri}${args}",
-						CacheMinUses:  intPtr(5),
+						CacheMinUses:  new(5),
 					},
 				},
 			},
@@ -2937,7 +2937,7 @@ func TestValidatePolicy_IsValidCachePolicy(t *testing.T) {
 						CacheZoneName: "managercache",
 						CacheZoneSize: "30m",
 						Manager: &v1.CacheManager{
-							Files:     intPtr(200),
+							Files:     new(200),
 							Sleep:     "100ms",
 							Threshold: "500ms",
 						},
@@ -2986,12 +2986,12 @@ func TestValidatePolicy_IsValidCachePolicy(t *testing.T) {
 						CacheZoneName: "fullextended",
 						CacheZoneSize: "100m",
 						CacheKey:      "${scheme}${host}${request_uri}",
-						CacheMinUses:  intPtr(3),
+						CacheMinUses:  new(3),
 						UseTempPath:   false,
 						MaxSize:       "2g",
 						Inactive:      "7d",
 						Manager: &v1.CacheManager{
-							Files:     intPtr(500),
+							Files:     new(500),
 							Sleep:     "200ms",
 							Threshold: "1s",
 						},
@@ -3119,7 +3119,7 @@ func TestValidateCORS(t *testing.T) {
 				AllowOrigin:  []string{"https://example.com", "https://app.com"},
 				AllowMethods: []string{"GET", "POST", "PUT"},
 				AllowHeaders: []string{"Content-Type", "Authorization"},
-				MaxAge:       intPtr(86400),
+				MaxAge:       new(86400),
 			},
 			expectErr: false,
 		},
@@ -3128,7 +3128,7 @@ func TestValidateCORS(t *testing.T) {
 			cors: &v1.CORS{
 				AllowOrigin:      []string{"*"},
 				AllowMethods:     []string{"GET", "POST"},
-				AllowCredentials: boolPtr(false),
+				AllowCredentials: new(false),
 			},
 			expectErr: false,
 		},
@@ -3344,7 +3344,7 @@ func TestCORSMDNCompliance(t *testing.T) {
 				AllowOrigin:      []string{"*"},
 				AllowMethods:     []string{"GET", "POST"}, // Removed HEAD as it's redundant when GET is present
 				AllowHeaders:     []string{"Accept", "Accept-Language", "Content-Language", "Content-Type"},
-				AllowCredentials: boolPtr(false),
+				AllowCredentials: new(false),
 			},
 			description: "MDN simple request: wildcard allowed without credentials",
 		},
@@ -3354,7 +3354,7 @@ func TestCORSMDNCompliance(t *testing.T) {
 				AllowOrigin:      []string{"https://example.com"},
 				AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 				AllowHeaders:     []string{"Content-Type", "Authorization"},
-				AllowCredentials: boolPtr(true),
+				AllowCredentials: new(true),
 			},
 			description: "MDN credentialed request: explicit origin required",
 		},
@@ -3365,7 +3365,7 @@ func TestCORSMDNCompliance(t *testing.T) {
 				AllowMethods:  []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"},
 				AllowHeaders:  []string{"Content-Type", "Authorization", "X-Requested-With"},
 				ExposeHeaders: []string{"X-Total-Count", "X-RateLimit-Remaining"},
-				MaxAge:        createPointerFromInt(3600),
+				MaxAge:        new(3600),
 			},
 			description: "MDN complex request: comprehensive header configuration",
 		},

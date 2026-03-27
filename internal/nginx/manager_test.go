@@ -25,11 +25,11 @@ func TestFormatUpdateServersInPlusLog(t *testing.T) {
 			name: "Single server with all fields set",
 			input: []client.UpstreamServer{
 				{
-					MaxConns:    ptrInt(100),
-					MaxFails:    ptrInt(3),
-					Backup:      ptrBool(true),
-					Down:        ptrBool(false),
-					Weight:      ptrInt(10),
+					MaxConns:    new(100),
+					MaxFails:    new(3),
+					Backup:      new(true),
+					Down:        new(false),
+					Weight:      new(10),
 					Server:      "192.168.1.1:8080",
 					FailTimeout: "30s",
 					SlowStart:   "10s",
@@ -45,11 +45,11 @@ func TestFormatUpdateServersInPlusLog(t *testing.T) {
 			name: "Multiple servers",
 			input: []client.UpstreamServer{
 				{
-					MaxConns:    ptrInt(50),
-					MaxFails:    ptrInt(2),
-					Backup:      ptrBool(false),
-					Down:        ptrBool(true),
-					Weight:      ptrInt(5),
+					MaxConns:    new(50),
+					MaxFails:    new(2),
+					Backup:      new(false),
+					Down:        new(true),
+					Weight:      new(5),
 					Server:      "192.168.1.2:8080",
 					FailTimeout: "20s",
 					SlowStart:   "5s",
@@ -59,11 +59,11 @@ func TestFormatUpdateServersInPlusLog(t *testing.T) {
 					Drain:       false,
 				},
 				{
-					MaxConns:    ptrInt(150),
-					MaxFails:    ptrInt(5),
-					Backup:      ptrBool(true),
-					Down:        ptrBool(false),
-					Weight:      ptrInt(15),
+					MaxConns:    new(150),
+					MaxFails:    new(5),
+					Backup:      new(true),
+					Down:        new(false),
+					Weight:      new(15),
 					Server:      "192.168.1.3:8080",
 					FailTimeout: "40s",
 					SlowStart:   "20s",
@@ -80,9 +80,9 @@ func TestFormatUpdateServersInPlusLog(t *testing.T) {
 			input: []client.UpstreamServer{
 				{
 					MaxConns:    nil, // Should default to 0
-					MaxFails:    ptrInt(4),
+					MaxFails:    new(4),
 					Backup:      nil, // Should default to false
-					Down:        ptrBool(true),
+					Down:        new(true),
 					Weight:      nil, // Should default to 0
 					Server:      "192.168.1.4:8080",
 					FailTimeout: "",

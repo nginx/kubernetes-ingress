@@ -2136,7 +2136,7 @@ func TestGenerateGrpcHealthCheck(t *testing.T) {
 					ConnectTimeout: "20s",
 					SendTimeout:    "20s",
 					ReadTimeout:    "20s",
-					GRPCStatus:     createPointerFromInt(12),
+					GRPCStatus:     new(12),
 					GRPCService:    "grpc-service",
 					Headers: []conf_v1.Header{
 						{
@@ -2165,7 +2165,7 @@ func TestGenerateGrpcHealthCheck(t *testing.T) {
 				Fails:               3,
 				Passes:              2,
 				Port:                50051,
-				GRPCStatus:          createPointerFromInt(12),
+				GRPCStatus:          new(12),
 				GRPCService:         "grpc-service",
 				Headers: map[string]string{
 					"Host":       "my.service",

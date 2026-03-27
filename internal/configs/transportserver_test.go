@@ -271,7 +271,7 @@ func TestGenerateTransportServerConfigForTCP(t *testing.T) {
 						Name:        "tcp-app",
 						Service:     "tcp-app-svc",
 						Port:        5001,
-						MaxFails:    intPointer(3),
+						MaxFails:    new(3),
 						FailTimeout: "40s",
 					},
 				},
@@ -371,8 +371,8 @@ func TestGenerateTransportServerConfigForTCPMaxConnections(t *testing.T) {
 						Name:        "tcp-app",
 						Service:     "tcp-app-svc",
 						Port:        5001,
-						MaxFails:    intPointer(3),
-						MaxConns:    intPointer(3),
+						MaxFails:    new(3),
+						MaxConns:    new(3),
 						FailTimeout: "40s",
 					},
 				},
@@ -600,7 +600,7 @@ func TestGenerateTransportServerConfigForBackupServiceNGINXPlus(t *testing.T) {
 	transportServerEx := tsEx()
 	transportServerEx.TransportServer.Spec.Upstreams[0].LoadBalancingMethod = "least_conn"
 	transportServerEx.TransportServer.Spec.Upstreams[0].Backup = "backup-svc"
-	transportServerEx.TransportServer.Spec.Upstreams[0].BackupPort = createPointerFromUInt16(5090)
+	transportServerEx.TransportServer.Spec.Upstreams[0].BackupPort = new(uint16(5090))
 	transportServerEx.Endpoints = map[string][]string{
 		"default/tcp-app-svc:5001": {
 			"10.0.0.20:5001",
@@ -681,7 +681,7 @@ func TestGenerateTransportServerConfig_DoesNotGenerateBackupOnMissingBackupName(
 
 	transportServerEx := tsEx()
 	transportServerEx.TransportServer.Spec.Upstreams[0].LoadBalancingMethod = "least_conn"
-	transportServerEx.TransportServer.Spec.Upstreams[0].BackupPort = createPointerFromUInt16(5090)
+	transportServerEx.TransportServer.Spec.Upstreams[0].BackupPort = new(uint16(5090))
 	transportServerEx.Endpoints = map[string][]string{
 		"default/tcp-app-svc:5001": {
 			"10.0.0.20:5001",
@@ -1024,7 +1024,7 @@ func TestGenerateTransportServerConfig_ProducesValidConfigOnValidInputForExterna
 						Name:        "tcp-app",
 						Service:     "tcp-app-svc",
 						Port:        5001,
-						MaxFails:    intPointer(3),
+						MaxFails:    new(3),
 						FailTimeout: "40s",
 					},
 				},
@@ -1122,7 +1122,7 @@ func TestGenerateTransportServerConfig_GeneratesWarningOnNotConfiguredResolver(t
 						Name:        "tcp-app",
 						Service:     "tcp-app-svc",
 						Port:        5001,
-						MaxFails:    intPointer(3),
+						MaxFails:    new(3),
 						FailTimeout: "40s",
 					},
 				},
@@ -1214,7 +1214,7 @@ func TestGenerateTransportServerConfig_UsesNotExistignSocketOnNotPlusAndNoEndpoi
 						Name:        "tcp-app",
 						Service:     "tcp-app-svc",
 						Port:        5001,
-						MaxFails:    intPointer(3),
+						MaxFails:    new(3),
 						FailTimeout: "40s",
 					},
 				},
@@ -1312,7 +1312,7 @@ func TestGenerateTransportServerConfigForTCPWithTLSWithHost(t *testing.T) {
 						Name:        "tcp-app",
 						Service:     "tcp-app-svc",
 						Port:        5001,
-						MaxFails:    intPointer(3),
+						MaxFails:    new(3),
 						FailTimeout: "40s",
 					},
 				},
@@ -1428,7 +1428,7 @@ func TestGenerateTransportServerConfigForTCPWithTLS(t *testing.T) {
 						Name:        "tcp-app",
 						Service:     "tcp-app-svc",
 						Port:        5001,
-						MaxFails:    intPointer(3),
+						MaxFails:    new(3),
 						FailTimeout: "40s",
 					},
 				},

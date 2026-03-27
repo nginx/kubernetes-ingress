@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
 	"github.com/stretchr/testify/assert"
 
 	v1 "k8s.io/api/core/v1"
@@ -854,7 +853,7 @@ func TestParseMGMTConfigMapEnforceInitialReport(t *testing.T) {
 				},
 			},
 			want: &MGMTConfigParams{
-				EnforceInitialReport: commonhelpers.BoolToPointerBool(false),
+				EnforceInitialReport: new(false),
 				Secrets: MGMTSecrets{
 					License: "license-token",
 				},
@@ -869,7 +868,7 @@ func TestParseMGMTConfigMapEnforceInitialReport(t *testing.T) {
 				},
 			},
 			want: &MGMTConfigParams{
-				EnforceInitialReport: commonhelpers.BoolToPointerBool(true),
+				EnforceInitialReport: new(true),
 				Secrets: MGMTSecrets{
 					License: "license-token",
 				},
@@ -913,7 +912,7 @@ func TestParseMGMTConfigMapSSLVerify(t *testing.T) {
 				},
 			},
 			want: &MGMTConfigParams{
-				SSLVerify: commonhelpers.BoolToPointerBool(false),
+				SSLVerify: new(false),
 				Secrets: MGMTSecrets{
 					License: "license-token",
 				},
@@ -928,7 +927,7 @@ func TestParseMGMTConfigMapSSLVerify(t *testing.T) {
 				},
 			},
 			want: &MGMTConfigParams{
-				SSLVerify: commonhelpers.BoolToPointerBool(true),
+				SSLVerify: new(true),
 				Secrets: MGMTSecrets{
 					License: "license-token",
 				},
@@ -1255,7 +1254,7 @@ func TestParseMGMTConfigMapResolverIPV6(t *testing.T) {
 				},
 			},
 			want: &MGMTConfigParams{
-				ResolverIPV6: commonhelpers.BoolToPointerBool(false),
+				ResolverIPV6: new(false),
 				Secrets: MGMTSecrets{
 					License: "license-token",
 				},
@@ -1270,7 +1269,7 @@ func TestParseMGMTConfigMapResolverIPV6(t *testing.T) {
 				},
 			},
 			want: &MGMTConfigParams{
-				ResolverIPV6: commonhelpers.BoolToPointerBool(true),
+				ResolverIPV6: new(true),
 				Secrets: MGMTSecrets{
 					License: "license-token",
 				},
@@ -1890,7 +1889,7 @@ func TestParseZoneSyncResolverIPV6MapResolverIPV6(t *testing.T) {
 			want: &ZoneSync{
 				Enable:            true,
 				Port:              12345,
-				ResolverIPV6:      commonhelpers.BoolToPointerBool(true),
+				ResolverIPV6:      new(true),
 				ResolverAddresses: []string{"example.com"},
 			},
 			msg: "zone-sync-resolver-ipv6 set to true",
@@ -1907,7 +1906,7 @@ func TestParseZoneSyncResolverIPV6MapResolverIPV6(t *testing.T) {
 			want: &ZoneSync{
 				Enable:            true,
 				Port:              12345,
-				ResolverIPV6:      commonhelpers.BoolToPointerBool(false),
+				ResolverIPV6:      new(false),
 				ResolverAddresses: []string{"example.com"},
 			},
 			msg: "zone-sync-resolver-ipv6 set to false",

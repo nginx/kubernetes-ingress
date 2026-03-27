@@ -6,8 +6,6 @@ import (
 	"reflect"
 	"sort"
 
-	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
-
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -159,8 +157,8 @@ func (lbc *LoadBalancerController) syncZoneSyncHeadlessService(svcName string) e
 						Kind:               "ConfigMap",
 						Name:               lbc.configMap.Name,
 						UID:                lbc.configMap.UID,
-						Controller:         commonhelpers.BoolToPointerBool(true),
-						BlockOwnerDeletion: commonhelpers.BoolToPointerBool(true),
+						Controller:         new(true),
+						BlockOwnerDeletion: new(true),
 					},
 				},
 			},

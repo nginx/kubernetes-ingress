@@ -10,7 +10,6 @@ import (
 	"text/template"
 
 	"github.com/gkampitakis/go-snaps/snaps"
-	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
 )
@@ -3734,7 +3733,7 @@ var (
 			Domain:            "nginx-ingress-headless.nginx-ingress.svc.cluster.local",
 			ResolverAddresses: []string{"example.com"},
 			ResolverValid:     "20s",
-			ResolverIPV6:      commonhelpers.BoolToPointerBool(false),
+			ResolverIPV6:      new(false),
 		},
 	}
 

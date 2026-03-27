@@ -32,9 +32,9 @@ func TestValidateVirtualServer(t *testing.T) {
 					Service:   "service-1",
 					LBMethod:  "random",
 					Port:      80,
-					MaxFails:  createPointerFromInt(8),
-					MaxConns:  createPointerFromInt(16),
-					Keepalive: createPointerFromInt(32),
+					MaxFails:  new(8),
+					MaxConns:  new(16),
+					Keepalive: new(32),
 					Type:      "grpc",
 				},
 				{
@@ -89,9 +89,9 @@ func makeVirtualServer() v1.VirtualServer {
 					Service:   "service-1",
 					LBMethod:  "random",
 					Port:      80,
-					MaxFails:  createPointerFromInt(8),
-					MaxConns:  createPointerFromInt(16),
-					Keepalive: createPointerFromInt(32),
+					MaxFails:  new(8),
+					MaxConns:  new(16),
+					Keepalive: new(32),
 					Type:      "grpc",
 				},
 				{
@@ -142,7 +142,7 @@ func TestValidateFailsOnMissingBackupName(t *testing.T) {
 
 	vs := makeVirtualServer()
 	// setup only backup port, missing backup name
-	vs.Spec.Upstreams[1].BackupPort = createPointerFromUInt16(8080)
+	vs.Spec.Upstreams[1].BackupPort = new(uint16(8080))
 
 	vsv := &VirtualServerValidator{isPlus: true, isDosEnabled: true}
 	err := vsv.ValidateVirtualServer(&vs)
@@ -162,7 +162,7 @@ func TestValidateFailsOnNotSupportedLBMethodForBackup(t *testing.T) {
 
 			vs := makeVirtualServer()
 			vs.Spec.Upstreams[1].Backup = "backup-service"
-			vs.Spec.Upstreams[1].BackupPort = createPointerFromUInt16(8080)
+			vs.Spec.Upstreams[1].BackupPort = new(uint16(8080))
 
 			// Not supported load balancing method
 			vs.Spec.Upstreams[1].LBMethod = lbMethod
@@ -181,7 +181,7 @@ func TestValidateBackup(t *testing.T) {
 
 	vs := makeVirtualServer()
 	vs.Spec.Upstreams[1].Backup = "backup-service"
-	vs.Spec.Upstreams[1].BackupPort = createPointerFromUInt16(8080)
+	vs.Spec.Upstreams[1].BackupPort = new(uint16(8080))
 
 	vsv := &VirtualServerValidator{isPlus: true, isDosEnabled: true}
 	err := vsv.ValidateVirtualServer(&vs)
@@ -195,7 +195,7 @@ func TestValidateBackupRejectsCrossNamespace(t *testing.T) {
 
 	vs := makeVirtualServer()
 	vs.Spec.Upstreams[1].Backup = "external-ns/backup-service"
-	vs.Spec.Upstreams[1].BackupPort = createPointerFromUInt16(8080)
+	vs.Spec.Upstreams[1].BackupPort = new(uint16(8080))
 
 	vsv := &VirtualServerValidator{isPlus: true, isDosEnabled: true}
 	err := vsv.ValidateVirtualServer(&vs)
@@ -427,7 +427,7 @@ func TestValidateTLS(t *testing.T) {
 			Secret: "my-secret",
 			Redirect: &v1.TLSRedirect{
 				Enable:  true,
-				Code:    createPointerFromInt(302),
+				Code:    new(302),
 				BasedOn: "scheme",
 			},
 		},
@@ -435,7 +435,7 @@ func TestValidateTLS(t *testing.T) {
 			Secret: "my-secret",
 			Redirect: &v1.TLSRedirect{
 				Enable: true,
-				Code:   createPointerFromInt(307),
+				Code:   new(307),
 			},
 		},
 		{
@@ -466,7 +466,7 @@ func TestValidateTLS(t *testing.T) {
 			Secret: "my-secret",
 			Redirect: &v1.TLSRedirect{
 				Enable:  true,
-				Code:    createPointerFromInt(305),
+				Code:    new(305),
 				BasedOn: "scheme",
 			},
 		},
@@ -474,7 +474,7 @@ func TestValidateTLS(t *testing.T) {
 			Secret: "my-secret",
 			Redirect: &v1.TLSRedirect{
 				Enable:  true,
-				Code:    createPointerFromInt(301),
+				Code:    new(301),
 				BasedOn: "invalidScheme",
 			},
 		},
@@ -548,7 +548,7 @@ func TestValidateUpstreams(t *testing.T) {
 					ProxyNextUpstream:        "error timeout",
 					ProxyNextUpstreamTimeout: "10s",
 					ProxyNextUpstreamTries:   5,
-					MaxConns:                 createPointerFromInt(16),
+					MaxConns:                 new(16),
 					Type:                     "grpc",
 				},
 				{
@@ -721,7 +721,7 @@ func TestValidateUpstreamsFails(t *testing.T) {
 					Name:     "upstream1",
 					Service:  "test-1",
 					Port:     80,
-					MaxConns: createPointerFromInt(-1),
+					MaxConns: new(-1),
 				},
 			},
 			expectedUpstreamNames: map[string]sets.Empty{
@@ -2830,11 +2830,11 @@ func TestValidatePositiveIntOrZeroFromPointer(t *testing.T) {
 			msg:    "valid (nil)",
 		},
 		{
-			number: createPointerFromInt(0),
+			number: new(0),
 			msg:    "valid (0)",
 		},
 		{
-			number: createPointerFromInt(1),
+			number: new(1),
 			msg:    "valid (1)",
 		},
 	}
@@ -2850,7 +2850,7 @@ func TestValidatePositiveIntOrZeroFromPointer(t *testing.T) {
 
 func TestValidatePositiveIntOrZeroFromPointerFails(t *testing.T) {
 	t.Parallel()
-	number := createPointerFromInt(-1)
+	number := new(-1)
 	allErrs := validatePositiveIntOrZeroFromPointer(number, field.NewPath("int-field"))
 
 	if len(allErrs) == 0 {
@@ -2983,7 +2983,7 @@ func TestValidateGrpcUpstreamHealthCheck(t *testing.T) {
 						Value: "my.service",
 					},
 				},
-				GRPCStatus:  createPointerFromInt(12),
+				GRPCStatus:  new(12),
 				GRPCService: "tea-servicev2",
 			},
 		},
@@ -3024,7 +3024,7 @@ func TestValidateUpstreamHealthCheckFails(t *testing.T) {
 			hc: &v1.HealthCheck{
 				Enable:     true,
 				Path:       "/healthz",
-				GRPCStatus: createPointerFromInt(12),
+				GRPCStatus: new(12),
 			},
 		},
 		{
@@ -3072,7 +3072,7 @@ func TestValidateGrpcUpstreamHealthCheckFails(t *testing.T) {
 		{
 			hc: &v1.HealthCheck{
 				Enable:     true,
-				GRPCStatus: createPointerFromInt(400),
+				GRPCStatus: new(400),
 			},
 		},
 		{
