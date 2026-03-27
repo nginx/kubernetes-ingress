@@ -18,7 +18,7 @@ on:
       new_nginx_version:
         description: "Nginx version to release"
         required: false
-        default: "1.27.9 / R36 P3"
+        default: "1.29.7 / R36 P3"
       nap_version:
         description: "NAP versions (comma-separated: waf_version,waf_release_version) - leave empty to skip NAP update"
         required: false
