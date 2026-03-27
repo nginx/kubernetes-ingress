@@ -30,7 +30,7 @@ Run the below command to generate a ConfigMap with the contents of the `oidc.con
 **NOTE** The ConfigMap must be deployed in the same `namespace` as the F5 NGINX Ingress Controller.
 
 ```console
-kubectl create configmap oidc-config-map --from-literal=oidc.conf="$(curl -k https://raw.githubusercontent.com/nginxinc/kubernetes-ingress/v3.4.3/internal/configs/oidc/oidc.conf)"
+kubectl create configmap oidc-config-map --from-literal=oidc.conf="$(curl -k https://raw.githubusercontent.com/nginxinc/kubernetes-ingress/v3.3.2/internal/configs/oidc/oidc.conf)"
 ```
 
 Use the `kubectl describe` command to confirm the contents of the ConfigMap are correct.

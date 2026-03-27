@@ -53,7 +53,7 @@ Here is a breakdown of what this Ingress resource definition means:
   - The rule with the path `/coffee` instructs NGINX to distribute the requests with the `/coffee` URI among the pods of the *coffee* service, which is deployed with the name `coffee‑svc` in the cluster.
   - Both rules instruct NGINX to distribute the requests to `port 80` of the corresponding service (the `servicePort` field).
 
-> For complete instructions on deploying the Ingress and Secret resources in the cluster, see the [complete example](https://github.com/nginxinc/kubernetes-ingress/tree/v3.4.3/examples/ingress-resources/complete-example) in our GitHub repository.
+> For complete instructions on deploying the Ingress and Secret resources in the cluster, see the [complete example](https://github.com/nginxinc/kubernetes-ingress/tree/v3.3.2/examples/ingress-resources/complete-example) in our GitHub repository.
 
 > To learn more about the Ingress resource, see the [Ingress resource documentation](https://kubernetes.io/docs/concepts/services-networking/ingress/) in the Kubernetes docs.
 

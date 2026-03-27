@@ -45,10 +45,10 @@ kubectl apply -f crds/
 Alternatively, CRDs can be upgraded without pulling the chart by running:
 
 ```console
-kubectl apply -f https://raw.githubusercontent.com/nginxinc/kubernetes-ingress/v3.4.3/deploy/crds.yaml
+kubectl apply -f https://raw.githubusercontent.com/nginxinc/kubernetes-ingress/v3.3.2/deploy/crds.yaml
 ```
 
-In the above command, `v3.4.3` represents the version of NGINX Ingress Controller release rather than the Helm chart version.
+In the above command, `v3.3.2` represents the version of NGINX Ingress Controller release rather than the Helm chart version.
 
 {{<note>}}The following warning is expected and can be ignored: `Warning: kubectl apply should be used on resource created by either kubectl create --save-config or kubectl apply`.
 
@@ -74,13 +74,13 @@ To install the chart with the release name my-release (my-release is the name th
 - For NGINX:
 
     ```shell
-    helm install my-release oci://ghcr.io/nginxinc/charts/nginx-ingress --version 1.1.3
+    helm install my-release oci://ghcr.io/nginxinc/charts/nginx-ingress --version 1.0.2
     ```
 
 - For NGINX Plus: (assuming you have pushed the Ingress Controller image `nginx-plus-ingress` to your private registry `myregistry.example.com`)
 
     ```shell
-    helm install my-release oci://ghcr.io/nginxinc/charts/nginx-ingress --version 1.1.3 --set controller.image.repository=myregistry.example.com/nginx-plus-ingress --set controller.nginxplus=true
+    helm install my-release oci://ghcr.io/nginxinc/charts/nginx-ingress --version 1.0.2 --set controller.image.repository=myregistry.example.com/nginx-plus-ingress --set controller.nginxplus=true
     ```
 
 This will install the latest `edge` version of the Ingress Controller from GitHub Container Registry. If you prefer to use Docker Hub, you can replace `ghcr.io/nginxinc/charts/nginx-ingress` with `registry-1.docker.io/nginxcharts/nginx-ingress`.
@@ -92,7 +92,7 @@ Helm does not upgrade the CRDs during a release upgrade. Before you upgrade a re
 To upgrade the release `my-release`:
 
 ```shell
-helm upgrade my-release oci://ghcr.io/nginxinc/charts/nginx-ingress --version 1.1.3
+helm upgrade my-release oci://ghcr.io/nginxinc/charts/nginx-ingress --version 1.0.2
 ```
 
 ### Uninstalling the Chart
@@ -129,7 +129,7 @@ This step is required if you're installing the chart using its sources. Addition
 1. Pull the chart sources:
 
     ```shell
-    helm pull oci://ghcr.io/nginxinc/charts/nginx-ingress --untar --version 1.1.3
+    helm pull oci://ghcr.io/nginxinc/charts/nginx-ingress --untar --version 1.0.2
     ```
 
 2. Change your working directory to nginx-ingress:
@@ -210,7 +210,7 @@ The steps you should follow depend on the Helm release name:
     Selector: app=nginx-ingress-nginx-ingress
     ```
 
-2. Checkout the latest available tag using `git checkout v3.4.3`
+2. Checkout the latest available tag using `git checkout v3.3.2`
 
 3. Navigate to `/kubernates-ingress/charts/nginx-ingress`
 
@@ -255,7 +255,7 @@ The steps you should follow depend on the Helm release name:
     Selector: app=<helm_release_name>-nginx-ingress
     ```
 
-2. Checkout the latest available tag using `git checkout v3.4.3`
+2. Checkout the latest available tag using `git checkout v3.3.2`
 
 3. Navigate to `/kubernates-ingress/charts/nginx-ingress`
 
@@ -318,7 +318,7 @@ The following tables lists the configurable parameters of the NGINX Ingress Cont
 | **controller.logLevel** | The log level of the Ingress Controller. | 1 |
 | **controller.image.digest** | The image digest of the Ingress Controller. | None |
 | **controller.image.repository** | The image repository of the Ingress Controller. | nginx/nginx-ingress |
-| **controller.image.tag** | The tag of the Ingress Controller image. | 3.4.3 |
+| **controller.image.tag** | The tag of the Ingress Controller image. | 3.3.2 |
 | **controller.image.pullPolicy** | The pull policy for the Ingress Controller image. | IfNotPresent |
 | **controller.lifecycle** | The lifecycle of the Ingress Controller pods. | {} |
 | **controller.customConfigMap** | The name of the custom ConfigMap used by the Ingress Controller. If set, then the default config is ignored. | "" |

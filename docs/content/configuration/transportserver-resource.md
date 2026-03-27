@@ -10,7 +10,7 @@ docs: "DOCS-598"
 
 The TransportServer resource allows you to configure TCP, UDP, and TLS Passthrough load balancing. The resource is implemented as a [Custom Resource](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/).
 
-This document is the reference documentation for the TransportServer resource. To see additional examples of using the resource for specific use cases, go to the [examples/custom-resources](https://github.com/nginxinc/kubernetes-ingress/tree/v3.4.3/examples/custom-resources) folder in our GitHub repo.
+This document is the reference documentation for the TransportServer resource. To see additional examples of using the resource for specific use cases, go to the [examples/custom-resources](https://github.com/nginxinc/kubernetes-ingress/tree/v3.3.2/examples/custom-resources) folder in our GitHub repo.
 
 ## Prerequisites
 

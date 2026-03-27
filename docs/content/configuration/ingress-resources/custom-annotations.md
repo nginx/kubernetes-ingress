@@ -23,7 +23,7 @@ Custom annotations allow you to add an annotation for an NGINX feature that is n
 
 ## Usage
 
-The Ingress Controller generates NGINX configuration for Ingress resources by executing a configuration template. See [NGINX template](https://github.com/nginxinc/kubernetes-ingress/blob/v3.4.3/internal/configs/version1/nginx.ingress.tmpl) or [NGINX Plus template](https://github.com/nginxinc/kubernetes-ingress/blob/v3.4.3/internal/configs/version1/nginx-plus.ingress.tmpl).
+The Ingress Controller generates NGINX configuration for Ingress resources by executing a configuration template. See [NGINX template](https://github.com/nginxinc/kubernetes-ingress/blob/v3.3.2/internal/configs/version1/nginx.ingress.tmpl) or [NGINX Plus template](https://github.com/nginxinc/kubernetes-ingress/blob/v3.3.2/internal/configs/version1/nginx-plus.ingress.tmpl).
 
 To support custom annotations, the template has access to the information about the Ingress resource - its *name*, *namespace* and *annotations*. It is possible to check if a particular annotation present in the Ingress resource and conditionally insert NGINX configuration directives at multiple NGINX contexts - `http`, `server`, `location` or `upstream`. Additionally, you can get the value that is set to the annotation.
 
@@ -144,4 +144,4 @@ deny all;
 
 ## Example
 
-See the [custom annotations example](https://github.com/nginxinc/kubernetes-ingress/blob/v3.4.3/examples/ingress-resources/custom-annotations).
+See the [custom annotations example](https://github.com/nginxinc/kubernetes-ingress/blob/v3.3.2/examples/ingress-resources/custom-annotations).

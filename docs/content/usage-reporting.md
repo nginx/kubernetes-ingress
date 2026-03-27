@@ -87,7 +87,7 @@ To make the credential available to Usage Reporting, we need to create a Kuberne
 
 If you need to update the basic-auth credentials for NGINX Management Suite in the future, update the `username` and `password` fields, and apply the changes by running the command again. Usage Reporting will automatically detect the changes, using the new username and password without redeployment.
 
-5. Download and save the deployment file [cluster-connector.yaml](https://raw.githubusercontent.com/nginxinc/kubernetes-ingress/v3.4.3/examples/shared-examples/usage-reporting/cluster-connector.yaml). Edit the following under the `args` section and then save the file:
+5. Download and save the deployment file [cluster-connector.yaml](https://raw.githubusercontent.com/nginxinc/kubernetes-ingress/v3.3.2/examples/shared-examples/usage-reporting/cluster-connector.yaml). Edit the following under the `args` section and then save the file:
 
    ```yaml
         args:

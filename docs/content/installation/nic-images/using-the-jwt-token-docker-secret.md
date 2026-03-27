@@ -78,7 +78,7 @@ spec:
     seccompProfile:
       type: RuntimeDefault
   containers:
-  - image: private-registry.nginx.com/nginx-ic/nginx-plus-ingress:3.4.3
+  - image: private-registry.nginx.com/nginx-ic/nginx-plus-ingress:3.3.2
     imagePullPolicy: IfNotPresent
     name: nginx-plus-ingress
 ```
@@ -118,7 +118,7 @@ The [Installation with Helm ]({{< relref "installation/installing-nic/installati
     repository: private-registry.nginx.com/nginx-ic/nginx-plus-ingress
 
     ## The version tag
-    tag: 3.4.3
+    tag: 3.3.2
 
     serviceAccount:
         ## The annotations of the service account of the Ingress Controller pods.
@@ -150,7 +150,7 @@ If the namespace does not exist, `--create-namespace` will create it. Using `-f 
 If you want to install NGINX Ingress Controller using the charts method, the following is an example of using the command line to pass the required arguments using the `set` parameter.
 
 ```shell
-helm install my-release -n nginx-ingress oci://ghcr.io/nginxinc/charts/nginx-ingress --version 1.1.3 --set controller.image.repository=private-registry.nginx.com/nginx-ic/nginx-plus-ingress --set controller.image.tag=3.4.3 --set controller.nginxplus=true --set controller.serviceAccount.imagePullSecretName=regcred
+helm install my-release -n nginx-ingress oci://ghcr.io/nginxinc/charts/nginx-ingress --version 1.0.2 --set controller.image.repository=private-registry.nginx.com/nginx-ic/nginx-plus-ingress --set controller.image.tag=3.3.2 --set controller.nginxplus=true --set controller.serviceAccount.imagePullSecretName=regcred
 ```
 You can also use the certificate and key from the MyF5 portal and the Docker registry API to list the available image tags for the repositories, for example:
 
@@ -160,9 +160,9 @@ You can also use the certificate and key from the MyF5 portal and the Docker reg
    {
     "name": "nginx-ic/nginx-plus-ingress",
     "tags": [
-        "3.4.3-alpine",
-        "3.4.3-ubi",
-        "3.4.3"
+        "3.3.2-alpine",
+        "3.3.2-ubi",
+        "3.3.2"
     ]
     }
 
@@ -170,8 +170,8 @@ You can also use the certificate and key from the MyF5 portal and the Docker reg
    {
     "name": "nginx-ic-nap/nginx-plus-ingress",
     "tags": [
-        "3.4.3-ubi",
-        "3.4.3"
+        "3.3.2-ubi",
+        "3.3.2"
     ]
     }
 
@@ -179,8 +179,8 @@ You can also use the certificate and key from the MyF5 portal and the Docker reg
    {
     "name": "nginx-ic-dos/nginx-plus-ingress",
     "tags": [
-        "3.4.3-ubi",
-        "3.4.3"
+        "3.3.2-ubi",
+        "3.3.2"
     ]
     }
 ```
