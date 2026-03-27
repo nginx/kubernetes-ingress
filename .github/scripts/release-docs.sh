@@ -127,6 +127,9 @@ fi
 
 cd ${DOCS_FOLDER} || exit 2
 
+# Configure git credential helper so git push can authenticate via GH_TOKEN
+$gh_bin auth setup-git
+
 if [ "${DEBUG}" != "false" ]; then
     echo "DEBUG: Cloned doc repo to ${DOCS_FOLDER} and changed directory"
 fi

@@ -58,6 +58,13 @@ jobs:
         run: |
           IFS=',' read -r current_version current_helm_version current_operator_version <<< "${{ inputs.current_versions }}"
           IFS=',' read -r new_version new_helm_version new_operator_version <<< "${{ inputs.new_versions }}"
+          # Trim whitespace from parsed values (users may type "5.4.0, 2.5.0, 3.5.0")
+          current_version=$(echo "${current_version}" | xargs)
+          current_helm_version=$(echo "${current_helm_version}" | xargs)
+          current_operator_version=$(echo "${current_operator_version}" | xargs)
+          new_version=$(echo "${new_version}" | xargs)
+          new_helm_version=$(echo "${new_helm_version}" | xargs)
+          new_operator_version=$(echo "${new_operator_version}" | xargs)
           echo "current_version=${current_version}" >> $GITHUB_OUTPUT
           echo "current_helm_version=${current_helm_version}" >> $GITHUB_OUTPUT
           echo "current_operator_version=${current_operator_version}" >> $GITHUB_OUTPUT
@@ -81,6 +88,8 @@ jobs:
           # waf_release_version is shared by compiler, config manager, and enforcer containers
           if [ -n "${{ inputs.nap_version }}" ]; then
             IFS=',' read -r nap_waf_version nap_waf_release_version <<< "${{ inputs.nap_version }}"
+            nap_waf_version=$(echo "${nap_waf_version}" | xargs)
+            nap_waf_release_version=$(echo "${nap_waf_release_version}" | xargs)
             echo "nap_waf_version=${nap_waf_version}" >> $GITHUB_OUTPUT
             echo "nap_waf_release_version=${nap_waf_release_version}" >> $GITHUB_OUTPUT
           fi
@@ -150,6 +159,9 @@ jobs:
         id: parse
         run: |
           IFS=',' read -r new_version new_helm_version new_operator_version <<< "${{ inputs.new_versions }}"
+          new_version=$(echo "${new_version}" | xargs)
+          new_helm_version=$(echo "${new_helm_version}" | xargs)
+          new_operator_version=$(echo "${new_operator_version}" | xargs)
           echo "new_version=${new_version}" >> $GITHUB_OUTPUT
           echo "new_helm_version=${new_helm_version}" >> $GITHUB_OUTPUT
           echo "new_operator_version=${new_operator_version}" >> $GITHUB_OUTPUT
@@ -158,6 +170,8 @@ jobs:
           # waf_release_version is shared by compiler, config manager, and enforcer containers
           if [ -n "${{ inputs.nap_version }}" ]; then
             IFS=',' read -r nap_waf_version nap_waf_release_version <<< "${{ inputs.nap_version }}"
+            nap_waf_version=$(echo "${nap_waf_version}" | xargs)
+            nap_waf_release_version=$(echo "${nap_waf_release_version}" | xargs)
             echo "nap_waf_version=${nap_waf_version}" >> $GITHUB_OUTPUT
             echo "nap_waf_release_version=${nap_waf_release_version}" >> $GITHUB_OUTPUT
           fi
