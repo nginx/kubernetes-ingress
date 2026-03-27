@@ -13,6 +13,9 @@ import (
 // PoliciesAnnotation is the annotation where the list of policies to apply to an Ingress is specified.
 const PoliciesAnnotation = "nginx.org/policies"
 
+// PoliciesAnnotationPlus is the plus-only annotation where the list of policies to apply to an Ingress is specified.
+const PoliciesAnnotationPlus = "nginx.com/policies"
+
 // JWTKeyAnnotation is the annotation where the Secret with a JWK is specified.
 const JWTKeyAnnotation = "nginx.com/jwt-key"
 

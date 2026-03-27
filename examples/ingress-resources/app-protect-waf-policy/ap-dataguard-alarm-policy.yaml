@@ -1,0 +1,34 @@
+apiVersion: appprotect.f5.com/v1beta1
+kind: APPolicy
+metadata:
+  name: dataguard-alarm
+spec:
+  policy:
+    signature-requirements:
+    - tag: Fruits
+    signature-sets:
+    - name: apple_sigs
+      block: true
+      signatureSet:
+        filter:
+          tagValue: Fruits
+          tagFilter: eq
+    applicationLanguage: utf-8
+    blocking-settings:
+      violations:
+      - alarm: true
+        block: false
+        name: VIOL_DATA_GUARD
+    data-guard:
+      creditCardNumbers: true
+      enabled: true
+      enforcementMode: ignore-urls-in-list
+      enforcementUrls: []
+      lastCcnDigitsToExpose: 4
+      lastSsnDigitsToExpose: 4
+      maskData: true
+      usSocialSecurityNumbers: true
+    enforcementMode: blocking
+    name: dataguard-alarm
+    template:
+      name: POLICY_TEMPLATE_NGINX_BASE

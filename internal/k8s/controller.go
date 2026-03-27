@@ -2306,15 +2306,38 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 		ingEx.SecretRefs[secretName] = secretRef
 	}
 
-	var policyNames string
 	var policyRefs []conf_v1.PolicyReference
-	if ingEx.Ingress.Annotations[configs.PoliciesAnnotation] != "" {
-		policyNames = ingEx.Ingress.Annotations[configs.PoliciesAnnotation]
-		policyRefs = k8spolicies.GetPolicyRefsFromAnnotation(policyNames, ing.Namespace)
+	seenPolicyRefs := make(map[string]bool)
+	for _, annotation := range []string{configs.PoliciesAnnotation, configs.PoliciesAnnotationPlus} {
+		if policyNames := strings.TrimSpace(ingEx.Ingress.Annotations[annotation]); policyNames != "" {
+			// Merge refs from both supported annotations and de-duplicate by effective namespace/name.
+			for _, ref := range k8spolicies.GetPolicyRefsFromAnnotation(policyNames, ing.Namespace) {
+				namespace := ref.Namespace
+				if namespace == "" {
+					namespace = ing.Namespace
+				}
+				key := fmt.Sprintf("%s/%s", namespace, ref.Name)
+				if seenPolicyRefs[key] {
+					continue
+				}
+				seenPolicyRefs[key] = true
+				policyRefs = append(policyRefs, ref)
+			}
+		}
 	}
 	policies, policyErrors := lbc.getPolicies(policyRefs, ing.Namespace)
 	if len(policyErrors) > 0 {
 		for _, err := range policyErrors {
+			msg := fmt.Sprintf("Policy error for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
+			nl.Warnf(lbc.Logger, "%s", msg)
+			ingEx.PolicyWarnings = append(ingEx.PolicyWarnings, msg)
+		}
+	}
+
+	if lbc.isNginxPlus && lbc.appProtectEnabled {
+		ingEx.ApPolRefs = make(map[string]*unstructured.Unstructured)
+		ingEx.LogConfRefs = make(map[string]*unstructured.Unstructured)
+		if err := lbc.addWAFPolicyRefs(ingEx.ApPolRefs, ingEx.LogConfRefs, policies); err != nil {
 			msg := fmt.Sprintf("Policy error for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
 			nl.Warnf(lbc.Logger, "%s", msg)
 			ingEx.PolicyWarnings = append(ingEx.PolicyWarnings, msg)

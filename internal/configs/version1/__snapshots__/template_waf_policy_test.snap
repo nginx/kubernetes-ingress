@@ -1,0 +1,104 @@
+
+[TestExecuteTemplate_ForIngressForNGINXPlusWithLocationWAFBundle - 1]
+# configuration for default/ing
+upstream ups {
+    zone ups 512k;
+    server 127.0.0.1:80 max_fails=1 fail_timeout=10s max_conns=0;
+}
+
+
+server {
+    listen 80;listen [::]:80;
+
+    server_tokens "on";
+
+    server_name example.com;
+
+    status_zone example.com;
+    set $resource_type "ingress";
+    set $resource_name "ing";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location / {
+        set $service "svc";
+        status_zone "svc";
+        app_protect_enable on;
+        app_protect_policy_file /etc/nginx/waf/bundles/wafv5.tgz;
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://ups;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusWithServerWAFPolicy - 1]
+# configuration for default/ing
+upstream ups {
+    zone ups 512k;
+    server 127.0.0.1:80 max_fails=1 fail_timeout=10s max_conns=0;
+}
+
+
+server {
+    listen 80;listen [::]:80;
+
+    server_tokens "on";
+
+    server_name example.com;
+
+    status_zone example.com;
+    set $resource_type "ingress";
+    set $resource_name "ing";
+    set $resource_namespace "default";
+    set $service "-";
+    app_protect_enable on;
+    app_protect_policy_file /etc/nginx/waf/nac-policies/default_policy;
+    app_protect_security_log_enable on;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/default_logconf syslog:server=127.0.0.1:514;
+
+    
+
+    
+    location / {
+        set $service "svc";
+        status_zone "svc";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://ups;
+        
+    }
+    
+}
+
+---

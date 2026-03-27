@@ -1350,6 +1350,22 @@ func TestUpdateApResources(t *testing.T) {
 			},
 		},
 	}
+	policyApPol := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"namespace": "pol-ns",
+				"name":      "pol-name",
+			},
+		},
+	}
+	policyLogConf := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"namespace": "pol-ns",
+				"name":      "pol-log",
+			},
+		},
+	}
 	appProtectLogDst := "test-dst"
 
 	tests := []struct {
@@ -1394,6 +1410,21 @@ func TestUpdateApResources(t *testing.T) {
 				AppProtectLogconfs: []string{"/etc/nginx/waf/nac-logconfs/test-ns_test-name test-dst"},
 			},
 			msg: "app protect log conf",
+		},
+		{
+			ingEx: &IngressEx{
+				Ingress: &networking.Ingress{
+					ObjectMeta: meta_v1.ObjectMeta{},
+				},
+				ApPolRefs: map[string]*unstructured.Unstructured{
+					"pol-ns/pol-name": policyApPol,
+				},
+				LogConfRefs: map[string]*unstructured.Unstructured{
+					"pol-ns/pol-log": policyLogConf,
+				},
+			},
+			expected: &AppProtectResources{},
+			msg:      "policy-based app protect resources",
 		},
 		{
 			ingEx: &IngressEx{

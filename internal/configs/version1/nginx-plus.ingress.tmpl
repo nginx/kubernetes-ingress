@@ -111,6 +111,21 @@ server {
 	set $resource_namespace "{{$.Ingress.Namespace}}";
 	set $service "-";
 
+	{{- with $server.WAF }}
+	app_protect_enable {{ .Enable }};
+	{{- if .ApPolicy }}
+	app_protect_policy_file {{ .ApPolicy }};
+	{{- end }}
+	{{- if .ApBundle }}
+	app_protect_policy_file {{ .ApBundle }};
+	{{- end }}
+	{{- if .ApSecurityLogEnable }}
+	app_protect_security_log_enable on;
+	{{- range $logconf := .ApLogConf }}
+	app_protect_security_log {{ $logconf }};
+	{{- end }}
+	{{- end }}
+	{{- else }}
 	{{- if $server.AppProtectEnable}}
 	app_protect_enable {{$server.AppProtectEnable}};
 	{{if $server.AppProtectPolicy}}app_protect_policy_file {{$server.AppProtectPolicy}};{{end}}
@@ -120,6 +135,7 @@ server {
 	{{range $AppProtectLogConf := $server.AppProtectLogConfs}}app_protect_security_log {{$AppProtectLogConf}};
 	{{end}}
 	{{- end}}
+	{{- end }}
 
 	{{- if $server.AppProtectDosEnable}}
 	app_protect_dos_enable {{$server.AppProtectDosEnable}};
@@ -253,6 +269,21 @@ server {
 		{{- end }}
 		{{- if gt (len $location.Deny) 0 }}
 		allow all;
+		{{- end }}
+		{{- with $location.WAF }}
+		app_protect_enable {{ .Enable }};
+		{{- if .ApPolicy }}
+		app_protect_policy_file {{ .ApPolicy }};
+		{{- end }}
+		{{- if .ApBundle }}
+		app_protect_policy_file {{ .ApBundle }};
+		{{- end }}
+		{{- if .ApSecurityLogEnable }}
+		app_protect_security_log_enable on;
+		{{- range $logconf := .ApLogConf }}
+		app_protect_security_log {{ $logconf }};
+		{{- end }}
+		{{- end }}
 		{{- end }}
 		{{- if $location.RewriteTarget}}
 		rewrite {{ makeRewritePattern $location $.Ingress.Annotations }} {{$location.RewriteTarget}} break;

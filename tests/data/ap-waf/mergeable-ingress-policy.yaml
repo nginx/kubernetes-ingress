@@ -1,0 +1,31 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: waf-policy-ingress-master
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.org/mergeable-ingress-type: "master"
+spec:
+  rules:
+  - host: waf-policy-mergeable.example.com
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: waf-policy-ingress-minion
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.org/mergeable-ingress-type: "minion"
+    nginx.com/policies: "waf-policy"
+spec:
+  rules:
+  - host: waf-policy-mergeable.example.com
+    http:
+      paths:
+      - path: /backend1
+        pathType: Prefix
+        backend:
+          service:
+            name: backend1-svc
+            port:
+              number: 80

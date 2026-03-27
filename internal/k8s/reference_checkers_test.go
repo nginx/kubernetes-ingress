@@ -462,6 +462,20 @@ func TestPolicyIsReferencedByIngress(t *testing.T) {
 				ObjectMeta: v1.ObjectMeta{
 					Namespace: "default",
 					Annotations: map[string]string{
+						configs.PoliciesAnnotationPlus: "test-policy",
+					},
+				},
+			},
+			policyNamespace: "default",
+			policyName:      "test-policy",
+			expected:        true,
+			msg:             "policy is referenced via nginx.com/policies",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+					Annotations: map[string]string{
 						configs.PoliciesAnnotation: "test-policy,default/test-policy2,test-policy3",
 					},
 				},
@@ -631,6 +645,20 @@ func TestPolicyIsReferencedByMinion(t *testing.T) {
 			policyName:      "test-policy2",
 			expected:        true,
 			msg:             "policy is one of multiple policies referenced by name only",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+					Annotations: map[string]string{
+						configs.PoliciesAnnotationPlus: "test-policy",
+					},
+				},
+			},
+			policyNamespace: "default",
+			policyName:      "test-policy",
+			expected:        true,
+			msg:             "policy is referenced via nginx.com/policies",
 		},
 		{
 			ing: &networking.Ingress{

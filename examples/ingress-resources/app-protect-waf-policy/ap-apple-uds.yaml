@@ -1,0 +1,18 @@
+apiVersion: appprotect.f5.com/v1beta1
+kind: APUserSig
+metadata:
+  name: apple
+spec:
+  signatures:
+  - accuracy: medium
+    attackType:
+      name: Brute Force Attack
+    description: Medium accuracy user defined signature with tag (Fruits)
+    name: Apple_medium_acc
+    risk: medium
+    rule: content:"apple"; nocase;
+    signatureType: request
+    systems:
+    - name: Microsoft Windows
+    - name: Unix/Linux
+  tag: Fruits
