@@ -6,6 +6,6 @@ spec:
   host: path-matching-vsr.example.com
   routes:
   - path: /images/
-    route: default/prefix-routes
+    route: prefix-routes
   - path: "^~/static/"
-    route: default/longest-prefix-routes
+    route: longest-prefix-routes

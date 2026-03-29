@@ -131,7 +131,7 @@ curl --resolve path-matching.example.com:$IC_HTTP_PORT:$IC_IP http://path-matchi
 
 ```text
 CASE-SENSITIVE REGEX MATCH (~)
-Path Directive: ~ \.jpg$
+Path Directive: ~ \.jpg
 Request URI:    /images/photo.jpg
 Regex match wins over a regular prefix but not over = or ^~ matches.
 ```
@@ -145,7 +145,7 @@ curl --resolve path-matching.example.com:$IC_HTTP_PORT:$IC_IP http://path-matchi
 
 ```text
 CASE-INSENSITIVE REGEX MATCH (~*)
-Path Directive: ~* \.png$
+Path Directive: ~* \.png
 Request URI:    /images/photo.png
 Case-insensitive regex matches regardless of letter case (.png and .PNG both match).
 ```
@@ -158,7 +158,7 @@ curl --resolve path-matching.example.com:$IC_HTTP_PORT:$IC_IP http://path-matchi
 
 ```text
 CASE-INSENSITIVE REGEX MATCH (~*)
-Path Directive: ~* \.png$
+Path Directive: ~* \.png
 Request URI:    /images/photo.PNG
 Case-insensitive regex matches regardless of letter case (.png and .PNG both match).
 ```
@@ -202,7 +202,7 @@ curl --resolve path-matching.example.com:$IC_HTTP_PORT:$IC_IP http://path-matchi
 
 ```text
 CASE-SENSITIVE REGEX MATCH (~)
-Path Directive: ~ \.jpg$
+Path Directive: ~ \.jpg
 Request URI:    /other/photo.jpg
 Regex match wins over a regular prefix but not over = or ^~ matches.
 ```

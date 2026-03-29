@@ -22,13 +22,13 @@ spec:
       return:
         code: 200
         type: text/plain
-        body: 'CASE-SENSITIVE REGEX MATCH (~)\nPath Directive: ~ \\.jpg$\nRequest URI:    ${request_uri}\nRegex match wins over a regular prefix but not over = or ^~ matches.\n'
+        body: 'CASE-SENSITIVE REGEX MATCH (~)\nPath Directive: ~ \\.jpg\nRequest URI:    ${request_uri}\nRegex match wins over a regular prefix but not over = or ^~ matches.\n'
   - path: "~* \\.png$"
     action:
       return:
         code: 200
         type: text/plain
-        body: 'CASE-INSENSITIVE REGEX MATCH (~*)\nPath Directive: ~* \\.png$\nRequest URI:    ${request_uri}\nCase-insensitive regex matches regardless of letter case (.png and .PNG both match).\n'
+        body: 'CASE-INSENSITIVE REGEX MATCH (~*)\nPath Directive: ~* \\.png\nRequest URI:    ${request_uri}\nCase-insensitive regex matches regardless of letter case (.png and .PNG both match).\n'
   - path: /images/
     action:
       return:
