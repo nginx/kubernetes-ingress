@@ -4533,6 +4533,59 @@ server {
 
 ---
 
+[TestVirtualServerForNginxWithAllPathTypes - 1]
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name path-types.example.com;
+
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+
+    
+
+    
+    location /images/ {
+        set $service "";
+
+        
+        set $default_connection_header close;
+    }
+    location =/images/logo.jpg {
+        set $service "";
+
+        
+        set $default_connection_header close;
+    }
+    location ^~ /images/static/ {
+        set $service "";
+
+        
+        set $default_connection_header close;
+    }
+    location ~ "\.jpg$" {
+        set $service "";
+
+        
+        set $default_connection_header close;
+    }
+    location ~* "\.png$" {
+        set $service "";
+
+        
+        set $default_connection_header close;
+    }
+}
+
+---
+
 [TestVirtualServerForNginxWithServiceBeforeRedirect - 1]
 
 upstream test-upstream {zone test-upstream 256k;
