@@ -1684,6 +1684,8 @@ func TestValidateRoutePath(t *testing.T) {
 		"~ /^foo.*\\.jpg",
 		"~* /^Bar.*\\.jpg",
 		"=/exact/match",
+		"^~/images",
+		"^~/path/subpath",
 	}
 
 	for _, path := range validPaths {
@@ -1698,6 +1700,9 @@ func TestValidateRoutePath(t *testing.T) {
 		"invalid",
 		// regex without preceding "~*" modifier
 		"^/foo.*\\.jpg",
+		// longest prefix match with invalid path characters
+		"^~/path with spaces",
+		"^~/{invalid",
 	}
 
 	for _, path := range invalidPaths {
@@ -2552,6 +2557,27 @@ func TestValidateVirtualServerRouteSubroutes(t *testing.T) {
 			vsPath: "=/test",
 			msg:    "valid exact route",
 		},
+		{
+			routes: []v1.Route{
+				{
+					Path: "^~/images/thumbnails",
+					Action: &v1.Action{
+						Pass: "test",
+					},
+				},
+				{
+					Path: "^~/images/full",
+					Action: &v1.Action{
+						Pass: "test",
+					},
+				},
+			},
+			upstreamNames: map[string]sets.Empty{
+				"test": {},
+			},
+			vsPath: "^~/images",
+			msg:    "valid longest prefix match with multiple subroutes",
+		},
 	}
 
 	vsv := &VirtualServerValidator{isPlus: false}
@@ -2743,6 +2769,21 @@ func TestValidateVirtualServerRouteSubroutesFails(t *testing.T) {
 			},
 			vsPath: "/test",
 			msg:    "prefix vs path with both regex and matching prefix subroute path",
+		},
+		{
+			routes: []v1.Route{
+				{
+					Path: "/images/thumbnails",
+					Action: &v1.Action{
+						Pass: "test-1",
+					},
+				},
+			},
+			upstreamNames: map[string]sets.Empty{
+				"test-1": {},
+			},
+			vsPath: "^~/images",
+			msg:    "longest prefix match vs path with plain prefix subroute path",
 		},
 	}
 
@@ -3518,6 +3559,10 @@ func TestIsRegexOrExactMatch(t *testing.T) {
 		{
 			path:     "=/exact/match",
 			expected: true,
+		},
+		{
+			path:     "^~/images",
+			expected: false,
 		},
 	}
 

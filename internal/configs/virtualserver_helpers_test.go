@@ -2671,6 +2671,14 @@ func TestGeneratePath(t *testing.T) {
 			path:     `~* *\\.PNG`,
 			expected: `~* "*\\.PNG"`,
 		},
+		{
+			path:     "^~/images",
+			expected: "^~ /images",
+		},
+		{
+			path:     "^~ /images",
+			expected: "^~ /images",
+		},
 	}
 
 	for _, test := range tests {
@@ -3139,6 +3147,13 @@ func TestGenerateProxyPassRewrite(t *testing.T) {
 				RewritePath: "/rewrite",
 			},
 			expected: "",
+		},
+		{
+			path: "^~/path",
+			proxy: &conf_v1.ActionProxy{
+				RewritePath: "/rewrite",
+			},
+			expected: "/rewrite",
 		},
 	}
 
