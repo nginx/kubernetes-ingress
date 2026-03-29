@@ -1686,6 +1686,8 @@ func TestValidateRoutePath(t *testing.T) {
 		"=/exact/match",
 		"^~/images",
 		"^~/path/subpath",
+		"^~ /images",
+		"^~ /path/subpath",
 	}
 
 	for _, path := range validPaths {
