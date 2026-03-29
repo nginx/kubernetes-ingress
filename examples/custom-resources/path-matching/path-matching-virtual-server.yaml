@@ -1,0 +1,37 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: path-matching
+spec:
+  host: path-matching.example.com
+  routes:
+  - path: "=/images/logo.jpg"
+    action:
+      return:
+        code: 200
+        type: text/plain
+        body: 'EXACT MATCH (=)\nPath Directive: =/images/logo.jpg\nRequest URI:    ${request_uri}\nExact match has the highest priority and stops all further searching.\n'
+  - path: "^~/images/static/"
+    action:
+      return:
+        code: 200
+        type: text/plain
+        body: 'LONGEST PREFIX MATCH (^~)\nPath Directive: ^~/images/static/\nRequest URI:    ${request_uri}\nThe ^~ modifier stops NGINX from checking regex locations when this prefix matches.\n'
+  - path: "~ \\.jpg$"
+    action:
+      return:
+        code: 200
+        type: text/plain
+        body: 'CASE-SENSITIVE REGEX MATCH (~)\nPath Directive: ~ \\.jpg$\nRequest URI:    ${request_uri}\nRegex match wins over a regular prefix but not over = or ^~ matches.\n'
+  - path: "~* \\.png$"
+    action:
+      return:
+        code: 200
+        type: text/plain
+        body: 'CASE-INSENSITIVE REGEX MATCH (~*)\nPath Directive: ~* \\.png$\nRequest URI:    ${request_uri}\nCase-insensitive regex matches regardless of letter case (.png and .PNG both match).\n'
+  - path: /images/
+    action:
+      return:
+        code: 200
+        type: text/plain
+        body: 'PREFIX MATCH\nPath Directive: /images/\nRequest URI:    ${request_uri}\nStandard prefix match has the lowest priority. This is the fallback when no other match wins.\n'

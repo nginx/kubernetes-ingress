@@ -1,0 +1,11 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: path-matching-vsr
+spec:
+  host: path-matching-vsr.example.com
+  routes:
+  - path: /images/
+    route: default/prefix-routes
+  - path: "^~/static/"
+    route: default/longest-prefix-routes
