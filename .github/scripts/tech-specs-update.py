@@ -1,31 +1,13 @@
 #!/usr/bin/env python3
 import argparse
-import os
 import re
 import sys
-import warnings
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-
-from github import Auth, Github
-
-# Suppress urllib3 warnings about LibreSSL
-warnings.filterwarnings("ignore", message="urllib3 v2 only supports OpenSSL 1.1.1+")
-warnings.filterwarnings("ignore", category=DeprecationWarning, module="github")
-
-
-def github_release_dates():
-    """Fetch NIC release dates from GitHub API."""
-    tok = os.getenv("GITHUB_TOKEN")
-    if not tok:
-        sys.exit("GITHUB_TOKEN env-var missing")
-    auth = Auth.Token(tok)
-    repo = Github(auth=auth).get_repo("nginx/kubernetes-ingress")
-    return {r.tag_name.lstrip("v"): r.created_at for r in repo.get_releases()}
 
 
 def shortcode_ver(path: Path):
-    """Extract version from shortcode file."""
+    """Extract version string from a Hugo shortcode HTML file."""
     if not path.exists():
         return "?"
     txt = path.read_text(encoding="utf-8")
@@ -33,36 +15,24 @@ def shortcode_ver(path: Path):
     return m.group(1) if m else txt.strip()
 
 
-def plus2y(dt):
-    """Add 2 years to the previous NIC release."""
-    return dt + timedelta(days=730)
+def is_minor_or_major(new_version, old_version):
+    """Return True if the major.minor part differs between two versions."""
 
-
-def is_patch_release(new_version, old_version):
-    """Return True if only the patch number changed."""
-
-    def parse(v):
+    def major_minor(v):
         parts = v.split(".")
-        return tuple(int(x) if x.isdigit() else 0 for x in (parts + ["0", "0"])[:3])
+        return f"{parts[0]}.{parts[1]}" if len(parts) >= 2 else v
 
-    n_major, n_minor, n_patch = parse(new_version)
-    o_major, o_minor, o_patch = parse(old_version)
-    return n_major == o_major and n_minor == o_minor and n_patch != o_patch
+    return major_minor(new_version) != major_minor(old_version)
 
 
-def update_nap_table(
-    table_file,
-    nic_version,
-    nap_waf_version,
-    config_manager_version,
-    enforcer_version,
-    docs_root,
-):
+def update_nap_table(table_file, nap_waf_version, ic_version, docs_root):
     """
     Update NAP compatibility table.
-    If patch release: skip table row changes (shortcodes are updated separately).
-    If major/minor release: freeze the current shortcode row as a historical entry
-    and write a fresh shortcode row for the new release.
+    On a minor/major release: freeze the current shortcode row as a historical
+    entry with literal values, then update the shortcode row's R-number prefix.
+    On a patch release or re-run: only update the R-number prefix if changed.
+    Shortcode values (compiler version, waf release version) are updated
+    separately by docs-shortcode-update.sh.
     """
     if not table_file.exists():
         print(f"ERROR: NAP compatibility table file not found: {table_file}")
@@ -71,25 +41,12 @@ def update_nap_table(
     docs = Path(docs_root)
     sc_dir = docs / "layouts" / "shortcodes"
     current_nic_version = shortcode_ver(sc_dir / "nic-version.html")
+    freeze = is_minor_or_major(ic_version, current_nic_version)
 
-    # Skip if the version hasn't changed (e.g. re-running the script)
-    if nic_version == current_nic_version:
-        print(f"INFO: Version unchanged ({nic_version}), skipping NAP table update")
-        return True
-
-    patch = is_patch_release(nic_version, current_nic_version)
-
-    if patch:
-        print(
-            f"INFO: Patch release detected ({current_nic_version} -> {nic_version}), "
-            "shortcodes will be updated automatically, skipping NAP table row changes"
-        )
-        return True
-
-    print(
-        f"INFO: Major/minor release detected ({current_nic_version} -> {nic_version}), "
-        "updating NAP compatibility table"
-    )
+    if freeze:
+        print(f"INFO: Minor/major release ({current_nic_version} -> {ic_version}), freezing NAP row")
+    else:
+        print(f"INFO: Patch release or re-run ({current_nic_version} -> {ic_version}), updating NAP table in-place")
 
     content = table_file.read_text(encoding="utf-8")
 
@@ -106,16 +63,12 @@ def update_nap_table(
     table_start, table_content, table_end = match.groups()
 
     # Preserve leading/trailing blank lines inside the table shortcode block
-    leading_ws = ""
-    trailing_ws = ""
-    if table_content.startswith("\n"):
-        leading_ws = "\n"
-    if table_content.endswith("\n"):
-        trailing_ws = "\n"
+    leading_ws = "\n" if table_content.startswith("\n") else ""
+    trailing_ws = "\n" if table_content.endswith("\n") else ""
 
     lines = table_content.strip().split("\n")
 
-    # Locate the header row (contains "NIC Version" or "NAP-WAF Version")
+    # Locate the header and separator rows
     header_line = separator_line = None
     data_lines = []
     for i, line in enumerate(lines):
@@ -130,7 +83,7 @@ def update_nap_table(
         print("ERROR: Could not find table header row in NAP compatibility file")
         return False
 
-    # Find the live shortcode row and snapshot its current versions
+    # Find the live shortcode row; keep all other rows as-is
     shortcode_row_found = False
     orig_shortcode_row = ""
     other_rows = []
@@ -140,35 +93,6 @@ def update_nap_table(
             continue
         if "{{< nic-version >}}" in line:
             orig_shortcode_row = line
-            cols = [c.strip() for c in line.split("|")[1:-1]]
-            if len(cols) < 4:
-                print("ERROR: Unexpected column count in NAP shortcode row")
-                return False
-
-            # Resolve the NAP-WAF column (may contain shortcodes or literal version)
-            nap_waf_col = cols[1]
-            if "+{{< appprotect-compiler-version" in nap_waf_col:
-                plus_part = nap_waf_col.split("+")[0]
-                compiler_ver = shortcode_ver(sc_dir / "appprotect-compiler-version.html")
-                current_nap_waf = f"{plus_part}+{compiler_ver}"
-            elif "{{< nic-waf-version >}}" in nap_waf_col:
-                current_nap_waf = shortcode_ver(sc_dir / "nic-waf-version.html")
-            else:
-                current_nap_waf = nap_waf_col
-
-            # Resolve config manager and enforcer (may use shortcodes)
-            def resolve_col(col):
-                if "{{< nic-waf-release-version >}}" in col:
-                    return shortcode_ver(sc_dir / "nic-waf-release-version.html")
-                return col
-
-            current_config_mgr = resolve_col(cols[2])
-            current_enforcer = resolve_col(cols[3])
-
-            # Freeze the current live row as a historical entry with literal values
-            other_rows.append(
-                f"| {current_nic_version} | {current_nap_waf} | {current_config_mgr} | {current_enforcer} |"
-            )
             shortcode_row_found = True
         else:
             other_rows.append(line)
@@ -176,6 +100,41 @@ def update_nap_table(
     if not shortcode_row_found:
         print("ERROR: Could not find shortcode row in NAP table")
         return False
+
+    # For minor/major releases: resolve current shortcode values and freeze as historical row
+    if freeze:
+        cols = [c.strip() for c in orig_shortcode_row.split("|")[1:-1]]
+
+        # Resolve NAP-WAF column
+        nap_waf_col = cols[1]
+        if "+{{< appprotect-compiler-version" in nap_waf_col:
+            plus_part = nap_waf_col.split("+")[0]
+            compiler_ver = shortcode_ver(sc_dir / "appprotect-compiler-version.html")
+            current_nap_waf = f"{plus_part}+{compiler_ver}"
+        else:
+            current_nap_waf = nap_waf_col
+
+        # Resolve config manager and enforcer
+        def resolve_col(col):
+            if "{{< nic-waf-release-version >}}" in col:
+                return shortcode_ver(sc_dir / "nic-waf-release-version.html")
+            return col
+
+        current_config_mgr = resolve_col(cols[2])
+        current_enforcer = resolve_col(cols[3])
+
+        # Pad values to match the column widths from the separator row
+        sep_cols = [c for c in separator_line.split("|")[1:-1]]
+        col_widths = [len(c) for c in sep_cols]
+        values = [
+            current_nic_version,
+            current_nap_waf,
+            current_config_mgr,
+            current_enforcer,
+        ]
+        padded = [f" {v.ljust(w - 1)}" if w > len(v) + 1 else f" {v} " for v, w in zip(values, col_widths)]
+        frozen_row = "|" + "|".join(padded) + "|"
+        other_rows.insert(0, frozen_row)
 
     # Preserve the original shortcode row formatting/whitespace.
     # Only update the R-number prefix (e.g. "36+") if it changed.
@@ -214,23 +173,23 @@ def parse_nginx_version(version_str):
 def update_compat_table(md, k8s_new, nginx_new, ic_version, docs_root):
     """Update the NIC/K8s compatibility table in the nic-k8s.md include file.
 
-    Reads shortcode files to get current versions, updates the shortcode row
-    with new K8s and NGINX versions.  On a major/minor release the previous
-    row is frozen as a historical entry and expired rows are pruned.
+    On a minor/major release: freeze the current shortcode row as a historical
+    entry with literal values, then update the shortcode row in-place.
+    On a patch release or re-run: only update the shortcode row values.
+    Prunes rows past their End of Technical Support date, keeping the most
+    recently expired row as a reference.
     """
     docs = Path(docs_root)
     sc_dir = docs / "layouts" / "shortcodes"
-    helm = shortcode_ver(sc_dir / "nic-helm-version.html")
-    oper = shortcode_ver(sc_dir / "nic-operator-version.html")
-    main = shortcode_ver(sc_dir / "nic-version.html")
+    current_nic = shortcode_ver(sc_dir / "nic-version.html")
+    freeze = is_minor_or_major(ic_version, current_nic)
 
-    # Skip if the version hasn't changed (e.g. re-running the script)
-    if ic_version == main:
-        print(f"INFO: Version unchanged ({ic_version}), skipping compatibility table update")
-        return md
-
-    releases = github_release_dates()
-    main_eol = plus2y(releases.get(main, datetime.now())).strftime("%b %d, %Y")
+    if freeze:
+        helm = shortcode_ver(sc_dir / "nic-helm-version.html")
+        oper = shortcode_ver(sc_dir / "nic-operator-version.html")
+        print(f"INFO: Minor/major release ({current_nic} -> {ic_version}), freezing compat row")
+    else:
+        print(f"INFO: Patch release or re-run ({current_nic} -> {ic_version}), updating compat table in-place")
 
     pat = r"(\{\{[<%]\s*(?:bootstrap-)?table[^>%]*[>%]\}\}\n)(.*?)(\n\{\{[<%]\s*/(?:bootstrap-)?table\s*[>%]\}\})"
     m = re.search(pat, md, re.S)
@@ -239,18 +198,12 @@ def update_compat_table(md, k8s_new, nginx_new, ic_version, docs_root):
     open_tag, tbl_txt, close_tag = m.groups()
 
     # Preserve leading/trailing blank lines inside the table shortcode block
-    leading_ws = ""
-    trailing_ws = ""
-    if tbl_txt.startswith("\n"):
-        leading_ws = "\n"
-    stripped = tbl_txt.strip()
-    if tbl_txt.endswith("\n"):
-        trailing_ws = "\n"
+    leading_ws = "\n" if tbl_txt.startswith("\n") else ""
+    trailing_ws = "\n" if tbl_txt.endswith("\n") else ""
 
-    rows = stripped.split("\n")
+    rows = tbl_txt.strip().split("\n")
 
     # Find the header row and separator row by content, not position.
-    # The separator is a row where every cell is dashes (e.g. | --- | --- |).
     header = rows[0]
     sep = None
     sep_idx = None
@@ -262,30 +215,37 @@ def update_compat_table(md, k8s_new, nginx_new, ic_version, docs_root):
             break
 
     if sep is None:
-        # No separator found — generate one matching the header column count
         col_count = len(header.split("|")) - 2
         sep = "| " + " | ".join(["---"] * col_count) + " |"
         body = rows[1:]
     else:
         body = rows[sep_idx + 1 :]
 
-    sc_idx = next(i for i, r in enumerate(body) if "{{<" in r or "{{%" in r)
-    sc_cols = [c.strip() for c in body[sc_idx].split("|")[1:-1]]
+    # Find the shortcode row and update K8s + NGINX version values in-place
+    sc_idx = next((i for i, r in enumerate(body) if "{{<" in r or "{{%" in r), None)
+    if sc_idx is None:
+        # Shortcode row may be above separator (corrupted table from previous runs).
+        # Search all rows and prepend to body so the rebuild places it correctly.
+        for r in rows:
+            if ("{{<" in r or "{{%" in r) and "table" not in r.lower():
+                body.insert(0, r)
+                sc_idx = 0
+                break
+        if sc_idx is None:
+            sys.exit("No shortcode row found in compatibility table")
 
+    sc_cols = [c.strip() for c in body[sc_idx].split("|")[1:-1]]
     orig_k8s, orig_nginx = sc_cols[1], sc_cols[4]
 
-    # Update the shortcode row in-place to preserve column formatting/whitespace
     new_sc_row = body[sc_idx]
     if orig_k8s != k8s_new:
         new_sc_row = new_sc_row.replace(orig_k8s, k8s_new, 1)
     if orig_nginx != nginx_new:
         new_sc_row = new_sc_row.replace(orig_nginx, nginx_new, 1)
 
-    patch = is_patch_release(ic_version, main)
-    prev_row = f"| {main} | {orig_k8s} | {helm} | {oper} | {orig_nginx} | {main_eol} |"
-
+    # Collect data rows, pruning expired ones (keep most recently expired)
     now = datetime.now()
-    new_body, prev_seen = [], False
+    new_body = []
     expired_rows = []
     for r in body:
         if "{{<" in r or "{{%" in r or not r.strip():
@@ -293,10 +253,8 @@ def update_compat_table(md, k8s_new, nginx_new, ic_version, docs_root):
         cols = [c.strip() for c in r.split("|")[1:-1]]
         if not cols:
             continue
-        if cols[0] == main:
-            if not patch:
-                new_body.append(prev_row)
-                prev_seen = True
+        # Skip rows for the current NIC version (will be re-added as frozen row if needed)
+        if cols[0] == current_nic:
             continue
         try:
             eol_date = datetime.strptime(cols[5], "%b %d, %Y")
@@ -307,8 +265,10 @@ def update_compat_table(md, k8s_new, nginx_new, ic_version, docs_root):
             pass
         new_body.append(r)
 
-    if not prev_seen and not patch:
-        new_body.insert(0, prev_row)
+    # For minor/major releases: insert frozen row with current resolved values
+    if freeze:
+        frozen_row = f"| {current_nic} | {orig_k8s} | {helm} | {oper} | {orig_nginx} | - |"
+        new_body.insert(0, frozen_row)
 
     # Keep the most recently expired row as a migration reference
     if expired_rows:
@@ -442,14 +402,7 @@ Examples:
         else:
             print(f"INFO: Updating NAP compatibility table at {nap_table}")
             try:
-                if update_nap_table(
-                    nap_table,
-                    args.ic_version,
-                    args.nap_waf_version,
-                    args.config_manager_version or "",
-                    args.enforcer_version or "",
-                    args.docs_root,
-                ):
+                if update_nap_table(nap_table, args.nap_waf_version, args.ic_version, args.docs_root):
                     print("updated", nap_table)
                 else:
                     print("ERROR: Failed to update NAP table")

@@ -275,7 +275,6 @@ EOF
         echo "DEBUG: Assembling new _index.md with header and new release notes"
     fi
     cat "${TMPDIR}/new_header.md" > "${index_file_path}"
-    echo "" >> "${index_file_path}"
     echo "${release_notes_content}" >> "${index_file_path}"
 
 else
@@ -303,7 +302,6 @@ else
     # Reconstruct the file: header + new release + existing releases
     # This inserts the new release at the top of the releases section
     head -n $((insert_line - 1)) "${TMPDIR}/temp_index.md" > "${TMPDIR}/final_index.md"
-    echo "" >> "${TMPDIR}/final_index.md"
     echo "${release_notes_content}" >> "${TMPDIR}/final_index.md"
     echo "" >> "${TMPDIR}/final_index.md"
     tail -n +"${insert_line}" "${TMPDIR}/temp_index.md" >> "${TMPDIR}/final_index.md"
@@ -422,7 +420,11 @@ if [ "${DRY_RUN}" == "false" ]; then
     fi
 else
     echo "INFO: DRY_RUN: Showing what would be committed:"
+    git add -A
     git status --porcelain
+    echo "INFO: DRY_RUN: Full diff:"
+    git diff --cached
+    git reset HEAD > /dev/null 2>&1
     echo "INFO: DRY_RUN: Skipping commit, push and pull request creation"
 fi
 
