@@ -1567,10 +1567,49 @@ func TestGenerateRedirectConfig(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result := generateTLSRedirectConfig(test.inputTLS)
+		result := generateTLSRedirectConfig(test.inputTLS, false)
 		if !reflect.DeepEqual(result, test.expected) {
 			t.Errorf("generateTLSRedirectConfig() returned %v but expected %v for the case of %s", result, test.expected, test.msg)
 		}
+	}
+}
+
+// TestGenerateVirtualServerConfigSetsACMEChallengeBypass verifies that
+// VirtualServerEx.HasACMEChallengeVSR sets BypassACMEChallenge on the TLS redirect config.
+func TestGenerateVirtualServerConfigSetsACMEChallengeBypass(t *testing.T) {
+	t.Parallel()
+
+	vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background()}, false, false, &StaticConfigParams{}, false, &fakeBV)
+
+	virtualServerEx := &VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "example.com",
+				TLS: &conf_v1.TLS{
+					Redirect: &conf_v1.TLSRedirect{Enable: true},
+				},
+			},
+		},
+		HasACMEChallengeVSR: true,
+	}
+
+	result, warnings := vsc.GenerateVirtualServerConfig(virtualServerEx, nil, nil)
+	if len(warnings) != 0 {
+		t.Fatalf("GenerateVirtualServerConfig() returned unexpected warnings: %v", warnings)
+	}
+
+	expected := &version2.TLSRedirect{
+		Code:                301,
+		BasedOn:             "$scheme",
+		BypassACMEChallenge: true,
+	}
+
+	if diff := cmp.Diff(expected, result.Server.TLSRedirect); diff != "" {
+		t.Errorf("GenerateVirtualServerConfig() TLS redirect mismatch (-want +got):\n%s", diff)
 	}
 }
 

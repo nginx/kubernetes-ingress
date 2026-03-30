@@ -92,6 +92,7 @@ type VirtualServerEx struct {
 	Endpoints                   map[string][]string
 	VirtualServerRoutes         []*conf_v1.VirtualServerRoute
 	VirtualServerSelectorRoutes map[string][]string
+	HasACMEChallengeVSR         bool
 	ExternalNameSvcs            map[string]bool
 	Policies                    map[string]*conf_v1.Policy
 	PodsByIP                    map[string]PodInfo
@@ -422,7 +423,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	}
 
 	sslConfig := vsc.generateSSLConfig(vsEx.VirtualServer, vsEx.VirtualServer.Spec.TLS, vsEx.VirtualServer.Namespace, vsEx.SecretRefs, vsc.cfgParams)
-	tlsRedirectConfig := generateTLSRedirectConfig(vsEx.VirtualServer.Spec.TLS)
+	tlsRedirectConfig := generateTLSRedirectConfig(vsEx.VirtualServer.Spec.TLS, vsEx.HasACMEChallengeVSR)
 
 	policyOpts := policyOptions{
 		tls:             sslConfig != nil,
@@ -2585,14 +2586,15 @@ func (vsc *virtualServerConfigurator) generateSSLConfig(owner runtime.Object, tl
 	return &ssl
 }
 
-func generateTLSRedirectConfig(tls *conf_v1.TLS) *version2.TLSRedirect {
+func generateTLSRedirectConfig(tls *conf_v1.TLS, bypassACMEChallenge bool) *version2.TLSRedirect {
 	if tls == nil || tls.Redirect == nil || !tls.Redirect.Enable {
 		return nil
 	}
 
 	redirect := &version2.TLSRedirect{
-		Code:    generateIntFromPointer(tls.Redirect.Code, 301),
-		BasedOn: generateTLSRedirectBasedOn(tls.Redirect.BasedOn),
+		Code:                generateIntFromPointer(tls.Redirect.Code, 301),
+		BasedOn:             generateTLSRedirectBasedOn(tls.Redirect.BasedOn),
+		BypassACMEChallenge: bypassACMEChallenge,
 	}
 
 	return redirect

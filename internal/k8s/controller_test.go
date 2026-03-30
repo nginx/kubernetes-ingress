@@ -3952,6 +3952,38 @@ func TestCreateVirtualServerExWithZoneSync(t *testing.T) {
 	}
 }
 
+// TestCreateVirtualServerExPropagatesACMEChallengeFlag verifies that
+// VirtualServerConfiguration.HasACMEChallengeVSR is copied to VirtualServerEx.
+func TestCreateVirtualServerExPropagatesACMEChallengeFlag(t *testing.T) {
+	t.Parallel()
+
+	lbc := NewLoadBalancerController(NewLoadBalancerControllerInput{
+		KubeClient:               fake.NewClientset(),
+		EnableTelemetryReporting: false,
+		LoggerContext:            context.Background(),
+	})
+
+	virtualServer := &conf_v1.VirtualServer{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Namespace: "default",
+			Name:      "cafe",
+		},
+		Spec: conf_v1.VirtualServerSpec{
+			Host: "example.com",
+		},
+	}
+
+	lbc.configuration.hosts[virtualServer.Spec.Host] = &VirtualServerConfiguration{
+		VirtualServer:       virtualServer,
+		HasACMEChallengeVSR: true,
+	}
+
+	vsEx := lbc.createVirtualServerEx(virtualServer, nil, nil)
+	if !vsEx.HasACMEChallengeVSR {
+		t.Fatal("createVirtualServerEx() did not propagate ACME challenge flag")
+	}
+}
+
 func TestCreateIngressExWithZoneSync(t *testing.T) {
 	t.Parallel()
 

@@ -129,6 +129,62 @@ func TestVirtualServerForNginxWithServiceBeforeRedirect(t *testing.T) {
 	t.Log(bufString)
 }
 
+// TestVirtualServerForNginxPlusWithACMEChallengeBypass verifies the Plus template
+// renders the ACME challenge redirect bypass when BypassACMEChallenge is true.
+func TestVirtualServerForNginxPlusWithACMEChallengeBypass(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+
+	cfg := virtualServerCfgPlus
+	cfg.Server.TLSRedirect = &TLSRedirect{
+		BasedOn:             "$scheme",
+		Code:                301,
+		BypassACMEChallenge: true,
+	}
+
+	buf, err := executor.ExecuteVirtualServerTemplate(&cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := string(buf)
+
+	if !strings.Contains(bufString, `if ($uri ~ "^/\\.well-known/acme-challenge/") {`) {
+		t.Fatal("want ACME challenge path bypass in generated config")
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
+// TestVirtualServerForNginxWithACMEChallengeBypass verifies the OSS template
+// renders the ACME challenge redirect bypass when BypassACMEChallenge is true.
+func TestVirtualServerForNginxWithACMEChallengeBypass(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINX(t)
+
+	cfg := virtualServerCfg
+	cfg.Server.TLSRedirect = &TLSRedirect{
+		BasedOn:             "$scheme",
+		Code:                301,
+		BypassACMEChallenge: true,
+	}
+
+	buf, err := executor.ExecuteVirtualServerTemplate(&cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := string(buf)
+
+	if !strings.Contains(bufString, `if ($uri ~ "^/\\.well-known/acme-challenge/") {`) {
+		t.Fatal("want ACME challenge path bypass in generated config")
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
 func TestExecuteVirtualServerTemplate_RendersTemplateWithServerGunzipOn(t *testing.T) {
 	t.Parallel()
 	executor := newTmplExecutorNGINXPlus(t)

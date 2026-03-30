@@ -212,6 +212,7 @@ type VirtualServerConfiguration struct {
 	VirtualServer               *conf_v1.VirtualServer
 	VirtualServerRoutes         []*conf_v1.VirtualServerRoute
 	VirtualServerRouteSelectors map[string][]string
+	HasACMEChallengeVSR         bool
 	Warnings                    []string
 	HTTPPort                    int
 	HTTPSPort                   int
@@ -222,11 +223,12 @@ type VirtualServerConfiguration struct {
 }
 
 // NewVirtualServerConfiguration creates a VirtualServerConfiguration.
-func NewVirtualServerConfiguration(vs *conf_v1.VirtualServer, vsrs []*conf_v1.VirtualServerRoute, vsrSelectors map[string][]string, warnings []string) *VirtualServerConfiguration {
+func NewVirtualServerConfiguration(vs *conf_v1.VirtualServer, vsrs []*conf_v1.VirtualServerRoute, vsrSelectors map[string][]string, warnings []string, hasACMEChallengeVSR bool) *VirtualServerConfiguration {
 	return &VirtualServerConfiguration{
 		VirtualServer:               vs,
 		VirtualServerRoutes:         vsrs,
 		VirtualServerRouteSelectors: vsrSelectors,
+		HasACMEChallengeVSR:         hasACMEChallengeVSR,
 		Warnings:                    warnings,
 	}
 }
@@ -1675,12 +1677,14 @@ func (c *Configuration) buildHostsAndResources() (newHosts map[string]Resource, 
 		vs := c.virtualServers[key]
 
 		vsrs, vsrSelectors, warnings := c.buildVirtualServerRoutes(vs)
+		hasACMEChallengeVSR := false
 		for _, vsr := range challengesVSR {
 			if vs.Spec.Host == vsr.Spec.Host {
 				vsrs = append(vsrs, vsr)
+				hasACMEChallengeVSR = true
 			}
 		}
-		resource := NewVirtualServerConfiguration(vs, vsrs, vsrSelectors, warnings)
+		resource := NewVirtualServerConfiguration(vs, vsrs, vsrSelectors, warnings, hasACMEChallengeVSR)
 
 		c.buildListenersForVSConfiguration(resource)
 

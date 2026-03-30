@@ -105,6 +105,15 @@ server {
 
     {{- with $s.TLSRedirect }}
     if ({{ .BasedOn }} = 'http') {
+        set $vs_redirect_to_https 1;
+    }
+    {{- if .BypassACMEChallenge }}
+    {{- /* Skip HTTPS redirect for ACME HTTP-01 challenge requests during cert-manager issuance */}}
+    if ($uri ~ "^/\\.well-known/acme-challenge/") {
+        set $vs_redirect_to_https 0;
+    }
+    {{- end }}
+    if ($vs_redirect_to_https = 1) {
         return {{ .Code }} https://$host$request_uri;
     }
     {{- end }}
