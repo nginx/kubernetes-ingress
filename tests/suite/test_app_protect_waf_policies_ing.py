@@ -145,7 +145,7 @@ class TestAppProtectWAFPolicyIngress:
             "logconf",
             "syslog:server=127.0.0.1:514",
         )
-
+        wait_before_test(120)
         request_url = f"http://{ingress_setup.public_endpoint.public_ip}:{ingress_setup.public_endpoint.port}/backend1"
         ensure_response_from_backend(request_url, ingress_setup.ingress_host, check404=True)
         response = send_malicious_request_with_retry(request_url, ingress_setup.ingress_host)
@@ -191,7 +191,7 @@ class TestAppProtectWAFPolicyMergeableIngress:
             "logconf",
             "syslog:server=127.0.0.1:514",
         )
-
+        wait_before_test(120)
         request_url = (
             f"http://{mergeable_ingress_setup.public_endpoint.public_ip}:"
             f"{mergeable_ingress_setup.public_endpoint.port}/backend1"
