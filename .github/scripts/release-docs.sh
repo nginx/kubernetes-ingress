@@ -326,7 +326,6 @@ if [ -n "${nginx_version}" ]; then
     python3 ${ROOTDIR}/.github/scripts/tech-specs-update.py \
         "${ic_version}" "${k8s_versions}" "${nginx_version}" "${DOCS_FOLDER}" \
         ${NAP_WAF_VERSION:+"${NAP_WAF_VERSION}"} \
-        ${NAP_WAF_RELEASE_VERSION:+"${NAP_WAF_RELEASE_VERSION}"} \
         ${NAP_WAF_RELEASE_VERSION:+"${NAP_WAF_RELEASE_VERSION}"}
 
     if [ $? -ne 0 ]; then

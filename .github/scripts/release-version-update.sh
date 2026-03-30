@@ -143,13 +143,16 @@ if [ -f "${bug_report}" ]; then
     if [ "${DEBUG}" != "false" ]; then
         echo "Processing ${bug_report}"
     fi
-    file_name=$(basename "${bug_report}")
-    mv "${bug_report}" "${TMPDIR}/${file_name}"
-    sed -e "/^        - edge$/a\\        - ${new_ic_version}" "${TMPDIR}/${file_name}" > "${bug_report}"
-    if [ $? -ne 0 ]; then
-        echo "ERROR: failed processing ${bug_report}"
-        mv "${TMPDIR}/${file_name}" "${bug_report}"
-        exit 2
+    # Only insert the new version if it is not already listed
+    if ! grep -q "^        - ${new_ic_version}\$" "${bug_report}"; then
+        file_name=$(basename "${bug_report}")
+        mv "${bug_report}" "${TMPDIR}/${file_name}"
+        sed -e "/^        - edge$/a\\        - ${new_ic_version}" "${TMPDIR}/${file_name}" > "${bug_report}"
+        if [ $? -ne 0 ]; then
+            echo "ERROR: failed processing ${bug_report}"
+            mv "${TMPDIR}/${file_name}" "${bug_report}"
+            exit 2
+        fi
     fi
 fi
 
