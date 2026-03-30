@@ -155,7 +155,7 @@ for title, changes in sections.items():
             if any(s in lower_title for s in docker_pr_strings):
                 docker_dependencies.append(pr)
             # Append Go module / toolchain changes for grouping
-            elif any(s in change_title for s in golang_pr_strings):
+            elif any(s.lower() in lower_title for s in golang_pr_strings):
                 go_dependencies.append(pr)
             # Treat this change like any other ungrouped change
             else:

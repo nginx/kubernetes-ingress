@@ -76,7 +76,7 @@ if [ "${DEBUG}" != "false" ]; then
     echo "DEBUG: GITHUB_USERNAME: ${GITHUB_USERNAME}"
     echo "DEBUG: GITHUB_EMAIL: ${GITHUB_EMAIL}"
     echo "DEBUG: RELEASE_BRANCH_PREFIX: ${RELEASE_BRANCH_PREFIX}"
-    echo "DEBUG: GH_TOKEN: ${GH_TOKEN:0:4}****${GH_TOKEN: -4}"
+    echo "DEBUG: GH_TOKEN is set"
     echo "DEBUG: DOCS_FOLDER: ${DOCS_FOLDER}"
     echo "DEBUG: ic_version: ${ic_version}"
     echo "DEBUG: helm_chart_version: ${helm_chart_version}"
@@ -325,8 +325,7 @@ if [ -n "${nginx_version}" ]; then
     # Run the consolidated tech specs update script
     python3 ${ROOTDIR}/.github/scripts/tech-specs-update.py \
         "${ic_version}" "${k8s_versions}" "${nginx_version}" "${DOCS_FOLDER}" \
-        ${NAP_WAF_VERSION:+"${NAP_WAF_VERSION}"} \
-        ${NAP_WAF_RELEASE_VERSION:+"${NAP_WAF_RELEASE_VERSION}"}
+        ${NAP_WAF_VERSION:+"${NAP_WAF_VERSION}"}
 
     if [ $? -ne 0 ]; then
         echo "ERROR: Failed to update technical specifications"

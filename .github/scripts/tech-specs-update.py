@@ -284,11 +284,12 @@ def update_compat_table(md, k8s_new, nginx_new, ic_version, docs_root):
 
 
 def update_nginx_prose(md, nginx_new):
-    """Update NGINX version references in technical-specifications.md prose.
+    """Update NGINX version references in technical-specifications.md.
 
-    Targets the "_All images include NGINX X.Y.Z._" text, base image tags
-    like ``nginx:X.Y.Z-alpine``, and "NGINX Plus images include NGINX Plus RXX PY."
-    Does NOT modify any table shortcode blocks.
+    Finds the current NGINX OSS version from the "All images include NGINX X.Y.Z"
+    text and the NGINX Plus version from the "NGINX Plus images include" text,
+    then replaces all occurrences of the old versions with the new ones throughout
+    the file, including in base image tags like ``nginx:X.Y.Z-alpine``.
     """
     new_oss, new_plus = parse_nginx_version(nginx_new)
 
@@ -330,12 +331,6 @@ Examples:
         nargs="?",
         help="NAP-WAF version (e.g., '36+5.600') - optional",
     )
-    parser.add_argument(
-        "config_manager_version",
-        nargs="?",
-        help="NAP Config Manager version - optional",
-    )
-    parser.add_argument("enforcer_version", nargs="?", help="NAP Enforcer version - optional")
 
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose output")
 
@@ -351,9 +346,7 @@ Examples:
         print(f"NGINX version: {args.nginx_version}")
         print(f"Documentation root: {args.docs_root}")
         if args.nap_waf_version:
-            print(
-                f"NAP versions - WAF: {args.nap_waf_version}, Config Manager: {args.config_manager_version}, Enforcer: {args.enforcer_version}"
-            )
+            print(f"NAP WAF version: {args.nap_waf_version}")
 
     # --- 1. Update the NIC/K8s compatibility table (nic-k8s.md include file) ---
     # The compatibility table lives in a separate include file, not in
