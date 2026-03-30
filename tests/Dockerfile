@@ -2,6 +2,8 @@
 FROM python:3.14-trixie@sha256:10c5cd782d36c531ce712844b404bb2b943cf7562ce5d2a9eede3c5363c0f45d
 ARG ARCH=amd64
 
+ENV PYTHONUNBUFFERED=1
+
 RUN apt-get update \
 	&& apt-get install -y curl git apache2-utils ca-certificates \
 	&& rm -rf /var/lib/apt/lists/*

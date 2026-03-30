@@ -148,8 +148,8 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 
 	// Run generate Policies
 	var policyRefs []conf_v1.PolicyReference
-	if ncp.ingEx.Policies != nil {
-		policyRefs = policies.GetPolicyRefsFromPolicies(ncp.ingEx.Policies)
+	if _, exists := ncp.ingEx.Ingress.Annotations[PoliciesAnnotation]; exists {
+		policyRefs = policies.GetPolicyRefsFromAnnotation(ncp.ingEx.Ingress.Annotations[PoliciesAnnotation], ncp.ingEx.Ingress.Namespace)
 	}
 
 	var policyCfg policiesCfg
@@ -241,6 +241,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			AppRoot:                cfgParams.AppRoot,
 			Allow:                  policyCfg.Allow,
 			Deny:                   policyCfg.Deny,
+			PoliciesErrorReturn:    policyCfg.ErrorReturn,
 		}
 
 		warnings := addSSLConfig(&server, ncp.ingEx.Ingress, rule.Host, ncp.ingEx.Ingress.Spec.TLS, ncp.ingEx.SecretRefs, ncp.isWildcardEnabled)
@@ -347,6 +348,9 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 					loc.Deny = policyCfg.Deny
 				}
 
+				if policyCfg.ErrorReturn != nil {
+					loc.PoliciesErrorReturn = policyCfg.ErrorReturn
+				}
 			}
 
 			if !loc.CORSEnabled && len(policyCfg.CORSHeaders) > 0 {
@@ -400,10 +404,8 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			upsName := getNameForUpstream(ncp.ingEx.Ingress, emptyHost, ncp.ingEx.Ingress.Spec.DefaultBackend)
 			ssl := isSSLEnabled(sslServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], cfgParams, ncp.staticParams)
 			proxySSLName := generateProxySSLName(ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name, ncp.ingEx.Ingress.Namespace)
-			pathtype := networking.PathTypePrefix
-
 			loc := createLocation(pathOrDefault("/"), upstreams[upsName], &cfgParams, wsServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], rewrites[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name],
-				ssl, grpcServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], proxySSLName, &pathtype, ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name, rewriteTarget)
+				ssl, grpcServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], proxySSLName, new(networking.PathTypePrefix), ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name, rewriteTarget)
 			if !loc.CORSEnabled && len(policyCfg.CORSHeaders) > 0 {
 				// Keep default-backend location behavior consistent with path locations for CORS.
 				loc.AddHeaders = append(loc.AddHeaders, policyCfg.CORSHeaders...)

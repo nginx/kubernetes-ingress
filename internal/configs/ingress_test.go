@@ -21,14 +21,13 @@ import (
 
 func TestGenerateNginxCfg(t *testing.T) {
 	t.Parallel()
-	cafeIngressEx := createCafeIngressEx()
 	isPlus := false
 	configParams := NewDefaultConfigParams(context.Background(), isPlus)
 
 	expected := createExpectedConfigForCafeIngressEx(isPlus)
 	result, warnings := generateNginxCfg(NginxCfgParams{
 		staticParams:         &StaticConfigParams{},
-		ingEx:                &cafeIngressEx,
+		ingEx:                new(createCafeIngressEx()),
 		apResources:          nil,
 		dosResource:          nil,
 		isMinion:             false,
@@ -208,6 +207,7 @@ func TestGenerateNginxCfgForCORSPolicy(t *testing.T) {
 			t.Parallel()
 
 			cafeIngressEx := createCafeIngressEx()
+			cafeIngressEx.Ingress.Annotations["nginx.org/policies"] = "cors-policy"
 			cafeIngressEx.Policies = map[string]*conf_v1.Policy{
 				"default/cors-policy": {
 					ObjectMeta: meta_v1.ObjectMeta{
@@ -313,6 +313,7 @@ func TestGenerateNginxCfgForMergeableIngressesCORSPolicy(t *testing.T) {
 			t.Parallel()
 
 			mergeableIngresses := createMergeableCafeIngress()
+			mergeableIngresses.Master.Ingress.Annotations["nginx.org/policies"] = "master-cors"
 			mergeableIngresses.Master.Policies = map[string]*conf_v1.Policy{
 				"default/master-cors": {
 					ObjectMeta: meta_v1.ObjectMeta{Name: "master-cors", Namespace: "default"},
@@ -323,6 +324,7 @@ func TestGenerateNginxCfgForMergeableIngressesCORSPolicy(t *testing.T) {
 			}
 
 			if test.coffeeMinionOrigin != "" {
+				mergeableIngresses.Minions[0].Ingress.Annotations["nginx.org/policies"] = "coffee-cors"
 				mergeableIngresses.Minions[0].Policies = map[string]*conf_v1.Policy{
 					"default/coffee-cors": {
 						ObjectMeta: meta_v1.ObjectMeta{Name: "coffee-cors", Namespace: "default"},
@@ -431,6 +433,42 @@ func TestGenerateNginxCfgForAccessControl(t *testing.T) {
 	}
 }
 
+// TestGenerateNginxCfgWithMissingOrInvalidPolicy verifies that a standard Ingress referencing a
+// policy that is absent from the Policies map (either deleted or excluded by validation) sets
+// Server.PoliciesErrorReturn to 500. Both missing and invalid policies converge to the same
+// code path in generatePolicies because getPolicies excludes invalid policies from the map.
+func TestGenerateNginxCfgWithMissingOrInvalidPolicy(t *testing.T) {
+	t.Parallel()
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations["nginx.org/policies"] = "missing-policy"
+	// Policies map is intentionally empty — the referenced policy is not present.
+	cafeIngressEx.Policies = map[string]*conf_v1.Policy{}
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	result, resultWarnings := generateNginxCfg(NginxCfgParams{
+		staticParams:  &StaticConfigParams{},
+		ingEx:         &cafeIngressEx,
+		isPlus:        isPlus,
+		BaseCfgParams: configParams,
+	})
+
+	expectedPoliciesErrorReturn := &version2.Return{Code: 500}
+	if diff := cmp.Diff(expectedPoliciesErrorReturn, result.Servers[0].PoliciesErrorReturn); diff != "" {
+		t.Errorf("Server.PoliciesErrorReturn mismatch (-want +got):\n%s", diff)
+	}
+
+	expectedWarnings := Warnings{
+		cafeIngressEx.Ingress: {
+			"Policy default/missing-policy is missing or invalid",
+		},
+	}
+	if diff := cmp.Diff(expectedWarnings, resultWarnings); diff != "" {
+		t.Errorf("generateNginxCfg() warnings mismatch (-want +got):\n%s", diff)
+	}
+}
+
 func TestGenerateNginxCfgWithMissingTLSSecret(t *testing.T) {
 	t.Parallel()
 	cafeIngressEx := createCafeIngressEx()
@@ -497,7 +535,6 @@ func TestGenerateNginxCfgWithWildcardTLSSecret(t *testing.T) {
 
 func TestGenerateNginxCfgWithIPV6Disabled(t *testing.T) {
 	t.Parallel()
-	cafeIngressEx := createCafeIngressEx()
 	isPlus := false
 	configParams := NewDefaultConfigParams(context.Background(), isPlus)
 
@@ -506,7 +543,7 @@ func TestGenerateNginxCfgWithIPV6Disabled(t *testing.T) {
 
 	result, warnings := generateNginxCfg(NginxCfgParams{
 		staticParams:         &StaticConfigParams{DisableIPV6: true},
-		ingEx:                &cafeIngressEx,
+		ingEx:                new(createCafeIngressEx()),
 		apResources:          nil,
 		dosResource:          nil,
 		isMinion:             false,
@@ -543,26 +580,23 @@ func TestPathOrDefaultReturnActual(t *testing.T) {
 
 func TestGenerateIngressPath(t *testing.T) {
 	t.Parallel()
-	exact := networking.PathTypeExact
-	prefix := networking.PathTypePrefix
-	impSpec := networking.PathTypeImplementationSpecific
 	tests := []struct {
 		pathType *networking.PathType
 		path     string
 		expected string
 	}{
 		{
-			pathType: &exact,
+			pathType: new(networking.PathTypeExact),
 			path:     "/path/to/resource",
 			expected: "= /path/to/resource",
 		},
 		{
-			pathType: &prefix,
+			pathType: new(networking.PathTypePrefix),
 			path:     "/path/to/resource",
 			expected: "/path/to/resource",
 		},
 		{
-			pathType: &impSpec,
+			pathType: new(networking.PathTypeImplementationSpecific),
 			path:     "/path/to/resource",
 			expected: "/path/to/resource",
 		},
@@ -1052,6 +1086,78 @@ func TestGenerateNginxCfgForMergeableIngressesMinionWithAccessControl(t *testing
 	}
 	if len(warnings) != 0 {
 		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
+	}
+}
+
+// TestGenerateNginxCfgForMergeableIngressesMasterWithMissingOrInvalidPolicy verifies that a
+// master Ingress referencing a policy absent from the Policies map sets Server.PoliciesErrorReturn
+// to 500. Both missing and invalid policies converge to the same code path.
+func TestGenerateNginxCfgForMergeableIngressesMasterWithMissingOrInvalidPolicy(t *testing.T) {
+	t.Parallel()
+	mergeableIngresses := createMergeableCafeIngress()
+	mergeableIngresses.Master.Ingress.Annotations["nginx.org/policies"] = "missing-policy"
+	mergeableIngresses.Master.Policies = map[string]*conf_v1.Policy{}
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+	result, resultWarnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs: mergeableIngresses,
+		BaseCfgParams: configParams,
+		isPlus:        isPlus,
+		staticParams:  &StaticConfigParams{},
+	})
+
+	expectedPoliciesErrorReturn := &version2.Return{Code: 500}
+	if diff := cmp.Diff(expectedPoliciesErrorReturn, result.Servers[0].PoliciesErrorReturn); diff != "" {
+		t.Errorf("Server.PoliciesErrorReturn mismatch (-want +got):\n%s", diff)
+	}
+
+	expectedWarning := "Policy default/missing-policy is missing or invalid"
+	if !warningsContain(resultWarnings, expectedWarning) {
+		t.Errorf("expected warning containing %q, got: %v", expectedWarning, resultWarnings)
+	}
+}
+
+// TestGenerateNginxCfgForMergeableIngressesMinionWithMissingOrInvalidPolicy verifies that a
+// minion Ingress referencing a policy absent from the Policies map sets
+// Location.PoliciesErrorReturn to 500 on the corresponding location.
+func TestGenerateNginxCfgForMergeableIngressesMinionWithMissingOrInvalidPolicy(t *testing.T) {
+	t.Parallel()
+	mergeableIngresses := createMergeableCafeIngress()
+
+	for i, m := range mergeableIngresses.Minions {
+		if strings.Contains(m.Ingress.Name, "coffee") {
+			mergeableIngresses.Minions[i].Ingress.Annotations["nginx.org/policies"] = "missing-policy"
+		}
+	}
+	mergeableIngresses.Minions[0].Policies = map[string]*conf_v1.Policy{}
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+	result, resultWarnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs: mergeableIngresses,
+		BaseCfgParams: configParams,
+		isPlus:        isPlus,
+		staticParams:  &StaticConfigParams{},
+	})
+
+	expectedPoliciesErrorReturn := &version2.Return{Code: 500}
+	var found bool
+	for _, loc := range result.Servers[0].Locations {
+		if loc.MinionIngress != nil && loc.MinionIngress.Name == "cafe-ingress-coffee-minion" {
+			found = true
+			if diff := cmp.Diff(expectedPoliciesErrorReturn, loc.PoliciesErrorReturn); diff != "" {
+				t.Errorf("Location.PoliciesErrorReturn mismatch for coffee minion (-want +got):\n%s", diff)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("coffee minion location not found in result")
+	}
+
+	expectedWarning := "Policy default/missing-policy is missing or invalid"
+	if !warningsContain(resultWarnings, expectedWarning) {
+		t.Errorf("expected warning containing %q, got: %v", expectedWarning, resultWarnings)
 	}
 }
 
@@ -2206,7 +2312,6 @@ func createExpectedConfigForCrossNamespaceMergeableCafeIngress() version1.Ingres
 
 func TestGenerateNginxCfgForSpiffe(t *testing.T) {
 	t.Parallel()
-	cafeIngressEx := createCafeIngressEx()
 	isPlus := false
 	configParams := NewDefaultConfigParams(context.Background(), isPlus)
 
@@ -2218,7 +2323,7 @@ func TestGenerateNginxCfgForSpiffe(t *testing.T) {
 
 	result, warnings := generateNginxCfg(NginxCfgParams{
 		staticParams:         &StaticConfigParams{NginxServiceMesh: true},
-		ingEx:                &cafeIngressEx,
+		ingEx:                new(createCafeIngressEx()),
 		apResources:          nil,
 		dosResource:          nil,
 		isMinion:             false,
@@ -3162,4 +3267,18 @@ func TestGenerateNginxCfgForSSLRedirectDeprecationWarnings(t *testing.T) {
 			t.Errorf("generateNginxCfg() returned %v but expected %v for the case of %s", warnings, test.expectedWarnings, test.msg)
 		}
 	}
+}
+
+// warningsContain checks whether any warning message across all objects in the
+// Warnings map contains the given substring. This avoids pointer-identity issues
+// with runtime.Object keys when comparing mergeable ingress warnings.
+func warningsContain(w Warnings, substr string) bool {
+	for _, msgs := range w {
+		for _, msg := range msgs {
+			if strings.Contains(msg, substr) {
+				return true
+			}
+		}
+	}
+	return false
 }

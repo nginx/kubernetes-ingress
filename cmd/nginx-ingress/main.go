@@ -17,8 +17,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
-
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
@@ -1153,8 +1151,8 @@ func createHeadlessService(l *slog.Logger, kubeClient kubernetes.Interface, cont
 			Kind:               "ConfigMap",
 			Name:               configMapObj.Name,
 			UID:                configMapObj.UID,
-			Controller:         commonhelpers.BoolToPointerBool(true),
-			BlockOwnerDeletion: commonhelpers.BoolToPointerBool(true),
+			Controller:         new(true),
+			BlockOwnerDeletion: new(true),
 		},
 	}
 	existing, err := kubeClient.CoreV1().Services(controllerNamespace).Get(context.Background(), svcName, meta_v1.GetOptions{})

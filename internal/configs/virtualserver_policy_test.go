@@ -309,13 +309,13 @@ func TestGenerateVirtualServerConfigJWTSSLVerifyDepth(t *testing.T) {
 		},
 		{
 			name:           "explicit_depth",
-			sslVerifyDepth: createPointerFromInt(3), // Explicitly set to 3
+			sslVerifyDepth: new(3), // Explicitly set to 3
 			expectedDepth:  3,
 			description:    "When SSLVerifyDepth is explicitly set, it should respect that value",
 		},
 		{
 			name:           "explicit_zero_depth",
-			sslVerifyDepth: createPointerFromInt(0), // Explicitly set to 0
+			sslVerifyDepth: new(0), // Explicitly set to 0
 			expectedDepth:  0,
 			description:    "When SSLVerifyDepth is explicitly set to 0, it should respect that value",
 		},
@@ -1953,12 +1953,12 @@ func TestGenerateVirtualServerConfigCache(t *testing.T) {
 								CacheZoneName: "extended-cache",
 								CacheZoneSize: "100m",
 								CacheKey:      "$scheme$host$request_uri$args",
-								CacheMinUses:  createPointerFromInt(3),
+								CacheMinUses:  new(3),
 								UseTempPath:   false,
 								MaxSize:       "2g",
 								Inactive:      "7d",
 								Manager: &conf_v1.CacheManager{
-									Files:     createPointerFromInt(500),
+									Files:     new(500),
 									Sleep:     "200ms",
 									Threshold: "1s",
 								},
@@ -2017,7 +2017,7 @@ func TestGenerateVirtualServerConfigCache(t *testing.T) {
 						UseTempPath:      false,
 						MaxSize:          "2g",
 						MinFree:          "",
-						ManagerFiles:     createPointerFromInt(500),
+						ManagerFiles:     new(500),
 						ManagerSleep:     "200ms",
 						ManagerThreshold: "1s",
 					},
@@ -2036,7 +2036,7 @@ func TestGenerateVirtualServerConfigCache(t *testing.T) {
 						UseTempPath:           false,
 						MaxSize:               "2g",
 						MinFree:               "",
-						ManagerFiles:          createPointerFromInt(500),
+						ManagerFiles:          new(500),
 						ManagerSleep:          "200ms",
 						ManagerThreshold:      "1s",
 						CacheKey:              "$scheme$host$request_uri$args",
@@ -2047,7 +2047,7 @@ func TestGenerateVirtualServerConfigCache(t *testing.T) {
 						CacheUseStale:         nil,
 						CacheRevalidate:       true,
 						CacheBackgroundUpdate: true,
-						CacheMinUses:          createPointerFromInt(3),
+						CacheMinUses:          new(3),
 						CachePurgeAllow:       nil,
 						CacheLock:             true,
 						CacheLockTimeout:      "60s",
