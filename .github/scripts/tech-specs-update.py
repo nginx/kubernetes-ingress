@@ -261,7 +261,8 @@ def update_compat_table(md, k8s_new, nginx_new, ic_version, docs_root):
             if now > eol_date:
                 expired_rows.append((eol_date, r))
                 continue
-        except Exception:
+        except (IndexError, ValueError):
+            # If the EOL date is missing or malformed, treat the row as non-expired
             pass
         new_body.append(r)
 
