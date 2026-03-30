@@ -163,10 +163,12 @@ def update_nap_table(table_file, nap_waf_version, ic_version, docs_root):
 
 
 def parse_nginx_version(version_str):
-    """Parse "OSS_VERSION / PLUS_VERSION" (e.g. "1.29.7 / R36 P3") into parts."""
-    if " / " in version_str:
-        parts = version_str.split(" / ")
-        return parts[0].strip(), parts[1].strip()
+    """Parse "OSS_VERSION[/PLUS_VERSION]" (e.g. "1.29.7 / R36 P3" or "1.29.7/R36 P3") into parts."""
+    # Allow optional whitespace around the '/' separator so both "1.29.7 / R36 P3"
+    # and "1.29.7/R36 P3" (and similar variants) are handled consistently.
+    parts = re.split(r"\s*/\s*", version_str.strip(), maxsplit=1)
+    if len(parts) == 2 and parts[0] and parts[1]:
+        return parts[0], parts[1]
     return version_str.strip(), None
 
 
