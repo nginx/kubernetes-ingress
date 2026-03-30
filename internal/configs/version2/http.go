@@ -330,8 +330,9 @@ type HealthCheck struct {
 
 // TLSRedirect defines a redirect in a Server.
 type TLSRedirect struct {
-	Code    int
-	BasedOn string
+	Code                int
+	BasedOn             string
+	BypassACMEChallenge bool
 }
 
 // SessionCookie defines a session cookie for an upstream.

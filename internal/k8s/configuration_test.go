@@ -3787,18 +3787,18 @@ func TestPortCollisions(t *testing.T) {
 	}
 }
 
+// TestChallengeIngressToVSR verifies that a solver Ingress matching a VS host
+// is converted into a challenge VSR, and invalid solver Ingresses are rejected.
 func TestChallengeIngressToVSR(t *testing.T) {
 	configuration := createTestConfiguration()
 
 	var expectedProblems []ConfigurationProblem
 
-	// Add a new Ingress
-
 	vs := createTestVirtualServer("virtualserver", "foo.example.com")
 	vsr1 := createTestChallengeVirtualServerRoute("challenge", "foo.example.com", "/.well-known/acme-challenge/test")
-
 	ing := createTestChallengeIngress("challenge", "foo.example.com", "/.well-known/acme-challenge/test", "cm-acme-http-solver-test")
 
+	// Add VS and valid challenge Ingress for same host
 	expectedChanges := []ResourceChange{
 		{
 			Op: AddOrUpdate,
@@ -3806,6 +3806,7 @@ func TestChallengeIngressToVSR(t *testing.T) {
 				VirtualServer:               vs,
 				VirtualServerRouteSelectors: map[string][]string{},
 				VirtualServerRoutes:         []*conf_v1.VirtualServerRoute{vsr1},
+				HasACMEChallengeVSR:         true,
 				Warnings:                    nil,
 			},
 		},
@@ -3820,6 +3821,7 @@ func TestChallengeIngressToVSR(t *testing.T) {
 		t.Errorf("AddOrUpdateIngress() returned unexpected result (-want +got):\n%s", diff)
 	}
 
+	// Delete by name only (missing namespace); no-op
 	expectedChanges = nil
 
 	changes, problems = configuration.DeleteIngress(ing.Name)
@@ -3830,6 +3832,7 @@ func TestChallengeIngressToVSR(t *testing.T) {
 		t.Errorf("DeleteIngress() returned unexpected result (-want +got):\n%s", diff)
 	}
 
+	// Add invalid challenge Ingress with 2 rules
 	expectedChanges = nil
 	ing = createTestIngress("wrong-challenge", "foo.example.com", "bar.example.com")
 	ing.Labels = map[string]string{"acme.cert-manager.io/http01-solver": "true"}
@@ -3850,6 +3853,7 @@ func TestChallengeIngressToVSR(t *testing.T) {
 		t.Errorf("AddOrUpdateIngress() returned unexpected result (-want +got):\n%s", diff)
 	}
 
+	// Add invalid challenge Ingress with no path
 	ing = createTestIngress("wrong-challenge", "foo.example.com")
 	ing.Labels = map[string]string{"acme.cert-manager.io/http01-solver": "true"}
 	expectedProblems = []ConfigurationProblem{
@@ -3870,6 +3874,8 @@ func TestChallengeIngressToVSR(t *testing.T) {
 	}
 }
 
+// TestChallengeIngressNoVSR verifies that a solver Ingress on a different host
+// than the VS is not converted into a challenge VSR.
 func TestChallengeIngressNoVSR(t *testing.T) {
 	configuration := createTestConfiguration()
 
@@ -3877,8 +3883,21 @@ func TestChallengeIngressNoVSR(t *testing.T) {
 
 	vs := createTestVirtualServer("virtualserver", "bar.example.com")
 	ing := createTestChallengeIngress("challenge", "foo.example.com", "/.well-known/acme-challenge/test", "cm-acme-http-solver-test")
-	configuration.AddOrUpdateVirtualServer(vs)
-	expectedChanges := []ResourceChange{
+
+	vsChanges, vsProblems := configuration.AddOrUpdateVirtualServer(vs)
+	ingChanges, ingProblems := configuration.AddOrUpdateIngress(ing)
+
+	vsExpectedChanges := []ResourceChange{
+		{
+			Op: AddOrUpdate,
+			Resource: &VirtualServerConfiguration{
+				VirtualServer:               vs,
+				VirtualServerRouteSelectors: map[string][]string{},
+				HasACMEChallengeVSR:         false,
+			},
+		},
+	}
+	ingExpectedChanges := []ResourceChange{
 		{
 			Op: AddOrUpdate,
 			Resource: &IngressConfiguration{
@@ -3891,11 +3910,16 @@ func TestChallengeIngressNoVSR(t *testing.T) {
 		},
 	}
 
-	changes, problems := configuration.AddOrUpdateIngress(ing)
-	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+	if diff := cmp.Diff(vsExpectedChanges, vsChanges); diff != "" {
+		t.Errorf("AddOrUpdateVirtualServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, vsProblems); diff != "" {
+		t.Errorf("AddOrUpdateVirtualServer() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(ingExpectedChanges, ingChanges); diff != "" {
 		t.Errorf("AddOrUpdateIngress() returned unexpected result (-want +got):\n%s", diff)
 	}
-	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+	if diff := cmp.Diff(expectedProblems, ingProblems); diff != "" {
 		t.Errorf("AddOrUpdateIngress() returned unexpected result (-want +got):\n%s", diff)
 	}
 }
@@ -4425,9 +4449,7 @@ func createTestChallengeIngress(name string, host string, path string, serviceNa
 			Annotations: map[string]string{
 				"kubernetes.io/ingress.class": "nginx",
 			},
-			Labels: map[string]string{
-				"acme.cert-manager.io/http01-solver": "true",
-			},
+			Labels: map[string]string{"acme.cert-manager.io/http01-solver": "true"},
 		},
 		Spec: networking.IngressSpec{
 			Rules: rules,
@@ -5258,26 +5280,26 @@ func TestIsEqualForVirtualServers(t *testing.T) {
 		msg       string
 	}{
 		{
-			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
-			vsConfig2: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
+			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}, false),
+			vsConfig2: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}, false),
 			expected:  true,
 			msg:       "equal virtual servers",
 		},
 		{
-			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
-			vsConfig2: NewVirtualServerConfiguration(vsWithUpdatedGen, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
+			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}, false),
+			vsConfig2: NewVirtualServerConfiguration(vsWithUpdatedGen, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}, false),
 			expected:  false,
 			msg:       "virtual servers with different generation",
 		},
 		{
-			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
-			vsConfig2: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{}, nil, []string{}),
+			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}, false),
+			vsConfig2: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{}, nil, []string{}, false),
 			expected:  false,
 			msg:       "virtual servers with different number of virtual server routes",
 		},
 		{
-			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
-			vsConfig2: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsrWithUpdatedGen}, nil, []string{}),
+			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}, false),
+			vsConfig2: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsrWithUpdatedGen}, nil, []string{}, false),
 			expected:  false,
 			msg:       "virtual servers with virtual server routes with different generation",
 		},
@@ -5294,7 +5316,7 @@ func TestIsEqualForVirtualServers(t *testing.T) {
 func TestIsEqualForDifferentResources(t *testing.T) {
 	t.Parallel()
 	ingConfig := NewRegularIngressConfiguration(createTestIngress("ingress", "foo.example.com"))
-	vsConfig := NewVirtualServerConfiguration(createTestVirtualServer("virtualserver", "bar.example.com"), []*conf_v1.VirtualServerRoute{}, nil, []string{})
+	vsConfig := NewVirtualServerConfiguration(createTestVirtualServer("virtualserver", "bar.example.com"), []*conf_v1.VirtualServerRoute{}, nil, []string{}, false)
 
 	result := ingConfig.IsEqual(vsConfig)
 	if result != false {
@@ -5838,26 +5860,26 @@ func TestIsEqualForVirtualServersVSR(t *testing.T) {
 		msg       string
 	}{
 		{
-			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
-			vsConfig2: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
+			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}, false),
+			vsConfig2: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}, false),
 			expected:  true,
 			msg:       "equal virtual servers",
 		},
 		{
-			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
-			vsConfig2: NewVirtualServerConfiguration(vsWithUpdatedGen, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
+			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}, false),
+			vsConfig2: NewVirtualServerConfiguration(vsWithUpdatedGen, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}, false),
 			expected:  false,
 			msg:       "virtual servers with different generation",
 		},
 		{
-			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
-			vsConfig2: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{}, nil, []string{}),
+			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}, false),
+			vsConfig2: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{}, nil, []string{}, false),
 			expected:  false,
 			msg:       "virtual servers with different number of virtual server routes",
 		},
 		{
-			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
-			vsConfig2: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsrWithUpdatedGen}, nil, []string{}),
+			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}, false),
+			vsConfig2: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsrWithUpdatedGen}, nil, []string{}, false),
 			expected:  false,
 			msg:       "virtual servers with virtual server routes with different generation",
 		},
