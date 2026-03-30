@@ -342,8 +342,9 @@ if [ -n "${nginx_version}" ]; then
         cat "${DOCS_FOLDER}/content/nic/technical-specifications.md"
     fi
 
-    # Stage tech specs and, if NAP args were provided, the NAP compatibility table
+    # Stage compatibility table, tech specs prose, and NAP table if updated
     git add "${DOCS_FOLDER}/content/nic/technical-specifications.md"
+    git add "${DOCS_FOLDER}/content/includes/nic/compatibility-tables/nic-k8s.md"
     if [ -n "${NAP_WAF_VERSION}" ]; then
         nap_table_file="${DOCS_FOLDER}/content/includes/nic/compatibility-tables/nic-nap.md"
         if [ -f "${nap_table_file}" ]; then

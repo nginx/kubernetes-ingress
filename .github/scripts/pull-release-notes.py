@@ -35,7 +35,6 @@ golang_pr_strings = [
     "go group",
     "go_modules group",
     "Update module ",
-    "Update go to",
     "dependency go to",
     "golang.org/",
     "k8s.io/",

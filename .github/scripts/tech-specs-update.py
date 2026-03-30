@@ -162,9 +162,19 @@ def update_nap_table(
         print("ERROR: Could not find shortcode row in NAP table")
         return False
 
-    # Build the new live shortcode row with the incoming NAP versions
+    # Build the new live shortcode row, preserving Hugo shortcodes so that
+    # subsequent shortcode file updates (by docs-shortcode-update.sh) flow through.
+    # The NGINX Plus R-number prefix (e.g. "36") is taken from nap_waf_version
+    # so the table always reflects the correct major bundle version.
+    if "+" in nap_waf_version:
+        plus_prefix = nap_waf_version.split("+")[0]
+        nap_waf_col = f"{plus_prefix}+{{{{< appprotect-compiler-version >}}}}"
+    else:
+        nap_waf_col = nap_waf_version
+
     new_shortcode_row = (
-        f"| {{{{< nic-version >}}}} | {nap_waf_version} " f"| {config_manager_version} | {enforcer_version} |"
+        f"| {{{{< nic-version >}}}} | {nap_waf_col} "
+        f"| {{{{< nic-waf-release-version >}}}} | {{{{< nic-waf-release-version >}}}} |"
     )
 
     new_table_content = "\n".join([header_line, separator_line, new_shortcode_row] + other_rows)
@@ -180,16 +190,21 @@ def update_nap_table(
     return True
 
 
-def update(md, k8s_new, nginx_new, ic_version, docs_root):
-    """Update the NIC tech specs table in the docs folder
-       Read the shortcode files to get the current versions
-         and update the table with the new versions.
-         If the new version is a patch release, do not move the previous
-            row down, just update the versions in the current row.
-         If the new version is not a patch release, move the previous row down
-            and insert the new row at the top of the table.
-        Removes rows that are past their EOS date.
-    ."""
+def parse_nginx_version(version_str):
+    """Parse "OSS_VERSION / PLUS_VERSION" (e.g. "1.29.7 / R36 P3") into parts."""
+    if " / " in version_str:
+        parts = version_str.split(" / ")
+        return parts[0].strip(), parts[1].strip()
+    return version_str.strip(), None
+
+
+def update_compat_table(md, k8s_new, nginx_new, ic_version, docs_root):
+    """Update the NIC/K8s compatibility table in the nic-k8s.md include file.
+
+    Reads shortcode files to get current versions, updates the shortcode row
+    with new K8s and NGINX versions.  On a major/minor release the previous
+    row is frozen as a historical entry and expired rows are pruned.
+    """
     docs = Path(docs_root)
     sc_dir = docs / "layouts" / "shortcodes"
     helm = shortcode_ver(sc_dir / "nic-helm-version.html")
@@ -199,16 +214,16 @@ def update(md, k8s_new, nginx_new, ic_version, docs_root):
     releases = github_release_dates()
     main_eol = plus2y(releases.get(main, datetime.now())).strftime("%b %d, %Y")
 
-    pat = r"(\{\{<\s*table[^>]*>\}\}\n)(.*?)(\n\{\{<\s*/table\s*>\}\})"
+    pat = r"(\{\{[<%]\s*(?:bootstrap-)?table[^>%]*[>%]\}\}\n)(.*?)(\n\{\{[<%]\s*/(?:bootstrap-)?table\s*[>%]\}\})"
     m = re.search(pat, md, re.S)
     if not m:
-        sys.exit("table shortcode not found")
+        sys.exit("table shortcode not found in compatibility table file")
     open_tag, tbl_txt, close_tag = m.groups()
 
     rows = tbl_txt.rstrip("\n").split("\n")
     header, sep, body = rows[0], rows[1], rows[2:]
 
-    sc_idx = next(i for i, r in enumerate(body) if "{{<" in r)
+    sc_idx = next(i for i, r in enumerate(body) if "{{<" in r or "{{%" in r)
     sc_cols = [c.strip() for c in body[sc_idx].split("|")[1:-1]]
 
     orig_k8s, orig_nginx = sc_cols[1], sc_cols[4]
@@ -221,12 +236,11 @@ def update(md, k8s_new, nginx_new, ic_version, docs_root):
     now = datetime.now()
     new_body, prev_seen = [], False
     for r in body:
-        if "{{<" in r or not r.strip():
+        if "{{<" in r or "{{%" in r or not r.strip():
             continue
         cols = [c.strip() for c in r.split("|")[1:-1]]
         if not cols:
             continue
-        # Only move down previous top line if not a patch release
         if cols[0] == main:
             if not patch:
                 new_body.append(prev_row)
@@ -244,49 +258,35 @@ def update(md, k8s_new, nginx_new, ic_version, docs_root):
 
     final_tbl = "\n".join([header, sep, new_sc_row] + new_body)
     updated_md = re.sub(pat, open_tag + final_tbl + close_tag, md, count=1, flags=re.S)
+    return updated_md
 
-    # Parse the new NGINX version into OSS and Plus parts.
-    # Format: "OSS_VERSION / PLUS_VERSION" (e.g. "1.29.7 / R36 P3")
-    def parse_nginx_version(version_str):
-        if " / " in version_str:
-            parts = version_str.split(" / ")
-            return parts[0].strip(), parts[1].strip()
-        return version_str.strip(), None
 
+def update_nginx_prose(md, nginx_new):
+    """Update NGINX version references in technical-specifications.md prose.
+
+    Targets the "_All images include NGINX X.Y.Z._" text, base image tags
+    like ``nginx:X.Y.Z-alpine``, and "NGINX Plus images include NGINX Plus RXX PY."
+    Does NOT modify any table shortcode blocks.
+    """
     new_oss, new_plus = parse_nginx_version(nginx_new)
-
-    # --- 1. Replace the combined version string from the compatibility table ---
-    if orig_nginx and orig_nginx != nginx_new:
-        old_oss_tbl, old_plus_tbl = parse_nginx_version(orig_nginx)
-
-        updated_md = re.sub(r"\b" + re.escape(orig_nginx) + r"\b", nginx_new, updated_md)
-        if old_oss_tbl and new_oss and old_oss_tbl != new_oss:
-            updated_md = re.sub(r"\b" + re.escape(old_oss_tbl) + r"\b", new_oss, updated_md)
-        if old_plus_tbl and new_plus and old_plus_tbl != new_plus:
-            updated_md = re.sub(r"\b" + re.escape(old_plus_tbl) + r"\b", new_plus, updated_md)
-
-    # --- 2. Update NGINX version references in prose and image tables ---
-    # The compatibility table may carry a different version string from the prose
-    # sections (e.g. "Images with NGINX" and "Images with NGINX Plus"), so we
-    # extract the current versions directly from the prose and replace them.
 
     # NGINX OSS: "_All images include NGINX X.Y.Z._" and base images "nginx:X.Y.Z"
     if new_oss:
-        oss_match = re.search(r"All images include NGINX (\d+\.\d+\.\d+)", updated_md)
+        oss_match = re.search(r"All images include NGINX (\d+\.\d+\.\d+)", md)
         if oss_match:
             current_oss = oss_match.group(1)
             if current_oss != new_oss:
-                updated_md = re.sub(r"\b" + re.escape(current_oss) + r"\b", new_oss, updated_md)
+                md = re.sub(r"\b" + re.escape(current_oss) + r"\b", new_oss, md)
 
     # NGINX Plus: "NGINX Plus images include NGINX Plus RXX" or "RXX PY"
     if new_plus:
-        plus_match = re.search(r"NGINX Plus images include NGINX Plus (R\d+(?:\s+P\d+)?)", updated_md)
+        plus_match = re.search(r"NGINX Plus images include NGINX Plus (R\d+(?:\s+P\d+)?)", md)
         if plus_match:
             current_plus = plus_match.group(1)
             if current_plus != new_plus:
-                updated_md = re.sub(r"\b" + re.escape(current_plus) + r"\b", new_plus, updated_md)
+                md = re.sub(r"\b" + re.escape(current_plus) + r"\b", new_plus, md)
 
-    return updated_md
+    return md
 
 
 def main():
@@ -333,31 +333,47 @@ Examples:
                 f"NAP versions - WAF: {args.nap_waf_version}, Config Manager: {args.config_manager_version}, Enforcer: {args.enforcer_version}"
             )
 
-    # Update tech specs table
+    # --- 1. Update the NIC/K8s compatibility table (nic-k8s.md include file) ---
+    # The compatibility table lives in a separate include file, not in
+    # technical-specifications.md itself.  Targeting the wrong file would corrupt
+    # the NGINX Plus images table that appears first in technical-specifications.md.
+    nic_k8s = Path(args.docs_root) / "content" / "includes" / "nic" / "compatibility-tables" / "nic-k8s.md"
+    if not nic_k8s.exists():
+        sys.exit(f"ERROR: Compatibility table file not found: {nic_k8s}")
+    try:
+        if args.verbose:
+            print(f"Updating compatibility table in {nic_k8s}...")
+        nic_k8s.write_text(
+            update_compat_table(
+                nic_k8s.read_text(encoding="utf-8"),
+                args.k8s_versions,
+                args.nginx_version,
+                args.ic_version,
+                args.docs_root,
+            ),
+            encoding="utf-8",
+        )
+        print("updated", nic_k8s)
+    except Exception as e:
+        sys.exit(f"ERROR: Failed to update compatibility table: {e}")
+
+    # --- 2. Update NGINX version prose in technical-specifications.md ---
     tech = Path(args.docs_root) / "content" / "nic" / "technical-specifications.md"
     if not tech.exists():
         sys.exit(f"ERROR: Technical specifications file not found: {tech}")
     try:
         if args.verbose:
-            print("Reading technical specifications file...")
-        original_content = tech.read_text(encoding="utf-8")
-
-        if args.verbose:
-            print("Updating technical specifications table...")
-        updated_content = update(
-            original_content,
-            args.k8s_versions,
-            args.nginx_version,
-            args.ic_version,
-            args.docs_root,
+            print(f"Updating NGINX version prose in {tech}...")
+        tech.write_text(
+            update_nginx_prose(
+                tech.read_text(encoding="utf-8"),
+                args.nginx_version,
+            ),
+            encoding="utf-8",
         )
-
-        if args.verbose:
-            print("Writing updated technical specifications...")
-        tech.write_text(updated_content, encoding="utf-8")
         print("updated", tech)
     except Exception as e:
-        sys.exit(f"ERROR: Failed to update technical specifications: {e}")
+        sys.exit(f"ERROR: Failed to update technical specifications prose: {e}")
 
     # Update NAP compatibility table if WAF version provided
     if args.nap_waf_version:
