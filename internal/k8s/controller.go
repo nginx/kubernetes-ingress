@@ -2323,6 +2323,10 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 				ingEx.PolicyWarnings = append(ingEx.PolicyWarnings, msg)
 			}
 		}
+	} else if ingEx.Ingress.Annotations[configs.PoliciesAnnotation] != "" {
+		msg := fmt.Sprintf("Ingress %v/%v has the %v annotation but custom resources are not enabled; policies will be ignored", ing.Namespace, ing.Name, configs.PoliciesAnnotation)
+		nl.Warnf(lbc.Logger, "%s", msg)
+		ingEx.PolicyWarnings = append(ingEx.PolicyWarnings, msg)
 	}
 
 	if lbc.isNginxPlus {
