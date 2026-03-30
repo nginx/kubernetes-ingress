@@ -1,16 +1,22 @@
 name: Release PR
 
+run-name: ${{ inputs.dry_run && '[DRY RUN] ' || '' }}Release NIC Docs ${{ inputs.nic_version }} by @${{ github.actor }}
+
 on:
   workflow_dispatch:
     inputs:
+      nic_version:
+        description: "NIC version to release"
+        required: true
+        default: "5.5.0"
       current_versions:
         description: "Current versions to replace (NIC, Helm Chart, Operator)"
         required: true
         default: "5.4.0, 2.5.0, 3.5.0"
       new_versions:
-        description: "Versions to release (NIC, Helm Chart, Operator)"
+        description: "Versions to release (Helm Chart, Operator)"
         required: true
-        default: "5.5.0, 2.6.0, 3.6.0"
+        default: "2.6.0, 3.6.0"
       k8s_versions:
         description: "Kubernetes versions this release has been tested on"
         required: true
@@ -57,12 +63,12 @@ jobs:
         id: parse
         run: |
           IFS=',' read -r current_version current_helm_version current_operator_version <<< "${{ inputs.current_versions }}"
-          IFS=',' read -r new_version new_helm_version new_operator_version <<< "${{ inputs.new_versions }}"
-          # Trim whitespace from parsed values (users may type "5.4.0, 2.5.0, 3.5.0")
+          IFS=',' read -r new_helm_version new_operator_version <<< "${{ inputs.new_versions }}"
+          # Trim whitespace from parsed values
           current_version=$(echo "${current_version}" | xargs)
           current_helm_version=$(echo "${current_helm_version}" | xargs)
           current_operator_version=$(echo "${current_operator_version}" | xargs)
-          new_version=$(echo "${new_version}" | xargs)
+          new_version=$(echo "${{ inputs.nic_version }}" | xargs)
           new_helm_version=$(echo "${new_helm_version}" | xargs)
           new_operator_version=$(echo "${new_operator_version}" | xargs)
           echo "current_version=${current_version}" >> $GITHUB_OUTPUT
@@ -158,8 +164,8 @@ jobs:
       - name: Parse versions
         id: parse
         run: |
-          IFS=',' read -r new_version new_helm_version new_operator_version <<< "${{ inputs.new_versions }}"
-          new_version=$(echo "${new_version}" | xargs)
+          IFS=',' read -r new_helm_version new_operator_version <<< "${{ inputs.new_versions }}"
+          new_version=$(echo "${{ inputs.nic_version }}" | xargs)
           new_helm_version=$(echo "${new_helm_version}" | xargs)
           new_operator_version=$(echo "${new_operator_version}" | xargs)
           echo "new_version=${new_version}" >> $GITHUB_OUTPUT

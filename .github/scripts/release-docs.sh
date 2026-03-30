@@ -374,7 +374,7 @@ fi
 
 if [ "${DRY_RUN}" == "false" ]; then
     echo "INFO: Committing changes to the documentation repository"
-    git commit -m "Update release notes for ${ic_version}"
+    git commit -m "Update NIC release notes for ${ic_version}"
     if [ $? -ne 0 ]; then
         echo "ERROR: failed committing changes to the docs repo"
         exit 2
@@ -384,8 +384,8 @@ if [ "${DRY_RUN}" == "false" ]; then
     if git push origin "${branch}" 2>&1; then
         # Direct push succeeded — create PR in the same repo
         echo "INFO: Creating pull request for the documentation repository"
-        gh pr create --title "Update release notes for ${ic_version}" \
-            --body "Update release notes for ${ic_version}" \
+        gh pr create --title "Update NIC release notes for ${ic_version}" \
+            --body "Update NIC release notes for ${ic_version}" \
             --head "${branch}" --draft
     else
         # Push failed (no write access) — fork and push there instead
@@ -414,8 +414,8 @@ if [ "${DRY_RUN}" == "false" ]; then
 
         echo "INFO: Creating pull request from fork against ${DOCS_REPO}"
         gh pr create --repo "${DOCS_REPO}" \
-            --title "Update release notes for ${ic_version}" \
-            --body "Update release notes for ${ic_version}" \
+            --title "Update NIC release notes for ${ic_version}" \
+            --body "Update NIC release notes for ${ic_version}" \
             --head "${fork_owner}:${branch}" --draft
     fi
 else
