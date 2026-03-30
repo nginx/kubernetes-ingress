@@ -6,10 +6,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
-func createPointerFromInt(n int) *int {
-	return &n
-}
-
 func TestValidateVariable(t *testing.T) {
 	t.Parallel()
 	validVars := map[string]bool{

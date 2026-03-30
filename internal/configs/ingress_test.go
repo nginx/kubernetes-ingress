@@ -23,14 +23,13 @@ import (
 
 func TestGenerateNginxCfg(t *testing.T) {
 	t.Parallel()
-	cafeIngressEx := createCafeIngressEx()
 	isPlus := false
 	configParams := NewDefaultConfigParams(context.Background(), isPlus)
 
 	expected := createExpectedConfigForCafeIngressEx(isPlus)
 	result, warnings := generateNginxCfg(NginxCfgParams{
 		staticParams:         &StaticConfigParams{},
-		ingEx:                &cafeIngressEx,
+		ingEx:                new(createCafeIngressEx()),
 		apResources:          nil,
 		dosResource:          nil,
 		isMinion:             false,
@@ -843,7 +842,6 @@ func TestGenerateNginxCfgWithWildcardTLSSecret(t *testing.T) {
 
 func TestGenerateNginxCfgWithIPV6Disabled(t *testing.T) {
 	t.Parallel()
-	cafeIngressEx := createCafeIngressEx()
 	isPlus := false
 	configParams := NewDefaultConfigParams(context.Background(), isPlus)
 
@@ -852,7 +850,7 @@ func TestGenerateNginxCfgWithIPV6Disabled(t *testing.T) {
 
 	result, warnings := generateNginxCfg(NginxCfgParams{
 		staticParams:         &StaticConfigParams{DisableIPV6: true},
-		ingEx:                &cafeIngressEx,
+		ingEx:                new(createCafeIngressEx()),
 		apResources:          nil,
 		dosResource:          nil,
 		isMinion:             false,
@@ -889,26 +887,23 @@ func TestPathOrDefaultReturnActual(t *testing.T) {
 
 func TestGenerateIngressPath(t *testing.T) {
 	t.Parallel()
-	exact := networking.PathTypeExact
-	prefix := networking.PathTypePrefix
-	impSpec := networking.PathTypeImplementationSpecific
 	tests := []struct {
 		pathType *networking.PathType
 		path     string
 		expected string
 	}{
 		{
-			pathType: &exact,
+			pathType: new(networking.PathTypeExact),
 			path:     "/path/to/resource",
 			expected: "= /path/to/resource",
 		},
 		{
-			pathType: &prefix,
+			pathType: new(networking.PathTypePrefix),
 			path:     "/path/to/resource",
 			expected: "/path/to/resource",
 		},
 		{
-			pathType: &impSpec,
+			pathType: new(networking.PathTypeImplementationSpecific),
 			path:     "/path/to/resource",
 			expected: "/path/to/resource",
 		},
@@ -2675,7 +2670,6 @@ func createExpectedConfigForCrossNamespaceMergeableCafeIngress() version1.Ingres
 
 func TestGenerateNginxCfgForSpiffe(t *testing.T) {
 	t.Parallel()
-	cafeIngressEx := createCafeIngressEx()
 	isPlus := false
 	configParams := NewDefaultConfigParams(context.Background(), isPlus)
 
@@ -2687,7 +2681,7 @@ func TestGenerateNginxCfgForSpiffe(t *testing.T) {
 
 	result, warnings := generateNginxCfg(NginxCfgParams{
 		staticParams:         &StaticConfigParams{NginxServiceMesh: true},
-		ingEx:                &cafeIngressEx,
+		ingEx:                new(createCafeIngressEx()),
 		apResources:          nil,
 		dosResource:          nil,
 		isMinion:             false,

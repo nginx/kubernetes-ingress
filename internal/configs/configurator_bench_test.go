@@ -79,8 +79,7 @@ func BenchUpdateEndpoints(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	ingress := createCafeIngressEx()
-	ingresses := []*IngressEx{&ingress}
+	ingresses := []*IngressEx{new(createCafeIngressEx())}
 
 	b.ResetTimer()
 	for range b.N {
