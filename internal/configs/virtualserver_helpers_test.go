@@ -643,8 +643,6 @@ func TestGenerateUpstream(t *testing.T) {
 func TestGenerateUpstreamWithKeepalive(t *testing.T) {
 	t.Parallel()
 	name := "test-upstream"
-	noKeepalive := 0
-	keepalive := 32
 	endpoints := []string{
 		"192.168.10.10:8080",
 	}
@@ -656,7 +654,7 @@ func TestGenerateUpstreamWithKeepalive(t *testing.T) {
 		msg       string
 	}{
 		{
-			conf_v1.Upstream{Keepalive: &keepalive, Service: name, Port: 80},
+			conf_v1.Upstream{Keepalive: new(32), Service: name, Port: 80},
 			&ConfigParams{Keepalive: 21},
 			version2.Upstream{
 				Name: "test-upstream",
@@ -690,7 +688,7 @@ func TestGenerateUpstreamWithKeepalive(t *testing.T) {
 			"upstream keepalive not set, configparam set",
 		},
 		{
-			conf_v1.Upstream{Keepalive: &noKeepalive, Service: name, Port: 80},
+			conf_v1.Upstream{Keepalive: new(0), Service: name, Port: 80},
 			&ConfigParams{Keepalive: 21},
 			version2.Upstream{
 				Name: "test-upstream",
@@ -2138,7 +2136,7 @@ func TestGenerateGrpcHealthCheck(t *testing.T) {
 					ConnectTimeout: "20s",
 					SendTimeout:    "20s",
 					ReadTimeout:    "20s",
-					GRPCStatus:     createPointerFromInt(12),
+					GRPCStatus:     new(12),
 					GRPCService:    "grpc-service",
 					Headers: []conf_v1.Header{
 						{
@@ -2167,7 +2165,7 @@ func TestGenerateGrpcHealthCheck(t *testing.T) {
 				Fails:               3,
 				Passes:              2,
 				Port:                50051,
-				GRPCStatus:          createPointerFromInt(12),
+				GRPCStatus:          new(12),
 				GRPCService:         "grpc-service",
 				Headers: map[string]string{
 					"Host":       "my.service",
@@ -3294,8 +3292,6 @@ func TestGenerateProxySetHeaders(t *testing.T) {
 
 func TestGenerateProxyPassRequestHeaders(t *testing.T) {
 	t.Parallel()
-	passTrue := true
-	passFalse := false
 	tests := []struct {
 		proxy    *conf_v1.ActionProxy
 		expected bool
@@ -3319,7 +3315,7 @@ func TestGenerateProxyPassRequestHeaders(t *testing.T) {
 		{
 			proxy: &conf_v1.ActionProxy{
 				RequestHeaders: &conf_v1.ProxyRequestHeaders{
-					Pass: &passTrue,
+					Pass: new(true),
 				},
 			},
 			expected: true,
@@ -3327,7 +3323,7 @@ func TestGenerateProxyPassRequestHeaders(t *testing.T) {
 		{
 			proxy: &conf_v1.ActionProxy{
 				RequestHeaders: &conf_v1.ProxyRequestHeaders{
-					Pass: &passFalse,
+					Pass: new(false),
 				},
 			},
 			expected: false,

@@ -768,7 +768,7 @@ func TestGeneratePolicies(t *testing.T) {
 						EgressMTLS: &conf_v1.EgressMTLS{
 							TLSSecret:         "egress-mtls-secret",
 							ServerName:        true,
-							SessionReuse:      createPointerFromBool(false),
+							SessionReuse:      new(false),
 							TrustedCertSecret: "egress-trusted-ca-secret",
 						},
 					},
@@ -805,7 +805,7 @@ func TestGeneratePolicies(t *testing.T) {
 						EgressMTLS: &conf_v1.EgressMTLS{
 							TLSSecret:         "egress-mtls-secret",
 							ServerName:        true,
-							SessionReuse:      createPointerFromBool(false),
+							SessionReuse:      new(false),
 							TrustedCertSecret: "egress-trusted-ca-secret-crl",
 						},
 					},
@@ -851,7 +851,7 @@ func TestGeneratePolicies(t *testing.T) {
 							ClientSecret:          "oidc-secret",
 							Scope:                 "scope",
 							RedirectURI:           "/redirect",
-							ZoneSyncLeeway:        createPointerFromInt(20),
+							ZoneSyncLeeway:        new(20),
 							AccessTokenEnable:     true,
 							EndSessionEndpoint:    "http://example.com/logout",
 							PostLogoutRedirectURI: "/_logout",
@@ -1299,7 +1299,7 @@ func TestAddCORSConfig(t *testing.T) {
 				AllowOrigin:  []string{"https://example.com"},
 				AllowMethods: []string{"GET", "POST"},
 				AllowHeaders: []string{"Content-Type", "Authorization"},
-				MaxAge:       createPointerFromInt(3600),
+				MaxAge:       new(3600),
 			},
 			expected: policiesCfg{
 				CORSHeaders: []version2.AddHeader{
@@ -1333,8 +1333,8 @@ func TestAddCORSConfig(t *testing.T) {
 				AllowMethods:     []string{"GET", "POST", "PUT", "DELETE"},
 				AllowHeaders:     []string{"Content-Type"},
 				ExposeHeaders:    []string{"X-Total-Count"},
-				AllowCredentials: createPointerFromBool(true),
-				MaxAge:           createPointerFromInt(86400),
+				AllowCredentials: new(true),
+				MaxAge:           new(86400),
 			},
 			expected: policiesCfg{
 				CORSHeaders: []version2.AddHeader{
@@ -1510,7 +1510,7 @@ func TestGenerateCORSPolicy(t *testing.T) {
 							AllowOrigin:  []string{"https://trusted.example.com"},
 							AllowMethods: []string{"GET", "POST"},
 							AllowHeaders: []string{"Content-Type"},
-							MaxAge:       createPointerFromInt(3600),
+							MaxAge:       new(3600),
 						},
 					},
 				},
@@ -1548,8 +1548,8 @@ func TestGenerateCORSPolicy(t *testing.T) {
 							AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 							AllowHeaders:     []string{"Content-Type", "Authorization", "X-Requested-With"},
 							ExposeHeaders:    []string{"X-Total-Count", "X-RateLimit-Remaining"},
-							AllowCredentials: createPointerFromBool(true),
-							MaxAge:           createPointerFromInt(86400),
+							AllowCredentials: new(true),
+							MaxAge:           new(86400),
 						},
 					},
 				},
@@ -1632,7 +1632,7 @@ func TestGenerateCORSPolicy(t *testing.T) {
 							AllowMethods:  []string{"GET", "POST", "PUT"},
 							AllowHeaders:  []string{"Content-Type", "X-API-Key"},
 							ExposeHeaders: []string{"X-Request-ID"},
-							MaxAge:        createPointerFromInt(7200),
+							MaxAge:        new(7200),
 						},
 					},
 				},
@@ -1670,7 +1670,7 @@ func TestGenerateCORSPolicy(t *testing.T) {
 							AllowOrigin:      []string{"https://api.example.com", "https://dashboard.example.com"},
 							AllowMethods:     []string{"GET", "POST", "DELETE"},
 							AllowHeaders:     []string{"Authorization", "Content-Type"},
-							AllowCredentials: createPointerFromBool(true),
+							AllowCredentials: new(true),
 						},
 					},
 				},
@@ -1835,9 +1835,6 @@ func TestGeneratePoliciesFails(t *testing.T) {
 		parentType:      "vs",
 	}
 
-	dryRunOverride := true
-	rejectCodeOverride := 505
-
 	ingressMTLSCertPath := "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crt"
 	ingressMTLSCrlPath := "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crl"
 
@@ -1946,9 +1943,9 @@ func TestGeneratePoliciesFails(t *testing.T) {
 							Key:        "test2",
 							ZoneSize:   "20M",
 							Rate:       "20r/s",
-							DryRun:     &dryRunOverride,
+							DryRun:     new(true),
 							LogLevel:   "info",
-							RejectCode: &rejectCodeOverride,
+							RejectCode: new(505),
 						},
 					},
 				},
@@ -3079,7 +3076,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 							PostLogoutRedirectURI: "/_logout",
 							ClientID:              "foo",
 							AccessTokenEnable:     true,
-							SSLVerifyDepth:        intPointer(0),
+							SSLVerifyDepth:        new(0),
 						},
 					},
 				},
