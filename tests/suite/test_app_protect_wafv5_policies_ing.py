@@ -2,7 +2,7 @@ import pytest
 import requests
 from settings import TEST_DATA
 from suite.fixtures.fixtures import PublicEndpoint
-from suite.utils.policy_resources_utils import apply_and_wait_for_valid_policy, delete_policy
+from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_policy
 from suite.utils.resources_utils import (
     create_example_app,
     create_items_from_yaml,
@@ -22,7 +22,7 @@ class AppProtectWAFv5PolicyIngressSetup:
 
 
 ingress_src = f"{TEST_DATA}/ap-waf-v5/ingress-policy.yaml"
-mergable_ing_src = f"{TEST_DATA}/ap-waf-v5/mergeable-ingress-policy.yaml"
+mergeable_ing_src = f"{TEST_DATA}/ap-waf-v5/mergeable-ingress-policy.yaml"
 policy_src = f"{TEST_DATA}/ap-waf-v5/policies/waf.yaml"
 
 
@@ -72,9 +72,9 @@ def ingress_setup(kube_apis, ingress_controller_endpoint, test_namespace):
 
 @pytest.fixture(scope="function")
 def mergeable_ingress_setup(kube_apis, ingress_controller_endpoint, test_namespace):
-    setup = create_ingress_setup(kube_apis, ingress_controller_endpoint, test_namespace, mergable_ing_src)
+    setup = create_ingress_setup(kube_apis, ingress_controller_endpoint, test_namespace, mergeable_ing_src)
     yield setup
-    cleanup_ingress_setup(kube_apis, mergable_ing_src, test_namespace)
+    cleanup_ingress_setup(kube_apis, mergeable_ing_src, test_namespace)
 
 
 @pytest.mark.skip_for_nginx_oss
@@ -102,7 +102,8 @@ class TestAppProtectWAFv5PolicyIngress:
         test_namespace,
         ingress_setup,
     ):
-        apply_and_wait_for_valid_policy(kube_apis, test_namespace, policy_src)
+        create_policy_from_yaml(kube_apis.custom_objects, policy_src, test_namespace)
+        wait_before_test()
 
         request_url = f"http://{ingress_setup.public_endpoint.public_ip}:{ingress_setup.public_endpoint.port}/backend1"
         response = send_malicious_request_with_retry(request_url, ingress_setup.ingress_host)
@@ -136,7 +137,8 @@ class TestAppProtectWAFv5PolicyMergeableIngress:
         test_namespace,
         mergeable_ingress_setup,
     ):
-        apply_and_wait_for_valid_policy(kube_apis, test_namespace, policy_src)
+        create_policy_from_yaml(kube_apis.custom_objects, policy_src, test_namespace)
+        wait_before_test()
 
         request_url = (
             f"http://{mergeable_ingress_setup.public_endpoint.public_ip}:"
