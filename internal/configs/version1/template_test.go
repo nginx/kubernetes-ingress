@@ -4714,10 +4714,10 @@ var (
 	}
 )
 
-func createProxySetHeaderIngressConfig(masterAnnotations map[string]string, coffeeAnnotations map[string]string, teamAnnotations map[string]string) IngressNginxConfig {
+func createProxySetHeaderIngressConfig(masterAnnotations map[string]string, coffeeAnnotations map[string]string, teaAnnotations map[string]string) IngressNginxConfig {
 	masterPSH := masterAnnotations["nginx.org/proxy-set-headers"]
 	coffeePSH := coffeeAnnotations["nginx.org/proxy-set-headers"]
-	teaPSH := teamAnnotations["nginx.org/proxy-set-headers"]
+	teaPSH := teaAnnotations["nginx.org/proxy-set-headers"]
 
 	return IngressNginxConfig{
 		Servers: []Server{
@@ -4736,7 +4736,7 @@ func createProxySetHeaderIngressConfig(masterAnnotations map[string]string, coff
 						MinionIngress: &Ingress{
 							Name:        "cafe-ingress-tea-minion",
 							Namespace:   "default",
-							Annotations: teamAnnotations,
+							Annotations: teaAnnotations,
 						},
 						ProxySetHeaders: MergeProxySetHeaders(masterPSH, teaPSH),
 					},
