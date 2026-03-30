@@ -2069,7 +2069,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			}
 
 			polKey := polNamespace + "/" + polName
-			res := config.addExternalAuthConfig(test.extAuth, polKey, polNamespace, polName, nil, policyOptions{})
+			res := config.addExternalAuthConfig(test.extAuth, polKey, polNamespace, polName, nil, policyOptions{}, policyOwnerDetails{parentType: "vs"})
 
 			if test.wantWarning {
 				if len(res.warnings) == 0 {

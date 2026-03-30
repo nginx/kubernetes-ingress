@@ -272,6 +272,7 @@ func (p *policiesCfg) addExternalAuthConfig(
 	polName string,
 	secretRefs map[string]*secrets.SecretReference,
 	policyOpts policyOptions,
+	ownerDetails policyOwnerDetails,
 ) *validationResults {
 	res := newValidationResults()
 	if p.ExternalAuth != nil {
@@ -279,7 +280,7 @@ func (p *policiesCfg) addExternalAuthConfig(
 		return res
 	}
 
-	upstreamName := fmt.Sprintf("%s_%s_%s", "vs_exauth", polNamespace, polName)
+	upstreamName := fmt.Sprintf("%s_exauth_%s_%s", ownerDetails.parentType, polNamespace, polName)
 	internalPath := fmt.Sprintf("/_external_auth%s", externalAuth.AuthURI)
 
 	p.ExternalAuth = &version2.ExternalAuth{
@@ -1109,7 +1110,7 @@ func generatePolicies(
 			case pol.Spec.JWTAuth != nil:
 				res = config.addJWTAuthConfig(pol.Spec.JWTAuth, key, polNamespace, policyOpts.secretRefs)
 			case pol.Spec.ExternalAuth != nil:
-				res = config.addExternalAuthConfig(pol.Spec.ExternalAuth, key, polNamespace, p.Name, policyOpts.secretRefs, policyOpts)
+				res = config.addExternalAuthConfig(pol.Spec.ExternalAuth, key, polNamespace, p.Name, policyOpts.secretRefs, policyOpts, ownerDetails)
 			case pol.Spec.BasicAuth != nil:
 				res = config.addBasicAuthConfig(pol.Spec.BasicAuth, key, polNamespace, policyOpts.secretRefs)
 			case pol.Spec.IngressMTLS != nil:
