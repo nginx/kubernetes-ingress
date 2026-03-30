@@ -119,13 +119,14 @@ def update_nap_table(
 
     # Find the live shortcode row and snapshot its current versions
     shortcode_row_found = False
+    orig_shortcode_row = ""
     other_rows = []
 
     for line in data_lines:
-        line = line.strip()
-        if not line:
+        if not line.strip():
             continue
         if "{{< nic-version >}}" in line:
+            orig_shortcode_row = line
             cols = [c.strip() for c in line.split("|")[1:-1]]
             if len(cols) < 4:
                 print("ERROR: Unexpected column count in NAP shortcode row")
@@ -151,6 +152,7 @@ def update_nap_table(
             current_config_mgr = resolve_col(cols[2])
             current_enforcer = resolve_col(cols[3])
 
+            # Freeze the current live row as a historical entry with literal values
             other_rows.append(
                 f"| {current_nic_version} | {current_nap_waf} | {current_config_mgr} | {current_enforcer} |"
             )
@@ -162,20 +164,16 @@ def update_nap_table(
         print("ERROR: Could not find shortcode row in NAP table")
         return False
 
-    # Build the new live shortcode row, preserving Hugo shortcodes so that
-    # subsequent shortcode file updates (by docs-shortcode-update.sh) flow through.
-    # The NGINX Plus R-number prefix (e.g. "36") is taken from nap_waf_version
-    # so the table always reflects the correct major bundle version.
+    # Preserve the original shortcode row formatting/whitespace.
+    # Only update the R-number prefix (e.g. "36+") if it changed.
+    new_shortcode_row = orig_shortcode_row
     if "+" in nap_waf_version:
-        plus_prefix = nap_waf_version.split("+")[0]
-        nap_waf_col = f"{plus_prefix}+{{{{< appprotect-compiler-version >}}}}"
-    else:
-        nap_waf_col = nap_waf_version
-
-    new_shortcode_row = (
-        f"| {{{{< nic-version >}}}} | {nap_waf_col} "
-        f"| {{{{< nic-waf-release-version >}}}} | {{{{< nic-waf-release-version >}}}} |"
-    )
+        new_prefix = nap_waf_version.split("+")[0]
+        prefix_match = re.search(r"(\d+)\+", orig_shortcode_row)
+        if prefix_match:
+            old_prefix = prefix_match.group(1)
+            if old_prefix != new_prefix:
+                new_shortcode_row = orig_shortcode_row.replace(old_prefix + "+", new_prefix + "+", 1)
 
     new_table_content = "\n".join([header_line, separator_line, new_shortcode_row] + other_rows)
     new_content = re.sub(
@@ -227,14 +225,20 @@ def update_compat_table(md, k8s_new, nginx_new, ic_version, docs_root):
     sc_cols = [c.strip() for c in body[sc_idx].split("|")[1:-1]]
 
     orig_k8s, orig_nginx = sc_cols[1], sc_cols[4]
-    sc_cols[1], sc_cols[4] = k8s_new, nginx_new
-    new_sc_row = "| " + " | ".join(sc_cols) + " |"
+
+    # Update the shortcode row in-place to preserve column formatting/whitespace
+    new_sc_row = body[sc_idx]
+    if orig_k8s != k8s_new:
+        new_sc_row = new_sc_row.replace(orig_k8s, k8s_new, 1)
+    if orig_nginx != nginx_new:
+        new_sc_row = new_sc_row.replace(orig_nginx, nginx_new, 1)
 
     patch = is_patch_release(ic_version, main)
     prev_row = f"| {main} | {orig_k8s} | {helm} | {oper} | {orig_nginx} | {main_eol} |"
 
     now = datetime.now()
     new_body, prev_seen = [], False
+    expired_rows = []
     for r in body:
         if "{{<" in r or "{{%" in r or not r.strip():
             continue
@@ -247,7 +251,9 @@ def update_compat_table(md, k8s_new, nginx_new, ic_version, docs_root):
                 prev_seen = True
             continue
         try:
-            if now > datetime.strptime(cols[5], "%b %d, %Y"):
+            eol_date = datetime.strptime(cols[5], "%b %d, %Y")
+            if now > eol_date:
+                expired_rows.append((eol_date, r))
                 continue
         except Exception:
             pass
@@ -255,6 +261,11 @@ def update_compat_table(md, k8s_new, nginx_new, ic_version, docs_root):
 
     if not prev_seen and not patch:
         new_body.insert(0, prev_row)
+
+    # Keep the most recently expired row as a migration reference
+    if expired_rows:
+        expired_rows.sort(key=lambda x: x[0], reverse=True)
+        new_body.append(expired_rows[0][1])
 
     final_tbl = "\n".join([header, sep, new_sc_row] + new_body)
     updated_md = re.sub(pat, open_tag + final_tbl + close_tag, md, count=1, flags=re.S)
