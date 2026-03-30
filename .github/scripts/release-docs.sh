@@ -342,17 +342,19 @@ if [ -n "${nginx_version}" ]; then
         cat "${DOCS_FOLDER}/content/nic/technical-specifications.md"
     fi
 
-    # Stage compatibility table, tech specs prose, and NAP table if updated
-    git add "${DOCS_FOLDER}/content/nic/technical-specifications.md"
-    git add "${DOCS_FOLDER}/content/includes/nic/compatibility-tables/nic-k8s.md"
-    if [ -n "${NAP_WAF_VERSION}" ]; then
-        nap_table_file="${DOCS_FOLDER}/content/includes/nic/compatibility-tables/nic-nap.md"
-        if [ -f "${nap_table_file}" ]; then
-            git add "${nap_table_file}"
+    # Stage and commit tech specs changes (skip commit in dry-run mode)
+    if [ "${DRY_RUN}" == "false" ]; then
+        git add "${DOCS_FOLDER}/content/nic/technical-specifications.md"
+        git add "${DOCS_FOLDER}/content/includes/nic/compatibility-tables/nic-k8s.md"
+        if [ -n "${NAP_WAF_VERSION}" ]; then
+            nap_table_file="${DOCS_FOLDER}/content/includes/nic/compatibility-tables/nic-nap.md"
+            if [ -f "${nap_table_file}" ]; then
+                git add "${nap_table_file}"
+            fi
+            git commit -m "Update technical specifications and NAP compatibility table for ${ic_version}"
+        else
+            git commit -m "Update technical specifications for ${ic_version}"
         fi
-        git commit -m "Update technical specifications and NAP compatibility table for ${ic_version}"
-    else
-        git commit -m "Update technical specifications for ${ic_version}"
     fi
 else
     echo "INFO: nginx_version not set, skipping tech specs update"

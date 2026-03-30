@@ -72,6 +72,11 @@ def update_nap_table(
     sc_dir = docs / "layouts" / "shortcodes"
     current_nic_version = shortcode_ver(sc_dir / "nic-version.html")
 
+    # Skip if the version hasn't changed (e.g. re-running the script)
+    if nic_version == current_nic_version:
+        print(f"INFO: Version unchanged ({nic_version}), skipping NAP table update")
+        return True
+
     patch = is_patch_release(nic_version, current_nic_version)
 
     if patch:
@@ -99,6 +104,14 @@ def update_nap_table(
         return False
 
     table_start, table_content, table_end = match.groups()
+
+    # Preserve leading/trailing blank lines inside the table shortcode block
+    leading_ws = ""
+    trailing_ws = ""
+    if table_content.startswith("\n"):
+        leading_ws = "\n"
+    if table_content.endswith("\n"):
+        trailing_ws = "\n"
 
     lines = table_content.strip().split("\n")
 
@@ -175,7 +188,9 @@ def update_nap_table(
             if old_prefix != new_prefix:
                 new_shortcode_row = orig_shortcode_row.replace(old_prefix + "+", new_prefix + "+", 1)
 
-    new_table_content = "\n".join([header_line, separator_line, new_shortcode_row] + other_rows)
+    new_table_content = (
+        leading_ws + "\n".join([header_line, separator_line, new_shortcode_row] + other_rows) + trailing_ws
+    )
     new_content = re.sub(
         table_pattern,
         table_start + new_table_content + table_end,
@@ -209,6 +224,11 @@ def update_compat_table(md, k8s_new, nginx_new, ic_version, docs_root):
     oper = shortcode_ver(sc_dir / "nic-operator-version.html")
     main = shortcode_ver(sc_dir / "nic-version.html")
 
+    # Skip if the version hasn't changed (e.g. re-running the script)
+    if ic_version == main:
+        print(f"INFO: Version unchanged ({ic_version}), skipping compatibility table update")
+        return md
+
     releases = github_release_dates()
     main_eol = plus2y(releases.get(main, datetime.now())).strftime("%b %d, %Y")
 
@@ -218,8 +238,36 @@ def update_compat_table(md, k8s_new, nginx_new, ic_version, docs_root):
         sys.exit("table shortcode not found in compatibility table file")
     open_tag, tbl_txt, close_tag = m.groups()
 
-    rows = tbl_txt.rstrip("\n").split("\n")
-    header, sep, body = rows[0], rows[1], rows[2:]
+    # Preserve leading/trailing blank lines inside the table shortcode block
+    leading_ws = ""
+    trailing_ws = ""
+    if tbl_txt.startswith("\n"):
+        leading_ws = "\n"
+    stripped = tbl_txt.strip()
+    if tbl_txt.endswith("\n"):
+        trailing_ws = "\n"
+
+    rows = stripped.split("\n")
+
+    # Find the header row and separator row by content, not position.
+    # The separator is a row where every cell is dashes (e.g. | --- | --- |).
+    header = rows[0]
+    sep = None
+    sep_idx = None
+    for i, r in enumerate(rows[1:], 1):
+        cells = [c.strip() for c in r.split("|")[1:-1]]
+        if cells and all(re.match(r"-+\s*$", c) for c in cells):
+            sep = r
+            sep_idx = i
+            break
+
+    if sep is None:
+        # No separator found — generate one matching the header column count
+        col_count = len(header.split("|")) - 2
+        sep = "| " + " | ".join(["---"] * col_count) + " |"
+        body = rows[1:]
+    else:
+        body = rows[sep_idx + 1 :]
 
     sc_idx = next(i for i, r in enumerate(body) if "{{<" in r or "{{%" in r)
     sc_cols = [c.strip() for c in body[sc_idx].split("|")[1:-1]]
@@ -267,7 +315,7 @@ def update_compat_table(md, k8s_new, nginx_new, ic_version, docs_root):
         expired_rows.sort(key=lambda x: x[0], reverse=True)
         new_body.append(expired_rows[0][1])
 
-    final_tbl = "\n".join([header, sep, new_sc_row] + new_body)
+    final_tbl = leading_ws + "\n".join([header, sep, new_sc_row] + new_body) + trailing_ws
     updated_md = re.sub(pat, open_tag + final_tbl + close_tag, md, count=1, flags=re.S)
     return updated_md
 
