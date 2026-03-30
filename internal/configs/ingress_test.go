@@ -4536,3 +4536,100 @@ func TestGenerateNginxCfgForMergeableIngressesWithDifferentExternalAuthOnMasterA
 		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
 	}
 }
+
+func TestGenerateNginxCfgForMergeableIngressesWithExternalAuthAndProxySetHeaders(t *testing.T) {
+	t.Parallel()
+	mergeableIngresses := createMergeableCafeIngress()
+
+	// Add proxy-set-headers annotation to the coffee minion
+	mergeableIngresses.Minions[0].Ingress.Annotations["nginx.org/proxy-set-headers"] = "X-Forwarded-ABC: coffee"
+
+	// Add ExternalAuth policy with signin URL to the coffee minion
+	mergeableIngresses.Minions[0].Ingress.Annotations["nginx.org/policies"] = "coffee-ext-auth"
+	mergeableIngresses.Minions[0].Endpoints["default/auth-svc:8080"] = []string{"10.0.0.5:8080"}
+	mergeableIngresses.Minions[0].Policies = map[string]*conf_v1.Policy{
+		"default/coffee-ext-auth": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "coffee-ext-auth",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				ExternalAuth: &conf_v1.ExternalAuth{
+					AuthServiceName:  "auth-svc",
+					AuthServicePorts: []int{8080},
+					AuthSigninURI:    "/oauth2/start",
+				},
+			},
+		},
+	}
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs: mergeableIngresses,
+		staticParams:  &StaticConfigParams{},
+		isPlus:        isPlus,
+		BaseCfgParams: configParams,
+	})
+
+	server := result.Servers[0]
+
+	// The coffee minion location should have the merged proxy-set-headers
+	coffeeFound := false
+	for _, loc := range server.Locations {
+		if loc.Path == "/coffee" {
+			coffeeFound = true
+			expectedHeaders := []version2.Header{{Name: "X-Forwarded-ABC", Value: "coffee"}}
+			if diff := cmp.Diff(expectedHeaders, loc.ProxySetHeaders); diff != "" {
+				t.Errorf("coffee location ProxySetHeaders mismatch (-want +got):\n%s", diff)
+			}
+			break
+		}
+	}
+	if !coffeeFound {
+		t.Fatal("coffee location not found")
+	}
+
+	// The oauth2 location should retain its original headers, NOT the annotation headers
+	oauth2Found := false
+	for _, loc := range server.Locations {
+		if loc.AuthRequestOff && !loc.Internal {
+			oauth2Found = true
+			expectedHeaders := []version2.Header{
+				{Name: "X-Auth-Request-Redirect", Value: "$request_uri"},
+				{Name: "X-Scheme", Value: "$scheme"},
+			}
+			if diff := cmp.Diff(expectedHeaders, loc.ProxySetHeaders); diff != "" {
+				t.Errorf("oauth2 location ProxySetHeaders should not be overwritten by annotation (-want +got):\n%s", diff)
+			}
+			break
+		}
+	}
+	if !oauth2Found {
+		t.Fatal("oauth2 location not found")
+	}
+
+	// The internal auth location should retain its original headers
+	internalAuthFound := false
+	for _, loc := range server.Locations {
+		if loc.Internal {
+			internalAuthFound = true
+			expectedHeaders := []version2.Header{
+				{Name: "Content-Length", Value: "0"},
+				{Name: "X-Scheme", Value: "$scheme"},
+			}
+			if diff := cmp.Diff(expectedHeaders, loc.ProxySetHeaders); diff != "" {
+				t.Errorf("internal auth location ProxySetHeaders should not be overwritten by annotation (-want +got):\n%s", diff)
+			}
+			break
+		}
+	}
+	if !internalAuthFound {
+		t.Fatal("internal auth location not found")
+	}
+
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
+	}
+}

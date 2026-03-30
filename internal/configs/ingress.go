@@ -1183,9 +1183,14 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 				}
 				loc.MinionIngress = &minionNginxCfg.Ingress
 				// Merge proxy-set-headers: minion headers take priority over master headers.
-				masterAnnotation := ncp.mergeableIngs.Master.Ingress.Annotations[ProxySetHeadersAnnotation]
-				minionAnnotation := minion.Ingress.Annotations[ProxySetHeadersAnnotation]
-				loc.ProxySetHeaders = version1.MergeProxySetHeaders(masterAnnotation, minionAnnotation)
+				// Skip auth-infrastructure locations (internal auth subrequest and
+				// oauth2 signin redirect) — they carry purpose-specific headers
+				// that must not be overwritten by the annotation.
+				if !loc.Internal && !loc.AuthRequestOff {
+					masterAnnotation := ncp.mergeableIngs.Master.Ingress.Annotations[ProxySetHeadersAnnotation]
+					minionAnnotation := minion.Ingress.Annotations[ProxySetHeadersAnnotation]
+					loc.ProxySetHeaders = version1.MergeProxySetHeaders(masterAnnotation, minionAnnotation)
+				}
 
 				locations = append(locations, loc)
 			}
