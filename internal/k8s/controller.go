@@ -2306,19 +2306,27 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 		ingEx.SecretRefs[secretName] = secretRef
 	}
 
-	var policyNames string
-	var policyRefs []conf_v1.PolicyReference
-	if ingEx.Ingress.Annotations[configs.PoliciesAnnotation] != "" {
-		policyNames = ingEx.Ingress.Annotations[configs.PoliciesAnnotation]
-		policyRefs = k8spolicies.GetPolicyRefsFromAnnotation(policyNames, ing.Namespace)
-	}
-	policies, policyErrors := lbc.getPolicies(policyRefs, ing.Namespace)
-	if len(policyErrors) > 0 {
-		for _, err := range policyErrors {
-			msg := fmt.Sprintf("Policy error for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
-			nl.Warnf(lbc.Logger, "%s", msg)
-			ingEx.PolicyWarnings = append(ingEx.PolicyWarnings, msg)
+	var policies []*conf_v1.Policy
+	if lbc.areCustomResourcesEnabled {
+		var policyNames string
+		var policyRefs []conf_v1.PolicyReference
+		if ingEx.Ingress.Annotations[configs.PoliciesAnnotation] != "" {
+			policyNames = ingEx.Ingress.Annotations[configs.PoliciesAnnotation]
+			policyRefs = k8spolicies.GetPolicyRefsFromAnnotation(policyNames, ing.Namespace)
 		}
+		var policyErrors []error
+		policies, policyErrors = lbc.getPolicies(policyRefs, ing.Namespace)
+		if len(policyErrors) > 0 {
+			for _, err := range policyErrors {
+				msg := fmt.Sprintf("Policy error for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
+				nl.Warnf(lbc.Logger, "%s", msg)
+				ingEx.PolicyWarnings = append(ingEx.PolicyWarnings, msg)
+			}
+		}
+	} else if ingEx.Ingress.Annotations[configs.PoliciesAnnotation] != "" {
+		msg := fmt.Sprintf("Ingress %v/%v has the %v annotation but custom resources are not enabled; policies will be ignored", ing.Namespace, ing.Name, configs.PoliciesAnnotation)
+		nl.Warnf(lbc.Logger, "%s", msg)
+		ingEx.PolicyWarnings = append(ingEx.PolicyWarnings, msg)
 	}
 
 	if lbc.isNginxPlus {

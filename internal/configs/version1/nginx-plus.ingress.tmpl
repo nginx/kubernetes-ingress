@@ -385,11 +385,7 @@ server {
 		{{- if $location.ProxyNextUpstreamTries}}
 		proxy_next_upstream_tries {{ $location.ProxyNextUpstreamTries }};
 		{{- end }}
-		{{- if $location.SSL}}
-		proxy_pass https://{{$location.Upstream.Name}}{{$location.Rewrite}};
-		{{- else}}
-		proxy_pass http://{{$location.Upstream.Name}}{{$location.Rewrite}};
-		{{- end}}
+		proxy_pass {{ $location.ProxyPass }}{{ $location.Rewrite }};
 		{{- end}}
 
 		{{- if or $location.CORSEnabled (gt (len $location.AddHeaders) 0) }}
