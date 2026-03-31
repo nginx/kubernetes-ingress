@@ -3821,6 +3821,465 @@ func TestGenerateVirtualServerConfigWithRouteSelector(t *testing.T) {
 	}
 }
 
+func TestGenerateExternalAuthLocation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                 string
+		policiesCfg          policiesCfg
+		proxyURLUpstreamName string
+		cfgParams            *ConfigParams
+		expected             version2.Location
+	}{
+		{
+			name: "basic external auth without SSL",
+			policiesCfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					URI: &version2.AuthURI{
+						Service:      "auth-svc",
+						Upstream:     "ext_auth_default_my-auth",
+						Path:         "/auth",
+						InternalPath: "/_ext_auth_default_my-auth",
+					},
+					Snippets: "proxy_set_header X-Custom \"value\"",
+				},
+			},
+			proxyURLUpstreamName: "ext_auth_default_my-auth",
+			cfgParams: &ConfigParams{
+				Context:                  context.Background(),
+				ProxyConnectTimeout:      "10s",
+				ProxyReadTimeout:         "15s",
+				ProxySendTimeout:         "20s",
+				ProxyNextUpstreamTimeout: "5s",
+			},
+			expected: version2.Location{
+				Path:                    "/_ext_auth_default_my-auth",
+				Internal:                true,
+				Snippets:                []string{"proxy_set_header X-Custom \"value\""},
+				ProxyPass:               "http://ext_auth_default_my-auth/auth",
+				ProxyPassRequestHeaders: true,
+				ProxyPassRequestBody:    "off",
+				ProxySetHeaders: []version2.Header{
+					{Name: "Content-Length", Value: "0"},
+					{Name: "Host", Value: "$host"},
+					{Name: "X-Scheme", Value: "$scheme"},
+				},
+				ProxyConnectTimeout:      "10s",
+				ProxyReadTimeout:         "15s",
+				ProxySendTimeout:         "20s",
+				ClientMaxBodySize:        "0",
+				ProxyNextUpstream:        "error timeout",
+				ProxyNextUpstreamTimeout: "5s",
+				ServiceName:              "auth-svc",
+				IsVSR:                    false,
+			},
+		},
+		{
+			name: "external auth with SSL enabled",
+			policiesCfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					URI: &version2.AuthURI{
+						Service:      "auth-svc",
+						Upstream:     "ext_auth_default_my-auth",
+						Path:         "/auth",
+						InternalPath: "/_ext_auth_default_my-auth",
+					},
+					Snippets:   "",
+					SSLEnabled: true,
+				},
+			},
+			proxyURLUpstreamName: "ext_auth_default_my-auth",
+			cfgParams: &ConfigParams{
+				Context:                  context.Background(),
+				ProxyConnectTimeout:      "10s",
+				ProxyReadTimeout:         "15s",
+				ProxySendTimeout:         "20s",
+				ProxyNextUpstreamTimeout: "5s",
+			},
+			expected: version2.Location{
+				Path:                    "/_ext_auth_default_my-auth",
+				Internal:                true,
+				Snippets:                []string{""},
+				ProxyPass:               "https://ext_auth_default_my-auth/auth",
+				ProxyPassRequestHeaders: true,
+				ProxyPassRequestBody:    "off",
+				ProxySetHeaders: []version2.Header{
+					{Name: "Content-Length", Value: "0"},
+					{Name: "Host", Value: "$host"},
+					{Name: "X-Scheme", Value: "$scheme"},
+				},
+				ProxyConnectTimeout:      "10s",
+				ProxyReadTimeout:         "15s",
+				ProxySendTimeout:         "20s",
+				ClientMaxBodySize:        "0",
+				ProxyNextUpstream:        "error timeout",
+				ProxyNextUpstreamTimeout: "5s",
+				ServiceName:              "auth-svc",
+				IsVSR:                    false,
+			},
+		},
+		{
+			name: "external auth with SSL verify",
+			policiesCfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					URI: &version2.AuthURI{
+						Service:      "ns1/auth-svc",
+						Upstream:     "ext_auth_ns1_my-auth",
+						Path:         "/verify",
+						InternalPath: "/_ext_auth_ns1_my-auth",
+					},
+					SSLEnabled:     true,
+					SSLVerify:      true,
+					SSLVerifyDepth: 2,
+					SSLTrustedCert: "/etc/nginx/secrets/trusted-cert.pem",
+					SNIName:        "auth.example.com",
+				},
+			},
+			proxyURLUpstreamName: "ext_auth_ns1_my-auth",
+			cfgParams: &ConfigParams{
+				Context:                  context.Background(),
+				ProxyConnectTimeout:      "30s",
+				ProxyReadTimeout:         "30s",
+				ProxySendTimeout:         "30s",
+				ProxyNextUpstreamTimeout: "10s",
+			},
+			expected: version2.Location{
+				Path:                    "/_ext_auth_ns1_my-auth",
+				Internal:                true,
+				Snippets:                []string{""},
+				ProxyPass:               "https://ext_auth_ns1_my-auth/verify",
+				ProxyPassRequestHeaders: true,
+				ProxyPassRequestBody:    "off",
+				ProxySetHeaders: []version2.Header{
+					{Name: "Content-Length", Value: "0"},
+					{Name: "Host", Value: "$host"},
+					{Name: "X-Scheme", Value: "$scheme"},
+				},
+				ProxyConnectTimeout:        "30s",
+				ProxyReadTimeout:           "30s",
+				ProxySendTimeout:           "30s",
+				ClientMaxBodySize:          "0",
+				ProxyNextUpstream:          "error timeout",
+				ProxyNextUpstreamTimeout:   "10s",
+				ServiceName:                "auth-svc",
+				IsVSR:                      false,
+				ProxySSLVerify:             true,
+				ProxySSLVerifyDepth:        2,
+				ProxySSLTrustedCertificate: "/etc/nginx/secrets/trusted-cert.pem",
+				ProxySSLName:               "auth.example.com",
+			},
+		},
+		{
+			name: "external auth with multiline snippets",
+			policiesCfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					URI: &version2.AuthURI{
+						Service:      "auth-svc",
+						Upstream:     "ext_auth_default_my-auth",
+						Path:         "/auth",
+						InternalPath: "/_ext_auth_default_my-auth",
+					},
+					Snippets: "proxy_set_header X-Custom \"value\"\nproxy_set_header X-Another \"val2\"",
+				},
+			},
+			proxyURLUpstreamName: "ext_auth_default_my-auth",
+			cfgParams: &ConfigParams{
+				Context: context.Background(),
+			},
+			expected: version2.Location{
+				Path:                    "/_ext_auth_default_my-auth",
+				Internal:                true,
+				Snippets:                []string{"proxy_set_header X-Custom \"value\"", "proxy_set_header X-Another \"val2\""},
+				ProxyPass:               "http://ext_auth_default_my-auth/auth",
+				ProxyPassRequestHeaders: true,
+				ProxyPassRequestBody:    "off",
+				ProxySetHeaders: []version2.Header{
+					{Name: "Content-Length", Value: "0"},
+					{Name: "Host", Value: "$host"},
+					{Name: "X-Scheme", Value: "$scheme"},
+				},
+				ClientMaxBodySize:        "0",
+				ProxyNextUpstream:        "error timeout",
+				ProxyNextUpstreamTimeout: "0s",
+				ServiceName:              "auth-svc",
+				IsVSR:                    false,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			vsc := newVirtualServerConfigurator(tc.cfgParams, false, false, &StaticConfigParams{}, false, &fakeBV)
+			result := vsc.generateExternalAuthLocation(tc.policiesCfg, tc.proxyURLUpstreamName)
+			if diff := cmp.Diff(tc.expected, result); diff != "" {
+				t.Errorf("generateExternalAuthLocation() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestGenerateExternalAuthOAuth2Location(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name               string
+		policiesCfg        policiesCfg
+		signinUpstreamName string
+		cfgParams          *ConfigParams
+		expected           version2.Location
+	}{
+		{
+			name: "basic OAuth2 location without SSL",
+			policiesCfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					URI: &version2.AuthURI{
+						Service:      "auth-svc",
+						Upstream:     "ext_auth_default_my-auth",
+						Path:         "/oauth2/auth",
+						InternalPath: "/_ext_auth_default_my-auth",
+					},
+					SigninURL:              "https://example.com/oauth2/start",
+					SigninRedirectBasePath: "/oauth2",
+				},
+			},
+			signinUpstreamName: "ext_auth_default_my-auth_signin",
+			cfgParams: &ConfigParams{
+				Context:                  context.Background(),
+				ProxyConnectTimeout:      "10s",
+				ProxyReadTimeout:         "15s",
+				ProxySendTimeout:         "20s",
+				ProxyNextUpstreamTimeout: "5s",
+			},
+			expected: version2.Location{
+				Path:           "/oauth2",
+				AuthRequestOff: true,
+				ProxyPass:      "http://ext_auth_default_my-auth_signin",
+				ProxySetHeaders: []version2.Header{
+					{Name: "X-Auth-Request-Redirect", Value: "$request_uri"},
+					{Name: "Host", Value: "$host"},
+					{Name: "X-Scheme", Value: "$scheme"},
+				},
+				ProxyConnectTimeout:      "10s",
+				ProxyReadTimeout:         "15s",
+				ProxySendTimeout:         "20s",
+				ClientMaxBodySize:        "0",
+				ProxyNextUpstream:        "error timeout",
+				ProxyNextUpstreamTimeout: "5s",
+				ServiceName:              "ext_auth_default_my-auth",
+				IsVSR:                    false,
+				ProxyPassRequestHeaders:  true,
+			},
+		},
+		{
+			name: "OAuth2 location with SSL enabled",
+			policiesCfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					URI: &version2.AuthURI{
+						Service:      "auth-svc",
+						Upstream:     "ext_auth_default_my-auth",
+						Path:         "/oauth2/auth",
+						InternalPath: "/_ext_auth_default_my-auth",
+					},
+					SigninURL:              "https://example.com/oauth2/start",
+					SigninRedirectBasePath: "/oauth2",
+					SSLEnabled:             true,
+				},
+			},
+			signinUpstreamName: "ext_auth_default_my-auth_signin",
+			cfgParams: &ConfigParams{
+				Context:                  context.Background(),
+				ProxyConnectTimeout:      "10s",
+				ProxyReadTimeout:         "15s",
+				ProxySendTimeout:         "20s",
+				ProxyNextUpstreamTimeout: "5s",
+			},
+			expected: version2.Location{
+				Path:           "/oauth2",
+				AuthRequestOff: true,
+				ProxyPass:      "https://ext_auth_default_my-auth_signin",
+				ProxySetHeaders: []version2.Header{
+					{Name: "X-Auth-Request-Redirect", Value: "$request_uri"},
+					{Name: "Host", Value: "$host"},
+					{Name: "X-Scheme", Value: "$scheme"},
+				},
+				ProxyConnectTimeout:      "10s",
+				ProxyReadTimeout:         "15s",
+				ProxySendTimeout:         "20s",
+				ClientMaxBodySize:        "0",
+				ProxyNextUpstream:        "error timeout",
+				ProxyNextUpstreamTimeout: "5s",
+				ServiceName:              "ext_auth_default_my-auth",
+				IsVSR:                    false,
+				ProxyPassRequestHeaders:  true,
+			},
+		},
+		{
+			name: "OAuth2 location with SSL verify",
+			policiesCfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					URI: &version2.AuthURI{
+						Service:      "ns1/auth-svc",
+						Upstream:     "ext_auth_ns1_my-auth",
+						Path:         "/oauth2/auth",
+						InternalPath: "/_ext_auth_ns1_my-auth",
+					},
+					SigninURL:              "https://example.com/oauth2/start",
+					SigninRedirectBasePath: "/oauth2",
+					SSLEnabled:             true,
+					SSLVerify:              true,
+					SSLVerifyDepth:         3,
+					SSLTrustedCert:         "/etc/nginx/secrets/trusted-cert.pem",
+					SNIName:                "auth.example.com",
+				},
+			},
+			signinUpstreamName: "ext_auth_ns1_my-auth_signin",
+			cfgParams: &ConfigParams{
+				Context:                  context.Background(),
+				ProxyConnectTimeout:      "30s",
+				ProxyReadTimeout:         "30s",
+				ProxySendTimeout:         "30s",
+				ProxyNextUpstreamTimeout: "10s",
+			},
+			expected: version2.Location{
+				Path:           "/oauth2",
+				AuthRequestOff: true,
+				ProxyPass:      "https://ext_auth_ns1_my-auth_signin",
+				ProxySetHeaders: []version2.Header{
+					{Name: "X-Auth-Request-Redirect", Value: "$request_uri"},
+					{Name: "Host", Value: "$host"},
+					{Name: "X-Scheme", Value: "$scheme"},
+				},
+				ProxyConnectTimeout:        "30s",
+				ProxyReadTimeout:           "30s",
+				ProxySendTimeout:           "30s",
+				ClientMaxBodySize:          "0",
+				ProxyNextUpstream:          "error timeout",
+				ProxyNextUpstreamTimeout:   "10s",
+				ServiceName:                "ext_auth_ns1_my-auth",
+				IsVSR:                      false,
+				ProxyPassRequestHeaders:    true,
+				ProxySSLVerify:             true,
+				ProxySSLVerifyDepth:        3,
+				ProxySSLTrustedCertificate: "/etc/nginx/secrets/trusted-cert.pem",
+				ProxySSLName:               "auth.example.com",
+			},
+		},
+		{
+			name: "OAuth2 location with empty timeout defaults",
+			policiesCfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					URI: &version2.AuthURI{
+						Service:      "auth-svc",
+						Upstream:     "ext_auth_default_my-auth",
+						Path:         "/oauth2/auth",
+						InternalPath: "/_ext_auth_default_my-auth",
+					},
+					SigninRedirectBasePath: "/oauth2",
+				},
+			},
+			signinUpstreamName: "ext_auth_default_my-auth_signin",
+			cfgParams: &ConfigParams{
+				Context: context.Background(),
+			},
+			expected: version2.Location{
+				Path:           "/oauth2",
+				AuthRequestOff: true,
+				ProxyPass:      "http://ext_auth_default_my-auth_signin",
+				ProxySetHeaders: []version2.Header{
+					{Name: "X-Auth-Request-Redirect", Value: "$request_uri"},
+					{Name: "Host", Value: "$host"},
+					{Name: "X-Scheme", Value: "$scheme"},
+				},
+				ClientMaxBodySize:        "0",
+				ProxyNextUpstream:        "error timeout",
+				ProxyNextUpstreamTimeout: "0s",
+				ServiceName:              "ext_auth_default_my-auth",
+				IsVSR:                    false,
+				ProxyPassRequestHeaders:  true,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			vsc := newVirtualServerConfigurator(tc.cfgParams, false, false, &StaticConfigParams{}, false, &fakeBV)
+			result := vsc.generateExternalAuthOAuth2Location(tc.policiesCfg, tc.signinUpstreamName)
+			if diff := cmp.Diff(tc.expected, result); diff != "" {
+				t.Errorf("generateExternalAuthOAuth2Location() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestGetServerErrorPages(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		cfg      policiesCfg
+		expected []version2.ErrorPage
+	}{
+		{
+			name: "nil ExternalAuth returns nil",
+			cfg: policiesCfg{
+				ExternalAuth: nil,
+			},
+			expected: nil,
+		},
+		{
+			name: "empty SigninURL returns nil",
+			cfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					SigninURL: "",
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "non-empty SigninURL returns 401 error page",
+			cfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					SigninURL: "https://example.com/oauth2/start?rd=$scheme://$host$request_uri",
+				},
+			},
+			expected: []version2.ErrorPage{
+				{
+					Name:         "https://example.com/oauth2/start?rd=$scheme://$host$request_uri",
+					Codes:        "401",
+					ResponseCode: 0,
+				},
+			},
+		},
+		{
+			name: "simple SigninURL returns 401 error page",
+			cfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					SigninURL: "https://auth.example.com/login",
+				},
+			},
+			expected: []version2.ErrorPage{
+				{
+					Name:         "https://auth.example.com/login",
+					Codes:        "401",
+					ResponseCode: 0,
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			result := getServerErrorPages(tc.cfg)
+			if diff := cmp.Diff(tc.expected, result); diff != "" {
+				t.Errorf("getServerErrorPages() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 	t.Parallel()
 
