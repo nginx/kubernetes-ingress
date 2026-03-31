@@ -741,6 +741,7 @@ func createLocation(path string, upstream version1.Upstream, cfg *ConfigParams, 
 	loc := version1.Location{
 		Path:                     generateIngressPath(path, pathType),
 		Upstream:                 upstream,
+		ProxyPass:                fmt.Sprintf("%s://%s", generateProxyPassProtocol(ssl), upstream.Name),
 		ProxyConnectTimeout:      cfg.ProxyConnectTimeout,
 		ProxyReadTimeout:         cfg.ProxyReadTimeout,
 		ProxySendTimeout:         cfg.ProxySendTimeout,
