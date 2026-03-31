@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/nginx/kubernetes-ingress/internal/configs"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
@@ -155,6 +156,41 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 		return
 	}
 
+	var virtualServerWarnings configs.Warnings
+	var virtualServerErr error
+
+	var ingressWarnings configs.Warnings
+	var ingressErr error
+
+	var mergeableIngressWarnings configs.Warnings
+	mergeableIngressErrors := make(map[string]error)
+
+	if len(resourceExes.VirtualServerExes) > 0 {
+		warnings, updateErr := lbc.configurator.AddOrUpdateVirtualServers(resourceExes.VirtualServerExes)
+		virtualServerWarnings = mergeWarningsMaps(virtualServerWarnings, warnings)
+		if updateErr != nil {
+			virtualServerErr = updateErr
+		}
+	}
+
+	if len(resourceExes.IngressExes) > 0 {
+		warnings, updateErr := lbc.configurator.AddOrUpdateIngresses(resourceExes.IngressExes)
+		ingressWarnings = mergeWarningsMaps(ingressWarnings, warnings)
+		if updateErr != nil {
+			ingressErr = updateErr
+		}
+	}
+
+	if len(resourceExes.MergeableIngresses) > 0 {
+		for _, mergeableIngress := range resourceExes.MergeableIngresses {
+			warnings, updateErr := lbc.configurator.AddOrUpdateMergeableIngress(mergeableIngress)
+			mergeableIngressWarnings = mergeWarningsMaps(mergeableIngressWarnings, warnings)
+			if updateErr != nil {
+				mergeableIngressErrors[getResourceKey(&mergeableIngress.Master.Ingress.ObjectMeta)] = updateErr
+			}
+		}
+	}
+
 	// Merge policy warnings from extended resources back into resources
 	resourcesWithWarnings := mergeExtendedResourceWarnings(resources, resourceExes)
 
@@ -176,25 +212,12 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 		}
 	}
 
-	if len(resourceExes.VirtualServerExes) > 0 {
-		warnings, updateErr := lbc.configurator.AddOrUpdateVirtualServers(resourceExes.VirtualServerExes)
-		lbc.updateResourcesStatusAndEvents(virtualServerResources, warnings, updateErr)
-	}
-
-	if len(resourceExes.IngressExes) > 0 {
-		warnings, updateErr := lbc.configurator.AddOrUpdateIngresses(resourceExes.IngressExes)
-		lbc.updateResourcesStatusAndEvents(ingressResources, warnings, updateErr)
-	}
-
-	if len(resourceExes.MergeableIngresses) > 0 {
-		mergeableWarnings, mergeableErr := lbc.configurator.AddOrUpdateMergeableIngresses(resourceExes.MergeableIngresses)
-
-		for i, res := range mergeableIngressResources {
-			impl := res.(*IngressConfiguration)
-			mergeableIng := resourceExes.MergeableIngresses[i]
-			ingForEvent := mergeIngressPolicyWarnings(impl, mergeableIng.Master, mergeableIng.Minions)
-			lbc.updateMergeableIngressStatusAndEvents(ingForEvent, mergeableWarnings, mergeableErr)
-		}
+	lbc.updateResourcesStatusAndEvents(virtualServerResources, virtualServerWarnings, virtualServerErr)
+	lbc.updateResourcesStatusAndEvents(ingressResources, ingressWarnings, ingressErr)
+	for _, mergeableIngressResource := range mergeableIngressResources {
+		ingressCfg := mergeableIngressResource.(*IngressConfiguration)
+		mergeableIngressErr := mergeableIngressErrors[getResourceKey(&ingressCfg.Ingress.ObjectMeta)]
+		lbc.updateResourcesStatusAndEvents([]Resource{mergeableIngressResource}, mergeableIngressWarnings, mergeableIngressErr)
 	}
 
 	// Note: updating the status of a policy based on a reload is not needed.

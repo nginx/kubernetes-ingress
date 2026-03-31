@@ -2172,6 +2172,22 @@ func getIPAddressesFromEndpoints(endpoints []podEndpoint) []string {
 	return endps
 }
 
+func mergeWarningsMaps(dst, src configs.Warnings) configs.Warnings {
+	if src == nil {
+		return dst
+	}
+
+	if dst == nil {
+		return src
+	}
+
+	for key, value := range src {
+		dst[key] = value
+	}
+
+	return dst
+}
+
 // mergeIngressPolicyWarnings merges PolicyWarnings from IngressEx objects into IngressConfiguration.
 // It returns a new IngressConfiguration with warnings properly merged from the master and all minions.
 func mergeIngressPolicyWarnings(ingConfig *IngressConfiguration, masterEx *configs.IngressEx, minionExes []*configs.IngressEx) *IngressConfiguration {
