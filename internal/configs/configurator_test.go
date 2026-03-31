@@ -74,8 +74,7 @@ func createTestConfiguratorInvalidIngressTemplate(t *testing.T) *Configurator {
 		t.Fatal(err)
 	}
 
-	invalidIngressTemplate := "{{.Upstreams.This.Field.Does.Not.Exist}}"
-	if err := templateExecutor.UpdateIngressTemplate(&invalidIngressTemplate); err != nil {
+	if err := templateExecutor.UpdateIngressTemplate(new("{{.Upstreams.This.Field.Does.Not.Exist}}")); err != nil {
 		t.Fatal(err)
 	}
 
@@ -328,9 +327,7 @@ func TestAddOrUpdateIngressFailsWithInvalidIngressTemplate(t *testing.T) {
 	t.Parallel()
 	cnf := createTestConfiguratorInvalidIngressTemplate(t)
 
-	ingress := createCafeIngressEx()
-
-	warnings, err := cnf.AddOrUpdateIngress(&ingress)
+	warnings, err := cnf.AddOrUpdateIngress(new(createCafeIngressEx()))
 	if err == nil {
 		t.Errorf("AddOrUpdateIngress returned \n%v,  but expected \n%v", nil, "template execution error")
 	}
@@ -358,8 +355,7 @@ func TestUpdateEndpoints(t *testing.T) {
 	t.Parallel()
 	cnf := createTestConfigurator(t)
 
-	ingress := createCafeIngressEx()
-	ingresses := []*IngressEx{&ingress}
+	ingresses := []*IngressEx{new(createCafeIngressEx())}
 
 	err := cnf.UpdateEndpoints(ingresses)
 	if err != nil {
@@ -394,8 +390,7 @@ func TestUpdateEndpointsFailsWithInvalidTemplate(t *testing.T) {
 	t.Parallel()
 	cnf := createTestConfiguratorInvalidIngressTemplate(t)
 
-	ingress := createCafeIngressEx()
-	ingresses := []*IngressEx{&ingress}
+	ingresses := []*IngressEx{new(createCafeIngressEx())}
 
 	err := cnf.UpdateEndpoints(ingresses)
 	if err == nil {
@@ -1823,9 +1818,7 @@ func TestAddOrUpdateTransportServer(t *testing.T) {
 	t.Parallel()
 	cnf := createTestConfigurator(t)
 
-	ts := createTransportServerExWithHostNoTLSPassthrough()
-
-	warnings, err := cnf.AddOrUpdateTransportServer(&ts)
+	warnings, err := cnf.AddOrUpdateTransportServer(new(createTransportServerExWithHostNoTLSPassthrough()))
 	if err != nil {
 		t.Errorf("AddOrUpdateTransportServer returned:  \n%v, but expected: \n%v", err, nil)
 	}
