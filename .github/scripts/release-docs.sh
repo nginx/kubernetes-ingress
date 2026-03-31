@@ -76,7 +76,7 @@ if [ "${DEBUG}" != "false" ]; then
     echo "DEBUG: GITHUB_USERNAME: ${GITHUB_USERNAME}"
     echo "DEBUG: GITHUB_EMAIL: ${GITHUB_EMAIL}"
     echo "DEBUG: RELEASE_BRANCH_PREFIX: ${RELEASE_BRANCH_PREFIX}"
-    echo "DEBUG: GH_TOKEN is set"
+    echo "DEBUG: GH_TOKEN: ****$(echo -n $GH_TOKEN | tail -c 4)"
     echo "DEBUG: DOCS_FOLDER: ${DOCS_FOLDER}"
     echo "DEBUG: ic_version: ${ic_version}"
     echo "DEBUG: helm_chart_version: ${helm_chart_version}"
