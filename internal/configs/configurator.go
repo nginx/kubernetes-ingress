@@ -501,7 +501,7 @@ func (cnf *Configurator) AddOrUpdateMergeableIngresses(mergeableIngs []*Mergeabl
 }
 
 func (cnf *Configurator) addOrUpdateMergeableIngress(mergeableIngs *MergeableIngresses) (bool, Warnings, error) {
-	apResources := cnf.updateApResources(mergeableIngs.Master)
+	apResources := cnf.updateApResourcesForMergeableIngresses(mergeableIngs)
 	cnf.updateDosResource(mergeableIngs.Master.DosEx)
 	dosResource := getAppProtectDosResource(mergeableIngs.Master.DosEx)
 
@@ -1820,6 +1820,14 @@ func (cnf *Configurator) AddOrUpdateSpiffeCerts(svidResponse *workloadapi.X509Co
 		return fmt.Errorf("error when reloading NGINX when updating the SPIFFE Certs: %w", err)
 	}
 	return nil
+}
+
+func (cnf *Configurator) updateApResourcesForMergeableIngresses(mergeableIngs *MergeableIngresses) *AppProtectResources {
+	apResources := cnf.updateApResources(mergeableIngs.Master)
+	for _, minion := range mergeableIngs.Minions {
+		cnf.updateApResources(minion)
+	}
+	return apResources
 }
 
 func (cnf *Configurator) updateApResources(ingEx *IngressEx) *AppProtectResources {
