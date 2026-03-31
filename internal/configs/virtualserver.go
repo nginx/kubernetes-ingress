@@ -364,7 +364,7 @@ func (vsc *virtualServerConfigurator) generateEndpointsForUpstream(
 	endpointsKey := GenerateEndpointsKey(serviceNamespace, serviceName, upstream.Subselector, upstream.Port)
 	externalNameSvcKey := GenerateExternalNameSvcKey(namespace, upstream.Service)
 	endpoints := virtualServerEx.Endpoints[endpointsKey]
-	if len(endpoints) == 0 {
+	if endpoints != nil && len(endpoints) == 0 {
 		vsc.addWarningf(owner, "No endpoints found for service %v", upstream.Service)
 	}
 	if !vsc.isPlus && len(endpoints) == 0 {

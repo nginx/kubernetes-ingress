@@ -260,10 +260,16 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		grpcServices = make(map[string]bool)
 	}
 
+	allWarnings := newWarnings()
+	allWarnings.Add(rewriteTargetWarnings)
+
 	if ncp.ingEx.Ingress.Spec.DefaultBackend != nil {
 		name := getNameForUpstream(ncp.ingEx.Ingress, emptyHost, ncp.ingEx.Ingress.Spec.DefaultBackend)
-		upstream := createUpstream(ncp.ingEx, name, ncp.ingEx.Ingress.Spec.DefaultBackend, spServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], &cfgParams,
+		upstream, upsWarning := createUpstream(ncp.ingEx, name, ncp.ingEx.Ingress.Spec.DefaultBackend, spServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], &cfgParams,
 			ncp.isPlus, ncp.isResolverConfigured, ncp.staticParams.EnableLatencyMetrics)
+		if upsWarning != "" {
+			allWarnings.AddWarningf(ncp.ingEx.Ingress, "%s", upsWarning)
+		}
 		upstreams[name] = upstream
 
 		if cfgParams.HealthCheckEnabled {
@@ -272,9 +278,6 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			}
 		}
 	}
-
-	allWarnings := newWarnings()
-	allWarnings.Add(rewriteTargetWarnings)
 
 	// Check for deprecated SSL redirect annotation and add warning
 	if _, exists := ncp.ingEx.Ingress.Annotations["ingress.kubernetes.io/ssl-redirect"]; exists {
@@ -486,7 +489,10 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			}
 
 			if _, exists := upstreams[upsName]; !exists {
-				upstream := createUpstream(ncp.ingEx, upsName, &path.Backend, spServices[path.Backend.Service.Name], &cfgParams, ncp.isPlus, ncp.isResolverConfigured, ncp.staticParams.EnableLatencyMetrics)
+				upstream, upsWarning := createUpstream(ncp.ingEx, upsName, &path.Backend, spServices[path.Backend.Service.Name], &cfgParams, ncp.isPlus, ncp.isResolverConfigured, ncp.staticParams.EnableLatencyMetrics)
+				if upsWarning != "" {
+					allWarnings.AddWarningf(ncp.ingEx.Ingress, "%s", upsWarning)
+				}
 				upstreams[upsName] = upstream
 			}
 
@@ -949,7 +955,7 @@ func upstreamRequiresQueue(name string, ingEx *IngressEx, cfg *ConfigParams) (n 
 
 func createUpstream(ingEx *IngressEx, name string, backend *networking.IngressBackend, stickyCookie string, cfg *ConfigParams,
 	isPlus bool, isResolverConfigured bool, isLatencyMetricsEnabled bool,
-) version1.Upstream {
+) (version1.Upstream, string) {
 	var ups version1.Upstream
 	labels := version1.UpstreamLabels{
 		Service:           backend.Service.Name,
@@ -968,8 +974,13 @@ func createUpstream(ingEx *IngressEx, name string, backend *networking.IngressBa
 		}
 	}
 
+	var warning string
 	endps, exists := ingEx.Endpoints[backend.Service.Name+GetBackendPortAsString(backend.Service.Port)]
 	if exists {
+		if endps != nil && len(endps) == 0 {
+			warning = fmt.Sprintf("No endpoints found for service %v", backend.Service.Name)
+		}
+
 		var upsServers []version1.UpstreamServer
 		// Always false for NGINX OSS
 		_, isExternalNameSvc := ingEx.ExternalNameSvcs[backend.Service.Name]
@@ -999,7 +1010,7 @@ func createUpstream(ingEx *IngressEx, name string, backend *networking.IngressBa
 	ups.LBMethod = cfg.LBMethod
 	ups.UpstreamZoneSize = cfg.UpstreamZoneSize
 	ups.StickyCookie = stickyCookie
-	return ups
+	return ups, warning
 }
 
 func createHealthCheck(hc *api_v1.Probe, upstreamName string, cfg *ConfigParams) version1.HealthCheck {

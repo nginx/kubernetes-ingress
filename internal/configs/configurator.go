@@ -467,25 +467,6 @@ func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) (bool, Warnings, e
 	return configChanged, warnings, nil
 }
 
-// AddOrUpdateMergeableIngresses adds or updates NGINX configuration for the list of Mergeable Ingress resources.
-func (cnf *Configurator) AddOrUpdateMergeableIngresses(ingExes []*MergeableIngresses) (Warnings, error) {
-	allWarnings := newWarnings()
-
-	for _, mergeableIngs := range ingExes {
-		_, warnings, err := cnf.addOrUpdateMergeableIngress(mergeableIngs)
-		if err != nil {
-			return allWarnings, err
-		}
-		allWarnings.Add(warnings)
-	}
-
-	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
-		return allWarnings, fmt.Errorf("error when reloading NGINX when updating Ingresses: %w", err)
-	}
-
-	return allWarnings, nil
-}
-
 // AddOrUpdateMergeableIngress adds or updates NGINX configuration for the Ingress resources with Mergeable Types.
 func (cnf *Configurator) AddOrUpdateMergeableIngress(mergeableIngs *MergeableIngresses) (Warnings, error) {
 	_, warnings, err := cnf.addOrUpdateMergeableIngress(mergeableIngs)

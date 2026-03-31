@@ -2315,13 +2315,37 @@ func TestGenerateEndpointsForUpstream(t *testing.T) {
 						Namespace: namespace,
 					},
 				},
-				Endpoints: map[string][]string{},
+				Endpoints: map[string][]string{
+					"test-namespace/test:8080": {},
+				},
 			},
 			isPlus:               false,
 			isResolverConfigured: false,
 			expected:             []string{nginx502Server},
 			warningsExpected:     true,
-			msg:                  "Service with no endpoints",
+			msg:                  "Service exists with no endpoints",
+		},
+		{
+			upstream: conf_v1.Upstream{
+				Service: name,
+				Port:    8080,
+			},
+			vsEx: &VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      name,
+						Namespace: namespace,
+					},
+				},
+				Endpoints: map[string][]string{
+					"test-namespace/test:8080": {},
+				},
+			},
+			isPlus:               true,
+			isResolverConfigured: false,
+			expected:             []string{},
+			warningsExpected:     true,
+			msg:                  "Service exists with no endpoints (Plus)",
 		},
 		{
 			upstream: conf_v1.Upstream{
@@ -2337,11 +2361,11 @@ func TestGenerateEndpointsForUpstream(t *testing.T) {
 				},
 				Endpoints: map[string][]string{},
 			},
-			isPlus:               true,
+			isPlus:               false,
 			isResolverConfigured: false,
-			expected:             nil,
-			warningsExpected:     true,
-			msg:                  "Service with no endpoints",
+			expected:             []string{nginx502Server},
+			warningsExpected:     false,
+			msg:                  "Service unknown, no warning emitted",
 		},
 		{
 			upstream: conf_v1.Upstream{
@@ -2385,7 +2409,7 @@ func TestGenerateEndpointsForUpstream(t *testing.T) {
 			isPlus:               false,
 			isResolverConfigured: false,
 			expected:             []string{nginx502Server},
-			warningsExpected:     true,
+			warningsExpected:     false,
 			msg:                  "Upstream with subselector, without a matching endpoint",
 		},
 	}

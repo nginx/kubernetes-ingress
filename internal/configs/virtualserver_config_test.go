@@ -3332,8 +3332,6 @@ func TestGenerateVirtualServerConfigGrpcErrorPageWarning(t *testing.T) {
 	}
 	expectedWarnings := Warnings{
 		virtualServerEx.VirtualServer: {
-			`No endpoints found for service grpc-svc2`,
-			`No endpoints found for service tea-svc`,
 			`The error page configuration for the upstream grpc-app-1 is ignored for status code(s) [404 405], which cannot be used for GRPC upstreams.`,
 			`The error page configuration for the upstream grpc-app-2 is ignored for status code(s) [404], which cannot be used for GRPC upstreams.`,
 			`The error page configuration for the upstream grpc-app-1 is ignored for status code(s) [404 405], which cannot be used for GRPC upstreams.`,

@@ -2899,6 +2899,13 @@ func (lbc *LoadBalancerController) generateExternalAuthEndpoints(policies []*con
 		svc, err := lbc.getServiceFromInformer(ns, name)
 		if err != nil {
 			nl.Warnf(lbc.Logger, "Error getting Service for ExternalAuth %v in policy %v/%v: %v", p.Spec.ExternalAuth.AuthServiceName, p.Namespace, p.Name, err)
+			// Explicitly mark endpoint keys as empty so the warning propagates
+			// to VS/VSR status. The external auth service is required; its
+			// absence must surface as a user-visible warning.
+			for _, port := range externalAuthFallbackPorts(p) {
+				key := fmt.Sprintf("%s/%s:%d", ns, name, port)
+				endpoints[key] = []string{}
+			}
 			continue
 		}
 
@@ -2907,11 +2914,32 @@ func (lbc *LoadBalancerController) generateExternalAuthEndpoints(policies []*con
 			endps, _, err := lbc.getEndpointsForUpstream(ns, name, uint16(port))
 			if err != nil {
 				nl.Warnf(lbc.Logger, "Error getting Endpoints for ExternalAuth service %v in policy %v/%v: %v", p.Spec.ExternalAuth.AuthServiceName, p.Namespace, p.Name, err)
+				// Service exists but has no ready endpoints; mark empty so
+				// the warning propagates to VS/VSR status.
+				endpoints[fmt.Sprintf("%s/%s:%d", ns, name, port)] = []string{}
 				continue
 			}
 			endpoints[fmt.Sprintf("%s/%s:%d", ns, name, port)] = getIPAddressesFromEndpoints(endps)
 		}
 	}
+}
+
+// externalAuthFallbackPorts returns the ports to use for an ExternalAuth policy
+// when the referenced Service cannot be found. It uses AuthServicePorts if
+// specified; otherwise it falls back to 443 (SSL) or 80 (default), matching
+// the logic in virtualServerConfigurator.getExAuthServicePort.
+func externalAuthFallbackPorts(p *conf_v1.Policy) []int32 {
+	if len(p.Spec.ExternalAuth.AuthServicePorts) > 0 {
+		ports := make([]int32, 0, len(p.Spec.ExternalAuth.AuthServicePorts))
+		for _, port := range p.Spec.ExternalAuth.AuthServicePorts {
+			ports = append(ports, int32(port))
+		}
+		return ports
+	}
+	if p.Spec.ExternalAuth.SSLEnabled {
+		return []int32{443}
+	}
+	return []int32{80}
 }
 
 // collectAuthPorts returns the list of ports to resolve for an ExternalAuth policy.
