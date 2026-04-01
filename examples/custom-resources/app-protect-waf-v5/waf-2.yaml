@@ -2,12 +2,12 @@
 apiVersion: k8s.nginx.org/v1
 kind: Policy
 metadata:
-  name: waf-remote-bundle
+  name: waf-remote-bundle-2
   namespace: default
 spec:
   waf:
     enable: true
     apBundleSource:
-      url: "https://bundle-server.bundle-server.svc.cluster.local/bundles/compiled_policy.tgz"
+      url: "https://bundle-server.bundle-server.svc.cluster.local/bundles/compiled_policy_2.tgz"
       tlsSecret: "bundle-client-tls"
       pollInterval: "1m"

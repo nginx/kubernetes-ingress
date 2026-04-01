@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	validation2 "github.com/nginx/kubernetes-ingress/internal/validation"
@@ -395,15 +396,31 @@ func validateAPIKey(apiKey *v1.APIKey, fieldPath *field.Path) field.ErrorList {
 
 func validateWAF(waf *v1.WAF, fieldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
-	bundleMode := waf.ApBundle != ""
+	bundleMode := waf.ApBundle != "" || waf.ApBundleSource != nil
 
-	// WAF Policy references either apPolicy or apBundle.
-	if waf.ApPolicy != "" && waf.ApBundle != "" {
-		msg := "apPolicy and apBundle fields in the WAF policy are mutually exclusive"
-		allErrs = append(allErrs,
-			field.Invalid(fieldPath.Child("apPolicy"), waf.ApPolicy, msg),
-			field.Invalid(fieldPath.Child("apBundle"), waf.ApBundle, msg),
-		)
+	// Count how many of the mutually exclusive fields are set.
+	setCount := 0
+	if waf.ApPolicy != "" {
+		setCount++
+	}
+	if waf.ApBundle != "" {
+		setCount++
+	}
+	if waf.ApBundleSource != nil {
+		setCount++
+	}
+
+	if setCount > 1 {
+		msg := "apPolicy, apBundle, and apBundleSource fields in the WAF policy are mutually exclusive"
+		if waf.ApPolicy != "" {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apPolicy"), waf.ApPolicy, msg))
+		}
+		if waf.ApBundle != "" {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apBundle"), waf.ApBundle, msg))
+		}
+		if waf.ApBundleSource != nil {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apBundleSource"), waf.ApBundleSource.URL, msg))
+		}
 	}
 
 	if waf.ApPolicy != "" {
@@ -412,10 +429,14 @@ func validateWAF(waf *v1.WAF, fieldPath *field.Path) field.ErrorList {
 		}
 	}
 
-	if bundleMode {
+	if waf.ApBundle != "" {
 		for _, msg := range validation.IsQualifiedName(waf.ApBundle) {
 			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apBundle"), waf.ApBundle, msg))
 		}
+	}
+
+	if waf.ApBundleSource != nil {
+		allErrs = append(allErrs, validateBundleSource(waf.ApBundleSource, fieldPath.Child("apBundleSource"))...)
 	}
 
 	if waf.SecurityLog != nil {
@@ -623,17 +644,34 @@ func validateCacheUseStale(cache *v1.Cache, fieldPath *field.Path) field.ErrorLi
 func validateLogConf(logConf *v1.SecurityLog, fieldPath *field.Path, bundleMode bool) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	if logConf.ApLogConf != "" && logConf.ApLogBundle != "" {
-		msg := "apLogConf and apLogBundle fields in the securityLog are mutually exclusive"
-		allErrs = append(allErrs,
-			field.Invalid(fieldPath.Child("apLogConf"), logConf.ApLogConf, msg),
-			field.Invalid(fieldPath.Child("apLogBundle"), logConf.ApLogBundle, msg),
-		)
+	// Count how many of the mutually exclusive log source fields are set.
+	logSourceCount := 0
+	if logConf.ApLogConf != "" {
+		logSourceCount++
+	}
+	if logConf.ApLogBundle != "" {
+		logSourceCount++
+	}
+	if logConf.ApLogBundleSource != nil {
+		logSourceCount++
+	}
+
+	if logSourceCount > 1 {
+		msg := "apLogConf, apLogBundle, and apLogBundleSource fields in the securityLog are mutually exclusive"
+		if logConf.ApLogConf != "" {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apLogConf"), logConf.ApLogConf, msg))
+		}
+		if logConf.ApLogBundle != "" {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apLogBundle"), logConf.ApLogBundle, msg))
+		}
+		if logConf.ApLogBundleSource != nil {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apLogBundleSource"), logConf.ApLogBundleSource.URL, msg))
+		}
 	}
 
 	if logConf.ApLogConf != "" {
 		if bundleMode {
-			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apLogConf"), logConf.ApLogConf, "apLogConf is not supported with apBundle"))
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apLogConf"), logConf.ApLogConf, "apLogConf is not supported with apBundle or apBundleSource"))
 		}
 		for _, msg := range validation.IsQualifiedName(logConf.ApLogConf) {
 			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apLogConf"), logConf.ApLogConf, msg))
@@ -649,10 +687,61 @@ func validateLogConf(logConf *v1.SecurityLog, fieldPath *field.Path, bundleMode 
 		}
 	}
 
+	if logConf.ApLogBundleSource != nil {
+		if !bundleMode {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apLogBundleSource"), logConf.ApLogBundleSource.URL, "apLogBundleSource is not supported with apPolicy"))
+		}
+		allErrs = append(allErrs, validateBundleSource(logConf.ApLogBundleSource, fieldPath.Child("apLogBundleSource"))...)
+	}
+
 	err := ValidateAppProtectLogDestination(logConf.LogDest)
 	if err != nil {
 		allErrs = append(allErrs, field.Invalid(fieldPath.Child("logDest"), logConf.LogDest, err.Error()))
 	}
+	return allErrs
+}
+
+const minBundleSourcePollInterval = 10 * time.Second
+
+func validateBundleSource(src *v1.BundleSource, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if src.URL == "" {
+		allErrs = append(allErrs, field.Required(fieldPath.Child("url"), "url is required"))
+		return allErrs
+	}
+
+	parsedURL, err := url.Parse(src.URL)
+	if err != nil {
+		allErrs = append(allErrs, field.Invalid(fieldPath.Child("url"), src.URL, fmt.Sprintf("invalid URL: %v", err)))
+		return allErrs
+	}
+
+	if parsedURL.Scheme != "https" {
+		allErrs = append(allErrs, field.Invalid(fieldPath.Child("url"), src.URL, "url must use the https scheme"))
+	}
+
+	if parsedURL.Host == "" {
+		allErrs = append(allErrs, field.Invalid(fieldPath.Child("url"), src.URL, "url must contain a host"))
+	}
+
+	if containsDangerousChars(src.URL) {
+		allErrs = append(allErrs, field.Invalid(fieldPath.Child("url"), src.URL, "url contains dangerous characters"))
+	}
+
+	if src.TLSSecret != "" {
+		allErrs = append(allErrs, validateSecretName(src.TLSSecret, fieldPath.Child("tlsSecret"))...)
+	}
+
+	if src.PollInterval != "" {
+		d, parseErr := time.ParseDuration(src.PollInterval)
+		if parseErr != nil {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("pollInterval"), src.PollInterval, fmt.Sprintf("invalid duration: %v", parseErr)))
+		} else if d < minBundleSourcePollInterval {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("pollInterval"), src.PollInterval, fmt.Sprintf("pollInterval must be at least %s", minBundleSourcePollInterval)))
+		}
+	}
+
 	return allErrs
 }
 

@@ -305,6 +305,7 @@ type virtualServerConfigurator struct {
 	CABundlePath               string
 	DynamicWeightChangesReload bool
 	bundleValidator            bundleValidator
+	bundleFetcher              BundleFetcher
 	IngressControllerReplicas  int
 }
 
@@ -330,6 +331,7 @@ func newVirtualServerConfigurator(
 	staticParams *StaticConfigParams,
 	isWildcardEnabled bool,
 	bundleValidator bundleValidator,
+	bundleFetcher BundleFetcher,
 ) *virtualServerConfigurator {
 	if bundleValidator == nil {
 		bundleValidator = newInternalBundleValidator(staticParams.AppProtectBundlePath)
@@ -350,6 +352,7 @@ func newVirtualServerConfigurator(
 		CABundlePath:               staticParams.DefaultCABundle,
 		DynamicWeightChangesReload: staticParams.DynamicWeightChangesReload,
 		bundleValidator:            bundleValidator,
+		bundleFetcher:              bundleFetcher,
 	}
 }
 
@@ -437,7 +440,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		parentName:      vsEx.VirtualServer.Name,
 		parentType:      "vs",
 	}
-	policiesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, vsEx.VirtualServer.Spec.Policies, vsEx.Policies, specContext, "/", policyOpts, vsc.bundleValidator)
+	policiesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, vsEx.VirtualServer.Spec.Policies, vsEx.Policies, specContext, "/", policyOpts, vsc.bundleValidator, vsc.bundleFetcher)
 	if len(warnings) > 0 {
 		vsc.mergeWarnings(warnings)
 	}
@@ -626,7 +629,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			parentName:      vsEx.VirtualServer.Name,
 			parentType:      "vs",
 		}
-		routePoliciesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, r.Policies, vsEx.Policies, routeContext, r.Path, policyOpts, vsc.bundleValidator)
+		routePoliciesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, r.Policies, vsEx.Policies, routeContext, r.Path, policyOpts, vsc.bundleValidator, vsc.bundleFetcher)
 
 		// Inherit spec-level CORS if route doesn't have its own CORS policy
 		if len(routePoliciesCfg.CORSHeaders) == 0 && len(policiesCfg.CORSHeaders) > 0 {
@@ -806,7 +809,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				policyRefs = r.Policies
 				context = subRouteContext
 			}
-			routePoliciesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, policyRefs, vsEx.Policies, context, r.Path, policyOpts, vsc.bundleValidator)
+			routePoliciesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, policyRefs, vsEx.Policies, context, r.Path, policyOpts, vsc.bundleValidator, vsc.bundleFetcher)
 			if len(warnings) > 0 {
 				vsc.mergeWarnings(warnings)
 			}
@@ -2372,7 +2375,7 @@ func createUpstreamsForPlus(
 
 	isPlus := true
 	upstreamNamer := NewUpstreamNamerForVirtualServer(virtualServerEx.VirtualServer)
-	vsc := newVirtualServerConfigurator(baseCfgParams, isPlus, false, staticParams, false, nil)
+	vsc := newVirtualServerConfigurator(baseCfgParams, isPlus, false, staticParams, false, nil, nil)
 
 	for _, u := range virtualServerEx.VirtualServer.Spec.Upstreams {
 		isExternalNameSvc := virtualServerEx.ExternalNameSvcs[GenerateExternalNameSvcKey(virtualServerEx.VirtualServer.Namespace, u.Service)]

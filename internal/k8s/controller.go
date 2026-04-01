@@ -187,6 +187,7 @@ type LoadBalancerController struct {
 	nginxConfigMapName            string
 	mgmtConfigMapName             string
 	ShuttingDown                  bool
+	bundleFetcher                 configs.BundleFetcher
 }
 
 var keyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
@@ -245,6 +246,7 @@ type NewLoadBalancerControllerInput struct {
 	DynamicWeightChangesReload   bool
 	InstallationFlags            []string
 	ShuttingDown                 bool
+	AppProtectBundlePath         string
 }
 
 // NewLoadBalancerController creates a controller
@@ -291,6 +293,24 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		nginxConfigMapName:           input.ConfigMaps,
 		mgmtConfigMapName:            input.MGMTConfigMap,
 		ShuttingDown:                 input.ShuttingDown,
+	}
+
+	if input.AppProtectEnabled && input.AppProtectBundlePath != "" {
+		lbc.bundleFetcher = configs.NewBundleFetcher(input.AppProtectBundlePath, func(key string) {
+			nl.Debugf(lbc.Logger, "Remote bundle updated for %s, re-syncing policies", key)
+			// Extract the policy namespace/name from the bundle key (format: ns/name/type)
+			parts := strings.SplitN(key, "/", 3)
+			if len(parts) >= 2 {
+				policyKey := parts[0] + "/" + parts[1]
+				lbc.syncQueue.Enqueue(&conf_v1.Policy{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Namespace: parts[0],
+						Name:      parts[1],
+					},
+				})
+				nl.Debugf(lbc.Logger, "Enqueued policy %s for re-sync due to bundle update", policyKey)
+			}
+		})
 	}
 
 	lbc.syncQueue = newTaskQueue(lbc.Logger, lbc.sync)
@@ -547,6 +567,11 @@ func (lbc *LoadBalancerController) AddSyncQueue(item interface{}) {
 	lbc.syncQueue.Enqueue(item)
 }
 
+// GetBundleFetcher returns the BundleFetcher used for remote WAF bundle downloads.
+func (lbc *LoadBalancerController) GetBundleFetcher() configs.BundleFetcher {
+	return lbc.bundleFetcher
+}
+
 // addSecretHandler adds the handler for secrets to the controller
 func (nsi *namespacedInformer) addSecretHandler(handlers cache.ResourceEventHandlerFuncs) {
 	informer := nsi.secretInformerFactory.Core().V1().Secrets().Informer()
@@ -634,6 +659,10 @@ func (lbc *LoadBalancerController) Run() {
 
 	if lbc.leaderElector != nil {
 		go lbc.leaderElector.Run(lbc.ctx)
+	}
+
+	if lbc.bundleFetcher != nil {
+		lbc.bundleFetcher.Start(lbc.ctx)
 	}
 
 	if lbc.telemetryCollector != nil {

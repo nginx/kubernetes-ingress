@@ -1,8 +1,10 @@
 package k8s
 
 import (
+	"context"
 	"fmt"
 	"reflect"
+	"time"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
@@ -95,6 +97,9 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 			}
 		}
 	}
+
+	// Handle remote WAF bundle registration/unregistration.
+	lbc.syncBundleFetcherForPolicy(key, polExists, obj)
 
 	// it is safe to ignore the error
 	namespace, name, _ := ParseNamespaceName(key)
@@ -201,4 +206,77 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 	}
 
 	// Note: updating the status of a policy based on a reload is not needed.
+}
+
+// syncBundleFetcherForPolicy registers or unregisters remote WAF bundle sources with the BundleFetcher
+// when a policy with ApBundleSource (or SecurityLog ApLogBundleSource) is added, updated, or deleted.
+func (lbc *LoadBalancerController) syncBundleFetcherForPolicy(key string, polExists bool, obj interface{}) {
+	if lbc.bundleFetcher == nil {
+		return
+	}
+
+	namespace, name, _ := ParseNamespaceName(key)
+
+	if !polExists {
+		// Policy deleted — unregister the policy bundle key.
+		lbc.bundleFetcher.Unregister(namespace + "/" + name + "/policy")
+		// Unregister log bundle keys. We don't know how many existed,
+		// so unregister a reasonable upper bound.
+		for i := range 10 {
+			lbc.bundleFetcher.Unregister(fmt.Sprintf("%s/%s/log-%d", namespace, name, i))
+		}
+		return
+	}
+
+	pol := obj.(*conf_v1.Policy)
+	if pol.Spec.WAF == nil {
+		return
+	}
+
+	waf := pol.Spec.WAF
+
+	// Handle apBundleSource (policy bundle).
+	lbc.registerBundleSource(namespace, name, "policy", waf.ApBundleSource)
+
+	// Handle apLogBundleSource for each security log entry.
+	for i, logConf := range waf.SecurityLogs {
+		lbc.registerBundleSource(namespace, name, fmt.Sprintf("log-%d", i), logConf.ApLogBundleSource)
+	}
+}
+
+// registerBundleSource handles registration/unregistration for a single BundleSource.
+func (lbc *LoadBalancerController) registerBundleSource(namespace, name, bundleType string, src *conf_v1.BundleSource) {
+	bundleKey := namespace + "/" + name + "/" + bundleType
+	if src == nil {
+		lbc.bundleFetcher.Unregister(bundleKey)
+		return
+	}
+
+	// Resolve the TLS secret data for mTLS.
+	var secretData map[string][]byte
+	if src.TLSSecret != "" {
+		secretKey := namespace + "/" + src.TLSSecret
+		secretRef := lbc.secretStore.GetSecret(secretKey)
+		if secretRef.Error != nil {
+			nl.Errorf(lbc.Logger, "Failed to resolve TLS secret %s for bundle source: %v", secretKey, secretRef.Error)
+			return
+		}
+		if secretRef.Secret != nil {
+			secretData = secretRef.Secret.Data
+		}
+	}
+
+	pollInterval, err := time.ParseDuration(src.PollInterval)
+	if err != nil {
+		pollInterval = time.Minute
+	}
+
+	lbc.bundleFetcher.Register(bundleKey, src.URL, secretData, pollInterval)
+
+	// Perform an initial synchronous fetch.
+	ctx, cancel := context.WithTimeout(lbc.ctx, 30*time.Second)
+	defer cancel()
+	if _, fetchErr := lbc.bundleFetcher.FetchNow(ctx, bundleKey); fetchErr != nil {
+		nl.Warnf(lbc.Logger, "Initial fetch for bundle %s failed: %v (will retry on next poll)", bundleKey, fetchErr)
+	}
 }

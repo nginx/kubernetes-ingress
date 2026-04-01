@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 
@@ -67,6 +68,7 @@ type policiesCfg struct {
 	CORSMap         *version2.Map
 	ErrorReturn     *version2.Return
 	BundleValidator bundleValidator
+	BundleFetcher   BundleFetcher
 }
 
 type policyOwnerDetails struct {
@@ -88,9 +90,10 @@ type policyOptions struct {
 	oidcPolicyName  string
 }
 
-func newPoliciesConfig(bv bundleValidator) *policiesCfg {
+func newPoliciesConfig(bv bundleValidator, bf BundleFetcher) *policiesCfg {
 	return &policiesCfg{
 		BundleValidator: bv,
+		BundleFetcher:   bf,
 	}
 }
 
@@ -691,6 +694,25 @@ func (p *policiesCfg) addWAFConfig(
 		p.WAF.ApBundle = bundlePath
 	}
 
+	if waf.ApBundleSource != nil {
+		if p.BundleFetcher == nil {
+			res.addWarningf("WAF policy %s uses apBundleSource but remote bundle fetching is not enabled", polKey)
+			res.isError = true
+		} else {
+			bundleKey := fmt.Sprintf("%s/%s/policy", polNamespace, policyNameFromKey(polKey))
+			localPath := p.BundleFetcher.GetLocalPath(bundleKey)
+			if localPath == "" {
+				res.addWarningf("WAF policy %s: remote bundle not registered for key %s", polKey, bundleKey)
+				res.isError = true
+			} else if _, err := os.Stat(localPath); err != nil {
+				res.addWarningf("WAF policy %s: remote bundle not yet available at %s", polKey, localPath)
+				res.isError = true
+			} else {
+				p.WAF.ApBundle = localPath
+			}
+		}
+	}
+
 	if waf.SecurityLog != nil && waf.SecurityLogs == nil {
 		nl.Debug(l, "the field securityLog is deprecated and will be removed in future releases. Use field securityLogs instead")
 		waf.SecurityLogs = append(waf.SecurityLogs, waf.SecurityLog)
@@ -699,7 +721,7 @@ func (p *policiesCfg) addWAFConfig(
 	if waf.SecurityLogs != nil {
 		p.WAF.ApSecurityLogEnable = true
 		p.WAF.ApLogConf = []string{}
-		for _, loco := range waf.SecurityLogs {
+		for i, loco := range waf.SecurityLogs {
 			logDest := generateString(loco.LogDest, defaultLogOutput)
 
 			if loco.ApLogConf != "" {
@@ -724,9 +746,37 @@ func (p *policiesCfg) addWAFConfig(
 					p.WAF.ApLogConf = append(p.WAF.ApLogConf, fmt.Sprintf("%s %s", logBundle, logDest))
 				}
 			}
+
+			if loco.ApLogBundleSource != nil {
+				if p.BundleFetcher == nil {
+					res.addWarningf("WAF policy %s uses apLogBundleSource but remote bundle fetching is not enabled", polKey)
+					res.isError = true
+				} else {
+					logBundleKey := fmt.Sprintf("%s/%s/log-%d", polNamespace, policyNameFromKey(polKey), i)
+					localPath := p.BundleFetcher.GetLocalPath(logBundleKey)
+					if localPath == "" {
+						res.addWarningf("WAF policy %s: remote log bundle not registered for key %s", polKey, logBundleKey)
+						res.isError = true
+					} else if _, err := os.Stat(localPath); err != nil {
+						res.addWarningf("WAF policy %s: remote log bundle not yet available at %s", polKey, localPath)
+						res.isError = true
+					} else {
+						p.WAF.ApLogConf = append(p.WAF.ApLogConf, fmt.Sprintf("%s %s", localPath, logDest))
+					}
+				}
+			}
 		}
 	}
 	return res
+}
+
+// policyNameFromKey extracts the policy name from a key like "namespace/name".
+func policyNameFromKey(key string) string {
+	parts := strings.SplitN(key, "/", 2)
+	if len(parts) == 2 {
+		return parts[1]
+	}
+	return key
 }
 
 func (p *policiesCfg) addCacheConfig(
@@ -980,9 +1030,10 @@ func generatePolicies(
 	path string,
 	policyOpts policyOptions,
 	bundleValidator bundleValidator,
+	bundleFetcher BundleFetcher,
 ) (policiesCfg, Warnings) {
 	warnings := make(Warnings)
-	config := newPoliciesConfig(bundleValidator)
+	config := newPoliciesConfig(bundleValidator, bundleFetcher)
 	config.Context = ctx
 
 	for _, p := range policyRefs {

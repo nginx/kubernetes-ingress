@@ -287,7 +287,7 @@ func TestGenerateVirtualServerConfigForVirtualServerWithSplits(t *testing.T) {
 	isPlus := false
 	isResolverConfigured := false
 	isWildcardEnabled := false
-	vsc := newVirtualServerConfigurator(&baseCfgParams, isPlus, isResolverConfigured, &StaticConfigParams{}, isWildcardEnabled, &fakeBV)
+	vsc := newVirtualServerConfigurator(&baseCfgParams, isPlus, isResolverConfigured, &StaticConfigParams{}, isWildcardEnabled, &fakeBV, nil)
 
 	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
 	if diff := cmp.Diff(expected, result); diff != "" {
@@ -606,7 +606,7 @@ func TestGenerateVirtualServerConfigForVirtualServerWithMatches(t *testing.T) {
 	isPlus := false
 	isResolverConfigured := false
 	isWildcardEnabled := false
-	vsc := newVirtualServerConfigurator(&baseCfgParams, isPlus, isResolverConfigured, &StaticConfigParams{}, isWildcardEnabled, &fakeBV)
+	vsc := newVirtualServerConfigurator(&baseCfgParams, isPlus, isResolverConfigured, &StaticConfigParams{}, isWildcardEnabled, &fakeBV, nil)
 
 	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
 	if diff := cmp.Diff(expected, result); diff != "" {
@@ -941,7 +941,7 @@ func TestGenerateVirtualServerConfigForVirtualServerRoutesWithDos(t *testing.T) 
 
 	isPlus := false
 	isResolverConfigured := false
-	vsc := newVirtualServerConfigurator(&baseCfgParams, isPlus, isResolverConfigured, &StaticConfigParams{MainAppProtectDosLoadModule: true}, false, &fakeBV)
+	vsc := newVirtualServerConfigurator(&baseCfgParams, isPlus, isResolverConfigured, &StaticConfigParams{MainAppProtectDosLoadModule: true}, false, &fakeBV, nil)
 
 	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, dosResources)
 	if diff := cmp.Diff(expected, result.Server.Locations); diff != "" {
@@ -1493,7 +1493,7 @@ func TestGenerateVirtualServerConfigForVirtualServerWithReturns(t *testing.T) {
 	isPlus := false
 	isResolverConfigured := false
 	isWildcardEnabled := false
-	vsc := newVirtualServerConfigurator(&baseCfgParams, isPlus, isResolverConfigured, &StaticConfigParams{}, isWildcardEnabled, &fakeBV)
+	vsc := newVirtualServerConfigurator(&baseCfgParams, isPlus, isResolverConfigured, &StaticConfigParams{}, isWildcardEnabled, &fakeBV, nil)
 
 	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
 	if !reflect.DeepEqual(result, expected) {
@@ -1750,7 +1750,7 @@ func TestGenerateSplits(t *testing.T) {
 		owner: nil,
 	}
 
-	vsc := newVirtualServerConfigurator(&cfgParams, false, false, &StaticConfigParams{}, false, &fakeBV)
+	vsc := newVirtualServerConfigurator(&cfgParams, false, false, &StaticConfigParams{}, false, &fakeBV, nil)
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
 			resultSplitClients, resultLocations, resultReturnLocations, _, _, _, _ := generateSplits(
@@ -3421,7 +3421,7 @@ func TestGenerateSplitsWeightChangesDynamicReload(t *testing.T) {
 		DynamicWeightChangesReload: true,
 	}
 
-	vsc := newVirtualServerConfigurator(&cfgParams, true, false, staticConfigParams, false, &fakeBV)
+	vsc := newVirtualServerConfigurator(&cfgParams, true, false, staticConfigParams, false, &fakeBV, nil)
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
 			resultSplitClients, resultLocations, _, resultMaps, resultKeyValZones, resultKeyVals, resultTwoWaySplitClients := generateSplits(

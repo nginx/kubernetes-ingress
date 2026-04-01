@@ -2525,6 +2525,265 @@ func TestValidateWAF_FailsOnInvalidApLogBundle(t *testing.T) {
 	}
 }
 
+func TestValidateBundleSource_PassesOnValidInput(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		src *v1.BundleSource
+		msg string
+	}{
+		{
+			src: &v1.BundleSource{
+				URL: "https://api.example.com/v1/bundle",
+			},
+			msg: "url only",
+		},
+		{
+			src: &v1.BundleSource{
+				URL:       "https://api.example.com/v1/bundle",
+				TLSSecret: "my-tls-secret",
+			},
+			msg: "url with tls secret",
+		},
+		{
+			src: &v1.BundleSource{
+				URL:          "https://api.example.com/v1/bundle",
+				TLSSecret:    "my-tls-secret",
+				PollInterval: "30s",
+			},
+			msg: "url with tls secret and poll interval",
+		},
+		{
+			src: &v1.BundleSource{
+				URL:          "https://api.example.com/v1/bundle",
+				PollInterval: "5m",
+			},
+			msg: "url with 5m poll interval",
+		},
+		{
+			src: &v1.BundleSource{
+				URL:          "https://api.example.com/v1/bundle",
+				PollInterval: "1h",
+			},
+			msg: "url with 1h poll interval",
+		},
+	}
+
+	for _, test := range tests {
+		allErrs := validateBundleSource(test.src, field.NewPath("apBundleSource"))
+		if len(allErrs) != 0 {
+			t.Errorf("validateBundleSource() returned errors %v for valid input for the case of %v", allErrs, test.msg)
+		}
+	}
+}
+
+func TestValidateBundleSource_FailsOnInvalidInput(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		src *v1.BundleSource
+		msg string
+	}{
+		{
+			src: &v1.BundleSource{
+				URL: "",
+			},
+			msg: "empty url",
+		},
+		{
+			src: &v1.BundleSource{
+				URL: "http://api.example.com/v1/bundle",
+			},
+			msg: "http url (not https)",
+		},
+		{
+			src: &v1.BundleSource{
+				URL: "ftp://api.example.com/v1/bundle",
+			},
+			msg: "ftp url",
+		},
+		{
+			src: &v1.BundleSource{
+				URL: "https://",
+			},
+			msg: "url with no host",
+		},
+		{
+			src: &v1.BundleSource{
+				URL: "https://api.example.com/v1/bundle;",
+			},
+			msg: "url with dangerous chars (semicolon)",
+		},
+		{
+			src: &v1.BundleSource{
+				URL: "https://api.example.com/v1/bundle\nbad",
+			},
+			msg: "url with dangerous chars (newline)",
+		},
+		{
+			src: &v1.BundleSource{
+				URL:          "https://api.example.com/v1/bundle",
+				PollInterval: "invalid",
+			},
+			msg: "invalid poll interval",
+		},
+		{
+			src: &v1.BundleSource{
+				URL:          "https://api.example.com/v1/bundle",
+				PollInterval: "5s",
+			},
+			msg: "poll interval too short",
+		},
+		{
+			src: &v1.BundleSource{
+				URL:       "https://api.example.com/v1/bundle",
+				TLSSecret: "INVALID_NAME",
+			},
+			msg: "invalid tls secret name",
+		},
+	}
+
+	for _, test := range tests {
+		allErrs := validateBundleSource(test.src, field.NewPath("apBundleSource"))
+		if len(allErrs) == 0 {
+			t.Errorf("validateBundleSource() returned no errors for invalid input for the case of %v", test.msg)
+		}
+	}
+}
+
+func TestValidateWAF_PassesOnValidBundleSource(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		waf *v1.WAF
+		msg string
+	}{
+		{
+			waf: &v1.WAF{
+				Enable: true,
+				ApBundleSource: &v1.BundleSource{
+					URL: "https://api.example.com/v1/waf-policy",
+				},
+			},
+			msg: "apBundleSource only",
+		},
+		{
+			waf: &v1.WAF{
+				Enable: true,
+				ApBundleSource: &v1.BundleSource{
+					URL:       "https://api.example.com/v1/waf-policy",
+					TLSSecret: "my-tls-secret",
+				},
+				SecurityLogs: []*v1.SecurityLog{
+					{
+						ApLogBundle: "log-bundle.tgz",
+						LogDest:     "stderr",
+					},
+				},
+			},
+			msg: "apBundleSource with apLogBundle",
+		},
+		{
+			waf: &v1.WAF{
+				Enable: true,
+				ApBundleSource: &v1.BundleSource{
+					URL: "https://api.example.com/v1/waf-policy",
+				},
+				SecurityLogs: []*v1.SecurityLog{
+					{
+						ApLogBundleSource: &v1.BundleSource{
+							URL: "https://api.example.com/v1/waf-log",
+						},
+						LogDest: "stderr",
+					},
+				},
+			},
+			msg: "apBundleSource with apLogBundleSource",
+		},
+	}
+
+	for _, test := range tests {
+		allErrs := validateWAF(test.waf, field.NewPath("waf"))
+		if len(allErrs) != 0 {
+			t.Errorf("validateWAF() returned errors %v for valid input for the case of %v", allErrs, test.msg)
+		}
+	}
+}
+
+func TestValidateWAF_FailsOnMutuallyExclusiveWithBundleSource(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		waf *v1.WAF
+		msg string
+	}{
+		{
+			waf: &v1.WAF{
+				Enable:   true,
+				ApPolicy: "default/policy",
+				ApBundleSource: &v1.BundleSource{
+					URL: "https://api.example.com/v1/waf-policy",
+				},
+			},
+			msg: "apPolicy and apBundleSource",
+		},
+		{
+			waf: &v1.WAF{
+				Enable:   true,
+				ApBundle: "bundle.tgz",
+				ApBundleSource: &v1.BundleSource{
+					URL: "https://api.example.com/v1/waf-policy",
+				},
+			},
+			msg: "apBundle and apBundleSource",
+		},
+		{
+			waf: &v1.WAF{
+				Enable:   true,
+				ApPolicy: "default/policy",
+				ApBundle: "bundle.tgz",
+				ApBundleSource: &v1.BundleSource{
+					URL: "https://api.example.com/v1/waf-policy",
+				},
+			},
+			msg: "all three set",
+		},
+		{
+			waf: &v1.WAF{
+				Enable: true,
+				ApBundleSource: &v1.BundleSource{
+					URL: "https://api.example.com/v1/waf-policy",
+				},
+				SecurityLogs: []*v1.SecurityLog{
+					{
+						ApLogConf: "confName",
+						LogDest:   "stderr",
+					},
+				},
+			},
+			msg: "apBundleSource with apLogConf (incompatible)",
+		},
+		{
+			waf: &v1.WAF{
+				Enable:   true,
+				ApPolicy: "default/policy",
+				SecurityLogs: []*v1.SecurityLog{
+					{
+						ApLogBundleSource: &v1.BundleSource{
+							URL: "https://api.example.com/v1/waf-log",
+						},
+						LogDest: "stderr",
+					},
+				},
+			},
+			msg: "apPolicy with apLogBundleSource (incompatible)",
+		},
+	}
+
+	for _, test := range tests {
+		allErrs := validateWAF(test.waf, field.NewPath("waf"))
+		if len(allErrs) == 0 {
+			t.Errorf("validateWAF() returned no errors for invalid input for the case of %v", test.msg)
+		}
+	}
+}
+
 func TestValidatePolicy_IsNotValidCachePolicy(t *testing.T) {
 	t.Parallel()
 

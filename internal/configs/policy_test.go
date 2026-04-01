@@ -1265,16 +1265,16 @@ func TestGeneratePolicies(t *testing.T) {
 		},
 	}
 
-	vsc := newVirtualServerConfigurator(&ConfigParams{Context: ctx}, false, false, &StaticConfigParams{}, false, &fakeBV)
+	vsc := newVirtualServerConfigurator(&ConfigParams{Context: ctx}, false, false, &StaticConfigParams{}, false, &fakeBV, nil)
 	// required to test the scaling of the ratelimit
 	vsc.IngressControllerReplicas = 2
 
 	for _, tc := range tests {
 		t.Run(tc.msg, func(t *testing.T) {
-			result, warnings := generatePolicies(ctx, ownerDetails, tc.policyRefs, tc.policies, tc.context, tc.path, policyOpts, vsc.bundleValidator)
+			result, warnings := generatePolicies(ctx, ownerDetails, tc.policyRefs, tc.policies, tc.context, tc.path, policyOpts, vsc.bundleValidator, vsc.bundleFetcher)
 
 			result.BundleValidator = nil
-
+			result.BundleFetcher = nil
 			if !reflect.DeepEqual(tc.expected, result) {
 				t.Error(cmp.Diff(tc.expected, result, cmpopts.IgnoreFields(policiesCfg{}, "Context")))
 			}
@@ -1711,6 +1711,7 @@ func TestGenerateCORSPolicy(t *testing.T) {
 				test.path,
 				policyOptions{tls: false},
 				nil,
+				nil,
 			)
 
 			if !reflect.DeepEqual(result.CORSHeaders, test.expected.CORSHeaders) {
@@ -1812,8 +1813,9 @@ func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			res, warnings := generatePolicies(ctx, ownerDetails, tc.policyRefs, tc.policies, tc.context, tc.path, policyOptions{apResources: &appProtectResourcesForVS{}, replicas: 1, oidcPolicyName: ""}, &fakeBV)
+			res, warnings := generatePolicies(ctx, ownerDetails, tc.policyRefs, tc.policies, tc.context, tc.path, policyOptions{apResources: &appProtectResourcesForVS{}, replicas: 1, oidcPolicyName: ""}, &fakeBV, nil)
 			res.BundleValidator = nil
+			res.BundleFetcher = nil
 			if !reflect.DeepEqual(tc.want, res) {
 				t.Error(cmp.Diff(tc.want, res))
 			}
@@ -3500,8 +3502,9 @@ func TestGeneratePoliciesFails(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
-			result, warnings := generatePolicies(ctx, ownerDetails, test.policyRefs, test.policies, test.context, test.path, test.policyOpts, &fakeBV)
+			result, warnings := generatePolicies(ctx, ownerDetails, test.policyRefs, test.policies, test.context, test.path, test.policyOpts, &fakeBV, nil)
 			result.BundleValidator = nil
+			result.BundleFetcher = nil
 
 			if !reflect.DeepEqual(test.expected, result) {
 				t.Errorf("generatePolicies() '%v' mismatch (-want +got):\n%s", test.msg, cmp.Diff(test.expected, result, cmpopts.IgnoreFields(policiesCfg{}, "Context")))
@@ -4030,7 +4033,7 @@ func TestAddWafConfig(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		polCfg := newPoliciesConfig(&fakeBV)
+		polCfg := newPoliciesConfig(&fakeBV, nil)
 		result := polCfg.addWAFConfig(context.Background(), test.wafInput, test.polKey, test.polNamespace, test.apResources)
 		if diff := cmp.Diff(test.expected.warnings, result.warnings); diff != "" {
 			t.Errorf("policiesCfg.addWAFConfig() '%v' mismatch (-want +got):\n%s", test.msg, diff)

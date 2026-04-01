@@ -998,14 +998,37 @@ type OIDC struct {
 	SSLVerifyDepth *int `json:"sslVerifyDepth"`
 }
 
+// BundleSource defines a remote source for fetching AppProtect bundles.
+type BundleSource struct {
+	// URL is the HTTPS endpoint to fetch the bundle tarball from.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^https://`
+	URL string `json:"url"`
+	// TLSSecret is a reference to a kubernetes.io/tls Secret for mTLS authentication.
+	// The secret must contain tls.crt and tls.key. An optional ca.crt entry is used
+	// to verify the remote server's certificate. It must be in the same namespace as the Policy resource.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	TLSSecret string `json:"tlsSecret,omitempty"`
+	// PollInterval defines how frequently to check for bundle updates via ETag.
+	// Default: 1m. Format: Go duration string (e.g., "30s", "2m", "1h").
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[0-9]+(s|m|h)$`
+	// +kubebuilder:default:="1m"
+	PollInterval string `json:"pollInterval,omitempty"`
+}
+
 // The WAF policy configures NGINX Plus to secure client requests using App Protect WAF policies.
 type WAF struct {
 	// Enables NGINX App Protect WAF.
 	Enable bool `json:"enable"`
-	// The App Protect WAF policy of the WAF. Accepts an optional namespace. Mutually exclusive with apBundle.
+	// The App Protect WAF policy of the WAF. Accepts an optional namespace. Mutually exclusive with apBundle and apBundleSource.
 	ApPolicy string `json:"apPolicy"`
-	// The App Protect WAF policy bundle. Mutually exclusive with apPolicy.
+	// The App Protect WAF policy bundle. Mutually exclusive with apPolicy and apBundleSource.
 	ApBundle string `json:"apBundle"`
+	// The remote source for fetching the App Protect WAF policy bundle. Mutually exclusive with apPolicy and apBundle.
+	// +kubebuilder:validation:Optional
+	ApBundleSource *BundleSource `json:"apBundleSource,omitempty"`
 	//
 	SecurityLog *SecurityLog `json:"securityLog"`
 	//
@@ -1018,8 +1041,11 @@ type SecurityLog struct {
 	Enable bool `json:"enable"`
 	// The App Protect WAF log conf resource. Accepts an optional namespace. Only works with apPolicy.
 	ApLogConf string `json:"apLogConf"`
-	// The App Protect WAF log bundle resource. Only works with apBundle.
+	// The App Protect WAF log bundle resource. Only works with apBundle or apBundleSource.
 	ApLogBundle string `json:"apLogBundle"`
+	// The remote source for fetching the App Protect WAF log bundle. Mutually exclusive with apLogBundle and apLogConf.
+	// +kubebuilder:validation:Optional
+	ApLogBundleSource *BundleSource `json:"apLogBundleSource,omitempty"`
 	// The log destination for the security log. Only accepted variables are syslog:server=<ip-address>; localhost; fqdn>:<port>, stderr, <absolute path to file>.
 	LogDest string `json:"logDest"`
 }

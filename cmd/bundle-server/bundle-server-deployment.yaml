@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bundle-server
+  namespace: bundle-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bundle-server
+  template:
+    metadata:
+      labels:
+        app: bundle-server
+    spec:
+      containers:
+      - name: bundle-server
+        image: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/vepatel/bundle-server:latest
+        args:
+        - "--port=8443"
+        - "--health-port=8080"
+        - "--bundle-dir=/data/bundles"
+        - "--tls-cert=/tls/tls.crt"
+        - "--tls-key=/tls/tls.key"
+        - "--client-ca=/client-ca/ca.crt"
+        ports:
+        - containerPort: 8443
+          name: https
+        - containerPort: 8080
+          name: health
+        volumeMounts:
+        - name: tls
+          mountPath: /tls
+          readOnly: true
+        - name: client-ca
+          mountPath: /client-ca
+          readOnly: true
+        - name: bundles
+          mountPath: /data/bundles
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      volumes:
+      - name: tls
+        secret:
+          secretName: bundle-server-tls
+      - name: client-ca
+        secret:
+          secretName: bundle-server-client-ca
+      - name: bundles
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bundle-server
+  namespace: bundle-server
+spec:
+  selector:
+    app: bundle-server
+  ports:
+  - port: 443
+    targetPort: 8443
+    protocol: TCP
+    name: https
+  type: ClusterIP

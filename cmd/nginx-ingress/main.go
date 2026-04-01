@@ -342,9 +342,16 @@ func main() {
 		DynamicWeightChangesReload:   *enableDynamicWeightChangesReload,
 		InstallationFlags:            parsedFlags,
 		ShuttingDown:                 false,
+		AppProtectBundlePath:         appProtectBundlePath,
 	}
 
 	lbc := k8s.NewLoadBalancerController(lbcInput)
+
+	// Wire the BundleFetcher (created by the controller) back into the configurator,
+	// so that generatePolicies can resolve remote WAF bundle paths.
+	if bf := lbc.GetBundleFetcher(); bf != nil {
+		cnf.SetBundleFetcher(bf)
+	}
 
 	if *readyStatus {
 		go func() {

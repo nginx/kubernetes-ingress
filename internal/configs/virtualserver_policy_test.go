@@ -279,6 +279,7 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 		&StaticConfigParams{TLSPassthrough: true},
 		false,
 		&fakeBV,
+		nil,
 	)
 
 	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
@@ -454,7 +455,7 @@ func TestGenerateVirtualServerConfigJWTSSLVerifyDepth(t *testing.T) {
 			isPlus := false
 			isResolverConfigured := false
 			isWildcardEnabled := false
-			vsc := newVirtualServerConfigurator(&baseCfgParams, isPlus, isResolverConfigured, &StaticConfigParams{}, isWildcardEnabled, &fakeBV)
+			vsc := newVirtualServerConfigurator(&baseCfgParams, isPlus, isResolverConfigured, &StaticConfigParams{}, isWildcardEnabled, &fakeBV, nil)
 
 			result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
 
@@ -714,6 +715,7 @@ func TestGenerateVirtualServerConfigAPIKeyPolicy(t *testing.T) {
 		&StaticConfigParams{TLSPassthrough: true},
 		false,
 		&fakeBV,
+		nil,
 	)
 
 	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
@@ -888,6 +890,7 @@ func TestGenerateVirtualServerConfigAPIKeyClientMaps(t *testing.T) {
 		&StaticConfigParams{TLSPassthrough: true},
 		false,
 		&fakeBV,
+		nil,
 	)
 
 	tests := []struct {
@@ -1354,6 +1357,7 @@ func TestGenerateVirtualServerConfigRateLimit(t *testing.T) {
 		&StaticConfigParams{},
 		false,
 		&fakeBV,
+		nil,
 	)
 
 	for _, test := range tests {
@@ -2085,6 +2089,7 @@ func TestGenerateVirtualServerConfigCache(t *testing.T) {
 		&StaticConfigParams{},
 		false,
 		&fakeBV,
+		nil,
 	)
 
 	for _, test := range tests {
@@ -2292,6 +2297,7 @@ func TestGenerateVirtualServerConfigWithOIDCTLSVerifyOn(t *testing.T) {
 		},
 		false,
 		&fakeBV,
+		nil,
 	)
 
 	for _, test := range tests {
@@ -2517,6 +2523,7 @@ func TestGenerateVirtualServerConfigWithOIDCTLSCASecret(t *testing.T) {
 		},
 		false,
 		&fakeBV,
+		nil,
 	)
 
 	for _, test := range tests {
@@ -3082,6 +3089,7 @@ func TestGenerateVirtualServerConfigWithRouteSelector(t *testing.T) {
 		},
 		false,
 		&fakeBV,
+		nil,
 	)
 
 	for _, test := range tests {

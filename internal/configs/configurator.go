@@ -145,6 +145,7 @@ type Configurator struct {
 	isReloadsEnabled          bool
 	isDynamicSSLReloadEnabled bool
 	ingressControllerReplicas int
+	bundleFetcher             BundleFetcher
 }
 
 // ConfiguratorParams is a collection of parameters used for the
@@ -165,6 +166,7 @@ type ConfiguratorParams struct {
 	IsDynamicSSLReloadEnabled           bool
 	IsDynamicWeightChangesReloadEnabled bool
 	NginxVersion                        nginx.Version
+	BundleFetcher                       BundleFetcher
 }
 
 // NewConfigurator creates a new Configurator.
@@ -203,8 +205,16 @@ func NewConfigurator(p ConfiguratorParams) *Configurator {
 		isLatencyMetricsEnabled:   p.IsLatencyMetricsEnabled,
 		isDynamicSSLReloadEnabled: p.IsDynamicSSLReloadEnabled,
 		isReloadsEnabled:          false,
+		bundleFetcher:             p.BundleFetcher,
 	}
 	return &cnf
+}
+
+// SetBundleFetcher sets the BundleFetcher on the Configurator.
+// This is called after the controller creates the fetcher, since the fetcher
+// needs access to the controller's sync queue for the onChange callback.
+func (cnf *Configurator) SetBundleFetcher(bf BundleFetcher) {
+	cnf.bundleFetcher = bf
 }
 
 // AddOrUpdateDHParam creates a dhparam file with the content of the string.
@@ -676,7 +686,7 @@ func (cnf *Configurator) addOrUpdateVirtualServer(virtualServerEx *VirtualServer
 
 	name := getFileNameForVirtualServer(virtualServerEx.VirtualServer)
 
-	vsc := newVirtualServerConfigurator(cnf.CfgParams, cnf.isPlus, cnf.IsResolverConfigured(), cnf.staticCfgParams, cnf.isWildcardEnabled, nil)
+	vsc := newVirtualServerConfigurator(cnf.CfgParams, cnf.isPlus, cnf.IsResolverConfigured(), cnf.staticCfgParams, cnf.isWildcardEnabled, nil, cnf.bundleFetcher)
 	vsc.IngressControllerReplicas = cnf.ingressControllerReplicas
 	vsCfg, warnings := vsc.GenerateVirtualServerConfig(virtualServerEx, apResources, dosResources)
 	content, err := cnf.templateExecutorV2.ExecuteVirtualServerTemplate(&vsCfg)

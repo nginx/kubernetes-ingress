@@ -5,7 +5,7 @@ metadata:
 spec:
   host: webapp.example.com
   policies:
-  - name: waf-policy
+  - name:  waf-remote-bundle
   upstreams:
   - name: webapp
     service: webapp-svc

@@ -629,7 +629,7 @@ func TestGenerateUpstream(t *testing.T) {
 		},
 	}
 
-	vsc := newVirtualServerConfigurator(&cfgParams, false, false, &StaticConfigParams{}, false, &fakeBV)
+	vsc := newVirtualServerConfigurator(&cfgParams, false, false, &StaticConfigParams{}, false, &fakeBV, nil)
 	result := vsc.generateUpstream(nil, name, upstream, false, endpoints, backupEndpoints)
 	if !reflect.DeepEqual(result, expected) {
 		t.Errorf("generateUpstream() returned %v but expected %v", result, expected)
@@ -706,7 +706,7 @@ func TestGenerateUpstreamWithKeepalive(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		vsc := newVirtualServerConfigurator(test.cfgParams, false, false, &StaticConfigParams{}, false, &fakeBV)
+		vsc := newVirtualServerConfigurator(test.cfgParams, false, false, &StaticConfigParams{}, false, &fakeBV, nil)
 		result := vsc.generateUpstream(nil, name, test.upstream, false, endpoints, nil)
 		if !reflect.DeepEqual(result, test.expected) {
 			t.Errorf("generateUpstream() returned %v but expected %v for the case of %v", result, test.expected, test.msg)
@@ -738,7 +738,7 @@ func TestGenerateUpstreamForExternalNameService(t *testing.T) {
 		Resolve: true,
 	}
 
-	vsc := newVirtualServerConfigurator(&cfgParams, true, true, &StaticConfigParams{}, false, &fakeBV)
+	vsc := newVirtualServerConfigurator(&cfgParams, true, true, &StaticConfigParams{}, false, &fakeBV, nil)
 	result := vsc.generateUpstream(nil, name, upstream, true, endpoints, nil)
 	if !reflect.DeepEqual(result, expected) {
 		t.Errorf("generateUpstream() returned %v but expected %v", result, expected)
@@ -785,7 +785,7 @@ func TestGenerateUpstreamWithNTLM(t *testing.T) {
 		NTLM:             true,
 	}
 
-	vsc := newVirtualServerConfigurator(&cfgParams, true, false, &StaticConfigParams{}, false, &fakeBV)
+	vsc := newVirtualServerConfigurator(&cfgParams, true, false, &StaticConfigParams{}, false, &fakeBV, nil)
 	result := vsc.generateUpstream(nil, name, upstream, false, endpoints, nil)
 	if !reflect.DeepEqual(result, expected) {
 		t.Errorf("generateUpstream() returned %v but expected %v", result, expected)
@@ -1496,7 +1496,7 @@ func TestGenerateSSLConfig(t *testing.T) {
 	namespace := "default"
 
 	for _, test := range tests {
-		vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background()}, false, false, &StaticConfigParams{}, test.wildcard, &fakeBV)
+		vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background()}, false, false, &StaticConfigParams{}, test.wildcard, &fakeBV, nil)
 
 		// it is ok to use nil as the owner
 		result := vsc.generateSSLConfig(nil, test.inputTLS, namespace, test.inputSecretRefs, test.inputCfgParams)
@@ -2396,6 +2396,7 @@ func TestGenerateEndpointsForUpstream(t *testing.T) {
 			&StaticConfigParams{},
 			isWildcardEnabled,
 			&fakeBV,
+			nil,
 		)
 		result := vsc.generateEndpointsForUpstream(test.vsEx.VirtualServer, namespace, test.upstream, test.vsEx)
 		if !reflect.DeepEqual(result, test.expected) {
@@ -2436,7 +2437,7 @@ func TestGenerateSlowStartForPlusWithInCompatibleLBMethods(t *testing.T) {
 	}
 
 	for _, lbMethod := range tests {
-		vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background()}, true, false, &StaticConfigParams{}, false, &fakeBV)
+		vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background()}, true, false, &StaticConfigParams{}, false, &fakeBV, nil)
 		result := vsc.generateSlowStartForPlus(&conf_v1.VirtualServer{}, upstream, lbMethod)
 
 		if !reflect.DeepEqual(result, expected) {
@@ -2470,7 +2471,7 @@ func TestGenerateSlowStartForPlus(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background()}, true, false, &StaticConfigParams{}, false, &fakeBV)
+		vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background()}, true, false, &StaticConfigParams{}, false, &fakeBV, nil)
 		result := vsc.generateSlowStartForPlus(&conf_v1.VirtualServer{}, test.upstream, test.lbMethod)
 		if !reflect.DeepEqual(result, test.expected) {
 			t.Errorf("generateSlowStartForPlus returned %v, but expected %v", result, test.expected)
@@ -2571,7 +2572,7 @@ func TestGenerateUpstreamWithQueue(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background()}, test.isPlus, false, &StaticConfigParams{}, false, &fakeBV)
+		vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background()}, test.isPlus, false, &StaticConfigParams{}, false, &fakeBV, nil)
 		result := vsc.generateUpstream(nil, test.name, test.upstream, false, []string{}, []string{})
 		if !reflect.DeepEqual(result, test.expected) {
 			t.Errorf("generateUpstream() returned %v but expected %v for the case of %v", result, test.expected, test.msg)

@@ -183,8 +183,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 				replicas:        ncp.ingressControllerReplicas,
 				oidcPolicyName:  "",
 			},
-			nil,
-		)
+			nil, nil)
 		allWarnings.Add(warnings)
 	}
 

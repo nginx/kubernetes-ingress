@@ -126,16 +126,28 @@ The `.spec` object supports the following fields:
 | `rateLimit.scale` | `boolean` | Enables a constant rate-limit by dividing the configured rate by the number of nginx-ingress pods currently serving traffic. This adjustment ensures that the rate-limit remains consistent, even as the number of nginx-pods fluctuates due to autoscaling. This will not work properly if requests from a client are not evenly distributed across all ingress pods (Such as with sticky sessions, long lived TCP Connections with many requests, and so forth). In such cases using zone-sync instead would give better results. Enabling zone-sync will suppress this setting. |
 | `rateLimit.zoneSize` | `string` | Size of the shared memory zone. Only positive values are allowed. Allowed suffixes are k or m, if none are present k is assumed. |
 | `waf` | `object` | The WAF policy configures WAF and log configuration policies for NGINX AppProtect |
-| `waf.apBundle` | `string` | The App Protect WAF policy bundle. Mutually exclusive with apPolicy. |
-| `waf.apPolicy` | `string` | The App Protect WAF policy of the WAF. Accepts an optional namespace. Mutually exclusive with apBundle. |
+| `waf.apBundle` | `string` | The App Protect WAF policy bundle. Mutually exclusive with apPolicy and apBundleSource. |
+| `waf.apBundleSource` | `object` | The remote source for fetching the App Protect WAF policy bundle. Mutually exclusive with apPolicy and apBundle. |
+| `waf.apBundleSource.pollInterval` | `string` | PollInterval defines how frequently to check for bundle updates via ETag. Default: 1m. Format: Go duration string (e.g., "30s", "2m", "1h"). |
+| `waf.apBundleSource.tlsSecret` | `string` | TLSSecret is a reference to a kubernetes.io/tls Secret for mTLS authentication. The secret must contain tls.crt and tls.key. An optional ca.crt entry is used to verify the remote server's certificate. It must be in the same namespace as the Policy resource. |
+| `waf.apBundleSource.url` | `string` | URL is the HTTPS endpoint to fetch the bundle tarball from. |
+| `waf.apPolicy` | `string` | The App Protect WAF policy of the WAF. Accepts an optional namespace. Mutually exclusive with apBundle and apBundleSource. |
 | `waf.enable` | `boolean` | Enables NGINX App Protect WAF. |
 | `waf.securityLog` | `object` | SecurityLog defines the security log of a WAF policy. |
-| `waf.securityLog.apLogBundle` | `string` | The App Protect WAF log bundle resource. Only works with apBundle. |
+| `waf.securityLog.apLogBundle` | `string` | The App Protect WAF log bundle resource. Only works with apBundle or apBundleSource. |
+| `waf.securityLog.apLogBundleSource` | `object` | The remote source for fetching the App Protect WAF log bundle. Mutually exclusive with apLogBundle and apLogConf. |
+| `waf.securityLog.apLogBundleSource.pollInterval` | `string` | PollInterval defines how frequently to check for bundle updates via ETag. Default: 1m. Format: Go duration string (e.g., "30s", "2m", "1h"). |
+| `waf.securityLog.apLogBundleSource.tlsSecret` | `string` | TLSSecret is a reference to a kubernetes.io/tls Secret for mTLS authentication. The secret must contain tls.crt and tls.key. An optional ca.crt entry is used to verify the remote server's certificate. It must be in the same namespace as the Policy resource. |
+| `waf.securityLog.apLogBundleSource.url` | `string` | URL is the HTTPS endpoint to fetch the bundle tarball from. |
 | `waf.securityLog.apLogConf` | `string` | The App Protect WAF log conf resource. Accepts an optional namespace. Only works with apPolicy. |
 | `waf.securityLog.enable` | `boolean` | Enables security log. |
 | `waf.securityLog.logDest` | `string` | The log destination for the security log. Only accepted variables are syslog:server=<ip-address>; localhost; fqdn>:<port>, stderr, <absolute path to file>. |
 | `waf.securityLogs` | `array` | List of configuration values. |
-| `waf.securityLogs[].apLogBundle` | `string` | The App Protect WAF log bundle resource. Only works with apBundle. |
+| `waf.securityLogs[].apLogBundle` | `string` | The App Protect WAF log bundle resource. Only works with apBundle or apBundleSource. |
+| `waf.securityLogs[].apLogBundleSource` | `object` | The remote source for fetching the App Protect WAF log bundle. Mutually exclusive with apLogBundle and apLogConf. |
+| `waf.securityLogs[].apLogBundleSource.pollInterval` | `string` | PollInterval defines how frequently to check for bundle updates via ETag. Default: 1m. Format: Go duration string (e.g., "30s", "2m", "1h"). |
+| `waf.securityLogs[].apLogBundleSource.tlsSecret` | `string` | TLSSecret is a reference to a kubernetes.io/tls Secret for mTLS authentication. The secret must contain tls.crt and tls.key. An optional ca.crt entry is used to verify the remote server's certificate. It must be in the same namespace as the Policy resource. |
+| `waf.securityLogs[].apLogBundleSource.url` | `string` | URL is the HTTPS endpoint to fetch the bundle tarball from. |
 | `waf.securityLogs[].apLogConf` | `string` | The App Protect WAF log conf resource. Accepts an optional namespace. Only works with apPolicy. |
 | `waf.securityLogs[].enable` | `boolean` | Enables security log. |
 | `waf.securityLogs[].logDest` | `string` | The log destination for the security log. Only accepted variables are syslog:server=<ip-address>; localhost; fqdn>:<port>, stderr, <absolute path to file>. |

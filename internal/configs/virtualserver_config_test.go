@@ -15,7 +15,7 @@ import (
 func TestGenerateVSConfig_GeneratesConfigWithGunzipOn(t *testing.T) {
 	t.Parallel()
 
-	vsc := newVirtualServerConfigurator(&baseCfgParams, true, false, &StaticConfigParams{TLSPassthrough: true}, false, &fakeBV)
+	vsc := newVirtualServerConfigurator(&baseCfgParams, true, false, &StaticConfigParams{TLSPassthrough: true}, false, &fakeBV, nil)
 
 	want := version2.VirtualServerConfig{
 		Upstreams: []version2.Upstream{
@@ -273,7 +273,7 @@ func TestGenerateVSConfig_GeneratesConfigWithGunzipOn(t *testing.T) {
 func TestGenerateVSConfig_GeneratesConfigWithGunzipOff(t *testing.T) {
 	t.Parallel()
 
-	vsc := newVirtualServerConfigurator(&baseCfgParams, true, false, &StaticConfigParams{TLSPassthrough: true}, false, &fakeBV)
+	vsc := newVirtualServerConfigurator(&baseCfgParams, true, false, &StaticConfigParams{TLSPassthrough: true}, false, &fakeBV, nil)
 
 	want := version2.VirtualServerConfig{
 		Upstreams: []version2.Upstream{
@@ -531,7 +531,7 @@ func TestGenerateVSConfig_GeneratesConfigWithGunzipOff(t *testing.T) {
 func TestGenerateVSConfig_GeneratesConfigWithNoGunzip(t *testing.T) {
 	t.Parallel()
 
-	vsc := newVirtualServerConfigurator(&baseCfgParams, true, false, &StaticConfigParams{TLSPassthrough: true}, false, &fakeBV)
+	vsc := newVirtualServerConfigurator(&baseCfgParams, true, false, &StaticConfigParams{TLSPassthrough: true}, false, &fakeBV, nil)
 
 	want := version2.VirtualServerConfig{
 		Upstreams: []version2.Upstream{
@@ -1084,6 +1084,7 @@ func TestGenerateVirtualServerConfigWithBackupForNGINXPlus(t *testing.T) {
 		&StaticConfigParams{TLSPassthrough: true},
 		isWildcardEnabled,
 		&fakeBV,
+		nil,
 	)
 
 	sort.Slice(want.Upstreams, func(i, j int) bool {
@@ -1392,6 +1393,7 @@ func TestGenerateVirtualServerConfig_DoesNotGenerateBackupOnMissingBackupNameFor
 		&StaticConfigParams{TLSPassthrough: true},
 		isWildcardEnabled,
 		&fakeBV,
+		nil,
 	)
 
 	sort.Slice(want.Upstreams, func(i, j int) bool {
@@ -1703,6 +1705,7 @@ func TestGenerateVirtualServerConfig_DoesNotGenerateBackupOnMissingBackupPortFor
 		&StaticConfigParams{TLSPassthrough: true},
 		isWildcardEnabled,
 		&fakeBV,
+		nil,
 	)
 
 	got, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
@@ -2004,6 +2007,7 @@ func TestGenerateVirtualServerConfig_DoesNotGenerateBackupOnMissingBackupPortAnd
 		&StaticConfigParams{TLSPassthrough: true},
 		isWildcardEnabled,
 		&fakeBV,
+		nil,
 	)
 
 	sort.Slice(want.Upstreams, func(i, j int) bool {
@@ -2483,6 +2487,7 @@ func TestGenerateVirtualServerConfig(t *testing.T) {
 		&StaticConfigParams{TLSPassthrough: true},
 		isWildcardEnabled,
 		&fakeBV,
+		nil,
 	)
 
 	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
@@ -2528,6 +2533,7 @@ func TestGenerateVirtualServerConfigWithCustomHttpAndHttpsListeners(t *testing.T
 		&StaticConfigParams{DisableIPV6: true},
 		false,
 		&fakeBV,
+		nil,
 	)
 
 	result, warnings := vsc.GenerateVirtualServerConfig(
@@ -2577,6 +2583,7 @@ func TestGenerateVirtualServerConfigWithCustomHttpListener(t *testing.T) {
 		&StaticConfigParams{DisableIPV6: true},
 		false,
 		&fakeBV,
+		nil,
 	)
 
 	result, warnings := vsc.GenerateVirtualServerConfig(
@@ -2626,6 +2633,7 @@ func TestGenerateVirtualServerConfigWithCustomHttpsListener(t *testing.T) {
 		&StaticConfigParams{DisableIPV6: true},
 		false,
 		&fakeBV,
+		nil,
 	)
 
 	result, warnings := vsc.GenerateVirtualServerConfig(
@@ -2679,6 +2687,7 @@ func TestGenerateVirtualServerConfigWithCustomHttpAndHttpsIPListeners(t *testing
 		&StaticConfigParams{DisableIPV6: false},
 		false,
 		&fakeBV,
+		nil,
 	)
 
 	result, warnings := vsc.GenerateVirtualServerConfig(
@@ -2732,6 +2741,7 @@ func TestGenerateVirtualServerConfigWithCustomHttpIPListener(t *testing.T) {
 		&StaticConfigParams{DisableIPV6: false},
 		false,
 		&fakeBV,
+		nil,
 	)
 
 	result, warnings := vsc.GenerateVirtualServerConfig(
@@ -2785,6 +2795,7 @@ func TestGenerateVirtualServerConfigWithCustomHttpsIPListener(t *testing.T) {
 		&StaticConfigParams{DisableIPV6: false},
 		false,
 		&fakeBV,
+		nil,
 	)
 
 	result, warnings := vsc.GenerateVirtualServerConfig(
@@ -2834,6 +2845,7 @@ func TestGenerateVirtualServerConfigWithNilListener(t *testing.T) {
 		&StaticConfigParams{DisableIPV6: true},
 		false,
 		&fakeBV,
+		nil,
 	)
 
 	result, warnings := vsc.GenerateVirtualServerConfig(
@@ -2974,6 +2986,7 @@ func TestGenerateVirtualServerConfigIPV6Disabled(t *testing.T) {
 		&StaticConfigParams{DisableIPV6: true},
 		isWildcardEnabled,
 		&fakeBV,
+		nil,
 	)
 
 	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
@@ -3341,7 +3354,7 @@ func TestGenerateVirtualServerConfigGrpcErrorPageWarning(t *testing.T) {
 	isPlus := false
 	isResolverConfigured := false
 	isWildcardEnabled := true
-	vsc := newVirtualServerConfigurator(&baseCfgParams, isPlus, isResolverConfigured, &StaticConfigParams{}, isWildcardEnabled, &fakeBV)
+	vsc := newVirtualServerConfigurator(&baseCfgParams, isPlus, isResolverConfigured, &StaticConfigParams{}, isWildcardEnabled, &fakeBV, nil)
 
 	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
 	if diff := cmp.Diff(expected, result); diff != "" {
@@ -3452,7 +3465,7 @@ func TestGenerateVirtualServerConfigWithSpiffeCerts(t *testing.T) {
 	isResolverConfigured := false
 	staticConfigParams := &StaticConfigParams{TLSPassthrough: true, NginxServiceMesh: true}
 	isWildcardEnabled := false
-	vsc := newVirtualServerConfigurator(&baseCfgParams, isPlus, isResolverConfigured, staticConfigParams, isWildcardEnabled, &fakeBV)
+	vsc := newVirtualServerConfigurator(&baseCfgParams, isPlus, isResolverConfigured, staticConfigParams, isWildcardEnabled, &fakeBV, nil)
 
 	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
 	if diff := cmp.Diff(expected, result); diff != "" {
@@ -3566,7 +3579,7 @@ func TestGenerateVirtualServerConfigWithInternalRoutes(t *testing.T) {
 	isResolverConfigured := false
 	staticConfigParams := &StaticConfigParams{TLSPassthrough: true, NginxServiceMesh: true, EnableInternalRoutes: true}
 	isWildcardEnabled := false
-	vsc := newVirtualServerConfigurator(&baseCfgParams, isPlus, isResolverConfigured, staticConfigParams, isWildcardEnabled, &fakeBV)
+	vsc := newVirtualServerConfigurator(&baseCfgParams, isPlus, isResolverConfigured, staticConfigParams, isWildcardEnabled, &fakeBV, nil)
 
 	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
 	if diff := cmp.Diff(expected, result); diff != "" {
@@ -3680,7 +3693,7 @@ func TestGenerateVirtualServerConfigWithInternalRoutesWarning(t *testing.T) {
 	isResolverConfigured := false
 	staticConfigParams := &StaticConfigParams{TLSPassthrough: true, NginxServiceMesh: true, EnableInternalRoutes: false}
 	isWildcardEnabled := false
-	vsc := newVirtualServerConfigurator(&baseCfgParams, isPlus, isResolverConfigured, staticConfigParams, isWildcardEnabled, &fakeBV)
+	vsc := newVirtualServerConfigurator(&baseCfgParams, isPlus, isResolverConfigured, staticConfigParams, isWildcardEnabled, &fakeBV, nil)
 
 	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
 	if diff := cmp.Diff(expected, result); diff == "" {
@@ -3727,7 +3740,7 @@ func TestGenerateVirtualServerConfigWithForeignNamespaceService(t *testing.T) {
 		VirtualServerRoutes: []*conf_v1.VirtualServerRoute{},
 	}
 
-	vsc := newVirtualServerConfigurator(&baseCfgParams, false, false, &StaticConfigParams{}, false, nil)
+	vsc := newVirtualServerConfigurator(&baseCfgParams, false, false, &StaticConfigParams{}, false, nil, nil)
 	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
 	if len(warnings) != 0 {
 		t.Errorf("GenerateVirtualServerConfig returned warnings: %v", warnings)
@@ -3842,7 +3855,7 @@ func TestGenerateVirtualServerConfigWithForeignNamespaceServiceInVSR(t *testing.
 		},
 	}
 
-	vsc := newVirtualServerConfigurator(&baseCfgParams, false, false, &StaticConfigParams{}, false, nil)
+	vsc := newVirtualServerConfigurator(&baseCfgParams, false, false, &StaticConfigParams{}, false, nil, nil)
 	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
 	if len(warnings) != 0 {
 		t.Errorf("GenerateVirtualServerConfig returned warnings: %v", warnings)

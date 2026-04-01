@@ -4291,6 +4291,7 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 		&StaticConfigParams{},
 		false,
 		&fakeBV,
+		nil,
 	)
 
 	for _, test := range tests {
@@ -4577,7 +4578,7 @@ func TestGenerateVirtualServerConfigWithRateLimitGroupsWarning(t *testing.T) {
 	isResolverConfigured := false
 	staticConfigParams := &StaticConfigParams{TLSPassthrough: true, NginxServiceMesh: true, EnableInternalRoutes: false}
 	isWildcardEnabled := false
-	vsc := newVirtualServerConfigurator(&baseCfgParams, isPlus, isResolverConfigured, staticConfigParams, isWildcardEnabled, &fakeBV)
+	vsc := newVirtualServerConfigurator(&baseCfgParams, isPlus, isResolverConfigured, staticConfigParams, isWildcardEnabled, &fakeBV, nil)
 
 	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
 	if diff := cmp.Diff(expected, result); diff == "" {

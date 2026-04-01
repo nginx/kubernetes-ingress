@@ -11,8 +11,10 @@ type SecurityLogApplyConfiguration struct {
 	Enable *bool `json:"enable,omitempty"`
 	// The App Protect WAF log conf resource. Accepts an optional namespace. Only works with apPolicy.
 	ApLogConf *string `json:"apLogConf,omitempty"`
-	// The App Protect WAF log bundle resource. Only works with apBundle.
+	// The App Protect WAF log bundle resource. Only works with apBundle or apBundleSource.
 	ApLogBundle *string `json:"apLogBundle,omitempty"`
+	// The remote source for fetching the App Protect WAF log bundle. Mutually exclusive with apLogBundle and apLogConf.
+	ApLogBundleSource *BundleSourceApplyConfiguration `json:"apLogBundleSource,omitempty"`
 	// The log destination for the security log. Only accepted variables are syslog:server=<ip-address>; localhost; fqdn>:<port>, stderr, <absolute path to file>.
 	LogDest *string `json:"logDest,omitempty"`
 }
@@ -44,6 +46,14 @@ func (b *SecurityLogApplyConfiguration) WithApLogConf(value string) *SecurityLog
 // If called multiple times, the ApLogBundle field is set to the value of the last call.
 func (b *SecurityLogApplyConfiguration) WithApLogBundle(value string) *SecurityLogApplyConfiguration {
 	b.ApLogBundle = &value
+	return b
+}
+
+// WithApLogBundleSource sets the ApLogBundleSource field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ApLogBundleSource field is set to the value of the last call.
+func (b *SecurityLogApplyConfiguration) WithApLogBundleSource(value *BundleSourceApplyConfiguration) *SecurityLogApplyConfiguration {
+	b.ApLogBundleSource = value
 	return b
 }
 
