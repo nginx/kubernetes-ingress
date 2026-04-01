@@ -4714,7 +4714,7 @@ var (
 	}
 )
 
-func createProxySetHeaderIngressConfig(masterAnnotations map[string]string, coffeeAnnotations map[string]string, teaAnnotations map[string]string) IngressNginxConfig {
+func createProxySetHeaderIngressConfig(masterAnnotations, coffeeAnnotations, teaAnnotations map[string]string) IngressNginxConfig {
 	masterPSH := masterAnnotations["nginx.org/proxy-set-headers"]
 	coffeePSH := coffeeAnnotations["nginx.org/proxy-set-headers"]
 	teaPSH := teaAnnotations["nginx.org/proxy-set-headers"]
