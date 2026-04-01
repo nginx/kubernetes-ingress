@@ -4731,6 +4731,7 @@ func createProxySetHeaderIngressConfig(masterAnnotations map[string]string, coff
 							Annotations: coffeeAnnotations,
 						},
 						ProxySetHeaders: MergeProxySetHeaders(masterPSH, coffeePSH),
+						ProxyPass:       "http://test",
 					},
 					{
 						MinionIngress: &Ingress{
@@ -4739,6 +4740,7 @@ func createProxySetHeaderIngressConfig(masterAnnotations map[string]string, coff
 							Annotations: teaAnnotations,
 						},
 						ProxySetHeaders: MergeProxySetHeaders(masterPSH, teaPSH),
+						ProxyPass:       "http://test",
 					},
 				},
 			},
