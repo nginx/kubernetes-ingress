@@ -4090,7 +4090,9 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/auth", AuthServiceName: "nonexistent-svc"}},
 				},
 			},
-			expectedEndpoints: map[string][]string{},
+			expectedEndpoints: map[string][]string{
+				"default/nonexistent-svc:80": {},
+			},
 		},
 		{
 			name: "multiple policies with mixed configurations",
@@ -4258,7 +4260,8 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 				},
 			},
 			expectedEndpoints: map[string][]string{
-				"default/auth-svc:80": {"10.0.0.1:8080", "10.0.0.2:8080"},
+				"default/auth-svc:80":        {"10.0.0.1:8080", "10.0.0.2:8080"},
+				"default/nonexistent-svc:80": {},
 			},
 		},
 		{
@@ -4338,7 +4341,9 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 					}},
 				},
 			},
-			expectedEndpoints: map[string][]string{},
+			expectedEndpoints: map[string][]string{
+				"default/auth-svc:9999": {},
+			},
 		},
 		{
 			name: "AuthServicePorts mixed with policy without AuthServicePorts",
