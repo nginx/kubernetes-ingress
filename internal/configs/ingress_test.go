@@ -418,7 +418,7 @@ func TestFilterIngressPolicyRefs(t *testing.T) {
 				},
 			},
 			policyRefs:    []conf_v1.PolicyReference{{Name: "waf-policy"}},
-			expectedRefs:  nil,
+			expectedRefs:  []conf_v1.PolicyReference{},
 			warningSubstr: "WAF policy default/waf-policy is not supported in annotation nginx.org/policies",
 		},
 		{
@@ -498,9 +498,9 @@ func TestGetIngressPolicyRefs(t *testing.T) {
 				return &ingEx
 			}(),
 			expectedRefs: []conf_v1.PolicyReference{
-				{Name: "cors-policy"},
+				{Name: "cors-policy", Namespace: "default"},
 				{Name: "other-policy", Namespace: "other-ns"},
-				{Name: "dup-policy"},
+				{Name: "dup-policy", Namespace: "default"},
 				{Name: "waf-policy", Namespace: "waf-ns"},
 			},
 		},
