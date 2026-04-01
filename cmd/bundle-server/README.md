@@ -281,6 +281,7 @@ kubectl run -n bundle-server curl-test --rm -it --image=curlimages/curl -- \
 ## Step 5: Create the WAF Policy CR with `apBundleSource`
 
 The in-cluster URL for the bundle-server is:
+
 ```
 https://bundle-server.bundle-server.svc.cluster.local/bundles/<filename>
 ```
@@ -602,6 +603,7 @@ For developers working on this feature, here are key implementation details:
 ### Bundle Key Format
 
 Bundle entries are keyed as `{namespace}/{policyName}/{type}` where type is:
+
 - `policy` -- for `apBundleSource` (the WAF policy bundle)
 - `log-0`, `log-1`, ... -- for `apLogBundleSource` entries in `securityLogs[]`
 
