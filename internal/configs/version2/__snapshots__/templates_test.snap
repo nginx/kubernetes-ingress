@@ -4904,3 +4904,308 @@ server {
 }
 
 ---
+
+[TestExecuteVirtualServerTemplate_TLSRedirectWithCertManagerNGINX - 1]
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+
+    set $resource_type "virtualserver";
+    set $resource_name "cafe";
+    set $resource_namespace "default";
+    set $service "-";
+    listen 443 ssl;
+    listen [::]:443 ssl;
+
+    http2 on;
+    ssl_certificate cafe-secret.pem;
+    ssl_certificate_key cafe-secret.pem;
+    set $redirect 1;
+
+    if ($scheme != 'http') {
+        set $redirect 0;
+    }
+
+    if ($uri ~ "^/.well-known/acme-challenge(.*)") {
+        set $redirect 0;
+    }
+
+    if ($redirect) {
+        return 301 https://$host$request_uri;
+    }
+
+    server_tokens "";
+
+    
+
+    
+    location /tea {
+        set $service "";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://vs_default_cafe_tea;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location /coffee {
+        set $service "";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://vs_default_cafe_coffee;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+        
+    location @grpc_deadline_exceeded {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 4;
+        add_header grpc-message 'deadline exceeded';
+        return 204;
+    }
+
+    location @grpc_permission_denied {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 7;
+        add_header grpc-message 'permission denied';
+        return 204;
+    }
+
+    location @grpc_resource_exhausted {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 8;
+        add_header grpc-message 'resource exhausted';
+        return 204;
+    }
+
+    location @grpc_unimplemented {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 12;
+        add_header grpc-message unimplemented;
+        return 204;
+    }
+
+    location @grpc_internal {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 13;
+        add_header grpc-message 'internal error';
+        return 204;
+    }
+
+    location @grpc_unavailable {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 14;
+        add_header grpc-message unavailable;
+        return 204;
+    }
+
+    location @grpc_unauthenticated {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 16;
+        add_header grpc-message unauthenticated;
+        return 204;
+    }
+
+    
+    
+}
+
+---
+
+[TestExecuteVirtualServerTemplate_TLSRedirectWithCertManagerNGINXPlus - 1]
+
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+    status_zone cafe.example.com;
+    set $resource_type "virtualserver";
+    set $resource_name "cafe";
+    set $resource_namespace "default";
+    set $service "-";
+    listen 443 ssl;
+    listen [::]:443 ssl;
+
+    http2 on;
+    ssl_certificate cafe-secret.pem;
+    ssl_certificate_key cafe-secret.pem;
+    set $redirect 1;
+
+    if ($scheme != 'http') {
+        set $redirect 0;
+    }
+
+    if ($uri ~ "^/.well-known/acme-challenge(.*)") {
+        set $redirect 0;
+    }
+
+    if ($redirect) {
+        return 301 https://$host$request_uri;
+    }
+
+    server_tokens "";
+
+    
+
+    
+    location /tea {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://vs_default_cafe_tea;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location /coffee {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://vs_default_cafe_coffee;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+        
+    location @grpc_deadline_exceeded {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 4;
+        add_header grpc-message 'deadline exceeded';
+        return 204;
+    }
+
+    location @grpc_permission_denied {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 7;
+        add_header grpc-message 'permission denied';
+        return 204;
+    }
+
+    location @grpc_resource_exhausted {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 8;
+        add_header grpc-message 'resource exhausted';
+        return 204;
+    }
+
+    location @grpc_unimplemented {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 12;
+        add_header grpc-message unimplemented;
+        return 204;
+    }
+
+    location @grpc_internal {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 13;
+        add_header grpc-message 'internal error';
+        return 204;
+    }
+
+    location @grpc_unavailable {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 14;
+        add_header grpc-message unavailable;
+        return 204;
+    }
+
+    location @grpc_unauthenticated {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 16;
+        add_header grpc-message unauthenticated;
+        return 204;
+    }
+
+        
+    
+}
+
+---
