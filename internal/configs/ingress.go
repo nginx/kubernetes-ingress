@@ -134,19 +134,29 @@ func filterIngressPolicyRefs(policyRefs []conf_v1.PolicyReference, ingEx *Ingres
 		return policyRefs, warnings
 	}
 
-	policyNames := strings.TrimSpace(ingEx.Ingress.Annotations[PoliciesAnnotation])
-	if policyNames == "" {
+	policyNames, exists := ingEx.Ingress.Annotations[PoliciesAnnotation]
+	if !exists {
 		return policyRefs, warnings
 	}
 
 	policyRefsFromOrgAnnotation := make(map[string]bool)
 	for _, ref := range policies.GetPolicyRefsFromAnnotation(policyNames, ingEx.Ingress.Namespace) {
-		policyRefsFromOrgAnnotation[policyRefKey(ref, ingEx.Ingress.Namespace)] = true
+		resourceRef := ref.Name
+		if ref.Namespace != "" {
+			resourceRef = fmt.Sprintf("%s/%s", ref.Namespace, ref.Name)
+		}
+		namespace, resourceName := ParseResourceReference(resourceRef, ingEx.Ingress.Namespace)
+		policyRefsFromOrgAnnotation[fmt.Sprintf("%s/%s", namespace, resourceName)] = true
 	}
 
 	filteredPolicyRefs := make([]conf_v1.PolicyReference, 0, len(policyRefs))
 	for _, ref := range policyRefs {
-		key := policyRefKey(ref, ingEx.Ingress.Namespace)
+		resourceRef := ref.Name
+		if ref.Namespace != "" {
+			resourceRef = fmt.Sprintf("%s/%s", ref.Namespace, ref.Name)
+		}
+		namespace, resourceName := ParseResourceReference(resourceRef, ingEx.Ingress.Namespace)
+		key := fmt.Sprintf("%s/%s", namespace, resourceName)
 		policy, exists := ingEx.Policies[key]
 		skipPolicyRef := false
 		if exists && policyRefsFromOrgAnnotation[key] {
@@ -167,15 +177,8 @@ func filterIngressPolicyRefs(policyRefs []conf_v1.PolicyReference, ingEx *Ingres
 	return filteredPolicyRefs, warnings
 }
 
-func policyRefKey(ref conf_v1.PolicyReference, defaultNamespace string) string {
-	namespace := ref.Namespace
-	if namespace == "" {
-		namespace = defaultNamespace
-	}
-
-	return fmt.Sprintf("%s/%s", namespace, ref.Name)
-}
-
+// getIngressPolicyRefs returns the de-duplicated Policy references from Ingress policy annotations
+// while preserving the annotation order: nginx.org/policies first, then nginx.com/policies.
 func getIngressPolicyRefs(ingEx *IngressEx) []conf_v1.PolicyReference {
 	if ingEx == nil || ingEx.Ingress == nil {
 		return nil
@@ -184,13 +187,18 @@ func getIngressPolicyRefs(ingEx *IngressEx) []conf_v1.PolicyReference {
 	var policyRefs []conf_v1.PolicyReference
 	seenPolicyRefs := make(map[string]bool)
 	for _, annotation := range []string{PoliciesAnnotation, PoliciesAnnotationPlus} {
-		policyNames := strings.TrimSpace(ingEx.Ingress.Annotations[annotation])
-		if policyNames == "" {
+		policyNames, exists := ingEx.Ingress.Annotations[annotation]
+		if !exists {
 			continue
 		}
 
 		for _, ref := range policies.GetPolicyRefsFromAnnotation(policyNames, ingEx.Ingress.Namespace) {
-			key := policyRefKey(ref, ingEx.Ingress.Namespace)
+			resourceRef := ref.Name
+			if ref.Namespace != "" {
+				resourceRef = fmt.Sprintf("%s/%s", ref.Namespace, ref.Name)
+			}
+			namespace, resourceName := ParseResourceReference(resourceRef, ingEx.Ingress.Namespace)
+			key := fmt.Sprintf("%s/%s", namespace, resourceName)
 			if seenPolicyRefs[key] {
 				continue
 			}
@@ -282,7 +290,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 	policyRefs, annotationPolicyWarnings := filterIngressPolicyRefs(policyRefs, ncp.ingEx)
 	allWarnings.Add(annotationPolicyWarnings)
 
-	policyAppProtectResources := newAppProtectVSResourcesForVS()
+	policyAppProtectResources := newAppProtectPolicyResources()
 	for policyKey, policy := range ncp.ingEx.ApPolRefs {
 		policyAppProtectResources.Policies[policyKey] = appProtectPolicyFileNameFromUnstruct(policy)
 	}

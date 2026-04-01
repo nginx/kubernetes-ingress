@@ -397,6 +397,193 @@ func getHeaderValue(headers []version2.AddHeader, headerName string) (string, bo
 	return "", false
 }
 
+func TestFilterIngressPolicyRefs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		annotationValue string
+		policies        map[string]*conf_v1.Policy
+		policyRefs      []conf_v1.PolicyReference
+		expectedRefs    []conf_v1.PolicyReference
+		warningSubstr   string
+	}{
+		{
+			name:            "filters waf policy from nginx org policies",
+			annotationValue: "waf-policy",
+			policies: map[string]*conf_v1.Policy{
+				"default/waf-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{Name: "waf-policy", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{WAF: &conf_v1.WAF{Enable: true, ApPolicy: "dataguard-alarm"}},
+				},
+			},
+			policyRefs:    []conf_v1.PolicyReference{{Name: "waf-policy"}},
+			expectedRefs:  nil,
+			warningSubstr: "WAF policy default/waf-policy is not supported in annotation nginx.org/policies",
+		},
+		{
+			name:            "keeps non plus policy from nginx org policies",
+			annotationValue: "cors-policy",
+			policies: map[string]*conf_v1.Policy{
+				"default/cors-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{Name: "cors-policy", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{CORS: &conf_v1.CORS{AllowOrigin: []string{"https://example.com"}}},
+				},
+			},
+			policyRefs:   []conf_v1.PolicyReference{{Name: "cors-policy"}},
+			expectedRefs: []conf_v1.PolicyReference{{Name: "cors-policy"}},
+		},
+		{
+			name:            "keeps plus annotation ref when same policy is referenced there",
+			annotationValue: "other-policy",
+			policies: map[string]*conf_v1.Policy{
+				"default/waf-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{Name: "waf-policy", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{WAF: &conf_v1.WAF{Enable: true, ApPolicy: "dataguard-alarm"}},
+				},
+			},
+			policyRefs:   []conf_v1.PolicyReference{{Name: "waf-policy"}},
+			expectedRefs: []conf_v1.PolicyReference{{Name: "waf-policy"}},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			ingEx := createCafeIngressEx()
+			ingEx.Ingress.Annotations[PoliciesAnnotation] = test.annotationValue
+			ingEx.Policies = test.policies
+
+			result, warnings := filterIngressPolicyRefs(test.policyRefs, &ingEx)
+			if diff := cmp.Diff(test.expectedRefs, result); diff != "" {
+				t.Fatalf("filterIngressPolicyRefs() returned unexpected refs (-want +got):\n%s", diff)
+			}
+
+			ingressWarnings := warnings[ingEx.Ingress]
+			if test.warningSubstr == "" {
+				if len(ingressWarnings) != 0 {
+					t.Fatalf("expected no warnings, got %v", ingressWarnings)
+				}
+				return
+			}
+
+			if len(ingressWarnings) != 1 || !strings.Contains(ingressWarnings[0], test.warningSubstr) {
+				t.Fatalf("expected warning containing %q, got %v", test.warningSubstr, ingressWarnings)
+			}
+		})
+	}
+}
+
+func TestGetIngressPolicyRefs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		ingEx        *IngressEx
+		expectedRefs []conf_v1.PolicyReference
+	}{
+		{
+			name:         "nil ingress ex returns nil",
+			ingEx:        nil,
+			expectedRefs: nil,
+		},
+		{
+			name: "merges annotations and de duplicates normalized refs",
+			ingEx: func() *IngressEx {
+				ingEx := createCafeIngressEx()
+				ingEx.Ingress.Annotations[PoliciesAnnotation] = "cors-policy, other-ns/other-policy, dup-policy"
+				ingEx.Ingress.Annotations[PoliciesAnnotationPlus] = "default/dup-policy, waf-ns/waf-policy, cors-policy"
+				return &ingEx
+			}(),
+			expectedRefs: []conf_v1.PolicyReference{
+				{Name: "cors-policy"},
+				{Name: "other-policy", Namespace: "other-ns"},
+				{Name: "dup-policy"},
+				{Name: "waf-policy", Namespace: "waf-ns"},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := getIngressPolicyRefs(test.ingEx)
+			if diff := cmp.Diff(test.expectedRefs, result); diff != "" {
+				t.Fatalf("getIngressPolicyRefs() returned unexpected refs (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestResolveIngressAppProtectResources(t *testing.T) {
+	t.Parallel()
+
+	baseResources := &AppProtectResources{
+		AppProtectPolicy:   "policy.json",
+		AppProtectLogconfs: []string{"log.json stderr"},
+	}
+
+	tests := []struct {
+		name              string
+		ingEx             *IngressEx
+		policyCfg         policiesCfg
+		expectedResources *AppProtectResources
+		warningSubstr     string
+	}{
+		{
+			name:              "returns original resources when waf policy is absent",
+			ingEx:             &IngressEx{Ingress: createCafeIngressEx().Ingress},
+			policyCfg:         policiesCfg{},
+			expectedResources: baseResources,
+		},
+		{
+			name:              "returns original resources when ingress has no app protect annotations",
+			ingEx:             &IngressEx{Ingress: createCafeIngressEx().Ingress},
+			policyCfg:         policiesCfg{WAF: &version2.WAF{Enable: "on"}},
+			expectedResources: baseResources,
+		},
+		{
+			name: "policy waf takes precedence over app protect annotations",
+			ingEx: func() *IngressEx {
+				ingEx := createCafeIngressEx()
+				ingEx.Ingress.Annotations[AppProtectPolicyAnnotation] = "default/ap-policy"
+				return &ingEx
+			}(),
+			policyCfg:         policiesCfg{WAF: &version2.WAF{Enable: "on"}},
+			expectedResources: &AppProtectResources{},
+			warningSubstr:     "WAF cannot be configured through both Policy and App Protect annotations",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			result, warnings := resolveIngressAppProtectResources(test.ingEx, baseResources, test.policyCfg)
+			if diff := cmp.Diff(test.expectedResources, result); diff != "" {
+				t.Fatalf("resolveIngressAppProtectResources() returned unexpected resources (-want +got):\n%s", diff)
+			}
+
+			ingressWarnings := warnings[test.ingEx.Ingress]
+			if test.warningSubstr == "" {
+				if len(ingressWarnings) != 0 {
+					t.Fatalf("expected no warnings, got %v", ingressWarnings)
+				}
+				return
+			}
+
+			if len(ingressWarnings) != 1 || !strings.Contains(ingressWarnings[0], test.warningSubstr) {
+				t.Fatalf("expected warning containing %q, got %v", test.warningSubstr, ingressWarnings)
+			}
+		})
+	}
+}
+
 func TestGenerateNginxCfgForAccessControl(t *testing.T) {
 	t.Parallel()
 	cafeIngressEx := createCafeIngressEx()

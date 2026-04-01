@@ -1498,7 +1498,7 @@ func TestUpdateApResourcesForVs(t *testing.T) {
 
 	tests := []struct {
 		vsEx     *VirtualServerEx
-		expected *appProtectResourcesForVS
+		expected *appProtectPolicyResources
 		msg      string
 	}{
 		{
@@ -1507,7 +1507,7 @@ func TestUpdateApResourcesForVs(t *testing.T) {
 					ObjectMeta: meta_v1.ObjectMeta{},
 				},
 			},
-			expected: &appProtectResourcesForVS{
+			expected: &appProtectPolicyResources{
 				Policies: map[string]string{},
 				LogConfs: map[string]string{},
 			},
@@ -1520,7 +1520,7 @@ func TestUpdateApResourcesForVs(t *testing.T) {
 				},
 				ApPolRefs: apPolRefs,
 			},
-			expected: &appProtectResourcesForVS{
+			expected: &appProtectPolicyResources{
 				Policies: map[string]string{
 					"test-ns-1/test-name-1": "/etc/nginx/waf/nac-policies/test-ns-1_test-name-1",
 					"test-ns-2/test-name-2": "/etc/nginx/waf/nac-policies/test-ns-2_test-name-2",
@@ -1536,7 +1536,7 @@ func TestUpdateApResourcesForVs(t *testing.T) {
 				},
 				LogConfRefs: logConfRefs,
 			},
-			expected: &appProtectResourcesForVS{
+			expected: &appProtectPolicyResources{
 				Policies: map[string]string{},
 				LogConfs: map[string]string{
 					"test-ns-1/test-name-1": "/etc/nginx/waf/nac-logconfs/test-ns-1_test-name-1",
@@ -1553,7 +1553,7 @@ func TestUpdateApResourcesForVs(t *testing.T) {
 				ApPolRefs:   apPolRefs,
 				LogConfRefs: logConfRefs,
 			},
-			expected: &appProtectResourcesForVS{
+			expected: &appProtectPolicyResources{
 				Policies: map[string]string{
 					"test-ns-1/test-name-1": "/etc/nginx/waf/nac-policies/test-ns-1_test-name-1",
 					"test-ns-2/test-name-2": "/etc/nginx/waf/nac-policies/test-ns-2_test-name-2",

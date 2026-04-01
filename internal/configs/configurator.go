@@ -1884,8 +1884,8 @@ func (cnf *Configurator) updateDosResource(dosEx *DosEx) {
 	}
 }
 
-func (cnf *Configurator) updateApResourcesForVs(vsEx *VirtualServerEx) *appProtectResourcesForVS {
-	resources := newAppProtectVSResourcesForVS()
+func (cnf *Configurator) updateApResourcesForVs(vsEx *VirtualServerEx) *appProtectPolicyResources {
+	resources := newAppProtectPolicyResources()
 
 	for apPolKey, apPol := range vsEx.ApPolRefs {
 		policyFileName := appProtectPolicyFileNameFromUnstruct(apPol)
