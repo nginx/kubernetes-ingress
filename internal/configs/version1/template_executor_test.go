@@ -652,7 +652,7 @@ server {
 		proxy_send_timeout {{$location.ProxySendTimeout}};
 		client_max_body_size {{$location.ClientMaxBodySize}};
 		{{- range $header := $location.ProxySetHeaders}}
-		proxy_set_header {{ $header.Name }} "{{ $header.Value }}";
+		proxy_set_header {{ $header.Name }} {{ printf "%q" $header.Value }};
 		{{- end}}
 		proxy_set_header Host $host;
 		proxy_set_header X-Real-IP $remote_addr;
