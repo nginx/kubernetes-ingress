@@ -1564,6 +1564,23 @@ func TestGenerateRedirectConfig(t *testing.T) {
 			},
 			msg: "normal case with BasedOn set",
 		},
+		{
+			inputTLS: &conf_v1.TLS{
+				Secret: "secret",
+				Redirect: &conf_v1.TLSRedirect{
+					Enable: true,
+				},
+				CertManager: &conf_v1.CertManager{
+					ClusterIssuer: "letsencrypt",
+				},
+			},
+			expected: &version2.TLSRedirect{
+				Code:               301,
+				BasedOn:            "$scheme",
+				CertManagerEnabled: true,
+			},
+			msg: "redirect with cert-manager enabled",
+		},
 	}
 
 	for _, test := range tests {

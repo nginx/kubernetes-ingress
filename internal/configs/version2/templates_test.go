@@ -3513,6 +3513,35 @@ var (
 			},
 		},
 	}
+
+	virtualServerCfgWithTLSRedirectAndCertManager = VirtualServerConfig{
+		Server: Server{
+			ServerName:  "cafe.example.com",
+			StatusZone:  "cafe.example.com",
+			VSNamespace: "default",
+			VSName:      "cafe",
+			SSL: &SSL{
+				HTTP2:          true,
+				Certificate:    "cafe-secret.pem",
+				CertificateKey: "cafe-secret.pem",
+			},
+			TLSRedirect: &TLSRedirect{
+				BasedOn:            "$scheme",
+				Code:               301,
+				CertManagerEnabled: true,
+			},
+			Locations: []Location{
+				{
+					Path:      "/tea",
+					ProxyPass: "http://vs_default_cafe_tea",
+				},
+				{
+					Path:      "/coffee",
+					ProxyPass: "http://vs_default_cafe_coffee",
+				},
+			},
+		},
+	}
 )
 
 func TestJWTSSLVerificationDefaultCert(t *testing.T) {
@@ -3561,4 +3590,52 @@ func TestJWTNoSSLVerification(t *testing.T) {
 	if bytes.Contains(got, []byte("proxy_ssl_trusted_certificate")) {
 		t.Error("want no SSL trusted certificate directive in generated template")
 	}
+}
+
+func TestExecuteVirtualServerTemplate_TLSRedirectWithCertManagerNGINXPlus(t *testing.T) {
+	t.Parallel()
+
+	e := newTmplExecutorNGINXPlus(t)
+	got, err := e.ExecuteVirtualServerTemplate(&virtualServerCfgWithTLSRedirectAndCertManager)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// ACME challenge path must NOT be redirected
+	if !bytes.Contains(got, []byte("set $redirect 1;")) {
+		t.Error("want `set $redirect 1;` in generated template")
+	}
+	if !bytes.Contains(got, []byte(`$uri ~ "^/.well-known/acme-challenge(.*)"`)) {
+		t.Error("want ACME challenge exception in generated template")
+	}
+	// Plain single redirect rule must not appear
+	if bytes.Contains(got, []byte("if ($scheme = 'http')")) {
+		t.Error("did not want simple redirect rule when cert-manager is enabled")
+	}
+
+	snaps.MatchSnapshot(t, string(got))
+}
+
+func TestExecuteVirtualServerTemplate_TLSRedirectWithCertManagerNGINX(t *testing.T) {
+	t.Parallel()
+
+	e := newTmplExecutorNGINX(t)
+	got, err := e.ExecuteVirtualServerTemplate(&virtualServerCfgWithTLSRedirectAndCertManager)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// ACME challenge path must NOT be redirected
+	if !bytes.Contains(got, []byte("set $redirect 1;")) {
+		t.Error("want `set $redirect 1;` in generated template")
+	}
+	if !bytes.Contains(got, []byte(`$uri ~ "^/.well-known/acme-challenge(.*)"`)) {
+		t.Error("want ACME challenge exception in generated template")
+	}
+	// Plain single redirect rule must not appear
+	if bytes.Contains(got, []byte("if ($scheme = 'http')")) {
+		t.Error("did not want simple redirect rule when cert-manager is enabled")
+	}
+
+	snaps.MatchSnapshot(t, string(got))
 }

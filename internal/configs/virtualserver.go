@@ -2338,8 +2338,9 @@ func generateTLSRedirectConfig(tls *conf_v1.TLS) *version2.TLSRedirect {
 	}
 
 	redirect := &version2.TLSRedirect{
-		Code:    generateIntFromPointer(tls.Redirect.Code, 301),
-		BasedOn: generateTLSRedirectBasedOn(tls.Redirect.BasedOn),
+		Code:               generateIntFromPointer(tls.Redirect.Code, 301),
+		BasedOn:            generateTLSRedirectBasedOn(tls.Redirect.BasedOn),
+		CertManagerEnabled: tls.CertManager != nil,
 	}
 
 	return redirect
