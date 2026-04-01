@@ -115,7 +115,7 @@ Controller → updates K8s resource status and events
 ## Key Development Patterns
 
 ### Adding an Ingress Annotation Feature
-1. Add annotation key and parsing in `internal/configs/annotationparser.go`
+1. Add annotation key and parsing in `internal/configs/annotations.go`
 2. Add the field to the relevant config struct
 3. Update the template in `internal/configs/*.tmpl` to emit the NGINX directive
 4. Add validation logic if needed
@@ -127,7 +127,7 @@ Controller → updates K8s resource status and events
 2. Add validation in `pkg/apis/configuration/validation/`
 3. Update config generation in `internal/configs/virtualserver.go`
 4. Update templates in `internal/configs/version2/`
-5. Run `make generate` to regenerate clientset if CRD changed
+5. Run `make update-crds` to regenerate clientset if CRD changed
 6. Write tests and update examples
 
 ### Common Bug Fix Locations
@@ -135,10 +135,10 @@ Controller → updates K8s resource status and events
 | Bug Category | Typical Location |
 |---|---|
 | Path handling / routing | `internal/configs/`, template rendering |
-| Annotation parsing errors | `internal/configs/annotationparser.go` |
+| Annotation parsing errors | `internal/configs/annotations.go` |
 | Nil pointer dereference | Configurator, missing null checks |
 | Template variable escaping | `internal/configs/*.tmpl` files |
-| Feature parity gaps (Ingress vs VS) | Compare `annotationparser.go` vs `virtualserver.go` |
+| Feature parity gaps (Ingress vs VS) | Compare `annotations.go` vs `virtualserver.go` |
 | Reconciliation / watch loops | `internal/k8s/` watcher and queue logic |
 | Stream/TCP config issues | `internal/configs/stream*.go` |
 | TLS/certificate handling | `cmd/nginx-ingress/main.go` secret processors |
@@ -181,14 +181,14 @@ Controller → updates K8s resource status and events
 ### Build and Quality
 - Run `make lint` before submitting changes
 - Run `make test` for unit tests
-- Use `make generate` when CRD types are modified
+- Use `make update-crds` when CRD types are modified
 - Follow the existing code style and patterns found in surrounding code
 
 ## Constraints
 
 - ONLY make changes directly related to the assigned issue
 - DO NOT refactor unrelated code or add features not requested
-- DO NOT modify generated code in `pkg/client/` manually — use `make generate`
+- DO NOT modify generated code in `pkg/client/` manually — use `make update-crds`
 - ALWAYS add or update tests for any code changes
 - ALWAYS check for nil pointers before dereferencing in config generation code
 - PRESERVE backward compatibility unless the issue explicitly requires breaking changes
