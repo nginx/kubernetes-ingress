@@ -12,18 +12,8 @@ each request.
 
 ## NGINX Location Matching Algorithm
 
-NGINX evaluates locations in the following order:
-
-1. **Exact match (`=`)** -- If the request URI matches a location with the `=` modifier exactly, NGINX uses that
-   location immediately and stops searching.
-2. **Prefix match evaluation** -- NGINX checks all prefix locations (`/path` and `^~ /path`) and remembers the longest
-   match.
-   - If the longest matching prefix has the `^~` modifier, NGINX uses that location and stops searching. Regex locations
-     are not evaluated.
-   - Otherwise, NGINX remembers this prefix match and continues to regex evaluation.
-3. **Regex match (`~` and `~*`)** -- NGINX evaluates regex locations in the order they appear in the configuration.
-   The first matching regex wins.
-4. **Prefix fallback** -- If no regex matched, NGINX uses the longest matching prefix location remembered from step 2.
+Detailed documentation on how NGINX matches request URIs to location blocks can
+be found in the [NGINX documentation](https://nginx.org/en/docs/http/ngx_http_core_module.html#location).
 
 ## Prerequisites
 
