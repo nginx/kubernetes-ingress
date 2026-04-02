@@ -366,6 +366,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		statusZone := rule.Host
 
 		server := version1.Server{
+			AddHeaderInherit:       cfgParams.AddHeaderInherit,
 			Name:                   serverName,
 			ServerTokens:           cfgParams.ServerTokens,
 			HTTP2:                  cfgParams.HTTP2,
@@ -484,6 +485,9 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 				ssl, grpcServices[path.Backend.Service.Name], proxySSLName, path.PathType, path.Backend.Service.Name, rewriteTarget)
 
 			if ncp.isMinion {
+				loc.AddHeaderInherit = cfgParams.AddHeaderInherit
+				server.AddHeaderInherit = ""
+
 				if cfgParams.JWTKey != "" {
 					jwtAuth, redirectLoc, warnings := generateJWTConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams, getNameForRedirectLocation(ncp.ingEx.Ingress))
 					loc.JWTAuth = jwtAuth

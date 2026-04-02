@@ -166,6 +166,25 @@ func ParseBool(s string) (bool, error) {
 	return strconv.ParseBool(s)
 }
 
+const (
+	// AddHeaderInheritOn keeps the standard add_header inheritance model.
+	AddHeaderInheritOn = "on"
+	// AddHeaderInheritOff disables inheriting add_header values from the parent context.
+	AddHeaderInheritOff = "off"
+	// AddHeaderInheritMerge appends inherited add_header values to the current context values.
+	AddHeaderInheritMerge = "merge"
+)
+
+// ParseAddHeaderInherit validates the add_header_inherit directive mode.
+func ParseAddHeaderInherit(value string) (string, error) {
+	switch value {
+	case AddHeaderInheritOn, AddHeaderInheritOff, AddHeaderInheritMerge:
+		return value, nil
+	default:
+		return "", fmt.Errorf("must be one of: '%s', '%s' or '%s'", AddHeaderInheritOn, AddHeaderInheritOff, AddHeaderInheritMerge)
+	}
+}
+
 // ParseInt ensures that the string value is a valid int
 func ParseInt(s string) (int, error) {
 	return strconv.Atoi(s)

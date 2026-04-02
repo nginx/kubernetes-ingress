@@ -166,6 +166,9 @@ server {
 	{{- range $proxyPassHeader := $server.ProxyPassHeaders}}
 	proxy_pass_header {{$proxyPassHeader}};{{end}}
 	{{- end}}
+	{{- if $server.AddHeaderInherit}}
+	add_header_inherit {{$server.AddHeaderInherit}};
+	{{- end}}
 
 	{{- if and $server.HSTS (or $server.SSL $server.HSTSBehindProxy)}}
 	set $hsts_header_val "";
@@ -269,6 +272,9 @@ server {
 		{{- end }}
 		{{- if gt (len $location.Deny) 0 }}
 		allow all;
+		{{- end }}
+		{{- if $location.AddHeaderInherit}}
+		add_header_inherit {{$location.AddHeaderInherit}};
 		{{- end }}
 		{{- with $location.WAF }}
 		app_protect_enable {{ .Enable }};

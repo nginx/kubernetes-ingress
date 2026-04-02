@@ -703,6 +703,31 @@ func TestParseBool(t *testing.T) {
 	}
 }
 
+func TestParseAddHeaderInherit(t *testing.T) {
+	t.Parallel()
+
+	testsWithValidInput := []string{
+		AddHeaderInheritOn,
+		AddHeaderInheritOff,
+		AddHeaderInheritMerge,
+	}
+
+	for _, input := range testsWithValidInput {
+		result, err := ParseAddHeaderInherit(input)
+		if err != nil {
+			t.Fatalf("TestParseAddHeaderInherit(%q) returned an error for valid input", input)
+		}
+
+		if result != input {
+			t.Errorf("TestParseAddHeaderInherit(%q) returned %q expected %q", input, result, input)
+		}
+	}
+
+	if _, err := ParseAddHeaderInherit("bogus"); err == nil {
+		t.Error("TestParseAddHeaderInherit(\"bogus\") does not return an error for invalid input")
+	}
+}
+
 func TestParseInt(t *testing.T) {
 	t.Parallel()
 	testsWithValidInput := []struct {
