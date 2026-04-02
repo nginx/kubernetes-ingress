@@ -1804,6 +1804,30 @@ def get_events_for_object(v1: CoreV1Api, namespace, object_name) -> []:
     return [event for event in events.items if event.involved_object.name == object_name]
 
 
+def print_events(events, detail=False) -> None:
+    """
+    Print each event on a newline with Kind, Controller, Namespace, Name, and Reason/Note.
+
+    :param events: list of V1Event objects
+    :param detail: boolean flag to print detailed information
+    """
+    print("========= Events ==========")
+    for event in events:
+        kind = event.involved_object.kind or ""
+        namespace = event.involved_object.namespace or ""
+        name = event.involved_object.name or ""
+        if detail:
+            controller = ""
+            if event.source and event.source.component:
+                controller = event.source.component
+        reason = event.reason or ""
+        note = event.message or ""
+        if detail:
+            print(f"EVENT: Kind={kind}  Controller={controller}  Name={namespace}/{name}  Reason={reason}  Note={note}")
+        else:
+            print(f"EVENT: Kind={kind}  Name={namespace}/{name}  Reason={reason}  Note={note}")
+
+
 def get_events(v1: CoreV1Api, namespace) -> []:
     """
     Get the list of events in a namespace.
