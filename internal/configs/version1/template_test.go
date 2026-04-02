@@ -1520,10 +1520,10 @@ func TestExecuteTemplate_ForIngressForNGINXWithProxySetHeadersAnnotationWithDefa
 				"nginx.org/proxy-set-headers": "X-Forwarded-ABC",
 			},
 			wantCoffeeHeaders: []string{
-				`proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;`,
+				`proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";`,
 			},
 			wantTeaHeaders: []string{
-				`proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;`,
+				`proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";`,
 			},
 		},
 	}
@@ -1620,14 +1620,14 @@ func TestExecuteTemplate_ForMergeableIngressForNGINXMasterWithoutAnnotationMinio
 				"nginx.org/proxy-set-headers":      "X-Forwarded-Coffee",
 			},
 			wantCoffeeHeaders: []string{
-				`proxy_set_header X-Forwarded-Coffee $http_x_forwarded_coffee;`,
+				`proxy_set_header X-Forwarded-Coffee "$http_x_forwarded_coffee";`,
 			},
 			teaAnnotations: map[string]string{
 				"nginx.org/mergeable-ingress-type": "minion",
 				"nginx.org/proxy-set-headers":      "X-Forwarded-Tea",
 			},
 			wantTeaHeaders: []string{
-				`proxy_set_header X-Forwarded-Tea $http_x_forwarded_tea;`,
+				`proxy_set_header X-Forwarded-Tea "$http_x_forwarded_tea";`,
 			},
 		},
 	}
@@ -1807,13 +1807,13 @@ func TestExecuteTemplate_ForMergeableIngressForNGINXMasterWithAnnotationForProxy
 				"nginx.org/mergeable-ingress-type": "minion",
 			},
 			wantCoffeeHeaders: []string{
-				`proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;`,
+				`proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";`,
 			},
 			teaAnnotations: map[string]string{
 				"nginx.org/mergeable-ingress-type": "minion",
 			},
 			wantTeaHeaders: []string{
-				`proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;`,
+				`proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";`,
 			},
 		},
 	}
@@ -1863,16 +1863,16 @@ func TestExecuteTemplate_ForMergeableIngressForNGINXMasterMinionsWithDifferentHe
 				"nginx.org/proxy-set-headers":      "X-Forwarded-Coffee: espresso",
 			},
 			wantCoffeeHeaders: []string{
-				`proxy_set_header X-Forwarded-Coffee "espresso"`,
-				"proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;",
+				`proxy_set_header X-Forwarded-Coffee "espresso";`,
+				`proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";`,
 			},
 			teaAnnotations: map[string]string{
 				"nginx.org/mergeable-ingress-type": "minion",
 				"nginx.org/proxy-set-headers":      "X-Forwarded-Tea: chai",
 			},
 			wantTeaHeaders: []string{
-				`proxy_set_header X-Forwarded-Tea "chai"`,
-				"proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;",
+				`proxy_set_header X-Forwarded-Tea "chai";`,
+				`proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";`,
 			},
 		},
 	}
@@ -1922,10 +1922,10 @@ func TestExecuteTemplate_ForMergeableIngressForNGINXWithProxySetHeadersAnnotatio
 				"nginx.org/proxy-set-headers":      "X-Forwarded-ABC: coffee",
 			},
 			wantCoffeeHeaders: []string{
-				`proxy_set_header X-Forwarded-ABC "coffee"`,
+				`proxy_set_header X-Forwarded-ABC "coffee";`,
 			},
 			wantTeaHeaders: []string{
-				"proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;",
+				`proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";`,
 			},
 		},
 	}
@@ -1977,19 +1977,19 @@ func TestExecuteTemplate_ForMergeableIngressForNGINXMasterMinionsWithMultipleDif
 			wantCoffeeHeaders: []string{
 				`proxy_set_header X-Forwarded-Coffee "espresso"`,
 				`proxy_set_header X-Forwarded-Minion "coffee"`,
-				"proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;",
-				"proxy_set_header BVC $http_bvc;",
-				`proxy_set_header Location "minion"`,
+				`proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";`,
+				`proxy_set_header BVC "$http_bvc";`,
+				`proxy_set_header Location "minion";`,
 			},
 			teaAnnotations: map[string]string{
 				"nginx.org/mergeable-ingress-type": "minion",
 				"nginx.org/proxy-set-headers":      "X-Forwarded-Tea: chai",
 			},
 			wantTeaHeaders: []string{
-				`proxy_set_header X-Forwarded-Tea "chai"`,
-				"proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;",
-				"proxy_set_header BVC $http_bvc;",
-				`proxy_set_header Location "master"`,
+				`proxy_set_header X-Forwarded-Tea "chai";`,
+				`proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";`,
+				`proxy_set_header BVC "$http_bvc";`,
+				`proxy_set_header Location "master";`,
 			},
 		},
 	}
@@ -4407,8 +4407,9 @@ var (
 								"nginx.org/proxy-set-headers":      "X-Forwarded-ABC: coffee",
 							},
 						},
-						ProxySSLName: "coffee-svc.default.svc",
-						ProxyPass:    "http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80",
+						ProxyPass:       "http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80",
+						ProxySetHeaders: []version2.Header{{Name: "X-Forwarded-ABC", Value: "coffee"}},
+						ProxySSLName:    "coffee-svc.default.svc",
 					},
 					{
 						Path:                "/tea",
@@ -4427,8 +4428,9 @@ var (
 								"nginx.org/proxy-set-headers":      "X-Forwarded-ABC: tea",
 							},
 						},
-						ProxySSLName: "tea-svc.default.svc",
-						ProxyPass:    "http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80",
+						ProxyPass:       "http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80",
+						ProxySetHeaders: []version2.Header{{Name: "X-Forwarded-ABC", Value: "tea"}},
+						ProxySSLName:    "tea-svc.default.svc",
 					},
 				},
 				SSL:               true,
@@ -4712,7 +4714,11 @@ var (
 	}
 )
 
-func createProxySetHeaderIngressConfig(masterAnnotations map[string]string, coffeeAnnotations map[string]string, teamAnnotations map[string]string) IngressNginxConfig {
+func createProxySetHeaderIngressConfig(masterAnnotations, coffeeAnnotations, teaAnnotations map[string]string) IngressNginxConfig {
+	masterPSH := masterAnnotations["nginx.org/proxy-set-headers"]
+	coffeePSH := coffeeAnnotations["nginx.org/proxy-set-headers"]
+	teaPSH := teaAnnotations["nginx.org/proxy-set-headers"]
+
 	return IngressNginxConfig{
 		Servers: []Server{
 			{
@@ -4724,15 +4730,17 @@ func createProxySetHeaderIngressConfig(masterAnnotations map[string]string, coff
 							Namespace:   "default",
 							Annotations: coffeeAnnotations,
 						},
-						ProxyPass: "http://test",
+						ProxySetHeaders: MergeProxySetHeaders(masterPSH, coffeePSH),
+						ProxyPass:       "http://test",
 					},
 					{
 						MinionIngress: &Ingress{
 							Name:        "cafe-ingress-tea-minion",
 							Namespace:   "default",
-							Annotations: teamAnnotations,
+							Annotations: teaAnnotations,
 						},
-						ProxyPass: "http://test",
+						ProxySetHeaders: MergeProxySetHeaders(masterPSH, teaPSH),
+						ProxyPass:       "http://test",
 					},
 				},
 			},

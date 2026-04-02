@@ -32,7 +32,7 @@ const (
 	proxySendTimeoutAnnotation            = "nginx.org/proxy-send-timeout"
 	proxyHideHeadersAnnotation            = "nginx.org/proxy-hide-headers"
 	proxyPassHeadersAnnotation            = "nginx.org/proxy-pass-headers" // #nosec G101
-	proxySetHeadersAnnotation             = "nginx.org/proxy-set-headers"
+	proxySetHeadersAnnotation             = configs.ProxySetHeadersAnnotation
 	clientMaxBodySizeAnnotation           = "nginx.org/client-max-body-size"
 	clientBodyBufferSizeAnnotation        = "nginx.org/client-body-buffer-size"
 	redirectToHTTPSAnnotation             = "nginx.org/redirect-to-https"
@@ -174,6 +174,7 @@ var (
 			validateHTTPHeadersAnnotation,
 		},
 		proxySetHeadersAnnotation: {
+			validateRequiredAnnotation,
 			validateProxySetHeaderAnnotation,
 		},
 		clientMaxBodySizeAnnotation: {
@@ -564,41 +565,37 @@ func validateHTTPHeadersAnnotation(context *annotationValidationContext) field.E
 
 func validateProxySetHeaderAnnotation(context *annotationValidationContext) field.ErrorList {
 	var allErrs field.ErrorList
-	headers := strings.Split(context.value, commaDelimiter)
 
-	for _, header := range headers {
-		header = strings.TrimSpace(header)
-
-		parts := strings.SplitN(header, ":", 2)
-		if len(parts) == 1 && strings.Contains(header, " ") {
-			allErrs = append(allErrs, field.Invalid(context.fieldPath, header, "invalid header syntax - spaces are not allowed in header"))
+	for _, entry := range strings.Split(context.value, commaDelimiter) {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			allErrs = append(allErrs, field.Invalid(context.fieldPath, entry, "empty header name"))
+			continue
 		}
 
-		if len(parts) != 2 {
-			parts = append(parts, "")
-		}
-
+		parts := strings.SplitN(entry, ":", 2)
 		name := strings.TrimSpace(parts[0])
+
+		if name == "" {
+			allErrs = append(allErrs, field.Invalid(context.fieldPath, entry, "empty header name"))
+			continue
+		}
+
 		for _, msg := range validation.IsHTTPHeaderName(name) {
 			allErrs = append(allErrs, field.Invalid(context.fieldPath, name, msg))
 		}
 
-		value := strings.TrimSpace(parts[1])
-
-		if strings.Contains(value, "$") {
-			allErrs = append(allErrs, field.Invalid(context.fieldPath, header, "invalid character in value: $"))
-		}
-
-		if name == "" {
-			allErrs = append(allErrs, field.Invalid(context.fieldPath, header, "empty header name: "+header))
-			continue
-		}
-
-		if name == "" && value == "" {
-			allErrs = append(allErrs, field.Invalid(context.fieldPath, header, "invalid header syntax: "+header))
-			continue
+		if len(parts) == 2 {
+			value := strings.TrimSpace(parts[1])
+			if strings.Contains(value, "$") {
+				allErrs = append(allErrs, field.Invalid(context.fieldPath, entry, "invalid character in value: $"))
+			}
+			if err := ValidateEscapedString(value); err != nil {
+				allErrs = append(allErrs, field.Invalid(context.fieldPath, entry, err.Error()))
+			}
 		}
 	}
+
 	return allErrs
 }
 

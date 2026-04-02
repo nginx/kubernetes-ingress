@@ -1005,6 +1005,11 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 					loc.CORSEnabled = true
 				}
 				loc.MinionIngress = &minionNginxCfg.Ingress
+				// Merge proxy-set-headers: minion headers take priority over master headers.
+				masterAnnotation := ncp.mergeableIngs.Master.Ingress.Annotations[ProxySetHeadersAnnotation]
+				minionAnnotation := minion.Ingress.Annotations[ProxySetHeadersAnnotation]
+				loc.ProxySetHeaders = version1.MergeProxySetHeaders(masterAnnotation, minionAnnotation)
+
 				locations = append(locations, loc)
 			}
 			for hcName, healthCheck := range server.HealthChecks {
