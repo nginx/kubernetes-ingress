@@ -77,6 +77,12 @@ jobs:
         id: secrets
         run: |
           echo "Setting secrets for job"
+          DOCKER_USERNAME=$(az keyvault secret show --name docker-username --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$DOCKER_USERNAME"
+          echo "DOCKER_USERNAME=$DOCKER_USERNAME" >> $GITHUB_OUTPUT
+          DOCKER_PASSWORD=$(az keyvault secret show --name docker-password --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$DOCKER_PASSWORD"
+          echo "DOCKER_PASSWORD=$DOCKER_PASSWORD" >> $GITHUB_OUTPUT
           GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
           echo "::add-mask::$GCR_WORKLOAD_ID"
           echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
@@ -120,6 +126,13 @@ jobs:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
+        if: ${{ inputs.authenticated }}
+
+      - name: DockerHub Login
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        with:
+          username: ${{ steps.secrets.outputs.DOCKER_USERNAME }}
+          password: ${{ steps.secrets.outputs.DOCKER_PASSWORD }}
         if: ${{ inputs.authenticated }}
 
       - name: Check if stable image exists
