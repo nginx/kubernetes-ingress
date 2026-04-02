@@ -1490,7 +1490,7 @@ func generateProxyPassRewrite(path string, proxy *conf_v1.ActionProxy, internal 
 		return ""
 	}
 
-	if strings.HasPrefix(path, "/") || strings.HasPrefix(path, "=") {
+	if strings.HasPrefix(path, "/") || strings.HasPrefix(path, "=") || strings.HasPrefix(path, "^~") {
 		return proxy.RewritePath
 	}
 
@@ -1576,6 +1576,10 @@ func generateBool(s *bool, defaultS bool) bool {
 }
 
 func generatePath(path string) string {
+	// Format the longest prefix match with a space between the modifier and the path
+	if strings.HasPrefix(path, "^~") {
+		return fmt.Sprintf(`^~ %v`, strings.TrimLeft(strings.TrimPrefix(path, "^~"), " "))
+	}
 	// Wrap the regular expression (if present) inside double quotes (") to avoid NGINX parsing errors
 	if strings.HasPrefix(path, "~*") {
 		return fmt.Sprintf(`~* "%v"`, strings.TrimPrefix(strings.TrimPrefix(path, "~*"), " "))
