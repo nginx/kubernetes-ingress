@@ -2340,30 +2340,43 @@ func TestCreateIngressEx_SetsWarningWhenReferencedPolicyMissing(t *testing.T) {
 func TestCreateIngressEx_SetsWarningWhenPoliciesAnnotationUsedWithoutCustomResources(t *testing.T) {
 	t.Parallel()
 
-	ing := createTestIngress("ing-with-policy-no-crds", "example.com")
-	ing.Annotations[configs.PoliciesAnnotation] = "some-policy"
-
-	lbc := LoadBalancerController{
-		namespacedInformers: map[string]*namespacedInformer{
-			"default": {},
-		},
-		areCustomResourcesEnabled: false,
-		Logger:                    nl.LoggerFromContext(context.Background()),
+	tests := []struct {
+		name       string
+		annotation string
+	}{
+		{name: "nginx.org annotation", annotation: configs.PoliciesAnnotation},
+		{name: "nginx.com annotation", annotation: configs.PoliciesAnnotationPlus},
 	}
 
-	ingEx := lbc.createIngressEx(ing, map[string]bool{"example.com": true}, nil)
-	if len(ingEx.PolicyWarnings) == 0 {
-		t.Fatalf("expected warning when policies annotation is used without custom resources enabled")
-	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ing := createTestIngress("ing-with-policy-no-crds", "example.com")
+			ing.Annotations[tc.annotation] = "some-policy"
 
-	if !strings.Contains(ingEx.PolicyWarnings[0], "custom resources are not enabled") {
-		t.Fatalf("expected custom resources warning, got: %v", ingEx.PolicyWarnings[0])
-	}
+			lbc := LoadBalancerController{
+				namespacedInformers: map[string]*namespacedInformer{
+					"default": {},
+				},
+				areCustomResourcesEnabled: false,
+				Logger:                    nl.LoggerFromContext(context.Background()),
+			}
 
-	ingConfig := NewRegularIngressConfiguration(ing)
-	ingForEvent := mergeIngressPolicyWarnings(ingConfig, ingEx, nil)
-	if len(ingForEvent.Warnings) == 0 {
-		t.Fatalf("expected ingress warnings to surface for event/status updates")
+			ingEx := lbc.createIngressEx(ing, map[string]bool{"example.com": true}, nil)
+			if len(ingEx.PolicyWarnings) == 0 {
+				t.Fatalf("expected warning when policies annotation is used without custom resources enabled")
+			}
+
+			if !strings.Contains(ingEx.PolicyWarnings[0], "custom resources are not enabled") {
+				t.Fatalf("expected custom resources warning, got: %v", ingEx.PolicyWarnings[0])
+			}
+
+			ingConfig := NewRegularIngressConfiguration(ing)
+			ingForEvent := mergeIngressPolicyWarnings(ingConfig, ingEx, nil)
+			if len(ingForEvent.Warnings) == 0 {
+				t.Fatalf("expected ingress warnings to surface for event/status updates")
+			}
+		})
 	}
 }
 

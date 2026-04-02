@@ -82,7 +82,7 @@ type policyOptions struct {
 	tls             bool
 	zoneSync        bool
 	secretRefs      map[string]*secrets.SecretReference
-	apResources     *appProtectResourcesForVS
+	apResources     *appProtectPolicyResources
 	defaultCABundle string
 	replicas        int
 	oidcPolicyName  string
@@ -652,7 +652,7 @@ func (p *policiesCfg) addWAFConfig(
 	waf *conf_v1.WAF,
 	polKey string,
 	polNamespace string,
-	apResources *appProtectResourcesForVS,
+	apResources *appProtectPolicyResources,
 ) *validationResults {
 	l := nl.LoggerFromContext(ctx)
 	res := newValidationResults()

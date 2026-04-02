@@ -42,6 +42,8 @@ type IngressEx struct {
 	Endpoints        map[string][]string
 	HealthChecks     map[string]*api_v1.Probe
 	Policies         map[string]*conf_v1.Policy
+	ApPolRefs        map[string]*unstructured.Unstructured
+	LogConfRefs      map[string]*unstructured.Unstructured
 	PolicyWarnings   []string
 	ExternalNameSvcs map[string]bool
 	PodsByIP         map[string]PodInfo
@@ -97,6 +99,143 @@ type NginxCfgParams struct {
 	ingressControllerReplicas int
 }
 
+type ingressPolicyAnnotationRequirement struct {
+	policyType string
+	matches    func(*conf_v1.Policy) bool
+}
+
+// ingressPoliciesRequiringPlusAnnotation lists policy types that are valid on Ingress
+// only when referenced via nginx.com/policies. Keeping this as a small table makes the
+// restriction explicit and easy to extend if more Plus-only policy types are added later.
+var ingressPoliciesRequiringPlusAnnotation = []ingressPolicyAnnotationRequirement{
+	{
+		policyType: "WAF",
+		matches: func(policy *conf_v1.Policy) bool {
+			return policy.Spec.WAF != nil
+		},
+	},
+}
+
+var ingressWAFAnnotations = []string{
+	"appprotect.f5.com/app-protect-enable",
+	AppProtectPolicyAnnotation,
+	"appprotect.f5.com/app-protect-security-log-enable",
+	AppProtectLogConfAnnotation,
+	AppProtectLogConfDstAnnotation,
+}
+
+// filterIngressPolicyRefs removes policy references that are not allowed for the
+// annotation that introduced them. The Ingress model only keeps a merged policy map,
+// so this function reconstructs which refs came from nginx.org/policies and prevents
+// Plus-only policy types from becoming effective through that annotation.
+func filterIngressPolicyRefs(policyRefs []conf_v1.PolicyReference, ingEx *IngressEx) ([]conf_v1.PolicyReference, Warnings) {
+	warnings := newWarnings()
+	if len(policyRefs) == 0 || ingEx == nil || ingEx.Ingress == nil || len(ingEx.Policies) == 0 {
+		return policyRefs, warnings
+	}
+
+	policyNames, exists := ingEx.Ingress.Annotations[PoliciesAnnotation]
+	if !exists {
+		return policyRefs, warnings
+	}
+
+	policyRefsFromOrgAnnotation := make(map[string]bool)
+	for _, ref := range policies.GetPolicyRefsFromAnnotation(policyNames, ingEx.Ingress.Namespace) {
+		resourceRef := ref.Name
+		if ref.Namespace != "" {
+			resourceRef = fmt.Sprintf("%s/%s", ref.Namespace, ref.Name)
+		}
+		namespace, resourceName := ParseResourceReference(resourceRef, ingEx.Ingress.Namespace)
+		policyRefsFromOrgAnnotation[fmt.Sprintf("%s/%s", namespace, resourceName)] = true
+	}
+
+	filteredPolicyRefs := make([]conf_v1.PolicyReference, 0, len(policyRefs))
+	for _, ref := range policyRefs {
+		resourceRef := ref.Name
+		if ref.Namespace != "" {
+			resourceRef = fmt.Sprintf("%s/%s", ref.Namespace, ref.Name)
+		}
+		namespace, resourceName := ParseResourceReference(resourceRef, ingEx.Ingress.Namespace)
+		key := fmt.Sprintf("%s/%s", namespace, resourceName)
+		policy, exists := ingEx.Policies[key]
+		skipPolicyRef := false
+		if exists && policyRefsFromOrgAnnotation[key] {
+			for _, requirement := range ingressPoliciesRequiringPlusAnnotation {
+				if requirement.matches(policy) {
+					warnings.AddWarningf(ingEx.Ingress, "%s policy %s is not supported in annotation %s; use %s", requirement.policyType, key, PoliciesAnnotation, PoliciesAnnotationPlus)
+					skipPolicyRef = true
+					break
+				}
+			}
+		}
+		if skipPolicyRef {
+			continue
+		}
+		filteredPolicyRefs = append(filteredPolicyRefs, ref)
+	}
+
+	return filteredPolicyRefs, warnings
+}
+
+// getIngressPolicyRefs returns the de-duplicated Policy references from Ingress policy annotations
+// while preserving the annotation order: nginx.org/policies first, then nginx.com/policies.
+func getIngressPolicyRefs(ingEx *IngressEx) []conf_v1.PolicyReference {
+	if ingEx == nil || ingEx.Ingress == nil {
+		return nil
+	}
+
+	var policyRefs []conf_v1.PolicyReference
+	seenPolicyRefs := make(map[string]bool)
+	for _, annotation := range []string{PoliciesAnnotation, PoliciesAnnotationPlus} {
+		policyNames, exists := ingEx.Ingress.Annotations[annotation]
+		if !exists {
+			continue
+		}
+
+		for _, ref := range policies.GetPolicyRefsFromAnnotation(policyNames, ingEx.Ingress.Namespace) {
+			resourceRef := ref.Name
+			if ref.Namespace != "" {
+				resourceRef = fmt.Sprintf("%s/%s", ref.Namespace, ref.Name)
+			}
+			namespace, resourceName := ParseResourceReference(resourceRef, ingEx.Ingress.Namespace)
+			key := fmt.Sprintf("%s/%s", namespace, resourceName)
+			if seenPolicyRefs[key] {
+				continue
+			}
+			seenPolicyRefs[key] = true
+			policyRefs = append(policyRefs, ref)
+		}
+	}
+
+	return policyRefs
+}
+
+func resolveIngressAppProtectResources(ingEx *IngressEx, apResources *AppProtectResources, policyCfg policiesCfg) (*AppProtectResources, Warnings) {
+	warnings := newWarnings()
+	if ingEx == nil || ingEx.Ingress == nil || policyCfg.WAF == nil {
+		return apResources, warnings
+	}
+
+	var presentAnnotations []string
+	for _, annotation := range ingressWAFAnnotations {
+		if _, exists := ingEx.Ingress.Annotations[annotation]; exists {
+			presentAnnotations = append(presentAnnotations, annotation)
+		}
+	}
+
+	if len(presentAnnotations) == 0 {
+		return apResources, warnings
+	}
+
+	warnings.AddWarningf(
+		ingEx.Ingress,
+		"WAF cannot be configured through both Policy and App Protect annotations on the same Ingress; annotations %s will be ignored because the Policy configuration takes precedence",
+		strings.Join(presentAnnotations, ", "),
+	)
+
+	return &AppProtectResources{}, warnings
+}
+
 //nolint:gocyclo
 func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings) {
 	l := nl.LoggerFromContext(ncp.BaseCfgParams.Context)
@@ -147,10 +286,23 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 	var maps []version2.Map
 
 	// Run generate Policies
-	var policyRefs []conf_v1.PolicyReference
-	if _, exists := ncp.ingEx.Ingress.Annotations[PoliciesAnnotation]; exists {
-		policyRefs = policies.GetPolicyRefsFromAnnotation(ncp.ingEx.Ingress.Annotations[PoliciesAnnotation], ncp.ingEx.Ingress.Namespace)
+	policyRefs := getIngressPolicyRefs(ncp.ingEx)
+	policyRefs, annotationPolicyWarnings := filterIngressPolicyRefs(policyRefs, ncp.ingEx)
+	allWarnings.Add(annotationPolicyWarnings)
+
+	policyAppProtectResources := newAppProtectPolicyResources()
+	for policyKey, policy := range ncp.ingEx.ApPolRefs {
+		policyAppProtectResources.Policies[policyKey] = appProtectPolicyFileNameFromUnstruct(policy)
 	}
+	for logConfKey, logConf := range ncp.ingEx.LogConfRefs {
+		policyAppProtectResources.LogConfs[logConfKey] = appProtectLogConfFileNameFromUnstruct(logConf)
+	}
+
+	bundlePath := ""
+	if ncp.staticParams != nil {
+		bundlePath = ncp.staticParams.AppProtectBundlePath
+	}
+	bundleValidator := newInternalBundleValidator(bundlePath)
 
 	var policyCfg policiesCfg
 	if len(policyRefs) > 0 {
@@ -178,15 +330,18 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 				tls:             ncp.ingEx.Ingress.Spec.TLS != nil,
 				zoneSync:        ncp.BaseCfgParams.ZoneSync.Enable,
 				secretRefs:      ncp.ingEx.SecretRefs,
-				apResources:     nil,
+				apResources:     policyAppProtectResources,
 				defaultCABundle: ncp.staticParams.DefaultCABundle,
 				replicas:        ncp.ingressControllerReplicas,
 				oidcPolicyName:  "",
 			},
-			nil,
+			bundleValidator,
 		)
 		allWarnings.Add(warnings)
 	}
+
+	apResources, appProtectWarnings := resolveIngressAppProtectResources(ncp.ingEx, ncp.apResources, policyCfg)
+	allWarnings.Add(appProtectWarnings)
 
 	if policyCfg.CORSMap != nil {
 		// CORS origin validation map is rendered at http{} level and consumed by location headers.
@@ -241,6 +396,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			AppRoot:                cfgParams.AppRoot,
 			Allow:                  policyCfg.Allow,
 			Deny:                   policyCfg.Deny,
+			WAF:                    policyCfg.WAF,
 			PoliciesErrorReturn:    policyCfg.ErrorReturn,
 		}
 
@@ -248,8 +404,10 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		allWarnings.Add(warnings)
 
 		if hasAppProtect {
-			server.AppProtectPolicy = ncp.apResources.AppProtectPolicy
-			server.AppProtectLogConfs = ncp.apResources.AppProtectLogconfs
+			if apResources != nil {
+				server.AppProtectPolicy = apResources.AppProtectPolicy
+				server.AppProtectLogConfs = apResources.AppProtectLogconfs
+			}
 		}
 
 		if hasAppProtectDos && ncp.dosResource != nil {
@@ -348,9 +506,14 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 					loc.Deny = policyCfg.Deny
 				}
 
+				if policyCfg.WAF != nil {
+					loc.WAF = policyCfg.WAF
+				}
+
 				if policyCfg.ErrorReturn != nil {
 					loc.PoliciesErrorReturn = policyCfg.ErrorReturn
 				}
+
 			}
 
 			if !loc.CORSEnabled && len(policyCfg.CORSHeaders) > 0 {

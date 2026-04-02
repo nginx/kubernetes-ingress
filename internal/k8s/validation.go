@@ -387,6 +387,12 @@ var (
 			validateCommaSeparatedList,
 			validatePolicyNames,
 		},
+		configs.PoliciesAnnotationPlus: {
+			validatePlusOnlyAnnotation,
+			validateRequiredAnnotation,
+			validateCommaSeparatedList,
+			validatePolicyNames,
+		},
 	}
 	annotationNames = sortedAnnotationNames(annotationValidations)
 )
