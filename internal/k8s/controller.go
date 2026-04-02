@@ -805,16 +805,6 @@ func (lbc *LoadBalancerController) virtualServerRequiresEndpointsUpdate(vsEx *co
 		}
 	}
 
-	// Check external auth services referenced by policies
-	for _, p := range vsEx.Policies {
-		if p.Spec.ExternalAuth != nil && p.Spec.ExternalAuth.AuthServiceName != "" {
-			_, resolvedName := configs.ParseServiceReference(p.Spec.ExternalAuth.AuthServiceName, vsEx.VirtualServer.Namespace)
-			if resolvedName == serviceName {
-				return true
-			}
-		}
-	}
-
 	return false
 }
 
@@ -2615,10 +2605,6 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 	if err != nil {
 		nl.Warnf(lbc.Logger, "Error getting OIDC trusted cert secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
 	}
-	err = lbc.addExternalAuthTrustedCertSecretRefs(virtualServerEx.SecretRefs, policies)
-	if err != nil {
-		nl.Warnf(lbc.Logger, "Error getting ExternalAuth trusted cert secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
-	}
 	err = lbc.addAPIKeySecretRefs(virtualServerEx.SecretRefs, policies)
 	if err != nil {
 		nl.Warnf(lbc.Logger, "Error getting APIKey secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
@@ -2757,11 +2743,6 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 			nl.Warnf(lbc.Logger, "Error getting OIDC trusted cert secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
 		}
 
-		err = lbc.addExternalAuthTrustedCertSecretRefs(virtualServerEx.SecretRefs, vsRoutePolicies)
-		if err != nil {
-			nl.Warnf(lbc.Logger, "Error getting ExternalAuth trusted cert secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
-		}
-
 		err = lbc.addAPIKeySecretRefs(virtualServerEx.SecretRefs, vsRoutePolicies)
 		if err != nil {
 			nl.Warnf(lbc.Logger, "Error getting APIKey secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
@@ -2804,11 +2785,6 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 			err = lbc.addOIDCTrustedCertSecretRefs(virtualServerEx.SecretRefs, vsrSubroutePolicies)
 			if err != nil {
 				nl.Warnf(lbc.Logger, "Error getting OIDC trusted cert secrets for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
-			}
-
-			err = lbc.addExternalAuthTrustedCertSecretRefs(virtualServerEx.SecretRefs, vsrSubroutePolicies)
-			if err != nil {
-				nl.Warnf(lbc.Logger, "Error getting ExternalAuth trusted cert secrets for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
 			}
 
 			err = lbc.addAPIKeySecretRefs(virtualServerEx.SecretRefs, vsrSubroutePolicies)
@@ -2876,8 +2852,6 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 			endpoints[endpointsKey] = endps
 		}
 	}
-
-	lbc.generateExternalAuthEndpoints(policies, virtualServerEx.VirtualServer.Namespace, endpoints)
 
 	virtualServerEx.Endpoints = endpoints
 	virtualServerEx.VirtualServerRoutes = virtualServerRoutes
