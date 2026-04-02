@@ -111,8 +111,6 @@ def annotations_setup(
     test_namespace,
 ) -> AnnotationsSetup:
     print("------------------------- Deploy Annotations-Example -----------------------------------")
-    create_example_app(kube_apis, "simple"    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace), test_namespace)
-
     if request.param == "grpc":
         create_items_from_yaml(kube_apis, f"{TEST_DATA}/annotations/{request.param}/grpc-secret.yaml", test_namespace)
     create_items_from_yaml(
@@ -125,6 +123,8 @@ def annotations_setup(
     else:
         minions_info = None
 
+    create_example_app(kube_apis, "simple", test_namespace)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
     ensure_connection_to_public_endpoint(
         ingress_controller_endpoint.public_ip, ingress_controller_endpoint.port, ingress_controller_endpoint.port_ssl
     )
