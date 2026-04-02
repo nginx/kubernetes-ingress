@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	"github.com/nginx/kubernetes-ingress/internal/validation"
 )
@@ -51,6 +52,9 @@ const SSLRedirectAnnotation = "nginx.org/ssl-redirect"
 
 // HTTPRedirectCodeAnnotation is the annotation where the HTTP redirect code is specified.
 const HTTPRedirectCodeAnnotation = "nginx.org/http-redirect-code"
+
+// ProxySetHeadersAnnotation is the annotation where the proxy set headers are specified.
+const ProxySetHeadersAnnotation = "nginx.org/proxy-set-headers"
 
 // ProxyNextUpstreamAnnotation is the annotation where the proxy next upstream settings are specified.
 const ProxyNextUpstreamAnnotation = "nginx.org/proxy-next-upstream"
@@ -282,9 +286,8 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		cfgParams.ProxyPassHeaders = proxyPassHeaders
 	}
 
-	if proxySetHeaders, exists := GetMapKeyAsStringSlice(ingEx.Ingress.Annotations, "nginx.org/proxy-set-headers", ingEx.Ingress, ","); exists {
-		parsedHeaders := parseProxySetHeaders(proxySetHeaders)
-		cfgParams.ProxySetHeaders = parsedHeaders
+	if proxySetHeaders, exists := ingEx.Ingress.Annotations[ProxySetHeadersAnnotation]; exists {
+		cfgParams.ProxySetHeaders = version1.ParseProxySetHeaders(proxySetHeaders)
 	}
 
 	if proxyNextUpstream, exists := ingEx.Ingress.Annotations[ProxyNextUpstreamAnnotation]; exists {

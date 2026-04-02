@@ -2599,8 +2599,9 @@ server {
 		proxy_read_timeout {{$location.ProxyReadTimeout}};
 		proxy_send_timeout {{$location.ProxySendTimeout}};
 		client_max_body_size {{$location.ClientMaxBodySize}};
-		{{- $proxySetHeaders := generateProxySetHeaders $location $.Ingress.Annotations -}}
-		{{$proxySetHeaders}}
+		{{- range $header := $location.ProxySetHeaders}}
+		proxy_set_header {{ $header.Name }} {{ printf "%q" $header.Value }};
+		{{- end}}
 		proxy_set_header Host $host;
 		proxy_set_header X-Real-IP $remote_addr;
 		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
