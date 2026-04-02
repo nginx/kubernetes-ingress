@@ -35,6 +35,7 @@ def assert_event_count_increased(event_text, count, events_list) -> int:
             assert events_list[i].count > count
             return events_list[i].count
     pytest.fail(f'Failed to find the event "{event_text}" in the list. Exiting...')
+    return None
 
 
 def assert_event_and_count(event_text, count, events_list) -> None:
