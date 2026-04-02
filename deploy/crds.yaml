@@ -631,12 +631,12 @@ spec:
                     pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?\/)?[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                     type: string
                   authServicePorts:
-                    description: AuthServicePorts are the ports of the Kubernetes service
-                      to which requests will be sent for authentication. If not
-                      specified, the ports will be looked up from the service definition.
-                      This field is only required if the user wants to choose a specific
-                      port from the service definition, otherwise the first port will
-                      be used by default.
+                    description: AuthServicePorts are the ports of the Kubernetes
+                      service to which requests will be sent for authentication. If
+                      not specified, the ports will be looked up from the service
+                      definition. This field is only required if the user wants to
+                      choose a specific port from the service definition, otherwise
+                      the first port will be used by default.
                     items:
                       type: integer
                     type: array
