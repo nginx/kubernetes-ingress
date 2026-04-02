@@ -32,7 +32,6 @@ repos:
       - id: requirements-txt-fixer
       - id: fix-byte-order-marker
       - id: detect-private-key
-        exclude: ^(examples/|tests/|internal/k8s/secrets/)
 
   - repo: local
     hooks:
