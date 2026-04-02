@@ -1341,6 +1341,15 @@ func validateExternalAuth(externalAuth *v1.ExternalAuth, fieldPath *field.Path, 
 	}
 
 	// Validate SSL fields
+	allErrs = append(allErrs, validateExternalAuthSSLFields(externalAuth, fieldPath)...)
+
+	return allErrs
+}
+
+// validateExternalAuthSSLFields validates the SSL-related fields of an ExternalAuth policy.
+func validateExternalAuthSSLFields(externalAuth *v1.ExternalAuth, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
 	if externalAuth.SSLVerify && !externalAuth.SSLEnabled {
 		allErrs = append(allErrs, field.Invalid(fieldPath.Child("sslVerify"), externalAuth.SSLVerify, "sslEnabled must be true when sslVerify is true"))
 	}

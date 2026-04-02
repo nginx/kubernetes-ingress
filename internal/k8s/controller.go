@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"math"
 	"net"
 	"os"
 	"slices"
@@ -2885,6 +2886,9 @@ func (lbc *LoadBalancerController) generateExternalAuthEndpoints(policies []*con
 
 		ports := collectAuthPorts(p, svc)
 		for _, port := range ports {
+			if port <= 0 || port > math.MaxUint16 {
+				continue
+			}
 			endps, _, err := lbc.getEndpointsForUpstream(ns, name, uint16(port))
 			if err != nil {
 				nl.Warnf(lbc.Logger, "Error getting Endpoints for ExternalAuth service %v in policy %v/%v: %v", p.Spec.ExternalAuth.AuthServiceName, p.Namespace, p.Name, err)
@@ -2906,7 +2910,9 @@ func externalAuthFallbackPorts(p *conf_v1.Policy) []int32 {
 	if len(p.Spec.ExternalAuth.AuthServicePorts) > 0 {
 		ports := make([]int32, 0, len(p.Spec.ExternalAuth.AuthServicePorts))
 		for _, port := range p.Spec.ExternalAuth.AuthServicePorts {
-			ports = append(ports, int32(port))
+			if port > 0 && port <= math.MaxInt32 {
+				ports = append(ports, int32(port))
+			}
 		}
 		return ports
 	}
@@ -2923,7 +2929,9 @@ func collectAuthPorts(p *conf_v1.Policy, svc *api_v1.Service) []int32 {
 	if len(p.Spec.ExternalAuth.AuthServicePorts) > 0 {
 		ports := make([]int32, 0, len(p.Spec.ExternalAuth.AuthServicePorts))
 		for _, port := range p.Spec.ExternalAuth.AuthServicePorts {
-			ports = append(ports, int32(port))
+			if port > 0 && port <= math.MaxInt32 {
+				ports = append(ports, int32(port))
+			}
 		}
 		return ports
 	}

@@ -308,53 +308,72 @@ func (p *policiesCfg) addExternalAuthConfig(
 
 	// Handle SSL verification for external auth
 	if externalAuth.SSLEnabled && externalAuth.SSLVerify {
-		p.ExternalAuth.SSLVerify = true
-
-		sslVerifyDepth := 1
-		if externalAuth.SSLVerifyDepth != nil {
-			sslVerifyDepth = *externalAuth.SSLVerifyDepth
+		sslRes := p.configureExternalAuthSSL(externalAuth, polKey, polNamespace, secretRefs, policyOpts)
+		res.warnings = append(res.warnings, sslRes.warnings...)
+		if sslRes.isError {
+			res.isError = true
+			return res
 		}
-		p.ExternalAuth.SSLVerifyDepth = sslVerifyDepth
+	}
 
-		trustedCertPath := policyOpts.defaultCABundle
-		if externalAuth.TrustedCertSecret != "" {
-			secretNS, secretName := ParseResourceReference(externalAuth.TrustedCertSecret, polNamespace)
-			trustedCertSecretRefName := fmt.Sprintf("%s/%s", secretNS, secretName)
-			trustedCertSecretRef := secretRefs[trustedCertSecretRefName]
+	return res
+}
 
-			if trustedCertSecretRef == nil {
-				res.addWarningf("ExternalAuth policy %s references a non-existent trusted cert secret %s", polKey, trustedCertSecretRefName)
-				res.isError = true
-				return res
-			}
+// configureExternalAuthSSL configures SSL verification settings for external auth.
+func (p *policiesCfg) configureExternalAuthSSL(
+	externalAuth *conf_v1.ExternalAuth,
+	polKey string,
+	polNamespace string,
+	secretRefs map[string]*secrets.SecretReference,
+	policyOpts policyOptions,
+) *validationResults {
+	res := newValidationResults()
+	p.ExternalAuth.SSLVerify = true
 
-			var secretType api_v1.SecretType
-			if trustedCertSecretRef.Secret != nil {
-				secretType = trustedCertSecretRef.Secret.Type
-			}
-			if secretType != "" && secretType != secrets.SecretTypeCA {
-				res.addWarningf("ExternalAuth policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, trustedCertSecretRefName, secretType, secrets.SecretTypeCA)
-				res.isError = true
-				return res
-			} else if trustedCertSecretRef.Error != nil {
-				res.addWarningf("ExternalAuth policy %s references an invalid trusted cert secret %s: %v", polKey, trustedCertSecretRefName, trustedCertSecretRef.Error)
-				res.isError = true
-				return res
-			}
+	sslVerifyDepth := 1
+	if externalAuth.SSLVerifyDepth != nil {
+		sslVerifyDepth = *externalAuth.SSLVerifyDepth
+	}
+	p.ExternalAuth.SSLVerifyDepth = sslVerifyDepth
 
-			caFields := strings.Fields(trustedCertSecretRef.Path)
-			if len(caFields) > 0 {
-				trustedCertPath = caFields[0]
-			}
+	trustedCertPath := policyOpts.defaultCABundle
+	if externalAuth.TrustedCertSecret != "" {
+		secretNS, secretName := ParseResourceReference(externalAuth.TrustedCertSecret, polNamespace)
+		trustedCertSecretRefName := fmt.Sprintf("%s/%s", secretNS, secretName)
+		trustedCertSecretRef := secretRefs[trustedCertSecretRefName]
+
+		if trustedCertSecretRef == nil {
+			res.addWarningf("ExternalAuth policy %s references a non-existent trusted cert secret %s", polKey, trustedCertSecretRefName)
+			res.isError = true
+			return res
 		}
-		p.ExternalAuth.SSLTrustedCert = trustedCertPath
 
-		if externalAuth.SNIName != "" {
-			p.ExternalAuth.SNIName = externalAuth.SNIName
-		} else {
-			svcNs, svcName := ParseServiceReference(externalAuth.AuthServiceName, polNamespace)
-			p.ExternalAuth.SNIName = fmt.Sprintf("%s.%s.svc", svcName, svcNs)
+		var secretType api_v1.SecretType
+		if trustedCertSecretRef.Secret != nil {
+			secretType = trustedCertSecretRef.Secret.Type
 		}
+		if secretType != "" && secretType != secrets.SecretTypeCA {
+			res.addWarningf("ExternalAuth policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, trustedCertSecretRefName, secretType, secrets.SecretTypeCA)
+			res.isError = true
+			return res
+		} else if trustedCertSecretRef.Error != nil {
+			res.addWarningf("ExternalAuth policy %s references an invalid trusted cert secret %s: %v", polKey, trustedCertSecretRefName, trustedCertSecretRef.Error)
+			res.isError = true
+			return res
+		}
+
+		caFields := strings.Fields(trustedCertSecretRef.Path)
+		if len(caFields) > 0 {
+			trustedCertPath = caFields[0]
+		}
+	}
+	p.ExternalAuth.SSLTrustedCert = trustedCertPath
+
+	if externalAuth.SNIName != "" {
+		p.ExternalAuth.SNIName = externalAuth.SNIName
+	} else {
+		svcNs, svcName := ParseServiceReference(externalAuth.AuthServiceName, polNamespace)
+		p.ExternalAuth.SNIName = fmt.Sprintf("%s.%s.svc", svcName, svcNs)
 	}
 
 	return res
