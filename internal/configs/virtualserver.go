@@ -114,14 +114,14 @@ func (vsx *VirtualServerEx) String() string {
 	return fmt.Sprintf("%s/%s", vsx.VirtualServer.Namespace, vsx.VirtualServer.Name)
 }
 
-// appProtectResourcesForVS holds file names of APPolicy and APLogConf resources used in a VirtualServer.
-type appProtectResourcesForVS struct {
+// appProtectPolicyResources holds file names of APPolicy and APLogConf resources referenced by policies.
+type appProtectPolicyResources struct {
 	Policies map[string]string
 	LogConfs map[string]string
 }
 
-func newAppProtectVSResourcesForVS() *appProtectResourcesForVS {
-	return &appProtectResourcesForVS{
+func newAppProtectPolicyResources() *appProtectPolicyResources {
+	return &appProtectPolicyResources{
 		Policies: make(map[string]string),
 		LogConfs: make(map[string]string),
 	}
@@ -405,7 +405,7 @@ func (vsc *virtualServerConfigurator) generateBackupEndpointsForUpstream(
 // GenerateVirtualServerConfig generates a full configuration for a VirtualServer
 func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	vsEx *VirtualServerEx,
-	apResources *appProtectResourcesForVS,
+	apResources *appProtectPolicyResources,
 	dosResources map[string]*appProtectDosResource,
 ) (version2.VirtualServerConfig, Warnings) {
 	vsc.clearWarnings()

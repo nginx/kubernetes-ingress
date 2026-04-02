@@ -109,7 +109,7 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 		},
 		defaultCABundle: "/etc/ssl/certs/ca-certificate.crt",
-		apResources: &appProtectResourcesForVS{
+		apResources: &appProtectPolicyResources{
 			Policies: map[string]string{
 				"default/dataguard-alarm": "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
 			},
@@ -1812,7 +1812,7 @@ func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			res, warnings := generatePolicies(ctx, ownerDetails, tc.policyRefs, tc.policies, tc.context, tc.path, policyOptions{apResources: &appProtectResourcesForVS{}, replicas: 1, oidcPolicyName: ""}, &fakeBV)
+			res, warnings := generatePolicies(ctx, ownerDetails, tc.policyRefs, tc.policies, tc.context, tc.path, policyOptions{apResources: &appProtectPolicyResources{}, replicas: 1, oidcPolicyName: ""}, &fakeBV)
 			res.BundleValidator = nil
 			if !reflect.DeepEqual(tc.want, res) {
 				t.Error(cmp.Diff(tc.want, res))
@@ -3377,7 +3377,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				apResources: &appProtectResourcesForVS{
+				apResources: &appProtectPolicyResources{
 					Policies: map[string]string{
 						"default/dataguard-alarm": "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
 					},
@@ -3809,7 +3809,7 @@ func TestAddWafConfig(t *testing.T) {
 		wafInput     *conf_v1.WAF
 		polKey       string
 		polNamespace string
-		apResources  *appProtectResourcesForVS
+		apResources  *appProtectPolicyResources
 		wafConfig    *version2.WAF
 		expected     *validationResults
 		msg          string
@@ -3820,7 +3820,7 @@ func TestAddWafConfig(t *testing.T) {
 			},
 			polKey:       "default/waf-policy",
 			polNamespace: "default",
-			apResources: &appProtectResourcesForVS{
+			apResources: &appProtectPolicyResources{
 				Policies: map[string]string{},
 				LogConfs: map[string]string{},
 			},
@@ -3842,7 +3842,7 @@ func TestAddWafConfig(t *testing.T) {
 			},
 			polKey:       "default/waf-policy",
 			polNamespace: "default",
-			apResources: &appProtectResourcesForVS{
+			apResources: &appProtectPolicyResources{
 				Policies: map[string]string{
 					"default/dataguard-alarm": "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
 				},
@@ -3872,7 +3872,7 @@ func TestAddWafConfig(t *testing.T) {
 			},
 			polKey:       "default/waf-policy",
 			polNamespace: "default",
-			apResources: &appProtectResourcesForVS{
+			apResources: &appProtectPolicyResources{
 				Policies: map[string]string{
 					"default/dataguard-alarm": "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
 				},
@@ -3900,7 +3900,7 @@ func TestAddWafConfig(t *testing.T) {
 			},
 			polKey:       "default/waf-policy",
 			polNamespace: "",
-			apResources: &appProtectResourcesForVS{
+			apResources: &appProtectPolicyResources{
 				Policies: map[string]string{
 					"default/dataguard-alarm": "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
 				},
@@ -3930,7 +3930,7 @@ func TestAddWafConfig(t *testing.T) {
 			},
 			polKey:       "default/waf-policy",
 			polNamespace: "",
-			apResources: &appProtectResourcesForVS{
+			apResources: &appProtectPolicyResources{
 				Policies: map[string]string{},
 				LogConfs: map[string]string{
 					"default/logconf": "/etc/nginx/waf/nac-logconfs/default-logconf",
@@ -3961,7 +3961,7 @@ func TestAddWafConfig(t *testing.T) {
 			},
 			polKey:       "default/waf-policy",
 			polNamespace: "",
-			apResources: &appProtectResourcesForVS{
+			apResources: &appProtectPolicyResources{
 				Policies: map[string]string{
 					"ns1/dataguard-alarm": "/etc/nginx/waf/nac-policies/ns1-dataguard-alarm",
 				},
@@ -3984,7 +3984,7 @@ func TestAddWafConfig(t *testing.T) {
 			},
 			polKey:       "default/waf-policy",
 			polNamespace: "default",
-			apResources: &appProtectResourcesForVS{
+			apResources: &appProtectPolicyResources{
 				Policies: map[string]string{
 					"default/dataguard-alarm": "/etc/nginx/waf/nac-policies/ns1-dataguard-alarm",
 				},
@@ -4011,7 +4011,7 @@ func TestAddWafConfig(t *testing.T) {
 			},
 			polKey:       "default/waf-policy",
 			polNamespace: "",
-			apResources: &appProtectResourcesForVS{
+			apResources: &appProtectPolicyResources{
 				Policies: map[string]string{
 					"ns1/dataguard-alarm": "/etc/nginx/waf/nac-policies/ns1-dataguard-alarm",
 				},

@@ -1350,6 +1350,22 @@ func TestUpdateApResources(t *testing.T) {
 			},
 		},
 	}
+	policyApPol := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"namespace": "pol-ns",
+				"name":      "pol-name",
+			},
+		},
+	}
+	policyLogConf := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"namespace": "pol-ns",
+				"name":      "pol-log",
+			},
+		},
+	}
 	appProtectLogDst := "test-dst"
 
 	tests := []struct {
@@ -1394,6 +1410,21 @@ func TestUpdateApResources(t *testing.T) {
 				AppProtectLogconfs: []string{"/etc/nginx/waf/nac-logconfs/test-ns_test-name test-dst"},
 			},
 			msg: "app protect log conf",
+		},
+		{
+			ingEx: &IngressEx{
+				Ingress: &networking.Ingress{
+					ObjectMeta: meta_v1.ObjectMeta{},
+				},
+				ApPolRefs: map[string]*unstructured.Unstructured{
+					"pol-ns/pol-name": policyApPol,
+				},
+				LogConfRefs: map[string]*unstructured.Unstructured{
+					"pol-ns/pol-log": policyLogConf,
+				},
+			},
+			expected: &AppProtectResources{},
+			msg:      "policy-based app protect resources",
 		},
 		{
 			ingEx: &IngressEx{
@@ -1467,7 +1498,7 @@ func TestUpdateApResourcesForVs(t *testing.T) {
 
 	tests := []struct {
 		vsEx     *VirtualServerEx
-		expected *appProtectResourcesForVS
+		expected *appProtectPolicyResources
 		msg      string
 	}{
 		{
@@ -1476,7 +1507,7 @@ func TestUpdateApResourcesForVs(t *testing.T) {
 					ObjectMeta: meta_v1.ObjectMeta{},
 				},
 			},
-			expected: &appProtectResourcesForVS{
+			expected: &appProtectPolicyResources{
 				Policies: map[string]string{},
 				LogConfs: map[string]string{},
 			},
@@ -1489,7 +1520,7 @@ func TestUpdateApResourcesForVs(t *testing.T) {
 				},
 				ApPolRefs: apPolRefs,
 			},
-			expected: &appProtectResourcesForVS{
+			expected: &appProtectPolicyResources{
 				Policies: map[string]string{
 					"test-ns-1/test-name-1": "/etc/nginx/waf/nac-policies/test-ns-1_test-name-1",
 					"test-ns-2/test-name-2": "/etc/nginx/waf/nac-policies/test-ns-2_test-name-2",
@@ -1505,7 +1536,7 @@ func TestUpdateApResourcesForVs(t *testing.T) {
 				},
 				LogConfRefs: logConfRefs,
 			},
-			expected: &appProtectResourcesForVS{
+			expected: &appProtectPolicyResources{
 				Policies: map[string]string{},
 				LogConfs: map[string]string{
 					"test-ns-1/test-name-1": "/etc/nginx/waf/nac-logconfs/test-ns-1_test-name-1",
@@ -1522,7 +1553,7 @@ func TestUpdateApResourcesForVs(t *testing.T) {
 				ApPolRefs:   apPolRefs,
 				LogConfRefs: logConfRefs,
 			},
-			expected: &appProtectResourcesForVS{
+			expected: &appProtectPolicyResources{
 				Policies: map[string]string{
 					"test-ns-1/test-name-1": "/etc/nginx/waf/nac-policies/test-ns-1_test-name-1",
 					"test-ns-2/test-name-2": "/etc/nginx/waf/nac-policies/test-ns-2_test-name-2",
@@ -2568,8 +2599,9 @@ server {
 		proxy_read_timeout {{$location.ProxyReadTimeout}};
 		proxy_send_timeout {{$location.ProxySendTimeout}};
 		client_max_body_size {{$location.ClientMaxBodySize}};
-		{{- $proxySetHeaders := generateProxySetHeaders $location $.Ingress.Annotations -}}
-		{{$proxySetHeaders}}
+		{{- range $header := $location.ProxySetHeaders}}
+		proxy_set_header {{ $header.Name }} {{ printf "%q" $header.Value }};
+		{{- end}}
 		proxy_set_header Host $host;
 		proxy_set_header X-Real-IP $remote_addr;
 		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

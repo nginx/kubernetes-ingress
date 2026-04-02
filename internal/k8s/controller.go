@@ -2306,15 +2306,34 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 		ingEx.SecretRefs[secretName] = secretRef
 	}
 
-	var policyNames string
-	var policyRefs []conf_v1.PolicyReference
-	if ingEx.Ingress.Annotations[configs.PoliciesAnnotation] != "" {
-		policyNames = ingEx.Ingress.Annotations[configs.PoliciesAnnotation]
-		policyRefs = k8spolicies.GetPolicyRefsFromAnnotation(policyNames, ing.Namespace)
+	var policies []*conf_v1.Policy
+	if lbc.areCustomResourcesEnabled {
+		var policyRefs []conf_v1.PolicyReference
+		if orgPolicies := ingEx.Ingress.Annotations[configs.PoliciesAnnotation]; orgPolicies != "" {
+			policyRefs = append(policyRefs, k8spolicies.GetPolicyRefsFromAnnotation(orgPolicies, ing.Namespace)...)
+		}
+		if plusPolicies := ingEx.Ingress.Annotations[configs.PoliciesAnnotationPlus]; plusPolicies != "" {
+			policyRefs = append(policyRefs, k8spolicies.GetPolicyRefsFromAnnotation(plusPolicies, ing.Namespace)...)
+		}
+		var policyErrors []error
+		policies, policyErrors = lbc.getPolicies(policyRefs, ing.Namespace)
+		if len(policyErrors) > 0 {
+			for _, err := range policyErrors {
+				msg := fmt.Sprintf("Policy error for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
+				nl.Warnf(lbc.Logger, "%s", msg)
+				ingEx.PolicyWarnings = append(ingEx.PolicyWarnings, msg)
+			}
+		}
+	} else if ingEx.Ingress.Annotations[configs.PoliciesAnnotation] != "" || ingEx.Ingress.Annotations[configs.PoliciesAnnotationPlus] != "" {
+		msg := fmt.Sprintf("Ingress %v/%v has a policies annotation but custom resources are not enabled; policies will be ignored", ing.Namespace, ing.Name)
+		nl.Warnf(lbc.Logger, "%s", msg)
+		ingEx.PolicyWarnings = append(ingEx.PolicyWarnings, msg)
 	}
-	policies, policyErrors := lbc.getPolicies(policyRefs, ing.Namespace)
-	if len(policyErrors) > 0 {
-		for _, err := range policyErrors {
+
+	if lbc.isNginxPlus && lbc.appProtectEnabled {
+		ingEx.ApPolRefs = make(map[string]*unstructured.Unstructured)
+		ingEx.LogConfRefs = make(map[string]*unstructured.Unstructured)
+		if err := lbc.addWAFPolicyRefs(ingEx.ApPolRefs, ingEx.LogConfRefs, policies); err != nil {
 			msg := fmt.Sprintf("Policy error for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
 			nl.Warnf(lbc.Logger, "%s", msg)
 			ingEx.PolicyWarnings = append(ingEx.PolicyWarnings, msg)
@@ -2837,6 +2856,15 @@ func createPolicyMap(policies []*conf_v1.Policy) map[string]*conf_v1.Policy {
 	return result
 }
 
+func (lbc *LoadBalancerController) policyValidationConfig() validation.PolicyValidationConfig {
+	cfg := validation.PolicyValidationConfig{
+		IsPlus:           lbc.isNginxPlus,
+		EnableOIDC:       lbc.enableOIDC,
+		EnableAppProtect: lbc.appProtectEnabled,
+	}
+	return cfg
+}
+
 func (lbc *LoadBalancerController) getAllPolicies() []*conf_v1.Policy {
 	var policies []*conf_v1.Policy
 
@@ -2844,7 +2872,7 @@ func (lbc *LoadBalancerController) getAllPolicies() []*conf_v1.Policy {
 		for _, obj := range nsi.policyLister.List() {
 			pol := obj.(*conf_v1.Policy)
 
-			err := validation.ValidatePolicy(pol, lbc.isNginxPlus, lbc.enableOIDC, lbc.appProtectEnabled)
+			err := validation.ValidatePolicy(pol, lbc.policyValidationConfig())
 			if err != nil {
 				nl.Debugf(lbc.Logger, "Skipping invalid Policy %s/%s: %v", pol.Namespace, pol.Name, err)
 				continue
@@ -2906,7 +2934,7 @@ func (lbc *LoadBalancerController) getPolicies(policies []conf_v1.PolicyReferenc
 			continue
 		}
 
-		err = validation.ValidatePolicy(policy, lbc.isNginxPlus, lbc.enableOIDC, lbc.appProtectEnabled)
+		err = validation.ValidatePolicy(policy, lbc.policyValidationConfig())
 		if err != nil {
 			errors = append(errors, fmt.Errorf("policy %s is invalid: %w", policyKey, err))
 			continue
