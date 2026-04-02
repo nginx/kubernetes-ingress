@@ -267,6 +267,29 @@ class TestVSRRegexpMultipleMatches:
         resp = requests.get(f"{req_url}/backends/match", headers={"host": vsr_regexp_setup.vs_host})
         assert resp.status_code == 200 and "Server name: backend3-" in resp.text
 
+    def test_longest_prefix_overrides_regexp(
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        ingress_controller_endpoint,
+        crd_ingress_controller,
+        vsr_regexp_setup,
+    ):
+        req_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}"
+        vs_src_yaml = (
+            f"{TEST_DATA}"
+            f"/virtual-server-route-regexp-location/additional-case/virtual-server-longest-prefix-over-regexp.yaml"
+        )
+        patch_virtual_server_from_yaml(
+            kube_apis.custom_objects, vsr_regexp_setup.vs_name, vs_src_yaml, vsr_regexp_setup.namespace
+        )
+        vsr_src_yaml = f"{TEST_DATA}" f"/virtual-server-route-regexp-location/additional-case/route-longest-prefix.yaml"
+        patch_v_s_route_from_yaml(kube_apis.custom_objects, "backend1", vsr_src_yaml, vsr_regexp_setup.namespace)
+        wait_before_test(1)
+        ensure_response_from_backend(f"{req_url}/backends/match", vsr_regexp_setup.vs_host)
+        resp = requests.get(f"{req_url}/backends/match", headers={"host": vsr_regexp_setup.vs_host})
+        assert resp.status_code == 200 and "Server name: backend1-" in resp.text
+
 
 @pytest.mark.vsr_selector
 @pytest.mark.vsr
@@ -540,3 +563,34 @@ class TestVSRSelectorRegexpMultipleMatches:
         ensure_response_from_backend(f"{req_url}/backends/match", vsr_selector_regexp_setup.vs_host)
         resp = requests.get(f"{req_url}/backends/match", headers={"host": vsr_selector_regexp_setup.vs_host})
         assert resp.status_code == 200 and "Server name: backend3-" in resp.text
+
+    def test_longest_prefix_overrides_regexp(
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        ingress_controller_endpoint,
+        crd_ingress_controller,
+        vsr_selector_regexp_setup,
+    ):
+        req_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}"
+        vs_src_yaml = (
+            f"{TEST_DATA}"
+            f"/virtual-server-route-selector/regexp-location/additional-case"
+            f"/virtual-server-longest-prefix-over-regexp.yaml"
+        )
+        patch_virtual_server_from_yaml(
+            kube_apis.custom_objects,
+            vsr_selector_regexp_setup.vs_name,
+            vs_src_yaml,
+            vsr_selector_regexp_setup.namespace,
+        )
+        vsr_src_yaml = (
+            f"{TEST_DATA}" f"/virtual-server-route-selector/regexp-location/additional-case/route-longest-prefix.yaml"
+        )
+        patch_v_s_route_from_yaml(
+            kube_apis.custom_objects, "backend1", vsr_src_yaml, vsr_selector_regexp_setup.namespace
+        )
+        wait_before_test(1)
+        ensure_response_from_backend(f"{req_url}/backends/match", vsr_selector_regexp_setup.vs_host)
+        resp = requests.get(f"{req_url}/backends/match", headers={"host": vsr_selector_regexp_setup.vs_host})
+        assert resp.status_code == 200 and "Server name: backend1-" in resp.text

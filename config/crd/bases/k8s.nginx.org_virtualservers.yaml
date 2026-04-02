@@ -727,16 +727,17 @@ spec:
                     path:
                       description: 'The path of the route. NGINX will match it against
                         the URI of a request. Possible values are: a prefix ( / ,
-                        /path ), an exact match ( =/exact/match ), a case insensitive
-                        regular expression ( ~*^/Bar.*\.jpg ) or a case sensitive
-                        regular expression ( ~^/foo.*\.jpg ). In the case of a prefix
-                        (must start with / ) or an exact match (must start with =
-                        ), the path must not include any whitespace characters, {
-                        , } or ;. In the case of the regex matches, all double quotes
-                        " must be escaped and the match can’t end in an unescaped
-                        backslash \. The path must be unique among the paths of all
-                        routes of the VirtualServer. Check the location directive
-                        for more information.'
+                        /path ), a longest prefix match ( ^~/images/ ), an exact match
+                        ( =/exact/match ), a case-insensitive regular expression (
+                        ~*^/Bar.*\.jpg ) or a case-sensitive regular expression (
+                        ~^/foo.*\.jpg ). In the case of a prefix match (must start
+                        with / ), a longest prefix match (must start with ^~ ) or
+                        an exact match (must start with = ), the path must not include
+                        any whitespace characters, { , } or ;. In the case of the
+                        regex matches, all double quotes " must be escaped and the
+                        match can’t end in an unescaped backslash \. The path must
+                        be unique among the paths of all routes of the VirtualServer.
+                        Check the location directive for more information.'
                       type: string
                     policies:
                       description: A list of policies. The policies override the policies

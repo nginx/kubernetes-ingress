@@ -3562,3 +3562,28 @@ func TestJWTNoSSLVerification(t *testing.T) {
 		t.Error("want no SSL trusted certificate directive in generated template")
 	}
 }
+
+var virtualServerCfgAllPathTypes = VirtualServerConfig{
+	Server: Server{
+		ServerName: "path-types.example.com",
+		StatusZone: "path-types.example.com",
+		Locations: []Location{
+			{Path: "/images/"},
+			{Path: "=/images/logo.jpg"},
+			{Path: "^~ /images/static/"},
+			{Path: `~ "\.jpg$"`},
+			{Path: `~* "\.png$"`},
+		},
+	},
+}
+
+func TestVirtualServerForNginxWithAllPathTypes(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINX(t)
+	data, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgAllPathTypes)
+	if err != nil {
+		t.Errorf("Failed to execute template: %v", err)
+	}
+	snaps.MatchSnapshot(t, string(data))
+	t.Log(string(data))
+}
