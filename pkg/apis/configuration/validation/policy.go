@@ -1315,7 +1315,7 @@ func validateExternalAuth(externalAuth *v1.ExternalAuth, fieldPath *field.Path, 
 	// Validate AuthServiceName
 	parts := strings.Split(externalAuth.AuthServiceName, "/")
 	if len(parts) > 2 || len(parts) < 1 {
-		return field.ErrorList{field.Invalid(fieldPath, externalAuth.AuthServiceName, " service reference must be in the format service-name or namespace/service-name")}
+		return field.ErrorList{field.Invalid(fieldPath, externalAuth.AuthServiceName, "service reference must be in the format service-name or namespace/service-name")}
 	}
 	ns := ""
 	if len(parts) == 2 {
@@ -1354,16 +1354,26 @@ func validateExternalAuthSSLFields(externalAuth *v1.ExternalAuth, fieldPath *fie
 		allErrs = append(allErrs, field.Invalid(fieldPath.Child("sslVerify"), externalAuth.SSLVerify, "sslEnabled must be true when sslVerify is true"))
 	}
 
-	if externalAuth.TrustedCertSecret != "" && !externalAuth.SSLVerify {
-		allErrs = append(allErrs, field.Invalid(fieldPath.Child("trustedCertSecret"), externalAuth.TrustedCertSecret, "sslVerify must be true when trustedCertSecret is set"))
-	}
-
-	if externalAuth.TrustedCertSecret != "" && !externalAuth.SSLEnabled {
-		allErrs = append(allErrs, validateSecretName(externalAuth.TrustedCertSecret, fieldPath.Child("trustedCertSecret"))...)
-		// If trustedCertSecret is set but sslVerify is false, warn user
-		if !externalAuth.SSLVerify {
-			allErrs = append(allErrs, field.Invalid(fieldPath.Child("sslVerify"), externalAuth.SSLVerify, "sslVerify should be enabled when trustedCertSecret is specified"))
+	if externalAuth.TrustedCertSecret != "" {
+		if !externalAuth.SSLEnabled {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("trustedCertSecret"), externalAuth.TrustedCertSecret, "sslEnabled must be true when trustedCertSecret is set"))
 		}
+		if !externalAuth.SSLVerify {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("trustedCertSecret"), externalAuth.TrustedCertSecret, "sslVerify must be true when trustedCertSecret is set"))
+		}
+		parts := strings.Split(externalAuth.TrustedCertSecret, "/")
+		if len(parts) > 2 || len(parts) < 1 {
+			return field.ErrorList{field.Invalid(fieldPath, externalAuth.TrustedCertSecret, " service reference must be in the format service-name or namespace/service-name")}
+		}
+		ns := ""
+		if len(parts) == 2 {
+			ns = parts[0]
+		}
+		name := parts[len(parts)-1]
+		if ns != "" {
+			allErrs = append(allErrs, validateDNS1123Label(ns, fieldPath.Child("authServiceName").Child("namespace"))...)
+		}
+		allErrs = append(allErrs, validateSecretName(name, fieldPath.Child("trustedCertSecret"))...)
 	}
 
 	if externalAuth.SSLVerifyDepth != nil {

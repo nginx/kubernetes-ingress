@@ -960,21 +960,29 @@ func (c *Configuration) FindResourcesForService(svcNamespace string, svcName str
 
 // IsServiceReferencedByVirtualServer checks if the specified service is referenced by the VirtualServer.
 func (c *Configuration) IsServiceReferencedByVirtualServer(svcNamespace, svcName string, vs *conf_v1.VirtualServer) bool {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
 	return c.serviceReferenceChecker.IsReferencedByVirtualServer(svcNamespace, svcName, vs)
 }
 
 // IsServiceReferencedByVirtualServerRoute checks if the specified service is referenced by the VirtualServerRoute.
 func (c *Configuration) IsServiceReferencedByVirtualServerRoute(svcNamespace, svcName string, vsr *conf_v1.VirtualServerRoute) bool {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
 	return c.serviceReferenceChecker.IsReferencedByVirtualServerRoute(svcNamespace, svcName, vsr)
 }
 
 // IsServiceReferencedByIngress checks if the specified service is referenced by the Ingress.
 func (c *Configuration) IsServiceReferencedByIngress(svcNamespace, svcName string, ing *networking.Ingress) bool {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
 	return c.serviceReferenceChecker.IsReferencedByIngress(svcNamespace, svcName, ing)
 }
 
 // IsServiceReferencedByMinion checks if the specified service is referenced by the minion Ingress.
 func (c *Configuration) IsServiceReferencedByMinion(svcNamespace, svcName string, ing *networking.Ingress) bool {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
 	return c.serviceReferenceChecker.IsReferencedByMinion(svcNamespace, svcName, ing)
 }
 

@@ -210,7 +210,7 @@ func (rc *serviceReferenceChecker) isPolicyServiceReferenced(svcNamespace, svcNa
 		if !exists {
 			continue
 		}
-		resolvedNs, resolvedName := configs.ParseServiceReference(authServiceName, ownerNamespace)
+		resolvedNs, resolvedName := configs.ParseServiceReference(authServiceName, policyNamespace)
 		if resolvedNs == svcNamespace && resolvedName == svcName {
 			return true
 		}

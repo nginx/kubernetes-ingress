@@ -3985,6 +3985,54 @@ func TestValidateExternalAuth_SSLFields(t *testing.T) {
 			expectError: false,
 			msg:         "explicit sniName is valid when sslVerify is enabled",
 		},
+		{
+			name: "trustedCertSecret without sslEnabled should fail",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:           "/auth",
+				AuthServiceName:   "auth-svc",
+				SSLEnabled:        false,
+				SSLVerify:         false,
+				TrustedCertSecret: "ca-secret",
+			},
+			expectError: true,
+			msg:         "trustedCertSecret requires both sslEnabled and sslVerify",
+		},
+		{
+			name: "trustedCertSecret with invalid namespace/name format",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:           "/auth",
+				AuthServiceName:   "auth-svc",
+				SSLEnabled:        true,
+				SSLVerify:         true,
+				TrustedCertSecret: "ns/name/extra",
+			},
+			expectError: true,
+			msg:         "trustedCertSecret with too many slashes should fail",
+		},
+		{
+			name: "trustedCertSecret with invalid namespace",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:           "/auth",
+				AuthServiceName:   "auth-svc",
+				SSLEnabled:        true,
+				SSLVerify:         true,
+				TrustedCertSecret: "INVALID_NS/ca-secret",
+			},
+			expectError: true,
+			msg:         "trustedCertSecret with invalid namespace should fail",
+		},
+		{
+			name: "trustedCertSecret with invalid secret name",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:           "/auth",
+				AuthServiceName:   "auth-svc",
+				SSLEnabled:        true,
+				SSLVerify:         true,
+				TrustedCertSecret: "INVALID_SECRET_NAME",
+			},
+			expectError: true,
+			msg:         "trustedCertSecret with invalid secret name should fail",
+		},
 	}
 
 	for _, test := range tests {

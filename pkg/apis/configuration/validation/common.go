@@ -193,7 +193,7 @@ func validateSecretName(name string, fieldPath *field.Path) field.ErrorList {
 	return validateK8SName(name, fieldPath)
 }
 
-// validateK8SName is a wrapper for validation.IsDNS1123Subdomain to be used in other packages
+// validateK8SName is a wrapper for validation.IsDNS1123Subdomain.
 func validateK8SName(name string, fieldPath *field.Path) field.ErrorList {
 	if name == "" {
 		return nil

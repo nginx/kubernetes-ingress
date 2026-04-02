@@ -286,7 +286,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		cfgParams.ProxyPassHeaders = proxyPassHeaders
 	}
 
-	if proxySetHeaders, exists := ingEx.Ingress.Annotations["nginx.org/proxy-set-headers"]; exists {
+	if proxySetHeaders, exists := ingEx.Ingress.Annotations[ProxySetHeadersAnnotation]; exists {
 		cfgParams.ProxySetHeaders = version1.ParseProxySetHeaders(proxySetHeaders)
 	}
 
