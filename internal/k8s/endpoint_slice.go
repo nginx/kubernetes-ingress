@@ -93,7 +93,7 @@ func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
 				if err != nil {
 					nl.Errorf(lbc.Logger, "Error updating EndpointSlices for %v: %v", resourceExes.IngressExes, err)
 				}
-				lbc.updateResourceStatusOnEndpointSliceChangeWithWarnings(svcResource, resourceExes, cfgWarnings)
+				lbc.updateEndpointSliceWarningState(svcResource, resourceExes, cfgWarnings)
 				break
 			}
 		}
@@ -108,7 +108,7 @@ func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
 				if err != nil {
 					nl.Errorf(lbc.Logger, "Error updating EndpointSlices for %v: %v", resourceExes.MergeableIngresses, err)
 				}
-				lbc.updateResourceStatusOnEndpointSliceChangeWithWarnings(svcResource, resourceExes, cfgWarnings)
+				lbc.updateEndpointSliceWarningState(svcResource, resourceExes, cfgWarnings)
 				break
 			}
 		}
@@ -158,5 +158,43 @@ func (lbc *LoadBalancerController) updateResourceStatusOnEndpointSliceChangeWith
 
 	for _, r := range resourcesWithWarnings {
 		lbc.updateResourcesStatusAndEvents([]Resource{r}, cfgWarnings, nil)
+	}
+}
+
+// updateEndpointSliceWarningState calls updateResourceStatusOnEndpointSliceChangeWithWarnings
+// only when the warning state for any affected resource transitions — either clean→warning
+// or warning→clean. This avoids emitting spurious status events on every endpoint update
+// (e.g. during a normal pod scale-up) while still correctly signaling when external auth
+// endpoints disappear or recover.
+func (lbc *LoadBalancerController) updateEndpointSliceWarningState(
+	svcResources []Resource,
+	resourceExes configs.ExtendedResources,
+	cfgWarnings configs.Warnings,
+) {
+	hasWarnings := len(cfgWarnings) > 0
+
+	hadWarnings := false
+	for _, r := range svcResources {
+		if lbc.endpointSliceWarnings[r.GetKeyWithKind()] {
+			hadWarnings = true
+			break
+		}
+	}
+
+	// Only update status on a transition: clean→warning or warning→clean.
+	if !hasWarnings && !hadWarnings {
+		return
+	}
+
+	lbc.updateResourceStatusOnEndpointSliceChangeWithWarnings(svcResources, resourceExes, cfgWarnings)
+
+	// Update the tracking map to reflect the new state.
+	for _, r := range svcResources {
+		key := r.GetKeyWithKind()
+		if hasWarnings {
+			lbc.endpointSliceWarnings[key] = true
+		} else {
+			delete(lbc.endpointSliceWarnings, key)
+		}
 	}
 }

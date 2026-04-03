@@ -41,6 +41,7 @@ from suite.utils.resources_utils import (
     delete_secret,
     ensure_response_from_backend,
     get_reload_count,
+    scale_deployment,
     wait_before_test,
     wait_for_reload,
     wait_until_all_pods_are_ready,
@@ -604,6 +605,63 @@ class TestExternalAuthPoliciesIngress:
 
         assert resp1.status_code == 200
         assert resp2.status_code == 500
+
+    def test_external_auth_policy_endpoint_recovery(
+        self,
+        kube_apis,
+        crd_ingress_controller,
+        ingress_controller_endpoint,
+        ingress_controller_prerequisites,
+        test_namespace,
+    ):
+        """
+        Test that the Ingress recovers after external auth backend endpoints
+        disappear (e.g. pod restart). The flow is:
+          1. Healthy baseline → 200
+          2. Scale backend to 0 replicas → 500 (no endpoints)
+          3. Scale backend back to 1 replica → 200 (recovered)
+        """
+        secret_names, policy_names, headers = setup_ext_auth(
+            kube_apis,
+            test_namespace,
+            valid_credentials,
+            [ext_auth_pol_valid_src],
+            "ext-auth-ingress.example.com",
+        )
+        ing = _create_ingress_setup(
+            kube_apis,
+            ingress_controller_endpoint,
+            ingress_controller_prerequisites,
+            test_namespace,
+            ext_auth_ing_standard_src,
+        )
+        ensure_response_from_backend(ing.request_url, ing.ingress_host, additional_headers=valid_auth_headers())
+
+        # Phase 1: healthy baseline
+        resp1 = requests.get(ing.request_url, headers=headers)
+        print(f"Phase 1 (healthy): {resp1.status_code}")
+
+        # Phase 2: scale backend to 0 — endpoints disappear → 500
+        print("Scale external-auth deployment to 0")
+        scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "external-auth", test_namespace, 0)
+        wait_before_test()
+        resp2 = requests.get(ing.request_url, headers=headers)
+        print(f"Phase 2 (no endpoints): {resp2.status_code}")
+
+        # Phase 3: scale back to 1 — endpoints recover → 200
+        print("Scale external-auth deployment back to 1")
+        scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "external-auth", test_namespace, 1)
+        ensure_response_from_backend(ing.request_url, ing.ingress_host, additional_headers=valid_auth_headers())
+        resp3 = requests.get(ing.request_url, headers=headers)
+        print(f"Phase 3 (recovered): {resp3.status_code}")
+
+        _delete_ingress_setup(kube_apis, ing)
+        teardown_ext_auth(kube_apis, test_namespace, secret_names, policy_names)
+
+        assert resp1.status_code == 200, f"Phase 1: expected 200, got {resp1.status_code}"
+        assert resp2.status_code == 500, f"Phase 2: expected 500, got {resp2.status_code}"
+        assert resp3.status_code == 200, f"Phase 3: expected 200 after recovery, got {resp3.status_code}"
+        assert "Request ID:" in resp3.text
 
     # ------------------------------------------------------------------
     # Override / precedence tests

@@ -188,6 +188,7 @@ type LoadBalancerController struct {
 	nginxConfigMapName            string
 	mgmtConfigMapName             string
 	ShuttingDown                  bool
+	endpointSliceWarnings         map[string]bool
 }
 
 var keyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
@@ -292,6 +293,7 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		nginxConfigMapName:           input.ConfigMaps,
 		mgmtConfigMapName:            input.MGMTConfigMap,
 		ShuttingDown:                 input.ShuttingDown,
+		endpointSliceWarnings:        make(map[string]bool),
 	}
 
 	lbc.syncQueue = newTaskQueue(lbc.Logger, lbc.sync)
