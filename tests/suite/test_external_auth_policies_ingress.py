@@ -651,8 +651,18 @@ class TestExternalAuthPoliciesIngress:
         # Phase 3: scale back to 1 — endpoints recover → 200
         print("Scale external-auth deployment back to 1")
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "external-auth", test_namespace, 1)
-        ensure_response_from_backend(ing.request_url, ing.ingress_host, additional_headers=valid_auth_headers())
-        resp3 = requests.get(ing.request_url, headers=headers)
+        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+        # Poll until the full auth path (backend + auth subrequest) returns 200,
+        # giving NGINX time to pick up the recovered endpoints and reload.
+        resp3 = None
+        for _ in range(30):
+            r = requests.get(ing.request_url, headers=headers)
+            if r.status_code == 200:
+                resp3 = r
+                break
+            wait_before_test(1)
+        if resp3 is None:
+            resp3 = requests.get(ing.request_url, headers=headers)
         print(f"Phase 3 (recovered): {resp3.status_code}")
 
         _delete_ingress_setup(kube_apis, ing)
