@@ -71,14 +71,11 @@ kubectl apply -f basic-auth.yaml
 
 ## Step 5 - Deploy OAuth2 Proxy
 
-1. Base64-encode the GitHub client secret and update `oauth2-proxy-client-secret.yaml`:
+1. Base64-encode your GitHub client secret and update `oauth2-proxy-client-secret.yaml` with the value, then update the `OAUTH2_PROXY_CLIENT_ID` environment variable in `oauth2-proxy.yaml` with your client ID:
 
     ```console
     echo -n '<your-github-client-secret>' | base64
     ```
-
-    Replace the value of `client-secret` in the file. If your Client ID differs from the default,
-    also update the `OAUTH2_PROXY_CLIENT_ID` environment variable in `oauth2-proxy.yaml`.
 
 1. Apply the secret and deploy oauth2-proxy:
 
