@@ -215,7 +215,9 @@ class TestExternalAuthPoliciesIngress:
         )
 
         policy_info = read_policy(kube_apis.custom_objects, test_namespace, policy_names[0])
-        ensure_response_from_backend(ing.request_url, ing.ingress_host, additional_headers=valid_auth_headers())
+        ensure_response_from_backend(
+            ing.request_url, ing.ingress_host, additional_headers=valid_auth_headers(), check404=True
+        )
 
         resp = requests.get(ing.request_url, headers=headers)
         print(f"Status: {resp.status_code}")
@@ -305,7 +307,9 @@ class TestExternalAuthPoliciesIngress:
             test_namespace,
             ext_auth_ing_mergeable_src,
         )
-        ensure_response_from_backend(ing.request_url, ing.ingress_host, additional_headers=valid_auth_headers())
+        ensure_response_from_backend(
+            ing.request_url, ing.ingress_host, additional_headers=valid_auth_headers(), check404=True
+        )
 
         resp = requests.get(ing.request_url, headers=headers)
         print(f"Status: {resp.status_code}")
@@ -348,7 +352,9 @@ class TestExternalAuthPoliciesIngress:
             test_namespace,
             ext_auth_ing_minion_policy_src,
         )
-        ensure_response_from_backend(ing.request_url, ing.ingress_host, additional_headers=valid_auth_headers())
+        ensure_response_from_backend(
+            ing.request_url, ing.ingress_host, additional_headers=valid_auth_headers(), check404=True
+        )
 
         resp = requests.get(ing.request_url, headers=headers)
         print(f"Status: {resp.status_code}")
@@ -532,7 +538,9 @@ class TestExternalAuthPoliciesIngress:
             test_namespace,
             ext_auth_ing_mergeable_src,
         )
-        ensure_response_from_backend(ing.request_url, ing.ingress_host, additional_headers=valid_auth_headers())
+        ensure_response_from_backend(
+            ing.request_url, ing.ingress_host, additional_headers=valid_auth_headers(), check404=True
+        )
 
         resp1 = requests.get(ing.request_url, headers=headers)
         print(f"Before delete: {resp1.status_code}")
@@ -666,7 +674,9 @@ class TestExternalAuthPoliciesIngress:
             test_namespace,
             ext_auth_ing_mergeable_override_src,
         )
-        ensure_response_from_backend(ing.request_url, ing.ingress_host, additional_headers=valid_auth_headers())
+        ensure_response_from_backend(
+            ing.request_url, ing.ingress_host, additional_headers=valid_auth_headers(), check404=True
+        )
 
         resp = requests.get(ing.request_url, headers=headers)
         print(f"Status: {resp.status_code}")
@@ -898,7 +908,9 @@ class TestExternalAuthPoliciesIngressTLS:
             test_namespace,
             ext_auth_ing_mergeable_tls_src,
         )
-        ensure_response_from_backend(ing.request_url, ing.ingress_host, additional_headers=valid_auth_headers())
+        ensure_response_from_backend(
+            ing.request_url, ing.ingress_host, additional_headers=valid_auth_headers(), check404=True
+        )
 
         resp = requests.get(ing.request_url, headers=headers)
         print(f"Status: {resp.status_code}")
