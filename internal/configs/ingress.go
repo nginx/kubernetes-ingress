@@ -1250,32 +1250,14 @@ func filterInternalLocations(locations []version1.Location) []version1.Location 
 }
 
 // isMasterInternalLocation reports whether loc is a duplicate of one of the
-// master's internal locations. Two locations are considered duplicates when
-// they share the same Path and, when available, the same upstream/proxy
-// target. This avoids emitting duplicate internal auth subrequest locations
-// when a minion references the same external auth policy as the master,
-// while still allowing different upstreams to coexist on the same internal
-// path.
+// master's internal locations (matched by Path). This is used to avoid
+// emitting duplicate internal auth subrequest locations when a minion
+// references the same external auth policy as the master.
 func isMasterInternalLocation(loc version1.Location, masterInternalLocs []version1.Location) bool {
 	for _, masterLoc := range masterInternalLocs {
-		if loc.Path != masterLoc.Path {
-			continue
+		if loc.Path == masterLoc.Path {
+			return true
 		}
-
-		// If both locations have a ProxyPass (or equivalent upstream identifier),
-		// only treat them as duplicates when both the path and ProxyPass match.
-		if loc.ProxyPass != "" || masterLoc.ProxyPass != "" {
-			if loc.ProxyPass == masterLoc.ProxyPass {
-				return true
-			}
-
-			// Same path but different upstream/proxy target: not a duplicate.
-			continue
-		}
-
-		// Fallback: if no upstream identifier is available, treat same-path
-		// locations as duplicates to preserve legacy behavior.
-		return true
 	}
 	return false
 }
