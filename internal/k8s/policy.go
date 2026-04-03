@@ -194,7 +194,6 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 	// Merge policy warnings from extended resources back into resources
 	resourcesWithWarnings := mergeExtendedResourceWarnings(resources, resourceExes)
 
-	// Separate resources by type for per-type configurator calls and event emission.
 	var virtualServerResources []Resource
 	var ingressResources []Resource
 	var mergeableIngressResources []Resource

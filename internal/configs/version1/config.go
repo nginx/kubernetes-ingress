@@ -216,13 +216,13 @@ type Location struct {
 	ProxyNextUpstream          string
 	ProxyNextUpstreamTimeout   string
 	ProxyNextUpstreamTries     *uint64
-	Allow                      []string
-	Deny                       []string
 	ProxySSLVerify             bool
 	ProxySSLVerifyDepth        int
 	ProxySSLTrustedCertificate string
-	PoliciesErrorReturn        *version2.Return
+	Allow                      []string
+	Deny                       []string
 	WAF                        *version2.WAF
+	PoliciesErrorReturn        *version2.Return
 }
 
 // ZoneSyncConfig is tbe configuration for the zone_sync directives for state sharing.
