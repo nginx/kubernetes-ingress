@@ -218,6 +218,13 @@ spec:
                               type: string
                           type: object
                       type: object
+                    add-header-inherit:
+                      description: 'Controls header inheritance behavior at the location
+                        level. Allowed values are: on, off, merge. When set to "merge",
+                        headers from this context are merged with headers in child
+                        contexts. When set to "on", standard NGINX inheritance applies.
+                        When set to "off", no headers are inherited from parent contexts.'
+                      type: string
                     dos:
                       description: A reference to a DosProtectedResource, setting
                         this enables DOS protection of the VirtualServer route.

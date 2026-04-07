@@ -715,6 +715,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			)
 			addPoliciesCfgToLocations(routePoliciesCfg, cfg.Locations)
 			addDosConfigToLocations(dosRouteCfg, cfg.Locations)
+			addAddHeaderInheritToLocations(r.AddHeaderInherit, cfg.Locations)
 
 			maps = append(maps, cfg.Maps...)
 			locations = append(locations, cfg.Locations...)
@@ -730,6 +731,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				vsc.cfgParams, errorPages, r.Path, vsLocSnippets, vsc.enableSnippets, len(returnLocations), isVSR, "", "", vsc.warnings, vsc.DynamicWeightChangesReload)
 			addPoliciesCfgToLocations(routePoliciesCfg, cfg.Locations)
 			addDosConfigToLocations(dosRouteCfg, cfg.Locations)
+			addAddHeaderInheritToLocations(r.AddHeaderInherit, cfg.Locations)
 			splitClients = append(splitClients, cfg.SplitClients...)
 			locations = append(locations, cfg.Locations...)
 			internalRedirectLocations = append(internalRedirectLocations, cfg.InternalRedirectLocation)
@@ -749,6 +751,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				proxySSLName, r.Path, vsLocSnippets, vsc.enableSnippets, len(returnLocations), isVSR, "", "", vsc.warnings)
 			addPoliciesCfgToLocation(routePoliciesCfg, &loc)
 			loc.Dos = dosRouteCfg
+			loc.AddHeaderInherit = strings.ToLower(r.AddHeaderInherit)
 
 			locations = append(locations, loc)
 			if returnLoc != nil {
@@ -896,6 +899,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				)
 				addPoliciesCfgToLocations(routePoliciesCfg, cfg.Locations)
 				addDosConfigToLocations(dosRouteCfg, cfg.Locations)
+				addAddHeaderInheritToLocations(r.AddHeaderInherit, cfg.Locations)
 
 				maps = append(maps, cfg.Maps...)
 				locations = append(locations, cfg.Locations...)
@@ -911,6 +915,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 					errorPages, r.Path, locSnippets, vsc.enableSnippets, len(returnLocations), isVSR, vsr.Name, vsr.Namespace, vsc.warnings, vsc.DynamicWeightChangesReload)
 				addPoliciesCfgToLocations(routePoliciesCfg, cfg.Locations)
 				addDosConfigToLocations(dosRouteCfg, cfg.Locations)
+				addAddHeaderInheritToLocations(r.AddHeaderInherit, cfg.Locations)
 
 				splitClients = append(splitClients, cfg.SplitClients...)
 				locations = append(locations, cfg.Locations...)
@@ -930,6 +935,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 					proxySSLName, r.Path, locSnippets, vsc.enableSnippets, len(returnLocations), isVSR, vsr.Name, vsr.Namespace, vsc.warnings)
 				addPoliciesCfgToLocation(routePoliciesCfg, &loc)
 				loc.Dos = dosRouteCfg
+				loc.AddHeaderInherit = strings.ToLower(r.AddHeaderInherit)
 
 				locations = append(locations, loc)
 				if returnLoc != nil {
@@ -966,6 +972,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		Server: version2.Server{
 			ServerName:                vsEx.VirtualServer.Spec.Host,
 			Gunzip:                    vsEx.VirtualServer.Spec.Gunzip,
+			AddHeaderInherit:          strings.ToLower(vsEx.VirtualServer.Spec.AddHeaderInherit),
 			StatusZone:                vsEx.VirtualServer.Spec.Host,
 			HTTPPort:                  vsEx.HTTPPort,
 			HTTPSPort:                 vsEx.HTTPSPort,
@@ -1215,6 +1222,12 @@ func addPoliciesCfgToLocations(cfg policiesCfg, locations []version2.Location) {
 func addDosConfigToLocations(dosCfg *version2.Dos, locations []version2.Location) {
 	for i := range locations {
 		locations[i].Dos = dosCfg
+	}
+}
+
+func addAddHeaderInheritToLocations(addHeaderInherit string, locations []version2.Location) {
+	for i := range locations {
+		locations[i].AddHeaderInherit = strings.ToLower(addHeaderInherit)
 	}
 }
 

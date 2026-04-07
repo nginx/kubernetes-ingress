@@ -124,7 +124,22 @@ func (vsv *VirtualServerValidator) validateVirtualServerSpec(spec *v1.VirtualSer
 
 	allErrs = append(allErrs, vsv.validateExternalDNS(&spec.ExternalDNS, fieldPath.Child("externalDNS"))...)
 
+	allErrs = append(allErrs, validateAddHeaderInherit(spec.AddHeaderInherit, fieldPath.Child("add-header-inherit"))...)
+
 	return allErrs
+}
+
+func validateAddHeaderInherit(value string, fieldPath *field.Path) field.ErrorList {
+	if value == "" {
+		return nil
+	}
+
+	switch strings.ToLower(value) {
+	case "on", "off", "merge":
+		return nil
+	default:
+		return field.ErrorList{field.Invalid(fieldPath, value, "must be one of: `on`, `off`, `merge`")}
+	}
 }
 
 const wildcardPrefix = "*."
@@ -856,6 +871,8 @@ func (vsv *VirtualServerValidator) validateRoute(route v1.Route, fieldPath *fiel
 
 		allErrs = append(allErrs, field.Invalid(fieldPath, "", msg))
 	}
+
+	allErrs = append(allErrs, validateAddHeaderInherit(route.AddHeaderInherit, fieldPath.Child("add-header-inherit"))...)
 
 	allErrs = append(allErrs, validateDos(vsv.isDosEnabled, route.Dos, fieldPath.Child("dos"))...)
 

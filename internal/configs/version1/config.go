@@ -263,6 +263,7 @@ type MGMTConfig struct {
 // MainConfig describe the main NGINX configuration file.
 type MainConfig struct {
 	AccessLog                          string
+	AddHeaderInherit                   string
 	DefaultServerAccessLogOff          bool
 	DefaultServerReturn                string
 	DisableIPV6                        bool

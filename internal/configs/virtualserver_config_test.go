@@ -528,6 +528,40 @@ func TestGenerateVSConfig_GeneratesConfigWithGunzipOff(t *testing.T) {
 	}
 }
 
+func TestGenerateVSConfig_GeneratesConfigWithAddHeaderInheritMerge(t *testing.T) {
+	t.Parallel()
+
+	vsc := newVirtualServerConfigurator(&baseCfgParams, false, false, &StaticConfigParams{}, false, &fakeBV)
+
+	want := version2.VirtualServerConfig{
+		Upstreams:     nil,
+		HTTPSnippets:  []string{},
+		LimitReqZones: []version2.LimitReqZone{},
+		Server: version2.Server{
+			ServerName:       "cafe.example.com",
+			AddHeaderInherit: "merge",
+			StatusZone:       "cafe.example.com",
+			VSNamespace:      "default",
+			VSName:           "cafe",
+			ProxyProtocol:    true,
+			ServerTokens:     "off",
+			SetRealIPFrom:    []string{"0.0.0.0/0"},
+			RealIPHeader:     "X-Real-IP",
+			RealIPRecursive:  true,
+			Snippets:         []string{"# server snippet"},
+			Locations:        nil,
+		},
+	}
+
+	got, warnings := vsc.GenerateVirtualServerConfig(&virtualServerExWithAddHeaderInheritMerge, nil, nil)
+	if len(warnings) > 0 {
+		t.Fatalf("want no warnings, got: %v", vsc.warnings)
+	}
+	if !cmp.Equal(want, got) {
+		t.Error(cmp.Diff(want, got))
+	}
+}
+
 func TestGenerateVSConfig_GeneratesConfigWithNoGunzip(t *testing.T) {
 	t.Parallel()
 

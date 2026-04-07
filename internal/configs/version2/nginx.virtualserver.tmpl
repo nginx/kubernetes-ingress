@@ -55,6 +55,9 @@ server {
     {{- if $s.Gunzip }}
     gunzip on;
     {{- end }}
+    {{- if $s.AddHeaderInherit }}
+    add_header_inherit {{ $s.AddHeaderInherit }};
+    {{- end }}
     {{ makeHTTPListener $s | printf }}
 
     server_name {{ $s.ServerName }};
@@ -283,6 +286,9 @@ server {
         {{- end }}
         {{- if $l.Internal }}
         internal;
+        {{- end }}
+        {{- if $l.AddHeaderInherit }}
+        add_header_inherit {{ $l.AddHeaderInherit }};
         {{- end }}
         {{- range $snippet := $l.Snippets }}
         {{ $snippet }}
