@@ -998,24 +998,91 @@ type OIDC struct {
 	SSLVerifyDepth *int `json:"sslVerifyDepth"`
 }
 
-// BundleSource defines a remote source for fetching AppProtect bundles.
+// BundleSourceType defines the type of remote WAF bundle source.
+// +kubebuilder:validation:Enum=HTTP;NIM;N1C
+type BundleSourceType string
+
+const (
+	// BundleSourceTypeHTTP fetches a pre-compiled .tgz bundle from a plain HTTPS endpoint.
+	BundleSourceTypeHTTP BundleSourceType = "HTTP"
+	// BundleSourceTypeNIM fetches a managed policy bundle from NGINX Instance Manager (NIM).
+	BundleSourceTypeNIM BundleSourceType = "NIM"
+	// BundleSourceTypeN1C fetches a managed policy bundle from F5 Distributed Cloud (N1C).
+	BundleSourceTypeN1C BundleSourceType = "N1C"
+)
+
+// BundleSource defines a remote source for fetching AppProtect WAF policy bundles.
+//
+// Three source types are supported:
+//   - HTTP (default): fetch a pre-compiled .tgz bundle from any HTTPS server.
+//   - NIM: pull a named managed policy from NGINX Instance Manager via its API.
+//   - N1C: pull a named managed policy from F5 Distributed Cloud (N1C) via its API.
+//
+// All fields are flat — there are no nested objects. The meaning of url and secret
+// depends on type (see field descriptions), but the field names are the same for all types.
+//
+// +kubebuilder:validation:XValidation:rule="!has(self.policyName) || (has(self.type) && (self.type == 'NIM' || self.type == 'N1C'))",message="policyName is only valid for type=NIM or type=N1C"
+// +kubebuilder:validation:XValidation:rule="!has(self.policyNamespace) || (has(self.type) && self.type == 'N1C')",message="policyNamespace is only valid for type=N1C"
 type BundleSource struct {
-	// URL is the HTTPS endpoint to fetch the bundle tarball from.
+	// Type distinguishes the kind of remote source. Defaults to HTTP.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:="HTTP"
+	Type BundleSourceType `json:"type,omitempty"`
+
+	// URL is the source endpoint. Its meaning depends on type:
+	//   HTTP: full .tgz file URL  (e.g. https://server/bundles/policy.tgz)
+	//   NIM:  NIM API base URL    (e.g. https://nim.example.com)
+	//   N1C:  N1C tenant API URL  (e.g. https://my-tenant.console.ves.volterra.io)
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^https://`
 	URL string `json:"url"`
-	// TLSSecret is a reference to a kubernetes.io/tls Secret for mTLS authentication.
-	// The secret must contain tls.crt and tls.key. An optional ca.crt entry is used
-	// to verify the remote server's certificate. It must be in the same namespace as the Policy resource.
+
+	// Secret is the name of a Kubernetes Secret in the same namespace as the Policy,
+	// used for authentication with the remote source.
+	//   HTTP:    kubernetes.io/tls Secret — tls.crt + tls.key for client mTLS,
+	//            optional ca.crt for server certificate verification.
+	//   NIM/N1C: Opaque Secret — API credentials expected by the management plane.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
-	TLSSecret string `json:"tlsSecret,omitempty"`
-	// PollInterval defines how frequently to check for bundle updates via ETag.
-	// Default: 1m. Format: Go duration string (e.g., "30s", "2m", "1h").
+	Secret string `json:"secret,omitempty"`
+
+	// PolicyName is the name of the policy as it exists on the management plane.
+	// Required when type is NIM or N1C. Not valid for HTTP.
+	// +kubebuilder:validation:Optional
+	PolicyName string `json:"policyName,omitempty"`
+
+	// PolicyNamespace is the namespace or tenant that owns the policy on the management plane.
+	// Required when type is N1C. Optional for NIM. Not valid for HTTP.
+	// +kubebuilder:validation:Optional
+	PolicyNamespace string `json:"policyNamespace,omitempty"`
+
+	// PollInterval defines how frequently NIC checks the remote source for updates using
+	// an ETag-based conditional GET. Default: 1m. Minimum: 10s.
+	// Format: Go duration string (e.g. "30s", "2m", "1h").
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^[0-9]+(s|m|h)$`
 	// +kubebuilder:default:="1m"
 	PollInterval string `json:"pollInterval,omitempty"`
+
+	// Timeout is the per-request HTTP timeout for fetching the bundle.
+	// Default: 30s. Format: Go duration string (e.g. "10s", "1m").
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[0-9]+(s|m|h)$`
+	Timeout string `json:"timeout,omitempty"`
+
+	// RetryAttempts is the number of times NIC will retry a failed fetch before giving up.
+	// Range: 1–10. Default: 3.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=10
+	RetryAttempts int `json:"retryAttempts,omitempty"`
+
+	// VerifyChecksum enables SHA-256 integrity verification after each download.
+	// When true, NIC compares the SHA-256 of the downloaded body against the value
+	// embedded in the ETag returned by the server. Default: false.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:=false
+	VerifyChecksum bool `json:"verifyChecksum,omitempty"`
 }
 
 // The WAF policy configures NGINX Plus to secure client requests using App Protect WAF policies.

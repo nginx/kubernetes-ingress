@@ -2,26 +2,70 @@
 
 package v1
 
+import (
+	configurationv1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+)
+
 // BundleSourceApplyConfiguration represents a declarative configuration of the BundleSource type for use
 // with apply.
 //
-// BundleSource defines a remote source for fetching AppProtect bundles.
+// BundleSource defines a remote source for fetching AppProtect WAF policy bundles.
+//
+// Three source types are supported:
+// - HTTP (default): fetch a pre-compiled .tgz bundle from any HTTPS server.
+// - NIM: pull a named managed policy from NGINX Instance Manager via its API.
+// - N1C: pull a named managed policy from F5 Distributed Cloud (N1C) via its API.
+//
+// All fields are flat — there are no nested objects. The meaning of url and secret
+// depends on type (see field descriptions), but the field names are the same for all types.
 type BundleSourceApplyConfiguration struct {
-	// URL is the HTTPS endpoint to fetch the bundle tarball from.
+	// Type distinguishes the kind of remote source. Defaults to HTTP.
+	Type *configurationv1.BundleSourceType `json:"type,omitempty"`
+	// URL is the source endpoint. Its meaning depends on type:
+	// HTTP: full .tgz file URL  (e.g. https://server/bundles/policy.tgz)
+	// NIM:  NIM API base URL    (e.g. https://nim.example.com)
+	// N1C:  N1C tenant API URL  (e.g. https://my-tenant.console.ves.volterra.io)
 	URL *string `json:"url,omitempty"`
-	// TLSSecret is a reference to a kubernetes.io/tls Secret for mTLS authentication.
-	// The secret must contain tls.crt and tls.key. An optional ca.crt entry is used
-	// to verify the remote server's certificate. It must be in the same namespace as the Policy resource.
-	TLSSecret *string `json:"tlsSecret,omitempty"`
-	// PollInterval defines how frequently to check for bundle updates via ETag.
-	// Default: 1m. Format: Go duration string (e.g., "30s", "2m", "1h").
+	// Secret is the name of a Kubernetes Secret in the same namespace as the Policy,
+	// used for authentication with the remote source.
+	// HTTP:    kubernetes.io/tls Secret — tls.crt + tls.key for client mTLS,
+	// optional ca.crt for server certificate verification.
+	// NIM/N1C: Opaque Secret — API credentials expected by the management plane.
+	Secret *string `json:"secret,omitempty"`
+	// PolicyName is the name of the policy as it exists on the management plane.
+	// Required when type is NIM or N1C. Not valid for HTTP.
+	PolicyName *string `json:"policyName,omitempty"`
+	// PolicyNamespace is the namespace or tenant that owns the policy on the management plane.
+	// Required when type is N1C. Optional for NIM. Not valid for HTTP.
+	PolicyNamespace *string `json:"policyNamespace,omitempty"`
+	// PollInterval defines how frequently NIC checks the remote source for updates using
+	// an ETag-based conditional GET. Default: 1m. Minimum: 10s.
+	// Format: Go duration string (e.g. "30s", "2m", "1h").
 	PollInterval *string `json:"pollInterval,omitempty"`
+	// Timeout is the per-request HTTP timeout for fetching the bundle.
+	// Default: 30s. Format: Go duration string (e.g. "10s", "1m").
+	Timeout *string `json:"timeout,omitempty"`
+	// RetryAttempts is the number of times NIC will retry a failed fetch before giving up.
+	// Range: 1–10. Default: 3.
+	RetryAttempts *int `json:"retryAttempts,omitempty"`
+	// VerifyChecksum enables SHA-256 integrity verification after each download.
+	// When true, NIC compares the SHA-256 of the downloaded body against the value
+	// embedded in the ETag returned by the server. Default: false.
+	VerifyChecksum *bool `json:"verifyChecksum,omitempty"`
 }
 
 // BundleSourceApplyConfiguration constructs a declarative configuration of the BundleSource type for use with
 // apply.
 func BundleSource() *BundleSourceApplyConfiguration {
 	return &BundleSourceApplyConfiguration{}
+}
+
+// WithType sets the Type field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Type field is set to the value of the last call.
+func (b *BundleSourceApplyConfiguration) WithType(value configurationv1.BundleSourceType) *BundleSourceApplyConfiguration {
+	b.Type = &value
+	return b
 }
 
 // WithURL sets the URL field in the declarative configuration to the given value
@@ -32,11 +76,27 @@ func (b *BundleSourceApplyConfiguration) WithURL(value string) *BundleSourceAppl
 	return b
 }
 
-// WithTLSSecret sets the TLSSecret field in the declarative configuration to the given value
+// WithSecret sets the Secret field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the TLSSecret field is set to the value of the last call.
-func (b *BundleSourceApplyConfiguration) WithTLSSecret(value string) *BundleSourceApplyConfiguration {
-	b.TLSSecret = &value
+// If called multiple times, the Secret field is set to the value of the last call.
+func (b *BundleSourceApplyConfiguration) WithSecret(value string) *BundleSourceApplyConfiguration {
+	b.Secret = &value
+	return b
+}
+
+// WithPolicyName sets the PolicyName field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the PolicyName field is set to the value of the last call.
+func (b *BundleSourceApplyConfiguration) WithPolicyName(value string) *BundleSourceApplyConfiguration {
+	b.PolicyName = &value
+	return b
+}
+
+// WithPolicyNamespace sets the PolicyNamespace field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the PolicyNamespace field is set to the value of the last call.
+func (b *BundleSourceApplyConfiguration) WithPolicyNamespace(value string) *BundleSourceApplyConfiguration {
+	b.PolicyNamespace = &value
 	return b
 }
 
@@ -45,5 +105,29 @@ func (b *BundleSourceApplyConfiguration) WithTLSSecret(value string) *BundleSour
 // If called multiple times, the PollInterval field is set to the value of the last call.
 func (b *BundleSourceApplyConfiguration) WithPollInterval(value string) *BundleSourceApplyConfiguration {
 	b.PollInterval = &value
+	return b
+}
+
+// WithTimeout sets the Timeout field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Timeout field is set to the value of the last call.
+func (b *BundleSourceApplyConfiguration) WithTimeout(value string) *BundleSourceApplyConfiguration {
+	b.Timeout = &value
+	return b
+}
+
+// WithRetryAttempts sets the RetryAttempts field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the RetryAttempts field is set to the value of the last call.
+func (b *BundleSourceApplyConfiguration) WithRetryAttempts(value int) *BundleSourceApplyConfiguration {
+	b.RetryAttempts = &value
+	return b
+}
+
+// WithVerifyChecksum sets the VerifyChecksum field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the VerifyChecksum field is set to the value of the last call.
+func (b *BundleSourceApplyConfiguration) WithVerifyChecksum(value bool) *BundleSourceApplyConfiguration {
+	b.VerifyChecksum = &value
 	return b
 }

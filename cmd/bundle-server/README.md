@@ -23,7 +23,7 @@ This guide walks through deploying and using the local bundle test server alongs
 │  │ WAF Policy CR    │                                   │
 │  │ apBundleSource:  │                                   │
 │  │   url: https://..│                                   │
-│  │   tlsSecret: ... │                                   │
+│  │   secret: ...    │                                   │
 │  └──────────────────┘                                   │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -133,7 +133,7 @@ kubectl create secret generic bundle-server-client-ca \
 
 ### 3b. Create the client TLS secret in the NIC namespace
 
-This secret is referenced by the WAF Policy's `tlsSecret` field. It must contain the client certificate, key, and optionally the CA cert (to verify the server).
+This secret is referenced by the WAF Policy's `secret` field. It must contain the client certificate, key, and optionally the CA cert (to verify the server).
 
 ```bash
 # Create in the namespace where your WAF Policy will be applied (e.g., default)
@@ -298,7 +298,7 @@ spec:
     enable: true
     apBundleSource:
       url: "https://bundle-server.bundle-server.svc.cluster.local/bundles/test-policy.tgz"
-      tlsSecret: "bundle-client-tls"
+      secret: "bundle-client-tls"
       pollInterval: "1m"
 ```
 
@@ -377,9 +377,24 @@ kubectl logs -f -n bundle-server deployment/bundle-server
 
 In NIC logs, a 304 appears as a `DEBUG`-level line:
 
-```
+```bash
 Remote bundle unchanged for default/waf-remote-bundle/policy (304 Not Modified)
 ```
+
+Both sides participate. Here's the exact flow from the code:
+
+1. NIC stores the ETag after each successful download (handleDownload):
+
+2. On every poll tick, NIC sends the stored ETag in the request (fetch):
+
+3. The server makes the comparison and decides the status code. In main.go:
+
+4. NIC reacts to whatever status code comes back:
+
+Summary: NIC stores the ETag, sends it as If-None-Match on each poll, and the server decides whether to return 304 or 200. NIC never compares ETags itself — it just reacts to the status code the server returns. If the server doesn't send an ETag (or sends a different one each time), NIC will re-download the full bundle on every poll.
+
+Claude Sonnet 4.6 • 1x
+
 
 ### Reading poll and fetch logs in NIC
 
@@ -536,7 +551,7 @@ rm -rf certs/
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `url` | string | Yes | - | HTTPS URL to fetch the bundle. Must start with `https://`. |
-| `tlsSecret` | string | No | - | Name of a `kubernetes.io/tls` Secret for mTLS. Must be in the same namespace as the Policy. May optionally include a `ca.crt` data key for server certificate verification. |
+| `secret` | string | No | - | Name of a Kubernetes Secret for authentication. For HTTP sources, a `kubernetes.io/tls` Secret with `tls.crt` + `tls.key` for mTLS and optional `ca.crt` for server verification. For NIM/N1C, an Opaque Secret with API credentials. |
 | `pollInterval` | string | No | `1m` | How often to check for updates via ETag. Go duration format (e.g., `30s`, `2m`, `1h`). Minimum: `10s`. |
 
 ### Bundle Server CLI Flags
@@ -612,7 +627,7 @@ Bundle entries are keyed as `{namespace}/{policyName}/{type}` where type is:
 ```
 Policy CR applied
   -> syncPolicy() validates + registers with BundleFetcher
-  -> BundleFetcher.FetchNow() does initial HTTP GET (with mTLS if tlsSecret is set)
+  -> BundleFetcher.FetchNow() does initial HTTP GET (with mTLS if secret is set)
   -> File written atomically to {bundlePath}/{ns}-{name}-{type}.tgz
   -> Background ticker polls every pollInterval with If-None-Match: {etag}
   -> On 200 (new content): atomic re-download, onChange callback enqueues policy re-sync

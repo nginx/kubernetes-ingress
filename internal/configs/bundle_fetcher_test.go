@@ -36,7 +36,7 @@ func TestBundleFetcher_FetchNow_Downloads(t *testing.T) {
 	fetcher := NewBundleFetcher(tmpDir, nil)
 
 	key := "default/my-policy/policy"
-	fetcher.Register(key, srv.URL, nil, time.Minute)
+	fetcher.Register(key, srv.URL, nil, time.Minute, 0)
 
 	localPath, err := fetcher.FetchNow(context.Background(), key)
 	if err != nil {
@@ -74,7 +74,7 @@ func TestBundleFetcher_ETag304(t *testing.T) {
 	fetcher := NewBundleFetcher(tmpDir, nil)
 
 	key := "default/my-policy/policy"
-	fetcher.Register(key, srv.URL, nil, time.Minute)
+	fetcher.Register(key, srv.URL, nil, time.Minute, 0)
 
 	// First fetch should download
 	_, err := fetcher.FetchNow(context.Background(), key)
@@ -117,7 +117,7 @@ func TestBundleFetcher_ETagChange_TriggersUpdate(t *testing.T) {
 	fetcher := NewBundleFetcher(tmpDir, nil)
 
 	key := "default/my-policy/policy"
-	fetcher.Register(key, srv.URL, nil, time.Minute)
+	fetcher.Register(key, srv.URL, nil, time.Minute, 0)
 
 	// Initial fetch
 	localPath, err := fetcher.FetchNow(context.Background(), key)
@@ -164,7 +164,7 @@ func TestBundleFetcher_FetchError_KeepsStaleBundle(t *testing.T) {
 	fetcher := NewBundleFetcher(tmpDir, nil)
 
 	key := "default/my-policy/policy"
-	fetcher.Register(key, srv.URL, nil, time.Minute)
+	fetcher.Register(key, srv.URL, nil, time.Minute, 0)
 
 	// Initial successful fetch
 	localPath, err := fetcher.FetchNow(context.Background(), key)
@@ -204,7 +204,7 @@ func TestBundleFetcher_Unregister_CleansUpFile(t *testing.T) {
 	fetcher := NewBundleFetcher(tmpDir, nil)
 
 	key := "default/my-policy/policy"
-	fetcher.Register(key, srv.URL, nil, time.Minute)
+	fetcher.Register(key, srv.URL, nil, time.Minute, 0)
 
 	localPath, err := fetcher.FetchNow(context.Background(), key)
 	if err != nil {
@@ -250,17 +250,17 @@ func TestBundleFetcher_GetLocalPath(t *testing.T) {
 		{
 			key:      "default/my-policy/policy",
 			url:      "https://server.example.com/bundles/compiled_policy.tgz",
-			expected: filepath.Join(tmpDir, "compiled_policy.tgz"),
+			expected: filepath.Join(tmpDir, "default-my-policy-policy.tgz"),
 		},
 		{
 			key:      "prod/waf-pol/log-0",
 			url:      "https://server.example.com/logs/my-log-profile.tgz",
-			expected: filepath.Join(tmpDir, "my-log-profile.tgz"),
+			expected: filepath.Join(tmpDir, "prod-waf-pol-log-0.tgz"),
 		},
 	}
 
 	for _, tt := range tests {
-		fetcher.Register(tt.key, tt.url, nil, time.Minute)
+		fetcher.Register(tt.key, tt.url, nil, time.Minute, 0)
 		got := fetcher.GetLocalPath(tt.key)
 		if got != tt.expected {
 			t.Errorf("GetLocalPath(%q) = %q, want %q", tt.key, got, tt.expected)
@@ -308,7 +308,7 @@ func TestBundleFetcher_PollLoop_CallsOnChange(t *testing.T) {
 
 	key := "default/my-policy/policy"
 	// Very short poll interval for testing
-	fetcher.Register(key, srv.URL, nil, 100*time.Millisecond)
+	fetcher.Register(key, srv.URL, nil, 100*time.Millisecond, 0)
 
 	// Initial fetch
 	_, err := fetcher.FetchNow(context.Background(), key)
@@ -327,13 +327,14 @@ func TestBundleFetcher_PollLoop_CallsOnChange(t *testing.T) {
 	// Change the ETag — next poll should detect the change
 	currentEtag.Store(`"v2"`)
 
-	// Wait for the update callback
+	// Wait for the update callback.
+	// Allow bundleReloadDelay (2s) + poll interval (100ms) + margin.
 	select {
 	case updatedKey := <-updateCh:
 		if updatedKey != key {
 			t.Errorf("onChange called with key %q, want %q", updatedKey, key)
 		}
-	case <-time.After(2 * time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for onChange callback")
 	}
 
@@ -359,7 +360,7 @@ func TestBundleFetcher_AtomicWrite_NoPartialFiles(t *testing.T) {
 	fetcher := NewBundleFetcher(tmpDir, nil)
 
 	key := "default/my-policy/policy"
-	fetcher.Register(key, srv.URL, nil, time.Minute)
+	fetcher.Register(key, srv.URL, nil, time.Minute, 0)
 
 	localPath, err := fetcher.FetchNow(context.Background(), key)
 	if err != nil {
@@ -486,10 +487,10 @@ func TestBundleFetcher_ReRegister_UpdatesTLSConfig(t *testing.T) {
 	key := "default/my-policy/policy"
 
 	// Register with no TLS
-	fetcher.Register(key, srv.URL, nil, time.Minute)
+	fetcher.Register(key, srv.URL, nil, time.Minute, 0)
 
 	// Re-register with same URL but different secret data — should not panic
-	fetcher.Register(key, srv.URL, map[string][]byte{"tls.crt": {}, "tls.key": {}}, time.Minute)
+	fetcher.Register(key, srv.URL, map[string][]byte{"tls.crt": {}, "tls.key": {}}, time.Minute, 0)
 
 	// Should still be able to fetch
 	_, err := fetcher.FetchNow(context.Background(), key)

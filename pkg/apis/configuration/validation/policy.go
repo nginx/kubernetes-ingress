@@ -706,42 +706,96 @@ const minBundleSourcePollInterval = 10 * time.Second
 func validateBundleSource(src *v1.BundleSource, fieldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
+	srcType := src.Type
+	if srcType == "" {
+		srcType = v1.BundleSourceTypeHTTP
+	}
+
+	// url is required for all types.
 	if src.URL == "" {
 		allErrs = append(allErrs, field.Required(fieldPath.Child("url"), "url is required"))
 		return allErrs
 	}
+	allErrs = append(allErrs, validateHTTPSURL(src.URL, fieldPath.Child("url"))...)
 
-	parsedURL, err := url.Parse(src.URL)
-	if err != nil {
-		allErrs = append(allErrs, field.Invalid(fieldPath.Child("url"), src.URL, fmt.Sprintf("invalid URL: %v", err)))
+	switch srcType {
+	case v1.BundleSourceTypeHTTP:
+		// policyName / policyNamespace are not valid for HTTP.
+		if src.PolicyName != "" {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("policyName"), src.PolicyName, "policyName is only valid for type=NIM or type=N1C"))
+		}
+		if src.PolicyNamespace != "" {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("policyNamespace"), src.PolicyNamespace, "policyNamespace is only valid for type=N1C"))
+		}
+	case v1.BundleSourceTypeNIM:
+		if src.PolicyName == "" {
+			allErrs = append(allErrs, field.Required(fieldPath.Child("policyName"), "policyName is required for type=NIM"))
+		}
+	case v1.BundleSourceTypeN1C:
+		if src.PolicyName == "" {
+			allErrs = append(allErrs, field.Required(fieldPath.Child("policyName"), "policyName is required for type=N1C"))
+		}
+		if src.PolicyNamespace == "" {
+			allErrs = append(allErrs, field.Required(fieldPath.Child("policyNamespace"), "policyNamespace is required for type=N1C"))
+		}
+	default:
+		allErrs = append(allErrs, field.NotSupported(fieldPath.Child("type"), srcType,
+			[]string{string(v1.BundleSourceTypeHTTP), string(v1.BundleSourceTypeNIM), string(v1.BundleSourceTypeN1C)}))
 		return allErrs
 	}
 
-	if parsedURL.Scheme != "https" {
-		allErrs = append(allErrs, field.Invalid(fieldPath.Child("url"), src.URL, "url must use the https scheme"))
+	// Validate shared scalar fields.
+	if src.Secret != "" {
+		allErrs = append(allErrs, validateSecretName(src.Secret, fieldPath.Child("secret"))...)
 	}
-
-	if parsedURL.Host == "" {
-		allErrs = append(allErrs, field.Invalid(fieldPath.Child("url"), src.URL, "url must contain a host"))
-	}
-
-	if containsDangerousChars(src.URL) {
-		allErrs = append(allErrs, field.Invalid(fieldPath.Child("url"), src.URL, "url contains dangerous characters"))
-	}
-
-	if src.TLSSecret != "" {
-		allErrs = append(allErrs, validateSecretName(src.TLSSecret, fieldPath.Child("tlsSecret"))...)
-	}
-
 	if src.PollInterval != "" {
-		d, parseErr := time.ParseDuration(src.PollInterval)
-		if parseErr != nil {
-			allErrs = append(allErrs, field.Invalid(fieldPath.Child("pollInterval"), src.PollInterval, fmt.Sprintf("invalid duration: %v", parseErr)))
-		} else if d < minBundleSourcePollInterval {
-			allErrs = append(allErrs, field.Invalid(fieldPath.Child("pollInterval"), src.PollInterval, fmt.Sprintf("pollInterval must be at least %s", minBundleSourcePollInterval)))
+		allErrs = append(allErrs, validateBundlePollInterval(src.PollInterval, fieldPath.Child("pollInterval"))...)
+	}
+	if src.Timeout != "" {
+		if _, err := time.ParseDuration(src.Timeout); err != nil {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("timeout"), src.Timeout, fmt.Sprintf("invalid duration: %v", err)))
 		}
 	}
+	if src.RetryAttempts != 0 && (src.RetryAttempts < 1 || src.RetryAttempts > 10) {
+		allErrs = append(allErrs, field.Invalid(fieldPath.Child("retryAttempts"), src.RetryAttempts, "retryAttempts must be between 1 and 10"))
+	}
 
+	return allErrs
+}
+
+// validateHTTPSURL validates that a URL is a well-formed HTTPS URL with no dangerous characters.
+func validateHTTPSURL(rawURL string, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if containsDangerousChars(rawURL) {
+		allErrs = append(allErrs, field.Invalid(fieldPath, rawURL, "url contains dangerous characters"))
+		return allErrs
+	}
+
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		allErrs = append(allErrs, field.Invalid(fieldPath, rawURL, fmt.Sprintf("invalid URL: %v", err)))
+		return allErrs
+	}
+	if parsedURL.Scheme != "https" {
+		allErrs = append(allErrs, field.Invalid(fieldPath, rawURL, "url must use the https scheme"))
+	}
+	if parsedURL.Host == "" {
+		allErrs = append(allErrs, field.Invalid(fieldPath, rawURL, "url must contain a host"))
+	}
+
+	return allErrs
+}
+
+// validateBundlePollInterval validates a poll interval duration string.
+func validateBundlePollInterval(interval string, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	d, parseErr := time.ParseDuration(interval)
+	if parseErr != nil {
+		allErrs = append(allErrs, field.Invalid(fieldPath, interval, fmt.Sprintf("invalid duration: %v", parseErr)))
+	} else if d < minBundleSourcePollInterval {
+		allErrs = append(allErrs, field.Invalid(fieldPath, interval, fmt.Sprintf("poll interval must be at least %s", minBundleSourcePollInterval)))
+	}
 	return allErrs
 }
 

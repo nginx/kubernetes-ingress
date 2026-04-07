@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"path"
 	"strings"
@@ -35,7 +34,8 @@ type BundleFetcher interface {
 	// (e.g. "namespace/policyName/policy" or "namespace/policyName/log-0").
 	// secretData may be nil if no mTLS is needed; otherwise it should contain
 	// "tls.crt", "tls.key", and optionally "ca.crt" entries.
-	Register(key, remoteURL string, secretData map[string][]byte, pollInterval time.Duration)
+	// timeout is the per-request HTTP fetch timeout; 0 means use the default (60s).
+	Register(key, remoteURL string, secretData map[string][]byte, pollInterval, timeout time.Duration)
 
 	// Unregister removes a bundle entry and cleans up its local file.
 	Unregister(key string)
@@ -73,6 +73,7 @@ type fetchEntry struct {
 	etag         string
 	localPath    string
 	pollInterval time.Duration
+	timeout      time.Duration
 	client       *http.Client
 	cancel       context.CancelFunc
 }
@@ -87,17 +88,17 @@ type remoteBundleFetcher struct {
 	started    bool
 }
 
-func (f *remoteBundleFetcher) Register(key, remoteURL string, secretData map[string][]byte, pollInterval time.Duration) {
+func (f *remoteBundleFetcher) Register(key, remoteURL string, secretData map[string][]byte, pollInterval, timeout time.Duration) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	// If entry exists with same URL and interval, just update TLS config
+	// If entry exists with same key parameters, just update TLS config
 	if existing, ok := f.entries[key]; ok {
-		if existing.url == remoteURL && existing.pollInterval == pollInterval {
+		if existing.url == remoteURL && existing.pollInterval == pollInterval && existing.timeout == timeout {
 			existing.client = buildHTTPClient(secretData)
 			return
 		}
-		// URL or interval changed — stop old poller
+		// Parameters changed — stop old poller
 		if existing.cancel != nil {
 			existing.cancel()
 		}
@@ -109,8 +110,9 @@ func (f *remoteBundleFetcher) Register(key, remoteURL string, secretData map[str
 
 	entry := &fetchEntry{
 		url:          remoteURL,
-		localPath:    localPathFromURL(f.bundlePath, remoteURL),
+		localPath:    localPathFromKey(f.bundlePath, key),
 		pollInterval: pollInterval,
+		timeout:      timeout,
 		client:       buildHTTPClient(secretData),
 	}
 	f.entries[key] = entry
@@ -241,6 +243,12 @@ func (f *remoteBundleFetcher) pollLoop(ctx context.Context, key string, entry *f
 // fetch performs a conditional GET. Returns (true, nil) if the bundle was updated,
 // (false, nil) if unchanged (304), or (false, err) on failure.
 func (f *remoteBundleFetcher) fetch(ctx context.Context, key string, entry *fetchEntry) (bool, error) {
+	if entry.timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, entry.timeout)
+		defer cancel()
+	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, entry.url, nil)
 	if err != nil {
 		return false, fmt.Errorf("creating request: %w", err)
@@ -316,20 +324,13 @@ func (f *remoteBundleFetcher) handleDownload(key string, entry *fetchEntry, resp
 	return true, nil
 }
 
-// localPathFromURL extracts the filename from a remote URL and returns the full local path.
-// For example, "https://server/bundles/compiled_policy.tgz" -> "{bundlePath}/compiled_policy.tgz".
-func localPathFromURL(bundlePath, remoteURL string) string {
-	u, err := url.Parse(remoteURL)
-	if err != nil {
-		// Fallback: use a sanitized key
-		safe := strings.NewReplacer("/", "-", ":", "-").Replace(remoteURL)
-		return path.Join(bundlePath, safe)
-	}
-	filename := path.Base(u.Path)
-	if filename == "" || filename == "." || filename == "/" {
-		filename = "bundle.tgz"
-	}
-	return path.Join(bundlePath, filename)
+// localPathFromKey derives a stable, unique on-disk filename from the bundle key.
+// For example, key "default/waf-policy/policy" -> "{bundlePath}/default-waf-policy-policy.tgz".
+// Using the key (not the URL) avoids collisions when two bundles share the same URL path
+// component or when using NIM/N1C base URLs that have no meaningful filename.
+func localPathFromKey(bundlePath, key string) string {
+	safe := strings.NewReplacer("/", "-").Replace(key)
+	return path.Join(bundlePath, safe+".tgz")
 }
 
 func buildHTTPClient(secretData map[string][]byte) *http.Client {
@@ -373,7 +374,7 @@ type fakeBundleFetcherImpl struct {
 	bundlePath string
 }
 
-func (f *fakeBundleFetcherImpl) Register(_ string, _ string, _ map[string][]byte, _ time.Duration) {
+func (f *fakeBundleFetcherImpl) Register(_ string, _ string, _ map[string][]byte, _, _ time.Duration) {
 }
 func (f *fakeBundleFetcherImpl) Unregister(string) {}
 func (f *fakeBundleFetcherImpl) GetLocalPath(key string) string {

@@ -740,28 +740,80 @@ spec:
                     description: The remote source for fetching the App Protect WAF
                       policy bundle. Mutually exclusive with apPolicy and apBundle.
                     properties:
+                      policyName:
+                        description: |-
+                          PolicyName is the name of the policy as it exists on the management plane.
+                          Required when type is NIM or N1C. Not valid for HTTP.
+                        type: string
+                      policyNamespace:
+                        description: |-
+                          PolicyNamespace is the namespace or tenant that owns the policy on the management plane.
+                          Required when type is N1C. Optional for NIM. Not valid for HTTP.
+                        type: string
                       pollInterval:
                         default: 1m
                         description: |-
-                          PollInterval defines how frequently to check for bundle updates via ETag.
-                          Default: 1m. Format: Go duration string (e.g., "30s", "2m", "1h").
+                          PollInterval defines how frequently NIC checks the remote source for updates using
+                          an ETag-based conditional GET. Default: 1m. Minimum: 10s.
+                          Format: Go duration string (e.g. "30s", "2m", "1h").
                         pattern: ^[0-9]+(s|m|h)$
                         type: string
-                      tlsSecret:
+                      retryAttempts:
                         description: |-
-                          TLSSecret is a reference to a kubernetes.io/tls Secret for mTLS authentication.
-                          The secret must contain tls.crt and tls.key. An optional ca.crt entry is used
-                          to verify the remote server's certificate. It must be in the same namespace as the Policy resource.
+                          RetryAttempts is the number of times NIC will retry a failed fetch before giving up.
+                          Range: 1–10. Default: 3.
+                        maximum: 10
+                        minimum: 1
+                        type: integer
+                      secret:
+                        description: |-
+                          Secret is the name of a Kubernetes Secret in the same namespace as the Policy,
+                          used for authentication with the remote source.
+                            HTTP:    kubernetes.io/tls Secret — tls.crt + tls.key for client mTLS,
+                                     optional ca.crt for server certificate verification.
+                            NIM/N1C: Opaque Secret — API credentials expected by the management plane.
                         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                         type: string
+                      timeout:
+                        description: |-
+                          Timeout is the per-request HTTP timeout for fetching the bundle.
+                          Default: 30s. Format: Go duration string (e.g. "10s", "1m").
+                        pattern: ^[0-9]+(s|m|h)$
+                        type: string
+                      type:
+                        default: HTTP
+                        description: Type distinguishes the kind of remote source.
+                          Defaults to HTTP.
+                        enum:
+                        - HTTP
+                        - NIM
+                        - N1C
+                        type: string
                       url:
-                        description: URL is the HTTPS endpoint to fetch the bundle
-                          tarball from.
+                        description: |-
+                          URL is the source endpoint. Its meaning depends on type:
+                            HTTP: full .tgz file URL  (e.g. https://server/bundles/policy.tgz)
+                            NIM:  NIM API base URL    (e.g. https://nim.example.com)
+                            N1C:  N1C tenant API URL  (e.g. https://my-tenant.console.ves.volterra.io)
                         pattern: ^https://
                         type: string
+                      verifyChecksum:
+                        default: false
+                        description: |-
+                          VerifyChecksum enables SHA-256 integrity verification after each download.
+                          When true, NIC compares the SHA-256 of the downloaded body against the value
+                          embedded in the ETag returned by the server. Default: false.
+                        type: boolean
                     required:
                     - url
                     type: object
+                    x-kubernetes-validations:
+                    - message: policyName is only valid for type=NIM or type=N1C
+                      rule: '!has(self.policyName) || (has(self.type) && (self.type
+                        == ''NIM'' || self.type == ''N1C''))'
+                    - message: policyNamespace is only valid for type=N1C
+                      rule: '!has(self.policyNamespace) || (has(self.type) && self.type
+                        == ''N1C'')'
                   apPolicy:
                     description: The App Protect WAF policy of the WAF. Accepts an
                       optional namespace. Mutually exclusive with apBundle and apBundleSource.
@@ -781,28 +833,80 @@ spec:
                           WAF log bundle. Mutually exclusive with apLogBundle and
                           apLogConf.
                         properties:
+                          policyName:
+                            description: |-
+                              PolicyName is the name of the policy as it exists on the management plane.
+                              Required when type is NIM or N1C. Not valid for HTTP.
+                            type: string
+                          policyNamespace:
+                            description: |-
+                              PolicyNamespace is the namespace or tenant that owns the policy on the management plane.
+                              Required when type is N1C. Optional for NIM. Not valid for HTTP.
+                            type: string
                           pollInterval:
                             default: 1m
                             description: |-
-                              PollInterval defines how frequently to check for bundle updates via ETag.
-                              Default: 1m. Format: Go duration string (e.g., "30s", "2m", "1h").
+                              PollInterval defines how frequently NIC checks the remote source for updates using
+                              an ETag-based conditional GET. Default: 1m. Minimum: 10s.
+                              Format: Go duration string (e.g. "30s", "2m", "1h").
                             pattern: ^[0-9]+(s|m|h)$
                             type: string
-                          tlsSecret:
+                          retryAttempts:
                             description: |-
-                              TLSSecret is a reference to a kubernetes.io/tls Secret for mTLS authentication.
-                              The secret must contain tls.crt and tls.key. An optional ca.crt entry is used
-                              to verify the remote server's certificate. It must be in the same namespace as the Policy resource.
+                              RetryAttempts is the number of times NIC will retry a failed fetch before giving up.
+                              Range: 1–10. Default: 3.
+                            maximum: 10
+                            minimum: 1
+                            type: integer
+                          secret:
+                            description: |-
+                              Secret is the name of a Kubernetes Secret in the same namespace as the Policy,
+                              used for authentication with the remote source.
+                                HTTP:    kubernetes.io/tls Secret — tls.crt + tls.key for client mTLS,
+                                         optional ca.crt for server certificate verification.
+                                NIM/N1C: Opaque Secret — API credentials expected by the management plane.
                             pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                             type: string
+                          timeout:
+                            description: |-
+                              Timeout is the per-request HTTP timeout for fetching the bundle.
+                              Default: 30s. Format: Go duration string (e.g. "10s", "1m").
+                            pattern: ^[0-9]+(s|m|h)$
+                            type: string
+                          type:
+                            default: HTTP
+                            description: Type distinguishes the kind of remote source.
+                              Defaults to HTTP.
+                            enum:
+                            - HTTP
+                            - NIM
+                            - N1C
+                            type: string
                           url:
-                            description: URL is the HTTPS endpoint to fetch the bundle
-                              tarball from.
+                            description: |-
+                              URL is the source endpoint. Its meaning depends on type:
+                                HTTP: full .tgz file URL  (e.g. https://server/bundles/policy.tgz)
+                                NIM:  NIM API base URL    (e.g. https://nim.example.com)
+                                N1C:  N1C tenant API URL  (e.g. https://my-tenant.console.ves.volterra.io)
                             pattern: ^https://
                             type: string
+                          verifyChecksum:
+                            default: false
+                            description: |-
+                              VerifyChecksum enables SHA-256 integrity verification after each download.
+                              When true, NIC compares the SHA-256 of the downloaded body against the value
+                              embedded in the ETag returned by the server. Default: false.
+                            type: boolean
                         required:
                         - url
                         type: object
+                        x-kubernetes-validations:
+                        - message: policyName is only valid for type=NIM or type=N1C
+                          rule: '!has(self.policyName) || (has(self.type) && (self.type
+                            == ''NIM'' || self.type == ''N1C''))'
+                        - message: policyNamespace is only valid for type=N1C
+                          rule: '!has(self.policyNamespace) || (has(self.type) &&
+                            self.type == ''N1C'')'
                       apLogConf:
                         description: The App Protect WAF log conf resource. Accepts
                           an optional namespace. Only works with apPolicy.
@@ -829,28 +933,80 @@ spec:
                             WAF log bundle. Mutually exclusive with apLogBundle and
                             apLogConf.
                           properties:
+                            policyName:
+                              description: |-
+                                PolicyName is the name of the policy as it exists on the management plane.
+                                Required when type is NIM or N1C. Not valid for HTTP.
+                              type: string
+                            policyNamespace:
+                              description: |-
+                                PolicyNamespace is the namespace or tenant that owns the policy on the management plane.
+                                Required when type is N1C. Optional for NIM. Not valid for HTTP.
+                              type: string
                             pollInterval:
                               default: 1m
                               description: |-
-                                PollInterval defines how frequently to check for bundle updates via ETag.
-                                Default: 1m. Format: Go duration string (e.g., "30s", "2m", "1h").
+                                PollInterval defines how frequently NIC checks the remote source for updates using
+                                an ETag-based conditional GET. Default: 1m. Minimum: 10s.
+                                Format: Go duration string (e.g. "30s", "2m", "1h").
                               pattern: ^[0-9]+(s|m|h)$
                               type: string
-                            tlsSecret:
+                            retryAttempts:
                               description: |-
-                                TLSSecret is a reference to a kubernetes.io/tls Secret for mTLS authentication.
-                                The secret must contain tls.crt and tls.key. An optional ca.crt entry is used
-                                to verify the remote server's certificate. It must be in the same namespace as the Policy resource.
+                                RetryAttempts is the number of times NIC will retry a failed fetch before giving up.
+                                Range: 1–10. Default: 3.
+                              maximum: 10
+                              minimum: 1
+                              type: integer
+                            secret:
+                              description: |-
+                                Secret is the name of a Kubernetes Secret in the same namespace as the Policy,
+                                used for authentication with the remote source.
+                                  HTTP:    kubernetes.io/tls Secret — tls.crt + tls.key for client mTLS,
+                                           optional ca.crt for server certificate verification.
+                                  NIM/N1C: Opaque Secret — API credentials expected by the management plane.
                               pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                               type: string
+                            timeout:
+                              description: |-
+                                Timeout is the per-request HTTP timeout for fetching the bundle.
+                                Default: 30s. Format: Go duration string (e.g. "10s", "1m").
+                              pattern: ^[0-9]+(s|m|h)$
+                              type: string
+                            type:
+                              default: HTTP
+                              description: Type distinguishes the kind of remote source.
+                                Defaults to HTTP.
+                              enum:
+                              - HTTP
+                              - NIM
+                              - N1C
+                              type: string
                             url:
-                              description: URL is the HTTPS endpoint to fetch the
-                                bundle tarball from.
+                              description: |-
+                                URL is the source endpoint. Its meaning depends on type:
+                                  HTTP: full .tgz file URL  (e.g. https://server/bundles/policy.tgz)
+                                  NIM:  NIM API base URL    (e.g. https://nim.example.com)
+                                  N1C:  N1C tenant API URL  (e.g. https://my-tenant.console.ves.volterra.io)
                               pattern: ^https://
                               type: string
+                            verifyChecksum:
+                              default: false
+                              description: |-
+                                VerifyChecksum enables SHA-256 integrity verification after each download.
+                                When true, NIC compares the SHA-256 of the downloaded body against the value
+                                embedded in the ETag returned by the server. Default: false.
+                              type: boolean
                           required:
                           - url
                           type: object
+                          x-kubernetes-validations:
+                          - message: policyName is only valid for type=NIM or type=N1C
+                            rule: '!has(self.policyName) || (has(self.type) && (self.type
+                              == ''NIM'' || self.type == ''N1C''))'
+                          - message: policyNamespace is only valid for type=N1C
+                            rule: '!has(self.policyNamespace) || (has(self.type) &&
+                              self.type == ''N1C'')'
                         apLogConf:
                           description: The App Protect WAF log conf resource. Accepts
                             an optional namespace. Only works with apPolicy.

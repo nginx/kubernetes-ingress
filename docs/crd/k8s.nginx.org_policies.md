@@ -128,26 +128,44 @@ The `.spec` object supports the following fields:
 | `waf` | `object` | The WAF policy configures WAF and log configuration policies for NGINX AppProtect |
 | `waf.apBundle` | `string` | The App Protect WAF policy bundle. Mutually exclusive with apPolicy and apBundleSource. |
 | `waf.apBundleSource` | `object` | The remote source for fetching the App Protect WAF policy bundle. Mutually exclusive with apPolicy and apBundle. |
-| `waf.apBundleSource.pollInterval` | `string` | PollInterval defines how frequently to check for bundle updates via ETag. Default: 1m. Format: Go duration string (e.g., "30s", "2m", "1h"). |
-| `waf.apBundleSource.tlsSecret` | `string` | TLSSecret is a reference to a kubernetes.io/tls Secret for mTLS authentication. The secret must contain tls.crt and tls.key. An optional ca.crt entry is used to verify the remote server's certificate. It must be in the same namespace as the Policy resource. |
-| `waf.apBundleSource.url` | `string` | URL is the HTTPS endpoint to fetch the bundle tarball from. |
+| `waf.apBundleSource.policyName` | `string` | PolicyName is the name of the policy as it exists on the management plane. Required when type is NIM or N1C. Not valid for HTTP. |
+| `waf.apBundleSource.policyNamespace` | `string` | PolicyNamespace is the namespace or tenant that owns the policy on the management plane. Required when type is N1C. Optional for NIM. Not valid for HTTP. |
+| `waf.apBundleSource.pollInterval` | `string` | PollInterval defines how frequently NIC checks the remote source for updates using an ETag-based conditional GET. Default: 1m. Minimum: 10s. Format: Go duration string (e.g. "30s", "2m", "1h"). |
+| `waf.apBundleSource.retryAttempts` | `integer` | RetryAttempts is the number of times NIC will retry a failed fetch before giving up. Range: 1–10. Default: 3. |
+| `waf.apBundleSource.secret` | `string` | Secret is the name of a Kubernetes Secret in the same namespace as the Policy, used for authentication with the remote source. HTTP: kubernetes.io/tls Secret — tls.crt + tls.key for client mTLS, optional ca.crt for server certificate verification. NIM/N1C: Opaque Secret — API credentials expected by the management plane. |
+| `waf.apBundleSource.timeout` | `string` | Timeout is the per-request HTTP timeout for fetching the bundle. Default: 30s. Format: Go duration string (e.g. "10s", "1m"). |
+| `waf.apBundleSource.type` | `string` | Type distinguishes the kind of remote source. Defaults to HTTP. Allowed values: `"HTTP"`, `"NIM"`, `"N1C"`. |
+| `waf.apBundleSource.url` | `string` | URL is the source endpoint. Its meaning depends on type: HTTP: full .tgz file URL (e.g. https://server/bundles/policy.tgz) NIM: NIM API base URL (e.g. https://nim.example.com) N1C: N1C tenant API URL (e.g. https://my-tenant.console.ves.volterra.io) |
+| `waf.apBundleSource.verifyChecksum` | `boolean` | VerifyChecksum enables SHA-256 integrity verification after each download. When true, NIC compares the SHA-256 of the downloaded body against the value embedded in the ETag returned by the server. Default: false. |
 | `waf.apPolicy` | `string` | The App Protect WAF policy of the WAF. Accepts an optional namespace. Mutually exclusive with apBundle and apBundleSource. |
 | `waf.enable` | `boolean` | Enables NGINX App Protect WAF. |
 | `waf.securityLog` | `object` | SecurityLog defines the security log of a WAF policy. |
 | `waf.securityLog.apLogBundle` | `string` | The App Protect WAF log bundle resource. Only works with apBundle or apBundleSource. |
 | `waf.securityLog.apLogBundleSource` | `object` | The remote source for fetching the App Protect WAF log bundle. Mutually exclusive with apLogBundle and apLogConf. |
-| `waf.securityLog.apLogBundleSource.pollInterval` | `string` | PollInterval defines how frequently to check for bundle updates via ETag. Default: 1m. Format: Go duration string (e.g., "30s", "2m", "1h"). |
-| `waf.securityLog.apLogBundleSource.tlsSecret` | `string` | TLSSecret is a reference to a kubernetes.io/tls Secret for mTLS authentication. The secret must contain tls.crt and tls.key. An optional ca.crt entry is used to verify the remote server's certificate. It must be in the same namespace as the Policy resource. |
-| `waf.securityLog.apLogBundleSource.url` | `string` | URL is the HTTPS endpoint to fetch the bundle tarball from. |
+| `waf.securityLog.apLogBundleSource.policyName` | `string` | PolicyName is the name of the policy as it exists on the management plane. Required when type is NIM or N1C. Not valid for HTTP. |
+| `waf.securityLog.apLogBundleSource.policyNamespace` | `string` | PolicyNamespace is the namespace or tenant that owns the policy on the management plane. Required when type is N1C. Optional for NIM. Not valid for HTTP. |
+| `waf.securityLog.apLogBundleSource.pollInterval` | `string` | PollInterval defines how frequently NIC checks the remote source for updates using an ETag-based conditional GET. Default: 1m. Minimum: 10s. Format: Go duration string (e.g. "30s", "2m", "1h"). |
+| `waf.securityLog.apLogBundleSource.retryAttempts` | `integer` | RetryAttempts is the number of times NIC will retry a failed fetch before giving up. Range: 1–10. Default: 3. |
+| `waf.securityLog.apLogBundleSource.secret` | `string` | Secret is the name of a Kubernetes Secret in the same namespace as the Policy, used for authentication with the remote source. HTTP: kubernetes.io/tls Secret — tls.crt + tls.key for client mTLS, optional ca.crt for server certificate verification. NIM/N1C: Opaque Secret — API credentials expected by the management plane. |
+| `waf.securityLog.apLogBundleSource.timeout` | `string` | Timeout is the per-request HTTP timeout for fetching the bundle. Default: 30s. Format: Go duration string (e.g. "10s", "1m"). |
+| `waf.securityLog.apLogBundleSource.type` | `string` | Type distinguishes the kind of remote source. Defaults to HTTP. Allowed values: `"HTTP"`, `"NIM"`, `"N1C"`. |
+| `waf.securityLog.apLogBundleSource.url` | `string` | URL is the source endpoint. Its meaning depends on type: HTTP: full .tgz file URL (e.g. https://server/bundles/policy.tgz) NIM: NIM API base URL (e.g. https://nim.example.com) N1C: N1C tenant API URL (e.g. https://my-tenant.console.ves.volterra.io) |
+| `waf.securityLog.apLogBundleSource.verifyChecksum` | `boolean` | VerifyChecksum enables SHA-256 integrity verification after each download. When true, NIC compares the SHA-256 of the downloaded body against the value embedded in the ETag returned by the server. Default: false. |
 | `waf.securityLog.apLogConf` | `string` | The App Protect WAF log conf resource. Accepts an optional namespace. Only works with apPolicy. |
 | `waf.securityLog.enable` | `boolean` | Enables security log. |
 | `waf.securityLog.logDest` | `string` | The log destination for the security log. Only accepted variables are syslog:server=<ip-address>; localhost; fqdn>:<port>, stderr, <absolute path to file>. |
 | `waf.securityLogs` | `array` | List of configuration values. |
 | `waf.securityLogs[].apLogBundle` | `string` | The App Protect WAF log bundle resource. Only works with apBundle or apBundleSource. |
 | `waf.securityLogs[].apLogBundleSource` | `object` | The remote source for fetching the App Protect WAF log bundle. Mutually exclusive with apLogBundle and apLogConf. |
-| `waf.securityLogs[].apLogBundleSource.pollInterval` | `string` | PollInterval defines how frequently to check for bundle updates via ETag. Default: 1m. Format: Go duration string (e.g., "30s", "2m", "1h"). |
-| `waf.securityLogs[].apLogBundleSource.tlsSecret` | `string` | TLSSecret is a reference to a kubernetes.io/tls Secret for mTLS authentication. The secret must contain tls.crt and tls.key. An optional ca.crt entry is used to verify the remote server's certificate. It must be in the same namespace as the Policy resource. |
-| `waf.securityLogs[].apLogBundleSource.url` | `string` | URL is the HTTPS endpoint to fetch the bundle tarball from. |
+| `waf.securityLogs[].apLogBundleSource.policyName` | `string` | PolicyName is the name of the policy as it exists on the management plane. Required when type is NIM or N1C. Not valid for HTTP. |
+| `waf.securityLogs[].apLogBundleSource.policyNamespace` | `string` | PolicyNamespace is the namespace or tenant that owns the policy on the management plane. Required when type is N1C. Optional for NIM. Not valid for HTTP. |
+| `waf.securityLogs[].apLogBundleSource.pollInterval` | `string` | PollInterval defines how frequently NIC checks the remote source for updates using an ETag-based conditional GET. Default: 1m. Minimum: 10s. Format: Go duration string (e.g. "30s", "2m", "1h"). |
+| `waf.securityLogs[].apLogBundleSource.retryAttempts` | `integer` | RetryAttempts is the number of times NIC will retry a failed fetch before giving up. Range: 1–10. Default: 3. |
+| `waf.securityLogs[].apLogBundleSource.secret` | `string` | Secret is the name of a Kubernetes Secret in the same namespace as the Policy, used for authentication with the remote source. HTTP: kubernetes.io/tls Secret — tls.crt + tls.key for client mTLS, optional ca.crt for server certificate verification. NIM/N1C: Opaque Secret — API credentials expected by the management plane. |
+| `waf.securityLogs[].apLogBundleSource.timeout` | `string` | Timeout is the per-request HTTP timeout for fetching the bundle. Default: 30s. Format: Go duration string (e.g. "10s", "1m"). |
+| `waf.securityLogs[].apLogBundleSource.type` | `string` | Type distinguishes the kind of remote source. Defaults to HTTP. Allowed values: `"HTTP"`, `"NIM"`, `"N1C"`. |
+| `waf.securityLogs[].apLogBundleSource.url` | `string` | URL is the source endpoint. Its meaning depends on type: HTTP: full .tgz file URL (e.g. https://server/bundles/policy.tgz) NIM: NIM API base URL (e.g. https://nim.example.com) N1C: N1C tenant API URL (e.g. https://my-tenant.console.ves.volterra.io) |
+| `waf.securityLogs[].apLogBundleSource.verifyChecksum` | `boolean` | VerifyChecksum enables SHA-256 integrity verification after each download. When true, NIC compares the SHA-256 of the downloaded body against the value embedded in the ETag returned by the server. Default: false. |
 | `waf.securityLogs[].apLogConf` | `string` | The App Protect WAF log conf resource. Accepts an optional namespace. Only works with apPolicy. |
 | `waf.securityLogs[].enable` | `boolean` | Enables security log. |
 | `waf.securityLogs[].logDest` | `string` | The log destination for the security log. Only accepted variables are syslog:server=<ip-address>; localhost; fqdn>:<port>, stderr, <absolute path to file>. |

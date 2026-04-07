@@ -252,13 +252,15 @@ func (lbc *LoadBalancerController) registerBundleSource(namespace, name, bundleT
 		return
 	}
 
-	// Resolve the TLS secret data for mTLS.
+	// Resolve the effective secret name.
+	secretName := src.Secret
+
 	var secretData map[string][]byte
-	if src.TLSSecret != "" {
-		secretKey := namespace + "/" + src.TLSSecret
+	if secretName != "" {
+		secretKey := namespace + "/" + secretName
 		secretRef := lbc.secretStore.GetSecret(secretKey)
 		if secretRef.Error != nil {
-			nl.Errorf(lbc.Logger, "Failed to resolve TLS secret %s for bundle source: %v", secretKey, secretRef.Error)
+			nl.Errorf(lbc.Logger, "Failed to resolve secret %s for bundle source: %v", secretKey, secretRef.Error)
 			return
 		}
 		if secretRef.Secret != nil {
@@ -271,7 +273,14 @@ func (lbc *LoadBalancerController) registerBundleSource(namespace, name, bundleT
 		pollInterval = time.Minute
 	}
 
-	lbc.bundleFetcher.Register(bundleKey, src.URL, secretData, pollInterval)
+	var timeout time.Duration
+	if src.Timeout != "" {
+		if t, err := time.ParseDuration(src.Timeout); err == nil {
+			timeout = t
+		}
+	}
+
+	lbc.bundleFetcher.Register(bundleKey, src.URL, secretData, pollInterval, timeout)
 
 	// Perform an initial synchronous fetch.
 	ctx, cancel := context.WithTimeout(lbc.ctx, 30*time.Second)
