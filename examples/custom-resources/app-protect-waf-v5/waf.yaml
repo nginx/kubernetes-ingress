@@ -9,5 +9,5 @@ spec:
     enable: true
     apBundleSource:
       url: "https://bundle-server.bundle-server.svc.cluster.local/bundles/compiled_policy.tgz"
-      tlsSecret: "bundle-client-tls"
+      secret: "bundle-client-tls"
       pollInterval: "1m"
