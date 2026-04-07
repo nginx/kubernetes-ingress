@@ -1350,7 +1350,39 @@ func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx) error {
 		}
 	}
 
+	// Update external auth upstreams via the Plus API.
+	// These are generated from policies referenced by the Ingress
+	// and are not part of the Ingress spec, so they need separate handling.
+	for _, pol := range ingEx.Policies {
+		if pol.Spec.ExternalAuth == nil || pol.Spec.ExternalAuth.AuthServiceName == "" {
+			continue
+		}
+		exAuth := pol.Spec.ExternalAuth
+		upstreamName := fmt.Sprintf("ing_exauth_%s_%s", pol.Namespace, pol.Name)
+		port := getExternalAuthPort(exAuth)
+		ns, svcName := ParseServiceReference(exAuth.AuthServiceName, pol.Namespace)
+		endpointKey := fmt.Sprintf("%s/%s:%d", ns, svcName, port)
+		if endps, exists := ingEx.Endpoints[endpointKey]; exists {
+			err := cnf.updateServersInPlus(upstreamName, endps, cfg)
+			if err != nil {
+				return fmt.Errorf("couldn't update the endpoints for external auth upstream %v: %w", upstreamName, err)
+			}
+		}
+	}
+
 	return nil
+}
+
+// getExternalAuthPort returns the port for the external auth service.
+// It checks AuthServicePorts first, then falls back to 443 (SSL) or 80.
+func getExternalAuthPort(exAuth *conf_v1.ExternalAuth) int {
+	if len(exAuth.AuthServicePorts) > 0 && exAuth.AuthServicePorts[0] > 0 {
+		return exAuth.AuthServicePorts[0]
+	}
+	if exAuth.SSLEnabled {
+		return 443
+	}
+	return 80
 }
 
 // EnableReloads enables NGINX reloads meaning that configuration changes will be followed by a reload.
