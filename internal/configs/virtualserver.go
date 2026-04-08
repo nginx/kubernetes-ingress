@@ -751,7 +751,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				proxySSLName, r.Path, vsLocSnippets, vsc.enableSnippets, len(returnLocations), isVSR, "", "", vsc.warnings)
 			addPoliciesCfgToLocation(routePoliciesCfg, &loc)
 			loc.Dos = dosRouteCfg
-			loc.AddHeaderInherit = strings.ToLower(r.AddHeaderInherit)
+			loc.AddHeaderInherit = r.AddHeaderInherit
 
 			locations = append(locations, loc)
 			if returnLoc != nil {
@@ -935,7 +935,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 					proxySSLName, r.Path, locSnippets, vsc.enableSnippets, len(returnLocations), isVSR, vsr.Name, vsr.Namespace, vsc.warnings)
 				addPoliciesCfgToLocation(routePoliciesCfg, &loc)
 				loc.Dos = dosRouteCfg
-				loc.AddHeaderInherit = strings.ToLower(r.AddHeaderInherit)
+				loc.AddHeaderInherit = r.AddHeaderInherit
 
 				locations = append(locations, loc)
 				if returnLoc != nil {
@@ -972,7 +972,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		Server: version2.Server{
 			ServerName:                vsEx.VirtualServer.Spec.Host,
 			Gunzip:                    vsEx.VirtualServer.Spec.Gunzip,
-			AddHeaderInherit:          strings.ToLower(vsEx.VirtualServer.Spec.AddHeaderInherit),
+			AddHeaderInherit:          vsEx.VirtualServer.Spec.AddHeaderInherit,
 			StatusZone:                vsEx.VirtualServer.Spec.Host,
 			HTTPPort:                  vsEx.HTTPPort,
 			HTTPSPort:                 vsEx.HTTPSPort,
@@ -1227,7 +1227,7 @@ func addDosConfigToLocations(dosCfg *version2.Dos, locations []version2.Location
 
 func addAddHeaderInheritToLocations(addHeaderInherit string, locations []version2.Location) {
 	for i := range locations {
-		locations[i].AddHeaderInherit = strings.ToLower(addHeaderInherit)
+		locations[i].AddHeaderInherit = addHeaderInherit
 	}
 }
 

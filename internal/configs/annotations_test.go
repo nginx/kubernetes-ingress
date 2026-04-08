@@ -207,7 +207,7 @@ func TestMergeMasterAnnotationsIntoMinion(t *testing.T) {
 		"nginx.org/hsts":                  "True",
 		"nginx.org/hsts-max-age":          "2700000",
 		"nginx.org/proxy-connect-timeout": "50s",
-		AddHeaderInheritAnnotation:        AddHeaderInheritOn,
+		AddHeaderInheritAnnotation:        addHeaderInheritOn,
 		JWTTokenAnnotation:                "$cookie_auth_token",
 	}
 	minionAnnotations := map[string]string{
@@ -237,7 +237,7 @@ func TestParseAnnotationsAddHeaderInherit(t *testing.T) {
 				Name:      "test-ingress",
 				Namespace: "default",
 				Annotations: map[string]string{
-					AddHeaderInheritAnnotation: AddHeaderInheritMerge,
+					AddHeaderInheritAnnotation: addHeaderInheritMerge,
 				},
 			},
 		},
@@ -246,8 +246,8 @@ func TestParseAnnotationsAddHeaderInherit(t *testing.T) {
 	baseCfgParams := NewDefaultConfigParams(context.Background(), false)
 	result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
 
-	if result.AddHeaderInherit != AddHeaderInheritMerge {
-		t.Errorf("Expected AddHeaderInherit %q, got %q", AddHeaderInheritMerge, result.AddHeaderInherit)
+	if result.AddHeaderInherit != addHeaderInheritMerge {
+		t.Errorf("Expected AddHeaderInherit %q, got %q", addHeaderInheritMerge, result.AddHeaderInherit)
 	}
 }
 

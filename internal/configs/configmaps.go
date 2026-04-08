@@ -422,15 +422,13 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 	}
 
 	if addHeaderInherit, exists := cfgm.Data["add-header-inherit"]; exists {
-		normalizedValue := strings.ToLower(addHeaderInherit)
-		switch normalizedValue {
-		case "on", "off", "merge":
-			cfgParams.AddHeaderInherit = normalizedValue
-		default:
-			errorText := fmt.Sprintf("ConfigMap %s/%s: 'add-header-inherit' must be one of: on, off, merge", cfgm.GetNamespace(), cfgm.GetName())
-			nl.Error(l, errorText)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+		if parsed, err := ParseAddHeaderInherit(addHeaderInherit); err != nil {
+			wrappedError := fmt.Errorf("ConfigMap %s/%s: invalid value for 'add-header-inherit': %w", cfgm.GetNamespace(), cfgm.GetName(), err)
+			nl.Errorf(l, "%s", wrappedError.Error())
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, wrappedError.Error())
 			configOk = false
+		} else {
+			cfgParams.AddHeaderInherit = parsed
 		}
 	}
 

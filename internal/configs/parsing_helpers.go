@@ -167,21 +167,18 @@ func ParseBool(s string) (bool, error) {
 }
 
 const (
-	// AddHeaderInheritOn keeps the standard add_header inheritance model.
-	AddHeaderInheritOn = "on"
-	// AddHeaderInheritOff disables inheriting add_header values from the parent context.
-	AddHeaderInheritOff = "off"
-	// AddHeaderInheritMerge appends inherited add_header values to the current context values.
-	AddHeaderInheritMerge = "merge"
+	addHeaderInheritOn    = "on"
+	addHeaderInheritOff   = "off"
+	addHeaderInheritMerge = "merge"
 )
 
 // ParseAddHeaderInherit validates the add_header_inherit directive mode.
 func ParseAddHeaderInherit(value string) (string, error) {
 	switch value {
-	case AddHeaderInheritOn, AddHeaderInheritOff, AddHeaderInheritMerge:
+	case addHeaderInheritOn, addHeaderInheritOff, addHeaderInheritMerge:
 		return value, nil
 	default:
-		return "", fmt.Errorf("must be one of: '%s', '%s' or '%s'", AddHeaderInheritOn, AddHeaderInheritOff, AddHeaderInheritMerge)
+		return "", fmt.Errorf("must be one of: '%s', '%s' or '%s'", addHeaderInheritOn, addHeaderInheritOff, addHeaderInheritMerge)
 	}
 }
 

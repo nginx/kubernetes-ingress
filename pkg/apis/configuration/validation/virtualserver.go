@@ -129,19 +129,6 @@ func (vsv *VirtualServerValidator) validateVirtualServerSpec(spec *v1.VirtualSer
 	return allErrs
 }
 
-func validateAddHeaderInherit(value string, fieldPath *field.Path) field.ErrorList {
-	if value == "" {
-		return nil
-	}
-
-	switch strings.ToLower(value) {
-	case "on", "off", "merge":
-		return nil
-	default:
-		return field.ErrorList{field.Invalid(fieldPath, value, "must be one of: `on`, `off`, `merge`")}
-	}
-}
-
 const wildcardPrefix = "*."
 
 func validateHost(host string, fieldPath *field.Path) field.ErrorList {

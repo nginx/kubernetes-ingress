@@ -707,9 +707,9 @@ func TestParseAddHeaderInherit(t *testing.T) {
 	t.Parallel()
 
 	testsWithValidInput := []string{
-		AddHeaderInheritOn,
-		AddHeaderInheritOff,
-		AddHeaderInheritMerge,
+		addHeaderInheritOn,
+		addHeaderInheritOff,
+		addHeaderInheritMerge,
 	}
 
 	for _, input := range testsWithValidInput {

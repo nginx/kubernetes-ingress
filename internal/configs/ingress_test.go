@@ -53,11 +53,11 @@ func TestGenerateNginxCfgForAddHeaderInherit(t *testing.T) {
 	isPlus := false
 	configParams := NewDefaultConfigParams(context.Background(), isPlus)
 	cafeIngressEx := createCafeIngressEx()
-	cafeIngressEx.Ingress.Annotations[AddHeaderInheritAnnotation] = AddHeaderInheritMerge
+	cafeIngressEx.Ingress.Annotations[AddHeaderInheritAnnotation] = addHeaderInheritMerge
 
 	expected := createExpectedConfigForCafeIngressEx(isPlus)
-	expected.Servers[0].AddHeaderInherit = AddHeaderInheritMerge
-	expected.Ingress.Annotations[AddHeaderInheritAnnotation] = AddHeaderInheritMerge
+	expected.Servers[0].AddHeaderInherit = addHeaderInheritMerge
+	expected.Ingress.Annotations[AddHeaderInheritAnnotation] = addHeaderInheritMerge
 
 	result, warnings := generateNginxCfg(NginxCfgParams{
 		staticParams:         &StaticConfigParams{},
@@ -1367,22 +1367,22 @@ func TestGenerateNginxCfgForMergeableIngressesAddHeaderInherit(t *testing.T) {
 	t.Parallel()
 
 	mergeableIngresses := createMergeableCafeIngress()
-	mergeableIngresses.Master.Ingress.Annotations[AddHeaderInheritAnnotation] = AddHeaderInheritMerge
+	mergeableIngresses.Master.Ingress.Annotations[AddHeaderInheritAnnotation] = addHeaderInheritMerge
 	for i, minion := range mergeableIngresses.Minions {
 		if strings.Contains(minion.Ingress.Name, "coffee") {
-			mergeableIngresses.Minions[i].Ingress.Annotations[AddHeaderInheritAnnotation] = AddHeaderInheritOff
+			mergeableIngresses.Minions[i].Ingress.Annotations[AddHeaderInheritAnnotation] = addHeaderInheritOff
 		}
 	}
 
 	isPlus := false
 	configParams := NewDefaultConfigParams(context.Background(), isPlus)
 	expected := createExpectedConfigForMergeableCafeIngress(isPlus)
-	expected.Servers[0].AddHeaderInherit = AddHeaderInheritMerge
-	expected.Ingress.Annotations[AddHeaderInheritAnnotation] = AddHeaderInheritMerge
+	expected.Servers[0].AddHeaderInherit = addHeaderInheritMerge
+	expected.Ingress.Annotations[AddHeaderInheritAnnotation] = addHeaderInheritMerge
 	for i, location := range expected.Servers[0].Locations {
 		if location.MinionIngress.Name == "cafe-ingress-coffee-minion" {
-			expected.Servers[0].Locations[i].AddHeaderInherit = AddHeaderInheritOff
-			expected.Servers[0].Locations[i].MinionIngress.Annotations[AddHeaderInheritAnnotation] = AddHeaderInheritOff
+			expected.Servers[0].Locations[i].AddHeaderInherit = addHeaderInheritOff
+			expected.Servers[0].Locations[i].MinionIngress.Annotations[AddHeaderInheritAnnotation] = addHeaderInheritOff
 		}
 	}
 
