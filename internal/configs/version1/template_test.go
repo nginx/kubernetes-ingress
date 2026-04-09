@@ -15,7 +15,7 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
 )
 
-var fakeManager = nginx.NewFakeManager(context.Background(), "/etc/nginx")
+var fakeManager = nginx.NewFakeManager(context.Background(), "/etc/nginx", false)
 
 func TestMain(m *testing.M) {
 	v := m.Run()

@@ -88,11 +88,6 @@ func main() {
 	ctx := initLogger(*logFormat, logLevels[*logLevel], os.Stdout)
 	l := nl.LoggerFromContext(ctx)
 
-	// TODO: Use fake manager
-	if *proxyURL == "" {
-		cleanupSocketFiles(l)
-	}
-
 	initValidate(ctx)
 	parsedFlags := os.Args[1:]
 
@@ -167,6 +162,8 @@ func main() {
 	}
 
 	nginxManager, useFakeNginxManager := createNginxManager(ctx, managerCollector, licenseReporter, deploymentMetadata)
+
+	nginxManager.CleanupSocketFiles()
 
 	nginxVersion := getNginxVersionInfo(ctx, nginxManager)
 
@@ -630,7 +627,7 @@ func createNginxManager(ctx context.Context, managerCollector collectors.Manager
 	var nginxManager nginx.Manager
 	switch {
 	case useFakeNginxManager:
-		nginxManager = nginx.NewFakeManager(ctx, "/etc/nginx")
+		nginxManager = nginx.NewFakeManager(ctx, "/etc/nginx", *nginxPlus)
 	case *enableConfigSafety:
 		nginxManager = nginx.NewConfigRollbackManager(ctx, "/etc/nginx/", *nginxDebug, managerCollector, licenseReporter, deploymentMetadata, timeout, *nginxPlus)
 	default:
@@ -885,24 +882,6 @@ func handleTermination(lbc *k8s.LoadBalancerController, nginxManager nginx.Manag
 	}
 	nl.Info(lbc.Logger, "Exiting successfully")
 	os.Exit(0)
-}
-
-// Clean up any leftover socket files from previous runs
-func cleanupSocketFiles(l *slog.Logger) {
-	files, readErr := os.ReadDir(socketPath)
-	if readErr != nil {
-		nl.Errorf(l, "error trying to read directory %s: %v", socketPath, readErr)
-	} else {
-		for _, f := range files {
-			if !f.IsDir() && strings.HasSuffix(f.Name(), ".sock") {
-				fullPath := filepath.Join(socketPath, f.Name())
-				nl.Infof(l, "Removing socket file %s", fullPath)
-				if removeErr := os.Remove(fullPath); removeErr != nil {
-					nl.Errorf(l, "error trying to remove file %s: %v", fullPath, removeErr)
-				}
-			}
-		}
-	}
 }
 
 func ready(lbc *k8s.LoadBalancerController) http.HandlerFunc {
