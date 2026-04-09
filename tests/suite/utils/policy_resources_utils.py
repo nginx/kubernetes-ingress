@@ -132,6 +132,8 @@ def teardown_policy_backend(kube_apis, namespace, *, backend_yaml, secret_names,
     """Delete policies, backend, and secrets.
 
     Generic teardown counterpart to setup_policy_backend.
+    Each deletion is wrapped individually so that already-deleted resources
+    (e.g. from destructive tests) do not prevent subsequent cleanup.
 
     Args:
         kube_apis: KubeApis instance.
@@ -141,15 +143,24 @@ def teardown_policy_backend(kube_apis, namespace, *, backend_yaml, secret_names,
         policy_names: List of policy names to delete.
     """
     for pol_name in policy_names:
-        print(f"Delete policy: {pol_name}")
-        delete_policy(kube_apis.custom_objects, pol_name, namespace)
+        try:
+            print(f"Delete policy: {pol_name}")
+            delete_policy(kube_apis.custom_objects, pol_name, namespace)
+        except Exception:
+            logging.debug(f"teardown: ignoring error deleting policy {pol_name} (may already be deleted)")
 
-    print(f"Delete backend from {backend_yaml}")
-    delete_items_from_yaml(kube_apis, backend_yaml, namespace)
+    try:
+        print(f"Delete backend from {backend_yaml}")
+        delete_items_from_yaml(kube_apis, backend_yaml, namespace)
+    except Exception:
+        logging.debug(f"teardown: ignoring error deleting backend {backend_yaml} (may already be deleted)")
 
     for secret_name in secret_names:
-        print(f"Delete secret: {secret_name}")
-        delete_secret(kube_apis.v1, secret_name, namespace)
+        try:
+            print(f"Delete secret: {secret_name}")
+            delete_secret(kube_apis.v1, secret_name, namespace)
+        except Exception:
+            logging.debug(f"teardown: ignoring error deleting secret {secret_name} (may already be deleted)")
 
 
 def apply_and_assert_valid_policy(kube_apis, namespace, policy_yaml, debug=False) -> str:
