@@ -104,6 +104,7 @@ server {
     {{- end }}
 
     {{- with $s.TLSRedirect }}
+    set $vs_redirect_to_https 0;
     if ({{ .BasedOn }} = 'http') {
         set $vs_redirect_to_https 1;
     }
