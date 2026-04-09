@@ -29,7 +29,6 @@
 .github/workflows/dockerhub-description.yml
 .github/workflows/docs-build-push.yml
 .github/workflows/f5-cla.yml
-.github/workflows/fossa.yml
 .github/workflows/image-promotion.yml
 .github/workflows/issues.yaml
 .github/workflows/labeler.yml
