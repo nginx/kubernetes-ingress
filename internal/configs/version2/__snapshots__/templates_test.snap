@@ -285,6 +285,7 @@ server {
     ssl_client_certificate ingress-mtls-secret;
     ssl_verify_client on;
     ssl_verify_depth 2;
+    set $vs_redirect_to_https 0;
     if ($scheme = 'http') {
         set $vs_redirect_to_https 1;
     }
@@ -721,6 +722,7 @@ server {
     ssl_client_certificate ingress-mtls-secret;
     ssl_verify_client on;
     ssl_verify_depth 2;
+    set $vs_redirect_to_https 0;
     if ($scheme = 'http') {
         set $vs_redirect_to_https 1;
     }
@@ -3366,6 +3368,7 @@ server {
     ssl_client_certificate ingress-mtls-secret;
     ssl_verify_client on;
     ssl_verify_depth 2;
+    set $vs_redirect_to_https 0;
     if ($scheme = 'http') {
         set $vs_redirect_to_https 1;
     }
@@ -3747,6 +3750,7 @@ server {
     ssl_client_certificate ingress-mtls-secret;
     ssl_verify_client on;
     ssl_verify_depth 2;
+    set $vs_redirect_to_https 0;
     if ($scheme = 'http') {
         set $vs_redirect_to_https 1;
     }
@@ -4160,6 +4164,7 @@ server {
     ssl_client_certificate ingress-mtls-secret;
     ssl_verify_client on;
     ssl_verify_depth 2;
+    set $vs_redirect_to_https 0;
     if ($scheme = 'http') {
         set $vs_redirect_to_https 1;
     }
@@ -4576,6 +4581,7 @@ server {
     ssl_client_certificate ingress-mtls-secret;
     ssl_verify_client on;
     ssl_verify_depth 2;
+    set $vs_redirect_to_https 0;
     if ($scheme = 'http') {
         set $vs_redirect_to_https 1;
     }
@@ -4968,58 +4974,6 @@ server {
 
 ---
 
-[TestVirtualServerForNginxWithAllPathTypes - 1]
-
-server {
-    listen 80;
-    listen [::]:80;
-
-
-    server_name path-types.example.com;
-
-    set $resource_type "virtualserver";
-    set $resource_name "";
-    set $resource_namespace "";
-    set $service "-";
-
-    server_tokens "";
-
-    
-    
-    location /images/ {
-        set $service "";
-
-        
-        set $default_connection_header close;
-    }
-    location =/images/logo.jpg {
-        set $service "";
-
-        
-        set $default_connection_header close;
-    }
-    location ^~ /images/static/ {
-        set $service "";
-
-        
-        set $default_connection_header close;
-    }
-    location ~ "\.jpg$" {
-        set $service "";
-
-        
-        set $default_connection_header close;
-    }
-    location ~* "\.png$" {
-        set $service "";
-
-        
-        set $default_connection_header close;
-    }
-}
-
----
-
 [TestVirtualServerForNginxWithACMEChallengeBypass - 1]
 
 upstream test-upstream {
@@ -5074,6 +5028,7 @@ server {
     ssl_client_certificate ingress-mtls-secret;
     ssl_verify_client on;
     ssl_verify_depth 2;
+    set $vs_redirect_to_https 0;
     if ($scheme = 'http') {
         set $vs_redirect_to_https 1;
     }
@@ -5401,6 +5356,59 @@ server {
 
 ---
 
+[TestVirtualServerForNginxWithAllPathTypes - 1]
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name path-types.example.com;
+
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+
+    
+
+    
+    location /images/ {
+        set $service "";
+
+        
+        set $default_connection_header close;
+    }
+    location =/images/logo.jpg {
+        set $service "";
+
+        
+        set $default_connection_header close;
+    }
+    location ^~ /images/static/ {
+        set $service "";
+
+        
+        set $default_connection_header close;
+    }
+    location ~ "\.jpg$" {
+        set $service "";
+
+        
+        set $default_connection_header close;
+    }
+    location ~* "\.png$" {
+        set $service "";
+
+        
+        set $default_connection_header close;
+    }
+}
+
+---
+
 [TestVirtualServerForNginxWithServiceBeforeRedirect - 1]
 
 upstream test-upstream {zone test-upstream 256k;
@@ -5452,6 +5460,7 @@ server {
     ssl_client_certificate ingress-mtls-secret;
     ssl_verify_client on;
     ssl_verify_depth 2;
+    set $vs_redirect_to_https 0;
     if ($scheme = 'http') {
         set $vs_redirect_to_https 1;
     }
