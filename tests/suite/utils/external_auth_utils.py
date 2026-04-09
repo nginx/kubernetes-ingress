@@ -1,9 +1,26 @@
-"""Shared helpers and file path constants for external auth policy tests (VS and VSR)."""
+"""Shared helpers, file path constants, and fixtures for external auth policy tests."""
 
+import logging
 from base64 import b64encode
 
+import pytest
 from settings import TEST_DATA
-from suite.utils.policy_resources_utils import setup_policy_backend, teardown_policy_backend
+from suite.utils.policy_resources_utils import (
+    setup_policy_backend,
+    teardown_policy_backend,
+)
+from suite.utils.resources_utils import (
+    create_example_app,
+    create_items_from_yaml,
+    delete_common_app,
+    delete_items_from_yaml,
+    get_reload_count,
+    wait_for_reload,
+    wait_until_all_pods_are_ready,
+)
+from suite.utils.yaml_utils import get_first_ingress_host_from_yaml
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Shared file path constants
@@ -49,6 +66,51 @@ ext_auth_pol_tls_full_multi_src = f"{TEST_DATA}/external-auth/policies/external-
 
 
 # ---------------------------------------------------------------------------
+# Ingress setup helper
+# ---------------------------------------------------------------------------
+
+
+class IngressSetup:
+    """Encapsulate Ingress test setup details."""
+
+    def __init__(self, ingress_host, request_url, ingress_src, namespace, metrics_url):
+        self.ingress_host = ingress_host
+        self.request_url = request_url
+        self.ingress_src = ingress_src
+        self.namespace = namespace
+        self.metrics_url = metrics_url
+
+
+def create_ingress_setup(
+    kube_apis,
+    ingress_controller_endpoint,
+    ingress_controller_prerequisites,
+    test_namespace,
+    ingress_src,
+):
+    """Deploy the backend app and create the Ingress, returning an IngressSetup."""
+    create_example_app(kube_apis, "simple", test_namespace)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+
+    metrics_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.metrics_port}/metrics"
+    count_before = get_reload_count(metrics_url)
+    create_items_from_yaml(kube_apis, ingress_src, test_namespace)
+
+    ingress_host = get_first_ingress_host_from_yaml(ingress_src)
+    request_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/backend1"
+
+    wait_for_reload(metrics_url, count_before)
+
+    return IngressSetup(ingress_host, request_url, ingress_src, test_namespace, metrics_url)
+
+
+def delete_ingress_setup(kube_apis, ingress_setup):
+    """Delete the Ingress and backend app."""
+    delete_items_from_yaml(kube_apis, ingress_setup.ingress_src, ingress_setup.namespace)
+    delete_common_app(kube_apis, "simple", ingress_setup.namespace)
+
+
+# ---------------------------------------------------------------------------
 # Helper functions
 # ---------------------------------------------------------------------------
 
@@ -87,7 +149,16 @@ def build_ext_auth_headers(vs_host, credentials=None):
 # ---------------------------------------------------------------------------
 
 
-def setup_ext_auth(kube_apis, namespace, credentials, policy_yamls, vs_host, *, tls=False, validate_policies=True):
+def setup_ext_auth(
+    kube_apis,
+    namespace,
+    credentials,
+    policy_yamls,
+    vs_host,
+    *,
+    tls=False,
+    validate_policies=True,
+):
     """Setup external auth backend (HTTP or TLS) with policies and request headers.
 
     Args:
@@ -103,7 +174,11 @@ def setup_ext_auth(kube_apis, namespace, credentials, policy_yamls, vs_host, *, 
         (secret_names: list[str], policy_names: list[str], headers: dict)
     """
     if tls:
-        secret_yamls = [ext_auth_backend_secret_src, ext_auth_tls_server_secret_src, ext_auth_tls_ca_secret_src]
+        secret_yamls = [
+            ext_auth_backend_secret_src,
+            ext_auth_tls_server_secret_src,
+            ext_auth_tls_ca_secret_src,
+        ]
         backend_yaml = ext_auth_tls_backend_src
     else:
         secret_yamls = [ext_auth_backend_secret_src]
@@ -138,3 +213,79 @@ def teardown_ext_auth(kube_apis, namespace, secret_names, policy_names, *, tls=F
         secret_names=secret_names,
         policy_names=policy_names,
     )
+
+
+# ---------------------------------------------------------------------------
+# Pytest fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def ext_auth_setup(kube_apis, test_namespace):
+    """Factory fixture that creates external auth resources with guaranteed teardown.
+
+    Yields a callable with the same interface as ``setup_ext_auth`` minus
+    ``kube_apis`` and ``namespace`` (they are captured from the enclosing
+    fixtures).  Resources are tracked and torn down after the test completes
+    -- even when the test raises an exception.
+
+    Destructive tests that manually delete a resource mid-test are safe:
+    the teardown silently ignores resources that no longer exist.
+    """
+    created = []
+
+    def _setup(credentials, policy_yamls, vs_host, *, tls=False, validate_policies=True):
+        secret_names, policy_names, headers = setup_ext_auth(
+            kube_apis,
+            test_namespace,
+            credentials,
+            policy_yamls,
+            vs_host,
+            tls=tls,
+            validate_policies=validate_policies,
+        )
+        created.append((secret_names, policy_names, tls))
+        return secret_names, policy_names, headers
+
+    yield _setup
+
+    for secret_names, policy_names, tls in reversed(created):
+        try:
+            teardown_ext_auth(kube_apis, test_namespace, secret_names, policy_names, tls=tls)
+        except Exception:
+            logger.debug("ext_auth_setup teardown: ignoring error (resource may already be deleted)")
+
+
+@pytest.fixture
+def ext_auth_ingress(
+    kube_apis,
+    ingress_controller_endpoint,
+    ingress_controller_prerequisites,
+    test_namespace,
+):
+    """Factory fixture that creates Ingress resources with guaranteed teardown.
+
+    Yields a callable that accepts an ``ingress_src`` path and returns an
+    ``IngressSetup`` instance.  All created Ingress resources are deleted
+    after the test completes -- even when the test raises an exception.
+    """
+    created = []
+
+    def _setup(ingress_src):
+        ing = create_ingress_setup(
+            kube_apis,
+            ingress_controller_endpoint,
+            ingress_controller_prerequisites,
+            test_namespace,
+            ingress_src,
+        )
+        created.append(ing)
+        return ing
+
+    yield _setup
+
+    for ing in reversed(created):
+        try:
+            delete_ingress_setup(kube_apis, ing)
+        except Exception:
+            logger.debug("ext_auth_ingress teardown: ignoring error (resource may already be deleted)")
