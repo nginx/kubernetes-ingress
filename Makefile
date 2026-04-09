@@ -3,7 +3,7 @@ VER = $(shell grep IC_VERSION .github/data/version.txt | cut -d '=' -f 2)
 GIT_TAG = $(shell git describe --exact-match --tags || echo untagged)
 VERSION = $(VER)-SNAPSHOT
 # renovate: datasource=docker depName=nginx/nginx
-NGINX_OSS_VERSION             ?= 1.29.7
+NGINX_OSS_VERSION             ?= 1.29.8
 NGINX_PLUS_VERSION            ?= R36
 NAP_WAF_VERSION               ?= 36+5.607
 NAP_WAF_COMMON_VERSION        ?= 11.644
@@ -22,7 +22,7 @@ GOVULNCHECK_VERSION ?= v1.1.4
 
 GO_DOCKER_IMAGE_NAME    ?= golang
 # renovate: datasource=docker depName=golang versioning=docker
-GO_DOCKER_IMAGE_VERSION ?= 1.26.1-trixie
+GO_DOCKER_IMAGE_VERSION ?= 1.26.2-trixie
 GO_DOCKER_IMAGE         ?= $(GO_DOCKER_IMAGE_NAME):$(GO_DOCKER_IMAGE_VERSION)
 
 REGISTRY                      ?= ## The registry where the image is located.
