@@ -328,10 +328,10 @@ server {
 		error_page 504 @grpcerror504;
 		{{- end}}
 
-		{{- if not $location.Internal}}{{- if not $location.AuthRequestOff}}
+		{{- if not $location.AuthRequestOff}}
 		{{- range $value := $location.LocationSnippets}}
 		{{$value}}{{end}}
-		{{- end}}{{- end}}
+		{{- end}}
 
 		{{- with $jwt := $location.JWTAuth}}
 		auth_jwt_key_file {{$jwt.Key}};
@@ -379,10 +379,10 @@ server {
 		{{- if $.Keepalive}}
 		proxy_set_header Connection "";{{end}}
 		{{- end}}
-		{{- if not $location.Internal}}{{- if not $location.AuthRequestOff}}
+		{{- if not $location.AuthRequestOff}}
 		{{- range $value := $location.LocationSnippets}}
 		{{$value}}{{- end}}
-		{{- end}}{{- end}}
+		{{- end}}
 
 		{{- with $jwt := $location.JWTAuth }}
 		auth_jwt_key_file {{$jwt.Key}};
