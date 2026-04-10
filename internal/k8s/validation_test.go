@@ -1268,7 +1268,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 
 		{
 			annotations: map[string]string{
-				"nginx.org/proxy-set-headers": "header-1",
+				configs.ProxySetHeadersAnnotation: "header-1",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -1281,7 +1281,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
-				"nginx.org/proxy-set-headers": "header-1,header-2,header-3",
+				configs.ProxySetHeadersAnnotation: "header-1,header-2,header-3",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -1294,7 +1294,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
-				"nginx.org/proxy-set-headers": "header-1, header-2, header-3",
+				configs.ProxySetHeadersAnnotation: "header-1, header-2, header-3",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -1307,7 +1307,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
-				"nginx.org/proxy-set-headers": "$header1",
+				configs.ProxySetHeadersAnnotation: "$header1",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -1322,7 +1322,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
-				"nginx.org/proxy-set-headers": "{header1",
+				configs.ProxySetHeadersAnnotation: "{header1",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -1337,7 +1337,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
-				"nginx.org/proxy-set-headers": "$header1,header2",
+				configs.ProxySetHeadersAnnotation: "$header1,header2",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -1352,7 +1352,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
-				"nginx.org/proxy-set-headers": "header1,$header2",
+				configs.ProxySetHeadersAnnotation: "header1,$header2",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -4703,6 +4703,279 @@ func errorListToTypes(list field.ErrorList) []field.ErrorType {
 	}
 
 	return result
+}
+
+func TestValidateProxySetHeaderAnnotation(t *testing.T) {
+	t.Parallel()
+
+	headerNameErrMsg := `a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`
+
+	tests := []struct {
+		name           string
+		value          string
+		expectedErrors []string
+	}{
+		// ── Valid inputs ──────────────────────────────────────────────
+		{
+			name:           "valid single header name",
+			value:          "X-Custom-Header",
+			expectedErrors: nil,
+		},
+		{
+			name:           "valid header name with value",
+			value:          "X-Custom-Header: myvalue",
+			expectedErrors: nil,
+		},
+		{
+			name:           "valid multiple header names comma-separated",
+			value:          "Header-1,Header-2,Header-3",
+			expectedErrors: nil,
+		},
+		{
+			name:           "valid multiple headers with values",
+			value:          "Header-1: val1,Header-2: val2",
+			expectedErrors: nil,
+		},
+		{
+			name:           "valid mixed headers some with values some without",
+			value:          "Header-1,Header-2: val2",
+			expectedErrors: nil,
+		},
+		{
+			name:           "valid headers with extra whitespace around commas",
+			value:          "Header-1 , Header-2 , Header-3",
+			expectedErrors: nil,
+		},
+		{
+			name:           "valid header with colon but empty value",
+			value:          "X-Custom-Header:",
+			expectedErrors: nil,
+		},
+		{
+			name:           "valid header with colon and whitespace-only value",
+			value:          "X-Custom-Header:   ",
+			expectedErrors: nil,
+		},
+		{
+			name:           "valid header name is all digits",
+			value:          "123",
+			expectedErrors: nil,
+		},
+		{
+			name:           "valid single character header",
+			value:          "X",
+			expectedErrors: nil,
+		},
+		{
+			name:           "valid header with value containing spaces",
+			value:          "X-Header: some value with spaces",
+			expectedErrors: nil,
+		},
+
+		// ── Invalid: $ character ─────────────────────────────────────
+		{
+			name:  "invalid dollar sign in value",
+			value: "X-Header: $upstream_addr",
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "X-Header: $upstream_addr": invalid character in value: $`,
+			},
+		},
+		{
+			name:  "invalid dollar sign in value of second header",
+			value: "Header-1: ok,Header-2: $bad",
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "Header-2: $bad": invalid character in value: $`,
+			},
+		},
+		{
+			name:  "invalid dollar sign in header name without colon",
+			value: "$Header",
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "$Header": ` + headerNameErrMsg,
+			},
+		},
+		{
+			name:  "invalid dollar sign in both name and value",
+			value: "$Header: $value",
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "$Header": ` + headerNameErrMsg,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "$Header: $value": invalid character in value: $`,
+			},
+		},
+
+		// ── Invalid: malformed header names ──────────────────────────
+		{
+			name:  "invalid special char in header name - curly brace",
+			value: "{Header",
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "{Header": ` + headerNameErrMsg,
+			},
+		},
+		{
+			name:  "invalid special char in header name - exclamation mark",
+			value: "Header!Name",
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "Header!Name": ` + headerNameErrMsg,
+			},
+		},
+		{
+			name:  "invalid header name with underscore",
+			value: "Header_Name",
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "Header_Name": ` + headerNameErrMsg,
+			},
+		},
+		{
+			name:  "invalid header name with dot",
+			value: "Header.Name",
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "Header.Name": ` + headerNameErrMsg,
+			},
+		},
+
+		// ── Invalid: spaces without colon (caught by IsHTTPHeaderName) ─
+		{
+			name:  "invalid header name with spaces and no colon",
+			value: "X Forwarded For",
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "X Forwarded For": ` + headerNameErrMsg,
+			},
+		},
+
+		// ── Edge: empty entries are skipped ───────────────────────────
+		{
+			name:  "colon only - empty name",
+			value: ":",
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: ":": empty header name`,
+			},
+		},
+		{
+			name:  "colon with value but no name",
+			value: ": value",
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: ": value": empty header name`,
+			},
+		},
+		{
+			name:  "empty header between commas is skipped",
+			value: "Header-1,,Header-2",
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "": empty header name`,
+			},
+		},
+		{
+			name:  "multiple commas only - all empty entries skipped",
+			value: ",,,",
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "": empty header name`,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "": empty header name`,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "": empty header name`,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "": empty header name`,
+			},
+		},
+
+		// ── Multiple errors in one annotation ────────────────────────
+		{
+			name:  "multiple invalid headers in one annotation",
+			value: "$header1,{header2",
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "$header1": ` + headerNameErrMsg,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "{header2": ` + headerNameErrMsg,
+			},
+		},
+		{
+			name:  "dollar sign in values of multiple headers",
+			value: "Header-1: $val1,Header-2: $val2",
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "Header-1: $val1": invalid character in value: $`,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "Header-2: $val2": invalid character in value: $`,
+			},
+		},
+
+		// ── Edge: special chars in value (non-$) ─────────────────────
+		{
+			name:           "valid header with special chars in value but no dollar sign",
+			value:          "X-Header: value-with-{braces}",
+			expectedErrors: nil,
+		},
+		{
+			name:           "valid header with colons in value",
+			value:          "X-Header: value:with:colons",
+			expectedErrors: nil,
+		},
+
+		// ── Edge: whitespace handling ────────────────────────────────
+		{
+			name:           "leading and trailing whitespace in whole value",
+			value:          "  X-Header  ",
+			expectedErrors: nil,
+		},
+		{
+			name:           "whitespace around name and value with colon",
+			value:          "  X-Header  :  myvalue  ",
+			expectedErrors: nil,
+		},
+
+		// ── Edge: empty name combined with dollar in value ───────────
+		{
+			// Empty name is caught early and skips further validation,
+			// so the $ in value is not reported separately.
+			name:  "empty name with dollar in value",
+			value: ": $value",
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: ": $value": empty header name`,
+			},
+		},
+
+		// ── Valid: properly escaped quotes and backslashes ──────────
+		{
+			name:           "valid header with escaped double quote",
+			value:          `X-Header: value with \"escaped quote\"`,
+			expectedErrors: nil,
+		},
+		{
+			name:           "valid header with escaped backslash",
+			value:          `X-Path: C:\\Windows\\path`,
+			expectedErrors: nil,
+		},
+		{
+			name:           "valid header with mixed escaped chars",
+			value:          `X-Header: path\\to\\\"file\"`,
+			expectedErrors: nil,
+		},
+
+		// ── Invalid: unescaped quotes and backslashes ─────────────────
+		{
+			name:  "invalid header with unescaped double quote",
+			value: `X-Bad: "unquoted value"`,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "X-Bad: \"unquoted value\"": must have all '"' (double quotes) escaped and must not end with an unescaped '\' (backslash) (regex used for validation is '([^"\\]|\\.)*')`,
+			},
+		},
+		{
+			name:  "invalid header with unescaped backslash at end",
+			value: `X-Bad: value\`,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "X-Bad: value\\": must have all '"' (double quotes) escaped and must not end with an unescaped '\' (backslash) (regex used for validation is '([^"\\]|\\.)*')`,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := &annotationValidationContext{
+				value:     tc.value,
+				fieldPath: field.NewPath("annotations").Child(configs.ProxySetHeadersAnnotation),
+			}
+			allErrs := validateProxySetHeaderAnnotation(ctx)
+			assertion := assertErrors("validateProxySetHeaderAnnotation()", tc.name, allErrs, tc.expectedErrors)
+			if assertion != "" {
+				t.Error(assertion)
+			}
+		})
+	}
 }
 
 func TestGetSpecServices(t *testing.T) {

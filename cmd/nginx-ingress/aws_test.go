@@ -11,14 +11,12 @@ import (
 )
 
 func TestValidClaims(t *testing.T) {
-	iat := *jwt.NewNumericDate(time.Now().Add(time.Hour * -1))
-
 	c := claims{
 		"test",
 		1,
 		"nonce",
 		jwt.RegisteredClaims{
-			IssuedAt: &iat,
+			IssuedAt: new(*jwt.NewNumericDate(time.Now().Add(time.Hour * -1))),
 		},
 	}
 	v := jwt.NewValidator(

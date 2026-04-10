@@ -261,8 +261,9 @@ server {
 		{{- if $location.ClientBodyBufferSize }}
 		client_body_buffer_size {{$location.ClientBodyBufferSize}};
 		{{- end}}
-		{{- $proxySetHeaders := generateProxySetHeaders $location $.Ingress.Annotations -}}
-		{{$proxySetHeaders}}
+		{{- range $header := $location.ProxySetHeaders}}
+		proxy_set_header {{ $header.Name }} {{ printf "%q" $header.Value }};
+		{{- end}}
 		proxy_set_header Host $host;
 		proxy_set_header X-Real-IP $remote_addr;
 		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -300,23 +301,19 @@ server {
 		{{- if $location.ProxyNextUpstreamTries}}
 		proxy_next_upstream_tries {{ $location.ProxyNextUpstreamTries }};
 		{{- end }}
-		{{- if $location.SSL}}
-		proxy_pass https://{{$location.Upstream.Name}}{{$location.Rewrite}};
-		{{- else}}
-		proxy_pass http://{{$location.Upstream.Name}}{{$location.Rewrite}};
-		{{- end}}
+		proxy_pass {{ $location.ProxyPass }}{{ $location.Rewrite }};
 		{{- end}}
 
 		{{- if or $location.CORSEnabled (gt (len $location.AddHeaders) 0) }}
 		{{- range $h := $location.AddHeaders }}
-		add_header {{ $h.Name }} "{{ $h.Value }}" {{ if $h.Always }}always{{ end }};
+		add_header {{ $h.Name }} {{ printf "%q" $h.Value }} {{ if $h.Always }}always{{ end }};
 		{{- end }}
 		{{- if $location.CORSEnabled }}
 		# CORS configuration per enable-cors.org
 		# Handle CORS preflight OPTIONS requests
 		if ($request_method = 'OPTIONS') {
 			{{- range $h := $location.AddHeaders }}
-			add_header {{ $h.Name }} "{{ $h.Value }}";
+			add_header {{ $h.Name }} {{ printf "%q" $h.Value }};
 			{{- end }}
 			add_header Content-Type text/plain;
 			add_header Content-Length 0;

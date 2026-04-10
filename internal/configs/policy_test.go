@@ -109,7 +109,7 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 		},
 		defaultCABundle: "/etc/ssl/certs/ca-certificate.crt",
-		apResources: &appProtectResourcesForVS{
+		apResources: &appProtectPolicyResources{
 			Policies: map[string]string{
 				"default/dataguard-alarm": "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
 			},
@@ -768,7 +768,7 @@ func TestGeneratePolicies(t *testing.T) {
 						EgressMTLS: &conf_v1.EgressMTLS{
 							TLSSecret:         "egress-mtls-secret",
 							ServerName:        true,
-							SessionReuse:      createPointerFromBool(false),
+							SessionReuse:      new(false),
 							TrustedCertSecret: "egress-trusted-ca-secret",
 						},
 					},
@@ -805,7 +805,7 @@ func TestGeneratePolicies(t *testing.T) {
 						EgressMTLS: &conf_v1.EgressMTLS{
 							TLSSecret:         "egress-mtls-secret",
 							ServerName:        true,
-							SessionReuse:      createPointerFromBool(false),
+							SessionReuse:      new(false),
 							TrustedCertSecret: "egress-trusted-ca-secret-crl",
 						},
 					},
@@ -851,7 +851,7 @@ func TestGeneratePolicies(t *testing.T) {
 							ClientSecret:          "oidc-secret",
 							Scope:                 "scope",
 							RedirectURI:           "/redirect",
-							ZoneSyncLeeway:        createPointerFromInt(20),
+							ZoneSyncLeeway:        new(20),
 							AccessTokenEnable:     true,
 							EndSessionEndpoint:    "http://example.com/logout",
 							PostLogoutRedirectURI: "/_logout",
@@ -1299,7 +1299,7 @@ func TestAddCORSConfig(t *testing.T) {
 				AllowOrigin:  []string{"https://example.com"},
 				AllowMethods: []string{"GET", "POST"},
 				AllowHeaders: []string{"Content-Type", "Authorization"},
-				MaxAge:       createPointerFromInt(3600),
+				MaxAge:       new(3600),
 			},
 			expected: policiesCfg{
 				CORSHeaders: []version2.AddHeader{
@@ -1333,8 +1333,8 @@ func TestAddCORSConfig(t *testing.T) {
 				AllowMethods:     []string{"GET", "POST", "PUT", "DELETE"},
 				AllowHeaders:     []string{"Content-Type"},
 				ExposeHeaders:    []string{"X-Total-Count"},
-				AllowCredentials: createPointerFromBool(true),
-				MaxAge:           createPointerFromInt(86400),
+				AllowCredentials: new(true),
+				MaxAge:           new(86400),
 			},
 			expected: policiesCfg{
 				CORSHeaders: []version2.AddHeader{
@@ -1510,7 +1510,7 @@ func TestGenerateCORSPolicy(t *testing.T) {
 							AllowOrigin:  []string{"https://trusted.example.com"},
 							AllowMethods: []string{"GET", "POST"},
 							AllowHeaders: []string{"Content-Type"},
-							MaxAge:       createPointerFromInt(3600),
+							MaxAge:       new(3600),
 						},
 					},
 				},
@@ -1548,8 +1548,8 @@ func TestGenerateCORSPolicy(t *testing.T) {
 							AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 							AllowHeaders:     []string{"Content-Type", "Authorization", "X-Requested-With"},
 							ExposeHeaders:    []string{"X-Total-Count", "X-RateLimit-Remaining"},
-							AllowCredentials: createPointerFromBool(true),
-							MaxAge:           createPointerFromInt(86400),
+							AllowCredentials: new(true),
+							MaxAge:           new(86400),
 						},
 					},
 				},
@@ -1632,7 +1632,7 @@ func TestGenerateCORSPolicy(t *testing.T) {
 							AllowMethods:  []string{"GET", "POST", "PUT"},
 							AllowHeaders:  []string{"Content-Type", "X-API-Key"},
 							ExposeHeaders: []string{"X-Request-ID"},
-							MaxAge:        createPointerFromInt(7200),
+							MaxAge:        new(7200),
 						},
 					},
 				},
@@ -1670,7 +1670,7 @@ func TestGenerateCORSPolicy(t *testing.T) {
 							AllowOrigin:      []string{"https://api.example.com", "https://dashboard.example.com"},
 							AllowMethods:     []string{"GET", "POST", "DELETE"},
 							AllowHeaders:     []string{"Authorization", "Content-Type"},
-							AllowCredentials: createPointerFromBool(true),
+							AllowCredentials: new(true),
 						},
 					},
 				},
@@ -1812,7 +1812,7 @@ func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			res, warnings := generatePolicies(ctx, ownerDetails, tc.policyRefs, tc.policies, tc.context, tc.path, policyOptions{apResources: &appProtectResourcesForVS{}, replicas: 1, oidcPolicyName: ""}, &fakeBV)
+			res, warnings := generatePolicies(ctx, ownerDetails, tc.policyRefs, tc.policies, tc.context, tc.path, policyOptions{apResources: &appProtectPolicyResources{}, replicas: 1, oidcPolicyName: ""}, &fakeBV)
 			res.BundleValidator = nil
 			if !reflect.DeepEqual(tc.want, res) {
 				t.Error(cmp.Diff(tc.want, res))
@@ -1834,9 +1834,6 @@ func TestGeneratePoliciesFails(t *testing.T) {
 		parentName:      "test",
 		parentType:      "vs",
 	}
-
-	dryRunOverride := true
-	rejectCodeOverride := 505
 
 	ingressMTLSCertPath := "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crt"
 	ingressMTLSCrlPath := "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crl"
@@ -1946,9 +1943,9 @@ func TestGeneratePoliciesFails(t *testing.T) {
 							Key:        "test2",
 							ZoneSize:   "20M",
 							Rate:       "20r/s",
-							DryRun:     &dryRunOverride,
+							DryRun:     new(true),
 							LogLevel:   "info",
-							RejectCode: &rejectCodeOverride,
+							RejectCode: new(505),
 						},
 					},
 				},
@@ -3079,7 +3076,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 							PostLogoutRedirectURI: "/_logout",
 							ClientID:              "foo",
 							AccessTokenEnable:     true,
-							SSLVerifyDepth:        intPointer(0),
+							SSLVerifyDepth:        new(0),
 						},
 					},
 				},
@@ -3380,7 +3377,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				apResources: &appProtectResourcesForVS{
+				apResources: &appProtectPolicyResources{
 					Policies: map[string]string{
 						"default/dataguard-alarm": "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
 					},
@@ -3812,7 +3809,7 @@ func TestAddWafConfig(t *testing.T) {
 		wafInput     *conf_v1.WAF
 		polKey       string
 		polNamespace string
-		apResources  *appProtectResourcesForVS
+		apResources  *appProtectPolicyResources
 		wafConfig    *version2.WAF
 		expected     *validationResults
 		msg          string
@@ -3823,7 +3820,7 @@ func TestAddWafConfig(t *testing.T) {
 			},
 			polKey:       "default/waf-policy",
 			polNamespace: "default",
-			apResources: &appProtectResourcesForVS{
+			apResources: &appProtectPolicyResources{
 				Policies: map[string]string{},
 				LogConfs: map[string]string{},
 			},
@@ -3845,7 +3842,7 @@ func TestAddWafConfig(t *testing.T) {
 			},
 			polKey:       "default/waf-policy",
 			polNamespace: "default",
-			apResources: &appProtectResourcesForVS{
+			apResources: &appProtectPolicyResources{
 				Policies: map[string]string{
 					"default/dataguard-alarm": "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
 				},
@@ -3875,7 +3872,7 @@ func TestAddWafConfig(t *testing.T) {
 			},
 			polKey:       "default/waf-policy",
 			polNamespace: "default",
-			apResources: &appProtectResourcesForVS{
+			apResources: &appProtectPolicyResources{
 				Policies: map[string]string{
 					"default/dataguard-alarm": "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
 				},
@@ -3903,7 +3900,7 @@ func TestAddWafConfig(t *testing.T) {
 			},
 			polKey:       "default/waf-policy",
 			polNamespace: "",
-			apResources: &appProtectResourcesForVS{
+			apResources: &appProtectPolicyResources{
 				Policies: map[string]string{
 					"default/dataguard-alarm": "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
 				},
@@ -3933,7 +3930,7 @@ func TestAddWafConfig(t *testing.T) {
 			},
 			polKey:       "default/waf-policy",
 			polNamespace: "",
-			apResources: &appProtectResourcesForVS{
+			apResources: &appProtectPolicyResources{
 				Policies: map[string]string{},
 				LogConfs: map[string]string{
 					"default/logconf": "/etc/nginx/waf/nac-logconfs/default-logconf",
@@ -3964,7 +3961,7 @@ func TestAddWafConfig(t *testing.T) {
 			},
 			polKey:       "default/waf-policy",
 			polNamespace: "",
-			apResources: &appProtectResourcesForVS{
+			apResources: &appProtectPolicyResources{
 				Policies: map[string]string{
 					"ns1/dataguard-alarm": "/etc/nginx/waf/nac-policies/ns1-dataguard-alarm",
 				},
@@ -3987,7 +3984,7 @@ func TestAddWafConfig(t *testing.T) {
 			},
 			polKey:       "default/waf-policy",
 			polNamespace: "default",
-			apResources: &appProtectResourcesForVS{
+			apResources: &appProtectPolicyResources{
 				Policies: map[string]string{
 					"default/dataguard-alarm": "/etc/nginx/waf/nac-policies/ns1-dataguard-alarm",
 				},
@@ -4014,7 +4011,7 @@ func TestAddWafConfig(t *testing.T) {
 			},
 			polKey:       "default/waf-policy",
 			polNamespace: "",
-			apResources: &appProtectResourcesForVS{
+			apResources: &appProtectPolicyResources{
 				Policies: map[string]string{
 					"ns1/dataguard-alarm": "/etc/nginx/waf/nac-policies/ns1-dataguard-alarm",
 				},

@@ -32,7 +32,6 @@ repos:
       - id: requirements-txt-fixer
       - id: fix-byte-order-marker
       - id: detect-private-key
-        exclude: ^(examples/|tests/|internal/k8s/secrets/)
 
   - repo: local
     hooks:
@@ -73,7 +72,7 @@ repos:
           ]
 
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0.37.0
+    rev: 0.37.1
     hooks:
       - id: check-jsonschema
         name: "Check Helm Chart JSON Schema"
@@ -87,7 +86,7 @@ repos:
       - id: markdownlint-cli2
 
   - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.11
+    rev: v1.7.12
     hooks:
       - id: actionlint
         name: Lint GitHub Actions workflow files

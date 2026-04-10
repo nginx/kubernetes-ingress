@@ -114,14 +114,14 @@ func (vsx *VirtualServerEx) String() string {
 	return fmt.Sprintf("%s/%s", vsx.VirtualServer.Namespace, vsx.VirtualServer.Name)
 }
 
-// appProtectResourcesForVS holds file names of APPolicy and APLogConf resources used in a VirtualServer.
-type appProtectResourcesForVS struct {
+// appProtectPolicyResources holds file names of APPolicy and APLogConf resources referenced by policies.
+type appProtectPolicyResources struct {
 	Policies map[string]string
 	LogConfs map[string]string
 }
 
-func newAppProtectVSResourcesForVS() *appProtectResourcesForVS {
-	return &appProtectResourcesForVS{
+func newAppProtectPolicyResources() *appProtectPolicyResources {
+	return &appProtectPolicyResources{
 		Policies: make(map[string]string),
 		LogConfs: make(map[string]string),
 	}
@@ -405,7 +405,7 @@ func (vsc *virtualServerConfigurator) generateBackupEndpointsForUpstream(
 // GenerateVirtualServerConfig generates a full configuration for a VirtualServer
 func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	vsEx *VirtualServerEx,
-	apResources *appProtectResourcesForVS,
+	apResources *appProtectPolicyResources,
 	dosResources map[string]*appProtectDosResource,
 ) (version2.VirtualServerConfig, Warnings) {
 	vsc.clearWarnings()
@@ -1490,7 +1490,7 @@ func generateProxyPassRewrite(path string, proxy *conf_v1.ActionProxy, internal 
 		return ""
 	}
 
-	if strings.HasPrefix(path, "/") || strings.HasPrefix(path, "=") {
+	if strings.HasPrefix(path, "/") || strings.HasPrefix(path, "=") || strings.HasPrefix(path, "^~") {
 		return proxy.RewritePath
 	}
 
@@ -1576,6 +1576,10 @@ func generateBool(s *bool, defaultS bool) bool {
 }
 
 func generatePath(path string) string {
+	// Format the longest prefix match with a space between the modifier and the path
+	if strings.HasPrefix(path, "^~") {
+		return fmt.Sprintf(`^~ %v`, strings.TrimLeft(strings.TrimPrefix(path, "^~"), " "))
+	}
 	// Wrap the regular expression (if present) inside double quotes (") to avoid NGINX parsing errors
 	if strings.HasPrefix(path, "~*") {
 		return fmt.Sprintf(`~* "%v"`, strings.TrimPrefix(strings.TrimPrefix(path, "~*"), " "))

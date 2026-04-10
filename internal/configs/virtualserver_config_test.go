@@ -792,7 +792,7 @@ func TestGenerateVirtualServerConfigWithBackupForNGINXPlus(t *testing.T) {
 	virtualServerEx := vsEx()
 	virtualServerEx.VirtualServer.Spec.Upstreams[2].LBMethod = "least_conn"
 	virtualServerEx.VirtualServer.Spec.Upstreams[2].Backup = "backup-svc"
-	virtualServerEx.VirtualServer.Spec.Upstreams[2].BackupPort = createPointerFromUInt16(8090)
+	virtualServerEx.VirtualServer.Spec.Upstreams[2].BackupPort = new(uint16(8090))
 	virtualServerEx.Endpoints = map[string][]string{
 		"default/tea-svc:80": {
 			"10.0.0.20:80",
@@ -1105,7 +1105,7 @@ func TestGenerateVirtualServerConfig_DoesNotGenerateBackupOnMissingBackupNameFor
 	virtualServerEx := vsEx()
 	virtualServerEx.VirtualServer.Spec.Upstreams[2].LBMethod = "least_conn"
 	virtualServerEx.VirtualServer.Spec.Upstreams[2].Backup = ""
-	virtualServerEx.VirtualServer.Spec.Upstreams[2].BackupPort = createPointerFromUInt16(8090)
+	virtualServerEx.VirtualServer.Spec.Upstreams[2].BackupPort = new(uint16(8090))
 	virtualServerEx.Endpoints = map[string][]string{
 		"default/tea-svc:80": {
 			"10.0.0.20:80",

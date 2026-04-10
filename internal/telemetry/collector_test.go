@@ -2634,9 +2634,8 @@ func createCafeIngressExWithCustomAnnotations(annotations map[string]string) con
 func newConfiguratorWithIngress(t *testing.T) *configs.Configurator {
 	t.Helper()
 
-	ingressEx := createCafeIngressEx()
 	c := newConfigurator(t)
-	_, err := c.AddOrUpdateIngress(&ingressEx)
+	_, err := c.AddOrUpdateIngress(new(createCafeIngressEx()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2646,9 +2645,8 @@ func newConfiguratorWithIngress(t *testing.T) *configs.Configurator {
 func newConfiguratorWithIngressWithCustomAnnotations(t *testing.T, annotations map[string]string) *configs.Configurator {
 	t.Helper()
 
-	ingressEx := createCafeIngressExWithCustomAnnotations(annotations)
 	c := newConfigurator(t)
-	_, err := c.AddOrUpdateIngress(&ingressEx)
+	_, err := c.AddOrUpdateIngress(new(createCafeIngressExWithCustomAnnotations(annotations)))
 	if err != nil {
 		t.Fatal(err)
 	}

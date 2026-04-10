@@ -194,11 +194,13 @@ func newPolicyReferenceChecker() *policyReferenceChecker {
 }
 
 func (rc *policyReferenceChecker) IsReferencedByIngress(policyNamespace string, policyName string, ing *networking.Ingress) bool {
-	if value, exists := ing.Annotations[configs.PoliciesAnnotation]; exists {
-		for _, p := range strings.Split(value, ",") {
-			p = strings.TrimSpace(p)
-			if p == nsutils.FormatResourceReference(policyNamespace, policyName) || (policyNamespace == ing.Namespace && p == policyName) {
-				return true
+	for _, annotation := range []string{configs.PoliciesAnnotation, configs.PoliciesAnnotationPlus} {
+		if value, exists := ing.Annotations[annotation]; exists {
+			for _, p := range strings.Split(value, ",") {
+				p = strings.TrimSpace(p)
+				if p == nsutils.FormatResourceReference(policyNamespace, policyName) || (policyNamespace == ing.Namespace && p == policyName) {
+					return true
+				}
 			}
 		}
 	}
