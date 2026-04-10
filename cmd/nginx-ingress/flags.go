@@ -278,6 +278,11 @@ func initValidate(ctx context.Context) {
 		*mgmtConfigMap = ""
 	}
 
+	if *oidcTemplatePath != "" && !*nginxPlus {
+		nl.Warn(l, "oidc-template-path flag is for NGINX Plus, oidc template path will not be used")
+		*oidcTemplatePath = ""
+	}
+
 	mustValidateInitialChecks(ctx)
 	mustValidateWatchedNamespaces(ctx)
 	mustValidateFlags(ctx)
