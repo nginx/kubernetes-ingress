@@ -117,6 +117,7 @@ run-tests: secrets ## Run tests
 		--ic-type=$(IC_TYPE) \
 		--service=$(SERVICE) \
 		--node-ip=$(NODE_IP) \
+		--lb-ip=$(LB_IP) \
 		--show-ic-logs=$(SHOW_IC_LOGS) \
 		--plus-jwt=$(PLUS_JWT) \
 		$(PYTEST_ARGS)
