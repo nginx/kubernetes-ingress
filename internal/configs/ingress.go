@@ -24,6 +24,7 @@ import (
 
 const emptyHost = ""
 
+const emptyHostToken = "_"
 // AppProtectResources holds namespace names of App Protect resources relevant to an Ingress
 type AppProtectResources struct {
 	AppProtectPolicy   string
@@ -207,11 +208,16 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		}
 
 		serverName := rule.Host
+		isDefaultServer := rule.Host == ""
 
 		statusZone := rule.Host
+		if statusZone == "" {
+			statusZone = "_"
+		}
 
 		server := version1.Server{
 			Name:                   serverName,
+			IsDefaultServer:        isDefaultServer,
 			ServerTokens:           cfgParams.ServerTokens,
 			HTTP2:                  cfgParams.HTTP2,
 			RedirectToHTTPS:        cfgParams.RedirectToHTTPS,
@@ -244,8 +250,24 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			PoliciesErrorReturn:    policyCfg.ErrorReturn,
 		}
 
-		warnings := addSSLConfig(&server, ncp.ingEx.Ingress, rule.Host, ncp.ingEx.Ingress.Spec.TLS, ncp.ingEx.SecretRefs, ncp.isWildcardEnabled)
-		allWarnings.Add(warnings)
+		if isDefaultServer {
+			server.Ports = []int{ncp.staticParams.DefaultHTTPListenerPort}
+			server.SSLPorts = []int{ncp.staticParams.DefaultHTTPSListenerPort}
+			server.SSL = true
+			server.SSLCertificate = DefaultServerSecretPath
+			server.SSLCertificateKey = DefaultServerSecretPath
+			server.SSLRejectHandshake = ncp.staticParams.SSLRejectHandshake
+			server.DefaultServer = version1.DefaultServer{
+				AccessLogOff:    cfgParams.DefaultServerAccessLogOff,
+				Return:          cfgParams.DefaultServerReturn,
+				HealthStatus:    ncp.staticParams.HealthStatus,
+				HealthStatusURI: ncp.staticParams.HealthStatusURI,
+			}
+		}
+		if !isDefaultServer {
+			warnings := addSSLConfig(&server, ncp.ingEx.Ingress, rule.Host, ncp.ingEx.Ingress.Spec.TLS, ncp.ingEx.SecretRefs, ncp.isWildcardEnabled)
+			allWarnings.Add(warnings)
+		}
 
 		if hasAppProtect {
 			server.AppProtectPolicy = ncp.apResources.AppProtectPolicy
@@ -427,6 +449,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		server.Locations = locations
 		server.HealthChecks = healthChecks
 		server.GRPCOnly = grpcOnly
+		server.HasRootLocation = rootLocation
 
 		servers = append(servers, server)
 	}
@@ -711,6 +734,9 @@ func pathOrDefault(path string) string {
 }
 
 func getNameForUpstream(ing *networking.Ingress, host string, backend *networking.IngressBackend) string {
+	if host == emptyHost {
+		host = emptyHostToken
+	}
 	return fmt.Sprintf("%v-%v-%v-%v-%v", ing.Namespace, ing.Name, host, backend.Service.Name, GetBackendPortAsString(backend.Service.Port))
 }
 

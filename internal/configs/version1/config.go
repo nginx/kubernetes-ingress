@@ -78,12 +78,21 @@ type LimitReqZone struct {
 	Sync bool
 }
 
+type DefaultServer struct {
+	AccessLogOff    bool
+	Return          string
+	HealthStatus    bool
+	HealthStatusURI string
+}
 // Server describes an NGINX server.
 type Server struct {
 	ServerSnippets         []string
 	Name                   string
+	IsDefaultServer        bool
+	DefaultServer          DefaultServer
 	ServerTokens           string
 	Locations              []Location
+	HasRootLocation        bool
 	SSL                    bool
 	SSLCertificate         string
 	SSLCertificateKey      string

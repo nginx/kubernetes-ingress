@@ -174,6 +174,7 @@ type StaticConfigParams struct {
 	StaticSSLPath                  string
 	DynamicWeightChangesReload     bool
 	IsDirectiveAutoadjustEnabled   bool
+	AllowEmptyIngressHost          bool
 	NginxVersion                   nginx.Version
 	AppProtectBundlePath           string
 	DefaultCABundle                string

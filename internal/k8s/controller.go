@@ -237,6 +237,7 @@ type NewLoadBalancerControllerInput struct {
 	ExternalDNSEnabled           bool
 	IsIPV6Disabled               bool
 	IsDirectiveAutoadjustEnabled bool
+	AllowEmptyIngressHost        bool
 	WatchNamespaceLabel          string
 	EnableTelemetryReporting     bool
 	TelemetryReportingEndpoint   string
@@ -389,6 +390,7 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		input.CertManagerEnabled,
 		input.IsIPV6Disabled,
 		input.IsDirectiveAutoadjustEnabled,
+		input.AllowEmptyIngressHost,
 	)
 
 	lbc.appProtectConfiguration = appprotect.NewConfiguration(lbc.Logger)
