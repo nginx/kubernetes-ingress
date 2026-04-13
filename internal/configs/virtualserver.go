@@ -442,8 +442,10 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		vsc.mergeWarnings(warnings)
 	}
 	if policiesCfg.OIDC != nil {
-		// Store the OIDC policy name for conflict checking in further calls to generatePolicies for routes and subroutes
+		// Store the OIDC policy name and built config for reuse in further calls to generatePolicies
+		// for routes and subroutes.
 		policyOpts.oidcPolicyName = policiesCfg.OIDC.PolicyName
+		policyOpts.oidcConfig = policiesCfg.OIDC
 	}
 	if policiesCfg.JWTAuth.JWKSEnabled {
 		jwtAuthKey := policiesCfg.JWTAuth.Auth.Key
@@ -642,8 +644,9 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			vsc.mergeWarnings(warnings)
 		}
 		if routePoliciesCfg.OIDC != nil {
-			// Store the OIDC policy name for conflict checking in further calls to generatePolicies for subroutes.
+			// Store the OIDC policy name and built config for reuse in further calls to generatePolicies for subroutes.
 			policyOpts.oidcPolicyName = routePoliciesCfg.OIDC.PolicyName
+			policyOpts.oidcConfig = routePoliciesCfg.OIDC
 			// Keep policiesCfg.OIDC up to date so Server.OIDC is populated for server-block helper generation.
 			policiesCfg.OIDC = routePoliciesCfg.OIDC
 		} else if specHasOIDC {
@@ -819,8 +822,9 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			}
 
 			if routePoliciesCfg.OIDC != nil {
-				// Store the OIDC policy name for conflict checking in further calls to generatePolicies for subroutes.
+				// Store the OIDC policy name and built config for reuse in further calls to generatePolicies for subroutes.
 				policyOpts.oidcPolicyName = routePoliciesCfg.OIDC.PolicyName
+				policyOpts.oidcConfig = routePoliciesCfg.OIDC
 				// Keep policiesCfg.OIDC up to date so Server.OIDC is populated for server-block helper generation.
 				policiesCfg.OIDC = routePoliciesCfg.OIDC
 			} else if specHasOIDC {

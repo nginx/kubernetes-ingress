@@ -2649,14 +2649,20 @@ func TestGenerateVirtualServerConfigOIDCRouteDoesNotLeakToSubsequentRoutes(t *te
 		locByPath[loc.Path] = loc
 	}
 
-	if locByPath["/public-before"].OIDC {
-		t.Errorf("/public-before should NOT have OIDC=true)")
+	for _, path := range []string{"/public-before", "/protected", "/public-after"} {
+		if _, ok := locByPath[path]; !ok {
+			t.Errorf("expected location %q to be generated, but it was missing", path)
+		}
 	}
-	if !locByPath["/protected"].OIDC {
+
+	if loc, ok := locByPath["/public-before"]; ok && loc.OIDC {
+		t.Errorf("/public-before should NOT have OIDC=true")
+	}
+	if loc, ok := locByPath["/protected"]; ok && !loc.OIDC {
 		t.Errorf("/protected should have OIDC=true")
 	}
-	if locByPath["/public-after"].OIDC {
-		t.Errorf("/public-after should NOT have OIDC=true)")
+	if loc, ok := locByPath["/public-after"]; ok && loc.OIDC {
+		t.Errorf("/public-after should NOT have OIDC=true")
 	}
 }
 
@@ -2765,6 +2771,122 @@ func TestGenerateVirtualServerConfigOIDCAtSpecLevelAppliesToAllRoutes(t *testing
 		if !loc.OIDC {
 			t.Errorf("location %q should have OIDC=true because the VS spec carries the OIDC policy, but got OIDC=false", loc.Path)
 		}
+	}
+}
+
+// TestGenerateVirtualServerConfigOIDCMultipleRoutesWithSamePolicy verifies that multiple routes
+// referencing the same OIDC policy all receive location.OIDC=true.
+func TestGenerateVirtualServerConfigOIDCMultipleRoutesWithSamePolicy(t *testing.T) {
+	t.Parallel()
+
+	virtualServerEx := VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "cafe.example.com",
+				Upstreams: []conf_v1.Upstream{
+					{
+						Name:    "app",
+						Service: "app-svc",
+						Port:    80,
+					},
+				},
+				Routes: []conf_v1.Route{
+					{
+						Path:     "/route1",
+						Policies: []conf_v1.PolicyReference{{Name: "oidc-policy"}},
+						Action:   &conf_v1.Action{Pass: "app"},
+					},
+					{
+						Path:   "/public",
+						Action: &conf_v1.Action{Pass: "app"},
+					},
+					{
+						Path:     "/route2",
+						Policies: []conf_v1.PolicyReference{{Name: "oidc-policy"}},
+						Action:   &conf_v1.Action{Pass: "app"},
+					},
+				},
+			},
+		},
+		Policies: map[string]*conf_v1.Policy{
+			"default/oidc-policy": {
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "oidc-policy",
+					Namespace: "default",
+				},
+				Spec: conf_v1.PolicySpec{
+					OIDC: &conf_v1.OIDC{
+						AuthEndpoint:  "https://auth.example.com",
+						TokenEndpoint: "https://token.example.com",
+						JWKSURI:       "https://jwks.example.com",
+						ClientID:      "example-client-id",
+						ClientSecret:  "example-client-secret",
+						Scope:         "openid",
+					},
+				},
+			},
+		},
+		Endpoints: map[string][]string{
+			"default/app-svc:80": {"10.0.0.10:80"},
+		},
+		SecretRefs: map[string]*secrets.SecretReference{
+			"default/example-client-secret": {
+				Secret: &api_v1.Secret{
+					Type: secrets.SecretTypeOIDC,
+					Data: map[string][]byte{
+						"client-secret": []byte("c2VjcmV0"),
+					},
+				},
+			},
+		},
+	}
+
+	baseCfgParams := ConfigParams{
+		Context:      context.Background(),
+		ServerTokens: "off",
+	}
+
+	vsc := newVirtualServerConfigurator(
+		&baseCfgParams,
+		false,
+		false,
+		&StaticConfigParams{},
+		false,
+		&fakeBV,
+	)
+
+	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+	if len(warnings) != 0 {
+		t.Errorf("GenerateVirtualServerConfig returned unexpected warnings: %v", warnings)
+	}
+
+	if result.Server.OIDC == nil {
+		t.Fatal("expected Server.OIDC to be non-nil")
+	}
+
+	locByPath := make(map[string]version2.Location)
+	for _, loc := range result.Server.Locations {
+		locByPath[loc.Path] = loc
+	}
+
+	for _, path := range []string{"/route1", "/public", "/route2"} {
+		if _, ok := locByPath[path]; !ok {
+			t.Errorf("expected location %q to be generated, but it was missing", path)
+		}
+	}
+
+	if loc, ok := locByPath["/route1"]; ok && !loc.OIDC {
+		t.Errorf("/route1 should have OIDC=true")
+	}
+	if loc, ok := locByPath["/public"]; ok && loc.OIDC {
+		t.Errorf("/public should NOT have OIDC=true")
+	}
+	if loc, ok := locByPath["/route2"]; ok && !loc.OIDC {
+		t.Errorf("/route2 should have OIDC=true (same policy referenced on a subsequent route)")
 	}
 }
 
