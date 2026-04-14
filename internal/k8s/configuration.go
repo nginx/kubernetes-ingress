@@ -2027,7 +2027,6 @@ func deduplicateVSRs(vsrs []*conf_v1.VirtualServerRoute) []*conf_v1.VirtualServe
 	return result
 }
 
-
 // GetTransportServerMetrics returns metrics about TransportServers
 func (c *Configuration) GetTransportServerMetrics() *TransportServerMetrics {
 	var metrics TransportServerMetrics
