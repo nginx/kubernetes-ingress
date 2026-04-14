@@ -397,7 +397,12 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			Allow:                  policyCfg.Allow,
 			Deny:                   policyCfg.Deny,
 			WAF:                    policyCfg.WAF,
+			EgressMTLS:             policyCfg.EgressMTLS,
 			PoliciesErrorReturn:    policyCfg.ErrorReturn,
+		}
+
+		if ncp.isMinion {
+			server.EgressMTLS = nil
 		}
 
 		warnings := addSSLConfig(&server, ncp.ingEx.Ingress, rule.Host, ncp.ingEx.Ingress.Spec.TLS, ncp.ingEx.SecretRefs, ncp.isWildcardEnabled)
@@ -482,6 +487,9 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			proxySSLName := generateProxySSLName(path.Backend.Service.Name, ncp.ingEx.Ingress.Namespace)
 			loc := createLocation(pathOrDefault(path.Path), upstreams[upsName], &cfgParams, wsServices[path.Backend.Service.Name], rewrites[path.Backend.Service.Name],
 				ssl, grpcServices[path.Backend.Service.Name], proxySSLName, path.PathType, path.Backend.Service.Name, rewriteTarget)
+			if ncp.isMinion && policyCfg.EgressMTLS != nil {
+				loc.EgressMTLS = policyCfg.EgressMTLS
+			}
 
 			if ncp.isMinion {
 				if cfgParams.JWTKey != "" {
@@ -569,6 +577,9 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			proxySSLName := generateProxySSLName(ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name, ncp.ingEx.Ingress.Namespace)
 			loc := createLocation(pathOrDefault("/"), upstreams[upsName], &cfgParams, wsServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], rewrites[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name],
 				ssl, grpcServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], proxySSLName, new(networking.PathTypePrefix), ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name, rewriteTarget)
+			if ncp.isMinion && policyCfg.EgressMTLS != nil {
+				loc.EgressMTLS = policyCfg.EgressMTLS
+			}
 			if !loc.CORSEnabled && len(policyCfg.CORSHeaders) > 0 {
 				// Keep default-backend location behavior consistent with path locations for CORS.
 				loc.AddHeaders = append(loc.AddHeaders, policyCfg.CORSHeaders...)

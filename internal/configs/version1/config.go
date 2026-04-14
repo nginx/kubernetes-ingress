@@ -20,6 +20,7 @@ type IngressNginxConfig struct {
 	Keepalive               string
 	Maps                    []version2.Map
 	CORSHeaders             []version2.AddHeader
+	EgressMTLS              *version2.EgressMTLS
 	Ingress                 Ingress
 	SpiffeClientCerts       bool
 	DynamicSSLReloadEnabled bool
@@ -84,6 +85,7 @@ type Server struct {
 	Name                   string
 	ServerTokens           string
 	Locations              []Location
+	EgressMTLS             *version2.EgressMTLS
 	SSL                    bool
 	SSLCertificate         string
 	SSLCertificateKey      string
@@ -212,6 +214,7 @@ type Location struct {
 	Allow                    []string
 	Deny                     []string
 	WAF                      *version2.WAF
+	EgressMTLS               *version2.EgressMTLS
 	PoliciesErrorReturn      *version2.Return
 }
 

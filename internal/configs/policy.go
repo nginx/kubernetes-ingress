@@ -395,6 +395,11 @@ func (p *policiesCfg) addEgressMTLSConfig(
 		egressTLSSecret := fmt.Sprintf("%v/%v", polNamespace, egressMTLS.TLSSecret)
 
 		secretRef := secretRefs[egressTLSSecret]
+		if secretRef == nil {
+			res.addWarningf("EgressMTLS policy %s references an invalid secret %s: secret doesn't exist", polKey, egressTLSSecret)
+			res.isError = true
+			return res
+		}
 		var secretType api_v1.SecretType
 		if secretRef.Secret != nil {
 			secretType = secretRef.Secret.Type
@@ -418,6 +423,11 @@ func (p *policiesCfg) addEgressMTLSConfig(
 		trustedCertSecret := fmt.Sprintf("%v/%v", polNamespace, egressMTLS.TrustedCertSecret)
 
 		secretRef := secretRefs[trustedCertSecret]
+		if secretRef == nil {
+			res.addWarningf("EgressMTLS policy %s references an invalid secret %s: secret doesn't exist", polKey, trustedCertSecret)
+			res.isError = true
+			return res
+		}
 		var secretType api_v1.SecretType
 		if secretRef.Secret != nil {
 			secretType = secretRef.Secret.Type
