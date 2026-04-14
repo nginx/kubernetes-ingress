@@ -310,12 +310,44 @@ jobs:
           token: ${{ steps.secrets.outputs.CODECOV_TOKEN }} # required
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' && inputs.run_tests != false }}
 
-      - name: Run static check
+      - name: Cleanup netrc
+        run: rm -f $HOME/.netrc
+        if: ${{ always() }}
+
+  staticcheck:
+    name: Static Check
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    needs: checks
+    if: ${{ needs.checks.outputs.docs_only != 'true' }}
+    env:
+      GOPROXY: ${{ needs.checks.outputs.go_proxy }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Golang Environment
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: go.mod
+
+      - name: Setup netrc
+        run: |
+          cat <<EOF > $HOME/.netrc
+          machine azr.artifactory.f5net.com
+              login ${{ secrets.ARTIFACTORY_USER }}
+              password ${{ secrets.ARTIFACTORY_TOKEN }}
+          EOF
+          chmod 600 $HOME/.netrc
+        if: ${{ needs.checks.outputs.forked_workflow != 'true' }}
+
+      - name: Run Static Check
         uses: dominikh/staticcheck-action@9716614d4101e79b4340dd97b10e54d68234e431 # v1.4.1
         with:
-          version: "v0.7.0"
+          version: "v0.7.0" # renovate: datasource=github-releases depName=dominikh/go-tools
           install-go: false
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' && inputs.run_tests != false }}
+          use-cache: true
 
       - name: Cleanup netrc
         run: rm -f $HOME/.netrc
@@ -323,7 +355,7 @@ jobs:
 
   build-artifacts:
     name: Build Artifacts
-    needs: [checks, unit-tests, verify-codegen]
+    needs: [checks, unit-tests, staticcheck, verify-codegen]
     uses: ./.github/workflows/build-artifacts.yml
     with:
       force: ${{ needs.checks.outputs.docker_build == 'true' || needs.checks.outputs.binary_cache_hit != 'true' }}
@@ -821,7 +853,7 @@ jobs:
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     name: Final CI Results
-    needs: [tag-stable, build-artifacts, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap, package-tests, helm-tests]
+    needs: [tag-stable, build-artifacts, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap, package-tests, helm-tests, staticcheck]
     steps:
       - run: |
           tagResult="${{ needs.tag-stable.result }}"
@@ -831,6 +863,7 @@ jobs:
           smokePlusResult="${{ needs.smoke-tests-plus.result }}"
           smokeNAPResult="${{ needs.smoke-tests-nap.result }}"
           buildArtifactsResult="${{ needs.build-artifacts.result }}"
+          staticcheckResult="${{ needs.staticcheck.result }}"
           if [[ $tagResult != "success" && $tagResult != "skipped" ]]; then
             exit 1
           fi
@@ -850,6 +883,9 @@ jobs:
             exit 1
           fi
           if [[ $packageResult != "success" && $packageResult != "skipped" ]]; then
+            exit 1
+          fi
+          if [[ $staticcheckResult != "success" && $staticcheckResult != "skipped" ]]; then
             exit 1
           fi
 
