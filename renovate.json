@@ -99,7 +99,8 @@
         "go"
       ],
       "addLabels": [
-        "go"
+        "go",
+        "dependencies"
       ]
     },
     {
@@ -111,7 +112,8 @@
         "go"
       ],
       "addLabels": [
-        "go"
+        "go",
+        "dependencies"
       ]
     },
     {
@@ -123,7 +125,8 @@
         "go"
       ],
       "addLabels": [
-        "go"
+        "go",
+        "dependencies"
       ]
     },
     {
@@ -135,7 +138,8 @@
         "go"
       ],
       "addLabels": [
-        "go"
+        "go",
+        "dependencies"
       ]
     },
     {
@@ -147,7 +151,8 @@
         "go"
       ],
       "addLabels": [
-        "go"
+        "go",
+        "dependencies"
       ]
     },
     {
@@ -171,7 +176,8 @@
         "go"
       ],
       "addLabels": [
-        "go"
+        "go",
+        "dependencies"
       ]
     },
     {
@@ -184,7 +190,7 @@
         "kubernetes"
       ],
       "addLabels": [
-        "docker"
+        "skip changelog"
       ]
     },
     {
@@ -222,7 +228,7 @@
         "kubernetes"
       ],
       "addLabels": [
-        "docker"
+        "skip changelog"
       ]
     },
     {
@@ -235,7 +241,7 @@
         "kubernetes"
       ],
       "addLabels": [
-        "docker"
+        "skip changelog"
       ]
     },
     {
@@ -263,7 +269,8 @@
         "go"
       ],
       "addLabels": [
-        "go"
+        "go",
+        "dependencies"
       ]
     }
   ],
@@ -384,7 +391,7 @@
     },
     {
       "customType": "regex",
-      "datasourceTemplate": "github-releases",
+      "datasourceTemplate": "docker",
       "depNameTemplate": "golangci/golangci-lint",
       "description": "Update golangci-lint version in golangci-lint-action",
       "managerFilePatterns": [
