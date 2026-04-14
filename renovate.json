@@ -89,6 +89,182 @@
         "kubernetes"
       ],
       "enabled": false
+    },
+    {
+      "groupName": "AWS SDK v2",
+      "matchPackageNames": [
+        "/^github\\.com\\/aws\\//"
+      ],
+      "matchDatasources": [
+        "go"
+      ],
+      "addLabels": [
+        "go"
+      ]
+    },
+    {
+      "groupName": "Kubernetes ecosystem",
+      "matchPackageNames": [
+        "/^(k8s\\.io|sigs\\.k8s\\.io)\\//"
+      ],
+      "matchDatasources": [
+        "go"
+      ],
+      "addLabels": [
+        "go"
+      ]
+    },
+    {
+      "groupName": "OpenTelemetry",
+      "matchPackageNames": [
+        "/^go\\.opentelemetry\\.io\\//"
+      ],
+      "matchDatasources": [
+        "go"
+      ],
+      "addLabels": [
+        "go"
+      ]
+    },
+    {
+      "groupName": "golang.org/x",
+      "matchPackageNames": [
+        "/^golang\\.org\\/x\\//"
+      ],
+      "matchDatasources": [
+        "go"
+      ],
+      "addLabels": [
+        "go"
+      ]
+    },
+    {
+      "groupName": "Prometheus",
+      "matchPackageNames": [
+        "/^github\\.com\\/prometheus\\//"
+      ],
+      "matchDatasources": [
+        "go"
+      ],
+      "addLabels": [
+        "go"
+      ]
+    },
+    {
+      "groupName": "Google and gRPC",
+      "matchPackageNames": [
+        "/^google\\.golang\\.org\\//"
+      ],
+      "matchDatasources": [
+        "go"
+      ],
+      "addLabels": [
+        "go"
+      ]
+    },
+    {
+      "groupName": "etcd",
+      "matchPackageNames": [
+        "/^go\\.etcd\\.io\\//"
+      ],
+      "matchDatasources": [
+        "go"
+      ],
+      "addLabels": [
+        "go"
+      ]
+    },
+    {
+      "groupName": "cert-manager",
+      "matchPackageNames": [
+        "/cert-manager/"
+      ],
+      "matchDatasources": [
+        "docker",
+        "kubernetes"
+      ],
+      "addLabels": [
+        "docker"
+      ]
+    },
+    {
+      "groupName": "NGINX base images",
+      "matchPackageNames": [
+        "nginx/nginx"
+      ],
+      "matchDatasources": [
+        "docker",
+        "go"
+      ],
+      "addLabels": [
+        "docker"
+      ]
+    },
+    {
+      "groupName": "Red Hat UBI images",
+      "matchPackageNames": [
+        "/^redhat\\//"
+      ],
+      "matchDatasources": [
+        "docker"
+      ],
+      "addLabels": [
+        "docker"
+      ]
+    },
+    {
+      "groupName": "KIC test images",
+      "matchPackageNames": [
+        "/kic-test-/"
+      ],
+      "matchDatasources": [
+        "docker",
+        "kubernetes"
+      ],
+      "addLabels": [
+        "docker"
+      ]
+    },
+    {
+      "groupName": "Keycloak",
+      "matchPackageNames": [
+        "/keycloak\\/keycloak/"
+      ],
+      "matchDatasources": [
+        "docker",
+        "kubernetes"
+      ],
+      "addLabels": [
+        "docker"
+      ]
+    },
+    {
+      "groupName": "kindest/node",
+      "matchPackageNames": [
+        "kindest/node"
+      ],
+      "matchDatasources": [
+        "docker"
+      ],
+      "addLabels": [
+        "docker"
+      ]
+    },
+    {
+      "groupName": "Go dev tooling",
+      "matchPackageNames": [
+        "dominikh/go-tools",
+        "golang/vuln",
+        "golangci/golangci-lint",
+        "mvdan.cc/gofumpt"
+      ],
+      "matchDatasources": [
+        "github-releases",
+        "go"
+      ],
+      "addLabels": [
+        "go"
+      ]
     }
   ],
   "kubernetes": {
