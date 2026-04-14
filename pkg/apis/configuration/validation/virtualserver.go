@@ -1340,6 +1340,36 @@ func (vsv *VirtualServerValidator) validateSplits(splits []v1.Split, fieldPath *
 	return allErrs
 }
 
+const (
+	PathModifierExact         = "="
+	PathModifierLongestPrefix = "^~"
+	PathModifierRegex         = "~"
+	PathModifierRegexIC       = "~*"
+)
+
+// NormalizePath removes optional whitespace between a location modifier and its URI.
+// For example, "~ /api" and "~/api" both normalize to "~/api".
+func NormalizePath(path string) string {
+	// ~* must appear before ~ in this slice since ~* starts with ~
+	for _, mod := range []string{PathModifierRegexIC, PathModifierRegex, PathModifierLongestPrefix, PathModifierExact} {
+		if strings.HasPrefix(path, mod) {
+			return mod + strings.TrimLeft(strings.TrimPrefix(path, mod), " ")
+		}
+	}
+	return path
+}
+
+// pathModifierOf returns the location modifier of a path ("~*", "~", "^~", "=" or "").
+func pathModifierOf(path string) string {
+	norm := NormalizePath(path)
+	for _, mod := range []string{PathModifierRegexIC, PathModifierRegex, PathModifierLongestPrefix, PathModifierExact} {
+		if strings.HasPrefix(norm, mod) {
+			return mod
+		}
+	}
+	return ""
+}
+
 // We support prefix-based NGINX locations, longest prefix match locations,
 // positive case-sensitive/insensitive regular expressions matches and exact matches.
 // More info http://nginx.org/en/docs/http/ngx_http_core_module.html#location
