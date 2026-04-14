@@ -134,6 +134,7 @@ type Server struct {
 	AppProtectDosName            string
 	AppProtectDosAllowListPath   string
 	AppProtectDosAccessLogDst    string
+	WAF                          *version2.WAF
 
 	SpiffeCerts bool
 
@@ -178,6 +179,7 @@ type Location struct {
 	LocationSnippets     []string
 	Path                 string
 	Upstream             Upstream
+	ProxyPass            string
 	ProxyConnectTimeout  string
 	ProxyReadTimeout     string
 	ProxySendTimeout     string
@@ -209,6 +211,7 @@ type Location struct {
 	ProxyNextUpstreamTries   *uint64
 	Allow                    []string
 	Deny                     []string
+	WAF                      *version2.WAF
 	PoliciesErrorReturn      *version2.Return
 }
 

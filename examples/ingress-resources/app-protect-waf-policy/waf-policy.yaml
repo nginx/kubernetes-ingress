@@ -1,0 +1,12 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: waf-policy
+spec:
+  waf:
+    enable: true
+    apPolicy: "default/dataguard-alarm"
+    securityLogs:
+    - enable: true
+      apLogConf: "default/logconf"
+      logDest: "syslog:server=syslog-svc.default:514"

@@ -21,7 +21,7 @@
       "image": "alpine-plus-nap-fips",
       "type": "plus",
       "nap_modules": "waf",
-      "marker": "'appprotect_waf_policies_grpc or otel'",
+      "marker": "'appprotect_waf_policies_grpc or otel or appprotect_waf_policies_ing'",
       "platforms": "linux/amd64"
     },
     {
@@ -37,7 +37,7 @@
       "image": "debian-plus-nap-v5",
       "type": "plus",
       "nap_modules": "waf",
-      "marker": "'appprotect_waf_v5 or otel'",
+      "marker": "'appprotect_waf_v5 or otel or appprotect_waf_policies_ing_v5'",
       "platforms": "linux/amd64"
     },
     {

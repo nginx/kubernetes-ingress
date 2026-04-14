@@ -72,7 +72,7 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 
 	if polExists && lbc.HasCorrectIngressClass(obj) {
 		pol := obj.(*conf_v1.Policy)
-		err := validation.ValidatePolicy(pol, lbc.isNginxPlus, lbc.enableOIDC, lbc.appProtectEnabled)
+		err := validation.ValidatePolicy(pol, lbc.policyValidationConfig())
 		if err != nil {
 			msg := fmt.Sprintf("Policy %v/%v is invalid and was rejected: %v", pol.Namespace, pol.Name, err)
 			lbc.recorder.Eventf(pol, api_v1.EventTypeWarning, nl.EventReasonRejected, msg)
@@ -118,6 +118,9 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 				continue
 			case pol.Spec.AccessControl != nil:
 				// Access Control policy is supported on Ingress
+				continue
+			case pol.Spec.WAF != nil:
+				// WAF policy is supported on Ingress
 				continue
 			default: // Unsupported policy type on Ingress
 				msg := fmt.Sprintf("Policy %s/%s has unsupported type on Ingress resource %s/%s",

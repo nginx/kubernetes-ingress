@@ -361,7 +361,7 @@ jobs:
           image: quay.io/nginx/nginx-ingress:${{ inputs.nic_version }}-ubi
           project_id: ${{ steps.secrets.outputs.PYXIS_CERTIFICATION_PROJECT_ID }}
           pyxis_token: ${{ steps.secrets.outputs.PYXIS_TOKEN }}
-          preflight_version: 1.16.0 # renovate: datasource=github-releases depName=preflight packageName=redhat-openshift-ecosystem/openshift-preflight
+          preflight_version: 1.17.0 # renovate: datasource=github-releases depName=preflight packageName=redhat-openshift-ecosystem/openshift-preflight
 
   operator:
     if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'operator') && !contains(inputs.skip_step, 'publish-helm-chart') }}
@@ -738,95 +738,3 @@ jobs:
         env:
           RELEASE_ID: ${{ steps.release-id.outputs.release_id }}
         if: ${{ ! inputs.dry_run }}
-
-  release-image-notification:
-    if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'release-image-notification') }}
-    name: Notify Slack channels about image release
-    runs-on: ubuntu-24.04
-    needs: [variables, binaries, release-oss, release-plus-gcr-nginx]
-    permissions:
-      contents: read
-      actions: read
-      id-token: write
-    strategy:
-      fail-fast: false
-      matrix:
-        image: ["nginx/nginx-ingress:${{ inputs.nic_version }}", "nginx/nginx-ingress:${{ inputs.nic_version }}-ubi", "nginx/nginx-ingress:${{ inputs.nic_version }}-alpine"]
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          ref: ${{ inputs.release_branch }}
-
-      - name: Azure login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
-        with:
-          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
-
-      - name: Setup secrets
-        id: secrets
-        run: |
-          echo "Setting secrets for job"
-          SLACK_WEBHOOK=$(az keyvault secret show --name slack-pipeline-webhook --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$SLACK_WEBHOOK"
-          echo "SLACK_WEBHOOK=$SLACK_WEBHOOK" >> $GITHUB_OUTPUT
-
-      - name: Get Image manifest digest
-        id: digest
-        run: |
-          digest=$(docker buildx imagetools inspect ${{ matrix.image }} --format '{{ json . }}' | jq -r .manifest.digest)
-
-      - name: Get Image tag
-        id: tag
-        run: |
-          tag=$(echo ${{ matrix.image }} | cut -d ':' -f 2)
-
-      - name: Get variables for Slack
-        id: slack
-        run: |
-          echo "message=$(git log -1 --pretty=%s)" >> $GITHUB_OUTPUT
-          echo "date=$(date +%s)" >> $GITHUB_OUTPUT
-          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          echo "sha_long=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
-
-      - name: Send Notification
-        uses: 8398a7/action-slack@77eaa4f1c608a7d68b38af4e3f739dcd8cba273e # v3.19.0
-        with:
-          status: custom
-          custom_payload: |
-            {
-              username: "Docker",
-              icon_emoji: ":docker:",
-              mention: "here",
-              attachments: [{
-                title: `New Docker image was pushed to DockerHub for ${process.env.AS_REPO}`,
-                color: "good",
-                fields: [{
-                  title: "Docker Image",
-                  value: `<https://hub.docker.com/r/nginx/nginx-ingress/tags?page=1&ordering=last_updated&name=${{ steps.tag.outputs.tag }}|nginx/nginx-ingress:${{ inputs.nic_version }}>`,
-                  short: true
-                },
-                {
-                  title: "Image digest",
-                  value: "${{ steps.digest.outputs.digest }}",
-                  short: true
-                },
-                {
-                  title: "Commit Message",
-                  value: `${{ steps.slack.outputs.message }}`,
-                  short: true
-                },
-                {
-                  title: "Commit Hash",
-                  value: `<https://github.com/${{ github.repository }}/commit/${{ steps.slack.outputs.sha_long }}|${{ steps.slack.outputs.sha_short }}>`,
-                  short: true
-                }],
-                footer: "Update DockerHub Image",
-                footer_icon: "https://raw.githubusercontent.com/docker-library/docs/c350af05d3fac7b5c3f6327ac82fe4d990d8729c/docker/logo.png",
-                ts: ${{ steps.slack.outputs.date }}
-              }]
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ steps.secrets.outputs.SLACK_WEBHOOK }}

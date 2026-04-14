@@ -82,10 +82,14 @@ type policyOptions struct {
 	tls             bool
 	zoneSync        bool
 	secretRefs      map[string]*secrets.SecretReference
-	apResources     *appProtectResourcesForVS
+	apResources     *appProtectPolicyResources
 	defaultCABundle string
 	replicas        int
 	oidcPolicyName  string
+	// oidcConfig holds the already-built OIDC config from the first route or spec that defined
+	// this OIDC policy. It is reused by addOIDCConfig() when the same policy name is encountered
+	// on subsequent routes.
+	oidcConfig *version2.OIDC
 }
 
 func newPoliciesConfig(bv bundleValidator) *policiesCfg {
@@ -483,6 +487,10 @@ func (p *policiesCfg) addOIDCConfig(
 			res.isError = true
 			return res
 		}
+		// Same policy seen again on a subsequent route: reuse the already-built config so that
+		// location.OIDC is set to true for every route that references the policy.
+		p.OIDC = policyOpts.oidcConfig
+		return res
 	} else {
 		secretKey := fmt.Sprintf("%v/%v", polNamespace, oidc.ClientSecret)
 		secretRef, ok := secretRefs[secretKey]
@@ -652,7 +660,7 @@ func (p *policiesCfg) addWAFConfig(
 	waf *conf_v1.WAF,
 	polKey string,
 	polNamespace string,
-	apResources *appProtectResourcesForVS,
+	apResources *appProtectPolicyResources,
 ) *validationResults {
 	l := nl.LoggerFromContext(ctx)
 	res := newValidationResults()

@@ -1520,10 +1520,10 @@ func TestExecuteTemplate_ForIngressForNGINXWithProxySetHeadersAnnotationWithDefa
 				"nginx.org/proxy-set-headers": "X-Forwarded-ABC",
 			},
 			wantCoffeeHeaders: []string{
-				`proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;`,
+				`proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";`,
 			},
 			wantTeaHeaders: []string{
-				`proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;`,
+				`proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";`,
 			},
 		},
 	}
@@ -1620,14 +1620,14 @@ func TestExecuteTemplate_ForMergeableIngressForNGINXMasterWithoutAnnotationMinio
 				"nginx.org/proxy-set-headers":      "X-Forwarded-Coffee",
 			},
 			wantCoffeeHeaders: []string{
-				`proxy_set_header X-Forwarded-Coffee $http_x_forwarded_coffee;`,
+				`proxy_set_header X-Forwarded-Coffee "$http_x_forwarded_coffee";`,
 			},
 			teaAnnotations: map[string]string{
 				"nginx.org/mergeable-ingress-type": "minion",
 				"nginx.org/proxy-set-headers":      "X-Forwarded-Tea",
 			},
 			wantTeaHeaders: []string{
-				`proxy_set_header X-Forwarded-Tea $http_x_forwarded_tea;`,
+				`proxy_set_header X-Forwarded-Tea "$http_x_forwarded_tea";`,
 			},
 		},
 	}
@@ -1807,13 +1807,13 @@ func TestExecuteTemplate_ForMergeableIngressForNGINXMasterWithAnnotationForProxy
 				"nginx.org/mergeable-ingress-type": "minion",
 			},
 			wantCoffeeHeaders: []string{
-				`proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;`,
+				`proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";`,
 			},
 			teaAnnotations: map[string]string{
 				"nginx.org/mergeable-ingress-type": "minion",
 			},
 			wantTeaHeaders: []string{
-				`proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;`,
+				`proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";`,
 			},
 		},
 	}
@@ -1863,16 +1863,16 @@ func TestExecuteTemplate_ForMergeableIngressForNGINXMasterMinionsWithDifferentHe
 				"nginx.org/proxy-set-headers":      "X-Forwarded-Coffee: espresso",
 			},
 			wantCoffeeHeaders: []string{
-				`proxy_set_header X-Forwarded-Coffee "espresso"`,
-				"proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;",
+				`proxy_set_header X-Forwarded-Coffee "espresso";`,
+				`proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";`,
 			},
 			teaAnnotations: map[string]string{
 				"nginx.org/mergeable-ingress-type": "minion",
 				"nginx.org/proxy-set-headers":      "X-Forwarded-Tea: chai",
 			},
 			wantTeaHeaders: []string{
-				`proxy_set_header X-Forwarded-Tea "chai"`,
-				"proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;",
+				`proxy_set_header X-Forwarded-Tea "chai";`,
+				`proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";`,
 			},
 		},
 	}
@@ -1922,10 +1922,10 @@ func TestExecuteTemplate_ForMergeableIngressForNGINXWithProxySetHeadersAnnotatio
 				"nginx.org/proxy-set-headers":      "X-Forwarded-ABC: coffee",
 			},
 			wantCoffeeHeaders: []string{
-				`proxy_set_header X-Forwarded-ABC "coffee"`,
+				`proxy_set_header X-Forwarded-ABC "coffee";`,
 			},
 			wantTeaHeaders: []string{
-				"proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;",
+				`proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";`,
 			},
 		},
 	}
@@ -1977,19 +1977,19 @@ func TestExecuteTemplate_ForMergeableIngressForNGINXMasterMinionsWithMultipleDif
 			wantCoffeeHeaders: []string{
 				`proxy_set_header X-Forwarded-Coffee "espresso"`,
 				`proxy_set_header X-Forwarded-Minion "coffee"`,
-				"proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;",
-				"proxy_set_header BVC $http_bvc;",
-				`proxy_set_header Location "minion"`,
+				`proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";`,
+				`proxy_set_header BVC "$http_bvc";`,
+				`proxy_set_header Location "minion";`,
 			},
 			teaAnnotations: map[string]string{
 				"nginx.org/mergeable-ingress-type": "minion",
 				"nginx.org/proxy-set-headers":      "X-Forwarded-Tea: chai",
 			},
 			wantTeaHeaders: []string{
-				`proxy_set_header X-Forwarded-Tea "chai"`,
-				"proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;",
-				"proxy_set_header BVC $http_bvc;",
-				`proxy_set_header Location "master"`,
+				`proxy_set_header X-Forwarded-Tea "chai";`,
+				`proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";`,
+				`proxy_set_header BVC "$http_bvc";`,
+				`proxy_set_header Location "master";`,
 			},
 		},
 	}
@@ -2355,6 +2355,7 @@ func TestExecuteTemplate_ForIngressForNGINXWithProxyNextUpstreamTimeout(t *testi
 					{
 						ProxyNextUpstreamTimeout: "",
 						Upstream:                 testUpstream,
+						ProxyPass:                "http://test",
 					},
 				},
 			},
@@ -2398,6 +2399,7 @@ func TestExecuteTemplate_ForIngressForNGINXWithProxyNextUpstreamTries(t *testing
 					{
 						ProxyNextUpstreamTries: nil,
 						Upstream:               testUpstream,
+						ProxyPass:              "http://test",
 					},
 				},
 			},
@@ -2732,6 +2734,7 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithRequestRateLimitZoneSync(t *t
 							Burst:      100,
 							RejectCode: 429,
 						},
+						ProxyPass: "http://test",
 					},
 				},
 			},
@@ -2840,6 +2843,7 @@ var (
 							Name:      "tea-minion",
 							Namespace: "default",
 						},
+						ProxyPass: "http://test",
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
@@ -2906,6 +2910,7 @@ var (
 								Always: true,
 							},
 						},
+						ProxyPass: "http://test",
 					},
 				},
 			},
@@ -2937,8 +2942,9 @@ var (
 				StatusZone:   "test.example.com",
 				Locations: []Location{
 					{
-						Path:     "/tea",
-						Upstream: testUpstream,
+						Path:      "/tea",
+						Upstream:  testUpstream,
+						ProxyPass: "http://test",
 					},
 				},
 				Allow: []string{
@@ -2978,6 +2984,7 @@ var (
 								Always: true,
 							},
 						},
+						ProxyPass: "http://test",
 					},
 				},
 			},
@@ -2999,8 +3006,9 @@ var (
 				StatusZone:   "test.example.com",
 				Locations: []Location{
 					{
-						Path:     "/tea",
-						Upstream: testUpstream,
+						Path:      "/tea",
+						Upstream:  testUpstream,
+						ProxyPass: "http://test",
 					},
 				},
 				Deny: []string{
@@ -3030,8 +3038,9 @@ var (
 				},
 				Locations: []Location{
 					{
-						Path:     "/tea",
-						Upstream: testUpstream,
+						Path:      "/tea",
+						Upstream:  testUpstream,
+						ProxyPass: "http://test",
 					},
 				},
 			},
@@ -3067,6 +3076,7 @@ var (
 						PoliciesErrorReturn: &version2.Return{
 							Code: 500,
 						},
+						ProxyPass: "http://test",
 					},
 				},
 			},
@@ -3114,6 +3124,7 @@ var (
 							Name:      "tea-minion",
 							Namespace: "default",
 						},
+						ProxyPass: "http://test",
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
@@ -3172,6 +3183,7 @@ var (
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
 						ClientMaxBodySize:   "2m",
+						ProxyPass:           "http://test",
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
@@ -3221,6 +3233,7 @@ var (
 							Name:      "tea-minion",
 							Namespace: "default",
 						},
+						ProxyPass: "http://test",
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
@@ -3277,6 +3290,7 @@ var (
 							Name:      "tea-minion",
 							Namespace: "default",
 						},
+						ProxyPass: "http://test",
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
@@ -3333,6 +3347,7 @@ var (
 							Name:      "tea-minion",
 							Namespace: "default",
 						},
+						ProxyPass: "http://test",
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
@@ -3389,6 +3404,7 @@ var (
 							Name:      "tea-minion",
 							Namespace: "default",
 						},
+						ProxyPass: "http://test",
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
@@ -3847,6 +3863,7 @@ var (
 							},
 						},
 						ProxySSLName: "coffee-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80",
 					},
 					{
 						Path:                "/tea",
@@ -3865,6 +3882,7 @@ var (
 							},
 						},
 						ProxySSLName: "tea-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80",
 					},
 				},
 				SSL:               true,
@@ -3921,6 +3939,7 @@ var (
 							},
 						},
 						ProxySSLName: "coffee-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80",
 					},
 					{
 						Path:                "/tea",
@@ -3939,6 +3958,7 @@ var (
 							},
 						},
 						ProxySSLName: "tea-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80",
 					},
 				},
 				SSL:               true,
@@ -3997,6 +4017,7 @@ var (
 							},
 						},
 						ProxySSLName: "coffee-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80",
 					},
 					{
 						Path:                "/tea",
@@ -4015,6 +4036,7 @@ var (
 							},
 						},
 						ProxySSLName: "tea-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80",
 					},
 				},
 				SSL:               true,
@@ -4071,6 +4093,7 @@ var (
 							},
 						},
 						ProxySSLName: "coffee-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80",
 					},
 					{
 						Path:                "/tea",
@@ -4090,6 +4113,7 @@ var (
 							},
 						},
 						ProxySSLName: "tea-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80",
 					},
 				},
 				SSL:               true,
@@ -4147,6 +4171,7 @@ var (
 							},
 						},
 						ProxySSLName: "coffee-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80",
 					},
 					{
 						Path:                "/tea",
@@ -4165,6 +4190,7 @@ var (
 							},
 						},
 						ProxySSLName: "tea-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80",
 					},
 				},
 				SSL:               true,
@@ -4224,6 +4250,7 @@ var (
 							},
 						},
 						ProxySSLName: "coffee-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80",
 					},
 					{
 						Path:                "/tea",
@@ -4243,6 +4270,7 @@ var (
 							},
 						},
 						ProxySSLName: "tea-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80",
 					},
 				},
 				SSL:               true,
@@ -4301,6 +4329,7 @@ var (
 							},
 						},
 						ProxySSLName: "coffee-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80",
 					},
 					{
 						Path:                "/tea",
@@ -4320,6 +4349,7 @@ var (
 							},
 						},
 						ProxySSLName: "tea-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80",
 					},
 				},
 				SSL:               true,
@@ -4377,7 +4407,9 @@ var (
 								"nginx.org/proxy-set-headers":      "X-Forwarded-ABC: coffee",
 							},
 						},
-						ProxySSLName: "coffee-svc.default.svc",
+						ProxyPass:       "http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80",
+						ProxySetHeaders: []version2.Header{{Name: "X-Forwarded-ABC", Value: "coffee"}},
+						ProxySSLName:    "coffee-svc.default.svc",
 					},
 					{
 						Path:                "/tea",
@@ -4396,7 +4428,9 @@ var (
 								"nginx.org/proxy-set-headers":      "X-Forwarded-ABC: tea",
 							},
 						},
-						ProxySSLName: "tea-svc.default.svc",
+						ProxyPass:       "http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80",
+						ProxySetHeaders: []version2.Header{{Name: "X-Forwarded-ABC", Value: "tea"}},
+						ProxySSLName:    "tea-svc.default.svc",
 					},
 				},
 				SSL:               true,
@@ -4446,6 +4480,7 @@ var (
 							Name:      "tea-minion",
 							Namespace: "default",
 						},
+						ProxyPass: "http://test",
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
@@ -4509,6 +4544,7 @@ var (
 							DryRun:     true,
 							LogLevel:   "info",
 						},
+						ProxyPass: "http://test",
 					},
 					{
 						Path:                "/coffee",
@@ -4530,6 +4566,7 @@ var (
 							DryRun:     true,
 							LogLevel:   "info",
 						},
+						ProxyPass: "http://test",
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
@@ -4598,6 +4635,7 @@ var (
 							DryRun:     true,
 							RejectCode: 429,
 						},
+						ProxyPass: "http://test",
 					},
 					{
 						Path:                "/coffee",
@@ -4622,6 +4660,7 @@ var (
 							LogLevel:   "error",
 							RejectCode: 503,
 						},
+						ProxyPass: "http://test",
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
@@ -4675,7 +4714,11 @@ var (
 	}
 )
 
-func createProxySetHeaderIngressConfig(masterAnnotations map[string]string, coffeeAnnotations map[string]string, teamAnnotations map[string]string) IngressNginxConfig {
+func createProxySetHeaderIngressConfig(masterAnnotations, coffeeAnnotations, teaAnnotations map[string]string) IngressNginxConfig {
+	masterPSH := masterAnnotations["nginx.org/proxy-set-headers"]
+	coffeePSH := coffeeAnnotations["nginx.org/proxy-set-headers"]
+	teaPSH := teaAnnotations["nginx.org/proxy-set-headers"]
+
 	return IngressNginxConfig{
 		Servers: []Server{
 			{
@@ -4687,13 +4730,17 @@ func createProxySetHeaderIngressConfig(masterAnnotations map[string]string, coff
 							Namespace:   "default",
 							Annotations: coffeeAnnotations,
 						},
+						ProxySetHeaders: MergeProxySetHeaders(masterPSH, coffeePSH),
+						ProxyPass:       "http://test",
 					},
 					{
 						MinionIngress: &Ingress{
 							Name:        "cafe-ingress-tea-minion",
 							Namespace:   "default",
-							Annotations: teamAnnotations,
+							Annotations: teaAnnotations,
 						},
+						ProxySetHeaders: MergeProxySetHeaders(masterPSH, teaPSH),
+						ProxyPass:       "http://test",
 					},
 				},
 			},
@@ -4721,8 +4768,9 @@ func TestExecuteTemplate_ForIngressForNGINXWithSSLCiphers(t *testing.T) {
 				SSLPreferServerCiphers: true,
 				Locations: []Location{
 					{
-						Path:     "/",
-						Upstream: testUpstream,
+						Path:      "/",
+						Upstream:  testUpstream,
+						ProxyPass: "http://test",
 					},
 				},
 			},
@@ -4768,8 +4816,9 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithSSLCiphers(t *testing.T) {
 				SSLPreferServerCiphers: true,
 				Locations: []Location{
 					{
-						Path:     "/",
-						Upstream: testUpstream,
+						Path:      "/",
+						Upstream:  testUpstream,
+						ProxyPass: "http://test",
 					},
 				},
 			},
@@ -4815,8 +4864,9 @@ func TestExecuteTemplate_ForIngressForNGINXWithSSLCiphersDisabled(t *testing.T) 
 				SSLPreferServerCiphers: false,
 				Locations: []Location{
 					{
-						Path:     "/",
-						Upstream: testUpstream,
+						Path:      "/",
+						Upstream:  testUpstream,
+						ProxyPass: "http://test",
 					},
 				},
 			},
@@ -4871,6 +4921,7 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 								Path:          "/(coffee|tea)",
 								RewriteTarget: "/beverages/$1",
 								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
 							},
 						},
 					},
@@ -4903,6 +4954,7 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 								Path:          "/(latte|espresso)",
 								RewriteTarget: "/drinks/$1",
 								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
 							},
 						},
 					},
@@ -4935,6 +4987,7 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 								Path:          "/cappuccino",
 								RewriteTarget: "/special/cappuccino",
 								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
 							},
 						},
 					},
@@ -4968,6 +5021,7 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 								Path:          "/mocha",
 								RewriteTarget: "/hot-drinks/mocha",
 								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
 							},
 						},
 					},
@@ -4995,8 +5049,9 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 						ServerTokens: "off",
 						Locations: []Location{
 							{
-								Path:     "/americano",
-								Upstream: testUpstream,
+								Path:      "/americano",
+								Upstream:  testUpstream,
+								ProxyPass: "http://test",
 								// RewriteTarget is empty - should not generate rewrite directive
 							},
 						},
@@ -5028,6 +5083,7 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 								Path:          "/menu/(hot|cold)/(coffee|tea)",
 								RewriteTarget: "/drinks/$1/$2",
 								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
 							},
 						},
 					},
@@ -5107,6 +5163,7 @@ func TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget(t *testing.T) {
 								Path:          "/(coffee|tea)",
 								RewriteTarget: "/beverages/$1",
 								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
 							},
 						},
 					},
@@ -5139,6 +5196,7 @@ func TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget(t *testing.T) {
 								Path:          "/(latte|espresso)",
 								RewriteTarget: "/drinks/$1",
 								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
 							},
 						},
 					},
@@ -5171,6 +5229,7 @@ func TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget(t *testing.T) {
 								Path:          "/cappuccino",
 								RewriteTarget: "/special/cappuccino",
 								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
 							},
 						},
 					},
@@ -5204,6 +5263,7 @@ func TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget(t *testing.T) {
 								Path:          "/mocha",
 								RewriteTarget: "/hot-drinks/mocha",
 								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
 							},
 						},
 					},
@@ -5231,8 +5291,9 @@ func TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget(t *testing.T) {
 						ServerTokens: "off",
 						Locations: []Location{
 							{
-								Path:     "/americano",
-								Upstream: testUpstream,
+								Path:      "/americano",
+								Upstream:  testUpstream,
+								ProxyPass: "http://test",
 								// RewriteTarget is empty - should not generate rewrite directive
 							},
 						},
@@ -5264,6 +5325,7 @@ func TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget(t *testing.T) {
 								Path:          "/menu/(hot|cold)/(coffee|tea)",
 								RewriteTarget: "/drinks/$1/$2",
 								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
 							},
 						},
 					},
@@ -5334,8 +5396,9 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithSSLCiphersDisabled(t *testing
 				SSLPreferServerCiphers: false,
 				Locations: []Location{
 					{
-						Path:     "/",
-						Upstream: testUpstream,
+						Path:      "/",
+						Upstream:  testUpstream,
+						ProxyPass: "http://test",
 					},
 				},
 			},
