@@ -65,6 +65,16 @@ get_k8s_latest_version() {
   echo "$K8S_LATEST_VERSION"
 }
 
+# Outputs docs_only=true if all changed files match doc paths (*.md, docs/**, examples/**)
+get_docs_only() {
+  non_doc_files=$(git diff --name-only HEAD^ | grep -Ev '(\.md$|^docs/|^examples/)')
+  if [ -z "$non_doc_files" ]; then
+    echo "docs_only=true"
+  else
+    echo "docs_only=false"
+  fi
+}
+
 case $INPUT in
   docker_md5)
     echo "docker_md5=$(get_docker_md5)"
@@ -88,6 +98,10 @@ case $INPUT in
 
   k8s_latest_version)
     echo "k8s_latest=$(get_k8s_latest_version)"
+    ;;
+
+  docs_only)
+    get_docs_only
     ;;
 
   *)
