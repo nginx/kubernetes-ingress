@@ -95,6 +95,10 @@
           "version": "2026"
         },
         {
+          "name": "app-protect-ip-intelligence",
+          "version": "1.50.0"
+        },
+        {
           "name": "nginx-agent",
           "version": "2"
         }
@@ -207,6 +211,10 @@
         {
           "name": "app-protect",
           "version": "36+5.607"
+        },
+        {
+          "name": "app-protect-ip-intelligence",
+          "version": "1.50.0"
         },
         {
           "name": "app-protect-attack-signatures",
@@ -348,6 +356,10 @@
           "version": "2"
         },
         {
+          "name": "app-protect-ip-intelligence",
+          "version": "1.50.0"
+        },
+        {
           "name": "nginx-plus-module-appprotect",
           "version": "36.5.607"
         },
@@ -502,6 +514,10 @@
           "version": "36+5.607"
         },
         {
+          "name": "app-protect-ip-intelligence",
+          "version": "1.50.0"
+        },
+        {
           "name": "app-protect-attack-signatures",
           "version": "2026"
         },
@@ -588,6 +604,10 @@
         {
           "name": "app-protect",
           "version": "36+5.607"
+        },
+        {
+          "name": "app-protect-ip-intelligence",
+          "version": "1.50.0"
         },
         {
           "name": "app-protect-attack-signatures",
@@ -714,6 +734,10 @@
         {
           "name": "app-protect",
           "version": "36+5.607"
+        },
+        {
+          "name": "app-protect-ip-intelligence",
+          "version": "1.50.0"
         },
         {
           "name": "app-protect-attack-signatures",

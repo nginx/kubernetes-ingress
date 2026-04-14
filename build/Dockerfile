@@ -215,6 +215,7 @@ RUN --mount=type=bind,from=alpine-fips-3.22,target=/tmp/fips/ \
 FROM alpine:3.22@sha256:55ae5d250caebc548793f321534bc6a8ef1d116f334f18f4ada1b2daad3251b2 AS alpine-plus-nap-fips
 ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
+ARG NAP_IPI_VERSION
 ARG PACKAGE_REPO
 ARG NAP_AGENT_VERSION
 
@@ -240,7 +241,10 @@ RUN --mount=type=bind,from=alpine-fips-3.22,target=/tmp/fips/ \
 	&& cp -av /tmp/fips/etc/ssl/openssl.cnf /etc/ssl/openssl.cnf \
 	&& mkdir -p /etc/nginx/reporting/ \
 	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
-	&& apk add --no-cache app-protect~=${NAP_WAF_VERSION/+/.} app-protect-attack-signatures app-protect-threat-campaigns app-protect-ip-intelligence~=${NAP_WAF_VERSION/+/.} \
+	&& apk add --no-cache app-protect~=${NAP_WAF_VERSION/+/.} \
+      app-protect-ip-intelligence~=${NAP_WAF_IPI_VERSION/+/.} \
+      app-protect-attack-signatures \
+      app-protect-threat-campaigns \
 	&& sed -i -e '/nginx.com/d' /etc/apk/repositories \
 	&& nap-waf.sh \
 	agent.sh
@@ -335,6 +339,7 @@ ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
 ARG NAP_WAF_COMMON_VERSION
 ARG NAP_WAF_PLUGIN_VERSION
+ARG NAP_WAF_IPI_VERSION
 ARG NAP_AGENT_VERSION
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
@@ -354,11 +359,11 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& apt-get update \
 	&& apt-get install --no-install-recommends --no-install-suggests -y app-protect=${NAP_WAF_VERSION}* \
 	nginx-plus-module-appprotect=${NAP_WAF_VERSION}* \
-	app-protect-ip-intelligence=${NAP_WAF_VERSION}* \
 	app-protect-engine=${NAP_WAF_COMMON_VERSION}* \
 	app-protect-common=${NAP_WAF_COMMON_VERSION}* \
 	app-protect-compiler=${NAP_WAF_COMMON_VERSION}* \
 	app-protect-plugin=${NAP_WAF_PLUGIN_VERSION}* \
+	app-protect-ip-intelligence=${NAP_WAF_VERSION}* \
 	app-protect-attack-signatures \
 	app-protect-threat-campaigns \
 	nginx-agent=${NAP_AGENT_VERSION}.* \
@@ -429,6 +434,7 @@ ARG NAP_MODULES
 ARG BUILD_OS
 ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
+ARG NAP_WAF_IPI_VERSION
 ARG NAP_AGENT_VERSION
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
@@ -463,7 +469,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& cp /tmp/app-protect-9.repo /etc/yum.repos.d/app-protect-9.repo \
 	&& microdnf --enablerepo=codeready-builder-for-rhel-9-x86_64-rpms --nodocs install -y \
 	app-protect-${NAP_WAF_VERSION}* \
-	app-protect-ip-intelligence-${NAP_WAF_VERSION}* \
+	app-protect-ip-intelligence-${NAP_WAF_IPI_VERSION}* \
 	app-protect-attack-signatures app-protect-threat-campaigns \
 	&& rm -f /etc/yum.repos.d/app-protect-9.repo \
 	&& nap-waf.sh \
@@ -548,8 +554,9 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& dnf config-manager --set-enabled codeready-builder-for-rhel-8-x86_64-rpms \
 	&& dnf --nodocs install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm \
 	&& dnf --nodocs install -y app-protect-${NAP_WAF_VERSION}* \
-	app-protect-ip-intelligence-${NAP_WAF_VERSION}* \
-	app-protect-attack-signatures app-protect-threat-campaigns \
+       app-protect-ip-intelligence-${NAP_WAF_VERSION}* \
+       app-protect-attack-signatures \
+       app-protect-threat-campaigns \
 	&& subscription-manager unregister \
 	&& nap-waf.sh \
 	&& agent.sh \
