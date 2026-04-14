@@ -1341,10 +1341,17 @@ func (vsv *VirtualServerValidator) validateSplits(splits []v1.Split, fieldPath *
 }
 
 const (
-	PathModifierExact         = "="
+	// PathModifierExact is the prefix used for exact location matches.
+	PathModifierExact = "="
+
+	// PathModifierLongestPrefix is the prefix for longest prefix matches.
 	PathModifierLongestPrefix = "^~"
-	PathModifierRegex         = "~"
-	PathModifierRegexIC       = "~*"
+
+	// PathModifierRegex is the prefix for case-sensitive regular expression matches.
+	PathModifierRegex = "~"
+
+	// PathModifierRegexIC is the prefix for case-insensitive regular expression matches.
+	PathModifierRegexIC = "~*"
 )
 
 // NormalizePath removes optional whitespace between a location modifier and its URI.
