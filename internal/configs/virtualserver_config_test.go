@@ -2053,6 +2053,87 @@ func TestGenerateVirtualServerConfig_DoesNotGenerateBackupOnMissingBackupPortAnd
 	}
 }
 
+func TestGenerateVSConfigWithHeaderInherit(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		vsEx     VirtualServerEx
+		expected version2.VirtualServerConfig
+	}{
+		{ // directive set in VS config matches generated config
+			vsEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					Spec: conf_v1.VirtualServerSpec{
+						AddHeaderInherit: "off",
+					},
+				},
+			},
+			expected: version2.VirtualServerConfig{
+				Server: version2.Server{
+					AddHeaderInherit: "on",
+				},
+			},
+		},
+		{ // spec-level "on"
+			vsEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					Spec: conf_v1.VirtualServerSpec{AddHeaderInherit: "on"},
+				},
+			},
+			expected: version2.VirtualServerConfig{
+				Server: version2.Server{AddHeaderInherit: "on"},
+			},
+		},
+		{ // spec-level empty → no directive
+			vsEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					Spec: conf_v1.VirtualServerSpec{AddHeaderInherit: ""},
+				},
+			},
+			expected: version2.VirtualServerConfig{
+				Server: version2.Server{AddHeaderInherit: ""},
+			},
+		},
+		{ // route-level "merge" propagates to its location
+			vsEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					Spec: conf_v1.VirtualServerSpec{
+						Upstreams: []conf_v1.Upstream{{Name: "app", Service: "app-svc", Port: 80}},
+						Routes: []conf_v1.Route{
+							{
+								Path:             "/tea",
+								AddHeaderInherit: "merge",
+								Action:           &conf_v1.Action{Pass: "app"},
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{"default/app-svc:80": {"10.0.0.1:80"}},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		vsc := newVirtualServerConfigurator(
+			&baseCfgParams,
+			false,
+			false,
+			&StaticConfigParams{TLSPassthrough: false},
+			false,
+			&fakeBV,
+		)
+
+		result, warnings := vsc.GenerateVirtualServerConfig(&tt.vsEx, nil, nil)
+		if diff := cmp.Diff(tt.expected.Server.AddHeaderInherit, result.Server.AddHeaderInherit); diff != "" {
+			t.Errorf("GenerateVirtualServerConfig() mismatch (-want +got):\n%s", diff)
+		}
+
+		if len(warnings) != 0 {
+			t.Errorf("GenerateVirtualServerConfig returned warnings: %v", vsc.warnings)
+		}
+	}
+}
+
 func TestGenerateVirtualServerConfig(t *testing.T) {
 	t.Parallel()
 	virtualServerEx := VirtualServerEx{
