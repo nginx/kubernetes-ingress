@@ -6052,3 +6052,147 @@ func TestValidateDuplicateVSRs(t *testing.T) {
 		})
 	}
 }
+
+// TestBuildVirtualServerRoutesMultipleRegex tests the multi-regex VSR feature: a single VSR
+// may be referenced by multiple regex VS routes, and the validation checks that the VSR's
+// subroutes form an exact set match with the collected VS paths.
+func TestBuildVirtualServerRoutesMultipleRegex(t *testing.T) {
+	t.Parallel()
+
+	const (
+		host      = "foo.example.com"
+		vsrName   = "myroute"
+		namespace = "default"
+		vsName    = "myvs"
+	)
+
+	makeSubroute := func(path string) conf_v1.Route {
+		return conf_v1.Route{
+			Path: path,
+			Action: &conf_v1.Action{
+				Return: &conf_v1.ActionReturn{Body: "ok"},
+			},
+		}
+	}
+
+	makeVSR := func(subroutes []conf_v1.Route) *conf_v1.VirtualServerRoute {
+		return &conf_v1.VirtualServerRoute{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      vsrName,
+				Namespace: namespace,
+			},
+			Spec: conf_v1.VirtualServerRouteSpec{
+				IngressClass: "nginx",
+				Host:         host,
+				Subroutes:    subroutes,
+			},
+		}
+	}
+
+	testCases := []struct {
+		name          string
+		vsRoutes      []conf_v1.Route
+		vsrSubroutes  []conf_v1.Route
+		expectedVSR   bool
+		expectedWarns []string
+	}{
+		{
+			name: "two regex VS routes referencing same VSR with matching subroutes",
+			vsRoutes: []conf_v1.Route{
+				{Path: "~/api/v1", Route: vsrName},
+				{Path: "~/api/v2", Route: vsrName},
+			},
+			vsrSubroutes: []conf_v1.Route{
+				makeSubroute("~/api/v1"),
+				makeSubroute("~/api/v2"),
+			},
+			expectedVSR:   true,
+			expectedWarns: nil,
+		},
+		{
+			name: "spacing-duplicate VS regex paths produce warning but VSR still validates",
+			vsRoutes: []conf_v1.Route{
+				{Path: "~/api", Route: vsrName},
+				{Path: "~ /api", Route: vsrName},
+			},
+			vsrSubroutes: []conf_v1.Route{
+				makeSubroute("~/api"),
+			},
+			expectedVSR: true,
+			expectedWarns: []string{
+				`routes "~/api" and "~ /api" have equivalent regex paths after normalization; only one will be used by nginx`,
+			},
+		},
+		{
+			name: "orphaned VSR subroute not covered by any VS path is rejected",
+			vsRoutes: []conf_v1.Route{
+				{Path: "~/api/v1", Route: vsrName},
+			},
+			vsrSubroutes: []conf_v1.Route{
+				makeSubroute("~/api/v1"),
+				makeSubroute("~/api/v2"),
+			},
+			expectedVSR: false,
+			expectedWarns: []string{
+				`VirtualServerRoute default/myroute is invalid: spec.subroutes[1].path: Invalid value: "~/api/v2": subroute path '~/api/v2' is not referenced by any VS route; all VSR subroutes must be referenced`,
+			},
+		},
+		{
+			name: "VS route path not covered by any subroute is rejected",
+			vsRoutes: []conf_v1.Route{
+				{Path: "~/api/v1", Route: vsrName},
+				{Path: "~/api/v2", Route: vsrName},
+			},
+			vsrSubroutes: []conf_v1.Route{
+				makeSubroute("~/api/v1"),
+			},
+			expectedVSR: false,
+			expectedWarns: []string{
+				`VirtualServerRoute default/myroute is invalid: spec.subroutes: Invalid value: "subroutes": subroute with path '~/api/v2' is missing; all VS route paths must be covered by VSR subroutes`,
+			},
+		},
+		{
+			name: "VSR referenced by both regex and non-regex VS routes is rejected from both",
+			vsRoutes: []conf_v1.Route{
+				{Path: "/prefix", Route: vsrName},
+				{Path: "~/regex", Route: vsrName},
+			},
+			vsrSubroutes: []conf_v1.Route{
+				makeSubroute("/prefix/sub"),
+			},
+			expectedVSR: false,
+			expectedWarns: []string{
+				"VirtualServerRoute default/myroute is referenced by both regex and non-regex VS routes; it will not be used",
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			configuration := createTestConfiguration()
+			vsr := makeVSR(testCase.vsrSubroutes)
+			configuration.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{
+				namespace + "/" + vsrName: vsr,
+			}
+
+			vs := createTestVirtualServerWithRoutes(vsName, host, testCase.vsRoutes)
+			gotVSRs, _, gotWarnings := configuration.buildVirtualServerRoutes(vs)
+
+			wantLen := 0
+			if testCase.expectedVSR {
+				wantLen = 1
+			}
+			if len(gotVSRs) != wantLen {
+				t.Errorf("buildVirtualServerRoutes() returned %d VSRs, want %d", len(gotVSRs), wantLen)
+			} else if testCase.expectedVSR {
+				if diff := cmp.Diff(vsr, gotVSRs[0]); diff != "" {
+					t.Errorf("buildVirtualServerRoutes() returned unexpected VSR (-want +got):\n%s", diff)
+				}
+			}
+			if diff := cmp.Diff(testCase.expectedWarns, gotWarnings); diff != "" {
+				t.Errorf("buildVirtualServerRoutes() returned unexpected warnings (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
