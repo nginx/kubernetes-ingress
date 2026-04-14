@@ -222,6 +222,7 @@
   "timezone": "Europe/Dublin",
   "automerge": true,
   "automergeStrategy": "squash",
+  "automergeType": "pr",
   "baseBranchPatterns": [
     "main",
     "release-5.4"
