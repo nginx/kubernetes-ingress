@@ -34,7 +34,7 @@ override DOCKER_BUILD_OPTIONS += --build-arg IC_VERSION=$(VERSION) --build-arg P
 ARCH                          ?= amd64 ## The architecture of the image or binary. For example: amd64, arm64, ppc64le, s390x. Not all architectures are supported for all targets
 GOOS                          ?= linux ## The OS of the binary. For example linux, darwin
 TELEMETRY_ENDPOINT            ?= oss.edge.df.f5.com:443
-# renovate: datasource=docker depName=golangci/golangci-lint
+# renovate: datasource=github-releases depName=golangci/golangci-lint
 GOLANGCI_LINT_VERSION         ?= v2.11.4 ## The version of golangci-lint to use
 # renovate: datasource=go depName=golang.org/x/tools
 GOIMPORTS_VERSION             ?= v0.44.0 ## The version of goimports to use

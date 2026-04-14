@@ -74,12 +74,6 @@
     },
     {
       "matchPackageNames": [
-        "golangci/golangci-lint"
-      ],
-      "groupName": "golangci-lint"
-    },
-    {
-      "matchPackageNames": [
         "/private-registry\\.nginx\\.com/",
         "/registry\\.redhat\\.io/",
         "/nginxdemos\\/nginx-hello/"
@@ -191,18 +185,6 @@
       ],
       "addLabels": [
         "skip changelog"
-      ]
-    },
-    {
-      "groupName": "NGINX base images",
-      "matchPackageNames": [
-        "nginx/nginx"
-      ],
-      "matchDatasources": [
-        "docker"
-      ],
-      "addLabels": [
-        "docker"
       ]
     },
     {
@@ -390,7 +372,7 @@
     },
     {
       "customType": "regex",
-      "datasourceTemplate": "docker",
+      "datasourceTemplate": "github-releases",
       "depNameTemplate": "golangci/golangci-lint",
       "description": "Update golangci-lint version in golangci-lint-action",
       "managerFilePatterns": [
