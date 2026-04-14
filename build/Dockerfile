@@ -6,6 +6,7 @@ ARG NGINX_PLUS_VERSION=R36
 ARG NAP_WAF_VERSION=36+5.607
 ARG NAP_WAF_COMMON_VERSION=11.644
 ARG NAP_WAF_PLUGIN_VERSION=6.28
+ARG NAP_WAF_IPI_VERSION=1.50.0
 ARG NGINX_AGENT_VERSION=3.8
 ARG NAP_AGENT_VERSION=2
 ARG DOWNLOAD_TAG=edge
@@ -215,7 +216,7 @@ RUN --mount=type=bind,from=alpine-fips-3.22,target=/tmp/fips/ \
 FROM alpine:3.22@sha256:55ae5d250caebc548793f321534bc6a8ef1d116f334f18f4ada1b2daad3251b2 AS alpine-plus-nap-fips
 ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
-ARG NAP_IPI_VERSION
+ARG NAP_WAF_IPI_VERSION
 ARG PACKAGE_REPO
 ARG NAP_AGENT_VERSION
 
@@ -363,7 +364,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	app-protect-common=${NAP_WAF_COMMON_VERSION}* \
 	app-protect-compiler=${NAP_WAF_COMMON_VERSION}* \
 	app-protect-plugin=${NAP_WAF_PLUGIN_VERSION}* \
-	app-protect-ip-intelligence=${NAP_WAF_VERSION}* \
+	app-protect-ip-intelligence=${NAP_WAF_IPI_VERSION}* \
 	app-protect-attack-signatures \
 	app-protect-threat-campaigns \
 	nginx-agent=${NAP_AGENT_VERSION}.* \
@@ -523,6 +524,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 FROM redhat/ubi8@sha256:af1645b4f59bd577e5081038c8ee01dafd39223052a2c2a1e5980a0e879654a3 AS ubi-8-plus-nap
 ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
+ARG NAP_WAF_IPI_VERSION
 ARG BUILD_OS
 ARG NAP_AGENT_VERSION
 
@@ -554,7 +556,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& dnf config-manager --set-enabled codeready-builder-for-rhel-8-x86_64-rpms \
 	&& dnf --nodocs install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm \
 	&& dnf --nodocs install -y app-protect-${NAP_WAF_VERSION}* \
-       app-protect-ip-intelligence-${NAP_WAF_VERSION}* \
+       app-protect-ip-intelligence-${NAP_WAF_IPI_VERSION}* \
        app-protect-attack-signatures \
        app-protect-threat-campaigns \
 	&& subscription-manager unregister \
