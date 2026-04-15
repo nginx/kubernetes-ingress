@@ -306,6 +306,22 @@ server {
 		rewrite {{ makeRewritePattern $location $.Ingress.Annotations }} {{$location.RewriteTarget}} break;
 		{{- end}}
 		{{- $proxyOrGRPC := "proxy" }}{{ if $location.GRPC }}{{ $proxyOrGRPC = "grpc" }}{{ end }}
+		{{- with $location.EgressMTLS}}
+			{{- if .Certificate }}
+		{{$proxyOrGRPC}}_ssl_certificate {{ makeSecretPath .Certificate $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+		{{$proxyOrGRPC}}_ssl_certificate_key {{ makeSecretPath .CertificateKey $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+			{{- end }}
+			{{- if .TrustedCert }}
+		{{$proxyOrGRPC}}_ssl_trusted_certificate {{ .TrustedCert }};
+			{{- end }}
+		{{$proxyOrGRPC}}_ssl_verify {{ if .VerifyServer }}on{{else}}off{{end}};
+		{{$proxyOrGRPC}}_ssl_verify_depth {{ .VerifyDepth }};
+		{{$proxyOrGRPC}}_ssl_protocols {{ .Protocols }};
+		{{$proxyOrGRPC}}_ssl_ciphers {{ .Ciphers }};
+		{{$proxyOrGRPC}}_ssl_session_reuse {{ if .SessionReuse }}on{{else}}off{{end}};
+		{{$proxyOrGRPC}}_ssl_server_name {{ if .ServerName }}on{{else}}off{{end}};
+		{{$proxyOrGRPC}}_ssl_name {{ .SSLName }};
+		{{- end}}
 		{{- if $location.GRPC}}
 		{{- if not $server.GRPCOnly}}
 		error_page 400 @grpcerror400;
@@ -348,6 +364,20 @@ server {
 
 		{{- if $location.ProxyBufferSize}}
 		grpc_buffer_size {{$location.ProxyBufferSize}};
+		{{- end}}
+		{{- if $.SpiffeClientCerts}}
+		grpc_ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+		grpc_ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+		grpc_ssl_trusted_certificate /etc/nginx/secrets/spiffe_rootca.pem;
+		grpc_ssl_server_name on;
+		grpc_ssl_verify on;
+		grpc_ssl_verify_depth 25;
+		grpc_ssl_name {{$location.ProxySSLName}};
+		{{- end}}
+		{{- if $location.SSL}}
+		grpc_pass grpcs://{{$location.Upstream.Name}};
+		{{- else}}
+		grpc_pass grpc://{{$location.Upstream.Name}};
 		{{- end}}
 		{{- else}}
 		proxy_http_version 1.1;
@@ -403,40 +433,15 @@ server {
 		{{- if $location.ProxyMaxTempFileSize}}
 		proxy_max_temp_file_size {{$location.ProxyMaxTempFileSize}};
 		{{- end}}
+		{{- if $.SpiffeClientCerts}}
+		proxy_ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+		proxy_ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+		proxy_ssl_trusted_certificate /etc/nginx/secrets/spiffe_rootca.pem;
+		proxy_ssl_server_name on;
+		proxy_ssl_verify on;
+		proxy_ssl_verify_depth 25;
+		proxy_ssl_name {{$location.ProxySSLName}};
 		{{- end}}
-		{{- if $location.EgressMTLS}}
-			{{- with $location.EgressMTLS}}
-				{{- if .Certificate }}
-		{{$proxyOrGRPC}}_ssl_certificate {{ makeSecretPath .Certificate $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-		{{$proxyOrGRPC}}_ssl_certificate_key {{ makeSecretPath .CertificateKey $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-				{{- end }}
-				{{- if .TrustedCert }}
-		{{$proxyOrGRPC}}_ssl_trusted_certificate {{ .TrustedCert }};
-				{{- end }}
-		{{$proxyOrGRPC}}_ssl_verify {{ if .VerifyServer }}on{{else}}off{{end}};
-		{{$proxyOrGRPC}}_ssl_verify_depth {{ .VerifyDepth }};
-		{{$proxyOrGRPC}}_ssl_protocols {{ .Protocols }};
-		{{$proxyOrGRPC}}_ssl_ciphers {{ .Ciphers }};
-		{{$proxyOrGRPC}}_ssl_session_reuse {{ if .SessionReuse }}on{{else}}off{{end}};
-		{{$proxyOrGRPC}}_ssl_server_name {{ if .ServerName }}on{{else}}off{{end}};
-		{{$proxyOrGRPC}}_ssl_name {{ .SSLName }};
-			{{- end}}
-		{{- else if and (not $server.EgressMTLS) $.SpiffeClientCerts}}
-		{{$proxyOrGRPC}}_ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-		{{$proxyOrGRPC}}_ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-		{{$proxyOrGRPC}}_ssl_trusted_certificate /etc/nginx/secrets/spiffe_rootca.pem;
-		{{$proxyOrGRPC}}_ssl_server_name on;
-		{{$proxyOrGRPC}}_ssl_verify on;
-		{{$proxyOrGRPC}}_ssl_verify_depth 25;
-		{{$proxyOrGRPC}}_ssl_name {{$location.ProxySSLName}};
-		{{- end}}
-		{{- if $location.GRPC }}
-			{{- if $location.SSL}}
-		{{$proxyOrGRPC}}_pass grpcs://{{$location.Upstream.Name}};
-			{{- else}}
-		{{$proxyOrGRPC}}_pass grpc://{{$location.Upstream.Name}};
-			{{- end}}
-		{{- else}}
 		{{- if $location.ProxyNextUpstream}}
 		proxy_next_upstream {{ $location.ProxyNextUpstream }};
 		{{- end }}
@@ -446,7 +451,7 @@ server {
 		{{- if $location.ProxyNextUpstreamTries}}
 		proxy_next_upstream_tries {{ $location.ProxyNextUpstreamTries }};
 		{{- end }}
-		{{$proxyOrGRPC}}_pass {{ $location.ProxyPass }}{{ $location.Rewrite }};
+		proxy_pass {{ $location.ProxyPass }}{{ $location.Rewrite }};
 		{{- end}}
 
 		{{- if or $location.CORSEnabled (gt (len $location.AddHeaders) 0) }}
