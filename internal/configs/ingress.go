@@ -402,6 +402,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		}
 
 		if ncp.isMinion {
+			// Mergeable minions apply egress mTLS at location scope so minion policies can override the master.
 			server.EgressMTLS = nil
 		}
 
@@ -488,6 +489,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			loc := createLocation(pathOrDefault(path.Path), upstreams[upsName], &cfgParams, wsServices[path.Backend.Service.Name], rewrites[path.Backend.Service.Name],
 				ssl, grpcServices[path.Backend.Service.Name], proxySSLName, path.PathType, path.Backend.Service.Name, rewriteTarget)
 			if ncp.isMinion && policyCfg.EgressMTLS != nil {
+				// Minion egress mTLS is rendered per location to match VirtualServer route policy behavior.
 				loc.EgressMTLS = policyCfg.EgressMTLS
 			}
 
@@ -578,6 +580,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			loc := createLocation(pathOrDefault("/"), upstreams[upsName], &cfgParams, wsServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], rewrites[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name],
 				ssl, grpcServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], proxySSLName, new(networking.PathTypePrefix), ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name, rewriteTarget)
 			if ncp.isMinion && policyCfg.EgressMTLS != nil {
+				// Keep default-backend locations aligned with other minion locations for egress mTLS overrides.
 				loc.EgressMTLS = policyCfg.EgressMTLS
 			}
 			if !loc.CORSEnabled && len(policyCfg.CORSHeaders) > 0 {

@@ -446,6 +446,7 @@ func (p *policiesCfg) addEgressMTLSConfig(
 	}
 
 	if len(trustedSecretPath) != 0 {
+		// CA secret refs can include an optional CRL path after the bundle path; NGINX trusted_certificate only needs the bundle itself.
 		caFields := strings.Fields(trustedSecretPath)
 		trustedSecretPath = caFields[0]
 	}

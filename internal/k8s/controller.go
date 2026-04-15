@@ -3015,6 +3015,7 @@ func (lbc *LoadBalancerController) addEgressMTLSSecretRefs(secretRefs map[string
 		if pol.Spec.EgressMTLS == nil {
 			continue
 		}
+		// Resolve both client and trusted CA secrets up front so policy validation and template rendering share the same inputs.
 		if pol.Spec.EgressMTLS.TLSSecret != "" {
 			secretKey := fmt.Sprintf("%v/%v", pol.Namespace, pol.Spec.EgressMTLS.TLSSecret)
 			secretRef := lbc.secretStore.GetSecret(secretKey)
