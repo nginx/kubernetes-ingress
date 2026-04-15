@@ -20,7 +20,6 @@ type IngressNginxConfig struct {
 	Keepalive               string
 	Maps                    []version2.Map
 	CORSHeaders             []version2.AddHeader
-	EgressMTLS              *version2.EgressMTLS
 	Ingress                 Ingress
 	SpiffeClientCerts       bool
 	DynamicSSLReloadEnabled bool
