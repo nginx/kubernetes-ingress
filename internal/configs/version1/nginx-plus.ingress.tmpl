@@ -78,19 +78,19 @@ server {
 	{{- end}}
 	{{- end}}
 
-    {{- range $allow := $server.Allow }}
-        allow {{ $allow }};
-    {{- end }}
-    {{- if gt (len $server.Allow) 0 }}
-        deny all;
-    {{- end }}
+	{{- range $allow := $server.Allow }}
+		allow {{ $allow }};
+	{{- end }}
+	{{- if gt (len $server.Allow) 0 }}
+		deny all;
+	{{- end }}
 
-    {{- range $deny := $server.Deny }}
-        deny {{ $deny }};
-    {{- end }}
-    {{- if gt (len $server.Deny) 0 }}
-        allow all;
-    {{- end }}
+	{{- range $deny := $server.Deny }}
+		deny {{ $deny }};
+	{{- end }}
+	{{- if gt (len $server.Deny) 0 }}
+		allow all;
+	{{- end }}
 
 	{{- range $setRealIPFrom := $server.SetRealIPFrom}}
 	set_real_ip_from {{$setRealIPFrom}};{{end}}
@@ -215,8 +215,8 @@ server {
 	{{- end}}
 
 	{{- with $server.BasicAuth }}
-    auth_basic {{ printf "%q" .Realm }};
-    auth_basic_user_file {{ .Secret }};
+	auth_basic {{ printf "%q" .Realm }};
+	auth_basic_user_file {{ .Secret }};
 	{{- end }}
 
 	{{with $jwt := $server.JWTAuth}}
