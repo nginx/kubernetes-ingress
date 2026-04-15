@@ -18,7 +18,7 @@ from suite.utils.resources_utils import (
 )
 from suite.utils.yaml_utils import get_first_ingress_host_from_yaml, get_name_from_yaml
 
-mtls_secret_src = f"{TEST_DATA}/egress-mtls/secret/egress-mtls-secret.yaml"
+trusted_cert_secret_src = f"{TEST_DATA}/egress-mtls/secret/egress-mtls-secret.yaml"
 tls_secret_src = f"{TEST_DATA}/egress-mtls/secret/tls-secret.yaml"
 
 valid_policy_src = f"{TEST_DATA}/egress-mtls/policies/egress-mtls.yaml"
@@ -50,31 +50,31 @@ class IngressSetup:
 
 
 def setup_policy(kube_apis, test_namespace, policy_src):
-    """Create the client and trusted CA secrets, then apply a valid egress mTLS policy."""
+    """Create the trusted CA and client TLS secrets, then apply a valid egress mTLS policy."""
 
     print("------------- Create egress mTLS secrets --------------")
-    mtls_secret_name = create_secret_from_yaml(kube_apis.v1, test_namespace, mtls_secret_src)
+    trusted_cert_secret_name = create_secret_from_yaml(kube_apis.v1, test_namespace, trusted_cert_secret_src)
     tls_secret_name = create_secret_from_yaml(kube_apis.v1, test_namespace, tls_secret_src)
 
     print("------------- Create egress mTLS policy --------------")
     apply_and_wait_for_valid_policy(kube_apis, test_namespace, policy_src)
     policy_name = get_name_from_yaml(policy_src)
 
-    return mtls_secret_name, tls_secret_name, policy_name
+    return trusted_cert_secret_name, tls_secret_name, policy_name
 
 
 def setup_invalid_policy(kube_apis, test_namespace, policy_src):
-    """Create the backing secrets, then apply an intentionally invalid egress mTLS policy."""
+    """Create the trusted CA and client TLS secrets, then apply an intentionally invalid egress mTLS policy."""
 
     print("------------- Create egress mTLS secrets --------------")
-    mtls_secret_name = create_secret_from_yaml(kube_apis.v1, test_namespace, mtls_secret_src)
+    trusted_cert_secret_name = create_secret_from_yaml(kube_apis.v1, test_namespace, trusted_cert_secret_src)
     tls_secret_name = create_secret_from_yaml(kube_apis.v1, test_namespace, tls_secret_src)
 
     print("------------- Create invalid egress mTLS policy --------------")
     policy_name = create_policy_from_yaml(kube_apis.custom_objects, policy_src, test_namespace)
     wait_before_test(2)
 
-    return mtls_secret_name, tls_secret_name, policy_name
+    return trusted_cert_secret_name, tls_secret_name, policy_name
 
 
 def teardown_policy(kube_apis, test_namespace, policy_name, tls_secret_name, mtls_secret_name):
