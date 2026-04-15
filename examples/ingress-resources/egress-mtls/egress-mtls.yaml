@@ -1,0 +1,12 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: egress-mtls-policy
+spec:
+  egressMTLS:
+    tlsSecret: egress-mtls-secret
+    trustedCertSecret: egress-trusted-ca-secret
+    verifyServer: on
+    verifyDepth: 2
+    serverName: on
+    sslName: secure-app.example.com
