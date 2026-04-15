@@ -22,11 +22,12 @@ func TestGeneratePolicies(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	ownerDetails := policyOwnerDetails{
-		owner:          nil, // nil is OK for the unit test
-		ownerNamespace: "default",
-		vsNamespace:    "default",
-		vsName:         "test",
-		ownerName:      "test",
+		owner:           nil, // nil is OK for the unit test
+		ownerNamespace:  "default",
+		parentNamespace: "default",
+		parentName:      "test",
+		ownerName:       "test",
+		parentType:      "vs",
 	}
 	mTLSCertPath := "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crt"
 	mTLSCrlPath := "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crl"
@@ -108,7 +109,7 @@ func TestGeneratePolicies(t *testing.T) {
 			},
 		},
 		defaultCABundle: "/etc/ssl/certs/ca-certificate.crt",
-		apResources: &appProtectResourcesForVS{
+		apResources: &appProtectPolicyResources{
 			Policies: map[string]string{
 				"default/dataguard-alarm": "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
 			},
@@ -228,7 +229,7 @@ func TestGeneratePolicies(t *testing.T) {
 				RateLimit: rateLimit{
 					Reqs: []version2.LimitReq{
 						{
-							ZoneName: "pol_rl_default_rateLimit_policy_default_test",
+							ZoneName: "pol_rl_default_rateLimit_policy_default_test_vs",
 						},
 					},
 					Zones: []version2.LimitReqZone{
@@ -236,7 +237,7 @@ func TestGeneratePolicies(t *testing.T) {
 							Key:      "test",
 							ZoneSize: "10M",
 							Rate:     "10r/s",
-							ZoneName: "pol_rl_default_rateLimit_policy_default_test",
+							ZoneName: "pol_rl_default_rateLimit_policy_default_test_vs",
 						},
 					},
 					Options: version2.LimitReqOptions{
@@ -294,13 +295,13 @@ func TestGeneratePolicies(t *testing.T) {
 							Key:      "test",
 							ZoneSize: "10M",
 							Rate:     "10r/s",
-							ZoneName: "pol_rl_default_rateLimit_policy_default_test",
+							ZoneName: "pol_rl_default_rateLimit_policy_default_test_vs",
 						},
 						{
 							Key:      "test2",
 							ZoneSize: "20M",
 							Rate:     "20r/s",
-							ZoneName: "pol_rl_default_rateLimit_policy2_default_test",
+							ZoneName: "pol_rl_default_rateLimit_policy2_default_test_vs",
 						},
 					},
 					Options: version2.LimitReqOptions{
@@ -309,10 +310,10 @@ func TestGeneratePolicies(t *testing.T) {
 					},
 					Reqs: []version2.LimitReq{
 						{
-							ZoneName: "pol_rl_default_rateLimit_policy_default_test",
+							ZoneName: "pol_rl_default_rateLimit_policy_default_test_vs",
 						},
 						{
-							ZoneName: "pol_rl_default_rateLimit_policy2_default_test",
+							ZoneName: "pol_rl_default_rateLimit_policy2_default_test_vs",
 						},
 					},
 				},
@@ -351,7 +352,7 @@ func TestGeneratePolicies(t *testing.T) {
 							Key:      "test",
 							ZoneSize: "10M",
 							Rate:     "5r/s",
-							ZoneName: "pol_rl_default_rateLimitScale_policy_default_test",
+							ZoneName: "pol_rl_default_rateLimitScale_policy_default_test_vs",
 						},
 					},
 					Options: version2.LimitReqOptions{
@@ -360,7 +361,7 @@ func TestGeneratePolicies(t *testing.T) {
 					},
 					Reqs: []version2.LimitReq{
 						{
-							ZoneName: "pol_rl_default_rateLimitScale_policy_default_test",
+							ZoneName: "pol_rl_default_rateLimitScale_policy_default_test_vs",
 						},
 					},
 				},
@@ -432,25 +433,25 @@ func TestGeneratePolicies(t *testing.T) {
 				RateLimit: rateLimit{
 					Zones: []version2.LimitReqZone{
 						{
-							Key:           "$pol_rl_default_rateLimit_basic_policy_default_test",
+							Key:           "$pol_rl_default_rateLimit_basic_policy_default_test_vs",
 							ZoneSize:      "10M",
 							Rate:          "10r/s",
-							ZoneName:      "pol_rl_default_rateLimit_basic_policy_default_test",
+							ZoneName:      "pol_rl_default_rateLimit_basic_policy_default_test_vs",
 							GroupValue:    `"basic"`,
-							GroupVariable: "$rl_default_test_variable_apikey_client_name_route_L2NvZmZlZQ",
-							PolicyValue:   "rl_default_test_match_ratelimit_basic_policy",
+							GroupVariable: "$rl_default_test_vs_variable_apikey_client_name_route_L2NvZmZlZQ",
+							PolicyValue:   "rl_default_test_vs_match_ratelimit_basic_policy",
 							PolicyResult:  "$apikey_client_name",
 							GroupSource:   "$apikey_client_name",
 							GroupDefault:  true,
 						},
 						{
-							Key:           "$pol_rl_default_rateLimit_premium_policy_default_test",
+							Key:           "$pol_rl_default_rateLimit_premium_policy_default_test_vs",
 							ZoneSize:      "10M",
 							Rate:          "100r/s",
-							ZoneName:      "pol_rl_default_rateLimit_premium_policy_default_test",
+							ZoneName:      "pol_rl_default_rateLimit_premium_policy_default_test_vs",
 							GroupValue:    `"premium"`,
-							GroupVariable: "$rl_default_test_variable_apikey_client_name_route_L2NvZmZlZQ",
-							PolicyValue:   "rl_default_test_match_ratelimit_premium_policy",
+							GroupVariable: "$rl_default_test_vs_variable_apikey_client_name_route_L2NvZmZlZQ",
+							PolicyValue:   "rl_default_test_vs_match_ratelimit_premium_policy",
 							PolicyResult:  "$apikey_client_name",
 							GroupSource:   "$apikey_client_name",
 						},
@@ -461,38 +462,38 @@ func TestGeneratePolicies(t *testing.T) {
 					},
 					Reqs: []version2.LimitReq{
 						{
-							ZoneName: "pol_rl_default_rateLimit_basic_policy_default_test",
+							ZoneName: "pol_rl_default_rateLimit_basic_policy_default_test_vs",
 						},
 						{
-							ZoneName: "pol_rl_default_rateLimit_premium_policy_default_test",
+							ZoneName: "pol_rl_default_rateLimit_premium_policy_default_test_vs",
 						},
 					},
 					GroupMaps: []version2.Map{
 						{
 							Source:   "$apikey_client_name",
-							Variable: "$rl_default_test_variable_apikey_client_name_route_L2NvZmZlZQ",
+							Variable: "$rl_default_test_vs_variable_apikey_client_name_route_L2NvZmZlZQ",
 							Parameters: []version2.Parameter{
-								{Value: `"premium"`, Result: "rl_default_test_match_ratelimit_premium_policy"},
-								{Value: `"basic"`, Result: "rl_default_test_match_ratelimit_basic_policy"},
-								{Value: "default", Result: "rl_default_test_match_ratelimit_basic_policy"},
+								{Value: `"premium"`, Result: "rl_default_test_vs_match_ratelimit_premium_policy"},
+								{Value: `"basic"`, Result: "rl_default_test_vs_match_ratelimit_basic_policy"},
+								{Value: "default", Result: "rl_default_test_vs_match_ratelimit_basic_policy"},
 							},
 						},
 					},
 					PolicyGroupMaps: []version2.Map{
 						{
-							Source:   "$rl_default_test_variable_apikey_client_name_route_L2NvZmZlZQ",
-							Variable: "$pol_rl_default_rateLimit_basic_policy_default_test",
+							Source:   "$rl_default_test_vs_variable_apikey_client_name_route_L2NvZmZlZQ",
+							Variable: "$pol_rl_default_rateLimit_basic_policy_default_test_vs",
 							Parameters: []version2.Parameter{
 								{Value: "default", Result: "''"},
-								{Value: "rl_default_test_match_ratelimit_basic_policy", Result: "Val$apikey_client_name"},
+								{Value: "rl_default_test_vs_match_ratelimit_basic_policy", Result: "Val$apikey_client_name"},
 							},
 						},
 						{
-							Source:   "$rl_default_test_variable_apikey_client_name_route_L2NvZmZlZQ",
-							Variable: "$pol_rl_default_rateLimit_premium_policy_default_test",
+							Source:   "$rl_default_test_vs_variable_apikey_client_name_route_L2NvZmZlZQ",
+							Variable: "$pol_rl_default_rateLimit_premium_policy_default_test_vs",
 							Parameters: []version2.Parameter{
 								{Value: "default", Result: "''"},
-								{Value: "rl_default_test_match_ratelimit_premium_policy", Result: "Val$apikey_client_name"},
+								{Value: "rl_default_test_vs_match_ratelimit_premium_policy", Result: "Val$apikey_client_name"},
 							},
 						},
 					},
@@ -767,7 +768,7 @@ func TestGeneratePolicies(t *testing.T) {
 						EgressMTLS: &conf_v1.EgressMTLS{
 							TLSSecret:         "egress-mtls-secret",
 							ServerName:        true,
-							SessionReuse:      createPointerFromBool(false),
+							SessionReuse:      new(false),
 							TrustedCertSecret: "egress-trusted-ca-secret",
 						},
 					},
@@ -804,7 +805,7 @@ func TestGeneratePolicies(t *testing.T) {
 						EgressMTLS: &conf_v1.EgressMTLS{
 							TLSSecret:         "egress-mtls-secret",
 							ServerName:        true,
-							SessionReuse:      createPointerFromBool(false),
+							SessionReuse:      new(false),
 							TrustedCertSecret: "egress-trusted-ca-secret-crl",
 						},
 					},
@@ -850,7 +851,7 @@ func TestGeneratePolicies(t *testing.T) {
 							ClientSecret:          "oidc-secret",
 							Scope:                 "scope",
 							RedirectURI:           "/redirect",
-							ZoneSyncLeeway:        createPointerFromInt(20),
+							ZoneSyncLeeway:        new(20),
 							AccessTokenEnable:     true,
 							EndSessionEndpoint:    "http://example.com/logout",
 							PostLogoutRedirectURI: "/_logout",
@@ -909,7 +910,7 @@ func TestGeneratePolicies(t *testing.T) {
 					Key: &version2.APIKey{
 						Header:  []string{"X-API-Key"},
 						Query:   []string{"api-key"},
-						MapName: "apikey_auth_client_name_default_test_api_key_policy",
+						MapName: "apikey_auth_client_name_default_test_vs_api_key_policy",
 					},
 					Enabled:   true,
 					ClientMap: nil,
@@ -953,7 +954,7 @@ func TestGeneratePolicies(t *testing.T) {
 					Key: &version2.APIKey{
 						Header:  []string{"X-API-Key"},
 						Query:   []string{"api-key"},
-						MapName: "apikey_auth_client_name_default_test_api_key_policy",
+						MapName: "apikey_auth_client_name_default_test_vs_api_key_policy",
 					},
 					Enabled:   true,
 					ClientMap: nil,
@@ -1026,7 +1027,7 @@ func TestGeneratePolicies(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				Cache: &version2.Cache{
-					ZoneName: "default_test_basic-cache",
+					ZoneName: "default_test_vs_basic-cache",
 					ZoneSize: "10m",
 					Valid:    map[string]string{},
 					CacheKey: "$scheme$proxy_host$request_uri",
@@ -1087,7 +1088,7 @@ func TestGeneratePolicies(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				Cache: &version2.Cache{
-					ZoneName:              "default_test_full-cache",
+					ZoneName:              "default_test_vs_full-cache",
 					ZoneSize:              "100m",
 					Time:                  "1h",
 					Valid:                 map[string]string{"any": "1h"},
@@ -1146,7 +1147,7 @@ func TestGeneratePolicies(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				Cache: &version2.Cache{
-					ZoneName: "default_test_status-cache",
+					ZoneName: "default_test_vs_status-cache",
 					ZoneSize: "50m",
 					Time:     "30m",
 					Valid: map[string]string{
@@ -1185,7 +1186,7 @@ func TestGeneratePolicies(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				Cache: &version2.Cache{
-					ZoneName:       "default_test_methods-cache",
+					ZoneName:       "default_test_vs_methods-cache",
 					ZoneSize:       "25m",
 					Valid:          map[string]string{},
 					AllowedMethods: []string{"GET", "HEAD"},
@@ -1220,7 +1221,7 @@ func TestGeneratePolicies(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				Cache: &version2.Cache{
-					ZoneName:        "default_test_purge-cache",
+					ZoneName:        "default_test_vs_purge-cache",
 					ZoneSize:        "75m",
 					Valid:           map[string]string{},
 					CachePurgeAllow: []string{"192.168.1.0/24", "10.0.0.1"},
@@ -1253,7 +1254,7 @@ func TestGeneratePolicies(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				Cache: &version2.Cache{
-					ZoneName: "default_test_implicit-cache",
+					ZoneName: "default_test_vs_implicit-cache",
 					ZoneSize: "15m",
 					Time:     "45m",
 					Valid:    map[string]string{},
@@ -1298,7 +1299,7 @@ func TestAddCORSConfig(t *testing.T) {
 				AllowOrigin:  []string{"https://example.com"},
 				AllowMethods: []string{"GET", "POST"},
 				AllowHeaders: []string{"Content-Type", "Authorization"},
-				MaxAge:       createPointerFromInt(3600),
+				MaxAge:       new(3600),
 			},
 			expected: policiesCfg{
 				CORSHeaders: []version2.AddHeader{
@@ -1332,13 +1333,13 @@ func TestAddCORSConfig(t *testing.T) {
 				AllowMethods:     []string{"GET", "POST", "PUT", "DELETE"},
 				AllowHeaders:     []string{"Content-Type"},
 				ExposeHeaders:    []string{"X-Total-Count"},
-				AllowCredentials: createPointerFromBool(true),
-				MaxAge:           createPointerFromInt(86400),
+				AllowCredentials: new(true),
+				MaxAge:           new(86400),
 			},
 			expected: policiesCfg{
 				CORSHeaders: []version2.AddHeader{
 					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
-					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_test_vs_default_cors_policy_default_cors_policy"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_test_vs_vs_default_cors_policy_default_cors_policy"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST, PUT, DELETE"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Headers", Value: "Content-Type"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Credentials", Value: "true"}, Always: true},
@@ -1347,7 +1348,7 @@ func TestAddCORSConfig(t *testing.T) {
 				},
 				CORSMap: &version2.Map{
 					Source:   "$http_origin",
-					Variable: "$cors_origin_default_test_vs_default_cors_policy_default_cors_policy",
+					Variable: "$cors_origin_default_test_vs_vs_default_cors_policy_default_cors_policy",
 					Parameters: []version2.Parameter{
 						{Value: "default", Result: `""`},
 						{Value: `"https://app.example.com"`, Result: "https://app.example.com"},
@@ -1373,12 +1374,12 @@ func TestAddCORSConfig(t *testing.T) {
 			expected: policiesCfg{
 				CORSHeaders: []version2.AddHeader{
 					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
-					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_test_vs_default_cors_policy_default_cors_policy"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_test_vs_vs_default_cors_policy_default_cors_policy"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST"}, Always: true},
 				},
 				CORSMap: &version2.Map{
 					Source:   "$http_origin",
-					Variable: "$cors_origin_default_test_vs_default_cors_policy_default_cors_policy",
+					Variable: "$cors_origin_default_test_vs_vs_default_cors_policy_default_cors_policy",
 					Parameters: []version2.Parameter{
 						{Value: "default", Result: `""`},
 						{Value: "~^https://[^.]+\\.example\\.com$", Result: "$http_origin"},
@@ -1396,13 +1397,13 @@ func TestAddCORSConfig(t *testing.T) {
 			expected: policiesCfg{
 				CORSHeaders: []version2.AddHeader{
 					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
-					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_test_vs_default_cors_policy_default_cors_policy"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_test_vs_vs_default_cors_policy_default_cors_policy"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST, PUT"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Headers", Value: "Content-Type, Authorization"}, Always: true},
 				},
 				CORSMap: &version2.Map{
 					Source:   "$http_origin",
-					Variable: "$cors_origin_default_test_vs_default_cors_policy_default_cors_policy",
+					Variable: "$cors_origin_default_test_vs_vs_default_cors_policy_default_cors_policy",
 					Parameters: []version2.Parameter{
 						{Value: "default", Result: `""`},
 						{Value: `"https://api.example.com"`, Result: "https://api.example.com"},
@@ -1419,11 +1420,11 @@ func TestAddCORSConfig(t *testing.T) {
 			expected: policiesCfg{
 				CORSHeaders: []version2.AddHeader{
 					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
-					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_test_vs_default_cors_policy_default_cors_policy"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_test_vs_vs_default_cors_policy_default_cors_policy"}, Always: true},
 				},
 				CORSMap: &version2.Map{
 					Source:   "$http_origin",
-					Variable: "$cors_origin_default_test_vs_default_cors_policy_default_cors_policy",
+					Variable: "$cors_origin_default_test_vs_vs_default_cors_policy_default_cors_policy",
 					Parameters: []version2.Parameter{
 						{Value: "default", Result: `""`},
 						{Value: "~^http://[^.]+\\.localhost\\.dev$", Result: "$http_origin"},
@@ -1439,7 +1440,13 @@ func TestAddCORSConfig(t *testing.T) {
 
 			config := &policiesCfg{}
 			polKey := "default/cors-policy"
-			res := config.addCORSConfig(test.cors, polKey, "default", "test-vs", "default", "cors-policy")
+			res := config.addCORSConfig(test.cors, polKey, policyOwnerDetails{
+				parentNamespace: "default",
+				parentName:      "test-vs",
+				ownerNamespace:  "default",
+				ownerName:       "cors-policy",
+				parentType:      "vs",
+			})
 
 			// Check that no validation errors occurred
 			if len(res.warnings) > 0 {
@@ -1486,10 +1493,11 @@ func TestGenerateCORSPolicy(t *testing.T) {
 		{
 			name: "VirtualServer with single origin CORS policy",
 			owner: policyOwnerDetails{
-				ownerNamespace: "default",
-				ownerName:      "test-vs",
-				vsNamespace:    "default",
-				vsName:         "test-vs",
+				ownerNamespace:  "default",
+				ownerName:       "test-vs",
+				parentNamespace: "default",
+				parentName:      "test-vs",
+				parentType:      "vs",
 			},
 			path: "/",
 			policyRefs: []conf_v1.PolicyReference{
@@ -1502,7 +1510,7 @@ func TestGenerateCORSPolicy(t *testing.T) {
 							AllowOrigin:  []string{"https://trusted.example.com"},
 							AllowMethods: []string{"GET", "POST"},
 							AllowHeaders: []string{"Content-Type"},
-							MaxAge:       createPointerFromInt(3600),
+							MaxAge:       new(3600),
 						},
 					},
 				},
@@ -1522,10 +1530,11 @@ func TestGenerateCORSPolicy(t *testing.T) {
 		{
 			name: "VirtualServer with multiple origins CORS policy",
 			owner: policyOwnerDetails{
-				ownerNamespace: "default",
-				ownerName:      "test-vs",
-				vsNamespace:    "default",
-				vsName:         "test-vs",
+				ownerNamespace:  "default",
+				ownerName:       "test-vs",
+				parentNamespace: "default",
+				parentName:      "test-vs",
+				parentType:      "vs",
 			},
 			path: "/",
 			policyRefs: []conf_v1.PolicyReference{
@@ -1539,8 +1548,8 @@ func TestGenerateCORSPolicy(t *testing.T) {
 							AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 							AllowHeaders:     []string{"Content-Type", "Authorization", "X-Requested-With"},
 							ExposeHeaders:    []string{"X-Total-Count", "X-RateLimit-Remaining"},
-							AllowCredentials: createPointerFromBool(true),
-							MaxAge:           createPointerFromInt(86400),
+							AllowCredentials: new(true),
+							MaxAge:           new(86400),
 						},
 					},
 				},
@@ -1549,7 +1558,7 @@ func TestGenerateCORSPolicy(t *testing.T) {
 				Context: ctx,
 				CORSHeaders: []version2.AddHeader{
 					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
-					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_test_vs_default_multi_origin_cors"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_test_vs_vs_default_multi_origin_cors"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST, PUT, DELETE, OPTIONS"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Headers", Value: "Content-Type, Authorization, X-Requested-With"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Credentials", Value: "true"}, Always: true},
@@ -1558,7 +1567,7 @@ func TestGenerateCORSPolicy(t *testing.T) {
 				},
 				CORSMap: &version2.Map{
 					Source:   "$http_origin",
-					Variable: "$cors_origin_default_test_vs_default_multi_origin_cors",
+					Variable: "$cors_origin_default_test_vs_vs_default_multi_origin_cors",
 					Parameters: []version2.Parameter{
 						{Value: "default", Result: `""`},
 						{Value: `"https://app.example.com"`, Result: "https://app.example.com"},
@@ -1571,10 +1580,11 @@ func TestGenerateCORSPolicy(t *testing.T) {
 		{
 			name: "VirtualServer with wildcard CORS policy",
 			owner: policyOwnerDetails{
-				ownerNamespace: "default",
-				ownerName:      "test-vs",
-				vsNamespace:    "default",
-				vsName:         "test-vs",
+				ownerNamespace:  "default",
+				ownerName:       "test-vs",
+				parentNamespace: "default",
+				parentName:      "test-vs",
+				parentType:      "vs",
 			},
 			path: "/",
 			policyRefs: []conf_v1.PolicyReference{
@@ -1604,10 +1614,11 @@ func TestGenerateCORSPolicy(t *testing.T) {
 		{
 			name: "VirtualServerRoute with CORS policy",
 			owner: policyOwnerDetails{
-				ownerNamespace: "app-namespace",
-				ownerName:      "test-vsr",
-				vsNamespace:    "default",
-				vsName:         "parent-vs",
+				ownerNamespace:  "app-namespace",
+				ownerName:       "test-vsr",
+				parentNamespace: "default",
+				parentName:      "parent-vs",
+				parentType:      "vs",
 			},
 			path: "/api/v1",
 			policyRefs: []conf_v1.PolicyReference{
@@ -1621,7 +1632,7 @@ func TestGenerateCORSPolicy(t *testing.T) {
 							AllowMethods:  []string{"GET", "POST", "PUT"},
 							AllowHeaders:  []string{"Content-Type", "X-API-Key"},
 							ExposeHeaders: []string{"X-Request-ID"},
-							MaxAge:        createPointerFromInt(7200),
+							MaxAge:        new(7200),
 						},
 					},
 				},
@@ -1642,10 +1653,11 @@ func TestGenerateCORSPolicy(t *testing.T) {
 		{
 			name: "VirtualServerRoute with cross-namespace CORS policy",
 			owner: policyOwnerDetails{
-				ownerNamespace: "app-namespace",
-				ownerName:      "test-vsr",
-				vsNamespace:    "default",
-				vsName:         "parent-vs",
+				ownerNamespace:  "app-namespace",
+				ownerName:       "test-vsr",
+				parentNamespace: "default",
+				parentName:      "parent-vs",
+				parentType:      "vs",
 			},
 			path: "/api/v1",
 			policyRefs: []conf_v1.PolicyReference{
@@ -1658,7 +1670,7 @@ func TestGenerateCORSPolicy(t *testing.T) {
 							AllowOrigin:      []string{"https://api.example.com", "https://dashboard.example.com"},
 							AllowMethods:     []string{"GET", "POST", "DELETE"},
 							AllowHeaders:     []string{"Authorization", "Content-Type"},
-							AllowCredentials: createPointerFromBool(true),
+							AllowCredentials: new(true),
 						},
 					},
 				},
@@ -1667,14 +1679,14 @@ func TestGenerateCORSPolicy(t *testing.T) {
 				Context: ctx,
 				CORSHeaders: []version2.AddHeader{
 					{Header: version2.Header{Name: "Vary", Value: "Origin"}, Always: true},
-					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_parent_vs_app_namespace_test_vsr_shared_policies_shared_cors"}, Always: true},
+					{Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_parent_vs_vs_app_namespace_test_vsr_shared_policies_shared_cors"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST, DELETE"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Headers", Value: "Authorization, Content-Type"}, Always: true},
 					{Header: version2.Header{Name: "Access-Control-Allow-Credentials", Value: "true"}, Always: true},
 				},
 				CORSMap: &version2.Map{
 					Source:   "$http_origin",
-					Variable: "$cors_origin_default_parent_vs_app_namespace_test_vsr_shared_policies_shared_cors",
+					Variable: "$cors_origin_default_parent_vs_vs_app_namespace_test_vsr_shared_policies_shared_cors",
 					Parameters: []version2.Parameter{
 						{Value: "default", Result: `""`},
 						{Value: `"https://api.example.com"`, Result: "https://api.example.com"},
@@ -1720,10 +1732,10 @@ func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 	t.Parallel()
 
 	ownerDetails := policyOwnerDetails{
-		owner:          nil, // nil is OK for the unit test
-		ownerNamespace: "default",
-		vsNamespace:    "default",
-		vsName:         "test",
+		owner:           nil, // nil is OK for the unit test
+		ownerNamespace:  "default",
+		parentNamespace: "default",
+		parentName:      "test",
 	}
 
 	tests := []struct {
@@ -1800,7 +1812,7 @@ func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			res, warnings := generatePolicies(ctx, ownerDetails, tc.policyRefs, tc.policies, tc.context, tc.path, policyOptions{apResources: &appProtectResourcesForVS{}, replicas: 1, oidcPolicyName: ""}, &fakeBV)
+			res, warnings := generatePolicies(ctx, ownerDetails, tc.policyRefs, tc.policies, tc.context, tc.path, policyOptions{apResources: &appProtectPolicyResources{}, replicas: 1, oidcPolicyName: ""}, &fakeBV)
 			res.BundleValidator = nil
 			if !reflect.DeepEqual(tc.want, res) {
 				t.Error(cmp.Diff(tc.want, res))
@@ -1815,15 +1827,13 @@ func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 func TestGeneratePoliciesFails(t *testing.T) {
 	t.Parallel()
 	ownerDetails := policyOwnerDetails{
-		owner:          nil, // nil is OK for the unit test
-		ownerName:      "test",
-		ownerNamespace: "default",
-		vsNamespace:    "default",
-		vsName:         "test",
+		owner:           nil, // nil is OK for the unit test
+		ownerName:       "test",
+		ownerNamespace:  "default",
+		parentNamespace: "default",
+		parentName:      "test",
+		parentType:      "vs",
 	}
-
-	dryRunOverride := true
-	rejectCodeOverride := 505
 
 	ingressMTLSCertPath := "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crt"
 	ingressMTLSCrlPath := "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crl"
@@ -1933,9 +1943,9 @@ func TestGeneratePoliciesFails(t *testing.T) {
 							Key:        "test2",
 							ZoneSize:   "20M",
 							Rate:       "20r/s",
-							DryRun:     &dryRunOverride,
+							DryRun:     new(true),
 							LogLevel:   "info",
-							RejectCode: &rejectCodeOverride,
+							RejectCode: new(505),
 						},
 					},
 				},
@@ -1949,13 +1959,13 @@ func TestGeneratePoliciesFails(t *testing.T) {
 							Key:      "test",
 							ZoneSize: "10M",
 							Rate:     "10r/s",
-							ZoneName: "pol_rl_default_rateLimit_policy_default_test",
+							ZoneName: "pol_rl_default_rateLimit_policy_default_test_vs",
 						},
 						{
 							Key:      "test2",
 							ZoneSize: "20M",
 							Rate:     "20r/s",
-							ZoneName: "pol_rl_default_rateLimit_policy2_default_test",
+							ZoneName: "pol_rl_default_rateLimit_policy2_default_test_vs",
 						},
 					},
 					Options: version2.LimitReqOptions{
@@ -1964,10 +1974,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					},
 					Reqs: []version2.LimitReq{
 						{
-							ZoneName: "pol_rl_default_rateLimit_policy_default_test",
+							ZoneName: "pol_rl_default_rateLimit_policy_default_test_vs",
 						},
 						{
-							ZoneName: "pol_rl_default_rateLimit_policy2_default_test",
+							ZoneName: "pol_rl_default_rateLimit_policy2_default_test_vs",
 						},
 					},
 				},
@@ -3066,7 +3076,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 							PostLogoutRedirectURI: "/_logout",
 							ClientID:              "foo",
 							AccessTokenEnable:     true,
-							SSLVerifyDepth:        intPointer(0),
+							SSLVerifyDepth:        new(0),
 						},
 					},
 				},
@@ -3367,7 +3377,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				apResources: &appProtectResourcesForVS{
+				apResources: &appProtectPolicyResources{
 					Policies: map[string]string{
 						"default/dataguard-alarm": "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
 					},
@@ -3799,7 +3809,7 @@ func TestAddWafConfig(t *testing.T) {
 		wafInput     *conf_v1.WAF
 		polKey       string
 		polNamespace string
-		apResources  *appProtectResourcesForVS
+		apResources  *appProtectPolicyResources
 		wafConfig    *version2.WAF
 		expected     *validationResults
 		msg          string
@@ -3810,7 +3820,7 @@ func TestAddWafConfig(t *testing.T) {
 			},
 			polKey:       "default/waf-policy",
 			polNamespace: "default",
-			apResources: &appProtectResourcesForVS{
+			apResources: &appProtectPolicyResources{
 				Policies: map[string]string{},
 				LogConfs: map[string]string{},
 			},
@@ -3832,7 +3842,7 @@ func TestAddWafConfig(t *testing.T) {
 			},
 			polKey:       "default/waf-policy",
 			polNamespace: "default",
-			apResources: &appProtectResourcesForVS{
+			apResources: &appProtectPolicyResources{
 				Policies: map[string]string{
 					"default/dataguard-alarm": "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
 				},
@@ -3862,7 +3872,7 @@ func TestAddWafConfig(t *testing.T) {
 			},
 			polKey:       "default/waf-policy",
 			polNamespace: "default",
-			apResources: &appProtectResourcesForVS{
+			apResources: &appProtectPolicyResources{
 				Policies: map[string]string{
 					"default/dataguard-alarm": "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
 				},
@@ -3890,7 +3900,7 @@ func TestAddWafConfig(t *testing.T) {
 			},
 			polKey:       "default/waf-policy",
 			polNamespace: "",
-			apResources: &appProtectResourcesForVS{
+			apResources: &appProtectPolicyResources{
 				Policies: map[string]string{
 					"default/dataguard-alarm": "/etc/nginx/waf/nac-policies/default-dataguard-alarm",
 				},
@@ -3920,7 +3930,7 @@ func TestAddWafConfig(t *testing.T) {
 			},
 			polKey:       "default/waf-policy",
 			polNamespace: "",
-			apResources: &appProtectResourcesForVS{
+			apResources: &appProtectPolicyResources{
 				Policies: map[string]string{},
 				LogConfs: map[string]string{
 					"default/logconf": "/etc/nginx/waf/nac-logconfs/default-logconf",
@@ -3951,7 +3961,7 @@ func TestAddWafConfig(t *testing.T) {
 			},
 			polKey:       "default/waf-policy",
 			polNamespace: "",
-			apResources: &appProtectResourcesForVS{
+			apResources: &appProtectPolicyResources{
 				Policies: map[string]string{
 					"ns1/dataguard-alarm": "/etc/nginx/waf/nac-policies/ns1-dataguard-alarm",
 				},
@@ -3974,7 +3984,7 @@ func TestAddWafConfig(t *testing.T) {
 			},
 			polKey:       "default/waf-policy",
 			polNamespace: "default",
-			apResources: &appProtectResourcesForVS{
+			apResources: &appProtectPolicyResources{
 				Policies: map[string]string{
 					"default/dataguard-alarm": "/etc/nginx/waf/nac-policies/ns1-dataguard-alarm",
 				},
@@ -4001,7 +4011,7 @@ func TestAddWafConfig(t *testing.T) {
 			},
 			polKey:       "default/waf-policy",
 			polNamespace: "",
-			apResources: &appProtectResourcesForVS{
+			apResources: &appProtectPolicyResources{
 				Policies: map[string]string{
 					"ns1/dataguard-alarm": "/etc/nginx/waf/nac-policies/ns1-dataguard-alarm",
 				},

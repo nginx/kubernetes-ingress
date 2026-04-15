@@ -2,11 +2,13 @@ package nginx
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
 	"path"
+	"strings"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 )
@@ -30,6 +32,42 @@ func shellOut(l *slog.Logger, cmd string) (err error) {
 	if err != nil {
 		return fmt.Errorf("command %v stdout: %q\nstderr: %q\nfinished with error: %w", cmd,
 			stdout.String(), stderr.String(), err)
+	}
+	return nil
+}
+
+// nginxTestError runs 'nginx -t' and returns a clean, single-line error
+// extracted from stderr. It strips the redundant "nginx: configuration file ... test failed"
+// summary line and joins remaining lines with "; ".
+func nginxTestError(l *slog.Logger, debug bool) error {
+	binaryFilename := getBinaryFileName(debug)
+	var stderr bytes.Buffer
+
+	nl.Debugf(l, "executing nginx -t")
+
+	cmd := exec.CommandContext(context.Background(), binaryFilename, "-t", "-q") // #nosec G204
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		errOutput := strings.TrimSpace(stderr.String())
+		if errOutput == "" {
+			return fmt.Errorf("nginx configuration test failed: %w", err)
+		}
+		var filtered []string
+		for _, line := range strings.Split(errOutput, "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			if strings.HasPrefix(line, "nginx: configuration file") && strings.HasSuffix(line, "test failed") {
+				continue
+			}
+			filtered = append(filtered, line)
+		}
+		if len(filtered) == 0 {
+			return fmt.Errorf("nginx configuration test failed: %w", err)
+		}
+		return fmt.Errorf("%s", strings.Join(filtered, "; "))
 	}
 	return nil
 }

@@ -3311,6 +3311,7 @@ upstream test-upstream {zone test-upstream 256k;
     random;
     server 10.0.0.20:8001 max_fails=4 fail_timeout=10s max_conns=31;
     keepalive 32;
+    sticky cookie test expires=25s path=/tea;
 }
 
 upstream coffee-v1 {zone coffee-v1 256k;
@@ -4532,12 +4533,66 @@ server {
 
 ---
 
+[TestVirtualServerForNginxWithAllPathTypes - 1]
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name path-types.example.com;
+
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+
+    
+
+    
+    location /images/ {
+        set $service "";
+
+        
+        set $default_connection_header close;
+    }
+    location =/images/logo.jpg {
+        set $service "";
+
+        
+        set $default_connection_header close;
+    }
+    location ^~ /images/static/ {
+        set $service "";
+
+        
+        set $default_connection_header close;
+    }
+    location ~ "\.jpg$" {
+        set $service "";
+
+        
+        set $default_connection_header close;
+    }
+    location ~* "\.png$" {
+        set $service "";
+
+        
+        set $default_connection_header close;
+    }
+}
+
+---
+
 [TestVirtualServerForNginxWithServiceBeforeRedirect - 1]
 
 upstream test-upstream {zone test-upstream 256k;
     random;
     server 10.0.0.20:8001 max_fails=4 fail_timeout=10s max_conns=31;
     keepalive 32;
+    sticky cookie test expires=25s path=/tea;
 }
 
 upstream coffee-v1 {zone coffee-v1 256k;

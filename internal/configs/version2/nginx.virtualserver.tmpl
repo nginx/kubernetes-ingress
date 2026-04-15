@@ -13,6 +13,12 @@ upstream {{ $u.Name }} {
     {{- if $u.Keepalive }}
     keepalive {{ $u.Keepalive }};
     {{- end }}
+
+	{{- with $u.SessionCookie }}
+		{{- if .Enable }}
+    sticky cookie {{ .Name }}{{ if .Expires }} expires={{ .Expires }}{{ end }}{{ if .Domain }} domain={{ .Domain }}{{ end }}{{ if .HTTPOnly }} httponly{{ end }}{{ if .SameSite}} samesite={{.SameSite | toLower }}{{ end }}{{ if .Secure }} secure{{ end }}{{ if .Path }} path={{ .Path }}{{ end }};
+		{{- end }}
+	{{- end }}
 }
 {{ end }}
 
@@ -249,7 +255,7 @@ server {
         default_type "{{ $e.DefaultType }}";
         {{ end }}
         {{ range $h := $e.Headers }}
-        add_header {{ $h.Name }} "{{ $h.Value }}" always;
+        add_header {{ $h.Name }} {{ printf "%q" $h.Value }} always;
         {{ end }}
         # status code is ignored here, using 0
         return 0 "{{ $e.Return.Text }}";
@@ -260,7 +266,7 @@ server {
     location {{ $l.Name }} {
         default_type "{{ $l.DefaultType }}";
         {{ range $h := $l.Headers }}
-        add_header {{ $h.Name }} "{{ $h.Value }}" always;
+        add_header {{ $h.Name }} {{ printf "%q" $h.Value }} always;
         {{ end }}
         # status code is ignored here, using 0
         return 0 "{{ $l.Return.Text }}";
@@ -450,7 +456,7 @@ server {
         {{- end }}
 
         {{- range $h := $l.ProxySetHeaders }}
-        {{ $proxyOrGRPC }}_set_header {{ $h.Name }} "{{ $h.Value }}";
+        {{ $proxyOrGRPC }}_set_header {{ $h.Name }} {{ printf "%q" $h.Value }};
         {{- end }}
 
             {{- range $h := $l.ProxyHideHeaders }}
@@ -463,7 +469,7 @@ server {
         {{ $proxyOrGRPC }}_ignore_headers {{ $l.ProxyIgnoreHeaders }};
             {{- end }}
             {{- range $h := $l.AddHeaders }}
-        add_header {{ $h.Name }} "{{ $h.Value }}" {{ if $h.Always }}always{{ end }};
+        add_header {{ $h.Name }} {{ printf "%q" $h.Value }} {{ if $h.Always }}always{{ end }};
             {{- end }}
             {{- if $.SpiffeClientCerts }}
         {{ $proxyOrGRPC }}_ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
@@ -524,7 +530,7 @@ server {
         # Handle CORS preflight OPTIONS requests
         if ($request_method = 'OPTIONS') {
             {{- range $h := $l.AddHeaders }}
-            add_header {{ $h.Name }} "{{ $h.Value }}";
+            add_header {{ $h.Name }} {{ printf "%q" $h.Value }};
             {{- end }}
             add_header Content-Type text/plain;
             add_header Content-Length 0;

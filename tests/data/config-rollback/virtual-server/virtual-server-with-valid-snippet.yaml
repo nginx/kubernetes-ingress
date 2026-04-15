@@ -1,0 +1,15 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: virtual-server-with-snippet
+spec:
+  host: virtual-server-with-snippet.example.com
+  upstreams:
+  - name: backend1
+    service: backend1-svc
+    port: 80
+  routes:
+  - path: "/backend1"
+    location-snippets: "sub_filter_once off;"
+    action:
+      pass: backend1

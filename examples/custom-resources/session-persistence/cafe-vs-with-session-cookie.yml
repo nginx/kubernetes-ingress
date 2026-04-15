@@ -1,0 +1,30 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: cafe
+spec:
+  host: cafe.example.com
+  upstreams:
+  - name: tea
+    service: tea-svc
+    port: 80
+    sessionCookie:
+      enable: true
+      name: srv_id
+      path: /tea
+      expires: 2h
+  - name: coffee
+    service: coffee-svc
+    port: 80
+    sessionCookie:
+      enable: true
+      name: srv_id
+      path: /coffee
+      expires: 1h
+  routes:
+  - path: /tea
+    action:
+      pass: tea
+  - path: /coffee
+    action:
+      pass: coffee

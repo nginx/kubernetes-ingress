@@ -9,8 +9,13 @@ from suite.utils.custom_assertions import (
     assert_vs_conf_not_exists,
     wait_and_assert_status_code,
 )
-from suite.utils.resources_utils import get_events, get_first_pod_name, wait_before_test
-from suite.utils.vs_vsr_resources_utils import get_vs_nginx_template_conf, patch_virtual_server_from_yaml
+from suite.utils.resources_utils import (
+    get_events,
+    get_first_pod_name,
+    get_vs_nginx_template_conf,
+    wait_before_test,
+)
+from suite.utils.vs_vsr_resources_utils import patch_virtual_server_from_yaml
 
 
 @pytest.mark.vs
@@ -100,7 +105,11 @@ class TestVSErrorPages:
 
         assert_event_starts_with_text_and_contains_errors(vs_event_text, vs_events, invalid_fields)
         assert_vs_conf_not_exists(
-            kube_apis, ic_pod_name, ingress_controller_prerequisites.namespace, virtual_server_setup
+            kube_apis,
+            ic_pod_name,
+            ingress_controller_prerequisites.namespace,
+            virtual_server_setup.namespace,
+            virtual_server_setup.vs_name,
         )
 
     def test_openapi_validation_flow(

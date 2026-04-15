@@ -34,6 +34,8 @@ markers = [
     "appprotect_waf_policies_grpc",
     "appprotect_waf_policies_vsr",
     "appprotect_waf_v5",
+    "appprotect_waf_policies_ing",
+    "appprotect_waf_policies_ing_v5",
     "appprotect_watch",
     "appprotect_batch",
     "basic_auth",

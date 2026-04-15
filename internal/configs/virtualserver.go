@@ -114,14 +114,14 @@ func (vsx *VirtualServerEx) String() string {
 	return fmt.Sprintf("%s/%s", vsx.VirtualServer.Namespace, vsx.VirtualServer.Name)
 }
 
-// appProtectResourcesForVS holds file names of APPolicy and APLogConf resources used in a VirtualServer.
-type appProtectResourcesForVS struct {
+// appProtectPolicyResources holds file names of APPolicy and APLogConf resources referenced by policies.
+type appProtectPolicyResources struct {
 	Policies map[string]string
 	LogConfs map[string]string
 }
 
-func newAppProtectVSResourcesForVS() *appProtectResourcesForVS {
-	return &appProtectResourcesForVS{
+func newAppProtectPolicyResources() *appProtectPolicyResources {
+	return &appProtectPolicyResources{
 		Policies: make(map[string]string),
 		LogConfs: make(map[string]string),
 	}
@@ -142,13 +142,18 @@ func GenerateEndpointsKey(
 
 // ParseServiceReference returns the namespace and name from a service reference.
 func ParseServiceReference(serviceRef, defaultNamespace string) (namespace, serviceName string) {
-	if nsutils.HasNamespace(serviceRef) {
-		parts := strings.Split(serviceRef, "/")
+	return ParseResourceReference(serviceRef, defaultNamespace)
+}
+
+// ParseResourceReference returns the namespace and name from a resource reference.
+func ParseResourceReference(resourceRef, defaultNamespace string) (namespace, resourceName string) {
+	if nsutils.HasNamespace(resourceRef) {
+		parts := strings.Split(resourceRef, "/")
 		if len(parts) == 2 {
 			return parts[0], parts[1]
 		}
 	}
-	return defaultNamespace, serviceRef
+	return defaultNamespace, resourceRef
 }
 
 type upstreamNamer struct {
@@ -400,7 +405,7 @@ func (vsc *virtualServerConfigurator) generateBackupEndpointsForUpstream(
 // GenerateVirtualServerConfig generates a full configuration for a VirtualServer
 func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	vsEx *VirtualServerEx,
-	apResources *appProtectResourcesForVS,
+	apResources *appProtectPolicyResources,
 	dosResources map[string]*appProtectDosResource,
 ) (version2.VirtualServerConfig, Warnings) {
 	vsc.clearWarnings()
@@ -425,19 +430,22 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	}
 
 	ownerDetails := policyOwnerDetails{
-		owner:          vsEx.VirtualServer,
-		ownerName:      vsEx.VirtualServer.Name,
-		ownerNamespace: vsEx.VirtualServer.Namespace,
-		vsNamespace:    vsEx.VirtualServer.Namespace,
-		vsName:         vsEx.VirtualServer.Name,
+		owner:           vsEx.VirtualServer,
+		ownerName:       vsEx.VirtualServer.Name,
+		ownerNamespace:  vsEx.VirtualServer.Namespace,
+		parentNamespace: vsEx.VirtualServer.Namespace,
+		parentName:      vsEx.VirtualServer.Name,
+		parentType:      "vs",
 	}
 	policiesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, vsEx.VirtualServer.Spec.Policies, vsEx.Policies, specContext, "/", policyOpts, vsc.bundleValidator)
 	if len(warnings) > 0 {
 		vsc.mergeWarnings(warnings)
 	}
 	if policiesCfg.OIDC != nil {
-		// Store the OIDC policy name for conflict checking in further calls to generatePolicies for routes and subroutes
+		// Store the OIDC policy name and built config for reuse in further calls to generatePolicies
+		// for routes and subroutes.
 		policyOpts.oidcPolicyName = policiesCfg.OIDC.PolicyName
+		policyOpts.oidcConfig = policiesCfg.OIDC
 	}
 	if policiesCfg.JWTAuth.JWKSEnabled {
 		jwtAuthKey := policiesCfg.JWTAuth.Auth.Key
@@ -543,6 +551,11 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	VariableNamer := NewVSVariableNamer(vsEx.VirtualServer)
 
+	// specHasOIDC records whether the VirtualServer spec itself carries an OIDC policy.
+	// It is used below to inherit spec-level OIDC to routes that don't define their own,
+	// without allowing a route-level OIDC assignment to bleed into subsequent routes.
+	specHasOIDC := policiesCfg.OIDC != nil
+
 	// generates config for VirtualServer routes
 	for _, r := range vsEx.VirtualServer.Spec.Routes {
 		errorPages := generateErrorPageDetails(r.ErrorPages, errorPageLocations, vsEx.VirtualServer)
@@ -613,11 +626,12 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 		vsLocSnippets := r.LocationSnippets
 		ownerDetails := policyOwnerDetails{
-			owner:          vsEx.VirtualServer,
-			ownerName:      vsEx.VirtualServer.Name,
-			ownerNamespace: vsEx.VirtualServer.Namespace,
-			vsNamespace:    vsEx.VirtualServer.Namespace,
-			vsName:         vsEx.VirtualServer.Name,
+			owner:           vsEx.VirtualServer,
+			ownerName:       vsEx.VirtualServer.Name,
+			ownerNamespace:  vsEx.VirtualServer.Namespace,
+			parentNamespace: vsEx.VirtualServer.Namespace,
+			parentName:      vsEx.VirtualServer.Name,
+			parentType:      "vs",
 		}
 		routePoliciesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, r.Policies, vsEx.Policies, routeContext, r.Path, policyOpts, vsc.bundleValidator)
 
@@ -629,20 +643,18 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		if len(warnings) > 0 {
 			vsc.mergeWarnings(warnings)
 		}
-		if policiesCfg.OIDC != nil || routePoliciesCfg.OIDC != nil {
-			// Store the OIDC policy name for conflict checking in further calls to generatePolicies for subroutes
-			if routePoliciesCfg.OIDC != nil {
-				policyOpts.oidcPolicyName = routePoliciesCfg.OIDC.PolicyName
-
-				// policiesCfg.OIDC is used to store the OIDC policy for template generation for both spec, routes and subroutes.
-				// We can only have one OIDC policy per VirtualServer, so if we have an OIDC policy defined on the route, we use that one for template generation.
-				// We use the non-nil routePoliciesCfg.OIDC struct as a marker to trigger adding the OIDC configuration to the route locations in addPoliciesCfgToLocations.
-				policiesCfg.OIDC = routePoliciesCfg.OIDC
-			}
-			// If the route does not have an OIDC policy, but the VirtualServer has one, we still need to set routePoliciesCfg.OIDC to a non-nil value to trigger adding the OIDC configuration to the route locations in addPoliciesCfgToLocations, so we set it to the VirtualServer policy.
-			if policiesCfg.OIDC != nil {
-				routePoliciesCfg.OIDC = policiesCfg.OIDC
-			}
+		if routePoliciesCfg.OIDC != nil {
+			// Store the OIDC policy name and built config for reuse in further calls to generatePolicies for subroutes.
+			policyOpts.oidcPolicyName = routePoliciesCfg.OIDC.PolicyName
+			policyOpts.oidcConfig = routePoliciesCfg.OIDC
+			// Keep policiesCfg.OIDC up to date so Server.OIDC is populated for server-block helper generation.
+			policiesCfg.OIDC = routePoliciesCfg.OIDC
+		} else if specHasOIDC {
+			// Inherit the spec-level OIDC to routes that don't define their own.
+			// Using the specHasOIDC boolean (set before the loop) avoids reading the potentially
+			// mutated policiesCfg.OIDC, which would otherwise cause a route-level OIDC to leak
+			// into subsequent routes that do not reference the policy.
+			routePoliciesCfg.OIDC = policiesCfg.OIDC
 		}
 		if routePoliciesCfg.JWTAuth.JWKSEnabled {
 			policiesCfg.JWTAuth.JWKSEnabled = routePoliciesCfg.JWTAuth.JWKSEnabled
@@ -778,21 +790,23 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			if len(r.Policies) == 0 {
 				// use the VirtualServer route policies if the route does not define any
 				ownerDetails = policyOwnerDetails{
-					owner:          vsEx.VirtualServer,
-					ownerName:      vsEx.VirtualServer.Name,
-					ownerNamespace: vsEx.VirtualServer.Namespace,
-					vsNamespace:    vsEx.VirtualServer.Namespace,
-					vsName:         vsEx.VirtualServer.Name,
+					owner:           vsEx.VirtualServer,
+					ownerName:       vsEx.VirtualServer.Name,
+					ownerNamespace:  vsEx.VirtualServer.Namespace,
+					parentNamespace: vsEx.VirtualServer.Namespace,
+					parentName:      vsEx.VirtualServer.Name,
+					parentType:      "vs",
 				}
 				policyRefs = vsrPoliciesFromVs[vsrNamespaceName]
 				context = routeContext
 			} else {
 				ownerDetails = policyOwnerDetails{
-					owner:          vsr,
-					ownerName:      vsr.Name,
-					ownerNamespace: vsr.Namespace,
-					vsNamespace:    vsEx.VirtualServer.Namespace,
-					vsName:         vsEx.VirtualServer.Name,
+					owner:           vsr,
+					ownerName:       vsr.Name,
+					ownerNamespace:  vsr.Namespace,
+					parentNamespace: vsEx.VirtualServer.Namespace,
+					parentName:      vsEx.VirtualServer.Name,
+					parentType:      "vs",
 				}
 				policyRefs = r.Policies
 				context = subRouteContext
@@ -807,20 +821,18 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				routePoliciesCfg.CORSHeaders = policiesCfg.CORSHeaders
 			}
 
-			if policiesCfg.OIDC != nil || routePoliciesCfg.OIDC != nil {
-				// Store the OIDC policy name for conflict checking in further calls to generatePolicies for subroutes
-				if routePoliciesCfg.OIDC != nil {
-					policyOpts.oidcPolicyName = routePoliciesCfg.OIDC.PolicyName
-
-					// policiesCfg.OIDC is used to store the OIDC policy for template generation for both spec, routes and subroutes.
-					// We can only have one OIDC policy per VirtualServer, so if we have an OIDC policy defined on the route, we use that one for template generation.
-					// We use the non-nil routePoliciesCfg.OIDC struct as a marker to trigger adding the OIDC configuration to the route locations in addPoliciesCfgToLocations.
-					policiesCfg.OIDC = routePoliciesCfg.OIDC
-				}
-				// If the route does not have an OIDC policy, but the VirtualServer has one, we still need to set routePoliciesCfg.OIDC to a non-nil value to trigger adding the OIDC configuration to the route locations in addPoliciesCfgToLocations, so we set it to the VirtualServer policy.
-				if policiesCfg.OIDC != nil {
-					routePoliciesCfg.OIDC = policiesCfg.OIDC
-				}
+			if routePoliciesCfg.OIDC != nil {
+				// Store the OIDC policy name and built config for reuse in further calls to generatePolicies for subroutes.
+				policyOpts.oidcPolicyName = routePoliciesCfg.OIDC.PolicyName
+				policyOpts.oidcConfig = routePoliciesCfg.OIDC
+				// Keep policiesCfg.OIDC up to date so Server.OIDC is populated for server-block helper generation.
+				policiesCfg.OIDC = routePoliciesCfg.OIDC
+			} else if specHasOIDC {
+				// Inherit the spec-level OIDC to subroutes that don't define their own.
+				// Using the specHasOIDC boolean (set before the route loop) avoids reading the potentially
+				// mutated policiesCfg.OIDC, which would otherwise cause a route-level OIDC to leak
+				// into subsequent subroutes that do not reference the policy.
+				routePoliciesCfg.OIDC = policiesCfg.OIDC
 			}
 			if routePoliciesCfg.JWTAuth.JWKSEnabled {
 				policiesCfg.JWTAuth.JWKSEnabled = routePoliciesCfg.JWTAuth.JWKSEnabled
@@ -1059,24 +1071,6 @@ func generateUpstreams(
 	return upstreams, healthChecks, statusMatches
 }
 
-type policyOwnerDetails struct {
-	owner          runtime.Object
-	ownerName      string
-	ownerNamespace string
-	vsNamespace    string
-	vsName         string
-}
-
-type policyOptions struct {
-	tls             bool
-	zoneSync        bool
-	secretRefs      map[string]*secrets.SecretReference
-	apResources     *appProtectResourcesForVS
-	defaultCABundle string
-	replicas        int
-	oidcPolicyName  string
-}
-
 func generateAPIKeyClientMap(mapName string, apiKeyClients []apiKeyClient) *version2.Map {
 	defaultParam := version2.Parameter{
 		Value:  "default",
@@ -1289,6 +1283,7 @@ func (vsc *virtualServerConfigurator) generateUpstream(
 		Servers:          upsServers,
 		Resolve:          isExternalNameSvc,
 		LBMethod:         lbMethod,
+		SessionCookie:    generateSessionCookie(upstream.SessionCookie),
 		Keepalive:        generateIntFromPointer(upstream.Keepalive, vsc.cfgParams.Keepalive),
 		MaxFails:         generateIntFromPointer(upstream.MaxFails, vsc.cfgParams.MaxFails),
 		FailTimeout:      generateTimeWithDefault(upstream.FailTimeout, vsc.cfgParams.FailTimeout),
@@ -1300,7 +1295,6 @@ func (vsc *virtualServerConfigurator) generateUpstream(
 	if vsc.isPlus {
 		ups.SlowStart = vsc.generateSlowStartForPlus(owner, upstream, lbMethod)
 		ups.Queue = generateQueueForPlus(upstream.Queue, "60s")
-		ups.SessionCookie = generateSessionCookie(upstream.SessionCookie)
 		ups.NTLM = upstream.NTLM
 	}
 
@@ -1499,7 +1493,7 @@ func generateProxyPassRewrite(path string, proxy *conf_v1.ActionProxy, internal 
 		return ""
 	}
 
-	if strings.HasPrefix(path, "/") || strings.HasPrefix(path, "=") {
+	if strings.HasPrefix(path, "/") || strings.HasPrefix(path, "=") || strings.HasPrefix(path, "^~") {
 		return proxy.RewritePath
 	}
 
@@ -1585,6 +1579,10 @@ func generateBool(s *bool, defaultS bool) bool {
 }
 
 func generatePath(path string) string {
+	// Format the longest prefix match with a space between the modifier and the path
+	if strings.HasPrefix(path, "^~") {
+		return fmt.Sprintf(`^~ %v`, strings.TrimLeft(strings.TrimPrefix(path, "^~"), " "))
+	}
 	// Wrap the regular expression (if present) inside double quotes (") to avoid NGINX parsing errors
 	if strings.HasPrefix(path, "~*") {
 		return fmt.Sprintf(`~* "%v"`, strings.TrimPrefix(strings.TrimPrefix(path, "~*"), " "))

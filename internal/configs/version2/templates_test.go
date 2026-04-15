@@ -20,10 +20,6 @@ func TestMain(m *testing.M) {
 	os.Exit(v)
 }
 
-func createPointerFromInt(n int) *int {
-	return &n
-}
-
 func newTmplExecutorNGINXPlus(t *testing.T) *TemplateExecutor {
 	t.Helper()
 	executor, err := NewTemplateExecutor("nginx-plus.virtualserver.tmpl", "nginx-plus.transportserver.tmpl", "oidc.tmpl")
@@ -746,8 +742,8 @@ func tsConfig() TransportServerConfig {
 			Port:                     1234,
 			UDP:                      true,
 			StatusZone:               "udp-app",
-			ProxyRequests:            createPointerFromInt(1),
-			ProxyResponses:           createPointerFromInt(2),
+			ProxyRequests:            new(1),
+			ProxyResponses:           new(2),
 			ProxyPass:                "udp-upstream",
 			ProxyTimeout:             "10s",
 			ProxyConnectTimeout:      "10s",
@@ -1391,7 +1387,7 @@ func vsConfig() VirtualServerConfig {
 					Port:        50,
 					ProxyPass:   "http://tea-v2",
 					GRPCPass:    "grpc://tea-v3",
-					GRPCStatus:  createPointerFromInt(12),
+					GRPCStatus:  new(12),
 					GRPCService: "tea-servicev2",
 					IsGRPC:      true,
 				},
@@ -1754,7 +1750,7 @@ var (
 					Port:        50,
 					ProxyPass:   "http://tea-v2",
 					GRPCPass:    "grpc://tea-v3",
-					GRPCStatus:  createPointerFromInt(12),
+					GRPCStatus:  new(12),
 					GRPCService: "tea-servicev2",
 					IsGRPC:      true,
 				},
@@ -2104,7 +2100,7 @@ var (
 					Port:        50,
 					ProxyPass:   "http://tea-v2",
 					GRPCPass:    "grpc://tea-v3",
-					GRPCStatus:  createPointerFromInt(12),
+					GRPCStatus:  new(12),
 					GRPCService: "tea-servicev2",
 					IsGRPC:      true,
 				},
@@ -3193,7 +3189,7 @@ var (
 				UseTempPath:      false,
 				MaxSize:          "2g",
 				Inactive:         "7d",
-				ManagerFiles:     createPointerFromInt(500),
+				ManagerFiles:     new(500),
 				ManagerSleep:     "200ms",
 				ManagerThreshold: "1s",
 			},
@@ -3220,7 +3216,7 @@ var (
 				Inactive:              "7d",
 				UseTempPath:           false,
 				MaxSize:               "2g",
-				ManagerFiles:          createPointerFromInt(500),
+				ManagerFiles:          new(500),
 				ManagerSleep:          "200ms",
 				ManagerThreshold:      "1s",
 				CacheKey:              "$scheme$host$request_uri$args",
@@ -3230,7 +3226,7 @@ var (
 				CacheUseStale:         []string{"error", "timeout", "updating"},
 				CacheRevalidate:       true,
 				CacheBackgroundUpdate: true,
-				CacheMinUses:          createPointerFromInt(3),
+				CacheMinUses:          new(3),
 				CachePurgeAllow:       nil,
 				CacheLock:             true,
 				CacheLockTimeout:      "60s",
@@ -3267,8 +3263,8 @@ var (
 			Port:                     1234,
 			UDP:                      true,
 			StatusZone:               "udp-app",
-			ProxyRequests:            createPointerFromInt(1),
-			ProxyResponses:           createPointerFromInt(2),
+			ProxyRequests:            new(1),
+			ProxyResponses:           new(2),
 			ProxyPass:                "udp-upstream",
 			ProxyTimeout:             "10s",
 			ProxyConnectTimeout:      "10s",
@@ -3310,8 +3306,8 @@ var (
 			Port:                     1234,
 			UDP:                      true,
 			StatusZone:               "udp-app",
-			ProxyRequests:            createPointerFromInt(1),
-			ProxyResponses:           createPointerFromInt(2),
+			ProxyRequests:            new(1),
+			ProxyResponses:           new(2),
 			ProxyPass:                "udp-upstream",
 			ProxyTimeout:             "10s",
 			ProxyConnectTimeout:      "10s",
@@ -3351,8 +3347,8 @@ var (
 				Certificate:    "cafe-secret.pem",
 				CertificateKey: "cafe-secret.pem",
 			},
-			ProxyRequests:            createPointerFromInt(1),
-			ProxyResponses:           createPointerFromInt(2),
+			ProxyRequests:            new(1),
+			ProxyResponses:           new(2),
 			ProxyPass:                "cafe-upstream",
 			ProxyTimeout:             "10s",
 			ProxyConnectTimeout:      "10s",
@@ -3383,8 +3379,8 @@ var (
 			Port:                     1234,
 			UDP:                      true,
 			StatusZone:               "udp-app",
-			ProxyRequests:            createPointerFromInt(1),
-			ProxyResponses:           createPointerFromInt(2),
+			ProxyRequests:            new(1),
+			ProxyResponses:           new(2),
 			ProxyPass:                "udp-upstream",
 			ProxyTimeout:             "10s",
 			ProxyConnectTimeout:      "10s",
@@ -3565,4 +3561,29 @@ func TestJWTNoSSLVerification(t *testing.T) {
 	if bytes.Contains(got, []byte("proxy_ssl_trusted_certificate")) {
 		t.Error("want no SSL trusted certificate directive in generated template")
 	}
+}
+
+var virtualServerCfgAllPathTypes = VirtualServerConfig{
+	Server: Server{
+		ServerName: "path-types.example.com",
+		StatusZone: "path-types.example.com",
+		Locations: []Location{
+			{Path: "/images/"},
+			{Path: "=/images/logo.jpg"},
+			{Path: "^~ /images/static/"},
+			{Path: `~ "\.jpg$"`},
+			{Path: `~* "\.png$"`},
+		},
+	},
+}
+
+func TestVirtualServerForNginxWithAllPathTypes(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINX(t)
+	data, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgAllPathTypes)
+	if err != nil {
+		t.Errorf("Failed to execute template: %v", err)
+	}
+	snaps.MatchSnapshot(t, string(data))
+	t.Log(string(data))
 }

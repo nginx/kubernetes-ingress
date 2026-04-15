@@ -9,7 +9,6 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	nic_glog "github.com/nginx/kubernetes-ingress/internal/logger/glog"
 	"github.com/nginx/kubernetes-ingress/internal/logger/levels"
@@ -225,8 +224,8 @@ func TestCreateHeadlessService(t *testing.T) {
 			Kind:               "ConfigMap",
 			Name:               configMap.Name,
 			UID:                configMap.UID,
-			Controller:         commonhelpers.BoolToPointerBool(true),
-			BlockOwnerDeletion: commonhelpers.BoolToPointerBool(true),
+			Controller:         new(true),
+			BlockOwnerDeletion: new(true),
 		},
 	}
 
@@ -358,7 +357,7 @@ func TestCreateHeadlessService(t *testing.T) {
 							Kind:       tc.ownerKind,
 							Name:       tc.controllerName,
 							UID:        types.UID("controller-uid-123"),
-							Controller: commonhelpers.BoolToPointerBool(true),
+							Controller: new(true),
 						},
 					},
 				},

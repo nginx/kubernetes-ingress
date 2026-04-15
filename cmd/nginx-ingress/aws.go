@@ -52,16 +52,13 @@ func checkAWSEntitlement() error {
 
 	out, err := mpm.RegisterUsage(ctx, &marketplacemetering.RegisterUsageInput{ProductCode: &productCode, PublicKeyVersion: &pubKeyVersion, Nonce: &nonce})
 	if err != nil {
-		var notEnt *types.CustomerNotEntitledException
-		var invRegion *types.InvalidRegionException
-		var platNotSup *types.PlatformNotSupportedException
-		if errors.As(err, &notEnt) {
+		if notEnt, ok := errors.AsType[*types.CustomerNotEntitledException](err); ok {
 			return fmt.Errorf("user not entitled, code: %v, message: %v, fault: %v", notEnt.ErrorCode(), notEnt.ErrorMessage(), notEnt.ErrorFault().String())
 		}
-		if errors.As(err, &invRegion) {
+		if invRegion, ok := errors.AsType[*types.InvalidRegionException](err); ok {
 			return fmt.Errorf("invalid region, code: %v, message: %v, fault: %v", invRegion.ErrorCode(), invRegion.ErrorMessage(), invRegion.ErrorFault().String())
 		}
-		if errors.As(err, &platNotSup) {
+		if platNotSup, ok := errors.AsType[*types.PlatformNotSupportedException](err); ok {
 			return fmt.Errorf("platform not supported, code: %v, message: %v, fault: %v", platNotSup.ErrorCode(), platNotSup.ErrorMessage(), platNotSup.ErrorFault().String())
 		}
 		return err

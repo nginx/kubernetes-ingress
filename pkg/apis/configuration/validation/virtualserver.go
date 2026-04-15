@@ -1340,7 +1340,8 @@ func (vsv *VirtualServerValidator) validateSplits(splits []v1.Split, fieldPath *
 	return allErrs
 }
 
-// We support prefix-based NGINX locations, positive case-sensitive/insensitive regular expressions matches and exact matches.
+// We support prefix-based NGINX locations, longest prefix match locations,
+// positive case-sensitive/insensitive regular expressions matches and exact matches.
 // More info http://nginx.org/en/docs/http/ngx_http_core_module.html#location
 func validateRoutePath(path string, fieldPath *field.Path) field.ErrorList {
 	if path == "" {
@@ -1348,14 +1349,16 @@ func validateRoutePath(path string, fieldPath *field.Path) field.ErrorList {
 	}
 
 	allErrs := field.ErrorList{}
-	if strings.HasPrefix(path, "~") {
+	if strings.HasPrefix(path, "^~") {
+		allErrs = append(allErrs, validatePath(strings.TrimLeft(strings.TrimPrefix(path, "^~"), " "), fieldPath)...)
+	} else if strings.HasPrefix(path, "~") {
 		allErrs = append(allErrs, validateRegexPath(path, fieldPath)...)
 	} else if strings.HasPrefix(path, "/") {
 		allErrs = append(allErrs, validatePath(path, fieldPath)...)
 	} else if strings.HasPrefix(path, "=") {
 		allErrs = append(allErrs, validatePath(strings.TrimPrefix(path, "="), fieldPath)...)
 	} else {
-		allErrs = append(allErrs, field.Invalid(fieldPath, path, "must start with /, ~ or ="))
+		allErrs = append(allErrs, field.Invalid(fieldPath, path, "must start with /, ~, = or ^~"))
 	}
 	return allErrs
 }
@@ -1634,10 +1637,6 @@ func rejectPlusResourcesInOSS(upstream v1.Upstream, idxPath *field.Path, isPlus 
 
 	if upstream.SlowStart != "" {
 		allErrs = append(allErrs, field.Forbidden(idxPath.Child("slow-start"), "slow start is only supported in NGINX Plus"))
-	}
-
-	if upstream.SessionCookie != nil {
-		allErrs = append(allErrs, field.Forbidden(idxPath.Child("sessionCookie"), "sticky cookies are only supported in NGINX Plus"))
 	}
 
 	if upstream.Queue != nil {

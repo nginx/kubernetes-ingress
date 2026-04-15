@@ -74,6 +74,12 @@
     },
     {
       "matchPackageNames": [
+        "golangci/golangci-lint"
+      ],
+      "groupName": "golangci-lint"
+    },
+    {
+      "matchPackageNames": [
         "/private-registry\\.nginx\\.com/",
         "/registry\\.redhat\\.io/",
         "/nginxdemos\\/nginx-hello/"
@@ -199,14 +205,27 @@
       "matchStrings": [
         "master\\/(?<currentValue>v\\d+\\.\\d+\\.\\d+)\\/_definitions\\.json"
       ]
+    },
+    {
+      "customType": "regex",
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "golangci/golangci-lint",
+      "description": "Update golangci-lint version in golangci-lint-action",
+      "managerFilePatterns": [
+        "/\\.github\\/workflows\\/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "uses: golangci\\/golangci-lint-action@[a-f0-9]+[\\s\\S]*?\\s+version: (?<currentValue>v\\d+\\.\\d+\\.\\d+)"
+      ]
     }
   ],
   "timezone": "Europe/Dublin",
   "automerge": true,
   "automergeStrategy": "squash",
+  "automergeType": "pr",
   "baseBranchPatterns": [
     "main",
-    "release-5.3"
+    "release-5.4"
   ],
   "commitBodyTable": true,
   "configMigration": true,

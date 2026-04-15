@@ -31,17 +31,17 @@ func NewFakeManager(confPath string) *FakeManager {
 }
 
 // CreateMainConfig provides a fake implementation of CreateMainConfig.
-func (fm *FakeManager) CreateMainConfig(content []byte) bool {
+func (fm *FakeManager) CreateMainConfig(content []byte) (bool, error) {
 	nl.Debug(fm.logger, "Writing main config")
 	nl.Debug(fm.logger, string(content))
-	return true
+	return true, nil
 }
 
 // CreateConfig provides a fake implementation of CreateConfig.
-func (fm *FakeManager) CreateConfig(name string, content []byte) bool {
+func (fm *FakeManager) CreateConfig(name string, content []byte) (bool, error) {
 	nl.Debugf(fm.logger, "Writing config %v", name)
 	nl.Debug(fm.logger, string(content))
-	return true
+	return true, nil
 }
 
 // CreateOIDCConfig provides a fake implementation of CreateOIDCConfig.
@@ -78,10 +78,10 @@ func (fm *FakeManager) DeleteOIDCConfig(name string) {
 }
 
 // CreateStreamConfig provides a fake implementation of CreateStreamConfig.
-func (fm *FakeManager) CreateStreamConfig(name string, content []byte) bool {
+func (fm *FakeManager) CreateStreamConfig(name string, content []byte) (bool, error) {
 	nl.Debugf(fm.logger, "Writing stream config %v", name)
 	nl.Debug(fm.logger, string(content))
-	return true
+	return true, nil
 }
 
 // DeleteStreamConfig provides a fake implementation of DeleteStreamConfig.
