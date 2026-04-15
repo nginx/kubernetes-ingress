@@ -389,6 +389,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			Ports:                  cfgParams.Ports,
 			SSLPorts:               cfgParams.SSLPorts,
 			TLSPassthrough:         ncp.staticParams.TLSPassthrough,
+			IngressMTLS:            policyCfg.IngressMTLS,
 			AppProtectEnable:       cfgParams.AppProtectEnable,
 			AppProtectLogEnable:    cfgParams.AppProtectLogEnable,
 			SpiffeCerts:            cfgParams.SpiffeServerCerts,

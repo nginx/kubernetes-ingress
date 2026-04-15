@@ -2588,7 +2588,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			expectedWarnings: Warnings{
 				nil: {
-					`TLS must be enabled in VirtualServer for IngressMTLS policy default/ingress-mtls-policy`,
+					`TLS must be enabled for IngressMTLS policy default/ingress-mtls-policy`,
 				},
 			},
 			msg: "ingress mtls missing TLS config",

@@ -2324,6 +2324,9 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 				ingEx.PolicyWarnings = append(ingEx.PolicyWarnings, msg)
 			}
 		}
+		if err := lbc.addIngressMTLSSecretRefs(ingEx.SecretRefs, policies); err != nil {
+			nl.Warnf(lbc.Logger, "Error getting IngressMTLS secret refs for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
+		}
 	} else if ingEx.Ingress.Annotations[configs.PoliciesAnnotation] != "" || ingEx.Ingress.Annotations[configs.PoliciesAnnotationPlus] != "" {
 		msg := fmt.Sprintf("Ingress %v/%v has a policies annotation but custom resources are not enabled; policies will be ignored", ing.Namespace, ing.Name)
 		nl.Warnf(lbc.Logger, "%s", msg)

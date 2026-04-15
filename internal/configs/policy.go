@@ -309,7 +309,7 @@ func (p *policiesCfg) addIngressMTLSConfig(
 ) *validationResults {
 	res := newValidationResults()
 	if !tls {
-		res.addWarningf("TLS must be enabled in VirtualServer for IngressMTLS policy %s", polKey)
+		res.addWarningf("TLS must be enabled for IngressMTLS policy %s", polKey)
 		res.isError = true
 		return res
 	}

@@ -911,6 +911,56 @@ func TestGenerateNginxCfgForWAFPolicyApBundle(t *testing.T) {
 	}
 }
 
+func TestGenerateNginxCfgForIngressMTLS(t *testing.T) {
+	t.Parallel()
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations["nginx.org/policies"] = "my-test-policy"
+	cafeIngressEx.Policies = map[string]*conf_v1.Policy{
+		"default/my-test-policy": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "my-test-policy",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				IngressMTLS: &conf_v1.IngressMTLS{
+					ClientCertSecret: "ingress-mtls-secret",
+					VerifyClient:     "on",
+					VerifyDepth:      new(2),
+				},
+			},
+		},
+	}
+	cafeIngressEx.SecretRefs["default/ingress-mtls-secret"] = &secrets.SecretReference{
+		Secret: &v1.Secret{
+			Type: secrets.SecretTypeCA,
+		},
+		Path: "/etc/nginx/secrets/default-ingress-mtls-secret",
+	}
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+	expected := createExpectedConfigForCafeIngressEx(isPlus)
+	expected.Servers[0].IngressMTLS = &version2.IngressMTLS{
+		ClientCert:   "/etc/nginx/secrets/default-ingress-mtls-secret",
+		VerifyClient: "on",
+		VerifyDepth:  2,
+	}
+	expected.Ingress.Annotations["nginx.org/policies"] = "my-test-policy"
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:  &StaticConfigParams{},
+		ingEx:         &cafeIngressEx,
+		isPlus:        isPlus,
+		BaseCfgParams: configParams,
+	})
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateNginxCfg() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
+	}
+}
+
 // TestGenerateNginxCfgWithMissingOrInvalidPolicy verifies that a standard Ingress referencing a
 // policy that is absent from the Policies map (either deleted or excluded by validation) sets
 // Server.PoliciesErrorReturn to 500. Both missing and invalid policies converge to the same
