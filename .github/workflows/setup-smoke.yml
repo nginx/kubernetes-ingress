@@ -145,8 +145,8 @@ jobs:
       - name: DockerHub Login
         uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
         with:
-          username: ${{ steps.secrets.outputs.DOCKER_USERNAME }}
-          password: ${{ steps.secrets.outputs.DOCKER_PASSWORD }}
+          username: ${{ steps.secrets-common.outputs.DOCKER_USERNAME }}
+          password: ${{ steps.secrets-common.outputs.DOCKER_PASSWORD }}
         if: ${{ inputs.authenticated }}
 
       - name: Check if stable image exists
