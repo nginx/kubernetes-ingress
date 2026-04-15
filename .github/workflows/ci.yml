@@ -211,7 +211,10 @@ jobs:
               password ${{ secrets.ARTIFACTORY_TOKEN }}
           EOF
           chmod 600 $HOME/.netrc
-        if: ${{ inputs.force || (needs.checks.outputs.binary_cache_hit != 'true' && needs.checks.outputs.forked_workflow != 'true') }}
+        if: >-
+          inputs.force ||
+          (needs.checks.outputs.binary_cache_hit != 'true' &&
+          needs.checks.outputs.forked_workflow != 'true')
 
       - name: Check if go.mod and go.sum are up to date
         run: go mod tidy && git diff --exit-code -- go.mod go.sum
@@ -267,7 +270,11 @@ jobs:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
-        if: ${{ needs.checks.outputs.docs_only != 'true' && (inputs.force || (needs.checks.outputs.binary_cache_hit != 'true' && needs.checks.outputs.forked_workflow != 'true')) }}
+        if: >-
+          needs.checks.outputs.docs_only != 'true' &&
+          (inputs.force ||
+          (needs.checks.outputs.binary_cache_hit != 'true' &&
+          needs.checks.outputs.forked_workflow != 'true'))
 
       - name: Setup secrets
         id: secrets
@@ -276,13 +283,20 @@ jobs:
           CODECOV_TOKEN=$(az keyvault secret show --name code-cov --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
           echo "::add-mask::$CODECOV_TOKEN"
           echo "CODECOV_TOKEN=$CODECOV_TOKEN" >> $GITHUB_OUTPUT
-        if: ${{ needs.checks.outputs.docs_only != 'true' && (inputs.force || (needs.checks.outputs.binary_cache_hit != 'true' && needs.checks.outputs.forked_workflow != 'true')) }}
+        if: >-
+          needs.checks.outputs.docs_only != 'true' &&
+          (inputs.force ||
+          (needs.checks.outputs.binary_cache_hit != 'true' &&
+          needs.checks.outputs.forked_workflow != 'true'))
 
       - name: Setup Golang Environment
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: go.mod
-        if: ${{ needs.checks.outputs.docs_only != 'true' && needs.checks.outputs.binary_cache_hit != 'true' && inputs.run_tests != false }}
+        if: >-
+          needs.checks.outputs.docs_only != 'true' &&
+          needs.checks.outputs.binary_cache_hit != 'true' &&
+          inputs.run_tests != false
 
       - name: Setup netrc
         run: |
@@ -292,7 +306,11 @@ jobs:
               password ${{ secrets.ARTIFACTORY_TOKEN }}
           EOF
           chmod 600 $HOME/.netrc
-        if: ${{ needs.checks.outputs.docs_only != 'true' && (inputs.force || (needs.checks.outputs.binary_cache_hit != 'true' && needs.checks.outputs.forked_workflow != 'true')) }}
+        if: >-
+          needs.checks.outputs.docs_only != 'true' &&
+          (inputs.force ||
+          (needs.checks.outputs.binary_cache_hit != 'true' &&
+          needs.checks.outputs.forked_workflow != 'true'))
 
       - name: Generate secrets for tests
         run: |
@@ -301,14 +319,20 @@ jobs:
 
       - name: Run Tests
         run: make cover
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' && inputs.run_tests != false && needs.checks.outputs.docs_only != 'true' }}
+        if: >-
+          needs.checks.outputs.binary_cache_hit != 'true' &&
+          inputs.run_tests != false &&
+          needs.checks.outputs.docs_only != 'true'
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
         with:
           files: ./coverage.txt
           token: ${{ steps.secrets.outputs.CODECOV_TOKEN }} # required
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' && inputs.run_tests != false && needs.checks.outputs.docs_only != 'true' }}
+        if: >-
+          needs.checks.outputs.binary_cache_hit != 'true' &&
+          inputs.run_tests != false &&
+          needs.checks.outputs.docs_only != 'true'
 
       - name: Cleanup netrc
         run: rm -f $HOME/.netrc
@@ -333,7 +357,11 @@ jobs:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
-        if: ${{ needs.checks.outputs.docs_only != 'true' && (inputs.force || (needs.checks.outputs.binary_cache_hit != 'true' && needs.checks.outputs.forked_workflow != 'true')) }}
+        if: >-
+          needs.checks.outputs.docs_only != 'true' &&
+          (inputs.force ||
+          (needs.checks.outputs.binary_cache_hit != 'true' &&
+          needs.checks.outputs.forked_workflow != 'true'))
 
       - name: Setup secrets
         id: secrets
@@ -342,13 +370,20 @@ jobs:
           CODECOV_TOKEN=$(az keyvault secret show --name code-cov --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
           echo "::add-mask::$CODECOV_TOKEN"
           echo "CODECOV_TOKEN=$CODECOV_TOKEN" >> $GITHUB_OUTPUT
-        if: ${{ needs.checks.outputs.docs_only != 'true' && (inputs.force || (needs.checks.outputs.binary_cache_hit != 'true' && needs.checks.outputs.forked_workflow != 'true')) }}
+        if: >-
+          needs.checks.outputs.docs_only != 'true' &&
+          (inputs.force ||
+          (needs.checks.outputs.binary_cache_hit != 'true' &&
+          needs.checks.outputs.forked_workflow != 'true'))
 
       - name: Setup Golang Environment
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: go.mod
-        if: ${{ needs.checks.outputs.docs_only != 'true' && needs.checks.outputs.binary_cache_hit != 'true' && inputs.run_tests != false }}
+        if: >-
+          needs.checks.outputs.docs_only != 'true' &&
+          needs.checks.outputs.binary_cache_hit != 'true' &&
+          inputs.run_tests != false
 
       - name: Setup netrc
         run: |
@@ -358,7 +393,11 @@ jobs:
               password ${{ secrets.ARTIFACTORY_TOKEN }}
           EOF
           chmod 600 $HOME/.netrc
-        if: ${{ needs.checks.outputs.docs_only != 'true' && (inputs.force || (needs.checks.outputs.binary_cache_hit != 'true' && needs.checks.outputs.forked_workflow != 'true')) }}
+        if: >-
+          needs.checks.outputs.docs_only != 'true' &&
+          (inputs.force ||
+          (needs.checks.outputs.binary_cache_hit != 'true' &&
+          needs.checks.outputs.forked_workflow != 'true'))
 
       - name: Generate secrets for tests
         run: |
@@ -462,7 +501,12 @@ jobs:
       target_tag: ${{ needs.checks.outputs.additional_tag }}
       dry_run: false
     secrets: inherit
-    if: ${{ inputs.force || (needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false') || (needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.stable_image_exists != 'true' && needs.checks.outputs.docs_only == 'false') }}
+    if: >-
+      inputs.force ||
+      (needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false') ||
+      (needs.checks.outputs.forked_workflow == 'false' &&
+      needs.checks.outputs.stable_image_exists != 'true' &&
+      needs.checks.outputs.docs_only == 'false')
 
   package-tests:
     if: ${{ needs.checks.outputs.docker_build == 'true' && inputs.run_tests != false }}
@@ -908,7 +952,12 @@ jobs:
       target_tag: ${{ needs.checks.outputs.stable_tag }}
       dry_run: false
     secrets: inherit
-    if: ${{ inputs.force || (needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false') || (needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.stable_image_exists != 'true' && needs.checks.outputs.docs_only == 'false') }}
+    if: >-
+      inputs.force ||
+      (needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false') ||
+      (needs.checks.outputs.forked_workflow == 'false' &&
+      needs.checks.outputs.stable_image_exists != 'true' &&
+      needs.checks.outputs.docs_only == 'false')
 
   final-results:
     if: ${{ !cancelled() }}
