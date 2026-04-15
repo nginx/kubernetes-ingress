@@ -77,10 +77,10 @@ jobs:
         id: secrets
         run: |
           echo "Setting secrets for job"
-          DOCKER_USERNAME=$(az keyvault secret show --name docker-username --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
+          DOCKER_USERNAME=$(az keyvault secret show --name docker-username --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
           echo "::add-mask::$DOCKER_USERNAME"
           echo "DOCKER_USERNAME=$DOCKER_USERNAME" >> $GITHUB_OUTPUT
-          DOCKER_PASSWORD=$(az keyvault secret show --name docker-password --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
+          DOCKER_PASSWORD=$(az keyvault secret show --name docker-password --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
           echo "::add-mask::$DOCKER_PASSWORD"
           echo "DOCKER_PASSWORD=$DOCKER_PASSWORD" >> $GITHUB_OUTPUT
           GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
