@@ -353,9 +353,47 @@ jobs:
         run: rm -f $HOME/.netrc
         if: ${{ always() }}
 
+  govulncheck:
+    name: Vulnerability Check
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    needs: checks
+    if: ${{ needs.checks.outputs.docs_only != 'true' }}
+    env:
+      GOPROXY: ${{ needs.checks.outputs.go_proxy }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Golang Environment
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: go.mod
+
+      - name: Setup netrc
+        run: |
+          cat <<EOF > $HOME/.netrc
+          machine azr.artifactory.f5net.com
+              login ${{ secrets.ARTIFACTORY_USER }}
+              password ${{ secrets.ARTIFACTORY_TOKEN }}
+          EOF
+          chmod 600 $HOME/.netrc
+        if: ${{ needs.checks.outputs.forked_workflow != 'true' }}
+
+      - name: Run govulncheck
+        uses: golang/govulncheck-action@b625fbe08f3bccbe446d94fbf87fcc875a4f50ee # v1.0.4
+        with:
+          repo-checkout: false
+          cache: true
+
+      - name: Cleanup netrc
+        run: rm -f $HOME/.netrc
+        if: ${{ always() }}
+
   build-artifacts:
     name: Build Artifacts
-    needs: [checks, unit-tests, staticcheck, verify-codegen]
+    needs: [checks, unit-tests, staticcheck, govulncheck, verify-codegen]
     uses: ./.github/workflows/build-artifacts.yml
     with:
       force: ${{ needs.checks.outputs.docker_build == 'true' || needs.checks.outputs.binary_cache_hit != 'true' }}
@@ -853,7 +891,7 @@ jobs:
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     name: Final CI Results
-    needs: [tag-stable, build-artifacts, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap, package-tests, helm-tests, staticcheck]
+    needs: [tag-stable, build-artifacts, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap, package-tests, helm-tests, staticcheck, govulncheck]
     steps:
       - run: |
           tagResult="${{ needs.tag-stable.result }}"
@@ -864,6 +902,7 @@ jobs:
           smokeNAPResult="${{ needs.smoke-tests-nap.result }}"
           buildArtifactsResult="${{ needs.build-artifacts.result }}"
           staticcheckResult="${{ needs.staticcheck.result }}"
+          govulncheckResult="${{ needs.govulncheck.result }}"
           if [[ $tagResult != "success" && $tagResult != "skipped" ]]; then
             exit 1
           fi
@@ -886,6 +925,9 @@ jobs:
             exit 1
           fi
           if [[ $staticcheckResult != "success" && $staticcheckResult != "skipped" ]]; then
+            exit 1
+          fi
+          if [[ $govulncheckResult != "success" && $govulncheckResult != "skipped" ]]; then
             exit 1
           fi
 
