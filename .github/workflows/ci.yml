@@ -191,6 +191,7 @@ jobs:
     permissions:
       contents: read
     needs: checks
+    if: ${{ needs.checks.outputs.docs_only != 'true' }}
     env:
       GOPROXY: ${{ needs.checks.outputs.go_proxy }}
     steps:
@@ -202,19 +203,6 @@ jobs:
         with:
           go-version-file: go.mod
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
-
-      - name: Setup netrc
-        run: |
-          cat <<EOF > $HOME/.netrc
-          machine azr.artifactory.f5net.com
-              login ${{ secrets.ARTIFACTORY_USER }}
-              password ${{ secrets.ARTIFACTORY_TOKEN }}
-          EOF
-          chmod 600 $HOME/.netrc
-        if: >-
-          inputs.force ||
-          (needs.checks.outputs.binary_cache_hit != 'true' &&
-          needs.checks.outputs.forked_workflow != 'true')
 
       - name: Check if go.mod and go.sum are up to date
         run: go mod tidy && git diff --exit-code -- go.mod go.sum
@@ -240,10 +228,6 @@ jobs:
           export PATH=$PATH:$(go env GOPATH)/bin
           make telemetry-schema && git diff --name-only --exit-code internal/telemetry
         if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
-
-      - name: Cleanup netrc
-        run: rm -f $HOME/.netrc
-        if: ${{ always() }}
 
   unit-tests:
     name: Unit Tests
@@ -298,24 +282,13 @@ jobs:
           needs.checks.outputs.binary_cache_hit != 'true' &&
           inputs.run_tests != false
 
-      - name: Setup netrc
-        run: |
-          cat <<EOF > $HOME/.netrc
-          machine azr.artifactory.f5net.com
-              login ${{ secrets.ARTIFACTORY_USER }}
-              password ${{ secrets.ARTIFACTORY_TOKEN }}
-          EOF
-          chmod 600 $HOME/.netrc
-        if: >-
-          needs.checks.outputs.docs_only != 'true' &&
-          (inputs.force ||
-          (needs.checks.outputs.binary_cache_hit != 'true' &&
-          needs.checks.outputs.forked_workflow != 'true'))
-
       - name: Generate secrets for tests
         run: |
           make secrets
-        if: ${{ needs.checks.outputs.docs_only != 'true' }}
+        if: >-
+          needs.checks.outputs.docs_only != 'true' &&
+          needs.checks.outputs.binary_cache_hit != 'true' &&
+          inputs.run_tests != false
 
       - name: Run Tests
         run: make cover
@@ -334,10 +307,6 @@ jobs:
           inputs.run_tests != false &&
           needs.checks.outputs.docs_only != 'true'
 
-      - name: Cleanup netrc
-        run: rm -f $HOME/.netrc
-        if: ${{ always() }}
-
   staticcheck:
     name: Static Check
     runs-on: ubuntu-24.04
@@ -351,58 +320,16 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Azure login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
-        with:
-          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
-        if: >-
-          needs.checks.outputs.docs_only != 'true' &&
-          (inputs.force ||
-          (needs.checks.outputs.binary_cache_hit != 'true' &&
-          needs.checks.outputs.forked_workflow != 'true'))
-
-      - name: Setup secrets
-        id: secrets
-        run: |
-          echo "Setting secrets for job"
-          CODECOV_TOKEN=$(az keyvault secret show --name code-cov --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$CODECOV_TOKEN"
-          echo "CODECOV_TOKEN=$CODECOV_TOKEN" >> $GITHUB_OUTPUT
-        if: >-
-          needs.checks.outputs.docs_only != 'true' &&
-          (inputs.force ||
-          (needs.checks.outputs.binary_cache_hit != 'true' &&
-          needs.checks.outputs.forked_workflow != 'true'))
-
       - name: Setup Golang Environment
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: go.mod
-        if: >-
-          needs.checks.outputs.docs_only != 'true' &&
-          needs.checks.outputs.binary_cache_hit != 'true' &&
-          inputs.run_tests != false
-
-      - name: Setup netrc
-        run: |
-          cat <<EOF > $HOME/.netrc
-          machine azr.artifactory.f5net.com
-              login ${{ secrets.ARTIFACTORY_USER }}
-              password ${{ secrets.ARTIFACTORY_TOKEN }}
-          EOF
-          chmod 600 $HOME/.netrc
-        if: >-
-          needs.checks.outputs.docs_only != 'true' &&
-          (inputs.force ||
-          (needs.checks.outputs.binary_cache_hit != 'true' &&
-          needs.checks.outputs.forked_workflow != 'true'))
+        if: inputs.force || needs.checks.outputs.binary_cache_hit != 'true'
 
       - name: Generate secrets for tests
         run: |
           make secrets
-        if: ${{ needs.checks.outputs.docs_only != 'true' }}
+        if: inputs.force || needs.checks.outputs.binary_cache_hit != 'true'
 
       - name: Run Static Check
         uses: dominikh/staticcheck-action@9716614d4101e79b4340dd97b10e54d68234e431 # v1.4.1
@@ -410,10 +337,7 @@ jobs:
           version: "2026.1" # renovate: datasource=github-releases depName=dominikh/go-tools
           install-go: false
           use-cache: true
-
-      - name: Cleanup netrc
-        run: rm -f $HOME/.netrc
-        if: ${{ always() }}
+        if: inputs.force || needs.checks.outputs.binary_cache_hit != 'true'
 
   govulncheck:
     name: Vulnerability Check
@@ -428,30 +352,18 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Setup netrc
-        run: |
-          cat <<EOF > $HOME/.netrc
-          machine azr.artifactory.f5net.com
-              login ${{ secrets.ARTIFACTORY_USER }}
-              password ${{ secrets.ARTIFACTORY_TOKEN }}
-          EOF
-          chmod 600 $HOME/.netrc
-        if: ${{ needs.checks.outputs.forked_workflow != 'true' }}
-
       - name: Setup Golang Environment
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: go.mod
+        if: inputs.force || needs.checks.outputs.binary_cache_hit != 'true'
 
       - name: Run govulncheck
         uses: golang/govulncheck-action@b625fbe08f3bccbe446d94fbf87fcc875a4f50ee # v1.0.4
         with:
           repo-checkout: false
           cache: true
-
-      - name: Cleanup netrc
-        run: rm -f $HOME/.netrc
-        if: ${{ always() }}
+        if: inputs.force || needs.checks.outputs.binary_cache_hit != 'true'
 
   build-artifacts:
     name: Build Artifacts
