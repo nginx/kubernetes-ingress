@@ -442,7 +442,7 @@ jobs:
     if: ${{ inputs.force || (needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false') || (needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.stable_image_exists != 'true' && needs.checks.outputs.docs_only == 'false') }}
 
   package-tests:
-    if: ${{ needs.checks.outputs.docs_only != 'true' && inputs.run_tests != false }}
+    if: ${{ needs.checks.outputs.docker_build == 'true' && inputs.run_tests != false }}
     name: Package Tests
     runs-on: ubuntu-24.04
     needs: [checks, build-artifacts]
@@ -522,7 +522,7 @@ jobs:
         if: ${{ ( needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' ) && github.event.pull_request }}
 
   helm-tests:
-    if: ${{ needs.checks.outputs.docs_only != 'true' && inputs.run_tests != false }}
+    if: ${{ needs.checks.outputs.docker_build == 'true' && inputs.run_tests != false }}
     name: Helm Tests ${{ matrix.base-os }}
     runs-on: ubuntu-24.04
     needs: [checks, build-artifacts]
@@ -708,7 +708,7 @@ jobs:
         if: always()
 
   setup-matrix:
-    if: ${{ needs.checks.outputs.docs_only != 'true' && inputs.run_tests != false }}
+    if: ${{ needs.checks.outputs.docker_build == 'true' && inputs.run_tests != false }}
     name: Setup Matrix for Smoke Tests
     runs-on: ubuntu-24.04
     needs: [build-artifacts, checks]
@@ -790,7 +790,7 @@ jobs:
         if: ${{ steps.check-image.outcome == 'failure' && needs.checks.outputs.docs_only == 'false' }}
 
   smoke-tests-oss:
-    if: ${{ needs.checks.outputs.docs_only != 'true' && inputs.run_tests != false }}
+    if: ${{ needs.checks.outputs.docker_build == 'true' && inputs.run_tests != false }}
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     needs:
       - checks
@@ -818,7 +818,7 @@ jobs:
       force: ${{ inputs.run_tests != false }}
 
   smoke-tests-plus:
-    if: ${{ needs.checks.outputs.docs_only != 'true' && inputs.run_tests != false }}
+    if: ${{ needs.checks.outputs.docker_build == 'true' && inputs.run_tests != false }}
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     needs:
       - checks
@@ -846,7 +846,7 @@ jobs:
       force: ${{ inputs.run_tests != false }}
 
   smoke-tests-nap:
-    if: ${{ needs.checks.outputs.docs_only != 'true' && inputs.run_tests != false }}
+    if: ${{ needs.checks.outputs.docker_build == 'true' && inputs.run_tests != false }}
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     needs:
       - checks
