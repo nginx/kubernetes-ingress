@@ -62,7 +62,7 @@ DOCKER_CMD = docker build --platform linux/$(strip $(ARCH)) $(strip $(DOCKER_BUI
 export DOCKER_BUILDKIT = 1
 
 # Note: only tracks committed/staged files. Run `git add` on new .go files for incremental rebuild.
-GO_SRCS := $(shell git ls-files '*.go' go.mod go.sum .github/data/version.txt)
+GO_SRCS := $(shell git ls-files '*.go' go.mod go.sum .github/data/version.txt | grep -v '_test\.go$$')
 
 .DEFAULT_GOAL:=help
 
