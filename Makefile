@@ -29,7 +29,7 @@ GO_DOCKER_IMAGE         ?= $(GO_DOCKER_IMAGE_NAME):$(GO_DOCKER_IMAGE_VERSION)
 REGISTRY                      ?= ## The registry where the image is located.
 PREFIX                        ?= nginx/nginx-ingress ## The name of the image. For example, nginx/nginx-ingress
 TAG                           ?= $(VERSION:v%=%) ## The tag of the image. For example, 2.0.0
-TARGET                        ?= local ## The target of the build. Possible values: local, container and download
+TARGET                        ?= local ## The target of the build. Possible values: local, container, download, and debug
 PLUS_REPO                     ?= "pkgs.nginx.com" ## The package repo to install nginx-plus from
 override DOCKER_BUILD_OPTIONS += --build-arg IC_VERSION=$(VERSION) --build-arg PACKAGE_REPO=$(PLUS_REPO) ## The options for the docker build command. For example, --pull
 ARCH                          ?= amd64 ## The architecture of the image or binary. For example: amd64, arm64, ppc64le, s390x. Not all architectures are supported for all targets
@@ -61,6 +61,7 @@ DOCKER_CMD = docker build --platform linux/$(strip $(ARCH)) $(strip $(DOCKER_BUI
 
 export DOCKER_BUILDKIT = 1
 
+# Note: only tracks committed/staged files. Run `git add` on new .go files for incremental rebuild.
 GO_SRCS := $(shell git ls-files '*.go' go.mod go.sum .github/data/version.txt)
 
 .DEFAULT_GOAL:=help
@@ -138,7 +139,10 @@ telemetry-schema: ## Generate the telemetry Schema
 	go generate internal/telemetry/exporter.go
 	gofumpt -w internal/telemetry/*_generated.go
 
-$(BINARY_NAME)-$(ARCH): $(GO_SRCS) ## Build Ingress Controller binary (local)
+.PHONY: build-local
+build-local: $(BINARY_NAME)-$(ARCH) ## Build Ingress Controller binary (local, incremental)
+
+$(BINARY_NAME)-$(ARCH): $(GO_SRCS)
 	@go version || (code=$$?; printf "\033[0;31mError\033[0m: unable to build locally, try using the parameter TARGET=container or TARGET=download\n"; exit $$code)
 	CGO_ENABLED=0 GOOS=$(strip $(GOOS)) GOARCH=$(strip $(ARCH)) go build -trimpath -ldflags "$(GO_LINKER_FLAGS)" -o $(BINARY_NAME)-$(ARCH) github.com/nginx/kubernetes-ingress/cmd/nginx-ingress
 	@cp $(BINARY_NAME)-$(ARCH) $(BINARY_NAME)
@@ -151,9 +155,14 @@ else ifeq ($(strip $(TARGET)),download)
 	@docker -v || (code=$$?; printf "\033[0;31mError\033[0m: there was a problem with Docker\n"; exit $$code)
 	@$(MAKE) download-binary-docker
 else ifeq ($(strip $(TARGET)),debug)
+# Debug builds run unconditionally (no incremental file target) since they are infrequent.
 	@go version || (code=$$?; printf "\033[0;31mError\033[0m: unable to build locally, try using the parameter TARGET=container or TARGET=download\n"; exit $$code)
 	CGO_ENABLED=0 GOOS=$(strip $(GOOS)) GOARCH=$(strip $(ARCH)) go build -ldflags "$(DEBUG_GO_LINKER_FLAGS)" -gcflags "$(DEBUG_GO_GC_FLAGS)" -o $(BINARY_NAME)-$(ARCH) github.com/nginx/kubernetes-ingress/cmd/nginx-ingress
 	@cp $(BINARY_NAME)-$(ARCH) $(BINARY_NAME)
+else ifeq ($(strip $(TARGET)),container)
+# Binary is built inside Docker as part of the image build; nothing to do here.
+else
+	$(error Unknown TARGET "$(TARGET)". Valid values: local, container, download, debug)
 endif
 
 .PHONY: download-binary-docker
@@ -276,8 +285,8 @@ push: ## Docker push to PREFIX and TAG
 	docker push $(strip $(PREFIX)):$(strip $(TAG))
 
 .PHONY: clean
-clean:  ## Remove $(BINARY_NAME) binary
-	-rm -f $(BINARY_NAME) $(BINARY_NAME)-*
+clean:  ## Remove nginx-ingress binaries and dist
+	-rm -f $(BINARY_NAME) $(foreach a,amd64 arm64 ppc64le s390x,$(BINARY_NAME)-$(a))
 	-rm -rf dist
 
 .PHONY: deps
