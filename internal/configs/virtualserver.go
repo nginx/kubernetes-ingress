@@ -442,8 +442,10 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		vsc.mergeWarnings(warnings)
 	}
 	if policiesCfg.OIDC != nil {
-		// Store the OIDC policy name for conflict checking in further calls to generatePolicies for routes and subroutes
+		// Store the OIDC policy name and built config for reuse in further calls to generatePolicies
+		// for routes and subroutes.
 		policyOpts.oidcPolicyName = policiesCfg.OIDC.PolicyName
+		policyOpts.oidcConfig = policiesCfg.OIDC
 	}
 	if policiesCfg.JWTAuth.JWKSEnabled {
 		jwtAuthKey := policiesCfg.JWTAuth.Auth.Key
@@ -549,6 +551,11 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	VariableNamer := NewVSVariableNamer(vsEx.VirtualServer)
 
+	// specHasOIDC records whether the VirtualServer spec itself carries an OIDC policy.
+	// It is used below to inherit spec-level OIDC to routes that don't define their own,
+	// without allowing a route-level OIDC assignment to bleed into subsequent routes.
+	specHasOIDC := policiesCfg.OIDC != nil
+
 	// generates config for VirtualServer routes
 	for _, r := range vsEx.VirtualServer.Spec.Routes {
 		errorPages := generateErrorPageDetails(r.ErrorPages, errorPageLocations, vsEx.VirtualServer)
@@ -636,20 +643,18 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		if len(warnings) > 0 {
 			vsc.mergeWarnings(warnings)
 		}
-		if policiesCfg.OIDC != nil || routePoliciesCfg.OIDC != nil {
-			// Store the OIDC policy name for conflict checking in further calls to generatePolicies for subroutes
-			if routePoliciesCfg.OIDC != nil {
-				policyOpts.oidcPolicyName = routePoliciesCfg.OIDC.PolicyName
-
-				// policiesCfg.OIDC is used to store the OIDC policy for template generation for both spec, routes and subroutes.
-				// We can only have one OIDC policy per VirtualServer, so if we have an OIDC policy defined on the route, we use that one for template generation.
-				// We use the non-nil routePoliciesCfg.OIDC struct as a marker to trigger adding the OIDC configuration to the route locations in addPoliciesCfgToLocations.
-				policiesCfg.OIDC = routePoliciesCfg.OIDC
-			}
-			// If the route does not have an OIDC policy, but the VirtualServer has one, we still need to set routePoliciesCfg.OIDC to a non-nil value to trigger adding the OIDC configuration to the route locations in addPoliciesCfgToLocations, so we set it to the VirtualServer policy.
-			if policiesCfg.OIDC != nil {
-				routePoliciesCfg.OIDC = policiesCfg.OIDC
-			}
+		if routePoliciesCfg.OIDC != nil {
+			// Store the OIDC policy name and built config for reuse in further calls to generatePolicies for subroutes.
+			policyOpts.oidcPolicyName = routePoliciesCfg.OIDC.PolicyName
+			policyOpts.oidcConfig = routePoliciesCfg.OIDC
+			// Keep policiesCfg.OIDC up to date so Server.OIDC is populated for server-block helper generation.
+			policiesCfg.OIDC = routePoliciesCfg.OIDC
+		} else if specHasOIDC {
+			// Inherit the spec-level OIDC to routes that don't define their own.
+			// Using the specHasOIDC boolean (set before the loop) avoids reading the potentially
+			// mutated policiesCfg.OIDC, which would otherwise cause a route-level OIDC to leak
+			// into subsequent routes that do not reference the policy.
+			routePoliciesCfg.OIDC = policiesCfg.OIDC
 		}
 		if routePoliciesCfg.JWTAuth.JWKSEnabled {
 			policiesCfg.JWTAuth.JWKSEnabled = routePoliciesCfg.JWTAuth.JWKSEnabled
@@ -816,20 +821,18 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				routePoliciesCfg.CORSHeaders = policiesCfg.CORSHeaders
 			}
 
-			if policiesCfg.OIDC != nil || routePoliciesCfg.OIDC != nil {
-				// Store the OIDC policy name for conflict checking in further calls to generatePolicies for subroutes
-				if routePoliciesCfg.OIDC != nil {
-					policyOpts.oidcPolicyName = routePoliciesCfg.OIDC.PolicyName
-
-					// policiesCfg.OIDC is used to store the OIDC policy for template generation for both spec, routes and subroutes.
-					// We can only have one OIDC policy per VirtualServer, so if we have an OIDC policy defined on the route, we use that one for template generation.
-					// We use the non-nil routePoliciesCfg.OIDC struct as a marker to trigger adding the OIDC configuration to the route locations in addPoliciesCfgToLocations.
-					policiesCfg.OIDC = routePoliciesCfg.OIDC
-				}
-				// If the route does not have an OIDC policy, but the VirtualServer has one, we still need to set routePoliciesCfg.OIDC to a non-nil value to trigger adding the OIDC configuration to the route locations in addPoliciesCfgToLocations, so we set it to the VirtualServer policy.
-				if policiesCfg.OIDC != nil {
-					routePoliciesCfg.OIDC = policiesCfg.OIDC
-				}
+			if routePoliciesCfg.OIDC != nil {
+				// Store the OIDC policy name and built config for reuse in further calls to generatePolicies for subroutes.
+				policyOpts.oidcPolicyName = routePoliciesCfg.OIDC.PolicyName
+				policyOpts.oidcConfig = routePoliciesCfg.OIDC
+				// Keep policiesCfg.OIDC up to date so Server.OIDC is populated for server-block helper generation.
+				policiesCfg.OIDC = routePoliciesCfg.OIDC
+			} else if specHasOIDC {
+				// Inherit the spec-level OIDC to subroutes that don't define their own.
+				// Using the specHasOIDC boolean (set before the route loop) avoids reading the potentially
+				// mutated policiesCfg.OIDC, which would otherwise cause a route-level OIDC to leak
+				// into subsequent subroutes that do not reference the policy.
+				routePoliciesCfg.OIDC = policiesCfg.OIDC
 			}
 			if routePoliciesCfg.JWTAuth.JWKSEnabled {
 				policiesCfg.JWTAuth.JWKSEnabled = routePoliciesCfg.JWTAuth.JWKSEnabled
@@ -1490,7 +1493,7 @@ func generateProxyPassRewrite(path string, proxy *conf_v1.ActionProxy, internal 
 		return ""
 	}
 
-	if strings.HasPrefix(path, "/") || strings.HasPrefix(path, "=") {
+	if strings.HasPrefix(path, "/") || strings.HasPrefix(path, "=") || strings.HasPrefix(path, "^~") {
 		return proxy.RewritePath
 	}
 
@@ -1576,6 +1579,10 @@ func generateBool(s *bool, defaultS bool) bool {
 }
 
 func generatePath(path string) string {
+	// Format the longest prefix match with a space between the modifier and the path
+	if strings.HasPrefix(path, "^~") {
+		return fmt.Sprintf(`^~ %v`, strings.TrimLeft(strings.TrimPrefix(path, "^~"), " "))
+	}
 	// Wrap the regular expression (if present) inside double quotes (") to avoid NGINX parsing errors
 	if strings.HasPrefix(path, "~*") {
 		return fmt.Sprintf(`~* "%v"`, strings.TrimPrefix(strings.TrimPrefix(path, "~*"), " "))

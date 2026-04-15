@@ -59,7 +59,7 @@ jobs:
         id: vars
         run: |
           echo "go_path=$(go env GOPATH)" >> $GITHUB_OUTPUT
-          echo "go_proxy=${{ secrets.ARTIFACTORY_ENDPOINT }}" >> $GITHUB_OUTPUT
+          echo "go_proxy=${{ secrets.ARTIFACTORY_DEV_ENDPOINT }}" >> $GITHUB_OUTPUT
           source .github/data/version.txt
           echo "ic_version=${IC_VERSION}" >> $GITHUB_OUTPUT
           echo "chart_version=${HELM_CHART_VERSION}" >> $GITHUB_OUTPUT
@@ -118,7 +118,7 @@ jobs:
 
   govulncheck:
     name: Run govulncheck
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-amd64
     permissions:
       contents: read
       security-events: write
@@ -328,7 +328,7 @@ jobs:
           image: quay.io/nginx/nginx-ingress:edge-ubi
           project_id: ${{ steps.secrets.outputs.PYXIS_CERTIFICATION_PROJECT_ID }}
           pyxis_token: ${{ steps.secrets.outputs.PYXIS_TOKEN }}
-          preflight_version: 1.17.0 # renovate: datasource=github-releases depName=preflight packageName=redhat-openshift-ecosystem/openshift-preflight
+          preflight_version: 1.17.1 # renovate: datasource=github-releases depName=preflight packageName=redhat-openshift-ecosystem/openshift-preflight
 
   scan-docker-oss:
     name: Scan ${{ matrix.image }}
