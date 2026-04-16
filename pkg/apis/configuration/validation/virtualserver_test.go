@@ -2563,6 +2563,66 @@ func TestValidateVirtualServerRouteSubroutes(t *testing.T) {
 		{
 			routes: []v1.Route{
 				{
+					Path: "=/test",
+					Action: &v1.Action{
+						Pass: "test",
+					},
+				},
+			},
+			upstreamNames: map[string]sets.Empty{
+				"test": {},
+			},
+			vsPaths: []string{"= /test"},
+			msg:     "valid exact route: space in VS path, none in subroute",
+		},
+		{
+			routes: []v1.Route{
+				{
+					Path: "= /test",
+					Action: &v1.Action{
+						Pass: "test",
+					},
+				},
+			},
+			upstreamNames: map[string]sets.Empty{
+				"test": {},
+			},
+			vsPaths: []string{"=/test"},
+			msg:     "valid exact route: no space in VS path, space in subroute",
+		},
+		{
+			routes: []v1.Route{
+				{
+					Path: "=/test",
+					Action: &v1.Action{
+						Pass: "test",
+					},
+				},
+			},
+			upstreamNames: map[string]sets.Empty{
+				"test": {},
+			},
+			vsPaths: []string{"=     /test"},
+			msg:     "valid exact route: multiple spaces in VS path",
+		},
+		{
+			routes: []v1.Route{
+				{
+					Path: "=     /test",
+					Action: &v1.Action{
+						Pass: "test",
+					},
+				},
+			},
+			upstreamNames: map[string]sets.Empty{
+				"test": {},
+			},
+			vsPaths: []string{"=/test"},
+			msg:     "valid exact route: multiple spaces in subroute path",
+		},
+		{
+			routes: []v1.Route{
+				{
 					Path: "^~/images/thumbnails",
 					Action: &v1.Action{
 						Pass: "test",

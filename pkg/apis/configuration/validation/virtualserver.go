@@ -1393,7 +1393,7 @@ func validateRoutePath(path string, fieldPath *field.Path) field.ErrorList {
 	} else if strings.HasPrefix(path, "/") {
 		allErrs = append(allErrs, validatePath(path, fieldPath)...)
 	} else if strings.HasPrefix(path, "=") {
-		allErrs = append(allErrs, validatePath(strings.TrimPrefix(path, "="), fieldPath)...)
+		allErrs = append(allErrs, validatePath(strings.TrimLeft(strings.TrimPrefix(path, "="), " "), fieldPath)...)
 	} else {
 		allErrs = append(allErrs, field.Invalid(fieldPath, path, "must start with /, ~, = or ^~"))
 	}
@@ -1670,8 +1670,9 @@ func (vsv *VirtualServerValidator) validateSubroutesExact(routes []v1.Route, fie
 	if len(routes) != 1 {
 		return field.ErrorList{field.Invalid(fieldPath, "subroutes", "must have only one subroute if exact match is being used")}
 	}
-	if routes[0].Path != vsPath {
-		return field.ErrorList{field.Invalid(fieldPath.Index(0).Child("path"), routes[0].Path, "must have the same path as the referenced VirtualServer route path")}
+	normVSPath := NormalizePath(vsPath)
+	if NormalizePath(routes[0].Path) != normVSPath {
+		return field.ErrorList{field.Invalid(fieldPath.Index(0).Child("path"), routes[0].Path, fmt.Sprintf("must have the same path as the referenced VirtualServer route path %q", normVSPath))}
 	}
 	return vsv.validateRoute(routes[0], fieldPath.Index(0), upstreamNames, true, namespace)
 }
