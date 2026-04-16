@@ -1843,8 +1843,6 @@ func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*
 	vsrs = append(vsrs, regexVsrs...)
 	warnings = append(warnings, pass2Warnings...)
 
-	vsrs = deduplicateVSRs(vsrs)
-
 	vsrs, duplicateVSRWarnings := validateDuplicateVSRs(vsrs, vs.Name, vs.Namespace)
 	warnings = append(warnings, duplicateVSRWarnings...)
 
@@ -2008,23 +2006,6 @@ func removeVSRByNsName(vsrs []*conf_v1.VirtualServerRoute, nsName string) []*con
 		}
 	}
 	return vsrs
-}
-
-// deduplicateVSRs returns the slice with duplicate VSR entries (by kind/namespace/name key) removed.
-func deduplicateVSRs(vsrs []*conf_v1.VirtualServerRoute) []*conf_v1.VirtualServerRoute {
-	if len(vsrs) == 0 {
-		return vsrs
-	}
-	seen := make(map[string]bool, len(vsrs))
-	result := make([]*conf_v1.VirtualServerRoute, 0, len(vsrs))
-	for _, vsr := range vsrs {
-		key := getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta)
-		if !seen[key] {
-			seen[key] = true
-			result = append(result, vsr)
-		}
-	}
-	return result
 }
 
 // GetTransportServerMetrics returns metrics about TransportServers

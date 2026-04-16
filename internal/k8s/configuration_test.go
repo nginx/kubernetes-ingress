@@ -6165,6 +6165,21 @@ func TestBuildVirtualServerRoutesMultipleRegex(t *testing.T) {
 				"VirtualServerRoute default/myroute is referenced by both regex and non-regex VS routes; it will not be used",
 			},
 		},
+		{
+			name: "duplicate non-regex VS routes referencing same VSR emit warning",
+			vsRoutes: []conf_v1.Route{
+				{Path: "/api", Route: vsrName},
+				{Path: "/api", Route: vsrName},
+			},
+			vsrSubroutes: []conf_v1.Route{
+				makeSubroute("/api/v1"),
+				makeSubroute("/api/v2"),
+			},
+			expectedVSR: true,
+			expectedWarns: []string{
+				"VS default/myvs has duplicate VirtualServerRoutes default/myroute",
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
