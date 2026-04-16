@@ -317,7 +317,7 @@ server {
 		auth_basic {{ printf "%q" .Realm }};
 		auth_basic_user_file {{ .Secret }};
 		{{- end }}
-		{{- $normalizedLocationPath := trimPrefix "= " $location.Path }}
+		{{- $normalizedLocationPath := trimPrefix $location.Path "= " }}
 		{{- if and (or (eq $normalizedLocationPath "/.well-known/acme-challenge") (hasPrefix $normalizedLocationPath "/.well-known/acme-challenge/")) (or $server.BasicAuth $location.BasicAuth) }}
 		# Disable basic auth for ACME HTTP-01 challenge paths
 		auth_basic off;
