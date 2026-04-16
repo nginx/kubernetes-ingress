@@ -2904,6 +2904,50 @@ func TestValidateVirtualServerRouteSubroutesFails(t *testing.T) {
 		{
 			routes: []v1.Route{
 				{
+					Path: "^~/images/jpg",
+					Action: &v1.Action{
+						Pass: "test-1",
+					},
+				},
+				{
+					Path: "^~ /images/jpg",
+					Action: &v1.Action{
+						Pass: "test-2",
+					},
+				},
+			},
+			upstreamNames: map[string]sets.Empty{
+				"test-1": {},
+				"test-2": {},
+			},
+			vsPaths: []string{"^~/images"},
+			msg:     "prefix: duplicated longest-prefix subroutes with single space difference",
+		},
+		{
+			routes: []v1.Route{
+				{
+					Path: "^~/images/jpg",
+					Action: &v1.Action{
+						Pass: "test-1",
+					},
+				},
+				{
+					Path: "^~   /images/jpg",
+					Action: &v1.Action{
+						Pass: "test-2",
+					},
+				},
+			},
+			upstreamNames: map[string]sets.Empty{
+				"test-1": {},
+				"test-2": {},
+			},
+			vsPaths: []string{"^~/images"},
+			msg:     "prefix: duplicated longest-prefix subroutes with multiple spaces difference",
+		},
+		{
+			routes: []v1.Route{
+				{
 					Path:   "",
 					Action: nil,
 				},

@@ -1751,12 +1751,13 @@ func (vsv *VirtualServerValidator) validateSubroutesPrefix(routes []v1.Route, fi
 		if vsPathNorm != "" && !strings.HasPrefix(NormalizePath(r.Path), vsPathNorm) {
 			routeErrs = append(routeErrs, field.Invalid(idxPath.Child("path"), r.Path, fmt.Sprintf("must start with %q", vsPathNorm)))
 		}
+		normPath := NormalizePath(r.Path)
 		if len(routeErrs) > 0 {
 			allErrs = append(allErrs, routeErrs...)
-		} else if allPaths.Has(r.Path) {
+		} else if allPaths.Has(normPath) {
 			allErrs = append(allErrs, field.Duplicate(idxPath.Child("path"), r.Path))
 		} else {
-			allPaths.Insert(r.Path)
+			allPaths.Insert(normPath)
 		}
 	}
 	return allErrs
