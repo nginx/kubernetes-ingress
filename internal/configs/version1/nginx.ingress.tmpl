@@ -168,7 +168,7 @@ server {
 	access_log off;
 	{{- end}}
 	{{- if and $server.IsDefaultServer $server.DefaultServer.HealthStatus}}
-	location {{$server.DefaultServer.HealthStatusURI}} {
+	location = {{$server.DefaultServer.HealthStatusURI}} {
 		default_type text/plain;
 		return 200 "healthy\n";
 	}

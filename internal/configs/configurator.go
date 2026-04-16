@@ -51,6 +51,7 @@ const DefaultSecretPath = "/etc/nginx/secrets" // #nosec G101
 const DefaultServerSecretFileName = "default"
 
 const syntheticDefaultServerConfigName = "00-default-server"
+
 // WildcardSecretFileName is the filename of the Secret with a TLS cert and a key for the ingress resources with TLS termination enabled but not secret defined.
 const WildcardSecretFileName = "wildcard"
 
@@ -423,6 +424,16 @@ func (cnf *Configurator) streamUpstreamsForTransportServer(ts *conf_v1.Transport
 	return upstreamNames
 }
 
+func (cnf *Configurator) cleanUpStaleIngressConfig(ingressKey string, newIsEmptyHost bool) {
+	current, exists := cnf.ingresses[ingressKey]
+	if !exists {
+		return
+	}
+	if !current.ValidHosts[emptyHost] && newIsEmptyHost {
+		cnf.nginxManager.DeleteConfig(ingressKey)
+	}
+}
+
 func (cnf *Configurator) hasActiveEmptyHostIngress() bool {
 	for _, ingEx := range cnf.ingresses {
 		if ingEx != nil && ingEx.ValidHosts[emptyHost] {
@@ -476,6 +487,7 @@ func (cnf *Configurator) syncSyntheticDefaultServerConfig() error {
 	}
 	return nil
 }
+
 // addOrUpdateIngress returns a bool that specifies if the underlying config
 // file has changed, and any warnings or errors
 func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) (bool, Warnings, error) {
@@ -522,6 +534,8 @@ func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) (bool, Warnings, e
 	if err != nil {
 		return false, warnings, fmt.Errorf("error validating Ingress config %v: %w", ingressKey, err)
 	}
+
+	cnf.cleanUpStaleIngressConfig(ingressKey, isEmptyHost)
 
 	cnf.ingresses[ingressKey] = ingEx
 	if (cnf.isPlus && cnf.isPrometheusEnabled) || cnf.isLatencyMetricsEnabled {
@@ -615,6 +629,8 @@ func (cnf *Configurator) addOrUpdateMergeableIngress(mergeableIngs *MergeableIng
 	if err != nil {
 		return false, warnings, fmt.Errorf("error validating Ingress config %v: %w", ingressKey, err)
 	}
+
+	cnf.cleanUpStaleIngressConfig(ingressKey, isEmptyHost)
 
 	cnf.ingresses[ingressKey] = mergeableIngs.Master
 	cnf.minions[ingressKey] = make(map[string]bool)
