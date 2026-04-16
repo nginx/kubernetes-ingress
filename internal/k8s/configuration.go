@@ -1891,6 +1891,8 @@ func detectSpacingDuplicateRegexPaths(routes []conf_v1.Route) []string {
 func (c *Configuration) collectRegexVSRPaths(vs *conf_v1.VirtualServer) (map[string]*regexVSREntry, []string) {
 	var warnings []string
 	entries := make(map[string]*regexVSREntry)
+	// seenPaths tracks normalized paths per VSR key for O(1) duplicate detection.
+	seenPaths := make(map[string]map[string]struct{})
 
 	for _, r := range vs.Spec.Routes {
 		if r.Route == "" {
@@ -1911,18 +1913,13 @@ func (c *Configuration) collectRegexVSRPaths(vs *conf_v1.VirtualServer) (map[str
 		}
 		if entry, found := entries[vsrKey]; found {
 			// Deduplicate normalized paths (spacing duplicates are already warned in the pre-pass).
-			unique := true
-			for _, p := range entry.paths {
-				if p == norm {
-					unique = false
-					break
-				}
-			}
-			if unique {
+			if _, seen := seenPaths[vsrKey][norm]; !seen {
+				seenPaths[vsrKey][norm] = struct{}{}
 				entry.paths = append(entry.paths, norm)
 			}
 		} else {
 			entries[vsrKey] = &regexVSREntry{vsr: vsr, paths: []string{norm}}
+			seenPaths[vsrKey] = map[string]struct{}{norm: {}}
 		}
 	}
 	return entries, warnings

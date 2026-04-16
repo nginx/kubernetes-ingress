@@ -6166,6 +6166,24 @@ func TestBuildVirtualServerRoutesMultipleRegex(t *testing.T) {
 			},
 		},
 		{
+			name: "multiple spacing-duplicate regex paths for same VSR deduplicate correctly",
+			vsRoutes: []conf_v1.Route{
+				{Path: "~/api/v1", Route: vsrName},
+				{Path: "~ /api/v1", Route: vsrName},  // spacing dup of v1
+				{Path: "~  /api/v1", Route: vsrName}, // another spacing dup of v1
+				{Path: "~/api/v2", Route: vsrName},
+			},
+			vsrSubroutes: []conf_v1.Route{
+				makeSubroute("~/api/v1"),
+				makeSubroute("~/api/v2"),
+			},
+			expectedVSR: true,
+			expectedWarns: []string{
+				`routes "~/api/v1" and "~ /api/v1" have equivalent regex paths after normalization; only one will be used by nginx`,
+				`routes "~/api/v1" and "~  /api/v1" have equivalent regex paths after normalization; only one will be used by nginx`,
+			},
+		},
+		{
 			name: "duplicate non-regex VS routes referencing same VSR emit warning",
 			vsRoutes: []conf_v1.Route{
 				{Path: "/api", Route: vsrName},
