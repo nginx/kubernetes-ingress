@@ -5615,6 +5615,32 @@ var ingressCfgWithLocationBasicAuthAndACMEChallenge = IngressNginxConfig{
 						Realm:  "Protected Area",
 					},
 				},
+				{
+					Path:                "/.well-known/acme-challenge",
+					Upstream:            testUpstream,
+					ProxyConnectTimeout: "10s",
+					ProxyReadTimeout:    "10s",
+					ProxySendTimeout:    "10s",
+					ClientMaxBodySize:   "2m",
+					ProxyPass:           "http://test",
+					BasicAuth: &BasicAuth{
+						Secret: "/etc/nginx/secrets/htpasswd",
+						Realm:  "Protected Area",
+					},
+				},
+				{
+					Path:                "= /.well-known/acme-challenge/",
+					Upstream:            testUpstream,
+					ProxyConnectTimeout: "10s",
+					ProxyReadTimeout:    "10s",
+					ProxySendTimeout:    "10s",
+					ClientMaxBodySize:   "2m",
+					ProxyPass:           "http://test",
+					BasicAuth: &BasicAuth{
+						Secret: "/etc/nginx/secrets/htpasswd",
+						Realm:  "Protected Area",
+					},
+				},
 			},
 		},
 	},
@@ -5723,7 +5749,7 @@ func assertACMEChallengeLocationsDisableBasicAuth(t *testing.T, bufString string
 		},
 		{
 			name:    "exact-match ACME challenge location",
-			pattern: `location\s+=\s+/\.well-known/acme-challenge\s*\{`,
+			pattern: `location\s+=\s+/\.well-known/acme-challenge/\s*\{`,
 		},
 	}
 
