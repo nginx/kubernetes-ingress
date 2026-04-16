@@ -166,10 +166,6 @@ server {
 		set $resource_name "{{$location.MinionIngress.Name}}";
 		set $resource_namespace "{{$location.MinionIngress.Namespace}}";
 		{{- end}}
-		{{- if and $server.BasicAuth (hasPrefix $location.Path "/.well-known/acme-challenge/") }}
-		# Disable basic auth for ACME HTTP-01 challenge paths
-		auth_basic off;
-		{{- end }}
 
 		{{- with $location.PoliciesErrorReturn }}
 		return {{ .Code }};
@@ -215,6 +211,10 @@ server {
 		auth_basic {{ printf "%q" .Realm }};
 		auth_basic_user_file {{ .Secret }};
 		{{- end }}
+		{{- if and $server.BasicAuth (hasPrefix $location.Path "/.well-known/acme-challenge/") }}
+		# Disable basic auth for ACME HTTP-01 challenge paths
+		auth_basic off;
+		{{- end }}
 
 		grpc_connect_timeout {{$location.ProxyConnectTimeout}};
 		grpc_read_timeout {{$location.ProxyReadTimeout}};
@@ -257,6 +257,10 @@ server {
 		{{- with $location.BasicAuth }}
 		auth_basic {{ printf "%q" .Realm }};
 		auth_basic_user_file {{ .Secret }};
+		{{- end }}
+		{{- if and $server.BasicAuth (hasPrefix $location.Path "/.well-known/acme-challenge/") }}
+		# Disable basic auth for ACME HTTP-01 challenge paths
+		auth_basic off;
 		{{- end }}
 		proxy_connect_timeout {{$location.ProxyConnectTimeout}};
 		proxy_read_timeout {{$location.ProxyReadTimeout}};
