@@ -5573,7 +5573,7 @@ var ingressCfgWithBasicAuthAndACMEChallenge = IngressNginxConfig{
 var ingressCfgWithLocationBasicAuthAndACMEChallenge = IngressNginxConfig{
 	Servers: []Server{
 		{
-			ServerName: "example.com",
+			Name: "example.com",
 			Locations: []Location{
 				{
 					Path:                "/",

@@ -163,6 +163,7 @@ var helperFunctions = template.FuncMap{
 	"toLower":            strings.ToLower,
 	"toUpper":            strings.ToUpper,
 	"replaceAll":         strings.ReplaceAll,
+	"trimPrefix":         strings.TrimPrefix,
 	"makeLocationPath":   makeLocationPath,
 	"makeRewritePattern": makeRewritePattern,
 	"makeSecretPath":     commonhelpers.MakeSecretPath,
