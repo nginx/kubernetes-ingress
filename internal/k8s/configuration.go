@@ -1973,7 +1973,7 @@ func rejectMixedTypeVSRs(
 				vsrKey,
 			))
 			delete(regexEntries, vsrKey)
-			nonRegexVsrs = removeVSRByNsName(nonRegexVsrs, nsName)
+			nonRegexVsrs = removeAllVSRsByNsName(nonRegexVsrs, nsName)
 		}
 	}
 	return regexEntries, nonRegexVsrs, warnings
@@ -1995,14 +1995,15 @@ func (c *Configuration) validateAndBuildRegexVSRs(entries map[string]*regexVSREn
 	return vsrs, warnings
 }
 
-// removeVSRByNsName removes the first VSR matching "namespace/name" from the slice.
-func removeVSRByNsName(vsrs []*conf_v1.VirtualServerRoute, nsName string) []*conf_v1.VirtualServerRoute {
-	for i, vsr := range vsrs {
-		if fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name) == nsName {
-			return removeFromVSRSlice(vsrs, i)
+// removeAllVSRsByNsName removes all VSRs matching "namespace/name" from the slice.
+func removeAllVSRsByNsName(vsrs []*conf_v1.VirtualServerRoute, nsName string) []*conf_v1.VirtualServerRoute {
+	var result []*conf_v1.VirtualServerRoute
+	for _, vsr := range vsrs {
+		if fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name) != nsName {
+			result = append(result, vsr)
 		}
 	}
-	return vsrs
+	return result
 }
 
 // GetTransportServerMetrics returns metrics about TransportServers

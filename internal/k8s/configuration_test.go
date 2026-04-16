@@ -6198,6 +6198,21 @@ func TestBuildVirtualServerRoutesMultipleRegex(t *testing.T) {
 				"VS default/myvs has duplicate VirtualServerRoutes default/myroute",
 			},
 		},
+		{
+			name: "VSR referenced by duplicate non-regex routes and a regex route is fully removed",
+			vsRoutes: []conf_v1.Route{
+				{Path: "/prefix", Route: vsrName},
+				{Path: "/prefix", Route: vsrName},
+				{Path: "~/regex", Route: vsrName},
+			},
+			vsrSubroutes: []conf_v1.Route{
+				makeSubroute("/prefix/sub"),
+			},
+			expectedVSR: false,
+			expectedWarns: []string{
+				"VirtualServerRoute default/myroute is referenced by both regex and non-regex VS routes; it will not be used",
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
