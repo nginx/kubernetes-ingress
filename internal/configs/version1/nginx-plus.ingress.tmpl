@@ -252,6 +252,10 @@ server {
 		set $resource_name "{{$location.MinionIngress.Name}}";
 		set $resource_namespace "{{$location.MinionIngress.Namespace}}";
 		{{- end}}
+		{{- if and $server.BasicAuth (hasPrefix $location.Path "/.well-known/acme-challenge/") }}
+		# Disable basic auth for ACME HTTP-01 challenge paths
+		auth_basic off;
+		{{- end }}
 
 		{{- with $location.PoliciesErrorReturn }}
 		return {{ .Code }};
