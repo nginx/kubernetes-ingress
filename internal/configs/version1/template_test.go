@@ -5569,6 +5569,44 @@ var ingressCfgWithBasicAuthAndACMEChallenge = IngressNginxConfig{
 	},
 }
 
+// bypass basic auth when basic auth is enabled at location level.
+var ingressCfgWithLocationBasicAuthAndACMEChallenge = IngressNginxConfig{
+	Servers: []Server{
+		{
+			ServerName: "example.com",
+			Locations: []Location{
+				{
+					Path:                "/",
+					Upstream:            testUpstream,
+					ProxyConnectTimeout: "10s",
+					ProxyReadTimeout:    "10s",
+					ProxySendTimeout:    "10s",
+					ClientMaxBodySize:   "2m",
+					ProxyPass:           "http://test",
+				},
+				{
+					Path:                "/.well-known/acme-challenge/",
+					Upstream:            testUpstream,
+					ProxyConnectTimeout: "10s",
+					ProxyReadTimeout:    "10s",
+					ProxySendTimeout:    "10s",
+					ClientMaxBodySize:   "2m",
+					ProxyPass:           "http://test",
+					BasicAuth: &BasicAuth{
+						Secret: "/etc/nginx/secrets/htpasswd",
+						Realm:  "Protected Area",
+					},
+				},
+			},
+		},
+	},
+	Upstreams: []Upstream{testUpstream},
+	Ingress: Ingress{
+		Name:      "test-ingress",
+		Namespace: "default",
+	},
+}
+
 func TestExecuteTemplate_ForIngressForNGINXWithBasicAuthACMEChallenge(t *testing.T) {
 	t.Parallel()
 
@@ -5607,6 +5645,39 @@ func TestExecuteTemplate_ForIngressForNGINXWithBasicAuthACMEChallenge(t *testing
 	proxyPassIdx := strings.Index(bufString[acmeIdx:], "proxy_pass")
 	if authOffIdx > proxyPassIdx {
 		t.Error("auth_basic off should appear before proxy_pass in ACME challenge location")
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithLocationBasicAuthACMEChallenge(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithLocationBasicAuthAndACMEChallenge)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+
+	acmeLoc := `location /.well-known/acme-challenge/`
+	acmeIdx := strings.Index(bufString, acmeLoc)
+	if acmeIdx == -1 {
+		t.Fatal("want ACME challenge location in generated config")
+	}
+
+	authOffIdx := strings.Index(bufString[acmeIdx:], "auth_basic off;")
+	if authOffIdx == -1 {
+		t.Error("want auth_basic off in ACME challenge location when location-level basic auth is configured")
+	}
+
+	proxyPassIdx := strings.Index(bufString[acmeIdx:], "proxy_pass")
+	if authOffIdx > proxyPassIdx {
+		t.Error("auth_basic off should appear before proxy_pass in ACME challenge location when location-level basic auth is configured")
 	}
 
 	snaps.MatchSnapshot(t, bufString)
