@@ -1747,8 +1747,8 @@ func (vsv *VirtualServerValidator) validateSubroutesPrefix(routes []v1.Route, fi
 	for i, r := range routes {
 		idxPath := fieldPath.Index(i)
 		routeErrs := vsv.validateRoute(r, idxPath, upstreamNames, true, namespace)
-		if vsPathNorm != "" && !strings.HasPrefix(r.Path, vsPathNorm) {
-			routeErrs = append(routeErrs, field.Invalid(idxPath, r.Path, fmt.Sprintf("must start with '%s'", vsPath)))
+		if vsPathNorm != "" && !strings.HasPrefix(NormalizePath(r.Path), vsPathNorm) {
+			routeErrs = append(routeErrs, field.Invalid(idxPath.Child("path"), r.Path, fmt.Sprintf("must start with %q", vsPathNorm)))
 		}
 		if len(routeErrs) > 0 {
 			allErrs = append(allErrs, routeErrs...)

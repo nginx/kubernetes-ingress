@@ -2644,6 +2644,87 @@ func TestValidateVirtualServerRouteSubroutes(t *testing.T) {
 		{
 			routes: []v1.Route{
 				{
+					Path: "^~/images/jpg",
+					Action: &v1.Action{
+						Pass: "test",
+					},
+				},
+			},
+			upstreamNames: map[string]sets.Empty{
+				"test": {},
+			},
+			vsPaths: []string{"^~ /images"},
+			msg:     "valid longest prefix: single space in VS path, none in subroute",
+		},
+		{
+			routes: []v1.Route{
+				{
+					Path: "^~ /images/jpg",
+					Action: &v1.Action{
+						Pass: "test",
+					},
+				},
+			},
+			upstreamNames: map[string]sets.Empty{
+				"test": {},
+			},
+			vsPaths: []string{"^~/images"},
+			msg:     "valid longest prefix: no space in VS path, single space in subroute",
+		},
+		{
+			routes: []v1.Route{
+				{
+					Path: "^~/images/jpg",
+					Action: &v1.Action{
+						Pass: "test",
+					},
+				},
+			},
+			upstreamNames: map[string]sets.Empty{
+				"test": {},
+			},
+			vsPaths: []string{"^~     /images"},
+			msg:     "valid longest prefix: multiple spaces in VS path",
+		},
+		{
+			routes: []v1.Route{
+				{
+					Path: "^~     /images/jpg",
+					Action: &v1.Action{
+						Pass: "test",
+					},
+				},
+			},
+			upstreamNames: map[string]sets.Empty{
+				"test": {},
+			},
+			vsPaths: []string{"^~/images"},
+			msg:     "valid longest prefix: multiple spaces in subroute path",
+		},
+		{
+			routes: []v1.Route{
+				{
+					Path: "^~   /images/thumbnails",
+					Action: &v1.Action{
+						Pass: "test",
+					},
+				},
+				{
+					Path: "^~ /images/full",
+					Action: &v1.Action{
+						Pass: "test",
+					},
+				},
+			},
+			upstreamNames: map[string]sets.Empty{
+				"test": {},
+			},
+			vsPaths: []string{"^~  /images"},
+			msg:     "valid longest prefix: mixed spacing across VS path and multiple subroutes",
+		},
+		{
+			routes: []v1.Route{
+				{
 					Path: "~/api/v1",
 					Action: &v1.Action{
 						Pass: "test",

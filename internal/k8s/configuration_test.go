@@ -1508,7 +1508,7 @@ func TestMakeVirtualServerRouteInvalidForVirtualServer(t *testing.T) {
 				VirtualServer:               vs,
 				VirtualServerRoutes:         []*conf_v1.VirtualServerRoute{vsr2, vsr3},
 				VirtualServerRouteSelectors: map[string][]string{"app=route": {"default/virtualserverroute-3"}},
-				Warnings:                    []string{"VirtualServerRoute default/virtualserverroute-1 is invalid: spec.subroutes[0]: Invalid value: \"/\": must start with '/first'"},
+				Warnings:                    []string{"VirtualServerRoute default/virtualserverroute-1 is invalid: spec.subroutes[0].path: Invalid value: \"/\": must start with \"/first\""},
 			},
 		},
 	}
