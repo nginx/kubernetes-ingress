@@ -5684,6 +5684,39 @@ func TestExecuteTemplate_ForIngressForNGINXWithLocationBasicAuthACMEChallenge(t 
 	t.Log(bufString)
 }
 
+func TestExecuteTemplate_ForIngressForNGINXPlusWithLocationBasicAuthACMEChallenge(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithLocationBasicAuthAndACMEChallenge)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+
+	acmeLoc := `location /.well-known/acme-challenge/`
+	acmeIdx := strings.Index(bufString, acmeLoc)
+	if acmeIdx == -1 {
+		t.Fatal("want ACME challenge location in generated config")
+	}
+
+	authOffIdx := strings.Index(bufString[acmeIdx:], "auth_basic off;")
+	if authOffIdx == -1 {
+		t.Error("want auth_basic off in ACME challenge location when location-level basic auth is configured")
+	}
+
+	proxyPassIdx := strings.Index(bufString[acmeIdx:], "proxy_pass")
+	if authOffIdx > proxyPassIdx {
+		t.Error("auth_basic off should appear before proxy_pass in ACME challenge location when location-level basic auth is configured")
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
 func TestExecuteTemplate_ForIngressForNGINXPlusWithBasicAuthACMEChallenge(t *testing.T) {
 	t.Parallel()
 
