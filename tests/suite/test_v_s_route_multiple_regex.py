@@ -120,10 +120,15 @@ class TestVSRMultipleRegexPaths:
     def test_happy_path_status(self, kube_apis, crd_ingress_controller, multi_regex_vsr_setup):
         """VS and both VSRs should be Valid after initial deploy."""
         setup = multi_regex_vsr_setup
-        wait_before_test(2)
+        # Wait until the IC has processed the config and is serving traffic.
+        # This guarantees the status subresource is populated before we read it,
+        # avoiding a KeyError on slow CI runners. wait_and_assert_status_code
+        # polls every second for up to 30 seconds so the suite cannot hang
+        # indefinitely.
+        wait_and_assert_status_code(200, f"{setup.req_url}/health", setup.vs_host)
 
         vs_info = read_custom_resource(kube_apis.custom_objects, setup.namespace, "virtualservers", setup.vs_name)
-        assert vs_info["status"]["state"] == "Valid", f"VS status: {vs_info['status']}"
+        assert vs_info["status"]["state"] == "Valid", f"VS status: {vs_info.get('status', 'not yet populated')}"
         assert vs_info["status"]["reason"] == "AddedOrUpdated"
 
         for vsr_name in ["route-api", "route-images"]:
