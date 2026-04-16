@@ -543,6 +543,9 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	vsrErrorPagesFromVs := make(map[string][]conf_v1.ErrorPage)
 	vsrErrorPagesRouteIndex := make(map[string]int)
 	vsrLocationSnippetsFromVs := make(map[string]string)
+	// VirtualServer routes and VirtualServerRoute subroutes both render as location blocks.
+	// Track route-level values explicitly so subroutes can fall back to their logical parent route.
+	vsrAddHeaderInheritFromVs := make(map[string]string)
 	vsrPoliciesFromVs := make(map[string][]conf_v1.PolicyReference)
 	isVSR := false
 	matchesRoutes := 0
@@ -564,6 +567,11 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			// store route location snippet for the referenced VirtualServerRoute in case they don't define their own
 			if r.LocationSnippets != "" {
 				vsrLocationSnippetsFromVs[name] = r.LocationSnippets
+			}
+
+			// store route add_header_inherit for the referenced VirtualServerRoute in case subroutes don't define their own
+			if r.AddHeaderInherit != "" {
+				vsrAddHeaderInheritFromVs[name] = r.AddHeaderInherit
 			}
 
 			// store route error pages and route index for the referenced VirtualServerRoute in case they don't define their own
@@ -596,6 +604,13 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			if r.LocationSnippets != "" {
 				for _, name := range vsrKeys {
 					vsrLocationSnippetsFromVs[name] = r.LocationSnippets
+				}
+			}
+
+			// store route add_header_inherit for the referenced VirtualServerRoute in case subroutes don't define their own
+			if r.AddHeaderInherit != "" {
+				for _, name := range vsrKeys {
+					vsrAddHeaderInheritFromVs[name] = r.AddHeaderInherit
 				}
 			}
 
@@ -782,6 +797,14 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				locSnippets = vsrLocationSnippetsFromVs[vsrNamespaceName]
 			}
 
+			// NGINX cannot model VS route -> VSR subroute inheritance natively because both become
+			// sibling locations in the generated config. Apply the NIC logical hierarchy here instead:
+			// VSR subroute -> VS route -> VS spec -> ConfigMap.
+			addHeaderInherit := r.AddHeaderInherit
+			if addHeaderInherit == "" {
+				addHeaderInherit = vsrAddHeaderInheritFromVs[vsrNamespaceName]
+			}
+
 			var ownerDetails policyOwnerDetails
 			var policyRefs []conf_v1.PolicyReference
 			var context string
@@ -899,7 +922,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				)
 				addPoliciesCfgToLocations(routePoliciesCfg, cfg.Locations)
 				addDosConfigToLocations(dosRouteCfg, cfg.Locations)
-				addAddHeaderInheritToLocations(r.AddHeaderInherit, cfg.Locations)
+				addAddHeaderInheritToLocations(addHeaderInherit, cfg.Locations)
 
 				maps = append(maps, cfg.Maps...)
 				locations = append(locations, cfg.Locations...)
@@ -915,7 +938,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 					errorPages, r.Path, locSnippets, vsc.enableSnippets, len(returnLocations), isVSR, vsr.Name, vsr.Namespace, vsc.warnings, vsc.DynamicWeightChangesReload)
 				addPoliciesCfgToLocations(routePoliciesCfg, cfg.Locations)
 				addDosConfigToLocations(dosRouteCfg, cfg.Locations)
-				addAddHeaderInheritToLocations(r.AddHeaderInherit, cfg.Locations)
+				addAddHeaderInheritToLocations(addHeaderInherit, cfg.Locations)
 
 				splitClients = append(splitClients, cfg.SplitClients...)
 				locations = append(locations, cfg.Locations...)
@@ -935,7 +958,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 					proxySSLName, r.Path, locSnippets, vsc.enableSnippets, len(returnLocations), isVSR, vsr.Name, vsr.Namespace, vsc.warnings)
 				addPoliciesCfgToLocation(routePoliciesCfg, &loc)
 				loc.Dos = dosRouteCfg
-				loc.AddHeaderInherit = r.AddHeaderInherit
+				loc.AddHeaderInherit = addHeaderInherit
 
 				locations = append(locations, loc)
 				if returnLoc != nil {

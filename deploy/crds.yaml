@@ -1485,7 +1485,10 @@ spec:
                         headers from this context are merged with headers in child
                         contexts. When set to "on", standard NGINX inheritance applies.
                         When set to "off", no headers are inherited from parent contexts.'
-                      pattern: ^on$|^off$|^merge$
+                      enum:
+                      - "on"
+                      - "off"
+                      - merge
                       type: string
                     dos:
                       description: A reference to a DosProtectedResource, setting
@@ -2623,7 +2626,10 @@ spec:
                   from this context are merged with headers in child contexts. When
                   set to "on", standard NGINX inheritance applies. When set to "off",
                   no headers are inherited from parent contexts.'
-                pattern: ^on$|^off$|^merge$
+                enum:
+                - "on"
+                - "off"
+                - merge
                 type: string
               dos:
                 description: A reference to a DosProtectedResource, setting this enables
@@ -2873,7 +2879,10 @@ spec:
                         headers from this context are merged with headers in child
                         contexts. When set to "on", standard NGINX inheritance applies.
                         When set to "off", no headers are inherited from parent contexts.'
-                      pattern: ^on$|^off$|^merge$
+                      enum:
+                      - "on"
+                      - "off"
+                      - merge
                       type: string
                     dos:
                       description: A reference to a DosProtectedResource, setting

@@ -528,37 +528,150 @@ func TestGenerateVSConfig_GeneratesConfigWithGunzipOff(t *testing.T) {
 	}
 }
 
-func TestGenerateVSConfig_GeneratesConfigWithAddHeaderInheritMerge(t *testing.T) {
+func TestGenerateVSConfigWithHeaderInherit(t *testing.T) {
 	t.Parallel()
 
-	vsc := newVirtualServerConfigurator(&baseCfgParams, false, false, &StaticConfigParams{}, false, &fakeBV)
-
-	want := version2.VirtualServerConfig{
-		Upstreams:     nil,
-		HTTPSnippets:  []string{},
-		LimitReqZones: []version2.LimitReqZone{},
-		Server: version2.Server{
-			ServerName:       "cafe.example.com",
-			AddHeaderInherit: "merge",
-			StatusZone:       "cafe.example.com",
-			VSNamespace:      "default",
-			VSName:           "cafe",
-			ProxyProtocol:    true,
-			ServerTokens:     "off",
-			SetRealIPFrom:    []string{"0.0.0.0/0"},
-			RealIPHeader:     "X-Real-IP",
-			RealIPRecursive:  true,
-			Snippets:         []string{"# server snippet"},
-			Locations:        nil,
+	tests := []struct {
+		name                       string
+		vsEx                       VirtualServerEx
+		expectedServerAddHeader    string
+		expectedLocationAddHeaders map[string]string
+	}{
+		{
+			name:                    "spec-level value populates server config",
+			vsEx:                    virtualServerExWithAddHeaderInheritMerge,
+			expectedServerAddHeader: "merge",
+		},
+		{
+			name: "spec-level empty leaves server config unset",
+			vsEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+					},
+				},
+			},
+			expectedServerAddHeader: "",
+		},
+		{
+			name: "route-level value applies to direct VS location",
+			vsEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host:      "cafe.example.com",
+						Upstreams: []conf_v1.Upstream{{Name: "app", Service: "app-svc", Port: 80}},
+						Routes: []conf_v1.Route{{
+							Path:             "/tea",
+							AddHeaderInherit: "merge",
+							Action:           &conf_v1.Action{Pass: "app"},
+						}},
+					},
+				},
+				Endpoints: map[string][]string{"default/app-svc:80": {"10.0.0.1:80"}},
+			},
+			expectedServerAddHeader:    "",
+			expectedLocationAddHeaders: map[string]string{"/tea": "merge"},
+		},
+		{
+			name: "vs route value falls back to referenced vsr subroute",
+			vsEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Routes: []conf_v1.Route{{
+							Path:             "/tea",
+							Route:            "default/tea",
+							AddHeaderInherit: "merge",
+						}},
+					},
+				},
+				Endpoints: map[string][]string{"tea/tea-svc:80": {"10.0.0.30:80"}},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "tea", Namespace: "default"},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						Host:      "cafe.example.com",
+						Upstreams: []conf_v1.Upstream{{Name: "tea", Service: "tea/tea-svc", Port: 80}},
+						Subroutes: []conf_v1.Route{{
+							Path:   "/tea",
+							Action: &conf_v1.Action{Pass: "tea"},
+						}},
+					},
+				}},
+			},
+			expectedServerAddHeader:    "",
+			expectedLocationAddHeaders: map[string]string{"/tea": "merge"},
+		},
+		{
+			name: "vsr subroute overrides logical parent route",
+			vsEx: VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "cafe",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Routes: []conf_v1.Route{{
+							Path:             "/tea",
+							Route:            "default/tea",
+							AddHeaderInherit: "merge",
+						}},
+					},
+				},
+				Endpoints: map[string][]string{"tea/tea-svc:80": {"10.0.0.30:80"}},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "tea", Namespace: "default"},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						Host:      "cafe.example.com",
+						Upstreams: []conf_v1.Upstream{{Name: "tea", Service: "tea/tea-svc", Port: 80}},
+						Subroutes: []conf_v1.Route{{
+							Path:             "/tea",
+							AddHeaderInherit: "off",
+							Action:           &conf_v1.Action{Pass: "tea"},
+						}},
+					},
+				}},
+			},
+			expectedServerAddHeader:    "",
+			expectedLocationAddHeaders: map[string]string{"/tea": "off"},
 		},
 	}
 
-	got, warnings := vsc.GenerateVirtualServerConfig(&virtualServerExWithAddHeaderInheritMerge, nil, nil)
-	if len(warnings) > 0 {
-		t.Fatalf("want no warnings, got: %v", vsc.warnings)
-	}
-	if !cmp.Equal(want, got) {
-		t.Error(cmp.Diff(want, got))
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			vsc := newVirtualServerConfigurator(&baseCfgParams, false, false, &StaticConfigParams{TLSPassthrough: false}, false, &fakeBV)
+			result, warnings := vsc.GenerateVirtualServerConfig(&test.vsEx, nil, nil)
+
+			if diff := cmp.Diff(test.expectedServerAddHeader, result.Server.AddHeaderInherit); diff != "" {
+				t.Errorf("server add_header_inherit mismatch (-want +got):\n%s", diff)
+			}
+
+			for path, expected := range test.expectedLocationAddHeaders {
+				location := findLocationByPath(t, result.Server.Locations, path)
+				if diff := cmp.Diff(expected, location.AddHeaderInherit); diff != "" {
+					t.Errorf("location %s add_header_inherit mismatch (-want +got):\n%s", path, diff)
+				}
+			}
+
+			if len(warnings) != 0 {
+				t.Errorf("GenerateVirtualServerConfig returned warnings: %v", warnings)
+			}
+		})
 	}
 }
 
@@ -3823,6 +3936,19 @@ func TestGenerateVirtualServerConfigWithForeignNamespaceService(t *testing.T) {
 	if !cmp.Equal(expected, result) {
 		t.Error(cmp.Diff(expected, result))
 	}
+}
+
+func findLocationByPath(t *testing.T, locations []version2.Location, path string) version2.Location {
+	t.Helper()
+
+	for _, location := range locations {
+		if location.Path == path {
+			return location
+		}
+	}
+
+	t.Fatalf("expected location with path %q", path)
+	return version2.Location{}
 }
 
 func TestGenerateVirtualServerConfigWithForeignNamespaceServiceInVSR(t *testing.T) {
