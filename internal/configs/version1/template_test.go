@@ -5651,6 +5651,8 @@ var ingressCfgWithLocationBasicAuthAndACMEChallenge = IngressNginxConfig{
 	},
 }
 
+var nextLocationBlockRE = regexp.MustCompile("\n\\s*location ")
+
 func assertACMELocationsDisableBasicAuth(t *testing.T, bufString string, acmeLocations []string, contextMsg string) {
 	t.Helper()
 
@@ -5661,8 +5663,8 @@ func assertACMELocationsDisableBasicAuth(t *testing.T, bufString string, acmeLoc
 		}
 
 		locationBlock := bufString[acmeIdx:]
-		if nextLocationIdx := strings.Index(locationBlock[len(acmeLoc):], "\n\tlocation "); nextLocationIdx != -1 {
-			locationBlock = locationBlock[:len(acmeLoc)+nextLocationIdx]
+		if nextLocationIdx := nextLocationBlockRE.FindStringIndex(locationBlock[len(acmeLoc):]); nextLocationIdx != nil {
+			locationBlock = locationBlock[:len(acmeLoc)+nextLocationIdx[0]]
 		}
 
 		authOffIdx := strings.Index(locationBlock, "auth_basic off;")
