@@ -62,12 +62,25 @@ def multi_regex_vsr_setup(request, kube_apis, ingress_controller_endpoint, test_
             test_namespace,
         )
 
-    # Block until the IC has processed the config and nginx is serving the /health
-    # canned response. This guarantees the status subresource is populated and
-    # traffic is routable before any test in the class begins, regardless of how
-    # slow the runner is (OSS, Plus, or FIPS variants).
-    req_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}"
-    wait_and_assert_status_code(200, f"{req_url}/health", vs_host)
+    # Poll the Kubernetes API until the IC sets the VS status to "Valid".
+    # The IC only marks the VS Valid after it has successfully applied the
+    # config to nginx, making this a reliable readiness signal that works
+    # across all image variants (OSS, Plus, FIPS) without requiring network
+    # access to nginx. Up to 60 seconds (30 × 2 s) before giving up.
+    # Diagnostic prints are intentional — they surface the IC's state in
+    # CI logs so we can distinguish a timing race from a fundamental rejection.
+    for _ in range(30):
+        vs_info = read_custom_resource(kube_apis.custom_objects, test_namespace, "virtualservers", vs_name)
+        state = vs_info.get("status", {}).get("state")
+        print(f"[multi_regex_vsr_setup] VS '{vs_name}' status.state={state!r}")
+        if state == "Valid":
+            break
+        wait_before_test(2)
+    else:
+        print(
+            f"[multi_regex_vsr_setup] VS '{vs_name}' did not reach Valid state after 60 s; "
+            f"last status={vs_info.get('status', {})!r}"
+        )
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
