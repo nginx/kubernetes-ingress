@@ -1653,12 +1653,13 @@ func (vsv *VirtualServerValidator) validateSubroutesStandalone(routes []v1.Route
 	for i, r := range routes {
 		idxPath := fieldPath.Index(i)
 		routeErrs := vsv.validateRoute(r, idxPath, upstreamNames, true, namespace)
+		normPath := NormalizePath(r.Path)
 		if len(routeErrs) > 0 {
 			allErrs = append(allErrs, routeErrs...)
-		} else if allPaths.Has(r.Path) {
+		} else if allPaths.Has(normPath) {
 			allErrs = append(allErrs, field.Duplicate(idxPath.Child("path"), r.Path))
 		} else {
-			allPaths.Insert(r.Path)
+			allPaths.Insert(normPath)
 		}
 	}
 	return allErrs

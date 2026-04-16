@@ -2816,6 +2816,94 @@ func TestValidateVirtualServerRouteSubroutesFails(t *testing.T) {
 		{
 			routes: []v1.Route{
 				{
+					Path: "~/api",
+					Action: &v1.Action{
+						Pass: "test-1",
+					},
+				},
+				{
+					Path: "~ /api",
+					Action: &v1.Action{
+						Pass: "test-2",
+					},
+				},
+			},
+			upstreamNames: map[string]sets.Empty{
+				"test-1": {},
+				"test-2": {},
+			},
+			vsPaths: nil,
+			msg:     "standalone: duplicated regex paths with single space difference",
+		},
+		{
+			routes: []v1.Route{
+				{
+					Path: "~/api",
+					Action: &v1.Action{
+						Pass: "test-1",
+					},
+				},
+				{
+					Path: "~     /api",
+					Action: &v1.Action{
+						Pass: "test-2",
+					},
+				},
+			},
+			upstreamNames: map[string]sets.Empty{
+				"test-1": {},
+				"test-2": {},
+			},
+			vsPaths: nil,
+			msg:     "standalone: duplicated regex paths with multiple spaces difference",
+		},
+		{
+			routes: []v1.Route{
+				{
+					Path: "^~/images",
+					Action: &v1.Action{
+						Pass: "test-1",
+					},
+				},
+				{
+					Path: "^~ /images",
+					Action: &v1.Action{
+						Pass: "test-2",
+					},
+				},
+			},
+			upstreamNames: map[string]sets.Empty{
+				"test-1": {},
+				"test-2": {},
+			},
+			vsPaths: nil,
+			msg:     "standalone: duplicated longest-prefix paths with single space difference",
+		},
+		{
+			routes: []v1.Route{
+				{
+					Path: "=/foo",
+					Action: &v1.Action{
+						Pass: "test-1",
+					},
+				},
+				{
+					Path: "= /foo",
+					Action: &v1.Action{
+						Pass: "test-2",
+					},
+				},
+			},
+			upstreamNames: map[string]sets.Empty{
+				"test-1": {},
+				"test-2": {},
+			},
+			vsPaths: nil,
+			msg:     "standalone: duplicated exact paths with single space difference",
+		},
+		{
+			routes: []v1.Route{
+				{
 					Path:   "",
 					Action: nil,
 				},
