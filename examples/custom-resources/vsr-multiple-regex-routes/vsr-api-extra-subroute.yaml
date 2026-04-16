@@ -1,0 +1,28 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
+  name: vsr-api
+spec:
+  host: api-gateway.example.com
+  subroutes:
+  - path: "~/api/v1"
+    action:
+      return:
+        code: 200
+        type: text/plain
+        body: "API v1\n"
+  - path: "~/api/v2"
+    action:
+      return:
+        code: 200
+        type: text/plain
+        body: "API v2\n"
+  # ~/api/v3 is intentionally extra.
+  # The VirtualServer does not reference ~/api/v3 via this VSR, so the VSR will
+  # be rejected because it contains a subroute not declared in the VS.
+  - path: "~/api/v3"
+    action:
+      return:
+        code: 200
+        type: text/plain
+        body: "API v3\n"
