@@ -413,6 +413,7 @@ type Configuration struct {
 	isCertManagerEnabled         bool
 	isIPV6Disabled               bool
 	isDirectiveAutoadjustEnabled bool
+	allowEmptyIngressHost        bool
 
 	lock sync.RWMutex
 }
@@ -432,6 +433,7 @@ func NewConfiguration(
 	isCertManagerEnabled bool,
 	isIPV6Disabled bool,
 	isDirectiveAutoadjustEnabled bool,
+	allowEmptyIngressHost bool,
 ) *Configuration {
 	return &Configuration{
 		hosts:                        make(map[string]Resource),
@@ -461,6 +463,7 @@ func NewConfiguration(
 		isCertManagerEnabled:         isCertManagerEnabled,
 		isIPV6Disabled:               isIPV6Disabled,
 		isDirectiveAutoadjustEnabled: isDirectiveAutoadjustEnabled,
+		allowEmptyIngressHost:        allowEmptyIngressHost,
 	}
 }
 
@@ -475,7 +478,7 @@ func (c *Configuration) AddOrUpdateIngress(ing *networking.Ingress) ([]ResourceC
 	if !c.hasCorrectIngressClass(ing) {
 		delete(c.ingresses, key)
 	} else {
-		validationError = validateIngress(ing, c.isPlus, c.appProtectEnabled, c.appProtectDosEnabled, c.internalRoutesEnabled, c.snippetsEnabled, c.isDirectiveAutoadjustEnabled).ToAggregate()
+		validationError = validateIngress(ing, c.isPlus, c.appProtectEnabled, c.appProtectDosEnabled, c.internalRoutesEnabled, c.snippetsEnabled, c.isDirectiveAutoadjustEnabled, c.allowEmptyIngressHost).ToAggregate()
 		if validationError != nil {
 			delete(c.ingresses, key)
 		} else {

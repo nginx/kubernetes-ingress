@@ -230,6 +230,10 @@ var (
 
 	enableDirectiveAutoadjust = flag.Bool("enable-directive-autoadjust", false, "Enable automatic adjustment of NGINX directives to avoid conflicting NGINX configuration. Results may vary and might not be ideal in all cases.")
 
+	allowEmptyIngressHost = flag.Bool("allow-empty-ingress-host", false,
+		`Enable support for Ingress resources with empty or omitted host fields. When enabled, Ingress rules without a host
+	will be routed through the default server, matching requests that do not match any other configured server name.
+	Only one Ingress resource can claim the empty host (oldest wins). Disabled by default.`)
 	startupCheckFn func() error
 )
 

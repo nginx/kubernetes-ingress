@@ -50,6 +50,8 @@ const DefaultSecretPath = "/etc/nginx/secrets" // #nosec G101
 // DefaultServerSecretFileName is the filename of the Secret with a TLS cert and a key for the default server.
 const DefaultServerSecretFileName = "default"
 
+const syntheticDefaultServerConfigName = "00-default-server"
+
 // WildcardSecretFileName is the filename of the Secret with a TLS cert and a key for the ingress resources with TLS termination enabled but not secret defined.
 const WildcardSecretFileName = "wildcard"
 
@@ -269,9 +271,13 @@ func (cnf *Configurator) updateIngressMetricsLabels(ingEx *IngressEx, upstreams 
 		newZones := make(map[string]bool)
 		var newZonesNames []string
 		for _, rule := range ingEx.Ingress.Spec.Rules {
-			serverZoneLabels[rule.Host] = []string{"ingress", ingEx.Ingress.Name, ingEx.Ingress.Namespace}
-			newZones[rule.Host] = true
-			newZonesNames = append(newZonesNames, rule.Host)
+			zoneName := rule.Host
+			if zoneName == emptyHost {
+				zoneName = "_"
+			}
+			serverZoneLabels[zoneName] = []string{"ingress", ingEx.Ingress.Name, ingEx.Ingress.Namespace}
+			newZones[zoneName] = true
+			newZonesNames = append(newZonesNames, zoneName)
 		}
 
 		removedZones := findRemovedKeys(cnf.metricLabelsIndex.ingressServerZones[key], newZones)
@@ -418,6 +424,70 @@ func (cnf *Configurator) streamUpstreamsForTransportServer(ts *conf_v1.Transport
 	return upstreamNames
 }
 
+func (cnf *Configurator) cleanUpStaleIngressConfig(ingressKey string, newIsEmptyHost bool) {
+	current, exists := cnf.ingresses[ingressKey]
+	if !exists {
+		return
+	}
+	if !current.ValidHosts[emptyHost] && newIsEmptyHost {
+		cnf.nginxManager.DeleteConfig(ingressKey)
+	}
+}
+
+func (cnf *Configurator) hasActiveEmptyHostIngress() bool {
+	for _, ingEx := range cnf.ingresses {
+		if ingEx != nil && ingEx.ValidHosts[emptyHost] {
+			return true
+		}
+	}
+	return false
+}
+func (cnf *Configurator) buildSyntheticDefaultServerConfig() version1.IngressNginxConfig {
+	return version1.IngressNginxConfig{
+		Servers: []version1.Server{{
+			IsDefaultServer:    true,
+			StatusZone:         emptyHostToken,
+			Ports:              []int{cnf.staticCfgParams.DefaultHTTPListenerPort},
+			SSLPorts:           []int{cnf.staticCfgParams.DefaultHTTPSListenerPort},
+			SSL:                true,
+			SSLCertificate:     DefaultServerSecretPath,
+			SSLCertificateKey:  DefaultServerSecretPath,
+			SSLRejectHandshake: cnf.staticCfgParams.SSLRejectHandshake,
+			DefaultServer: version1.DefaultServer{
+				AccessLogOff:    cnf.CfgParams.DefaultServerAccessLogOff,
+				Return:          cnf.CfgParams.DefaultServerReturn,
+				HealthStatus:    cnf.staticCfgParams.HealthStatus,
+				HealthStatusURI: cnf.staticCfgParams.HealthStatusURI,
+			},
+			ServerTokens:    cnf.CfgParams.ServerTokens,
+			TLSPassthrough:  cnf.staticCfgParams.TLSPassthrough,
+			HTTP2:           cnf.CfgParams.HTTP2,
+			ProxyProtocol:   cnf.CfgParams.ProxyProtocol,
+			RealIPHeader:    cnf.CfgParams.RealIPHeader,
+			SetRealIPFrom:   cnf.CfgParams.SetRealIPFrom,
+			RealIPRecursive: cnf.CfgParams.RealIPRecursive,
+			DisableIPV6:     cnf.staticCfgParams.DisableIPV6,
+		}},
+		Ingress:                 version1.Ingress{},
+		DynamicSSLReloadEnabled: cnf.staticCfgParams.DynamicSSLReload,
+		StaticSSLPath:           cnf.staticCfgParams.StaticSSLPath,
+	}
+}
+func (cnf *Configurator) syncSyntheticDefaultServerConfig() error {
+	if cnf.hasActiveEmptyHostIngress() {
+		return nil
+	}
+	defaultCfg := cnf.buildSyntheticDefaultServerConfig()
+	content, err := cnf.templateExecutor.ExecuteIngressConfigTemplate(&defaultCfg)
+	if err != nil {
+		return fmt.Errorf("error generating synthetic default server config: %w", err)
+	}
+	if _, err := cnf.nginxManager.CreateConfig(syntheticDefaultServerConfigName, content); err != nil {
+		return fmt.Errorf("error writing synthetic default server config: %w", err)
+	}
+	return nil
+}
+
 // addOrUpdateIngress returns a bool that specifies if the underlying config
 // file has changed, and any warnings or errors
 func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) (bool, Warnings, error) {
@@ -450,19 +520,29 @@ func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) (bool, Warnings, e
 		ingressControllerReplicas: cnf.ingressControllerReplicas,
 	})
 
-	name := objectMetaToFileName(&ingEx.Ingress.ObjectMeta)
+	ingressKey := objectMetaToFileName(&ingEx.Ingress.ObjectMeta)
+	isEmptyHost := ingEx.ValidHosts[emptyHost]
+	configName := ingressKey
+	if isEmptyHost {
+		configName = syntheticDefaultServerConfigName
+	}
 	content, err := cnf.templateExecutor.ExecuteIngressConfigTemplate(&nginxCfg)
 	if err != nil {
-		return false, warnings, fmt.Errorf("error generating Ingress Config %v: %w", name, err)
+		return false, warnings, fmt.Errorf("error generating Ingress Config %v: %w", ingressKey, err)
 	}
-	configChanged, err := cnf.nginxManager.CreateConfig(name, content)
+	configChanged, err := cnf.nginxManager.CreateConfig(configName, content)
 	if err != nil {
-		return false, warnings, fmt.Errorf("error validating Ingress config %v: %w", name, err)
+		return false, warnings, fmt.Errorf("error validating Ingress config %v: %w", ingressKey, err)
 	}
 
-	cnf.ingresses[name] = ingEx
+	cnf.cleanUpStaleIngressConfig(ingressKey, isEmptyHost)
+
+	cnf.ingresses[ingressKey] = ingEx
 	if (cnf.isPlus && cnf.isPrometheusEnabled) || cnf.isLatencyMetricsEnabled {
 		cnf.updateIngressMetricsLabels(ingEx, nginxCfg.Upstreams)
+	}
+	if err := cnf.syncSyntheticDefaultServerConfig(); err != nil {
+		return false, warnings, fmt.Errorf("error syncing synthetic default server config for ingress %v: %w", ingressKey, err)
 	}
 	return configChanged, warnings, nil
 }
@@ -535,27 +615,37 @@ func (cnf *Configurator) addOrUpdateMergeableIngress(mergeableIngs *MergeableIng
 		ingressControllerReplicas: cnf.ingressControllerReplicas,
 	})
 
-	name := objectMetaToFileName(&mergeableIngs.Master.Ingress.ObjectMeta)
+	ingressKey := objectMetaToFileName(&mergeableIngs.Master.Ingress.ObjectMeta)
+	isEmptyHost := mergeableIngs.Master.ValidHosts[emptyHost]
+	configName := ingressKey
+	if isEmptyHost {
+		configName = syntheticDefaultServerConfigName
+	}
 	content, err := cnf.templateExecutor.ExecuteIngressConfigTemplate(&nginxCfg)
 	if err != nil {
-		return false, warnings, fmt.Errorf("error generating Ingress Config %v: %w", name, err)
+		return false, warnings, fmt.Errorf("error generating Ingress Config %v: %w", ingressKey, err)
 	}
-	changed, err := cnf.nginxManager.CreateConfig(name, content)
+	changed, err := cnf.nginxManager.CreateConfig(configName, content)
 	if err != nil {
-		return false, warnings, fmt.Errorf("error validating Ingress config %v: %w", name, err)
+		return false, warnings, fmt.Errorf("error validating Ingress config %v: %w", ingressKey, err)
 	}
 
-	cnf.ingresses[name] = mergeableIngs.Master
-	cnf.minions[name] = make(map[string]bool)
+	cnf.cleanUpStaleIngressConfig(ingressKey, isEmptyHost)
+
+	cnf.ingresses[ingressKey] = mergeableIngs.Master
+	cnf.minions[ingressKey] = make(map[string]bool)
 	for _, minion := range mergeableIngs.Minions {
 		minionName := objectMetaToFileName(&minion.Ingress.ObjectMeta)
-		cnf.minions[name][minionName] = true
+		cnf.minions[ingressKey][minionName] = true
 	}
 
-	cnf.mergeableIngresses[name] = mergeableIngs
+	cnf.mergeableIngresses[ingressKey] = mergeableIngs
 
 	if (cnf.isPlus && cnf.isPrometheusEnabled) || cnf.isLatencyMetricsEnabled {
 		cnf.updateIngressMetricsLabels(mergeableIngs.Master, nginxCfg.Upstreams)
+	}
+	if err := cnf.syncSyntheticDefaultServerConfig(); err != nil {
+		return false, warnings, fmt.Errorf("error syncing synthetic default server config for mergeable ingress %v: %w", ingressKey, err)
 	}
 
 	return changed, warnings, nil
@@ -1068,11 +1158,16 @@ func GenerateLicenseSecret(secret *api_v1.Secret) ([]byte, error) {
 // DeleteIngress deletes NGINX configuration for the Ingress resource.
 func (cnf *Configurator) DeleteIngress(key string, skipReload bool) error {
 	name := keyToFileName(key)
-	cnf.nginxManager.DeleteConfig(name)
+	if ingEx, exists := cnf.ingresses[name]; !exists || !ingEx.ValidHosts[emptyHost] {
+		cnf.nginxManager.DeleteConfig(name)
+	}
 
 	delete(cnf.ingresses, name)
 	delete(cnf.minions, name)
 	delete(cnf.mergeableIngresses, name)
+	if err := cnf.syncSyntheticDefaultServerConfig(); err != nil {
+		return fmt.Errorf("error syncing synthetic default server config after deleting ingress %v: %w", key, err)
+	}
 
 	if (cnf.isPlus && cnf.isPrometheusEnabled) || cnf.isLatencyMetricsEnabled {
 		cnf.deleteIngressMetricsLabels(key)
@@ -1528,6 +1623,14 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 		allWarnings.Add(warnings)
 	}
 
+	if err := cnf.syncSyntheticDefaultServerConfig(); err != nil {
+		if isRollbackManager {
+			l := nl.LoggerFromContext(cnf.CfgParams.Context)
+			nl.Warnf(l, "Synthetic default server config sync failed: %v", err)
+		} else {
+			return allWarnings, nil, err
+		}
+	}
 	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
 		return allWarnings, resourceErrors, fmt.Errorf("error when updating config from ConfigMap: %w", err)
 	}

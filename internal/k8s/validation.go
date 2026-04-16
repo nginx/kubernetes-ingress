@@ -97,6 +97,7 @@ type annotationValidationContext struct {
 	specServices          map[string]bool
 	name                  string
 	value                 string
+	hostless              bool
 	isPlus                bool
 	appProtectEnabled     bool
 	appProtectDosEnabled  bool
@@ -150,6 +151,7 @@ var (
 			validateServerTokensAnnotation,
 		},
 		serverSnippetsAnnotation: {
+			validateHostlessForbiddenAnnotation,
 			validateSnippetsAnnotation,
 		},
 		locationSnippetsAnnotation: {
@@ -252,10 +254,12 @@ var (
 			validateSizeAnnotation,
 		},
 		basicAuthSecretAnnotation: {
+			validateHostlessForbiddenAnnotation,
 			validateRequiredAnnotation,
 			validateSecretNameAnnotation,
 		},
 		basicAuthRealmAnnotation: {
+			validateHostlessForbiddenAnnotation,
 			validateRelatedAnnotation(basicAuthSecretAnnotation, validateNoop),
 			validateRealmAnnotation,
 		},
@@ -278,10 +282,12 @@ var (
 			validateJWTLoginURLAnnotation,
 		},
 		listenPortsAnnotation: {
+			validateHostlessForbiddenAnnotation,
 			validateRequiredAnnotation,
 			validatePortListAnnotation,
 		},
 		listenPortsSSLAnnotation: {
+			validateHostlessForbiddenAnnotation,
 			validateRequiredAnnotation,
 			validatePortListAnnotation,
 		},
@@ -381,6 +387,7 @@ var (
 			validateHTTPRedirectCodeAnnotation,
 		},
 		appRootAnnotation: {
+			validateHostlessForbiddenAnnotation,
 			validateAppRootAnnotation,
 		},
 		configs.PoliciesAnnotation: {
@@ -644,6 +651,7 @@ func validateIngress(
 	internalRoutesEnabled bool,
 	snippetsEnabled bool,
 	directiveAutoAdjust bool,
+	allowEmptyHost bool,
 ) field.ErrorList {
 	allErrs := validateIngressAnnotations(
 		IngressOpts{
@@ -653,13 +661,17 @@ func validateIngress(
 			internalRoutesEnabled: internalRoutesEnabled,
 			snippetsEnabled:       snippetsEnabled,
 			directiveAutoAdjust:   directiveAutoAdjust,
+			hostless:              allowEmptyHost && hasEmptyHostRule(&ing.Spec),
 		},
 		ing.Annotations,
 		getSpecServices(ing.Spec),
 		field.NewPath("annotations"),
 	)
 
-	allErrs = append(allErrs, validateIngressSpec(&ing.Spec, field.NewPath("spec"))...)
+	allErrs = append(allErrs, validateIngressSpec(&ing.Spec, field.NewPath("spec"), allowEmptyHost)...)
+	if allowEmptyHost && hasEmptyHostRule(&ing.Spec) {
+		allErrs = append(allErrs, validateHostlessIngress(ing, field.NewPath("spec"))...)
+	}
 
 	if isMaster(ing) {
 		allErrs = append(allErrs, validateMasterSpec(&ing.Spec, field.NewPath("spec"))...)
@@ -674,6 +686,24 @@ func validateIngress(
 	return allErrs
 }
 
+func hasEmptyHostRule(spec *networking.IngressSpec) bool {
+	for _, rule := range spec.Rules {
+		if rule.Host == "" {
+			return true
+		}
+	}
+	return false
+}
+func validateHostlessIngress(ing *networking.Ingress, specPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	if len(ing.Spec.TLS) > 0 {
+		allErrs = append(allErrs, field.Forbidden(specPath.Child("tls"), "hostless Ingress cannot configure TLS; the catch-all default server certificate is controller-owned"))
+	}
+	if ing.Spec.DefaultBackend != nil {
+		allErrs = append(allErrs, field.Forbidden(specPath.Child("defaultBackend"), "hostless Ingress cannot configure defaultBackend; catch-all fallback behavior is controller-owned"))
+	}
+	return allErrs
+}
 func validateChallengeIngress(spec *networking.IngressSpec, fieldPath *field.Path) field.ErrorList {
 	if spec.Rules == nil || len(spec.Rules) != 1 {
 		return field.ErrorList{field.Forbidden(fieldPath.Child("rules"), "challenge Ingress must have exactly 1 rule defined")}
@@ -705,6 +735,7 @@ type IngressOpts struct {
 	internalRoutesEnabled bool
 	snippetsEnabled       bool
 	directiveAutoAdjust   bool
+	hostless              bool
 }
 
 func validateIngressAnnotations(
@@ -722,6 +753,7 @@ func validateIngressAnnotations(
 				specServices:          specServices,
 				name:                  name,
 				value:                 value,
+				hostless:              ingOpts.hostless,
 				isPlus:                ingOpts.isPlus,
 				appProtectEnabled:     ingOpts.appProtectEnabled,
 				appProtectDosEnabled:  ingOpts.appProtectDosEnabled,
@@ -765,6 +797,12 @@ func validateRelatedAnnotation(name string, validator validatorFunc) annotationV
 	}
 }
 
+func validateHostlessForbiddenAnnotation(context *annotationValidationContext) field.ErrorList {
+	if !context.hostless {
+		return nil
+	}
+	return field.ErrorList{field.Forbidden(context.fieldPath, "annotation is not supported for hostless Ingress")}
+}
 func validateQualifiedName(context *annotationValidationContext) field.ErrorList {
 	err := validation.IsQualifiedName(context.value)
 	if err != nil {
@@ -1061,7 +1099,7 @@ func validateIsValidRealm(v string) error {
 	return nil
 }
 
-func validateIngressSpec(spec *networking.IngressSpec, fieldPath *field.Path) field.ErrorList {
+func validateIngressSpec(spec *networking.IngressSpec, fieldPath *field.Path, allowEmptyHost bool) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	if spec.DefaultBackend != nil {
@@ -1074,11 +1112,18 @@ func validateIngressSpec(spec *networking.IngressSpec, fieldPath *field.Path) fi
 		return append(allErrs, field.Required(fieldPath.Child("rules"), ""))
 	}
 
+	hasEmptyHost := false
 	for i, r := range spec.Rules {
 		idxRule := fieldPath.Child("rules").Index(i)
 
 		if r.Host == "" {
-			allErrs = append(allErrs, field.Required(idxRule.Child("host"), ""))
+			if !allowEmptyHost {
+				allErrs = append(allErrs, field.Required(idxRule.Child("host"), ""))
+			} else if hasEmptyHost {
+				allErrs = append(allErrs, field.Duplicate(idxRule.Child("host"), ""))
+			} else {
+				hasEmptyHost = true
+			}
 		} else if allHosts.Has(r.Host) {
 			allErrs = append(allErrs, field.Duplicate(idxRule.Child("host"), r.Host))
 		} else {
