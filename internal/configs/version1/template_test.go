@@ -5754,6 +5754,7 @@ func assertACMEChallengeLocationsDisableBasicAuth(t *testing.T, bufString string
 			pattern: `location\s+=\s+/\.well-known/acme-challenge/\s*\{`,
 		},
 	}
+	nextLocationRe := regexp.MustCompile(`\n\s*location\s+`)
 
 	for _, acmeLocation := range acmeLocations {
 		re := regexp.MustCompile(acmeLocation.pattern)
@@ -5764,6 +5765,10 @@ func assertACMEChallengeLocationsDisableBasicAuth(t *testing.T, bufString string
 		}
 
 		locationBlock := bufString[locationIdx[0]:]
+		if nextLocationIdx := nextLocationRe.FindStringIndex(bufString[locationIdx[1]:]); nextLocationIdx != nil {
+			locationBlock = bufString[locationIdx[0] : locationIdx[1]+nextLocationIdx[0]]
+		}
+
 		authOffIdx := strings.Index(locationBlock, "auth_basic off;")
 		if authOffIdx == -1 {
 			t.Errorf("want auth_basic off in %s%s", acmeLocation.name, errSuffix)
