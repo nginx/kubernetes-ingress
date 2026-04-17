@@ -44,8 +44,7 @@ if [ -n "${waf_version}" ]; then
         echo -n "${compiler_version}" > "${docs_folder}/layouts/shortcodes/appprotect-compiler-version.html"
         echo "INFO: Updated appprotect-compiler-version shortcode: ${compiler_version} (from ${waf_version})"
     else
-        echo -n "${waf_version}" > "${docs_folder}/layouts/shortcodes/appprotect-compiler-version.html"
-        echo "INFO: Updated appprotect-compiler-version shortcode: ${waf_version}"
+        echo "WARNING: waf_version '${waf_version}' does not contain '+', expected format '<plus_version>+<compiler_version>' (e.g. '36+5.607'). Skipping appprotect-compiler-version shortcode update."
     fi
 fi
 
