@@ -1266,6 +1266,51 @@ server {
 
 ---
 
+[TestExecuteTemplate_ForIngressForNGINXPlusWithFastCGI - 1]
+# configuration for default/fcgi-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;
+}
+
+
+server {
+
+    server_tokens "off";
+
+    server_name fcgi.example.com;
+
+    status_zone ;
+    set $resource_type "ingress";
+    set $resource_name "fcgi-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location / {
+        set $service "";
+        status_zone "";
+
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param HTTP_X_FORWARDED_FOR $proxy_add_x_forwarded_for;
+        fastcgi_param HTTP_X_FORWARDED_HOST $host;
+        fastcgi_param HTTP_X_FORWARDED_PORT $server_port;
+        fastcgi_param HTTP_X_FORWARDED_PROTO $scheme;
+        fastcgi_connect_timeout 60s;
+        fastcgi_read_timeout 60s;
+        fastcgi_send_timeout 60s;
+        client_max_body_size 1m;
+        fastcgi_pass test;
+        
+    }
+    
+}
+
+---
+
 [TestExecuteTemplate_ForIngressForNGINXPlusWithHTTP2Off - 1]
 # configuration for default/cafe-ingress
 upstream test {
@@ -2600,6 +2645,46 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXWithFastCGI - 1]
+# configuration for default/fcgi-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+}
+
+
+
+server {
+
+    server_tokens off;
+
+    server_name fcgi.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "fcgi-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location / {
+        set $service "";
+
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param HTTP_X_FORWARDED_FOR $proxy_add_x_forwarded_for;
+        fastcgi_param HTTP_X_FORWARDED_HOST $host;
+        fastcgi_param HTTP_X_FORWARDED_PORT $server_port;
+        fastcgi_param HTTP_X_FORWARDED_PROTO $scheme;
+        fastcgi_connect_timeout 60s;
+        fastcgi_read_timeout 60s;
+        fastcgi_send_timeout 60s;
+        client_max_body_size 1m;
+        fastcgi_pass test;
         
     }
     

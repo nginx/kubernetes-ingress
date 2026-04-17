@@ -101,6 +101,47 @@ func TestGenerateNginxCfgForJWT(t *testing.T) {
 	}
 }
 
+func TestGenerateNginxCfgForFastCGI(t *testing.T) {
+	t.Parallel()
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations["nginx.org/fastcgi-services"] = "coffee-svc"
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:         &StaticConfigParams{},
+		ingEx:                &cafeIngressEx,
+		apResources:          nil,
+		dosResource:          nil,
+		isMinion:             false,
+		isPlus:               false,
+		BaseCfgParams:        configParams,
+		isResolverConfigured: false,
+		isWildcardEnabled:    false,
+	})
+
+	coffeeFCGI := false
+	teaFCGI := false
+	for _, loc := range result.Servers[0].Locations {
+		if loc.Path == "/coffee" {
+			coffeeFCGI = loc.FCGI
+		}
+		if loc.Path == "/tea" {
+			teaFCGI = loc.FCGI
+		}
+	}
+	if !coffeeFCGI {
+		t.Error("generateNginxCfg: coffee-svc location should have FCGI=true")
+	}
+	if teaFCGI {
+		t.Error("generateNginxCfg: tea-svc location should have FCGI=false")
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfg returned warnings: %v", warnings)
+	}
+}
+
 func TestGenerateNginxCfgForBasicAuth(t *testing.T) {
 	t.Parallel()
 	cafeIngressEx := createCafeIngressEx()

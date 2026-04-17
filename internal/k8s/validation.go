@@ -66,6 +66,7 @@ const (
 	websocketServicesAnnotation           = "nginx.org/websocket-services"
 	sslServicesAnnotation                 = "nginx.org/ssl-services"
 	grpcServicesAnnotation                = "nginx.org/grpc-services"
+	fastcgiServicesAnnotation             = "nginx.org/fastcgi-services"
 	rewritesAnnotation                    = "nginx.org/rewrites"
 	rewriteTargetAnnotation               = "nginx.org/rewrite-target"
 	stickyCookieServicesAnnotation        = configs.StickyCookieServicesAnnotation
@@ -350,6 +351,10 @@ var (
 			validateServiceListAnnotation,
 		},
 		grpcServicesAnnotation: {
+			validateRequiredAnnotation,
+			validateServiceListAnnotation,
+		},
+		fastcgiServicesAnnotation: {
 			validateRequiredAnnotation,
 			validateServiceListAnnotation,
 		},

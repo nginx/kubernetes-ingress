@@ -250,6 +250,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 	rewriteTarget, rewriteTargetWarnings := getRewriteTarget(ncp.BaseCfgParams.Context, ncp.ingEx)
 	sslServices := getSSLServices(ncp.ingEx)
 	grpcServices := getGrpcServices(ncp.ingEx)
+	fcgiServices := getFastCGIServices(ncp.ingEx)
 
 	upstreams := make(map[string]version1.Upstream)
 	healthChecks := make(map[string]version1.HealthCheck)
@@ -487,7 +488,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			ssl := isSSLEnabled(sslServices[path.Backend.Service.Name], cfgParams, ncp.staticParams)
 			proxySSLName := generateProxySSLName(path.Backend.Service.Name, ncp.ingEx.Ingress.Namespace)
 			loc := createLocation(pathOrDefault(path.Path), upstreams[upsName], &cfgParams, wsServices[path.Backend.Service.Name], rewrites[path.Backend.Service.Name],
-				ssl, grpcServices[path.Backend.Service.Name], proxySSLName, path.PathType, path.Backend.Service.Name, rewriteTarget)
+				ssl, grpcServices[path.Backend.Service.Name], fcgiServices[path.Backend.Service.Name], proxySSLName, path.PathType, path.Backend.Service.Name, rewriteTarget)
 			if ncp.isMinion && policyCfg.EgressMTLS != nil {
 				// Minion egress mTLS is rendered per location to match VirtualServer route policy behavior.
 				loc.EgressMTLS = policyCfg.EgressMTLS
@@ -578,7 +579,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			ssl := isSSLEnabled(sslServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], cfgParams, ncp.staticParams)
 			proxySSLName := generateProxySSLName(ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name, ncp.ingEx.Ingress.Namespace)
 			loc := createLocation(pathOrDefault("/"), upstreams[upsName], &cfgParams, wsServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], rewrites[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name],
-				ssl, grpcServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], proxySSLName, new(networking.PathTypePrefix), ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name, rewriteTarget)
+				ssl, grpcServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], fcgiServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], proxySSLName, new(networking.PathTypePrefix), ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name, rewriteTarget)
 			if ncp.isMinion && policyCfg.EgressMTLS != nil {
 				// Keep default-backend locations aligned with other minion locations for egress mTLS overrides.
 				loc.EgressMTLS = policyCfg.EgressMTLS
@@ -759,7 +760,7 @@ func generateIngressPath(path string, pathType *networking.PathType) string {
 	return path
 }
 
-func createLocation(path string, upstream version1.Upstream, cfg *ConfigParams, websocket bool, rewrite string, ssl bool, grpc bool, proxySSLName string, pathType *networking.PathType, serviceName string, rewriteTarget string) version1.Location {
+func createLocation(path string, upstream version1.Upstream, cfg *ConfigParams, websocket bool, rewrite string, ssl bool, grpc bool, fcgi bool, proxySSLName string, pathType *networking.PathType, serviceName string, rewriteTarget string) version1.Location {
 	loc := version1.Location{
 		Path:                     generateIngressPath(path, pathType),
 		Upstream:                 upstream,
@@ -775,6 +776,7 @@ func createLocation(path string, upstream version1.Upstream, cfg *ConfigParams, 
 		RewriteTarget:            rewriteTarget,
 		SSL:                      ssl,
 		GRPC:                     grpc,
+		FCGI:                     fcgi,
 		ProxyBuffering:           cfg.ProxyBuffering,
 		ProxyBuffers:             cfg.ProxyBuffers,
 		ProxyBufferSize:          cfg.ProxyBufferSize,

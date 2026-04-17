@@ -93,6 +93,7 @@ var masterDenylist = map[string]bool{
 	"nginx.org/rewrites":                      true,
 	"nginx.org/ssl-services":                  true,
 	"nginx.org/grpc-services":                 true,
+	"nginx.org/fastcgi-services":              true,
 	"nginx.org/websocket-services":            true,
 	StickyCookieServicesAnnotation:            true,
 	StickyCookieServicesAnnotationPlus:        true,
@@ -715,6 +716,13 @@ func getSSLServices(ingEx *IngressEx) map[string]bool {
 
 func getGrpcServices(ingEx *IngressEx) map[string]bool {
 	if value, exists := ingEx.Ingress.Annotations["nginx.org/grpc-services"]; exists {
+		return ParseServiceList(value)
+	}
+	return nil
+}
+
+func getFastCGIServices(ingEx *IngressEx) map[string]bool {
+	if value, exists := ingEx.Ingress.Annotations["nginx.org/fastcgi-services"]; exists {
 		return ParseServiceList(value)
 	}
 	return nil
