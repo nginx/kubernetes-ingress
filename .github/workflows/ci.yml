@@ -57,6 +57,7 @@ jobs:
       image_matrix_plus: ${{ steps.vars.outputs.image_matrix_plus }}
       image_matrix_nap: ${{ steps.vars.outputs.image_matrix_nap }}
       docker_build: ${{ steps.docker_build.outputs.docker_build }}
+      run_tests: ${{ inputs.run_tests != false }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -184,6 +185,7 @@ jobs:
           echo 'image_matrix_plus: ${{ steps.vars.outputs.image_matrix_plus }}'
           echo 'image_matrix_nap: ${{ steps.vars.outputs.image_matrix_nap }}'
           echo 'docker_build: ${{ steps.docker_build.outputs.docker_build }}'
+          echo run_tests: ${{ inputs.run_tests != false }}
 
   verify-codegen:
     name: Verify generated code
@@ -280,7 +282,7 @@ jobs:
         if: >-
           needs.checks.outputs.docs_only != 'true' &&
           needs.checks.outputs.binary_cache_hit != 'true' &&
-          inputs.run_tests != false
+          needs.checks.outputs.run_tests == 'true'
 
       - name: Generate secrets for tests
         run: |
@@ -288,13 +290,13 @@ jobs:
         if: >-
           needs.checks.outputs.docs_only != 'true' &&
           needs.checks.outputs.binary_cache_hit != 'true' &&
-          inputs.run_tests != false
+          needs.checks.outputs.run_tests == 'true'
 
       - name: Run Tests
         run: make cover
         if: >-
           needs.checks.outputs.binary_cache_hit != 'true' &&
-          inputs.run_tests != false &&
+          needs.checks.outputs.run_tests == 'true' &&
           needs.checks.outputs.docs_only != 'true'
 
       - name: Upload coverage to Codecov
@@ -304,7 +306,7 @@ jobs:
           token: ${{ steps.secrets.outputs.CODECOV_TOKEN }} # required
         if: >-
           needs.checks.outputs.binary_cache_hit != 'true' &&
-          inputs.run_tests != false &&
+          needs.checks.outputs.run_tests == 'true' &&
           needs.checks.outputs.docs_only != 'true'
 
   staticcheck:
@@ -392,15 +394,6 @@ jobs:
       pull-requests: write # for scout report
     secrets: inherit
 
-  #  To pass the build in "Build Binaries" check
-  build-binaries:
-    name: Build Binaries
-    runs-on: ubuntu-24.04
-    needs: [build-artifacts]
-    steps:
-      - name: Report build binaries status
-        run: echo "Build binaries completed successfully via build-artifacts job"
-
   tag-target:
     name: Tag untested image with PR number
     needs: [checks, build-artifacts]
@@ -421,7 +414,7 @@ jobs:
       needs.checks.outputs.docs_only == 'false')
 
   package-tests:
-    if: ${{ needs.checks.outputs.docker_build == 'true' && inputs.run_tests != false }}
+    if: ${{ needs.checks.outputs.docker_build == 'true' && needs.checks.outputs.run_tests == 'true' }}
     name: Package Tests
     runs-on: ubuntu-24.04
     needs: [checks, build-artifacts]
@@ -501,7 +494,7 @@ jobs:
         if: ${{ ( needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' ) && github.event.pull_request }}
 
   helm-tests:
-    if: ${{ needs.checks.outputs.docker_build == 'true' && inputs.run_tests != false }}
+    if: ${{ needs.checks.outputs.docker_build == 'true' && needs.checks.outputs.run_tests == 'true' }}
     name: Helm Tests ${{ matrix.base-os }}
     runs-on: ubuntu-24.04
     needs: [checks, build-artifacts]
@@ -687,7 +680,7 @@ jobs:
         if: always()
 
   setup-matrix:
-    if: ${{ needs.checks.outputs.docker_build == 'true' && inputs.run_tests != false }}
+    if: ${{ needs.checks.outputs.docker_build == 'true' && needs.checks.outputs.run_tests == 'true' }}
     name: Setup Matrix for Smoke Tests
     runs-on: ubuntu-24.04
     needs: [build-artifacts, checks]
@@ -769,7 +762,7 @@ jobs:
         if: ${{ steps.check-image.outcome == 'failure' && needs.checks.outputs.docs_only == 'false' }}
 
   smoke-tests-oss:
-    if: ${{ needs.checks.outputs.docker_build == 'true' && inputs.run_tests != false }}
+    if: ${{ needs.checks.outputs.docker_build == 'true' && needs.checks.outputs.run_tests == 'true' }}
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     needs:
       - checks
@@ -794,10 +787,10 @@ jobs:
       stable-tag: ${{ needs.checks.outputs.stable_tag }}
       authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
       k8s-version: ${{ matrix.k8s }}
-      force: ${{ inputs.run_tests != false }}
+      force: ${{ needs.checks.outputs.run_tests == 'true' }}
 
   smoke-tests-plus:
-    if: ${{ needs.checks.outputs.docker_build == 'true' && inputs.run_tests != false }}
+    if: ${{ needs.checks.outputs.docker_build == 'true' && needs.checks.outputs.run_tests == 'true' }}
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     needs:
       - checks
@@ -822,10 +815,10 @@ jobs:
       stable-tag: ${{ needs.checks.outputs.stable_tag }}
       authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
       k8s-version: ${{ matrix.k8s }}
-      force: ${{ inputs.run_tests != false }}
+      force: ${{ needs.checks.outputs.run_tests == 'true' }}
 
   smoke-tests-nap:
-    if: ${{ needs.checks.outputs.docker_build == 'true' && inputs.run_tests != false }}
+    if: ${{ needs.checks.outputs.docker_build == 'true' && needs.checks.outputs.run_tests == 'true' }}
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     needs:
       - checks
@@ -850,7 +843,7 @@ jobs:
       stable-tag: ${{ needs.checks.outputs.stable_tag }}
       authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
       k8s-version: ${{ matrix.k8s }}
-      force: ${{ inputs.run_tests != false }}
+      force: ${{ needs.checks.outputs.run_tests == 'true' }}
 
   tag-stable:
     name: Tag tested image as stable
