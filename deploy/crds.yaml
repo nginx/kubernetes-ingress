@@ -677,6 +677,7 @@ spec:
                       verification when connecting to the external authentication
                       server over TLS. If not specified, defaults to <service-name>.<namespace>.svc
                       derived from authServiceName.
+                    pattern: ^[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?)*$
                     type: string
                   sslEnabled:
                     default: false

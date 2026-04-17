@@ -1314,6 +1314,7 @@ type ExternalAuth struct {
 	TrustedCertSecret string `json:"trustedCertSecret,omitempty"`
 
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?)*$`
 	// SNIName sets the server name used for SNI and certificate verification when connecting to the external authentication server over TLS. If not specified, defaults to <service-name>.<namespace>.svc derived from authServiceName.
 	SNIName string `json:"sniName,omitempty"`
 }

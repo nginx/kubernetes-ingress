@@ -86,7 +86,7 @@ class TestExternalAuthPoliciesIngress:
         Test external-auth policy on standard and mergeable Ingresses with valid credentials.
         Verifies the policy CRD status is Valid and the backend proxies correctly.
         """
-        _secret_names, policy_names = ext_auth_setup
+        _, policy_names = ext_auth_setup
         headers = build_ext_auth_headers(EXT_AUTH_HOST, valid_credentials)
 
         policy_info = read_policy(kube_apis.custom_objects, test_namespace, policy_names[0])
@@ -130,7 +130,6 @@ class TestExternalAuthPoliciesIngress:
         Test external-auth policy on standard and mergeable Ingresses
         with valid, invalid, and no credentials.
         """
-        _secret_names, _policy_names = ext_auth_setup
         headers = build_ext_auth_headers(EXT_AUTH_HOST, credentials)
         ensure_response_from_backend(
             ext_auth_ingress.request_url,
@@ -163,7 +162,6 @@ class TestExternalAuthPoliciesIngress:
         Test external-auth policy on mergeable Ingress with policy on the minion
         (location-level auth) with valid, invalid, and no credentials.
         """
-        _secret_names, _policy_names = ext_auth_setup
         headers = build_ext_auth_headers(EXT_AUTH_HOST, credentials)
         ensure_response_from_backend(
             ext_auth_ingress.request_url,
@@ -218,7 +216,7 @@ class TestExternalAuthPoliciesIngress:
         Test external-auth policy on standard and mergeable Ingresses
         that reference a non-existent service.
         """
-        _secret_names, _policy_names = ext_auth_setup
+
         headers = build_ext_auth_headers(EXT_AUTH_HOST, valid_credentials)
         wait_before_test()
 
@@ -250,7 +248,7 @@ class TestExternalAuthPoliciesIngress:
         Test that deleting the external auth policy causes HTTP 500 on standard
         and mergeable Ingresses.
         """
-        _secret_names, policy_names = ext_auth_setup
+        _, policy_names = ext_auth_setup
         headers = build_ext_auth_headers(EXT_AUTH_HOST, valid_credentials)
         ensure_response_from_backend(
             ext_auth_ingress.request_url,
@@ -284,10 +282,12 @@ class TestExternalAuthPoliciesIngress:
         """
         Test that deleting the external auth backend service causes HTTP 500.
         """
-        _secret_names, _policy_names = ext_auth_setup
+
         headers = build_ext_auth_headers(EXT_AUTH_HOST, valid_credentials)
         ensure_response_from_backend(
-            ext_auth_ingress.request_url, ext_auth_ingress.ingress_host, additional_headers=valid_auth_headers()
+            ext_auth_ingress.request_url,
+            ext_auth_ingress.ingress_host,
+            additional_headers=valid_auth_headers(),
         )
 
         resp1 = requests.get(ext_auth_ingress.request_url, headers=headers)
@@ -320,10 +320,12 @@ class TestExternalAuthPoliciesIngress:
           2. Scale backend to 0 replicas -> 500 (no endpoints)
           3. Scale backend back to 1 replica -> 200 (recovered)
         """
-        _secret_names, _policy_names = ext_auth_setup
+
         headers = build_ext_auth_headers(EXT_AUTH_HOST, valid_credentials)
         ensure_response_from_backend(
-            ext_auth_ingress.request_url, ext_auth_ingress.ingress_host, additional_headers=valid_auth_headers()
+            ext_auth_ingress.request_url,
+            ext_auth_ingress.ingress_host,
+            additional_headers=valid_auth_headers(),
         )
 
         # Phase 1: healthy baseline
@@ -360,7 +362,9 @@ class TestExternalAuthPoliciesIngress:
         assert "Request ID:" in resp3.text
 
     @pytest.mark.parametrize(
-        "ext_auth_setup", [([ext_auth_pol_valid_src, ext_auth_pol_valid_multi_src],)], indirect=True
+        "ext_auth_setup",
+        [([ext_auth_pol_valid_src, ext_auth_pol_valid_multi_src],)],
+        indirect=True,
     )
     @pytest.mark.parametrize("ext_auth_ingress", [ext_auth_ing_standard_multi_src], indirect=True)
     def test_external_auth_policy_override(
@@ -374,10 +378,12 @@ class TestExternalAuthPoliciesIngress:
         annotation, the first listed policy takes precedence.
         Both policies reference the same auth backend, so the request should succeed.
         """
-        _secret_names, _policy_names = ext_auth_setup
+
         headers = build_ext_auth_headers(EXT_AUTH_HOST, valid_credentials)
         ensure_response_from_backend(
-            ext_auth_ingress.request_url, ext_auth_ingress.ingress_host, additional_headers=valid_auth_headers()
+            ext_auth_ingress.request_url,
+            ext_auth_ingress.ingress_host,
+            additional_headers=valid_auth_headers(),
         )
 
         resp = requests.get(ext_auth_ingress.request_url, headers=headers)
@@ -387,7 +393,9 @@ class TestExternalAuthPoliciesIngress:
         assert "Request ID:" in resp.text
 
     @pytest.mark.parametrize(
-        "ext_auth_setup", [([ext_auth_pol_valid_src, ext_auth_pol_valid_multi_src],)], indirect=True
+        "ext_auth_setup",
+        [([ext_auth_pol_valid_src, ext_auth_pol_valid_multi_src],)],
+        indirect=True,
     )
     @pytest.mark.parametrize("ext_auth_ingress", [ext_auth_ing_mergeable_override_src], indirect=True)
     def test_external_auth_policy_master_vs_minion_override(
@@ -401,7 +409,7 @@ class TestExternalAuthPoliciesIngress:
         for the minion's path. Master has 'valid-multi', minion has 'valid'.
         Both reference the same backend, so the request should succeed.
         """
-        _secret_names, _policy_names = ext_auth_setup
+
         headers = build_ext_auth_headers(EXT_AUTH_HOST, valid_credentials)
         ensure_response_from_backend(
             ext_auth_ingress.request_url,
@@ -430,12 +438,14 @@ class TestExternalAuthPoliciesIngress:
         Test external-auth policy with authSigninURI set on a standard Ingress.
         Verifies the policy is accepted as Valid and authenticated requests pass through.
         """
-        _secret_names, policy_names = ext_auth_setup
+        _, policy_names = ext_auth_setup
         headers = build_ext_auth_headers(EXT_AUTH_HOST, valid_credentials)
 
         policy_info = read_policy(kube_apis.custom_objects, test_namespace, policy_names[0])
         ensure_response_from_backend(
-            ext_auth_ingress.request_url, ext_auth_ingress.ingress_host, additional_headers=valid_auth_headers()
+            ext_auth_ingress.request_url,
+            ext_auth_ingress.ingress_host,
+            additional_headers=valid_auth_headers(),
         )
 
         resp = requests.get(ext_auth_ingress.request_url, headers=headers)
@@ -456,10 +466,12 @@ class TestExternalAuthPoliciesIngress:
         """
         Test external-auth policy with authServicePorts set to a custom port (8080).
         """
-        _secret_names, _policy_names = ext_auth_setup
+
         headers = build_ext_auth_headers(EXT_AUTH_HOST, valid_credentials)
         ensure_response_from_backend(
-            ext_auth_ingress.request_url, ext_auth_ingress.ingress_host, additional_headers=valid_auth_headers()
+            ext_auth_ingress.request_url,
+            ext_auth_ingress.ingress_host,
+            additional_headers=valid_auth_headers(),
         )
 
         resp = requests.get(ext_auth_ingress.request_url, headers=headers)

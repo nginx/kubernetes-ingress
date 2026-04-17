@@ -73,10 +73,12 @@ class TestExternalAuthPoliciesIngressTLS:
         Test external-auth policy with sslEnabled: true only (no certificate verification).
         The IC connects to the auth backend over HTTPS but does not verify its certificate.
         """
-        _secret_names, _policy_names = ext_auth_setup
+
         headers = build_ext_auth_headers(EXT_AUTH_HOST, valid_credentials)
         ensure_response_from_backend(
-            ext_auth_ingress.request_url, ext_auth_ingress.ingress_host, additional_headers=valid_auth_headers()
+            ext_auth_ingress.request_url,
+            ext_auth_ingress.ingress_host,
+            additional_headers=valid_auth_headers(),
         )
 
         resp = requests.get(ext_auth_ingress.request_url, headers=headers)
@@ -100,14 +102,16 @@ class TestExternalAuthPoliciesIngressTLS:
         Test external-auth policy with full TLS verification on standard Ingress:
         sslEnabled, sslVerify, sslVerifyDepth, sniName, and trustedCertSecret.
         """
-        _secret_names, policy_names = ext_auth_setup
+        _, policy_names = ext_auth_setup
         headers = build_ext_auth_headers(EXT_AUTH_HOST, valid_credentials)
 
         policy_info = read_policy(kube_apis.custom_objects, test_namespace, policy_names[0])
         assert policy_info["status"]["state"] == "Valid"
 
         ensure_response_from_backend(
-            ext_auth_ingress.request_url, ext_auth_ingress.ingress_host, additional_headers=valid_auth_headers()
+            ext_auth_ingress.request_url,
+            ext_auth_ingress.ingress_host,
+            additional_headers=valid_auth_headers(),
         )
 
         resp = requests.get(ext_auth_ingress.request_url, headers=headers)
@@ -128,7 +132,7 @@ class TestExternalAuthPoliciesIngressTLS:
         Test external-auth policy with full TLS verification on mergeable Ingress
         (policy on master).
         """
-        _secret_names, _policy_names = ext_auth_setup
+
         headers = build_ext_auth_headers(EXT_AUTH_HOST, valid_credentials)
         ensure_response_from_backend(
             ext_auth_ingress.request_url,
@@ -156,10 +160,12 @@ class TestExternalAuthPoliciesIngressTLS:
         """
         Test external-auth policy with full TLS using valid, invalid, and no credentials.
         """
-        _secret_names, _policy_names = ext_auth_setup
+
         headers = build_ext_auth_headers(EXT_AUTH_HOST, credentials)
         ensure_response_from_backend(
-            ext_auth_ingress.request_url, ext_auth_ingress.ingress_host, additional_headers=valid_auth_headers()
+            ext_auth_ingress.request_url,
+            ext_auth_ingress.ingress_host,
+            additional_headers=valid_auth_headers(),
         )
 
         resp = requests.get(ext_auth_ingress.request_url, headers=headers)
@@ -184,10 +190,12 @@ class TestExternalAuthPoliciesIngressTLS:
         Test that a TLS-capable backend still serves HTTP when sslEnabled is explicitly false.
         The IC connects over HTTP (port 80) even though the backend also listens on HTTPS.
         """
-        _secret_names, _policy_names = ext_auth_setup
+
         headers = build_ext_auth_headers(EXT_AUTH_HOST, valid_credentials)
         ensure_response_from_backend(
-            ext_auth_ingress.request_url, ext_auth_ingress.ingress_host, additional_headers=valid_auth_headers()
+            ext_auth_ingress.request_url,
+            ext_auth_ingress.ingress_host,
+            additional_headers=valid_auth_headers(),
         )
 
         resp = requests.get(ext_auth_ingress.request_url, headers=headers)
@@ -210,13 +218,15 @@ class TestExternalAuthPoliciesIngressTLS:
         Test external-auth policy with sslEnabled and authSigninURI on Ingress.
         Verifies the policy is Valid and authenticated requests pass through over TLS.
         """
-        _secret_names, policy_names = ext_auth_setup
+        _, policy_names = ext_auth_setup
         headers = build_ext_auth_headers(EXT_AUTH_HOST, valid_credentials)
 
         policy_info = read_policy(kube_apis.custom_objects, test_namespace, policy_names[0])
 
         ensure_response_from_backend(
-            ext_auth_ingress.request_url, ext_auth_ingress.ingress_host, additional_headers=valid_auth_headers()
+            ext_auth_ingress.request_url,
+            ext_auth_ingress.ingress_host,
+            additional_headers=valid_auth_headers(),
         )
 
         resp = requests.get(ext_auth_ingress.request_url, headers=headers)
@@ -237,10 +247,12 @@ class TestExternalAuthPoliciesIngressTLS:
         """
         Test external-auth policy with sslEnabled and authServicePorts: [8443].
         """
-        _secret_names, _policy_names = ext_auth_setup
+
         headers = build_ext_auth_headers(EXT_AUTH_HOST, valid_credentials)
         ensure_response_from_backend(
-            ext_auth_ingress.request_url, ext_auth_ingress.ingress_host, additional_headers=valid_auth_headers()
+            ext_auth_ingress.request_url,
+            ext_auth_ingress.ingress_host,
+            additional_headers=valid_auth_headers(),
         )
 
         resp = requests.get(ext_auth_ingress.request_url, headers=headers)
@@ -249,7 +261,11 @@ class TestExternalAuthPoliciesIngressTLS:
         assert resp.status_code == 200
         assert "Request ID:" in resp.text
 
-    @pytest.mark.parametrize("ext_auth_setup", [([ext_auth_pol_tls_verify_no_ssl_src], True, False)], indirect=True)
+    @pytest.mark.parametrize(
+        "ext_auth_setup",
+        [([ext_auth_pol_tls_verify_no_ssl_src], True, False)],
+        indirect=True,
+    )
     @pytest.mark.parametrize("ext_auth_ingress", [ext_auth_ing_standard_tls_src], indirect=True)
     def test_tls_verify_without_ssl_enabled(
         self,
@@ -261,7 +277,7 @@ class TestExternalAuthPoliciesIngressTLS:
         Test that sslVerify: true without sslEnabled: true causes an error.
         The IC treats this as an invalid configuration, resulting in HTTP 500.
         """
-        _secret_names, _policy_names = ext_auth_setup
+
         headers = build_ext_auth_headers(EXT_AUTH_HOST, valid_credentials)
         wait_before_test()
 
@@ -281,7 +297,7 @@ class TestExternalAuthPoliciesIngressTLS:
         """
         Test that referencing a non-existent trustedCertSecret results in HTTP 500.
         """
-        _secret_names, _policy_names = ext_auth_setup
+
         headers = build_ext_auth_headers(EXT_AUTH_HOST, valid_credentials)
         wait_before_test()
 
@@ -307,7 +323,6 @@ class TestExternalAuthPoliciesIngressTLS:
         print("Create wrong-type CA secret")
         wrong_secret = create_secret_from_yaml(kube_apis.v1, test_namespace, ext_auth_tls_wrong_ca_src)
 
-        _secret_names, _policy_names = ext_auth_setup
         headers = build_ext_auth_headers(EXT_AUTH_HOST, valid_credentials)
         wait_before_test()
 
@@ -330,7 +345,7 @@ class TestExternalAuthPoliciesIngressTLS:
         Test that referencing a trustedCertSecret in a non-existent namespace
         (fakens/external-auth-ca-secret) results in HTTP 500.
         """
-        _secret_names, _policy_names = ext_auth_setup
+
         headers = build_ext_auth_headers(EXT_AUTH_HOST, valid_credentials)
         wait_before_test()
 
@@ -352,7 +367,7 @@ class TestExternalAuthPoliciesIngressTLS:
         verification failure at runtime. The auth_request module returns HTTP 500
         for subrequest failures.
         """
-        _secret_names, _policy_names = ext_auth_setup
+
         headers = build_ext_auth_headers(EXT_AUTH_HOST, valid_credentials)
         wait_before_test()
 
@@ -361,7 +376,11 @@ class TestExternalAuthPoliciesIngressTLS:
 
         assert resp.status_code == 500
 
-    @pytest.mark.parametrize("ext_auth_setup", [([ext_auth_pol_tls_no_trusted_cert_src], True)], indirect=True)
+    @pytest.mark.parametrize(
+        "ext_auth_setup",
+        [([ext_auth_pol_tls_no_trusted_cert_src], True)],
+        indirect=True,
+    )
     @pytest.mark.parametrize("ext_auth_ingress", [ext_auth_ing_standard_tls_src], indirect=True)
     def test_tls_verify_no_trusted_cert(
         self,
@@ -374,7 +393,7 @@ class TestExternalAuthPoliciesIngressTLS:
         system CA bundle. Since the auth backend uses a self-signed certificate,
         the system CA cannot verify it, causing HTTP 500.
         """
-        _secret_names, _policy_names = ext_auth_setup
+
         headers = build_ext_auth_headers(EXT_AUTH_HOST, valid_credentials)
         wait_before_test()
 
@@ -396,7 +415,7 @@ class TestExternalAuthPoliciesIngressTLS:
         The default SNI name (<svcName>.<svcNs>.svc) does not match the server
         certificate SAN (external-auth-tls), so NGINX rejects the connection (HTTP 500).
         """
-        _secret_names, _policy_names = ext_auth_setup
+
         headers = build_ext_auth_headers(EXT_AUTH_HOST, valid_credentials)
         wait_before_test()
 
@@ -419,10 +438,12 @@ class TestExternalAuthPoliciesIngressTLS:
         Test that deleting the CA secret (trustedCertSecret) after a working
         TLS setup causes HTTP 500 for subsequent requests.
         """
-        secret_names, _policy_names = ext_auth_setup
+        secret_names, _ = ext_auth_setup
         headers = build_ext_auth_headers(EXT_AUTH_HOST, valid_credentials)
         ensure_response_from_backend(
-            ext_auth_ingress.request_url, ext_auth_ingress.ingress_host, additional_headers=valid_auth_headers()
+            ext_auth_ingress.request_url,
+            ext_auth_ingress.ingress_host,
+            additional_headers=valid_auth_headers(),
         )
 
         resp1 = requests.get(ext_auth_ingress.request_url, headers=headers)
@@ -453,10 +474,12 @@ class TestExternalAuthPoliciesIngressTLS:
         This secret is mounted in the backend pod, not referenced by the IC policy.
         The running backend retains the cert in memory, so requests continue to succeed.
         """
-        secret_names, _policy_names = ext_auth_setup
+        secret_names, _ = ext_auth_setup
         headers = build_ext_auth_headers(EXT_AUTH_HOST, valid_credentials)
         ensure_response_from_backend(
-            ext_auth_ingress.request_url, ext_auth_ingress.ingress_host, additional_headers=valid_auth_headers()
+            ext_auth_ingress.request_url,
+            ext_auth_ingress.ingress_host,
+            additional_headers=valid_auth_headers(),
         )
 
         resp1 = requests.get(ext_auth_ingress.request_url, headers=headers)
@@ -486,10 +509,12 @@ class TestExternalAuthPoliciesIngressTLS:
         """
         Test that requests fail when the TLS external auth backend service is deleted.
         """
-        _secret_names, _policy_names = ext_auth_setup
+
         headers = build_ext_auth_headers(EXT_AUTH_HOST, valid_credentials)
         ensure_response_from_backend(
-            ext_auth_ingress.request_url, ext_auth_ingress.ingress_host, additional_headers=valid_auth_headers()
+            ext_auth_ingress.request_url,
+            ext_auth_ingress.ingress_host,
+            additional_headers=valid_auth_headers(),
         )
 
         resp1 = requests.get(ext_auth_ingress.request_url, headers=headers)
@@ -506,7 +531,9 @@ class TestExternalAuthPoliciesIngressTLS:
         assert resp2.status_code == 500
 
     @pytest.mark.parametrize(
-        "ext_auth_setup", [([ext_auth_pol_tls_full_src, ext_auth_pol_tls_full_multi_src], True)], indirect=True
+        "ext_auth_setup",
+        [([ext_auth_pol_tls_full_src, ext_auth_pol_tls_full_multi_src], True)],
+        indirect=True,
     )
     @pytest.mark.parametrize("ext_auth_ingress", [ext_auth_ing_standard_tls_multi_src], indirect=True)
     def test_tls_policy_override(
@@ -522,10 +549,12 @@ class TestExternalAuthPoliciesIngressTLS:
         the first listed policy takes precedence. Both TLS policies reference the
         same backend with the same TLS config, so both orderings should succeed.
         """
-        _secret_names, policy_names = ext_auth_setup
+        _, policy_names = ext_auth_setup
         headers = build_ext_auth_headers(EXT_AUTH_HOST, valid_credentials)
         ensure_response_from_backend(
-            ext_auth_ingress.request_url, ext_auth_ingress.ingress_host, additional_headers=valid_auth_headers()
+            ext_auth_ingress.request_url,
+            ext_auth_ingress.ingress_host,
+            additional_headers=valid_auth_headers(),
         )
 
         resp = requests.get(ext_auth_ingress.request_url, headers=headers)
