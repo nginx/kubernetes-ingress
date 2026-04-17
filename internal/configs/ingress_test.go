@@ -622,6 +622,64 @@ func TestGenerateNginxCfgForAccessControl(t *testing.T) {
 	}
 }
 
+func TestGenerateNginxCfgForEgressMTLSPolicy(t *testing.T) {
+	t.Parallel()
+
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations[PoliciesAnnotation] = "egress-mtls-policy"
+	cafeIngressEx.Ingress.Annotations["nginx.org/ssl-services"] = "coffee-svc,tea-svc"
+	cafeIngressEx.Policies = map[string]*conf_v1.Policy{
+		"default/egress-mtls-policy": newEgressMTLSPolicy(
+			"egress-mtls-policy",
+			"egress-mtls-secret",
+			"egress-trusted-ca-secret",
+			"secure-app.example.com",
+			true,
+			2,
+		),
+	}
+	addEgressMTLSSecretRefs(cafeIngressEx.SecretRefs)
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:         &StaticConfigParams{},
+		ingEx:                &cafeIngressEx,
+		isPlus:               false,
+		BaseCfgParams:        NewDefaultConfigParams(context.Background(), false),
+		isResolverConfigured: false,
+		isWildcardEnabled:    false,
+	})
+
+	if len(warnings) != 0 {
+		t.Fatalf("generateNginxCfg() returned warnings: %v", warnings)
+	}
+
+	expectedEgressMTLS := expectedEgressMTLSConfig(
+		"/etc/nginx/secrets/default-egress-mtls-secret",
+		"/etc/nginx/secrets/default-egress-trusted-ca-secret",
+		"secure-app.example.com",
+		true,
+		2,
+	)
+
+	for _, server := range result.Servers {
+		if diff := cmp.Diff(expectedEgressMTLS, server.EgressMTLS); diff != "" {
+			t.Fatalf("server %s egress mTLS mismatch (-want +got):\n%s", server.Name, diff)
+		}
+
+		for _, loc := range server.Locations {
+			if loc.EgressMTLS != nil {
+				t.Fatalf("location %s should inherit egress mTLS from server context", loc.Path)
+			}
+			if !loc.SSL {
+				t.Fatalf("location %s should proxy to a TLS upstream", loc.Path)
+			}
+			if !strings.HasPrefix(loc.ProxyPass, "https://") {
+				t.Fatalf("location %s proxy pass = %q, want https upstream", loc.Path, loc.ProxyPass)
+			}
+		}
+	}
+}
+
 func TestGenerateNginxCfgForWAFPolicyApPolicy(t *testing.T) {
 	t.Parallel()
 
@@ -1596,6 +1654,169 @@ func TestGenerateNginxCfgForMergeableIngressesMinionWithAccessControl(t *testing
 	}
 	if len(warnings) != 0 {
 		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgForMergeableIngressesEgressMTLSPolicy(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                    string
+		configureMinionOverride bool
+	}{
+		{name: "inherits master policy"},
+		{name: "minion policy overrides master", configureMinionOverride: true},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			mergeableIngresses := createMergeableCafeIngress()
+			mergeableIngresses.Master.Ingress.Annotations[PoliciesAnnotation] = "master-egress-mtls-policy"
+			mergeableIngresses.Master.Policies = map[string]*conf_v1.Policy{
+				"default/master-egress-mtls-policy": newEgressMTLSPolicy(
+					"master-egress-mtls-policy",
+					"egress-mtls-secret",
+					"egress-trusted-ca-secret",
+					"secure-app.example.com",
+					true,
+					2,
+				),
+			}
+			addEgressMTLSSecretRefs(mergeableIngresses.Master.SecretRefs)
+
+			for _, minion := range mergeableIngresses.Minions {
+				minion.Ingress.Annotations["nginx.org/ssl-services"] = minion.Ingress.Spec.Rules[0].HTTP.Paths[0].Backend.Service.Name
+				addEgressMTLSSecretRefs(minion.SecretRefs)
+			}
+
+			if test.configureMinionOverride {
+				mergeableIngresses.Minions[0].Ingress.Annotations[PoliciesAnnotation] = "coffee-egress-mtls-policy"
+				mergeableIngresses.Minions[0].Policies = map[string]*conf_v1.Policy{
+					"default/coffee-egress-mtls-policy": newEgressMTLSPolicy(
+						"coffee-egress-mtls-policy",
+						"egress-mtls-secret-alt",
+						"egress-trusted-ca-secret-alt",
+						"coffee.example.com",
+						false,
+						4,
+					),
+				}
+			}
+
+			result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+				mergeableIngs:        mergeableIngresses,
+				BaseCfgParams:        NewDefaultConfigParams(context.Background(), false),
+				isPlus:               false,
+				isResolverConfigured: false,
+				staticParams:         &StaticConfigParams{},
+				isWildcardEnabled:    false,
+			})
+
+			if len(warnings) != 0 {
+				t.Fatalf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
+			}
+
+			masterEgressMTLS := expectedEgressMTLSConfig(
+				"/etc/nginx/secrets/default-egress-mtls-secret",
+				"/etc/nginx/secrets/default-egress-trusted-ca-secret",
+				"secure-app.example.com",
+				true,
+				2,
+			)
+			coffeeOverrideEgressMTLS := expectedEgressMTLSConfig(
+				"/etc/nginx/secrets/default-egress-mtls-secret-alt",
+				"/etc/nginx/secrets/default-egress-trusted-ca-secret-alt",
+				"coffee.example.com",
+				false,
+				4,
+			)
+
+			if diff := cmp.Diff(masterEgressMTLS, result.Servers[0].EgressMTLS); diff != "" {
+				t.Fatalf("mergeable server egress mTLS mismatch (-want +got):\n%s", diff)
+			}
+
+			for _, loc := range result.Servers[0].Locations {
+				if !loc.SSL {
+					t.Fatalf("location %s should proxy to a TLS upstream", loc.Path)
+				}
+
+				var want *version2.EgressMTLS
+				if test.configureMinionOverride && loc.MinionIngress.Name == "cafe-ingress-coffee-minion" {
+					want = coffeeOverrideEgressMTLS
+				}
+
+				if diff := cmp.Diff(want, loc.EgressMTLS); diff != "" {
+					t.Fatalf("location %s egress mTLS mismatch (-want +got):\n%s", loc.Path, diff)
+				}
+			}
+		})
+	}
+}
+
+func TestGenerateNginxCfgForMergeableIngressesGRPCEgressMTLSPolicyOnMinion(t *testing.T) {
+	t.Parallel()
+
+	mergeableIngresses := createMergeableCafeIngress()
+	mergeableIngresses.Minions[0].Ingress.Annotations[PoliciesAnnotation] = "coffee-egress-mtls-policy"
+	mergeableIngresses.Minions[0].Ingress.Annotations["nginx.org/grpc-services"] = mergeableIngresses.Minions[0].Ingress.Spec.Rules[0].HTTP.Paths[0].Backend.Service.Name
+	mergeableIngresses.Minions[0].Policies = map[string]*conf_v1.Policy{
+		"default/coffee-egress-mtls-policy": newEgressMTLSPolicy(
+			"coffee-egress-mtls-policy",
+			"egress-mtls-secret-alt",
+			"egress-trusted-ca-secret-alt",
+			"coffee.example.com",
+			false,
+			4,
+		),
+	}
+	addEgressMTLSSecretRefs(mergeableIngresses.Minions[0].SecretRefs)
+	configParams := NewDefaultConfigParams(context.Background(), false)
+	configParams.HTTP2 = true
+
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs:        mergeableIngresses,
+		BaseCfgParams:        configParams,
+		isPlus:               false,
+		isResolverConfigured: false,
+		staticParams:         &StaticConfigParams{},
+		isWildcardEnabled:    false,
+	})
+
+	if len(warnings) != 0 {
+		t.Fatalf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
+	}
+
+	want := expectedEgressMTLSConfig(
+		"/etc/nginx/secrets/default-egress-mtls-secret-alt",
+		"/etc/nginx/secrets/default-egress-trusted-ca-secret-alt",
+		"coffee.example.com",
+		false,
+		4,
+	)
+
+	found := false
+	for _, loc := range result.Servers[0].Locations {
+		if loc.MinionIngress == nil || loc.MinionIngress.Name != "cafe-ingress-coffee-minion" {
+			continue
+		}
+
+		found = true
+		if !loc.GRPC {
+			t.Fatalf("location %s should be marked as gRPC", loc.Path)
+		}
+		if loc.SSL {
+			t.Fatalf("location %s should not require ssl-services for this regression case", loc.Path)
+		}
+		if diff := cmp.Diff(want, loc.EgressMTLS); diff != "" {
+			t.Fatalf("location %s egress mTLS mismatch (-want +got):\n%s", loc.Path, diff)
+		}
+	}
+
+	if !found {
+		t.Fatal("expected to find coffee minion location")
 	}
 }
 
@@ -3262,6 +3483,59 @@ func TestAddSSLConfig(t *testing.T) {
 		if !reflect.DeepEqual(test.expectedWarnings, warnings) {
 			t.Errorf("addSSLConfig() returned %v but expected %v for the case of %s", warnings, test.expectedWarnings, test.msg)
 		}
+	}
+}
+
+func newEgressMTLSPolicy(name string, tlsSecret string, trustedCertSecret string, sslName string, verifyServer bool, verifyDepth int) *conf_v1.Policy {
+	return &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      name,
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			EgressMTLS: &conf_v1.EgressMTLS{
+				TLSSecret:         tlsSecret,
+				TrustedCertSecret: trustedCertSecret,
+				VerifyServer:      verifyServer,
+				VerifyDepth:       &verifyDepth,
+				ServerName:        true,
+				SSLName:           sslName,
+			},
+		},
+	}
+}
+
+func addEgressMTLSSecretRefs(secretRefs map[string]*secrets.SecretReference) {
+	secretRefs["default/egress-mtls-secret"] = &secrets.SecretReference{
+		Secret: &v1.Secret{Type: v1.SecretTypeTLS},
+		Path:   "/etc/nginx/secrets/default-egress-mtls-secret",
+	}
+	secretRefs["default/egress-trusted-ca-secret"] = &secrets.SecretReference{
+		Secret: &v1.Secret{Type: secrets.SecretTypeCA},
+		Path:   "/etc/nginx/secrets/default-egress-trusted-ca-secret",
+	}
+	secretRefs["default/egress-mtls-secret-alt"] = &secrets.SecretReference{
+		Secret: &v1.Secret{Type: v1.SecretTypeTLS},
+		Path:   "/etc/nginx/secrets/default-egress-mtls-secret-alt",
+	}
+	secretRefs["default/egress-trusted-ca-secret-alt"] = &secrets.SecretReference{
+		Secret: &v1.Secret{Type: secrets.SecretTypeCA},
+		Path:   "/etc/nginx/secrets/default-egress-trusted-ca-secret-alt",
+	}
+}
+
+func expectedEgressMTLSConfig(certificate string, trustedCert string, sslName string, verifyServer bool, verifyDepth int) *version2.EgressMTLS {
+	return &version2.EgressMTLS{
+		Certificate:    certificate,
+		CertificateKey: certificate,
+		TrustedCert:    trustedCert,
+		Ciphers:        "DEFAULT",
+		Protocols:      "TLSv1 TLSv1.1 TLSv1.2",
+		VerifyServer:   verifyServer,
+		VerifyDepth:    verifyDepth,
+		SessionReuse:   true,
+		ServerName:     true,
+		SSLName:        sslName,
 	}
 }
 
