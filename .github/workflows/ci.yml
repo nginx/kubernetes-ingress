@@ -942,4 +942,4 @@ jobs:
       pull-requests: write # for scout report
     uses: ./.github/workflows/image-promotion.yml
     secrets: inherit
-    if: ${{ inputs.force }}
+    if: ${{ inputs.force && (github.ref_name == 'main' || startsWith(github.ref_name, 'release-')) }}
