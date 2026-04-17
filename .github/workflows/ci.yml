@@ -205,7 +205,7 @@ jobs:
       contents: read
     needs: checks
     if: >-
-      inputs.force == 'true' ||
+      inputs.force ||
       needs.checks.outputs.run_tests == 'true' &&
       needs.checks.outputs.binary_cache_hit == 'false'
     env:
