@@ -98,6 +98,43 @@ func TestParseServicesFromString(t *testing.T) {
 	}
 }
 
+func TestParseLocationList(t *testing.T) {
+	t.Parallel()
+
+	tt := []struct {
+		input string
+		want  []string
+	}{
+		{
+			input: "",
+			want:  nil,
+		},
+		{
+			input: "/.well-known/acme-challenge/",
+			want:  []string{"/.well-known/acme-challenge/"},
+		},
+		{
+			input: "/.well-known/acme-challenge/,/health",
+			want:  []string{"/.well-known/acme-challenge/", "/health"},
+		},
+		{
+			input: " /a , /b ",
+			want:  []string{"/a", "/b"},
+		},
+		{
+			input: "/path1,,/path2",
+			want:  []string{"/path1", "/path2"},
+		},
+	}
+
+	for _, tc := range tt {
+		got := ParseLocationList(tc.input)
+		if !cmp.Equal(tc.want, got) {
+			t.Error(cmp.Diff(tc.want, got))
+		}
+	}
+}
+
 func TestParsePortList_FailsOnBogusStrings(t *testing.T) {
 	t.Parallel()
 

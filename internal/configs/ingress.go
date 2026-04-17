@@ -398,6 +398,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			Deny:                   policyCfg.Deny,
 			WAF:                    policyCfg.WAF,
 			PoliciesErrorReturn:    policyCfg.ErrorReturn,
+			NoBasicAuthLocations: cfgParams.NoBasicAuthLocations,
 		}
 
 		warnings := addSSLConfig(&server, ncp.ingEx.Ingress, rule.Host, ncp.ingEx.Ingress.Spec.TLS, ncp.ingEx.SecretRefs, ncp.isWildcardEnabled)

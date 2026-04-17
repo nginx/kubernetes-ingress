@@ -755,3 +755,91 @@ func TestMakeRewritePattern_WithComplexPatterns(t *testing.T) {
 		})
 	}
 }
+
+func TestPathMatchesAnyPrefix(t *testing.T) {
+	t.Parallel()
+
+	tt := []struct {
+		name     string
+		path     string
+		prefixes []string
+		want     bool
+	}{
+		{
+			name:     "no match",
+			path:     "/tea",
+			prefixes: []string{"/.well-known/acme-challenge/"},
+			want:     false,
+		},
+		{
+			name:     "prefix match",
+			path:     "/.well-known/acme-challenge/abc",
+			prefixes: []string{"/.well-known/acme-challenge/"},
+			want:     true,
+		},
+		{
+			name:     "exact prefix match",
+			path:     "/.well-known/acme-challenge/",
+			prefixes: []string{"/.well-known/acme-challenge/"},
+			want:     true,
+		},
+		{
+			name:     "strips exact modifier",
+			path:     "= /.well-known/acme-challenge/token",
+			prefixes: []string{"/.well-known/acme-challenge/"},
+			want:     true,
+		},
+		{
+			name:     "strips case-sensitive regex modifier",
+			path:     "~ /.well-known/acme-challenge/",
+			prefixes: []string{"/.well-known/acme-challenge/"},
+			want:     true,
+		},
+		{
+			name:     "strips case-insensitive regex modifier",
+			path:     "~* /.well-known/acme-challenge/",
+			prefixes: []string{"/.well-known/acme-challenge/"},
+			want:     true,
+		},
+		{
+			name:     "strips quoted exact modifier",
+			path:     `= "/.well-known/acme-challenge/token"`,
+			prefixes: []string{"/.well-known/acme-challenge/"},
+			want:     true,
+		},
+		{
+			name:     "strips quoted regex modifier",
+			path:     `~ "^/.well-known/acme-challenge/"`,
+			prefixes: []string{"/.well-known/acme-challenge/"},
+			want:     true,
+		},
+		{
+			name:     "empty prefixes",
+			path:     "/tea",
+			prefixes: []string{},
+			want:     false,
+		},
+		{
+			name:     "nil prefixes",
+			path:     "/tea",
+			prefixes: nil,
+			want:     false,
+		},
+		{
+			name:     "multiple prefixes second matches",
+			path:     "/health/check",
+			prefixes: []string{"/.well-known/acme-challenge/", "/health"},
+			want:     true,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := pathMatchesAnyPrefix(tc.path, tc.prefixes)
+			if got != tc.want {
+				t.Errorf("pathMatchesAnyPrefix(%q, %v) = %v, want %v", tc.path, tc.prefixes, got, tc.want)
+			}
+		})
+	}
+}

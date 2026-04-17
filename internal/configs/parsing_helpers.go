@@ -320,6 +320,19 @@ func parsePort(value string) (int, error) {
 	return int(port), nil
 }
 
+// ParseLocationList parses a comma-separated list of location paths,
+// trimming whitespace from each entry and skipping empty entries.
+func ParseLocationList(s string) []string {
+	var locations []string
+	for _, part := range strings.Split(s, ",") {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			locations = append(locations, part)
+		}
+	}
+	return locations
+}
+
 // ParseServiceList ensures that the string is a comma-separated list of services
 func ParseServiceList(s string) map[string]bool {
 	services := make(map[string]bool)

@@ -141,6 +141,8 @@ type Server struct {
 	DisableIPV6 bool
 
 	AppRoot string
+
+	NoBasicAuthLocations []string
 }
 
 // JWTRedirectLocation describes a location for redirecting client requests to a login URL for JWT Authentication.

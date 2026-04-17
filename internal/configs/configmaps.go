@@ -170,6 +170,10 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		}
 	}
 
+	if noBasicAuthLocations, exists := cfgm.Data["no-basic-auth-locations"]; exists {
+		cfgParams.NoBasicAuthLocations = ParseLocationList(noBasicAuthLocations)
+	}
+
 	if hsts, exists, err := GetMapKeyAsBool(cfgm.Data, "hsts", cfgm); exists {
 		if err != nil {
 			nl.Error(l, err)

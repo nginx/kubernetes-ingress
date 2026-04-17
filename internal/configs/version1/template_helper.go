@@ -154,6 +154,25 @@ func extractOriginalPath(processedPath string) string {
 	return processedPath
 }
 
+// pathMatchesAnyPrefix returns true if path starts with any of the given prefixes.
+// Strips nginx location modifiers (both quoted and unquoted forms) before matching.
+func pathMatchesAnyPrefix(path string, prefixes []string) bool {
+	// First try extractOriginalPath for quoted forms: ~ "^/path", = "/path"
+	cleanPath := extractOriginalPath(path)
+
+	// Also handle unquoted forms: = /path, ~ /path, ~* /path
+	cleanPath = strings.TrimPrefix(cleanPath, "= ")
+	cleanPath = strings.TrimPrefix(cleanPath, "~* ")
+	cleanPath = strings.TrimPrefix(cleanPath, "~ ")
+
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(cleanPath, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 var helperFunctions = template.FuncMap{
 	"split":              split,
 	"trim":               trim,
@@ -165,6 +184,7 @@ var helperFunctions = template.FuncMap{
 	"replaceAll":         strings.ReplaceAll,
 	"makeLocationPath":   makeLocationPath,
 	"makeRewritePattern": makeRewritePattern,
+	"pathMatchesAnyPrefix": pathMatchesAnyPrefix,
 	"makeSecretPath":     commonhelpers.MakeSecretPath,
 	"makeOnOffFromBool":  commonhelpers.MakeOnOffFromBool,
 	"boolToPointerBool":  commonhelpers.BoolToPointerBool,

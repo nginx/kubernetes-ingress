@@ -142,6 +142,60 @@ func TestGenerateNginxCfgForBasicAuth(t *testing.T) {
 	}
 }
 
+func TestGenerateNginxCfgForNoBasicAuthLocationsDefault(t *testing.T) {
+	t.Parallel()
+	cafeIngressEx := createCafeIngressEx()
+
+	configParams := NewDefaultConfigParams(context.Background(), false)
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:         &StaticConfigParams{},
+		ingEx:                &cafeIngressEx,
+		apResources:          nil,
+		dosResource:          nil,
+		isMinion:             false,
+		isPlus:               false,
+		BaseCfgParams:        configParams,
+		isResolverConfigured: false,
+		isWildcardEnabled:    false,
+	})
+
+	if result.Servers[0].NoBasicAuthLocations != nil {
+		t.Errorf("generateNginxCfg NoBasicAuthLocations = %v, want nil", result.Servers[0].NoBasicAuthLocations)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfg returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgForNoBasicAuthLocationsAnnotation(t *testing.T) {
+	t.Parallel()
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations["nginx.org/no-basic-auth-locations"] = "/custom-auth,/another"
+
+	configParams := NewDefaultConfigParams(context.Background(), false)
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:         &StaticConfigParams{},
+		ingEx:                &cafeIngressEx,
+		apResources:          nil,
+		dosResource:          nil,
+		isMinion:             false,
+		isPlus:               false,
+		BaseCfgParams:        configParams,
+		isResolverConfigured: false,
+		isWildcardEnabled:    false,
+	})
+
+	expected := []string{"/custom-auth", "/another"}
+	if !reflect.DeepEqual(result.Servers[0].NoBasicAuthLocations, expected) {
+		t.Errorf("generateNginxCfg NoBasicAuthLocations = %v, want %v", result.Servers[0].NoBasicAuthLocations, expected)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfg returned warnings: %v", warnings)
+	}
+}
+
 func TestGenerateNginxCfgForAppRoot(t *testing.T) {
 	t.Parallel()
 	cafeIngressEx := createCafeIngressEx()
