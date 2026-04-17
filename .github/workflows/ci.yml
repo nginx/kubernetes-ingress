@@ -196,7 +196,7 @@ jobs:
           echo 'image_matrix_plus: ${{ steps.vars.outputs.image_matrix_plus }}'
           echo 'image_matrix_nap: ${{ steps.vars.outputs.image_matrix_nap }}'
           echo 'docker_build: ${{ steps.docker_build.outputs.docker_build }}'
-          echo run_tests: ${{ steps.run_tests.outputs.run_tests }}
+          echo 'run_tests: ${{ steps.run_tests.outputs.run_tests }}'
 
   verify-codegen:
     name: Verify generated code
@@ -204,7 +204,9 @@ jobs:
     permissions:
       contents: read
     needs: checks
-    if: ${{ needs.checks.outputs.run_tests == 'false' }}
+    if: >-
+      needs.checks.outputs.run_tests == 'true' &&
+      needs.checks.outputs.binary_cache_hit == 'false'
     env:
       GOPROXY: ${{ needs.checks.outputs.go_proxy }}
     steps:
@@ -215,32 +217,26 @@ jobs:
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: go.mod
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
       - name: Check if go.mod and go.sum are up to date
         run: go mod tidy && git diff --exit-code -- go.mod go.sum
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
       - name: Check if CRDs changed
         run: make update-crds && git diff --name-only --exit-code config/crd/bases
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
       - name: Check if Codegen changed
         run: |
           cd ../.. && mkdir -p github.com/nginx && mv kubernetes-ingress/kubernetes-ingress github.com/nginx/ && cd github.com/nginx/kubernetes-ingress
           make update-codegen && git diff --name-only --exit-code pkg/**
           cd ../../.. && mv github.com/nginx/kubernetes-ingress kubernetes-ingress/kubernetes-ingress
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
       - name: Install gofumpt
         run: go install mvdan.cc/gofumpt@v0.8.0
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
       - name: Check if telemetry schema changed
         run: |
           export PATH=$PATH:$(go env GOPATH)/bin
           make telemetry-schema && git diff --name-only --exit-code internal/telemetry
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
   unit-tests:
     name: Unit Tests
@@ -324,7 +320,9 @@ jobs:
     permissions:
       contents: read
     needs: checks
-    if: ${{ needs.checks.outputs.run_tests != 'true' }}
+    if: >-
+      needs.checks.outputs.run_tests == 'true' &&
+      needs.checks.outputs.binary_cache_hit == 'false'
     env:
       GOPROXY: ${{ needs.checks.outputs.go_proxy }}
     steps:
@@ -335,12 +333,10 @@ jobs:
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: go.mod
-        if: ${{ needs.checks.outputs.binary_cache_hit == 'false' }}
 
       - name: Generate secrets for tests
         run: |
           make secrets
-        if: ${{ needs.checks.outputs.binary_cache_hit == 'false' }}
 
       - name: Run Static Check
         uses: dominikh/staticcheck-action@9716614d4101e79b4340dd97b10e54d68234e431 # v1.4.1
@@ -348,7 +344,6 @@ jobs:
           version: "2026.1" # renovate: datasource=github-releases depName=dominikh/go-tools
           install-go: false
           use-cache: true
-        if: ${{ needs.checks.outputs.binary_cache_hit == 'false' }}
 
   govulncheck:
     name: Vulnerability Check
@@ -356,7 +351,9 @@ jobs:
     permissions:
       contents: read
     needs: checks
-    if: ${{ needs.checks.outputs.run_tests != 'true' }}
+    if: >-
+      needs.checks.outputs.run_tests == 'true' &&
+      needs.checks.outputs.binary_cache_hit == 'false'
     env:
       GOPROXY: ${{ needs.checks.outputs.go_proxy }}
     steps:
@@ -367,18 +364,16 @@ jobs:
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: go.mod
-        if: ${{ needs.checks.outputs.binary_cache_hit == 'false' }}
 
       - name: Run govulncheck
         uses: golang/govulncheck-action@b625fbe08f3bccbe446d94fbf87fcc875a4f50ee # v1.0.4
         with:
           repo-checkout: false
           cache: true
-        if: ${{ needs.checks.outputs.binary_cache_hit == 'false' }}
 
   build-artifacts:
     name: Build Artifacts
-    needs: [checks, unit-tests, staticcheck, govulncheck, verify-codegen]
+    needs: [checks, unit-tests]
     uses: ./.github/workflows/build-artifacts.yml
     with:
       force: ${{ needs.checks.outputs.docker_build == 'true' }}
@@ -394,7 +389,7 @@ jobs:
       ic-version: ${{ needs.checks.outputs.ic_version }}
       authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
       runner: ubuntu-24.04
-      write-to-cache: ${{ inputs.force != true }}
+      write-to-cache: true
     permissions:
       contents: read
       actions: read
