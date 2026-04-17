@@ -256,7 +256,7 @@ jobs:
         with:
           version: 'v3.18.6'
         if: >-
-          needs.checks.outputs.run_tests == 'true' ||
+          needs.checks.outputs.run_tests == 'true' &&
           needs.checks.outputs.binary_cache_hit == 'false'
 
       - name: Azure login
@@ -266,9 +266,9 @@ jobs:
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
         if: >-
-          (needs.checks.outputs.forked_workflow == 'false' &&
-          (needs.checks.outputs.run_tests == 'true' ||
-          needs.checks.outputs.binary_cache_hit == 'false'))
+          needs.checks.outputs.forked_workflow == 'false' &&
+          (needs.checks.outputs.run_tests == 'true' &&
+          needs.checks.outputs.binary_cache_hit == 'false')
 
       - name: Setup secrets
         id: secrets
@@ -278,30 +278,30 @@ jobs:
           echo "::add-mask::$CODECOV_TOKEN"
           echo "CODECOV_TOKEN=$CODECOV_TOKEN" >> $GITHUB_OUTPUT
         if: >-
-          (needs.checks.outputs.forked_workflow == 'false' &&
-          (needs.checks.outputs.run_tests == 'true' ||
-          needs.checks.outputs.binary_cache_hit == 'false'))
+          needs.checks.outputs.forked_workflow == 'false' &&
+          (needs.checks.outputs.run_tests == 'true' &&
+          needs.checks.outputs.binary_cache_hit == 'false')
 
       - name: Setup Golang Environment
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: go.mod
         if: >-
-          needs.checks.outputs.run_tests == 'true' ||
+          needs.checks.outputs.run_tests == 'true' &&
           needs.checks.outputs.binary_cache_hit == 'false'
 
       - name: Generate secrets for tests
         run: |
           make secrets
         if: >-
-          needs.checks.outputs.run_tests == 'true' ||
+          needs.checks.outputs.run_tests == 'true' &&
           needs.checks.outputs.binary_cache_hit == 'false'
 
       - name: Run Tests
         run: make cover
         if: >-
           inputs.force ||
-          needs.checks.outputs.run_tests == 'true' ||
+          needs.checks.outputs.run_tests == 'true' &&
           needs.checks.outputs.binary_cache_hit == 'false'
 
       - name: Upload coverage to Codecov
@@ -311,7 +311,7 @@ jobs:
           token: ${{ steps.secrets.outputs.CODECOV_TOKEN }} # required
         if: >-
           (needs.checks.outputs.forked_workflow == 'false' &&
-          (needs.checks.outputs.run_tests == 'true' ||
+          (needs.checks.outputs.run_tests == 'true' &&
           needs.checks.outputs.binary_cache_hit == 'false'))
 
   staticcheck:
@@ -377,7 +377,7 @@ jobs:
     uses: ./.github/workflows/build-artifacts.yml
     with:
       force: ${{ needs.checks.outputs.docker_build == 'true' }}
-      branch: ${{ (github.head_ref && needs.checks.outputs.forked_workflow != 'true') && github.head_ref || github.ref }}
+      branch: ${{ (github.head_ref && needs.checks.outputs.forked_workflow == 'false') && github.head_ref || github.ref }}
       tag: ${{ needs.checks.outputs.build_tag }}
       docker-md5: ${{ needs.checks.outputs.docker_md5 }}
       go-md5: ${{ needs.checks.outputs.go_code_md5 }}
@@ -387,7 +387,7 @@ jobs:
       image-matrix-plus: ${{ needs.checks.outputs.image_matrix_plus }}
       image-matrix-nap: ${{ needs.checks.outputs.image_matrix_nap }}
       ic-version: ${{ needs.checks.outputs.ic_version }}
-      authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
+      authenticated: ${{ needs.checks.outputs.forked_workflow == 'false' }}
       runner: ubuntu-24.04
       write-to-cache: true
     permissions:
@@ -413,12 +413,12 @@ jobs:
     if: >-
       needs.checks.outputs.forked_workflow == 'false' &&
       (needs.checks.outputs.run_tests == 'true' ||
-      needs.checks.outputs.binary_cache_hit == 'false')
+      needs.checks.outputs.docker_build == 'true')
 
   package-tests:
     if: >-
       needs.checks.outputs.run_tests == 'true' ||
-      needs.checks.outputs.binary_cache_hit == 'false'
+      needs.checks.outputs.docker_build == 'true'
     name: Package Tests
     runs-on: ubuntu-24.04
     needs: [checks, build-artifacts]
@@ -500,7 +500,7 @@ jobs:
   helm-tests:
     if: >-
       needs.checks.outputs.run_tests == 'true' ||
-      needs.checks.outputs.binary_cache_hit == 'false'
+      needs.checks.outputs.docker_build == 'true'
     name: Helm Tests ${{ matrix.base-os }}
     runs-on: ubuntu-24.04
     needs: [checks, build-artifacts]
@@ -686,7 +686,9 @@ jobs:
         if: always()
 
   setup-matrix:
-    if: ${{ needs.checks.outputs.docker_build == 'true' || needs.checks.outputs.run_tests == 'true' }}
+    if: >-
+      needs.checks.outputs.run_tests == 'true' ||
+      needs.checks.outputs.docker_build == 'true'
     name: Setup Matrix for Smoke Tests
     runs-on: ubuntu-24.04
     needs: [build-artifacts, checks]
@@ -768,7 +770,9 @@ jobs:
         if: ${{ steps.check-image.outcome == 'failure' }}
 
   smoke-tests-oss:
-    if: ${{ needs.checks.outputs.docker_build == 'true' || needs.checks.outputs.run_tests == 'true' }}
+    if: >-
+      needs.checks.outputs.run_tests == 'true' ||
+      needs.checks.outputs.docker_build == 'true'
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     needs:
       - checks
@@ -796,7 +800,9 @@ jobs:
       force: ${{ needs.checks.outputs.run_tests == 'true' }}
 
   smoke-tests-plus:
-    if: ${{ needs.checks.outputs.docker_build == 'true' || needs.checks.outputs.run_tests == 'true' }}
+    if: >-
+      needs.checks.outputs.run_tests == 'true' ||
+      needs.checks.outputs.docker_build == 'true'
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     needs:
       - checks
@@ -824,7 +830,9 @@ jobs:
       force: ${{ needs.checks.outputs.run_tests == 'true' }}
 
   smoke-tests-nap:
-    if: ${{ needs.checks.outputs.docker_build == 'true' || needs.checks.outputs.run_tests == 'true' }}
+    if: >-
+      needs.checks.outputs.run_tests == 'true' ||
+      needs.checks.outputs.docker_build == 'true'
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     needs:
       - checks
