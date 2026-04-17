@@ -50,6 +50,9 @@ const UseClusterIPAnnotation = "nginx.org/use-cluster-ip"
 // SSLRedirectAnnotation is the annotation where the SSL redirect boolean is specified.
 const SSLRedirectAnnotation = "nginx.org/ssl-redirect"
 
+// NoBasicAuthLocationsAnnotation is the annotation where paths exempt from basic auth are specified.
+const NoBasicAuthLocationsAnnotation = "nginx.org/no-basic-auth-locations"
+
 // HTTPRedirectCodeAnnotation is the annotation where the HTTP redirect code is specified.
 const HTTPRedirectCodeAnnotation = "nginx.org/http-redirect-code"
 
@@ -342,6 +345,10 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		} else {
 			cfgParams.SSLRedirect = sslRedirect
 		}
+	}
+
+	if noBasicAuthLocations, exists := ingEx.Ingress.Annotations[NoBasicAuthLocationsAnnotation]; exists {
+		cfgParams.NoBasicAuthLocations = ParseLocationList(noBasicAuthLocations)
 	}
 
 	if httpRedirectCode, exists := ingEx.Ingress.Annotations[HTTPRedirectCodeAnnotation]; exists {

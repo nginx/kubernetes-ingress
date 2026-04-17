@@ -5522,3 +5522,117 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithPoliciesErrorReturnLocation(t
 	snaps.MatchSnapshot(t, bufString)
 	t.Log(bufString)
 }
+
+func TestExecuteTemplate_ForIngressForNGINXWithNoBasicAuthLocations(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	cfg := IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "auth.example.com",
+				ServerTokens: "off",
+				BasicAuth: &BasicAuth{
+					Realm:  "Protected",
+					Secret: "/etc/nginx/secrets/htpasswd",
+				},
+				NoBasicAuthLocations: []string{"/.well-known/acme-challenge/"},
+				Locations: []Location{
+					{
+						Path:                "/",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "10s",
+						ProxyReadTimeout:    "10s",
+						ProxySendTimeout:    "10s",
+						ClientMaxBodySize:   "1m",
+						ProxyPass:           "http://test",
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Ingress: Ingress{
+			Name:      "auth-ingress",
+			Namespace: "default",
+		},
+	}
+
+	err := tmpl.Execute(buf, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+
+	if !strings.Contains(bufString, "location /.well-known/acme-challenge/") {
+		t.Error("want exempt location block for ACME challenge path")
+	}
+	if !strings.Contains(bufString, "auth_basic off;") {
+		t.Error("want auth_basic off in exempt location")
+	}
+	if !strings.Contains(bufString, `auth_basic "Protected";`) {
+		t.Error("want auth_basic enabled for non-exempt locations")
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithNoBasicAuthLocations(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	cfg := IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "auth.example.com",
+				ServerTokens: "off",
+				BasicAuth: &BasicAuth{
+					Realm:  "Protected",
+					Secret: "/etc/nginx/secrets/htpasswd",
+				},
+				NoBasicAuthLocations: []string{"/.well-known/acme-challenge/"},
+				Locations: []Location{
+					{
+						Path:                "/",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "10s",
+						ProxyReadTimeout:    "10s",
+						ProxySendTimeout:    "10s",
+						ClientMaxBodySize:   "1m",
+						ProxyPass:           "http://test",
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Ingress: Ingress{
+			Name:      "auth-ingress",
+			Namespace: "default",
+		},
+	}
+
+	err := tmpl.Execute(buf, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+
+	if !strings.Contains(bufString, "location /.well-known/acme-challenge/") {
+		t.Error("want exempt location block for ACME challenge path")
+	}
+	if !strings.Contains(bufString, "auth_basic off;") {
+		t.Error("want auth_basic off in exempt location")
+	}
+	if !strings.Contains(bufString, `auth_basic "Protected";`) {
+		t.Error("want auth_basic enabled for non-exempt locations")
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}

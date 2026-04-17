@@ -50,6 +50,7 @@ const (
 	upstreamZoneSizeAnnotation            = "nginx.org/upstream-zone-size"
 	basicAuthSecretAnnotation             = "nginx.org/basic-auth-secret" // #nosec G101
 	basicAuthRealmAnnotation              = "nginx.org/basic-auth-realm"
+	noBasicAuthLocationsAnnotation        = "nginx.org/no-basic-auth-locations"
 	listenPortsAnnotation                 = "nginx.org/listen-ports"
 	listenPortsSSLAnnotation              = "nginx.org/listen-ports-ssl"
 	keepaliveAnnotation                   = "nginx.org/keepalive"
@@ -258,6 +259,9 @@ var (
 		basicAuthRealmAnnotation: {
 			validateRelatedAnnotation(basicAuthSecretAnnotation, validateNoop),
 			validateRealmAnnotation,
+		},
+		noBasicAuthLocationsAnnotation: {
+			validateRelatedAnnotation(basicAuthSecretAnnotation, validateNoop),
 		},
 		configs.JWTRealmAnnotation: {
 			validatePlusOnlyAnnotation,

@@ -86,7 +86,53 @@ URI: /coffee
 Request ID: f91f15d1af17556e552557df2f5a0dd2
 ```
 
-## Example 2: a Separate Htpasswd Per Path
+## Example 2: Basic Auth with ACME/Let's Encrypt (cert-manager)
+
+When using Basic Auth together with cert-manager for automatic TLS certificates, the ACME HTTP-01 challenge path
+`/.well-known/acme-challenge/` must be excluded from authentication. Otherwise, the ACME validation server receives a
+401 response and certificate issuance fails.
+
+Use the `nginx.org/no-basic-auth-locations` annotation to exempt the ACME challenge path from Basic Auth:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cafe-ingress
+  annotations:
+    nginx.org/basic-auth-secret: "cafe-passwd"
+    nginx.org/basic-auth-realm: "Cafe App"
+    nginx.org/no-basic-auth-locations: "/.well-known/acme-challenge/"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - cafe.example.com
+    secretName: cafe-tls
+  rules:
+  - host: cafe.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: cafe-svc
+            port:
+              number: 80
+```
+
+The annotation accepts a comma-separated list of paths. It can also be set globally via the ConfigMap key
+`no-basic-auth-locations`.
+
+> **Note**: When combined with `nginx.org/ssl-redirect: "true"`, also set
+> `acme.cert-manager.io/http01-edit-in-place: "true"` so cert-manager inserts the challenge path into the existing
+> Ingress instead of creating a separate one. ACME validators (Let's Encrypt, Pebble, cert-manager's self-check) follow
+> HTTP-to-HTTPS redirects with insecure TLS verification, so the redirect itself is not a problem — but the inserted
+> challenge location must not inherit the server-level `auth_basic`.
+
+## Example 3: a Separate Htpasswd Per Path
 
 In the following example we enable Basic Auth validation for the [mergeable Ingresses](../mergeable-ingress-types) with
 a separate Basic Auth user:password list per path:

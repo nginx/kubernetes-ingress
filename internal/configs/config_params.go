@@ -89,6 +89,7 @@ type ConfigParams struct {
 	ProxyNextUpstreamTries                 *uint64
 	RedirectToHTTPS                        bool
 	HTTPRedirectCode                       int
+	NoBasicAuthLocations                   []string
 	ResolverAddresses                      []string
 	ResolverIPV6                           bool
 	ResolverTimeout                        string

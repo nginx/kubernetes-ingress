@@ -1444,6 +1444,66 @@ server {
 
 ---
 
+[TestExecuteTemplate_ForIngressForNGINXPlusWithNoBasicAuthLocations - 1]
+# configuration for default/auth-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;
+}
+
+
+server {
+
+    server_tokens "off";
+
+    server_name auth.example.com;
+
+    status_zone ;
+    set $resource_type "ingress";
+    set $resource_name "auth-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+    auth_basic "Protected";
+    auth_basic_user_file /etc/nginx/secrets/htpasswd;
+
+    
+    location /.well-known/acme-challenge/ {
+        auth_basic off;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://test;
+    }
+    location / {
+        set $service "";
+        status_zone "";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 1m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
 [TestExecuteTemplate_ForIngressForNGINXPlusWithPoliciesErrorReturnLocation - 1]
 # configuration for default/cafe-ingress
 upstream test {
@@ -2768,6 +2828,60 @@ server {
         proxy_set_header X-Forwarded-Host $host;
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto https;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXWithNoBasicAuthLocations - 1]
+# configuration for default/auth-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+}
+
+
+
+server {
+
+    server_tokens off;
+
+    server_name auth.example.com;
+
+    set $resource_type "ingress";
+    set $resource_name "auth-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    auth_basic "Protected";
+    auth_basic_user_file /etc/nginx/secrets/htpasswd;
+    location /.well-known/acme-challenge/ {
+        auth_basic off;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://test;
+    }
+    location / {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 1m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://test;
         

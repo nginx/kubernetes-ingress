@@ -2987,6 +2987,46 @@ func TestParseConfigMapWithHTTPRedirectCode(t *testing.T) {
 	}
 }
 
+func TestParseConfigMapNoBasicAuthLocations(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		configMap map[string]string
+		expected  []string
+		msg       string
+	}{
+		{
+			configMap: map[string]string{},
+			expected:  nil,
+			msg:       "default when key absent",
+		},
+		{
+			configMap: map[string]string{"no-basic-auth-locations": "/custom"},
+			expected:  []string{"/custom"},
+			msg:       "single custom path",
+		},
+		{
+			configMap: map[string]string{"no-basic-auth-locations": "/a,/b"},
+			expected:  []string{"/a", "/b"},
+			msg:       "multiple paths",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			cm := &v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "nginx-config",
+					Namespace: "nginx-ingress",
+				},
+				Data: test.configMap,
+			}
+			result, _ := ParseConfigMap(context.Background(), cm, false, false, false, false, false, makeEventLogger())
+			assert.Equal(t, test.expected, result.NoBasicAuthLocations, test.msg)
+		})
+	}
+}
+
 func makeEventLogger() record.EventRecorder {
 	return record.NewFakeRecorder(1024)
 }
