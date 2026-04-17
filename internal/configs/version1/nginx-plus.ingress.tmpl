@@ -79,13 +79,13 @@ server {
 	{{- end}}
 
 	{{- with $server.IngressMTLS }}
-  ssl_client_certificate {{ .ClientCert }};
-  {{- if .ClientCrl }}
-  ssl_crl {{ .ClientCrl }};
-  {{- end }}
-  ssl_verify_client {{ .VerifyClient }};
-  ssl_verify_depth {{ .VerifyDepth }};
-  {{- end }}
+	ssl_client_certificate {{ .ClientCert }};
+	{{- if .ClientCrl }}
+	ssl_crl {{ .ClientCrl }};
+	{{- end }}
+	ssl_verify_client {{ .VerifyClient }};
+	ssl_verify_depth {{ .VerifyDepth }};
+	{{- end }}
 
 	{{- range $allow := $server.Allow }}
 		allow {{ $allow }};

@@ -389,7 +389,6 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			Ports:                  cfgParams.Ports,
 			SSLPorts:               cfgParams.SSLPorts,
 			TLSPassthrough:         ncp.staticParams.TLSPassthrough,
-			IngressMTLS:            policyCfg.IngressMTLS,
 			AppProtectEnable:       cfgParams.AppProtectEnable,
 			AppProtectLogEnable:    cfgParams.AppProtectLogEnable,
 			SpiffeCerts:            cfgParams.SpiffeServerCerts,
@@ -403,6 +402,18 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 
 		warnings := addSSLConfig(&server, ncp.ingEx.Ingress, rule.Host, ncp.ingEx.Ingress.Spec.TLS, ncp.ingEx.SecretRefs, ncp.isWildcardEnabled)
 		allWarnings.Add(warnings)
+
+		if policyCfg.IngressMTLS != nil {
+			if server.SSL {
+				server.IngressMTLS = policyCfg.IngressMTLS
+			} else {
+				allWarnings.AddWarningf(
+					ncp.ingEx.Ingress,
+					"IngressMTLS policy is ignored for host %q because TLS is not enabled for that host",
+					rule.Host,
+				)
+			}
+		}
 
 		if hasAppProtect {
 			if apResources != nil {
