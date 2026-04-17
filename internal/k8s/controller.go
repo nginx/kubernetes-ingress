@@ -2326,6 +2326,11 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 		}
 		if err := lbc.addIngressMTLSSecretRefs(ingEx.SecretRefs, policies); err != nil {
 			nl.Warnf(lbc.Logger, "Error getting IngressMTLS secret refs for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
+    }
+		if err := lbc.addEgressMTLSSecretRefs(ingEx.SecretRefs, policies); err != nil {
+			msg := fmt.Sprintf("Policy error for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
+			nl.Warnf(lbc.Logger, "%s", msg)
+			ingEx.PolicyWarnings = append(ingEx.PolicyWarnings, msg)
 		}
 	} else if ingEx.Ingress.Annotations[configs.PoliciesAnnotation] != "" || ingEx.Ingress.Annotations[configs.PoliciesAnnotationPlus] != "" {
 		msg := fmt.Sprintf("Ingress %v/%v has a policies annotation but custom resources are not enabled; policies will be ignored", ing.Namespace, ing.Name)
@@ -3013,6 +3018,7 @@ func (lbc *LoadBalancerController) addEgressMTLSSecretRefs(secretRefs map[string
 		if pol.Spec.EgressMTLS == nil {
 			continue
 		}
+		// Resolve both client and trusted CA secrets up front so policy validation and template rendering share the same inputs.
 		if pol.Spec.EgressMTLS.TLSSecret != "" {
 			secretKey := fmt.Sprintf("%v/%v", pol.Namespace, pol.Spec.EgressMTLS.TLSSecret)
 			secretRef := lbc.secretStore.GetSecret(secretKey)

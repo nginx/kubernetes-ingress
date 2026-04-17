@@ -105,6 +105,26 @@ jobs:
           echo $RHEL_CREDS > rhel_license
         if: ${{ inputs.authenticated }}
 
+      - name: Azure login Common Vault
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        with:
+          client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_COMMON_VAULT_SUBSCRIPTION_ID }}
+        if: ${{ inputs.authenticated }}
+
+      - name: Setup secrets Common Vault
+        id: secrets-common
+        run: |
+          echo "Setting secrets for job"
+          DOCKER_USERNAME=$(az keyvault secret show --name docker-username --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$DOCKER_USERNAME"
+          echo "DOCKER_USERNAME=$DOCKER_USERNAME" >> $GITHUB_OUTPUT
+          DOCKER_PASSWORD=$(az keyvault secret show --name docker-password --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$DOCKER_PASSWORD"
+          echo "DOCKER_PASSWORD=$DOCKER_PASSWORD" >> $GITHUB_OUTPUT
+        if: ${{ inputs.authenticated }}
+
       - name: Authenticate to Google Cloud
         id: auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
@@ -120,6 +140,13 @@ jobs:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
+        if: ${{ inputs.authenticated }}
+
+      - name: DockerHub Login
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        with:
+          username: ${{ steps.secrets-common.outputs.DOCKER_USERNAME }}
+          password: ${{ steps.secrets-common.outputs.DOCKER_PASSWORD }}
         if: ${{ inputs.authenticated }}
 
       - name: Check if stable image exists

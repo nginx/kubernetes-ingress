@@ -2889,6 +2889,43 @@ func TestGeneratePoliciesFails(t *testing.T) {
 		{
 			policyRefs: []conf_v1.PolicyReference{
 				{
+					Name:      "egress-mtls-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/egress-mtls-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "egress-mtls-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						EgressMTLS: &conf_v1.EgressMTLS{
+							TLSSecret: "egress-mtls-secret",
+							SSLName:   "foo.com",
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{
+				secretRefs: map[string]*secrets.SecretReference{},
+			},
+			context: "route",
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`EgressMTLS policy default/egress-mtls-policy references an invalid secret default/egress-mtls-secret: secret doesn't exist`,
+				},
+			},
+			msg: "egress mtls referencing absent tls secret ref",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
 					Name:      "oidc-policy",
 					Namespace: "default",
 				},

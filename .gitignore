@@ -24,6 +24,7 @@ Session.vim
 # Ingress Controller binaries
 osx-nginx-ingress
 nginx-ingress
+nginx-ingress-*
 !nginx-ingress/
 osx-nginx-plus-ingress
 nginx-plus-ingress
@@ -179,8 +180,12 @@ common-secrets/example-egress-trusted-ca-secret-crl.yaml
 common-secrets/example-egress-mtls-client-secret.yaml
 examples/custom-resources/egress-mtls/egress-trusted-ca-secret.yaml
 examples/custom-resources/egress-mtls/egress-trusted-ca-secret-crl.yaml
+examples/ingress-resources/egress-mtls/egress-trusted-ca-secret.yaml
+examples/ingress-resources/egress-mtls/egress-trusted-ca-secret-crl.yaml
 examples/custom-resources/egress-mtls/egress-mtls-secret.yaml
+examples/ingress-resources/egress-mtls/egress-mtls-secret.yaml
 examples/custom-resources/egress-mtls/secure-app-tls-secret.yaml
+examples/ingress-resources/egress-mtls/secure-app-tls-secret.yaml
 common-secrets/keycloak-ca-secret.yaml
 common-secrets/keycloak-tls-secret.yaml
 common-secrets/keycloak-ca-secret-crl.yaml

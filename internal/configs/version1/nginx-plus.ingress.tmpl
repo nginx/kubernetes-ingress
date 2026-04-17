@@ -120,6 +120,23 @@ server {
 	set $resource_namespace "{{$.Ingress.Namespace}}";
 	set $service "-";
 
+	{{- with $server.EgressMTLS }}
+		{{- if .Certificate }}
+	proxy_ssl_certificate {{ makeSecretPath .Certificate $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+	proxy_ssl_certificate_key {{ makeSecretPath .CertificateKey $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+		{{- end }}
+		{{- if .TrustedCert }}
+	proxy_ssl_trusted_certificate {{ .TrustedCert }};
+		{{- end }}
+	proxy_ssl_verify {{ if .VerifyServer }}on{{else}}off{{end}};
+	proxy_ssl_verify_depth {{ .VerifyDepth }};
+	proxy_ssl_protocols {{ .Protocols }};
+	proxy_ssl_ciphers {{ .Ciphers }};
+	proxy_ssl_session_reuse {{ if .SessionReuse }}on{{else}}off{{end}};
+	proxy_ssl_server_name {{ if .ServerName }}on{{else}}off{{end}};
+	proxy_ssl_name {{ .SSLName }};
+	{{- end }}
+
 	{{- with $server.WAF }}
 	app_protect_enable {{ .Enable }};
 	{{- if .ApPolicy }}
@@ -296,6 +313,23 @@ server {
 		{{- end }}
 		{{- if $location.RewriteTarget}}
 		rewrite {{ makeRewritePattern $location $.Ingress.Annotations }} {{$location.RewriteTarget}} break;
+		{{- end}}
+		{{- $proxyOrGRPC := "proxy" }}{{ if $location.GRPC }}{{ $proxyOrGRPC = "grpc" }}{{ end }}
+		{{- with $location.EgressMTLS}}
+			{{- if .Certificate }}
+		{{$proxyOrGRPC}}_ssl_certificate {{ makeSecretPath .Certificate $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+		{{$proxyOrGRPC}}_ssl_certificate_key {{ makeSecretPath .CertificateKey $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+			{{- end }}
+			{{- if .TrustedCert }}
+		{{$proxyOrGRPC}}_ssl_trusted_certificate {{ .TrustedCert }};
+			{{- end }}
+		{{$proxyOrGRPC}}_ssl_verify {{ if .VerifyServer }}on{{else}}off{{end}};
+		{{$proxyOrGRPC}}_ssl_verify_depth {{ .VerifyDepth }};
+		{{$proxyOrGRPC}}_ssl_protocols {{ .Protocols }};
+		{{$proxyOrGRPC}}_ssl_ciphers {{ .Ciphers }};
+		{{$proxyOrGRPC}}_ssl_session_reuse {{ if .SessionReuse }}on{{else}}off{{end}};
+		{{$proxyOrGRPC}}_ssl_server_name {{ if .ServerName }}on{{else}}off{{end}};
+		{{$proxyOrGRPC}}_ssl_name {{ .SSLName }};
 		{{- end}}
 		{{- if $location.GRPC}}
 		{{- if not $server.GRPCOnly}}

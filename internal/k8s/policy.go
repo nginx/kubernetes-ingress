@@ -124,6 +124,9 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 				continue
 			case pol.Spec.IngressMTLS != nil:
 				// IngressMTLS policy is supported on Ingress
+        continue
+			case pol.Spec.EgressMTLS != nil:
+				// Egress MTLS policy is supported on Ingress
 				continue
 			default: // Unsupported policy type on Ingress
 				msg := fmt.Sprintf("Policy %s/%s has unsupported type on Ingress resource %s/%s",
