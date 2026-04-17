@@ -2325,8 +2325,10 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 			}
 		}
 		if err := lbc.addIngressMTLSSecretRefs(ingEx.SecretRefs, policies); err != nil {
-			nl.Warnf(lbc.Logger, "Error getting IngressMTLS secret refs for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
-    }
+			msg := fmt.Sprintf("Policy error for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
+			nl.Warnf(lbc.Logger, "%s", msg)
+			ingEx.PolicyWarnings = append(ingEx.PolicyWarnings, msg)
+		}
 		if err := lbc.addEgressMTLSSecretRefs(ingEx.SecretRefs, policies); err != nil {
 			msg := fmt.Sprintf("Policy error for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
 			nl.Warnf(lbc.Logger, "%s", msg)
