@@ -170,9 +170,9 @@ jobs:
           run_tests="true"
           if [ "${{ inputs.run_tests }}" = "false" ]; then
             run_tests="false"
-          elif [ "${{ steps.docs.outputs.docs_only }}" = "false" ]; then
+          elif [ "${{ steps.docs.outputs.docs_only }}" = "true" ]; then
             run_tests="false"
-          elif [ "${{ steps.vars.outputs.forked_workflow }}" = "false" ] && [ "${{ steps.binary-cache.outputs.cache-hit }}" = "true" ] && [ "${{ steps.vars.outputs.stable_image_exists }}" = "true" ]; then
+          elif [ "${{ steps.binary-cache.outputs.cache-hit }}" = "true" ] && [ "${{ steps.vars.outputs.stable_image_exists }}" = "true" ]; then
             run_tests="false"
           fi
           echo "run_tests=${run_tests}" >> $GITHUB_OUTPUT
