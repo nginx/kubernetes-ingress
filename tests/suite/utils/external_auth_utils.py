@@ -37,7 +37,6 @@ ext_auth_pol_valid_src = f"{TEST_DATA}/external-auth/policies/external-auth-poli
 ext_auth_pol_valid_multi_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-valid-multi.yaml"
 ext_auth_pol_invalid_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-invalid.yaml"
 ext_auth_pol_invalid_svc_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-invalid-svc.yaml"
-ext_auth_pol_cross_ns_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-cross-ns.yaml"
 ext_auth_pol_signin_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-signin.yaml"
 ext_auth_pol_custom_port_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-custom-port.yaml"
 
@@ -144,59 +143,7 @@ def build_ext_auth_headers(vs_host, credentials=None):
     return {"host": vs_host, "authorization": f"Basic {to_base64(data)}"}
 
 
-# ---------------------------------------------------------------------------
-# Setup / teardown helpers
-# ---------------------------------------------------------------------------
-
-
-def setup_ext_auth(
-    kube_apis,
-    namespace,
-    credentials,
-    policy_yamls,
-    vs_host,
-    *,
-    tls=False,
-    validate_policies=True,
-):
-    """Setup external auth backend (HTTP or TLS) with policies and request headers.
-
-    Args:
-        kube_apis: KubeApis instance.
-        namespace: Kubernetes namespace.
-        credentials: Path to credentials file, or None for no-auth requests.
-        policy_yamls: List of policy YAML file paths (1 or more).
-        vs_host: The VirtualServer/VSR host header value.
-        tls: If True, deploy TLS backend with server TLS and CA secrets.
-        validate_policies: If True, wait for each policy to reach Valid state.
-
-    Returns:
-        (secret_names: list[str], policy_names: list[str], headers: dict)
-    """
-    if tls:
-        secret_yamls = [
-            ext_auth_backend_secret_src,
-            ext_auth_tls_server_secret_src,
-            ext_auth_tls_ca_secret_src,
-        ]
-        backend_yaml = ext_auth_tls_backend_src
-    else:
-        secret_yamls = [ext_auth_backend_secret_src]
-        backend_yaml = ext_auth_backend_src
-
-    secret_names, policy_names = setup_policy_backend(
-        kube_apis,
-        namespace,
-        secret_yamls=secret_yamls,
-        backend_yaml=backend_yaml,
-        policy_yamls=policy_yamls,
-        validate_policies=validate_policies,
-    )
-    headers = build_ext_auth_headers(vs_host, credentials)
-    return secret_names, policy_names, headers
-
-
-def teardown_ext_auth(kube_apis, namespace, secret_names, policy_names, *, tls=False):
+def _teardown_ext_auth_resources(kube_apis, namespace, secret_names, policy_names, *, tls=False):
     """Teardown external auth backend (HTTP or TLS).
 
     Args:
@@ -221,71 +168,86 @@ def teardown_ext_auth(kube_apis, namespace, secret_names, policy_names, *, tls=F
 
 
 @pytest.fixture
-def ext_auth_setup(kube_apis, test_namespace):
-    """Factory fixture that creates external auth resources with guaranteed teardown.
+def ext_auth_setup(request, kube_apis, test_namespace):
+    """Parametrized fixture that deploys the external auth backend and policies.
 
-    Yields a callable with the same interface as ``setup_ext_auth`` minus
-    ``kube_apis`` and ``namespace`` (they are captured from the enclosing
-    fixtures).  Resources are tracked and torn down after the test completes
-    -- even when the test raises an exception.
+    ``request.param`` is a tuple: ``(policy_yamls[, tls[, validate_policies]])``.
 
-    Destructive tests that manually delete a resource mid-test are safe:
-    the teardown silently ignores resources that no longer exist.
+    .. code-block:: python
+
+        @pytest.mark.parametrize("ext_auth_setup", [
+            ([ext_auth_pol_valid_src],),
+        ], indirect=True)
+        def test_something(self, ext_auth_setup, ...):
+            secret_names, policy_names = ext_auth_setup
+            headers = build_ext_auth_headers("host", valid_credentials)
+
+    Teardown is guaranteed via ``request.addfinalizer`` -- even when the test
+    raises an exception or deletes resources mid-test.
     """
-    created = []
+    params = request.param
+    policy_yamls = params[0]
+    tls = params[1] if len(params) > 1 else False
+    validate_policies = params[2] if len(params) > 2 else True
 
-    def _setup(credentials, policy_yamls, vs_host, *, tls=False, validate_policies=True):
-        secret_names, policy_names, headers = setup_ext_auth(
-            kube_apis,
-            test_namespace,
-            credentials,
-            policy_yamls,
-            vs_host,
-            tls=tls,
-            validate_policies=validate_policies,
-        )
-        created.append((secret_names, policy_names, tls))
-        return secret_names, policy_names, headers
+    backend_yaml = ext_auth_tls_backend_src if tls else ext_auth_backend_src
+    secret_yamls = (
+        [ext_auth_backend_secret_src, ext_auth_tls_server_secret_src, ext_auth_tls_ca_secret_src]
+        if tls
+        else [ext_auth_backend_secret_src]
+    )
 
-    yield _setup
+    secret_names, policy_names = setup_policy_backend(
+        kube_apis,
+        test_namespace,
+        secret_yamls=secret_yamls,
+        backend_yaml=backend_yaml,
+        policy_yamls=policy_yamls,
+        validate_policies=validate_policies,
+    )
 
-    for secret_names, policy_names, tls in reversed(created):
+    def fin():
         try:
-            teardown_ext_auth(kube_apis, test_namespace, secret_names, policy_names, tls=tls)
+            _teardown_ext_auth_resources(kube_apis, test_namespace, secret_names, policy_names, tls=tls)
         except Exception:
             logger.debug("ext_auth_setup teardown: ignoring error (resource may already be deleted)")
+
+    request.addfinalizer(fin)
+    return secret_names, policy_names
 
 
 @pytest.fixture
 def ext_auth_ingress(
+    request,
     kube_apis,
     ingress_controller_endpoint,
     ingress_controller_prerequisites,
     test_namespace,
 ):
-    """Factory fixture that creates Ingress resources with guaranteed teardown.
+    """Parametrized fixture that creates an Ingress with guaranteed teardown.
 
-    Yields a callable that accepts an ``ingress_src`` path and returns an
-    ``IngressSetup`` instance.  All created Ingress resources are deleted
-    after the test completes -- even when the test raises an exception.
+    The ingress YAML path is provided via ``request.param``:
+
+    .. code-block:: python
+
+        @pytest.mark.parametrize("ext_auth_ingress", [my_ingress_src], indirect=True)
+        def test_something(self, ext_auth_ingress, ...):
+            resp = requests.get(ext_auth_ingress.request_url, headers=headers)
     """
-    created = []
+    ing = create_ingress_setup(
+        kube_apis,
+        ingress_controller_endpoint,
+        ingress_controller_prerequisites,
+        test_namespace,
+        request.param,
+    )
 
-    def _setup(ingress_src):
-        ing = create_ingress_setup(
-            kube_apis,
-            ingress_controller_endpoint,
-            ingress_controller_prerequisites,
-            test_namespace,
-            ingress_src,
-        )
-        created.append(ing)
-        return ing
+    def fin():
+        if request.config.getoption("--skip-fixture-teardown") == "no":
+            try:
+                delete_ingress_setup(kube_apis, ing)
+            except Exception:
+                logger.debug("ext_auth_ingress teardown: ignoring error (resource may already be deleted)")
 
-    yield _setup
-
-    for ing in reversed(created):
-        try:
-            delete_ingress_setup(kube_apis, ing)
-        except Exception:
-            logger.debug("ext_auth_ingress teardown: ignoring error (resource may already be deleted)")
+    request.addfinalizer(fin)
+    return ing

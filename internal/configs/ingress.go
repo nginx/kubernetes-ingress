@@ -451,9 +451,11 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 				if portWarning != "" {
 					allWarnings.AddWarningf(ncp.ingEx.Ingress, "%s", portWarning)
 				}
-				upstreams[exAuth.URI.Upstream] = authUps
-				server.ExternalAuth = exAuth
-				locations = append(locations, authLocs...)
+				if authLocs != nil {
+					upstreams[exAuth.URI.Upstream] = authUps
+					server.ExternalAuth = exAuth
+					locations = append(locations, authLocs...)
+				}
 			}
 
 		}
@@ -539,9 +541,11 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 					if portWarning != "" {
 						allWarnings.AddWarningf(ncp.ingEx.Ingress, "%s", portWarning)
 					}
-					upstreams[exAuth.URI.Upstream] = authUps
-					loc.ExternalAuth = exAuth
-					locations = append(locations, authLocs...)
+					if authLocs != nil {
+						upstreams[exAuth.URI.Upstream] = authUps
+						loc.ExternalAuth = exAuth
+						locations = append(locations, authLocs...)
+					}
 				}
 			}
 
@@ -743,12 +747,21 @@ func resolveExternalAuth(
 	cfgParams *ConfigParams,
 ) (version1.Upstream, []version1.Location, string) {
 	port, warning := getExternalAuthServicePort(exAuth)
-	ns, svcName := ParseServiceReference(exAuth.URI.Service, ingress.Namespace)
 	upsName := exAuth.URI.Upstream
+
+	if port == 0 {
+		return version1.NewUpstreamWithDefaultServer(upsName), nil, warning
+	}
+
+	ns, svcName := ParseServiceReference(exAuth.URI.Service, ingress.Namespace)
 	endpointKey := fmt.Sprintf("%s/%s:%d", ns, svcName, port)
 	authUps, upsWarning := createExternalAuthUpstream(upsName, endpoints[endpointKey])
 	if upsWarning != "" {
-		warning = fmt.Sprintf("%s. %s", warning, upsWarning)
+		if warning != "" {
+			warning = fmt.Sprintf("%s. %s", warning, upsWarning)
+		} else {
+			warning = upsWarning
+		}
 	}
 	var locs []version1.Location
 	locs = append(locs, generateIngressExternalAuthLocation(exAuth, upsName, cfgParams))
