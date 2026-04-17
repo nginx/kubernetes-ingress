@@ -205,6 +205,7 @@ jobs:
       contents: read
     needs: checks
     if: >-
+      inputs.force == 'true' ||
       needs.checks.outputs.run_tests == 'true' &&
       needs.checks.outputs.binary_cache_hit == 'false'
     env:
@@ -256,6 +257,7 @@ jobs:
         with:
           version: 'v3.18.6'
         if: >-
+          inputs.force == 'true' ||
           needs.checks.outputs.run_tests == 'true' &&
           needs.checks.outputs.binary_cache_hit == 'false'
 
@@ -266,6 +268,7 @@ jobs:
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
         if: >-
+          inputs.force == 'true' ||
           needs.checks.outputs.forked_workflow == 'false' &&
           (needs.checks.outputs.run_tests == 'true' &&
           needs.checks.outputs.binary_cache_hit == 'false')
@@ -278,6 +281,7 @@ jobs:
           echo "::add-mask::$CODECOV_TOKEN"
           echo "CODECOV_TOKEN=$CODECOV_TOKEN" >> $GITHUB_OUTPUT
         if: >-
+          inputs.force == 'true' ||
           needs.checks.outputs.forked_workflow == 'false' &&
           (needs.checks.outputs.run_tests == 'true' &&
           needs.checks.outputs.binary_cache_hit == 'false')
@@ -287,6 +291,7 @@ jobs:
         with:
           go-version-file: go.mod
         if: >-
+          inputs.force == 'true' ||
           needs.checks.outputs.run_tests == 'true' &&
           needs.checks.outputs.binary_cache_hit == 'false'
 
@@ -294,6 +299,7 @@ jobs:
         run: |
           make secrets
         if: >-
+          inputs.force == 'true' ||
           needs.checks.outputs.run_tests == 'true' &&
           needs.checks.outputs.binary_cache_hit == 'false'
 
@@ -310,6 +316,7 @@ jobs:
           files: ./coverage.txt
           token: ${{ steps.secrets.outputs.CODECOV_TOKEN }} # required
         if: >-
+          inputs.force == 'true' ||
           (needs.checks.outputs.forked_workflow == 'false' &&
           (needs.checks.outputs.run_tests == 'true' &&
           needs.checks.outputs.binary_cache_hit == 'false'))
@@ -321,6 +328,7 @@ jobs:
       contents: read
     needs: checks
     if: >-
+      inputs.force == 'true' ||
       needs.checks.outputs.run_tests == 'true' &&
       needs.checks.outputs.binary_cache_hit == 'false'
     env:
@@ -352,6 +360,7 @@ jobs:
       contents: read
     needs: checks
     if: >-
+      inputs.force == 'true' ||
       needs.checks.outputs.run_tests == 'true' &&
       needs.checks.outputs.binary_cache_hit == 'false'
     env:
