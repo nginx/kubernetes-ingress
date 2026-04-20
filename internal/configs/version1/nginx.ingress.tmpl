@@ -43,20 +43,20 @@ server {
 	{{- else}}
 	{{- if not $server.GRPCOnly}}
 	{{- range $port := $server.Ports}}
-	listen {{$port}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};
-	{{- if not $server.DisableIPV6}}listen [::]:{{$port}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};{{end}}
+	listen {{$port}}{{if $server.IsDefaultServer}} default_server{{end}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};
+	{{- if not $server.DisableIPV6}}listen [::]:{{$port}}{{if $server.IsDefaultServer}} default_server{{end}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};{{end}}
 	{{- end}}
 	{{- end}}
 
 	{{- if $server.SSL}}
 	{{- if $server.TLSPassthrough}}
-	listen unix:/var/lib/nginx/passthrough-https.sock ssl proxy_protocol;
+	listen unix:/var/lib/nginx/passthrough-https.sock ssl{{if $server.IsDefaultServer}} default_server{{end}} proxy_protocol;
 	set_real_ip_from unix:;
 	real_ip_header proxy_protocol;
 	{{- else}}
 	{{- range $port := $server.SSLPorts}}
-	listen {{$port}} ssl{{if $server.ProxyProtocol}} proxy_protocol{{end}};
-	{{- if not $server.DisableIPV6}}listen [::]:{{$port}} ssl{{if $server.ProxyProtocol}} proxy_protocol{{end}};{{end}}
+	listen {{$port}} ssl{{if $server.IsDefaultServer}} default_server{{end}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};
+	{{- if not $server.DisableIPV6}}listen [::]:{{$port}} ssl{{if $server.IsDefaultServer}} default_server{{end}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};{{end}}
 	{{- end}}
 	{{- end}}
 	{{- if $server.HTTP2}}
@@ -102,12 +102,18 @@ server {
 	return {{ .Code }};
 	{{- end }}
 
+	{{- if $server.IsDefaultServer}}
+	server_name _;
+	{{- else}}
 	server_name {{$server.Name}};
+	{{- end}}
 
+	{{- if $.Ingress.Name}}
 	set $resource_type "ingress";
 	set $resource_name "{{$.Ingress.Name}}";
 	set $resource_namespace "{{$.Ingress.Namespace}}";
 	set $service "-";
+	{{- end}}
 
 	{{- range $proxyHideHeader := $server.ProxyHideHeaders}}
 	proxy_hide_header {{$proxyHideHeader}};{{end}}
@@ -182,6 +188,17 @@ server {
 		return 302 $scheme://$http_host{{ $server.AppRoot }};
 	}
 	{{- end }}
+
+	{{- if $server.AccessLogOff}}
+	access_log off;
+	{{- end}}
+
+	{{- if $server.HealthStatus}}
+	location = {{$server.HealthStatusURI}} {
+		default_type text/plain;
+		return 200 "healthy\n";
+	}
+	{{- end}}
 
 	{{- range $location := $server.Locations}}
 	location {{  makeLocationPath $location $.Ingress.Annotations | printf }} {
@@ -403,7 +420,12 @@ server {
 		{{end}}
 	}
 	{{end -}}
-	{{- if $server.GRPCOnly}}
+	{{- if and $server.DefaultServerReturn (not $server.HasRootLocation)}}
+	location / {
+		return {{$server.DefaultServerReturn}};
+	}
+	{{- end}}
+	{{- if and $.Ingress.Name $server.GRPCOnly}}
 	error_page 400 @grpcerror400;
 	error_page 401 @grpcerror401;
 	error_page 403 @grpcerror403;
@@ -418,7 +440,11 @@ server {
 	error_page 503 @grpcerror503;
 	error_page 504 @grpcerror504;
 	{{- end}}
+<<<<<<< HEAD
 	{{- if $server.HasGRPCLocations}}
+=======
+	{{- if $server.HasGRPCLocations}}
+>>>>>>> 20a8877c0 (move default server from nginx.conf to conf.d folder)
 	location @grpcerror400 { default_type application/grpc; return 400 "\n"; }
 	location @grpcerror401 { default_type application/grpc; return 401 "\n"; }
 	location @grpcerror403 { default_type application/grpc; return 403 "\n"; }
