@@ -3988,7 +3988,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				`annotations.nginx.org/rewrite-target: Invalid value: "/api/../admin/users": path traversal patterns not allowed, must not contain '../' or '..\'`,
+				`annotations.nginx.org/rewrite-target: Invalid value: "/api/../admin/users": path traversal not allowed, path must not contain '..' segments`,
 			},
 			msg: "invalid nginx.org/rewrite-target annotation, path traversal with ../",
 		},
@@ -4002,7 +4002,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				`annotations.nginx.org/rewrite-target: Invalid value: "/api/..\\admin/users": path traversal patterns not allowed, must not contain '../' or '..\'`,
+				`annotations.nginx.org/rewrite-target: Invalid value: "/api/..\\admin/users": path traversal not allowed, path must not contain '..' segments`,
 			},
 			msg: "invalid nginx.org/rewrite-target annotation, path traversal with ..\\ (Windows style)",
 		},
@@ -5170,6 +5170,8 @@ func TestValidatePath(t *testing.T) {
 		"//evil.com/payload",
 		"/api/../etc/passwd",
 		`/api/..\admin`,
+		"/api/..",
+		"/a/b/..",
 	}
 
 	for _, path := range invalidPaths {

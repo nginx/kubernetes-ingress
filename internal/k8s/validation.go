@@ -1111,9 +1111,15 @@ func validatePath(path string, pathType *networking.PathType, fieldPath *field.P
 		return field.ErrorList{field.Invalid(fieldPath, path, "protocol-relative URIs not allowed, must not start with '//'")}
 	}
 
-	// Prevent path traversal patterns
-	if strings.Contains(path, "../") || strings.Contains(path, "..\\") {
-		return field.ErrorList{field.Invalid(fieldPath, path, "path traversal patterns not allowed, must not contain '../' or '..\\'")}
+	// Reject any path segment equal to ".." to prevent directory traversal,
+	// including trailing forms like "/.." and "/a/.." (no trailing slash required).
+	// Splitting on both "/" and "\\" also catches Windows-style segments.
+	for _, segment := range strings.FieldsFunc(path, func(r rune) bool {
+		return r == '/' || r == '\\'
+	}) {
+		if segment == ".." {
+			return field.ErrorList{field.Invalid(fieldPath, path, "path traversal not allowed, path must not contain '..' segments")}
+		}
 	}
 
 	if !pathRegexp.MatchString(path) {
