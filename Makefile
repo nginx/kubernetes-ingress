@@ -1,31 +1,44 @@
 # variables that should not be overridden by the user
 VER = $(shell grep IC_VERSION .github/data/version.txt | cut -d '=' -f 2)
 GIT_TAG = $(shell git describe --exact-match --tags || echo untagged)
+BINARY_NAME = nginx-ingress
 VERSION = $(VER)-SNAPSHOT
 # renovate: datasource=docker depName=nginx/nginx
-NGINX_OSS_VERSION             ?= 1.29.3
+NGINX_OSS_VERSION             ?= 1.29.8
 NGINX_PLUS_VERSION            ?= R36
-NAP_WAF_VERSION               ?= 36+5.550
-NAP_WAF_COMMON_VERSION        ?= 11.583
-NAP_WAF_PLUGIN_VERSION        ?= 6.25.0
+NAP_WAF_VERSION               ?= 36+5.607
+NAP_WAF_COMMON_VERSION        ?= 11.644
+NAP_WAF_PLUGIN_VERSION        ?= 6.28
 NAP_AGENT_VERSION             ?= 2
-NGINX_AGENT_VERSION           ?= 3.6
+NGINX_AGENT_VERSION           ?= 3.9
 PLUS_ARGS = --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --secret id=nginx-repo.crt,src=nginx-repo.crt --secret id=nginx-repo.key,src=nginx-repo.key
 
 # Variables that can be overridden
+
+# renovate: datasource=github-releases depName=dominikh/go-tools
+STATICCHECK_VERSION ?= 2026.1
+
+# renovate: datasource=github-releases depName=golang/vuln
+GOVULNCHECK_VERSION ?= v1.1.4
+
+GO_DOCKER_IMAGE_NAME    ?= golang
+# renovate: datasource=docker depName=golang versioning=docker
+GO_DOCKER_IMAGE_VERSION ?= 1.26.2-trixie
+GO_DOCKER_IMAGE         ?= $(GO_DOCKER_IMAGE_NAME):$(GO_DOCKER_IMAGE_VERSION)
+
 REGISTRY                      ?= ## The registry where the image is located.
 PREFIX                        ?= nginx/nginx-ingress ## The name of the image. For example, nginx/nginx-ingress
 TAG                           ?= $(VERSION:v%=%) ## The tag of the image. For example, 2.0.0
-TARGET                        ?= local ## The target of the build. Possible values: local, container and download
+TARGET                        ?= local ## The target of the build. Possible values: local, container, download, and debug
 PLUS_REPO                     ?= "pkgs.nginx.com" ## The package repo to install nginx-plus from
 override DOCKER_BUILD_OPTIONS += --build-arg IC_VERSION=$(VERSION) --build-arg PACKAGE_REPO=$(PLUS_REPO) ## The options for the docker build command. For example, --pull
 ARCH                          ?= amd64 ## The architecture of the image or binary. For example: amd64, arm64, ppc64le, s390x. Not all architectures are supported for all targets
 GOOS                          ?= linux ## The OS of the binary. For example linux, darwin
 TELEMETRY_ENDPOINT            ?= oss.edge.df.f5.com:443
-# renovate: datasource=docker depName=golangci/golangci-lint
-GOLANGCI_LINT_VERSION         ?= v2.7.2 ## The version of golangci-lint to use
+# renovate: datasource=github-releases depName=golangci/golangci-lint
+GOLANGCI_LINT_VERSION         ?= v2.11.4 ## The version of golangci-lint to use
 # renovate: datasource=go depName=golang.org/x/tools
-GOIMPORTS_VERSION             ?= v0.40.0 ## The version of goimports to use
+GOIMPORTS_VERSION             ?= v0.44.0 ## The version of goimports to use
 # renovate: datasource=go depName=mvdan.cc/gofumpt
 GOFUMPT_VERSION               ?= v0.9.2 ## The version of gofumpt to use
 
@@ -47,6 +60,9 @@ endif
 DOCKER_CMD = docker build --platform linux/$(strip $(ARCH)) $(strip $(DOCKER_BUILD_OPTIONS)) --target $(strip $(TARGET)) -f build/Dockerfile -t $(BUILD_IMAGE) .
 
 export DOCKER_BUILDKIT = 1
+
+# Note: only tracks committed/staged files. Run `git add` on new .go files for incremental rebuild.
+GO_SRCS := $(shell git ls-files '*.go' go.mod go.sum .github/data/version.txt | grep -v '_test\.go$$')
 
 .DEFAULT_GOAL:=help
 
@@ -79,8 +95,13 @@ format: ## Run goimports & gofmt
 
 .PHONY: staticcheck
 staticcheck: ## Run staticcheck linter
-	@staticcheck -version >/dev/null 2>&1 || go install honnef.co/go/tools/cmd/staticcheck@2022.1.3;
+	@staticcheck -version >/dev/null 2>&1 || go install honnef.co/go/tools/cmd/staticcheck@${STATICCHECK_VERSION};
 	staticcheck ./...
+
+.PHONY: govulncheck
+govulncheck: ## Run govulncheck linter
+	@govulncheck -version >/dev/null 2>&1 || go install golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION};
+	govulncheck ./...
 
 .PHONY: test
 test: ## Run GoLang tests
@@ -88,7 +109,7 @@ test: ## Run GoLang tests
 
 .PHONY: test-update-snaps
 test-update-snaps:
-	UPDATE_SNAPS=true go test -tags=aws,helmunit -shuffle=on ./...
+	UPDATE_SNAPS=always go test -tags=aws,helmunit -shuffle=on ./...
 
 cover: ## Generate coverage report
 	go test -tags=aws,helmunit -shuffle=on -race -coverprofile=coverage.txt -covermode=atomic ./...
@@ -118,17 +139,30 @@ telemetry-schema: ## Generate the telemetry Schema
 	go generate internal/telemetry/exporter.go
 	gofumpt -w internal/telemetry/*_generated.go
 
+.PHONY: build-local
+build-local: $(BINARY_NAME)-$(ARCH) ## Build Ingress Controller binary (local, incremental)
+
+$(BINARY_NAME)-$(ARCH): $(GO_SRCS)
+	@go version || (code=$$?; printf "\033[0;31mError\033[0m: unable to build locally, try using the parameter TARGET=container or TARGET=download\n"; exit $$code)
+	CGO_ENABLED=0 GOOS=$(strip $(GOOS)) GOARCH=$(strip $(ARCH)) go build -trimpath -ldflags "$(GO_LINKER_FLAGS)" -o $(BINARY_NAME)-$(ARCH) github.com/nginx/kubernetes-ingress/cmd/nginx-ingress
+	@cp $(BINARY_NAME)-$(ARCH) $(BINARY_NAME)
+
 .PHONY: build
 build: ## Build Ingress Controller binary
-	@docker -v || (code=$$?; printf "\033[0;31mError\033[0m: there was a problem with Docker\n"; exit $$code)
 ifeq ($(strip $(TARGET)),local)
-	@go version || (code=$$?; printf "\033[0;31mError\033[0m: unable to build locally, try using the parameter TARGET=container or TARGET=download\n"; exit $$code)
-	CGO_ENABLED=0 GOOS=$(strip $(GOOS)) GOARCH=$(strip $(ARCH)) go build -trimpath -ldflags "$(GO_LINKER_FLAGS)" -o nginx-ingress github.com/nginx/kubernetes-ingress/cmd/nginx-ingress
+	@$(MAKE) $(BINARY_NAME)-$(ARCH)
 else ifeq ($(strip $(TARGET)),download)
+	@docker -v || (code=$$?; printf "\033[0;31mError\033[0m: there was a problem with Docker\n"; exit $$code)
 	@$(MAKE) download-binary-docker
 else ifeq ($(strip $(TARGET)),debug)
+# Debug builds run unconditionally (no incremental file target) since they are infrequent.
 	@go version || (code=$$?; printf "\033[0;31mError\033[0m: unable to build locally, try using the parameter TARGET=container or TARGET=download\n"; exit $$code)
-	CGO_ENABLED=0 GOOS=$(strip $(GOOS)) GOARCH=$(strip $(ARCH)) go build -ldflags "$(DEBUG_GO_LINKER_FLAGS)" -gcflags "$(DEBUG_GO_GC_FLAGS)" -o nginx-ingress github.com/nginx/kubernetes-ingress/cmd/nginx-ingress
+	CGO_ENABLED=0 GOOS=$(strip $(GOOS)) GOARCH=$(strip $(ARCH)) go build -ldflags "$(DEBUG_GO_LINKER_FLAGS)" -gcflags "$(DEBUG_GO_GC_FLAGS)" -o $(BINARY_NAME)-$(ARCH) github.com/nginx/kubernetes-ingress/cmd/nginx-ingress
+	@cp $(BINARY_NAME)-$(ARCH) $(BINARY_NAME)
+else ifeq ($(strip $(TARGET)),container)
+# Binary is built inside Docker as part of the image build; nothing to do here.
+else
+	$(error Unknown TARGET "$(TARGET)". Valid values: local, container, download, debug)
 endif
 
 .PHONY: download-binary-docker
@@ -235,7 +269,12 @@ ubi-image-nap-dos-plus: build ## Create Docker image for Ingress Controller (UBI
 		--build-arg NAP_MODULES=waf,dos --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg NAP_AGENT_VERSION=$(NAP_AGENT_VERSION)
 
 .PHONY: all-images ## Create all the Docker images for Ingress Controller
-all-images: alpine-image alpine-image-plus alpine-image-plus-fips alpine-image-nap-plus-fips debian-image debian-image-plus debian-image-nap-plus debian-image-dos-plus debian-image-nap-dos-plus ubi-image ubi-image-plus ubi-image-nap-plus ubi-image-dos-plus ubi-image-nap-dos-plus
+all-images:
+	docker builder prune -af; \
+	images="alpine-image alpine-image-nap-plus-fips alpine-image-nap-v5-plus-fips alpine-image-plus alpine-image-plus-fips debian-image debian-image-dos-plus debian-image-nap-dos-plus debian-image-nap-plus debian-image-nap-v5-plus debian-image-plus ubi-image ubi-image-dos-plus ubi-image-nap-dos-plus ubi-image-nap-plus ubi-image-nap-v5-plus ubi-image-plus ubi8-image-nap-v5-plus"; \
+	for img in $$images; do \
+		TAG="$(strip $(TAG))-$$img" make $$img; \
+	done
 
 .PHONY: patch-os
 patch-os: ## Patch supplied image
@@ -246,8 +285,8 @@ push: ## Docker push to PREFIX and TAG
 	docker push $(strip $(PREFIX)):$(strip $(TAG))
 
 .PHONY: clean
-clean:  ## Remove nginx-ingress binary
-	-rm -f nginx-ingress
+clean:  ## Remove nginx-ingress binaries and dist
+	-rm -f $(BINARY_NAME) $(foreach a,amd64 arm64 ppc64le s390x,$(BINARY_NAME)-$(a))
 	-rm -rf dist
 
 .PHONY: deps
@@ -268,3 +307,19 @@ update-crd-docs: ## Update CRD markdown documentation from YAML definitions
 	@echo "Generating CRD documentation..."
 	@go run hack/generate-crd-docs.go -crd-dir config/crd/bases -output-dir docs/crd
 	@echo "CRD documentation updated successfully!"
+
+.PHONY: secrets
+secrets: ## Create just in time TLS certificates etc needed for tests and examples
+ifeq (, $(shell command -v go))
+	@docker run --rm -v .:/workspace/kubernetes-ingress -w /workspace/kubernetes-ingress ${GO_DOCKER_IMAGE} make secrets
+else
+	@make -C hack/secrets-gen ignore
+endif
+
+.PHONY: secrets-clean
+secrets-clean: ## Clean just in time TLS certificates etc. needed for tests and examples
+ifeq (, $(shell command -v go))
+	@docker run --rm -v .:/workspace/kubernetes-ingress -w /workspace/kubernetes-ingress ${GO_DOCKER_IMAGE} make secrets-clean
+else
+	@make -C hack/secrets-gen clean
+endif

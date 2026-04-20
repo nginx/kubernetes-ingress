@@ -111,6 +111,8 @@ def annotations_setup(
     test_namespace,
 ) -> AnnotationsSetup:
     print("------------------------- Deploy Annotations-Example -----------------------------------")
+    if request.param == "grpc":
+        create_items_from_yaml(kube_apis, f"{TEST_DATA}/annotations/{request.param}/grpc-secret.yaml", test_namespace)
     create_items_from_yaml(
         kube_apis, f"{TEST_DATA}/annotations/{request.param}/annotations-ingress.yaml", test_namespace
     )
@@ -120,6 +122,7 @@ def annotations_setup(
         minions_info = get_minions_info_from_yaml(f"{TEST_DATA}/annotations/{request.param}/annotations-ingress.yaml")
     else:
         minions_info = None
+
     create_example_app(kube_apis, "simple", test_namespace)
     wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
     ensure_connection_to_public_endpoint(
@@ -151,6 +154,10 @@ def annotations_setup(
             delete_items_from_yaml(
                 kube_apis, f"{TEST_DATA}/annotations/{request.param}/annotations-ingress.yaml", test_namespace
             )
+            if request.param == "grpc":
+                delete_items_from_yaml(
+                    kube_apis, f"{TEST_DATA}/annotations/{request.param}/grpc-secret.yaml", test_namespace
+                )
 
     request.addfinalizer(fin)
 
@@ -256,7 +263,7 @@ class TestAnnotations:
                     "if ($http_x_forwarded_proto = 'https')",
                     'set $hsts_header_val "max-age=2592000; preload";',
                     " 124k;",
-                    "proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;",
+                    'proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";',
                 ],
                 ["proxy_send_timeout 60s;", "if ($https = on)", " 256k;"],
             )
@@ -504,7 +511,7 @@ class TestMergeableFlows:
                 [
                     "proxy_send_timeout 10s;",
                     "max_conns=108;",
-                    "proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;",
+                    'proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";',
                 ],
             ),
         ],
@@ -547,7 +554,7 @@ class TestStandardFlows:
         [
             (
                 f"{TEST_DATA}/annotations/standard/annotations-ingress.yaml",
-                ["proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;", "proxy_set_header ABC $http_abc;"],
+                ['proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";', 'proxy_set_header ABC "$http_abc";'],
                 [
                     'proxy_set_header X-Forwarded-ABC "ABC";',
                 ],

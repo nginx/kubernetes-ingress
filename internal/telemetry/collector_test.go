@@ -276,6 +276,13 @@ func TestCollectPolicyCountOnCustomResourcesEnabled(t *testing.T) {
 			want: 1,
 		},
 		{
+			name: "CORSPolicy",
+			policies: func() []*conf_v1.Policy {
+				return []*conf_v1.Policy{corsPolicy}
+			},
+			want: 1,
+		},
+		{
 			name: "MultiplePolicies",
 			policies: func() []*conf_v1.Policy {
 				return []*conf_v1.Policy{rateLimitPolicy, wafPolicy, oidcPolicy}
@@ -427,6 +434,7 @@ func TestCollectPoliciesReportOnEnabledCustomResources(t *testing.T) {
 				wafPolicy,
 				oidcPolicy,
 				cachePolicy,
+				corsPolicy,
 			}
 		},
 		CustomResourcesEnabled: true,
@@ -454,6 +462,7 @@ func TestCollectPoliciesReportOnEnabledCustomResources(t *testing.T) {
 		OIDCPolicies:       1,
 		EgressMTLSPolicies: 2,
 		CachePolicies:      1,
+		CORSPolicies:       1,
 	}
 
 	td := telemetry.Data{
@@ -904,6 +913,36 @@ func TestInvalidStandardIngressAnnotations(t *testing.T) {
 		if strings.Contains(got, expectedAnnotation) {
 			t.Errorf("expected %v in %v", expectedAnnotation, got)
 		}
+	}
+}
+
+func TestAppRootAnnotationTelemetry(t *testing.T) {
+	t.Parallel()
+
+	buf := &bytes.Buffer{}
+	exp := &telemetry.StdoutExporter{Endpoint: buf}
+
+	annotations := map[string]string{
+		"nginx.org/app-root": "/coffee",
+	}
+
+	configurator := newConfiguratorWithIngressWithCustomAnnotations(t, annotations)
+
+	cfg := telemetry.CollectorConfig{
+		Configurator:    configurator,
+		K8sClientReader: newTestClientset(node1, kubeNS),
+		Version:         telemetryNICData.ProjectVersion,
+	}
+
+	c, err := telemetry.NewCollector(cfg, telemetry.WithExporter(exp))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Collect(context.Background())
+
+	got := buf.String()
+	if !strings.Contains(got, "nginx.org/app-root") {
+		t.Errorf("expected app-root annotation to be collected in telemetry, got: %v", got)
 	}
 }
 
@@ -2595,9 +2634,8 @@ func createCafeIngressExWithCustomAnnotations(annotations map[string]string) con
 func newConfiguratorWithIngress(t *testing.T) *configs.Configurator {
 	t.Helper()
 
-	ingressEx := createCafeIngressEx()
 	c := newConfigurator(t)
-	_, err := c.AddOrUpdateIngress(&ingressEx)
+	_, err := c.AddOrUpdateIngress(new(createCafeIngressEx()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2607,9 +2645,8 @@ func newConfiguratorWithIngress(t *testing.T) *configs.Configurator {
 func newConfiguratorWithIngressWithCustomAnnotations(t *testing.T, annotations map[string]string) *configs.Configurator {
 	t.Helper()
 
-	ingressEx := createCafeIngressExWithCustomAnnotations(annotations)
 	c := newConfigurator(t)
-	_, err := c.AddOrUpdateIngress(&ingressEx)
+	_, err := c.AddOrUpdateIngress(new(createCafeIngressExWithCustomAnnotations(annotations)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2702,7 +2739,7 @@ func newSecretStore(t *testing.T) *secrets.LocalSecretStore {
 //	  Platform     string
 //	}
 func newTestClientset(objects ...k8sruntime.Object) *testClient.Clientset {
-	client := testClient.NewSimpleClientset(objects...)
+	client := testClient.NewClientset(objects...)
 	client.Discovery().(*fakediscovery.FakeDiscovery).FakedServerVersion = &version.Info{
 		GitVersion: "v1.30.0",
 	}
@@ -2860,6 +2897,21 @@ var (
 		},
 		Spec: conf_v1.PolicySpec{
 			Cache: &conf_v1.Cache{},
+		},
+		Status: conf_v1.PolicyStatus{},
+	}
+
+	corsPolicy = &conf_v1.Policy{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Policy",
+			APIVersion: "k8s.nginx.org/v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      "cors-policy",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			CORS: &conf_v1.CORS{},
 		},
 		Status: conf_v1.PolicyStatus{},
 	}

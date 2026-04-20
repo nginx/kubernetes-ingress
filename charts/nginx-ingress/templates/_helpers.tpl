@@ -308,6 +308,7 @@ Build the args for the service binary.
 - -nginx-debug={{ .Values.controller.nginxDebug }}
 - -log-level={{ .Values.controller.logLevel }}
 - -log-format={{ .Values.controller.logFormat }}
+- -enable-config-safety={{ .Values.controller.enableConfigSafety }}
 - -nginx-status={{ .Values.controller.nginxStatus.enable }}
 {{- if .Values.controller.nginxStatus.enable }}
 - -nginx-status-port={{ .Values.controller.nginxStatus.port }}
@@ -561,6 +562,11 @@ command:
     tokenpath: "/etc/nginx-agent/secrets/dataplane.key"
   tls:
     skip_verify: {{ .Values.nginxAgent.tlsSkipVerify | default false }}
+
+## collector settings
+collector:
+  log:
+    path: "stdout"
 
 {{- else }}
 log:

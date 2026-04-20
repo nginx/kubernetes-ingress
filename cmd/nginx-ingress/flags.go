@@ -144,6 +144,9 @@ var (
 	nginxDebug = flag.Bool("nginx-debug", false,
 		"Enable debugging for NGINX. Uses the nginx-debug binary. Requires 'error-log-level: debug' in the ConfigMap.")
 
+	enableConfigSafety = flag.Bool("enable-config-safety", false,
+		"Enable config validation prior to reloading NGINX.")
+
 	nginxReloadTimeout = flag.Int("nginx-reload-timeout", 60000,
 		`The timeout in milliseconds which the Ingress Controller will wait for a successful NGINX reload after a change or at the initial start. (default 60000)`)
 
@@ -481,7 +484,7 @@ func validateLogLevel(logLevel string) error {
 // validateLogFormat makes sure a given logFormat is one of the allowed values
 func validateLogFormat(logFormat string) error {
 	switch strings.ToLower(logFormat) {
-	case "glog", "json", "text":
+	case "glog", "json", "text", "json-unix", "json-unix-ms", "text-unix", "text-unix-ms":
 		return nil
 	}
 	return fmt.Errorf("invalid log format: %v", logFormat)

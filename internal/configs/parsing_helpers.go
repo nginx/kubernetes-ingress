@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
-
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -296,20 +294,6 @@ func ParseProxyBuffersSpec(s string) (string, error) {
 	return "", errors.New("invalid proxy buffers string")
 }
 
-// parseProxySetHeaders ensures that the string colon-separated list of headers and values
-func parseProxySetHeaders(proxySetHeaders []string) []version2.Header {
-	var headers []version2.Header
-	for _, header := range proxySetHeaders {
-		parts := strings.SplitN(header, ":", 2)
-		if len(parts) == 1 {
-			headers = append(headers, version2.Header{Name: parts[0], Value: ""})
-		} else {
-			headers = append(headers, version2.Header{Name: parts[0], Value: parts[1]})
-		}
-	}
-	return headers
-}
-
 // ParsePortList ensures that the string is a comma-separated list of port numbers
 func ParsePortList(s string) ([]int, error) {
 	var ports []int
@@ -330,7 +314,7 @@ func parsePort(value string) (int, error) {
 	}
 
 	if port <= 0 {
-		return 0, fmt.Errorf("port number should be greater than zero: %q", port)
+		return 0, fmt.Errorf("port number should be greater than zero: %d", port)
 	}
 
 	return int(port), nil

@@ -18,6 +18,8 @@ type IngressNginxConfig struct {
 	Upstreams               []Upstream
 	Servers                 []Server
 	Keepalive               string
+	Maps                    []version2.Map
+	CORSHeaders             []version2.AddHeader
 	Ingress                 Ingress
 	SpiffeClientCerts       bool
 	DynamicSSLReloadEnabled bool
@@ -82,6 +84,7 @@ type Server struct {
 	Name                   string
 	ServerTokens           string
 	Locations              []Location
+	EgressMTLS             *version2.EgressMTLS
 	SSL                    bool
 	SSLCertificate         string
 	SSLCertificateKey      string
@@ -94,6 +97,7 @@ type Server struct {
 	HTTP2                  bool
 	RedirectToHTTPS        bool
 	SSLRedirect            bool
+	HTTPRedirectCode       int
 	ProxyProtocol          bool
 	HSTS                   bool
 	HSTSMaxAge             int64
@@ -101,6 +105,9 @@ type Server struct {
 	HSTSBehindProxy        bool
 	ProxyHideHeaders       []string
 	ProxyPassHeaders       []string
+	Allow                  []string
+	Deny                   []string
+	PoliciesErrorReturn    *version2.Return
 
 	HealthChecks map[string]HealthCheck
 
@@ -128,10 +135,13 @@ type Server struct {
 	AppProtectDosName            string
 	AppProtectDosAllowListPath   string
 	AppProtectDosAccessLogDst    string
+	WAF                          *version2.WAF
 
 	SpiffeCerts bool
 
 	DisableIPV6 bool
+
+	AppRoot string
 }
 
 // JWTRedirectLocation describes a location for redirecting client requests to a login URL for JWT Authentication.
@@ -170,6 +180,7 @@ type Location struct {
 	LocationSnippets     []string
 	Path                 string
 	Upstream             Upstream
+	ProxyPass            string
 	ProxyConnectTimeout  string
 	ProxyReadTimeout     string
 	ProxySendTimeout     string
@@ -187,12 +198,23 @@ type Location struct {
 	ProxyBusyBuffersSize string
 	ProxyMaxTempFileSize string
 	ProxySSLName         string
+	AddHeaders           []version2.AddHeader
 	JWTAuth              *JWTAuth
 	BasicAuth            *BasicAuth
 	ServiceName          string
 	LimitReq             *LimitReq
+	CORSEnabled          bool
 
 	MinionIngress *Ingress
+
+	ProxyNextUpstream        string
+	ProxyNextUpstreamTimeout string
+	ProxyNextUpstreamTries   *uint64
+	Allow                    []string
+	Deny                     []string
+	WAF                      *version2.WAF
+	EgressMTLS               *version2.EgressMTLS
+	PoliciesErrorReturn      *version2.Return
 }
 
 // ZoneSyncConfig is tbe configuration for the zone_sync directives for state sharing.
@@ -208,12 +230,17 @@ type ZoneSyncConfig struct {
 
 // OIDCConfig allows to configure OIDC parameters.
 type OIDCConfig struct {
-	Enable         bool
-	PKCETimeout    string
-	IDTokenTimeout string
-	AccessTimeout  string
-	RefreshTimeout string
-	SIDSTimeout    string
+	Enable          bool
+	PKCETimeout     string
+	PKCEZoneSize    string
+	IDTokenTimeout  string
+	IDTokenZoneSize string
+	AccessTimeout   string
+	AccessZoneSize  string
+	RefreshTimeout  string
+	RefreshZoneSize string
+	SIDSTimeout     string
+	SIDSZoneSize    string
 }
 
 // MGMTConfig is tbe configuration for the MGMT block.

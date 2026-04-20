@@ -7,16 +7,18 @@ balancing for that application using the Ingress resource with rate-limiting con
 
 ## 1. Deploy the Ingress Controller
 
-1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
+1. Run `make secrets` command to generate the necessary secrets for the example.
+
+2. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
    instructions to deploy the Ingress Controller.
 
-2. Save the public IP address of the Ingress Controller into a shell variable:
+3. Save the public IP address of the Ingress Controller into a shell variable:
 
     ```console
     IC_IP=XXX.YYY.ZZZ.III
     ```
 
-3. Save the HTTPS port of the Ingress Controller into a shell variable:
+4. Save the HTTPS port of the Ingress Controller into a shell variable:
 
     ```console
     IC_HTTPS_PORT=<port number>

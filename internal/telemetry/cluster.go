@@ -30,6 +30,7 @@ var configMapFilteredKeys = []string{
 	"http2",
 	"redirect-to-https",
 	"ssl-redirect",
+	"http-redirect-code",
 	"hsts",
 	"hsts-max-age",
 	"hsts-include-subdomains",
@@ -269,6 +270,8 @@ func (c *Collector) PolicyCount() map[string]int {
 			policyCounters["APIKey"]++
 		case spec.Cache != nil:
 			policyCounters["Cache"]++
+		case spec.CORS != nil:
+			policyCounters["CORS"]++
 		}
 	}
 	return policyCounters

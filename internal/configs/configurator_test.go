@@ -74,8 +74,7 @@ func createTestConfiguratorInvalidIngressTemplate(t *testing.T) *Configurator {
 		t.Fatal(err)
 	}
 
-	invalidIngressTemplate := "{{.Upstreams.This.Field.Does.Not.Exist}}"
-	if err := templateExecutor.UpdateIngressTemplate(&invalidIngressTemplate); err != nil {
+	if err := templateExecutor.UpdateIngressTemplate(new("{{.Upstreams.This.Field.Does.Not.Exist}}")); err != nil {
 		t.Fatal(err)
 	}
 
@@ -103,7 +102,7 @@ func TestConfiguratorUpdatesConfigWithNilCustomMainTemplate(t *testing.T) {
 	cnf := createTestConfigurator(t)
 	cnf.CfgParams = &ConfigParams{MainTemplate: nil}
 	cnf.MgmtCfgParams = &MGMTConfigParams{}
-	warnings, err := cnf.UpdateConfig(ExtendedResources{})
+	warnings, _, err := cnf.UpdateConfig(ExtendedResources{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +120,7 @@ func TestConfiguratorUpdatesConfigWithCustomMainTemplate(t *testing.T) {
 	cnf := createTestConfigurator(t)
 	cnf.CfgParams = &ConfigParams{MainTemplate: &customTestMainTemplate}
 	cnf.MgmtCfgParams = &MGMTConfigParams{}
-	warnings, err := cnf.UpdateConfig(ExtendedResources{})
+	warnings, _, err := cnf.UpdateConfig(ExtendedResources{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +142,7 @@ func TestConfiguratorUpdatesConfigWithNilCustomIngressTemplate(t *testing.T) {
 	cnf := createTestConfigurator(t)
 	cnf.CfgParams = &ConfigParams{IngressTemplate: nil}
 	cnf.MgmtCfgParams = &MGMTConfigParams{}
-	warnings, err := cnf.UpdateConfig(ExtendedResources{})
+	warnings, _, err := cnf.UpdateConfig(ExtendedResources{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +160,7 @@ func TestConfiguratorUpdatesConfigWithCustomIngressTemplate(t *testing.T) {
 	cnf := createTestConfigurator(t)
 	cnf.CfgParams = &ConfigParams{IngressTemplate: &customTestIngressTemplate}
 	cnf.MgmtCfgParams = &MGMTConfigParams{}
-	warnings, err := cnf.UpdateConfig(ExtendedResources{})
+	warnings, _, err := cnf.UpdateConfig(ExtendedResources{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +182,7 @@ func TestConfigratorUpdatesConfigWithCustomVStemplate(t *testing.T) {
 	cnf := createTestConfigurator(t)
 	cnf.CfgParams = &ConfigParams{VirtualServerTemplate: &customTestVStemplate}
 	cnf.MgmtCfgParams = &MGMTConfigParams{}
-	warnings, err := cnf.UpdateConfig(ExtendedResources{})
+	warnings, _, err := cnf.UpdateConfig(ExtendedResources{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -205,7 +204,7 @@ func TestConfiguratorUpdatesConfigWithNilCustomVSemplate(t *testing.T) {
 	cnf := createTestConfigurator(t)
 	cnf.CfgParams = &ConfigParams{VirtualServerTemplate: nil}
 	cnf.MgmtCfgParams = &MGMTConfigParams{}
-	warnings, err := cnf.UpdateConfig(ExtendedResources{})
+	warnings, _, err := cnf.UpdateConfig(ExtendedResources{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,7 +224,7 @@ func TestConfigratorUpdatesConfigWithCustomTStemplate(t *testing.T) {
 	cnf.CfgParams = &ConfigParams{
 		TransportServerTemplate: &customTestTStemplate,
 	}
-	warnings, err := cnf.UpdateConfig(ExtendedResources{})
+	warnings, _, err := cnf.UpdateConfig(ExtendedResources{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -247,7 +246,7 @@ func TestConfiguratorUpdatesConfigWithNilCustomTStemplate(t *testing.T) {
 	cnf := createTestConfigurator(t)
 	cnf.CfgParams = &ConfigParams{TransportServerTemplate: nil}
 	cnf.MgmtCfgParams = &MGMTConfigParams{}
-	warnings, err := cnf.UpdateConfig(ExtendedResources{})
+	warnings, _, err := cnf.UpdateConfig(ExtendedResources{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -328,9 +327,7 @@ func TestAddOrUpdateIngressFailsWithInvalidIngressTemplate(t *testing.T) {
 	t.Parallel()
 	cnf := createTestConfiguratorInvalidIngressTemplate(t)
 
-	ingress := createCafeIngressEx()
-
-	warnings, err := cnf.AddOrUpdateIngress(&ingress)
+	warnings, err := cnf.AddOrUpdateIngress(new(createCafeIngressEx()))
 	if err == nil {
 		t.Errorf("AddOrUpdateIngress returned \n%v,  but expected \n%v", nil, "template execution error")
 	}
@@ -358,8 +355,7 @@ func TestUpdateEndpoints(t *testing.T) {
 	t.Parallel()
 	cnf := createTestConfigurator(t)
 
-	ingress := createCafeIngressEx()
-	ingresses := []*IngressEx{&ingress}
+	ingresses := []*IngressEx{new(createCafeIngressEx())}
 
 	err := cnf.UpdateEndpoints(ingresses)
 	if err != nil {
@@ -394,8 +390,7 @@ func TestUpdateEndpointsFailsWithInvalidTemplate(t *testing.T) {
 	t.Parallel()
 	cnf := createTestConfiguratorInvalidIngressTemplate(t)
 
-	ingress := createCafeIngressEx()
-	ingresses := []*IngressEx{&ingress}
+	ingresses := []*IngressEx{new(createCafeIngressEx())}
 
 	err := cnf.UpdateEndpoints(ingresses)
 	if err == nil {
@@ -1355,6 +1350,22 @@ func TestUpdateApResources(t *testing.T) {
 			},
 		},
 	}
+	policyApPol := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"namespace": "pol-ns",
+				"name":      "pol-name",
+			},
+		},
+	}
+	policyLogConf := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"namespace": "pol-ns",
+				"name":      "pol-log",
+			},
+		},
+	}
 	appProtectLogDst := "test-dst"
 
 	tests := []struct {
@@ -1399,6 +1410,21 @@ func TestUpdateApResources(t *testing.T) {
 				AppProtectLogconfs: []string{"/etc/nginx/waf/nac-logconfs/test-ns_test-name test-dst"},
 			},
 			msg: "app protect log conf",
+		},
+		{
+			ingEx: &IngressEx{
+				Ingress: &networking.Ingress{
+					ObjectMeta: meta_v1.ObjectMeta{},
+				},
+				ApPolRefs: map[string]*unstructured.Unstructured{
+					"pol-ns/pol-name": policyApPol,
+				},
+				LogConfRefs: map[string]*unstructured.Unstructured{
+					"pol-ns/pol-log": policyLogConf,
+				},
+			},
+			expected: &AppProtectResources{},
+			msg:      "policy-based app protect resources",
 		},
 		{
 			ingEx: &IngressEx{
@@ -1472,7 +1498,7 @@ func TestUpdateApResourcesForVs(t *testing.T) {
 
 	tests := []struct {
 		vsEx     *VirtualServerEx
-		expected *appProtectResourcesForVS
+		expected *appProtectPolicyResources
 		msg      string
 	}{
 		{
@@ -1481,7 +1507,7 @@ func TestUpdateApResourcesForVs(t *testing.T) {
 					ObjectMeta: meta_v1.ObjectMeta{},
 				},
 			},
-			expected: &appProtectResourcesForVS{
+			expected: &appProtectPolicyResources{
 				Policies: map[string]string{},
 				LogConfs: map[string]string{},
 			},
@@ -1494,7 +1520,7 @@ func TestUpdateApResourcesForVs(t *testing.T) {
 				},
 				ApPolRefs: apPolRefs,
 			},
-			expected: &appProtectResourcesForVS{
+			expected: &appProtectPolicyResources{
 				Policies: map[string]string{
 					"test-ns-1/test-name-1": "/etc/nginx/waf/nac-policies/test-ns-1_test-name-1",
 					"test-ns-2/test-name-2": "/etc/nginx/waf/nac-policies/test-ns-2_test-name-2",
@@ -1510,7 +1536,7 @@ func TestUpdateApResourcesForVs(t *testing.T) {
 				},
 				LogConfRefs: logConfRefs,
 			},
-			expected: &appProtectResourcesForVS{
+			expected: &appProtectPolicyResources{
 				Policies: map[string]string{},
 				LogConfs: map[string]string{
 					"test-ns-1/test-name-1": "/etc/nginx/waf/nac-logconfs/test-ns-1_test-name-1",
@@ -1527,7 +1553,7 @@ func TestUpdateApResourcesForVs(t *testing.T) {
 				ApPolRefs:   apPolRefs,
 				LogConfRefs: logConfRefs,
 			},
-			expected: &appProtectResourcesForVS{
+			expected: &appProtectPolicyResources{
 				Policies: map[string]string{
 					"test-ns-1/test-name-1": "/etc/nginx/waf/nac-policies/test-ns-1_test-name-1",
 					"test-ns-2/test-name-2": "/etc/nginx/waf/nac-policies/test-ns-2_test-name-2",
@@ -1823,9 +1849,7 @@ func TestAddOrUpdateTransportServer(t *testing.T) {
 	t.Parallel()
 	cnf := createTestConfigurator(t)
 
-	ts := createTransportServerExWithHostNoTLSPassthrough()
-
-	warnings, err := cnf.AddOrUpdateTransportServer(&ts)
+	warnings, err := cnf.AddOrUpdateTransportServer(new(createTransportServerExWithHostNoTLSPassthrough()))
 	if err != nil {
 		t.Errorf("AddOrUpdateTransportServer returned:  \n%v, but expected: \n%v", err, nil)
 	}
@@ -2575,8 +2599,9 @@ server {
 		proxy_read_timeout {{$location.ProxyReadTimeout}};
 		proxy_send_timeout {{$location.ProxySendTimeout}};
 		client_max_body_size {{$location.ClientMaxBodySize}};
-		{{- $proxySetHeaders := generateProxySetHeaders $location $.Ingress.Annotations -}}
-		{{$proxySetHeaders}}
+		{{- range $header := $location.ProxySetHeaders}}
+		proxy_set_header {{ $header.Name }} {{ printf "%q" $header.Value }};
+		{{- end}}
 		proxy_set_header Host $host;
 		proxy_set_header X-Real-IP $remote_addr;
 		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

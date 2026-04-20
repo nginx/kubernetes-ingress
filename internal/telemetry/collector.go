@@ -166,14 +166,16 @@ func (c *Collector) Collect(ctx context.Context) {
 			OIDCPolicies:               int64(report.OIDCCount),
 			WAFPolicies:                int64(report.WAFCount),
 			CachePolicies:              int64(report.CacheCount),
-			GlobalConfiguration:        report.GlobalConfiguration,
-			IngressAnnotations:         report.IngressAnnotations,
-			AppProtectVersion:          report.AppProtectVersion,
-			IsPlus:                     report.IsPlus,
-			InstallationFlags:          report.InstallationFlags,
-			BuildOS:                    report.BuildOS,
-			ConfigMapKeys:              report.MainConfigMapKeys,
-			MGMTConfigMapKeys:          report.MGMTConfigMapKeys,
+			CORSPolicies:               int64(report.CORSCount),
+
+			GlobalConfiguration: report.GlobalConfiguration,
+			IngressAnnotations:  report.IngressAnnotations,
+			AppProtectVersion:   report.AppProtectVersion,
+			IsPlus:              report.IsPlus,
+			InstallationFlags:   report.InstallationFlags,
+			BuildOS:             report.BuildOS,
+			ConfigMapKeys:       report.MainConfigMapKeys,
+			MGMTConfigMapKeys:   report.MGMTConfigMapKeys,
 		},
 	}
 
@@ -221,6 +223,7 @@ type Report struct {
 	OIDCCount               int
 	WAFCount                int
 	CacheCount              int
+	CORSCount               int
 	GlobalConfiguration     bool
 	IngressAnnotations      []string
 	AppProtectVersion       string
@@ -300,6 +303,7 @@ func (c *Collector) BuildReport(ctx context.Context) (Report, error) {
 		oidcCount               int
 		wafCount                int
 		cacheCount              int
+		corsCount               int
 	)
 	// Collect Custom Resources (Policies) only if CR enabled at startup.
 	if c.Config.CustomResourcesEnabled {
@@ -316,6 +320,7 @@ func (c *Collector) BuildReport(ctx context.Context) (Report, error) {
 		oidcCount = policies["OIDC"]
 		wafCount = policies["WAF"]
 		cacheCount = policies["Cache"]
+		corsCount = policies["CORS"]
 	}
 
 	ingressAnnotations := c.IngressAnnotations()
@@ -379,6 +384,7 @@ func (c *Collector) BuildReport(ctx context.Context) (Report, error) {
 		OIDCCount:               oidcCount,
 		WAFCount:                wafCount,
 		CacheCount:              cacheCount,
+		CORSCount:               corsCount,
 		GlobalConfiguration:     c.Config.GlobalConfiguration,
 		IngressAnnotations:      ingressAnnotations,
 		AppProtectVersion:       appProtectVersion,

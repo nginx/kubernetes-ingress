@@ -4,19 +4,20 @@ package fake
 
 import (
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
-	configurationv1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/typed/configuration/v1"
+	configurationv1 "github.com/nginx/kubernetes-ingress/pkg/client/applyconfiguration/configuration/v1"
+	typedconfigurationv1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/typed/configuration/v1"
 	gentype "k8s.io/client-go/gentype"
 )
 
 // fakePolicies implements PolicyInterface
 type fakePolicies struct {
-	*gentype.FakeClientWithList[*v1.Policy, *v1.PolicyList]
+	*gentype.FakeClientWithListAndApply[*v1.Policy, *v1.PolicyList, *configurationv1.PolicyApplyConfiguration]
 	Fake *FakeK8sV1
 }
 
-func newFakePolicies(fake *FakeK8sV1, namespace string) configurationv1.PolicyInterface {
+func newFakePolicies(fake *FakeK8sV1, namespace string) typedconfigurationv1.PolicyInterface {
 	return &fakePolicies{
-		gentype.NewFakeClientWithList[*v1.Policy, *v1.PolicyList](
+		gentype.NewFakeClientWithListAndApply[*v1.Policy, *v1.PolicyList, *configurationv1.PolicyApplyConfiguration](
 			fake.Fake,
 			namespace,
 			v1.SchemeGroupVersion.WithResource("policies"),

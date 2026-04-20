@@ -28,7 +28,7 @@ jobs:
       docs_only: ${{ github.event.pull_request && steps.docs.outputs.docs_only == 'true' }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
@@ -54,6 +54,6 @@ jobs:
       contents: read # for actions/checkout to fetch code
       packages: read
       security-events: write # for github/codeql-action/autobuild to send a status report
-    uses: nginxinc/compliance-rules/.github/workflows/codeql.yml@a27656f8f9a8748085b434ebe007f5b572709aad # v0.2
+    uses: nginx/compliance-rules/.github/workflows/codeql.yml@a27656f8f9a8748085b434ebe007f5b572709aad # v0.2
     with:
       requested_languages: go,python

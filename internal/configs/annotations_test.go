@@ -71,6 +71,69 @@ func TestParseStickyServiceInvalidFormat(t *testing.T) {
 	}
 }
 
+func TestGetSessionPersistenceServices(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		expected    map[string]string
+	}{
+		{
+			name: "nginx.org annotation only",
+			annotations: map[string]string{
+				"nginx.org/sticky-cookie-services": "serviceName=service-1 srv_id expires=1h path=/",
+			},
+			expected: map[string]string{
+				"service-1": "srv_id expires=1h path=/",
+			},
+		},
+		{
+			name: "nginx.com annotation only",
+			annotations: map[string]string{
+				"nginx.com/sticky-cookie-services": "serviceName=service-2 srv_id expires=2h path=/app",
+			},
+			expected: map[string]string{
+				"service-2": "srv_id expires=2h path=/app",
+			},
+		},
+		{
+			name: "both annotations present, nginx.org takes precedence",
+			annotations: map[string]string{
+				"nginx.org/sticky-cookie-services": "serviceName=service-1 srv_id expires=1h path=/",
+				"nginx.com/sticky-cookie-services": "serviceName=service-2 srv_id expires=2h path=/app",
+			},
+			expected: map[string]string{
+				"service-1": "srv_id expires=1h path=/",
+			},
+		},
+		{
+			name:        "no annotation set",
+			annotations: map[string]string{},
+			expected:    nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ingEx := &IngressEx{
+				Ingress: &networking.Ingress{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: tt.annotations,
+						Name:        "test-ingress",
+						Namespace:   "default",
+					},
+				},
+			}
+			result := getSessionPersistenceServices(context.Background(), ingEx)
+			if !reflect.DeepEqual(result, tt.expected) {
+				t.Errorf("getSessionPersistenceServices() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
 func TestFilterMasterAnnotations(t *testing.T) {
 	t.Parallel()
 	masterAnnotations := map[string]string{
@@ -144,7 +207,7 @@ func TestMergeMasterAnnotationsIntoMinion(t *testing.T) {
 		"nginx.org/hsts":                  "True",
 		"nginx.org/hsts-max-age":          "2700000",
 		"nginx.org/proxy-connect-timeout": "50s",
-		"nginx.com/jwt-token":             "$cookie_auth_token",
+		JWTTokenAnnotation:                "$cookie_auth_token",
 	}
 	minionAnnotations := map[string]string{
 		"nginx.org/client-max-body-size":  "2m",
@@ -300,7 +363,7 @@ func BenchmarkMergeMasterAnnotationsIntoMinion(b *testing.B) {
 		"nginx.org/hsts":                  "True",
 		"nginx.org/hsts-max-age":          "2700000",
 		"nginx.org/proxy-connect-timeout": "50s",
-		"nginx.com/jwt-token":             "$cookie_auth_token",
+		JWTTokenAnnotation:                "$cookie_auth_token",
 	}
 	minionAnnotations := map[string]string{
 		"nginx.org/client-max-body-size":  "2m",
@@ -1007,6 +1070,341 @@ func TestSSLRedirectAnnotations(t *testing.T) {
 
 			if result.SSLRedirect != tt.expected {
 				t.Errorf("Test %q: expected SSLRedirect %t, got %t", tt.name, tt.expected, result.SSLRedirect)
+			}
+		})
+	}
+}
+
+func TestAppRootAnnotation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		expected    string
+	}{
+		{
+			name: "valid app-root - coffee path",
+			annotations: map[string]string{
+				"nginx.org/app-root": "/coffee",
+			},
+			expected: "/coffee",
+		},
+		{
+			name: "valid app-root - nested path with mocha",
+			annotations: map[string]string{
+				"nginx.org/app-root": "/coffee/mocha",
+			},
+			expected: "/coffee/mocha",
+		},
+		{
+			name: "valid app-root - tea path",
+			annotations: map[string]string{
+				"nginx.org/app-root": "/tea",
+			},
+			expected: "/tea",
+		},
+		{
+			name: "valid app-root - nested tea path",
+			annotations: map[string]string{
+				"nginx.org/app-root": "/tea/green-tea",
+			},
+			expected: "/tea/green-tea",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ingEx := &IngressEx{
+				Ingress: &networking.Ingress{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        "test-ingress",
+						Namespace:   "default",
+						Annotations: tt.annotations,
+					},
+				},
+			}
+
+			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+
+			if result.AppRoot != tt.expected {
+				t.Errorf("Test %q: expected AppRoot %q, got %q", tt.name, tt.expected, result.AppRoot)
+			}
+		})
+	}
+}
+
+func TestProxyNextUpstreamAnnotation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		expected    string
+	}{
+		{
+			name: "valid proxy-next-upstream - single value",
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream": "error",
+			},
+			expected: "error",
+		},
+		{
+			name: "valid proxy-next-upstream - multiple values",
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream": "error timeout http_500 http_502",
+			},
+			expected: "error timeout http_500 http_502",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ingEx := &IngressEx{
+				Ingress: &networking.Ingress{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        "test-ingress",
+						Namespace:   "default",
+						Annotations: tt.annotations,
+					},
+				},
+			}
+
+			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+
+			if result.ProxyNextUpstream != tt.expected {
+				t.Errorf("Test %q: expected ProxyNextUpstream %q, got %q", tt.name, tt.expected, result.ProxyNextUpstream)
+			}
+		})
+	}
+}
+
+func TestProxyNextUpstreamTimeoutAnnotation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		expected    string
+	}{
+		{
+			name: "valid proxy-next-upstream-timeout - zero value",
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream-timeout": "0",
+			},
+			expected: "0s",
+		},
+		{
+			name: "valid proxy-next-upstream-timeout - positive time value",
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream-timeout": "5m",
+			},
+			expected: "5m",
+		},
+		{
+			name: "invalid proxy-next-upstream-timeout - negative time value",
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream-timeout": "-8h",
+			},
+			expected: "",
+		},
+		{
+			name: "invalid proxy-next-upstream-timeout - non-numeric value",
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream-timeout": "abcde",
+			},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ingEx := &IngressEx{
+				Ingress: &networking.Ingress{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        "test-ingress",
+						Namespace:   "default",
+						Annotations: tt.annotations,
+					},
+				},
+			}
+
+			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+
+			if result.ProxyNextUpstreamTimeout != tt.expected {
+				t.Errorf("Test %q: expected ProxyNextUpstreamTimeout %q, got %q", tt.name, tt.expected, result.ProxyNextUpstreamTimeout)
+			}
+		})
+	}
+}
+
+func TestProxyNextUpstreamTriesAnnotationValid(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		expected    uint64
+	}{
+		{
+			name: "valid proxy-next-upstream-tries - zero value",
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream-tries": "0",
+			},
+			expected: 0,
+		},
+		{
+			name: "valid proxy-next-upstream-tries - positive value",
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream-tries": "20",
+			},
+			expected: 20,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ingEx := &IngressEx{
+				Ingress: &networking.Ingress{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        "test-ingress",
+						Namespace:   "default",
+						Annotations: tt.annotations,
+					},
+				},
+			}
+
+			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+
+			if result.ProxyNextUpstreamTries == nil {
+				t.Errorf("Test %q: expected ProxyNextUpstreamTries %d, got nil", tt.name, tt.expected)
+			} else if *result.ProxyNextUpstreamTries != tt.expected {
+				t.Errorf("Test %q: expected ProxyNextUpstreamTries %d, got %d", tt.name, tt.expected, result.ProxyNextUpstreamTries)
+			}
+		})
+	}
+}
+
+func TestProxyNextUpstreamTriesAnnotationInvalid(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+	}{
+		{
+			name: "invalid proxy-next-upstream-tries - negative value",
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream-tries": "-123",
+			},
+		},
+		{
+			name: "invalid proxy-next-upstream-tries - non-numeric value",
+			annotations: map[string]string{
+				"nginx.org/proxy-next-upstream-tries": "value",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ingEx := &IngressEx{
+				Ingress: &networking.Ingress{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        "test-ingress",
+						Namespace:   "default",
+						Annotations: tt.annotations,
+					},
+				},
+			}
+
+			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+
+			if result.ProxyNextUpstreamTries != nil && *result.ProxyNextUpstreamTries != 0 {
+				t.Errorf("Test %q: expected ProxyNextUpstreamTries to be nil or 0, got %d", tt.name, result.ProxyNextUpstreamTries)
+			}
+		})
+	}
+}
+
+func TestHTTPRedirectCodeAnnotationBehavior(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		annotations  map[string]string
+		expectedCode int
+	}{
+		{
+			name: "redirect code applied when SSL redirect enabled",
+			annotations: map[string]string{
+				"nginx.org/ssl-redirect":       "true",
+				"nginx.org/http-redirect-code": "307",
+			},
+			expectedCode: 307,
+		},
+		{
+			name: "redirect code applied when SSL redirect disabled",
+			annotations: map[string]string{
+				"nginx.org/ssl-redirect":       "false",
+				"nginx.org/http-redirect-code": "307",
+			},
+			expectedCode: 307,
+		},
+		{
+			name: "redirect code applied with redirect-to-https",
+			annotations: map[string]string{
+				"nginx.org/redirect-to-https":  "true",
+				"nginx.org/http-redirect-code": "302",
+			},
+			expectedCode: 302,
+		},
+		{
+			name: "redirect code applied without any redirect settings",
+			annotations: map[string]string{
+				"nginx.org/http-redirect-code": "308",
+			},
+			expectedCode: 308,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ingEx := &IngressEx{
+				Ingress: &networking.Ingress{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        "test-ingress",
+						Namespace:   "default",
+						Annotations: tt.annotations,
+					},
+				},
+			}
+
+			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+
+			if result.HTTPRedirectCode != tt.expectedCode {
+				t.Errorf("Test %q: expected HTTPRedirectCode %d, got %d", tt.name, tt.expectedCode, result.HTTPRedirectCode)
 			}
 		})
 	}

@@ -28,6 +28,7 @@ func TestUpdateTransportServerStatus(t *testing.T) {
 		ObjectMeta: meta_v1.ObjectMeta{
 			Name:      "ts-1",
 			Namespace: "default",
+			UID:       "ts-uid-1",
 		},
 		Status: conf_v1.TransportServerStatus{
 			State:   "before status",
@@ -36,7 +37,7 @@ func TestUpdateTransportServerStatus(t *testing.T) {
 		},
 	}
 
-	fakeClient := fake_v1.NewSimpleClientset(
+	fakeClient := fake_v1.NewClientset(
 		&conf_v1.TransportServerList{
 			Items: []conf_v1.TransportServer{
 				*ts,
@@ -55,6 +56,7 @@ func TestUpdateTransportServerStatus(t *testing.T) {
 		namespacedInformers: nsi,
 		confClient:          fakeClient,
 		keyFunc:             cache.DeletionHandlingMetaNamespaceKeyFunc,
+		logger:              slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo})),
 	}
 
 	err = su.UpdateTransportServerStatus(ts, "after status", "after reason", "after message")
@@ -88,7 +90,7 @@ func TestUpdateTransportServerStatusIgnoreNoChange(t *testing.T) {
 		},
 	}
 
-	fakeClient := fake_v1.NewSimpleClientset(
+	fakeClient := fake_v1.NewClientset(
 		&conf_v1.TransportServerList{
 			Items: []conf_v1.TransportServer{
 				*ts,
@@ -154,7 +156,7 @@ func TestUpdateTransportServerStatusMissingTransportServer(t *testing.T) {
 		},
 	}
 
-	fakeClient := fake_v1.NewSimpleClientset(
+	fakeClient := fake_v1.NewClientset(
 		&conf_v1.TransportServerList{
 			Items: []conf_v1.TransportServer{},
 		})
@@ -218,7 +220,7 @@ func TestStatusUpdateWithExternalStatusAndExternalService(t *testing.T) {
 			},
 		},
 	}
-	fakeClient := fake.NewSimpleClientset(
+	fakeClient := fake.NewClientset(
 		&networking.IngressList{Items: []networking.Ingress{
 			ing,
 		}},
@@ -337,7 +339,7 @@ func TestStatusUpdateWithExternalStatusAndIngressLink(t *testing.T) {
 			},
 		},
 	}
-	fakeClient := fake.NewSimpleClientset(
+	fakeClient := fake.NewClientset(
 		&networking.IngressList{Items: []networking.Ingress{
 			ing,
 		}},

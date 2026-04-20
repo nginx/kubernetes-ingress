@@ -133,6 +133,7 @@ server {
     set $resource_type "virtualserver";
     set $resource_name "{{$s.VSName}}";
     set $resource_namespace "{{$s.VSNamespace}}";
+    set $service "-";
 
     {{- with $oidc := $s.OIDC }}
     include oidc-conf.d/oidc_{{$s.VSNamespace}}_{{$s.VSName}}.conf;
@@ -443,7 +444,7 @@ server {
     location @hc-{{ $hc.Name }} {
         {{ $proxyOrGRPC := "proxy" }}{{ if $hc.GRPCPass }}{{ $proxyOrGRPC = "grpc" }}{{ end }}
         {{- range $n, $v := $hc.Headers }}
-        {{ $proxyOrGRPC }}_set_header {{ $n }} "{{ $v }}";
+        {{ $proxyOrGRPC }}_set_header {{ $n }} {{ printf "%q" $v }};
         {{- end }}
         {{ $proxyOrGRPC }}_connect_timeout {{ $hc.ProxyConnectTimeout }};
         {{ $proxyOrGRPC }}_read_timeout {{ $hc.ProxyReadTimeout }};
@@ -472,7 +473,7 @@ server {
         default_type "{{ $e.DefaultType }}";
         {{ end }}
         {{ range $h := $e.Headers }}
-        add_header {{ $h.Name }} "{{ $h.Value }}" always;
+        add_header {{ $h.Name }} {{ printf "%q" $h.Value }} always;
         {{ end }}
         # status code is ignored here, using 0
         return 0 "{{ $e.Return.Text }}";
@@ -483,7 +484,7 @@ server {
     location {{ $l.Name }} {
         default_type "{{ $l.DefaultType }}";
         {{ range $h := $l.Headers }}
-        add_header {{ $h.Name }} "{{ $h.Value }}" always;
+        add_header {{ $h.Name }} {{ printf "%q" $h.Value }} always;
         {{ end }}
         # status code is ignored here, using 0
         return 0 "{{ $l.Return.Text }}";
@@ -746,7 +747,7 @@ server {
         {{- end }}
 
         {{- range $h := $l.ProxySetHeaders }}
-        {{ $proxyOrGRPC }}_set_header {{ $h.Name }} "{{ $h.Value }}";
+        {{ $proxyOrGRPC }}_set_header {{ $h.Name }} {{ printf "%q" $h.Value }};
         {{- end }}
 
             {{- range $h := $l.ProxyHideHeaders }}
@@ -759,8 +760,22 @@ server {
         {{ $proxyOrGRPC }}_ignore_headers {{ $l.ProxyIgnoreHeaders }};
             {{- end }}
             {{- range $h := $l.AddHeaders }}
-        add_header {{ $h.Name }} "{{ $h.Value }}" {{ if $h.Always }}always{{ end }};
+        add_header {{ $h.Name }} {{ printf "%q" $h.Value }} {{ if $h.Always }}always{{ end }};
             {{- end }}
+
+        {{- if $l.CORSEnabled }}
+        # CORS configuration per enable-cors.org
+        # Handle CORS preflight OPTIONS requests
+        if ($request_method = 'OPTIONS') {
+            {{- range $h := $l.AddHeaders }}
+            add_header {{ $h.Name }} {{ printf "%q" $h.Value }};
+            {{- end }}
+            add_header Content-Type text/plain;
+            add_header Content-Length 0;
+            return 204;
+        }
+        {{- end }}
+
             {{- if $.SpiffeClientCerts }}
         {{ $proxyOrGRPC }}_ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
         {{ $proxyOrGRPC }}_ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};

@@ -8,8 +8,10 @@ import (
 
 	"github.com/dlclark/regexp2"
 	"github.com/nginx/kubernetes-ingress/internal/configs"
+	"github.com/nginx/kubernetes-ingress/internal/nsutils"
 	internalValidation "github.com/nginx/kubernetes-ingress/internal/validation"
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -737,7 +739,7 @@ func validateServiceName(name string, fieldPath *field.Path) field.ErrorList {
 
 // validateVirtualServerServiceName checks if a namespaced service name is valid for VirtualServer upstreams.
 func validateVirtualServerServiceName(name string, fieldPath *field.Path) field.ErrorList {
-	if strings.Contains(name, "/") {
+	if nsutils.HasNamespace(name) {
 		parts := strings.Split(name, "/")
 		if len(parts) != 2 {
 			return field.ErrorList{field.Invalid(fieldPath, name, " service reference must be in the format namespace/service-name")}
@@ -828,6 +830,11 @@ func (vsv *VirtualServerValidator) validateRoute(route v1.Route, fieldPath *fiel
 		}
 	}
 
+	if route.RouteSelector != nil {
+		allErrs = append(allErrs, vsv.validateRouteSelector(route.RouteSelector, fieldPath.Child("routeSelector"))...)
+		fieldCount++
+	}
+
 	for i, e := range route.ErrorPages {
 		allErrs = append(allErrs, vsv.validateErrorPage(e, fieldPath.Child("errorPages").Index(i))...)
 	}
@@ -842,7 +849,7 @@ func (vsv *VirtualServerValidator) validateRoute(route v1.Route, fieldPath *fiel
 	}
 
 	if fieldCount != 1 {
-		msg := "must specify exactly one of `action`, `splits` or `route`"
+		msg := "must specify exactly one of `action`, `splits`, `route` or `routeSelector`"
 		if isRouteFieldForbidden || len(route.Matches) > 0 {
 			msg = "must specify exactly one of `action` or `splits`"
 		}
@@ -1333,7 +1340,8 @@ func (vsv *VirtualServerValidator) validateSplits(splits []v1.Split, fieldPath *
 	return allErrs
 }
 
-// We support prefix-based NGINX locations, positive case-sensitive/insensitive regular expressions matches and exact matches.
+// We support prefix-based NGINX locations, longest prefix match locations,
+// positive case-sensitive/insensitive regular expressions matches and exact matches.
 // More info http://nginx.org/en/docs/http/ngx_http_core_module.html#location
 func validateRoutePath(path string, fieldPath *field.Path) field.ErrorList {
 	if path == "" {
@@ -1341,14 +1349,16 @@ func validateRoutePath(path string, fieldPath *field.Path) field.ErrorList {
 	}
 
 	allErrs := field.ErrorList{}
-	if strings.HasPrefix(path, "~") {
+	if strings.HasPrefix(path, "^~") {
+		allErrs = append(allErrs, validatePath(strings.TrimLeft(strings.TrimPrefix(path, "^~"), " "), fieldPath)...)
+	} else if strings.HasPrefix(path, "~") {
 		allErrs = append(allErrs, validateRegexPath(path, fieldPath)...)
 	} else if strings.HasPrefix(path, "/") {
 		allErrs = append(allErrs, validatePath(path, fieldPath)...)
 	} else if strings.HasPrefix(path, "=") {
 		allErrs = append(allErrs, validatePath(strings.TrimPrefix(path, "="), fieldPath)...)
 	} else {
-		allErrs = append(allErrs, field.Invalid(fieldPath, path, "must start with /, ~ or ="))
+		allErrs = append(allErrs, field.Invalid(fieldPath, path, "must start with /, ~, = or ^~"))
 	}
 	return allErrs
 }
@@ -1629,10 +1639,6 @@ func rejectPlusResourcesInOSS(upstream v1.Upstream, idxPath *field.Path, isPlus 
 		allErrs = append(allErrs, field.Forbidden(idxPath.Child("slow-start"), "slow start is only supported in NGINX Plus"))
 	}
 
-	if upstream.SessionCookie != nil {
-		allErrs = append(allErrs, field.Forbidden(idxPath.Child("sessionCookie"), "sticky cookies are only supported in NGINX Plus"))
-	}
-
 	if upstream.Queue != nil {
 		allErrs = append(allErrs, field.Forbidden(idxPath.Child("queue"), "queue is only supported in NGINX Plus"))
 	}
@@ -1676,6 +1682,24 @@ func validateLabels(labels map[string]string, fieldPath *field.Path) field.Error
 		allErrs = append(allErrs, isValidLabelName(labelName, fieldPath)...)
 		for _, msg := range validation.IsValidLabelValue(labelValue) {
 			allErrs = append(allErrs, field.Invalid(fieldPath, labelValue, msg))
+		}
+	}
+
+	return allErrs
+}
+
+func (vsv *VirtualServerValidator) validateRouteSelector(routeSelector *metav1.LabelSelector, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if len(routeSelector.MatchLabels) == 0 {
+		allErrs = append(allErrs, field.Required(fieldPath.Child("matchLabels"), "must specify at least one label"))
+	} else {
+		allErrs = append(allErrs, validateLabels(routeSelector.MatchLabels, fieldPath.Child("matchLabels"))...)
+		for k, v := range routeSelector.MatchLabels {
+			if v == "" {
+				msg := "label value must be non-empty"
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("matchLabels").Key(k), v, msg))
+			}
 		}
 	}
 

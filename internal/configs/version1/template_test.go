@@ -3,13 +3,14 @@ package version1
 import (
 	"bytes"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
 	"text/template"
 
 	"github.com/gkampitakis/go-snaps/snaps"
-	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
+	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
 )
 
@@ -157,6 +158,307 @@ func TestExecuteTemplate_ForIngressForNGINX(t *testing.T) {
 		t.Fatal(err)
 	}
 	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForIngressWithCORS(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *template.Template
+	}{
+		{
+			name:    "nginx",
+			newTmpl: newNGINXIngressTmpl,
+		},
+		{
+			name:    "nginx-plus",
+			newTmpl: newNGINXPlusIngressTmpl,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+
+			err := tmpl.Execute(buf, ingressCfgWithCORS)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			cfg := buf.String()
+			// Validate both map rendering and preflight rendering in one compact assertion set.
+			wantedStrings := []string{
+				"map $http_origin $cors_origin_default_cafe_ingress_ing_default_cors_policy {",
+				`add_header Access-Control-Allow-Origin "$cors_origin_default_cafe_ingress_ing_default_cors_policy" always;`,
+				"if ($request_method = 'OPTIONS') {",
+				"add_header Content-Length 0;",
+				"return 204;",
+			}
+
+			for _, want := range wantedStrings {
+				if !strings.Contains(cfg, want) {
+					t.Errorf("want %q in generated config", want)
+				}
+			}
+
+			snaps.MatchSnapshot(t, cfg)
+		})
+	}
+}
+
+func TestExecuteTemplate_ForIngressWithHeadersOnlyNoCORS(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *template.Template
+	}{
+		{
+			name:    "nginx",
+			newTmpl: newNGINXIngressTmpl,
+		},
+		{
+			name:    "nginx-plus",
+			newTmpl: newNGINXPlusIngressTmpl,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+
+			err := tmpl.Execute(buf, ingressCfgWithHeadersOnlyNoCORS)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			cfg := buf.String()
+			if !strings.Contains(cfg, `add_header X-Test-Header "enabled" always;`) {
+				t.Errorf("want %q in generated config", `add_header X-Test-Header "enabled" always;`)
+			}
+			// CORSEnabled=false must not emit the OPTIONS preflight block.
+			if strings.Contains(cfg, "if ($request_method = 'OPTIONS') {") {
+				t.Errorf("did not expect CORS preflight block when CORSEnabled is false")
+			}
+
+			snaps.MatchSnapshot(t, cfg)
+		})
+	}
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithACPolicyAllow(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithPolicyAnnotationForAccessControlAllow)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+	wantedStrings := []string{
+		"allow 10.0.0.0/8;",
+		"deny all;",
+	}
+
+	for _, want := range wantedStrings {
+		if !strings.Contains(bufString, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithACPolicyDeny(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithPolicyAnnotationForAccessControlDeny)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+	wantedStrings := []string{
+		"deny 10.0.0.0/8;",
+		"allow all;",
+	}
+
+	for _, want := range wantedStrings {
+		if !strings.Contains(bufString, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithACPolicyAllow(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithPolicyAnnotationForAccessControlAllow)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+	wantedStrings := []string{
+		"allow 10.0.0.0/8;",
+		"deny all;",
+	}
+
+	for _, want := range wantedStrings {
+		if !strings.Contains(bufString, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithACPolicyDeny(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithPolicyAnnotationForAccessControlDeny)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+	wantedStrings := []string{
+		"deny 10.0.0.0/8;",
+		"allow all;",
+	}
+
+	for _, want := range wantedStrings {
+		if !strings.Contains(bufString, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithHTTPRedirectCode(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithHTTPRedirectCode)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithServiceBeforeRedirect(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+	setServiceString := "set $service \"-\";"
+	returnRegex := `return \d{3} .+;`
+
+	err := tmpl.Execute(buf, ingressCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+
+	if !strings.Contains(bufString, setServiceString) {
+		t.Errorf("want %q in generated config", setServiceString)
+	}
+
+	// Find position of setServiceString
+	setServicePos := strings.Index(bufString, setServiceString)
+	if setServicePos == -1 {
+		t.Fatalf("setServiceString not found in generated config")
+	}
+
+	// Find position of return statement using regex
+	re := regexp.MustCompile(returnRegex)
+	returnMatch := re.FindStringIndex(bufString)
+	if returnMatch == nil {
+		t.Fatalf("return statement matching %q not found in generated config", returnRegex)
+	}
+	returnPos := returnMatch[0]
+
+	// Verify setServiceString comes before return statement
+	if setServicePos >= returnPos {
+		t.Errorf("setServiceString at position %d should come before return statement at position %d", setServicePos, returnPos)
+	}
+
+	snaps.MatchSnapshot(t, buf.String())
+	t.Log(buf.String())
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithServiceBeforeRedirect(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+	setServiceString := "set $service \"-\";"
+	returnRegex := `return \d{3} .+;`
+
+	err := tmpl.Execute(buf, ingressCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+
+	if !strings.Contains(bufString, setServiceString) {
+		t.Errorf("want %q in generated config", setServiceString)
+	}
+
+	// Find position of setServiceString
+	setServicePos := strings.Index(bufString, setServiceString)
+	if setServicePos == -1 {
+		t.Fatalf("setServiceString not found in generated config")
+	}
+
+	// Find position of return statement using regex
+	re := regexp.MustCompile(returnRegex)
+	returnMatch := re.FindStringIndex(bufString)
+	if returnMatch == nil {
+		t.Fatalf("return statement matching %q not found in generated config", returnRegex)
+	}
+	returnPos := returnMatch[0]
+
+	// Verify setServiceString comes before return statement
+	if setServicePos >= returnPos {
+		t.Errorf("setServiceString at position %d should come before return statement at position %d", setServicePos, returnPos)
+	}
+
+	snaps.MatchSnapshot(t, buf.String())
+	t.Log(buf.String())
 }
 
 func TestExecuteTemplate_ForIngressForNGINXPlusWithRegexAnnotationCaseSensitiveModifier(t *testing.T) {
@@ -824,11 +1126,11 @@ func TestExecuteTemplate_ForMainForNGINXPlusWithOIDCTimeoutDefault(t *testing.T)
 	t.Log(mainConf)
 
 	expectedDirectives := []string{
-		"keyval_zone zone=oidc_pkce:128K        timeout=90s sync;",
-		"keyval_zone zone=oidc_id_tokens:1M     timeout=1h sync;",
+		"keyval_zone zone=oidc_pkce:128K timeout=90s sync;",
+		"keyval_zone zone=oidc_id_tokens:1M timeout=1h sync;",
 		"keyval_zone zone=oidc_access_tokens:1M timeout=1h sync;",
-		"keyval_zone zone=refresh_tokens:1M     timeout=8h sync;",
-		"keyval_zone zone=oidc_sids:1M          timeout=8h sync;",
+		"keyval_zone zone=refresh_tokens:1M timeout=8h sync;",
+		"keyval_zone zone=oidc_sids:1M timeout=8h sync;",
 		"include oidc/oidc_common.conf;",
 	}
 
@@ -855,11 +1157,11 @@ func TestExecuteTemplate_ForMainForNGINXPlusWithOIDCTimeoutCustom(t *testing.T) 
 	t.Log(mainConf)
 
 	expectedDirectives := []string{
-		"keyval_zone zone=oidc_pkce:128K        timeout=2m sync;",
-		"keyval_zone zone=oidc_id_tokens:1M     timeout=2h sync;",
-		"keyval_zone zone=oidc_access_tokens:1M timeout=30m sync;",
-		"keyval_zone zone=refresh_tokens:1M     timeout=1h sync;",
-		"keyval_zone zone=oidc_sids:1M          timeout=120s sync;",
+		"keyval_zone zone=oidc_pkce:512K timeout=2m sync;",
+		"keyval_zone zone=oidc_id_tokens:2M timeout=2h sync;",
+		"keyval_zone zone=oidc_access_tokens:3M timeout=30m sync;",
+		"keyval_zone zone=refresh_tokens:4M timeout=1h sync;",
+		"keyval_zone zone=oidc_sids:5M timeout=120s sync;",
 		"include oidc/oidc_common.conf;",
 	}
 
@@ -1152,12 +1454,23 @@ func TestExecuteTemplate_ForMainForNGINXWithZoneSyncEnabledCustomResolverAddress
 		"zone_sync_server nginx-ingress-headless.nginx-ingress.svc.cluster.local:1223 resolve;",
 	}
 
+	unwantedDirectives := []string{
+		"listen [::]:1223;",
+	}
+
 	mainConf := buf.String()
 	for _, want := range wantDirectives {
 		if !strings.Contains(mainConf, want) {
 			t.Errorf("want %q in generated config", want)
 		}
 	}
+
+	for _, unwanted := range unwantedDirectives {
+		if strings.Contains(mainConf, unwanted) {
+			t.Errorf("do not want %q in generated config", unwanted)
+		}
+	}
+
 	snaps.MatchSnapshot(t, buf.String())
 }
 
@@ -1207,10 +1520,10 @@ func TestExecuteTemplate_ForIngressForNGINXWithProxySetHeadersAnnotationWithDefa
 				"nginx.org/proxy-set-headers": "X-Forwarded-ABC",
 			},
 			wantCoffeeHeaders: []string{
-				`proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;`,
+				`proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";`,
 			},
 			wantTeaHeaders: []string{
-				`proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;`,
+				`proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";`,
 			},
 		},
 	}
@@ -1307,14 +1620,14 @@ func TestExecuteTemplate_ForMergeableIngressForNGINXMasterWithoutAnnotationMinio
 				"nginx.org/proxy-set-headers":      "X-Forwarded-Coffee",
 			},
 			wantCoffeeHeaders: []string{
-				`proxy_set_header X-Forwarded-Coffee $http_x_forwarded_coffee;`,
+				`proxy_set_header X-Forwarded-Coffee "$http_x_forwarded_coffee";`,
 			},
 			teaAnnotations: map[string]string{
 				"nginx.org/mergeable-ingress-type": "minion",
 				"nginx.org/proxy-set-headers":      "X-Forwarded-Tea",
 			},
 			wantTeaHeaders: []string{
-				`proxy_set_header X-Forwarded-Tea $http_x_forwarded_tea;`,
+				`proxy_set_header X-Forwarded-Tea "$http_x_forwarded_tea";`,
 			},
 		},
 	}
@@ -1494,13 +1807,13 @@ func TestExecuteTemplate_ForMergeableIngressForNGINXMasterWithAnnotationForProxy
 				"nginx.org/mergeable-ingress-type": "minion",
 			},
 			wantCoffeeHeaders: []string{
-				`proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;`,
+				`proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";`,
 			},
 			teaAnnotations: map[string]string{
 				"nginx.org/mergeable-ingress-type": "minion",
 			},
 			wantTeaHeaders: []string{
-				`proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;`,
+				`proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";`,
 			},
 		},
 	}
@@ -1550,16 +1863,16 @@ func TestExecuteTemplate_ForMergeableIngressForNGINXMasterMinionsWithDifferentHe
 				"nginx.org/proxy-set-headers":      "X-Forwarded-Coffee: espresso",
 			},
 			wantCoffeeHeaders: []string{
-				`proxy_set_header X-Forwarded-Coffee "espresso"`,
-				"proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;",
+				`proxy_set_header X-Forwarded-Coffee "espresso";`,
+				`proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";`,
 			},
 			teaAnnotations: map[string]string{
 				"nginx.org/mergeable-ingress-type": "minion",
 				"nginx.org/proxy-set-headers":      "X-Forwarded-Tea: chai",
 			},
 			wantTeaHeaders: []string{
-				`proxy_set_header X-Forwarded-Tea "chai"`,
-				"proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;",
+				`proxy_set_header X-Forwarded-Tea "chai";`,
+				`proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";`,
 			},
 		},
 	}
@@ -1609,10 +1922,10 @@ func TestExecuteTemplate_ForMergeableIngressForNGINXWithProxySetHeadersAnnotatio
 				"nginx.org/proxy-set-headers":      "X-Forwarded-ABC: coffee",
 			},
 			wantCoffeeHeaders: []string{
-				`proxy_set_header X-Forwarded-ABC "coffee"`,
+				`proxy_set_header X-Forwarded-ABC "coffee";`,
 			},
 			wantTeaHeaders: []string{
-				"proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;",
+				`proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";`,
 			},
 		},
 	}
@@ -1664,19 +1977,19 @@ func TestExecuteTemplate_ForMergeableIngressForNGINXMasterMinionsWithMultipleDif
 			wantCoffeeHeaders: []string{
 				`proxy_set_header X-Forwarded-Coffee "espresso"`,
 				`proxy_set_header X-Forwarded-Minion "coffee"`,
-				"proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;",
-				"proxy_set_header BVC $http_bvc;",
-				`proxy_set_header Location "minion"`,
+				`proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";`,
+				`proxy_set_header BVC "$http_bvc";`,
+				`proxy_set_header Location "minion";`,
 			},
 			teaAnnotations: map[string]string{
 				"nginx.org/mergeable-ingress-type": "minion",
 				"nginx.org/proxy-set-headers":      "X-Forwarded-Tea: chai",
 			},
 			wantTeaHeaders: []string{
-				`proxy_set_header X-Forwarded-Tea "chai"`,
-				"proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;",
-				"proxy_set_header BVC $http_bvc;",
-				`proxy_set_header Location "master"`,
+				`proxy_set_header X-Forwarded-Tea "chai";`,
+				`proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";`,
+				`proxy_set_header BVC "$http_bvc";`,
+				`proxy_set_header Location "master";`,
 			},
 		},
 	}
@@ -1703,6 +2016,417 @@ func TestExecuteTemplate_ForMergeableIngressForNGINXMasterMinionsWithMultipleDif
 		}
 		snaps.MatchSnapshot(t, buf.String())
 	}
+}
+
+func TestExecuteTemplate_ForMergeableIngressMasterPolicy(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+
+	tests := []struct {
+		name              string
+		masterAnnotations map[string]string
+		allow             []string
+		deny              []string
+		wanted            []string
+	}{
+		{
+			name: "Mergeable Ingress Master Policy with AccessControl Policy Annotation - Allow",
+			masterAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "master",
+				"nginx.org/policies":               "test-access-control-policy",
+			},
+			allow: []string{"10.0.0.0/16"},
+			deny:  []string{},
+			wanted: []string{
+				"allow 10.0.0.0/16;",
+				"deny all;",
+			},
+		},
+		{
+			name: "Mergeable Ingress Master Policy with AccessControl Policy Annotation - Deny",
+			masterAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "master",
+				"nginx.org/policies":               "test-access-control-policy",
+			},
+			allow: []string{},
+			deny:  []string{"10.0.0.0/16"},
+			wanted: []string{
+				"deny 10.0.0.0/16;",
+				"allow all;",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		buf := &bytes.Buffer{}
+		ingressCfg := createProxySetHeaderIngressConfig(
+			tt.masterAnnotations,
+			nil,
+			nil,
+		)
+
+		for s := range ingressCfg.Servers {
+			ingressCfg.Servers[s].Allow = tt.allow
+			ingressCfg.Servers[s].Deny = tt.deny
+		}
+
+		err := tmpl.Execute(buf, ingressCfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, want := range tt.wanted {
+			if !strings.Contains(buf.String(), want) {
+				t.Errorf("expected directive %q not found in generated config for test case %q", want, tt.name)
+			}
+		}
+		snaps.MatchSnapshot(t, buf.String())
+		t.Log(buf.String())
+	}
+}
+
+func TestExecuteTemplate_ForMergeableIngressMinionPolicy(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+
+	tests := []struct {
+		name              string
+		minionAnnotations map[string]string
+		allow             []string
+		deny              []string
+		wanted            []string
+	}{
+		{
+			name: "Mergeable Ingress Master Policy with AccessControl Policy Annotation - Allow",
+			minionAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "minion",
+				"nginx.org/policies":               "test-access-control-policy",
+			},
+			allow: []string{"10.0.0.0/16"},
+			deny:  []string{},
+			wanted: []string{
+				"allow 10.0.0.0/16;",
+				"deny all;",
+			},
+		},
+		{
+			name: "Mergeable Ingress Master Policy with AccessControl Policy Annotation - Deny",
+			minionAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "minion",
+				"nginx.org/policies":               "test-access-control-policy",
+			},
+			allow: []string{},
+			deny:  []string{"10.0.0.0/16"},
+			wanted: []string{
+				"deny 10.0.0.0/16;",
+				"allow all;",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		buf := &bytes.Buffer{}
+		ingressCfg := createProxySetHeaderIngressConfig(
+			map[string]string{ // master annotations
+				"nginx.org/mergeable-ingress-type": "master",
+			},
+			tt.minionAnnotations,
+			nil,
+		)
+
+		for s := range ingressCfg.Servers {
+			for l := range ingressCfg.Servers[s].Locations {
+				ingressCfg.Servers[s].Locations[l].Allow = tt.allow
+				ingressCfg.Servers[s].Locations[l].Deny = tt.deny
+			}
+		}
+
+		err := tmpl.Execute(buf, ingressCfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, want := range tt.wanted {
+			if !strings.Contains(buf.String(), want) {
+				t.Errorf("expected directive %q not found in generated config for test case %q", want, tt.name)
+			}
+		}
+		snaps.MatchSnapshot(t, buf.String())
+		t.Log(buf.String())
+	}
+}
+
+func TestExecuteTemplate_ForMergeableIngressMasterMinionPolicy(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+
+	tests := []struct {
+		name              string
+		masterAnnotations map[string]string
+		minionAnnotations map[string]string
+		masterAllow       []string
+		masterDeny        []string
+		minionAllow       []string
+		minionDeny        []string
+		wantedMaster      []string
+		wantedMinion      []string
+	}{
+		{
+			name: "Mergeable Ingress Master + Minion Policy with AccessControl Policy Annotation - Allow",
+			masterAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "master",
+				"nginx.org/policies":               "master-access-control-policy",
+			},
+			minionAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "minion",
+				"nginx.org/policies":               "minion-access-control-policy",
+			},
+			masterAllow: []string{"10.0.0.0/16"},
+			masterDeny:  []string{},
+			minionAllow: []string{"10.1.1.1/16"},
+			minionDeny:  []string{},
+			wantedMaster: []string{
+				"allow 10.0.0.0/16;",
+				"deny all;",
+			},
+			wantedMinion: []string{
+				"allow 10.1.1.1/16",
+				"deny all;",
+			},
+		},
+		{
+			name: "Mergeable Ingress Master + Minion Policy with AccessControl Policy Annotation - Deny",
+			masterAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "master",
+				"nginx.org/policies":               "master-access-control-policy",
+			},
+			minionAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "minion",
+				"nginx.org/policies":               "test-access-control-policy",
+			},
+			masterAllow: []string{},
+			masterDeny:  []string{"10.0.0.0/16"},
+			minionAllow: []string{},
+			minionDeny:  []string{"10.1.1.1/16"},
+			wantedMaster: []string{
+				"deny 10.0.0.0/16;",
+				"allow all;",
+			},
+			wantedMinion: []string{
+				"deny 10.1.1.1/16",
+				"allow all;",
+			},
+		},
+		{
+			name: "Mergeable Ingress Master + Minion Policy with AccessControl Policy Annotation - Master Allow Minion Deny",
+			masterAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "master",
+				"nginx.org/policies":               "master-access-control-policy",
+			},
+			minionAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "minion",
+				"nginx.org/policies":               "test-access-control-policy",
+			},
+			masterAllow: []string{"10.0.0.0/16"},
+			masterDeny:  []string{},
+			minionAllow: []string{},
+			minionDeny:  []string{"10.1.1.1/16"},
+			wantedMaster: []string{
+				"allow 10.0.0.0/16;",
+				"deny all;",
+			},
+			wantedMinion: []string{
+				"deny 10.1.1.1/16",
+				"allow all;",
+			},
+		},
+		{
+			name: "Mergeable Ingress Master + Minion Policy with AccessControl Policy Annotation - Master Deny Minion Allow",
+			masterAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "master",
+				"nginx.org/policies":               "master-access-control-policy",
+			},
+			minionAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "minion",
+				"nginx.org/policies":               "test-access-control-policy",
+			},
+			masterAllow: []string{},
+			masterDeny:  []string{"10.0.0.0/16"},
+			minionAllow: []string{"10.1.1.1/16"},
+			minionDeny:  []string{},
+			wantedMaster: []string{
+				"deny 10.0.0.0/16;",
+				"allow all;",
+			},
+			wantedMinion: []string{
+				"allow 10.1.1.1/16",
+				"deny all;",
+			},
+		},
+		{
+			name: "Mergeable Ingress Master + Minion Policy with AccessControl Policy Annotation - Mixed + Reused AccessControl Policy",
+			masterAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "master",
+				"nginx.org/policies":               "master-access-control-policy, another-policy",
+			},
+			minionAnnotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "minion",
+				"nginx.org/policies":               "test-access-control-policy, another-policy",
+			},
+			masterAllow: []string{"10.2.0.0/16"},
+			masterDeny:  []string{"10.0.0.0/16"},
+			minionAllow: []string{"10.1.0.0/16", "10.2.0.0/16"},
+			minionDeny:  []string{},
+			wantedMaster: []string{
+				"allow 10.2.0.0/16;",
+				"deny all;",
+				"deny 10.0.0.0/16;",
+				"allow all;",
+			},
+			wantedMinion: []string{
+				"allow 10.1.0.0/16",
+				"allow 10.2.0.0/16",
+				"deny all;",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		buf := &bytes.Buffer{}
+		ingressCfg := createProxySetHeaderIngressConfig(
+			map[string]string{ // master annotations
+				"nginx.org/mergeable-ingress-type": "master",
+			},
+			tt.minionAnnotations,
+			nil,
+		)
+
+		for s := range ingressCfg.Servers {
+			ingressCfg.Servers[s].Allow = tt.masterAllow
+			ingressCfg.Servers[s].Deny = tt.masterDeny
+			for l := range ingressCfg.Servers[s].Locations {
+				ingressCfg.Servers[s].Locations[l].Path = "/"
+				ingressCfg.Servers[s].Locations[l].Allow = tt.minionAllow
+				ingressCfg.Servers[s].Locations[l].Deny = tt.minionDeny
+			}
+		}
+
+		err := tmpl.Execute(buf, ingressCfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		sections := strings.Split(buf.String(), "location / {")
+
+		serverBlock := sections[0]
+		locationBlock := sections[1]
+
+		for _, want := range tt.wantedMaster {
+			if !strings.Contains(serverBlock, want) {
+				t.Errorf("expected directive %q not found in generated config for test case %q", want, tt.name)
+			}
+		}
+
+		for _, want := range tt.wantedMinion {
+			if !strings.Contains(locationBlock, want) {
+				t.Errorf("expected directive %q not found in generated config for test case %q", want, tt.name)
+			}
+		}
+
+		snaps.MatchSnapshot(t, buf.String())
+		t.Log(buf.String())
+	}
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithProxyNextUpstreamTimeout(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	ingressCfg := IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name: "test.example.com",
+				Locations: []Location{
+					{
+						ProxyNextUpstreamTimeout: "",
+						Upstream:                 testUpstream,
+						ProxyPass:                "http://test",
+					},
+				},
+			},
+		},
+		Ingress: Ingress{
+			Name:      "test-ingress",
+			Namespace: "default",
+		},
+	}
+
+	err := tmpl.Execute(buf, ingressCfg)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	unwantDirectives := []string{
+		"proxy_next_upstream_timeout",
+	}
+
+	ingConf := buf.String()
+	for _, unwant := range unwantDirectives {
+		if strings.Contains(ingConf, unwant) {
+			t.Errorf("unwant %q in generated config", unwant)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithProxyNextUpstreamTries(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	ingressCfg := IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name: "test.example.com",
+				Locations: []Location{
+					{
+						ProxyNextUpstreamTries: nil,
+						Upstream:               testUpstream,
+						ProxyPass:              "http://test",
+					},
+				},
+			},
+		},
+		Ingress: Ingress{
+			Name:      "test-ingress",
+			Namespace: "default",
+		},
+	}
+
+	err := tmpl.Execute(buf, ingressCfg)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	unwantDirectives := []string{
+		"proxy_next_upstream_tries",
+	}
+
+	ingConf := buf.String()
+	for _, unwant := range unwantDirectives {
+		if strings.Contains(ingConf, unwant) {
+			t.Errorf("unwant %q in generated config", unwant)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
 }
 
 func TestExecuteTemplate_ForIngressForNGINXPlusWithHTTP2On(t *testing.T) {
@@ -2010,6 +2734,7 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithRequestRateLimitZoneSync(t *t
 							Burst:      100,
 							RejectCode: 429,
 						},
+						ProxyPass: "http://test",
 					},
 				},
 			},
@@ -2100,6 +2825,7 @@ var (
 				SSLCertificateKey: "secret.pem",
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				Locations: []Location{
 					{
 						Path:                "/tea",
@@ -2117,6 +2843,7 @@ var (
 							Name:      "tea-minion",
 							Namespace: "default",
 						},
+						ProxyPass: "http://test",
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
@@ -2153,6 +2880,214 @@ var (
 		},
 	}
 
+	// Ingress Config example with CORS map + headers
+	ingressCfgWithCORS = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "test.example.com",
+				ServerTokens: "off",
+				StatusZone:   "test.example.com",
+				Locations: []Location{
+					{
+						Path:                "/tea",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "10s",
+						ProxyReadTimeout:    "10s",
+						ProxySendTimeout:    "10s",
+						ClientMaxBodySize:   "2m",
+						CORSEnabled:         true,
+						AddHeaders: []version2.AddHeader{
+							{
+								Header: version2.Header{Name: "Vary", Value: "Origin"},
+								Always: true,
+							},
+							{
+								Header: version2.Header{Name: "Access-Control-Allow-Origin", Value: "$cors_origin_default_cafe_ingress_ing_default_cors_policy"},
+								Always: true,
+							},
+							{
+								Header: version2.Header{Name: "Access-Control-Allow-Methods", Value: "GET, POST, OPTIONS"},
+								Always: true,
+							},
+						},
+						ProxyPass: "http://test",
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Maps: []version2.Map{
+			{
+				Source:   "$http_origin",
+				Variable: "$cors_origin_default_cafe_ingress_ing_default_cors_policy",
+				Parameters: []version2.Parameter{
+					{Value: "default", Result: `""`},
+					{Value: `"https://example.com"`, Result: "https://example.com"},
+				},
+			},
+		},
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+
+	// Ingress Config example with access-control Allow Policy via annotation
+	ingressCfgWithPolicyAnnotationForAccessControlAllow = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "test.example.com",
+				ServerTokens: "off",
+				StatusZone:   "test.example.com",
+				Locations: []Location{
+					{
+						Path:      "/tea",
+						Upstream:  testUpstream,
+						ProxyPass: "http://test",
+					},
+				},
+				Allow: []string{
+					"10.0.0.0/8",
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"nginx.org/policies": "access-control-policy",
+			},
+		},
+	}
+
+	// Ingress Config example with custom headers only (CORSEnabled=false)
+	ingressCfgWithHeadersOnlyNoCORS = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "test.example.com",
+				ServerTokens: "off",
+				StatusZone:   "test.example.com",
+				Locations: []Location{
+					{
+						Path:                "/tea",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "10s",
+						ProxyReadTimeout:    "10s",
+						ProxySendTimeout:    "10s",
+						ClientMaxBodySize:   "2m",
+						CORSEnabled:         false,
+						AddHeaders: []version2.AddHeader{
+							{
+								Header: version2.Header{Name: "X-Test-Header", Value: "enabled"},
+								Always: true,
+							},
+						},
+						ProxyPass: "http://test",
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+
+	// Ingress Config example with access-control Deny Policy via annotation
+	ingressCfgWithPolicyAnnotationForAccessControlDeny = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "test.example.com",
+				ServerTokens: "off",
+				StatusZone:   "test.example.com",
+				Locations: []Location{
+					{
+						Path:      "/tea",
+						Upstream:  testUpstream,
+						ProxyPass: "http://test",
+					},
+				},
+				Deny: []string{
+					"10.0.0.0/8",
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"nginx.org/policies": "access-control-policy",
+			},
+		},
+	}
+
+	// Ingress Config with PoliciesErrorReturn at server level (missing/invalid policy returns 500)
+	ingressCfgWithPoliciesErrorReturnServer = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "test.example.com",
+				ServerTokens: "off",
+				StatusZone:   "test.example.com",
+				PoliciesErrorReturn: &version2.Return{
+					Code: 500,
+				},
+				Locations: []Location{
+					{
+						Path:      "/tea",
+						Upstream:  testUpstream,
+						ProxyPass: "http://test",
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"nginx.org/policies": "missing-policy",
+			},
+		},
+	}
+
+	// Ingress Config with PoliciesErrorReturn at location level (minion with missing/invalid policy)
+	ingressCfgWithPoliciesErrorReturnLocation = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "test.example.com",
+				ServerTokens: "off",
+				StatusZone:   "test.example.com",
+				Locations: []Location{
+					{
+						Path:     "/tea",
+						Upstream: testUpstream,
+						MinionIngress: &Ingress{
+							Name:      "tea-minion",
+							Namespace: "default",
+							Annotations: map[string]string{
+								"nginx.org/policies": "missing-policy",
+							},
+						},
+						PoliciesErrorReturn: &version2.Return{
+							Code: 500,
+						},
+						ProxyPass: "http://test",
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+
 	ingressCfgWithClientBodyBufferSize = IngressNginxConfig{
 		Servers: []Server{
 			{
@@ -2170,6 +3105,7 @@ var (
 				SSLCertificateKey: "secret.pem",
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				Locations: []Location{
 					{
 						Path:                 "/tea",
@@ -2188,6 +3124,7 @@ var (
 							Name:      "tea-minion",
 							Namespace: "default",
 						},
+						ProxyPass: "http://test",
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
@@ -2214,6 +3151,42 @@ var (
 				AppProtectDosName:            "testdos",
 				AppProtectDosAccessLogDst:    "/var/log/dos",
 				AppProtectDosAllowListPath:   "/etc/nginx/dos/allowlist/default_test.example.com",
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+
+	// Ingress Config example with ssl-redirect and redirect-to-https enabled with custom http-redirect-code
+	ingressCfgWithHTTPRedirectCode = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:              "test.example.com",
+				ServerTokens:      "off",
+				StatusZone:        "test.example.com",
+				SSL:               true,
+				SSLCertificate:    "secret.pem",
+				SSLCertificateKey: "secret.pem",
+				SSLPorts:          []int{443},
+				SSLRedirect:       true,
+				RedirectToHTTPS:   true,
+				HTTPRedirectCode:  308,
+				Locations: []Location{
+					{
+						Path:                "/tea",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "10s",
+						ProxyReadTimeout:    "10s",
+						ProxySendTimeout:    "10s",
+						ClientMaxBodySize:   "2m",
+						ProxyPass:           "http://test",
+					},
+				},
+				HealthChecks: map[string]HealthCheck{"test": healthCheck},
 			},
 		},
 		Upstreams: []Upstream{testUpstream},
@@ -2242,6 +3215,7 @@ var (
 				SSLCertificateKey: "secret.pem",
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				Locations: []Location{
 					{
 						Path:                "/tea/[A-Z0-9]{3}",
@@ -2259,6 +3233,7 @@ var (
 							Name:      "tea-minion",
 							Namespace: "default",
 						},
+						ProxyPass: "http://test",
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
@@ -2297,6 +3272,7 @@ var (
 				SSLCertificateKey: "secret.pem",
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				Locations: []Location{
 					{
 						Path:                "/tea/[A-Z0-9]{3}",
@@ -2314,6 +3290,7 @@ var (
 							Name:      "tea-minion",
 							Namespace: "default",
 						},
+						ProxyPass: "http://test",
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
@@ -2352,6 +3329,7 @@ var (
 				SSLCertificateKey: "secret.pem",
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				Locations: []Location{
 					{
 						Path:                "/tea",
@@ -2369,6 +3347,7 @@ var (
 							Name:      "tea-minion",
 							Namespace: "default",
 						},
+						ProxyPass: "http://test",
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
@@ -2407,6 +3386,7 @@ var (
 				SSLCertificateKey: "secret.pem",
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				Locations: []Location{
 					{
 						Path:                "/tea",
@@ -2424,6 +3404,7 @@ var (
 							Name:      "tea-minion",
 							Namespace: "default",
 						},
+						ProxyPass: "http://test",
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
@@ -2761,13 +3742,14 @@ var (
 	}
 
 	mainCfgWithZoneSyncEnabledCustomResolverAddressAndValidAndIPV6Off = MainConfig{
+		DisableIPV6: true,
 		ZoneSyncConfig: ZoneSyncConfig{
 			Enable:            true,
 			Port:              1223,
 			Domain:            "nginx-ingress-headless.nginx-ingress.svc.cluster.local",
 			ResolverAddresses: []string{"example.com"},
 			ResolverValid:     "20s",
-			ResolverIPV6:      commonhelpers.BoolToPointerBool(false),
+			ResolverIPV6:      new(false),
 		},
 	}
 
@@ -2782,23 +3764,33 @@ var (
 
 	mainCfgWithOIDCTimeoutDefault = MainConfig{
 		OIDC: OIDCConfig{
-			Enable:         true,
-			PKCETimeout:    "90s",
-			IDTokenTimeout: "1h",
-			AccessTimeout:  "1h",
-			RefreshTimeout: "8h",
-			SIDSTimeout:    "8h",
+			Enable:          true,
+			PKCETimeout:     "90s",
+			PKCEZoneSize:    "128K",
+			IDTokenTimeout:  "1h",
+			IDTokenZoneSize: "1M",
+			AccessTimeout:   "1h",
+			AccessZoneSize:  "1M",
+			RefreshTimeout:  "8h",
+			RefreshZoneSize: "1M",
+			SIDSTimeout:     "8h",
+			SIDSZoneSize:    "1M",
 		},
 	}
 
 	mainCfgWithOIDCTimeoutCustom = MainConfig{
 		OIDC: OIDCConfig{
-			Enable:         true,
-			PKCETimeout:    "2m",
-			IDTokenTimeout: "2h",
-			AccessTimeout:  "30m",
-			RefreshTimeout: "1h",
-			SIDSTimeout:    "120s",
+			Enable:          true,
+			PKCETimeout:     "2m",
+			PKCEZoneSize:    "512K",
+			IDTokenTimeout:  "2h",
+			IDTokenZoneSize: "2M",
+			AccessTimeout:   "30m",
+			AccessZoneSize:  "3M",
+			RefreshTimeout:  "1h",
+			RefreshZoneSize: "4M",
+			SIDSTimeout:     "120s",
+			SIDSZoneSize:    "5M",
 		},
 	}
 
@@ -2871,6 +3863,7 @@ var (
 							},
 						},
 						ProxySSLName: "coffee-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80",
 					},
 					{
 						Path:                "/tea",
@@ -2889,6 +3882,7 @@ var (
 							},
 						},
 						ProxySSLName: "tea-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80",
 					},
 				},
 				SSL:               true,
@@ -2899,6 +3893,7 @@ var (
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]HealthCheck),
 			},
 		},
@@ -2944,6 +3939,7 @@ var (
 							},
 						},
 						ProxySSLName: "coffee-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80",
 					},
 					{
 						Path:                "/tea",
@@ -2962,6 +3958,7 @@ var (
 							},
 						},
 						ProxySSLName: "tea-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80",
 					},
 				},
 				SSL:               true,
@@ -2972,6 +3969,7 @@ var (
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]HealthCheck),
 			},
 		},
@@ -3019,6 +4017,7 @@ var (
 							},
 						},
 						ProxySSLName: "coffee-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80",
 					},
 					{
 						Path:                "/tea",
@@ -3037,6 +4036,7 @@ var (
 							},
 						},
 						ProxySSLName: "tea-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80",
 					},
 				},
 				SSL:               true,
@@ -3047,6 +4047,7 @@ var (
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]HealthCheck),
 			},
 		},
@@ -3092,6 +4093,7 @@ var (
 							},
 						},
 						ProxySSLName: "coffee-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80",
 					},
 					{
 						Path:                "/tea",
@@ -3111,6 +4113,7 @@ var (
 							},
 						},
 						ProxySSLName: "tea-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80",
 					},
 				},
 				SSL:               true,
@@ -3121,6 +4124,7 @@ var (
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]HealthCheck),
 			},
 		},
@@ -3167,6 +4171,7 @@ var (
 							},
 						},
 						ProxySSLName: "coffee-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80",
 					},
 					{
 						Path:                "/tea",
@@ -3185,6 +4190,7 @@ var (
 							},
 						},
 						ProxySSLName: "tea-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80",
 					},
 				},
 				SSL:               true,
@@ -3195,6 +4201,7 @@ var (
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]HealthCheck),
 			},
 		},
@@ -3243,6 +4250,7 @@ var (
 							},
 						},
 						ProxySSLName: "coffee-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80",
 					},
 					{
 						Path:                "/tea",
@@ -3262,6 +4270,7 @@ var (
 							},
 						},
 						ProxySSLName: "tea-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80",
 					},
 				},
 				SSL:               true,
@@ -3272,6 +4281,7 @@ var (
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]HealthCheck),
 			},
 		},
@@ -3319,6 +4329,7 @@ var (
 							},
 						},
 						ProxySSLName: "coffee-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80",
 					},
 					{
 						Path:                "/tea",
@@ -3338,6 +4349,7 @@ var (
 							},
 						},
 						ProxySSLName: "tea-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80",
 					},
 				},
 				SSL:               true,
@@ -3348,6 +4360,7 @@ var (
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]HealthCheck),
 			},
 		},
@@ -3394,7 +4407,9 @@ var (
 								"nginx.org/proxy-set-headers":      "X-Forwarded-ABC: coffee",
 							},
 						},
-						ProxySSLName: "coffee-svc.default.svc",
+						ProxyPass:       "http://default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80",
+						ProxySetHeaders: []version2.Header{{Name: "X-Forwarded-ABC", Value: "coffee"}},
+						ProxySSLName:    "coffee-svc.default.svc",
 					},
 					{
 						Path:                "/tea",
@@ -3413,7 +4428,9 @@ var (
 								"nginx.org/proxy-set-headers":      "X-Forwarded-ABC: tea",
 							},
 						},
-						ProxySSLName: "tea-svc.default.svc",
+						ProxyPass:       "http://default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80",
+						ProxySetHeaders: []version2.Header{{Name: "X-Forwarded-ABC", Value: "tea"}},
+						ProxySSLName:    "tea-svc.default.svc",
 					},
 				},
 				SSL:               true,
@@ -3424,6 +4441,7 @@ var (
 				Ports:             []int{80},
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				HealthChecks:      make(map[string]HealthCheck),
 			},
 		},
@@ -3449,6 +4467,7 @@ var (
 				SSLCertificateKey: "secret.pem",
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				Locations: []Location{
 					{
 						Path:                "/tea",
@@ -3461,6 +4480,7 @@ var (
 							Name:      "tea-minion",
 							Namespace: "default",
 						},
+						ProxyPass: "http://test",
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
@@ -3502,6 +4522,7 @@ var (
 				SSLCertificateKey: "secret.pem",
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				Locations: []Location{
 					{
 						Path:                "/tea",
@@ -3523,6 +4544,7 @@ var (
 							DryRun:     true,
 							LogLevel:   "info",
 						},
+						ProxyPass: "http://test",
 					},
 					{
 						Path:                "/coffee",
@@ -3544,6 +4566,7 @@ var (
 							DryRun:     true,
 							LogLevel:   "info",
 						},
+						ProxyPass: "http://test",
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
@@ -3586,6 +4609,7 @@ var (
 				SSLCertificateKey: "secret.pem",
 				SSLPorts:          []int{443},
 				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
 				Locations: []Location{
 					{
 						Path:                "/tea",
@@ -3611,6 +4635,7 @@ var (
 							DryRun:     true,
 							RejectCode: 429,
 						},
+						ProxyPass: "http://test",
 					},
 					{
 						Path:                "/coffee",
@@ -3635,6 +4660,7 @@ var (
 							LogLevel:   "error",
 							RejectCode: 503,
 						},
+						ProxyPass: "http://test",
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
@@ -3688,7 +4714,11 @@ var (
 	}
 )
 
-func createProxySetHeaderIngressConfig(masterAnnotations map[string]string, coffeeAnnotations map[string]string, teamAnnotations map[string]string) IngressNginxConfig {
+func createProxySetHeaderIngressConfig(masterAnnotations, coffeeAnnotations, teaAnnotations map[string]string) IngressNginxConfig {
+	masterPSH := masterAnnotations["nginx.org/proxy-set-headers"]
+	coffeePSH := coffeeAnnotations["nginx.org/proxy-set-headers"]
+	teaPSH := teaAnnotations["nginx.org/proxy-set-headers"]
+
 	return IngressNginxConfig{
 		Servers: []Server{
 			{
@@ -3700,13 +4730,17 @@ func createProxySetHeaderIngressConfig(masterAnnotations map[string]string, coff
 							Namespace:   "default",
 							Annotations: coffeeAnnotations,
 						},
+						ProxySetHeaders: MergeProxySetHeaders(masterPSH, coffeePSH),
+						ProxyPass:       "http://test",
 					},
 					{
 						MinionIngress: &Ingress{
 							Name:        "cafe-ingress-tea-minion",
 							Namespace:   "default",
-							Annotations: teamAnnotations,
+							Annotations: teaAnnotations,
 						},
+						ProxySetHeaders: MergeProxySetHeaders(masterPSH, teaPSH),
+						ProxyPass:       "http://test",
 					},
 				},
 			},
@@ -3734,8 +4768,9 @@ func TestExecuteTemplate_ForIngressForNGINXWithSSLCiphers(t *testing.T) {
 				SSLPreferServerCiphers: true,
 				Locations: []Location{
 					{
-						Path:     "/",
-						Upstream: testUpstream,
+						Path:      "/",
+						Upstream:  testUpstream,
+						ProxyPass: "http://test",
 					},
 				},
 			},
@@ -3781,8 +4816,9 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithSSLCiphers(t *testing.T) {
 				SSLPreferServerCiphers: true,
 				Locations: []Location{
 					{
-						Path:     "/",
-						Upstream: testUpstream,
+						Path:      "/",
+						Upstream:  testUpstream,
+						ProxyPass: "http://test",
 					},
 				},
 			},
@@ -3828,8 +4864,9 @@ func TestExecuteTemplate_ForIngressForNGINXWithSSLCiphersDisabled(t *testing.T) 
 				SSLPreferServerCiphers: false,
 				Locations: []Location{
 					{
-						Path:     "/",
-						Upstream: testUpstream,
+						Path:      "/",
+						Upstream:  testUpstream,
+						ProxyPass: "http://test",
 					},
 				},
 			},
@@ -3884,6 +4921,7 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 								Path:          "/(coffee|tea)",
 								RewriteTarget: "/beverages/$1",
 								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
 							},
 						},
 					},
@@ -3916,6 +4954,7 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 								Path:          "/(latte|espresso)",
 								RewriteTarget: "/drinks/$1",
 								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
 							},
 						},
 					},
@@ -3948,6 +4987,7 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 								Path:          "/cappuccino",
 								RewriteTarget: "/special/cappuccino",
 								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
 							},
 						},
 					},
@@ -3981,6 +5021,7 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 								Path:          "/mocha",
 								RewriteTarget: "/hot-drinks/mocha",
 								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
 							},
 						},
 					},
@@ -4008,8 +5049,9 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 						ServerTokens: "off",
 						Locations: []Location{
 							{
-								Path:     "/americano",
-								Upstream: testUpstream,
+								Path:      "/americano",
+								Upstream:  testUpstream,
+								ProxyPass: "http://test",
 								// RewriteTarget is empty - should not generate rewrite directive
 							},
 						},
@@ -4041,6 +5083,7 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 								Path:          "/menu/(hot|cold)/(coffee|tea)",
 								RewriteTarget: "/drinks/$1/$2",
 								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
 							},
 						},
 					},
@@ -4120,6 +5163,7 @@ func TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget(t *testing.T) {
 								Path:          "/(coffee|tea)",
 								RewriteTarget: "/beverages/$1",
 								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
 							},
 						},
 					},
@@ -4152,6 +5196,7 @@ func TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget(t *testing.T) {
 								Path:          "/(latte|espresso)",
 								RewriteTarget: "/drinks/$1",
 								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
 							},
 						},
 					},
@@ -4184,6 +5229,7 @@ func TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget(t *testing.T) {
 								Path:          "/cappuccino",
 								RewriteTarget: "/special/cappuccino",
 								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
 							},
 						},
 					},
@@ -4217,6 +5263,7 @@ func TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget(t *testing.T) {
 								Path:          "/mocha",
 								RewriteTarget: "/hot-drinks/mocha",
 								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
 							},
 						},
 					},
@@ -4244,8 +5291,9 @@ func TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget(t *testing.T) {
 						ServerTokens: "off",
 						Locations: []Location{
 							{
-								Path:     "/americano",
-								Upstream: testUpstream,
+								Path:      "/americano",
+								Upstream:  testUpstream,
+								ProxyPass: "http://test",
 								// RewriteTarget is empty - should not generate rewrite directive
 							},
 						},
@@ -4277,6 +5325,7 @@ func TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget(t *testing.T) {
 								Path:          "/menu/(hot|cold)/(coffee|tea)",
 								RewriteTarget: "/drinks/$1/$2",
 								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
 							},
 						},
 					},
@@ -4347,8 +5396,9 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithSSLCiphersDisabled(t *testing
 				SSLPreferServerCiphers: false,
 				Locations: []Location{
 					{
-						Path:     "/",
-						Upstream: testUpstream,
+						Path:      "/",
+						Upstream:  testUpstream,
+						ProxyPass: "http://test",
 					},
 				},
 			},
@@ -4377,4 +5427,299 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithSSLCiphersDisabled(t *testing
 		}
 	}
 	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithPoliciesErrorReturnServer(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithPoliciesErrorReturnServer)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+	if !strings.Contains(bufString, "return 500;") {
+		t.Error("want \"return 500;\" in generated server-level config")
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithPoliciesErrorReturnServer(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithPoliciesErrorReturnServer)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+	if !strings.Contains(bufString, "return 500;") {
+		t.Error("want \"return 500;\" in generated server-level config")
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithPoliciesErrorReturnLocation(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithPoliciesErrorReturnLocation)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+	if !strings.Contains(bufString, "return 500;") {
+		t.Error("want \"return 500;\" in generated location-level config")
+	}
+
+	// Verify return 500 appears within the location block, not at server level.
+	locIdx := strings.Index(bufString, "location /tea")
+	retIdx := strings.Index(bufString, "return 500;")
+	if locIdx == -1 || retIdx == -1 || retIdx < locIdx {
+		t.Error("\"return 500;\" should appear inside the location block, after \"location /tea\"")
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithPoliciesErrorReturnLocation(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithPoliciesErrorReturnLocation)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+	if !strings.Contains(bufString, "return 500;") {
+		t.Error("want \"return 500;\" in generated location-level config")
+	}
+
+	// Verify return 500 appears within the location block, not at server level.
+	locIdx := strings.Index(bufString, "location /tea")
+	retIdx := strings.Index(bufString, "return 500;")
+	if locIdx == -1 || retIdx == -1 || retIdx < locIdx {
+		t.Error("\"return 500;\" should appear inside the location block, after \"location /tea\"")
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
+func TestExecuteTemplate_ForIngressWithProxyEgressMTLSPolicy(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name      string
+		newTmpl   func(t *testing.T) *template.Template
+		wantLines []string
+		notWant   []string
+	}{
+		{
+			name:    "nginx",
+			newTmpl: newNGINXIngressTmpl,
+			wantLines: []string{
+				"proxy_ssl_certificate /etc/nginx/secrets/default-egress-mtls-secret;",
+				"proxy_ssl_trusted_certificate /etc/nginx/secrets/default-egress-trusted-ca-secret;",
+				"proxy_ssl_name secure-app.example.com;",
+			},
+			notWant: []string{
+				"grpc_ssl_certificate /etc/nginx/secrets/default-egress-mtls-secret;",
+			},
+		},
+		{
+			name:    "nginx-plus",
+			newTmpl: newNGINXPlusIngressTmpl,
+			wantLines: []string{
+				"proxy_ssl_certificate /etc/nginx/secrets/default-egress-mtls-secret;",
+				"proxy_ssl_trusted_certificate /etc/nginx/secrets/default-egress-trusted-ca-secret;",
+				"proxy_ssl_name secure-app.example.com;",
+			},
+			notWant: []string{
+				"grpc_ssl_certificate /etc/nginx/secrets/default-egress-mtls-secret;",
+			},
+		},
+	} {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+			cfg := newIngressConfigWithEgressMTLS(false)
+
+			if err := tmpl.Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+
+			out := buf.String()
+			for _, want := range test.wantLines {
+				if !strings.Contains(out, want) {
+					t.Fatalf("want %q in generated config", want)
+				}
+			}
+
+			for _, notWant := range test.notWant {
+				if strings.Contains(out, notWant) {
+					t.Fatalf("did not expect %q in generated config", notWant)
+				}
+			}
+
+			snaps.MatchSnapshot(t, out)
+		})
+	}
+}
+
+func TestExecuteTemplate_ForIngressWithGRPCEgressMTLSPolicy(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name      string
+		newTmpl   func(t *testing.T) *template.Template
+		wantLines []string
+		notWant   []string
+	}{
+		{
+			name:    "nginx",
+			newTmpl: newNGINXIngressTmpl,
+			wantLines: []string{
+				"grpc_ssl_certificate /etc/nginx/secrets/default-egress-mtls-secret;",
+				"grpc_ssl_trusted_certificate /etc/nginx/secrets/default-egress-trusted-ca-secret;",
+				"grpc_ssl_name secure-app.example.com;",
+			},
+			notWant: []string{
+				"proxy_ssl_certificate /etc/nginx/secrets/default-egress-mtls-secret;",
+			},
+		},
+		{
+			name:    "nginx-plus",
+			newTmpl: newNGINXPlusIngressTmpl,
+			wantLines: []string{
+				"grpc_ssl_certificate /etc/nginx/secrets/default-egress-mtls-secret;",
+				"grpc_ssl_trusted_certificate /etc/nginx/secrets/default-egress-trusted-ca-secret;",
+				"grpc_ssl_name secure-app.example.com;",
+			},
+			notWant: []string{
+				"proxy_ssl_certificate /etc/nginx/secrets/default-egress-mtls-secret;",
+			},
+		},
+	} {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+			cfg := newIngressConfigWithEgressMTLS(true)
+
+			if err := tmpl.Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+
+			out := buf.String()
+			for _, want := range test.wantLines {
+				if !strings.Contains(out, want) {
+					t.Fatalf("want %q in generated config", want)
+				}
+			}
+
+			for _, notWant := range test.notWant {
+				if strings.Contains(out, notWant) {
+					t.Fatalf("did not expect %q in generated config", notWant)
+				}
+			}
+
+			snaps.MatchSnapshot(t, out)
+		})
+	}
+}
+
+func newIngressConfigWithEgressMTLS(grpc bool) IngressNginxConfig {
+	upstream := Upstream{
+		Name: "ups",
+		UpstreamServers: []UpstreamServer{
+			{Address: "127.0.0.1:8443", MaxFails: 1, FailTimeout: "10s"},
+		},
+		UpstreamZoneSize: "256k",
+	}
+
+	return IngressNginxConfig{
+		Ingress: Ingress{
+			Name:      "ing",
+			Namespace: "default",
+		},
+		Servers: []Server{
+			{
+				Name:         "example.com",
+				ServerTokens: "on",
+				StatusZone:   "example.com",
+				Ports:        []int{80},
+				SSLPorts:     []int{443},
+				EgressMTLS: func() *version2.EgressMTLS {
+					if grpc {
+						return nil
+					}
+
+					return &version2.EgressMTLS{
+						Certificate:    "/etc/nginx/secrets/default-egress-mtls-secret",
+						CertificateKey: "/etc/nginx/secrets/default-egress-mtls-secret",
+						TrustedCert:    "/etc/nginx/secrets/default-egress-trusted-ca-secret",
+						VerifyServer:   true,
+						VerifyDepth:    2,
+						Protocols:      "TLSv1.2 TLSv1.3",
+						Ciphers:        "HIGH:!aNULL:!MD5",
+						SessionReuse:   false,
+						ServerName:     true,
+						SSLName:        "secure-app.example.com",
+					}
+				}(),
+				Locations: []Location{
+					{
+						Path:        "/",
+						ServiceName: "secure-app",
+						Upstream:    upstream,
+						ProxyPass:   "https://ups",
+						SSL:         true,
+						GRPC:        grpc,
+						EgressMTLS: func() *version2.EgressMTLS {
+							if !grpc {
+								return nil
+							}
+
+							return &version2.EgressMTLS{
+								Certificate:    "/etc/nginx/secrets/default-egress-mtls-secret",
+								CertificateKey: "/etc/nginx/secrets/default-egress-mtls-secret",
+								TrustedCert:    "/etc/nginx/secrets/default-egress-trusted-ca-secret",
+								VerifyServer:   true,
+								VerifyDepth:    2,
+								Protocols:      "TLSv1.2 TLSv1.3",
+								Ciphers:        "HIGH:!aNULL:!MD5",
+								SessionReuse:   false,
+								ServerName:     true,
+								SSLName:        "secure-app.example.com",
+							}
+						}(),
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{upstream},
+	}
 }

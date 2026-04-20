@@ -9,7 +9,6 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	nic_glog "github.com/nginx/kubernetes-ingress/internal/logger/glog"
 	"github.com/nginx/kubernetes-ingress/internal/logger/levels"
@@ -62,6 +61,61 @@ func TestLogFormats(t *testing.T) {
 	}
 }
 
+func TestLogTimeFormats(t *testing.T) {
+	testCases := []struct {
+		name      string
+		logFormat string
+		wantre    string
+	}{
+		// JSON format tests
+		{
+			name:      "json default time format",
+			logFormat: "json",
+			wantre:    `^{"time":"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d+.*","level":"INFO","source":\{"file":"[^"]+\.go","line":\d+\},"msg":".*}`,
+		},
+		{
+			name:      "json unix time format",
+			logFormat: "json-unix",
+			wantre:    `^{"time":\d{10},"level":"INFO","source":\{"file":"[^"]+\.go","line":\d+\},"msg":".*}`,
+		},
+		{
+			name:      "json unix-ms time format",
+			logFormat: "json-unix-ms",
+			wantre:    `^{"time":\d{13},"level":"INFO","source":\{"file":"[^"]+\.go","line":\d+\},"msg":".*}`,
+		},
+		// TEXT format tests
+		{
+			name:      "text default time format",
+			logFormat: "text",
+			wantre:    `^time=\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d+.*level=\w+\ssource=[^:]+\.go:\d+\smsg=\w+`,
+		},
+		{
+			name:      "text unix time format",
+			logFormat: "text-unix",
+			wantre:    `^time=\d{10}\slevel=\w+\ssource=[^:]+\.go:\d+\smsg=\w+`,
+		},
+		{
+			name:      "text unix-ms time format",
+			logFormat: "text-unix-ms",
+			wantre:    `^time=\d{13}\slevel=\w+\ssource=[^:]+\.go:\d+\smsg=\w+`,
+		},
+	}
+	t.Parallel()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			ctx := initLogger(tc.logFormat, levels.LevelInfo, &buf)
+			l := nl.LoggerFromContext(ctx)
+			l.Log(ctx, levels.LevelInfo, "test")
+			got := buf.String()
+			re := regexp.MustCompile(tc.wantre)
+			if !re.MatchString(got) {
+				t.Errorf("\ngot:\n%q\nwant regex:\n%q", got, tc.wantre)
+			}
+		})
+	}
+}
+
 func TestK8sVersionValidation(t *testing.T) {
 	testCases := []struct {
 		name        string
@@ -88,7 +142,7 @@ func TestK8sVersionValidation(t *testing.T) {
 			ctx := nl.ContextWithLogger(context.Background(), l)
 
 			// setup kube client with version
-			clientset := fake.NewSimpleClientset()
+			clientset := fake.NewClientset()
 			fakeDiscovery, _ := clientset.Discovery().(*fakediscovery.FakeDiscovery)
 			fakeDiscovery.FakedServerVersion = &pkgversion.Info{GitVersion: tc.kubeVersion}
 
@@ -127,7 +181,7 @@ func TestK8sVersionValidationBad(t *testing.T) {
 			ctx := nl.ContextWithLogger(context.Background(), l)
 
 			// setup kube client with version
-			clientset := fake.NewSimpleClientset()
+			clientset := fake.NewClientset()
 			fakeDiscovery, _ := clientset.Discovery().(*fakediscovery.FakeDiscovery)
 			fakeDiscovery.FakedServerVersion = &pkgversion.Info{GitVersion: tc.kubeVersion}
 
@@ -170,8 +224,8 @@ func TestCreateHeadlessService(t *testing.T) {
 			Kind:               "ConfigMap",
 			Name:               configMap.Name,
 			UID:                configMap.UID,
-			Controller:         commonhelpers.BoolToPointerBool(true),
-			BlockOwnerDeletion: commonhelpers.BoolToPointerBool(true),
+			Controller:         new(true),
+			BlockOwnerDeletion: new(true),
 		},
 	}
 
@@ -303,7 +357,7 @@ func TestCreateHeadlessService(t *testing.T) {
 							Kind:       tc.ownerKind,
 							Name:       tc.controllerName,
 							UID:        types.UID("controller-uid-123"),
-							Controller: commonhelpers.BoolToPointerBool(true),
+							Controller: new(true),
 						},
 					},
 				},
@@ -354,7 +408,7 @@ func TestCreateHeadlessService(t *testing.T) {
 			if tc.existingService != nil {
 				clientObjects = append(clientObjects, tc.existingService)
 			}
-			clientset := fake.NewSimpleClientset(clientObjects...)
+			clientset := fake.NewClientset(clientObjects...)
 
 			err := createHeadlessService(logger, clientset, controllerNamespace, svcName, configMapNamespacedName, pod)
 			assert.NoError(t, err)

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -19,7 +20,6 @@ import (
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	"github.com/nginx/nginx-plus-go-client/v3/client"
-	"k8s.io/utils/strings/slices"
 )
 
 // RunHealthCheck starts the deep healthcheck service.

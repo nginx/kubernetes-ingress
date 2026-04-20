@@ -21,6 +21,15 @@ upstream {{$upstream.Name}} {
 }
 {{- end}}
 
+{{- if .Maps}}
+{{- range $m := .Maps}}
+map {{ $m.Source }} {{ $m.Variable }} {
+	{{- range $p := $m.Parameters }}
+	{{ $p.Value }} {{ $p.Result }};
+	{{- end }}
+}
+{{- end}}
+{{- end -}}
 {{range $limitReqZone := .LimitReqZones}}
 limit_req_zone {{ $limitReqZone.Key }} zone={{ $limitReqZone.Name }}:{{$limitReqZone.Size}} rate={{$limitReqZone.Rate}}{{- if $limitReqZone.Sync }} sync{{- end }};
 {{end}}
@@ -69,6 +78,20 @@ server {
 	{{- end}}
 	{{- end}}
 
+	{{- range $allow := $server.Allow }}
+		allow {{ $allow }};
+	{{- end }}
+	{{- if gt (len $server.Allow) 0 }}
+		deny all;
+	{{- end }}
+
+	{{- range $deny := $server.Deny }}
+		deny {{ $deny }};
+	{{- end }}
+	{{- if gt (len $server.Deny) 0 }}
+		allow all;
+	{{- end }}
+
 	{{- range $setRealIPFrom := $server.SetRealIPFrom}}
 	set_real_ip_from {{$setRealIPFrom}};{{end}}
 	{{- if $server.RealIPHeader}}real_ip_header {{$server.RealIPHeader}};{{end}}
@@ -76,13 +99,50 @@ server {
 
 	server_tokens "{{$server.ServerTokens}}";
 
+	{{- with $server.PoliciesErrorReturn }}
+	return {{ .Code }};
+	{{- end }}
+
 	server_name {{$server.Name}};
 
 	status_zone {{$server.StatusZone}};
 	set $resource_type "ingress";
 	set $resource_name "{{$.Ingress.Name}}";
 	set $resource_namespace "{{$.Ingress.Namespace}}";
+	set $service "-";
 
+	{{- with $server.EgressMTLS }}
+		{{- if .Certificate }}
+	proxy_ssl_certificate {{ makeSecretPath .Certificate $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+	proxy_ssl_certificate_key {{ makeSecretPath .CertificateKey $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+		{{- end }}
+		{{- if .TrustedCert }}
+	proxy_ssl_trusted_certificate {{ .TrustedCert }};
+		{{- end }}
+	proxy_ssl_verify {{ if .VerifyServer }}on{{else}}off{{end}};
+	proxy_ssl_verify_depth {{ .VerifyDepth }};
+	proxy_ssl_protocols {{ .Protocols }};
+	proxy_ssl_ciphers {{ .Ciphers }};
+	proxy_ssl_session_reuse {{ if .SessionReuse }}on{{else}}off{{end}};
+	proxy_ssl_server_name {{ if .ServerName }}on{{else}}off{{end}};
+	proxy_ssl_name {{ .SSLName }};
+	{{- end }}
+
+	{{- with $server.WAF }}
+	app_protect_enable {{ .Enable }};
+	{{- if .ApPolicy }}
+	app_protect_policy_file {{ .ApPolicy }};
+	{{- end }}
+	{{- if .ApBundle }}
+	app_protect_policy_file {{ .ApBundle }};
+	{{- end }}
+	{{- if .ApSecurityLogEnable }}
+	app_protect_security_log_enable on;
+	{{- range $logconf := .ApLogConf }}
+	app_protect_security_log {{ $logconf }};
+	{{- end }}
+	{{- end }}
+	{{- else }}
 	{{- if $server.AppProtectEnable}}
 	app_protect_enable {{$server.AppProtectEnable}};
 	{{if $server.AppProtectPolicy}}app_protect_policy_file {{$server.AppProtectPolicy}};{{end}}
@@ -92,6 +152,7 @@ server {
 	{{range $AppProtectLogConf := $server.AppProtectLogConfs}}app_protect_security_log {{$AppProtectLogConf}};
 	{{end}}
 	{{- end}}
+	{{- end }}
 
 	{{- if $server.AppProtectDosEnable}}
 	app_protect_dos_enable {{$server.AppProtectDosEnable}};
@@ -141,7 +202,7 @@ server {
 	{{- if not $server.GRPCOnly}}
 	{{- if $server.SSLRedirect}}
 	if ($scheme = http) {
-		return 301 https://$host:{{index $server.SSLPorts 0}}$request_uri;
+		return {{$server.HTTPRedirectCode}} https://$host:{{index $server.SSLPorts 0}}$request_uri;
 	}
 	{{- end}}
 	{{- end}}
@@ -149,13 +210,13 @@ server {
 
 	{{- if $server.RedirectToHTTPS}}
 	if ($http_x_forwarded_proto = 'http') {
-		return 301 https://$host$request_uri;
+		return {{$server.HTTPRedirectCode}} https://$host$request_uri;
 	}
 	{{- end}}
 
 	{{- with $server.BasicAuth }}
-    auth_basic {{ printf "%q" .Realm }};
-    auth_basic_user_file {{ .Secret }};
+	auth_basic {{ printf "%q" .Realm }};
+	auth_basic_user_file {{ .Secret }};
 	{{- end }}
 
 	{{with $jwt := $server.JWTAuth}}
@@ -172,10 +233,16 @@ server {
 	{{$value}}{{end}}
 	{{- end}}
 
+	{{- if $server.AppRoot }}
+	if ($uri = /) {
+		return 302 $scheme://$http_host{{ $server.AppRoot }};
+	}
+	{{- end }}
+
 	{{- range $healthCheck := $server.HealthChecks}}
 	location @hc-{{$healthCheck.UpstreamName}} {
 		{{- range $name, $header := $healthCheck.Headers}}
-		proxy_set_header {{$name}} "{{$header}}";
+		proxy_set_header {{$name}} {{ printf "%q" $header }};
 		{{- end }}
 		proxy_connect_timeout {{$healthCheck.TimeoutSeconds}}s;
 		proxy_read_timeout {{$healthCheck.TimeoutSeconds}}s;
@@ -202,8 +269,58 @@ server {
 		set $resource_name "{{$location.MinionIngress.Name}}";
 		set $resource_namespace "{{$location.MinionIngress.Namespace}}";
 		{{- end}}
+
+		{{- with $location.PoliciesErrorReturn }}
+		return {{ .Code }};
+		{{- end }}
+
+		{{- range $allow := $location.Allow }}
+		allow {{ $allow }};
+		{{- end }}
+		{{- if gt (len $location.Allow) 0 }}
+		deny all;
+		{{- end }}
+
+		{{- range $deny := $location.Deny }}
+		deny {{ $deny }};
+		{{- end }}
+		{{- if gt (len $location.Deny) 0 }}
+		allow all;
+		{{- end }}
+		{{- with $location.WAF }}
+		app_protect_enable {{ .Enable }};
+		{{- if .ApPolicy }}
+		app_protect_policy_file {{ .ApPolicy }};
+		{{- end }}
+		{{- if .ApBundle }}
+		app_protect_policy_file {{ .ApBundle }};
+		{{- end }}
+		{{- if .ApSecurityLogEnable }}
+		app_protect_security_log_enable on;
+		{{- range $logconf := .ApLogConf }}
+		app_protect_security_log {{ $logconf }};
+		{{- end }}
+		{{- end }}
+		{{- end }}
 		{{- if $location.RewriteTarget}}
 		rewrite {{ makeRewritePattern $location $.Ingress.Annotations }} {{$location.RewriteTarget}} break;
+		{{- end}}
+		{{- $proxyOrGRPC := "proxy" }}{{ if $location.GRPC }}{{ $proxyOrGRPC = "grpc" }}{{ end }}
+		{{- with $location.EgressMTLS}}
+			{{- if .Certificate }}
+		{{$proxyOrGRPC}}_ssl_certificate {{ makeSecretPath .Certificate $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+		{{$proxyOrGRPC}}_ssl_certificate_key {{ makeSecretPath .CertificateKey $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+			{{- end }}
+			{{- if .TrustedCert }}
+		{{$proxyOrGRPC}}_ssl_trusted_certificate {{ .TrustedCert }};
+			{{- end }}
+		{{$proxyOrGRPC}}_ssl_verify {{ if .VerifyServer }}on{{else}}off{{end}};
+		{{$proxyOrGRPC}}_ssl_verify_depth {{ .VerifyDepth }};
+		{{$proxyOrGRPC}}_ssl_protocols {{ .Protocols }};
+		{{$proxyOrGRPC}}_ssl_ciphers {{ .Ciphers }};
+		{{$proxyOrGRPC}}_ssl_session_reuse {{ if .SessionReuse }}on{{else}}off{{end}};
+		{{$proxyOrGRPC}}_ssl_server_name {{ if .ServerName }}on{{else}}off{{end}};
+		{{$proxyOrGRPC}}_ssl_name {{ .SSLName }};
 		{{- end}}
 		{{- if $location.GRPC}}
 		{{- if not $server.GRPCOnly}}
@@ -294,8 +411,9 @@ server {
 		{{- if $location.ClientBodyBufferSize }}
 		client_body_buffer_size {{$location.ClientBodyBufferSize}};
 		{{- end}}
-		{{- $proxySetHeaders := generateProxySetHeaders $location $.Ingress.Annotations }}
-		{{$proxySetHeaders}}
+		{{- range $header := $location.ProxySetHeaders}}
+		proxy_set_header {{ $header.Name }} {{ printf "%q" $header.Value }};
+		{{- end}}
 		proxy_set_header Host $host;
 		proxy_set_header X-Real-IP $remote_addr;
 		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -324,13 +442,35 @@ server {
 		proxy_ssl_verify_depth 25;
 		proxy_ssl_name {{$location.ProxySSLName}};
 		{{- end}}
-		{{- if $location.SSL}}
-		proxy_pass https://{{$location.Upstream.Name}}{{$location.Rewrite}};
-		{{- else}}
-		proxy_pass http://{{$location.Upstream.Name}}{{$location.Rewrite}};
-		{{- end}}
+		{{- if $location.ProxyNextUpstream}}
+		proxy_next_upstream {{ $location.ProxyNextUpstream }};
+		{{- end }}
+		{{- if $location.ProxyNextUpstreamTimeout}}
+		proxy_next_upstream_timeout {{ $location.ProxyNextUpstreamTimeout }};
+		{{- end }}
+		{{- if $location.ProxyNextUpstreamTries}}
+		proxy_next_upstream_tries {{ $location.ProxyNextUpstreamTries }};
+		{{- end }}
+		proxy_pass {{ $location.ProxyPass }}{{ $location.Rewrite }};
 		{{- end}}
 
+		{{- if or $location.CORSEnabled (gt (len $location.AddHeaders) 0) }}
+		{{- range $h := $location.AddHeaders }}
+		add_header {{ $h.Name }} {{ printf "%q" $h.Value }} {{ if $h.Always }}always{{ end }};
+		{{- end }}
+		{{- if $location.CORSEnabled }}
+		# CORS configuration per enable-cors.org
+		# Handle CORS preflight OPTIONS requests
+		if ($request_method = 'OPTIONS') {
+			{{- range $h := $location.AddHeaders }}
+			add_header {{ $h.Name }} {{ printf "%q" $h.Value }};
+			{{- end }}
+			add_header Content-Type text/plain;
+			add_header Content-Length 0;
+			return 204;
+		}
+		{{- end }}
+		{{- end }}
 		{{with $location.LimitReq}}
 		limit_req zone={{ $location.LimitReq.Zone }}{{- if $location.LimitReq.Burst }} burst={{$location.LimitReq.Burst}}{{- end }}{{- if $location.LimitReq.NoDelay }} nodelay{{- else if $location.LimitReq.Delay }} delay={{$location.LimitReq.Delay}}{{- end }};
 		{{if $location.LimitReq.DryRun}}limit_req_dry_run on;{{end}}

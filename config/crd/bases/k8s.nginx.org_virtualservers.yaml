@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.20.1
   name: virtualservers.k8s.nginx.org
 spec:
   group: k8s.nginx.org
@@ -727,16 +727,17 @@ spec:
                     path:
                       description: 'The path of the route. NGINX will match it against
                         the URI of a request. Possible values are: a prefix ( / ,
-                        /path ), an exact match ( =/exact/match ), a case insensitive
-                        regular expression ( ~*^/Bar.*\.jpg ) or a case sensitive
-                        regular expression ( ~^/foo.*\.jpg ). In the case of a prefix
-                        (must start with / ) or an exact match (must start with =
-                        ), the path must not include any whitespace characters, {
-                        , } or ;. In the case of the regex matches, all double quotes
-                        " must be escaped and the match can’t end in an unescaped
-                        backslash \. The path must be unique among the paths of all
-                        routes of the VirtualServer. Check the location directive
-                        for more information.'
+                        /path ), a longest prefix match ( ^~/images/ ), an exact match
+                        ( =/exact/match ), a case-insensitive regular expression (
+                        ~*^/Bar.*\.jpg ) or a case-sensitive regular expression (
+                        ~^/foo.*\.jpg ). In the case of a prefix match (must start
+                        with / ), a longest prefix match (must start with ^~ ) or
+                        an exact match (must start with = ), the path must not include
+                        any whitespace characters, { , } or ;. In the case of the
+                        regex matches, all double quotes " must be escaped and the
+                        match can’t end in an unescaped backslash \. The path must
+                        be unique among the paths of all routes of the VirtualServer.
+                        Check the location directive for more information.'
                       type: string
                     policies:
                       description: A list of policies. The policies override the policies
@@ -762,6 +763,53 @@ spec:
                         different namespace than the VirtualServer, you need to include
                         the namespace. For example, tea-namespace/tea.
                       type: string
+                    routeSelector:
+                      description: The RouteSelector allows selecting VirtualServerRoute
+                        resources using label selectors.
+                      properties:
+                        matchExpressions:
+                          description: matchExpressions is a list of label selector
+                            requirements. The requirements are ANDed.
+                          items:
+                            description: |-
+                              A label selector requirement is a selector that contains values, a key, and an operator that
+                              relates the key and values.
+                            properties:
+                              key:
+                                description: key is the label key that the selector
+                                  applies to.
+                                type: string
+                              operator:
+                                description: |-
+                                  operator represents a key's relationship to a set of values.
+                                  Valid operators are In, NotIn, Exists and DoesNotExist.
+                                type: string
+                              values:
+                                description: |-
+                                  values is an array of string values. If the operator is In or NotIn,
+                                  the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                  the values array must be empty. This array is replaced during a strategic
+                                  merge patch.
+                                items:
+                                  type: string
+                                type: array
+                                x-kubernetes-list-type: atomic
+                            required:
+                            - key
+                            - operator
+                            type: object
+                          type: array
+                          x-kubernetes-list-type: atomic
+                        matchLabels:
+                          additionalProperties:
+                            type: string
+                          description: |-
+                            matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                            map is equivalent to an element of matchExpressions, whose key field is "key", the
+                            operator is "In", and the values array contains only "value". The requirements are ANDed.
+                          type: object
+                      type: object
+                      x-kubernetes-map-type: atomic
                     splits:
                       description: The default splits configuration for traffic splitting.
                         Must include at least 2 splits.
@@ -1304,7 +1352,7 @@ spec:
                         which allows requests from the same client to be passed to
                         the same upstream server. The information about the designated
                         upstream server is passed in a session cookie generated by
-                        NGINX Plus.
+                        NGINX.
                       properties:
                         domain:
                           description: The domain for which the cookie is set.

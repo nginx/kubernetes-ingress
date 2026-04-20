@@ -17,8 +17,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
-
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
@@ -586,11 +584,14 @@ func createTemplateExecutors(ctx context.Context) (*version1.TemplateExecutor, *
 
 func createNginxManager(ctx context.Context, managerCollector collectors.ManagerCollector, licenseReporter *license_reporting.LicenseReporter, deploymentMetadata *metadata.Metadata) (nginx.Manager, bool) {
 	useFakeNginxManager := *proxyURL != ""
+	timeout := time.Duration(*nginxReloadTimeout) * time.Millisecond
 	var nginxManager nginx.Manager
-	if useFakeNginxManager {
+	switch {
+	case useFakeNginxManager:
 		nginxManager = nginx.NewFakeManager("/etc/nginx")
-	} else {
-		timeout := time.Duration(*nginxReloadTimeout) * time.Millisecond
+	case *enableConfigSafety:
+		nginxManager = nginx.NewConfigRollbackManager(ctx, "/etc/nginx/", *nginxDebug, managerCollector, licenseReporter, deploymentMetadata, timeout, *nginxPlus)
+	default:
 		nginxManager = nginx.NewLocalManager(ctx, "/etc/nginx/", *nginxDebug, managerCollector, licenseReporter, deploymentMetadata, timeout, *nginxPlus)
 	}
 	return nginxManager, useFakeNginxManager
@@ -760,7 +761,9 @@ func mustWriteNginxMainConfig(staticCfgParams *configs.StaticConfigParams, cfgPa
 	if err != nil {
 		nl.Fatalf(l, "Error generating NGINX main config: %v", err)
 	}
-	nginxManager.CreateMainConfig(content)
+	if _, err := nginxManager.CreateMainConfig(content); err != nil {
+		nl.Fatalf(l, "%v", err)
+	}
 
 	nginxManager.UpdateConfigVersionFile()
 }
@@ -1148,8 +1151,8 @@ func createHeadlessService(l *slog.Logger, kubeClient kubernetes.Interface, cont
 			Kind:               "ConfigMap",
 			Name:               configMapObj.Name,
 			UID:                configMapObj.UID,
-			Controller:         commonhelpers.BoolToPointerBool(true),
-			BlockOwnerDeletion: commonhelpers.BoolToPointerBool(true),
+			Controller:         new(true),
+			BlockOwnerDeletion: new(true),
 		},
 	}
 	existing, err := kubeClient.CoreV1().Services(controllerNamespace).Get(context.Background(), svcName, meta_v1.GetOptions{})
@@ -1218,6 +1221,28 @@ func initLogger(logFormat string, level slog.Level, out io.Writer) context.Conte
 					a.Value = slog.AnyValue(src)
 				}
 			}
+			// Handle custom timestamp formatting
+			if a.Key == slog.TimeKey {
+				if t, ok := a.Value.Any().(time.Time); ok {
+					switch logFormat {
+					case "json-unix", "text-unix":
+						// Unix timestamp in seconds
+						return slog.Attr{
+							Key:   slog.TimeKey,
+							Value: slog.Int64Value(t.Unix()),
+						}
+					case "json-unix-ms", "text-unix-ms":
+						// Unix timestamp with milliseconds
+						return slog.Attr{
+							Key:   slog.TimeKey,
+							Value: slog.Int64Value(t.UnixMilli()),
+						}
+					default:
+						// Default timestamp format (keep original time key and format eg. RFC3339)
+						return a
+					}
+				}
+			}
 			return a
 		},
 	}
@@ -1225,9 +1250,9 @@ func initLogger(logFormat string, level slog.Level, out io.Writer) context.Conte
 	switch {
 	case logFormat == "glog":
 		h = nic_glog.New(out, &nic_glog.Options{Level: programLevel})
-	case logFormat == "json":
+	case strings.HasPrefix(logFormat, "json"):
 		h = slog.NewJSONHandler(out, opts)
-	case logFormat == "text":
+	case strings.HasPrefix(logFormat, "text"):
 		h = slog.NewTextHandler(out, opts)
 	default:
 		h = nic_glog.New(out, &nic_glog.Options{Level: programLevel})

@@ -4,13 +4,30 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 
+	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	"github.com/nginx/kubernetes-ingress/internal/validation"
 )
 
+// PoliciesAnnotation is the annotation where the list of policies to apply to an Ingress is specified.
+const PoliciesAnnotation = "nginx.org/policies"
+
+// PoliciesAnnotationPlus is the plus-only annotation where the list of policies to apply to an Ingress is specified.
+const PoliciesAnnotationPlus = "nginx.com/policies"
+
 // JWTKeyAnnotation is the annotation where the Secret with a JWK is specified.
 const JWTKeyAnnotation = "nginx.com/jwt-key"
+
+// JWTRealmAnnotation is the annotation where the JWT authentication realm is specified.
+const JWTRealmAnnotation = "nginx.com/jwt-realm"
+
+// JWTTokenAnnotation is the annotation where the JWT token location is specified.
+const JWTTokenAnnotation = "nginx.com/jwt-token" // #nosec G101
+
+// JWTLoginURLAnnotation is the annotation where the JWT login URL is specified.
+const JWTLoginURLAnnotation = "nginx.com/jwt-login-url"
 
 // BasicAuthSecretAnnotation is the annotation where the Secret with the HTTP basic user list
 const BasicAuthSecretAnnotation = "nginx.org/basic-auth-secret" // #nosec G101
@@ -33,6 +50,24 @@ const UseClusterIPAnnotation = "nginx.org/use-cluster-ip"
 // SSLRedirectAnnotation is the annotation where the SSL redirect boolean is specified.
 const SSLRedirectAnnotation = "nginx.org/ssl-redirect"
 
+// HTTPRedirectCodeAnnotation is the annotation where the HTTP redirect code is specified.
+const HTTPRedirectCodeAnnotation = "nginx.org/http-redirect-code"
+
+// ProxySetHeadersAnnotation is the annotation where the proxy set headers are specified.
+const ProxySetHeadersAnnotation = "nginx.org/proxy-set-headers"
+
+// ProxyNextUpstreamAnnotation is the annotation where the proxy next upstream settings are specified.
+const ProxyNextUpstreamAnnotation = "nginx.org/proxy-next-upstream"
+
+// ProxyNextUpstreamTimeoutAnnotation is the annotation where the proxy next upstream timeout is specified.
+const ProxyNextUpstreamTimeoutAnnotation = "nginx.org/proxy-next-upstream-timeout"
+
+// ProxyNextUpstreamTriesAnnotation is the annotation where the proxy next upstream tries is specified.
+const ProxyNextUpstreamTriesAnnotation = "nginx.org/proxy-next-upstream-tries"
+
+// RedirectToHTTPSAnnotation is the annotation where the redirect-to-https boolean is specified.
+const RedirectToHTTPSAnnotation = "nginx.org/redirect-to-https"
+
 // AppProtectPolicyAnnotation is where the NGINX App Protect policy is specified
 const AppProtectPolicyAnnotation = "appprotect.f5.com/app-protect-policy"
 
@@ -48,12 +83,19 @@ const AppProtectDosProtectedAnnotation = "appprotectdos.f5.com/app-protect-dos-r
 // nginxMeshInternalRoute specifies if the ingress resource is an internal route.
 const nginxMeshInternalRouteAnnotation = "nsm.nginx.com/internal-route"
 
+// StickyCookieServicesAnnotation is the annotation where the sticky cookie configuration is specified.
+const StickyCookieServicesAnnotation = "nginx.org/sticky-cookie-services"
+
+// StickyCookieServicesAnnotationPlus is the annotation where the sticky cookie configuration is specified for NGINX Plus.
+const StickyCookieServicesAnnotationPlus = "nginx.com/sticky-cookie-services"
+
 var masterDenylist = map[string]bool{
 	"nginx.org/rewrites":                      true,
 	"nginx.org/ssl-services":                  true,
 	"nginx.org/grpc-services":                 true,
 	"nginx.org/websocket-services":            true,
-	"nginx.com/sticky-cookie-services":        true,
+	StickyCookieServicesAnnotation:            true,
+	StickyCookieServicesAnnotationPlus:        true,
 	"nginx.com/health-checks":                 true,
 	"nginx.com/health-checks-mandatory":       true,
 	"nginx.com/health-checks-mandatory-queue": true,
@@ -63,9 +105,10 @@ var masterDenylist = map[string]bool{
 var minionDenylist = map[string]bool{
 	"nginx.org/proxy-hide-headers":                      true,
 	"nginx.org/proxy-pass-headers":                      true,
-	"nginx.org/redirect-to-https":                       true,
+	RedirectToHTTPSAnnotation:                           true,
 	"ingress.kubernetes.io/ssl-redirect":                true,
 	SSLRedirectAnnotation:                               true,
+	HTTPRedirectCodeAnnotation:                          true,
 	"nginx.org/hsts":                                    true,
 	"nginx.org/hsts-max-age":                            true,
 	"nginx.org/hsts-include-subdomains":                 true,
@@ -75,6 +118,7 @@ var minionDenylist = map[string]bool{
 	"nginx.org/server-snippets":                         true,
 	"nginx.org/ssl-ciphers":                             true,
 	"nginx.org/ssl-prefer-server-ciphers":               true,
+	"nginx.org/app-root":                                true,
 	"appprotect.f5.com/app_protect_enable":              true,
 	"appprotect.f5.com/app_protect_policy":              true,
 	"appprotect.f5.com/app_protect_security_log_enable": true,
@@ -242,9 +286,28 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		cfgParams.ProxyPassHeaders = proxyPassHeaders
 	}
 
-	if proxySetHeaders, exists := GetMapKeyAsStringSlice(ingEx.Ingress.Annotations, "nginx.org/proxy-set-headers", ingEx.Ingress, ","); exists {
-		parsedHeaders := parseProxySetHeaders(proxySetHeaders)
-		cfgParams.ProxySetHeaders = parsedHeaders
+	if proxySetHeaders, exists := ingEx.Ingress.Annotations[ProxySetHeadersAnnotation]; exists {
+		cfgParams.ProxySetHeaders = version1.ParseProxySetHeaders(proxySetHeaders)
+	}
+
+	if proxyNextUpstream, exists := ingEx.Ingress.Annotations[ProxyNextUpstreamAnnotation]; exists {
+		normalizedValue := strings.Join(strings.Fields(proxyNextUpstream), " ")
+		cfgParams.ProxyNextUpstream = normalizedValue
+	}
+
+	if proxyNextUpstreamTimeout, exists := ingEx.Ingress.Annotations[ProxyNextUpstreamTimeoutAnnotation]; exists {
+		if parsedProxyNextUpstreamTimeout, err := ParseTime(proxyNextUpstreamTimeout); err != nil {
+			nl.Errorf(l, "Ingress %s/%s: Invalid value nginx.org/proxy-next-upstream-timeout: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), proxyNextUpstreamTimeout, err)
+		} else {
+			cfgParams.ProxyNextUpstreamTimeout = parsedProxyNextUpstreamTimeout
+		}
+	}
+
+	if proxyNextUpstreamTries, exists, err := GetMapKeyAsUint64(ingEx.Ingress.Annotations, ProxyNextUpstreamTriesAnnotation, ingEx.Ingress, false); exists {
+		if err != nil {
+			nl.Error(l, err)
+		}
+		cfgParams.ProxyNextUpstreamTries = &proxyNextUpstreamTries
 	}
 
 	if clientMaxBodySize, exists := ingEx.Ingress.Annotations["nginx.org/client-max-body-size"]; exists {
@@ -259,7 +322,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		cfgParams.ClientBodyBufferSize = size
 	}
 
-	if redirectToHTTPS, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/redirect-to-https", ingEx.Ingress); exists {
+	if redirectToHTTPS, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, RedirectToHTTPSAnnotation, ingEx.Ingress); exists {
 		if err != nil {
 			nl.Error(l, err)
 		} else {
@@ -278,6 +341,14 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 			nl.Error(l, err)
 		} else {
 			cfgParams.SSLRedirect = sslRedirect
+		}
+	}
+
+	if httpRedirectCode, exists := ingEx.Ingress.Annotations[HTTPRedirectCodeAnnotation]; exists {
+		if code, err := ParseHTTPRedirectCode(httpRedirectCode); err != nil {
+			nl.Errorf(l, "Ingress %s/%s: Invalid value for nginx.org/http-redirect-code: %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), httpRedirectCode, err)
+		} else {
+			cfgParams.HTTPRedirectCode = code
 		}
 	}
 
@@ -382,16 +453,16 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 	}
 
 	if isPlus {
-		if jwtRealm, exists := ingEx.Ingress.Annotations["nginx.com/jwt-realm"]; exists {
+		if jwtRealm, exists := ingEx.Ingress.Annotations[JWTRealmAnnotation]; exists {
 			cfgParams.JWTRealm = jwtRealm
 		}
 		if jwtKey, exists := ingEx.Ingress.Annotations[JWTKeyAnnotation]; exists {
 			cfgParams.JWTKey = jwtKey
 		}
-		if jwtToken, exists := ingEx.Ingress.Annotations["nginx.com/jwt-token"]; exists {
+		if jwtToken, exists := ingEx.Ingress.Annotations[JWTTokenAnnotation]; exists {
 			cfgParams.JWTToken = jwtToken
 		}
-		if jwtLoginURL, exists := ingEx.Ingress.Annotations["nginx.com/jwt-login-url"]; exists {
+		if jwtLoginURL, exists := ingEx.Ingress.Annotations[JWTLoginURLAnnotation]; exists {
 			cfgParams.JWTLoginURL = jwtLoginURL
 		}
 	}
@@ -501,6 +572,10 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		if !ok {
 			nl.Errorf(l, "Ingress %s/%s: Invalid value nginx.org/path-regex: got %q. Allowed values: 'case_sensitive', 'case_insensitive', 'exact'", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), pathRegex)
 		}
+	}
+
+	if appRoot, exists := ingEx.Ingress.Annotations["nginx.org/app-root"]; exists {
+		cfgParams.AppRoot = appRoot
 	}
 
 	if useClusterIP, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, UseClusterIPAnnotation, ingEx.Ingress); exists {
@@ -647,14 +722,32 @@ func getGrpcServices(ingEx *IngressEx) map[string]bool {
 
 func getSessionPersistenceServices(ctx context.Context, ingEx *IngressEx) map[string]string {
 	l := nl.LoggerFromContext(ctx)
-	if value, exists := ingEx.Ingress.Annotations["nginx.com/sticky-cookie-services"]; exists {
-		services, err := ParseStickyServiceList(value)
-		if err != nil {
-			nl.Error(l, err)
-		}
-		return services
+
+	// Check for both annotations to maintain compatibility with existing users of the nginx.com
+	// annotation. If both annotations are present, the nginx.org annotation takes precedence.
+	valuePlus, plusExists := ingEx.Ingress.Annotations[StickyCookieServicesAnnotationPlus]
+	valueOrg, orgExists := ingEx.Ingress.Annotations[StickyCookieServicesAnnotation]
+	if !plusExists && !orgExists {
+		return nil
 	}
-	return nil
+
+	value := valuePlus
+	if orgExists {
+		value = valueOrg
+	}
+
+	if plusExists && orgExists {
+		nl.Warnf(l, "Ingress %s/%s: both %s and %s annotations are set; using %s",
+			ingEx.Ingress.Namespace, ingEx.Ingress.Name,
+			StickyCookieServicesAnnotation, StickyCookieServicesAnnotationPlus,
+			StickyCookieServicesAnnotation)
+	}
+
+	services, err := ParseStickyServiceList(value)
+	if err != nil {
+		nl.Error(l, err)
+	}
+	return services
 }
 
 func filterMasterAnnotations(annotations map[string]string) []string {

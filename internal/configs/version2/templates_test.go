@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/gkampitakis/go-snaps/snaps"
@@ -16,10 +18,6 @@ func TestMain(m *testing.M) {
 	snaps.Clean(m, snaps.CleanOpts{Sort: true})
 
 	os.Exit(v)
-}
-
-func createPointerFromInt(n int) *int {
-	return &n
 }
 
 func newTmplExecutorNGINXPlus(t *testing.T) *TemplateExecutor {
@@ -49,6 +47,86 @@ func TestVirtualServerForNginxPlus(t *testing.T) {
 	}
 	snaps.MatchSnapshot(t, string(data))
 	t.Log(string(data))
+}
+
+func TestVirtualServerForNginxPlusWithServiceBeforeRedirect(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	setServiceString := "set $service \"-\";"
+	returnRegex := `return \d{3} .+;`
+
+	buf, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgPlus)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := string(buf)
+
+	if !strings.Contains(bufString, setServiceString) {
+		t.Errorf("want %q in generated config", setServiceString)
+	}
+
+	// Find position of setServiceString
+	setServicePos := strings.Index(bufString, setServiceString)
+	if setServicePos == -1 {
+		t.Fatalf("setServiceString not found in generated config")
+	}
+
+	// Find position of return statement using regex
+	re := regexp.MustCompile(returnRegex)
+	returnMatch := re.FindStringIndex(bufString)
+	if returnMatch == nil {
+		t.Fatalf("return statement matching %q not found in generated config", returnRegex)
+	}
+	returnPos := returnMatch[0]
+
+	// Verify setServiceString comes before return statement
+	if setServicePos >= returnPos {
+		t.Errorf("setServiceString at position %d should come before return statement at position %d", setServicePos, returnPos)
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
+func TestVirtualServerForNginxWithServiceBeforeRedirect(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINX(t)
+	setServiceString := "set $service \"-\";"
+	returnRegex := `return \d{3} .+;`
+
+	buf, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := string(buf)
+
+	if !strings.Contains(bufString, setServiceString) {
+		t.Errorf("want %q in generated config", setServiceString)
+	}
+
+	// Find position of setServiceString
+	setServicePos := strings.Index(bufString, setServiceString)
+	if setServicePos == -1 {
+		t.Fatalf("setServiceString not found in generated config")
+	}
+
+	// Find position of return statement using regex
+	re := regexp.MustCompile(returnRegex)
+	returnMatch := re.FindStringIndex(bufString)
+	if returnMatch == nil {
+		t.Fatalf("return statement matching %q not found in generated config", returnRegex)
+	}
+	returnPos := returnMatch[0]
+
+	// Verify setServiceString comes before return statement
+	if setServicePos >= returnPos {
+		t.Errorf("setServiceString at position %d should come before return statement at position %d", setServicePos, returnPos)
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
 }
 
 func TestExecuteVirtualServerTemplate_RendersTemplateWithServerGunzipOn(t *testing.T) {
@@ -664,8 +742,8 @@ func tsConfig() TransportServerConfig {
 			Port:                     1234,
 			UDP:                      true,
 			StatusZone:               "udp-app",
-			ProxyRequests:            createPointerFromInt(1),
-			ProxyResponses:           createPointerFromInt(2),
+			ProxyRequests:            new(1),
+			ProxyResponses:           new(2),
 			ProxyPass:                "udp-upstream",
 			ProxyTimeout:             "10s",
 			ProxyConnectTimeout:      "10s",
@@ -1309,7 +1387,7 @@ func vsConfig() VirtualServerConfig {
 					Port:        50,
 					ProxyPass:   "http://tea-v2",
 					GRPCPass:    "grpc://tea-v3",
-					GRPCStatus:  createPointerFromInt(12),
+					GRPCStatus:  new(12),
 					GRPCService: "tea-servicev2",
 					IsGRPC:      true,
 				},
@@ -1672,7 +1750,7 @@ var (
 					Port:        50,
 					ProxyPass:   "http://tea-v2",
 					GRPCPass:    "grpc://tea-v3",
-					GRPCStatus:  createPointerFromInt(12),
+					GRPCStatus:  new(12),
 					GRPCService: "tea-servicev2",
 					IsGRPC:      true,
 				},
@@ -2022,7 +2100,7 @@ var (
 					Port:        50,
 					ProxyPass:   "http://tea-v2",
 					GRPCPass:    "grpc://tea-v3",
-					GRPCStatus:  createPointerFromInt(12),
+					GRPCStatus:  new(12),
 					GRPCService: "tea-servicev2",
 					IsGRPC:      true,
 				},
@@ -3111,7 +3189,7 @@ var (
 				UseTempPath:      false,
 				MaxSize:          "2g",
 				Inactive:         "7d",
-				ManagerFiles:     createPointerFromInt(500),
+				ManagerFiles:     new(500),
 				ManagerSleep:     "200ms",
 				ManagerThreshold: "1s",
 			},
@@ -3138,7 +3216,7 @@ var (
 				Inactive:              "7d",
 				UseTempPath:           false,
 				MaxSize:               "2g",
-				ManagerFiles:          createPointerFromInt(500),
+				ManagerFiles:          new(500),
 				ManagerSleep:          "200ms",
 				ManagerThreshold:      "1s",
 				CacheKey:              "$scheme$host$request_uri$args",
@@ -3148,7 +3226,7 @@ var (
 				CacheUseStale:         []string{"error", "timeout", "updating"},
 				CacheRevalidate:       true,
 				CacheBackgroundUpdate: true,
-				CacheMinUses:          createPointerFromInt(3),
+				CacheMinUses:          new(3),
 				CachePurgeAllow:       nil,
 				CacheLock:             true,
 				CacheLockTimeout:      "60s",
@@ -3185,8 +3263,8 @@ var (
 			Port:                     1234,
 			UDP:                      true,
 			StatusZone:               "udp-app",
-			ProxyRequests:            createPointerFromInt(1),
-			ProxyResponses:           createPointerFromInt(2),
+			ProxyRequests:            new(1),
+			ProxyResponses:           new(2),
 			ProxyPass:                "udp-upstream",
 			ProxyTimeout:             "10s",
 			ProxyConnectTimeout:      "10s",
@@ -3228,8 +3306,8 @@ var (
 			Port:                     1234,
 			UDP:                      true,
 			StatusZone:               "udp-app",
-			ProxyRequests:            createPointerFromInt(1),
-			ProxyResponses:           createPointerFromInt(2),
+			ProxyRequests:            new(1),
+			ProxyResponses:           new(2),
 			ProxyPass:                "udp-upstream",
 			ProxyTimeout:             "10s",
 			ProxyConnectTimeout:      "10s",
@@ -3269,8 +3347,8 @@ var (
 				Certificate:    "cafe-secret.pem",
 				CertificateKey: "cafe-secret.pem",
 			},
-			ProxyRequests:            createPointerFromInt(1),
-			ProxyResponses:           createPointerFromInt(2),
+			ProxyRequests:            new(1),
+			ProxyResponses:           new(2),
 			ProxyPass:                "cafe-upstream",
 			ProxyTimeout:             "10s",
 			ProxyConnectTimeout:      "10s",
@@ -3301,8 +3379,8 @@ var (
 			Port:                     1234,
 			UDP:                      true,
 			StatusZone:               "udp-app",
-			ProxyRequests:            createPointerFromInt(1),
-			ProxyResponses:           createPointerFromInt(2),
+			ProxyRequests:            new(1),
+			ProxyResponses:           new(2),
 			ProxyPass:                "udp-upstream",
 			ProxyTimeout:             "10s",
 			ProxyConnectTimeout:      "10s",
@@ -3483,4 +3561,29 @@ func TestJWTNoSSLVerification(t *testing.T) {
 	if bytes.Contains(got, []byte("proxy_ssl_trusted_certificate")) {
 		t.Error("want no SSL trusted certificate directive in generated template")
 	}
+}
+
+var virtualServerCfgAllPathTypes = VirtualServerConfig{
+	Server: Server{
+		ServerName: "path-types.example.com",
+		StatusZone: "path-types.example.com",
+		Locations: []Location{
+			{Path: "/images/"},
+			{Path: "=/images/logo.jpg"},
+			{Path: "^~ /images/static/"},
+			{Path: `~ "\.jpg$"`},
+			{Path: `~* "\.png$"`},
+		},
+	},
+}
+
+func TestVirtualServerForNginxWithAllPathTypes(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINX(t)
+	data, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgAllPathTypes)
+	if err != nil {
+		t.Errorf("Failed to execute template: %v", err)
+	}
+	snaps.MatchSnapshot(t, string(data))
+	t.Log(string(data))
 }

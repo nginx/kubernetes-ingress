@@ -6,10 +6,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
-func createPointerFromInt(n int) *int {
-	return &n
-}
-
 func TestValidateVariable(t *testing.T) {
 	t.Parallel()
 	validVars := map[string]bool{
@@ -331,5 +327,47 @@ func TestValidateOffset(t *testing.T) {
 		if len(allErrs) == 0 {
 			t.Errorf("validateOffset(%q) didn't return error for invalid input.", test)
 		}
+	}
+}
+
+func TestHeaderValidation(t *testing.T) {
+	tests := []struct {
+		name       string
+		headerName string
+		hasError   bool
+	}{
+		{
+			name:       "Valid header name",
+			headerName: "Content-Type",
+			hasError:   false,
+		},
+		{
+			name:       "Valid header with numbers",
+			headerName: "X-Custom-Header-123",
+			hasError:   false,
+		},
+		{
+			name:       "Invalid header with special chars",
+			headerName: "Content@Type",
+			hasError:   true,
+		},
+		{
+			name:       "Invalid empty header",
+			headerName: "",
+			hasError:   true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			isValid := isValidHeaderName(test.headerName)
+
+			if test.hasError && isValid {
+				t.Errorf("Expected error for header name %s, but got none", test.headerName)
+			}
+			if !test.hasError && !isValid {
+				t.Errorf("Expected no error for header name %s, but got error", test.headerName)
+			}
+		})
 	}
 }

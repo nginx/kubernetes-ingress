@@ -6,6 +6,7 @@ import (
 	context "context"
 
 	configurationv1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	applyconfigurationconfigurationv1 "github.com/nginx/kubernetes-ingress/pkg/client/applyconfiguration/configuration/v1"
 	scheme "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -31,18 +32,21 @@ type PolicyInterface interface {
 	List(ctx context.Context, opts metav1.ListOptions) (*configurationv1.PolicyList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
 	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *configurationv1.Policy, err error)
+	Apply(ctx context.Context, policy *applyconfigurationconfigurationv1.PolicyApplyConfiguration, opts metav1.ApplyOptions) (result *configurationv1.Policy, err error)
+	// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
+	ApplyStatus(ctx context.Context, policy *applyconfigurationconfigurationv1.PolicyApplyConfiguration, opts metav1.ApplyOptions) (result *configurationv1.Policy, err error)
 	PolicyExpansion
 }
 
 // policies implements PolicyInterface
 type policies struct {
-	*gentype.ClientWithList[*configurationv1.Policy, *configurationv1.PolicyList]
+	*gentype.ClientWithListAndApply[*configurationv1.Policy, *configurationv1.PolicyList, *applyconfigurationconfigurationv1.PolicyApplyConfiguration]
 }
 
 // newPolicies returns a Policies
 func newPolicies(c *K8sV1Client, namespace string) *policies {
 	return &policies{
-		gentype.NewClientWithList[*configurationv1.Policy, *configurationv1.PolicyList](
+		gentype.NewClientWithListAndApply[*configurationv1.Policy, *configurationv1.PolicyList, *applyconfigurationconfigurationv1.PolicyApplyConfiguration](
 			"policies",
 			c.RESTClient(),
 			scheme.ParameterCodec,

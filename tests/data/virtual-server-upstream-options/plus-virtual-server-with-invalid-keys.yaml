@@ -8,11 +8,6 @@ spec:
   - name: backend2
     service: backend2-svc
     port: 80
-    sessionCookie:
-      name: ±!@£$%^&*()_+MyTestCookie
-      path: path
-      expires: one
-      domain: "$request_uri"
     healthCheck:
       enable: False # validation should occur even when False
       path: "invalid"
@@ -39,11 +34,6 @@ spec:
   - name: backend1
     service: backend1-svc
     port: 80
-    sessionCookie:
-      name: ±!@£$%^&*()_+MyTestCookie
-      path: path
-      expires: one
-      domain: "$request_uri"
     healthCheck:
       enable: True
       path: "invalid"

@@ -83,6 +83,31 @@ def read_custom_resource(
         raise
 
 
+def wait_for_resource_status(custom_objects, namespace, resource_type, name, timeout=30):
+    """
+    Wait for a custom resource to have a populated status field.
+
+    :param custom_objects: CustomObjectsApi
+    :param namespace: Resource namespace
+    :param resource_type: Resource type (e.g., 'virtualservers', 'virtualserverroutes')
+    :param name: Resource name
+    :param timeout: Maximum time to wait in seconds
+    :return: Resource object with status
+    """
+    for i in range(timeout):
+        try:
+            resource_info = read_custom_resource(custom_objects, namespace, resource_type, name)
+            if resource_info.get("status"):
+                return resource_info
+            time.sleep(1)
+        except Exception:
+            time.sleep(1)
+            continue
+
+    # Final attempt - return whatever we get
+    return read_custom_resource(custom_objects, namespace, resource_type, name)
+
+
 def is_dnsendpoint_present(custom_objects: CustomObjectsApi, name, namespace) -> bool:
     """
     Check if a namespace has a dnsendpoint.

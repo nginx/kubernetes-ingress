@@ -14,6 +14,7 @@ The application in the `external-ns` namespace will respond to our requests when
 
 ## Prerequisites
 
+1. Run `make secrets` command to generate the necessary secrets for the example.
 1. Configure the F5 NGINX Ingress Controller deployment with the following flags:
 
    ```shell
@@ -26,16 +27,16 @@ The application in the `external-ns` namespace will respond to our requests when
    This ensures that NGINX Ingress Controller will treat our service in the `external-ns` namespace
    as an external service.
 
-2. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
+1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
    instructions to deploy NGINX Ingress Controller.
 
-3. Save the public IP address of the F5 NGINX Ingress Controller into a shell variable:
+1. Save the public IP address of the F5 NGINX Ingress Controller into a shell variable:
 
     ```shell
     IC_IP=XXX.YYY.ZZZ.III
     ```
 
-4. Save the HTTPS port of NGINX Ingress Controller into a shell variable:
+1. Save the HTTPS port of NGINX Ingress Controller into a shell variable:
 
     ```shell
     IC_HTTPS_PORT=<port number>

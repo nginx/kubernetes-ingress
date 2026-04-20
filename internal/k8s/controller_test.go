@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -29,7 +30,58 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/record"
 )
+
+type trackingNginxManager struct {
+	*nginx.FakeManager
+	createdConfigNames []string
+}
+
+func newTrackingNginxManager() *trackingNginxManager {
+	return &trackingNginxManager{
+		FakeManager: nginx.NewFakeManager("/etc/nginx"),
+	}
+}
+
+func (m *trackingNginxManager) CreateConfig(name string, content []byte) (bool, error) {
+	m.createdConfigNames = append(m.createdConfigNames, name)
+	return m.FakeManager.CreateConfig(name, content)
+}
+
+func createTestPolicySyncConfigurator(t *testing.T, manager nginx.Manager) *configs.Configurator {
+	t.Helper()
+
+	templateExecutor, err := version1.NewTemplateExecutor(
+		filepath.Join("..", "configs", "version1", "nginx-plus.tmpl"),
+		filepath.Join("..", "configs", "version1", "nginx-plus.ingress.tmpl"),
+	)
+	if err != nil {
+		t.Fatalf("failed to create v1 template executor: %v", err)
+	}
+
+	templateExecutorV2, err := version2.NewTemplateExecutor(
+		filepath.Join("..", "configs", "version2", "nginx-plus.virtualserver.tmpl"),
+		filepath.Join("..", "configs", "version2", "nginx-plus.transportserver.tmpl"),
+		filepath.Join("..", "configs", "version2", "oidc.tmpl"),
+	)
+	if err != nil {
+		t.Fatalf("failed to create v2 template executor: %v", err)
+	}
+
+	return configs.NewConfigurator(configs.ConfiguratorParams{
+		NginxManager:            manager,
+		StaticCfgParams:         &configs.StaticConfigParams{NginxVersion: nginx.NewVersion("nginx version: nginx/1.25.3 (nginx-plus-r31)")},
+		Config:                  configs.NewDefaultConfigParams(context.Background(), false),
+		MGMTCfgParams:           configs.NewDefaultMGMTConfigParams(context.Background()),
+		TemplateExecutor:        templateExecutor,
+		TemplateExecutorV2:      templateExecutorV2,
+		IsPlus:                  false,
+		IsWildcardEnabled:       false,
+		IsPrometheusEnabled:     false,
+		IsLatencyMetricsEnabled: false,
+	})
+}
 
 func TestHasCorrectIngressClass(t *testing.T) {
 	t.Parallel()
@@ -431,7 +483,7 @@ func TestFindProbeForPods(t *testing.T) {
 
 func TestGetServicePortForIngressPort(t *testing.T) {
 	t.Parallel()
-	fakeClient := fake.NewSimpleClientset()
+	fakeClient := fake.NewClientset()
 
 	cnf := configs.NewConfigurator(configs.ConfiguratorParams{
 		NginxManager:            &nginx.LocalManager{},
@@ -516,8 +568,6 @@ func TestFormatWarningsMessages(t *testing.T) {
 
 func TestGetEndpointsFromEndpointSlices_DuplicateEndpointsInOneEndpointSlice(t *testing.T) {
 	t.Parallel()
-	endpointPort := int32(8080)
-
 	lbc := LoadBalancerController{
 		isNginxPlus: true,
 		Logger:      nl.LoggerFromContext(context.Background()),
@@ -564,7 +614,7 @@ func TestGetEndpointsFromEndpointSlices_DuplicateEndpointsInOneEndpointSlice(t *
 				{
 					Ports: []discovery_v1.EndpointPort{
 						{
-							Port: &endpointPort,
+							Port: new(int32(8080)),
 						},
 					},
 					Endpoints: []discovery_v1.Endpoint{
@@ -607,8 +657,6 @@ func TestGetEndpointsFromEndpointSlices_DuplicateEndpointsInOneEndpointSlice(t *
 
 func TestGetEndpointsFromEndpointSlices_TwoDifferentEndpointsInOnEndpointSlice(t *testing.T) {
 	t.Parallel()
-	endpointPort := int32(8080)
-
 	lbc := LoadBalancerController{
 		isNginxPlus: true,
 		Logger:      nl.LoggerFromContext(context.Background()),
@@ -657,7 +705,7 @@ func TestGetEndpointsFromEndpointSlices_TwoDifferentEndpointsInOnEndpointSlice(t
 				{
 					Ports: []discovery_v1.EndpointPort{
 						{
-							Port: &endpointPort,
+							Port: new(int32(8080)),
 						},
 					},
 					Endpoints: []discovery_v1.Endpoint{
@@ -822,8 +870,6 @@ func TestGetEndpointsFromEndpointSlices_DuplicateEndpointsAcrossTwoEndpointSlice
 
 func TestGetEndpointsFromEndpointSlices_TwoDifferentEndpointsInOnEndpointSliceOneEndpointNotReady(t *testing.T) {
 	t.Parallel()
-	endpointPort := int32(8080)
-
 	lbc := LoadBalancerController{
 		isNginxPlus: true,
 		Logger:      nl.LoggerFromContext(context.Background()),
@@ -833,9 +879,6 @@ func TestGetEndpointsFromEndpointSlices_TwoDifferentEndpointsInOnEndpointSliceOn
 		Number: 8080,
 		Name:   "foo",
 	}
-	endpointReadyTrue := true
-	endpointReadyFalse := false
-
 	tests := []struct {
 		desc              string
 		svc               api_v1.Service
@@ -870,7 +913,7 @@ func TestGetEndpointsFromEndpointSlices_TwoDifferentEndpointsInOnEndpointSliceOn
 				{
 					Ports: []discovery_v1.EndpointPort{
 						{
-							Port: &endpointPort,
+							Port: new(int32(8080)),
 						},
 					},
 					Endpoints: []discovery_v1.Endpoint{
@@ -879,7 +922,7 @@ func TestGetEndpointsFromEndpointSlices_TwoDifferentEndpointsInOnEndpointSliceOn
 								"1.2.3.4",
 							},
 							Conditions: discovery_v1.EndpointConditions{
-								Ready: &endpointReadyTrue,
+								Ready: new(true),
 							},
 						},
 						{
@@ -887,7 +930,7 @@ func TestGetEndpointsFromEndpointSlices_TwoDifferentEndpointsInOnEndpointSliceOn
 								"5.6.7.8",
 							},
 							Conditions: discovery_v1.EndpointConditions{
-								Ready: &endpointReadyFalse,
+								Ready: new(false),
 							},
 						},
 					},
@@ -924,9 +967,6 @@ func TestGetEndpointsFromEndpointSlices_TwoDifferentEndpointsAcrossTwoEndpointSl
 		Number: 8080,
 		Name:   "foo",
 	}
-
-	endpointReadyTrue := true
-	endpointReadyFalse := false
 
 	tests := []struct {
 		desc              string
@@ -971,7 +1011,7 @@ func TestGetEndpointsFromEndpointSlices_TwoDifferentEndpointsAcrossTwoEndpointSl
 								"1.2.3.4",
 							},
 							Conditions: discovery_v1.EndpointConditions{
-								Ready: &endpointReadyTrue,
+								Ready: new(true),
 							},
 						},
 					},
@@ -988,7 +1028,7 @@ func TestGetEndpointsFromEndpointSlices_TwoDifferentEndpointsAcrossTwoEndpointSl
 								"10.0.0.1",
 							},
 							Conditions: discovery_v1.EndpointConditions{
-								Ready: &endpointReadyFalse,
+								Ready: new(false),
 							},
 						},
 					},
@@ -1014,8 +1054,6 @@ func TestGetEndpointsFromEndpointSlices_TwoDifferentEndpointsAcrossTwoEndpointSl
 
 func TestGetEndpointsFromEndpointSlices_ErrorsOnInvalidTargetPort(t *testing.T) {
 	t.Parallel()
-	endpointPort := int32(8080)
-
 	lbc := LoadBalancerController{
 		isNginxPlus: true,
 		Logger:      nl.LoggerFromContext(context.Background()),
@@ -1054,7 +1092,7 @@ func TestGetEndpointsFromEndpointSlices_ErrorsOnInvalidTargetPort(t *testing.T) 
 				{
 					Ports: []discovery_v1.EndpointPort{
 						{
-							Port: &endpointPort,
+							Port: new(int32(8080)),
 						},
 					},
 					Endpoints: []discovery_v1.Endpoint{
@@ -1140,8 +1178,6 @@ func TestGetEndpointsFromEndpointSlices_ErrorsOnNoEndpointSlicesFound(t *testing
 
 func TestGetEndpointSlicesBySubselectedPods_FindOnePodInOneEndpointSlice(t *testing.T) {
 	t.Parallel()
-	endpointPort := int32(8080)
-	endpointReady := true
 	boolPointer := func(b bool) *bool { return &b }
 	tests := []struct {
 		desc              string
@@ -1182,7 +1218,7 @@ func TestGetEndpointSlicesBySubselectedPods_FindOnePodInOneEndpointSlice(t *test
 				{
 					Ports: []discovery_v1.EndpointPort{
 						{
-							Port: &endpointPort,
+							Port: new(int32(8080)),
 						},
 					},
 					Endpoints: []discovery_v1.Endpoint{
@@ -1191,7 +1227,7 @@ func TestGetEndpointSlicesBySubselectedPods_FindOnePodInOneEndpointSlice(t *test
 								"1.2.3.4",
 							},
 							Conditions: discovery_v1.EndpointConditions{
-								Ready: &endpointReady,
+								Ready: new(true),
 							},
 						},
 					},
@@ -1213,8 +1249,6 @@ func TestGetEndpointSlicesBySubselectedPods_FindOnePodInOneEndpointSlice(t *test
 
 func TestGetEndpointSlicesBySubselectedPods_GetsEndpointsOnNilValues(t *testing.T) {
 	t.Parallel()
-	endpointPort := int32(8080)
-	endpointReady := true
 	boolPointer := func(b bool) *bool { return &b }
 
 	tests := []struct {
@@ -1257,7 +1291,7 @@ func TestGetEndpointSlicesBySubselectedPods_GetsEndpointsOnNilValues(t *testing.
 								"1.2.3.4",
 							},
 							Conditions: discovery_v1.EndpointConditions{
-								Ready: &endpointReady,
+								Ready: new(true),
 							},
 						},
 					},
@@ -1288,7 +1322,7 @@ func TestGetEndpointSlicesBySubselectedPods_GetsEndpointsOnNilValues(t *testing.
 				{
 					Ports: []discovery_v1.EndpointPort{
 						{
-							Port: &endpointPort,
+							Port: new(int32(8080)),
 						},
 					},
 					Endpoints: []discovery_v1.Endpoint{
@@ -1408,7 +1442,6 @@ func TestGetEndpointSlicesBySubselectedPods_FindOnePodInTwoEndpointSlicesWithDup
 
 func TestGetEndpointSlicesBySubselectedPods_FindTwoPodsInOneEndpointSlice(t *testing.T) {
 	t.Parallel()
-	endpointPort := int32(8080)
 	endpointReady := true
 	boolPointer := func(b bool) *bool { return &b }
 	tests := []struct {
@@ -1471,7 +1504,7 @@ func TestGetEndpointSlicesBySubselectedPods_FindTwoPodsInOneEndpointSlice(t *tes
 				{
 					Ports: []discovery_v1.EndpointPort{
 						{
-							Port: &endpointPort,
+							Port: new(int32(8080)),
 						},
 					},
 					Endpoints: []discovery_v1.Endpoint{
@@ -1621,9 +1654,6 @@ func TestGetEndpointSlicesBySubselectedPods_FindTwoPodsInTwoEndpointSlices(t *te
 
 func TestGetEndpointSlicesBySubselectedPods_FindOnePodEndpointInOneEndpointSliceWithOneEndpointNotReady(t *testing.T) {
 	t.Parallel()
-	endpointPort := int32(8080)
-	endpointReadyTrue := true
-	endpointReadyFalse := false
 	boolPointer := func(b bool) *bool { return &b }
 	tests := []struct {
 		desc              string
@@ -1678,7 +1708,7 @@ func TestGetEndpointSlicesBySubselectedPods_FindOnePodEndpointInOneEndpointSlice
 				{
 					Ports: []discovery_v1.EndpointPort{
 						{
-							Port: &endpointPort,
+							Port: new(int32(8080)),
 						},
 					},
 					Endpoints: []discovery_v1.Endpoint{
@@ -1687,7 +1717,7 @@ func TestGetEndpointSlicesBySubselectedPods_FindOnePodEndpointInOneEndpointSlice
 								"1.2.3.4",
 							},
 							Conditions: discovery_v1.EndpointConditions{
-								Ready: &endpointReadyTrue,
+								Ready: new(true),
 							},
 						},
 						{
@@ -1695,7 +1725,7 @@ func TestGetEndpointSlicesBySubselectedPods_FindOnePodEndpointInOneEndpointSlice
 								"5.6.7.8",
 							},
 							Conditions: discovery_v1.EndpointConditions{
-								Ready: &endpointReadyFalse,
+								Ready: new(false),
 							},
 						},
 					},
@@ -1718,8 +1748,6 @@ func TestGetEndpointSlicesBySubselectedPods_FindOnePodEndpointInOneEndpointSlice
 func TestGetEndpointSlicesBySubselectedPods_FindOnePodEndpointInTwoEndpointSlicesWithOneEndpointNotReady(t *testing.T) {
 	t.Parallel()
 	endpointPort := int32(8080)
-	endpointReadyTrue := true
-	endpointReadyFalse := false
 	boolPointer := func(b bool) *bool { return &b }
 	tests := []struct {
 		desc              string
@@ -1783,7 +1811,7 @@ func TestGetEndpointSlicesBySubselectedPods_FindOnePodEndpointInTwoEndpointSlice
 								"1.2.3.4",
 							},
 							Conditions: discovery_v1.EndpointConditions{
-								Ready: &endpointReadyTrue,
+								Ready: new(true),
 							},
 						},
 					},
@@ -1800,7 +1828,7 @@ func TestGetEndpointSlicesBySubselectedPods_FindOnePodEndpointInTwoEndpointSlice
 								"5.6.7.8",
 							},
 							Conditions: discovery_v1.EndpointConditions{
-								Ready: &endpointReadyFalse,
+								Ready: new(false),
 							},
 						},
 					},
@@ -1822,8 +1850,6 @@ func TestGetEndpointSlicesBySubselectedPods_FindOnePodEndpointInTwoEndpointSlice
 
 func TestGetEndpointSlicesBySubselectedPods_FindNoPods(t *testing.T) {
 	t.Parallel()
-	endpointPort := int32(8080)
-	endpointReady := true
 	boolPointer := func(b bool) *bool { return &b }
 	tests := []struct {
 		desc              string
@@ -1856,7 +1882,7 @@ func TestGetEndpointSlicesBySubselectedPods_FindNoPods(t *testing.T) {
 				{
 					Ports: []discovery_v1.EndpointPort{
 						{
-							Port: &endpointPort,
+							Port: new(int32(8080)),
 						},
 					},
 					Endpoints: []discovery_v1.Endpoint{
@@ -1865,7 +1891,7 @@ func TestGetEndpointSlicesBySubselectedPods_FindNoPods(t *testing.T) {
 								"5.4.3.2",
 							},
 							Conditions: discovery_v1.EndpointConditions{
-								Ready: &endpointReady,
+								Ready: new(true),
 							},
 						},
 					},
@@ -1887,8 +1913,6 @@ func TestGetEndpointSlicesBySubselectedPods_FindNoPods(t *testing.T) {
 
 func TestGetEndpointSlicesBySubselectedPods_TargetPortMismatch(t *testing.T) {
 	t.Parallel()
-	endpointPort := int32(8080)
-
 	boolPointer := func(b bool) *bool { return &b }
 	tests := []struct {
 		desc              string
@@ -1904,7 +1928,7 @@ func TestGetEndpointSlicesBySubselectedPods_TargetPortMismatch(t *testing.T) {
 				{
 					Ports: []discovery_v1.EndpointPort{
 						{
-							Port: &endpointPort,
+							Port: new(int32(8080)),
 						},
 					},
 					Endpoints: []discovery_v1.Endpoint{
@@ -2109,7 +2133,7 @@ func TestGetPoliciesGlobalWatch(t *testing.T) {
 
 	expectedPolicies := []*conf_v1.Policy{validPolicy}
 	expectedErrors := []error{
-		errors.New("policy default/invalid-policy is invalid: spec: Invalid value: \"\": must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `jwt`, `oidc`, `waf`"),
+		errors.New("policy default/invalid-policy is invalid: spec: Invalid value: \"\": must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `jwt`, `oidc`, `waf`"),
 		errors.New("policy nginx-ingress/valid-policy doesn't exist"),
 		errors.New("failed to get policy nginx-ingress/some-policy: GetByKey error"),
 		errors.New("referenced policy default/valid-policy-ingress-class has incorrect ingress class: test-class (controller ingress class: )"),
@@ -2207,7 +2231,7 @@ func TestGetPoliciesNamespacedWatch(t *testing.T) {
 
 	expectedPolicies := []*conf_v1.Policy{validPolicy}
 	expectedErrors := []error{
-		errors.New("policy default/invalid-policy is invalid: spec: Invalid value: \"\": must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `jwt`, `oidc`, `waf`"),
+		errors.New("policy default/invalid-policy is invalid: spec: Invalid value: \"\": must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `jwt`, `oidc`, `waf`"),
 		errors.New("failed to get namespace nginx-ingress"),
 		errors.New("referenced policy default/valid-policy-ingress-class has incorrect ingress class: test-class (controller ingress class: )"),
 	}
@@ -2274,6 +2298,167 @@ func TestCreatePolicyMap(t *testing.T) {
 	result := createPolicyMap(policies)
 	if !reflect.DeepEqual(result, expected) {
 		t.Errorf("createPolicyMap() returned \n%s but expected \n%s", policyMapToString(result), policyMapToString(expected))
+	}
+}
+
+func TestCreateIngressEx_SetsWarningWhenReferencedPolicyMissing(t *testing.T) {
+	t.Parallel()
+
+	ing := createTestIngress("ing-with-missing-policy", "example.com")
+	ing.Annotations[configs.PoliciesAnnotation] = "missing-policy"
+
+	policyLister := &cache.FakeCustomStore{
+		GetByKeyFunc: func(_ string) (item interface{}, exists bool, err error) {
+			return nil, false, nil
+		},
+	}
+
+	lbc := LoadBalancerController{
+		namespacedInformers: map[string]*namespacedInformer{
+			"default": {policyLister: policyLister},
+		},
+		areCustomResourcesEnabled: true,
+		Logger:                    nl.LoggerFromContext(context.Background()),
+	}
+
+	ingEx := lbc.createIngressEx(ing, map[string]bool{"example.com": true}, nil)
+	if len(ingEx.PolicyWarnings) == 0 {
+		t.Fatalf("expected policy warning when referenced policy is missing")
+	}
+
+	if !strings.Contains(ingEx.PolicyWarnings[0], "doesn't exist") {
+		t.Fatalf("expected missing policy warning, got: %v", ingEx.PolicyWarnings[0])
+	}
+
+	ingConfig := NewRegularIngressConfiguration(ing)
+	ingForEvent := mergeIngressPolicyWarnings(ingConfig, ingEx, nil)
+	if len(ingForEvent.Warnings) == 0 {
+		t.Fatalf("expected ingress warnings to include policy warning for event/status updates")
+	}
+}
+
+func TestCreateIngressEx_SetsWarningWhenPoliciesAnnotationUsedWithoutCustomResources(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		annotation string
+	}{
+		{name: "nginx.org annotation", annotation: configs.PoliciesAnnotation},
+		{name: "nginx.com annotation", annotation: configs.PoliciesAnnotationPlus},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ing := createTestIngress("ing-with-policy-no-crds", "example.com")
+			ing.Annotations[tc.annotation] = "some-policy"
+
+			lbc := LoadBalancerController{
+				namespacedInformers: map[string]*namespacedInformer{
+					"default": {},
+				},
+				areCustomResourcesEnabled: false,
+				Logger:                    nl.LoggerFromContext(context.Background()),
+			}
+
+			ingEx := lbc.createIngressEx(ing, map[string]bool{"example.com": true}, nil)
+			if len(ingEx.PolicyWarnings) == 0 {
+				t.Fatalf("expected warning when policies annotation is used without custom resources enabled")
+			}
+
+			if !strings.Contains(ingEx.PolicyWarnings[0], "custom resources are not enabled") {
+				t.Fatalf("expected custom resources warning, got: %v", ingEx.PolicyWarnings[0])
+			}
+
+			ingConfig := NewRegularIngressConfiguration(ing)
+			ingForEvent := mergeIngressPolicyWarnings(ingConfig, ingEx, nil)
+			if len(ingForEvent.Warnings) == 0 {
+				t.Fatalf("expected ingress warnings to surface for event/status updates")
+			}
+		})
+	}
+}
+
+func TestSyncPolicy_UpdatesMergeableIngressesWhenPolicyChanges(t *testing.T) {
+	t.Parallel()
+
+	master := createTestIngressMaster("master-ingress", "example.com")
+	minion := createTestIngressMinion("minion-ingress", "example.com", "/")
+	minion.Spec.Rules[0].IngressRuleValue.HTTP.Paths[0].Backend = networking.IngressBackend{
+		Service: &networking.IngressServiceBackend{
+			Name: "svc",
+			Port: networking.ServiceBackendPort{Number: 80},
+		},
+	}
+	minion.Annotations[configs.PoliciesAnnotation] = "test-policy"
+
+	configuration := createTestConfiguration()
+	configuration.AddOrUpdateIngress(master)
+	configuration.AddOrUpdateIngress(minion)
+
+	pol := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "test-policy",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			IngressClass: "different-class",
+			AccessControl: &conf_v1.AccessControl{
+				Allow: []string{"127.0.0.1"},
+			},
+		},
+	}
+
+	policyLister := &cache.FakeCustomStore{
+		GetByKeyFunc: func(key string) (item interface{}, exists bool, err error) {
+			if key == "default/test-policy" {
+				return pol, true, nil
+			}
+			return nil, false, nil
+		},
+	}
+
+	svcLister := &cache.FakeCustomStore{
+		GetByKeyFunc: func(_ string) (item interface{}, exists bool, err error) {
+			return nil, false, nil
+		},
+	}
+
+	trackingManager := newTrackingNginxManager()
+	cnf := createTestPolicySyncConfigurator(t, trackingManager)
+
+	lbc := LoadBalancerController{
+		namespacedInformers: map[string]*namespacedInformer{
+			"default": {
+				policyLister: policyLister,
+				svcLister:    svcLister,
+			},
+		},
+		configuration:             configuration,
+		configurator:              cnf,
+		recorder:                  record.NewFakeRecorder(100),
+		ingressClass:              "nginx",
+		areCustomResourcesEnabled: true,
+		Logger:                    nl.LoggerFromContext(context.Background()),
+	}
+
+	lbc.syncPolicy(task{Key: "default/test-policy"})
+
+	if len(trackingManager.createdConfigNames) == 0 {
+		t.Fatalf("expected mergeable ingress config to be created on policy update")
+	}
+
+	foundMasterConfig := false
+	for _, name := range trackingManager.createdConfigNames {
+		if name == "default-master-ingress" {
+			foundMasterConfig = true
+			break
+		}
+	}
+
+	if !foundMasterConfig {
+		t.Fatalf("expected config for mergeable master ingress to be updated, got configs: %v", trackingManager.createdConfigNames)
 	}
 }
 
@@ -2348,13 +2533,12 @@ func TestGetPodOwnerTypeAndName(t *testing.T) {
 }
 
 func createTestObjMeta(kind, name string, podHashLabel bool) meta_v1.ObjectMeta {
-	controller := true
 	meta := meta_v1.ObjectMeta{
 		OwnerReferences: []meta_v1.OwnerReference{
 			{
 				Kind:       kind,
 				Name:       name,
-				Controller: &controller,
+				Controller: new(true),
 			},
 		},
 	}
@@ -3476,7 +3660,7 @@ func TestNewTelemetryCollector(t *testing.T) {
 		{
 			testCase: "New Telemetry Collector with default values",
 			input: NewLoadBalancerControllerInput{
-				KubeClient:               fake.NewSimpleClientset(),
+				KubeClient:               fake.NewClientset(),
 				EnableTelemetryReporting: true,
 				LoggerContext:            context.Background(),
 			},
@@ -3490,7 +3674,7 @@ func TestNewTelemetryCollector(t *testing.T) {
 		{
 			testCase: "New Telemetry Collector with Telemetry Reporting set to false",
 			input: NewLoadBalancerControllerInput{
-				KubeClient:               fake.NewSimpleClientset(),
+				KubeClient:               fake.NewClientset(),
 				EnableTelemetryReporting: false,
 				LoggerContext:            context.Background(),
 			},
@@ -3548,7 +3732,7 @@ func TestCreateVirtualServerExWithZoneSync(t *testing.T) {
 		{
 			testCase: "VirtualServerEx without Zone sync",
 			input: NewLoadBalancerControllerInput{
-				KubeClient:               fake.NewSimpleClientset(),
+				KubeClient:               fake.NewClientset(),
 				EnableTelemetryReporting: false,
 				LoggerContext:            context.Background(),
 			},
@@ -3564,7 +3748,7 @@ func TestCreateVirtualServerExWithZoneSync(t *testing.T) {
 		{
 			testCase: "VirtualServerEx with Zone sync",
 			input: NewLoadBalancerControllerInput{
-				KubeClient:               fake.NewSimpleClientset(),
+				KubeClient:               fake.NewClientset(),
 				EnableTelemetryReporting: false,
 				LoggerContext:            context.Background(),
 				NginxConfigurator: &configs.Configurator{
@@ -3588,7 +3772,7 @@ func TestCreateVirtualServerExWithZoneSync(t *testing.T) {
 
 	for _, tc := range testCases {
 		lbc := NewLoadBalancerController(tc.input)
-		vsEx := lbc.createVirtualServerEx(&tc.vs, tc.vsr)
+		vsEx := lbc.createVirtualServerEx(&tc.vs, tc.vsr, nil)
 		if reflect.DeepEqual(vsEx, tc.expected) {
 			t.Fatalf("Expected %v, but got %v", tc.expected, vsEx)
 		}
@@ -3607,7 +3791,7 @@ func TestCreateIngressExWithZoneSync(t *testing.T) {
 		{
 			testCase: "IngressEx without Zone sync",
 			input: NewLoadBalancerControllerInput{
-				KubeClient:               fake.NewSimpleClientset(),
+				KubeClient:               fake.NewClientset(),
 				EnableTelemetryReporting: false,
 				LoggerContext:            context.Background(),
 			},
@@ -3619,7 +3803,7 @@ func TestCreateIngressExWithZoneSync(t *testing.T) {
 		{
 			testCase: "IngressEx with Zone sync",
 			input: NewLoadBalancerControllerInput{
-				KubeClient:               fake.NewSimpleClientset(),
+				KubeClient:               fake.NewClientset(),
 				EnableTelemetryReporting: false,
 				LoggerContext:            context.Background(),
 			},
@@ -3680,7 +3864,7 @@ func TestIsPodMarkedForDeletion(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			client := fake.NewSimpleClientset()
+			client := fake.NewClientset()
 			if test.podExists {
 				pod := &api_v1.Pod{
 					ObjectMeta: meta_v1.ObjectMeta{
@@ -3690,8 +3874,7 @@ func TestIsPodMarkedForDeletion(t *testing.T) {
 				}
 
 				if test.podHasTimestamp {
-					now := meta_v1.Now()
-					pod.DeletionTimestamp = &now
+					pod.DeletionTimestamp = new(meta_v1.Now())
 				}
 
 				_, err := client.CoreV1().Pods(test.envPodNamespace).Create(context.Background(), pod, meta_v1.CreateOptions{})

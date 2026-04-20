@@ -3,10 +3,11 @@
 import logging
 
 import yaml
-from kubernetes.client import CoreV1Api, CustomObjectsApi
+from kubernetes.client import CustomObjectsApi
 from kubernetes.client.rest import ApiException
+from suite.utils.custom_assertions import assert_valid_vs, assert_valid_vsr
 from suite.utils.custom_resources_utils import read_custom_resource
-from suite.utils.resources_utils import ensure_item_removal, get_file_contents, wait_before_test
+from suite.utils.resources_utils import ensure_item_removal, wait_before_test
 
 
 def read_vs(custom_objects: CustomObjectsApi, namespace, name) -> object:
@@ -203,18 +204,8 @@ def apply_and_assert_valid_vsr(kube_apis, namespace, name, vsr_yaml):
         vsr_yaml,
         namespace,
     )
-    wait_before_test(1)
-    vsr_info = read_custom_resource(
-        kube_apis.custom_objects,
-        namespace,
-        "virtualserverroutes",
-        name,
-    )
-    assert (
-        vsr_info["status"]
-        and vsr_info["status"]["reason"] == "AddedOrUpdated"
-        and vsr_info["status"]["state"] == "Valid"
-    ), vsr_info
+
+    assert_valid_vsr(kube_apis, namespace, name)
 
 
 def apply_and_assert_warning_vsr(kube_apis, namespace, name, vsr_yaml):
@@ -245,16 +236,8 @@ def apply_and_assert_valid_vs(kube_apis, namespace, name, vs_yaml):
         vs_yaml,
         namespace,
     )
-    wait_before_test(1)
-    vs_info = read_custom_resource(
-        kube_apis.custom_objects,
-        namespace,
-        "virtualservers",
-        name,
-    )
-    assert (
-        vs_info["status"] and vs_info["status"]["reason"] == "AddedOrUpdated" and vs_info["status"]["state"] == "Valid"
-    ), vs_info
+
+    assert_valid_vs(kube_apis, namespace, name)
 
 
 def apply_and_assert_warning_vs(kube_apis, namespace, name, vs_yaml):
@@ -276,22 +259,6 @@ def apply_and_assert_warning_vs(kube_apis, namespace, name, vs_yaml):
         and vs_info["status"]["reason"] == "AddedOrUpdatedWithWarning"
         and vs_info["status"]["state"] == "Warning"
     ), vs_info
-
-
-def get_vs_nginx_template_conf(v1: CoreV1Api, vs_namespace, vs_name, pod_name, pod_namespace, print_log=True) -> str:
-    """
-    Get contents of /etc/nginx/conf.d/vs_{namespace}_{vs_name}.conf in the pod.
-
-    :param v1: CoreV1Api
-    :param vs_namespace:
-    :param vs_name:
-    :param pod_name:
-    :param pod_namespace:
-    :param print_log:
-    :return: str
-    """
-    file_path = f"/etc/nginx/conf.d/vs_{vs_namespace}_{vs_name}.conf"
-    return get_file_contents(v1, file_path, pod_name, pod_namespace, print_log)
 
 
 def create_v_s_route_from_yaml(custom_objects: CustomObjectsApi, yaml_manifest, namespace) -> str:

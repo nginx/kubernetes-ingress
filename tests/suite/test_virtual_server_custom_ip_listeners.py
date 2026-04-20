@@ -9,9 +9,13 @@ from suite.utils.resources_utils import (
     delete_secret,
     get_events_for_object,
     get_first_pod_name,
+    get_vs_nginx_template_conf,
     wait_before_test,
 )
-from suite.utils.vs_vsr_resources_utils import get_vs_nginx_template_conf, patch_virtual_server_from_yaml, read_vs
+from suite.utils.vs_vsr_resources_utils import (
+    patch_virtual_server_from_yaml,
+    read_vs,
+)
 
 
 def make_request(url, host):
