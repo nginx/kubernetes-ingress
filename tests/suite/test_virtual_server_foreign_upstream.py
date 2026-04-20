@@ -1,12 +1,17 @@
+import re
+
 import pytest
 from settings import TEST_DATA
 from suite.fixtures.custom_resource_fixtures import VirtualServerSetup
-from suite.utils.custom_assertions import wait_and_assert_status_code
+from suite.utils.custom_assertions import assert_pods_scaled_to_count, wait_and_assert_status_code
 from suite.utils.resources_utils import (
     create_items_from_yaml,
     create_namespace_with_name_from_yaml,
     delete_items_from_yaml,
     delete_namespace,
+    get_first_pod_name,
+    get_vs_nginx_template_conf,
+    scale_deployment,
     wait_before_test,
     wait_until_all_pods_are_ready,
 )
@@ -234,4 +239,141 @@ class TestVirtualServerForeignUpstream:
             200,
             virtual_server_foreign_upstream_app_setup.backend_2_url,
             virtual_server_foreign_upstream_app_setup.vs_host,
+        )
+
+    def test_cross_namespace_vs_upstream_updates_on_scale(
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        crd_ingress_controller,
+        virtual_server_foreign_upstream_app_setup,
+    ):
+        backend2_namespace = "backend2-namespace"
+        backend2_deployment = "backend2"
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        vs_config = get_vs_nginx_template_conf(
+            kube_apis.v1,
+            virtual_server_foreign_upstream_app_setup.namespace,
+            virtual_server_foreign_upstream_app_setup.vs_name,
+            ic_pod_name,
+            ingress_controller_prerequisites.namespace,
+        )
+        original_server_count = len(re.findall("server .*;", vs_config))
+        scaled_server_count = original_server_count + 2
+
+        print("\nStep 1: scale foreign backend up and verify VS upstream endpoints")
+        scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, backend2_deployment, backend2_namespace, 3)
+        assert_pods_scaled_to_count(kube_apis.apps_v1_api, kube_apis.v1, backend2_deployment, backend2_namespace, 3)
+        num_servers = 0
+        retry = 0
+        while num_servers != scaled_server_count and retry <= 30:
+            vs_config = get_vs_nginx_template_conf(
+                kube_apis.v1,
+                virtual_server_foreign_upstream_app_setup.namespace,
+                virtual_server_foreign_upstream_app_setup.vs_name,
+                ic_pod_name,
+                ingress_controller_prerequisites.namespace,
+            )
+            num_servers = len(re.findall("server .*;", vs_config))
+            retry += 1
+            wait_before_test(1)
+            print(f"Retry #{retry}, total server count: {num_servers}")
+        assert num_servers == scaled_server_count
+
+        print("\nStep 2: scale foreign backend down and verify VS upstream endpoints")
+        scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, backend2_deployment, backend2_namespace, 1)
+        assert_pods_scaled_to_count(kube_apis.apps_v1_api, kube_apis.v1, backend2_deployment, backend2_namespace, 1)
+        num_servers = 0
+        retry = 0
+        while num_servers != original_server_count and retry <= 30:
+            vs_config = get_vs_nginx_template_conf(
+                kube_apis.v1,
+                virtual_server_foreign_upstream_app_setup.namespace,
+                virtual_server_foreign_upstream_app_setup.vs_name,
+                ic_pod_name,
+                ingress_controller_prerequisites.namespace,
+            )
+            num_servers = len(re.findall("server .*;", vs_config))
+            retry += 1
+            wait_before_test(1)
+            print(f"Retry #{retry}, total server count: {num_servers}")
+        assert num_servers == original_server_count
+
+    def test_cross_namespace_vsr_upstream_updates_on_scale(
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        crd_ingress_controller,
+        virtual_server_foreign_upstream_app_setup,
+    ):
+        backend2_namespace = "backend2-namespace"
+        backend2_deployment = "backend2"
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+
+        vs_source = f"{TEST_DATA}/virtual-server-foreign-upstream/standard/virtual-server-vsr.yaml"
+        patch_virtual_server_from_yaml(
+            kube_apis.custom_objects,
+            virtual_server_foreign_upstream_app_setup.vs_name,
+            vs_source,
+            virtual_server_foreign_upstream_app_setup.namespace,
+        )
+        vs_route = create_v_s_route_from_yaml(
+            kube_apis.custom_objects,
+            f"{TEST_DATA}/virtual-server-foreign-upstream/route-backend2.yaml",
+            virtual_server_foreign_upstream_app_setup.namespace,
+        )
+        vs_config = get_vs_nginx_template_conf(
+            kube_apis.v1,
+            virtual_server_foreign_upstream_app_setup.namespace,
+            virtual_server_foreign_upstream_app_setup.vs_name,
+            ic_pod_name,
+            ingress_controller_prerequisites.namespace,
+        )
+        original_server_count = len(re.findall("server .*;", vs_config))
+        scaled_server_count = original_server_count + 2
+
+        print("\nStep 1: scale foreign backend up and verify VSR upstream endpoints")
+        scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, backend2_deployment, backend2_namespace, 3)
+        assert_pods_scaled_to_count(kube_apis.apps_v1_api, kube_apis.v1, backend2_deployment, backend2_namespace, 3)
+        num_servers = 0
+        retry = 0
+        while num_servers != scaled_server_count and retry <= 30:
+            vs_config = get_vs_nginx_template_conf(
+                kube_apis.v1,
+                virtual_server_foreign_upstream_app_setup.namespace,
+                virtual_server_foreign_upstream_app_setup.vs_name,
+                ic_pod_name,
+                ingress_controller_prerequisites.namespace,
+            )
+            num_servers = len(re.findall("server .*;", vs_config))
+            retry += 1
+            wait_before_test(1)
+            print(f"Retry #{retry}, total server count: {num_servers}")
+        assert num_servers == scaled_server_count
+
+        print("\nStep 2: scale foreign backend down and verify VSR upstream endpoints")
+        scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, backend2_deployment, backend2_namespace, 1)
+        assert_pods_scaled_to_count(kube_apis.apps_v1_api, kube_apis.v1, backend2_deployment, backend2_namespace, 1)
+        num_servers = 0
+        retry = 0
+        while num_servers != original_server_count and retry <= 30:
+            vs_config = get_vs_nginx_template_conf(
+                kube_apis.v1,
+                virtual_server_foreign_upstream_app_setup.namespace,
+                virtual_server_foreign_upstream_app_setup.vs_name,
+                ic_pod_name,
+                ingress_controller_prerequisites.namespace,
+            )
+            num_servers = len(re.findall("server .*;", vs_config))
+            retry += 1
+            wait_before_test(1)
+            print(f"Retry #{retry}, total server count: {num_servers}")
+        assert num_servers == original_server_count
+
+        delete_v_s_route(kube_apis.custom_objects, vs_route, virtual_server_foreign_upstream_app_setup.namespace)
+        patch_virtual_server_from_yaml(
+            kube_apis.custom_objects,
+            virtual_server_foreign_upstream_app_setup.vs_name,
+            f"{TEST_DATA}/virtual-server-foreign-upstream/standard/virtual-server.yaml",
+            virtual_server_foreign_upstream_app_setup.namespace,
         )
