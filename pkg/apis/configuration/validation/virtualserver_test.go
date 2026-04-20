@@ -1740,6 +1740,10 @@ func TestValidatePath(t *testing.T) {
 		"/abc;",
 		`/path\`,
 		`/path\n`,
+		`//path`,
+		`/path/../`,
+		`/../`,
+		`/path/../etc/passwd`,
 	}
 
 	for _, path := range invalidPaths {
