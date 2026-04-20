@@ -1387,6 +1387,14 @@ func validatePath(path string, fieldPath *field.Path) field.ErrorList {
 	if path == "" {
 		return field.ErrorList{field.Required(fieldPath, "")}
 	}
+	if strings.HasPrefix(path, "//") {
+		return field.ErrorList{field.Invalid(fieldPath, path, "protocol-relative URIs not allowed, must not start with '//'")}
+	}
+
+	if strings.Contains(path, "../") || strings.Contains(path, "..\\") {
+		return field.ErrorList{field.Invalid(fieldPath, path, "path traversal patterns not allowed, must not contain '../' or '..\\'")}
+	}
+
 	if !pathRegexp.MatchString(path) {
 		msg := validation.RegexError(pathErrMsg, pathFmt, "/", "/path", "/path/subpath-123")
 		return field.ErrorList{field.Invalid(fieldPath, path, msg)}
