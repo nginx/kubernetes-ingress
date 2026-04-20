@@ -84,6 +84,7 @@ type Server struct {
 	Name                   string
 	ServerTokens           string
 	Locations              []Location
+	EgressMTLS             *version2.EgressMTLS
 	SSL                    bool
 	SSLCertificate         string
 	SSLCertificateKey      string
@@ -212,6 +213,7 @@ type Location struct {
 	Allow                    []string
 	Deny                     []string
 	WAF                      *version2.WAF
+	EgressMTLS               *version2.EgressMTLS
 	PoliciesErrorReturn      *version2.Return
 }
 

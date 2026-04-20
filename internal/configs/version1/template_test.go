@@ -5522,3 +5522,204 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithPoliciesErrorReturnLocation(t
 	snaps.MatchSnapshot(t, bufString)
 	t.Log(bufString)
 }
+
+func TestExecuteTemplate_ForIngressWithProxyEgressMTLSPolicy(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name      string
+		newTmpl   func(t *testing.T) *template.Template
+		wantLines []string
+		notWant   []string
+	}{
+		{
+			name:    "nginx",
+			newTmpl: newNGINXIngressTmpl,
+			wantLines: []string{
+				"proxy_ssl_certificate /etc/nginx/secrets/default-egress-mtls-secret;",
+				"proxy_ssl_trusted_certificate /etc/nginx/secrets/default-egress-trusted-ca-secret;",
+				"proxy_ssl_name secure-app.example.com;",
+			},
+			notWant: []string{
+				"grpc_ssl_certificate /etc/nginx/secrets/default-egress-mtls-secret;",
+			},
+		},
+		{
+			name:    "nginx-plus",
+			newTmpl: newNGINXPlusIngressTmpl,
+			wantLines: []string{
+				"proxy_ssl_certificate /etc/nginx/secrets/default-egress-mtls-secret;",
+				"proxy_ssl_trusted_certificate /etc/nginx/secrets/default-egress-trusted-ca-secret;",
+				"proxy_ssl_name secure-app.example.com;",
+			},
+			notWant: []string{
+				"grpc_ssl_certificate /etc/nginx/secrets/default-egress-mtls-secret;",
+			},
+		},
+	} {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+			cfg := newIngressConfigWithEgressMTLS(false)
+
+			if err := tmpl.Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+
+			out := buf.String()
+			for _, want := range test.wantLines {
+				if !strings.Contains(out, want) {
+					t.Fatalf("want %q in generated config", want)
+				}
+			}
+
+			for _, notWant := range test.notWant {
+				if strings.Contains(out, notWant) {
+					t.Fatalf("did not expect %q in generated config", notWant)
+				}
+			}
+
+			snaps.MatchSnapshot(t, out)
+		})
+	}
+}
+
+func TestExecuteTemplate_ForIngressWithGRPCEgressMTLSPolicy(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name      string
+		newTmpl   func(t *testing.T) *template.Template
+		wantLines []string
+		notWant   []string
+	}{
+		{
+			name:    "nginx",
+			newTmpl: newNGINXIngressTmpl,
+			wantLines: []string{
+				"grpc_ssl_certificate /etc/nginx/secrets/default-egress-mtls-secret;",
+				"grpc_ssl_trusted_certificate /etc/nginx/secrets/default-egress-trusted-ca-secret;",
+				"grpc_ssl_name secure-app.example.com;",
+			},
+			notWant: []string{
+				"proxy_ssl_certificate /etc/nginx/secrets/default-egress-mtls-secret;",
+			},
+		},
+		{
+			name:    "nginx-plus",
+			newTmpl: newNGINXPlusIngressTmpl,
+			wantLines: []string{
+				"grpc_ssl_certificate /etc/nginx/secrets/default-egress-mtls-secret;",
+				"grpc_ssl_trusted_certificate /etc/nginx/secrets/default-egress-trusted-ca-secret;",
+				"grpc_ssl_name secure-app.example.com;",
+			},
+			notWant: []string{
+				"proxy_ssl_certificate /etc/nginx/secrets/default-egress-mtls-secret;",
+			},
+		},
+	} {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+			cfg := newIngressConfigWithEgressMTLS(true)
+
+			if err := tmpl.Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+
+			out := buf.String()
+			for _, want := range test.wantLines {
+				if !strings.Contains(out, want) {
+					t.Fatalf("want %q in generated config", want)
+				}
+			}
+
+			for _, notWant := range test.notWant {
+				if strings.Contains(out, notWant) {
+					t.Fatalf("did not expect %q in generated config", notWant)
+				}
+			}
+
+			snaps.MatchSnapshot(t, out)
+		})
+	}
+}
+
+func newIngressConfigWithEgressMTLS(grpc bool) IngressNginxConfig {
+	upstream := Upstream{
+		Name: "ups",
+		UpstreamServers: []UpstreamServer{
+			{Address: "127.0.0.1:8443", MaxFails: 1, FailTimeout: "10s"},
+		},
+		UpstreamZoneSize: "256k",
+	}
+
+	return IngressNginxConfig{
+		Ingress: Ingress{
+			Name:      "ing",
+			Namespace: "default",
+		},
+		Servers: []Server{
+			{
+				Name:         "example.com",
+				ServerTokens: "on",
+				StatusZone:   "example.com",
+				Ports:        []int{80},
+				SSLPorts:     []int{443},
+				EgressMTLS: func() *version2.EgressMTLS {
+					if grpc {
+						return nil
+					}
+
+					return &version2.EgressMTLS{
+						Certificate:    "/etc/nginx/secrets/default-egress-mtls-secret",
+						CertificateKey: "/etc/nginx/secrets/default-egress-mtls-secret",
+						TrustedCert:    "/etc/nginx/secrets/default-egress-trusted-ca-secret",
+						VerifyServer:   true,
+						VerifyDepth:    2,
+						Protocols:      "TLSv1.2 TLSv1.3",
+						Ciphers:        "HIGH:!aNULL:!MD5",
+						SessionReuse:   false,
+						ServerName:     true,
+						SSLName:        "secure-app.example.com",
+					}
+				}(),
+				Locations: []Location{
+					{
+						Path:        "/",
+						ServiceName: "secure-app",
+						Upstream:    upstream,
+						ProxyPass:   "https://ups",
+						SSL:         true,
+						GRPC:        grpc,
+						EgressMTLS: func() *version2.EgressMTLS {
+							if !grpc {
+								return nil
+							}
+
+							return &version2.EgressMTLS{
+								Certificate:    "/etc/nginx/secrets/default-egress-mtls-secret",
+								CertificateKey: "/etc/nginx/secrets/default-egress-mtls-secret",
+								TrustedCert:    "/etc/nginx/secrets/default-egress-trusted-ca-secret",
+								VerifyServer:   true,
+								VerifyDepth:    2,
+								Protocols:      "TLSv1.2 TLSv1.3",
+								Ciphers:        "HIGH:!aNULL:!MD5",
+								SessionReuse:   false,
+								ServerName:     true,
+								SSLName:        "secure-app.example.com",
+							}
+						}(),
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{upstream},
+	}
+}
