@@ -232,3 +232,34 @@ func isValidHeaderName(name string) bool {
 	validHeaderName := regexp.MustCompile(`^[a-zA-Z0-9\-_]+$`)
 	return validHeaderName.MatchString(name)
 }
+
+const (
+	pathFmt    = `/[^\s{};\\]*`
+	pathErrMsg = "must start with / and must not include any whitespace character, `{`, `}` or `;`"
+)
+
+var pathRegexp = regexp.MustCompile("^" + pathFmt + "$")
+
+func validatePath(path string, fieldPath *field.Path) field.ErrorList {
+	if path == "" {
+		return field.ErrorList{field.Required(fieldPath, "")}
+	}
+	if strings.HasPrefix(path, "//") {
+		return field.ErrorList{field.Invalid(fieldPath, path, "protocol-relative URIs not allowed, must not start with '//'")}
+	}
+
+	if strings.Contains(path, "../") || strings.Contains(path, "..\\") {
+		return field.ErrorList{field.Invalid(fieldPath, path, "path traversal patterns not allowed, must not contain '../' or '..\\'")}
+	}
+
+	if !pathRegexp.MatchString(path) {
+		msg := validation.RegexError(pathErrMsg, pathFmt, "/", "/path", "/path/subpath-123")
+		return field.ErrorList{field.Invalid(fieldPath, path, msg)}
+	}
+	return nil
+}
+
+// ValidatePath is a wrapper for validatePath to be used in other packages
+func ValidatePath(path string, fieldPath *field.Path) field.ErrorList {
+	return validatePath(path, fieldPath)
+}
