@@ -564,7 +564,7 @@ jobs:
           ref: ${{ inputs.release_branch }}
 
       - name: Fetch Binary Artifacts from Cache
-        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ needs.variables.outputs.go_code_md5 }}
@@ -585,7 +585,7 @@ jobs:
           SYFT_BIN: ${{ steps.syft.outputs.cmd }}
 
       - name: Store Tarball Artifacts in Cache
-        uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ${{ github.workspace }}/tarballs
           key: nginx-ingress-release-${{ needs.variables.outputs.go_code_md5 }}
@@ -606,7 +606,7 @@ jobs:
           ref: ${{ inputs.release_branch }}
 
       - name: Fetch Cached Tarball Artifacts
-        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           key: nginx-ingress-release-${{ needs.variables.outputs.go_code_md5 }}
           path: ${{ github.workspace }}/tarballs
@@ -670,7 +670,7 @@ jobs:
           ref: ${{ inputs.release_branch }}
 
       - name: Fetch Cached Tarball Artifacts
-        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           key: nginx-ingress-release-${{ needs.variables.outputs.go_code_md5 }}
           path: ${{ github.workspace }}/tarballs
