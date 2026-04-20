@@ -11,9 +11,7 @@ server {
     listen 80;listen [::]:80;
 
     server_tokens "on";
-
     server_name example.com;
-
     status_zone example.com;
     set $resource_type "ingress";
     set $resource_name "ing";
@@ -61,9 +59,7 @@ server {
     listen 80;listen [::]:80;
 
     server_tokens "on";
-
     server_name example.com;
-
     status_zone example.com;
     set $resource_type "ingress";
     set $resource_name "ing";
