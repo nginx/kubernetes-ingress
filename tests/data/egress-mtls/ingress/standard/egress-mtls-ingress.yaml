@@ -1,0 +1,20 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: egress-mtls-ingress
+  annotations:
+    nginx.org/policies: "egress-mtls-policy"
+    nginx.org/ssl-services: "secure-app"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: ingress-egress-mtls.example.com
+    http:
+      paths:
+      - path: /backend1
+        pathType: Prefix
+        backend:
+          service:
+            name: secure-app
+            port:
+              number: 8443

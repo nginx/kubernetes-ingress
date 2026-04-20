@@ -130,7 +130,7 @@ type IngressMTLS struct {
 	VerifyDepth  int
 }
 
-// EgressMTLS defines TLS configuration for a location.
+// EgressMTLS defines upstream TLS configuration applied at server or location scope.
 type EgressMTLS struct {
 	Certificate    string
 	CertificateKey string
