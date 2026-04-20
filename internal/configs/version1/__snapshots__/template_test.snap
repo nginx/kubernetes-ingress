@@ -57,31 +57,24 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
-    }
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 80 default_server;listen [::]:80 default_server;
-        listen 443 ssl default_server;
-        listen [::]:443 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
     }
 
     include /etc/nginx/config-version.conf;
@@ -195,6 +188,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -202,28 +210,6 @@ http {
 
     resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 80 default_server;listen [::]:80 default_server;
-        listen 443 ssl default_server;
-        listen [::]:443 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -335,6 +321,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -342,28 +343,6 @@ http {
 
     
     
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen 0 ssl default_server;
-        listen [::]:0 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -474,6 +453,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -481,28 +475,6 @@ http {
 
     
     
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen 0 ssl default_server;
-        listen [::]:0 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -614,6 +586,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -621,28 +608,6 @@ http {
 
     
     
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen 0 ssl default_server;
-        listen [::]:0 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -997,9 +962,7 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens off;
-
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -1040,9 +1003,7 @@ server {
 server {
 
     server_tokens ;
-
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -1109,9 +1070,7 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens "off";
-
     server_name test.example.com;
-
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -1195,10 +1154,7 @@ server {
 server {
 
     server_tokens "off";
-
     server_name cafe.example.com;
-
-    status_zone ;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -1239,10 +1195,7 @@ server {
 server {
 
     server_tokens "off";
-
     server_name cafe.example.com;
-
-    status_zone ;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -1283,10 +1236,7 @@ server {
 server {
 
     server_tokens "off";
-
     server_name cafe.example.com;
-
-    status_zone ;
     set $resource_type "ingress";
     set $resource_name "cafe-menu-ingress";
     set $resource_namespace "default";
@@ -1327,10 +1277,7 @@ server {
 server {
 
     server_tokens "off";
-
     server_name cafe.example.com;
-
-    status_zone ;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -1371,10 +1318,7 @@ server {
 server {
 
     server_tokens "off";
-
     server_name cafe.example.com;
-
-    status_zone ;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -1415,10 +1359,7 @@ server {
 server {
 
     server_tokens "off";
-
     server_name cafe.example.com;
-
-    status_zone ;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -1464,9 +1405,7 @@ server {
         deny all;
 
     server_tokens "off";
-
     server_name test.example.com;
-
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -1513,9 +1452,7 @@ server {
         allow all;
 
     server_tokens "off";
-
     server_name test.example.com;
-
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -1563,9 +1500,7 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens "off";
-
     server_name test.example.com;
-
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -1657,9 +1592,7 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens "off";
-
     server_name test.example.com;
-
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -1978,9 +1911,7 @@ upstream test {
 server {
 
     server_tokens "off";
-
     server_name test.example.com;
-
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -2030,9 +1961,7 @@ server {
 
     server_tokens "off";
     return 500;
-
     server_name test.example.com;
-
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -2080,9 +2009,7 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens "off";
-
     server_name test.example.com;
-
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -2157,9 +2084,7 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens "off";
-
     server_name test.example.com;
-
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -2234,9 +2159,7 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens "off";
-
     server_name test.example.com;
-
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -2311,9 +2234,7 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens "off";
-
     server_name test.example.com;
-
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -2386,9 +2307,7 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens "off";
-
     server_name test.example.com;
-
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "myingress";
@@ -2491,9 +2410,7 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens "off";
-
     server_name test.example.com;
-
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "myingress";
@@ -2597,10 +2514,7 @@ limit_req_zone ${binary_remote_addr} zone=default/zone1_sync:10m rate=200r/s syn
 server {
 
     server_tokens "";
-
     server_name test.example.com;
-
-    status_zone ;
     set $resource_type "ingress";
     set $resource_name "myingress";
     set $resource_namespace "default";
@@ -2649,10 +2563,7 @@ server {
     ssl_prefer_server_ciphers on;
 
     server_tokens "";
-
     server_name test.example.com;
-
-    status_zone ;
     set $resource_type "ingress";
     set $resource_name "test-ingress";
     set $resource_namespace "default";
@@ -2694,10 +2605,7 @@ server {
     ssl_certificate_key ;
 
     server_tokens "";
-
     server_name test.example.com;
-
-    status_zone ;
     set $resource_type "ingress";
     set $resource_name "test-ingress";
     set $resource_namespace "default";
@@ -2744,9 +2652,7 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens "off";
-
     server_name test.example.com;
-
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -2830,9 +2736,7 @@ server {
 server {
 
     server_tokens off;
-
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -2867,9 +2771,7 @@ server {
 server {
 
     server_tokens off;
-
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -2904,9 +2806,7 @@ server {
 server {
 
     server_tokens off;
-
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-menu-ingress";
     set $resource_namespace "default";
@@ -2941,9 +2841,7 @@ server {
 server {
 
     server_tokens off;
-
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -2978,9 +2876,7 @@ server {
 server {
 
     server_tokens off;
-
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -3015,9 +2911,7 @@ server {
 server {
 
     server_tokens off;
-
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -3058,9 +2952,7 @@ server {
         deny all;
 
     server_tokens off;
-
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -3101,9 +2993,7 @@ server {
         allow all;
 
     server_tokens off;
-
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -3146,9 +3036,7 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens off;
-
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -3199,9 +3087,7 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens off;
-
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -3416,9 +3302,7 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens off;
-
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -3508,9 +3392,7 @@ upstream test {
 server {
 
     server_tokens off;
-
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -3554,9 +3436,7 @@ server {
 
     server_tokens off;
     return 500;
-
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -3590,9 +3470,7 @@ server {
 server {
 
     server_tokens ;
-
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "test-ingress";
     set $resource_namespace "default";
@@ -3626,9 +3504,7 @@ server {
 server {
 
     server_tokens ;
-
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "test-ingress";
     set $resource_namespace "default";
@@ -3662,9 +3538,7 @@ server {
 server {
 
     server_tokens ;
-
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -3729,9 +3603,7 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens off;
-
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "myingress";
     set $resource_namespace "default";
@@ -3803,9 +3675,7 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens off;
-
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "myingress";
     set $resource_namespace "default";
@@ -3880,9 +3750,7 @@ server {
     ssl_prefer_server_ciphers on;
 
     server_tokens ;
-
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "test-ingress";
     set $resource_namespace "default";
@@ -3918,9 +3786,7 @@ server {
     ssl_certificate_key ;
 
     server_tokens ;
-
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "test-ingress";
     set $resource_namespace "default";
@@ -3963,9 +3829,7 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens off;
-
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -4016,9 +3880,7 @@ map $http_origin $cors_origin_default_cafe_ingress_ing_default_cors_policy {
 server {
 
     server_tokens off;
-
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -4074,9 +3936,7 @@ map $http_origin $cors_origin_default_cafe_ingress_ing_default_cors_policy {
 server {
 
     server_tokens "off";
-
     server_name test.example.com;
-
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -4138,9 +3998,7 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens "off";
-
     server_name test.example.com;
-
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -4231,9 +4089,7 @@ server {
     listen 80;listen [::]:80;
 
     server_tokens on;
-
     server_name example.com;
-
     set $resource_type "ingress";
     set $resource_name "ing";
     set $resource_namespace "default";
@@ -4293,9 +4149,7 @@ server {
     listen 80;listen [::]:80;
 
     server_tokens "on";
-
     server_name example.com;
-
     status_zone example.com;
     set $resource_type "ingress";
     set $resource_name "ing";
@@ -4362,9 +4216,7 @@ upstream test {
 server {
 
     server_tokens off;
-
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -4404,9 +4256,7 @@ upstream test {
 server {
 
     server_tokens "off";
-
     server_name test.example.com;
-
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -4455,9 +4305,7 @@ server {
     listen 80;listen [::]:80;
 
     server_tokens on;
-
     server_name example.com;
-
     set $resource_type "ingress";
     set $resource_name "ing";
     set $resource_namespace "default";
@@ -4506,9 +4354,7 @@ server {
     listen 80;listen [::]:80;
 
     server_tokens "on";
-
     server_name example.com;
-
     status_zone example.com;
     set $resource_type "ingress";
     set $resource_name "ing";
@@ -4705,149 +4551,20 @@ http {
         default upgrade;
         ''      close;
     }
-    map $http_upgrade $vs_connection_header {
-        default upgrade;
-        ''      $default_connection_header;
+    map $http_upgrade $default_connection_header {
+        default "";
     }
-
-    resolver example.com 127.0.0.1 valid=10s ipv6=off;
-    resolver_timeout 15s;
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen 0 ssl default_server;
-        listen [::]:0 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
+    map $http_host $resource_type {
+        default "";
     }
-
-    # NGINX Plus API over unix socket
-    server {
-        listen unix:/var/lib/nginx/nginx-plus-api.sock;
-        access_log off;
-
-        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
-        location /configVersionCheck {
-            if ($config_version_mismatch) {
-                return 503;
-            }
-            return 200;
-        }
-
-        location /api {
-            api write=on;
-        }
+    map $http_host $resource_name {
+        default "";
     }
-
-    include /etc/nginx/config-version.conf;
-    include /etc/nginx/conf.d/*.conf;
-
-    server {
-        listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;
-
-        return 418;
+    map $http_host $resource_namespace {
+        default "";
     }
-}
-
-stream {
-    log_format  stream-main escape=none 
-                            '$remote_addr'
-                            ' $remote_user'
-                            ;
-
-    access_log  /dev/stdout  stream-main;
-    # comment
-    resolver example.com 127.0.0.1 valid=10s ipv6=off;
-    resolver_timeout 15s;
-
-    map_hash_max_size ;
-    
-    include /etc/nginx/stream-conf.d/*.conf;
-}
-
-mgmt {
-    license_token /etc/nginx/secrets/license.jwt;
-    enforce_initial_report off;
-    deployment_context /etc/nginx/reporting/tracking.info;
-}
-
----
-
-[TestExecuteTemplate_ForMainForNGINXPlusWithCustomDefaultHTTPAndHTTPSListenerPorts - 1]
-worker_processes  auto;
-worker_rlimit_nofile 65536;
-worker_cpu_affinity auto;
-worker_shutdown_timeout 1m;
-
-daemon off;
-
-error_log  stderr ;
-pid        /var/lib/nginx/nginx.pid;
-load_module modules/ngx_fips_check_module.so;
-
-load_module modules/ngx_http_js_module.so;
-
-events {
-    worker_connections  1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-    map_hash_max_size ;
-    map_hash_bucket_size ;
-
-    js_import /etc/nginx/njs/apikey_auth.js;
-    js_set $apikey_auth_hash apikey_auth.hash;
-
-    log_format  main escape=default 
-                     '$remote_addr'
-                     ' $remote_user'
-                     ;
-
-    map $upstream_trailer_grpc_status $grpc_status {
-        default $upstream_trailer_grpc_status;
-        '' $sent_http_grpc_status;
-    }
-
-    access_log /dev/stdout main;
-
-    sendfile        on;
-    #tcp_nopush     on;
-
-    keepalive_timeout 65s;
-    keepalive_requests 100;
-
-    #gzip  on;
-
-    server_names_hash_max_size 512;
-    
-
-    variables_hash_bucket_size 256;
-    variables_hash_max_size 1024;
-
-    map $request_uri $request_uri_no_args {
-        "~^(?P<path>[^?]*)(\?.*)?$" $path;
-    }
-
-    map $http_upgrade $connection_upgrade {
-        default upgrade;
-        ''      close;
+    map $http_host $service {
+        default "";
     }
     map $http_upgrade $vs_connection_header {
         default upgrade;
@@ -4856,316 +4573,6 @@ http {
 
     resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 8083 default_server;listen [::]:8083 default_server;
-        listen 8443 ssl default_server;
-        listen [::]:8443 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
-
-    # NGINX Plus API over unix socket
-    server {
-        listen unix:/var/lib/nginx/nginx-plus-api.sock;
-        access_log off;
-
-        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
-        location /configVersionCheck {
-            if ($config_version_mismatch) {
-                return 503;
-            }
-            return 200;
-        }
-
-        location /api {
-            api write=on;
-        }
-    }
-
-    include /etc/nginx/config-version.conf;
-    include /etc/nginx/conf.d/*.conf;
-
-    server {
-        listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;
-
-        return 418;
-    }
-}
-
-stream {
-    log_format  stream-main escape=none 
-                            '$remote_addr'
-                            ' $remote_user'
-                            ;
-
-    access_log  /dev/stdout  stream-main;
-    # comment
-    resolver example.com 127.0.0.1 valid=10s ipv6=off;
-    resolver_timeout 15s;
-
-    map_hash_max_size ;
-    
-    include /etc/nginx/stream-conf.d/*.conf;
-}
-
-mgmt {
-    license_token /etc/nginx/secrets/license.jwt;
-    enforce_initial_report off;
-    deployment_context /etc/nginx/reporting/tracking.info;
-}
-
----
-
-[TestExecuteTemplate_ForMainForNGINXPlusWithCustomDefaultHTTPListenerPort - 1]
-worker_processes  auto;
-worker_rlimit_nofile 65536;
-worker_cpu_affinity auto;
-worker_shutdown_timeout 1m;
-
-daemon off;
-
-error_log  stderr ;
-pid        /var/lib/nginx/nginx.pid;
-load_module modules/ngx_fips_check_module.so;
-
-load_module modules/ngx_http_js_module.so;
-
-events {
-    worker_connections  1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-    map_hash_max_size ;
-    map_hash_bucket_size ;
-
-    js_import /etc/nginx/njs/apikey_auth.js;
-    js_set $apikey_auth_hash apikey_auth.hash;
-
-    log_format  main escape=default 
-                     '$remote_addr'
-                     ' $remote_user'
-                     ;
-
-    map $upstream_trailer_grpc_status $grpc_status {
-        default $upstream_trailer_grpc_status;
-        '' $sent_http_grpc_status;
-    }
-
-    access_log /dev/stdout main;
-
-    sendfile        on;
-    #tcp_nopush     on;
-
-    keepalive_timeout 65s;
-    keepalive_requests 100;
-
-    #gzip  on;
-
-    server_names_hash_max_size 512;
-    
-
-    variables_hash_bucket_size 256;
-    variables_hash_max_size 1024;
-
-    map $request_uri $request_uri_no_args {
-        "~^(?P<path>[^?]*)(\?.*)?$" $path;
-    }
-
-    map $http_upgrade $connection_upgrade {
-        default upgrade;
-        ''      close;
-    }
-    map $http_upgrade $vs_connection_header {
-        default upgrade;
-        ''      $default_connection_header;
-    }
-
-    resolver example.com 127.0.0.1 valid=10s ipv6=off;
-    resolver_timeout 15s;
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 8083 default_server;listen [::]:8083 default_server;
-        listen 443 ssl default_server;
-        listen [::]:443 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
-
-    # NGINX Plus API over unix socket
-    server {
-        listen unix:/var/lib/nginx/nginx-plus-api.sock;
-        access_log off;
-
-        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
-        location /configVersionCheck {
-            if ($config_version_mismatch) {
-                return 503;
-            }
-            return 200;
-        }
-
-        location /api {
-            api write=on;
-        }
-    }
-
-    include /etc/nginx/config-version.conf;
-    include /etc/nginx/conf.d/*.conf;
-
-    server {
-        listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;
-
-        return 418;
-    }
-}
-
-stream {
-    log_format  stream-main escape=none 
-                            '$remote_addr'
-                            ' $remote_user'
-                            ;
-
-    access_log  /dev/stdout  stream-main;
-    # comment
-    resolver example.com 127.0.0.1 valid=10s ipv6=off;
-    resolver_timeout 15s;
-
-    map_hash_max_size ;
-    
-    include /etc/nginx/stream-conf.d/*.conf;
-}
-
-mgmt {
-    license_token /etc/nginx/secrets/license.jwt;
-    enforce_initial_report off;
-    deployment_context /etc/nginx/reporting/tracking.info;
-}
-
----
-
-[TestExecuteTemplate_ForMainForNGINXPlusWithCustomDefaultHTTPSListenerPort - 1]
-worker_processes  auto;
-worker_rlimit_nofile 65536;
-worker_cpu_affinity auto;
-worker_shutdown_timeout 1m;
-
-daemon off;
-
-error_log  stderr ;
-pid        /var/lib/nginx/nginx.pid;
-load_module modules/ngx_fips_check_module.so;
-
-load_module modules/ngx_http_js_module.so;
-
-events {
-    worker_connections  1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-    map_hash_max_size ;
-    map_hash_bucket_size ;
-
-    js_import /etc/nginx/njs/apikey_auth.js;
-    js_set $apikey_auth_hash apikey_auth.hash;
-
-    log_format  main escape=default 
-                     '$remote_addr'
-                     ' $remote_user'
-                     ;
-
-    map $upstream_trailer_grpc_status $grpc_status {
-        default $upstream_trailer_grpc_status;
-        '' $sent_http_grpc_status;
-    }
-
-    access_log /dev/stdout main;
-
-    sendfile        on;
-    #tcp_nopush     on;
-
-    keepalive_timeout 65s;
-    keepalive_requests 100;
-
-    #gzip  on;
-
-    server_names_hash_max_size 512;
-    
-
-    variables_hash_bucket_size 256;
-    variables_hash_max_size 1024;
-
-    map $request_uri $request_uri_no_args {
-        "~^(?P<path>[^?]*)(\?.*)?$" $path;
-    }
-
-    map $http_upgrade $connection_upgrade {
-        default upgrade;
-        ''      close;
-    }
-    map $http_upgrade $vs_connection_header {
-        default upgrade;
-        ''      $default_connection_header;
-    }
-
-    resolver example.com 127.0.0.1 valid=10s ipv6=off;
-    resolver_timeout 15s;
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 80 default_server;listen [::]:80 default_server;
-        listen 8443 ssl default_server;
-        listen [::]:8443 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -5281,6 +4688,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -5288,29 +4710,6 @@ http {
 
     resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen unix:/var/lib/nginx/passthrough-https.sock ssl default_server proxy_protocol;
-        set_real_ip_from unix:;
-        real_ip_header proxy_protocol;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -5382,323 +4781,6 @@ mgmt {
 
 ---
 
-[TestExecuteTemplate_ForMainForNGINXPlusWithHTTP2Off - 1]
-worker_processes  auto;
-worker_rlimit_nofile 65536;
-worker_cpu_affinity auto;
-worker_shutdown_timeout 1m;
-
-daemon off;
-
-error_log  stderr ;
-pid        /var/lib/nginx/nginx.pid;
-load_module modules/ngx_http_app_protect_module.so;
-load_module modules/ngx_http_app_protect_dos_module.so;
-load_module modules/ngx_fips_check_module.so;
-
-load_module modules/ngx_http_js_module.so;
-
-events {
-    worker_connections  1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-    map_hash_max_size ;
-    map_hash_bucket_size ;
-
-    js_import /etc/nginx/njs/apikey_auth.js;
-    js_set $apikey_auth_hash apikey_auth.hash;
-
-    log_format  main escape=default 
-                     '$remote_addr'
-                     ' $remote_user'
-                     ;
-
-    map $upstream_trailer_grpc_status $grpc_status {
-        default $upstream_trailer_grpc_status;
-        '' $sent_http_grpc_status;
-    }
-    log_format  log_dos escape=json 
-                    '$remote_addr - $remote_user [$time_local]'
-                    ' "$request" $status $body_bytes_sent '
-                    ' "$http_referer" "$http_user_agent"'
-                    ;
-    app_protect_dos_arb_fqdn arb.test.server.com;
-
-    access_log /dev/stdout main;
-    app_protect_failure_mode_action pass;
-    app_protect_compressed_requests_action pass;
-    app_protect_cookie_seed ABCDEFGHIJKLMNOP;
-    app_protect_cpu_thresholds high=low=100;
-    app_protect_physical_memory_util_thresholds high=low=100;
-    app_protect_reconnect_period_seconds 10;
-    include /etc/nginx/waf/nac-usersigs/index.conf;
-
-    sendfile        on;
-    #tcp_nopush     on;
-
-    keepalive_timeout 65s;
-    keepalive_requests 100;
-
-    #gzip  on;
-
-    server_names_hash_max_size 512;
-    
-
-    variables_hash_bucket_size 256;
-    variables_hash_max_size 1024;
-
-    map $request_uri $request_uri_no_args {
-        "~^(?P<path>[^?]*)(\?.*)?$" $path;
-    }
-
-    map $http_upgrade $connection_upgrade {
-        default upgrade;
-        ''      close;
-    }
-    map $http_upgrade $vs_connection_header {
-        default upgrade;
-        ''      $default_connection_header;
-    }
-
-    resolver example.com 127.0.0.1 valid=10s ipv6=off;
-    resolver_timeout 15s;
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 80 default_server;listen [::]:80 default_server;
-        listen 443 ssl default_server;
-        listen [::]:443 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
-
-    # NGINX Plus API over unix socket
-    server {
-        listen unix:/var/lib/nginx/nginx-plus-api.sock;
-        access_log off;
-
-        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
-        location /configVersionCheck {
-            if ($config_version_mismatch) {
-                return 503;
-            }
-            return 200;
-        }
-
-        location /api {
-            api write=on;
-        }
-    }
-
-    include /etc/nginx/config-version.conf;
-    include /etc/nginx/conf.d/*.conf;
-
-    server {
-        listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;
-
-        return 418;
-    }
-}
-
-stream {
-    log_format  stream-main escape=none 
-                            '$remote_addr'
-                            ' $remote_user'
-                            ;
-
-    access_log  /dev/stdout  stream-main;
-    # comment
-    resolver example.com 127.0.0.1 valid=10s ipv6=off;
-    resolver_timeout 15s;
-
-    map_hash_max_size ;
-    
-    include /etc/nginx/stream-conf.d/*.conf;
-}
-
-mgmt {
-    license_token /etc/nginx/secrets/license.jwt;
-    enforce_initial_report off;
-    deployment_context /etc/nginx/reporting/tracking.info;
-}
-
----
-
-[TestExecuteTemplate_ForMainForNGINXPlusWithHTTP2On - 1]
-worker_processes  auto;
-worker_rlimit_nofile 65536;
-worker_cpu_affinity auto;
-worker_shutdown_timeout 1m;
-
-daemon off;
-
-error_log  stderr ;
-pid        /var/lib/nginx/nginx.pid;
-load_module modules/ngx_http_app_protect_module.so;
-load_module modules/ngx_http_app_protect_dos_module.so;
-load_module modules/ngx_fips_check_module.so;
-
-load_module modules/ngx_http_js_module.so;
-
-events {
-    worker_connections  1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-    map_hash_max_size ;
-    map_hash_bucket_size ;
-
-    js_import /etc/nginx/njs/apikey_auth.js;
-    js_set $apikey_auth_hash apikey_auth.hash;
-
-    log_format  main escape=default 
-                     '$remote_addr'
-                     ' $remote_user'
-                     ;
-
-    map $upstream_trailer_grpc_status $grpc_status {
-        default $upstream_trailer_grpc_status;
-        '' $sent_http_grpc_status;
-    }
-    log_format  log_dos ', vs_name_al=$app_protect_dos_vs_name, ip=$remote_addr, tls_fp=$app_protect_dos_tls_fp, '
-                        'outcome=$app_protect_dos_outcome, reason=$app_protect_dos_outcome_reason, '
-                        'ip_tls=$remote_addr:$app_protect_dos_tls_fp, ';
-    app_protect_dos_arb_fqdn arb.test.server.com;
-
-    access_log /dev/stdout main;
-    app_protect_failure_mode_action pass;
-    app_protect_compressed_requests_action pass;
-    app_protect_cookie_seed ABCDEFGHIJKLMNOP;
-    app_protect_cpu_thresholds high=low=100;
-    app_protect_physical_memory_util_thresholds high=low=100;
-    app_protect_reconnect_period_seconds 10;
-    include /etc/nginx/waf/nac-usersigs/index.conf;
-
-    sendfile        on;
-    #tcp_nopush     on;
-
-    keepalive_timeout 65s;
-    keepalive_requests 100;
-
-    #gzip  on;
-
-    server_names_hash_max_size 512;
-    
-
-    variables_hash_bucket_size 256;
-    variables_hash_max_size 1024;
-
-    map $request_uri $request_uri_no_args {
-        "~^(?P<path>[^?]*)(\?.*)?$" $path;
-    }
-
-    map $http_upgrade $connection_upgrade {
-        default upgrade;
-        ''      close;
-    }
-    map $http_upgrade $vs_connection_header {
-        default upgrade;
-        ''      $default_connection_header;
-    }
-
-    resolver example.com 127.0.0.1 valid=10s ipv6=off;
-    resolver_timeout 15s;
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 80 default_server;listen [::]:80 default_server;
-        listen 443 ssl default_server;
-        listen [::]:443 ssl default_server;
-        http2 on;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
-
-    # NGINX Plus API over unix socket
-    server {
-        listen unix:/var/lib/nginx/nginx-plus-api.sock;
-        access_log off;
-
-        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
-        location /configVersionCheck {
-            if ($config_version_mismatch) {
-                return 503;
-            }
-            return 200;
-        }
-
-        location /api {
-            api write=on;
-        }
-    }
-
-    include /etc/nginx/config-version.conf;
-    include /etc/nginx/conf.d/*.conf;
-
-    server {
-        listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;
-
-        return 418;
-    }
-}
-
-stream {
-    log_format  stream-main escape=none 
-                            '$remote_addr'
-                            ' $remote_user'
-                            ;
-
-    access_log  /dev/stdout  stream-main;
-    # comment
-    resolver example.com 127.0.0.1 valid=10s ipv6=off;
-    resolver_timeout 15s;
-
-    map_hash_max_size ;
-    
-    include /etc/nginx/stream-conf.d/*.conf;
-}
-
-mgmt {
-    license_token /etc/nginx/secrets/license.jwt;
-    enforce_initial_report off;
-    deployment_context /etc/nginx/reporting/tracking.info;
-}
-
----
-
 [TestExecuteTemplate_ForMainForNGINXPlusWithOIDCTimeoutCustom - 1]
 worker_processes  ;
 
@@ -5756,6 +4838,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -5769,28 +4866,6 @@ http {
     keyval_zone zone=refresh_tokens:4M timeout=1h sync;
     keyval_zone zone=oidc_sids:5M timeout=120s sync;
     include oidc/oidc_common.conf;
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen 0 ssl default_server;
-        listen [::]:0 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -5900,6 +4975,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -5913,28 +5003,6 @@ http {
     keyval_zone zone=refresh_tokens:1M timeout=8h sync;
     keyval_zone zone=oidc_sids:1M timeout=8h sync;
     include oidc/oidc_common.conf;
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen 0 ssl default_server;
-        listen [::]:0 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -5981,165 +5049,6 @@ stream {
 
 mgmt {
     license_token /license.jwt;
-    enforce_initial_report off;
-    deployment_context /etc/nginx/reporting/tracking.info;
-}
-
----
-
-[TestExecuteTemplate_ForMainForNGINXPlusWithoutCustomDefaultHTTPAndHTTPSListenerPorts - 1]
-worker_processes  auto;
-worker_rlimit_nofile 65536;
-worker_cpu_affinity auto;
-worker_shutdown_timeout 1m;
-
-daemon off;
-
-error_log  stderr ;
-pid        /var/lib/nginx/nginx.pid;
-load_module modules/ngx_http_app_protect_module.so;
-load_module modules/ngx_http_app_protect_dos_module.so;
-load_module modules/ngx_fips_check_module.so;
-
-load_module modules/ngx_http_js_module.so;
-
-events {
-    worker_connections  1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-    map_hash_max_size ;
-    map_hash_bucket_size ;
-
-    js_import /etc/nginx/njs/apikey_auth.js;
-    js_set $apikey_auth_hash apikey_auth.hash;
-
-    log_format  main escape=default 
-                     '$remote_addr'
-                     ' $remote_user'
-                     ;
-
-    map $upstream_trailer_grpc_status $grpc_status {
-        default $upstream_trailer_grpc_status;
-        '' $sent_http_grpc_status;
-    }
-    log_format  log_dos escape=json 
-                    '$remote_addr - $remote_user [$time_local]'
-                    ' "$request" $status $body_bytes_sent '
-                    ' "$http_referer" "$http_user_agent"'
-                    ;
-    app_protect_dos_arb_fqdn arb.test.server.com;
-
-    access_log /dev/stdout main;
-    app_protect_failure_mode_action pass;
-    app_protect_compressed_requests_action pass;
-    app_protect_cookie_seed ABCDEFGHIJKLMNOP;
-    app_protect_cpu_thresholds high=low=100;
-    app_protect_physical_memory_util_thresholds high=low=100;
-    app_protect_reconnect_period_seconds 10;
-    include /etc/nginx/waf/nac-usersigs/index.conf;
-
-    sendfile        on;
-    #tcp_nopush     on;
-
-    keepalive_timeout 65s;
-    keepalive_requests 100;
-
-    #gzip  on;
-
-    server_names_hash_max_size 512;
-    
-
-    variables_hash_bucket_size 256;
-    variables_hash_max_size 1024;
-
-    map $request_uri $request_uri_no_args {
-        "~^(?P<path>[^?]*)(\?.*)?$" $path;
-    }
-
-    map $http_upgrade $connection_upgrade {
-        default upgrade;
-        ''      close;
-    }
-    map $http_upgrade $vs_connection_header {
-        default upgrade;
-        ''      $default_connection_header;
-    }
-
-    resolver example.com 127.0.0.1 valid=10s ipv6=off;
-    resolver_timeout 15s;
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 80 default_server;listen [::]:80 default_server;
-        listen 443 ssl default_server;
-        listen [::]:443 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
-
-    # NGINX Plus API over unix socket
-    server {
-        listen unix:/var/lib/nginx/nginx-plus-api.sock;
-        access_log off;
-
-        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
-        location /configVersionCheck {
-            if ($config_version_mismatch) {
-                return 503;
-            }
-            return 200;
-        }
-
-        location /api {
-            api write=on;
-        }
-    }
-
-    include /etc/nginx/config-version.conf;
-    include /etc/nginx/conf.d/*.conf;
-
-    server {
-        listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;
-
-        return 418;
-    }
-}
-
-stream {
-    log_format  stream-main escape=none 
-                            '$remote_addr'
-                            ' $remote_user'
-                            ;
-
-    access_log  /dev/stdout  stream-main;
-    # comment
-    resolver example.com 127.0.0.1 valid=10s ipv6=off;
-    resolver_timeout 15s;
-
-    map_hash_max_size ;
-    
-    include /etc/nginx/stream-conf.d/*.conf;
-}
-
-mgmt {
-    license_token /etc/nginx/secrets/license.jwt;
     enforce_initial_report off;
     deployment_context /etc/nginx/reporting/tracking.info;
 }
@@ -6207,6 +5116,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -6214,29 +5138,6 @@ http {
 
     resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen unix:/var/lib/nginx/passthrough-https.sock ssl default_server proxy_protocol;
-        set_real_ip_from unix:;
-        real_ip_header proxy_protocol;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -6366,391 +5267,24 @@ http {
         default upgrade;
         ''      close;
     }
-    map $http_upgrade $vs_connection_header {
-        default upgrade;
-        ''      $default_connection_header;
+    map $http_upgrade $default_connection_header {
+        default "";
     }
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen 0 ssl default_server;
-        listen [::]:0 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
+    map $http_host $resource_type {
+        default "";
     }
-
-    include /etc/nginx/config-version.conf;
-    include /etc/nginx/conf.d/*.conf;
-
-    server {
-        listen unix:/var/lib/nginx/nginx-502-server.sock;
-        access_log off;
-
-        return 502;
+    map $http_host $resource_name {
+        default "";
     }
-
-    server {
-        listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;
-
-        return 418;
+    map $http_host $resource_namespace {
+        default "";
     }
-}
-
-stream {
-    log_format  stream-main escape=none 
-                            '$remote_addr'
-                            ' $remote_user'
-                            ;
-
-    access_log  /dev/stdout  stream-main;
-    # comment
-
-    map_hash_max_size ;
-    
-
-    include /etc/nginx/stream-conf.d/*.conf;
-}
-
----
-
-[TestExecuteTemplate_ForMainForNGINXWithCustomDefaultHTTPAndHTTPSListenerPorts - 1]
-worker_processes  auto;
-worker_rlimit_nofile 65536;
-worker_cpu_affinity auto;
-worker_shutdown_timeout 1m;
-daemon off;
-
-error_log  stderr ;
-pid        /var/lib/nginx/nginx.pid;
-
-load_module modules/ngx_http_js_module.so;
-
-events {
-    worker_connections  1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-    map_hash_max_size ;
-    map_hash_bucket_size ;
-
-    js_import /etc/nginx/njs/apikey_auth.js;
-    js_set $apikey_auth_hash apikey_auth.hash;
-
-    log_format  main escape=default 
-                     '$remote_addr'
-                     ' $remote_user'
-                     ;
-
-    map $upstream_trailer_grpc_status $grpc_status {
-        default $upstream_trailer_grpc_status;
-        '' $sent_http_grpc_status;
-    }
-    access_log /dev/stdout main;
-
-    sendfile        on;
-    #tcp_nopush     on;
-
-    keepalive_timeout 65s;
-    keepalive_requests 100;
-
-    #gzip  on;
-
-    server_names_hash_max_size 512;
-    
-
-    variables_hash_bucket_size 256;
-    variables_hash_max_size 1024;
-
-    map $request_uri $request_uri_no_args {
-        "~^(?P<path>[^?]*)(\?.*)?$" $path;
-    }
-
-    map $http_upgrade $connection_upgrade {
-        default upgrade;
-        ''      close;
+    map $http_host $service {
+        default "";
     }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
-    }
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 8083 default_server;listen [::]:8083 default_server;
-        listen 8443 ssl default_server;
-        listen [::]:8443 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
-
-    include /etc/nginx/config-version.conf;
-    include /etc/nginx/conf.d/*.conf;
-
-    server {
-        listen unix:/var/lib/nginx/nginx-502-server.sock;
-        access_log off;
-
-        return 502;
-    }
-
-    server {
-        listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;
-
-        return 418;
-    }
-}
-
-stream {
-    log_format  stream-main escape=none 
-                            '$remote_addr'
-                            ' $remote_user'
-                            ;
-
-    access_log  /dev/stdout  stream-main;
-    # comment
-
-    map_hash_max_size ;
-    
-
-    include /etc/nginx/stream-conf.d/*.conf;
-}
-
----
-
-[TestExecuteTemplate_ForMainForNGINXWithCustomDefaultHTTPListenerPort - 1]
-worker_processes  auto;
-worker_rlimit_nofile 65536;
-worker_cpu_affinity auto;
-worker_shutdown_timeout 1m;
-daemon off;
-
-error_log  stderr ;
-pid        /var/lib/nginx/nginx.pid;
-
-load_module modules/ngx_http_js_module.so;
-
-events {
-    worker_connections  1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-    map_hash_max_size ;
-    map_hash_bucket_size ;
-
-    js_import /etc/nginx/njs/apikey_auth.js;
-    js_set $apikey_auth_hash apikey_auth.hash;
-
-    log_format  main escape=default 
-                     '$remote_addr'
-                     ' $remote_user'
-                     ;
-
-    map $upstream_trailer_grpc_status $grpc_status {
-        default $upstream_trailer_grpc_status;
-        '' $sent_http_grpc_status;
-    }
-    access_log /dev/stdout main;
-
-    sendfile        on;
-    #tcp_nopush     on;
-
-    keepalive_timeout 65s;
-    keepalive_requests 100;
-
-    #gzip  on;
-
-    server_names_hash_max_size 512;
-    
-
-    variables_hash_bucket_size 256;
-    variables_hash_max_size 1024;
-
-    map $request_uri $request_uri_no_args {
-        "~^(?P<path>[^?]*)(\?.*)?$" $path;
-    }
-
-    map $http_upgrade $connection_upgrade {
-        default upgrade;
-        ''      close;
-    }
-    map $http_upgrade $vs_connection_header {
-        default upgrade;
-        ''      $default_connection_header;
-    }
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 8083 default_server;listen [::]:8083 default_server;
-        listen 443 ssl default_server;
-        listen [::]:443 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
-
-    include /etc/nginx/config-version.conf;
-    include /etc/nginx/conf.d/*.conf;
-
-    server {
-        listen unix:/var/lib/nginx/nginx-502-server.sock;
-        access_log off;
-
-        return 502;
-    }
-
-    server {
-        listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;
-
-        return 418;
-    }
-}
-
-stream {
-    log_format  stream-main escape=none 
-                            '$remote_addr'
-                            ' $remote_user'
-                            ;
-
-    access_log  /dev/stdout  stream-main;
-    # comment
-
-    map_hash_max_size ;
-    
-
-    include /etc/nginx/stream-conf.d/*.conf;
-}
-
----
-
-[TestExecuteTemplate_ForMainForNGINXWithCustomDefaultHTTPSListenerPort - 1]
-worker_processes  auto;
-worker_rlimit_nofile 65536;
-worker_cpu_affinity auto;
-worker_shutdown_timeout 1m;
-daemon off;
-
-error_log  stderr ;
-pid        /var/lib/nginx/nginx.pid;
-
-load_module modules/ngx_http_js_module.so;
-
-events {
-    worker_connections  1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-    map_hash_max_size ;
-    map_hash_bucket_size ;
-
-    js_import /etc/nginx/njs/apikey_auth.js;
-    js_set $apikey_auth_hash apikey_auth.hash;
-
-    log_format  main escape=default 
-                     '$remote_addr'
-                     ' $remote_user'
-                     ;
-
-    map $upstream_trailer_grpc_status $grpc_status {
-        default $upstream_trailer_grpc_status;
-        '' $sent_http_grpc_status;
-    }
-    access_log /dev/stdout main;
-
-    sendfile        on;
-    #tcp_nopush     on;
-
-    keepalive_timeout 65s;
-    keepalive_requests 100;
-
-    #gzip  on;
-
-    server_names_hash_max_size 512;
-    
-
-    variables_hash_bucket_size 256;
-    variables_hash_max_size 1024;
-
-    map $request_uri $request_uri_no_args {
-        "~^(?P<path>[^?]*)(\?.*)?$" $path;
-    }
-
-    map $http_upgrade $connection_upgrade {
-        default upgrade;
-        ''      close;
-    }
-    map $http_upgrade $vs_connection_header {
-        default upgrade;
-        ''      $default_connection_header;
-    }
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 80 default_server;listen [::]:80 default_server;
-        listen 8443 ssl default_server;
-        listen [::]:8443 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
     }
 
     include /etc/nginx/config-version.conf;
@@ -6846,32 +5380,24 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
-    }
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen unix:/var/lib/nginx/passthrough-https.sock ssl default_server proxy_protocol;
-        set_real_ip_from unix:;
-        real_ip_header proxy_protocol;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
     }
 
     include /etc/nginx/config-version.conf;
@@ -6920,247 +5446,6 @@ stream {
         proxy_protocol on;
         proxy_pass $dest_internal_passthrough;
     }
-    
-
-    include /etc/nginx/stream-conf.d/*.conf;
-}
-
----
-
-[TestExecuteTemplate_ForMainForNGINXWithHTTP2Off - 1]
-worker_processes  auto;
-worker_rlimit_nofile 65536;
-worker_cpu_affinity auto;
-worker_shutdown_timeout 1m;
-daemon off;
-
-error_log  stderr ;
-pid        /var/lib/nginx/nginx.pid;
-
-load_module modules/ngx_http_js_module.so;
-
-events {
-    worker_connections  1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-    map_hash_max_size ;
-    map_hash_bucket_size ;
-
-    js_import /etc/nginx/njs/apikey_auth.js;
-    js_set $apikey_auth_hash apikey_auth.hash;
-
-    log_format  main escape=default 
-                     '$remote_addr'
-                     ' $remote_user'
-                     ;
-
-    map $upstream_trailer_grpc_status $grpc_status {
-        default $upstream_trailer_grpc_status;
-        '' $sent_http_grpc_status;
-    }
-    access_log /dev/stdout main;
-
-    sendfile        on;
-    #tcp_nopush     on;
-
-    keepalive_timeout 65s;
-    keepalive_requests 100;
-
-    #gzip  on;
-
-    server_names_hash_max_size 512;
-    
-
-    variables_hash_bucket_size 256;
-    variables_hash_max_size 1024;
-
-    map $request_uri $request_uri_no_args {
-        "~^(?P<path>[^?]*)(\?.*)?$" $path;
-    }
-
-    map $http_upgrade $connection_upgrade {
-        default upgrade;
-        ''      close;
-    }
-    map $http_upgrade $vs_connection_header {
-        default upgrade;
-        ''      $default_connection_header;
-    }
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 80 default_server;listen [::]:80 default_server;
-        listen 443 ssl default_server;
-        listen [::]:443 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
-
-    include /etc/nginx/config-version.conf;
-    include /etc/nginx/conf.d/*.conf;
-
-    server {
-        listen unix:/var/lib/nginx/nginx-502-server.sock;
-        access_log off;
-
-        return 502;
-    }
-
-    server {
-        listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;
-
-        return 418;
-    }
-}
-
-stream {
-    log_format  stream-main escape=none 
-                            '$remote_addr'
-                            ' $remote_user'
-                            ;
-
-    access_log  /dev/stdout  stream-main;
-    # comment
-
-    map_hash_max_size ;
-    
-
-    include /etc/nginx/stream-conf.d/*.conf;
-}
-
----
-
-[TestExecuteTemplate_ForMainForNGINXWithHTTP2On - 1]
-worker_processes  auto;
-worker_rlimit_nofile 65536;
-worker_cpu_affinity auto;
-worker_shutdown_timeout 1m;
-daemon off;
-
-error_log  stderr ;
-pid        /var/lib/nginx/nginx.pid;
-
-load_module modules/ngx_http_js_module.so;
-
-events {
-    worker_connections  1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-    map_hash_max_size ;
-    map_hash_bucket_size ;
-
-    js_import /etc/nginx/njs/apikey_auth.js;
-    js_set $apikey_auth_hash apikey_auth.hash;
-
-    log_format  main escape=default 
-                     '$remote_addr'
-                     ' $remote_user'
-                     ;
-
-    map $upstream_trailer_grpc_status $grpc_status {
-        default $upstream_trailer_grpc_status;
-        '' $sent_http_grpc_status;
-    }
-    access_log /dev/stdout main;
-
-    sendfile        on;
-    #tcp_nopush     on;
-
-    keepalive_timeout 65s;
-    keepalive_requests 100;
-
-    #gzip  on;
-
-    server_names_hash_max_size 512;
-    
-
-    variables_hash_bucket_size 256;
-    variables_hash_max_size 1024;
-
-    map $request_uri $request_uri_no_args {
-        "~^(?P<path>[^?]*)(\?.*)?$" $path;
-    }
-
-    map $http_upgrade $connection_upgrade {
-        default upgrade;
-        ''      close;
-    }
-    map $http_upgrade $vs_connection_header {
-        default upgrade;
-        ''      $default_connection_header;
-    }
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 80 default_server;listen [::]:80 default_server;
-        listen 443 ssl default_server;
-        listen [::]:443 ssl default_server;
-        http2 on;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
-
-    include /etc/nginx/config-version.conf;
-    include /etc/nginx/conf.d/*.conf;
-
-    server {
-        listen unix:/var/lib/nginx/nginx-502-server.sock;
-        access_log off;
-
-        return 502;
-    }
-
-    server {
-        listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;
-
-        return 418;
-    }
-}
-
-stream {
-    log_format  stream-main escape=none 
-                            '$remote_addr'
-                            ' $remote_user'
-                            ;
-
-    access_log  /dev/stdout  stream-main;
-    # comment
-
-    map_hash_max_size ;
     
 
     include /etc/nginx/stream-conf.d/*.conf;
@@ -7226,6 +5511,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -7242,28 +5542,6 @@ http {
 
     
     
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen 0 ssl default_server;
-        listen [::]:0 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -7373,6 +5651,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -7380,28 +5673,6 @@ http {
 
     
     
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen 0 ssl default_server;
-        listen [::]:0 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -7518,6 +5789,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -7525,28 +5811,6 @@ http {
 
     
     
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen 0 ssl default_server;
-        listen [::]:0 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -7663,6 +5927,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -7670,28 +5949,6 @@ http {
 
     
     
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen 0 ssl default_server;
-        listen [::]:0 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -7808,6 +6065,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -7815,28 +6087,6 @@ http {
 
     
     
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;
-        listen 0 ssl default_server;
-        
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -7952,6 +6202,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -7959,28 +6224,6 @@ http {
 
     
     
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen 0 ssl default_server;
-        listen [::]:0 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -8036,126 +6279,6 @@ mgmt {
     license_token /license.jwt;
     enforce_initial_report off;
     deployment_context /etc/nginx/reporting/tracking.info;
-}
-
----
-
-[TestExecuteTemplate_ForMainForNGINXWithoutCustomDefaultHTTPAndHTTPSListenerPorts - 1]
-worker_processes  auto;
-worker_rlimit_nofile 65536;
-worker_cpu_affinity auto;
-worker_shutdown_timeout 1m;
-daemon off;
-
-error_log  stderr ;
-pid        /var/lib/nginx/nginx.pid;
-
-load_module modules/ngx_http_js_module.so;
-
-events {
-    worker_connections  1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-    map_hash_max_size ;
-    map_hash_bucket_size ;
-
-    js_import /etc/nginx/njs/apikey_auth.js;
-    js_set $apikey_auth_hash apikey_auth.hash;
-
-    log_format  main escape=default 
-                     '$remote_addr'
-                     ' $remote_user'
-                     ;
-
-    map $upstream_trailer_grpc_status $grpc_status {
-        default $upstream_trailer_grpc_status;
-        '' $sent_http_grpc_status;
-    }
-    access_log /dev/stdout main;
-
-    sendfile        on;
-    #tcp_nopush     on;
-
-    keepalive_timeout 65s;
-    keepalive_requests 100;
-
-    #gzip  on;
-
-    server_names_hash_max_size 512;
-    
-
-    variables_hash_bucket_size 256;
-    variables_hash_max_size 1024;
-
-    map $request_uri $request_uri_no_args {
-        "~^(?P<path>[^?]*)(\?.*)?$" $path;
-    }
-
-    map $http_upgrade $connection_upgrade {
-        default upgrade;
-        ''      close;
-    }
-    map $http_upgrade $vs_connection_header {
-        default upgrade;
-        ''      $default_connection_header;
-    }
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 80 default_server;listen [::]:80 default_server;
-        listen 443 ssl default_server;
-        listen [::]:443 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
-
-    include /etc/nginx/config-version.conf;
-    include /etc/nginx/conf.d/*.conf;
-
-    server {
-        listen unix:/var/lib/nginx/nginx-502-server.sock;
-        access_log off;
-
-        return 502;
-    }
-
-    server {
-        listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;
-
-        return 418;
-    }
-}
-
-stream {
-    log_format  stream-main escape=none 
-                            '$remote_addr'
-                            ' $remote_user'
-                            ;
-
-    access_log  /dev/stdout  stream-main;
-    # comment
-
-    map_hash_max_size ;
-    
-
-    include /etc/nginx/stream-conf.d/*.conf;
 }
 
 ---
@@ -8218,32 +6341,24 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
-    }
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen unix:/var/lib/nginx/passthrough-https.sock ssl default_server proxy_protocol;
-        set_real_ip_from unix:;
-        real_ip_header proxy_protocol;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
     }
 
     include /etc/nginx/config-version.conf;
@@ -8306,9 +6421,7 @@ stream {
 server {
 
     server_tokens ;
-
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -8370,9 +6483,7 @@ server {
 server {
 
     server_tokens ;
-
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -8439,9 +6550,7 @@ server {
 server {
 
     server_tokens ;
-
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -8501,9 +6610,7 @@ server {
 server {
 
     server_tokens ;
-
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -8563,9 +6670,7 @@ server {
 server {
 
     server_tokens ;
-
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -8625,9 +6730,7 @@ server {
 server {
 
     server_tokens ;
-
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -8701,9 +6804,7 @@ server {
     ssl_certificate_key /etc/nginx/secrets/default-cafe-secret;
 
     server_tokens "on";
-
     server_name cafe.example.com;
-
     status_zone cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -8787,9 +6888,7 @@ server {
     ssl_certificate_key /etc/nginx/secrets/default-cafe-secret;
 
     server_tokens "on";
-
     server_name cafe.example.com;
-
     status_zone cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -8873,9 +6972,7 @@ server {
     ssl_certificate_key /etc/nginx/secrets/default-cafe-secret;
 
     server_tokens "on";
-
     server_name cafe.example.com;
-
     status_zone cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -8959,9 +7056,7 @@ server {
     ssl_certificate_key /etc/nginx/secrets/default-cafe-secret;
 
     server_tokens "on";
-
     server_name cafe.example.com;
-
     status_zone cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -9045,9 +7140,7 @@ server {
     ssl_certificate_key /etc/nginx/secrets/default-cafe-secret;
 
     server_tokens "on";
-
     server_name cafe.example.com;
-
     status_zone cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -9117,9 +7210,7 @@ server {
 server {
 
     server_tokens ;
-
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -9193,9 +7284,7 @@ server {
     ssl_certificate_key /etc/nginx/secrets/default-cafe-secret;
 
     server_tokens "on";
-
     server_name cafe.example.com;
-
     status_zone cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -9269,9 +7358,7 @@ server {
         deny all;
 
     server_tokens ;
-
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -9335,9 +7422,7 @@ server {
         allow all;
 
     server_tokens ;
-
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -9401,9 +7486,7 @@ server {
         deny all;
 
     server_tokens ;
-
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -9467,9 +7550,71 @@ server {
         allow all;
 
     server_tokens ;
-
     server_name cafe.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress-master";
+    set $resource_namespace "default";
+    set $service "-";
+    location / {
+        set $service "";
+        # location for minion default/cafe-ingress-coffee-minion
+        set $resource_name "cafe-ingress-coffee-minion";
+        set $resource_namespace "default";
+        allow 10.1.1.1/16;
+        deny all;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location / {
+        set $service "";
+        # location for minion default/cafe-ingress-tea-minion
+        set $resource_name "cafe-ingress-tea-minion";
+        set $resource_namespace "default";
+        allow 10.1.1.1/16;
+        deny all;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
 
+---
+
+[TestExecuteTemplate_ForMergeableIngressMasterMinionPolicy - 4]
+# configuration for default/cafe-ingress-master
+
+
+server {
+        deny 10.0.0.0/16;
+        allow all;
+
+    server_tokens ;
+    server_name cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -9535,9 +7680,75 @@ server {
         allow all;
 
     server_tokens ;
-
     server_name cafe.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress-master";
+    set $resource_namespace "default";
+    set $service "-";
+    location / {
+        set $service "";
+        # location for minion default/cafe-ingress-coffee-minion
+        set $resource_name "cafe-ingress-coffee-minion";
+        set $resource_namespace "default";
+        allow 10.1.0.0/16;
+        allow 10.2.0.0/16;
+        deny all;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location / {
+        set $service "";
+        # location for minion default/cafe-ingress-tea-minion
+        set $resource_name "cafe-ingress-tea-minion";
+        set $resource_namespace "default";
+        allow 10.1.0.0/16;
+        allow 10.2.0.0/16;
+        deny all;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
 
+---
+
+[TestExecuteTemplate_ForMergeableIngressMasterMinionPolicy - 5]
+# configuration for default/cafe-ingress-master
+
+
+server {
+        allow 10.2.0.0/16;
+        deny all;
+        deny 10.0.0.0/16;
+        allow all;
+
+    server_tokens ;
+    server_name cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -9603,9 +7814,67 @@ server {
         deny all;
 
     server_tokens ;
-
     server_name cafe.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress-master";
+    set $resource_namespace "default";
+    set $service "-";
+    location  {
+        set $service "";
+        # location for minion default/cafe-ingress-coffee-minion
+        set $resource_name "cafe-ingress-coffee-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location  {
+        set $service "";
+        # location for minion default/cafe-ingress-tea-minion
+        set $resource_name "cafe-ingress-tea-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
 
+---
+
+[TestExecuteTemplate_ForMergeableIngressMasterPolicy - 1]
+# configuration for default/cafe-ingress-master
+
+
+server {
+        allow 10.0.0.0/16;
+        deny all;
+
+    server_tokens ;
+    server_name cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -9665,9 +7934,7 @@ server {
         allow all;
 
     server_tokens ;
-
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -9725,9 +7992,7 @@ server {
 server {
 
     server_tokens ;
-
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -9789,9 +8054,7 @@ server {
 server {
 
     server_tokens ;
-
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -10266,9 +8529,7 @@ server {
     ssl_certificate_key /etc/nginx/secrets/default-cafe-secret;
 
     server_tokens "on";
-
     server_name cafe.example.com;
-
     status_zone cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -10352,9 +8613,7 @@ server {
     ssl_certificate_key /etc/nginx/secrets/default-cafe-secret;
 
     server_tokens "on";
-
     server_name cafe.example.com;
-
     status_zone cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
