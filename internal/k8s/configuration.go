@@ -1464,14 +1464,44 @@ func squashResourceChanges(changes []ResourceChange) []ResourceChange {
 	return append(deletes, updates...)
 }
 
+func virtualServerHostsSet(virtualServers map[string]*conf_v1.VirtualServer) map[string]struct{} {
+	hosts := make(map[string]struct{})
+	for _, key := range getSortedVirtualServerKeys(virtualServers) {
+		vs := virtualServers[key]
+		hosts[vs.Spec.Host] = struct{}{}
+	}
+	return hosts
+}
+
+// minionIngressKeysByHost returns, for each host, minion ingress keys in the same order as
+// getSortedIngressKeys(c.ingresses) would visit them (global key sort), so host/path conflict
+// resolution matches the previous buildMinionConfigs behavior.
+func minionIngressKeysByHost(ingresses map[string]*networking.Ingress) map[string][]string {
+	sortedKeys := getSortedIngressKeys(ingresses)
+	byHost := make(map[string][]string)
+	for _, key := range sortedKeys {
+		ing := ingresses[key]
+		if !isMinion(ing) || len(ing.Spec.Rules) == 0 {
+			continue
+		}
+		host := ing.Spec.Rules[0].Host
+		byHost[host] = append(byHost[host], key)
+	}
+	return byHost
+}
+
 func (c *Configuration) buildHostsAndResources() (newHosts map[string]Resource, newResources map[string]Resource) {
 	newHosts = make(map[string]Resource)
 	newResources = make(map[string]Resource)
 	var challengesVSR []*conf_v1.VirtualServerRoute
 
+	vsHosts := virtualServerHostsSet(c.virtualServers)
+	minionKeysByHost := minionIngressKeysByHost(c.ingresses)
+	sortedIngressKeys := getSortedIngressKeys(c.ingresses)
+
 	// Step 1 - Build hosts from Ingress resources
 
-	for _, key := range getSortedIngressKeys(c.ingresses) {
+	for _, key := range sortedIngressKeys {
 		ing := c.ingresses[key]
 
 		if isMinion(ing) {
@@ -1481,7 +1511,7 @@ func (c *Configuration) buildHostsAndResources() (newHosts map[string]Resource, 
 		var resource *IngressConfiguration
 
 		if val := c.isChallengeIngress(ing); val {
-			vsr := c.convertIngressToVSR(ing)
+			vsr := c.convertIngressToVSR(ing, vsHosts)
 			if vsr != nil {
 				challengesVSR = append(challengesVSR, vsr)
 				continue
@@ -1489,7 +1519,7 @@ func (c *Configuration) buildHostsAndResources() (newHosts map[string]Resource, 
 		}
 
 		if isMaster(ing) {
-			minions, childWarnings := c.buildMinionConfigs(ing.Spec.Rules[0].Host)
+			minions, childWarnings := c.buildMinionConfigsForKeys(minionKeysByHost[ing.Spec.Rules[0].Host])
 			resource = NewMasterIngressConfiguration(ing, minions, childWarnings)
 		} else {
 			resource = NewRegularIngressConfiguration(ing)
@@ -1588,10 +1618,10 @@ func (c *Configuration) isChallengeIngress(ing *networking.Ingress) bool {
 	return ing.Labels["acme.cert-manager.io/http01-solver"] == "true"
 }
 
-func (c *Configuration) convertIngressToVSR(ing *networking.Ingress) *conf_v1.VirtualServerRoute {
+func (c *Configuration) convertIngressToVSR(ing *networking.Ingress, vsHosts map[string]struct{}) *conf_v1.VirtualServerRoute {
 	rule := ing.Spec.Rules[0]
 
-	if !c.isChallengeIngressOwnerVs(rule.Host) {
+	if _, owned := vsHosts[rule.Host]; !owned {
 		return nil
 	}
 
@@ -1623,31 +1653,15 @@ func (c *Configuration) convertIngressToVSR(ing *networking.Ingress) *conf_v1.Vi
 	return vs
 }
 
-func (c *Configuration) isChallengeIngressOwnerVs(host string) bool {
-	for _, key := range getSortedVirtualServerKeys(c.virtualServers) {
-		vs := c.virtualServers[key]
-		if host == vs.Spec.Host {
-			return true
-		}
-	}
-	return false
-}
-
-func (c *Configuration) buildMinionConfigs(masterHost string) ([]*MinionConfiguration, map[string][]string) {
+// buildMinionConfigsForKeys builds minion configurations using only the provided minion ingress keys
+// for a single host (already filtered and ordered like the legacy full-map scan).
+func (c *Configuration) buildMinionConfigsForKeys(minionKeys []string) ([]*MinionConfiguration, map[string][]string) {
 	var minionConfigs []*MinionConfiguration
 	childWarnings := make(map[string][]string)
 	paths := make(map[string]*MinionConfiguration)
 
-	for _, minionKey := range getSortedIngressKeys(c.ingresses) {
+	for _, minionKey := range minionKeys {
 		ingress := c.ingresses[minionKey]
-
-		if !isMinion(ingress) {
-			continue
-		}
-
-		if masterHost != ingress.Spec.Rules[0].Host {
-			continue
-		}
 
 		minionConfig := NewMinionConfiguration(ingress)
 
