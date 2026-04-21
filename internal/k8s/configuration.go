@@ -1859,8 +1859,9 @@ func removeFromVSRSlice(s []*conf_v1.VirtualServerRoute, i int) []*conf_v1.Virtu
 
 // regexVSREntry holds a VSR and all the normalized regex VS paths that reference it.
 type regexVSREntry struct {
-	vsr   *conf_v1.VirtualServerRoute
-	paths []string // normalized regex paths from VS routes
+	vsr          *conf_v1.VirtualServerRoute
+	paths        []string // normalized regex paths from VS routes
+	firstSeenIdx int      // index in vs.Spec.Routes of the first route referencing this VSR
 }
 
 // detectSpacingDuplicateRegexPaths warns when two VS regex route paths are equivalent after
@@ -1894,7 +1895,7 @@ func (c *Configuration) collectRegexVSRPaths(vs *conf_v1.VirtualServer) (map[str
 	// seenPaths tracks normalized paths per VSR key for O(1) duplicate detection.
 	seenPaths := make(map[string]map[string]struct{})
 
-	for _, r := range vs.Spec.Routes {
+	for i, r := range vs.Spec.Routes {
 		if r.Route == "" {
 			continue
 		}
@@ -1918,7 +1919,7 @@ func (c *Configuration) collectRegexVSRPaths(vs *conf_v1.VirtualServer) (map[str
 				entry.paths = append(entry.paths, norm)
 			}
 		} else {
-			entries[vsrKey] = &regexVSREntry{vsr: vsr, paths: []string{norm}}
+			entries[vsrKey] = &regexVSREntry{vsr: vsr, paths: []string{norm}, firstSeenIdx: i}
 			seenPaths[vsrKey] = map[string]struct{}{norm: {}}
 		}
 	}
@@ -1959,13 +1960,21 @@ func (c *Configuration) buildNonRegexVSRs(vs *conf_v1.VirtualServer) ([]*conf_v1
 // rejectMixedTypeVSRs removes any VSR that appears in both the regex and non-regex sets, since
 // the same VSR cannot serve both roles simultaneously.  It returns updated copies of both
 // regexEntries and nonRegexVsrs, plus warnings for any removals.
+// Keys are sorted to ensure deterministic warning order across reconciles.
 func rejectMixedTypeVSRs(
 	regexEntries map[string]*regexVSREntry,
 	nonRegexKeys map[string]bool,
 	nonRegexVsrs []*conf_v1.VirtualServerRoute,
 ) (map[string]*regexVSREntry, []*conf_v1.VirtualServerRoute, []string) {
+	keys := make([]string, 0, len(regexEntries))
+	for k := range regexEntries {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
 	var warnings []string
-	for vsrKey, entry := range regexEntries {
+	for _, vsrKey := range keys {
+		entry := regexEntries[vsrKey]
 		nsName := fmt.Sprintf("%s/%s", entry.vsr.Namespace, entry.vsr.Name)
 		if nonRegexKeys[nsName] {
 			warnings = append(warnings, fmt.Sprintf(
@@ -1981,16 +1990,30 @@ func rejectMixedTypeVSRs(
 
 // validateAndBuildRegexVSRs runs Pass 2: validates each unique regex VSR against the full set
 // of collected VS paths and returns the approved VSRs.
+// Entries are processed in VS route definition order (by firstSeenIdx) to ensure
+// deterministic nginx location ordering and avoid config churn between reconciles.
 func (c *Configuration) validateAndBuildRegexVSRs(entries map[string]*regexVSREntry, vsHost string) ([]*conf_v1.VirtualServerRoute, []string) {
+	type entryWithKey struct {
+		key   string
+		entry *regexVSREntry
+	}
+	sorted := make([]entryWithKey, 0, len(entries))
+	for k, e := range entries {
+		sorted = append(sorted, entryWithKey{k, e})
+	}
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].entry.firstSeenIdx < sorted[j].entry.firstSeenIdx
+	})
+
 	var vsrs []*conf_v1.VirtualServerRoute
 	var warnings []string
-	for vsrKey, entry := range entries {
-		err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(entry.vsr, vsHost, entry.paths)
+	for _, ek := range sorted {
+		err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(ek.entry.vsr, vsHost, ek.entry.paths)
 		if err != nil {
-			warnings = append(warnings, fmt.Sprintf("VirtualServerRoute %s is invalid: %v", vsrKey, err))
+			warnings = append(warnings, fmt.Sprintf("VirtualServerRoute %s is invalid: %v", ek.key, err))
 			continue
 		}
-		vsrs = append(vsrs, entry.vsr)
+		vsrs = append(vsrs, ek.entry.vsr)
 	}
 	return vsrs, warnings
 }

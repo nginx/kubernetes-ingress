@@ -6244,3 +6244,83 @@ func TestBuildVirtualServerRoutesMultipleRegex(t *testing.T) {
 		})
 	}
 }
+
+// TestRegexVSROutputOrderMatchesVSRouteOrder verifies that when multiple regex VSRs are
+// referenced by a VirtualServer, the output slice preserves VS route definition order.
+// This prevents config churn: without stable ordering, Go map iteration would produce
+// a non-deterministic VSR slice, causing spurious nginx reloads on every reconcile.
+//
+// The test uses two VSRs whose keys are intentionally reverse-alphabetical relative to
+// their VS route order. If the implementation sorted alphabetically (or used raw map
+// iteration), the output would be [vsrA, vsrB] instead of the correct [vsrB, vsrA].
+func TestRegexVSROutputOrderMatchesVSRouteOrder(t *testing.T) {
+	t.Parallel()
+
+	const (
+		host      = "foo.example.com"
+		namespace = "default"
+		vsName    = "myvs"
+	)
+
+	makeVSRWithName := func(name string, subroutes []conf_v1.Route) *conf_v1.VirtualServerRoute {
+		return &conf_v1.VirtualServerRoute{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: namespace,
+			},
+			Spec: conf_v1.VirtualServerRouteSpec{
+				IngressClass: "nginx",
+				Host:         host,
+				Subroutes:    subroutes,
+			},
+		}
+	}
+
+	makeSubroute := func(path string) conf_v1.Route {
+		return conf_v1.Route{
+			Path: path,
+			Action: &conf_v1.Action{
+				Return: &conf_v1.ActionReturn{Body: "ok"},
+			},
+		}
+	}
+
+	// VS routes reference vsrB first, then vsrA — intentionally reverse-alphabetical.
+	vsRoutes := []conf_v1.Route{
+		{Path: "~/images/jpg", Route: "vsr-beta"},
+		{Path: "~/api/v1", Route: "vsr-alpha"},
+	}
+
+	vsrBeta := makeVSRWithName("vsr-beta", []conf_v1.Route{
+		makeSubroute("~/images/jpg"),
+	})
+	vsrAlpha := makeVSRWithName("vsr-alpha", []conf_v1.Route{
+		makeSubroute("~/api/v1"),
+	})
+
+	configuration := createTestConfiguration()
+	configuration.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{
+		namespace + "/vsr-alpha": vsrAlpha,
+		namespace + "/vsr-beta":  vsrBeta,
+	}
+
+	vs := createTestVirtualServerWithRoutes(vsName, host, vsRoutes)
+
+	// Run the test multiple times to surface non-determinism from map iteration.
+	// With random map order, at least some iterations would produce [vsrAlpha, vsrBeta].
+	for i := 0; i < 20; i++ {
+		gotVSRs, _, gotWarnings := configuration.buildVirtualServerRoutes(vs)
+
+		if len(gotVSRs) != 2 {
+			t.Fatalf("iteration %d: buildVirtualServerRoutes() returned %d VSRs, want 2", i, len(gotVSRs))
+		}
+		// VS route order: vsrBeta (~/images/jpg) at index 0, vsrAlpha (~/api/v1) at index 1.
+		if gotVSRs[0].Name != "vsr-beta" || gotVSRs[1].Name != "vsr-alpha" {
+			t.Fatalf("iteration %d: VSR order should match VS route definition order [vsr-beta, vsr-alpha], got [%s, %s]",
+				i, gotVSRs[0].Name, gotVSRs[1].Name)
+		}
+		if len(gotWarnings) != 0 {
+			t.Errorf("iteration %d: unexpected warnings: %v", i, gotWarnings)
+		}
+	}
+}
