@@ -5723,3 +5723,107 @@ func newIngressConfigWithEgressMTLS(grpc bool) IngressNginxConfig {
 		Upstreams: []Upstream{upstream},
 	}
 }
+
+func TestExecuteTemplate_ForIngressForNGINXWithFastCGI(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	cfg := IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "fcgi.example.com",
+				ServerTokens: "off",
+				Locations: []Location{
+					{
+						Path:                "/",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "60s",
+						ProxyReadTimeout:    "60s",
+						ProxySendTimeout:    "60s",
+						ClientMaxBodySize:   "1m",
+						FCGI:                true,
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Ingress: Ingress{
+			Name:      "fcgi-ingress",
+			Namespace: "default",
+		},
+	}
+
+	err := tmpl.Execute(buf, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+
+	if !strings.Contains(bufString, "fastcgi_pass") {
+		t.Error("want fastcgi_pass in generated config")
+	}
+	if !strings.Contains(bufString, "include fastcgi_params;") {
+		t.Error("want include fastcgi_params in generated config")
+	}
+	if strings.Contains(bufString, "proxy_pass") {
+		t.Error("want no proxy_pass in FastCGI location")
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithFastCGI(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	cfg := IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "fcgi.example.com",
+				ServerTokens: "off",
+				Locations: []Location{
+					{
+						Path:                "/",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "60s",
+						ProxyReadTimeout:    "60s",
+						ProxySendTimeout:    "60s",
+						ClientMaxBodySize:   "1m",
+						FCGI:                true,
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Ingress: Ingress{
+			Name:      "fcgi-ingress",
+			Namespace: "default",
+		},
+	}
+
+	err := tmpl.Execute(buf, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+
+	if !strings.Contains(bufString, "fastcgi_pass") {
+		t.Error("want fastcgi_pass in generated config")
+	}
+	if !strings.Contains(bufString, "include fastcgi_params;") {
+		t.Error("want include fastcgi_params in generated config")
+	}
+	if strings.Contains(bufString, "proxy_pass") {
+		t.Error("want no proxy_pass in FastCGI location")
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}

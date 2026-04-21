@@ -221,7 +221,36 @@ server {
 		{{$proxyOrGRPC}}_ssl_server_name {{ if .ServerName }}on{{else}}off{{end}};
 		{{$proxyOrGRPC}}_ssl_name {{ .SSLName }};
 		{{- end}}
-		{{- if $location.GRPC}}
+		{{- if $location.FCGI}}
+
+		{{- with $location.BasicAuth }}
+		auth_basic {{ printf "%q" .Realm }};
+		auth_basic_user_file {{ .Secret }};
+		{{- end }}
+
+		include fastcgi_params;
+		fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+		fastcgi_param HTTP_X_FORWARDED_FOR $proxy_add_x_forwarded_for;
+		fastcgi_param HTTP_X_FORWARDED_HOST $host;
+		fastcgi_param HTTP_X_FORWARDED_PORT $server_port;
+		fastcgi_param HTTP_X_FORWARDED_PROTO $scheme;
+		fastcgi_connect_timeout {{$location.ProxyConnectTimeout}};
+		fastcgi_read_timeout {{$location.ProxyReadTimeout}};
+		fastcgi_send_timeout {{$location.ProxySendTimeout}};
+		client_max_body_size {{$location.ClientMaxBodySize}};
+		{{- if $location.ClientBodyBufferSize }}
+		client_body_buffer_size {{$location.ClientBodyBufferSize}};
+		{{- end}}
+		{{- if $location.ProxyBufferSize}}
+		fastcgi_buffer_size {{$location.ProxyBufferSize}};
+		{{- end}}
+		{{- if $location.ProxyBuffers}}
+		fastcgi_buffers {{$location.ProxyBuffers}};
+		{{- end}}
+		{{- range $value := $location.LocationSnippets}}
+		{{$value}}{{- end}}
+		fastcgi_pass {{$location.Upstream.Name}};
+		{{- else if $location.GRPC}}
 		{{- if not $server.GRPCOnly}}
 		error_page 400 @grpcerror400;
 		error_page 401 @grpcerror401;

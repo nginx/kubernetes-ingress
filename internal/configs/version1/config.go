@@ -192,6 +192,7 @@ type Location struct {
 	RewriteTarget        string
 	SSL                  bool
 	GRPC                 bool
+	FCGI                 bool
 	ProxyBuffering       bool
 	ProxyBuffers         string
 	ProxyBufferSize      string
