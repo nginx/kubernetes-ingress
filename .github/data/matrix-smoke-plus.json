@@ -92,38 +92,52 @@
       "platforms": "linux/arm64, linux/amd64"
     },
     {
-      "label": "policies 1/5",
+      "label": "policies 1/7",
       "image": "ubi-9-plus",
       "type": "plus",
-      "marker": "'policies and not policies_ac and not policies_jwt and not policies_mtls and not policies_rl and not policies_cache and not policies_cors'",
+      "marker": "'policies and not policies_ac and not policies_jwt and not policies_mtls and not policies_rl and not policies_cache and not policies_cors and not policies_external_auth'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
-      "label": "policies 2/5",
+      "label": "policies 2/7",
       "image": "ubi-9-plus",
       "type": "plus",
       "marker": "'policies_ac or policies_mtls or policies_cache'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
-      "label": "policies 3/5",
+      "label": "policies 3/7",
       "image": "ubi-9-plus",
       "type": "plus",
       "marker": "'policies_jwt or otel'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
-      "label": "policies 4/5",
+      "label": "policies 4/7",
       "image": "ubi-9-plus",
       "type": "plus",
       "marker": "'policies_rl'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
-      "label": "policies 5/5",
+      "label": "policies 5/7",
       "image": "ubi-9-plus",
       "type": "plus",
       "marker": "'policies_cors'",
+      "platforms": "linux/arm64, linux/amd64"
+    },
+    {
+      "label": "policies 6/7",
+      "image": "ubi-9-plus",
+      "type": "plus",
+      "marker": "'policies_external_auth and not policies_external_auth_tls'",
+      "platforms": "linux/arm64, linux/amd64"
+    },
+    {
+      "label": "policies 7/7",
+      "image": "ubi-9-plus",
+      "type": "plus",
+      "marker": "'policies_external_auth_tls'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {

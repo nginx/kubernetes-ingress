@@ -804,6 +804,8 @@ type PolicySpec struct {
 	Cache *Cache `json:"cache"`
 	// The CORS policy configures Cross-Origin Resource Sharing headers
 	CORS *CORS `json:"cors"`
+	// The ExternalAuth policy configures NGINX to authenticate client requests using an external authentication server, which can be used for example with the oauth2-proxy or any custom authentication server.
+	ExternalAuth *ExternalAuth `json:"externalAuth"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -1257,4 +1259,62 @@ type CORS struct {
 	// MaxAge defines how long (in seconds) the results of a preflight request can be cached.
 	// Default: 86400 (24 hours). Maximum recommended value is 86400 (24 hours).
 	MaxAge *int `json:"maxAge,omitempty"`
+}
+
+// ExternalAuth defines an external authentication policy for authenticating client requests using an external authentication server, which can be used for example with the oauth2-proxy or any custom authentication server that requires redirection for authentication.
+type ExternalAuth struct {
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^/.*$`
+	// +kubebuilder:default="/"
+	// AuthURI is the URI of the external authentication server to which the request will be sent for authentication. The URI is a relative URI, for example /auth.
+	AuthURI string `json:"authURI"`
+
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?\/)?[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	// AuthServiceName is the name of the Kubernetes service to which the request will be sent for authentication.  It can be in the same namespace as the Policy resource or in a different namespace. If the service is in a different namespace, it should be specified in the format <namespace>/<service>. For example, auth-service or auth-namespace/auth-service.
+	AuthServiceName string `json:"authServiceName"`
+
+	// +kubebuilder:validation:Optional
+	// AuthServicePorts are the ports of the Kubernetes service to which requests will be sent for authentication. If not specified, the ports will be looked up from the service definition. This field is only required if the user wants to choose a specific port from the service definition, otherwise the first port will be used by default.
+	AuthServicePorts []int `json:"authServicePorts,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^/.*$`
+	// AuthSigninURI is the URI which requests will be redirected to if the external authentication server determines that the client needs to be authenticated. This is typically used when the external authentication server is an oauth2-proxy or any custom authentication server that requires redirection for authentication. The URI is a relative URI, for example /signin.
+	AuthSigninURI string `json:"authSigninURI,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// AuthSnippets can be used to add custom configuration snippets to the location block of the external authentication configuration. This can be used for example to add additional headers to the request sent to the external authentication server, or to configure additional parameters for the auth_request module. The content of this field will be added as-is to the location block, so it must be a valid NGINX configuration snippet.
+	AuthSnippets string `json:"authSnippets,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^/[a-zA-Z0-9._~:/?#\[\]@!$&'()*+,;=-]*$`
+	// AuthSigninRedirectBasePath is the base path for the NGINX location block that handles sign-in redirect requests from the external authentication server. For example, oauth2-proxy expects /oauth2. If not specified, defaults to /oauth2.
+	AuthSigninRedirectBasePath string `json:"authSigninRedirectBasePath,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:=false
+	// SSLEnabled enables HTTPS when proxying requests to the external authentication server. Default is false.
+	SSLEnabled bool `json:"sslEnabled"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:=false
+	// SSLVerify enables verification of the external authentication server's SSL certificate. Default is false.
+	SSLVerify bool `json:"sslVerify"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:default:=1
+	// SSLVerifyDepth sets the verification depth in the external authentication server certificates chain. Default is 1.
+	SSLVerifyDepth *int `json:"sslVerifyDepth,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?\/)?[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	// TrustedCertSecret is the name of the Kubernetes secret that stores the CA certificate for external authentication server certificate verification. It can be in the same namespace as the Policy resource or in a different namespace specified as <namespace>/<secret>. The secret must be of the type nginx.org/ca, and the certificate must be stored under the key ca.crt.
+	TrustedCertSecret string `json:"trustedCertSecret,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?)*$`
+	// SNIName sets the server name used for SNI and certificate verification when connecting to the external authentication server over TLS. If not specified, defaults to <service-name>.<namespace>.svc derived from authServiceName.
+	SNIName string `json:"sniName,omitempty"`
 }
