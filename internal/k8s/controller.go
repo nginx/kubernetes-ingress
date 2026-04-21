@@ -847,17 +847,16 @@ func (lbc *LoadBalancerController) findVirtualServersUsingRatelimitScaling() []R
 }
 
 func (lbc *LoadBalancerController) virtualServerRequiresEndpointsUpdate(vsEx *configs.VirtualServerEx, svcNamespace, serviceName string) bool {
-	vs := vsEx.VirtualServer
-	for _, upstream := range vs.Spec.Upstreams {
+	for _, upstream := range vsEx.VirtualServer.Spec.Upstreams {
 		if upstream.UseClusterIP {
 			continue
 		}
-		ns, name := configs.ParseServiceReference(upstream.Service, vs.Namespace)
+		ns, name := configs.ParseServiceReference(upstream.Service, vsEx.VirtualServer.Namespace)
 		if ns == svcNamespace && name == serviceName {
 			return true
 		}
-		bns, bname := configs.ParseServiceReference(upstream.Backup, vs.Namespace)
-		if bns == svcNamespace && bname == serviceName {
+		backupNamespace, backupName := configs.ParseServiceReference(upstream.Backup, vsEx.VirtualServer.Namespace)
+		if backupNamespace == svcNamespace && backupName == serviceName {
 			return true
 		}
 	}
@@ -871,8 +870,8 @@ func (lbc *LoadBalancerController) virtualServerRequiresEndpointsUpdate(vsEx *co
 			if ns == svcNamespace && name == serviceName {
 				return true
 			}
-			bns, bname := configs.ParseServiceReference(upstream.Backup, vsr.Namespace)
-			if bns == svcNamespace && bname == serviceName {
+			backupNamespace, backupName := configs.ParseServiceReference(upstream.Backup, vsr.Namespace)
+			if backupNamespace == svcNamespace && backupName == serviceName {
 				return true
 			}
 		}

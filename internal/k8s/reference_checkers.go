@@ -158,8 +158,8 @@ func (rc *serviceReferenceChecker) IsReferencedByVirtualServer(svcNamespace stri
 		if ns == svcNamespace && name == svcName {
 			return true
 		}
-		bns, bname := configs.ParseServiceReference(u.Backup, vs.Namespace)
-		if bns == svcNamespace && bname == svcName {
+		backupNamespace, backupName := configs.ParseServiceReference(u.Backup, vs.Namespace)
+		if backupNamespace == svcNamespace && backupName == svcName {
 			return true
 		}
 	}
@@ -185,8 +185,8 @@ func (rc *serviceReferenceChecker) IsReferencedByVirtualServerRoute(svcNamespace
 		if ns == svcNamespace && name == svcName {
 			return true
 		}
-		bns, bname := configs.ParseServiceReference(u.Backup, vsr.Namespace)
-		if bns == svcNamespace && bname == svcName {
+		backupNamespace, backupName := configs.ParseServiceReference(u.Backup, vsr.Namespace)
+		if backupNamespace == svcNamespace && backupName == svcName {
 			return true
 		}
 	}
