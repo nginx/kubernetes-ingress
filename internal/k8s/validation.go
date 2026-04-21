@@ -952,9 +952,10 @@ func validateRewriteTargetAnnotation(context *annotationValidationContext) field
 		allErrs = append(allErrs, field.Invalid(context.fieldPath, target, "NGINX configuration syntax characters (;{}) and []|<>,^`~ not allowed in rewrite target"))
 	}
 
-	// Prevent control characters and line breaks that could break NGINX config
+	// Prevent ASCII control characters (< 32) and DEL (127) that could break NGINX config.
+	// Whitespace is already rejected by ValidatePath above.
 	if strings.IndexFunc(target, func(r rune) bool {
-		return r <= 32 || r == 127 // ASCII control characters; 127 is DEL, 32 is space
+		return r < 32 || r == 127
 	}) != -1 {
 		allErrs = append(allErrs, field.Invalid(context.fieldPath, target, "control characters not allowed in rewrite target"))
 	}
