@@ -1849,6 +1849,38 @@ func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*
 	vsrs, pathWarnings := validateDuplicateVSRPaths(vsrs)
 	warnings = append(warnings, pathWarnings...)
 
+	// Sync vsrSelectors with the final vsrs slice. Any VSR removed by
+	// rejectMixedTypeVSRs, validateDuplicateVSRs, or validateDuplicateVSRPaths
+	// must also be removed from vsrSelectors to keep the two structures consistent.
+	// Without this, VirtualServerRouteSelectors would reference VSR keys that no
+	// longer appear in VirtualServerRoutes, causing incorrect IsEqual() results and
+	// stale change-tracking for selector-matched VSRs.
+	//
+	// Empty selector entries (selector exists but matched no VSRs) are preserved
+	// as-is — they signal that the IC should keep watching for label changes.
+	finalVSRKeys := make(map[string]bool, len(vsrs))
+	for _, vsr := range vsrs {
+		finalVSRKeys[fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)] = true
+	}
+	for selectorStr, vsrKeys := range vsrSelectors {
+		if len(vsrKeys) == 0 {
+			continue // already empty; preserve for change-tracking
+		}
+		var kept []string
+		for _, k := range vsrKeys {
+			if finalVSRKeys[k] {
+				kept = append(kept, k)
+			}
+		}
+		if kept == nil {
+			// All VSRs were rejected: reset to empty list, consistent with
+			// how validateVSRSelectors initializes selector entries.
+			vsrSelectors[selectorStr] = []string{}
+		} else {
+			vsrSelectors[selectorStr] = kept
+		}
+	}
+
 	return vsrs, vsrSelectors, warnings
 }
 

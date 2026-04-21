@@ -6324,3 +6324,87 @@ func TestRegexVSROutputOrderMatchesVSRouteOrder(t *testing.T) {
 		}
 	}
 }
+
+// TestVSRSelectorsCleanedUpAfterMixedTypeRejection verifies that when a VSR is matched by
+// a routeSelector AND referenced by a regex route on the same VS, the mixed-type rejection
+// removes it from both VirtualServerRoutes and VirtualServerRouteSelectors. Without the
+// post-filter sync, vsrSelectors would contain a stale key pointing to the rejected VSR,
+// causing incorrect IsEqual() comparisons and spurious nginx reloads.
+func TestVSRSelectorsCleanedUpAfterMixedTypeRejection(t *testing.T) {
+	t.Parallel()
+
+	const (
+		host      = "foo.example.com"
+		namespace = "default"
+		vsName    = "myvs"
+	)
+
+	// The VSR is matched by a label selector AND explicitly referenced by a regex route.
+	vsr := &conf_v1.VirtualServerRoute{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mixed-vsr",
+			Namespace: namespace,
+			Labels:    map[string]string{"app": "mixed"},
+		},
+		Spec: conf_v1.VirtualServerRouteSpec{
+			IngressClass: "nginx",
+			Host:         host,
+			Subroutes: []conf_v1.Route{
+				{
+					Path:   "/prefix/sub",
+					Action: &conf_v1.Action{Return: &conf_v1.ActionReturn{Body: "ok"}},
+				},
+			},
+		},
+	}
+
+	// VS has two routes for the same VSR:
+	//   1. A non-regex routeSelector (matches the VSR by label)
+	//   2. A regex route explicitly naming the same VSR
+	vs := createTestVirtualServerWithRoutes(vsName, host, []conf_v1.Route{
+		{
+			Path: "/prefix",
+			RouteSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": "mixed"},
+			},
+		},
+		{
+			Path:  "~/regex",
+			Route: namespace + "/mixed-vsr",
+		},
+	})
+
+	configuration := createTestConfiguration()
+	configuration.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{
+		namespace + "/mixed-vsr": vsr,
+	}
+
+	gotVSRs, gotSelectors, gotWarnings := configuration.buildVirtualServerRoutes(vs)
+
+	// The VSR must not appear in VirtualServerRoutes.
+	if len(gotVSRs) != 0 {
+		t.Errorf("expected 0 VSRs after mixed-type rejection, got %d: %v", len(gotVSRs), gotVSRs)
+	}
+	// The rejected VSR key must not appear in any selector's VSR list.
+	// The selector entry itself may remain with an empty list (preserving
+	// change-tracking for future label matches), but the stale key must be gone.
+	rejectedKey := namespace + "/mixed-vsr"
+	for selectorStr, vsrKeys := range gotSelectors {
+		for _, k := range vsrKeys {
+			if k == rejectedKey {
+				t.Errorf("rejected VSR key %q still present in selector %q after mixed-type rejection", k, selectorStr)
+			}
+		}
+	}
+	// The warning about mixed-type reference must be present.
+	found := false
+	for _, w := range gotWarnings {
+		if w == "VirtualServerRoute default/mixed-vsr is referenced by both regex and non-regex VS routes; it will not be used" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected mixed-type rejection warning, got warnings: %v", gotWarnings)
+	}
+}
