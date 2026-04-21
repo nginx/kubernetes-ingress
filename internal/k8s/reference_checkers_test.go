@@ -965,6 +965,77 @@ func TestBackupServiceIsReferencedByVirtualServer(t *testing.T) {
 	}
 }
 
+func TestBackupServiceIsReferencedByVirtualServerRoute(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name                string
+		checkerHasClusterIP bool
+		vsr                 *conf_v1.VirtualServerRoute
+		serviceNamespace    string
+		serviceName         string
+		expected            bool
+	}{
+		{
+			name: "backup service is referenced by this VirtualServerRoute",
+			vsr: &conf_v1.VirtualServerRoute{
+				ObjectMeta: v1.ObjectMeta{Namespace: "default"},
+				Spec: conf_v1.VirtualServerRouteSpec{
+					Upstreams: []conf_v1.Upstream{{Backup: "test-backup-service"}},
+				},
+			},
+			serviceNamespace: "default",
+			serviceName:      "test-backup-service",
+			expected:         true,
+		},
+		{
+			name: "backup service is not referenced by this VirtualServerRoute",
+			vsr: &conf_v1.VirtualServerRoute{
+				ObjectMeta: v1.ObjectMeta{Namespace: "default"},
+				Spec: conf_v1.VirtualServerRouteSpec{
+					Upstreams: []conf_v1.Upstream{{Backup: "test-backup-service-does-not-exist"}},
+				},
+			},
+			serviceNamespace: "default",
+			serviceName:      "test-backup-service",
+			expected:         false,
+		},
+		{
+			name: "backup service is in different namespace",
+			vsr: &conf_v1.VirtualServerRoute{
+				ObjectMeta: v1.ObjectMeta{Namespace: "default"},
+				Spec: conf_v1.VirtualServerRouteSpec{
+					Upstreams: []conf_v1.Upstream{{Backup: "test-backup-service"}},
+				},
+			},
+			serviceNamespace: "other-namespace",
+			serviceName:      "test-backup-service",
+			expected:         false,
+		},
+		{
+			name:                "endpoint checker ignores useClusterIP upstream",
+			checkerHasClusterIP: true,
+			vsr: &conf_v1.VirtualServerRoute{
+				ObjectMeta: v1.ObjectMeta{Namespace: "default"},
+				Spec: conf_v1.VirtualServerRouteSpec{
+					Upstreams: []conf_v1.Upstream{{Backup: "test-backup-service", UseClusterIP: true}},
+				},
+			},
+			serviceNamespace: "default",
+			serviceName:      "test-backup-service",
+			expected:         false,
+		},
+	}
+
+	for _, test := range tests {
+		rc := newServiceReferenceChecker(test.checkerHasClusterIP)
+
+		result := rc.IsReferencedByVirtualServerRoute(test.serviceNamespace, test.serviceName, test.vsr)
+		if result != test.expected {
+			t.Errorf("IsReferencedByVirtualServerRoute() returned %v but expected %v for case %q", result, test.expected, test.name)
+		}
+	}
+}
+
 func TestServiceIsReferencedByVirtualServerAndVirtualServerRoutes(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

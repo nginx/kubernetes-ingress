@@ -856,6 +856,10 @@ func (lbc *LoadBalancerController) virtualServerRequiresEndpointsUpdate(vsEx *co
 		if ns == svcNamespace && name == serviceName {
 			return true
 		}
+		bns, bname := configs.ParseServiceReference(upstream.Backup, vs.Namespace)
+		if bns == svcNamespace && bname == serviceName {
+			return true
+		}
 	}
 
 	for _, vsr := range vsEx.VirtualServerRoutes {
@@ -865,6 +869,10 @@ func (lbc *LoadBalancerController) virtualServerRequiresEndpointsUpdate(vsEx *co
 			}
 			ns, name := configs.ParseServiceReference(upstream.Service, vsr.Namespace)
 			if ns == svcNamespace && name == serviceName {
+				return true
+			}
+			bns, bname := configs.ParseServiceReference(upstream.Backup, vsr.Namespace)
+			if bns == svcNamespace && bname == serviceName {
 				return true
 			}
 		}

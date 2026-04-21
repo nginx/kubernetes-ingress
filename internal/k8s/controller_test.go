@@ -3952,6 +3952,126 @@ func TestCreateVirtualServerExWithZoneSync(t *testing.T) {
 	}
 }
 
+func TestVirtualServerRequiresEndpointsUpdate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		vsEx         *configs.VirtualServerEx
+		svcNamespace string
+		svcName      string
+		expected     bool
+	}{
+		{
+			name: "matches cross-namespace service in VirtualServer upstream",
+			vsEx: &configs.VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{Namespace: "default"},
+					Spec: conf_v1.VirtualServerSpec{
+						Upstreams: []conf_v1.Upstream{{Service: "backend-ns/backend-svc"}},
+					},
+				},
+			},
+			svcNamespace: "backend-ns",
+			svcName:      "backend-svc",
+			expected:     true,
+		},
+		{
+			name: "matches backup service in VirtualServer upstream",
+			vsEx: &configs.VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{Namespace: "default"},
+					Spec: conf_v1.VirtualServerSpec{
+						Upstreams: []conf_v1.Upstream{{Service: "backend-svc", Backup: "backup-svc"}},
+					},
+				},
+			},
+			svcNamespace: "default",
+			svcName:      "backup-svc",
+			expected:     true,
+		},
+		{
+			name: "matches backup service in VirtualServerRoute upstream",
+			vsEx: &configs.VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{Namespace: "default"},
+				},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
+					{
+						ObjectMeta: meta_v1.ObjectMeta{Namespace: "default"},
+						Spec: conf_v1.VirtualServerRouteSpec{
+							Upstreams: []conf_v1.Upstream{{Service: "backend-svc", Backup: "backup-svc"}},
+						},
+					},
+				},
+			},
+			svcNamespace: "default",
+			svcName:      "backup-svc",
+			expected:     true,
+		},
+		{
+			name: "does not match backup service in different namespace",
+			vsEx: &configs.VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{Namespace: "default"},
+					Spec: conf_v1.VirtualServerSpec{
+						Upstreams: []conf_v1.Upstream{{Service: "backend-svc", Backup: "backup-svc"}},
+					},
+				},
+			},
+			svcNamespace: "other-namespace",
+			svcName:      "backup-svc",
+			expected:     false,
+		},
+		{
+			name: "does not match useClusterIP upstream",
+			vsEx: &configs.VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{Namespace: "default"},
+					Spec: conf_v1.VirtualServerSpec{
+						Upstreams: []conf_v1.Upstream{{Service: "backend-svc", Backup: "backup-svc", UseClusterIP: true}},
+					},
+				},
+			},
+			svcNamespace: "default",
+			svcName:      "backup-svc",
+			expected:     false,
+		},
+		{
+			name: "does not match unrelated service",
+			vsEx: &configs.VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{Namespace: "default"},
+					Spec: conf_v1.VirtualServerSpec{
+						Upstreams: []conf_v1.Upstream{{Service: "backend-svc", Backup: "backup-svc"}},
+					},
+				},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
+					{
+						ObjectMeta: meta_v1.ObjectMeta{Namespace: "default"},
+						Spec: conf_v1.VirtualServerRouteSpec{
+							Upstreams: []conf_v1.Upstream{{Service: "backend-svc", Backup: "backup-svc"}},
+						},
+					},
+				},
+			},
+			svcNamespace: "default",
+			svcName:      "other-svc",
+			expected:     false,
+		},
+	}
+
+	lbc := &LoadBalancerController{}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := lbc.virtualServerRequiresEndpointsUpdate(test.vsEx, test.svcNamespace, test.svcName)
+			if result != test.expected {
+				t.Fatalf("virtualServerRequiresEndpointsUpdate() returned %v, expected %v", result, test.expected)
+			}
+		})
+	}
+}
+
 func TestCreateIngressExWithZoneSync(t *testing.T) {
 	t.Parallel()
 
