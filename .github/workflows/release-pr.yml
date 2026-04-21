@@ -18,13 +18,13 @@ on:
         required: true
         default: "2.6.0, 3.6.0"
       k8s_versions:
-        description: "Kubernetes versions this release has been tested on"
-        required: true
-        default: "1.28-1.35"
-      new_nginx_version:
-        description: "Nginx version to release"
+        description: "Kubernetes versions this release was tested on (leave empty to use tech-specs.json)"
         required: false
-        default: "1.29.7 / R36 P3"
+        default: ""
+      new_nginx_version:
+        description: "Nginx version to release (leave empty to use tech-specs.json)"
+        required: false
+        default: ""
       nap_version:
         description: "NAP versions (comma-separated: waf_version,waf_release_version) - leave empty to skip NAP update"
         required: false
@@ -139,6 +139,24 @@ jobs:
             ${{ steps.parse.outputs.new_operator_version }}
         env:
           DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
+          DEBUG: ${{ inputs.debug && 'true' || 'false' }}
+
+      - name: Update tech specs JSON
+        run: |
+          python3 .github/scripts/tech-specs-update.py \
+            --json-file .github/scripts/tech-specs.json \
+            --json-only \
+            --update-json \
+            --current-nic-version "${{ steps.parse.outputs.current_version }}" \
+            --current-helm-version "${{ steps.parse.outputs.current_helm_version }}" \
+            --current-operator-version "${{ steps.parse.outputs.current_operator_version }}" \
+            ${{ steps.parse.outputs.nap_waf_release_version && format('--nap-waf-release-version "{0}"', steps.parse.outputs.nap_waf_release_version) || '' }} \
+            "${{ steps.parse.outputs.new_version }}" \
+            "${{ inputs.k8s_versions }}" \
+            "${{ inputs.new_nginx_version }}" \
+            "" \
+            ${{ steps.parse.outputs.nap_waf_version && format('"{0}"', steps.parse.outputs.nap_waf_version) || '' }}
+        env:
           DEBUG: ${{ inputs.debug && 'true' || 'false' }}
 
       - name: Create Pull Request

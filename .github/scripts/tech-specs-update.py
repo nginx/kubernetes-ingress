@@ -1,9 +1,34 @@
 #!/usr/bin/env python3
+"""Update NIC tech spec tables from a JSON data file.
+
+This script drives the NIC/K8s and NAP compatibility tables in the
+nginx/documentation repo from a tech-specs.json file stored in the NIC repo.
+
+Modes
+-----
+Full mode (default):
+    Reads JSON for historical rows, reads docs shortcode files for the
+    current live version, generates Markdown tables in the docs repo.
+
+JSON-only mode (--json-only):
+    Only updates the JSON file (freeze row, update shortcode_row values).
+    Does not touch docs files.  Requires --current-* arguments.
+
+In both modes, --update-json writes the modified JSON back to disk.
+Positional arguments (k8s_versions, nginx_version, nap_waf_version)
+serve as overrides; when empty the script falls back to JSON values.
+"""
+
 import argparse
+import json
 import re
 import sys
 from datetime import datetime
 from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 
 def shortcode_ver(path: Path):
@@ -25,262 +50,239 @@ def is_minor_or_major(new_version, old_version):
     return major_minor(new_version) != major_minor(old_version)
 
 
-def update_nap_table(table_file, nap_waf_version, ic_version, docs_root):
-    """
-    Update NAP compatibility table.
-    On a minor/major release: freeze the current shortcode row as a historical
-    entry with literal values, then update the shortcode row's R-number prefix.
-    On a patch release or re-run: only update the R-number prefix if changed.
-    Shortcode values (compiler version, waf release version) are updated
-    separately by docs-shortcode-update.sh.
-    """
-    if not table_file.exists():
-        print(f"ERROR: NAP compatibility table file not found: {table_file}")
-        return False
-
-    docs = Path(docs_root)
-    sc_dir = docs / "layouts" / "shortcodes"
-    current_nic_version = shortcode_ver(sc_dir / "nic-version.html")
-    freeze = is_minor_or_major(ic_version, current_nic_version)
-
-    if freeze:
-        print(f"INFO: Minor/major release ({current_nic_version} -> {ic_version}), freezing NAP row")
-    else:
-        print(f"INFO: Patch release or re-run ({current_nic_version} -> {ic_version}), updating NAP table in-place")
-
-    content = table_file.read_text(encoding="utf-8")
-
-    # Match both {{< table >}} and {{% bootstrap-table %}} shortcode wrappers
-    table_pattern = (
-        r"(\{\{[<%]\s*(?:bootstrap-)?table[^>%]*[>%]\}\}\n)(.*?)(\n\{\{[<%]\s*/(?:bootstrap-)?table\s*[>%]\}\})"
-    )
-    match = re.search(table_pattern, content, re.DOTALL)
-
-    if not match:
-        print("ERROR: Could not find table shortcode in the NAP compatibility file")
-        return False
-
-    table_start, table_content, table_end = match.groups()
-
-    # Preserve leading/trailing blank lines inside the table shortcode block
-    leading_ws = "\n" if table_content.startswith("\n") else ""
-    trailing_ws = "\n" if table_content.endswith("\n") else ""
-
-    lines = table_content.strip().split("\n")
-
-    # Locate the header and separator rows
-    header_line = separator_line = None
-    data_lines = []
-    for i, line in enumerate(lines):
-        if "|" in line and ("NIC Version" in line or "NAP-WAF Version" in line):
-            header_line = line
-            if i + 1 < len(lines):
-                separator_line = lines[i + 1]
-            data_lines = lines[i + 2 :]
-            break
-
-    if not header_line or not separator_line:
-        print("ERROR: Could not find table header row in NAP compatibility file")
-        return False
-
-    # Find the live shortcode row; keep all other rows as-is
-    shortcode_row_found = False
-    orig_shortcode_row = ""
-    other_rows = []
-
-    for line in data_lines:
-        if not line.strip():
-            continue
-        if "{{< nic-version >}}" in line:
-            orig_shortcode_row = line
-            shortcode_row_found = True
-        else:
-            other_rows.append(line)
-
-    if not shortcode_row_found:
-        print("ERROR: Could not find shortcode row in NAP table")
-        return False
-
-    # For minor/major releases: resolve current shortcode values and freeze as historical row
-    if freeze:
-        cols = [c.strip() for c in orig_shortcode_row.split("|")[1:-1]]
-
-        # Resolve NAP-WAF column
-        nap_waf_col = cols[1]
-        if "+{{< appprotect-compiler-version" in nap_waf_col:
-            plus_part = nap_waf_col.split("+")[0]
-            compiler_ver = shortcode_ver(sc_dir / "appprotect-compiler-version.html")
-            current_nap_waf = f"{plus_part}+{compiler_ver}"
-        else:
-            current_nap_waf = nap_waf_col
-
-        # Resolve config manager and enforcer
-        def resolve_col(col):
-            if "{{< nic-waf-release-version >}}" in col:
-                return shortcode_ver(sc_dir / "nic-waf-release-version.html")
-            return col
-
-        current_config_mgr = resolve_col(cols[2])
-        current_enforcer = resolve_col(cols[3])
-
-        # Pad values to match the column widths from the separator row
-        sep_cols = [c for c in separator_line.split("|")[1:-1]]
-        col_widths = [len(c) for c in sep_cols]
-        values = [
-            current_nic_version,
-            current_nap_waf,
-            current_config_mgr,
-            current_enforcer,
-        ]
-        padded = [f" {v.ljust(w - 1)}" if w > len(v) + 1 else f" {v} " for v, w in zip(values, col_widths)]
-        frozen_row = "|" + "|".join(padded) + "|"
-        other_rows.insert(0, frozen_row)
-
-    # Preserve the original shortcode row formatting/whitespace.
-    # Only update the R-number prefix (e.g. "36+") if it changed.
-    new_shortcode_row = orig_shortcode_row
-    if "+" in nap_waf_version:
-        new_prefix = nap_waf_version.split("+")[0]
-        prefix_match = re.search(r"(\d+)\+", orig_shortcode_row)
-        if prefix_match:
-            old_prefix = prefix_match.group(1)
-            if old_prefix != new_prefix:
-                new_shortcode_row = orig_shortcode_row.replace(old_prefix + "+", new_prefix + "+", 1)
-
-    new_table_content = (
-        leading_ws + "\n".join([header_line, separator_line, new_shortcode_row] + other_rows) + trailing_ws
-    )
-    new_content = re.sub(
-        table_pattern,
-        table_start + new_table_content + table_end,
-        content,
-        count=1,
-        flags=re.DOTALL,
-    )
-
-    table_file.write_text(new_content, encoding="utf-8")
-    return True
-
-
 def parse_nginx_version(version_str):
-    """Parse "OSS_VERSION[/PLUS_VERSION]" (e.g. "1.29.7 / R36 P3" or "1.29.7/R36 P3") into parts."""
-    # Allow optional whitespace around the '/' separator so both "1.29.7 / R36 P3"
-    # and "1.29.7/R36 P3" (and similar variants) are handled consistently.
+    """Parse "OSS_VERSION[/PLUS_VERSION]" into (oss, plus|None)."""
     parts = re.split(r"\s*/\s*", version_str.strip(), maxsplit=1)
     if len(parts) == 2 and parts[0] and parts[1]:
         return parts[0], parts[1]
     return version_str.strip(), None
 
 
-def update_compat_table(md, k8s_new, nginx_new, ic_version, docs_root):
-    """Update the NIC/K8s compatibility table in the nic-k8s.md include file.
+def normalize_k8s_versions(v):
+    """Ensure spaces around the dash in K8s version ranges.
 
-    On a minor/major release: freeze the current shortcode row as a historical
-    entry with literal values, then update the shortcode row in-place.
-    On a patch release or re-run: only update the shortcode row values.
+    Converts e.g. '1.28-1.35' to '1.28 - 1.35' to match the docs convention.
+    Already-spaced ranges like '1.28 - 1.35' are returned unchanged.
+    """
+    if not v:
+        return v
+    return re.sub(r"(\d+\.\d+)\s*-\s*(\d+\.\d+)", r"\1 - \2", v)
+
+
+# ---------------------------------------------------------------------------
+# JSON I/O
+# ---------------------------------------------------------------------------
+
+
+def load_json(path):
+    """Load and return the tech-specs JSON data."""
+    p = Path(path)
+    if not p.exists():
+        sys.exit(f"ERROR: JSON file not found: {path}")
+    with p.open(encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_json(path, data):
+    """Write tech-specs JSON data back to disk."""
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+
+
+# ---------------------------------------------------------------------------
+# Table generation from JSON
+# ---------------------------------------------------------------------------
+
+TABLE_PATTERN = (
+    r"(\{\{[<%]\s*(?:bootstrap-)?table[^>%]*[>%]\}\}\n)" r"(.*?)" r"(\n\{\{[<%]\s*/(?:bootstrap-)?table\s*[>%]\}\})"
+)
+
+
+def extract_shortcode_row(file_path):
+    """Extract the live shortcode row from a docs table file.
+
+    Returns the full Markdown line (including pipes and spacing) or None
+    if no shortcode row is found.  The returned line preserves the original
+    formatting so it can be re-inserted with minimal diff.
+    """
+    content = file_path.read_text(encoding="utf-8")
+    m = re.search(TABLE_PATTERN, content, re.DOTALL)
+    if not m:
+        return None
+    for line in m.group(2).strip().split("\n"):
+        if ("{{<" in line or "{{%" in line) and "table" not in line.lower():
+            return line
+    return None
+
+
+def update_compat_sc_row(sc_row, k8s_new, nginx_new):
+    """Update K8s and NGINX version values in an existing compat shortcode row.
+
+    Performs targeted replacements of the literal values within the row,
+    preserving all other formatting (spacing, shortcode syntax, etc.).
+    """
+    cols = [c.strip() for c in sc_row.split("|")[1:-1]]
+    orig_k8s, orig_nginx = cols[1], cols[4]
+    result = sc_row
+    if orig_k8s != k8s_new:
+        result = result.replace(orig_k8s, k8s_new, 1)
+    if orig_nginx != nginx_new:
+        result = result.replace(orig_nginx, nginx_new, 1)
+    return result
+
+
+def update_nap_sc_row(sc_row, nap_waf_version):
+    """Update the NAP-WAF prefix in an existing NAP shortcode row.
+
+    Replaces only the R-number prefix (e.g. '36+' -> '37+'), preserving
+    all other formatting including trailing padding spaces.
+    """
+    if nap_waf_version and "+" in nap_waf_version:
+        new_prefix = nap_waf_version.split("+")[0]
+        m = re.search(r"(\d+)\+", sc_row)
+        if m and m.group(1) != new_prefix:
+            return sc_row.replace(m.group(1) + "+", new_prefix + "+", 1)
+    return sc_row
+
+
+def replace_table_in_file(file_path, new_table_md):
+    """Replace the table content inside {{< table >}} wrapper in a docs file."""
+    content = file_path.read_text(encoding="utf-8")
+    m = re.search(TABLE_PATTERN, content, re.DOTALL)
+    if not m:
+        sys.exit(f"ERROR: table shortcode not found in {file_path}")
+
+    open_tag, _, close_tag = m.groups()
+    new_content = re.sub(
+        TABLE_PATTERN,
+        open_tag + "\n" + new_table_md + "\n" + close_tag,
+        content,
+        count=1,
+        flags=re.DOTALL,
+    )
+    file_path.write_text(new_content, encoding="utf-8")
+
+
+def generate_compat_table_md(json_data, sc_row=None):
+    """Generate the NIC/K8s compatibility table Markdown from JSON data.
+
+    If *sc_row* is provided (extracted from the existing docs file), it is
+    used as-is to preserve original formatting.  Otherwise a fresh shortcode
+    row is generated from the JSON shortcode_row values.
+
     Prunes rows past their End of Technical Support date, keeping the most
     recently expired row as a reference.
     """
-    docs = Path(docs_root)
-    sc_dir = docs / "layouts" / "shortcodes"
-    current_nic = shortcode_ver(sc_dir / "nic-version.html")
-    freeze = is_minor_or_major(ic_version, current_nic)
+    sr = json_data["nic_k8s"]["shortcode_row"]
+    rows = json_data["nic_k8s"]["rows"]
 
-    if freeze:
-        helm = shortcode_ver(sc_dir / "nic-helm-version.html")
-        oper = shortcode_ver(sc_dir / "nic-operator-version.html")
-        print(f"INFO: Minor/major release ({current_nic} -> {ic_version}), freezing compat row")
-    else:
-        print(f"INFO: Patch release or re-run ({current_nic} -> {ic_version}), updating compat table in-place")
+    header = (
+        "| NIC version | Kubernetes versions tested  "
+        "| NIC Helm Chart version | NIC Operator version "
+        "| NGINX / NGINX Plus version | End of Technical Support |"
+    )
+    sep = "| --- | --- | --- | --- | --- | --- |"
 
-    pat = r"(\{\{[<%]\s*(?:bootstrap-)?table[^>%]*[>%]\}\}\n)(.*?)(\n\{\{[<%]\s*/(?:bootstrap-)?table\s*[>%]\}\})"
-    m = re.search(pat, md, re.S)
-    if not m:
-        sys.exit("table shortcode not found in compatibility table file")
-    open_tag, tbl_txt, close_tag = m.groups()
+    if sc_row is None:
+        sc_row = (
+            f"| {{{{< nic-version >}}}} | {sr['k8s_versions']} "
+            f"| {{{{< nic-helm-version >}}}} | {{{{< nic-operator-version >}}}} "
+            f"| {sr['nginx_version']} | - |"
+        )
 
-    # Preserve leading/trailing blank lines inside the table shortcode block
-    leading_ws = "\n" if tbl_txt.startswith("\n") else ""
-    trailing_ws = "\n" if tbl_txt.endswith("\n") else ""
-
-    rows = tbl_txt.strip().split("\n")
-
-    # Find the header row and separator row by content, not position.
-    header = rows[0]
-    sep = None
-    sep_idx = None
-    for i, r in enumerate(rows[1:], 1):
-        cells = [c.strip() for c in r.split("|")[1:-1]]
-        if cells and all(re.match(r"-+\s*$", c) for c in cells):
-            sep = r
-            sep_idx = i
-            break
-
-    if sep is None:
-        col_count = len(header.split("|")) - 2
-        sep = "| " + " | ".join(["---"] * col_count) + " |"
-        body = rows[1:]
-    else:
-        body = rows[sep_idx + 1 :]
-
-    # Find the shortcode row and update K8s + NGINX version values in-place
-    sc_idx = next((i for i, r in enumerate(body) if "{{<" in r or "{{%" in r), None)
-    if sc_idx is None:
-        # Shortcode row may be above separator (corrupted table from previous runs).
-        # Search all rows and prepend to body so the rebuild places it correctly.
-        for r in rows:
-            if ("{{<" in r or "{{%" in r) and "table" not in r.lower():
-                body.insert(0, r)
-                sc_idx = 0
-                break
-        if sc_idx is None:
-            sys.exit("No shortcode row found in compatibility table")
-
-    sc_cols = [c.strip() for c in body[sc_idx].split("|")[1:-1]]
-    orig_k8s, orig_nginx = sc_cols[1], sc_cols[4]
-
-    new_sc_row = body[sc_idx]
-    if orig_k8s != k8s_new:
-        new_sc_row = new_sc_row.replace(orig_k8s, k8s_new, 1)
-    if orig_nginx != nginx_new:
-        new_sc_row = new_sc_row.replace(orig_nginx, nginx_new, 1)
-
-    # Collect data rows, pruning expired ones (keep most recently expired)
+    # EOL pruning
     now = datetime.now()
-    new_body = []
+    active_rows = []
     expired_rows = []
-    for r in body:
-        if "{{<" in r or "{{%" in r or not r.strip():
-            continue
-        cols = [c.strip() for c in r.split("|")[1:-1]]
-        if not cols:
-            continue
-        # Skip rows for the current NIC version (will be re-added as frozen row if needed)
-        if cols[0] == current_nic:
-            continue
-        try:
-            eol_date = datetime.strptime(cols[5], "%b %d, %Y")
-            if now > eol_date:
-                expired_rows.append((eol_date, r))
-                continue
-        except (IndexError, ValueError):
-            # If the EOL date is missing or malformed, treat the row as non-expired
-            pass
-        new_body.append(r)
-
-    # For minor/major releases: insert frozen row with current resolved values
-    if freeze:
-        frozen_row = f"| {current_nic} | {orig_k8s} | {helm} | {oper} | {orig_nginx} | - |"
-        new_body.insert(0, frozen_row)
+    for row in rows:
+        eol = row.get("eol_date", "-")
+        if eol and eol != "-":
+            try:
+                eol_date = datetime.strptime(eol, "%b %d, %Y")
+                if now > eol_date:
+                    expired_rows.append((eol_date, row))
+                    continue
+            except ValueError:
+                pass
+        active_rows.append(row)
 
     # Keep the most recently expired row as a migration reference
     if expired_rows:
         expired_rows.sort(key=lambda x: x[0], reverse=True)
-        new_body.append(expired_rows[0][1])
+        active_rows.append(expired_rows[0][1])
 
-    final_tbl = leading_ws + "\n".join([header, sep, new_sc_row] + new_body) + trailing_ws
-    updated_md = re.sub(pat, open_tag + final_tbl + close_tag, md, count=1, flags=re.S)
-    return updated_md
+    data_lines = []
+    for row in active_rows:
+        data_lines.append(
+            f"| {row['nic_version']} | {row['k8s_versions']} "
+            f"| {row['helm_version']} | {row['operator_version']} "
+            f"| {row['nginx_version']} | {row['eol_date']} |"
+        )
+
+    return "\n".join([header, sep, sc_row] + data_lines)
+
+
+def generate_nap_table_md(json_data, sc_row=None):
+    """Generate the NAP WAF compatibility table Markdown from JSON data.
+
+    If *sc_row* is provided (extracted from the existing docs file), it is
+    used as-is to preserve original formatting.  Otherwise a fresh shortcode
+    row is generated.
+
+    Uses column-width padding for header, separator, and data rows.
+    Column widths are derived from headers and data rows.  Column 0 is
+    expanded to fit ``{{< nic-version >}}`` (19 chars).
+    """
+    sr = json_data["nic_nap"]["shortcode_row"]
+    rows = json_data["nic_nap"]["rows"]
+
+    headers = ["NIC Version", "NAP-WAF Version", "Config Manager", "Enforcer"]
+
+    # Build data cell values
+    data = []
+    for row in rows:
+        data.append(
+            [
+                row["nic_version"],
+                row["nap_waf_version"],
+                row["config_mgr_version"],
+                row["enforcer_version"],
+            ]
+        )
+
+    # Compute column widths from headers and data rows.
+    # Expand col 0 to fit {{< nic-version >}} (19 chars) so the shortcode
+    # row aligns without overflow in that column.
+    nic_sc = "{{< nic-version >}}"
+    col_widths = [max(len(h), len(nic_sc)) if i == 0 else len(h) for i, h in enumerate(headers)]
+    for row_data in data:
+        for i, cell in enumerate(row_data):
+            col_widths[i] = max(col_widths[i], len(cell))
+
+    def pad_row(cells):
+        return "| " + " | ".join(c.ljust(w) for c, w in zip(cells, col_widths)) + " |"
+
+    header_line = pad_row(headers)
+    sep_line = "| " + " | ".join("-" * w for w in col_widths) + " |"
+
+    if sc_row is None:
+        sc_cells = [
+            nic_sc,
+            f"{sr['nap_waf_prefix']}+{{{{< appprotect-compiler-version>}}}}",
+            "{{< nic-waf-release-version >}}",
+            "{{< nic-waf-release-version >}}",
+        ]
+        sc_row = "| " + " | ".join(c.ljust(w) for c, w in zip(sc_cells, col_widths)) + " |"
+
+    data_lines = [pad_row(r) for r in data]
+
+    return "\n".join([header_line, sep_line, sc_row] + data_lines)
+
+
+# ---------------------------------------------------------------------------
+# NGINX prose update (unchanged from original)
+# ---------------------------------------------------------------------------
 
 
 def update_nginx_prose(md, nginx_new):
@@ -293,7 +295,6 @@ def update_nginx_prose(md, nginx_new):
     """
     new_oss, new_plus = parse_nginx_version(nginx_new)
 
-    # NGINX OSS: "_All images include NGINX X.Y.Z._" and base images "nginx:X.Y.Z"
     if new_oss:
         oss_match = re.search(r"All images include NGINX (\d+\.\d+\.\d+)", md)
         if oss_match:
@@ -301,7 +302,6 @@ def update_nginx_prose(md, nginx_new):
             if current_oss != new_oss:
                 md = re.sub(r"\b" + re.escape(current_oss) + r"\b", new_oss, md)
 
-    # NGINX Plus: "NGINX Plus images include NGINX Plus RXX" or "RXX PY"
     if new_plus:
         plus_match = re.search(r"NGINX Plus images include NGINX Plus (R\d+(?:\s+P\d+)?)", md)
         if plus_match:
@@ -312,101 +312,288 @@ def update_nginx_prose(md, nginx_new):
     return md
 
 
+# ---------------------------------------------------------------------------
+# Core: freeze logic and JSON updates
+# ---------------------------------------------------------------------------
+
+
+def freeze_compat_row(json_data, ic_version, current_nic, current_helm, current_operator):
+    """Freeze the current shortcode row as a historical entry in the JSON.
+
+    Only called for minor/major releases.  Builds a frozen row from the
+    current NIC/Helm/Operator versions and the shortcode_row values for
+    K8s and NGINX versions, then prepends it to the rows list.
+    Skips the freeze if current_nic is already present (idempotent on retry).
+    """
+    existing = [r["nic_version"] for r in json_data["nic_k8s"]["rows"]]
+    if current_nic in existing:
+        print(f"INFO: Compat row for {current_nic} already exists, skipping freeze")
+        return
+
+    sr = json_data["nic_k8s"]["shortcode_row"]
+    frozen = {
+        "nic_version": current_nic,
+        "k8s_versions": sr["k8s_versions"],
+        "helm_version": current_helm,
+        "operator_version": current_operator,
+        "nginx_version": sr["nginx_version"],
+        "eol_date": "-",
+    }
+    json_data["nic_k8s"]["rows"].insert(0, frozen)
+    print(f"INFO: Frozen compat row for {current_nic}")
+
+
+def freeze_nap_row(json_data, current_nic):
+    """Freeze the current NAP shortcode row as a historical entry in the JSON.
+
+    Only called for minor/major releases.  Builds the frozen NAP-WAF version
+    from the shortcode_row prefix + compiler_version.
+    Skips the freeze if current_nic is already present (idempotent on retry).
+    """
+    existing = [r["nic_version"] for r in json_data["nic_nap"]["rows"]]
+    if current_nic in existing:
+        print(f"INFO: NAP row for {current_nic} already exists, skipping freeze")
+        return
+
+    sr = json_data["nic_nap"]["shortcode_row"]
+    frozen = {
+        "nic_version": current_nic,
+        "nap_waf_version": f"{sr['nap_waf_prefix']}+{sr['compiler_version']}",
+        "config_mgr_version": sr["waf_release_version"],
+        "enforcer_version": sr["waf_release_version"],
+    }
+    json_data["nic_nap"]["rows"].insert(0, frozen)
+    print(f"INFO: Frozen NAP row for {current_nic}")
+
+
+def update_shortcode_row_values(
+    json_data,
+    k8s_versions,
+    nginx_version,
+    nap_waf_version=None,
+    nap_waf_release_version=None,
+):
+    """Update the shortcode_row entries in the JSON with new values.
+
+    Only updates a field if a non-empty value is provided; otherwise the
+    existing JSON value is preserved (i.e. the JSON acts as the default).
+    """
+    if k8s_versions:
+        json_data["nic_k8s"]["shortcode_row"]["k8s_versions"] = k8s_versions
+    if nginx_version:
+        json_data["nic_k8s"]["shortcode_row"]["nginx_version"] = nginx_version
+
+    if nap_waf_version and "+" in nap_waf_version:
+        new_prefix, new_compiler = nap_waf_version.split("+", 1)
+        json_data["nic_nap"]["shortcode_row"]["nap_waf_prefix"] = new_prefix
+        json_data["nic_nap"]["shortcode_row"]["compiler_version"] = new_compiler
+    if nap_waf_release_version:
+        json_data["nic_nap"]["shortcode_row"]["waf_release_version"] = nap_waf_release_version
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Update NIC tech specs table for a new release.",
+        description="Update NIC tech spec tables from a JSON data file.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Update tech specs
-  %(prog)s "5.2.0" "1.27-1.33" "1.25.3" "/path/to/docs"
+  # Full mode — update docs tables from JSON
+  %(prog)s --json-file tech-specs.json "5.5.0" "1.28-1.35" "1.29.7 / R36 P3" /docs
+
+  # Full mode with NAP
+  %(prog)s --json-file tech-specs.json "5.5.0" "1.28-1.35" "1.29.7 / R36 P3" /docs "36+5.607"
+
+  # JSON-only mode — update the JSON file without touching docs
+  %(prog)s --json-file tech-specs.json --json-only --update-json \\
+    --current-nic-version 5.4.0 --current-helm-version 2.5.0 \\
+    --current-operator-version 3.5.0 \\
+    "5.5.0" "1.28-1.35" "1.29.7 / R36 P3"
         """,
     )
+
+    # Positional arguments (backward-compatible with release-docs.sh)
     parser.add_argument("ic_version", help="New NGINX Ingress Controller version")
-    parser.add_argument("k8s_versions", help="New Kubernetes versions string")
-    parser.add_argument("nginx_version", help="New NGINX/NGINX Plus version string")
-    parser.add_argument("docs_root", help="Path to documentation root directory")
+    parser.add_argument(
+        "k8s_versions",
+        nargs="?",
+        default="",
+        help="Kubernetes versions string (override; empty = use JSON)",
+    )
+    parser.add_argument(
+        "nginx_version",
+        nargs="?",
+        default="",
+        help="NGINX/NGINX Plus version string (override; empty = use JSON)",
+    )
+    parser.add_argument(
+        "docs_root",
+        nargs="?",
+        default=None,
+        help="Path to documentation root (required unless --json-only)",
+    )
     parser.add_argument(
         "nap_waf_version",
         nargs="?",
-        help="NAP-WAF version (e.g., '36+5.600') - optional",
+        default=None,
+        help="NAP-WAF version e.g. '36+5.607' (optional)",
+    )
+
+    # JSON control
+    parser.add_argument("--json-file", required=True, help="Path to tech-specs.json")
+    parser.add_argument(
+        "--json-only",
+        action="store_true",
+        help="Only update JSON, skip docs table generation",
+    )
+    parser.add_argument("--update-json", action="store_true", help="Write updated JSON back to file")
+
+    # Current versions for freeze in --json-only mode
+    parser.add_argument(
+        "--current-nic-version",
+        default=None,
+        help="Current NIC version (required with --json-only for freeze)",
+    )
+    parser.add_argument(
+        "--current-helm-version",
+        default=None,
+        help="Current Helm chart version (required with --json-only for freeze)",
+    )
+    parser.add_argument(
+        "--current-operator-version",
+        default=None,
+        help="Current Operator version (required with --json-only for freeze)",
+    )
+    parser.add_argument(
+        "--nap-waf-release-version",
+        default=None,
+        help="NAP WAF release version for JSON shortcode_row update",
     )
 
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose output")
 
     args = parser.parse_args()
 
-    # Validate inputs
-    if not Path(args.docs_root).exists():
+    # ---- Validation ----
+    if not args.json_only and not args.docs_root:
+        sys.exit("ERROR: docs_root is required unless --json-only is set")
+    if not args.json_only and args.docs_root and not Path(args.docs_root).exists():
         sys.exit(f"ERROR: Documentation root directory not found: {args.docs_root}")
+    if args.json_only:
+        for attr in (
+            "current_nic_version",
+            "current_helm_version",
+            "current_operator_version",
+        ):
+            if not getattr(args, attr):
+                sys.exit(f"ERROR: --{attr.replace('_', '-')} is required with --json-only")
+
+    # ---- Load JSON ----
+    json_data = load_json(args.json_file)
 
     if args.verbose:
         print(f"Processing release: {args.ic_version}")
-        print(f"Kubernetes versions: {args.k8s_versions}")
-        print(f"NGINX version: {args.nginx_version}")
-        print(f"Documentation root: {args.docs_root}")
+        print(f"Kubernetes versions override: {args.k8s_versions or '(from JSON)'}")
+        print(f"NGINX version override: {args.nginx_version or '(from JSON)'}")
+        print(f"JSON file: {args.json_file}")
+        print(f"Mode: {'json-only' if args.json_only else 'full'}")
         if args.nap_waf_version:
             print(f"NAP WAF version: {args.nap_waf_version}")
 
-    # --- 1. Update the NIC/K8s compatibility table (nic-k8s.md include file) ---
-    # The compatibility table lives in a separate include file, not in
-    # technical-specifications.md itself.  Targeting the wrong file would corrupt
-    # the NGINX Plus images table that appears first in technical-specifications.md.
-    nic_k8s = Path(args.docs_root) / "content" / "includes" / "nic" / "compatibility-tables" / "nic-k8s.md"
-    if not nic_k8s.exists():
-        sys.exit(f"ERROR: Compatibility table file not found: {nic_k8s}")
-    try:
+    # ---- Determine current versions (for freeze) ----
+    if args.json_only:
+        current_nic = args.current_nic_version
+        current_helm = args.current_helm_version
+        current_operator = args.current_operator_version
+    else:
+        docs = Path(args.docs_root)
+        sc_dir = docs / "layouts" / "shortcodes"
+        current_nic = shortcode_ver(sc_dir / "nic-version.html")
+        current_helm = shortcode_ver(sc_dir / "nic-helm-version.html")
+        current_operator = shortcode_ver(sc_dir / "nic-operator-version.html")
+
+    # ---- Freeze if minor/major release ----
+    freeze = is_minor_or_major(args.ic_version, current_nic)
+    if freeze:
+        print(f"INFO: Minor/major release ({current_nic} -> {args.ic_version}), freezing rows")
+        freeze_compat_row(json_data, args.ic_version, current_nic, current_helm, current_operator)
+        if args.nap_waf_version:
+            freeze_nap_row(json_data, current_nic)
+    else:
+        print(f"INFO: Patch release or re-run ({current_nic} -> {args.ic_version}), updating in-place")
+
+    # ---- Normalize k8s version format (ensure spaces around dash) ----
+    if args.k8s_versions:
+        args.k8s_versions = normalize_k8s_versions(args.k8s_versions)
+
+    # ---- Update shortcode_row values ----
+    update_shortcode_row_values(
+        json_data,
+        k8s_versions=args.k8s_versions,
+        nginx_version=args.nginx_version,
+        nap_waf_version=args.nap_waf_version,
+        nap_waf_release_version=args.nap_waf_release_version,
+    )
+
+    # ---- Generate and write docs tables (full mode only) ----
+    if not args.json_only:
+        docs_root = Path(args.docs_root)
+
+        # Resolve values for shortcode row updates (overrides or JSON defaults)
+        k8s = args.k8s_versions or json_data["nic_k8s"]["shortcode_row"]["k8s_versions"]
+        nginx = args.nginx_version or json_data["nic_k8s"]["shortcode_row"]["nginx_version"]
+
+        # 1. NIC/K8s compatibility table
+        nic_k8s = docs_root / "content" / "includes" / "nic" / "compatibility-tables" / "nic-k8s.md"
+        if not nic_k8s.exists():
+            sys.exit(f"ERROR: Compatibility table file not found: {nic_k8s}")
         if args.verbose:
             print(f"Updating compatibility table in {nic_k8s}...")
-        nic_k8s.write_text(
-            update_compat_table(
-                nic_k8s.read_text(encoding="utf-8"),
-                args.k8s_versions,
-                args.nginx_version,
-                args.ic_version,
-                args.docs_root,
-            ),
-            encoding="utf-8",
-        )
+        # Extract existing shortcode row, update values, preserve formatting
+        existing_k8s_sc = extract_shortcode_row(nic_k8s)
+        updated_k8s_sc = update_compat_sc_row(existing_k8s_sc, k8s, nginx) if existing_k8s_sc else None
+        replace_table_in_file(nic_k8s, generate_compat_table_md(json_data, sc_row=updated_k8s_sc))
         print("updated", nic_k8s)
-    except Exception as e:
-        sys.exit(f"ERROR: Failed to update compatibility table: {e}")
 
-    # --- 2. Update NGINX version prose in technical-specifications.md ---
-    tech = Path(args.docs_root) / "content" / "nic" / "technical-specifications.md"
-    if not tech.exists():
-        sys.exit(f"ERROR: Technical specifications file not found: {tech}")
-    try:
+        # 2. NGINX version prose in technical-specifications.md
+        tech = docs_root / "content" / "nic" / "technical-specifications.md"
+        if not tech.exists():
+            sys.exit(f"ERROR: Technical specifications file not found: {tech}")
         if args.verbose:
             print(f"Updating NGINX version prose in {tech}...")
         tech.write_text(
-            update_nginx_prose(
-                tech.read_text(encoding="utf-8"),
-                args.nginx_version,
-            ),
+            update_nginx_prose(tech.read_text(encoding="utf-8"), nginx),
             encoding="utf-8",
         )
         print("updated", tech)
-    except Exception as e:
-        sys.exit(f"ERROR: Failed to update technical specifications prose: {e}")
 
-    # Update NAP compatibility table if WAF version provided
-    if args.nap_waf_version:
-        nap_table = Path(args.docs_root) / "content" / "includes" / "nic" / "compatibility-tables" / "nic-nap.md"
-        if not nap_table.exists():
-            print(f"WARNING: NAP compatibility table not found at {nap_table}, skipping NAP table update")
+        # 3. NAP compatibility table (if WAF version provided)
+        if args.nap_waf_version:
+            nap_table = docs_root / "content" / "includes" / "nic" / "compatibility-tables" / "nic-nap.md"
+            if not nap_table.exists():
+                print(f"WARNING: NAP compatibility table not found at {nap_table}, skipping")
+            else:
+                if args.verbose:
+                    print(f"Updating NAP compatibility table at {nap_table}...")
+                # Extract existing shortcode row, update prefix, preserve formatting
+                existing_nap_sc = extract_shortcode_row(nap_table)
+                updated_nap_sc = update_nap_sc_row(existing_nap_sc, args.nap_waf_version) if existing_nap_sc else None
+                replace_table_in_file(
+                    nap_table,
+                    generate_nap_table_md(json_data, sc_row=updated_nap_sc),
+                )
+                print("updated", nap_table)
         else:
-            print(f"INFO: Updating NAP compatibility table at {nap_table}")
-            try:
-                if update_nap_table(nap_table, args.nap_waf_version, args.ic_version, args.docs_root):
-                    print("updated", nap_table)
-                else:
-                    print("ERROR: Failed to update NAP table")
-                    sys.exit(1)
-            except Exception as e:
-                sys.exit(f"ERROR: Exception while updating NAP table: {e}")
-    else:
-        print("INFO: No NAP WAF version provided, skipping NAP table update")
+            print("INFO: No NAP WAF version provided, skipping NAP table update")
+
+    # ---- Write JSON back (if requested) ----
+    if args.update_json:
+        save_json(args.json_file, json_data)
+        print(f"updated {args.json_file}")
 
 
 if __name__ == "__main__":

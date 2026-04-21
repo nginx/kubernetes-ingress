@@ -322,8 +322,9 @@ if [ -n "${nginx_version}" ]; then
         echo "INFO: NAP compatibility table will also be updated with version: ${NAP_WAF_VERSION}"
     fi
 
-    # Run the consolidated tech specs update script
+    # Run the consolidated tech specs update script (driven by tech-specs.json)
     python3 ${ROOTDIR}/.github/scripts/tech-specs-update.py \
+        --json-file "${ROOTDIR}/.github/scripts/tech-specs.json" \
         "${ic_version}" "${k8s_versions}" "${nginx_version}" "${DOCS_FOLDER}" \
         ${NAP_WAF_VERSION:+"${NAP_WAF_VERSION}"}
 
