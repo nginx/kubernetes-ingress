@@ -77,7 +77,7 @@ def multi_regex_vsr_setup(request, kube_apis, ingress_controller_endpoint, test_
             break
         wait_before_test(2)
     else:
-        print(
+        pytest.fail(
             f"[multi_regex_vsr_setup] VS '{vs_name}' did not reach Valid state after 60 s; "
             f"last status={vs_info.get('status', {})!r}"
         )
