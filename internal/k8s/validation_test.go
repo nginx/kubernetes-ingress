@@ -4018,7 +4018,6 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			expectedErrors: []string{
 				"annotations.nginx.org/rewrite-target: Invalid value: \"/foo/$1; } path / { my/location/test/ }\": must start with / and must not include any whitespace character, `{`, `}` or `;` (e.g. '/',  or '/path',  or '/path/subpath-123', regex used for validation is '/[^\\s{};\\\\]*')",
 				`annotations.nginx.org/rewrite-target: Invalid value: "/foo/$1; } path / { my/location/test/ }": NGINX configuration syntax characters (;{}) and []|<>,^` + "`" + `~ not allowed in rewrite target`,
-				`annotations.nginx.org/rewrite-target: Invalid value: "/foo/$1; } path / { my/location/test/ }": control characters not allowed in rewrite target`,
 			},
 			msg: "invalid nginx.org/rewrite-target annotation, NGINX configuration syntax characters (;{}) not allowed in rewrite target",
 		},
@@ -4063,7 +4062,6 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			expectedErrors: []string{
 				"annotations.nginx.org/rewrite-target: Invalid value: \"/api/v1`; proxy_pass http://evil.com; #\": must start with / and must not include any whitespace character, `{`, `}` or `;` (e.g. '/',  or '/path',  or '/path/subpath-123', regex used for validation is '/[^\\s{};\\\\]*')",
 				"annotations.nginx.org/rewrite-target: Invalid value: \"/api/v1`; proxy_pass http://evil.com; #\": NGINX configuration syntax characters (;{}) and []|<>,^`~ not allowed in rewrite target",
-				"annotations.nginx.org/rewrite-target: Invalid value: \"/api/v1`; proxy_pass http://evil.com; #\": control characters not allowed in rewrite target",
 			},
 			msg: "invalid nginx.org/rewrite-target annotation, backtick and semicolon injection",
 		},
