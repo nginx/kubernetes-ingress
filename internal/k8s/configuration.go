@@ -434,6 +434,7 @@ func NewConfiguration(
 	isIPV6Disabled bool,
 	isDirectiveAutoadjustEnabled bool,
 ) *Configuration {
+	policyServiceRefs := make(map[string]string)
 	return &Configuration{
 		hosts:                        make(map[string]Resource),
 		listenerHosts:                make(map[listenerHostKey]*TransportServerConfiguration),
@@ -447,8 +448,8 @@ func NewConfiguration(
 		globalConfigurationValidator: globalConfigurationValidator,
 		transportServerValidator:     transportServerValidator,
 		secretReferenceChecker:       newSecretReferenceChecker(isPlus),
-		serviceReferenceChecker:      newServiceReferenceChecker(false),
-		endpointReferenceChecker:     newServiceReferenceChecker(true),
+		serviceReferenceChecker:      newServiceReferenceChecker(false, policyServiceRefs),
+		endpointReferenceChecker:     newServiceReferenceChecker(true, policyServiceRefs),
 		policyReferenceChecker:       newPolicyReferenceChecker(),
 		appPolicyReferenceChecker:    newAppProtectResourceReferenceChecker(configs.AppProtectPolicyAnnotation),
 		appLogConfReferenceChecker:   newAppProtectResourceReferenceChecker(configs.AppProtectLogConfAnnotation),
@@ -958,6 +959,34 @@ func (c *Configuration) FindResourcesForService(svcNamespace string, svcName str
 	return c.findResourcesForResourceReference(svcNamespace, svcName, c.serviceReferenceChecker)
 }
 
+// IsServiceReferencedByVirtualServer checks if the specified service is referenced by the VirtualServer.
+func (c *Configuration) IsServiceReferencedByVirtualServer(svcNamespace, svcName string, vs *conf_v1.VirtualServer) bool {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.serviceReferenceChecker.IsReferencedByVirtualServer(svcNamespace, svcName, vs)
+}
+
+// IsServiceReferencedByVirtualServerRoute checks if the specified service is referenced by the VirtualServerRoute.
+func (c *Configuration) IsServiceReferencedByVirtualServerRoute(svcNamespace, svcName string, vsr *conf_v1.VirtualServerRoute) bool {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.serviceReferenceChecker.IsReferencedByVirtualServerRoute(svcNamespace, svcName, vsr)
+}
+
+// IsServiceReferencedByIngress checks if the specified service is referenced by the Ingress.
+func (c *Configuration) IsServiceReferencedByIngress(svcNamespace, svcName string, ing *networking.Ingress) bool {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.serviceReferenceChecker.IsReferencedByIngress(svcNamespace, svcName, ing)
+}
+
+// IsServiceReferencedByMinion checks if the specified service is referenced by the minion Ingress.
+func (c *Configuration) IsServiceReferencedByMinion(svcNamespace, svcName string, ing *networking.Ingress) bool {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.serviceReferenceChecker.IsReferencedByMinion(svcNamespace, svcName, ing)
+}
+
 // FindResourcesForEndpoints finds resources that reference the specified endpoints.
 func (c *Configuration) FindResourcesForEndpoints(endpointsNamespace string, endpointsName string) []Resource {
 	// Resources reference not endpoints but the corresponding service, which has the same namespace and name
@@ -972,6 +1001,22 @@ func (c *Configuration) FindResourcesForSecret(secretNamespace string, secretNam
 // FindResourcesForPolicy finds resources that reference the specified policy.
 func (c *Configuration) FindResourcesForPolicy(policyNamespace string, policyName string) []Resource {
 	return c.findResourcesForResourceReference(policyNamespace, policyName, c.policyReferenceChecker)
+}
+
+// UpdatePolicyServiceRef tracks an external auth service reference for a policy.
+// This allows service/endpoint changes to be correlated back to VirtualServers
+// that reference the auth service via the policy.
+func (c *Configuration) UpdatePolicyServiceRef(policyNamespace, policyName, authServiceName string) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.serviceReferenceChecker.policyServices[policyNamespace+"/"+policyName] = authServiceName
+}
+
+// DeletePolicyServiceRef removes the external auth service reference tracking for a policy.
+func (c *Configuration) DeletePolicyServiceRef(policyNamespace, policyName string) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	delete(c.serviceReferenceChecker.policyServices, policyNamespace+"/"+policyName)
 }
 
 // FindResourcesForAppProtectPolicyAnnotation finds resources that reference the specified AppProtect policy via annotation.

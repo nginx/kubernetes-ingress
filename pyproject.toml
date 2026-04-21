@@ -53,6 +53,8 @@ markers = [
     "oidc",
     "otel",
     "policies",
+    "policies_external_auth",
+    "policies_external_auth_tls",
     "policies_rl",
     "policies_rl_vs",
     "policies_rl_vsr",
