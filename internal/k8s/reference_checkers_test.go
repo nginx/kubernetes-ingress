@@ -1027,7 +1027,7 @@ func TestBackupServiceIsReferencedByVirtualServerRoute(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		rc := newServiceReferenceChecker(test.checkerHasClusterIP)
+		rc := newServiceReferenceChecker(test.checkerHasClusterIP, nil)
 
 		result := rc.IsReferencedByVirtualServerRoute(test.serviceNamespace, test.serviceName, test.vsr)
 		if result != test.expected {
