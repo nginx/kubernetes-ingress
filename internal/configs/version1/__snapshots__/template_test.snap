@@ -670,9 +670,10 @@ mgmt {
 server {
     listen 8083 default_server;listen [::]:8083 default_server;
     listen 8443 ssl default_server;listen [::]:8443 ssl default_server;
-    ssl_reject_handshake on;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
 
-    server_tokens "on";
+    server_tokens "off";
     server_name _;
 
     
@@ -692,9 +693,10 @@ server {
 server {
     listen 8083 default_server;listen [::]:8083 default_server;
     listen 443 ssl default_server;listen [::]:443 ssl default_server;
-    ssl_reject_handshake on;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
 
-    server_tokens "on";
+    server_tokens "off";
     server_name _;
 
     
@@ -714,9 +716,10 @@ server {
 server {
     listen 80 default_server;listen [::]:80 default_server;
     listen 8443 ssl default_server;listen [::]:8443 ssl default_server;
-    ssl_reject_handshake on;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
 
-    server_tokens "on";
+    server_tokens "off";
     server_name _;
 
     
@@ -736,9 +739,10 @@ server {
 server {
     listen 80 default_server;listen [::]:80 default_server;
     listen 443 ssl default_server;listen [::]:443 ssl default_server;
-    ssl_reject_handshake on;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
 
-    server_tokens "on";
+    server_tokens "off";
     server_name _;
 
     
@@ -759,9 +763,10 @@ server {
     listen 80 default_server;listen [::]:80 default_server;
     listen 443 ssl default_server;listen [::]:443 ssl default_server;
     http2 on;
-    ssl_reject_handshake on;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
 
-    server_tokens "";
+    server_tokens "off";
     server_name _;
 
     
@@ -781,9 +786,10 @@ server {
 server {
     listen 80 default_server;listen [::]:80 default_server;
     listen 443 ssl default_server;listen [::]:443 ssl default_server;
-    ssl_reject_handshake on;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
 
-    server_tokens "on";
+    server_tokens "off";
     server_name _;
 
     
@@ -803,9 +809,10 @@ server {
 server {
     listen 8083 default_server;listen [::]:8083 default_server;
     listen 8443 ssl default_server;listen [::]:8443 ssl default_server;
-    ssl_reject_handshake on;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
 
-    server_tokens on;
+    server_tokens off;
     server_name _;
     location / {
         return 404;
@@ -821,9 +828,10 @@ server {
 server {
     listen 8083 default_server;listen [::]:8083 default_server;
     listen 443 ssl default_server;listen [::]:443 ssl default_server;
-    ssl_reject_handshake on;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
 
-    server_tokens on;
+    server_tokens off;
     server_name _;
     location / {
         return 404;
@@ -839,9 +847,10 @@ server {
 server {
     listen 80 default_server;listen [::]:80 default_server;
     listen 8443 ssl default_server;listen [::]:8443 ssl default_server;
-    ssl_reject_handshake on;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
 
-    server_tokens on;
+    server_tokens off;
     server_name _;
     location / {
         return 404;
@@ -857,9 +866,10 @@ server {
 server {
     listen 80 default_server;listen [::]:80 default_server;
     listen 443 ssl default_server;listen [::]:443 ssl default_server;
-    ssl_reject_handshake on;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
 
-    server_tokens on;
+    server_tokens off;
     server_name _;
     location / {
         return 404;
@@ -876,9 +886,10 @@ server {
     listen 80 default_server;listen [::]:80 default_server;
     listen 443 ssl default_server;listen [::]:443 ssl default_server;
     http2 on;
-    ssl_reject_handshake on;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
 
-    server_tokens ;
+    server_tokens off;
     server_name _;
     location / {
         return 404;
@@ -894,9 +905,10 @@ server {
 server {
     listen 80 default_server;listen [::]:80 default_server;
     listen 443 ssl default_server;listen [::]:443 ssl default_server;
-    ssl_reject_handshake on;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
 
-    server_tokens on;
+    server_tokens off;
     server_name _;
     location / {
         return 404;

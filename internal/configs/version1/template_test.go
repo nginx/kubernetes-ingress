@@ -3657,12 +3657,11 @@ var (
 			SSL:                 true,
 			SSLCertificate:      "/etc/nginx/secrets/default",
 			SSLCertificateKey:   "/etc/nginx/secrets/default",
-			SSLRejectHandshake:  true,
-			ServerTokens:        "on",
+			ServerTokens:        "off",
 			DefaultServerReturn: "404",
 		}},
 		DynamicSSLReloadEnabled: true,
-		StaticSSLPath:           "/etc/nginx/secrets",
+		StaticSSLPath:           fakeManager.GetSecretsDir(),
 	}
 
 	ingressCfgDefaultServerHTTP2On = IngressNginxConfig{
@@ -3673,12 +3672,12 @@ var (
 			SSL:                 true,
 			SSLCertificate:      "/etc/nginx/secrets/default",
 			SSLCertificateKey:   "/etc/nginx/secrets/default",
-			SSLRejectHandshake:  true,
 			HTTP2:               true,
+			ServerTokens:        "off",
 			DefaultServerReturn: "404",
 		}},
 		DynamicSSLReloadEnabled: true,
-		StaticSSLPath:           "/etc/nginx/secrets",
+		StaticSSLPath:           fakeManager.GetSecretsDir(),
 	}
 
 	ingressCfgDefaultServerCustomHTTPAndHTTPSListenerPorts = IngressNginxConfig{
@@ -3689,12 +3688,11 @@ var (
 			SSL:                 true,
 			SSLCertificate:      "/etc/nginx/secrets/default",
 			SSLCertificateKey:   "/etc/nginx/secrets/default",
-			SSLRejectHandshake:  true,
-			ServerTokens:        "on",
+			ServerTokens:        "off",
 			DefaultServerReturn: "404",
 		}},
 		DynamicSSLReloadEnabled: true,
-		StaticSSLPath:           "/etc/nginx/secrets",
+		StaticSSLPath:           fakeManager.GetSecretsDir(),
 	}
 
 	ingressCfgDefaultServerCustomHTTPListenerPort = IngressNginxConfig{
@@ -3705,12 +3703,11 @@ var (
 			SSL:                 true,
 			SSLCertificate:      "/etc/nginx/secrets/default",
 			SSLCertificateKey:   "/etc/nginx/secrets/default",
-			SSLRejectHandshake:  true,
-			ServerTokens:        "on",
+			ServerTokens:        "off",
 			DefaultServerReturn: "404",
 		}},
 		DynamicSSLReloadEnabled: true,
-		StaticSSLPath:           "/etc/nginx/secrets",
+		StaticSSLPath:           fakeManager.GetSecretsDir(),
 	}
 
 	ingressCfgDefaultServerCustomHTTPSListenerPort = IngressNginxConfig{
@@ -3721,8 +3718,7 @@ var (
 			SSL:                 true,
 			SSLCertificate:      "/etc/nginx/secrets/default",
 			SSLCertificateKey:   "/etc/nginx/secrets/default",
-			SSLRejectHandshake:  true,
-			ServerTokens:        "on",
+			ServerTokens:        "off",
 			DefaultServerReturn: "404",
 		}},
 		DynamicSSLReloadEnabled: true,
