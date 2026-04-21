@@ -2030,6 +2030,14 @@ def get_last_reload_status(req_url, ingress_class) -> str:
     return parse_metric_data(resp_content, metric_string)
 
 
+def get_config_version(v1: CoreV1Api, pod_name, namespace) -> int:
+    # return current config-version value from config-version.conf
+    conf = get_file_contents(v1, "/etc/nginx/config-version.conf", pod_name, namespace)
+    match = re.search(r"return 200 (\d+);", conf)
+    assert match, f"Could not parse configVersion from config-version.conf:\n{conf}"
+    return int(match.group(1))
+
+
 def get_reload_count(req_url) -> int:
     print(req_url)
     ensure_connection(req_url, 200)
