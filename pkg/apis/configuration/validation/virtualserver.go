@@ -1600,10 +1600,6 @@ func validateVirtualServerRouteHost(host string, virtualServerHost string, field
 	return allErrs
 }
 
-func isRegexOrExactMatch(path string) bool {
-	return strings.HasPrefix(path, "~") || strings.HasPrefix(path, "=")
-}
-
 func (vsv *VirtualServerValidator) validateVirtualServerRouteSubroutes(routes []v1.Route, fieldPath *field.Path, upstreamNames sets.Set[string], vsPaths []string, namespace string) field.ErrorList {
 	if len(vsPaths) == 0 {
 		return vsv.validateSubroutesStandalone(routes, fieldPath, upstreamNames, namespace)

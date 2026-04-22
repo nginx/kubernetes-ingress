@@ -3910,37 +3910,6 @@ func TestValidateRedirectStatusCodeFails(t *testing.T) {
 	}
 }
 
-func TestIsRegexOrExactMatch(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		path     string
-		expected bool
-	}{
-		{
-			path:     "/path",
-			expected: false,
-		},
-		{
-			path:     "~ .*\\.jpg",
-			expected: true,
-		},
-		{
-			path:     "=/exact/match",
-			expected: true,
-		},
-		{
-			path:     "^~/images",
-			expected: false,
-		},
-	}
-
-	for _, test := range tests {
-		result := isRegexOrExactMatch(test.path)
-		if result != test.expected {
-			t.Errorf("isRegexOrExactMatch(%v) returned %v but expected %v", test.path, result, test.expected)
-		}
-	}
-}
 
 func TestValidateEscapedStringWithVariables(t *testing.T) {
 	t.Parallel()
