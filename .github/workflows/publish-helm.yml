@@ -15,6 +15,10 @@ on:
         description: "Helm Chart version"
         required: true
         type: string
+      chart_name:
+        description: "Helm Chart name (default: nginx-ingress)"
+        default: "nginx-ingress"
+        type: string
       nginx_helm_repo:
         description: "Publish to the NGINX Helm repo"
         required: true
@@ -36,6 +40,10 @@ on:
       chart_version:
         description: "Helm Chart version"
         required: true
+        type: string
+      chart_name:
+        description: "Helm Chart name (default: nginx-ingress)"
+        default: "nginx-ingress"
         type: string
       nginx_helm_repo:
         description: "Publish to the NGINX Helm repo"
@@ -115,6 +123,8 @@ jobs:
         id: package
         run: |
           helm_versions="--app-version ${{ inputs.ic_version }} --version ${{ inputs.chart_version }}"
+          chart_name="${{ inputs.chart_name }}"
+          yq -i ".name = \"${chart_name}\"" kic/charts/nginx-ingress/Chart.yaml
           output=$(helm package ${helm_versions} kic/charts/nginx-ingress)
           echo "path=$(basename -- $(echo $output | cut -d: -f2))" >> $GITHUB_OUTPUT
 

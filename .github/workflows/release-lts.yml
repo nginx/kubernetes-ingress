@@ -193,10 +193,9 @@ jobs:
       branch: ${{ inputs.release_branch }}
       ic_version: ${{ inputs.lts_version }}
       chart_version: ${{ inputs.chart_version }}
-      nginx_helm_repo: true # disable automatic repo update until nginx-bot issue is resolved, manually update repo
-      runner: "ubuntu-24.04-amd64"
+      chart_name: "nginx-ingress-lts"
+      nginx_helm_repo: false # we don't want to publish to the nginx helm repo for LTS releases, but we want to run the workflow to publish to GHCR & DockerHub      runner: "ubuntu-24.04-amd64"
     permissions:
-      contents: write # for pushing to Helm Charts repository
       packages: write # for helm to push to GHCR
       id-token: write
     secrets: inherit
