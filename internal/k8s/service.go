@@ -269,5 +269,6 @@ func (lbc *LoadBalancerController) syncService(task task) {
 	resourceExes := lbc.createExtendedResources(resources)
 
 	warnings, updateErr := lbc.configurator.AddOrUpdateResources(resourceExes, true)
-	lbc.updateResourcesStatusAndEvents(resources, warnings, updateErr)
+	resourcesWithWarnings := mergeExtendedResourceWarnings(resources, resourceExes)
+	lbc.updateResourcesStatusAndEvents(resourcesWithWarnings, warnings, updateErr)
 }

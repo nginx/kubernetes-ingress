@@ -1117,6 +1117,9 @@ def create_example_app(kube_apis, app_type, namespace) -> None:
     :return:
     """
     if app_type in ["secure", "secure-ca"]:
+        secret_name = "app-tls-secret"
+        if is_secret_present(kube_apis.v1, secret_name, namespace):
+            delete_secret(kube_apis.v1, secret_name, namespace)
         create_secret_from_yaml(kube_apis.v1, namespace, f"{TEST_DATA}/common/app/{app_type}/app-tls-secret.yaml")
     create_items_from_yaml(kube_apis, f"{TEST_DATA}/common/app/{app_type}/app.yaml", namespace)
 
@@ -1131,6 +1134,8 @@ def delete_common_app(kube_apis, app_type, namespace) -> None:
     :return:
     """
     delete_items_from_yaml(kube_apis, f"{TEST_DATA}/common/app/{app_type}/app.yaml", namespace)
+    if app_type in ["secure", "secure-ca"] and is_secret_present(kube_apis.v1, "app-tls-secret", namespace):
+        delete_secret(kube_apis.v1, "app-tls-secret", namespace)
 
 
 def delete_service(v1: CoreV1Api, name, namespace) -> None:
@@ -1802,6 +1807,30 @@ def get_events_for_object(v1: CoreV1Api, namespace, object_name) -> []:
     print(f"Get the events for {object_name} in the namespace: {namespace}")
     events = v1.list_namespaced_event(namespace)
     return [event for event in events.items if event.involved_object.name == object_name]
+
+
+def print_events(events, detail=False) -> None:
+    """
+    Print each event on a newline with Kind, Controller, Namespace, Name, and Reason/Note.
+
+    :param events: list of V1Event objects
+    :param detail: boolean flag to print detailed information
+    """
+    print("========= Events ==========")
+    for event in events:
+        kind = event.involved_object.kind or ""
+        namespace = event.involved_object.namespace or ""
+        name = event.involved_object.name or ""
+        if detail:
+            controller = ""
+            if event.source and event.source.component:
+                controller = event.source.component
+        reason = event.reason or ""
+        note = event.message or ""
+        if detail:
+            print(f"EVENT: Kind={kind}  Controller={controller}  Name={namespace}/{name}  Reason={reason}  Note={note}")
+        else:
+            print(f"EVENT: Kind={kind}  Name={namespace}/{name}  Reason={reason}  Note={note}")
 
 
 def get_events(v1: CoreV1Api, namespace) -> []:

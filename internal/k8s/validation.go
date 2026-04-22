@@ -10,7 +10,7 @@ import (
 
 	"github.com/dlclark/regexp2"
 	"github.com/nginx/kubernetes-ingress/internal/configs"
-	ap_validation "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
+	common_validation "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
 	networking "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -460,32 +460,20 @@ func validateAppRootAnnotation(context *annotationValidationContext) field.Error
 
 	path := context.value
 
-	// App root must start with /
-	if !strings.HasPrefix(path, "/") {
-		allErrs = append(allErrs, field.Invalid(context.fieldPath, path, "must start with '/'"))
-		return allErrs
-	}
-
 	// App root cannot be just "/"
 	if path == "/" {
 		allErrs = append(allErrs, field.Invalid(context.fieldPath, path, "cannot be '/'"))
-		return allErrs
 	}
 
-	// Prevent protocol-relative URLs (//)
-	if strings.HasPrefix(path, "//") {
-		return field.ErrorList{field.Invalid(context.fieldPath, path, "protocol-relative URLs not allowed")}
-	}
-
-	// Prevent path traversal patterns
-	if strings.Contains(path, "../") || strings.Contains(path, "..\\") {
-		return field.ErrorList{field.Invalid(context.fieldPath, path, "path traversal patterns not allowed")}
+	// Prevent protocol-relative URLs (//) & path traversal patterns.
+	// Also enforces that the path starts with /, so no separate check is needed.
+	if pathErrs := common_validation.ValidatePath(path, context.fieldPath); pathErrs != nil {
+		allErrs = append(allErrs, pathErrs...)
 	}
 
 	// Prevents invalid config characters
 	if !validateRFC1738Path(path) {
 		allErrs = append(allErrs, field.Invalid(context.fieldPath, path, "path must not contain the following characters: whitespace, '{', '}', ';', '$', '|', '^', '<', '>', '\\', '\"', '#', '[', ']'"))
-		return allErrs
 	}
 
 	// Prevent tilde character
@@ -496,7 +484,6 @@ func validateAppRootAnnotation(context *annotationValidationContext) field.Error
 	// Ensure path doesn't end with /
 	if strings.HasSuffix(path, "/") {
 		allErrs = append(allErrs, field.Invalid(context.fieldPath, path, "path should not end with '/'"))
-		return allErrs
 	}
 
 	return allErrs
@@ -860,7 +847,7 @@ func validateOffsetAnnotation(context *annotationValidationContext) field.ErrorL
 }
 
 func validateSizeAnnotation(context *annotationValidationContext) field.ErrorList {
-	return ap_validation.ValidateSize(context.value, context.fieldPath)
+	return common_validation.ValidateSize(context.value, context.fieldPath)
 }
 
 func validateProxyBuffersAnnotation(context *annotationValidationContext) field.ErrorList {
@@ -947,39 +934,33 @@ func validateRewriteListAnnotation(context *annotationValidationContext) field.E
 func validateRewriteTargetAnnotation(context *annotationValidationContext) field.ErrorList {
 	target := context.value
 
+	allErrs := field.ErrorList{}
+
 	// Prevent absolute URLs (http://, https://)
 	if strings.HasPrefix(target, "http://") || strings.HasPrefix(target, "https://") {
-		return field.ErrorList{field.Invalid(context.fieldPath, target, "absolute URLs not allowed in rewrite target")}
+		allErrs = append(allErrs, field.Invalid(context.fieldPath, target, "absolute URLs not allowed in rewrite target"))
 	}
 
-	// Prevent protocol-relative URLs (//)
-	if strings.HasPrefix(target, "//") {
-		return field.ErrorList{field.Invalid(context.fieldPath, target, "protocol-relative URLs not allowed in rewrite target")}
-	}
-
-	// Prevent path traversal patterns
-	if strings.Contains(target, "../") || strings.Contains(target, "..\\") {
-		return field.ErrorList{field.Invalid(context.fieldPath, target, "path traversal patterns not allowed in rewrite target")}
-	}
-
-	// Must start with / (relative path)
-	if !strings.HasPrefix(target, "/") {
-		return field.ErrorList{field.Invalid(context.fieldPath, target, "rewrite target must start with /")}
+	// Prevent protocol-relative URLs (//) & path traversal patterns.
+	// Also enforces that the path starts with /, so no separate check is needed.
+	if pathErrs := common_validation.ValidatePath(target, context.fieldPath); pathErrs != nil {
+		allErrs = append(allErrs, pathErrs...)
 	}
 
 	// Prevent NGINX configuration injection characters
 	if strings.ContainsAny(target, ";{}[]|<>,^`~") {
-		return field.ErrorList{field.Invalid(context.fieldPath, target, "NGINX configuration syntax characters (;{}) and []|<>,^`~ not allowed in rewrite target")}
+		allErrs = append(allErrs, field.Invalid(context.fieldPath, target, "NGINX configuration syntax characters (;{}) and []|<>,^`~ not allowed in rewrite target"))
 	}
 
-	// Prevent control characters and line breaks that could break NGINX config
-	for _, char := range target {
-		if char <= 32 || char == 127 { // ASCII control characters; 127 is DEL, 32 is space
-			return field.ErrorList{field.Invalid(context.fieldPath, target, "control characters not allowed in rewrite target")}
-		}
+	// Prevent ASCII control characters (< 32) and DEL (127) that could break NGINX config.
+	// Whitespace is already rejected by ValidatePath above.
+	if strings.IndexFunc(target, func(r rune) bool {
+		return r < 32 || r == 127
+	}) != -1 {
+		allErrs = append(allErrs, field.Invalid(context.fieldPath, target, "control characters not allowed in rewrite target"))
 	}
 
-	return nil
+	return allErrs
 }
 
 func validateAppProtectSecurityLogAnnotation(context *annotationValidationContext) field.ErrorList {
@@ -998,7 +979,7 @@ func validateAppProtectSecurityLogDestAnnotation(context *annotationValidationCo
 	allErrs := field.ErrorList{}
 	logDsts := strings.Split(context.value, ",")
 	for _, logDst := range logDsts {
-		err := ap_validation.ValidateAppProtectLogDestination(logDst)
+		err := common_validation.ValidateAppProtectLogDestination(logDst)
 		if err != nil {
 			errorMsg := fmt.Sprintf("Error Validating App Protect Log Destination Config: %v", err)
 			allErrs = append(allErrs, field.Invalid(context.fieldPath, context.value, errorMsg))
@@ -1124,6 +1105,22 @@ func validatePath(path string, pathType *networking.PathType, fieldPath *field.P
 
 	if path == "" {
 		return field.ErrorList{field.Required(fieldPath, "path is required for Exact and Prefix PathTypes")}
+	}
+
+	// Prevent protocol-relative URLs
+	if strings.HasPrefix(path, "//") {
+		return field.ErrorList{field.Invalid(fieldPath, path, "protocol-relative URIs not allowed, must not start with '//'")}
+	}
+
+	// Reject any path segment equal to ".." to prevent directory traversal,
+	// including trailing forms like "/.." and "/a/.." (no trailing slash required).
+	// Splitting on both "/" and "\\" also catches Windows-style segments.
+	for _, segment := range strings.FieldsFunc(path, func(r rune) bool {
+		return r == '/' || r == '\\'
+	}) {
+		if segment == ".." {
+			return field.ErrorList{field.Invalid(fieldPath, path, "path traversal not allowed, path must not contain '..' segments")}
+		}
 	}
 
 	if !pathRegexp.MatchString(path) {
