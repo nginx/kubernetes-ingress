@@ -6431,15 +6431,6 @@ func TestBuildVirtualServerRoutesRegexSelector(t *testing.T) {
 		vsName    = "myvs"
 	)
 
-	makeReturn := func(path string) conf_v1.Route {
-		return conf_v1.Route{
-			Path: path,
-			Action: &conf_v1.Action{
-				Return: &conf_v1.ActionReturn{Body: "ok"},
-			},
-		}
-	}
-
 	// --- Scenario 1: regex routeSelector, no explicit regex route ---
 	// The VSR is matched purely by label selector on a regex VS path.
 	// Expected: 1 VSR returned, no warnings.
@@ -6502,7 +6493,6 @@ func TestBuildVirtualServerRoutesRegexSelector(t *testing.T) {
 				Route: namespace + "/regex-vsr",
 			},
 		})
-		_ = makeReturn // suppress unused warning
 
 		cfg := createTestConfiguration()
 		cfg.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{
