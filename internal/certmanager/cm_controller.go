@@ -110,7 +110,7 @@ func BuildOpts(ctx context.Context, kc *rest.Config, cl kubernetes.Interface, ns
 	}
 }
 
-func (c *CmController) newNamespacedInformer(ns string) *namespacedInformer {
+func (c *CmController) newNamespacedInformer(ns string) (*namespacedInformer, error) {
 	nsi := &namespacedInformer{}
 	nsi.stopCh = make(chan struct{})
 	nsi.cmSharedInformerFactory = cm_informers.NewSharedInformerFactoryWithOptions(c.cmClient, resyncPeriod, cm_informers.WithNamespace(ns))
@@ -118,13 +118,11 @@ func (c *CmController) newNamespacedInformer(ns string) *namespacedInformer {
 	nsi.vsSharedInformerFactory = vsinformers.NewSharedInformerFactoryWithOptions(c.vsClient, resyncPeriod, vsinformers.WithNamespace(ns))
 
 	if err := c.addHandlers(nsi); err != nil {
-		// Log error but continue - this is better than crashing the entire controller
-		l := nl.LoggerFromContext(c.ctx)
-		nl.Warn(l, "Failed to add event handlers for namespace", "namespace", ns, "error", err)
+		return nil, fmt.Errorf("failed to add event handlers for namespace %s: %w", ns, err)
 	}
 
 	c.informerGroup[ns] = nsi
-	return nsi
+	return nsi, nil
 }
 
 func (c *CmController) addHandlers(nsi *namespacedInformer) error {
@@ -213,9 +211,12 @@ func certificateHandler(queue workqueue.TypedRateLimitingInterface[types.Namespa
 }
 
 // NewCmController creates a new CmController
-func NewCmController(opts *CmOpts) *CmController {
+func NewCmController(opts *CmOpts) (*CmController, error) {
 	// Create a cert-manager api client
-	intcl, _ := cm_clientset.NewForConfig(opts.kubeConfig)
+	intcl, err := cm_clientset.NewForConfig(opts.kubeConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cert-manager client: %w", err)
+	}
 
 	ig := make(map[string]*namespacedInformer)
 
@@ -234,11 +235,13 @@ func NewCmController(opts *CmOpts) *CmController {
 			// no initial namespaces with watched label - skip creating informers for now
 			break
 		}
-		cm.newNamespacedInformer(ns)
+		if _, err := cm.newNamespacedInformer(ns); err != nil {
+			return nil, fmt.Errorf("failed to create cert-manager namespaced informer for namespace %s: %w", ns, err)
+		}
 	}
 
 	cm.register()
-	return cm
+	return cm, nil
 }
 
 // Run will set up the event handlers for types we are interested in, as well
@@ -321,7 +324,12 @@ func (c *CmController) AddNewNamespacedInformer(ns string) {
 	nl.Debugf(l, "Adding or Updating cert-manager Watchers for Namespace: %v", ns)
 	nsi := getNamespacedInformer(ns, c.informerGroup)
 	if nsi == nil {
-		nsi = c.newNamespacedInformer(ns)
+		var err error
+		nsi, err = c.newNamespacedInformer(ns)
+		if err != nil {
+			nl.Errorf(l, "Failed to create cert-manager namespaced informer for namespace %s: %v", ns, err)
+			return
+		}
 		nsi.start()
 	}
 	if !cache.WaitForCacheSync(nsi.stopCh, nsi.mustSync...) {

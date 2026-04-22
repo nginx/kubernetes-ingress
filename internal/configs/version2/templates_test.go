@@ -18,7 +18,7 @@ func TestMain(m *testing.M) {
 	_, err := snaps.Clean(m, snaps.CleanOpts{Sort: true})
 	if err != nil {
 		// Log but don't fail - this is cleanup
-		fmt.Fprintf(os.Stderr, "Warning: failed to clean snapshots: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Warning: failed to clean snapshots: %v\n", err)
 	}
 
 	os.Exit(v)

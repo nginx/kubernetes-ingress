@@ -314,11 +314,19 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 	}
 
 	if input.CertManagerEnabled {
-		lbc.certManagerController = cm_controller.NewCmController(cm_controller.BuildOpts(input.LoggerContext, lbc.restConfig, lbc.client, lbc.namespaceList, lbc.recorder, lbc.confClient, isDynamicNs))
+		var cmErr error
+		lbc.certManagerController, cmErr = cm_controller.NewCmController(cm_controller.BuildOpts(input.LoggerContext, lbc.restConfig, lbc.client, lbc.namespaceList, lbc.recorder, lbc.confClient, isDynamicNs))
+		if cmErr != nil {
+			nl.Fatalf(lbc.Logger, "Failed to create cert-manager controller: %v", cmErr)
+		}
 	}
 
 	if input.ExternalDNSEnabled {
-		lbc.externalDNSController = ed_controller.NewController(ed_controller.BuildOpts(input.LoggerContext, lbc.namespaceList, lbc.recorder, lbc.confClient, input.ResyncPeriod, isDynamicNs))
+		var edErr error
+		lbc.externalDNSController, edErr = ed_controller.NewController(ed_controller.BuildOpts(input.LoggerContext, lbc.namespaceList, lbc.recorder, lbc.confClient, input.ResyncPeriod, isDynamicNs))
+		if edErr != nil {
+			nl.Fatalf(lbc.Logger, "Failed to create external-dns controller: %v", edErr)
+		}
 	}
 
 	nl.Debugf(lbc.Logger, "Nginx Ingress Controller has class: %v", input.IngressClass)
@@ -527,56 +535,74 @@ func (lbc *LoadBalancerController) newNamespacedInformer(ns string) (*namespaced
 		}
 	}
 
-	if lbc.areCustomResourcesEnabled {
-		nsi.areCustomResourcesEnabled = true
-		nsi.confSharedInformerFactory = k8s_nginx_informers.NewSharedInformerFactoryWithOptions(lbc.confClient, lbc.resync, k8s_nginx_informers.WithNamespace(ns))
-
-		if err := nsi.addVirtualServerHandler(createVirtualServerHandlers(lbc)); err != nil {
-			return nil, fmt.Errorf("failed to add virtual server handler for namespace %s: %w", ns, err)
-		}
-		if err := nsi.addVirtualServerRouteHandler(createVirtualServerRouteHandlers(lbc)); err != nil {
-			return nil, fmt.Errorf("failed to add virtual server route handler for namespace %s: %w", ns, err)
-		}
-		if err := nsi.addTransportServerHandler(createTransportServerHandlers(lbc)); err != nil {
-			return nil, fmt.Errorf("failed to add transport server handler for namespace %s: %w", ns, err)
-		}
-		if err := nsi.addPolicyHandler(createPolicyHandlers(lbc)); err != nil {
-			return nil, fmt.Errorf("failed to add policy handler for namespace %s: %w", ns, err)
-		}
-
+	if err := lbc.addCustomResourceHandlers(nsi, ns); err != nil {
+		return nil, err
 	}
 
-	if lbc.appProtectEnabled || lbc.appProtectDosEnabled {
-		nsi.dynInformerFactory = dynamicinformer.NewFilteredDynamicSharedInformerFactory(lbc.dynClient, 0, ns, nil)
-		if lbc.appProtectEnabled {
-			nsi.appProtectEnabled = true
-			if err := nsi.addAppProtectPolicyHandler(createAppProtectPolicyHandlers(lbc)); err != nil {
-				return nil, fmt.Errorf("failed to add app protect policy handler for namespace %s: %w", ns, err)
-			}
-			if err := nsi.addAppProtectLogConfHandler(createAppProtectLogConfHandlers(lbc)); err != nil {
-				return nil, fmt.Errorf("failed to add app protect log conf handler for namespace %s: %w", ns, err)
-			}
-			if err := nsi.addAppProtectUserSigHandler(createAppProtectUserSigHandlers(lbc)); err != nil {
-				return nil, fmt.Errorf("failed to add app protect user sig handler for namespace %s: %w", ns, err)
-			}
-		}
-
-		if lbc.appProtectDosEnabled {
-			nsi.appProtectDosEnabled = true
-			if err := nsi.addAppProtectDosPolicyHandler(createAppProtectDosPolicyHandlers(lbc)); err != nil {
-				return nil, fmt.Errorf("failed to add app protect dos policy handler for namespace %s: %w", ns, err)
-			}
-			if err := nsi.addAppProtectDosLogConfHandler(createAppProtectDosLogConfHandlers(lbc)); err != nil {
-				return nil, fmt.Errorf("failed to add app protect dos log conf handler for namespace %s: %w", ns, err)
-			}
-			if err := nsi.addAppProtectDosProtectedResourceHandler(createAppProtectDosProtectedResourceHandlers(lbc)); err != nil {
-				return nil, fmt.Errorf("failed to add app protect dos protected resource handler for namespace %s: %w", ns, err)
-			}
-		}
+	if err := lbc.addAppProtectHandlers(nsi, ns); err != nil {
+		return nil, err
 	}
 
 	lbc.namespacedInformers[ns] = nsi
 	return nsi, nil
+}
+
+// addCustomResourceHandlers sets up informers and event handlers for custom resources (VirtualServer,
+// VirtualServerRoute, TransportServer, Policy) when custom resources are enabled.
+func (lbc *LoadBalancerController) addCustomResourceHandlers(nsi *namespacedInformer, ns string) error {
+	if !lbc.areCustomResourcesEnabled {
+		return nil
+	}
+	nsi.areCustomResourcesEnabled = true
+	nsi.confSharedInformerFactory = k8s_nginx_informers.NewSharedInformerFactoryWithOptions(lbc.confClient, lbc.resync, k8s_nginx_informers.WithNamespace(ns))
+
+	if err := nsi.addVirtualServerHandler(createVirtualServerHandlers(lbc)); err != nil {
+		return fmt.Errorf("failed to add virtual server handler for namespace %s: %w", ns, err)
+	}
+	if err := nsi.addVirtualServerRouteHandler(createVirtualServerRouteHandlers(lbc)); err != nil {
+		return fmt.Errorf("failed to add virtual server route handler for namespace %s: %w", ns, err)
+	}
+	if err := nsi.addTransportServerHandler(createTransportServerHandlers(lbc)); err != nil {
+		return fmt.Errorf("failed to add transport server handler for namespace %s: %w", ns, err)
+	}
+	if err := nsi.addPolicyHandler(createPolicyHandlers(lbc)); err != nil {
+		return fmt.Errorf("failed to add policy handler for namespace %s: %w", ns, err)
+	}
+	return nil
+}
+
+// addAppProtectHandlers sets up informers and event handlers for App Protect and App Protect DoS
+// when the respective features are enabled.
+func (lbc *LoadBalancerController) addAppProtectHandlers(nsi *namespacedInformer, ns string) error {
+	if !lbc.appProtectEnabled && !lbc.appProtectDosEnabled {
+		return nil
+	}
+	nsi.dynInformerFactory = dynamicinformer.NewFilteredDynamicSharedInformerFactory(lbc.dynClient, 0, ns, nil)
+	if lbc.appProtectEnabled {
+		nsi.appProtectEnabled = true
+		if err := nsi.addAppProtectPolicyHandler(createAppProtectPolicyHandlers(lbc)); err != nil {
+			return fmt.Errorf("failed to add app protect policy handler for namespace %s: %w", ns, err)
+		}
+		if err := nsi.addAppProtectLogConfHandler(createAppProtectLogConfHandlers(lbc)); err != nil {
+			return fmt.Errorf("failed to add app protect log conf handler for namespace %s: %w", ns, err)
+		}
+		if err := nsi.addAppProtectUserSigHandler(createAppProtectUserSigHandlers(lbc)); err != nil {
+			return fmt.Errorf("failed to add app protect user sig handler for namespace %s: %w", ns, err)
+		}
+	}
+	if lbc.appProtectDosEnabled {
+		nsi.appProtectDosEnabled = true
+		if err := nsi.addAppProtectDosPolicyHandler(createAppProtectDosPolicyHandlers(lbc)); err != nil {
+			return fmt.Errorf("failed to add app protect dos policy handler for namespace %s: %w", ns, err)
+		}
+		if err := nsi.addAppProtectDosLogConfHandler(createAppProtectDosLogConfHandlers(lbc)); err != nil {
+			return fmt.Errorf("failed to add app protect dos log conf handler for namespace %s: %w", ns, err)
+		}
+		if err := nsi.addAppProtectDosProtectedResourceHandler(createAppProtectDosProtectedResourceHandlers(lbc)); err != nil {
+			return fmt.Errorf("failed to add app protect dos protected resource handler for namespace %s: %w", ns, err)
+		}
+	}
+	return nil
 }
 
 // AddSyncQueue enqueues the provided item on the sync queue
