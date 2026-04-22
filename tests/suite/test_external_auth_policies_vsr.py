@@ -2,6 +2,7 @@ import pytest
 import requests
 from kubernetes.client.rest import ApiException
 from settings import TEST_DATA
+from suite.utils.custom_assertions import assert_valid_vsr, assert_vsr_status
 from suite.utils.external_auth_utils import (
     ext_auth_backend_src,
     ext_auth_pol_invalid_src,
@@ -31,7 +32,7 @@ from suite.utils.resources_utils import (
     ensure_response_from_backend,
     wait_before_test,
 )
-from suite.utils.vs_vsr_resources_utils import patch_v_s_route_from_yaml, patch_virtual_server_from_yaml, read_vsr
+from suite.utils.vs_vsr_resources_utils import patch_v_s_route_from_yaml, patch_virtual_server_from_yaml
 
 std_vs_src = f"{TEST_DATA}/virtual-server-route/standard/virtual-server.yaml"
 std_vsr_src = f"{TEST_DATA}/virtual-server-route/route-multiple.yaml"
@@ -176,13 +177,12 @@ class TestExternalAuthPoliciesVsr:
         print(resp.status_code)
 
         policy_info = read_policy(kube_apis.custom_objects, v_s_route_setup.route_m.namespace, policy_names[0])
-        crd_info = read_vsr(kube_apis.custom_objects, v_s_route_setup.route_m.namespace, v_s_route_setup.route_m.name)
+        assert_valid_vsr(kube_apis, v_s_route_setup.route_m.namespace, v_s_route_setup.route_m.name)
 
         self.teardown(kube_apis, v_s_route_setup.route_m.namespace, secret_names, policy_names, v_s_route_setup)
 
         assert resp.status_code == 200
         assert "Request ID:" in resp.text
-        assert crd_info["status"]["state"] == "Valid"
         assert (
             policy_info["status"]
             and policy_info["status"]["reason"] == "AddedOrUpdated"
@@ -242,13 +242,12 @@ class TestExternalAuthPoliciesVsr:
         resp = requests.get(f"{req_url}{v_s_route_setup.route_m.paths[0]}", headers=headers)
         print(resp.status_code)
 
-        crd_info = read_vsr(kube_apis.custom_objects, v_s_route_setup.route_m.namespace, v_s_route_setup.route_m.name)
+        assert_vsr_status(kube_apis, v_s_route_setup.route_m.namespace, v_s_route_setup.route_m.name, "Warning")
 
         self.teardown(kube_apis, v_s_route_setup.route_m.namespace, secret_names, policy_names, v_s_route_setup)
 
         assert resp.status_code == 500
         assert "Internal Server Error" in resp.text
-        assert crd_info["status"]["state"] == "Warning"
 
     def test_external_auth_policy_delete_policy(
         self,
@@ -293,7 +292,13 @@ class TestExternalAuthPoliciesVsr:
         resp2 = requests.get(f"{req_url}{v_s_route_setup.route_m.paths[0]}", headers=headers)
         print(resp2.status_code)
 
-        crd_info = read_vsr(kube_apis.custom_objects, v_s_route_setup.route_m.namespace, v_s_route_setup.route_m.name)
+        assert_vsr_status(
+            kube_apis,
+            v_s_route_setup.route_m.namespace,
+            v_s_route_setup.route_m.name,
+            "Warning",
+            expected_messages=[f"{v_s_route_setup.route_m.namespace}/{policy_names[0]} is missing"],
+        )
 
         delete_items_from_yaml(kube_apis, ext_auth_backend_src, v_s_route_setup.route_m.namespace)
         delete_secret(kube_apis.v1, secret_names[0], v_s_route_setup.route_m.namespace)
@@ -306,8 +311,6 @@ class TestExternalAuthPoliciesVsr:
 
         assert resp1.status_code == 200
         assert "Request ID:" in resp1.text
-        assert crd_info["status"]["state"] == "Warning"
-        assert f"{v_s_route_setup.route_m.namespace}/{policy_names[0]} is missing" in crd_info["status"]["message"]
         assert resp2.status_code == 500
         assert "Internal Server Error" in resp2.text
 
@@ -348,8 +351,6 @@ class TestExternalAuthPoliciesVsr:
 
         resp = requests.get(f"{req_url}{v_s_route_setup.route_m.paths[0]}", headers=headers)
         print(resp.status_code)
-
-        read_vsr(kube_apis.custom_objects, v_s_route_setup.route_m.namespace, v_s_route_setup.route_m.name)
 
         delete_policy(kube_apis.custom_objects, policy_names[0], v_s_route_setup.route_m.namespace)
         delete_policy(kube_apis.custom_objects, policy_names[1], v_s_route_setup.route_m.namespace)
@@ -561,13 +562,12 @@ class TestExternalAuthPoliciesVsrTLS:
         print(f"Status: {resp.status_code}")
 
         policy_info = read_policy(kube_apis.custom_objects, v_s_route_setup.route_m.namespace, policy_names[0])
-        crd_info = read_vsr(kube_apis.custom_objects, v_s_route_setup.route_m.namespace, v_s_route_setup.route_m.name)
+        assert_valid_vsr(kube_apis, v_s_route_setup.route_m.namespace, v_s_route_setup.route_m.name)
 
         self.teardown(kube_apis, v_s_route_setup.route_m.namespace, secret_names, policy_names, v_s_route_setup)
 
         assert resp.status_code == 200
         assert "Request ID:" in resp.text
-        assert crd_info["status"]["state"] == "Valid"
         assert (
             policy_info["status"]
             and policy_info["status"]["reason"] == "AddedOrUpdated"
@@ -659,13 +659,11 @@ class TestExternalAuthPoliciesVsrTLS:
         resp = requests.get(f"{req_url}{v_s_route_setup.route_m.paths[0]}", headers=headers)
         print(f"Status: {resp.status_code}")
 
-        crd_info = read_vsr(kube_apis.custom_objects, v_s_route_setup.route_m.namespace, v_s_route_setup.route_m.name)
-        print(f"VSR state: {crd_info['status']['state']}")
+        assert_vsr_status(kube_apis, v_s_route_setup.route_m.namespace, v_s_route_setup.route_m.name, "Warning")
 
         self.teardown(kube_apis, v_s_route_setup.route_m.namespace, secret_names, policy_names, v_s_route_setup)
 
         assert resp.status_code == 500
-        assert crd_info["status"]["state"] == "Warning"
 
     def test_tls_wrong_ca_secret_type(
         self,
@@ -705,14 +703,12 @@ class TestExternalAuthPoliciesVsrTLS:
         resp = requests.get(f"{req_url}{v_s_route_setup.route_m.paths[0]}", headers=headers)
         print(f"Status: {resp.status_code}")
 
-        crd_info = read_vsr(kube_apis.custom_objects, v_s_route_setup.route_m.namespace, v_s_route_setup.route_m.name)
-        print(f"VSR state: {crd_info['status']['state']}")
+        assert_vsr_status(kube_apis, v_s_route_setup.route_m.namespace, v_s_route_setup.route_m.name, "Warning")
 
         delete_secret(kube_apis.v1, wrong_secret, v_s_route_setup.route_m.namespace)
         self.teardown(kube_apis, v_s_route_setup.route_m.namespace, secret_names, policy_names, v_s_route_setup)
 
         assert resp.status_code == 500
-        assert crd_info["status"]["state"] == "Warning"
 
     # ------------------------------------------------------------------
     # Runtime TLS failure tests (VS Valid, HTTP 500 via auth_request)
@@ -751,13 +747,11 @@ class TestExternalAuthPoliciesVsrTLS:
         resp = requests.get(f"{req_url}{v_s_route_setup.route_m.paths[0]}", headers=headers)
         print(f"Status: {resp.status_code}")
 
-        crd_info = read_vsr(kube_apis.custom_objects, v_s_route_setup.route_m.namespace, v_s_route_setup.route_m.name)
-        print(f"VSR state: {crd_info['status']['state']}")
+        assert_valid_vsr(kube_apis, v_s_route_setup.route_m.namespace, v_s_route_setup.route_m.name)
 
         self.teardown(kube_apis, v_s_route_setup.route_m.namespace, secret_names, policy_names, v_s_route_setup)
 
         assert resp.status_code == 500
-        assert crd_info["status"]["state"] == "Valid"
 
     def test_tls_verify_no_trusted_cert(
         self,
@@ -792,13 +786,11 @@ class TestExternalAuthPoliciesVsrTLS:
         resp = requests.get(f"{req_url}{v_s_route_setup.route_m.paths[0]}", headers=headers)
         print(f"Status: {resp.status_code}")
 
-        crd_info = read_vsr(kube_apis.custom_objects, v_s_route_setup.route_m.namespace, v_s_route_setup.route_m.name)
-        print(f"VSR state: {crd_info['status']['state']}")
+        assert_valid_vsr(kube_apis, v_s_route_setup.route_m.namespace, v_s_route_setup.route_m.name)
 
         self.teardown(kube_apis, v_s_route_setup.route_m.namespace, secret_names, policy_names, v_s_route_setup)
 
         assert resp.status_code == 500
-        assert crd_info["status"]["state"] == "Valid"
 
     # ------------------------------------------------------------------
     # Lifecycle / destructive tests
@@ -847,7 +839,13 @@ class TestExternalAuthPoliciesVsrTLS:
         resp2 = requests.get(f"{req_url}{v_s_route_setup.route_m.paths[0]}", headers=headers)
         print(f"After delete: {resp2.status_code}")
 
-        crd_info = read_vsr(kube_apis.custom_objects, v_s_route_setup.route_m.namespace, v_s_route_setup.route_m.name)
+        assert_vsr_status(
+            kube_apis,
+            v_s_route_setup.route_m.namespace,
+            v_s_route_setup.route_m.name,
+            "Warning",
+            expected_messages=[f"{v_s_route_setup.route_m.namespace}/{policy_names[0]} is missing"],
+        )
 
         delete_items_from_yaml(kube_apis, ext_auth_tls_backend_src, v_s_route_setup.route_m.namespace)
         delete_secret(kube_apis.v1, secret_names[0], v_s_route_setup.route_m.namespace)
@@ -862,8 +860,6 @@ class TestExternalAuthPoliciesVsrTLS:
 
         assert resp1.status_code == 200
         assert "Request ID:" in resp1.text
-        assert crd_info["status"]["state"] == "Warning"
-        assert f"{v_s_route_setup.route_m.namespace}/{policy_names[0]} is missing" in crd_info["status"]["message"]
         assert resp2.status_code == 500
 
     def test_tls_delete_backend(
