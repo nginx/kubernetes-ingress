@@ -82,9 +82,7 @@ def mixed_resources_setup(
     wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
 
     # GlobalConfiguration for TS listeners
-    gc_resource = create_gc_from_yaml(
-        kube_apis.custom_objects, GC_YAML, ingress_controller_prerequisites.namespace
-    )
+    gc_resource = create_gc_from_yaml(kube_apis.custom_objects, GC_YAML, ingress_controller_prerequisites.namespace)
 
     # --- Create Ingresses (5 HTTP + 5 HTTPS) ---
     created_ingresses = []
@@ -210,9 +208,12 @@ class TestConfigSafetyStartupMixed:
             wait_before_test()
 
         # Scale back to 1 — cold start with all resources pre-existing
-        assert scale_deployment(
-            kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ingress_controller_prerequisites.namespace, 1
-        ) is None
+        assert (
+            scale_deployment(
+                kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ingress_controller_prerequisites.namespace, 1
+            )
+            is None
+        )
 
         # Wait for metrics to be available (pod must be ready)
         wait_before_test(10)
@@ -221,11 +222,14 @@ class TestConfigSafetyStartupMixed:
         )
 
         # Verify configVersion == 1
-        assert get_config_version(
-            kube_apis.v1,
-            get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace),
-            ingress_controller_prerequisites.namespace,
-        ) == 1
+        assert (
+            get_config_version(
+                kube_apis.v1,
+                get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace),
+                ingress_controller_prerequisites.namespace,
+            )
+            == 1
+        )
 
         # Verify all resources registered and reload was successful
         assert get_last_reload_status(metrics_url, "nginx") == "1", "Last reload was not successful"
@@ -318,9 +322,12 @@ class TestConfigSafetyStartupAppProtect:
             print("Number of replicas not 0, retrying...")
             wait_before_test()
 
-        assert scale_deployment(
-            kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ingress_controller_prerequisites.namespace, 1
-        ) is None
+        assert (
+            scale_deployment(
+                kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ingress_controller_prerequisites.namespace, 1
+            )
+            is None
+        )
 
         # AP needs extra time to initialize
         wait_before_test(30)
@@ -328,11 +335,14 @@ class TestConfigSafetyStartupAppProtect:
             f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.metrics_port}/metrics"
         )
 
-        assert get_config_version(
-            kube_apis.v1,
-            get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace),
-            ingress_controller_prerequisites.namespace,
-        ) == 1
+        assert (
+            get_config_version(
+                kube_apis.v1,
+                get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace),
+                ingress_controller_prerequisites.namespace,
+            )
+            == 1
+        )
 
         assert get_last_reload_status(metrics_url, "nginx") == "1", "Last reload was not successful"
         assert get_total_ingresses(metrics_url, "nginx") == "10", "Expected 10 AP Ingresses"
