@@ -1380,6 +1380,15 @@ func (cnf *Configurator) DisableReloads() {
 	cnf.isReloadsEnabled = false
 }
 
+// EnableBatchMode enables batch mode on the underlying ConfigRollbackManager, if config safety is active.
+// In batch mode, CreateConfig/CreateStreamConfig writes are deferred from per-file nginx -t validation.
+// This is used during initial startup to avoid O(n²) validation cost.
+func (cnf *Configurator) EnableBatchMode() {
+	if rm, ok := cnf.nginxManager.(*nginx.ConfigRollbackManager); ok {
+		rm.EnableBatchMode()
+	}
+}
+
 // Reload reloads nginx if reloads is enabled
 func (cnf *Configurator) Reload(isEndpointsUpdate bool) error {
 	if !cnf.isReloadsEnabled {
@@ -1412,7 +1421,7 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 	allWarnings := newWarnings()
 	allWeightUpdates := []WeightUpdate{}
 	resourceErrors := make(ResourceErrors)
-	_, isRollbackManager := cnf.nginxManager.(*nginx.ConfigRollbackManager)
+	rollbackMgr, isRollbackManager := cnf.nginxManager.(*nginx.ConfigRollbackManager)
 
 	if cnf.CfgParams.MainServerSSLDHParamFileContent != nil {
 		fileName, err := cnf.nginxManager.CreateDHParam(*cnf.CfgParams.MainServerSSLDHParamFileContent)
@@ -1477,55 +1486,22 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 		}
 	}
 
-	for _, ingEx := range resources.IngressExes {
-		_, warnings, err := cnf.addOrUpdateIngress(ingEx)
-		if err != nil {
-			if isRollbackManager {
-				key := MakeResourceErrorKey("Ingress", ingEx.Ingress.Namespace, ingEx.Ingress.Name)
-				resourceErrors[key] = fmt.Errorf("error when updating config from ConfigMap: %w", err)
-				continue
-			}
-			return allWarnings, nil, err
-		}
-		allWarnings.Add(warnings)
-	}
-	for _, mergeableIng := range resources.MergeableIngresses {
-		_, warnings, err := cnf.addOrUpdateMergeableIngress(mergeableIng)
-		if err != nil {
-			if isRollbackManager {
-				key := MakeResourceErrorKey("Ingress", mergeableIng.Master.Ingress.Namespace, mergeableIng.Master.Ingress.Name)
-				resourceErrors[key] = fmt.Errorf("error when updating config from ConfigMap: %w", err)
-				continue
-			}
-			return allWarnings, nil, err
-		}
-		allWarnings.Add(warnings)
-	}
-	for _, vsEx := range resources.VirtualServerExes {
-		_, warnings, weightUpdates, err := cnf.addOrUpdateVirtualServer(vsEx)
-		if err != nil {
-			if isRollbackManager {
-				key := MakeResourceErrorKey("VirtualServer", vsEx.VirtualServer.Namespace, vsEx.VirtualServer.Name)
-				resourceErrors[key] = fmt.Errorf("error when updating config from ConfigMap: %w", err)
-				continue
-			}
-			return allWarnings, nil, err
-		}
-		allWarnings.Add(warnings)
-		allWeightUpdates = append(allWeightUpdates, weightUpdates...)
+	// When using config safety, enable batch mode: write all configs without per-file nginx -t,
+	// then validate everything with a single test. On failure, fall back to per-file validation.
+	if isRollbackManager {
+		rollbackMgr.EnableBatchMode()
 	}
 
-	for _, tsEx := range resources.TransportServerExes {
-		_, warnings, err := cnf.addOrUpdateTransportServer(tsEx)
-		if err != nil {
-			if isRollbackManager {
-				key := MakeResourceErrorKey("TransportServer", tsEx.TransportServer.Namespace, tsEx.TransportServer.Name)
-				resourceErrors[key] = fmt.Errorf("error when updating config from ConfigMap: %w", err)
-				continue
-			}
-			return allWarnings, nil, err
+	allWarnings, allWeightUpdates, resourceErrors = cnf.updateConfigResources(resources, isRollbackManager)
+
+	if isRollbackManager {
+		if batchErr := rollbackMgr.CompleteBatch(); batchErr != nil {
+			// Batch validation failed — backups are already restored.
+			// Fall back to per-file validation for full safety.
+			l := nl.LoggerFromContext(cnf.CfgParams.Context)
+			nl.Warnf(l, "Batch config validation failed (%v), falling back to per-file validation", batchErr)
+			allWarnings, allWeightUpdates, resourceErrors = cnf.updateConfigResources(resources, true)
 		}
-		allWarnings.Add(warnings)
 	}
 
 	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
@@ -1541,6 +1517,64 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 	}
 
 	return allWarnings, nil, nil
+}
+
+// updateConfigResources processes all resource types (Ingress, MergeableIngress, VirtualServer,
+// TransportServer) by generating and writing their NGINX configs. When continueOnError is true
+// (config safety mode), errors are collected in ResourceErrors and processing continues.
+func (cnf *Configurator) updateConfigResources(resources ExtendedResources, continueOnError bool) (Warnings, []WeightUpdate, ResourceErrors) {
+	allWarnings := newWarnings()
+	allWeightUpdates := []WeightUpdate{}
+	resourceErrors := make(ResourceErrors)
+
+	for _, ingEx := range resources.IngressExes {
+		_, warnings, err := cnf.addOrUpdateIngress(ingEx)
+		if err != nil {
+			if continueOnError {
+				key := MakeResourceErrorKey("Ingress", ingEx.Ingress.Namespace, ingEx.Ingress.Name)
+				resourceErrors[key] = fmt.Errorf("error when updating config from ConfigMap: %w", err)
+				continue
+			}
+		}
+		allWarnings.Add(warnings)
+	}
+	for _, mergeableIng := range resources.MergeableIngresses {
+		_, warnings, err := cnf.addOrUpdateMergeableIngress(mergeableIng)
+		if err != nil {
+			if continueOnError {
+				key := MakeResourceErrorKey("Ingress", mergeableIng.Master.Ingress.Namespace, mergeableIng.Master.Ingress.Name)
+				resourceErrors[key] = fmt.Errorf("error when updating config from ConfigMap: %w", err)
+				continue
+			}
+		}
+		allWarnings.Add(warnings)
+	}
+	for _, vsEx := range resources.VirtualServerExes {
+		_, warnings, weightUpdates, err := cnf.addOrUpdateVirtualServer(vsEx)
+		if err != nil {
+			if continueOnError {
+				key := MakeResourceErrorKey("VirtualServer", vsEx.VirtualServer.Namespace, vsEx.VirtualServer.Name)
+				resourceErrors[key] = fmt.Errorf("error when updating config from ConfigMap: %w", err)
+				continue
+			}
+		}
+		allWarnings.Add(warnings)
+		allWeightUpdates = append(allWeightUpdates, weightUpdates...)
+	}
+
+	for _, tsEx := range resources.TransportServerExes {
+		_, warnings, err := cnf.addOrUpdateTransportServer(tsEx)
+		if err != nil {
+			if continueOnError {
+				key := MakeResourceErrorKey("TransportServer", tsEx.TransportServer.Namespace, tsEx.TransportServer.Name)
+				resourceErrors[key] = fmt.Errorf("error when updating config from ConfigMap: %w", err)
+				continue
+			}
+		}
+		allWarnings.Add(warnings)
+	}
+
+	return allWarnings, allWeightUpdates, resourceErrors
 }
 
 // ReloadForBatchUpdates reloads NGINX after a batch event.

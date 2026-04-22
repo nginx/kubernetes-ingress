@@ -680,6 +680,11 @@ func (lbc *LoadBalancerController) Run() {
 
 	lbc.preSyncSecrets()
 
+	// Enable batch mode during initial startup to skip per-file nginx -t validation.
+	// Each ingress sync will write its config without validation. When the queue drains,
+	// updateAllConfigs() will re-validate everything with a single nginx -t.
+	lbc.configurator.EnableBatchMode()
+
 	nl.Debugf(lbc.Logger, "Starting the queue with %d initial elements", lbc.syncQueue.Len())
 
 	go lbc.syncQueue.Run(time.Second, lbc.ctx.Done())
