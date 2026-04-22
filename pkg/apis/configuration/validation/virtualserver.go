@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/dlclark/regexp2"
 	"github.com/nginx/kubernetes-ingress/internal/configs"
@@ -1360,7 +1361,7 @@ func NormalizePath(path string) string {
 	// ~* must appear before ~ in this slice since ~* starts with ~
 	for _, mod := range []string{PathModifierRegexIC, PathModifierRegex, PathModifierLongestPrefix, PathModifierExact} {
 		if strings.HasPrefix(path, mod) {
-			return mod + strings.TrimLeft(strings.TrimPrefix(path, mod), " ")
+			return mod + strings.TrimLeftFunc(strings.TrimPrefix(path, mod), unicode.IsSpace)
 		}
 	}
 	return path
