@@ -46,17 +46,48 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: Deploy Kubernetes
+    - name: Install k3d
+      run: |
+        curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+        k3d --version
+      shell: bash
+
+    - name: Deploy Kubernetes (k3d)
       id: k8s
       run: |
-        make -f tests/Makefile create-kind-cluster K8S_CLUSTER_NAME=${{ github.run_id }} K8S_CLUSTER_VERSION=v${{ inputs.k8s-version }} K8S_TIMEOUT=${{ inputs.k8s-timeout }}
-        make -f tests/Makefile image-load REGISTRY="" PREFIX=${{ inputs.image-name }} TAG=${{ inputs.tag }} K8S_CLUSTER_NAME=${{ github.run_id }}
+        # create k3d cluster with default resources like KIND/Minikube
+        k3d cluster create ${{ github.run_id }} --wait \
+          --servers 1 --agents 0 \
+          --servers-memory 4g \
+          --k3s-arg "--disable=traefik@server:*"
+
+        kubectl wait --for=condition=Ready nodes --all --timeout=120s --kubeconfig ~/.kube/config
+        docker save ${{ inputs.image-name }}:${{ inputs.tag }} | \
+          docker exec --privileged -i k3d-${{ github.run_id }}-server-0 \
+            ctr --namespace=k8s.io images import -
         label="${{ inputs.label }}"
         nospaces="${label// /_}"
         noslash="${nospaces//\//_}"
         sanitized_marker="${noslash//\'/}"
         name="${sanitized_marker}-${{ inputs.k8s-version }}"
-        cluster_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${{ github.run_id }}-control-plane)
+
+        # server container for k3d cluster
+        cluster_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' k3d-${{ github.run_id }}-server-0)
+
+        # validate network and cluster IP
+        if [ -z "$cluster_ip" ]; then
+          echo "Error: Could not get cluster IP from k3d-${{ github.run_id }}-server-0"
+          docker ps --filter name=k3d-${{ github.run_id }}
+          exit 1
+        fi
+
+        # verify k3d network exists
+        if ! docker network inspect k3d-${{ github.run_id }} > /dev/null 2>&1; then
+          echo "Error: k3d network k3d-${{ github.run_id }} not found"
+          docker network ls
+          exit 1
+        fi
+
         test_name=tests-nginx-${{ inputs.image-type }}-${name}.html
         test_output_path=${{ github.workspace }}/tests/${test_name}
         echo "cluster_ip=${cluster_ip}" >> $GITHUB_OUTPUT
@@ -67,9 +98,13 @@ runs:
         echo "  test_output_path=${test_output_path}"
       shell: bash
 
-    - name: Setup Kubeconfig
+    - name: Setup Kubeconfig (k3d)
       run: |
-        sed -i 's|server:.*|server: https://${{ steps.k8s.outputs.cluster_ip }}:6443|' ~/.kube/kind/config
+        mkdir -p ~/.kube/k3d
+        k3d kubeconfig get ${{ github.run_id }} > ~/.kube/k3d/config
+        sed -i "s|server: https://0.0.0.0:[0-9]*|server: https://${{ steps.k8s.outputs.cluster_ip }}:6443|g" ~/.kube/k3d/config
+        echo "Updated kubeconfig server to use cluster IP:"
+        grep "server:" ~/.kube/k3d/config
       shell: bash
 
     - name: Run Smoke Tests
@@ -78,7 +113,7 @@ runs:
         touch ${{ steps.k8s.outputs.test_output_path }}
         docker run --rm \
         --name test-runner-${{ github.run_id }} \
-        --network=kind \
+        --network=k3d-${{ github.run_id }} \
         -v "/var/run/docker.sock:/var/run/docker.sock" \
         -v ~/.docker:/root/.docker \
         -v ${{ github.workspace }}/tests:/workspace/tests \
@@ -88,10 +123,10 @@ runs:
         -v ${{ github.workspace }}/config:/workspace/config \
         -v ${{ github.workspace }}/pyproject.toml:/workspace/pyproject.toml \
         -v ${{ steps.k8s.outputs.test_output_path }}:${{ steps.k8s.outputs.test_output_path }} \
-        -v ~/.kube/kind/config:/root/.kube/config ${{ inputs.test-image }} \
+        -v ~/.kube/k3d/config:/root/.kube/config ${{ inputs.test-image }} \
         --docker-registry-user=oauth2accesstoken \
         --docker-registry-token=${{ inputs.registry-token }} \
-        --context=kind-${{ github.run_id }} \
+        --context=k3d-${{ github.run_id }} \
         --image=${{ inputs.image-name }}:${{ inputs.tag }} \
         --image-pull-policy=Never \
         --ic-type=nginx${{ contains(inputs.image-type, 'plus') && '-plus' || '' }}-ingress \
