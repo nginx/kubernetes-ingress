@@ -44,6 +44,7 @@ ext_auth_vs_tls_multi_2_src = f"{TEST_DATA}/external-auth/spec/virtual-server-po
 
 @pytest.mark.policies
 @pytest.mark.policies_external_auth
+@pytest.mark.policies_external_auth_tls
 @pytest.mark.policies_external_auth_vs
 @pytest.mark.policies_external_auth_tls_vs
 @pytest.mark.parametrize(
