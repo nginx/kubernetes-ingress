@@ -3910,7 +3910,6 @@ func TestValidateRedirectStatusCodeFails(t *testing.T) {
 	}
 }
 
-
 func TestValidateEscapedStringWithVariables(t *testing.T) {
 	t.Parallel()
 	specialVariables := []string{"http_"}
