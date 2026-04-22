@@ -1204,16 +1204,17 @@ func (cnf *Configurator) UpdateEndpointsMergeableIngress(mergeableIngresses []*M
 }
 
 // UpdateEndpointsForVirtualServers updates endpoints in NGINX configuration for the VirtualServer resources.
-func (cnf *Configurator) UpdateEndpointsForVirtualServers(virtualServerExes []*VirtualServerEx) error {
+func (cnf *Configurator) UpdateEndpointsForVirtualServers(virtualServerExes []*VirtualServerEx) (Warnings, error) {
 	l := nl.LoggerFromContext(cnf.CfgParams.Context)
 	reloadPlus := false
+	allWarnings := newWarnings()
 
 	for _, vs := range virtualServerExes {
-		// It is safe to ignore warnings here as no new warnings should appear when updating Endpoints for VirtualServers
-		_, _, _, err := cnf.addOrUpdateVirtualServer(vs)
+		_, warnings, _, err := cnf.addOrUpdateVirtualServer(vs)
 		if err != nil {
-			return fmt.Errorf("error adding or updating VirtualServer %v/%v: %w", vs.VirtualServer.Namespace, vs.VirtualServer.Name, err)
+			return allWarnings, fmt.Errorf("error adding or updating VirtualServer %v/%v: %w", vs.VirtualServer.Namespace, vs.VirtualServer.Name, err)
 		}
+		allWarnings.Add(warnings)
 
 		if cnf.isPlus {
 			err := cnf.updatePlusEndpointsForVirtualServer(vs)
@@ -1226,14 +1227,14 @@ func (cnf *Configurator) UpdateEndpointsForVirtualServers(virtualServerExes []*V
 
 	if cnf.isPlus && !reloadPlus {
 		nl.Debug(l, "No need to reload nginx")
-		return nil
+		return allWarnings, nil
 	}
 
 	if err := cnf.Reload(nginx.ReloadForEndpointsUpdate); err != nil {
-		return fmt.Errorf("error reloading NGINX when updating endpoints: %w", err)
+		return allWarnings, fmt.Errorf("error reloading NGINX when updating endpoints: %w", err)
 	}
 
-	return nil
+	return allWarnings, nil
 }
 
 func (cnf *Configurator) updatePlusEndpointsForVirtualServer(virtualServerEx *VirtualServerEx) error {
@@ -1249,7 +1250,44 @@ func (cnf *Configurator) updatePlusEndpointsForVirtualServer(virtualServerEx *Vi
 		}
 	}
 
+	// Update external auth upstreams via the Plus API.
+	// These are generated from policies referenced by the VirtualServer
+	// and are not part of the VirtualServer spec upstreams, so they need separate handling.
+	for _, pol := range virtualServerEx.Policies {
+		if pol.Spec.ExternalAuth == nil || pol.Spec.ExternalAuth.AuthServiceName == "" {
+			continue
+		}
+		exAuth := pol.Spec.ExternalAuth
+		upstreamName := fmt.Sprintf("vs_exauth_%s_%s", pol.Namespace, pol.Name)
+		port := getExternalAuthPort(exAuth)
+		ns, svcName := ParseServiceReference(exAuth.AuthServiceName, pol.Namespace)
+		endpointKey := fmt.Sprintf("%s/%s:%d", ns, svcName, port)
+		if endps, exists := virtualServerEx.Endpoints[endpointKey]; exists {
+			cfg := nginx.ServerConfig{
+				MaxFails:    1,
+				MaxConns:    0,
+				FailTimeout: "10s",
+			}
+			err := cnf.updateServersInPlus(upstreamName, endps, cfg)
+			if err != nil {
+				return fmt.Errorf("couldn't update the endpoints for external auth upstream %v: %w", upstreamName, err)
+			}
+		}
+	}
+
 	return nil
+}
+
+// getExternalAuthPort returns the port for the external auth service.
+// It checks AuthServicePorts first, then falls back to 443 (SSL) or 80.
+func getExternalAuthPort(exAuth *conf_v1.ExternalAuth) int {
+	if len(exAuth.AuthServicePorts) > 0 && exAuth.AuthServicePorts[0] > 0 {
+		return exAuth.AuthServicePorts[0]
+	}
+	if exAuth.SSLEnabled {
+		return 443
+	}
+	return 80
 }
 
 // UpdateEndpointsForTransportServers updates endpoints in NGINX configuration for the TransportServer resources.
@@ -1371,18 +1409,6 @@ func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx) error {
 	}
 
 	return nil
-}
-
-// getExternalAuthPort returns the port for the external auth service.
-// It checks AuthServicePorts first, then falls back to 443 (SSL) or 80.
-func getExternalAuthPort(exAuth *conf_v1.ExternalAuth) int {
-	if len(exAuth.AuthServicePorts) > 0 && exAuth.AuthServicePorts[0] > 0 {
-		return exAuth.AuthServicePorts[0]
-	}
-	if exAuth.SSLEnabled {
-		return 443
-	}
-	return 80
 }
 
 // EnableReloads enables NGINX reloads meaning that configuration changes will be followed by a reload.

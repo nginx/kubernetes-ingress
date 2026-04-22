@@ -120,10 +120,11 @@ func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
 				if lbc.virtualServerRequiresEndpointsUpdate(vsEx, svcName) {
 					resourcesFound = true
 					nl.Debugf(lbc.Logger, "Updating EndpointSlices for %v", resourceExes.VirtualServerExes)
-					err := lbc.configurator.UpdateEndpointsForVirtualServers(resourceExes.VirtualServerExes)
+					cfgWarnings, err := lbc.configurator.UpdateEndpointsForVirtualServers(resourceExes.VirtualServerExes)
 					if err != nil {
 						nl.Errorf(lbc.Logger, "Error updating EndpointSlices for %v: %v", resourceExes.VirtualServerExes, err)
 					}
+					lbc.updateEndpointSliceWarningState(svcResource, resourceExes, cfgWarnings)
 					break
 				}
 			}

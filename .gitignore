@@ -104,6 +104,8 @@ examples/ingress-resources/session-persistence/cafe-secret.yaml
 examples/custom-resources/basic-configuration-vsr/cafe-secret.yaml
 examples/ingress-resources/external-auth/tls-secret.yaml
 examples/ingress-resources/external-auth-mergeable/tls-secret.yaml
+examples/custom-resources/external-auth/tls-secret.yaml
+examples/custom-resources/external-auth-oauth2/tls-secret.yaml
 examples/custom-resources/vsr-route-selector-policies/cafe-secret.yaml
 tests/data/dos/tls-secret.yaml
 tests/data/hsts/mergeable-tls/tls-secret.yaml
@@ -201,10 +203,14 @@ common-secrets/external-auth-server-tls-secret.yaml
 common-secrets/external-auth-ca-secret-crl.yaml
 examples/ingress-resources/external-auth-mergeable/external-auth-ca-secret.yaml
 examples/ingress-resources/external-auth-mergeable/external-auth-ca-secret-crl.yaml
+examples/custom-resources/external-auth-oauth2/external-auth-ca-secret.yaml
+examples/custom-resources/external-auth-oauth2/external-auth-ca-secret-crl.yaml
 tests/data/external-auth/backend/external-auth-ca-secret.yaml
 tests/data/external-auth/backend/external-auth-ca-secret-crl.yaml
 examples/ingress-resources/external-auth/external-auth-server-tls-secret.yaml
 examples/ingress-resources/external-auth-mergeable/external-auth-server-tls-secret.yaml
+examples/custom-resources/external-auth/external-auth-server-tls-secret.yaml
+examples/custom-resources/external-auth-oauth2/external-auth-server-tls-secret.yaml
 tests/data/external-auth/backend/external-auth-server-tls-secret.yaml
 
 # TLS Certificate secrets
@@ -234,6 +240,8 @@ tests/data/auth-basic-secrets/auth-basic-secret-invalid.yaml
 common-secrets/htpasswd-secret-external-auth.yaml
 examples/ingress-resources/external-auth/htpasswd-secret.yaml
 examples/ingress-resources/external-auth-mergeable/htpasswd-secret.yaml
+examples/custom-resources/external-auth/htpasswd-secret.yaml
+examples/custom-resources/external-auth-oauth2/htpasswd-secret.yaml
 tests/data/external-auth/backend/htpasswd-secret.yaml
 
 # Jwks secrets

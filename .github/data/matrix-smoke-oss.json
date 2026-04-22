@@ -36,45 +36,59 @@
       "platforms": "linux/arm64, linux/amd64"
     },
     {
-      "label": "policies 1/6",
+      "label": "policies 1/8",
       "image": "alpine",
       "type": "oss",
       "marker": "'policies and not policies_rl and not policies_ac and not policies_jwt and not policies_mtls and not policies_cache and not policies_cors and not policies_external_auth'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
-      "label": "policies 2/6",
+      "label": "policies 2/8",
       "image": "alpine",
       "type": "oss",
       "marker": "'policies_ac or policies_jwt'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
-      "label": "policies 3/6",
+      "label": "policies 3/8",
       "image": "alpine",
       "type": "oss",
       "marker": "'policies_rl or policies_cors'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
-      "label": "policies 4/6",
+      "label": "policies 4/8",
       "image": "alpine",
       "type": "oss",
       "marker": "'policies_mtls or policies_cache or otel'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
-      "label": "policies 5/6",
+      "label": "policies 5/8",
       "image": "alpine",
       "type": "oss",
-      "marker": "'policies_external_auth and not policies_external_auth_tls'",
+      "marker": "'policies_external_auth and not policies_external_auth_tls and not policies_external_auth_vs'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
-      "label": "policies 6/6",
+      "label": "policies 6/8",
       "image": "alpine",
       "type": "oss",
-      "marker": "'policies_external_auth_tls'",
+      "marker": "'policies_external_auth_vs and not policies_external_auth_tls'",
+      "platforms": "linux/arm64, linux/amd64"
+    },
+    {
+      "label": "policies 7/8",
+      "image": "alpine",
+      "type": "oss",
+      "marker": "'policies_external_auth_tls and not policies_external_auth_vs'",
+      "platforms": "linux/arm64, linux/amd64"
+    },
+    {
+      "label": "policies 8/8",
+      "image": "alpine",
+      "type": "oss",
+      "marker": "'policies_external_auth_tls and policies_external_auth_vs'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
