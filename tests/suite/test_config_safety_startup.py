@@ -287,12 +287,10 @@ class TestConfigSafetyStartupAppProtect:
                 doc["metadata"]["name"] = f"ap-ingress-{i}"
                 doc["spec"]["rules"][0]["host"] = f"ap-{i}.example.com"
                 doc["spec"]["tls"][0]["hosts"] = [f"ap-{i}.example.com"]
-                doc["metadata"]["annotations"]["appprotect.f5.com/app-protect-policy"] = (
-                    f"{test_namespace}/{pol_name}"
-                )
-                doc["metadata"]["annotations"]["appprotect.f5.com/app-protect-security-log"] = (
-                    f"{test_namespace}/{log_name}"
-                )
+                doc["metadata"]["annotations"]["appprotect.f5.com/app-protect-policy"] = f"{test_namespace}/{pol_name}"
+                doc["metadata"]["annotations"][
+                    "appprotect.f5.com/app-protect-security-log"
+                ] = f"{test_namespace}/{log_name}"
                 doc["metadata"]["annotations"][
                     "appprotect.f5.com/app-protect-security-log-destination"
                 ] = "syslog:server=127.0.0.1:514"
