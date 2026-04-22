@@ -2026,8 +2026,14 @@ func (c *Configuration) buildNonRegexVSRs(vs *conf_v1.VirtualServer) ([]*conf_v1
 			vsrs = append(vsrs, validVsrs...)
 			warnings = append(warnings, vsrWarnings...)
 			maps.Copy(vsrSelectors, selectors)
-			for _, vsr := range validVsrs {
-				nonRegexKeys[fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)] = true
+			// Only classify selector-matched VSRs as non-regex when the route path is
+			// genuinely non-regex. A regex routeSelector path (e.g. "~/api") must NOT
+			// add matched VSRs to nonRegexKeys, or rejectMixedTypeVSRs would incorrectly
+			// reject any VSR that is also referenced by an explicit regex route: field.
+			if !strings.HasPrefix(norm, validation.PathModifierRegex) {
+				for _, vsr := range validVsrs {
+					nonRegexKeys[fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)] = true
+				}
 			}
 		}
 	}

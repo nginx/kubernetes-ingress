@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -6407,4 +6408,124 @@ func TestVSRSelectorsCleanedUpAfterMixedTypeRejection(t *testing.T) {
 	if !found {
 		t.Errorf("expected mixed-type rejection warning, got warnings: %v", gotWarnings)
 	}
+}
+
+// TestBuildVirtualServerRoutesRegexSelector covers the routeSelector flow with regex VS paths.
+// It verifies two scenarios:
+//
+//  1. A regex routeSelector selects a VSR normally — the VSR should be returned without any
+//     mixed-type rejection (since the selector path is regex, the VSR must NOT be classified
+//     as "non-regex" in nonRegexKeys).
+//
+//  2. A regex routeSelector selects a VSR that is ALSO referenced by an explicit regex route:
+//     field on the same VS.  Before the fix, the selector would incorrectly add the VSR to
+//     nonRegexKeys, causing rejectMixedTypeVSRs to fire and discard it.  After the fix,
+//     no mixed-type warning is emitted; instead a duplicate-VSR warning fires (expected,
+//     because the same VSR now appears via two valid regex paths).
+func TestBuildVirtualServerRoutesRegexSelector(t *testing.T) {
+	t.Parallel()
+
+	const (
+		host      = "foo.example.com"
+		namespace = "default"
+		vsName    = "myvs"
+	)
+
+	makeReturn := func(path string) conf_v1.Route {
+		return conf_v1.Route{
+			Path: path,
+			Action: &conf_v1.Action{
+				Return: &conf_v1.ActionReturn{Body: "ok"},
+			},
+		}
+	}
+
+	// --- Scenario 1: regex routeSelector, no explicit regex route ---
+	// The VSR is matched purely by label selector on a regex VS path.
+	// Expected: 1 VSR returned, no warnings.
+	t.Run("regex routeSelector selects VSR without rejection", func(t *testing.T) {
+		t.Parallel()
+
+		vsr := createTestVirtualServerRouteWithLabels(
+			"regex-vsr", namespace, host, "~/api",
+			map[string]string{"app": "regex-app"},
+		)
+		vs := createTestVirtualServerWithRoutes(vsName, host, []conf_v1.Route{
+			{
+				Path: "~/api",
+				RouteSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{"app": "regex-app"},
+				},
+			},
+		})
+
+		cfg := createTestConfiguration()
+		cfg.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{
+			namespace + "/regex-vsr": vsr,
+		}
+
+		gotVSRs, _, gotWarnings := cfg.buildVirtualServerRoutes(vs)
+
+		if len(gotVSRs) != 1 {
+			t.Errorf("expected 1 VSR, got %d: %v", len(gotVSRs), gotVSRs)
+		}
+		for _, w := range gotWarnings {
+			if strings.Contains(w, "referenced by both regex and non-regex") {
+				t.Errorf("unexpected mixed-type rejection warning: %q", w)
+			}
+		}
+	})
+
+	// --- Scenario 2: regex routeSelector + explicit regex route: to the same VSR ---
+	// The same VSR is matched by a label selector (on a regex path) AND referenced
+	// by an explicit regex route: field.  This is a duplicate reference, but it must
+	// NOT trigger the mixed-type rejection warning — both references are regex.
+	// A duplicate-VSR warning is expected instead.
+	t.Run("regex routeSelector plus explicit regex route to same VSR emits duplicate not mixed-type warning", func(t *testing.T) {
+		t.Parallel()
+
+		vsr := createTestVirtualServerRouteWithLabels(
+			"regex-vsr", namespace, host, "~/api",
+			map[string]string{"app": "regex-app"},
+		)
+		vs := createTestVirtualServerWithRoutes(vsName, host, []conf_v1.Route{
+			{
+				// Regex routeSelector — before the fix this wrongly added regex-vsr to nonRegexKeys.
+				Path: "~/api",
+				RouteSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{"app": "regex-app"},
+				},
+			},
+			{
+				// Explicit regex route: to the same VSR.
+				Path:  "~/api",
+				Route: namespace + "/regex-vsr",
+			},
+		})
+		_ = makeReturn // suppress unused warning
+
+		cfg := createTestConfiguration()
+		cfg.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{
+			namespace + "/regex-vsr": vsr,
+		}
+
+		_, _, gotWarnings := cfg.buildVirtualServerRoutes(vs)
+
+		mixedTypeWarning := false
+		duplicateWarning := false
+		for _, w := range gotWarnings {
+			if strings.Contains(w, "referenced by both regex and non-regex") {
+				mixedTypeWarning = true
+			}
+			if strings.Contains(w, "has duplicate VirtualServerRoutes") {
+				duplicateWarning = true
+			}
+		}
+		if mixedTypeWarning {
+			t.Errorf("expected no mixed-type rejection warning after fix, got warnings: %v", gotWarnings)
+		}
+		if !duplicateWarning {
+			t.Errorf("expected a duplicate-VSR warning for the double reference, got warnings: %v", gotWarnings)
+		}
+	})
 }
